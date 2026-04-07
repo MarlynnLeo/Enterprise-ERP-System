@@ -177,6 +177,7 @@
             </template>
           </el-table-column>
           <el-table-column label="操作" min-width="400" fixed="right">
+            <template #default="scope">
               <div style="display: flex; gap: 5px; flex-wrap: wrap;">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
@@ -233,6 +234,7 @@
                   </template>
                 </el-popconfirm>
               </div>
+            </template>
           </el-table-column>
         </el-table>
       </div>
@@ -352,7 +354,7 @@
       
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'system:permissions:close'" @click="permissionDialogVisible = false">关闭</el-button>
+          <el-button @click="permissionDialogVisible = false">关闭</el-button>
           <el-button v-permission="'system:permissions:update'" type="primary" @click="saveRolePermission" :loading="permissionSaveLoading">保存权限</el-button>
         </span>
       </template>

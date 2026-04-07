@@ -320,7 +320,7 @@
       <el-empty v-else description="暂无作业指导书" />
       </div>
       <template #footer>
-        <el-button v-permission="'production:productionprocess:close'" @click="instructionDocsVisible = false">关闭</el-button>
+        <el-button @click="instructionDocsVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -352,7 +352,7 @@
       <el-empty v-else description="暂无作业指导书" />
       </div>
       <template #footer>
-        <el-button v-permission="'production:productionprocess:close'" @click="allInstructionDocsVisible = false">关闭</el-button>
+        <el-button @click="allInstructionDocsVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -417,7 +417,7 @@
       </div>
 
       <template #footer>
-        <el-button v-permission="'production:productionprocess:close'" @click="previewVisible = false">关闭</el-button>
+        <el-button @click="previewVisible = false">关闭</el-button>
         <el-button type="primary" @click="downloadFile">下载文件</el-button>
       </template>
     </el-dialog>

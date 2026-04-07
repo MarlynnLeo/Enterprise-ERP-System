@@ -75,7 +75,7 @@
       <el-empty v-else-if="!loading" description="暂无数据" />
     </div>
     <template #footer>
-      <el-button v-permission="'quality:incominginspection:close'" @click="dialogVisible = false">关闭</el-button>
+      <el-button @click="dialogVisible = false">关闭</el-button>
       <el-button v-if="inspection?.status === 'pending'" type="primary" @click="handleGoInspect">去检验</el-button>
     </template>
   </el-dialog>

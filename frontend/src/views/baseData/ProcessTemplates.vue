@@ -367,7 +367,7 @@
         </div>
       <template #footer>
         <span>
-          <el-button v-permission="'basedata:processtemplates:close'" @click="dialogVisible = false">{{ dialogType === 'view' ? '关闭' : '取消' }}</el-button>
+          <el-button @click="dialogVisible = false">{{ dialogType === 'view' ? '关闭' : '取消' }}</el-button>
           <el-button v-if="dialogType !== 'view'" type="primary" @click="submitForm">确定</el-button>
         </span>
       </template>

@@ -536,7 +536,7 @@
       
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'quality:eightdreport:close'" @click="detailDialogVisible = false">关闭</el-button>
+          <el-button @click="detailDialogVisible = false">关闭</el-button>
           <el-button type="success" @click="exportDetailToPdf" :loading="exportPdfLoading">
             <el-icon style="margin-right: 4px"><Download /></el-icon> 导出 PDF
           </el-button>
@@ -652,7 +652,7 @@
         <div style="margin-top: 50px; text-align: right; color: #888; font-size: 12px;">自动生成自 MES/ERP 系统 - {{ dayjs().format('YYYY-MM-DD HH:mm') }}</div>
       </div>
       <template #footer>
-        <el-button v-permission="'quality:eightdreport:close'" @click="logsDialogVisible = false">关闭</el-button>
+        <el-button @click="logsDialogVisible = false">关闭</el-button>
         <el-button v-permission="'quality:eightdreport:print'" type="primary" v-if="isPrintMode" @click="handlePrintCommand">确认打印 (A4)</el-button>
       </template>
     </el-dialog>

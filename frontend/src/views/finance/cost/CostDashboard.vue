@@ -242,7 +242,7 @@
       </el-form>
 
       <template #footer>
-        <el-button v-permission="'finance:costdashboard:close'" @click="showWIPDialog = false">关闭</el-button>
+        <el-button @click="showWIPDialog = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>

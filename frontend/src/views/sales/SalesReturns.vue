@@ -225,7 +225,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'sales:returns:close'" @click="detailsVisible = false">关闭</el-button>
+          <el-button @click="detailsVisible = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>
@@ -323,7 +323,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'sales:returns:close'" @click="outboundDialog.visible = false">关闭</el-button>
+          <el-button @click="outboundDialog.visible = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>

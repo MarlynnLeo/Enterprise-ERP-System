@@ -254,7 +254,7 @@
       
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'production:productionreport:close'" @click="detailVisible = false">关闭</el-button>
+          <el-button @click="detailVisible = false">关闭</el-button>
           <el-button v-permission="'production:productionreport:print'" type="primary" @click="printReport" v-if="reportDetail.id">打印报工单</el-button>
         </span>
       </template>

@@ -161,7 +161,7 @@
         <el-table-column prop="unit" label="单位" width="70" align="center" />
       </el-table>
       <template #footer>
-        <el-button v-permission="'basedata:boms:close'" @click="locateDialogVisible = false">关闭</el-button>
+        <el-button @click="locateDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 

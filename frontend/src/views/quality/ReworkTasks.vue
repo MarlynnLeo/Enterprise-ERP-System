@@ -270,7 +270,7 @@
         <el-descriptions-item label="更新时间">{{ detailData.updated_at }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
-        <el-button v-permission="'quality:reworktasks:close'" @click="detailDialogVisible = false">关闭</el-button>
+        <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>

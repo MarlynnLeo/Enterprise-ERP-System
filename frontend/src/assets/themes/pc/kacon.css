@@ -244,15 +244,16 @@
 [data-theme="kacon"] .el-aside .el-sub-menu__title span {
   color: #4a4a4a !important;
   font-size: 13px !important;
+  font-weight: 600 !important;
 }
 
-/* 菜单项图标 */
+/* 菜单项图标 - 18px 与加粗文字形成视觉平衡 */
 [data-theme="kacon"] .sidebar .el-menu-item .el-icon,
 [data-theme="kacon"] .sidebar .el-sub-menu__title .el-icon,
 [data-theme="kacon"] .el-aside .el-menu-item .el-icon,
 [data-theme="kacon"] .el-aside .el-sub-menu__title .el-icon {
   color: #8c8c8c !important;
-  font-size: 16px !important;
+  font-size: 18px !important;
   filter: none !important;
 }
 
@@ -295,7 +296,7 @@
 [data-theme="kacon"] .sidebar .el-menu-item.is-active span,
 [data-theme="kacon"] .el-aside .el-menu-item.is-active span {
   color: #00A896 !important;
-  font-weight: 500 !important;
+  font-weight: 700 !important;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item.is-active .el-icon,
@@ -335,6 +336,7 @@
 [data-theme="kacon"] .sidebar .el-sub-menu.is-active>.el-sub-menu__title span,
 [data-theme="kacon"] .el-aside .el-sub-menu.is-active>.el-sub-menu__title span {
   color: #00A896 !important;
+  font-weight: 700 !important;
 }
 
 [data-theme="kacon"] .sidebar .el-sub-menu.is-active>.el-sub-menu__title .el-icon,

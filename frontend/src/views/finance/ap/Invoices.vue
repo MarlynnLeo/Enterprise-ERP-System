@@ -488,7 +488,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'finance:invoices:close'" @click="detailsDialogVisible = false">关闭</el-button>
+          <el-button @click="detailsDialogVisible = false">关闭</el-button>
           <el-button type="primary" @click="handleRecordPayment(invoiceDetail)" v-if="invoiceDetail.balance > 0">记录付款</el-button>
           <el-button v-permission="'finance:invoices:print'" type="primary" @click="printInvoiceDetail">打印</el-button>
         </span>

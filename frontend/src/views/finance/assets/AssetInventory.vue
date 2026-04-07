@@ -183,7 +183,7 @@
 
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'finance:assetinventory:close'" @click="detailVisible = false">关闭</el-button>
+          <el-button @click="detailVisible = false">关闭</el-button>
           <el-button 
             type="primary" 
             v-if="detailData.status === '进行中'"

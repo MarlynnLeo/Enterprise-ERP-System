@@ -443,7 +443,7 @@
       </el-descriptions>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'production:productiontask:close'" @click="detailVisible = false">关闭</el-button>
+          <el-button @click="detailVisible = false">关闭</el-button>
           <el-button v-permission="'production:productiontask:print'" type="primary" @click="printTaskDetail" v-if="taskDetail.id">打印任务单</el-button>
         </span>
       </template>

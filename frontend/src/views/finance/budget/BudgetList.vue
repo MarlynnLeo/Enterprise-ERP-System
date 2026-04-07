@@ -109,7 +109,7 @@
               v-if="row.status === '执行中'"
             >
               <template #reference>
-                <el-button v-permission="'finance:budgetlist:close'" link type="info" size="small">关闭</el-button>
+                <el-button link type="info" size="small">关闭</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm

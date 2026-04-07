@@ -396,7 +396,7 @@
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button v-permission="'inventory:inventorytransfer:close'" @click="viewDialogVisible = false">关闭</el-button>
+          <el-button @click="viewDialogVisible = false">关闭</el-button>
         </div>
       </template>
     </el-dialog>

@@ -402,7 +402,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'purchase:orders:close'" @click="viewDialogVisible = false">关闭</el-button>
+          <el-button @click="viewDialogVisible = false">关闭</el-button>
           <el-button v-permission="'purchase:orders:print'" 
             type="primary" 
             @click="printOrder"
@@ -787,7 +787,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'purchase:orders:close'" @click="requisitionViewDialog.visible = false">关闭</el-button>
+          <el-button @click="requisitionViewDialog.visible = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>

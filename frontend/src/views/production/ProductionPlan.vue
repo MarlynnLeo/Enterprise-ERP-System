@@ -1990,7 +1990,7 @@ const formatMaterialForDisplay = (material) => {
         <el-empty v-else-if="!planDetailLoading" description="暂无数据" />
       </div>
       <template #footer>
-        <el-button v-permission="'production:productionplan:close'" @click="planDetailVisible = false">关闭</el-button>
+        <el-button @click="planDetailVisible = false">关闭</el-button>
       </template>
     </el-dialog>
 

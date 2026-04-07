@@ -394,7 +394,7 @@
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button v-permission="'inventory:check:close'" @click="viewDialogVisible = false">关闭</el-button>
+          <el-button @click="viewDialogVisible = false">关闭</el-button>
           <el-button type="warning" v-if="checkDetail.status === 'pending'" @click="adjustInventory(checkDetail.id)">调整库存</el-button>
         </div>
       </template>

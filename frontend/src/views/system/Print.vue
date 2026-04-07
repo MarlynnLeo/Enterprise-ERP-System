@@ -347,7 +347,7 @@
 
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'system:print:close'" @click="previewDialogVisible = false">关闭</el-button>
+          <el-button @click="previewDialogVisible = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>

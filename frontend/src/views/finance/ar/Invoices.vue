@@ -433,7 +433,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'finance:invoices:close'" @click="detailsDialogVisible = false">关闭</el-button>
+          <el-button @click="detailsDialogVisible = false">关闭</el-button>
 
           <el-button v-permission="'finance:invoices:print'" type="success" @click="handlePrint">打印</el-button>
         </span>

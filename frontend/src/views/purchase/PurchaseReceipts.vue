@@ -239,7 +239,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'purchase:receipts:close'" @click="viewDialog.show = false">关闭</el-button>
+          <el-button @click="viewDialog.show = false">关闭</el-button>
           <el-button v-permission="'purchase:receipts:print'" type="primary" @click="printReceipt" v-if="viewDialog.receipt.id">打印</el-button>
         </span>
       </template>

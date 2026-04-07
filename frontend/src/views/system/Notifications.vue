@@ -235,7 +235,7 @@
         </div>
       </div>
       <template #footer>
-        <el-button v-permission="'system:notifications:close'" @click="detailDialogVisible = false">关闭</el-button>
+        <el-button @click="detailDialogVisible = false">关闭</el-button>
         <el-button 
           v-if="currentNotification && !currentNotification.is_read" 
           type="primary" 

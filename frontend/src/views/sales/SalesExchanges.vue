@@ -430,7 +430,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'sales:exchanges:close'" @click="detailDialogVisible = false">关闭</el-button>
+          <el-button @click="detailDialogVisible = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>
@@ -537,7 +537,7 @@
 
       <template #footer>
         <span class="dialog-footer">
-          <el-button v-permission="'sales:exchanges:close'" @click="orderDialog.visible = false">关闭</el-button>
+          <el-button @click="orderDialog.visible = false">关闭</el-button>
         </span>
       </template>
     </el-dialog>

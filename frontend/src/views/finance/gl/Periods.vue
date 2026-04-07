@@ -86,7 +86,7 @@
               size="small"
               @click="handleEdit(scope.row)"
             >编辑</el-button>
-            <el-button v-permission="'finance:periods:close'"
+            <el-button
               v-if="!scope.row.isClosed"
               type="warning"
               size="small"

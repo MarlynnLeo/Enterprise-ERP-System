@@ -107,7 +107,7 @@
 
     <template #footer>
       <span class="dialog-footer">
-        <el-button v-permission="'quality:incominginspection:close'" @click="dialogVisible = false">关闭</el-button>
+        <el-button @click="dialogVisible = false">关闭</el-button>
         <el-button v-permission="'quality:incominginspection:print'" type="primary" @click="handlePrint">打印报告</el-button>
       </span>
     </template>
