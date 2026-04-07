@@ -82,14 +82,6 @@ process.once('SIGUSR2', async () => {
 
 // 统一查询接口（提供给老代码使用）
 const query = async (sql, params) => {
-  // 兼容之前写死的 COUNT(*) OVER()
-  if (sql.includes('COUNT(*) OVER()')) {
-    sql = sql.replace(
-      'COUNT(*) OVER()',
-      '(SELECT COUNT(*) FROM purchase_returns) as total_count'
-    );
-  }
-  
   // 清理参数：将undefined转换为null
   const cleanParams = params ? params.map((param) => (param === undefined ? null : param)) : [];
 

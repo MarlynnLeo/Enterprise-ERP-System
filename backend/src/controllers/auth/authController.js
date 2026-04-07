@@ -18,32 +18,57 @@ const {
 const db = require('../../config/db');
 const { pool } = require('../../config/db');
 const PasswordSecurity = require('../../utils/passwordSecurity');
+const AccountLockService = require('../../services/system/AccountLockService');
 
 const login = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // 使用原生连接池获取用户
+    // 1. 检查账号是否被锁定
+    const lockStatus = AccountLockService.isLocked(username);
+    if (lockStatus.locked) {
+      logger.warn(`🔒 [登录拒绝] 账号 ${username} 处于锁定状态，剩余 ${lockStatus.remainingMinutes} 分钟`);
+      return ResponseHandler.error(
+        res,
+        `账号已被锁定，请 ${lockStatus.remainingMinutes} 分钟后再试`,
+        'ACCOUNT_LOCKED',
+        423
+      );
+    }
+
+    // 2. 查询用户
     const [users] = await pool.execute('SELECT * FROM users WHERE username = ?', [username]);
     const user = users[0];
 
     if (!user) {
-      return ResponseHandler.error(res, 'Invalid credentials', 'CLIENT_ERROR', 401);
+      // 用户不存在也记录失败（防止用户名枚举）
+      const result = AccountLockService.recordFailedAttempt(username, req.ip);
+      const msg = result.locked
+        ? `账号已被锁定，请 ${result.lockDurationMinutes} 分钟后再试`
+        : `用户名或密码错误，剩余 ${result.remainingAttempts} 次机会`;
+      return ResponseHandler.error(res, msg, 'CLIENT_ERROR', 401);
     }
 
-    // 检查用户状态是否禁用
+    // 3. 检查用户状态是否禁用
     if (user.status === 0) {
       return ResponseHandler.error(res, '账号已被禁用，请联系管理员', 'CLIENT_ERROR', 403);
     }
 
-    // 使用统一的密码验证工具
+    // 4. 验证密码
     const isMatch = await PasswordSecurity.verifyPassword(password, user.password);
 
     if (!isMatch) {
-      return ResponseHandler.error(res, 'Invalid credentials', 'CLIENT_ERROR', 401);
+      const result = AccountLockService.recordFailedAttempt(username, req.ip);
+      const msg = result.locked
+        ? `账号已被锁定，请 ${result.lockDurationMinutes} 分钟后再试`
+        : `用户名或密码错误，剩余 ${result.remainingAttempts} 次机会`;
+      return ResponseHandler.error(res, msg, 'CLIENT_ERROR', 401);
     }
 
-    // 生成访问令牌和刷新令牌
+    // 5. 登录成功，清除失败记录
+    AccountLockService.clearFailedAttempts(username);
+
+    // 6. 生成访问令牌和刷新令牌
     const { accessToken, refreshToken } = generateTokens(user);
 
     // 设置令牌到HttpOnly Cookie

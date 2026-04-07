@@ -47,7 +47,7 @@ const ipBlacklistCheck = (req, res, next) => {
   const clientIP = req.ip || req.connection.remoteAddress;
 
   if (blacklistedIPs.has(clientIP)) {
-    logger.security('Blocked request from blacklisted IP', {
+    logger.security('🚫 被封禁IP访问已拦截', {
       ip: clientIP,
       url: req.originalUrl,
       userAgent: req.get('User-Agent'),
@@ -117,7 +117,7 @@ const suspiciousActivityDetection = (req, res, next) => {
   if (activity.requests.length > maxRequests) {
     activity.warnings++;
 
-    logger.security('Suspicious activity detected', {
+    logger.security('⚠️ 检测到可疑活动', {
       ip: clientIP,
       requestCount: activity.requests.length,
       warnings: activity.warnings,
@@ -127,7 +127,7 @@ const suspiciousActivityDetection = (req, res, next) => {
     // 如果警告次数过多，加入黑名单（但不对内网IP加入黑名单）
     if (activity.warnings > config.maxWarnings && !isPrivateIP(clientIP)) {
       blacklistedIPs.add(clientIP);
-      logger.security('IP added to blacklist', { ip: clientIP });
+      logger.security('🚫 IP已加入黑名单', { ip: clientIP });
     }
 
     return res.status(429).json({
@@ -205,7 +205,7 @@ const sqlInjectionDetection = (req, res, next) => {
     if (typeof value === 'string') {
       for (const pattern of SQL_INJECTION_PATTERNS) {
         if (pattern.test(value)) {
-          logger.security('SQL injection attempt detected', {
+          logger.security('⚠️ 检测到SQL注入尝试', {
             ip: req.ip,
             url: req.originalUrl,
             path,
@@ -247,7 +247,7 @@ const xssDetection = (req, res, next) => {
     if (typeof value === 'string') {
       for (const pattern of XSS_PATTERNS) {
         if (pattern.test(value)) {
-          logger.security('XSS attempt detected', {
+          logger.security('⚠️ 检测到XSS攻击尝试', {
             ip: req.ip,
             url: req.originalUrl,
             path,
@@ -284,7 +284,7 @@ const pathTraversalDetection = (req, res, next) => {
 
   for (const pattern of PATH_TRAVERSAL_PATTERNS) {
     if (pattern.test(url)) {
-      logger.security('Path traversal attempt detected', {
+      logger.security('⚠️ 检测到路径遍历攻击尝试', {
         ip: req.ip,
         url: req.originalUrl,
         userAgent: req.get('User-Agent'),
@@ -319,7 +319,7 @@ const fileUploadSecurity = (req, res, next) => {
       ];
 
       if (!allowedMimeTypes.includes(file.mimetype)) {
-        logger.security('Unauthorized file type upload attempt', {
+        logger.security('⚠️ 未授权文件类型上传尝试', {
           ip: req.ip,
           filename: file.originalname,
           mimetype: file.mimetype,
@@ -382,14 +382,14 @@ const securityMiddleware = [
 const clearBlacklist = () => {
   blacklistedIPs.clear();
   suspiciousActivity.clear();
-  logger.info('Security blacklist cleared');
+  logger.info('✅ 安全黑名单已清除');
 };
 
 // 移除特定IP的函数
 const removeFromBlacklist = (ip) => {
   blacklistedIPs.delete(ip);
   suspiciousActivity.delete(ip);
-  logger.info('IP removed from blacklist', { ip });
+  logger.info('✅ IP已从黑名单移除', { ip });
 };
 
 // 获取黑名单状态

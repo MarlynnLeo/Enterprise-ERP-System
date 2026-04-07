@@ -357,7 +357,7 @@ class PurchaseOrderStatusService {
         WHERE status NOT IN ('completed', 'cancelled')
       `;
 
-      const [orders] = await db.execute(ordersQuery);
+      const [orders] = await db.pool.execute(ordersQuery);
 
       for (const order of orders) {
         try {

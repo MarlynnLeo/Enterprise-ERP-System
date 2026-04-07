@@ -27,8 +27,8 @@ class OnlineTimeTracker {
       // 异步记录活动
       setImmediate(() => {
         this.recordActivity(req).catch((error) => {
-          // 静默失败，不影响主请求
-          logger.logger.error('记录在线活动失败:', error.message);
+          // 非阻塞失败：记录日志但不影响主请求
+          logger.logger.debug('记录在线活动失败（不影响业务）:', error.message);
         });
       });
     };
@@ -81,8 +81,8 @@ class OnlineTimeTracker {
 
       await db.query(sql, values);
     } catch (error) {
-      // 静默失败，不影响主请求
-      logger.logger.error('记录活动失败:', error.message);
+      // 非阻塞失败：记录日志但不影响主请求
+      logger.logger.debug('记录活动失败（不影响业务）:', error.message);
     }
   }
 

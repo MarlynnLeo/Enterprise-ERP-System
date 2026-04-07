@@ -536,7 +536,9 @@ const updateProgress = async (req, res) => {
             costType: 'rework', referenceNo: taskObj.rework_no, materialCode: taskObj.material_code,
             quantity: taskObj.quantity, cost: 0, operator: taskObj.created_by
         }, connection);
-      } catch (ce) {}
+      } catch (ce) {
+        logger.warn('自动完成返工记录质量成本失败:', ce.message);
+      }
     }
 
     await connection.commit();

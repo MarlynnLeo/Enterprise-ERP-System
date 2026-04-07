@@ -305,6 +305,7 @@ class SalesOrderStatusService {
     const shouldRelease = !connection;
 
     try {
+      // 1. 获取毛发货量统计
       const [stats] = await client.query(
         `
         SELECT 
@@ -313,11 +314,8 @@ class SalesOrderStatusService {
           so.status as order_status,
           COUNT(soi.id) as total_items,
           SUM(soi.quantity) as total_ordered,
-          COALESCE(SUM(shipped_summary.shipped_quantity), 0) as total_shipped,
-          COUNT(CASE WHEN COALESCE(shipped_summary.shipped_quantity, 0) = 0 THEN 1 END) as unshipped_items,
-          COUNT(CASE WHEN COALESCE(shipped_summary.shipped_quantity, 0) > 0 
-                     AND COALESCE(shipped_summary.shipped_quantity, 0) < soi.quantity THEN 1 END) as partial_items,
-          COUNT(CASE WHEN COALESCE(shipped_summary.shipped_quantity, 0) >= soi.quantity THEN 1 END) as fully_shipped_items
+          COALESCE(SUM(shipped_summary.shipped_quantity), 0) as total_gross_shipped,
+          COALESCE(SUM(returned_summary.returned_quantity), 0) as total_returned
         FROM sales_orders so
         INNER JOIN sales_order_items soi ON so.id = soi.order_id
         LEFT JOIN (
@@ -343,6 +341,17 @@ class SalesOrderStatusService {
           GROUP BY soi_inner.order_id, soi_inner.material_id
         ) shipped_summary ON soi.order_id = shipped_summary.order_id
           AND soi.material_id = shipped_summary.material_id
+        LEFT JOIN (
+          SELECT
+            sr.order_id,
+            sri.product_id as material_id,
+            SUM(sri.quantity) as returned_quantity
+          FROM sales_return_items sri
+          INNER JOIN sales_returns sr ON sri.return_id = sr.id
+          WHERE sr.status NOT IN ('rejected', 'cancelled', 'draft')
+          GROUP BY sr.order_id, sri.product_id
+        ) returned_summary ON soi.order_id = returned_summary.order_id
+          AND soi.material_id = returned_summary.material_id
         WHERE so.id = ?
         GROUP BY so.id, so.order_no, so.status
       `,
@@ -354,13 +363,75 @@ class SalesOrderStatusService {
       }
 
       const stat = stats[0];
+
+      // 2. 计算净发货量 = 毛发货量 - 退货量（与 updateOrderStatus 保持一致）
+      const totalGrossShipped = parseFloat(stat.total_gross_shipped) || 0;
+      const totalReturned = parseFloat(stat.total_returned) || 0;
+      const totalShipped = Math.max(0, totalGrossShipped - totalReturned);
+
+      // 3. 重新计算各明细项的发货状态（基于净发货量）
+      const [detailStats] = await client.query(
+        `
+        SELECT
+          soi.material_id,
+          soi.quantity as ordered_qty,
+          COALESCE(shipped_sub.shipped_qty, 0) as gross_shipped,
+          COALESCE(returned_sub.returned_qty, 0) as returned_qty
+        FROM sales_order_items soi
+        LEFT JOIN (
+          SELECT sobi.product_id, SUM(sobi.quantity) as shipped_qty
+          FROM sales_outbound_items sobi
+          INNER JOIN sales_outbound sob ON sobi.outbound_id = sob.id
+          WHERE sob.status IN ('${SALES_STATUS_KEYS.COMPLETED}', '${SALES_STATUS_KEYS.PROCESSING}')
+            AND (sob.order_id = ? OR (sob.is_multi_order = 1 AND sob.related_orders LIKE CONCAT('%', ?, '%')))
+          GROUP BY sobi.product_id
+        ) shipped_sub ON soi.material_id = shipped_sub.product_id
+        LEFT JOIN (
+          SELECT sri.product_id, SUM(sri.quantity) as returned_qty
+          FROM sales_return_items sri
+          INNER JOIN sales_returns sr ON sri.return_id = sr.id
+          WHERE sr.order_id = ? AND sr.status NOT IN ('rejected', 'cancelled', 'draft')
+          GROUP BY sri.product_id
+        ) returned_sub ON soi.material_id = returned_sub.product_id
+        WHERE soi.order_id = ?
+      `,
+        [orderId, orderId, orderId, orderId]
+      );
+
+      let unshippedItems = 0;
+      let partialItems = 0;
+      let fullyShippedItems = 0;
+
+      detailStats.forEach((item) => {
+        const netShipped = Math.max(0, parseFloat(item.gross_shipped) - parseFloat(item.returned_qty));
+        const orderedQty = parseFloat(item.ordered_qty);
+
+        if (netShipped === 0) {
+          unshippedItems++;
+        } else if (netShipped >= orderedQty) {
+          fullyShippedItems++;
+        } else {
+          partialItems++;
+        }
+      });
+
+      const totalOrdered = parseFloat(stat.total_ordered) || 0;
       const completionPercentage =
-        stat.total_ordered > 0
-          ? Math.round((stat.total_shipped / stat.total_ordered) * 100 * 100) / 100
+        totalOrdered > 0
+          ? Math.round((totalShipped / totalOrdered) * 100 * 100) / 100
           : 0;
 
       return {
-        ...stat,
+        order_id: stat.order_id,
+        order_no: stat.order_no,
+        order_status: stat.order_status,
+        total_items: stat.total_items,
+        total_ordered: totalOrdered,
+        total_shipped: totalShipped,
+        total_returned: totalReturned,
+        unshipped_items: unshippedItems,
+        partial_items: partialItems,
+        fully_shipped_items: fullyShippedItems,
         completion_percentage: completionPercentage,
       };
     } catch (error) {

@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # ==================== 后端服务 ====================
+  erp-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: erp-backend
+    restart: unless-stopped
+    ports:
+      - "18080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      # 数据库 — 连接宿主机 MySQL
+      - DB_HOST=172.17.0.1
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=mysql_n3cEDY
+      - DB_NAME=mes
+      # 数据库连接池
+      - DB_CONNECTION_LIMIT=10
+      - DB_QUEUE_LIMIT=20
+      - DB_CONNECT_TIMEOUT=60000
+      # JWT
+      - JWT_SECRET=5pe5qx43BLHECWLvdmkoO7ut58/5Us0cB4z7Byu/KE8=
+      - JWT_REFRESH_SECRET=1ft1BNd/ce+tyaazeUQRiEbSFGKDRGAG70EZUFSkvRc=
+      - JWT_ACCESS_TOKEN_EXPIRY=2h
+      - JWT_REFRESH_TOKEN_EXPIRY=7d
+      - JWT_ACCESS_EXPIRY=2h
+      - JWT_REFRESH_EXPIRY=7d
+      # CSRF
+      - CSRF_SECRET=mes-csrf-secret-2025-production-key-change-this
+      # CORS — 允许前端容器和外部访问
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:18080,http://192.168.1.251:18081,http://192.168.1.251:18080
+      # Redis
+      - REDIS_ENABLED=false
+      # Ollama
+      - OLLAMA_HOST=http://172.17.0.1:11434
+      - OLLAMA_OCR_MODEL=deepseek-ocr:latest
+      - OLLAMA_TIMEOUT=60000
+      # 智谱AI
+      - ZHIPU_API_KEY=e4e056da37084780a41ea158529b831f.I66UlQKOfKkhhtgR
+      # 天气
+      - AMAP_API_KEY=d00b395cd0623a9a541b7f7bc8618af1
+      # SiliconFlow
+      - SILICONFLOW_API_KEY=sk-xewoetkmvgywtaairzinutcowsjcyapmomclofmpvrpdqcoi
+      - SILICONFLOW_VLM_MODEL=deepseek-ai/DeepSeek-OCR
+      # 日志
+      - LOG_LEVEL=info
+      - ENABLE_DEBUG_LOG=false
+      - ENABLE_SQL_LOG=false
+    volumes:
+      - erp-uploads:/app/uploads
+      - erp-logs:/app/logs
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ==================== 前端服务 ====================
+  erp-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: erp-frontend
+    restart: unless-stopped
+    ports:
+      - "18081:80"
+    depends_on:
+      erp-backend:
+        condition: service_healthy
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  erp-network:
+    driver: bridge
+
+volumes:
+  erp-uploads:
+    driver: local
+  erp-logs:
+    driver: local

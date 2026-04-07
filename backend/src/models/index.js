@@ -51,7 +51,8 @@ fs.readdirSync(__dirname)
         const model = modelModule(sequelize);
         db[model.name] = model;
       } catch (error) {
-        // 静默处理模型加载错误
+        // 模型加载失败记录到调试日志
+        console.debug(`[Models] 跳过非标准Sequelize模型: ${file} - ${error.message}`);
       }
     }
   });

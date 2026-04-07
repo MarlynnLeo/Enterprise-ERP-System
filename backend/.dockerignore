@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.env.local
+.env.development
+logs/
+uploads/
+tests/
+*.test.js
+.git
+.gitignore
+.eslintrc*
+.prettierrc*
+README.md
