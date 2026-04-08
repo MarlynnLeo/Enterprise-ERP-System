@@ -60,10 +60,10 @@ function requirePermission(permissions, mode = 'any') {
 
       next();
     } catch (error) {
-      logger.error('[权限检查] 发生错误:', error);
-      res.status(401).json({
-        code: 401,
-        message: '认证失败',
+      logger.error('[权限检查] 系统错误:', error);
+      res.status(500).json({
+        code: 500,
+        message: '权限检查服务异常，请稍后重试',
         data: null,
         timestamp: new Date().toISOString(),
       });

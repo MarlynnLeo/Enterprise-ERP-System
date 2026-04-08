@@ -220,7 +220,7 @@ const cashController = {
       if (deleted) {
         ResponseHandler.success(res, null, '交易记录删除成功');
       } else {
-        ResponseHandler.error(res, '交易记录删除失败', 'SERVER_ERROR', 500, error);
+        ResponseHandler.error(res, '交易记录删除失败', 'SERVER_ERROR', 500);
       }
     } catch (error) {
       logger.error('Error deleting transaction:', error);
@@ -585,7 +585,7 @@ const cashController = {
         ResponseHandler.success(res, formattedAccount, '操作成功');
       } catch (err) {
         logger.error('格式化账户数据出错:', err, account);
-        ResponseHandler.error(res, '处理银行账户数据失败', 'SERVER_ERROR', 500, error);
+        ResponseHandler.error(res, '处理银行账户数据失败', 'SERVER_ERROR', 500, err);
       }
     } catch (error) {
       logger.error('Error fetching bank account:', error);
@@ -756,11 +756,6 @@ const cashController = {
 
       const result = await BankTransactionModel.getBankTransactions(filters, page, limit);
 
-      if (result.transactions && result.transactions.length > 0) {
-        logger.info(
-          `[DEBUG] getBankTransactions first record: status=${result.transactions[0].status}, id=${result.transactions[0].id}`
-        );
-      }
 
       ResponseHandler.paginated(
         res,
@@ -839,10 +834,7 @@ const cashController = {
         return ResponseHandler.error(res, '无效的银行账户ID', 'BAD_REQUEST', 400);
       }
 
-      // 移除gl_entry字段，该字段可能导致错误
-      if (req.body.gl_entry) {
-        // gl_entry字段将被忽略
-      }
+      // gl_entry 字段不在此创建流程中处理
       transactionData.gl_entry = null;
 
       const result = await BankTransactionModel.createBankTransaction(transactionData);
@@ -1086,7 +1078,7 @@ const cashController = {
 
         ResponseHandler.success(res, formattedAccount, '银行账户状态更新成功');
       } else {
-        ResponseHandler.error(res, '银行账户状态更新失败', 'SERVER_ERROR', 500, error);
+        ResponseHandler.error(res, '银行账户状态更新失败', 'SERVER_ERROR', 500);
       }
     } catch (error) {
       logger.error('Error updating bank account status:', error);
@@ -1157,21 +1149,43 @@ const cashController = {
         endDate: req.query.endDate,
       };
 
-      // 模拟对账统计数据
+      // 从数据库获取对账统计
+      const accountId = filters.accountId;
+      const bankTransactionFilters = {
+        bank_account_id: accountId,
+        start_date: filters.startDate,
+        end_date: filters.endDate,
+      };
+
+      // 获取未对账和已对账交易统计
+      const [unreconciledResult, reconciledResult] = await Promise.all([
+        cash.getBankTransactions({ ...bankTransactionFilters, is_reconciled: false }),
+        cash.getBankTransactions({ ...bankTransactionFilters, is_reconciled: true }),
+      ]);
+
+      const unreconciledItems = unreconciledResult?.transactions?.length || 0;
+      const reconciledItems = reconciledResult?.transactions?.length || 0;
+
+      // 获取账户信息
+      let accountInfo = { accountId: accountId || null };
+      if (accountId) {
+        const account = await BankAccountModel.getBankAccountById(accountId);
+        if (account) {
+          accountInfo = {
+            accountId: account.id,
+            accountName: account.account_name,
+            accountNumber: account.account_number,
+            bankName: account.bank_name,
+          };
+        }
+      }
+
       const stats = {
-        bookBalance: 1250000.0, // 账面余额
-        bankBalance: 1260130.0, // 银行余额
-        difference: 10130.0, // 差额
-        unreconciledItems: 5, // 未对账项目数
-        reconciledItems: 3, // 已对账项目数
-        totalItems: 8, // 总项目数
-        lastReconciliationDate: '2025-07-04', // 最后对账日期
-        accountInfo: {
-          accountId: filters.accountId || 1,
-          accountName: '制造企业基本户',
-          accountNumber: '1234567890123456789',
-          bankName: '中国工商银行',
-        },
+        bookBalance: accountInfo.accountId ? parseFloat((await BankAccountModel.getBankAccountById(accountId))?.current_balance || 0) : 0,
+        unreconciledItems,
+        reconciledItems,
+        totalItems: unreconciledItems + reconciledItems,
+        accountInfo,
       };
 
       return ResponseHandler.success(res, stats, '获取对账统计成功');
@@ -1672,47 +1686,9 @@ const cashController = {
    */
   importBankStatement: async (req, res) => {
     try {
-      // 模拟导入银行对账单的逻辑
-      // 在实际应用中，这里会处理文件上传和解析
-      const importedStatements = [
-        {
-          id: 'STMT001',
-          transaction_date: '2025-07-08',
-          description: '客户转账',
-          amount: 50000.0,
-          balance: 1310130.0,
-          reference: 'TXN20250708001',
-        },
-        {
-          id: 'STMT002',
-          transaction_date: '2025-07-09',
-          description: '供应商付款',
-          amount: -25000.0,
-          balance: 1285130.0,
-          reference: 'TXN20250709001',
-        },
-        {
-          id: 'STMT003',
-          transaction_date: '2025-07-10',
-          description: '客户转账',
-          amount: 35000.0,
-          balance: 1320130.0,
-          reference: 'TXN20250710001',
-        },
-      ];
-
-      return ResponseHandler.success(
-        res,
-        {
-          data: importedStatements,
-          summary: {
-            totalRecords: importedStatements.length,
-            totalAmount: importedStatements.reduce((sum, item) => sum + item.amount, 0),
-            importDate: new Date().toISOString().split('T')[0],
-          },
-        },
-        '银行对账单导入成功'
-      );
+      // 银行对账单导入功能待实现
+      // 需要对接银行提供的标准对账单文件格式（如 MT940、CSV 等）
+      return ResponseHandler.error(res, '银行对账单导入功能待实现，请使用手动录入方式', 'NOT_IMPLEMENTED', 501);
     } catch (error) {
       ResponseHandler.error(res, '导入银行对账单失败', 'SERVER_ERROR', 500, error);
     }

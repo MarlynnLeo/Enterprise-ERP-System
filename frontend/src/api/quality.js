@@ -36,6 +36,8 @@ export const qualityApi = {
     updateFirstArticleRule: (id, data) => api.put(`/quality/first-article-rules/${id}`, data),
     deleteFirstArticleRule: (id) => api.delete(`/quality/first-article-rules/${id}`),
 
+    // 获取物料默认检验模板
+    getMaterialDefaultTemplate: (materialId) => api.get('/quality/templates', { params: { material_id: materialId, is_general: 0, status: 'active' } }),
     // 获取模板列表
     getTemplates: (params) => api.get('/quality/templates', { params }),
     // 获取模板详情

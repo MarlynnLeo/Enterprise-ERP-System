@@ -33,9 +33,9 @@ const auditLogInterceptor = async (req, res, next) => {
       if (req.method === 'PUT') action = 'UPDATE';
       if (req.method === 'DELETE') action = 'DELETE';
       
-      let targetId = req.params.id || req.body.id || 'N/A';
+      let targetId = req.params?.id || req.body?.id || 'N/A';
       // 有些路由以数组批量传入
-      if (Array.isArray(req.body.ids)) {
+      if (req.body?.ids && Array.isArray(req.body.ids)) {
         targetId = req.body.ids.join(',');
       }
 

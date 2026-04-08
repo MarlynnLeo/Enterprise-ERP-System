@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PurchaseDashboard.vue
  * @description 前端界面组件文件
@@ -121,10 +121,10 @@
           <template #header>
             <div class="card-header">
               <span>月度采购趋势</span>
-              <el-select v-model="timeRange" placeholder="选择时间范围" size="small">
-                <el-option label="最近6个月" value="6" />
-                <el-option label="最近12个月" value="12" />
-              </el-select>
+              <el-radio-group v-model="timeRange" size="small">
+                <el-radio-button value="6">近6月</el-radio-button>
+                <el-radio-button value="12">近12月</el-radio-button>
+              </el-radio-group>
             </div>
           </template>
           <div class="chart-container">

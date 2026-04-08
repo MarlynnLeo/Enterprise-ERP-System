@@ -12,6 +12,7 @@ const db = require('../../config/db');
 const purchaseModel = require('../../models/purchase');
 const { accountingConfig } = require('../../config/accountingConfig');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
+const { safeString, safeNumber } = require('../../utils/typeHelper');
 
 // 状态常量
 const STATUS = {
@@ -179,15 +180,6 @@ const createProcessing = async (req, res) => {
         ? products.reduce((sum, product) => sum + (parseFloat(product.total_price || 0) || 0), 0)
         : 0;
 
-    // 安全转换函数，避免undefined值
-    const safeString = (value) => (value === undefined ? '' : String(value || ''));
-    const safeNumber = (value) => {
-      return value === undefined || value === null
-        ? null
-        : isNaN(parseFloat(value))
-          ? 0
-          : parseFloat(value);
-    };
 
     // 插入加工单主表，确保所有值都是安全的
     const [result] = await connection.execute(
@@ -320,15 +312,7 @@ const updateProcessing = async (req, res) => {
       return ResponseHandler.error(res, '只能修改待确认状态的加工单', 'BAD_REQUEST', 400);
     }
 
-    // 安全转换函数，避免undefined值
-    const safeString = (value) => (value === undefined ? '' : String(value || ''));
-    const safeNumber = (value) => {
-      return value === undefined || value === null
-        ? null
-        : isNaN(parseFloat(value))
-          ? 0
-          : parseFloat(value);
-    };
+
 
     // 计算总金额，确保不会有NaN
     const total_amount =
@@ -761,15 +745,7 @@ const createReceipt = async (req, res) => {
     // 生成入库单号
     const receipt_no = await purchaseModel.generateProcessingReceiptNo();
 
-    // 安全转换函数，避免undefined值
-    const safeString = (value) => (value === undefined ? '' : String(value || ''));
-    const safeNumber = (value) => {
-      return value === undefined || value === null
-        ? null
-        : isNaN(parseFloat(value))
-          ? 0
-          : parseFloat(value);
-    };
+
 
     try {
       // 插入入库单主表

@@ -168,13 +168,24 @@ const apController = {
       // 获取请求体中的数据
       const invoiceData = req.body;
 
+      // 验证必填字段
+      if (!invoiceData.invoiceNumber || !invoiceData.supplierId || !invoiceData.invoiceDate || !invoiceData.dueDate) {
+        return ResponseHandler.error(res, '缺少必要的发票信息（发票编号、供应商、发票日期、到期日）', 'VALIDATION_ERROR', 400);
+      }
+
+      // 验证金额
+      const amount = parseFloat(invoiceData.amount);
+      if (isNaN(amount) || amount <= 0) {
+        return ResponseHandler.error(res, '发票金额必须大于0', 'VALIDATION_ERROR', 400);
+      }
+
       // 准备数据以匹配数据库字段
       const formattedData = {
         invoice_number: invoiceData.invoiceNumber,
         supplier_id: invoiceData.supplierId,
         invoice_date: invoiceData.invoiceDate,
         due_date: invoiceData.dueDate,
-        total_amount: invoiceData.amount,
+        total_amount: amount,
         notes: invoiceData.notes,
         status: '草稿', // 设置默认状态为草稿
         items: invoiceData.items, // 传递明细项
@@ -201,6 +212,17 @@ const apController = {
 
       if (!status) {
         return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
+      }
+
+      // 状态白名单校验（与 AR 对齐）
+      const validStatuses = ['草稿', '已确认', '部分付款', '已付款', '已逾期', '已取消'];
+      if (!validStatuses.includes(status)) {
+        return ResponseHandler.error(
+          res,
+          `无效的状态值，有效状态: ${validStatuses.join(', ')}`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       await apModel.updateInvoiceStatus(invoiceId, status);
@@ -367,7 +389,7 @@ const apController = {
         })),
       };
 
-      res.status(200).json(formattedPayment);
+      return ResponseHandler.success(res, formattedPayment, '获取付款记录成功');
     } catch (error) {
       return ResponseHandler.error(res, '获取付款记录失败', 'SERVER_ERROR', 500, error);
     }
@@ -474,10 +496,8 @@ const apController = {
         },
       ];
 
-      logger.info('处理后的付款明细:', paymentItems);
 
-      // ===== 获取当前会计期间并校验会计科目 =====
-      const { financeConfig } = require('../../../config/financeConfig');
+      // 获取当前会计期间并校验会计科目
       await financeConfig.loadFromDatabase(db);
       const periodId = await financeConfig.getCurrentPeriodId(db);
 
@@ -647,10 +667,10 @@ const apController = {
           lastInvoiceDate: item.lastInvoiceDate,
         }));
 
-        res.status(200).json({
+        return ResponseHandler.success(res, {
           data: formattedData,
           total: formattedData.length,
-        });
+        }, '获取供应商应付款成功');
       } finally {
         connection.release();
       }
@@ -742,7 +762,7 @@ const apController = {
           })),
         };
 
-        res.status(200).json(result);
+        return ResponseHandler.success(res, result, '获取供应商应付款详情成功');
       } finally {
         connection.release();
       }

@@ -11,7 +11,7 @@ const db = require('../../config/db');
 const NonconformingProduct = require('../../models/nonconformingProduct');
 
 const DLQService = require('./DLQService');
-
+const AsyncTaskService = require('./AsyncTaskService');
 class InboundTransactionService {
   /**
    * 执行完整的入库确认逻辑

@@ -693,23 +693,14 @@ const updateReturnStatus = async (req, res) => {
           if (returnData.length > 0) {
             const purchaseReturn = returnData[0];
 
-            // 检查是否已存在应付红字发票
-            const [existingInvoices] = await pool.execute(
-              'SELECT id FROM ap_invoices WHERE source_type = ? AND source_id = ?',
-              ['purchase_return', id]
+            // 生成应付红字发票（Service 内部已有防重复检查）
+            logger.info(
+              `📄 采购退货完成，尝试自动生成应付红字发票 - 退货单: ${purchaseReturn.return_no}`
             );
-
-            if (existingInvoices.length === 0) {
-              logger.info(
-                `📄 采购退货完成，尝试自动生成应付红字发票 - 退货单: ${purchaseReturn.return_no}`
-              );
-              await FinanceIntegrationService.generateAPCreditNoteFromPurchaseReturn(
-                purchaseReturn
-              );
-              logger.info(`✅ 应付红字发票自动生成成功 - 退货单: ${purchaseReturn.return_no}`);
-            } else {
-              logger.info(`ℹ️ 退货单 ${purchaseReturn.return_no} 已存在应付红字发票，跳过自动生成`);
-            }
+            await FinanceIntegrationService.generateAPCreditNoteFromPurchaseReturn(
+              purchaseReturn
+            );
+            logger.info(`✅ 应付红字发票自动生成成功 - 退货单: ${purchaseReturn.return_no}`);
           }
         } catch (invoiceError) {
           logger.warn(`⚠️ 应付红字发票自动生成失败（不影响退货）: ${invoiceError.message}`);

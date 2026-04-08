@@ -27,22 +27,25 @@ const arController = {
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
-
-      // 查询今天已有的发票数量
-      const [result] = await require('../../../config/db').pool.execute(
-        `SELECT COUNT(*) as count FROM ar_invoices
-         WHERE DATE(created_at) = CURDATE()`
-      );
-
-      const todayCount = result[0].count + 1;
-      const serialNumber = String(todayCount).padStart(4, '0');
+      const dateStr = `${year}${month}${day}`;
 
       // 确保配置已加载
-      await financeConfig.loadFromDatabase(require('../../../config/db'));
+      const dbInstance = require('../../../config/db');
+      await financeConfig.loadFromDatabase(dbInstance);
       const prefix = financeConfig.get('invoice.invoiceNumberPrefix.AR', 'AR');
 
+      // 使用 MAX 提取当日最大序号，避免删除记录后编号重复（与 AP 对齐）
+      const [result] = await dbInstance.pool.execute(
+        `SELECT MAX(CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED)) as maxSerial
+         FROM ar_invoices WHERE invoice_number LIKE ?`,
+        [`${prefix}-${dateStr}-%`]
+      );
+
+      const nextSerial = (result[0].maxSerial || 0) + 1;
+      const serialNumber = String(nextSerial).padStart(4, '0');
+
       // 生成发票编号: PREFIX-YYYYMMDD-序号
-      const invoiceNumber = `${prefix}-${year}${month}${day}-${serialNumber}`;
+      const invoiceNumber = `${prefix}-${dateStr}-${serialNumber}`;
 
       return ResponseHandler.success(res, { invoiceNumber }, '生成发票编号成功');
     } catch (error) {
@@ -196,7 +199,6 @@ const arController = {
       }
 
       // 从配置获取有效状态列表
-      const { financeConfig } = require('../../../config/financeConfig');
       await financeConfig.loadFromDatabase(require('../../../config/db'));
       const validStatuses = financeConfig.get('status.invoiceStatuses', [
         '草稿',

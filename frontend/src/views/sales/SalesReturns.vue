@@ -148,7 +148,7 @@
             </el-button>
 
             <!-- 待审批状态：可以审批通过或拒绝 -->
-            <template v-if="scope.row.status === '待审批'">
+            <template v-if="scope.row.status === 'pending'">
               <el-button
                 size="small"
                 type="success"
@@ -167,7 +167,7 @@
 
             <!-- 已审批状态：可以完成 -->
             <el-button
-              v-if="scope.row.status === '已审批'"
+              v-if="scope.row.status === 'approved'"
               size="small"
               type="warning"
               @click="handleComplete(scope.row)"
@@ -200,15 +200,15 @@
     <el-dialog v-model="detailsVisible" title="退货单详情" width="900px">
       <div v-if="currentReturn" v-loading="!currentReturn">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="退货单号">{{ currentReturn.return_no || currentReturn.id }}</el-descriptions-item>
-          <el-descriptions-item label="关联订单号">{{ currentReturn.order_no || currentReturn.orderNo }}</el-descriptions-item>
-          <el-descriptions-item label="客户名称">{{ currentReturn.customer_name || currentReturn.customerName }}</el-descriptions-item>
+          <el-descriptions-item label="退货单号">{{ currentReturn.return_no || currentReturn.returnNo || currentReturn.id }}</el-descriptions-item>
+          <el-descriptions-item label="关联订单号">{{ currentReturn.order_no || currentReturn.orderNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="客户名称">{{ currentReturn.customer_name || currentReturn.customerName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="退货日期">{{ formatDate(currentReturn.return_date || currentReturn.returnDate) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getReturnStatusType(currentReturn.status)">{{ getReturnStatusText(currentReturn.status) }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDateTime(currentReturn.created_at) }}</el-descriptions-item>
-          <el-descriptions-item label="退货原因" :span="2">{{ currentReturn.return_reason }}</el-descriptions-item>
+          <el-descriptions-item label="退货原因" :span="2">{{ currentReturn.return_reason || currentReturn.reason || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2" v-if="currentReturn.remarks">{{ currentReturn.remarks }}</el-descriptions-item>
         </el-descriptions>
 
@@ -425,10 +425,10 @@ const calculateReturnStats = () => {
   }
 
   returnRecords.value.forEach(record => {
-    if (record.status === '待审批') stats.pending++
-    else if (record.status === '已审批') stats.approved++
-    else if (record.status === '已完成') stats.completed++
-    else if (record.status === '已拒绝') stats.rejected++
+    if (record.status === 'pending') stats.pending++
+    else if (record.status === 'approved') stats.approved++
+    else if (record.status === 'completed') stats.completed++
+    else if (record.status === 'rejected') stats.rejected++
   })
 
   returnStats.value = stats

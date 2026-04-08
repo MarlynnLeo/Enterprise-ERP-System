@@ -470,41 +470,40 @@ exports.createSalesQuotation = async (req, res) => {
 
     const quotationId = result.insertId;
 
-    // 临时禁用外键检查
-    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-
-    try {
-      // 插入报价单明细
-      for (const item of items) {
-        // 检查产品是否存在于materials表中
-        const [productExists] = await conn.query('SELECT id FROM materials WHERE id = ?', [
-          item.product_id,
-        ]);
-
-        if (productExists.length === 0) {
-          throw new Error(`产品ID ${item.product_id} 在物料表中不存在`);
-        }
-
-        await conn.query(
-          `INSERT INTO sales_quotation_items 
-           (quotation_id, product_id, quantity, unit_price, total_price) 
-           VALUES (?, ?, ?, ?, ?)`,
-          [
-            quotationId,
-            item.product_id || null,
-            item.quantity,
-            item.unit_price,
-            item.total_price || item.quantity * item.unit_price,
-          ]
+    // ✅ 批量校验产品存在性
+    if (items && items.length > 0) {
+      const productIds = items.map(i => i.product_id).filter(Boolean);
+      if (productIds.length > 0) {
+        const placeholders = productIds.map(() => '?').join(',');
+        const [existingProducts] = await conn.query(
+          `SELECT id FROM materials WHERE id IN (${placeholders})`,
+          productIds
         );
+        const existingIds = new Set(existingProducts.map(p => p.id));
+        const missing = productIds.filter(id => !existingIds.has(id));
+        if (missing.length > 0) {
+          throw new Error(`以下产品ID在物料表中不存在: ${missing.join(', ')}`);
+        }
       }
 
-      // 恢复外键检查
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
-    } catch (error) {
-      // 确保恢复外键检查
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
-      throw error;
+      // ✅ 批量 INSERT
+      const valuesPlaceholders = items.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const values = [];
+      for (const item of items) {
+        values.push(
+          quotationId,
+          item.product_id || null,
+          item.quantity,
+          item.unit_price,
+          item.total_price || item.quantity * item.unit_price
+        );
+      }
+      await conn.query(
+        `INSERT INTO sales_quotation_items 
+         (quotation_id, product_id, quantity, unit_price, total_price) 
+         VALUES ${valuesPlaceholders}`,
+        values
+      );
     }
 
     // 提交事务
@@ -562,44 +561,42 @@ exports.updateSalesQuotation = async (req, res) => {
       ]
     );
 
-    // 临时禁用外键检查
-    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+    // 删除原有明细
+    await conn.query('DELETE FROM sales_quotation_items WHERE quotation_id = ?', [id]);
 
-    try {
-      // 删除原有明细
-      await conn.query('DELETE FROM sales_quotation_items WHERE quotation_id = ?', [id]);
-
-      // 插入新明细
-      for (const item of items) {
-        // 检查产品是否存在于materials表中
-        const [productExists] = await conn.query('SELECT id FROM materials WHERE id = ?', [
-          item.product_id,
-        ]);
-
-        if (productExists.length === 0) {
-          throw new Error(`产品ID ${item.product_id} 在物料表中不存在`);
-        }
-
-        await conn.query(
-          `INSERT INTO sales_quotation_items 
-           (quotation_id, product_id, quantity, unit_price, total_price) 
-           VALUES (?, ?, ?, ?, ?)`,
-          [
-            id,
-            item.product_id || null,
-            item.quantity,
-            item.unit_price,
-            item.total_price || item.quantity * item.unit_price,
-          ]
+    // ✅ 批量校验 + 插入
+    if (items && items.length > 0) {
+      const productIds = items.map(i => i.product_id).filter(Boolean);
+      if (productIds.length > 0) {
+        const placeholders = productIds.map(() => '?').join(',');
+        const [existingProducts] = await conn.query(
+          `SELECT id FROM materials WHERE id IN (${placeholders})`,
+          productIds
         );
+        const existingIds = new Set(existingProducts.map(p => p.id));
+        const missing = productIds.filter(id => !existingIds.has(id));
+        if (missing.length > 0) {
+          throw new Error(`以下产品ID在物料表中不存在: ${missing.join(', ')}`);
+        }
       }
 
-      // 恢复外键检查
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
-    } catch (error) {
-      // 确保恢复外键检查
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
-      throw error;
+      const valuesPlaceholders = items.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const values = [];
+      for (const item of items) {
+        values.push(
+          id,
+          item.product_id || null,
+          item.quantity,
+          item.unit_price,
+          item.total_price || item.quantity * item.unit_price
+        );
+      }
+      await conn.query(
+        `INSERT INTO sales_quotation_items 
+         (quotation_id, product_id, quantity, unit_price, total_price) 
+         VALUES ${valuesPlaceholders}`,
+        values
+      );
     }
 
     // 提交事务
@@ -2058,8 +2055,6 @@ exports.getSalesOutbound = async (req, res) => {
 
       const [statusCounts] = await connection.query(statusQuery);
 
-      // 恢复外键检查
-      await connection.query('SET FOREIGN_KEY_CHECKS = 1');
 
       // 格式化状态统计数据
       const statusStats = {
@@ -2121,10 +2116,8 @@ exports.getSalesOutboundById = async (req, res) => {
 
     const outbound = results[0];
 
-    // 直接查询销售出库单明细，不通过外键关系
+    // 查询销售出库单明细
     try {
-      // 临时禁用外键检查
-      await connection.query('SET FOREIGN_KEY_CHECKS = 0');
 
       // 查询明细数据
       const itemsQuery = `
@@ -2135,8 +2128,6 @@ exports.getSalesOutboundById = async (req, res) => {
 
       const [itemsResult] = await connection.query(itemsQuery, [id]);
 
-      // 恢复外键检查
-      await connection.query('SET FOREIGN_KEY_CHECKS = 1');
 
       // 如果有明细数据，查询相应的物料信息
       if (itemsResult.length > 0) {
@@ -2313,8 +2304,6 @@ exports.getSalesOutboundById = async (req, res) => {
 
       res.json(outbound);
     } catch (error) {
-      // 确保恢复外键检查
-      await connection.query('SET FOREIGN_KEY_CHECKS = 1');
       throw error;
     }
   } catch (error) {
@@ -2528,11 +2517,8 @@ exports.createSalesOutbound = async (req, res) => {
 
           if (validItems.length === 0) {
           } else {
-            // 直接修改sales_outbound_items表的外键约束
+            // 插入出库单明细
             try {
-              // 临时禁用外键检查
-              await connection.query('SET FOREIGN_KEY_CHECKS = 0');
-
               const detailQuery = `
                 INSERT INTO sales_outbound_items (
                   outbound_id, product_id, quantity, price, amount, source_order_id, source_order_no
@@ -2541,15 +2527,28 @@ exports.createSalesOutbound = async (req, res) => {
 
               const detailValues = [];
 
+              // 预加载订单明细的单价映射（防止前端不传价格导致 price=0）
+              let orderPriceMap = {};
+              const sourceOrderId = items[0]?.source_order_id || items[0]?.order_id || order_id;
+              if (sourceOrderId) {
+                const [orderItems] = await connection.query(
+                  'SELECT material_id, unit_price FROM sales_order_items WHERE order_id = ?',
+                  [sourceOrderId]
+                );
+                orderItems.forEach(oi => { orderPriceMap[oi.material_id] = parseFloat(oi.unit_price) || 0; });
+              }
+
               for (const item of validItems) {
                 const materialId = item.material_id || item.product_id;
                 const material = materialCheck.find((m) => m.id === materialId);
-                // 从销售订单明细获取价格信息
-                const unitPrice = parseFloat(item.unit_price || item.price || 0);
+                // 从前端传入 → 订单明细单价 → 物料基础价格（三级回退）
+                let unitPrice = parseFloat(item.unit_price || item.price || 0);
+                if (unitPrice === 0) {
+                  unitPrice = orderPriceMap[materialId] || 0;
+                }
                 const amount = parseFloat(item.quantity || 0) * unitPrice;
 
-                // 确保这里推入数组的值顺序和上方列名完全一致：
-                // [outbound_id, product_id, quantity, price, amount, source_order_id, source_order_no]
+                // 确保这里推入数组的值顺序和上方列名完全一致
                 detailValues.push([
                   outboundId,
                   materialId,
@@ -2569,12 +2568,7 @@ exports.createSalesOutbound = async (req, res) => {
                   throw new Error('插入明细数据失败: ' + insertError.message);
                 }
               }
-
-              // 恢复外键检查
-              await connection.query('SET FOREIGN_KEY_CHECKS = 1');
             } catch (error) {
-              // 确保恢复外键检查
-              await connection.query('SET FOREIGN_KEY_CHECKS = 1');
               throw error;
             }
           }
@@ -2815,12 +2809,8 @@ exports.updateSalesOutbound = async (req, res) => {
 
         if (validItems.length === 0) {
         } else {
-          // 临时禁用外键检查
           try {
-            await connection.query('SET FOREIGN_KEY_CHECKS = 0');
-
             // 删除原有明细
-
             await connection.query('DELETE FROM sales_outbound_items WHERE outbound_id = ?', [id]);
 
             // 插入新明细
@@ -2835,7 +2825,6 @@ exports.updateSalesOutbound = async (req, res) => {
             for (const item of validItems) {
               const materialId = item.material_id || item.product_id;
               const material = materialCheck.find((m) => m.id === materialId);
-              // 从销售订单明细获取价格信息
               const unitPrice = parseFloat(item.unit_price || item.price || 0);
               const amount = parseFloat(item.quantity || 0) * unitPrice;
 
@@ -2845,12 +2834,7 @@ exports.updateSalesOutbound = async (req, res) => {
             if (detailValues.length > 0) {
               await connection.query(detailQuery, [detailValues]);
             }
-
-            // 恢复外键检查
-            await connection.query('SET FOREIGN_KEY_CHECKS = 1');
           } catch (error) {
-            // 确保恢复外键检查
-            await connection.query('SET FOREIGN_KEY_CHECKS = 1');
             throw error;
           }
         }
@@ -3124,18 +3108,12 @@ exports.deleteSalesOutbound = async (req, res) => {
       });
     }
 
-    // 临时禁用外键检查
-    await connection.query('SET FOREIGN_KEY_CHECKS = 0');
-
     try {
       // 删除明细
       await connection.query('DELETE FROM sales_outbound_items WHERE outbound_id = ?', [id]);
 
       // 删除主表
       await connection.query('DELETE FROM sales_outbound WHERE id = ?', [id]);
-
-      // 恢复外键检查
-      await connection.query('SET FOREIGN_KEY_CHECKS = 1');
 
       await connection.commit();
 
@@ -3146,8 +3124,6 @@ exports.deleteSalesOutbound = async (req, res) => {
         id: parseInt(id),
       });
     } catch (error) {
-      // 确保恢复外键检查
-      await connection.query('SET FOREIGN_KEY_CHECKS = 1');
       await connection.rollback();
       throw error;
     }
@@ -3247,15 +3223,21 @@ exports.getSalesReturns = async (req, res) => {
         m.name as material_name,
         m.name as productName,
         m.specs as specification,
-        u.name as unit_name
+        u.name as unit_name,
+        COALESCE(soi.unit_price, m.price, 0) as unit_price,
+        ROUND(sri.quantity * COALESCE(soi.unit_price, m.price, 0), 2) as amount
         FROM sales_return_items sri
         LEFT JOIN materials m ON sri.product_id = m.id
         LEFT JOIN units u ON m.unit_id = u.id
+        LEFT JOIN sales_order_items soi ON soi.order_id = ? AND soi.material_id = sri.product_id
         WHERE sri.return_id = ?
         `;
 
-      const [detailsResults] = await conn.query(detailsQuery, [returnItem.id]);
+      const [detailsResults] = await conn.query(detailsQuery, [returnItem.order_id, returnItem.id]);
       results[i].items = detailsResults;
+
+      // 汇总退货金额
+      results[i].total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
     }
 
     // 统计不同状态的数量
@@ -3333,14 +3315,17 @@ exports.getSalesReturnById = async (req, res) => {
         m.name as material_name,
         m.name as productName,
         m.specs as specification,
-        u.name as unit_name
+        u.name as unit_name,
+        COALESCE(soi.unit_price, m.price, 0) as unit_price,
+        ROUND(sri.quantity * COALESCE(soi.unit_price, m.price, 0), 2) as amount
       FROM sales_return_items sri
       LEFT JOIN materials m ON sri.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
+      LEFT JOIN sales_order_items soi ON soi.order_id = ? AND soi.material_id = sri.product_id
       WHERE sri.return_id = ?
         `;
 
-    const [detailsResults] = await conn.query(detailsQuery, [id]);
+    const [detailsResults] = await conn.query(detailsQuery, [returnData.order_id, id]);
 
     // 保留英文状态 key，添加中文标签供前端展示
     const statusLabelMap = {
@@ -3354,6 +3339,7 @@ exports.getSalesReturnById = async (req, res) => {
 
     // 组合结果
     returnData.items = detailsResults;
+    returnData.total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
 
     res.json(returnData);
   } catch (error) {
@@ -3829,7 +3815,8 @@ exports.getSalesExchanges = async (req, res) => {
       const actualPageSize = parseInt(pageSize);
       const actualOffset = parseInt(offset);
       const query = `
-        SELECT se.*
+        SELECT se.*, 
+               se.return_amount, se.new_amount, se.difference_amount
         FROM sales_exchanges se
         WHERE 1 = 1 ${whereClause}
         ORDER BY se.created_at DESC
@@ -3903,10 +3890,13 @@ exports.getSalesExchangeById = async (req, res) => {
 
       const exchange = exchangeResults[0];
 
-      // 查询换货单明细
+      // 查询换货单明细（含单价金额）
       const detailsQuery = `
-        SELECT sei.*
+        SELECT sei.*, 
+               sei.unit_price, sei.amount,
+               m.id as material_id, m.price as material_price
         FROM sales_exchange_items sei
+        LEFT JOIN materials m ON sei.product_code COLLATE utf8mb4_unicode_ci = m.code COLLATE utf8mb4_unicode_ci
         WHERE sei.exchange_id = ?
         ORDER BY sei.item_type, sei.id
           `;
@@ -4015,12 +4005,13 @@ exports.createSalesExchange = async (req, res) => {
     const seq = seqResult[0].max_seq ? parseInt(seqResult[0].max_seq) + 1 : 1;
     const exchangeNo = `EX${dateStr}${seq.toString().padStart(3, '0')} `;
 
-    // 插入换货单主表
+    // 插入换货单主表（金额字段后续计算回填）
     const insertQuery = `
       INSERT INTO sales_exchanges(
             exchange_no, order_no, customer_name, contact_phone, exchange_date,
-            exchange_reason, status, remarks, created_by, created_at
-          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            exchange_reason, status, remarks, created_by, created_at,
+            return_amount, new_amount, difference_amount
+          ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 0, 0, 0)
             `;
 
     const created_by = req.user ? req.user.id : 1; // 获取当前用户ID，如果不存在则默认为1
@@ -4055,46 +4046,77 @@ exports.createSalesExchange = async (req, res) => {
     const exchangeId = result.insertId;
 
     // 插入明细表 - 支持新旧两种数据格式
+    // 预加载物料价格映射（用于金额计算）
+    let materialPriceMap = {};
+    try {
+      const allCodes = [];
+      if (hasNewFormat) {
+        (returnItems || []).forEach(i => { if (i.productCode) allCodes.push(i.productCode); });
+        (newItems || []).forEach(i => { if (i.productCode) allCodes.push(i.productCode); });
+      } else if (hasOldFormat) {
+        items.forEach(i => { if (i.productCode) allCodes.push(i.productCode); });
+      }
+      if (allCodes.length > 0) {
+        const [mats] = await connection.query(
+          'SELECT code, price FROM materials WHERE code IN (?)', [allCodes]
+        );
+        mats.forEach(m => { materialPriceMap[m.code] = parseFloat(m.price) || 0; });
+      }
+    } catch (e) { logger.warn('预加载物料价格失败:', e.message); }
+
+    // 尝试从关联订单获取成交价（退回商品优先使用订单价格）
+    let orderPriceMap = {};
+    if (orderNo) {
+      try {
+        const [orderItems] = await connection.query(
+          `SELECT m.code, soi.unit_price 
+           FROM sales_order_items soi 
+           JOIN materials m ON soi.material_id = m.id 
+           JOIN sales_orders so ON soi.order_id = so.id 
+           WHERE so.order_no = ?`, [orderNo]
+        );
+        orderItems.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
+      } catch (e) { logger.warn('获取订单价格失败:', e.message); }
+    }
+
     if (hasNewFormat) {
       // 新格式：分别处理退回商品和换出商品
       const detailQuery = `
         INSERT INTO sales_exchange_items(
               exchange_id, item_type, product_code, product_name, specification,
-              original_quantity, quantity, reason, unit_name
+              original_quantity, quantity, unit_price, amount, reason, unit_name
             ) VALUES ?
               `;
 
       const allDetailValues = [];
 
-      // 插入退回商品
+      // 插入退回商品（单价优先用订单成交价，其次物料基础价）
       if (returnItems && returnItems.length > 0) {
-        const returnValues = returnItems.map((item) => [
-          exchangeId,
-          'return',
-          item.productCode,
-          item.productName,
-          item.specification || '',
-          item.originalQuantity || 0,
-          item.returnQuantity || 0,
-          item.returnReason || '',
-          item.unitName || '',
-        ]);
+        const returnValues = returnItems.map((item) => {
+          const unitPrice = orderPriceMap[item.productCode] || materialPriceMap[item.productCode] || 0;
+          const qty = parseFloat(item.returnQuantity) || 0;
+          return [
+            exchangeId, 'return', item.productCode, item.productName,
+            item.specification || '', item.originalQuantity || 0, qty,
+            unitPrice, Math.round(qty * unitPrice * 100) / 100,
+            item.returnReason || '', item.unitName || '',
+          ];
+        });
         allDetailValues.push(...returnValues);
       }
 
-      // 插入换出商品
+      // 插入换出商品（单价用物料基础售价）
       if (newItems && newItems.length > 0) {
-        const newValues = newItems.map((item) => [
-          exchangeId,
-          'new',
-          item.productCode,
-          item.productName,
-          item.specification || '',
-          0, // 换出商品没有原数量
-          item.newQuantity || 0,
-          item.newReason || '',
-          item.unitName || '',
-        ]);
+        const newValues = newItems.map((item) => {
+          const unitPrice = materialPriceMap[item.productCode] || 0;
+          const qty = parseFloat(item.newQuantity) || 0;
+          return [
+            exchangeId, 'new', item.productCode, item.productName,
+            item.specification || '', 0, qty,
+            unitPrice, Math.round(qty * unitPrice * 100) / 100,
+            item.newReason || '', item.unitName || '',
+          ];
+        });
         allDetailValues.push(...newValues);
       }
 
@@ -4106,24 +4128,48 @@ exports.createSalesExchange = async (req, res) => {
       const detailQuery = `
         INSERT INTO sales_exchange_items(
                 exchange_id, item_type, product_code, product_name, specification,
-                original_quantity, quantity, reason, unit_name
+                original_quantity, quantity, unit_price, amount, reason, unit_name
               ) VALUES ?
                 `;
 
-      const detailValues = items.map((item) => [
-        exchangeId,
-        'return', // 旧格式默认作为退回商品处理
-        item.productCode,
-        item.productName,
-        item.specification || '',
-        item.originalQuantity || 0,
-        item.exchangeQuantity || 0,
-        item.exchangeReason || '',
-        item.unitName || '',
-      ]);
+      const detailValues = items.map((item) => {
+        const unitPrice = orderPriceMap[item.productCode] || materialPriceMap[item.productCode] || 0;
+        const qty = parseFloat(item.exchangeQuantity) || 0;
+        return [
+          exchangeId,
+          'return', // 旧格式默认作为退回商品处理
+          item.productCode,
+          item.productName,
+          item.specification || '',
+          item.originalQuantity || 0,
+          qty,
+          unitPrice,
+          Math.round(qty * unitPrice * 100) / 100,
+          item.exchangeReason || '',
+          item.unitName || '',
+        ];
+      });
 
       await connection.query(detailQuery, [detailValues]);
     }
+
+    // 汇总明细金额并回填主表
+    const [retSum] = await connection.query(
+      'SELECT COALESCE(SUM(amount), 0) as s FROM sales_exchange_items WHERE exchange_id = ? AND item_type = ?',
+      [exchangeId, 'return']
+    );
+    const [newSum] = await connection.query(
+      'SELECT COALESCE(SUM(amount), 0) as s FROM sales_exchange_items WHERE exchange_id = ? AND item_type = ?',
+      [exchangeId, 'new']
+    );
+    const returnAmt = parseFloat(retSum[0].s);
+    const newAmt = parseFloat(newSum[0].s);
+    const diffAmt = Math.round((newAmt - returnAmt) * 100) / 100;
+    await connection.query(
+      'UPDATE sales_exchanges SET return_amount = ?, new_amount = ?, difference_amount = ? WHERE id = ?',
+      [returnAmt, newAmt, diffAmt, exchangeId]
+    );
+    logger.info(`💰 换货单 ${exchangeNo} 金额: 退回=${returnAmt}, 换出=${newAmt}, 差价=${diffAmt}`);
 
     // 如果创建时状态就是"已完成"，立即处理库存操作
     if (reason === '已完成' && (hasNewFormat || hasOldFormat)) {
@@ -4219,16 +4265,35 @@ exports.updateSalesExchange = async (req, res) => {
 
     // 插入新明细
     if (items && items.length > 0) {
+      // 预加载物料价格映射
+      let materialPriceMap = {};
+      let orderPriceMap = {};
+      try {
+        const allCodes = items.map(i => i.productCode || i.product_code).filter(Boolean);
+        if (allCodes.length > 0) {
+          const [mats] = await connection.query('SELECT code, price FROM materials WHERE code IN (?)', [allCodes]);
+          mats.forEach(m => { materialPriceMap[m.code] = parseFloat(m.price) || 0; });
+        }
+        if (orderNo) {
+          const [ois] = await connection.query(
+            `SELECT m.code, soi.unit_price FROM sales_order_items soi 
+             JOIN materials m ON soi.material_id = m.id 
+             JOIN sales_orders so ON soi.order_id = so.id WHERE so.order_no = ?`, [orderNo]
+          );
+          ois.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
+        }
+      } catch (e) { logger.warn('预加载价格映射失败:', e.message); }
+
       const detailQuery = `
         INSERT INTO sales_exchange_items(
           exchange_id, item_type, product_code, product_name, specification,
-          original_quantity, quantity, reason, unit_name
+          original_quantity, quantity, unit_price, amount, reason, unit_name
         ) VALUES ?
           `;
 
       // 先计算退回商品的总数量，用于设置换出商品的默认数量
-      const returnItems = items.filter((item) => parseFloat(item.originalQuantity || 0) > 0);
-      const totalReturnQuantity = returnItems.reduce(
+      const returnItemsFiltered = items.filter((item) => parseFloat(item.originalQuantity || 0) > 0);
+      const totalReturnQuantity = returnItemsFiltered.reduce(
         (sum, item) => sum + parseFloat(item.originalQuantity || 0),
         0
       );
@@ -4246,56 +4311,49 @@ exports.updateSalesExchange = async (req, res) => {
 
         if (quantity === 0) {
           if (originalQuantity > 0) {
-            // 退回商品：默认退回数量等于原始数量
             quantity = originalQuantity;
           } else {
-            // 换出商品：如果没有指定数量，默认等于退回商品的总数量
             quantity = totalReturnQuantity;
           }
         }
         const reason = item.reason || item.exchangeReason || item.exchange_reason || '';
         const unitName = item.unitName || item.unit_name || '';
 
-        // 根据原始数量判断商品类型
-        // originalQuantity > 0: 退回商品 (客户退回给我们的)
-        // originalQuantity = 0: 换出商品 (我们发给客户的)
-        logger.info('判断商品类型:', {
-          originalQuantity,
-          'item.item_type': item.item_type,
-          'item.itemType': item.itemType,
-          判断结果: originalQuantity > 0 ? 'return' : 'new',
-        });
         const itemType =
           item.item_type || item.itemType || (originalQuantity > 0 ? 'return' : 'new');
 
-        const values = [
-          id,
-          itemType,
-          productCode,
-          productName,
-          specification,
-          originalQuantity,
-          quantity,
-          reason,
-          unitName,
+        // 计算单价和金额
+        const unitPrice = (itemType === 'return')
+          ? (orderPriceMap[productCode] || materialPriceMap[productCode] || 0)
+          : (materialPriceMap[productCode] || 0);
+        const amount = Math.round(quantity * unitPrice * 100) / 100;
+
+        return [
+          id, itemType, productCode, productName, specification,
+          originalQuantity, quantity, unitPrice, amount, reason, unitName,
         ];
-
-        logger.info('映射后的值:', {
-          productCode,
-          productName,
-          specification,
-          originalQuantity,
-          quantity,
-          reason,
-          unitName,
-          itemType,
-        });
-
-        return values;
       });
 
       await connection.query(detailQuery, [detailValues]);
     }
+
+    // 汇总明细金额并回填主表
+    const [retSum] = await connection.query(
+      'SELECT COALESCE(SUM(amount), 0) as s FROM sales_exchange_items WHERE exchange_id = ? AND item_type = ?',
+      [id, 'return']
+    );
+    const [newSum] = await connection.query(
+      'SELECT COALESCE(SUM(amount), 0) as s FROM sales_exchange_items WHERE exchange_id = ? AND item_type = ?',
+      [id, 'new']
+    );
+    const returnAmt = parseFloat(retSum[0].s);
+    const newAmt = parseFloat(newSum[0].s);
+    const diffAmt = Math.round((newAmt - returnAmt) * 100) / 100;
+    await connection.query(
+      'UPDATE sales_exchanges SET return_amount = ?, new_amount = ?, difference_amount = ? WHERE id = ?',
+      [returnAmt, newAmt, diffAmt, id]
+    );
+    logger.info(`💰 换货单更新金额: 退回=${returnAmt}, 换出=${newAmt}, 差价=${diffAmt}`);
 
     // 如果状态变为"已完成"，处理库存操作
     logger.info('库存处理检查:', {
@@ -4450,6 +4508,21 @@ exports.updateExchangeStatus = async (req, res) => {
       const operator = req.user?.username || 'system';
       await processExchangeInventory(connection, id, operator);
       logger.info(`✅ 换货单 ${currentExchange.exchange_no} 完成，库存已处理`);
+
+      // 异步生成差价分录
+      const [exchangeInfo] = await connection.query('SELECT * FROM sales_exchanges WHERE id = ?', [id]);
+      if (exchangeInfo.length > 0) {
+        const salesExchange = exchangeInfo[0];
+        setImmediate(async () => {
+          try {
+            const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
+            await FinanceIntegrationService.generateExchangeDifferenceEntry(salesExchange);
+            logger.info(`✅ 换货差价分录自动生成成功 - 换货单: ${salesExchange.exchange_no}`);
+          } catch (financeError) {
+            logger.warn(`⚠️ 换货差价分录自动生成失败（不影响换货）: ${financeError.message}`);
+          }
+        });
+      }
     }
 
     await connection.commit();
@@ -4906,7 +4979,17 @@ exports.lockOrder = async (req, res) => {
 
     if (!reservationResult.success) {
       await connection.rollback();
-      return ResponseHandler.error(res, '库存预留失败，无法锁定订单', 'BAD_REQUEST', 400);
+      logger.warn('🔒 锁定订单失败 - 库存不足详情:', JSON.stringify({
+        orderId: id,
+        insufficientItems: reservationResult.insufficientItems,
+        reservations: reservationResult.reservations
+      }));
+      return res.status(400).json({
+        success: false,
+        message: '库存不足，无法锁定订单',
+        errorCode: 'BAD_REQUEST',
+        insufficientItems: reservationResult.insufficientItems || []
+      });
     }
 
     // 更新订单锁定状态
@@ -4923,13 +5006,15 @@ exports.lockOrder = async (req, res) => {
 
     // 返回详细的锁定结果
     res.json({
-      message: reservationResult.fullSuccess ? '订单锁定成功' : '订单部分锁定成功',
-      orderId: id,
       success: reservationResult.success,
-      fullSuccess: reservationResult.fullSuccess,
-      partialSuccess: reservationResult.partialSuccess,
-      reservations: reservationResult.reservations,
-      insufficientItems: reservationResult.insufficientItems,
+      message: reservationResult.fullSuccess ? '订单锁定成功' : '订单部分锁定成功',
+      data: {
+        orderId: id,
+        fullSuccess: reservationResult.fullSuccess,
+        partialSuccess: reservationResult.partialSuccess,
+        reservations: reservationResult.reservations,
+        insufficientItems: reservationResult.insufficientItems,
+      }
     });
   } catch (error) {
     await connection.rollback();
@@ -4989,9 +5074,12 @@ exports.unlockOrder = async (req, res) => {
     await connection.commit();
 
     res.json({
+      success: true,
       message: '订单解锁成功',
-      orderId: id,
-      releaseResult: releaseResult,
+      data: {
+        orderId: id,
+        releaseResult: releaseResult,
+      }
     });
   } catch (error) {
     await connection.rollback();

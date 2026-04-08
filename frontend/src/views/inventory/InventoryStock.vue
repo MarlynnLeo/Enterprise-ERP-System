@@ -574,6 +574,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 // 权限计算属性
+const canEdit = computed(() => authStore.hasPermission && authStore.hasPermission('inventory:stock:edit'));
 
 // 防抖函数
 function debounce(func, wait) {

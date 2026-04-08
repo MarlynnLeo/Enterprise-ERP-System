@@ -1300,20 +1300,6 @@ const inspectRules = {
   ],
   inspectionDate: [
     { required: true, message: '请选择检验日期', trigger: 'change' }
-  ],
-  items: [
-    {
-      validator: (rule, value, callback) => {
-        if (value.some(item => !item.actual_value)) {
-          callback(new Error('请填写所有检验项的实际值'))
-        } else if (value.some(item => !item.result)) {
-          callback(new Error('请选择所有检验项的结果'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'change'
-    }
   ]
 }
 
@@ -1433,6 +1419,18 @@ const submitInspection = async () => {
 
   try {
     await inspectFormRef.value.validate()
+    
+    // 手动验证 items (避免 vue/element-plus 数组深度监控引发警告)
+    if (inspectForm.items.some(item => !item.actual_value)) {
+      ElMessage.warning('请填写所有检验项的实际值');
+      submitLoading.value = false;
+      return;
+    }
+    if (inspectForm.items.some(item => !item.result)) {
+      ElMessage.warning('请选择所有检验项的结果');
+      submitLoading.value = false;
+      return;
+    }
     
     // 计算检验结果状态
     const allPassed = inspectForm.items.every(item => item.result === 'passed')

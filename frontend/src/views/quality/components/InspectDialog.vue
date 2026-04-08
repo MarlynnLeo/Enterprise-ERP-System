@@ -171,7 +171,7 @@ const inspectionNo = computed(() => props.row?.inspectionNo || props.row?.inspec
 const inspectFormRef = ref(null)
 const submitting = ref(false)
 const samplingLoading = ref(false)
-const currentSampleSize = ref(6)
+const currentSampleSize = ref(1)
 const currentInspectionData = ref(null) // 保存完整检验数据用于后续操作
 
 // 对话框宽度根据测量值数量动态计算
@@ -204,7 +204,7 @@ const inspectForm = reactive({
 const inspectRules = {
   quantity: [{ required: true, message: '请输入检验数量', trigger: 'blur' }],
   qualified_quantity: [
-    { required: true, message: '请输入合格数量', trigger: 'blur' },
+    { required: true, message: '请输入合格数量', trigger: 'change' },
     {
       validator: (rule, value, callback) => {
         if (value === '' || value === null || value === undefined) callback(new Error('合格数量不能为空'))
@@ -217,22 +217,11 @@ const inspectRules = {
           else callback()
         }
       },
-      trigger: 'blur'
+      trigger: 'change'
     }
   ],
   inspector_name: [{ required: true, message: '请输入检验员姓名', trigger: 'blur' }],
-  inspectionDate: [{ required: true, message: '请选择检验日期', trigger: 'change' }],
-  items: [{
-    validator: (rule, value, callback) => {
-      if (!value || value.length === 0) callback(new Error('请填写检验项'))
-      else {
-        const unfilledItems = value.filter(item => !item.actual_value || !item.result)
-        if (unfilledItems.length === value.length) callback(new Error('请填写检验项的实际值和结果'))
-        else callback()
-      }
-    },
-    trigger: 'blur'
-  }]
+  inspectionDate: [{ required: true, message: '请选择检验日期', trigger: 'change' }]
 }
 
 // AQL 相关
@@ -440,8 +429,8 @@ const handleAqlChange = async () => {
     inspectForm.aql_standard_id = null
     inspectForm.accept_limit = 0
     inspectForm.reject_limit = 1
-    currentSampleSize.value = 6
-    resizeAllMeasurements(6)
+    currentSampleSize.value = 1
+    resizeAllMeasurements(1)
   }
 }
 
@@ -467,7 +456,7 @@ const mapInspectionItems = (items) => {
     if (item.measurements && Array.isArray(item.measurements)) {
       measurements = [...item.measurements]
     } else {
-      for (let i = 1; i <= Math.max(size, 6); i++) measurements.push(item[`measure_${i}`] || '')
+      for (let i = 1; i <= Math.max(size, 1); i++) measurements.push(item[`measure_${i}`] || '')
     }
     while (measurements.length < size) measurements.push('')
     if (measurements.length > size) measurements.length = size

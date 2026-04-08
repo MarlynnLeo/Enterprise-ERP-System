@@ -165,7 +165,7 @@ const reviewForm = reactive({
 const reviewRules = {
   quantity: [{ required: true, message: '请输入复检数量', trigger: 'blur' }],
   qualified_quantity: [
-    { required: true, message: '请输入合格数量', trigger: 'blur' },
+    { required: true, message: '请输入合格数量', trigger: 'change' },
     {
       validator: (rule, value, callback) => {
         if (value === '' || value === null || value === undefined) {
@@ -179,26 +179,12 @@ const reviewRules = {
           else callback()
         }
       },
-      trigger: 'blur'
+      trigger: 'change'
     }
   ],
   inspector_name: [{ required: true, message: '请输入复检人员姓名', trigger: 'blur' }],
   inspectionDate: [{ required: true, message: '请选择复检日期', trigger: 'change' }],
-  reviewReason: [{ required: true, message: '请选择复检原因', trigger: 'change' }],
-  items: [
-    {
-      validator: (rule, value, callback) => {
-        if (!value || value.length === 0) {
-          callback(new Error('请填写检验项'))
-        } else {
-          const unfilledItems = value.filter(item => !item.actual_value || !item.result)
-          if (unfilledItems.length === value.length) callback(new Error('请填写检验项的实际值和结果'))
-          else callback()
-        }
-      },
-      trigger: 'blur'
-    }
-  ]
+  reviewReason: [{ required: true, message: '请选择复检原因', trigger: 'change' }]
 }
 
 // 监听弹窗打开时加载数据

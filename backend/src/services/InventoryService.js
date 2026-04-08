@@ -402,6 +402,17 @@ class InventoryService {
         } catch (alertError) {
           logger.warn('库存预警检查失败（不影响主流程）:', alertError.message);
         }
+
+        // ✅ 新增：如果是增加库存（入库/退库等），触发待发货销售订单的自动库存满足检查
+        if (changeQuantity > 0) {
+          try {
+            const SalesOrderStatusService = require('./business/SalesOrderStatusService');
+            // 使用异步独立新连接验证
+            await SalesOrderStatusService.checkAndReleasePendingOrders();
+          } catch (salesOrderError) {
+            logger.warn('流转待发货销售订单状态检查失败（不影响主流程）:', salesOrderError.message);
+          }
+        }
       });
 
       return {

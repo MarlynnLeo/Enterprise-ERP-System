@@ -221,6 +221,7 @@ const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:boms:create'));
 const canUpdate = computed(() => authStore.hasPermission('basedata:boms:update'));
 const canDelete = computed(() => authStore.hasPermission('basedata:boms:delete'));
+const canApprove = computed(() => authStore.hasPermission('basedata:boms:approve'));
 
 // 状态
 const loading = ref(false);

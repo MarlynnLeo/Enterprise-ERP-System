@@ -443,6 +443,72 @@ class SalesOrderStatusService {
       }
     }
   }
+
+  /**
+   * 检查所有 in_procurement 和 in_production 状态的销售订单，
+   * 如果其物料库存均已满足，则将其状态自动推进为 ready_to_ship。
+   * 这个方法应在采购入库、生产入库等导致库存增加的操作后调用。
+   *
+   * @param {Object} connection - 数据库连接（可选）
+   * @returns {Promise<void>}
+   */
+  static async checkAndReleasePendingOrders(connection = null) {
+    const client = connection || (await getConnection());
+    const shouldRelease = !connection;
+
+    try {
+      // 查找所有等待发货的销售订单（包含在生产和在采购）
+      const salesOrderQuery = 'SELECT id, status FROM sales_orders WHERE status IN ("in_procurement", "in_production")';
+      const [salesOrders] = await client.query(salesOrderQuery);
+
+      if (salesOrders && salesOrders.length > 0) {
+        for (const order of salesOrders) {
+          try {
+            const orderItemsQuery = `
+              SELECT soi.material_id, soi.quantity 
+              FROM sales_order_items soi
+              WHERE soi.order_id = ?
+            `;
+            const [orderItems] = await client.query(orderItemsQuery, [order.id]);
+
+            let allItemsInStock = true;
+
+            for (const item of orderItems) {
+              const stockQuery = `
+                SELECT COALESCE(SUM(quantity), 0) as current_stock
+                FROM inventory_ledger
+                WHERE material_id = ?
+              `;
+              const [stockData] = await client.query(stockQuery, [item.material_id]);
+
+              const currentStock = stockData.length > 0 ? parseFloat(stockData[0].current_stock || 0) : 0;
+              const requiredQuantity = parseFloat(item.quantity || 0);
+
+              if (currentStock < requiredQuantity) {
+                allItemsInStock = false;
+                break;
+              }
+            }
+
+            if (allItemsInStock) {
+              // 自动推进为待发货
+              const updateOrderQuery = 'UPDATE sales_orders SET status = "ready_to_ship", updated_at = NOW() WHERE id = ?';
+              await client.query(updateOrderQuery, [order.id]);
+              logger.info(`📦 销售订单 ${order.id} 库存已全部备齐，自动流转至 ready_to_ship 状态`);
+            }
+          } catch (orderError) {
+            logger.error(`检查销售订单 ${order.id} 时出错:`, orderError);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('检查并流转采购/生产销售订单时发生错误:', error);
+    } finally {
+      if (shouldRelease && client) {
+        client.release();
+      }
+    }
+  }
 }
 
 module.exports = SalesOrderStatusService;

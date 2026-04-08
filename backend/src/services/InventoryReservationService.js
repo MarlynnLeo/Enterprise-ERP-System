@@ -27,13 +27,20 @@ class InventoryReservationService {
       const reservations = [];
       const insufficientItems = [];
 
+      // ✅ 批量预取物料基础信息（消除循环内 N 次 getMaterialInfo SQL）
+      const materialIds = items.map(i => i.material_id);
+      const materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, conn);
+
       for (const item of items) {
-        // 通过统一服务获取物料基础信息（自带校验：物料不存在或未配置仓库会报错）
-        const matInfo = await InventoryService.getMaterialInfo(item.material_id, conn);
-        const material = { id: item.material_id, code: matInfo.materialCode, name: matInfo.materialName };
+        // 从预取结果获取物料信息（0 次 SQL）
+        const matInfo = materialInfoMap.get(item.material_id);
+        if (!matInfo) {
+          throw new Error(`物料 ${item.material_id} 不存在或未配置默认仓库`);
+        }
+        const material = { id: item.material_id, code: matInfo.code || matInfo.materialCode, name: matInfo.name || matInfo.materialName };
         const locationId = matInfo.locationId;
 
-        // 检查当前可用库存（排除已预留的库存）
+        // 检查当前可用库存（使用 FOR UPDATE 锁，必须逐行以防止超卖）
         const availableStock = await this.getAvailableStock(item.material_id, locationId, conn);
         const requiredQuantity = parseFloat(item.quantity);
 
@@ -254,16 +261,15 @@ class InventoryReservationService {
     try {
       await connection.beginTransaction();
 
-      for (const item of consumedItems) {
-        // 更新对应的预留记录状态
+      // ✅ 批量 UPDATE 替代逐条循环
+      if (consumedItems.length > 0) {
+        const materialIds = consumedItems.map(item => item.material_id);
+        const placeholders = materialIds.map(() => '?').join(',');
         await connection.execute(
-          `
-          UPDATE inventory_reservations 
-          SET status = 'consumed', updated_at = NOW()
-          WHERE order_id = ? AND material_id = ? AND status = 'active'
-          LIMIT 1
-        `,
-          [orderId, item.material_id]
+          `UPDATE inventory_reservations 
+           SET status = 'consumed', updated_at = NOW()
+           WHERE order_id = ? AND material_id IN (${placeholders}) AND status = 'active'`,
+          [orderId, ...materialIds]
         );
       }
 

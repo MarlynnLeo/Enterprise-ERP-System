@@ -17,12 +17,6 @@ module.exports = (sequelize) => {
         otherKey: 'item_id',
         as: 'InspectionItems',
       });
-
-      // 暂时注释掉与User模型的关联
-      // InspectionTemplate.belongsTo(models.User, {
-      //   foreignKey: 'created_by',
-      //   as: 'Creator'
-      // });
     }
   }
 

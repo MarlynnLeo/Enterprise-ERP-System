@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * FinanceDashboard.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="finance-dashboard" v-loading="loading" element-loading-text="正在加载财务数据...">
+  <div class="finance-dashboard">
     <el-card class="header-card">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <h2>财务数据概览</h2>
@@ -117,15 +117,15 @@
     <!-- 图表区域 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :md="12" class="mb-20">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="card-header">
               <span>收支趋势</span>
-              <el-select v-model="timeRange" placeholder="选择时间范围" size="small">
-                <el-option label="最近6个月" value="6" />
-                <el-option label="最近12个月" value="12" />
-                <el-option label="本年度" value="year" />
-              </el-select>
+              <el-radio-group v-model="timeRange" size="small">
+                <el-radio-button value="6">近6月</el-radio-button>
+                <el-radio-button value="12">近12月</el-radio-button>
+                <el-radio-button value="year">本年度</el-radio-button>
+              </el-radio-group>
             </div>
           </template>
           <div class="chart-container">
@@ -135,7 +135,7 @@
       </el-col>
 
       <el-col :xs="24" :md="12" class="mb-20">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="card-header">
               <span>收入分类</span>
@@ -227,7 +227,7 @@
 
 import apiAdapter from '@/utils/apiAdapter';
 
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 
 import { useRouter } from 'vue-router';
 import Chart from 'chart.js/auto';
@@ -441,16 +441,23 @@ async function getMonthlyTrendData(months = 12) {
 async function initIncomeExpenseChart() {
   if (!chartRefs.incomeExpense?.value) return null;
 
+  // 销毁旧图表实例（切换时间范围时必须先销毁）
+  if (chartInstances.incomeExpense) {
+    chartInstances.incomeExpense.destroy();
+    chartInstances.incomeExpense = null;
+  }
+
   const ctx = chartRefs.incomeExpense.value.getContext('2d');
 
-  // 从API获取真实的月度收支数据
-  const { labels, incomeData, expenseData } = await getMonthlyTrendData(12);
+  // 从API获取真实的月度收支数据（根据时间范围动态获取）
+  const months = timeRange.value === 'year' ? (new Date().getMonth() + 1) : parseInt(timeRange.value) || 12;
+  const { labels, incomeData, expenseData } = await getMonthlyTrendData(months);
 
   const config = createBarChartConfig({
     yAxisTitle: '金额(元)'
   });
 
-  return new Chart(ctx, {
+  const instance = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: labels,
@@ -473,6 +480,10 @@ async function initIncomeExpenseChart() {
     },
     options: config
   });
+
+  // 保存实例引用
+  chartInstances.incomeExpense = instance;
+  return instance;
 }
 
 // 初始化收入分类图表（按交易类型分类）
@@ -567,6 +578,30 @@ async function initIncomeCategoryChart() {
 // 生命周期钩子
 onMounted(async () => {
   try {
+    // 等待DOM完全渲染
+    await nextTick();
+
+    // 等待canvas元素完全渲染
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // 确保canvas元素存在且已渲染
+    let retryCount = 0;
+    const maxRetries = 5;
+
+    while (retryCount < maxRetries) {
+      const incomeExpenseCanvas = chartRefs.incomeExpense?.value;
+      const incomeCategoryCanvas = chartRefs.incomeCategory?.value;
+
+      if (incomeExpenseCanvas && incomeCategoryCanvas &&
+          incomeExpenseCanvas.offsetWidth > 0 && incomeExpenseCanvas.offsetHeight > 0 &&
+          incomeCategoryCanvas.offsetWidth > 0 && incomeCategoryCanvas.offsetHeight > 0) {
+        break;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+      retryCount++;
+    }
+
     // 初始化图表
     await initAllCharts({
       incomeExpense: initIncomeExpenseChart,
@@ -1212,6 +1247,19 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
   width: 100%;
   height: 300px;
   position: relative;
+}
+
+.chart-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .financial-metrics {

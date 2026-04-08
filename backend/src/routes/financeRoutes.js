@@ -360,12 +360,7 @@ router.get('/reports/standard-cash-flow', requirePermission('finance:reports:vie
 // 5. 财务报表汇总
 router.get('/reports/summary', requirePermission('finance:reports:view'), enhancedReportsController.getReportsSummary);
 
-// 兼容性路由（保持向后兼容）
-// 增强版路由重定向到标准路由
-router.get('/reports/enhanced/balance-sheet', requirePermission('finance:reports:view'), enhancedReportsController.getBalanceSheet);
-router.get('/reports/enhanced/income-statement', requirePermission('finance:reports:view'), enhancedReportsController.getIncomeStatement);
-router.get('/reports/enhanced/cash-flow', requirePermission('finance:reports:view'), enhancedReportsController.getCashFlowStatement);
-router.get('/reports/enhanced/summary', requirePermission('finance:reports:view'), enhancedReportsController.getReportsSummary);
+
 
 // 税务模块路由
 // 1. 税务发票管理

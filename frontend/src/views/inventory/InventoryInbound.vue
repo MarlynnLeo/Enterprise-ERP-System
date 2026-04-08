@@ -624,7 +624,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 // 权限计算属性
-
+const canCreate = computed(() => authStore.hasPermission && authStore.hasPermission('inventory:inbound:create'));
 // 搜索表单
 const searchForm = reactive({
   inboundNo: '',

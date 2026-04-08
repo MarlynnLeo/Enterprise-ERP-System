@@ -61,23 +61,22 @@ const apModel = {
 
       const invoiceId = result.insertId;
 
-      // 如果有发票明细项，保存明细项
+      // 批量插入发票明细项（1次SQL替代N次）
       if (invoiceData.items && Array.isArray(invoiceData.items) && invoiceData.items.length > 0) {
-        for (const item of invoiceData.items) {
-          await conn.execute(
-            `INSERT INTO ap_invoice_items
-            (invoice_id, material_id, description, quantity, unit_price, amount)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              invoiceId,
-              item.material_id ?? null,
-              item.description ?? null,
-              item.quantity ?? null,
-              item.unit_price ?? null,
-              item.amount ?? null,
-            ]
-          );
-        }
+        const itemValues = invoiceData.items.map(item => [
+          invoiceId,
+          item.material_id ?? null,
+          item.description ?? null,
+          item.quantity ?? null,
+          item.unit_price ?? null,
+          item.amount ?? null,
+        ]);
+        await conn.query(
+          `INSERT INTO ap_invoice_items
+           (invoice_id, material_id, description, quantity, unit_price, amount)
+           VALUES ?`,
+          [itemValues]
+        );
       }
 
       // 如果发票状态为"已确认"，则创建会计分录
@@ -448,22 +447,21 @@ const apModel = {
           invoiceData.id,
         ]);
 
-        // 添加新的明细项
-        for (const item of invoiceData.items) {
-          await connection.execute(
-            `INSERT INTO ap_invoice_items
-            (invoice_id, material_id, description, quantity, unit_price, amount)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              invoiceData.id,
-              item.materialId,
-              item.description || '',
-              item.quantity,
-              item.unitPrice,
-              item.amount,
-            ]
-          );
-        }
+        // 批量插入新明细项（1次SQL替代N次）
+        const itemValues = invoiceData.items.map(item => [
+          invoiceData.id,
+          item.materialId,
+          item.description || '',
+          item.quantity,
+          item.unitPrice,
+          item.amount,
+        ]);
+        await connection.query(
+          `INSERT INTO ap_invoice_items
+           (invoice_id, material_id, description, quantity, unit_price, amount)
+           VALUES ?`,
+          [itemValues]
+        );
       }
 
       // ===== 自动同步供应商发票号到税务发票 =====

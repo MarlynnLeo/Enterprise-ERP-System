@@ -262,13 +262,20 @@ const baseDataController = {
         return ResponseHandler.error(res, '批量查询数量不能超过100条', 'BAD_REQUEST', 400);
       }
 
-      // 这里简单实现，循环调用getMaterialById，实际应该在Service中实现批量查询      // 为了保持兼容性，暂时这样做，或者在Service中添加getMaterialsByIds
-      // 考虑到Service中没有getMaterialsByIds，我这里先用Promise.all
-      const materials = await Promise.all(ids.map((id) => materialService.getMaterialById(id)));
-      const validMaterials = materials.filter((m) => m !== null);
+      // ✅ 批量查询替代 N 次循环调用
+      const { pool: dbPool } = require('../../config/db');
+      const placeholders = ids.map(() => '?').join(',');
+      const [materials] = await dbPool.query(
+        `SELECT m.*, c.name as category_name, u.name as unit_name 
+         FROM materials m 
+         LEFT JOIN categories c ON m.category_id = c.id 
+         LEFT JOIN units u ON m.unit_id = u.id 
+         WHERE m.id IN (${placeholders})`,
+        ids
+      );
       
       const hasPerm = await hasFinancePermission(req.user);
-      const filteredMaterials = desensitizeData(validMaterials, hasPerm);
+      const filteredMaterials = desensitizeData(materials, hasPerm);
 
       ResponseHandler.success(res, filteredMaterials, '批量获取物料成功');
     } catch (error) {
@@ -319,20 +326,6 @@ const baseDataController = {
     }
   },
 
-  async getNextMaterialSequence(req, res) {
-    try {
-      const { prefix } = req.query;
-      if (!prefix) {
-        return ResponseHandler.error(res, '前缀不能为空', 'BAD_REQUEST', 400);
-      }
-      const sequence = await materialService.getNextMaterialSequence(prefix);
-      ResponseHandler.success(res, { sequence }, '获取序号成功');
-    } catch (error) {
-      logger.error('获取物料序号失败:', error);
-      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
-    }
-  },
-
   // 获取物料选项列表 (用于下拉选择)
   async getMaterialOptions(req, res) {
     try {
@@ -370,28 +363,23 @@ const baseDataController = {
   // 获取物料统计信息
   async getMaterialStats(req, res) {
     try {
-
       const { pool: dbPool } = require('../../config/db');
 
-      const [totalResult] = await dbPool.query('SELECT COUNT(*) as count FROM materials');
-      const [activeResult] = await dbPool.query(
-        'SELECT COUNT(*) as count FROM materials WHERE status = 1'
-      );
-      const [inactiveResult] = await dbPool.query(
-        'SELECT COUNT(*) as count FROM materials WHERE status = 0'
-      );
-      const [lowStockResult] = await dbPool.query(
-        'SELECT COUNT(*) as count FROM materials WHERE min_stock > 0 AND (min_stock >= (SELECT IFNULL(SUM(il.quantity), 0) FROM inventory_ledger il WHERE il.material_id = materials.id AND (materials.location_id IS NULL OR il.location_id = materials.location_id)))'
-      );
+      // ✅ 合并 4 次 SQL 为 1 次条件聚合查询
+      const [result] = await dbPool.query(`
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
+          SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as inactive,
+          SUM(CASE WHEN min_stock > 0 AND min_stock >= (
+            SELECT IFNULL(SUM(il.quantity), 0) FROM inventory_ledger il 
+            WHERE il.material_id = materials.id 
+            AND (materials.location_id IS NULL OR il.location_id = materials.location_id)
+          ) THEN 1 ELSE 0 END) as lowStock
+        FROM materials
+      `);
 
-      const stats = {
-        total: totalResult[0].count,
-        active: activeResult[0].count,
-        inactive: inactiveResult[0].count,
-        lowStock: lowStockResult[0].count,
-      };
-
-      ResponseHandler.success(res, stats, '获取物料统计成功');
+      ResponseHandler.success(res, result[0], '获取物料统计成功');
     } catch (error) {
       logger.error('获取物料统计失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
@@ -403,29 +391,19 @@ const baseDataController = {
     try {
       const { pool: dbPool } = require('../../config/db');
 
-      const [totalResult] = await dbPool.query('SELECT COUNT(*) as count FROM bom_masters');
-      const [activeResult] = await dbPool.query(
-        "SELECT COUNT(*) as count FROM bom_masters WHERE status = 1"
-      );
-      const [inactiveResult] = await dbPool.query(
-        "SELECT COUNT(*) as count FROM bom_masters WHERE status = 0 OR status IS NULL"
-      );
-      const [detailsResult] = await dbPool.query(
-        'SELECT COUNT(*) as count FROM bom_details'
-      );
-      const [costResult] = await dbPool.query(
-        'SELECT SUM(standard_price) as totalCost FROM standard_costs sc JOIN bom_masters bm ON sc.product_id = bm.product_id WHERE bm.status = 1'
-      );
+      // ✅ 合并为 2 次查询（主表 + 关联表）
+      const [bomResult] = await dbPool.query(`
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
+          SUM(CASE WHEN status = 0 OR status IS NULL THEN 1 ELSE 0 END) as inactive,
+          (SELECT COUNT(*) FROM bom_details) as detailsCount,
+          (SELECT COALESCE(SUM(sc.standard_price), 0) FROM standard_costs sc 
+           JOIN bom_masters bm ON sc.product_id = bm.product_id WHERE bm.status = 1) as totalCost
+        FROM bom_masters
+      `);
 
-      const stats = {
-        total: totalResult[0].count,
-        active: activeResult[0].count,
-        inactive: inactiveResult[0].count,
-        detailsCount: detailsResult[0].count,
-        totalCost: costResult[0].totalCost || 0
-      };
-
-      ResponseHandler.success(res, stats, '获取BOM统计成功');
+      ResponseHandler.success(res, bomResult[0], '获取BOM统计成功');
     } catch (error) {
       logger.error('获取BOM统计失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
@@ -543,8 +521,7 @@ const baseDataController = {
 
       const workbook = ExcelHelper.createTemplate(columns, sampleData, '物料导入模板');
 
-
-      (
+      res.setHeader(
         'Content-Type',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       );
@@ -576,136 +553,97 @@ const baseDataController = {
       const successList = [];
       const errorList = [];
 
-      // 逐行处理数据
+      // ✅ 批量预加载所有关联数据（消除循环内 N×6 次 SQL）
+      const { pool: dbPool } = require('../../config/db');
+      const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories');
+      const categoryByCode = new Map(allCategories.map(c => [c.code, c.id]));
+
+      const [allUnits] = await dbPool.query('SELECT id, name FROM units');
+      const unitByName = new Map(allUnits.map(u => [u.name, u.id]));
+
+      const [allSources] = await dbPool.query('SELECT id, type FROM material_sources');
+      const sourceByType = new Map(allSources.map(s => [s.type, s.id]));
+
+      const [allSuppliers] = await dbPool.query('SELECT id, code FROM suppliers');
+      const supplierByCode = new Map(allSuppliers.map(s => [s.code, s.id]));
+
+      const [allGroups] = await dbPool.query('SELECT id, code FROM production_groups');
+      const groupByCode = new Map(allGroups.map(g => [g.code, g.id]));
+
+      const [allUsers] = await dbPool.query('SELECT id, username, employee_id FROM users');
+      const userByCode = new Map();
+      for (const u of allUsers) {
+        if (u.username) userByCode.set(u.username, u.id);
+        if (u.employee_id) userByCode.set(u.employee_id, u.id);
+      }
+
+      const [allLocations] = await dbPool.query('SELECT id, code FROM locations');
+      const locationByCode = new Map(allLocations.map(l => [l.code, l.id]));
+
+      const [allExistingMaterials] = await dbPool.query('SELECT id, code FROM materials');
+      const existingMaterialByCode = new Map(allExistingMaterials.map(m => [m.code, m.id]));
+
+      // 逐行处理数据（仅做内存映射，无 SQL）
       for (let i = 0; i < data.length; i++) {
         const row = data[i];
-        const rowNum = i + 2; // Excel行号（从2开始，因为第行是表头）
+        const rowNum = i + 2;
         try {
-          const { pool: dbPool } = require('../../config/db');
-
           // 验证必填字段
-          if (!row['物料编码*']) {
-            throw new Error('物料编码不能为空');
-          }
-          if (!row['物料名称*']) {
-            throw new Error('物料名称不能为空');
-          }
-          if (!row['物料分类编码*']) {
-            throw new Error('物料分类编码不能为空');
-          }
-          if (!row['计量单位*']) {
-            throw new Error('计量单位不能为空');
-          }
-          if (!row['物料来源*']) {
-            throw new Error('物料来源不能为空');
-          }
+          if (!row['物料编码*']) throw new Error('物料编码不能为空');
+          if (!row['物料名称*']) throw new Error('物料名称不能为空');
+          if (!row['物料分类编码*']) throw new Error('物料分类编码不能为空');
+          if (!row['计量单位*']) throw new Error('计量单位不能为空');
+          if (!row['物料来源*']) throw new Error('物料来源不能为空');
 
-          // 查询分类ID
-          const category = await categoryService.getCategoryByCode(row['物料分类编码*']);
-          if (!category) {
-            throw new Error(`物料分类编码"${row['物料分类编码*']}"不存在`);
-          }
+          // 通过预加载的 Map 校验（内存查找，0 次 SQL）
+          const categoryId = categoryByCode.get(row['物料分类编码*']);
+          if (!categoryId) throw new Error(`物料分类编码"${row['物料分类编码*']}"不存在`);
 
-          // 查询物料来源ID
           const sourceType = row['物料来源*'];
-          let materialSourceId = null;
-          if (sourceType === '自产') {
-            const [sources] = await dbPool.query(
-              'SELECT id FROM material_sources WHERE type = ? LIMIT 1',
-              ['internal']
-            );
-            materialSourceId = sources[0]?.id;
-          } else if (sourceType === '外购') {
-            const [sources] = await dbPool.query(
-              'SELECT id FROM material_sources WHERE type = ? LIMIT 1',
-              ['external']
-            );
-            materialSourceId = sources[0]?.id;
-          }
+          const sourceTypeMap = { '自产': 'internal', '外购': 'external', '采购': 'external' };
+          const materialSourceId = sourceByType.get(sourceTypeMap[sourceType]);
+          if (!materialSourceId) throw new Error(`物料来源"${sourceType}"无效，请使用"自产"或"外购"`);
 
-          if (!materialSourceId) {
-            throw new Error(`物料来源"${sourceType}"无效，请使用"自产"或外购"`);
-          }
+          const unitId = unitByName.get(row['计量单位*']);
+          if (!unitId) throw new Error(`计量单位"${row['计量单位*']}"不存在`);
 
-          // 查询计量单位ID
-          const [units] = await dbPool.query('SELECT id FROM units WHERE name = ? LIMIT 1', [
-            row['计量单位*'],
-          ]);
-          const unitId = units[0]?.id;
-          if (!unitId) {
-            throw new Error(`计量单位"${row['计量单位*']}"不存在`);
-          }
-
-          // 查询供应商ID（如果提供）
           let supplierId = null;
           if (row['供应商编码']) {
-            const [suppliers] = await dbPool.query(
-              'SELECT id FROM suppliers WHERE code = ? LIMIT 1',
-              [row['供应商编码']]
-            );
-            supplierId = suppliers[0]?.id;
-            if (!supplierId) {
-              throw new Error(`供应商编码"${row['供应商编码']}"不存在`);
-            }
+            supplierId = supplierByCode.get(row['供应商编码']);
+            if (!supplierId) throw new Error(`供应商编码"${row['供应商编码']}"不存在`);
           }
 
-          // 查询生产组ID（如果提供）
           let productionGroupId = null;
           if (row['生产组编码']) {
-            const [groups] = await dbPool.query(
-              'SELECT id FROM production_groups WHERE code = ? LIMIT 1',
-              [row['生产组编码']]
-            );
-            productionGroupId = groups[0]?.id;
-            if (!productionGroupId) {
-              throw new Error(`生产组编码"${row['生产组编码']}"不存在`);
-            }
+            productionGroupId = groupByCode.get(row['生产组编码']);
+            if (!productionGroupId) throw new Error(`生产组编码"${row['生产组编码']}"不存在`);
           }
 
-          // 查询物料负责人ID（如果提供）
           let managerId = null;
           if (row['物料负责人工号']) {
-            const [users] = await dbPool.query(
-              'SELECT id FROM users WHERE username = ? OR employee_id = ? LIMIT 1',
-              [row['物料负责人工号'], row['物料负责人工号']]
-            );
-            managerId = users[0]?.id;
-            if (!managerId) {
-              throw new Error(`物料负责人工号"${row['物料负责人工号']}"不存在`);
-            }
+            managerId = userByCode.get(row['物料负责人工号']);
+            if (!managerId) throw new Error(`物料负责人工号"${row['物料负责人工号']}"不存在`);
           }
 
-          // 查询库位ID（如果提供）
           let locationId = null;
           if (row['默认库位编码']) {
-            const [locations] = await dbPool.query(
-              'SELECT id FROM locations WHERE code = ? LIMIT 1',
-              [row['默认库位编码']]
-            );
-            locationId = locations[0]?.id;
-            if (!locationId) {
-              throw new Error(`库位编码"${row['默认库位编码']}"不存在`);
-            }
+            locationId = locationByCode.get(row['默认库位编码']);
+            if (!locationId) throw new Error(`库位编码"${row['默认库位编码']}"不存在`);
           }
 
-
-          status = 1; // 默认启用
+          let status = 1; // 默认启用
           if (row['状态']) {
-            if (row['状态'] === '启用' || row['状态'] === '1') {
-              status = 1;
-            } else if (row['状态'] === '禁用' || row['状态'] === '0') {
-              status = 0;
-            }
+            if (row['状态'] === '启用' || row['状态'] === '1') status = 1;
+            else if (row['状态'] === '禁用' || row['状态'] === '0') status = 0;
           }
 
-          // 构建物料数据
           const materialData = {
             code: row['物料编码*'],
             name: row['物料名称*'],
             specs: row['规格型号'] || '',
             drawing_no: row['图号'] || '',
             color_code: row['色号'] || '',
-            category_id: category.id,
+            category_id: categoryId,
             unit_id: unitId,
             material_source_id: materialSourceId,
             supplier_id: supplierId,
@@ -721,21 +659,17 @@ const baseDataController = {
             remark: row['备注'] || '',
           };
 
-          // 检查物料是否已存在（根据编码）
-          const [existingMaterials] = await dbPool.query(
-            'SELECT id FROM materials WHERE code = ? LIMIT 1',
-            [materialData.code]
-          );
+          // 检查物料是否已存在（通过预加载 Map 查询，0 次 SQL）
+          const existingMaterialId = existingMaterialByCode.get(materialData.code);
 
           let action = '';
-          if (existingMaterials.length > 0) {
-            // 更新已存在的物料
-            const materialId = existingMaterials[0].id;
-            await materialService.updateMaterial(materialId, materialData);
+          if (existingMaterialId) {
+            await materialService.updateMaterial(existingMaterialId, materialData);
             action = '更新';
           } else {
-
-            materialService.createMaterial(materialData);
+            await materialService.createMaterial(materialData);
+            // 新增的物料也加入 Map，防止同批次重复编码
+            existingMaterialByCode.set(materialData.code, true);
             action = '新增';
           }
 

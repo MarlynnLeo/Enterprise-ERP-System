@@ -392,10 +392,10 @@ const createReceipt = async (req, res) => {
         return res.status(404).json({ error: '采购订单不存在' });
       }
 
-      // 业务硬控：已完成或终止的订单不可在途收货
-      if (['completed', 'cancelled', 'closed'].includes(orderResult[0].status)) {
+      // 业务硬控：已终止的订单不可在途收货（允许 completed 状态，因为入库可能在订单收货完成后进行）
+      if (['cancelled', 'closed'].includes(orderResult[0].status)) {
         await client.rollback();
-        return res.status(400).json({ error: `采购订单当前状态为 ${orderResult[0].status}，无法再行收货` });
+        return res.status(400).json({ error: `采购订单当前状态为 ${orderResult[0].status}，无法操作` });
       }
 
       // 物理并行阻击：检查该订单名下是否已有尚未决议的收货单（通过索引间隙锁预防双胞胎单据）
@@ -1183,66 +1183,8 @@ const updateReceiptStatus = async (req, res) => {
         // 不因为追溯失败而影响收货单的完成
       }
 
-      // 采购入库完成后，检查并更新相关销售订单状态
-      try {
-        // 查找所有处于'in_procurement'状态的销售订单
-        const salesOrderQuery =
-          'SELECT id, status FROM sales_orders WHERE status = "in_procurement"';
-        const [salesOrders] = await client.query(salesOrderQuery);
+      // (原 sales_orders 自动推进逻辑已迁移至 InventoryService.updateStock 统一收口) 
 
-        if (salesOrders && salesOrders.length > 0) {
-          // 遍历销售订单并检查库存是否充足
-          for (const order of salesOrders) {
-            try {
-              // 获取订单物料明细
-              const orderItemsQuery = `
-                SELECT soi.material_id, soi.quantity, m.code as material_code, m.name as material_name
-                FROM sales_order_items soi
-                JOIN materials m ON soi.material_id = m.id
-                WHERE soi.order_id = ?
-              `;
-              const [orderItems] = await client.query(orderItemsQuery, [order.id]);
-
-              let allItemsInStock = true;
-
-              // 检查每个物料的库存
-              for (const item of orderItems) {
-                const stockQuery = `
-                  SELECT COALESCE(SUM(quantity), 0) as current_stock
-                  FROM inventory_ledger
-                  WHERE material_id = ?
-                `;
-                const [stockData] = await client.query(stockQuery, [item.material_id]);
-
-                const currentStock =
-                  stockData.length > 0 ? parseFloat(stockData[0].current_stock || 0) : 0;
-                const requiredQuantity = parseFloat(item.quantity || 0);
-
-                if (currentStock < requiredQuantity) {
-                  allItemsInStock = false;
-
-                  break;
-                }
-              }
-
-              // 如果所有物料库存都充足，更新订单状态为可发货
-              if (allItemsInStock) {
-                const updateOrderQuery =
-                  'UPDATE sales_orders SET status = "ready_to_ship", updated_at = NOW() WHERE id = ?';
-                await client.query(updateOrderQuery, [order.id]);
-              } else {
-              }
-            } catch (orderError) {
-              logger.error(`处理销售订单 ${order.id} 时出错:`, orderError);
-              // 继续处理其他订单
-            }
-          }
-        } else {
-        }
-      } catch (salesOrderError) {
-        logger.error('更新销售订单状态失败:', salesOrderError);
-        // 不因为销售订单状态更新失败而影响采购入库的完成
-      }
     }
 
     // 💡 关键修改：业务逻辑执行完成后，再执行状态更新

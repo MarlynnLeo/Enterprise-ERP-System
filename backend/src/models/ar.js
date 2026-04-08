@@ -56,23 +56,22 @@ const arModel = {
 
       const invoiceId = result.insertId;
 
-      // 插入发票明细项（如果有）
+      // 批量插入发票明细项（1次SQL替代N次）
       if (invoiceData.items && Array.isArray(invoiceData.items) && invoiceData.items.length > 0) {
-        for (const item of invoiceData.items) {
-          await connection.query(
-            `INSERT INTO ar_invoice_items 
-            (invoice_id, product_id, description, quantity, unit_price, amount) 
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              invoiceId,
-              item.product_id || null,
-              item.description || item.product_name || '',
-              item.quantity || 0,
-              item.unit_price || 0,
-              item.amount || item.quantity * item.unit_price || 0,
-            ]
-          );
-        }
+        const itemValues = invoiceData.items.map(item => [
+          invoiceId,
+          item.product_id || null,
+          item.description || item.product_name || '',
+          item.quantity || 0,
+          item.unit_price || 0,
+          item.amount || item.quantity * item.unit_price || 0,
+        ]);
+        await connection.query(
+          `INSERT INTO ar_invoice_items 
+           (invoice_id, product_id, description, quantity, unit_price, amount) 
+           VALUES ?`,
+          [itemValues]
+        );
         logger.info(
           `[arModel] 已插入 ${invoiceData.items.length} 条发票明细 - 发票ID: ${invoiceId}`
         );
@@ -513,28 +512,27 @@ const arModel = {
         ]
       );
 
-      // 更新明细项: 先删除旧明细，再插入新明细
-      if (invoiceData.items && Array.isArray(invoiceData.items)) {
+      // 更新明细项: 先删除旧明细，再批量插入新明细
+      if (invoiceData.items && Array.isArray(invoiceData.items) && invoiceData.items.length > 0) {
         await connection.execute(
           'DELETE FROM ar_invoice_items WHERE invoice_id = ?',
           [invoiceData.id]
         );
 
-        for (const item of invoiceData.items) {
-          await connection.execute(
-            `INSERT INTO ar_invoice_items
-            (invoice_id, product_id, description, quantity, unit_price, amount)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              invoiceData.id,
-              item.product_id || null,
-              item.description || '',
-              item.quantity || 0,
-              item.unit_price || 0,
-              item.amount || (item.quantity * item.unit_price) || 0,
-            ]
-          );
-        }
+        const itemValues = invoiceData.items.map(item => [
+          invoiceData.id,
+          item.product_id || null,
+          item.description || '',
+          item.quantity || 0,
+          item.unit_price || 0,
+          item.amount || (item.quantity * item.unit_price) || 0,
+        ]);
+        await connection.query(
+          `INSERT INTO ar_invoice_items
+           (invoice_id, product_id, description, quantity, unit_price, amount)
+           VALUES ?`,
+          [itemValues]
+        );
       }
 
       // ===== 自动同步开票号码到税务发票 =====

@@ -46,24 +46,15 @@ class FinanceSubscriber {
                 const receipt = receiptData[0];
                 const receiptNo = receipt.receipt_no;
 
-                // 1. 生成应付发票
-                const [existingInvoices] = await db.pool.execute(
-                    'SELECT id FROM ap_invoices WHERE source_type = ? AND source_id = ?',
-                    ['purchase_receipt', receiptId]
-                );
-
-                if (existingInvoices.length === 0) {
-                    try {
-                        await FinanceIntegrationService.generateAPInvoiceFromPurchaseReceipt(
-                            receipt,
-                            currentUserId
-                        );
-                        logger.info(`✅ [FinanceSubscriber] 应付发票自动生成成功 - 入库单: ${receiptNo}`);
-                    } catch (invoiceError) {
-                        logger.warn(`⚠️ [FinanceSubscriber] 应付发票自动生成失败: ${invoiceError.message}`);
-                    }
-                } else {
-                    logger.info(`ℹ️ [FinanceSubscriber] 入库单 ${receiptNo} 已存在应付发票，跳过自动生成`);
+                // 1. 生成应付发票（Service 内部已有防重复检查）
+                try {
+                    await FinanceIntegrationService.generateAPInvoiceFromPurchaseReceipt(
+                        receipt,
+                        currentUserId
+                    );
+                    logger.info(`✅ [FinanceSubscriber] 应付发票自动生成成功 - 入库单: ${receiptNo}`);
+                } catch (invoiceError) {
+                    logger.warn(`⚠️ [FinanceSubscriber] 应付发票自动生成失败: ${invoiceError.message}`);
                 }
 
                 // 2. 生成进项发票

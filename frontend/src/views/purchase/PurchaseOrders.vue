@@ -1134,8 +1134,7 @@ const orderForm = reactive({
 const orderRules = {
   order_date: [{ required: true, message: '请选择订单日期', trigger: 'blur' }],
   expected_delivery_date: [{ required: true, message: '请选择预计到货日期', trigger: 'blur' }],
-  supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-  items: [{ required: true, type: 'array', min: 1, message: '至少添加一个物料', trigger: 'change' }]
+  supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }]
 };
 
 // 物料搜索相关 - 与销售订单保持一致

@@ -10,31 +10,68 @@ const logger = require('../../utils/logger');
 
 class FinanceIntegrationService {
   /**
-   * 验证必需的财务配置
+   * 批量解析会计科目ID（1次查询替代 N+1）
+   * @param {string[]} keys - 科目配置键名数组，如 ['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']
+   * @returns {Object} key → accountId 的映射，例如 { ACCOUNTS_RECEIVABLE: 12, SALES_REVENUE: 15 }
+   * @throws {Error} 如果任何科目缺少配置或不存在
    */
-  static async validateRequiredConfigs(keys) {
+  static async resolveAccountIds(keys) {
     const { accountingConfig } = require('../../config/accountingConfig');
+
+    // 1. 从配置中解析出所有科目编码
+    const keyToCode = {};
     for (const key of keys) {
       const code = accountingConfig.getAccountCode(key);
       if (!code) {
         throw new Error(`缺少必需的财务配置: ${key}，请先在财务设置中配置`);
       }
-      const [rows] = await db.pool.execute('SELECT id FROM gl_accounts WHERE account_code = ?', [code]);
-      if (rows.length === 0) {
+      keyToCode[key] = code;
+    }
+
+    // 2. 批量查询所有科目ID（1次 SQL 替代 N 次）
+    const uniqueCodes = [...new Set(Object.values(keyToCode))];
+    const placeholders = uniqueCodes.map(() => '?').join(',');
+    const [rows] = await db.pool.execute(
+      `SELECT id, account_code FROM gl_accounts WHERE account_code IN (${placeholders})`,
+      uniqueCodes
+    );
+
+    // 3. 构建编码→ID映射
+    const codeToId = {};
+    for (const row of rows) {
+      codeToId[row.account_code] = row.id;
+    }
+
+    // 4. 校验并构建返回结果
+    const result = {};
+    for (const key of keys) {
+      const code = keyToCode[key];
+      if (!codeToId[code]) {
         throw new Error(`相关的财务科目不存在: ${code}，请前往会计科目页面配置后再试！`);
       }
+      result[key] = codeToId[code];
     }
+
+    return result;
   }
 
   /**
-   * 获取会计科目ID
+   * 验证必需的财务配置（委托给 resolveAccountIds）
+   */
+  static async validateRequiredConfigs(keys) {
+    await this.resolveAccountIds(keys);
+  }
+
+  /**
+   * 获取会计科目ID（单个查询，保留兼容性）
    */
   static async getAccountIdByKey(key) {
-    const { accountingConfig } = require('../../config/accountingConfig');
-    const code = accountingConfig.getAccountCode(key);
-    if (!code) return null;
-    const [rows] = await db.pool.execute('SELECT id FROM gl_accounts WHERE account_code = ?', [code]);
-    return rows.length > 0 ? rows[0].id : null;
+    try {
+      const result = await this.resolveAccountIds([key]);
+      return result[key] || null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -98,7 +135,11 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
-      await this.validateRequiredConfigs(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
+      // 批量解析科目ID（1次查询替代4次）
+      const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
+      const receivableAccountId = accountIds.ACCOUNTS_RECEIVABLE;
+      const incomeAccountId = accountIds.SALES_REVENUE;
+
       await this.loadConfigurations();
       
       // 添加防杜绝双重生成校验
@@ -136,9 +177,6 @@ class FinanceIntegrationService {
       const dueDate = new Date(invoiceDate);
       dueDate.setDate(dueDate.getDate() + paymentTermDays);
       const invoiceDateStr = invoiceDate.toISOString().split('T')[0];
-
-      const receivableAccountId = await this.getAccountIdByKey('ACCOUNTS_RECEIVABLE');
-      const incomeAccountId = await this.getAccountIdByKey('SALES_REVENUE');
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
       const createdByIdentifier = financeConfig.get('system.defaultCreator', 'system');
       const createdBy = await getUserIdByIdentifier(connection, createdByIdentifier);
@@ -196,7 +234,10 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      await this.validateRequiredConfigs(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
+      // 批量解析科目ID（1次查询替代4次）
+      const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
+      const receivableAccountId = accountIds.ACCOUNTS_RECEIVABLE;
+      const incomeAccountId = accountIds.SALES_REVENUE;
       
       let customerId = salesReturn.customer_id;
       let customerName = salesReturn.customer_name;
@@ -260,8 +301,6 @@ class FinanceIntegrationService {
       const invoiceDate = salesReturn.return_date ? new Date(salesReturn.return_date) : new Date();
       const invoiceDateStr = invoiceDate.toISOString().split('T')[0];
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
-      const receivableAccountId = await this.getAccountIdByKey('ACCOUNTS_RECEIVABLE');
-      const incomeAccountId = await this.getAccountIdByKey('SALES_REVENUE');
 
       const invoiceData = {
         invoice_number: invoiceNumber,
@@ -269,7 +308,7 @@ class FinanceIntegrationService {
         invoice_date: invoiceDateStr,
         due_date: invoiceDateStr,
         total_amount: creditNoteAmount,
-        currency_code: 'CNY',
+        currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: 1.0,
         status: '已确认',
         notes: `【红字发票】销售退货单 ${salesReturn.return_no} 冲减`,
@@ -310,7 +349,10 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      await this.validateRequiredConfigs(['ACCOUNTS_PAYABLE', 'GR_IR']);
+      // 批量解析科目ID（1次查询替代4次）
+      const accountIds = await this.resolveAccountIds(['ACCOUNTS_PAYABLE', 'GR_IR']);
+      const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
+      const purchaseCostAccountId = accountIds.GR_IR;
       await this.loadConfigurations();
       
       const [existing] = await connection.execute(
@@ -344,8 +386,6 @@ class FinanceIntegrationService {
       const totalAmount = receiptItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
       const invoiceDateStr = purchaseReceipt.receipt_date || new Date().toISOString().split('T')[0];
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
-      const payableAccountId = await this.getAccountIdByKey('ACCOUNTS_PAYABLE');
-      const purchaseCostAccountId = await this.getAccountIdByKey('GR_IR');
       const createdBy = await getUserIdByIdentifier(connection, userId || purchaseReceipt.operator || 'system');
 
       const invoiceData = {
@@ -354,7 +394,7 @@ class FinanceIntegrationService {
         invoice_date: invoiceDateStr,
         due_date: invoiceDateStr,
         total_amount: totalAmount,
-        currency_code: 'CNY',
+        currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: 1.0,
         status: '已确认',
         notes: `由采购入库单 ${purchaseReceipt.receipt_no} 自动生成`,
@@ -393,7 +433,10 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      await this.validateRequiredConfigs(['ACCOUNTS_PAYABLE', 'GR_IR']);
+      // 批量解析科目ID（1次查询替代4次）
+      const accountIds = await this.resolveAccountIds(['ACCOUNTS_PAYABLE', 'GR_IR']);
+      const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
+      const purchaseCostAccountId = accountIds.GR_IR;
       await this.loadConfigurations();
       
       const [existing] = await connection.execute(
@@ -436,8 +479,6 @@ class FinanceIntegrationService {
 
       const invoiceDateStr = (purchaseReturn.return_date ? new Date(purchaseReturn.return_date) : new Date()).toISOString().split('T')[0];
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
-      const payableAccountId = await this.getAccountIdByKey('ACCOUNTS_PAYABLE');
-      const purchaseCostAccountId = await this.getAccountIdByKey('GR_IR');
 
       const invoiceData = {
         invoice_number: invoiceNumber,
@@ -445,7 +486,7 @@ class FinanceIntegrationService {
         invoice_date: invoiceDateStr,
         due_date: invoiceDateStr,
         total_amount: creditNoteAmount,
-        currency_code: 'CNY',
+        currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: 1.0,
         status: '已确认',
         notes: `【红字发票】采购退货单 ${purchaseReturn.return_no} 冲减`,
@@ -497,7 +538,10 @@ class FinanceIntegrationService {
         return { skipped: true, message: '已存在对应单据的成本分录' };
       }
 
-      await this.validateRequiredConfigs(['COST_OF_GOODS_SOLD', 'INVENTORY']);
+      // 批量解析科目ID（1次查询替代4次）
+      const accountIds = await this.resolveAccountIds(['COST_OF_GOODS_SOLD', 'INVENTORY']);
+      const cogsAccountId = accountIds.COST_OF_GOODS_SOLD;
+      const inventoryAccountId = accountIds.INVENTORY;
       
       const [outboundItems] = await connection.execute(
         `SELECT soi.product_id, soi.quantity, m.cost_price, m.price, m.name as material_name
@@ -520,8 +564,6 @@ class FinanceIntegrationService {
       }
 
       const currentPeriod = await this.getCurrentPeriod(connection, salesOutbound.delivery_date || new Date().toISOString().split('T')[0]);
-      const cogsAccountId = await this.getAccountIdByKey('COST_OF_GOODS_SOLD');
-      const inventoryAccountId = await this.getAccountIdByKey('INVENTORY');
       const createdBy = await getUserIdByIdentifier(connection, salesOutbound.created_by || 'system');
 
       const entryData = {
@@ -589,8 +631,11 @@ class FinanceIntegrationService {
 
       // ✅ 精度修复：整数运算
       const amountExcludingTax = outboundItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
-      const taxRate = 13.0;
-      const taxAmount = amountExcludingTax * (taxRate / 100);
+      // 从财务设置获取税率（前端设置的小数格式，如 0.13 = 13%）
+      await this.loadConfigurations();
+      const taxRate = financeConfig.get('tax.defaultVATRate', 0.13);
+      const taxRatePercent = taxRate * 100; // 用于存储显示
+      const taxAmount = amountExcludingTax * taxRate;
       const totalAmount = amountExcludingTax + taxAmount;
 
       const invoiceData = {
@@ -603,7 +648,7 @@ class FinanceIntegrationService {
         supplier_or_customer_name: salesOutbound.customer_name || null,
         supplier_tax_number: null,
         amount_excluding_tax: amountExcludingTax.toFixed(2),
-        tax_rate: taxRate,
+        tax_rate: taxRatePercent,
         tax_amount: taxAmount.toFixed(2),
         total_amount: totalAmount.toFixed(2),
         status: '未认证',
@@ -656,8 +701,11 @@ class FinanceIntegrationService {
 
       // ✅ 精度修复：整数运算
       const amountExcludingTax = receiptItems.reduce((sum, item) => sum + Math.round(parseFloat(item.qualified_quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
-      const taxRate = 13.0;
-      const taxAmount = amountExcludingTax * (taxRate / 100);
+      // 从财务设置获取税率（前端设置的小数格式，如 0.13 = 13%）
+      await this.loadConfigurations();
+      const taxRate = financeConfig.get('tax.defaultVATRate', 0.13);
+      const taxRatePercent = taxRate * 100; // 用于存储显示
+      const taxAmount = amountExcludingTax * taxRate;
       const totalAmount = amountExcludingTax + taxAmount;
 
       const invoiceData = {
@@ -670,7 +718,7 @@ class FinanceIntegrationService {
         supplier_or_customer_name: purchaseReceipt.supplier_name || null,
         supplier_tax_number: null,
         amount_excluding_tax: amountExcludingTax.toFixed(2),
-        tax_rate: taxRate,
+        tax_rate: taxRatePercent,
         tax_amount: taxAmount.toFixed(2),
         total_amount: totalAmount.toFixed(2),
         status: '未认证',
@@ -693,6 +741,315 @@ class FinanceIntegrationService {
 
   // ==================== 外委加工分录生成 ====================
   // (外委发料分录在这一版本被精简或与当前无需防重复的核心功能保持一致)
+
+  // ==================== 销售换货差价分录生成 ====================
+  /**
+   * 根据换货单生成差价财务分录
+   * - 差价 = 0：等值换货，不生成凭证
+   * - 差价 > 0（换出更贵）：借 应收账款，贷 销售收入
+   * - 差价 < 0（退回更贵）：借 销售收入，贷 应收账款
+   */
+  static async generateExchangeDifferenceEntry(salesExchange) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const exchangeId = salesExchange.id;
+      const exchangeNo = salesExchange.exchange_no;
+
+      // 防重复：使用 document_type + document_number（与 COGS 分录一致的模式）
+      const [existing] = await connection.query(
+        "SELECT id FROM gl_entries WHERE document_type = 'sales_exchange' AND document_number = ?",
+        [exchangeNo]
+      );
+      if (existing.length > 0) {
+        logger.info(`换货单 ${exchangeNo} 的差价分录已存在，跳过`);
+        await connection.rollback();
+        return null;
+      }
+
+      // 查询差价金额（从主表获取）
+      const differenceAmount = parseFloat(salesExchange.difference_amount || 0);
+
+      // 等值换货无需生成凭证
+      if (differenceAmount === 0) {
+        logger.info(`换货单 ${exchangeNo} 为等值换货（差价=0），无需生成财务分录`);
+        await connection.rollback();
+        return null;
+      }
+
+      const absDiff = Math.abs(differenceAmount);
+
+      // 批量解析科目ID（1次查询替代2次）
+      let description;
+      const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
+      let debitAccountId, creditAccountId;
+
+      if (differenceAmount > 0) {
+        // 换出更贵 → 客户应补差价
+        debitAccountId = accountIds.ACCOUNTS_RECEIVABLE;
+        creditAccountId = accountIds.SALES_REVENUE;
+        description = `销售换货补差价 - 换货单: ${exchangeNo}`;
+      } else {
+        // 退回更贵 → 应退客户差价
+        debitAccountId = accountIds.SALES_REVENUE;
+        creditAccountId = accountIds.ACCOUNTS_RECEIVABLE;
+        description = `销售换货退差价 - 换货单: ${exchangeNo}`;
+      }
+
+      // 获取会计期间
+      const now = new Date().toISOString().split('T')[0];
+      let currentPeriod;
+      try {
+        currentPeriod = await this.getCurrentPeriod(connection, now);
+      } catch (e) {
+        logger.warn(`换货差价分录: 无可用会计期间 - ${e.message}`);
+        await connection.rollback();
+        return null;
+      }
+
+      const createdBy = salesExchange.created_by || 0;
+
+      // 使用标准的 GL 分录模式（头表 + 明细表）
+      const entryData = {
+        period_id: currentPeriod?.id ?? null,
+        entry_date: now,
+        document_type: 'sales_exchange',
+        document_number: exchangeNo,
+        description: description,
+        created_by: createdBy,
+      };
+
+      const entryItems = [
+        { account_id: debitAccountId, debit_amount: absDiff, credit_amount: 0, description: `借方 - ${description}` },
+        { account_id: creditAccountId, debit_amount: 0, credit_amount: absDiff, description: `贷方 - ${description}` },
+      ];
+
+      const entryId = await financeModel.createEntry(entryData, entryItems, connection);
+
+      // 标记为已过账
+      await connection.execute('UPDATE gl_entries SET is_posted = true WHERE id = ?', [entryId]);
+
+      await connection.commit();
+      logger.info(`✅ 换货差价分录生成成功 - ${exchangeNo}: ${differenceAmount > 0 ? '补差价' : '退差价'} ¥${absDiff}`);
+      return { entryId, exchangeNo, differenceAmount, type: differenceAmount > 0 ? 'supplement' : 'refund' };
+    } catch (error) {
+      await connection.rollback();
+      logger.error(`换货差价分录生成失败 - ${salesExchange.exchange_no}:`, error.message);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  // ==================== 外委加工模块集成 ====================
+
+  /**
+   * 外委发料自动生成会计分录
+   * 借：委托加工物资 (1408)
+   * 贷：原材料 (1403)
+   *
+   * @param {Object} processing - 加工单数据（含 processing_no, id 等）
+   * @param {Array} materials - 物料明细（含 material_id, material_name, quantity, unit_price 等）
+   * @returns {Object} { success, entryId } 或 { skipped, message }
+   */
+  static async generateOutsourcedIssueEntry(processing, materials) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // 批量解析科目ID（1次查询）
+      const accountIds = await this.resolveAccountIds(['OUTSOURCED_MATERIALS', 'RAW_MATERIALS']);
+      const outsourcedAccountId = accountIds.OUTSOURCED_MATERIALS;
+      const rawMaterialAccountId = accountIds.RAW_MATERIALS;
+
+      // 防重复：通过 document_type + document_number 检查
+      const [existing] = await connection.execute(
+        'SELECT id FROM gl_entries WHERE document_type = ? AND document_number = ?',
+        ['outsourced_issue', processing.processing_no]
+      );
+      if (existing.length > 0) {
+        await connection.rollback();
+        return { success: false, skipped: true, message: '已存在对应单据的外委发料分录' };
+      }
+
+      // 计算发料总金额（精度修复：整数运算）
+      const totalAmount = materials.reduce((sum, item) => {
+        return sum + Math.round(
+          parseFloat(item.quantity || 0) * parseFloat(item.unit_price || item.price || 0) * 100
+        );
+      }, 0) / 100;
+
+      if (totalAmount <= 0) {
+        await connection.rollback();
+        return { success: false, skipped: true, message: '发料金额为0' };
+      }
+
+      // 获取会计期间
+      const now = new Date().toISOString().split('T')[0];
+      const currentPeriod = await this.getCurrentPeriod(connection, now);
+      const createdBy = processing.created_by || 0;
+
+      // 构建 GL 分录
+      const entryData = {
+        period_id: currentPeriod.id || null,
+        entry_date: now,
+        posting_date: now,
+        document_type: 'outsourced_issue',
+        document_number: processing.processing_no,
+        description: `外委发料 - 加工单: ${processing.processing_no}`,
+        created_by: createdBy,
+      };
+
+      const entryItems = [
+        {
+          account_id: outsourcedAccountId,
+          debit_amount: totalAmount,
+          credit_amount: 0,
+          description: `委托加工物资增加 - ${processing.processing_no}`,
+        },
+        {
+          account_id: rawMaterialAccountId,
+          debit_amount: 0,
+          credit_amount: totalAmount,
+          description: `原材料减少（外委发料） - ${processing.processing_no}`,
+        },
+      ];
+
+      const entryId = await financeModel.createEntry(entryData, entryItems, connection);
+      await connection.commit();
+
+      logger.info(`✅ 外委发料分录生成成功 - 加工单: ${processing.processing_no}, 金额: ${totalAmount}`);
+      return { success: true, entryId, amount: totalAmount };
+    } catch (error) {
+      await connection.rollback();
+      logger.error(`外委发料分录生成失败 - ${processing.processing_no}:`, error.message);
+      return { success: false, error: error.message };
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * 外委收货入库自动生成会计分录
+   * 借：库存商品 (1405)  — 物料成本 + 加工费
+   * 贷：委托加工物资 (1408)  — 原物料成本
+   * 贷：应付账款 (2202)  — 加工费部分
+   *
+   * @param {Object} receipt - 入库单数据（含 receipt_no, processing_id 等）
+   * @param {Array} items - 入库明细（含 product_id, actual_quantity, unit_price, total_price 等）
+   * @returns {Object} { success, entryId } 或 { skipped, message }
+   */
+  static async generateOutsourcedReceiptEntry(receipt, items) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // 批量解析科目ID（1次查询）
+      const accountIds = await this.resolveAccountIds([
+        'INVENTORY_GOODS', 'OUTSOURCED_MATERIALS', 'ACCOUNTS_PAYABLE'
+      ]);
+      const inventoryAccountId = accountIds.INVENTORY_GOODS;
+      const outsourcedAccountId = accountIds.OUTSOURCED_MATERIALS;
+      const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
+
+      const receiptNo = receipt.receipt_no || `OPR-${receipt.processing_id}`;
+
+      // 防重复：通过 document_type + document_number 检查
+      const [existing] = await connection.execute(
+        'SELECT id FROM gl_entries WHERE document_type = ? AND document_number = ?',
+        ['outsourced_receipt', receiptNo]
+      );
+      if (existing.length > 0) {
+        await connection.rollback();
+        return { success: false, skipped: true, message: '已存在对应单据的外委入库分录' };
+      }
+
+      // 计算入库总加工费（精度修复：整数运算）
+      const totalProcessingFee = (items || []).reduce((sum, item) => {
+        return sum + Math.round(
+          parseFloat(item.actual_quantity || 0) * parseFloat(item.unit_price || 0) * 100
+        );
+      }, 0) / 100;
+
+      // 获取外委发料时的物料成本
+      let materialCost = 0;
+      if (receipt.processing_id) {
+        const [materialRows] = await connection.execute(
+          `SELECT COALESCE(SUM(opm.quantity * COALESCE(m.cost_price, m.price, 0)), 0) AS total_cost
+           FROM outsourced_processing_materials opm
+           LEFT JOIN materials m ON opm.material_id = m.id
+           WHERE opm.processing_id = ?`,
+          [receipt.processing_id]
+        );
+        materialCost = parseFloat(materialRows[0]?.total_cost || 0);
+      }
+
+      const totalInventoryValue = materialCost + totalProcessingFee;
+
+      if (totalInventoryValue <= 0) {
+        await connection.rollback();
+        return { success: false, skipped: true, message: '入库价值为0' };
+      }
+
+      // 获取会计期间
+      const now = new Date().toISOString().split('T')[0];
+      const currentPeriod = await this.getCurrentPeriod(connection, now);
+
+      // 构建 GL 分录
+      const entryData = {
+        period_id: currentPeriod.id || null,
+        entry_date: now,
+        posting_date: now,
+        document_type: 'outsourced_receipt',
+        document_number: receiptNo,
+        description: `外委收货入库 - 入库单: ${receiptNo}`,
+        created_by: receipt.operator || 0,
+      };
+
+      const entryItems = [
+        // 借：库存商品（物料成本 + 加工费）
+        {
+          account_id: inventoryAccountId,
+          debit_amount: totalInventoryValue,
+          credit_amount: 0,
+          description: `库存商品增加（外委入库） - ${receiptNo}`,
+        },
+      ];
+
+      // 贷：委托加工物资（物料成本部分）
+      if (materialCost > 0) {
+        entryItems.push({
+          account_id: outsourcedAccountId,
+          debit_amount: 0,
+          credit_amount: materialCost,
+          description: `委托加工物资减少 - ${receiptNo}`,
+        });
+      }
+
+      // 贷：应付账款（加工费部分）
+      if (totalProcessingFee > 0) {
+        entryItems.push({
+          account_id: payableAccountId,
+          debit_amount: 0,
+          credit_amount: totalProcessingFee,
+          description: `应付加工费 - ${receiptNo}`,
+        });
+      }
+
+      const entryId = await financeModel.createEntry(entryData, entryItems, connection);
+      await connection.commit();
+
+      logger.info(`✅ 外委入库分录生成成功 - 入库单: ${receiptNo}, 物料成本: ${materialCost}, 加工费: ${totalProcessingFee}`);
+      return { success: true, entryId, materialCost, processingFee: totalProcessingFee, totalValue: totalInventoryValue };
+    } catch (error) {
+      await connection.rollback();
+      logger.error(`外委入库分录生成失败 - ${receipt.receipt_no}:`, error.message);
+      return { success: false, error: error.message };
+    } finally {
+      connection.release();
+    }
+  }
 }
 
 module.exports = FinanceIntegrationService;

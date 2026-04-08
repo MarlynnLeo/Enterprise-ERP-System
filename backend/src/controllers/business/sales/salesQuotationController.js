@@ -253,38 +253,40 @@ exports.createSalesQuotation = async (req, res) => {
 
     const quotationId = result.insertId;
 
-    // 临时禁用外键检查
-    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-
-    try {
-      // 插入报价单明细
-      for (const item of items) {
-        const [productExists] = await conn.query('SELECT id FROM materials WHERE id = ?', [
-          item.product_id,
-        ]);
-
-        if (productExists.length === 0) {
-          throw new Error(`产品ID ${item.product_id} 在物料表中不存在`);
-        }
-
-        await conn.query(
-          `INSERT INTO sales_quotation_items 
-           (quotation_id, product_id, quantity, unit_price, total_price) 
-           VALUES (?, ?, ?, ?, ?)`,
-          [
-            quotationId,
-            item.product_id || null,
-            item.quantity,
-            item.unit_price,
-            item.total_price || item.quantity * item.unit_price,
-          ]
+    // ✅ 批量校验产品存在性
+    if (items && items.length > 0) {
+      const productIds = items.map(i => i.product_id).filter(Boolean);
+      if (productIds.length > 0) {
+        const placeholders = productIds.map(() => '?').join(',');
+        const [existingProducts] = await conn.query(
+          `SELECT id FROM materials WHERE id IN (${placeholders})`,
+          productIds
         );
+        const existingIds = new Set(existingProducts.map(p => p.id));
+        const missing = productIds.filter(id => !existingIds.has(id));
+        if (missing.length > 0) {
+          throw new Error(`以下产品ID在物料表中不存在: ${missing.join(', ')}`);
+        }
       }
 
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
-    } catch (error) {
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
-      throw error;
+      // ✅ 批量 INSERT 替代逐条插入
+      const valuesPlaceholders = items.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const values = [];
+      for (const item of items) {
+        values.push(
+          quotationId,
+          item.product_id || null,
+          item.quantity,
+          item.unit_price,
+          item.total_price || item.quantity * item.unit_price
+        );
+      }
+      await conn.query(
+        `INSERT INTO sales_quotation_items 
+         (quotation_id, product_id, quantity, unit_price, total_price) 
+         VALUES ${valuesPlaceholders}`,
+        values
+      );
     }
 
     await conn.commit();
@@ -340,39 +342,46 @@ exports.updateSalesQuotation = async (req, res) => {
       ]
     );
 
-    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-
     try {
       // 删除原有明细
       await conn.query('DELETE FROM sales_quotation_items WHERE quotation_id = ?', [id]);
 
-      // 插入新明细
-      for (const item of items) {
-        const [productExists] = await conn.query('SELECT id FROM materials WHERE id = ?', [
-          item.product_id,
-        ]);
-
-        if (productExists.length === 0) {
-          throw new Error(`产品ID ${item.product_id} 在物料表中不存在`);
+      // ✅ 批量校验产品存在性
+      if (items && items.length > 0) {
+        const productIds = items.map(i => i.product_id).filter(Boolean);
+        if (productIds.length > 0) {
+          const placeholders = productIds.map(() => '?').join(',');
+          const [existingProducts] = await conn.query(
+            `SELECT id FROM materials WHERE id IN (${placeholders})`,
+            productIds
+          );
+          const existingIds = new Set(existingProducts.map(p => p.id));
+          const missing = productIds.filter(id => !existingIds.has(id));
+          if (missing.length > 0) {
+            throw new Error(`以下产品ID在物料表中不存在: ${missing.join(', ')}`);
+          }
         }
 
-        await conn.query(
-          `INSERT INTO sales_quotation_items 
-           (quotation_id, product_id, quantity, unit_price, total_price) 
-           VALUES (?, ?, ?, ?, ?)`,
-          [
+        // ✅ 批量 INSERT 替代逐条插入
+        const valuesPlaceholders = items.map(() => '(?, ?, ?, ?, ?)').join(', ');
+        const values = [];
+        for (const item of items) {
+          values.push(
             id,
             item.product_id || null,
             item.quantity,
             item.unit_price,
-            item.total_price || item.quantity * item.unit_price,
-          ]
+            item.total_price || item.quantity * item.unit_price
+          );
+        }
+        await conn.query(
+          `INSERT INTO sales_quotation_items 
+           (quotation_id, product_id, quantity, unit_price, total_price) 
+           VALUES ${valuesPlaceholders}`,
+          values
         );
       }
-
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
     } catch (error) {
-      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
       throw error;
     }
 

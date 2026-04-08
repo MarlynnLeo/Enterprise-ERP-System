@@ -216,29 +216,24 @@ class GLService {
 
       const entryId = result.insertId;
 
-      // 8. 插入分录明细
-      let lineNumber = 0;
-      for (const item of items) {
-        lineNumber++;
-        await conn.execute(
-          `
-                    INSERT INTO gl_entry_items 
-                    (entry_id, line_number, account_id, debit_amount, credit_amount, currency_code, exchange_rate, cost_center_id, description)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `,
-          [
-            entryId,
-            lineNumber,
-            item.account_id,
-            item.debit_amount || 0,
-            item.credit_amount || 0,
-            item.currency_code || 'CNY',
-            item.exchange_rate || 1,
-            item.cost_center_id || null,
-            item.description || null,
-          ]
-        );
-      }
+      // 8. 批量插入分录明细（1次SQL替代N次）
+      const itemValues = items.map((item, index) => [
+        entryId,
+        index + 1,
+        item.account_id,
+        item.debit_amount || 0,
+        item.credit_amount || 0,
+        item.currency_code || 'CNY',
+        item.exchange_rate || 1,
+        item.cost_center_id || null,
+        item.description || null,
+      ]);
+      await conn.query(
+        `INSERT INTO gl_entry_items 
+         (entry_id, line_number, account_id, debit_amount, credit_amount, currency_code, exchange_rate, cost_center_id, description)
+         VALUES ?`,
+        [itemValues]
+      );
 
       if (shouldManageTransaction) {
         await conn.commit();

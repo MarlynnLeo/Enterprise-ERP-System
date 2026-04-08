@@ -1227,55 +1227,6 @@ const _createOutbound = async (outboundData) => {
         }
       }
 
-      // 检查BOM是否有变更（需要先执行数据库迁移）
-      // 暂时注释掉，待迁移后启用
-      /*
-      try {
-        const [taskInfo] = await connection.execute(`
-          SELECT pt.id, pt.plan_id, pp.bom_id, pp.bom_version, pp.product_id
-          FROM production_tasks pt
-          LEFT JOIN production_plans pp ON pt.plan_id = pp.id
-          WHERE pt.id = ?
-        `, [productionTaskId]);
-        
-        if (taskInfo.length > 0 && taskInfo[0].bom_id) {
-          const planBomId = taskInfo[0].bom_id;
-          const planBomVersion = taskInfo[0].bom_version;
-          const productId = taskInfo[0].product_id;
-          
-          // 查询当前产品的最新已审核BOM版本
-          const [currentBom] = await connection.execute(`
-            SELECT id, version
-            FROM bom_masters
-            WHERE product_id = ? AND approved_by IS NOT NULL
-            ORDER BY created_at DESC
-            LIMIT 1
-          `, [productId]);
-          
-          if (currentBom.length > 0) {
-            const currentBomId = currentBom[0].id;
-            const currentBomVersion = currentBom[0].version;
-            
-            // 如果BOM版本不一致，记录警告
-            if (planBomId !== currentBomId || planBomVersion !== currentBomVersion) {
-              bomChangeWarning = `⚠️ 警告：此生产计划使用的BOM版本（${planBomVersion}）与当前最新版本（${currentBomVersion}）不一致！物料清单可能已变更，请核对发料清单是否正确。`;
-              logger.warn(`生产任务 ${productionTaskId}: ${bomChangeWarning}`);
-              
-              // 标记生产计划的BOM已变更
-              if (taskInfo[0].plan_id) {
-                await connection.execute(
-                  'UPDATE production_plans SET bom_changed = 1 WHERE id = ?',
-                  [taskInfo[0].plan_id]
-                );
-              }
-            }
-          }
-        }
-      } catch (bomCheckError) {
-        logger.error('检查BOM变更失败:', bomCheckError);
-        // 不阻止出库单创建流程
-      }
-      */
 
       // 更新生产任务状态为"配料中"，并记录发料时间
       try {
@@ -1290,29 +1241,14 @@ const _createOutbound = async (outboundData) => {
             taskCheck[0].status === STATUS.PRODUCTION_TASK.ALLOCATED ||
             taskCheck[0].status === STATUS.PRODUCTION_TASK.PREPARING)
         ) {
-          // 创建出库单时，将任务状态更新为"发料中"
-          try {
-            await connection.execute(
-              'UPDATE production_tasks SET status = ?, actual_start_time = ? WHERE id = ?',
-              [STATUS.PRODUCTION_TASK.MATERIAL_ISSUING, outboundDate, productionTaskId]
-            );
-            logger.debug(
-              `生产任务 ${productionTaskId} 状态已更新为"发料中"，发料时间: ${outboundDate}`
-            );
-          } catch (updateError) {
-            // 如果 actual_start_time 字段不存在，只更新状态
-            if (updateError.code === 'ER_BAD_FIELD_ERROR') {
-              await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
-                'material_issuing',
-                productionTaskId,
-              ]);
-              logger.debug(
-                `生产任务 ${productionTaskId} 状态已更新为"发料中"（字段 actual_start_time 不存在，已跳过）`
-              );
-            } else {
-              throw updateError;
-            }
-          }
+          // 更新任务状态为"发料中"并记录发料时间
+          await connection.execute(
+            'UPDATE production_tasks SET status = ?, actual_start_time = ? WHERE id = ?',
+            [STATUS.PRODUCTION_TASK.MATERIAL_ISSUING, outboundDate, productionTaskId]
+          );
+          logger.debug(
+            `生产任务 ${productionTaskId} 状态已更新为"发料中"，发料时间: ${outboundDate}`
+          );
 
           // 同时更新关联的生产计划状态为"发料中"
           const [planCheck] = await connection.execute(

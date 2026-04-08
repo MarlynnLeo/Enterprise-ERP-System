@@ -1820,10 +1820,8 @@ const handleAdd = async () => {
     }
   })
 
-  // 使用辅助函数确保数组
-  const { products: productsArray } = ensureArrays();
-
-  // 重置过滤后的产品列表，确保显示所有物料
+  // 确保 products 数据为数组，并重置过滤列表
+  const productsArray = Array.isArray(products.value) ? products.value : [];
   filteredProducts.value = [...productsArray];
 
   // 确保客户数据已加载
@@ -1845,7 +1843,11 @@ const handleAdd = async () => {
         page: 1
       });
 
-      const materialsData = extractArrayData(materialsRes.data) || [];
+      const resData = materialsRes.data;
+      const materialsData = Array.isArray(resData) ? resData
+        : Array.isArray(resData?.list) ? resData.list
+        : Array.isArray(resData?.data) ? resData.data
+        : [];
       products.value = materialsData.map(material => ({
         id: material.id,
         code: material.code || '',
@@ -2449,6 +2451,7 @@ const handleLock = async (row) => {
     if (error !== 'cancel') {
       console.error('锁定订单失败:', error)
       const errorData = error.response?.data
+      console.warn('🔍 [DEBUG] 锁定失败 - error.response.status:', error.response?.status, 'errorData:', JSON.stringify(errorData))
       let errorMessage = '锁定订单失败: ' + (errorData?.message || error.message || '未知错误')
 
       // 如果有库存不足的详细信息，显示给用户

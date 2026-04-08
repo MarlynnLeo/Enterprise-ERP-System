@@ -7,7 +7,6 @@
 
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
-const cashModel = require('./Account'); // 某些方法可能需要Account引用，这里暂时用不到，保留引用习惯
 
 class ReconciliationModel {
   /**
