@@ -16,6 +16,9 @@ const AsyncTaskService = require('../../../services/business/AsyncTaskService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
+// ✅ 审计修复: 导入 checkAndUpdateTaskStatus（此前未导入导致发料时 500 崩溃）
+const { checkAndUpdateTaskStatus } = require('./inventoryConsistencyController');
+
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
 // ✅ 审计修复(D-1): 移除冗余别名 SIMPLE_STOCK_SUBQUERY，全部统一使用 STOCK_SUBQUERY

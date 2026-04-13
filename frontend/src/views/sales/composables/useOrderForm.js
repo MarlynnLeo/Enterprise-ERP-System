@@ -365,7 +365,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         orderStatus = form.status || 'pending'
         if (insufficientItems.length > 0) {
           const itemMessages = insufficientItems.map(item =>
-            `${item.material_name || '未知物料'}: 需要 ${item.quantity}, 库存 ${item.currentStock}`)
+            `${item.materialName || item.material_name || '未知物料'}: 需要 ${item.quantity}, 库存 ${item.currentStock}`)
           const alertMessage = `以下物料库存不足:\n${itemMessages.join('\n')}\n\n是否继续保存并生成生产/采购计划?`
           try {
             await ElMessageBox.confirm(alertMessage, '库存不足警告', {
@@ -377,7 +377,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       } else {
         if (insufficientItems.length > 0) {
           const itemMessages = insufficientItems.map(item =>
-            `${item.material_name || '未知物料'}: 需要 ${item.quantity}, 库存 ${item.currentStock}`)
+            `${item.materialName || item.material_name || '未知物料'}: 需要 ${item.quantity}, 库存 ${item.currentStock}`)
           const alertMessage = `以下物料库存不足:\n${itemMessages.join('\n')}\n\n是否仍要创建订单?`
           try {
             await ElMessageBox.confirm(alertMessage, '库存不足警告', {
