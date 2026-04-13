@@ -10,28 +10,11 @@ const logger = require('./utils/logger');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const app = require('./app');
-const cacheService = require('./services/cacheService'); // ✅ 更新：使用统一的缓存服务
 
 const PORT = process.env.PORT || 8080;
 
-// 增加全局未捕获异常处理
-process.on('uncaughtException', (error) => {
-  logger.error('未捕获的异常导致进程即将终止:');
-  logger.error(error);
-  logger.error('异常堆栈:', error.stack);
-  // 不立即退出，给日志写入和潜在的清理时间
-  setTimeout(() => {
-    process.exit(1); // 非正常退出
-  }, 1000);
-});
-
-// 增加Promise未捕获拒绝处理
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('未处理的Promise拒绝:');
-  logger.error('Promise:', promise);
-  logger.error('原因:', reason);
-  // 不终止进程，但记录问题
-});
+// ✅ 审计修复(C-3): 全局异常处理已由 app.js → unifiedErrorHandler 统一管理
+// 此处不再重复注册 uncaughtException / unhandledRejection，避免竞态退出
 
 // 使用 db.js 中的统一优雅关闭机制，这里不再直接 process.exit(0)
 

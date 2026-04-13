@@ -7,10 +7,9 @@
 
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
+// body-parser 已弃用，使用 Express 内置的 json()/urlencoded()
 const helmet = require('helmet');
 const compression = require('compression'); // API响应压缩
-const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const { ResponseHandler } = require('./utils/responseHandler');
 
@@ -27,7 +26,6 @@ const inventoryRoutes = require('./routes/inventory');
 const systemRoutes = require('./routes/system');
 const authRoutes = require('./routes/auth');
 // 业务模块路由
-const ordersRoutes = require('./routes/orders');
 const productionRoutes = require('./routes/production');
 const salesRoutes = require('./routes/sales');
 const locationsRoutes = require('./routes/locations');
@@ -58,6 +56,7 @@ const qualityAdvancedRoutes = require('./routes/business/qualityAdvancedRoutes')
 const qualityStatisticsRoutes = require('./routes/business/qualityStatisticsRoutes');
 const weatherRoutes = require('./routes/weather');
 const commonRoutes = require('./routes/common');
+const hrRoutes = require('./routes/hrRoutes');
 
 // 模型导入已移除 — 原 createPurchaseTablesIfNotExist / createFinanceTablesIfNotExist 已为空操作
 // 表结构由 Knex 迁移文件统一管理
@@ -82,7 +81,6 @@ const {
 const { specs, swaggerUi, swaggerUiOptions } = require('./config/swagger');
 
 // 导入安全配置
-const { RATE_LIMIT_CONFIG } = require('./config/security');
 
 // 导入 Prometheus 监控
 const prometheusService = require('./services/monitoring/PrometheusService');
@@ -151,7 +149,8 @@ const corsOptions = {
     // ✅ 安全增强：生产环境下记录这类请求以便安全审计
     if (!origin) {
       if (process.env.NODE_ENV === 'production') {
-        logger.info(`CORS: 允许无 Origin 请求 (可能是服务端调用): ${req.method} ${req.originalUrl}`);
+        // [A-1 修复] origin 回调中无 req 变量，仅记录无 Origin 事实
+        logger.info('CORS: 允许无 Origin 请求 (可能是服务端调用或健康检查)');
       }
       return callback(null, true);
     }
@@ -214,9 +213,9 @@ app.use(cookieParser());
 // 3. CORS配置
 app.use(cors(corsOptions));
 
-// 4. Body解析器
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+// 4. Body解析器（使用 Express 内置方法，替代已弃用的 body-parser）
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 5. 速率限制 - 使用统一配置
 const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
@@ -259,6 +258,10 @@ app.use((_, res, next) => {
 // 静态文件服务 - 分级访问控制
 const path = require('path');
 
+// ✅ 修复: 定义 uploadsAuth / metricsAuth（此前未定义导致 ReferenceError 崩溃）
+const { authenticateToken: uploadsAuth } = require('./middleware/authEnhanced');
+const metricsAuth = uploadsAuth; // metrics 端点复用同一认证中间件
+
 // 公开可访问的上传目录（头像等登录前需要加载的资源）
 const PUBLIC_UPLOAD_DIRS = ['/avatars', '/public', '/logos'];
 
@@ -276,7 +279,6 @@ app.use('/uploads', (req, res, next) => {
   }
 
   // 非公开目录需要认证（保护合同、发票、BOM附件等敏感文件）
-  const { authenticateToken: uploadsAuth } = require('./middleware/auth');
   return uploadsAuth(req, res, next);
 }, express.static('uploads'));
 
@@ -295,7 +297,6 @@ app.get('/metrics', (req, res, next) => {
     return next();
   }
   // 非内网IP需要认证
-  const { authenticateToken: metricsAuth } = require('./middleware/auth');
   return metricsAuth(req, res, next);
 }, async (_, res) => {
   try {
@@ -324,12 +325,22 @@ if (process.env.ENABLE_CSRF !== 'false') {
 // CSRF Token 获取端点
 app.get('/api/csrf-token', getCsrfTokenEnhanced);
 
-app.get('/api/health', (_, res) => {
-  res.json({
-    status: 'healthy',
+app.get('/api/health', async (_, res) => {
+  // [A-2 修复] 真实探测数据库状态，而非硬编码
+  let dbStatus = 'disconnected';
+  try {
+    await require('./config/db').pool.execute('SELECT 1');
+    dbStatus = 'connected';
+  } catch (err) {
+    logger.error('健康检查: 数据库连接失败', err.message);
+  }
+
+  const isHealthy = dbStatus === 'connected';
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    database: 'connected',
+    database: dbStatus,
   });
 });
 
@@ -375,7 +386,9 @@ app.use('/api/finance/budgets', budgetRoutes);
 app.use('/api/finance/cost-centers', costCenterRoutes);
 app.use('/api/finance/cost-ledger', costLedgerRoutes);
 app.use('/api/finance/activity-cost', activityCostRoutes);
-app.use('/api/metal-prices', metalPricesRoutes);
+app.use('/api/cost-ledger', costLedgerRoutes); // 将原 costRoutes 重命名或映射
+app.use('/api/metal-prices', metalPricesRoutes); // 金属价格监控
+app.use('/api/hr', hrRoutes); // HR及薪酬模块
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/batch-traceability', batchTraceabilityRoutes);
 app.use('/api/traceability-monitor', traceabilityMonitorRoutes);

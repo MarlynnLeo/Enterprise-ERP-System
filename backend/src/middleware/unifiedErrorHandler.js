@@ -4,7 +4,10 @@
  */
 
 const { logger } = require('../utils/logger');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
+
+// 生成请求唯一标识（替代未导入的 uuidv4）
+const generateRequestId = () => crypto.randomUUID();
 
 // 扩展的错误码定义
 const ERROR_CODES = {
@@ -111,7 +114,7 @@ const ErrorFactory = {
 // 统一错误处理中间件
 const unifiedErrorHandler = (err, req, res, next) => {
   // 生成请求ID用于追踪
-  const requestId = req.requestId || uuidv4();
+  const requestId = req.requestId || generateRequestId();
 
   let error = err;
 
@@ -217,7 +220,7 @@ const notFoundHandler = (req, res, next) => {
 
 // 请求ID中间件
 const requestIdMiddleware = (req, res, next) => {
-  req.requestId = uuidv4();
+  req.requestId = generateRequestId();
   res.setHeader('X-Request-ID', req.requestId);
   next();
 };
