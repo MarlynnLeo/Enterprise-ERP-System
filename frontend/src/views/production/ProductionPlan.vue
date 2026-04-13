@@ -9,7 +9,8 @@
 <script setup>
 import dayjs from 'dayjs'
 import { ref, onMounted, reactive, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { productionApi, purchaseApi, baseDataApi } from '@/services/api'
 import { bomApi } from '@/api/bom'
 import axios from '@/services/api'
@@ -21,6 +22,7 @@ import { parseListData } from '@/utils/responseParser'
 
 // 权限store
 const authStore = useAuthStore()
+const router = useRouter()
 
 // 数据定义
 const loading = ref(false)
@@ -737,6 +739,12 @@ const handleProductChange = async () => {
   // 给用户反馈选择的产品
   ElMessage.success(`已选择产品: ${selectedProduct.code} - ${selectedProduct.name}`)
 
+  // ✅ 审计修复: 自动生成计划名称（仅在名称为空时，不覆盖用户输入）
+  if (!formData.value.name) {
+    const today = dayjs().format('YYYYMMDD')
+    formData.value.name = `${selectedProduct.name}_${today}`
+  }
+
   try {
     modalLoading.value = true
 
@@ -1101,15 +1109,29 @@ const confirmPushDown = async () => {
     // - 当有任务在生产中时 → 计划状态为"in_progress"
     // - 当所有任务都已发料时 → 计划状态为"material_issued"
     const newRemaining = remainingQuantity - taskQuantity;
+    const taskCode = response.data?.code || '';
     const message = pushDownType.value === 'full'
-      ? `生产任务 ${response.data?.code || ''} 生成成功（全部下推）`
-      : `生产任务 ${response.data?.code || ''} 生成成功（下推 ${taskQuantity}，剩余 ${newRemaining}）`;
-    ElMessage.success(message);
+      ? `生产任务 ${taskCode} 生成成功（全部下推）`
+      : `生产任务 ${taskCode} 生成成功（下推 ${taskQuantity}，剩余 ${newRemaining}）`;
 
-    // 先设置loading为false，再刷新列表
+    // ✅ 审计修复: 下推成功后提供跳转链接
     loading.value = false;
-    // 强制刷新生产计划列表
     await fetchPlanList(true);
+
+    try {
+      await ElMessageBox.confirm(
+        `${message}\n\n是否跳转到生产任务页面查看?`,
+        '下推成功',
+        {
+          confirmButtonText: '查看任务',
+          cancelButtonText: '留在当前页',
+          type: 'success',
+        }
+      )
+      router.push('/production/task')
+    } catch {
+      // 用户选择留在当前页
+    }
 
   } catch (error) {
     console.error('下推生成生产任务失败:', error);

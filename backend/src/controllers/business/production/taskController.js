@@ -48,6 +48,12 @@ function buildFilterConditions(params) {
       const placeholders = status.map(() => '?').join(',');
       whereClause += ` AND pt.status IN (${placeholders})`;
       queryParams.push(...status);
+    } else if (status.includes(',')) {
+      // ✅ 审计修复: 支持逗号分隔的多状态筛选（如 'in_progress,allocated'）
+      const statuses = status.split(',').map((s) => s.trim());
+      const placeholders = statuses.map(() => '?').join(',');
+      whereClause += ` AND pt.status IN (${placeholders})`;
+      queryParams.push(...statuses);
     } else {
       whereClause += ' AND pt.status = ?';
       queryParams.push(status);

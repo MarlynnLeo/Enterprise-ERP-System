@@ -547,8 +547,9 @@ const rules = {
 // 获取任务列表
 const fetchTaskList = async () => {
   try {
+    // ✅ 审计修复: 扩大任务搜索范围，包含分配中+生产中+已发料的任务
     const response = await axios.get('/production/tasks', {
-      params: { status: 'in_progress' }
+      params: { status: 'in_progress,allocated,material_issued' }
     })
     // 使用统一解析器
     taskList.value = parseListData(response, { enableLog: false })
@@ -801,6 +802,8 @@ const handleDeleteReport = async (record) => {
 
 // 显示新增报工弹窗
 const showReportModal = () => {
+  // ✅ 审计修复: 报工人默认填充当前登录用户
+  const currentUser = authStore.user
   formData.value = {
     taskId: undefined,
     reportDate: dayjs().format('YYYY-MM-DD'),
@@ -808,7 +811,7 @@ const showReportModal = () => {
     completedQuantity: 0,
     qualifiedQuantity: 0,
     workHours: 8,
-    reporter: '',
+    reporter: currentUser?.real_name || currentUser?.username || '',
     remarks: ''
   }
 
