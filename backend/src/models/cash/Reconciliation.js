@@ -15,7 +15,7 @@ class ReconciliationModel {
   static async reconcileBankTransaction(id, reconciliationData) {
     try {
       const [result] = await db.pool.execute(
-        'UPDATE bank_transactions SET is_reconciled = ?, reconciliation_date = ? WHERE id = ?',
+        'UPDATE bank_transactions SET is_reconciled = ?, reconciliation_date = ? WHERE id = ? AND (is_reconciled = false OR is_reconciled IS NULL)',
         [true, reconciliationData.reconciliation_date, id]
       );
       return result.affectedRows > 0;

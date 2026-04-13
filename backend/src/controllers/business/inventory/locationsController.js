@@ -25,8 +25,8 @@ const locationsController = {
   // 获取所有库位
   getAll: async (req, res) => {
     try {
-      const page = parseInt(req.query.page) || 1;
-      const pageSize = parseInt(req.query.pageSize) || 10;
+      const page = parseInt(req.query.page, 10) || 1;
+      const pageSize = parseInt(req.query.pageSize, 10) || 10;
       const search = req.query.search || '';
       const result = await Locations.getAll(search, page, pageSize);
       res.json(result);
@@ -39,7 +39,7 @@ const locationsController = {
   // 获取单个库位
   getById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id, 10) || 1;
       const location = await Locations.getById(id);
       if (location) {
         res.json(location);
@@ -76,7 +76,7 @@ const locationsController = {
   // 更新库位
   update: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id, 10) || 1;
       const locationData = { ...req.body };
 
       // 移除 created_at 和 updated_at 字段，让数据库自动处理这些字段
@@ -98,7 +98,7 @@ const locationsController = {
   // 删除库位
   delete: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id, 10) || 1;
       const affectedRows = await Locations.delete(id);
       if (affectedRows) {
         res.json({ message: 'Location deleted successfully' });

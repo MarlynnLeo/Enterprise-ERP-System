@@ -220,7 +220,7 @@
 import apiAdapter from '@/utils/apiAdapter';
 
 // 版本标识 - 应付账款账龄分析修复版 v1.0
-import { ref, reactive, computed, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import * as echarts from 'echarts';
@@ -274,10 +274,25 @@ const detailsDialogVisible = ref(false);
 const selectedSupplier = ref({});
 const detailsList = ref([]);
 
+// ECharts 图表实例引用（用于清理）
+let pieChartInstance = null;
+let barChartInstance = null;
+
+// 统一的 resize 处理函数（具名引用，确保可移除）
+const handleChartResize = () => {
+  if (pieChartInstance && !pieChartInstance.isDisposed()) pieChartInstance.resize();
+  if (barChartInstance && !barChartInstance.isDisposed()) barChartInstance.resize();
+};
+
 // 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-  return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// formatCurrency 已统一引用公共实现;
+
+// 金额格式化
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '¥0.00';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '¥0.00';
+  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 计算百分比
@@ -574,11 +589,11 @@ const renderCharts = () => {
   };
   barChart.setOption(barOption);
   
-  // 响应窗口大小变化
-  window.addEventListener('resize', function() {
-    pieChart.resize();
-    barChart.resize();
-  });
+  pieChartInstance = pieChart;
+  barChartInstance = barChart;
+  
+  // 注册统一的 resize 监听
+  window.addEventListener('resize', handleChartResize);
 };
 
 // 查看明细
@@ -626,8 +641,15 @@ onMounted(() => {
   if (!Array.isArray(tableData.value)) {
     tableData.value = [];
   }
+});
 
-  // 初始加载可以选择不自动生成报表，等用户点击按钮
+onUnmounted(() => {
+  // 移除 resize 监听
+  window.removeEventListener('resize', handleChartResize);
+  
+  // 销毁 ECharts 实例
+  if (pieChartInstance) { pieChartInstance.dispose(); pieChartInstance = null; }
+  if (barChartInstance) { barChartInstance.dispose(); barChartInstance = null; }
 });
 </script>
 
@@ -645,13 +667,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .action-buttons {

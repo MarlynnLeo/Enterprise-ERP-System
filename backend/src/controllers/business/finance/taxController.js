@@ -10,6 +10,7 @@ const taxModel = require('../../../models/tax');
 const TaxAccountingService = require('../../../services/business/TaxAccountingService');
 const logger = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 const taxController = {
   /**
@@ -20,7 +21,7 @@ const taxController = {
     try {
       const invoiceData = {
         ...req.body,
-        created_by: req.user?.id || 0,
+        created_by: await getCurrentUserName(req),
       };
 
       // 验证必填字段
@@ -46,11 +47,12 @@ const taxController = {
       // 如果状态是"已认证"，自动生成会计分录
       if (invoiceData.status === '已认证') {
         const invoice = await taxModel.getTaxInvoiceById(invoiceId);
+        const userName = await getCurrentUserName(req);
 
         if (invoice.invoice_type === '销项') {
-          await TaxAccountingService.generateOutputTaxEntry(invoice, req.user?.id || 0);
+          await TaxAccountingService.generateOutputTaxEntry(invoice, userName);
         } else if (invoice.invoice_type === '进项') {
-          await TaxAccountingService.generateInputTaxEntry(invoice, req.user?.id || 0);
+          await TaxAccountingService.generateInputTaxEntry(invoice, userName);
         }
       }
 
@@ -132,17 +134,18 @@ const taxController = {
 
       // 自动生成会计分录
       const updatedInvoice = await taxModel.getTaxInvoiceById(id);
+      const userName = await getCurrentUserName(req);
 
       let entryInfo;
       if (updatedInvoice.invoice_type === '销项') {
         entryInfo = await TaxAccountingService.generateOutputTaxEntry(
           updatedInvoice,
-          req.user?.id || 0
+          userName
         );
       } else if (updatedInvoice.invoice_type === '进项') {
         entryInfo = await TaxAccountingService.generateInputTaxEntry(
           updatedInvoice,
-          req.user?.id || 0
+          userName
         );
       }
 
@@ -195,7 +198,7 @@ const taxController = {
     try {
       const returnData = {
         ...req.body,
-        created_by: req.user?.id || 0,
+        created_by: await getCurrentUserName(req),
       };
 
       // 验证必填字段
@@ -313,7 +316,8 @@ const taxController = {
 
       // 生成缴纳税款的会计分录
       if (taxReturn.return_type === '增值税' && taxReturn.tax_payable > 0) {
-        await TaxAccountingService.generateVATReturnEntry(taxReturn, req.user?.id || 0);
+        const userName = await getCurrentUserName(req);
+        await TaxAccountingService.generateVATReturnEntry(taxReturn, userName);
       }
 
       // 更新申报状态为"已缴纳"

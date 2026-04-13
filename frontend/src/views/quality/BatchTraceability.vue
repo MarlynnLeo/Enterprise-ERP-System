@@ -232,6 +232,7 @@
 
 <script>
 import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -420,10 +421,7 @@ export default {
     }
     
     // 工具方法
-    const formatDate = (date) => {
-      if (!date) return '-'
-      return new Date(date).toLocaleString('zh-CN')
-    }
+    // formatDate 已统一引用公共实现
     
     const getStatusType = (status) => {
       const types = {
@@ -539,7 +537,7 @@ export default {
 
 .test-cases {
   padding: 10px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: var(--radius-sm);
 }
 
@@ -559,7 +557,7 @@ export default {
 
 .flow-node {
   background: #fff;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);
   padding: 15px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -614,7 +612,7 @@ export default {
 
 .flow-arrow {
   text-align: center;
-  color: #409eff;
+  color: var(--color-primary);
   font-size: 20px;
   margin: 10px 0;
 }
@@ -622,7 +620,7 @@ export default {
 .fifo-preview-form {
   margin-bottom: var(--spacing-lg);
   padding: 15px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: var(--radius-sm);
 }
 

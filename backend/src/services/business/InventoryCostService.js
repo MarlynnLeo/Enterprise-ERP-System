@@ -49,9 +49,10 @@ class InventoryCostService {
       let newMac = inboundUnitCost; // 默认 fallback
       
       try {
+        // [H-4] 使用 FOR UPDATE 锁防止并发入库时 MAC 计算错误
         // 由于是异步任务或后续调用，台账里可能已经包含了本次插入的 quantity
         const [stockRes] = await connection.execute(
-          'SELECT COALESCE(SUM(quantity), 0) as total_qty FROM inventory_ledger WHERE material_id = ?',
+          'SELECT COALESCE(SUM(quantity), 0) as total_qty FROM inventory_ledger WHERE material_id = ? FOR UPDATE',
           [transaction.material_id]
         );
         const currentTotalQty = parseFloat(stockRes[0].total_qty) || 0;
@@ -409,7 +410,7 @@ class InventoryCostService {
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
 
     const [result] = await connection.execute(
-      'SELECT MAX(entry_number) as max_no FROM gl_entries WHERE entry_number LIKE ?',
+      'SELECT MAX(entry_number) as max_no FROM gl_entries WHERE entry_number LIKE ? FOR UPDATE',
       [`${prefix}${dateStr}%`]
     );
 

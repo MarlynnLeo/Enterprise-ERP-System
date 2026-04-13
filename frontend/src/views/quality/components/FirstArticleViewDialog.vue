@@ -64,6 +64,7 @@
 import { ref, computed, watch } from 'vue'
 import { qualityApi } from '@/api/quality'
 import dayjs from 'dayjs'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 const props = defineProps({ visible: Boolean, inspection: Object })
 const emit = defineEmits(['update:visible'])
@@ -93,15 +94,7 @@ watch(() => props.visible, (val) => {
   }
 })
 
-const formatDate = (date) => date ? dayjs(date).format('YYYY-MM-DD') : '-'
-
-const getResultType = (result) => ({
-  pending: 'info',
-  passed: 'success',
-  failed: 'danger',
-  conditional: 'warning'
-}[result] || 'info')
-
+// formatDate: 使用公共实现
 const getResultText = (result) => ({
   pending: '待检验',
   passed: '合格',

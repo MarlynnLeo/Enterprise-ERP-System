@@ -10,7 +10,6 @@ const { logger } = require('../../../utils/logger');
 const { validateRequiredFields, validateEnum } = require('../../../utils/validationHelper');
 
 const { pool } = require('../../../config/db');
-const { ErrorFactory } = require('../../../middleware/unifiedErrorHandler');
 
 /**
  * 获取设备列表

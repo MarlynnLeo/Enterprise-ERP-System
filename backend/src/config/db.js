@@ -8,11 +8,14 @@
 require('dotenv').config();
 const logger = require('../utils/logger');
 // bcrypt 已移至 seeds/001_default_admin_and_roles.js，此处不再需要
-const { getPoolConfig } = require('./database-config');
+const { getPoolConfig, getPoolSafetyConfig } = require('./database-config');
 const poolFactory = require('../database/ConnectionPoolFactory');
 const { DBManager } = require('../database/DBManager');
 
-// 创建主连接池
+// 获取安全保护配置
+const safetyConfig = getPoolSafetyConfig();
+
+// 创建主连接池（包含连接自动回收保护）
 const { pool: rawPool, manager } = poolFactory.createPool('main', getPoolConfig(), {
   healthCheckInterval: 15000, // 15秒检查一次
   healthCheckTimeout: 3000, // 3秒超时
@@ -22,6 +25,9 @@ const { pool: rawPool, manager } = poolFactory.createPool('main', getPoolConfig(
   leakDetectionThreshold: 30000,
   warmupEnabled: true,
   warmupConnections: 2,
+  // 连接泄漏安全保护
+  maxConnectionHoldTime: safetyConfig.maxConnectionHoldTime,
+  acquireTimeout: safetyConfig.acquireTimeout,
 });
 
 // 直接使用原生连接池，依靠底层 enableKeepAlive 和 idleTimeout 来管理健康连接

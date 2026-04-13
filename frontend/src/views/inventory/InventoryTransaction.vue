@@ -273,6 +273,8 @@
 import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
 import { inventoryApi } from '@/api/inventory';
+import { formatCurrency, formatNumber } from '@/utils/format'
+import { formatDateTime } from '@/utils/helpers/dateUtils'
 
 import { ref, onMounted, onUnmounted, nextTick, reactive, computed } from 'vue'
 import { debounce } from 'lodash-es'
@@ -962,22 +964,13 @@ const showTransactionDetail = (row) => {
 }
 
 // 格式化数字
-const formatNumber = (value) => {
-  if (value === undefined || value === null) return '0.00'
-  return parseFloat(value).toFixed(2)
-}
+// formatNumber 已统一引用公共实现
 
 // 格式化货币
-const formatCurrency = (value) => {
-  if (value === undefined || value === null) return '¥0.00'
-  return `¥${parseFloat(value).toFixed(2)}`
-}
+// formatCurrency 已统一引用公共实现
 
 // 格式化日期时间
-const formatDateTime = (datetime) => {
-  if (!datetime) return '-'
-  return dayjs(datetime).format('YYYY-MM-DD HH:mm:ss')
-}
+// formatDateTime 已统一引用公共实现
 
 // 分页处理
 const handleSizeChange = (val) => {
@@ -1101,13 +1094,13 @@ const sanitizeHtml = (html) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -1181,7 +1174,7 @@ const sanitizeHtml = (html) => {
 
 .el-descriptions-item__label {
   width: 120px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
 }
 
 .el-descriptions-item__content {

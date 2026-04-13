@@ -15,7 +15,7 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 exports.getProductionBoardData = async (req, res) => {
   try {
     // 获取最近计划的显示条数，默认12条，最大30条
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 12, 1), 30);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 12, 1), 30);
 
     // 1. 获取各状态的计划数量
     const [planStats] = await pool.query(`
@@ -67,9 +67,8 @@ exports.getProductionBoardData = async (req, res) => {
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       ORDER BY pp.created_at DESC
-      LIMIT ?
-    `,
-      [limit]
+      LIMIT ${limit}
+    `
     );
 
     // 5. 获取工序完成率统计

@@ -461,11 +461,19 @@ function handleCurrentChange(page) {
 }
 
 // 格式化日期
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('zh-CN');
-}
+// formatDate 已统一引用公共实现
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
+};
 
 // 获取类型文本
 function getTypeText(type) {

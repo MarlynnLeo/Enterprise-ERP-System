@@ -155,42 +155,7 @@ const productSalesTraceabilityController = {
     }
   },
 
-  /**
-   * 模拟销售出库（用于测试追溯功能）
-   */
-  async simulateSalesOutbound(req, res) {
-    try {
-      const { customer_id, customer_name, product_id, product_code, quantity, delivery_date } =
-        req.body;
 
-      if (!customer_id || !product_id || !quantity) {
-        return ResponseHandler.error(res, '客户ID、产品ID和数量不能为空', 'BAD_REQUEST', 400);
-      }
-
-      // 模拟销售出库数据
-      const salesData = {
-        outbound_id: Date.now(), // 模拟出库单ID
-        outbound_no: `SO${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${String(Date.now()).slice(-3)}`,
-        order_id: null,
-        customer_id: parseInt(customer_id),
-        delivery_date: delivery_date || new Date().toISOString().slice(0, 10),
-        items: [
-          {
-            product_id: parseInt(product_id),
-            quantity: parseFloat(quantity),
-          },
-        ],
-        operator: 'test_user',
-      };
-
-      const result = await ProductSalesTraceabilityService.handleProductSalesOutbound(salesData);
-
-      ResponseHandler.success(res, result, '模拟销售出库成功');
-    } catch (error) {
-      logger.error('模拟销售出库失败:', error);
-      ResponseHandler.error(res, '模拟销售出库失败', 'SERVER_ERROR', 500, error);
-    }
-  },
 
   /**
    * 获取原材料到客户的完整追溯链路

@@ -139,7 +139,7 @@
 import apiAdapter from '@/utils/apiAdapter';
 
 // 版本标识 - 强制刷新缓存 v3.0 - 使用安全数据访问器
-import { ref, reactive, computed, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import * as echarts from 'echarts';
@@ -196,12 +196,25 @@ let barChartInstance = null;
 const pieChart = ref(null);
 const barChart = ref(null);
 
+// 统一的 resize 处理函数（具名引用，确保可移除）
+const handleChartResize = () => {
+  if (pieChartInstance && !pieChartInstance.isDisposed()) pieChartInstance.resize();
+  if (barChartInstance && !barChartInstance.isDisposed()) barChartInstance.resize();
+};
+
 // 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  
-  const date = new Date(dateString);
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+// formatDate 已统一引用公共实现;
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
 };
 
 // 格式化金额
@@ -636,26 +649,17 @@ onMounted(() => {
   // 确保初始数据安全
   ensureReportDataIsArray();
 
-  // 立即生成报表
-  // generateReport();
+  // 注册统一的 resize 监听
+  window.addEventListener('resize', handleChartResize);
+});
 
-  // 监听窗口大小变化，重绘图表
-  window.addEventListener('resize', () => {
-    if (pieChartInstance) {
-      pieChartInstance.resize();
-    }
-    if (barChartInstance) {
-      barChartInstance.resize();
-    }
-  });
-
-  // 添加全局错误处理
-  window.addEventListener('error', (event) => {
-    if (event.filename && event.filename.includes('Aging.vue')) {
-      console.error('[Aging.vue 全局错误]:', event.error);
-      ensureReportDataIsArray();
-    }
-  });
+onUnmounted(() => {
+  // 移除 resize 监听
+  window.removeEventListener('resize', handleChartResize);
+  
+  // 销毁 ECharts 实例
+  if (pieChartInstance) { pieChartInstance.dispose(); pieChartInstance = null; }
+  if (barChartInstance) { barChartInstance.dispose(); barChartInstance = null; }
 });
 </script>
 
@@ -673,13 +677,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .header-actions {

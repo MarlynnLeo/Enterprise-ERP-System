@@ -160,7 +160,7 @@
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column :label="$t('common.action')" min-width="80" fixed="right" align="center">
+                <el-table-column :label="$t('common.action')" min-width="80" align="center">
                   <template #default="{ row }">
                     <el-button
                       :type="activeTodoTab === 'pending' ? 'primary' : 'info'"
@@ -512,8 +512,6 @@ import {
   ChatLineSquare
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { api, todoApi, productionApi, metalPricesApi, baseDataApi, userApi } from '../../services/api'
-import { parseListData } from '@/utils/responseParser'
 
 // 注册ECharts组件
 echarts.use([
@@ -527,24 +525,95 @@ echarts.use([
   CanvasRenderer
 ])
 
+// ========== 组合式函数导入 ==========
+import { useWeather } from './composables/useWeather'
+import { useExchangeRate } from './composables/useExchangeRate'
+import { useMetalPrices } from './composables/useMetalPrices'
+import { useTodos } from './composables/useTodos'
+import { useOnlineRanking } from './composables/useOnlineRanking'
+import { useProductionPlans } from './composables/useProductionPlans'
+
 const router = useRouter()
+
+// ========== 解构组合式函数 ==========
+const { weather, weatherLoading, fetchWeatherData } = useWeather()
+
+const {
+  exchangeRates,
+  exchangeRateLoading,
+  exchangeRateHistory,
+  exchangeRateCards,
+  exchangeRateChartRef,
+  miniChartRefs,
+  setMiniChartRef,
+  fetchExchangeRates,
+  initExchangeRateChart,
+  updateMiniCharts,
+  refreshExchangeRate,
+  getMiniChartOption,
+  initMiniChart,
+  updateMiniChartsGeneric,
+  disposeCharts
+} = useExchangeRate()
+
+const {
+  metalPrices,
+  metalPricesLoading,
+  metalPriceHistory,
+  metalPriceCards,
+  metalMiniChartRefs,
+  metalMiniCharts,
+  setMetalMiniChartRef,
+  fetchMetalPrices,
+  refreshMetalPrices,
+  updateMetalMiniCharts,
+  disposeMetalCharts
+} = useMetalPrices(updateMiniChartsGeneric)
+
+const {
+  pendingTasks,
+  completedTasks,
+  todos,
+  activeTodoTab,
+  currentDate,
+  currentYear,
+  currentMonth,
+  currentDay,
+  currentMonthStr,
+  calendarDays,
+  loadUserTodos,
+  getTodoCount,
+  goToTodoPage,
+  switchTodoTab,
+  viewTodoDetail,
+  changeMonth,
+  generateCalendarDays
+} = useTodos()
+
+const {
+  onlineTimeRanking,
+  rankingLoading,
+  rankingDate,
+  flippedCards,
+  toggleFlip,
+  podiumCardConfigs,
+  fetchOnlineTimeRanking
+} = useOnlineRanking()
+
+const {
+  warningList,
+  getWarningTypeClass,
+  getWarningTagType,
+  getStatusText,
+  loadProductionPlans,
+  viewProductionPlan
+} = useProductionPlans()
+
+// ========== 本地状态（不适合抽取的轻量数据） ==========
 
 // 上次加载时间
 const lastLoadTime = ref(0)
 const refreshInterval = 30000 // 30秒刷新间隔
-
-// 翻转卡片状态
-const flippedCards = ref({
-  0: false,
-  1: false,
-  2: false
-})
-
-const toggleFlip = (index) => {
-  if (onlineTimeRanking.value[index]) {
-    flippedCards.value[index] = !flippedCards.value[index]
-  }
-}
 
 // 用户信息
 const userProfile = ref(null)
@@ -552,10 +621,10 @@ const isLoadingProfile = ref(true)
 
 // 统计数据
 const statistics = ref({
-  managedUsers: 3, // 管理用户数
-  todoItems: 0,    // 待办事项数
-  warningItems: 0, // 预警事项数
-  documentCount: 18 // 文档数量
+  managedUsers: 3,
+  todoItems: 0,
+  warningItems: 0,
+  documentCount: 18
 })
 const isLoadingStats = ref(true)
 
@@ -587,120 +656,6 @@ const statCards = computed(() => [
   }
 ])
 
-// 待办事项数据
-const pendingTasks = ref([])
-// 已办事项数据
-const completedTasks = ref([])
-// 所有待办事项
-const todos = ref([])
-// 当前激活的待办标签（待办/已办）
-const activeTodoTab = ref('pending')
-
-// 当前日期相关
-const currentDate = ref(new Date())
-const currentYear = computed(() => currentDate.value.getFullYear())
-const currentMonth = computed(() => currentDate.value.getMonth() + 1) // getMonth() 返回 0-11
-const currentDay = computed(() => currentDate.value.getDate())
-const currentMonthStr = computed(() => `${currentYear.value}年${currentMonth.value}月`)
-
-// 天气数据
-const weather = ref({
-  city: '乐清',
-  temperature: '--',
-  feelsLike: '--',
-  description: '加载中...',
-  weatherCode: 'sunny',
-  windSpeed: '--',
-  humidity: '--',
-  updateTime: ''
-})
-const weatherLoading = ref(true)
-
-// 金属价格数据（统一按克计算）
-const metalPrices = ref({
-  GOLD: { name: '黄金', price: '--', changePercent: 0, unit: '¥/克' },
-  PLATINUM: { name: '白金', price: '--', changePercent: 0, unit: '¥/克' },
-  ALUMINUM: { name: '铝', price: '--', changePercent: 0, unit: '¥/吨' },
-  COPPER: { name: '铜', price: '--', changePercent: 0, unit: '¥/吨' },
-  lastUpdate: null
-})
-
-// 单位转换系数
-const GRAMS_PER_TROY_OUNCE = 31.1035  // 1金衡盎司 = 31.1035克
-const GRAMS_PER_TON = 1000000  // 1吨 = 1,000,000克
-const metalPricesLoading = ref(false)
-
-// 金属价格历史数据
-const metalPriceHistory = ref({
-  GOLD: [],
-  PLATINUM: [],
-  ALUMINUM: [],
-  COPPER: []
-})
-
-// 金属价格卡片数据（简化版）
-const metalPriceCards = computed(() => {
-  const result = {}
-  Object.keys(metalPrices.value).forEach(key => {
-    if (key !== 'lastUpdate') {
-      result[key] = metalPrices.value[key]
-    }
-  })
-  return result
-})
-
-// 外汇数据
-const exchangeRates = ref({
-  USDCNY: '--',
-  EURCNY: '--',
-  GBPCNY: '--',
-  JPYCNY: '--',
-  USDCNY_change: 0,
-  EURCNY_change: 0,
-  GBPCNY_change: 0,
-  JPYCNY_change: 0,
-  lastUpdate: null
-})
-const exchangeRateLoading = ref(false)
-
-// 汇率历史数据
-const exchangeRateHistory = ref({
-  USDCNY: [],
-  EURCNY: [],
-  GBPCNY: [],
-  JPYCNY: []
-})
-
-// 汇率卡片数据
-const exchangeRateCards = computed(() => ({
-  USDCNY: {
-    pair: 'USD/CNY',
-    value: exchangeRates.value.USDCNY,
-    change: exchangeRates.value.USDCNY_change
-  },
-  EURCNY: {
-    pair: 'EUR/CNY',
-    value: exchangeRates.value.EURCNY,
-    change: exchangeRates.value.EURCNY_change
-  },
-  GBPCNY: {
-    pair: 'GBP/CNY',
-    value: exchangeRates.value.GBPCNY,
-    change: exchangeRates.value.GBPCNY_change
-  },
-  JPYCNY: {
-    pair: 'JPY/CNY',
-    value: exchangeRates.value.JPYCNY,
-    change: exchangeRates.value.JPYCNY_change
-  }
-}))
-
-// 图表引用
-const exchangeRateChartRef = ref(null)
-const miniChartRefs = ref({})
-let exchangeRateChart = null
-const miniCharts = ref({})
-
 // 滚动相关
 const scrollContainer = ref(null)
 const showScrollIndicator = ref(true)
@@ -709,110 +664,7 @@ const showScrollIndicator = ref(true)
 let userDataTimer = null
 let exchangeRateTimer = null
 
-// 在线时长排行榜
-const onlineTimeRanking = ref([])
-const rankingLoading = ref(false)
-const rankingDate = ref('')
-const rankingCache = ref(null) // 缓存排行榜数据
-const rankingCacheTime = ref(null) // 缓存时间
-const RANKING_CACHE_DURATION = 1000 // 缓存1秒，保证头像特效及时更新
-
-// 排行榜展示配置（固定顺序：第二、第一、第三）
-const podiumCardConfigs = [
-  { dataIndex: 1, rankClass: 'rank-2', badgeText: 'NO.2', isChampion: false, iconSize: 40 },
-  { dataIndex: 0, rankClass: 'rank-1', badgeText: 'NO.1', isChampion: true, iconSize: 50 },
-  { dataIndex: 2, rankClass: 'rank-3', badgeText: 'NO.3', isChampion: false, iconSize: 35 }
-]
-
-// 检查是否需要滚动指示器
-const checkScrollIndicator = () => {
-  nextTick(() => {
-    if (scrollContainer.value) {
-      const container = scrollContainer.value
-      const scrollHeight = container.scrollHeight
-      const clientHeight = container.clientHeight
-
-      // 如果内容高度小于等于容器高度，不需要滚动指示器
-      showScrollIndicator.value = scrollHeight > clientHeight
-    }
-  })
-}
-
-// 滚动到底部
-const scrollToBottom = () => {
-  if (scrollContainer.value) {
-    scrollContainer.value.scrollTo({
-      top: scrollContainer.value.scrollHeight,
-      behavior: 'smooth'
-    })
-  }
-}
-
-// 设置迷你图表引用
-const setMiniChartRef = (key, el) => {
-  if (el) {
-    miniChartRefs.value[key] = el
-  }
-}
-
-// 金属价格迷你图表引用
-const metalMiniChartRefs = ref({})
-const metalMiniCharts = ref({})
-
-const setMetalMiniChartRef = (key, el) => {
-  if (el) {
-    metalMiniChartRefs.value[key] = el
-  }
-}
-
-// 处理滚动事件
-const handleScroll = (event) => {
-  const container = event.target
-  const scrollTop = container.scrollTop
-  const scrollHeight = container.scrollHeight
-  const clientHeight = container.clientHeight
-
-  // 计算滚动进度
-  const scrollProgress = scrollTop / (scrollHeight - clientHeight)
-
-  // 如果内容高度小于等于容器高度，不需要滚动指示器
-  if (scrollHeight <= clientHeight) {
-    showScrollIndicator.value = false
-    return
-  }
-
-  // 如果滚动到底部附近（95%以上），隐藏滚动指示器
-  if (scrollProgress >= 0.95) {
-    showScrollIndicator.value = false
-  } else if (scrollTop === 0) {
-    showScrollIndicator.value = true
-  }
-}
-
-// 加载用户数据
-const loadUserProfile = async (force = false) => {
-  try {
-    const now = Date.now()
-    // 如果距离上次加载不到30秒，且不是强制刷新，则跳过
-    if (!force && (now - lastLoadTime.value < refreshInterval)) {
-      return
-    }
-    
-    isLoadingProfile.value = true
-    await authStore.fetchUserProfile()
-    userProfile.value = authStore.user
-    lastLoadTime.value = now
-  } catch (error) {
-    console.error('获取用户信息失败:', error)
-  } finally {
-    isLoadingProfile.value = false
-  }
-}
-
-// 预警列表数据（生产计划）
-const warningList = ref([])
-
-// === 全局状态常量映射字典 ===
+// === 全局状态常量映射字典（仅模板直接引用的保留在此） ===
 const EVENT_TYPE_MAP = {
   '英语变更': 'event-english',
   '新生指导': 'event-guide',
@@ -830,601 +682,80 @@ const TODO_STATUS_MAP = {
   '关闭': 'status-closed'
 }
 
-const WARNING_STYLE_MAP = {
-  'draft': 'warning-notice',
-  'preparing': 'warning-notice',
-  'material_issuing': 'warning-document',
-  'material_issued': 'warning-document',
-  'in_progress': 'warning-activity',
-  'inspection': 'warning-course',
-  'warehousing': 'warning-accommodation',
-  'completed': 'warning-completed',
-  'cancelled': 'warning-cancelled'
-}
-
-const WARNING_TAG_MAP = {
-  'draft': 'info',
-  'preparing': 'warning',
-  'material_issuing': 'warning',
-  'material_issued': 'primary',
-  'in_progress': 'primary',
-  'inspection': 'warning',
-  'warehousing': 'success',
-  'completed': 'success',
-  'cancelled': 'danger'
-}
-
-const PLAN_STATUS_TEXT_MAP = {
-  draft: '未开始',
-  allocated: '分配中',
-  preparing: '配料中',
-  material_issuing: '发料中',
-  material_issued: '已发料',
-  in_progress: '生产中',
-  inspection: '待检验',
-  warehousing: '入库中',
-  completed: '已完成',
-  cancelled: '已取消'
-}
-
-const PRIORITY_TEXT_MAP = {
-  3: '高优先级',
-  2: '中优先级',
-  1: '低优先级'
-}
-
-// 提取简化后的获取方法
 const getEventTypeClass = (type) => EVENT_TYPE_MAP[type] || ''
 const getStatusClass = (status) => TODO_STATUS_MAP[status] || ''
-const getWarningTypeClass = (status) => WARNING_STYLE_MAP[status] || 'warning-notice'
-const getWarningTagType = (status) => WARNING_TAG_MAP[status] || 'info'
-const getStatusText = (status) => PLAN_STATUS_TEXT_MAP[status] || status
 
-// 处理汇率数据并更新（提取公共逻辑）
-const processExchangeRateData = (rates, dataSource) => {
-  const prevRates = { ...exchangeRates.value }
+// ========== 本地方法 ==========
 
-  // 计算对人民币的汇率
-  const usdToCny = rates.CNY || 0
-  const eurToCny = rates.EUR ? (rates.CNY / rates.EUR) : 0
-  const gbpToCny = rates.GBP ? (rates.CNY / rates.GBP) : 0
-  const jpyToCny = rates.JPY ? (rates.CNY / rates.JPY) : 0
+// 检查是否需要滚动指示器
+const checkScrollIndicator = () => {
+  nextTick(() => {
+    if (scrollContainer.value) {
+      const container = scrollContainer.value
+      const scrollHeight = container.scrollHeight
+      const clientHeight = container.clientHeight
+      showScrollIndicator.value = scrollHeight > clientHeight
+    }
+  })
+}
 
-  // 计算变化
-  const usdChange = prevRates.USDCNY !== '--' ? usdToCny - parseFloat(prevRates.USDCNY) : 0
-  const eurChange = prevRates.EURCNY !== '--' ? eurToCny - parseFloat(prevRates.EURCNY) : 0
-  const gbpChange = prevRates.GBPCNY !== '--' ? gbpToCny - parseFloat(prevRates.GBPCNY) : 0
-  const jpyChange = prevRates.JPYCNY !== '--' ? jpyToCny - parseFloat(prevRates.JPYCNY) : 0
-
-  const currentTime = new Date()
-
-  // 更新历史数据（保留最近24个数据点）
-  const updateHistory = (currency, value) => {
-    const history = exchangeRateHistory.value[currency]
-    history.push({
-      time: currentTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-      value: parseFloat(value)
+// 滚动到底部
+const scrollToBottom = () => {
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTo({
+      top: scrollContainer.value.scrollHeight,
+      behavior: 'smooth'
     })
-    if (history.length > 24) {
-      history.shift()
-    }
   }
-
-  updateHistory('USDCNY', usdToCny.toFixed(4))
-  updateHistory('EURCNY', eurToCny.toFixed(4))
-  updateHistory('GBPCNY', gbpToCny.toFixed(4))
-  updateHistory('JPYCNY', jpyToCny.toFixed(6))
-
-  exchangeRates.value = {
-    USDCNY: usdToCny.toFixed(4),
-    EURCNY: eurToCny.toFixed(4),
-    GBPCNY: gbpToCny.toFixed(4),
-    JPYCNY: jpyToCny.toFixed(6),
-    USDCNY_change: usdChange,
-    EURCNY_change: eurChange,
-    GBPCNY_change: gbpChange,
-    JPYCNY_change: jpyChange,
-    lastUpdate: currentTime,
-    dataSource: dataSource
-  }
-
-  // 更新图表
-  updateExchangeRateChart()
-  updateMiniCharts()
-  checkScrollIndicator()
 }
 
-// 获取天气数据
-const fetchWeatherData = async () => {
-  weatherLoading.value = true
+// 处理滚动事件
+const handleScroll = (event) => {
+  const container = event.target
+  const scrollTop = container.scrollTop
+  const scrollHeight = container.scrollHeight
+  const clientHeight = container.clientHeight
 
+  if (scrollHeight <= clientHeight) {
+    showScrollIndicator.value = false
+    return
+  }
+
+  const scrollProgress = scrollTop / (scrollHeight - clientHeight)
+  if (scrollProgress >= 0.95) {
+    showScrollIndicator.value = false
+  } else if (scrollTop === 0) {
+    showScrollIndicator.value = true
+  }
+}
+
+// 加载用户数据
+const loadUserProfile = async (force = false) => {
   try {
-    // 使用后端天气API（集成和风天气）
-    const response = await api.get('/weather/current', {
-      params: { city: '乐清' }
-    })
-
-    // axios拦截器已自动解包，兼容多种数据格式
-    const data = response.data?.data || response.data || response
-
-    if (data && (data.city || data.temperature)) {
-      weather.value = {
-        city: data.city || '乐清',
-        temperature: data.temperature || '--',
-        feelsLike: data.feelsLike || '--',
-        description: data.description || '多云',
-        weatherCode: data.weatherCode || 'cloudy',
-        windSpeed: data.windSpeed || '--',
-        humidity: data.humidity || '--',
-        updateTime: data.updateTime || new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-      }
-
-    } else {
-      throw new Error('天气数据格式错误')
-    }
-  } catch (error) {
-    // 使用默认数据，不显示错误提示（避免干扰用户）
-    weather.value = {
-      city: '乐清',
-      temperature: '18',
-      feelsLike: '17',
-      description: '多云',
-      weatherCode: 'cloudy',
-      windSpeed: '12',
-      humidity: '68',
-      updateTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-    }
-  } finally {
-    weatherLoading.value = false
-  }
-}
-
-// 获取外汇数据
-const fetchExchangeRates = async () => {
-  exchangeRateLoading.value = true
-  
-  // API配置列表
-  const apiConfigs = [
-    {
-      url: 'https://open.er-api.com/v6/latest/USD',
-      name: 'Open Exchange Rates',
-      validate: (data) => data && data.result === 'success' && data.rates,
-      getRates: (data) => data.rates
-    },
-    {
-      url: 'https://api.exchangerate-api.com/v4/latest/USD',
-      name: 'ExchangeRate-API (备用)',
-      validate: (data) => data && data.rates,
-      getRates: (data) => data.rates
-    }
-  ]
-
-  try {
-    // 尝试所有API
-    for (const config of apiConfigs) {
-      try {
-        const response = await fetch(config.url)
-        const data = await response.json()
-
-        if (config.validate(data)) {
-          processExchangeRateData(config.getRates(data), config.name)
-          if (config.name.includes('备用')) {
-            ElMessage.success(`汇率数据已更新（${config.name}）`)
-          }
-          return // 成功获取数据，退出
-        }
-      } catch (error) {
-        console.error(`${config.name} API失败:`, error)
-        continue // 尝试下一个API
-      }
-    }
-
-    // 所有API都失败，使用近似值
-    console.error('所有汇率API都失败，使用近似值')
-    const currentTime = new Date()
-    exchangeRates.value = {
-      USDCNY: '7.2000',
-      EURCNY: '7.8000',
-      GBPCNY: '9.1000',
-      JPYCNY: '0.048000',
-      USDCNY_change: 0,
-      EURCNY_change: 0,
-      GBPCNY_change: 0,
-      JPYCNY_change: 0,
-      lastUpdate: currentTime,
-      dataSource: '近似值'
-    }
-    ElMessage.warning('汇率数据暂时不可用，显示近似值')
-  } catch (error) {
-    console.error('获取汇率数据失败:', error)
-    ElMessage.error('获取汇率数据失败，请检查网络连接')
-  } finally {
-    exchangeRateLoading.value = false
-  }
-}
-
-// 获取金属价格数据
-const fetchMetalPrices = async () => {
-  metalPricesLoading.value = true
-  try {
-    const response = await metalPricesApi.getRealTimePrices()
-
-    // 拦截器已解包，response.data 就是业务数据
-    if (response.data) {
-      const data = response.data
-      const currentTime = new Date()
-
-      // 更新金属价格数据（统一转换为克）
-      Object.keys(data).forEach(symbol => {
-        if (metalPrices.value[symbol] && data[symbol]) {
-          let priceInGrams
-
-          // 贵金属（黄金、白金）从盎司转换为克
-          if (symbol === 'GOLD' || symbol === 'PLATINUM') {
-            // 后端返回 ¥/盎司,转换为 ¥/克: 价格 ÷ 31.1035
-            priceInGrams = data[symbol].price / GRAMS_PER_TROY_OUNCE
-            metalPrices.value[symbol].unit = '¥/克'
-          }
-          // 有色金属（铝、铜）保持每吨价格
-          else {
-            priceInGrams = data[symbol].price
-            metalPrices.value[symbol].unit = '¥/吨'
-          }
-
-          metalPrices.value[symbol] = {
-            ...metalPrices.value[symbol],
-            price: priceInGrams,
-            changePercent: data[symbol].changePercent
-          }
-
-          // 添加到历史数据
-          metalPriceHistory.value[symbol].push({
-            time: currentTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-            price: priceInGrams,
-            timestamp: currentTime
-          })
-
-          // 保留最近24个数据点
-          if (metalPriceHistory.value[symbol].length > 24) {
-            metalPriceHistory.value[symbol].shift()
-          }
-        }
-      })
-
-      metalPrices.value.lastUpdate = currentTime
-
-      // 更新迷你图表
-      updateMetalMiniCharts()
-    }
-  } catch (error) {
-    console.error('获取金属价格数据失败:', error)
-    ElMessage.error('获取金属价格数据失败，请检查网络连接')
-  } finally {
-    metalPricesLoading.value = false
-  }
-}
-
-// 刷新金属价格
-const refreshMetalPrices = async () => {
-  await fetchMetalPrices()
-  ElMessage.success('金属价格数据已手动更新')
-}
-
-// 刷新汇率
-const refreshExchangeRate = async () => {
-  try {
-    await fetchExchangeRates()
-    ElMessage.success('汇率数据已更新')
-  } catch (error) {
-    console.error('手动刷新汇率失败:', error)
-    ElMessage.error('刷新汇率失败，请稍后重试')
-  }
-}
-
-// 刷新所有价格数据（金属+汇率）
-const refreshAllPrices = async () => {
-  try {
-    await Promise.all([fetchMetalPrices(), fetchExchangeRates()])
-    ElMessage.success('数据已更新')
-  } catch (error) {
-    console.error('刷新价格数据失败:', error)
-    ElMessage.error('刷新数据失败，请稍后重试')
-  }
-}
-
-// 获取在线时长排行榜（带缓存）
-const fetchOnlineTimeRanking = async (forceRefresh = false) => {
-  // 检查缓存是否有效
-  const now = Date.now()
-  if (!forceRefresh && rankingCache.value && rankingCacheTime.value) {
-    const cacheAge = now - rankingCacheTime.value
-    if (cacheAge < RANKING_CACHE_DURATION) {
-      // 使用缓存数据（无需加载动画）
-      onlineTimeRanking.value = rankingCache.value.rankings || []
-      rankingDate.value = rankingCache.value.date || ''
+    const now = Date.now()
+    if (!force && (now - lastLoadTime.value < refreshInterval)) {
       return
     }
-  }
-  
-  rankingLoading.value = true
-  const startTime = Date.now()
-  
-  try {
-    const response = await userApi.getOnlineTimeRanking()
-    // axios拦截器已自动解包，response.data 直接就是数据
-    // 兼容解包后和未解包的格式
-    const data = response.data || response
-    const rankings = data?.rankings || data?.data?.rankings || []
-    const date = data?.date || data?.data?.date || ''
 
-    // 计算已花费的时间
-    const elapsedTime = Date.now() - startTime
-    const minDisplayTime = 300 // 最小显示300ms的骨架屏，避免闪烁
-
-    // 如果请求太快，延迟一下让用户看到骨架屏
-    if (elapsedTime < minDisplayTime) {
-      await new Promise(resolve => setTimeout(resolve, minDisplayTime - elapsedTime))
-    }
-
-    onlineTimeRanking.value = rankings
-    rankingDate.value = date
-
-    // 缓存数据
-    rankingCache.value = {
-      rankings: rankings,
-      date: date
-    }
-    rankingCacheTime.value = now
+    isLoadingProfile.value = true
+    await authStore.fetchUserProfile()
+    userProfile.value = authStore.user
+    lastLoadTime.value = now
   } catch (error) {
-    console.error('获取在线时长排行榜失败:', error)
-    onlineTimeRanking.value = []
+    console.error('获取用户信息失败:', error)
   } finally {
-    rankingLoading.value = false
+    isLoadingProfile.value = false
   }
 }
 
-// 初始化汇率走势图
-const initExchangeRateChart = () => {
-  if (!exchangeRateChartRef.value) return
-
-  // 检查容器尺寸是否有效，避免 ECharts 警告
-  const container = exchangeRateChartRef.value
-  if (!container.clientWidth || !container.clientHeight) return
-
-  exchangeRateChart = echarts.init(container)
-
-  const option = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'cross'
-      },
-      formatter: function(params) {
-        let result = params[0].name + '<br/>'
-        params.forEach(param => {
-          result += `${param.seriesName}: ${param.value}<br/>`
-        })
-        return result
-      }
-    },
-    legend: {
-      data: ['USD/CNY', 'EUR/CNY', 'GBP/CNY'],
-      textStyle: {
-        fontSize: 12
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: [],
-      axisLabel: {
-        fontSize: 10
-      }
-    },
-    yAxis: {
-      type: 'value',
-      scale: true,
-      axisLabel: {
-        fontSize: 10
-      }
-    },
-    series: [
-      {
-        name: 'USD/CNY',
-        type: 'line',
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 4,
-        lineStyle: {
-          color: '#409EFF',
-          width: 2
-        },
-        itemStyle: {
-          color: '#409EFF'
-        },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
-              { offset: 1, color: 'rgba(64, 158, 255, 0.1)' }
-            ]
-          }
-        },
-        data: []
-      },
-      {
-        name: 'EUR/CNY',
-        type: 'line',
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 4,
-        lineStyle: {
-          color: '#67C23A',
-          width: 2
-        },
-        itemStyle: {
-          color: '#67C23A'
-        },
-        data: []
-      },
-      {
-        name: 'GBP/CNY',
-        type: 'line',
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 4,
-        lineStyle: {
-          color: '#E6A23C',
-          width: 2
-        },
-        itemStyle: {
-          color: '#E6A23C'
-        },
-        data: []
-      }
-    ]
-  }
-
-  exchangeRateChart.setOption(option)
+// 更新预警统计数量
+const updateWarningStats = (count) => {
+  statistics.value.warningItems = count
 }
 
-// 更新汇率走势图
-const updateExchangeRateChart = () => {
-  if (!exchangeRateChart) return
-
-  const timeData = exchangeRateHistory.value.USDCNY.map(item => item.time)
-  const usdData = exchangeRateHistory.value.USDCNY.map(item => item.value)
-  const eurData = exchangeRateHistory.value.EURCNY.map(item => item.value)
-  const gbpData = exchangeRateHistory.value.GBPCNY.map(item => item.value)
-
-  exchangeRateChart.setOption({
-    xAxis: {
-      data: timeData
-    },
-    series: [
-      { data: usdData },
-      { data: eurData },
-      { data: gbpData }
-    ]
-  })
-}
-
-// 通用迷你图表配置生成器
-const getMiniChartOption = (history, isPositive) => ({
-  grid: {
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0
-  },
-  xAxis: {
-    type: 'category',
-    show: false,
-    data: history.map(item => item.time)
-  },
-  yAxis: {
-    type: 'value',
-    show: false,
-    scale: true
-  },
-  series: [{
-    type: 'line',
-    smooth: true,
-    symbol: 'none',
-    lineStyle: {
-      color: isPositive ? '#67C23A' : '#F56C6C',
-      width: 1.5
-    },
-    areaStyle: {
-      color: {
-        type: 'linear',
-        x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [
-          { offset: 0, color: isPositive ? 'rgba(103, 194, 58, 0.3)' : 'rgba(245, 108, 108, 0.3)' },
-          { offset: 1, color: isPositive ? 'rgba(103, 194, 58, 0.1)' : 'rgba(245, 108, 108, 0.1)' }
-        ]
-      }
-    },
-    data: history.map(item => item.value || item.price)
-  }]
-})
-
-// 初始化迷你图表（统一函数）
-const initMiniChart = (key, container, chartsObj, historyData, changeValue) => {
-  if (!container) return
-
-  // 检查容器尺寸是否有效，避免 ECharts 警告
-  if (!container.clientWidth || !container.clientHeight) return
-
-  const chart = echarts.init(container)
-  const history = historyData[key] || []
-  const isPositive = changeValue >= 0
-
-  chart.setOption(getMiniChartOption(history, isPositive))
-  chartsObj[key] = chart
-}
-
-// 更新迷你图表（统一函数）
-const updateMiniChartsGeneric = (chartRefs, charts, historyData, getChangeValue) => {
-  Object.keys(chartRefs).forEach(key => {
-    const container = chartRefs[key]
-    const history = historyData[key] || []
-    const isPositive = getChangeValue(key) >= 0
-
-    if (container && !charts[key]) {
-      initMiniChart(key, container, charts, historyData, getChangeValue(key))
-    } else if (charts[key]) {
-      charts[key].setOption({
-        xAxis: {
-          data: history.map(item => item.time)
-        },
-        series: [{
-          data: history.map(item => item.value || item.price),
-          lineStyle: {
-            color: isPositive ? '#67C23A' : '#F56C6C'
-          },
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [
-                { offset: 0, color: isPositive ? 'rgba(103, 194, 58, 0.3)' : 'rgba(245, 108, 108, 0.3)' },
-                { offset: 1, color: isPositive ? 'rgba(103, 194, 58, 0.1)' : 'rgba(245, 108, 108, 0.1)' }
-              ]
-            }
-          }
-        }]
-      })
-    }
-  })
-}
-
-// 更新汇率迷你图表
-const updateMiniCharts = () => {
-  updateMiniChartsGeneric(
-    miniChartRefs.value,
-    miniCharts.value,
-    exchangeRateHistory.value,
-    (key) => exchangeRates.value[`${key}_change`] || 0
-  )
-}
-
-// 更新金属价格迷你图表
-const updateMetalMiniCharts = () => {
-  updateMiniChartsGeneric(
-    metalMiniChartRefs.value,
-    metalMiniCharts.value,
-    metalPriceHistory.value,
-    (key) => metalPrices.value[key]?.changePercent || 0
-  )
+// 更新任务统计数量
+const updateTaskStats = () => {
+  statistics.value.todoItems = getTodoCount()
 }
 
 // 格式化价格显示（添加千分位分隔符）
@@ -1458,279 +789,62 @@ const formatTime = (date) => {
   })
 }
 
-// 外汇数据定时刷新函数
-const startExchangeRateTimer = () => {
-  // 每2分钟自动刷新一次汇率，提供更实时的数据
-  exchangeRateTimer = setInterval(() => {
-    fetchExchangeRates()
-  }, 2 * 60 * 1000)
-}
-
-const stopExchangeRateTimer = () => {
-  if (exchangeRateTimer) {
-    clearInterval(exchangeRateTimer)
-    exchangeRateTimer = null
-  }
-}
-
-// 加载用户待办事项
-const loadUserTodos = async () => {
+// 刷新所有价格数据（金属+汇率）
+const refreshAllPrices = async () => {
   try {
-    // 检查登录状态
-    if (!authStore.isAuthenticated) {
-      console.warn('用户未登录，无法加载待办事项')
-      return
-    }
-    
-    const response = await todoApi.getAllTodos()
-
-    // axios拦截器已自动解包，response.data 就是实际数据
-    // 兼容多种数据格式
-    const todoData = response.data?.data || response.data || response || []
-    const todoList = Array.isArray(todoData) ? todoData : (todoData.list || todoData.items || [])
-
-    // 保存所有待办事项
-    todos.value = todoList.map(todo => ({
-      ...todo,
-      deadline: new Date(todo.deadline)
-    }))
-    
-    // 转换为待办事项显示格式
-    pendingTasks.value = todos.value
-      .filter(todo => !todo.completed) // 只显示未完成的
-      .slice(0, 10) // 限制最多显示10个
-      .map(todo => ({
-        type: getPriorityType(todo.priority), // 根据优先级显示不同类型
-        sender: authStore.user?.real_name || '用户',
-        date: formatDate(todo.deadline),
-        status: isOverdue(todo) ? '已逾期' : isUpcoming(todo) ? '即将到期' : '待处理',
-        title: todo.title,
-        id: todo.id
-      }))
-      
-    // 转换为已办事项显示格式
-    completedTasks.value = todos.value
-      .filter(todo => todo.completed) // 只显示已完成的
-      .slice(0, 10) // 限制最多显示10个
-      .map(todo => ({
-        type: getPriorityType(todo.priority),
-        sender: authStore.user?.real_name || '用户',
-        date: formatDate(todo.completed_at || todo.updated_at || todo.deadline),
-        status: '已完成',
-        title: todo.title,
-        id: todo.id
-      }))
-      
-    // 更新任务统计数量
-    updateTaskStats()
-
-    // 更新日历
-    calendarDays.value = generateCalendarDays(currentDate.value)
+    await Promise.all([fetchMetalPrices(), fetchExchangeRates()])
+    ElMessage.success('数据已更新')
   } catch (error) {
-    console.error('加载待办事项失败:', error)
-    // 如果是认证问题，可能需要重新登录
-    if (error.response && error.response.status === 401) {
-      ElMessage.error('登录已过期，请重新登录')
-    }
+    console.error('刷新价格数据失败:', error)
+    ElMessage.error('刷新数据失败，请稍后重试')
   }
 }
 
-// 更新任务统计数量
-const updateTaskStats = () => {
-  // 计算待办事项总数
-  const todoCount = todos.value.filter(todo => !todo.completed).length
-
-  // 更新响应式数据
-  statistics.value.todoItems = todoCount
-}
-
-// 根据优先级返回不同的类型
-const getPriorityType = (priority) => PRIORITY_TEXT_MAP[priority] || '待办事项'
-
-// 格式化日期
-const formatDate = (date) => {
-  if (!date) return '--'
-  if (typeof date === 'string') date = new Date(date)
-  return date.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  })
-}
-
-// 判断是否过期
-const isOverdue = (todo) => {
-  if (!todo.deadline) return false
-  const now = new Date()
-  return new Date(todo.deadline) < now
-}
-
-// 判断是否即将到期（24小时内）
-const isUpcoming = (todo) => {
-  if (!todo.deadline) return false
-  const now = new Date()
-  const deadline = new Date(todo.deadline)
-  const diff = deadline - now
-  return diff > 0 && diff < 24 * 60 * 60 * 1000
-}
-
-// 加载生产计划数据
-const loadProductionPlans = async () => {
-  try {
-    // 检查登录状态
-    if (!authStore.isAuthenticated) {
-      console.warn('用户未登录，无法加载生产计划')
-      return
-    }
-    
-    const params = {
-      page: 1,
-      limit: 20, // 增加到20条，确保表格有足够内容
-      sort: 'created_at',
-      order: 'desc' // 最新的生产计划优先
-    }
-    
-    // 获取生产计划列表 - 使用仪表盘专用接口，所有用户都可访问
-    const response = await productionApi.getDashboardProductionPlans(params)
-    const plans = parseListData(response, { enableLog: false });
-
-    if (plans.length > 0) {
-      // 获取所有产品ID，用于批量获取物料信息
-      const productIds = plans
-        .filter(plan => plan.product_id)
-        .map(plan => plan.product_id);
-
-      // 创建物料映射表
-      const materialsMap = {};
-
-      // 如果有产品ID，尝试批量获取物料信息
-      if (productIds.length > 0) {
-        try {
-          // 使用baseDataApi获取物料信息
-          const materialsResponse = await baseDataApi.getMaterials({
-            page: 1,
-            pageSize: 1000,
-            ids: productIds.join(',')
-          });
-
-          const materialsData = parseListData(materialsResponse, { enableLog: false });
-
-          // 将物料信息转换为映射表
-          materialsData.forEach(material => {
-            materialsMap[material.id] = material;
-          });
-        } catch (error) {
-          console.error('批量获取物料信息失败:', error);
-        }
-      }
-
-      // 直接使用批量获取的映射表填充规格信息（不再逐条请求）
-      const processedPlans = plans.map(plan => {
-        let specification = plan.specification || plan.specs || '';
-
-        // 从批量获取的映射表中获取规格
-        if (!specification && plan.product_id && materialsMap[plan.product_id]) {
-          specification = materialsMap[plan.product_id].specs || '';
-        }
-
-        return {
-          ...plan,
-          specification: specification
-        };
-      });
-
-      // 转换为仪表盘显示格式
-      warningList.value = processedPlans.map(plan => {
-        const specValue = plan.specification || plan.specs || plan.material_specs || plan.spec || plan.standard || '';
-
-        return {
-          studentId: plan.code || '无编号', // 使用计划编号
-          name: plan.productName || plan.product_name || plan.name || '未命名', // 使用产品名称
-          studentType: specValue || '无规格', // 使用产品规格，增加更多可能的字段
-          protectionId: `${plan.quantity || 0}${plan.unit || '个'}`, // 显示计划数量
-          warningType: getStatusText(plan.status || 'draft'), // 显示计划状态
-          status: plan.status || 'draft', // 原始状态值
-          id: plan.id, // 保存ID用于后续操作
-          startDate: plan.start_date || plan.startDate,
-          endDate: plan.end_date || plan.endDate
-        };
-      });
-
-      // 更新预警数量统计
-      updateWarningStats(plans.length)
-    } else {
-      // 如果没有数据
-      console.warn('未找到生产计划数据')
-      updateWarningStats(0)
-    }
-  } catch (error) {
-    console.error('加载生产计划失败:', error)
-    if (error.response && error.response.status === 401) {
-      ElMessage.error('登录已过期，请重新登录')
-    } else {
-      ElMessage.error('获取生产计划数据失败')
-    }
-  }
-}
-
-// 更新预警统计数量
-const updateWarningStats = (count) => {
-  // 更新响应式数据
-  statistics.value.warningItems = count
-}
-
-// 查看生产计划详情
-const viewProductionPlan = (id) => {
-  if (!id) return
-  router.push(`/production/plan?id=${id}`)
-}
+// ========== 生命周期钩子 ==========
 
 // 组件挂载时加载数据
 onMounted(async () => {
   // 初始化加载状态
   isLoadingStats.value = true
 
-  loadUserProfile(true)
-  await loadUserTodos() // 加载待办事项
-  await loadProductionPlans() // 加载生产计划数据
-  await fetchOnlineTimeRanking() // 加载在线时长排行榜
-
-  // 所有统计数据加载完成
+  // === 第一阶段：核心业务数据并行加载 ===
+  const [, , planCount] = await Promise.all([
+    loadUserProfile(true),
+    loadUserTodos(),
+    loadProductionPlans(),
+    fetchOnlineTimeRanking()
+  ])
+  
+  // 核心数据加载完成后更新统计
+  updateTaskStats()
+  updateWarningStats(planCount || 0)
   isLoadingStats.value = false
 
-  // 初始化汇率图表
+  // 初始化汇率图表（依赖 DOM）
   await nextTick()
   initExchangeRateChart()
 
-  // 获取天气数据
-  await fetchWeatherData()
-
-  // 获取外汇数据
-  await fetchExchangeRates()
-
-  // 获取金属价格数据
-  await fetchMetalPrices()
-
-  // 初始检查滚动指示器
-  checkScrollIndicator()
+  // === 第二阶段：外部数据源并行加载（不阻塞核心渲染） ===
+  Promise.all([
+    fetchWeatherData(),
+    fetchExchangeRates(),
+    fetchMetalPrices()
+  ]).then(() => {
+    checkScrollIndicator()
+  })
 
   // 设置定时刷新
   userDataTimer = setInterval(() => {
     loadUserProfile()
-    loadUserTodos() // 同时刷新待办事项
-    loadProductionPlans() // 同时刷新生产计划数据
-    fetchOnlineTimeRanking() // 同时刷新排行榜
+    loadUserTodos()
+    loadProductionPlans()
+    fetchOnlineTimeRanking()
   }, refreshInterval)
 
   // 汇率数据定时刷新（每2分钟）
   exchangeRateTimer = setInterval(() => {
     fetchExchangeRates()
   }, 2 * 60 * 1000)
-
-  // 移除金属价格数据定时刷新，改为按需刷新
-  // const metalPricesTimer = setInterval(() => {
-  //   fetchMetalPrices()
-  // }, 60 * 60 * 1000)
 
   // 初始化日历
   calendarDays.value = generateCalendarDays(currentDate.value)
@@ -1746,16 +860,8 @@ onUnmounted(() => {
     clearInterval(exchangeRateTimer)
     exchangeRateTimer = null
   }
-  if (exchangeRateChart) {
-    exchangeRateChart.dispose()
-    exchangeRateChart = null
-  }
-  Object.values(miniCharts.value).forEach(chart => {
-    if (chart) chart.dispose()
-  })
-  Object.values(metalMiniCharts.value).forEach(chart => {
-    if (chart) chart.dispose()
-  })
+  disposeCharts()
+  disposeMetalCharts()
 })
 
 // 当页面被激活（如从其他页面返回）时重新加载用户数据
@@ -1788,116 +894,7 @@ watch(() => authStore.user, (newValue) => {
 watch(() => currentDate.value, (newValue) => {
   calendarDays.value = generateCalendarDays(newValue)
 })
-
-// 组件更新后的处理（已移除图表相关）
-
-// 添加跳转到个人资料页面的方法
-const goToTodoPage = () => {
-  router.push({
-    path: '/profile',
-    query: { tab: 'todos' }  // 添加查询参数，指定要打开的标签页
-  })
-}
-
-// 切换待办/已办标签
-const switchTodoTab = (tab) => {
-  activeTodoTab.value = tab
-}
-
-// 查看待办详情
-const viewTodoDetail = (id) => {
-  router.push({
-    path: '/profile',
-    query: { tab: 'todos', id: id }
-  })
-}
-
-// 日历相关逻辑
-const calendarDays = ref([])
-
-// 切换月份
-const changeMonth = (delta) => {
-  const newDate = new Date(currentDate.value)
-  newDate.setMonth(newDate.getMonth() + delta)
-  currentDate.value = newDate
-  // 日历会通过watch自动更新
-}
-
-// 生成日历天数
-const generateCalendarDays = (date) => {
-  const year = date.getFullYear()
-  const month = date.getMonth()
-  const today = new Date()
-  
-  // 当月第一天是星期几 (0-6, 0表示星期日)
-  const firstDay = new Date(year, month, 1).getDay()
-  
-  // 当月天数
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  
-  // 上个月的天数
-  const daysInLastMonth = new Date(year, month, 0).getDate()
-  
-  // 生成日历数组
-  const days = []
-  
-  // 填充上个月的日期
-  for (let i = 0; i < firstDay; i++) {
-    const day = daysInLastMonth - firstDay + i + 1
-    days.push({
-      date: day,
-      isCurrentMonth: false,
-      isCurrentDay: false,
-      hasEvents: false
-    })
-  }
-  
-  // 填充当前月的日期
-  for (let i = 1; i <= daysInMonth; i++) {
-    const isToday = year === today.getFullYear() && 
-                    month === today.getMonth() && 
-                    i === today.getDate()
-    days.push({
-      date: i,
-      isCurrentMonth: true,
-      isCurrentDay: isToday,
-      hasEvents: hasTodoOnDay(i)
-    })
-  }
-  
-  // 填充下个月的日期
-  const remainingCells = 42 - days.length // 保证6行
-  for (let i = 1; i <= remainingCells; i++) {
-    days.push({
-      date: i,
-      isCurrentMonth: false,
-      isCurrentDay: false,
-      hasEvents: false
-    })
-  }
-  
-  return days
-}
-
-// 检查某天是否有待办事项
-const hasTodoOnDay = (day) => {
-  if (!todos.value || todos.value.length === 0) return false
-  
-  const year = currentDate.value.getFullYear()
-  const month = currentDate.value.getMonth()
-  const targetDate = new Date(year, month, day)
-  
-  // 检查是否有当天的待办
-  return todos.value.some(todo => {
-    if (!todo.deadline) return false
-    const deadline = new Date(todo.deadline)
-    return deadline.getFullYear() === year &&
-           deadline.getMonth() === month &&
-           deadline.getDate() === day
-  })
-}
 </script>
-
 <style scoped>
 .dashboard-container {
   padding: 20px;
@@ -2018,7 +1015,7 @@ const hasTodoOnDay = (day) => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #67C23A;
+  background-color: var(--color-success);
   opacity: 0;
   animation: pulse 2s ease-in-out infinite;
 }
@@ -2567,12 +1564,12 @@ const hasTodoOnDay = (day) => {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .empty-icon {
   font-size: 64px;
-  color: #C0C4CC;
+  color: var(--color-text-placeholder);
   margin-bottom: 16px;
   opacity: 0.6;
 }
@@ -2580,13 +1577,13 @@ const hasTodoOnDay = (day) => {
 .empty-text {
   font-size: 16px;
   font-weight: 500;
-  color: #606266;
+  color: var(--color-text-regular);
   margin: 0 0 8px 0;
 }
 
 .empty-desc {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
@@ -2604,7 +1601,7 @@ const hasTodoOnDay = (day) => {
 }
 
 .dashboard-table :deep(.el-table__row:hover) {
-  background-color: #f5f7fa !important;
+  background-color: var(--color-bg-hover) !important;
   transform: scale(1.01);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
@@ -2792,7 +1789,7 @@ const hasTodoOnDay = (day) => {
 }
 
 .calendar-alert {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   color: #333;
   padding: 8px;
   border-radius: var(--radius-sm);
@@ -2889,7 +1886,7 @@ const hasTodoOnDay = (day) => {
 }
 
 .day-number.other-month {
-  color: #c0c4cc;
+  color: var(--color-text-placeholder);
   background-color: transparent;
   opacity: 0.5;
 }
@@ -3048,7 +2045,7 @@ const hasTodoOnDay = (day) => {
 .price-card-platinum:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(158, 158, 158, 0.3);
-  border-color: #616161;
+  border-color: var(--color-text-regular);
 }
 
 /* 铝卡片 - 蓝色主题 */
@@ -3141,7 +2138,7 @@ const hasTodoOnDay = (day) => {
 }
 
 .price-card-platinum .metal-name {
-  color: #616161;
+  color: var(--color-text-regular);
 }
 
 .price-card-aluminum .metal-name {
@@ -3160,12 +2157,12 @@ const hasTodoOnDay = (day) => {
 }
 
 .price-change.positive {
-  color: #67c23a;
+  color: var(--color-success);
   background-color: rgba(103, 194, 58, 0.1);
 }
 
 .price-change.negative {
-  color: #f56c6c;
+  color: var(--color-danger);
   background-color: rgba(245, 108, 108, 0.1);
 }
 
@@ -3191,7 +2188,7 @@ const hasTodoOnDay = (day) => {
 }
 
 .price-card-platinum .price-value {
-  color: #616161;
+  color: var(--color-text-regular);
   text-shadow: 0 2px 4px rgba(97, 97, 97, 0.2);
 }
 
@@ -3730,14 +2727,14 @@ const hasTodoOnDay = (day) => {
 
 .quote-icon {
   font-size: 24px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-bottom: 8px;
   opacity: 0.5;
 }
 
 .bio-text {
   font-size: 14px;
-  color: #606266;
+  color: var(--color-text-regular);
   line-height: 1.5;
   font-style: italic;
   word-break: break-all;
@@ -3863,11 +2860,11 @@ const hasTodoOnDay = (day) => {
 
 /* 暂无数据状态样式 */
 .podium-item.no-data {
-  opacity: 0.6;
+  opacity: 0.15;
   cursor: default;
-  background: linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
-  border: 2px dashed #e0e0e0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 1px dashed #dcdfe6 !important;
 }
 
 .podium-item.no-data:hover {

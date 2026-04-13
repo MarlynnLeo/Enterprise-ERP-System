@@ -450,6 +450,7 @@
 
 <script setup>
 import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -459,6 +460,9 @@ import { useAuthStore } from '@/stores/auth'
 
 // 权限store
 const authStore = useAuthStore()
+
+// 权限计算属性（修复：之前未定义导致运行时 TypeError）
+const canDelete = computed(() => authStore.hasPermission('equipment:list:delete'));
 
 // 数据加载状态
 const loading = ref(false)
@@ -956,11 +960,7 @@ const downloadTemplate = async () => {
 }
 
 // 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  return date.toISOString().split('T')[0]; // YYYY-MM-DD 格式
-}
+// formatDate 已统一引用公共实现
 </script>
 
 <style scoped>
@@ -977,13 +977,13 @@ const formatDate = (dateString) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .header-actions {
@@ -998,15 +998,15 @@ const formatDate = (dateString) => {
 
 /* 统计卡片状态颜色 */
 .stat-card.normal .stat-value {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .stat-card.maintenance .stat-value {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .stat-card.repair .stat-value {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .stat-card.scrapped .stat-value {

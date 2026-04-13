@@ -292,19 +292,19 @@ onMounted(() => {
 }
 
 .success-text {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .price-highlight {
   font-family: 'Consolas', monospace;
-  color: #e6a23c;
+  color: var(--color-warning);
   font-weight: bold;
   font-size: 14px;
 }
 
 .amount-highlight {
   font-family: 'Consolas', monospace;
-  color: #f56c6c;
+  color: var(--color-danger);
   font-weight: bold;
   font-size: 14px;
 }

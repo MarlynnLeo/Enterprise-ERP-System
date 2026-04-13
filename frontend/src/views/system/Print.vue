@@ -911,13 +911,13 @@ watch(editMode, (newMode) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -985,15 +985,15 @@ watch(editMode, (newMode) => {
 
 /* 可视化编辑器样式 */
 .visual-editor-container {
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .editor-toolbar {
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   padding: 10px;
-  border-bottom: 1px solid #dcdfe6;
+  border-bottom: 1px solid var(--color-border-base);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1006,7 +1006,7 @@ watch(editMode, (newMode) => {
 
 .editor-panel {
   flex: 1;
-  border-right: 1px solid #dcdfe6;
+  border-right: 1px solid var(--color-border-base);
   display: flex;
   flex-direction: column;
 }
@@ -1014,8 +1014,8 @@ watch(editMode, (newMode) => {
 .editor-panel h4 {
   margin: 0;
   padding: 10px;
-  background: #fafafa;
-  border-bottom: 1px solid #dcdfe6;
+  background: var(--color-bg-light);
+  border-bottom: 1px solid var(--color-border-base);
   font-size: 14px;
   font-weight: 500;
 }
@@ -1033,7 +1033,7 @@ watch(editMode, (newMode) => {
 }
 
 .visual-editor:focus {
-  background: #fafafa;
+  background: var(--color-bg-light);
 }
 
 .preview-panel {
@@ -1045,8 +1045,8 @@ watch(editMode, (newMode) => {
 .preview-panel h4 {
   margin: 0;
   padding: 10px;
-  background: #fafafa;
-  border-bottom: 1px solid #dcdfe6;
+  background: var(--color-bg-light);
+  border-bottom: 1px solid var(--color-border-base);
   font-size: 14px;
   font-weight: 500;
 }
@@ -1071,7 +1071,7 @@ watch(editMode, (newMode) => {
 }
 
 .code-editor-container {
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
   padding: 15px;
 }

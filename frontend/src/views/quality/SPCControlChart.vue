@@ -330,17 +330,17 @@ onMounted(fetchPlans);
 .spc-container { padding: 20px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .plan-list { max-height: 600px; overflow-y: auto; }
-.plan-item { padding: 12px; border: 1px solid #EBEEF5; border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
-.plan-item:hover { border-color: #409EFF; background: #F5F7FA; }
-.plan-item.active { border-color: #409EFF; background: #ECF5FF; }
+.plan-item { padding: 12px; border: 1px solid var(--color-border-lighter); border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+.plan-item:hover { border-color: var(--color-primary); background: var(--color-bg-hover); }
+.plan-item.active { border-color: var(--color-primary); background: #ECF5FF; }
 .plan-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
-.plan-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #606266; }
-.plan-detail { font-size: 12px; color: #909399; margin-top: 4px; }
+.plan-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--color-text-regular); }
+.plan-detail { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
 .cpk-row { margin-bottom: 20px; }
-.cpk-card { text-align: center; padding: 12px 8px; background: #F5F7FA; border-radius: 8px; }
+.cpk-card { text-align: center; padding: 12px 8px; background: var(--color-bg-hover); border-radius: 8px; }
 .cpk-value { font-size: 22px; font-weight: 700; }
-.cpk-label { font-size: 12px; color: #909399; margin-top: 4px; }
+.cpk-label { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
 .chart-section { margin-top: 20px; }
-.chart-section h4 { margin-bottom: 8px; color: #303133; }
-.chart-info { font-size: 12px; color: #909399; margin-bottom: 8px; }
+.chart-section h4 { margin-bottom: 8px; color: var(--color-text-primary); }
+.chart-info { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 8px; }
 </style>

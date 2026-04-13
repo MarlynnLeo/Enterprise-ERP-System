@@ -755,13 +755,13 @@ const submitImport = async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -791,7 +791,7 @@ const submitImport = async () => {
 .import-result {
   margin-top: var(--spacing-lg);
   padding: 15px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: var(--radius-sm);
 }
 
@@ -806,7 +806,7 @@ const submitImport = async () => {
 
 .error-details h5 {
   margin: 0 0 10px 0;
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 /* 详情对话框长文本处理 - 自动添加 */

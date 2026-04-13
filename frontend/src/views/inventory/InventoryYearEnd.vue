@@ -178,6 +178,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import { api as axios } from '@/services/api'
+import { formatCurrency, formatNumber } from '@/utils/format'
 
 // 页面状态
 const selectedYear = ref(dayjs().format('YYYY'))
@@ -204,15 +205,9 @@ const pagination = reactive({
 })
 
 // 格式化函数
-const formatNumber = (val) => {
-  const num = parseFloat(val) || 0
-  return num.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-}
+// formatNumber 已统一引用公共实现
 
-const formatCurrency = (val) => {
-  const num = parseFloat(val) || 0
-  return '¥' + num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+// formatCurrency 已统一引用公共实现
 
 // 查询年度结存状态
 const fetchStatus = async () => {
@@ -428,13 +423,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 4px 0 0;
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .action-card {
@@ -457,13 +452,13 @@ onMounted(() => {
 .stat-value {
   font-size: 22px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .stat-label {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .empty-card {
@@ -477,7 +472,7 @@ onMounted(() => {
 .card-title {
   margin: 0 0 16px;
   font-size: 16px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .pagination-container {

@@ -117,6 +117,15 @@ const autoRefresh = ref(false)
 const realTimeData = ref({})
 const charts = reactive({})
 
+// 统一的 resize 处理函数（具名引用，确保可移除）
+const handleResize = () => {
+  Object.values(charts).forEach(chart => {
+    if (chart && !chart.isDisposed()) {
+      chart.resize()
+    }
+  })
+}
+
 // 定时器
 let refreshTimer = null
 
@@ -214,11 +223,6 @@ const updateCharts = () => {
       }
       
       chart.setOption(option)
-      
-      // 响应式调整
-      window.addEventListener('resize', () => {
-        chart.resize()
-      })
     }
   })
 }
@@ -310,9 +314,14 @@ const getParameterColor = (parameter) => {
 // 生命周期
 onMounted(() => {
   fetchRealTimeData()
+  // 注册统一的 resize 监听（仅注册一次）
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
+  // 移除 resize 监听
+  window.removeEventListener('resize', handleResize)
+  
   // 清理定时器
   if (refreshTimer) {
     clearInterval(refreshTimer)
@@ -338,7 +347,7 @@ onUnmounted(() => {
   align-items: center;
   margin-bottom: var(--spacing-lg);
   padding: 16px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: var(--radius-sm);
 }
 
@@ -400,7 +409,7 @@ onUnmounted(() => {
   justify-content: space-between;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--color-border-lighter);
 }
 
 .stat-item {

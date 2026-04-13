@@ -9,7 +9,6 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
 const systemModel = require('../../models/system');
-const bcrypt = require('bcryptjs');
 const { AuditService, AuditAction, AuditModule } = require('../../services/AuditService');
 const { pool } = require('../../config/db');
 const cacheService = require('../../services/cacheService');
@@ -103,11 +102,7 @@ const systemController = {
         return res.status(403).json({ code: 403, message: '禁止越权修改超级管理员信息' });
       }
 
-      // 第一性原理：启用状态禁编
-      const [curr] = await pool.execute('SELECT status FROM users WHERE id = ?', [id]);
-      if (curr.length > 0 && String(curr[0].status) === '1') {
-        return res.status(403).json({ code: 403, message: '当前数据为 [启用] 状态，禁止修改。请先 [禁用] 后再试。' });
-      }
+
 
       const updatedUser = await systemModel.updateUser(id, userData);
 
@@ -274,11 +269,7 @@ const systemController = {
       const { id } = req.params;
       const departmentData = req.body;
 
-      // 第一性原理：启用状态禁编
-      const [curr] = await pool.execute('SELECT status FROM departments WHERE id = ?', [id]);
-      if (curr.length > 0 && String(curr[0].status) === '1') {
-        return res.status(403).json({ code: 403, message: '当前数据为 [启用] 状态，禁止修改。请先 [禁用] 后再试。' });
-      }
+
 
       const result = await systemModel.updateDepartment(id, departmentData);
 
@@ -334,11 +325,7 @@ const systemController = {
     try {
       const { id } = req.params;
 
-      // 第一性原理：启用状态禁删
-      const [curr] = await pool.execute('SELECT status FROM departments WHERE id = ?', [id]);
-      if (curr.length > 0 && String(curr[0].status) === '1') {
-        return res.status(403).json({ code: 403, message: '当前部门为 [启用] 状态，禁止删除。请先设为 [禁用] 后再试。' });
-      }
+
 
       await systemModel.deleteDepartment(id);
 
@@ -364,8 +351,8 @@ const systemController = {
   // 角色管理
   async getAllRoles(req, res) {
     try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 10;
       const filters = { ...req.query };
       delete filters.page;
       delete filters.limit;
@@ -444,11 +431,7 @@ const systemController = {
         return res.status(403).json({ code: 403, message: '禁止越权修改超级管理员角色' });
       }
 
-      // 第一性原理：启用状态禁编
-      const [curr] = await pool.execute('SELECT status FROM roles WHERE id = ?', [id]);
-      if (curr.length > 0 && String(curr[0].status) === '1') {
-        return res.status(403).json({ code: 403, message: '当前数据为 [启用] 状态，禁止修改。请先 [禁用] 后再试。' });
-      }
+
 
       const result = await systemModel.updateRole(id, roleData);
 
@@ -534,11 +517,7 @@ const systemController = {
         return res.status(403).json({ code: 403, message: '系统内置超级管理员角色不允许删除' });
       }
 
-      // 第一性原理：启用状态禁删
-      const [curr] = await pool.execute('SELECT status FROM roles WHERE id = ?', [id]);
-      if (curr.length > 0 && String(curr[0].status) === '1') {
-        return res.status(403).json({ code: 403, message: '当前角色为 [启用] 状态，禁止删除。请先设为 [禁用] 后再试。' });
-      }
+
 
       await systemModel.deleteRole(id);
 
@@ -617,11 +596,7 @@ const systemController = {
       const { id } = req.params;
       const menuData = req.body;
 
-      // 第一性原理：启用(显示)状态禁编
-      const [curr] = await pool.execute('SELECT status FROM menus WHERE id = ?', [id]);
-      if (curr.length > 0 && String(curr[0].status) === '1' && String(menuData.status) !== '0') {
-        return res.status(403).json({ code: 403, message: '当前菜单为 [显示] 状态，禁止修改基本信息。请在提交更新时将其设为 [隐藏] 或先通过独立途径调整状态。' });
-      }
+
 
       const result = await systemModel.updateMenu(id, menuData);
 
@@ -646,11 +621,7 @@ const systemController = {
     try {
       const { id } = req.params;
 
-      // 第一性原理：显示状态禁删
-      const [curr] = await pool.execute('SELECT status FROM menus WHERE id = ?', [id]);
-      if (curr.length > 0 && String(curr[0].status) === '1') {
-        return res.status(403).json({ code: 403, message: '当前菜单为 [显示] 状态，禁止删除。请先设为 [隐藏] 后再进行删除。' });
-      }
+
 
       await systemModel.deleteMenu(id);
 
@@ -966,7 +937,6 @@ const systemController = {
         }
 
         await connection.commit();
-        connection.release();
 
         logger.info(`菜单导入成功: 新增${insertedCount}条, 更新${updatedCount}条`);
         return ResponseHandler.success(
@@ -980,8 +950,9 @@ const systemController = {
         );
       } catch (error) {
         await connection.rollback();
-        connection.release();
         throw error;
+      } finally {
+        connection.release();
       }
     } catch (error) {
       logger.error('导入菜单数据失败:', error);
@@ -1092,8 +1063,7 @@ const systemController = {
       const actualLimit = Math.min(Math.max(parseInt(limit) || 100, 1), 1000); // 限制1-1000
       const actualOffset = Math.max(parseInt(offset) || 0, 0);
       const [logs] = await pool.query(
-        'SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ? OFFSET ?',
-        [actualLimit, actualOffset]
+        `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${actualLimit} OFFSET ${actualOffset}`
       );
       return ResponseHandler.success(res, logs, '获取系统日志成功');
     } catch (error) {

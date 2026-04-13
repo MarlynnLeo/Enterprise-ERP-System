@@ -113,7 +113,7 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
 }
 
 .adjusted-price-value {
-  color: #67c23a;
+  color: var(--color-success);
   font-weight: 600;
 }
 

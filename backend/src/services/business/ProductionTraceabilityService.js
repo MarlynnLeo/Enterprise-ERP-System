@@ -5,7 +5,6 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
-const BatchManagementService = require('./BatchManagementService');
 
 class ProductionTraceabilityService {
   /**

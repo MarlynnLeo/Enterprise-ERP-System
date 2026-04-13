@@ -6,6 +6,7 @@ const logger = require('../../../utils/logger');
 const { triggerOverdueCheck } = require('../../../services/scheduler');
 const arModel = require('../../../models/ar');
 const apModel = require('../../../models/ap');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 /**
  * 手动触发逾期检查
@@ -87,7 +88,8 @@ const reverseReceipt = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
 
-    await arModel.voidReceipt(id, { voided_by: req.user?.id || 'system', void_reason: reason });
+    const voidedBy = await getCurrentUserName(req);
+    await arModel.voidReceipt(id, { voided_by: voidedBy, void_reason: reason });
 
     res.json({
       success: true,
@@ -112,7 +114,8 @@ const reversePayment = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
 
-    await apModel.voidPayment(id, { voided_by: req.user?.id || 'system', void_reason: reason });
+    const voidedBy = await getCurrentUserName(req);
+    await apModel.voidPayment(id, { voided_by: voidedBy, void_reason: reason });
 
     res.json({
       success: true,

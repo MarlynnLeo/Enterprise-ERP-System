@@ -10,7 +10,6 @@ const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
 const purchaseModel = require('../../../models/purchase');
-const { ErrorFactory } = require('../../../middleware/unifiedErrorHandler');
 
 // 获取采购申请列表
 const getRequisitions = async (req, res) => {

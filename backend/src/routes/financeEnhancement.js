@@ -5,7 +5,6 @@
  * @version 1.0.0
  */
 
-const { logger } = require('../utils/logger');
 const express = require('express');
 const router = express.Router();
 const FinanceEnhancementController = require('../controllers/business/finance/financeEnhancementController');

@@ -170,10 +170,6 @@ const updateBusinessType = async (req, res) => {
       return ResponseHandler.error(res, '业务类型不存在', 'NOT_FOUND', 404);
     }
 
-    // 第一性原理：启用状态禁编
-    if (String(existing[0].status) === '1' && String(status) !== '0') {
-      return ResponseHandler.error(res, '当前数据为 [启用] 状态，禁止修改。请先 [禁用] 后再试。', 'FORBIDDEN', 403);
-    }
 
     // 系统内置类型只能修改部分字段
     const isSystem = existing[0].is_system;
@@ -273,10 +269,6 @@ const deleteBusinessType = async (req, res) => {
       return ResponseHandler.error(res, '系统内置业务类型不能删除', 'FORBIDDEN', 403);
     }
 
-    // 第一性原理：启用状态禁删
-    if (String(existing[0].status) === '1') {
-      return ResponseHandler.error(res, '当前数据为 [启用] 状态，禁止删除。请先 [禁用] 后再试。', 'FORBIDDEN', 403);
-    }
 
     // 检查是否被使用（这里可以添加检查逻辑）
     // TODO: 检查 inventory_transactions 表中是否有使用此业务类型的记录

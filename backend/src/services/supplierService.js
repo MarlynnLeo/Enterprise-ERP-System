@@ -183,7 +183,7 @@ const supplierService = {
       }
 
       const [apRecords] = await pool.query(
-        'SELECT COUNT(*) as count FROM ap_records WHERE supplier_id = ?',
+        'SELECT COUNT(*) as count FROM ap_invoices WHERE supplier_id = ?',
         [id]
       );
 

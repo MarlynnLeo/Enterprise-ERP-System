@@ -196,7 +196,7 @@ onMounted(() => {
 
 .form-item-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-top: 5px;
 }
 
@@ -208,7 +208,7 @@ onMounted(() => {
 .info-card h4 {
   margin-top: 10px;
   margin-bottom: 5px;
-  color: #409EFF;
+  color: var(--color-primary);
 }
 
 .info-card ol, .info-card ul {

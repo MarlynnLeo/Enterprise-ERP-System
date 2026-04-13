@@ -710,6 +710,7 @@ import dayjs from 'dayjs'
 import { qualityApi, productionApi } from '@/services/api'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // 权限store
 const authStore = useAuthStore()
@@ -945,10 +946,7 @@ const calculateInspectionStats = async () => {
 }
 
 // 添加统一的日期格式化方法
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
 
 // 工单选择后，提取物料信息并查询模板
 const handleOrderChange = (orderNo) => {
@@ -1762,7 +1760,7 @@ const handlePrintCertificate = () => {
 
 .certificate-container {
   padding: 20px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
   background-color: #f7f7f7;
 }
@@ -1812,11 +1810,11 @@ const handlePrintCertificate = () => {
 
 /* 检验结果选择器样式 */
 .result-select-passed :deep(.el-input__wrapper) {
-  border-color: #67C23A !important;
+  border-color: var(--color-success) !important;
   box-shadow: 0 0 0 1px #67C23A inset !important;
 }
 .result-select-failed :deep(.el-input__wrapper) {
-  border-color: #F56C6C !important;
+  border-color: var(--color-danger) !important;
   box-shadow: 0 0 0 1px #F56C6C inset !important;
 }
 </style> 

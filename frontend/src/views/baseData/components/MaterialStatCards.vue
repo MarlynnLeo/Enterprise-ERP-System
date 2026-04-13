@@ -48,12 +48,12 @@ defineProps({
 .stat-value {
   font-size: 24px;
   font-weight: bold;
-  color: #409EFF;
+  color: var(--color-primary);
   margin-bottom: 10px;
 }
 
 .stat-label {
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 </style>

@@ -373,7 +373,7 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 .stat-card {
   border-radius: 8px;
@@ -383,7 +383,7 @@ onBeforeUnmount(() => {
   padding: 14px 20px;
 }
 .stat-title {
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 14px;
   margin-bottom: 8px;
 }
@@ -391,10 +391,10 @@ onBeforeUnmount(() => {
   font-size: 24px;
   font-weight: bold;
 }
-.text-primary { color: #409EFF; }
-.text-success { color: #67C23A; }
-.text-warning { color: #E6A23C; }
-.text-info { color: #909399; }
+.text-primary { color: var(--color-primary); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-info { color: var(--color-text-secondary); }
 
 .chart-card {
   border-radius: 8px;

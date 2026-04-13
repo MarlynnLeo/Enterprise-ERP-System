@@ -324,19 +324,7 @@ const calculateReportStats = () => {
 };
 
 // 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-
-  // 换算单位
-  const convertedAmount = amount / queryParams.unit;
-
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(convertedAmount);
-};
+// formatCurrency: 使用公共实现
 
 // 格式化金额
 const formatAmount = (amount) => {
@@ -373,13 +361,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .header-actions {

@@ -61,13 +61,26 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 });
 
-const formatNumber = (num) => Number(num || 0).toFixed(2);
-const formatDate = (date) => date ? dayjs(date).format('YYYY-MM-DD') : '-';
-const formatDateTime = (date) => date ? dayjs(date).format('YYYY-MM-DD HH:mm') : '-';
+// formatNumber 已统一引用公共实现
 
-const getMarginColor = (margin) => {
-  if (margin < 10) return 'danger';
-  if (margin < 20) return 'warning';
-  return 'success';
+// 数字格式化
+const formatNumber = (value, decimals = 2) => {
+  if (value === null || value === undefined) return '0';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '0';
+  return num.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+};
+// formatDate 已统一引用公共实现;
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
 };
 </script>

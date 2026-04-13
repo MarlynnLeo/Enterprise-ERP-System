@@ -140,7 +140,7 @@ const getDefectItems = async (req, res) => {
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
             ${where}
             GROUP BY qi.id ORDER BY qi.created_at DESC
-            LIMIT ${ps} OFFSET ${offset}`, params
+            LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}`, params
     );
 
     ResponseHandler.paginated(res, rows, countResult[0].total || 0, parseInt(page), ps);

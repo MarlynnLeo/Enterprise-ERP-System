@@ -480,7 +480,7 @@ onMounted(async () => {
 }
 
 .no-data {
-  color: #c0c4cc;
+  color: var(--color-text-placeholder);
   font-style: italic;
 }
 

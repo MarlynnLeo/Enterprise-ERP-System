@@ -1028,13 +1028,12 @@ class QualityInspection {
         const productIds = [...new Set(productionOrders.map((po) => po.product_id))];
         const [processes] = await db.query(
           `
-          SELECT pp.*, proc.name as process_name
-          FROM product_processes pp
-          JOIN production_processes proc ON pp.process_id = proc.id
-          WHERE pp.product_id IN(?)
+          SELECT pp.id, pp.task_id, pp.process_name, pp.sequence, pp.status
+          FROM production_processes pp
+          WHERE pp.task_id IN(?)
           ORDER BY pp.sequence
         `,
-          [productIds]
+          [productionOrders.map(po => po.id)]
         );
 
         data.processes = processes;

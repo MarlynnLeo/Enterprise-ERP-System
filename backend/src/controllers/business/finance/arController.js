@@ -421,8 +421,10 @@ const arController = {
         );
       }
 
-      // 检查收款金额是否超过未收余额
-      if (amount > balanceAmount) {
+      // 检查收款金额是否超过未收余额 (精度修复: 分/整数比对)
+      const amountCents = Math.round(amount * 100);
+      const balanceAmountCents = Math.round(balanceAmount * 100);
+      if (amountCents > balanceAmountCents) {
         return ResponseHandler.error(
           res,
           `收款金额不能超过发票未收余额(余额: ¥${balanceAmount.toFixed(2)})`,

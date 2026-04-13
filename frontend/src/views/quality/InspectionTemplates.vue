@@ -1851,7 +1851,7 @@ const handleGeneralChange = (val) => {
 }
 
 .items-container {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border-lighter);
   border-radius: var(--radius-sm);
   padding: 12px;
   width: 100%;

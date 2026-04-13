@@ -731,6 +731,9 @@
 
 <script setup>
 import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
+import { formatCurrency, formatNumber } from '@/utils/format'
+import { debounce } from '@/utils/commonHelpers'
 
 import { ref, onMounted, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -742,18 +745,7 @@ import { useAuthStore } from '@/stores/auth'
 // 权限store
 const authStore = useAuthStore()
 
-// 防抖函数
-function debounce(func, wait) {
-  let timeout
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout)
-      func(...args)
-    }
-    clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
-  }
-}
+
 
 // 页面数据
 const loading = ref(false)
@@ -1318,16 +1310,10 @@ const getReportTypeText = () => {
 }
 
 // 格式化数字
-const formatNumber = (number) => {
-  if (number === undefined || number === null) return '-'
-  return Number(number).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+// formatNumber 已统一引用公共实现
 
 // 格式化货币
-const formatCurrency = (number) => {
-  if (number === undefined || number === null) return '-'
-  return `¥ ${Number(number).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+// formatCurrency 已统一引用公共实现
 
 // 格式化百分比
 const formatPercent = (number) => {
@@ -1336,10 +1322,7 @@ const formatPercent = (number) => {
 }
 
 // 格式化日期
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
 
 // 预警等级类型
 const getWarningLevelType = (row) => {
@@ -1540,13 +1523,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -1580,7 +1563,7 @@ onMounted(() => {
   align-items: center;
   margin-bottom: var(--spacing-lg);
   padding-bottom: 15px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .card-header-with-info .card-title {

@@ -6,7 +6,6 @@
  */
 
 const { ResponseHandler } = require('../../utils/responseHandler');
-const { logger } = require('../../utils/logger');
 
 const { orders } = require('../../config/db');
 

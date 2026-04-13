@@ -703,9 +703,10 @@ class FinancialReportsService {
         isDebitAccount = accountInfo[0]?.is_debit;
       }
 
-      // 对于损益类科目，通常取发生额的绝对值
-      // 收入类科目取贷方发生额，费用类科目取借方发生额
-      return isDebitAccount ? totalDebit : totalCredit;
+      // [M-7] 对于损益类科目，取净额而非单边发生额
+      // 收入类(贷方科目) = 贷方 - 借方（冲销分录如销售退回记在借方，应被扣减）
+      // 费用/成本类(借方科目) = 借方 - 贷方（费用冲回记在贷方，应被扣减）
+      return isDebitAccount ? (totalDebit - totalCredit) : (totalCredit - totalDebit);
     } catch (error) {
       logger.error('获取科目期间发生额失败:', error);
       throw error;

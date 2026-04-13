@@ -4,7 +4,6 @@
  * @date 2025-12-15
  */
 
-const { logger } = require('./logger');
 const { pool } = require('../config/db');
 const cacheService = require('../services/cacheService');
 const PermissionService = require('../services/PermissionService');

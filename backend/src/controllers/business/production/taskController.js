@@ -161,9 +161,11 @@ exports.getProductionTasks = async (req, res) => {
       LEFT JOIN materials p ON pt.product_id = p.id
       LEFT JOIN units u ON p.unit_id = u.id
       WHERE 1=1 ${whereClause}
-      ORDER BY pt.created_at DESC LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+      ORDER BY pt.created_at DESC LIMIT ? OFFSET ?
     `;
 
+    // ✅ 审计修复: LIMIT/OFFSET 参数化查询
+    queryParams.push(parseInt(pageSize, 10), offset);
     const [tasks] = await pool.query(query, queryParams);
 
     // 如果有任务，一次性获取所有任务的工序数据（优化N+1查询问题）
@@ -1117,10 +1119,11 @@ exports.getPendingTasks = async (req, res) => {
       LEFT JOIN materials m ON pt.product_id = m.id
       WHERE pt.status IN ('pending', 'in_progress')
       ORDER BY pt.expected_end_date ASC
-      LIMIT ${safeLimit}
+      LIMIT ?
     `;
 
-    const [tasks] = await pool.query(query);
+    // ✅ 审计修复: LIMIT 参数化查询
+    const [tasks] = await pool.query(query, [safeLimit]);
     res.json(tasks);
   } catch (error) {
     logger.error('获取待办任务失败:', error);

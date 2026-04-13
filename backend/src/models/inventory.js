@@ -208,6 +208,11 @@ const exportStockData = async (search = '', locationId = null, categoryId = null
  * @param {string} params.remark - 备注
  * @returns {Promise<Object>} - 插入结果
  */
+/**
+ * @deprecated 请使用 InventoryService.updateStock() 代替。
+ * 该方法不走 FIFO 逻辑且 before/after_quantity 可能与主流程不连续。
+ * 保留此导出仅为向后兼容，新业务代码禁止调用。
+ */
 const insertInventoryTransaction = async (
   connection,
   {

@@ -6,9 +6,7 @@
  * @updated 2025-11-22 - 统一配置管理
  */
 
-const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
-const validator = require('validator');
 const { logger } = require('../utils/logger');
 const { UnifiedAppError } = require('./unifiedErrorHandler');
 const { RATE_LIMIT_CONFIG } = require('../config/security');

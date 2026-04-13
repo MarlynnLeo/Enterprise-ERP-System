@@ -10,7 +10,6 @@ const { logger } = require('../../utils/logger');
 
 const models = require('../../models');
 const { Op } = require('sequelize');
-const businessConfig = require('../../config/businessConfig');
 
 // 状态常量
 const STATUS = {

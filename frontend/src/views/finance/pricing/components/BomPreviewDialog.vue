@@ -187,25 +187,25 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
 .stat-item {
   text-align: center;
   padding: 12px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 8px;
 }
 
 .stat-title {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-bottom: 8px;
 }
 
 .stat-value {
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
-.text-primary { color: #409eff; }
-.text-success { color: #67c23a; }
-.text-danger { color: #f56c6c; }
+.text-primary { color: var(--color-primary); }
+.text-success { color: var(--color-success); }
+.text-danger { color: var(--color-danger); }
 
 .price-display {
   display: flex;
@@ -223,7 +223,7 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
 }
 
 .adjusted-price {
-  color: #67c23a;
+  color: var(--color-success);
   font-weight: 600;
 }
 
@@ -244,19 +244,19 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 8px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--color-border-light);
 }
 
 .strategy-label {
-  color: #606266;
+  color: var(--color-text-regular);
   font-size: 13px;
 }
 
 .strategy-value {
   font-weight: 600;
-  color: #409eff;
+  color: var(--color-primary);
   font-size: 14px;
 }
 </style>

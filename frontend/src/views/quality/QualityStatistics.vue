@@ -506,7 +506,7 @@ onBeforeUnmount(() => {
 
 .stat-card .stat-label {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-top: 6px;
 }
 
@@ -552,7 +552,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 16px;
   padding: 24px 20px;
-  background: #fafafa;
+  background: var(--color-bg-light);
   border-radius: 8px;
   border: 1px solid #f0f0f0;
 }
@@ -573,33 +573,33 @@ onBeforeUnmount(() => {
 
 .cost-label {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-bottom: 4px;
 }
 
 .cost-value {
   font-size: 24px;
   font-weight: bold;
-  color: #303133;
+  color: var(--color-text-primary);
   margin-bottom: 2px;
 }
 
 .cost-count {
   font-size: 12px;
-  color: #C0C4CC;
+  color: var(--color-text-placeholder);
 }
 
 .total-cost {
   text-align: center;
   font-size: 16px;
-  color: #606266;
+  color: var(--color-text-regular);
   padding: 16px 0 0;
 }
 
 .total-value {
   font-size: 28px;
   font-weight: bold;
-  color: #F56C6C;
+  color: var(--color-danger);
   margin-left: 16px;
 }
 </style>

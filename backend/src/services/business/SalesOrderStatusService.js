@@ -474,6 +474,7 @@ class SalesOrderStatusService {
             let allItemsInStock = true;
 
             for (const item of orderItems) {
+              // [M-6] 查询可用库存 = 总库存 - 已被其他订单预留的量（排除本订单的预留）
               const stockQuery = `
                 SELECT COALESCE(SUM(quantity), 0) as current_stock
                 FROM inventory_ledger
@@ -481,10 +482,21 @@ class SalesOrderStatusService {
               `;
               const [stockData] = await client.query(stockQuery, [item.material_id]);
 
-              const currentStock = stockData.length > 0 ? parseFloat(stockData[0].current_stock || 0) : 0;
+              const totalStock = stockData.length > 0 ? parseFloat(stockData[0].current_stock || 0) : 0;
+
+              // 扣减其他订单对该物料的活跃预留量
+              const reservedQuery = `
+                SELECT COALESCE(SUM(reserved_quantity), 0) as reserved
+                FROM inventory_reservations
+                WHERE material_id = ? AND status = 'active' AND order_id != ?
+              `;
+              const [reservedData] = await client.query(reservedQuery, [item.material_id, order.id]);
+              const reservedByOthers = parseFloat(reservedData[0]?.reserved || 0);
+
+              const availableStock = Math.max(0, totalStock - reservedByOthers);
               const requiredQuantity = parseFloat(item.quantity || 0);
 
-              if (currentStock < requiredQuantity) {
+              if (availableStock < requiredQuantity) {
                 allItemsInStock = false;
                 break;
               }

@@ -455,12 +455,18 @@ const handleCurrentChange = (page) => {
 };
 
 // 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  
-  // 如果日期包含时间部分，只取日期部分
-  const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+// formatDate 已统一引用公共实现;
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
 };
 
 // 页面加载时执行
@@ -483,13 +489,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {

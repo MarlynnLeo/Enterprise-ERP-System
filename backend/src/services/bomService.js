@@ -514,80 +514,126 @@ const bomService = {
 
       // ① 查询旧 BOM 是否存在
       const [oldBomRows] = await connection.query(
-        'SELECT * FROM bom_masters WHERE id = ?',
+        'SELECT * FROM bom_masters WHERE id = ? FOR UPDATE',
         [id]
       );
       if (!oldBomRows || oldBomRows.length === 0) {
         throw new Error('BOM不存在');
       }
       const oldBom = oldBomRows[0];
+      
+      const isApproved = oldBom.approved_by !== null && oldBom.approved_by !== undefined;
 
-      // ② 删除该产品已有的历史版本（只保留一个老版本）
-      const [existingHistory] = await connection.query(
-        'SELECT id FROM bom_masters WHERE product_id = ? AND status = 2',
-        [oldBom.product_id]
-      );
-      for (const hist of existingHistory) {
-        await connection.execute('DELETE FROM bom_details WHERE bom_id = ?', [hist.id]);
-        await connection.execute('DELETE FROM bom_masters WHERE id = ?', [hist.id]);
-        logger.info(`[BOM版本升级] 删除旧历史版本 #${hist.id}`);
+      if (isApproved) {
+        // ==========================
+        // 分支 A: 已审核 BOM -> 升版流程 (BOM Revision)
+        // ==========================
+        
+        // 1. 删除该产品已有的更老的历史版本（只保留这一个即将成为历史的旧版本供对比）
+        const [existingHistory] = await connection.query(
+          'SELECT id FROM bom_masters WHERE product_id = ? AND status = 2',
+          [oldBom.product_id]
+        );
+        for (const hist of existingHistory) {
+          if (hist.id !== oldBom.id) {
+            await connection.execute('DELETE FROM bom_details WHERE bom_id = ?', [hist.id]);
+            await connection.execute('DELETE FROM bom_masters WHERE id = ?', [hist.id]);
+          }
+        }
+
+        // 2. 将当前已审核 BOM 标记为历史版本 (status=2)
+        // 保留 approved_by 数据作为历史存档记录，但修改 status
+        await connection.execute(
+          'UPDATE bom_masters SET status = 2 WHERE id = ?',
+          [id]
+        );
+
+        // 3. 生成新版本号
+        const newVersion = await this.getNextVersion(connection, oldBom.product_id);
+
+        const normalizedBomData = this.validateAndNormalizeBomData({
+          ...bomData,
+          version: newVersion,
+          product_id: oldBom.product_id
+        });
+
+        // 4. 创建新版本草稿 BOM 记录 (status=1, approved_by=NULL)
+        const [result] = await connection.execute(
+          'INSERT INTO bom_masters (product_id, version, status, remark, attachment, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            normalizedBomData.product_id,
+            normalizedBomData.version,
+            1, // 新版本为启用草稿
+            normalizedBomData.remark,
+            normalizedBomData.attachment,
+            normalizedBomData.created_by || oldBom.created_by,
+            normalizedBomData.updated_by,
+          ]
+        );
+
+        const newBomId = result.insertId;
+
+        // 5. 插入新版本明细
+        await this._insertBomDetails(connection, newBomId, details);
+
+        await connection.commit();
+
+        try {
+          const BomExplosionService = require('./BomExplosionService');
+          await BomExplosionService.invalidateCache(id);
+        } catch (e) {
+          logger.warn('使BOM缓存失效失败:', e.message);
+        }
+
+        this._asyncRecalcStandardCost(normalizedBomData.product_id);
+
+        logger.info(`[BOM升版] 历史版本 #${id}(${oldBom.version}) → 新版草稿 #${newBomId}(${newVersion})`);
+        return { id: newBomId, ...normalizedBomData, version: newVersion, details };
+
+      } else {
+        // ==========================
+        // 分支 B: 未审核草稿 BOM -> 原地更新 (In-Place Edit)
+        // ==========================
+        const normalizedBomData = this.validateAndNormalizeBomData({
+          ...bomData,
+          status: oldBom.status, 
+          product_id: oldBom.product_id 
+        });
+
+        // 原地更新 BOM 主表
+        await connection.execute(
+          'UPDATE bom_masters SET version = ?, remark = ?, attachment = ?, updated_by = ? WHERE id = ?',
+          [
+            normalizedBomData.version,
+            normalizedBomData.remark,
+            normalizedBomData.attachment,
+            normalizedBomData.updated_by,
+            id
+          ]
+        );
+
+        // 覆盖更新所有明细
+        await connection.execute('DELETE FROM bom_details WHERE bom_id = ?', [id]);
+        await this._insertBomDetails(connection, id, details);
+
+        await connection.commit();
+
+        try {
+          const BomExplosionService = require('./BomExplosionService');
+          await BomExplosionService.invalidateCache(id);
+        } catch (e) {
+          logger.warn('使BOM缓存失效失败:', e.message);
+        }
+
+        this._asyncRecalcStandardCost(normalizedBomData.product_id);
+
+        logger.info(`[BOM编辑] 原地更新草稿BOM #${id} (${normalizedBomData.version})`);
+        return { id: Number(id), ...normalizedBomData, details };
       }
-
-      // ③ 将当前旧 BOM 标记为历史版本（status=2），清除审核状态
-      await connection.execute(
-        'UPDATE bom_masters SET status = 2, approved_at = NULL, approved_by = NULL WHERE id = ?',
-        [id]
-      );
-
-      // ③ 自动生成新版本号
-      const newVersion = await this.getNextVersion(connection, oldBom.product_id);
-
-      // 验证和规范化BOM数据（使用新版本号覆盖用户传入的版本号）
-      const normalizedBomData = this.validateAndNormalizeBomData({
-        ...bomData,
-        version: newVersion,
-      });
-
-      // ④ 创建新版本 BOM 记录
-      const [result] = await connection.execute(
-        'INSERT INTO bom_masters (product_id, version, status, remark, attachment, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [
-          normalizedBomData.product_id,
-          normalizedBomData.version,
-          1, // 新版本默认为启用状态
-          normalizedBomData.remark,
-          normalizedBomData.attachment,
-          normalizedBomData.created_by || oldBom.created_by,
-          normalizedBomData.updated_by,
-        ]
-      );
-
-      const newBomId = result.insertId;
-
-      // ✅ 使用公共方法插入明细
-      await this._insertBomDetails(connection, newBomId, details);
-
-      await connection.commit();
-
-      // 使旧 BOM 缓存失效
-      try {
-        const BomExplosionService = require('./BomExplosionService');
-        await BomExplosionService.invalidateCache(id);
-      } catch (e) {
-        logger.warn('使BOM缓存失效失败:', e.message);
-      }
-
-      // ✅ 使用公共方法异步重算标准成本
-      this._asyncRecalcStandardCost(normalizedBomData.product_id);
-
-      // ⑥ 返回新版本 BOM 信息
-      logger.info(`[BOM版本升级] 旧版本 #${id}(${oldBom.version}) → 新版本 #${newBomId}(${newVersion})`);
-      const newBom = { id: newBomId, ...normalizedBomData, version: newVersion, details };
-      return newBom;
     } catch (error) {
       await connection.rollback();
-      logger.error('BOM版本升级失败:', error);
-      throw new Error(`BOM版本升级失败: ${error.message}`);
+      logger.error('修改BOM失败:', error);
+      throw new Error(`修改BOM失败: ${error.message}`);
     } finally {
       connection.release();
     }
@@ -595,6 +641,19 @@ const bomService = {
 
   async deleteBom(id) {
     try {
+      // 检查 BOM 是否存在及审核状态
+      const [bomInfo] = await pool.query(
+        'SELECT product_id, approved_by FROM bom_masters WHERE id = ?',
+        [id]
+      );
+      if (!bomInfo || bomInfo.length === 0) {
+        throw new Error('BOM不存在');
+      }
+      if (bomInfo[0].approved_by) {
+        throw new Error('已审核的BOM不能删除，请先反审后再操作');
+      }
+      const productId = bomInfo[0].product_id;
+
       // 检查是否被生产计划引用
       const [plans] = await pool.query(
         'SELECT COUNT(*) as count FROM production_plans WHERE bom_id = ?',
@@ -603,10 +662,6 @@ const bomService = {
       if (plans[0].count > 0) {
         throw new Error('该BOM已被生产计划引用，不能删除');
       }
-
-      // 删除前获取产品ID
-      const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ?', [id]);
-      const productId = bomInfo[0]?.product_id;
 
       // 使缓存失效
       try {

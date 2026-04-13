@@ -9,6 +9,7 @@ const BudgetControlService = require('../../../services/business/BudgetControlSe
 const BudgetAnalysisService = require('../../../services/business/BudgetAnalysisService');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 const db = require('../../../config/db');
 
 const budgetController = {
@@ -38,7 +39,7 @@ const budgetController = {
         {
           ...budget,
           budget_no: budgetNo,
-          created_by: req.user?.id || 0,
+          created_by: await getCurrentUserName(req),
         },
         details || []
       );
@@ -256,7 +257,7 @@ const budgetController = {
 
       const success = await budgetModel.updateBudgetStatus(id, status, {
         approval_status: approvalStatus,
-        approved_by: req.user?.id || 0,
+        approved_by: await getCurrentUserName(req),
       });
 
       if (success) {
@@ -629,7 +630,7 @@ const budgetController = {
         total_amount: Math.round(totalAmount * 100) / 100,
         status: '草稿',
         description: `由AI智能分析自动生成 (${new Date().toLocaleDateString('zh-CN')})`,
-        created_by: req.user?.id || 1,
+        created_by: await getCurrentUserName(req),
       };
 
       // 构建明细数据

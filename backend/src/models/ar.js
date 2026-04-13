@@ -575,11 +575,13 @@ const arModel = {
       logger.error('更新应收账款发票失败:', error);
       if (connection) {
         try { await connection.rollback(); } catch (e) { /* 忽略 */ }
+        // 静默忽略该错误
       }
       throw error;
     } finally {
       if (connection) {
         try { connection.release(); } catch (e) { /* 忽略 */ }
+        // 静默忽略该错误
       }
     }
   },
@@ -614,7 +616,7 @@ const arModel = {
       const receiptId = result.insertId;
 
       // 插入收款明细并更新发票状态
-      let totalPaid = 0;
+      let totalPaidCents = 0;
       for (const item of receiptItems) {
         // 插入收款明细
         await connection.execute(
@@ -633,13 +635,23 @@ const arModel = {
 
         const invoice = invoices[0];
 
-        // 计算新的已付金额和余额
-        const newPaidAmount = parseFloat(invoice.paid_amount) + parseFloat(item.amount);
-        const newBalanceAmount = parseFloat(invoice.total_amount) - newPaidAmount;
+        // ===== [H-3] 超额收款校验 =====
+        const currentBalance = Math.round(parseFloat(invoice.balance_amount) * 100);
+        const receiveAmount = Math.round(parseFloat(item.amount) * 100);
+        if (receiveAmount > currentBalance + 1) {
+          // 允许1分钱容差（浮点数取整误差）
+          throw new Error(`收款金额 ${item.amount} 超过发票 ${invoice.invoice_number} 余额 ${invoice.balance_amount}`);
+        }
+
+        // ===== [H-2] 整数化精度控制 =====
+        const paidAmountCents = Math.round(parseFloat(invoice.paid_amount) * 100) + receiveAmount;
+        const totalAmountCents = Math.round(parseFloat(invoice.total_amount) * 100);
+        const newPaidAmount = paidAmountCents / 100;
+        const newBalanceAmount = (totalAmountCents - paidAmountCents) / 100;
 
         // 确定新的状态
         let newStatus;
-        if (newBalanceAmount <= 0) {
+        if (newBalanceAmount <= 0.001) {
           newStatus = '已付款';
         } else if (newPaidAmount > 0) {
           newStatus = '部分付款';
@@ -650,11 +662,13 @@ const arModel = {
         // 更新发票
         await connection.execute(
           'UPDATE ar_invoices SET paid_amount = ?, balance_amount = ?, status = ? WHERE id = ?',
-          [newPaidAmount, newBalanceAmount, newStatus, item.invoice_id]
+          [newPaidAmount, Math.max(0, newBalanceAmount), newStatus, item.invoice_id]
         );
 
-        totalPaid += parseFloat(item.amount);
+        totalPaidCents += Math.round(parseFloat(item.amount) * 100);
       }
+
+      const totalPaid = totalPaidCents / 100;
 
       // 如果是银行转账收款，更新银行账户余额并创建银行交易记录
       // 支持多种银行支付方式
@@ -684,16 +698,20 @@ const arModel = {
                 '转入', // 收款属于转入类型
                 totalPaid, // 交易金额
                 receiptData.reference_number || null,
-                `应收账款收款 - 客户: ${receiptData.customer_name || '未知客户'}`,
+                // [M-5] 在描述中包含所有关联发票信息
+                `应收账款收款 - 客户: ${receiptData.customer_name || '未知客户'}` +
+                (receiptItems.length > 1 ? ` (含${receiptItems.length}张发票)` : ''),
                 false, // 未对账
                 receiptData.customer_name || '未知客户', // 相关方为客户
-                receiptItems[0]?.invoice_id || null, // 关联发票ID（取第一个）
+                receiptItems[0]?.invoice_id || null, // 关联主发票ID（向后兼容）
                 'AR', // 关联发票类型：应收
               ]
             );
 
-            // 更新银行账户余额（收款增加余额）
-            const newBalance = parseFloat(bankAccount.current_balance) + totalPaid;
+            // 更新银行账户余额（收款增加余额）— 整数化精度控制
+            const currentBalanceCents = Math.round(parseFloat(bankAccount.current_balance) * 100);
+            const totalPaidCents = Math.round(totalPaid * 100);
+            const newBalance = (currentBalanceCents + totalPaidCents) / 100;
             await connection.execute('UPDATE bank_accounts SET current_balance = ? WHERE id = ?', [
               newBalance,
               receiptData.bank_account_id,
@@ -1007,15 +1025,17 @@ const arModel = {
 
         const invoice = invoices[0];
 
-        // 计算恢复后的金额
-        const newPaidAmount = parseFloat(invoice.paid_amount) - parseFloat(item.item_amount);
-        const newBalanceAmount = parseFloat(invoice.total_amount) - newPaidAmount;
+        // [H-2 补链] 计算恢复后的金额 — 整数化精度控制（与 createReceipt 对齐）
+        const paidAmountCents = Math.round(parseFloat(invoice.paid_amount) * 100) - Math.round(parseFloat(item.item_amount) * 100);
+        const totalAmountCents = Math.round(parseFloat(invoice.total_amount) * 100);
+        const newPaidAmount = Math.max(0, paidAmountCents) / 100;
+        const newBalanceAmount = (totalAmountCents - Math.max(0, paidAmountCents)) / 100;
 
         // 确定新的状态
         let newStatus;
-        if (newBalanceAmount >= parseFloat(invoice.total_amount)) {
-          newStatus = '已确认'; // 完全未付款
-        } else if (newBalanceAmount > 0) {
+        if (newPaidAmount <= 0.001) {
+          newStatus = '已确认'; // 完全未收款
+        } else if (newBalanceAmount > 0.001) {
           newStatus = '部分付款';
         } else {
           newStatus = '已付款';
@@ -1024,7 +1044,7 @@ const arModel = {
         // 更新发票
         await connection.execute(
           'UPDATE ar_invoices SET paid_amount = ?, balance_amount = ?, status = ? WHERE id = ?',
-          [newPaidAmount, newBalanceAmount, newStatus, item.invoice_id]
+          [newPaidAmount, Math.max(0, newBalanceAmount), newStatus, item.invoice_id]
         );
 
         logger.info(`[作废收款] 已恢复发票 ${invoice.invoice_number} 的余额: ${newBalanceAmount}`);

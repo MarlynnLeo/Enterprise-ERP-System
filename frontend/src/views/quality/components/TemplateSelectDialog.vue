@@ -75,11 +75,11 @@ const handleCancel = () => {
 .template-option {
   margin-bottom: 12px;
   padding: 10px;
-  border: 1px solid #EBEEF5;
+  border: 1px solid var(--color-border-lighter);
   border-radius: var(--radius-sm);
   transition: all var(--transition-base);
 }
-.template-option:hover { background-color: #F5F7FA; }
+.template-option:hover { background-color: var(--color-bg-hover); }
 
 .template-info {
   display: flex;

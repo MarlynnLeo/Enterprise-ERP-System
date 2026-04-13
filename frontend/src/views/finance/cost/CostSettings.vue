@@ -1010,12 +1010,12 @@ onMounted(() => {
 .title-section h2 {
   margin: 0;
   font-size: 24px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 5px 0 0 0;
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
@@ -1031,7 +1031,7 @@ onMounted(() => {
   background: #f8f9fa;
   margin: 0;
   padding: 16px 20px 0;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .settings-tabs :deep(.el-tabs__item) {
@@ -1047,7 +1047,7 @@ onMounted(() => {
 
 .settings-tabs :deep(.el-tabs__item.is-active) {
   background: white;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .settings-tabs :deep(.el-tabs__content) {
@@ -1057,7 +1057,7 @@ onMounted(() => {
 .inner-card {
   height: 100%;
   border-radius: 12px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--color-border-light);
   overflow: hidden;
   transition: all 0.3s;
 }
@@ -1068,10 +1068,10 @@ onMounted(() => {
 
 .inner-card :deep(.el-card__header) {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  color: #303133;
+  color: var(--color-text-primary);
   font-weight: 600;
   padding: 14px 20px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .card-header {
@@ -1082,7 +1082,7 @@ onMounted(() => {
 
 .form-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-top: 4px;
 }
 
@@ -1093,11 +1093,11 @@ onMounted(() => {
 .method-description p {
   margin: 8px 0;
   line-height: 1.6;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 .method-description strong {
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .settings-tabs :deep(.el-input__wrapper),
@@ -1125,7 +1125,7 @@ onMounted(() => {
 }
 
 .settings-tabs :deep(.el-collapse-item__header) {
-  background: #fafafa;
+  background: var(--color-bg-light);
   padding: 14px 16px;
   font-weight: 500;
 }

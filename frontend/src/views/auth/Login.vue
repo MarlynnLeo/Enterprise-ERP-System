@@ -560,7 +560,7 @@ const handleForgotPassword = () => {
 }
 
 .login-error-text {
-  color: #f56c6c;
+  color: var(--color-danger);
   font-size: 13px;
   margin-top: -16px;
   margin-bottom: 8px;

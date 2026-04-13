@@ -342,59 +342,10 @@ const updateAvatarFrame = async (req, res) => {
     // 验证主题preset - 支持7种主题
 
 
-    // 验证frameId - 支持frame1到frame41（新增11个3D光环特效）
-    const validFrames = [
-      'frame1',
-      'frame2',
-      'frame3',
-      'frame4',
-      'frame5',
-      'frame6',
-      'frame7',
-      'frame8',
-      'frame9',
-      'frame10',
-      'frame11',
-      'frame12',
-      'frame13',
-      'frame14',
-      'frame15',
-      'frame16',
-      'frame17',
-      'frame18',
-      'frame19',
-      'frame20',
-      'frame21',
-      'frame22',
-      'frame23',
-      'frame24',
-      'frame25',
-      'frame26',
-      'frame27',
-      'frame28',
-      'frame29',
-      'frame30',
-      'frame31',
-      'frame32',
-      'frame33',
-      'frame34',
-      'frame35',
-      'frame36',
-      'frame37',
-      'frame38',
-      'frame39',
-      'frame40',
-      'frame41',
-      'lottie-golden',
-      'lottie-cyber',
-      'lottie-nature',
-      'lottie-hexagon',
-      'lottie-diamond',
-      'lottie-star',
-      'lottie-ripple',
-      'none'
-    ];
-    if (!validFrames.includes(frameId)) {
+    // ✅ 审计修复(D-6): 使用正则模式替代50行硬编码 frame ID 列表
+    // 支持 frame1~frame999 + lottie-* 主题 + none
+    const framePattern = /^(frame\d+|lottie-[a-z]+|none)$/;
+    if (!framePattern.test(frameId)) {
       return ResponseHandler.error(res, '无效的头像特效ID', 'BAD_REQUEST', 400);
     }
 

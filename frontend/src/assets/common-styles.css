@@ -355,8 +355,9 @@
 }
 
 .statistics-row .stat-card {
-  flex: 1;
-  min-width: 150px;
+  flex: 1 1 calc(14% - 10px);
+  min-width: 120px;
+  max-width: 250px;
 }
 
 /* ==================== 对话框相关 ==================== */

@@ -1045,44 +1045,15 @@ const loadingMaterials = ref(false);
 let currentSearchId = 0;
 
 // 防抖函数
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
+import { debounce } from '@/utils/commonHelpers'
 
-// 搜索物料
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
-  
   try {
-    if (!query || query.trim().length === 0) {
-      // 首次加载或空查询加载默认列表
-      const defaultResults = await searchMaterials(baseDataApi, '', {
-        pageSize: 20,
-        includeAll: true
-      });
-      if (searchId === currentSearchId) {
-        materialOptions.value = mapMaterialData(defaultResults);
-      }
-      return;
-    }
-    
-    // 远程精准/模糊搜索
-    const searchResults = await searchMaterials(baseDataApi, query.trim(), {
-      pageSize: SEARCH_CONFIG.REMOTE_SEARCH_PAGE_SIZE,
-      includeAll: true
-    });
-    
+    const results = await searchMaterials(query);
     if (searchId === currentSearchId) {
-      materialOptions.value = mapMaterialData(searchResults);
+      materialOptions.value = results.map(mapMaterialData);
     }
   } catch (error) {
     console.error('搜索物料失败:', error);
@@ -1250,13 +1221,13 @@ onMounted(async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {

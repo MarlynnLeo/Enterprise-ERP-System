@@ -857,13 +857,13 @@ onMounted(async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .technical-communication-container {
@@ -1152,7 +1152,7 @@ onMounted(async () => {
 
 .section-header h3 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text-primary);
   font-size: 16px;
   display: flex;
   align-items: center;

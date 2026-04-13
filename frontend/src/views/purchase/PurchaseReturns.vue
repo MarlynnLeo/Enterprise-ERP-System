@@ -393,7 +393,7 @@ import { useSnackbar } from '@/composables/useSnackbar';
 import { useAuthStore } from '@/stores/auth';
 import { purchaseApi } from '@/services/api';
 import { baseDataApi } from '@/services/api';
-import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
+import { formatCurrency } from '@/utils/helpers/formatters';
 import {
   PURCHASE_RETURN_STATUS_OPTIONS,
   getPurchaseReturnStatusText,
@@ -525,11 +525,6 @@ const returnRules = {
   returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }]
 };
 
-// 格式化货币金额
-const formatCurrency = (value) => {
-  if (!value) return '¥0.00';
-  return '¥' + parseFloat(value).toFixed(2);
-};
 
 // 加载退货单统计数据
 const loadReturnStats = async () => {
@@ -720,7 +715,13 @@ function getStatusText(status) {
 // 方法：格式化日期
 function formatDate(date) {
   if (!date) return '';
-  return formatDateUtil(date);
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return date;
+    return d.toISOString().split('T')[0];
+  } catch {
+    return date;
+  }
 }
 
 // 方法：打开创建退货单对话框

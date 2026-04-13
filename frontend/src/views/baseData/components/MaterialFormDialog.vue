@@ -601,6 +601,6 @@ const submitForm = async () => {
 <style scoped>
 .attachment-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 </style>

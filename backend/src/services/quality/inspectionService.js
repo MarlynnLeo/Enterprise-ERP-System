@@ -15,7 +15,6 @@ const updatePurchaseOrderAfterInspection = async (
     if (inspection.inspection_type !== 'incoming' || !inspection.source_no) return;
 
     try {
-        const PurchaseOrder = require('../../../models/purchase');
 
         // 查询采购订单ID
         const [orders] = await connection.query(

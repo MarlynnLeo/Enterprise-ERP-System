@@ -72,7 +72,7 @@ const firstArticleController = {
         LEFT JOIN production_tasks pt ON qi.task_id = pt.id
         ${whereClause}
         ORDER BY qi.created_at DESC
-        LIMIT ${actualLimit} OFFSET ${offset}
+        LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
       `,
                 params
             );

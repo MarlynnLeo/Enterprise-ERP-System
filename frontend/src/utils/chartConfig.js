@@ -15,22 +15,31 @@ export const baseChartConfig = {
       position: 'top',
       labels: {
         usePointStyle: true,
-        padding: 20,
+        pointStyle: 'rectRounded',
+        padding: 24,
         font: {
-          size: 12
-        }
+          size: 13,
+          family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+          weight: '500'
+        },
+        color: '#606266'
       }
     },
     tooltip: {
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      titleColor: '#fff',
-      bodyColor: '#fff',
+      backgroundColor: 'rgba(25, 28, 34, 0.95)',
+      titleColor: '#F3F4F6',
+      bodyColor: '#D1D5DB',
       borderColor: 'rgba(255, 255, 255, 0.1)',
       borderWidth: 1,
-      cornerRadius: 6,
+      cornerRadius: 10,
+      padding: 14,
+      boxPadding: 8,
+      usePointStyle: true,
       displayColors: true,
       intersect: false,
-      mode: 'index'
+      mode: 'index',
+      titleFont: { size: 14, weight: 'bold', family: "'Inter', sans-serif" },
+      bodyFont: { size: 13 }
     }
   },
   interaction: {
@@ -38,8 +47,8 @@ export const baseChartConfig = {
     mode: 'index'
   },
   animation: {
-    duration: 1000,
-    easing: 'easeInOutQuart'
+    duration: 1200,
+    easing: 'easeOutQuart'
   }
 };
 
@@ -48,6 +57,12 @@ export const baseChartConfig = {
  */
 export const barChartConfig = {
   ...baseChartConfig,
+  elements: {
+    bar: {
+      borderRadius: 6,
+      borderSkipped: false
+    }
+  },
   scales: {
     x: {
       grid: {
@@ -56,19 +71,25 @@ export const barChartConfig = {
       ticks: {
         font: {
           size: 11
-        }
+        },
+        color: '#8A8F99'
       }
     },
     y: {
       beginAtZero: true,
       grid: {
-        color: 'rgba(0, 0, 0, 0.1)',
-        lineWidth: 1
+        color: 'rgba(0, 0, 0, 0.04)',
+        lineWidth: 1,
+        borderDash: [5, 5]
+      },
+      border: {
+        display: false
       },
       ticks: {
         font: {
           size: 11
-        }
+        },
+        color: '#8A8F99'
       }
     }
   }
@@ -81,13 +102,15 @@ export const lineChartConfig = {
   ...baseChartConfig,
   elements: {
     line: {
-      tension: 0.4,
-      borderWidth: 2
+      tension: 0.45,
+      borderWidth: 3
     },
     point: {
-      radius: 4,
-      hoverRadius: 6,
-      borderWidth: 2
+      radius: 0,
+      hoverRadius: 8,
+      borderWidth: 2,
+      backgroundColor: '#ffffff',
+      hoverBorderWidth: 3
     }
   },
   scales: {
@@ -98,19 +121,25 @@ export const lineChartConfig = {
       ticks: {
         font: {
           size: 11
-        }
+        },
+        color: '#8A8F99'
       }
     },
     y: {
       beginAtZero: true,
       grid: {
-        color: 'rgba(0, 0, 0, 0.1)',
-        lineWidth: 1
+        color: 'rgba(0, 0, 0, 0.04)',
+        lineWidth: 1,
+        borderDash: [5, 5]
+      },
+      border: {
+        display: false
       },
       ticks: {
         font: {
           size: 11
-        }
+        },
+        color: '#8A8F99'
       }
     }
   }
@@ -121,15 +150,22 @@ export const lineChartConfig = {
  */
 export const pieChartConfig = {
   ...baseChartConfig,
+  elements: {
+      arc: {
+          borderWidth: 3,
+          borderColor: '#ffffff'
+      }
+  },
   plugins: {
     ...baseChartConfig.plugins,
     legend: {
       position: 'right',
       labels: {
         usePointStyle: true,
-        padding: 15,
+        pointStyle: 'circle',
+        padding: 20,
         font: {
-          size: 12
+          size: 13
         }
       }
     }
@@ -140,25 +176,25 @@ export const pieChartConfig = {
  * 环形图配置
  */
 export const doughnutChartConfig = {
-  ...pieChartConfig,
-  cutout: '60%'
+  ...JSON.parse(JSON.stringify(pieChartConfig)),
+  cutout: '70%'
 };
 
 /**
- * 颜色配置
+ * 颜色配置 (Tech/Modern Vibe)
  */
 export const chartColors = {
-  primary: ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399'],
-  success: ['#67C23A', '#85CE61', '#A4DA89', '#C2E7B0', '#E1F3D8'],
-  warning: ['#E6A23C', '#EEBE77', '#F3D19E', '#F8E3C5', '#FCF6EC'],
-  danger: ['#F56C6C', '#F78989', '#F9A7A7', '#FBC4C4', '#FDE2E2'],
-  info: ['#909399', '#A6A9AD', '#B8BBC0', '#C8CCD0', '#DCDFE6'],
+  primary: ['#3A7AF2', '#14B8A6', '#6366F1', '#8B5CF6', '#F43F5E'],
+  success: ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0', '#D1FAE5'],
+  warning: ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FEF3C7'],
+  danger:  ['#EF4444', '#F87171', '#FCA5A5', '#FECACA', '#FEE2E2'],
+  info:    ['#6B7280', '#9CA3AF', '#D1D5DB', '#E5E7EB', '#F3F4F6'],
   gradient: [
-    'rgba(64, 158, 255, 0.8)',
-    'rgba(103, 194, 58, 0.8)',
-    'rgba(230, 162, 60, 0.8)',
-    'rgba(245, 108, 108, 0.8)',
-    'rgba(144, 147, 153, 0.8)'
+    'rgba(58, 122, 242, 0.8)',
+    'rgba(16, 185, 129, 0.8)',
+    'rgba(245, 158, 11, 0.8)',
+    'rgba(239, 68, 68, 0.8)',
+    'rgba(107, 114, 128, 0.8)'
   ]
 };
 
@@ -170,19 +206,16 @@ export const chartColors = {
 export function createBarChartConfig(options = {}) {
   const config = JSON.parse(JSON.stringify(barChartConfig));
   
-  // 自定义Y轴格式化
   if (options.yAxisFormatter) {
     config.scales.y.ticks.callback = options.yAxisFormatter;
   }
   
-  // 自定义工具提示
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
       label: options.tooltipFormatter
     };
   }
   
-  // 自定义颜色
   if (options.colors) {
     config.backgroundColor = options.colors;
     config.borderColor = options.colors;
@@ -199,22 +232,19 @@ export function createBarChartConfig(options = {}) {
 export function createLineChartConfig(options = {}) {
   const config = JSON.parse(JSON.stringify(lineChartConfig));
   
-  // 自定义Y轴格式化
   if (options.yAxisFormatter) {
     config.scales.y.ticks.callback = options.yAxisFormatter;
   }
   
-  // 自定义工具提示
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
       label: options.tooltipFormatter
     };
   }
   
-  // 填充区域
   if (options.fill) {
     config.elements.line.fill = true;
-    config.elements.line.backgroundColor = options.fillColor || 'rgba(64, 158, 255, 0.1)';
+    config.elements.line.backgroundColor = options.fillColor || 'rgba(58, 122, 242, 0.15)';
   }
   
   return config;
@@ -228,13 +258,11 @@ export function createLineChartConfig(options = {}) {
 export function createPieChartConfig(options = {}) {
   const config = JSON.parse(JSON.stringify(pieChartConfig));
   
-  // 自定义工具提示
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
       label: options.tooltipFormatter
     };
   } else {
-    // 默认百分比显示
     config.plugins.tooltip.callbacks = {
       label: function(context) {
         const label = context.label || '';
@@ -257,7 +285,6 @@ export function createPieChartConfig(options = {}) {
 export function createMixedChartConfig(options = {}) {
   const config = JSON.parse(JSON.stringify(barChartConfig));
   
-  // 添加右侧Y轴
   config.scales.y1 = {
     type: 'linear',
     display: true,
@@ -269,11 +296,11 @@ export function createMixedChartConfig(options = {}) {
     ticks: {
       font: {
         size: 11
-      }
+      },
+      color: '#8A8F99'
     }
   };
   
-  // 自定义工具提示
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
       label: options.tooltipFormatter
@@ -400,14 +427,14 @@ export const chartThemes = {
   light: {
     backgroundColor: '#ffffff',
     textColor: '#303133',
-    gridColor: 'rgba(0, 0, 0, 0.1)',
-    borderColor: 'rgba(0, 0, 0, 0.2)'
+    gridColor: 'rgba(0, 0, 0, 0.04)',
+    borderColor: 'rgba(0, 0, 0, 0.1)'
   },
   dark: {
     backgroundColor: '#1d1e1f',
     textColor: '#ffffff',
-    gridColor: 'rgba(255, 255, 255, 0.1)',
-    borderColor: 'rgba(255, 255, 255, 0.2)'
+    gridColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.1)'
   }
 };
 

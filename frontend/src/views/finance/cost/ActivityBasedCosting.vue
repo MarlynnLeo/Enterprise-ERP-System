@@ -295,12 +295,12 @@ onMounted(() => {
 .title-section h2 {
   margin: 0;
   font-size: 22px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 5px 0 0 0;
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 13px;
 }
 
@@ -309,7 +309,7 @@ onMounted(() => {
 }
 
 .allocated-cost {
-  color: #67C23A;
+  color: var(--color-success);
   font-weight: bold;
 }
 </style>

@@ -68,6 +68,7 @@
 import { ref, computed, watch } from 'vue';
 import technicalCommunicationApi from '@/services/technicalCommunicationApi';
 import { ElMessage } from 'element-plus';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 const props = defineProps({
   communicationId: {
@@ -100,10 +101,7 @@ const progressColor = computed(() => {
 });
 
 // 格式化日期
-const formatDate = (date) => {
-  if (!date) return '';
-  return new Date(date).toLocaleString('zh-CN');
-};
+// formatDate 已统一引用公共实现;
 
 // 获取部门人数
 const getDepartmentUserCount = (deptId) => {

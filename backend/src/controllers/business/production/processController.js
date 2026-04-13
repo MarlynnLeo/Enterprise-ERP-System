@@ -12,6 +12,8 @@ const { handleError } = require('./shared/errorHandler');
 const businessConfig = require('../../../config/businessConfig');
 const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
+const { getCurrentUserName } = require('../../../utils/userHelper');
+const { parsePagination } = require('../../../utils/paginationHelper');
 
 // 状态常量
 const STATUS = {
@@ -30,7 +32,7 @@ const STATUS = {
 exports.getProcesses = async (req, res) => {
   try {
     const { taskId, status, page = 1, pageSize = 10 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
+    const { safePage, safePageSize, safeOffset } = parsePagination(page, pageSize);
 
     const conditions = [];
     const params = [];
@@ -59,17 +61,16 @@ exports.getProcesses = async (req, res) => {
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       ORDER BY pp.task_id, pp.sequence
-      LIMIT ${parseInt(pageSize)} OFFSET ${offset}
+      LIMIT ${safePageSize} OFFSET ${safeOffset}
     `;
 
-    // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [processes] = await pool.query(query, params);
 
     res.json({
       items: processes,
       total: total[0].count,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
+      page: safePage,
+      pageSize: safePageSize,
     });
   } catch (error) {
     logger.error('获取生产工序列表失败:', error);
@@ -345,72 +346,61 @@ exports.updateProcess = async (req, res) => {
           // 不影响主流程，继续执行
         }
 
-        // ===== 工序完工的附加处理：更新完工数量、报工记录、清理检验单并触发成本核算 =====
-        setImmediate(async () => {
-          const hookConn = await pool.getConnection();
-          try {
-            await hookConn.beginTransaction();
+        // ===== 工序完工的附加处理（主事务内执行，保障数据一致性）=====
 
-            // 1. 更新 completed_quantity = quantity（全部完工）
-            await hookConn.query(
-              'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND (completed_quantity IS NULL OR completed_quantity < quantity)',
-              [taskId]
+        // 1. 更新 completed_quantity = quantity（全部完工）
+        await connection.query(
+          'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND (completed_quantity IS NULL OR completed_quantity < quantity)',
+          [taskId]
+        );
+
+        // 2. 自动创建报工记录（如果还没有）
+        const [existingReports] = await connection.query(
+          'SELECT COUNT(*) as count FROM production_reports WHERE task_id = ?',
+          [taskId]
+        );
+
+        if (existingReports[0].count === 0) {
+          const [processHours] = await connection.query(
+            'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
+            [taskId]
+          );
+          const estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
+
+          if (estimatedHours > 0) {
+            const reportNo = `RPT${Date.now()}`;
+            const [taskInfoForHook] = await connection.query('SELECT manager, quantity FROM production_tasks WHERE id = ?', [taskId]);
+            const operatorName = taskInfoForHook[0]?.manager || await getCurrentUserName(req);
+            const finalQuantity = taskInfoForHook[0]?.quantity || 0;
+
+            await connection.query(
+              `INSERT INTO production_reports
+              (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
+               completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
+               work_hours, remarks, created_at)
+              VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
+              [
+                reportNo, taskId, operatorName, finalQuantity, finalQuantity, finalQuantity,
+                estimatedHours, '工序完成后系统自动生成'
+              ]
             );
-
-            // 2. 自动创建报工记录（如果还没有）
-            const [existingReports] = await hookConn.query(
-              'SELECT COUNT(*) as count FROM production_reports WHERE task_id = ?',
-              [taskId]
-            );
-
-            if (existingReports[0].count === 0) {
-              const [processHours] = await hookConn.query(
-                'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
-                [taskId]
-              );
-              const estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
-
-              if (estimatedHours > 0) {
-                const reportNo = `RPT${Date.now()}`;
-                const [taskInfoForHook] = await hookConn.query('SELECT manager, quantity FROM production_tasks WHERE id = ?', [taskId]);
-                const operatorName = taskInfoForHook[0]?.manager || req.user?.name || req.user?.username || 'System';
-                const finalQuantity = taskInfoForHook[0]?.quantity || 0;
-
-                await hookConn.query(
-                  `INSERT INTO production_reports
-                  (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
-                   completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
-                   work_hours, remarks, created_at)
-                  VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
-                  [
-                    reportNo, taskId, operatorName, finalQuantity, finalQuantity, finalQuantity,
-                    estimatedHours, '工序完成后系统自动生成'
-                  ]
-                );
-                logger.info(`任务 ${taskId} 工序完成附加处理：自动创建报工记录，工时: ${estimatedHours}h`);
-              }
-            }
-
-            // 3. 自动关闭未完成的首检/过程检验单
-            const [updatedInspections] = await hookConn.query(
-              `UPDATE quality_inspections
-               SET status = 'passed', note = CONCAT(COALESCE(note, ''), ' | 工序全部完成时系统自动按合格跳过')
-               WHERE task_id = ? AND inspection_type IN ('first_article', 'process') AND status = 'pending'`,
-              [taskId]
-            );
-            if (updatedInspections.affectedRows > 0) {
-              logger.info(`任务 ${taskId} 工序完成附加处理：自动跳过 ${updatedInspections.affectedRows} 个未执行的首检/过程检验`);
-            }
-
-            await hookConn.commit();
-          } catch (hookErr) {
-            await hookConn.rollback();
-            logger.error(`任务 ${taskId} 工序完成附加处理失败:`, hookErr);
-          } finally {
-            hookConn.release();
+            logger.info(`任务 ${taskId} 工序完成附加处理：自动创建报工记录，工时: ${estimatedHours}h`);
           }
+        }
 
-          // 4. 触发成本核算
+        // 3. 自动关闭未完成的首检/过程检验单
+        const [updatedInspections] = await connection.query(
+          `UPDATE quality_inspections
+           SET status = 'passed', note = CONCAT(COALESCE(note, ''), ' | 工序全部完成时系统自动按合格跳过')
+           WHERE task_id = ? AND inspection_type IN ('first_article', 'process') AND status = 'pending'`,
+          [taskId]
+        );
+        if (updatedInspections.affectedRows > 0) {
+          logger.info(`任务 ${taskId} 工序完成附加处理：自动跳过 ${updatedInspections.affectedRows} 个未执行的首检/过程检验`);
+        }
+
+        // 4. 成本核算异步执行（非关键路径，失败不影响数据一致性，可后续重试）
+        setImmediate(async () => {
           try {
             const CostAccountingService = require('../../../services/business/CostAccountingService');
             await CostAccountingService.calculateActualCost(parseInt(taskId));

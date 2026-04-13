@@ -172,7 +172,7 @@ const getReworkTasks = async (req, res) => {
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       ${whereClause}
       ORDER BY rt.created_at DESC
-      LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}
+      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
     `;
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(dataQuery, queryParams);

@@ -7,6 +7,7 @@
 
 const expenseModel = require('../../../models/expense');
 const logger = require('../../../utils/logger');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 const expenseController = {
   // ==================== 初始化 ====================
@@ -194,7 +195,7 @@ const expenseController = {
 
       const data = {
         ...req.body,
-        created_by: req.user?.id || 1, // 从认证中获取用户ID
+        created_by: await getCurrentUserName(req),
       };
 
       const result = await expenseModel.createExpense(data);

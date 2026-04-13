@@ -15,6 +15,7 @@ const BankTransactionModel = require('../../../models/cash/Transaction');
 const ReconciliationModel = require('../../../models/cash/Reconciliation');
 const CashReportsModel = require('../../../models/cash/Reports');
 const CashTransactionModel = require('../../../models/cash/CashTransaction');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 /**
  * 现金管理控制器
@@ -689,7 +690,7 @@ const cashController = {
         branch_name: req.body.branch_name || existingAccount.branch_name,
         notes: req.body.notes,
         is_active: req.body.is_active,
-        updated_by: req.user?.id || req.body.updated_by || 'system',
+        updated_by: await getCurrentUserName(req),
       };
 
       const updated = await BankAccountModel.updateBankAccount(id, accountData);
@@ -821,7 +822,7 @@ const cashController = {
         related_party: req.body.related_party || null,
         category: req.body.category || null,
         payment_method: req.body.payment_method || null,
-        created_by: req.user?.id || req.body.created_by || 'system',
+        created_by: await getCurrentUserName(req),
       };
 
       // 检查必要字段
@@ -873,7 +874,7 @@ const cashController = {
       const reconciled = await ReconciliationModel.reconcileTransaction(id, {
         reconciled: true,
         reconciliation_date: req.body.reconciliation_date,
-        updated_by: req.user?.id || req.body.updated_by || 'system',
+        updated_by: await getCurrentUserName(req),
       });
 
       if (reconciled) {
@@ -925,7 +926,7 @@ const cashController = {
         is_reconciled: req.body.is_reconciled !== undefined ? req.body.is_reconciled : false,
         reconciliation_date: req.body.reconciliation_date || null,
         related_party: req.body.related_party || null,
-        created_by: req.user?.id || req.body.created_by || 'system',
+        created_by: await getCurrentUserName(req),
       };
 
       // 3. 删除原交易（使用控制器内部方法）
@@ -999,7 +1000,7 @@ const cashController = {
         transaction_date: req.body.transaction_date,
         description: req.body.description,
         reference_number: req.body.reference_number,
-        created_by: req.user?.id || req.body.created_by || 'system',
+        created_by: await getCurrentUserName(req),
       };
 
       const result = await cash.transferFunds(transferData);
@@ -1783,7 +1784,7 @@ const cashController = {
         counterparty: req.body.counterparty,
         description: req.body.description,
         reference_number: req.body.referenceNumber || req.body.reference_number,
-        created_by: req.user?.id || 'system',
+        created_by: await getCurrentUserName(req),
       };
 
       const result = await CashTransactionModel.createCashTransaction(transactionData);

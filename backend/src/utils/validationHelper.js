@@ -3,7 +3,6 @@
  * Simple validation functions for controllers
  */
 
-const { ResponseHandler } = require('./responseHandler');
 
 /**
  * Validate required fields

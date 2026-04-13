@@ -676,7 +676,7 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   padding: 12px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 8px;
 }
 
@@ -691,7 +691,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 8px;
   cursor: grab;
   transition: all 0.2s;
@@ -722,7 +722,7 @@ onUnmounted(() => {
 
 .limit-setting {
   padding: 12px 16px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 8px;
 }
 
@@ -736,7 +736,7 @@ onUnmounted(() => {
 
 .scroll-setting {
   padding: 12px 16px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 8px;
 }
 
@@ -761,7 +761,7 @@ onUnmounted(() => {
 .speed-value {
   min-width: 40px;
   font-size: 14px;
-  color: #409eff;
+  color: var(--color-primary);
   font-weight: 500;
 }
 
@@ -980,7 +980,7 @@ onUnmounted(() => {
   gap: 6px;
   margin-left: 12px;
   font-size: 14px;
-  color: #409eff;
+  color: var(--color-primary);
   font-weight: normal;
 }
 

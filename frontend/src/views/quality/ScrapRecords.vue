@@ -512,14 +512,14 @@ onMounted(() => {
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-bottom: 10px;
 }
 
 .stat-value {
   font-size: 28px;
   font-weight: bold;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .table-card {

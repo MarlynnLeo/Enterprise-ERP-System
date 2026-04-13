@@ -1,5 +1,4 @@
 const NonconformingProduct = require('../../models/nonconformingProduct');
-const QualityInspection = require('../../models/qualityInspection');
 const { logger } = require('../../utils/logger');
 const businessConfig = require('../../config/businessConfig');
 

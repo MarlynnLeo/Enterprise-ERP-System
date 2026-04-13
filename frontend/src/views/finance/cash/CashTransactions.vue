@@ -370,6 +370,8 @@
 
 <script setup>
 import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
+import { formatCurrency } from '@/utils/format'
 
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -464,16 +466,10 @@ watch(() => transactionForm.type, (newType) => {
 });
 
 // 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-  return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+// formatCurrency 已统一引用公共实现;
 
 // 格式化日期
-const formatDate = (date) => {
-  if (!date) return '';
-  return new Date(date).toLocaleDateString('zh-CN');
-};
+// formatDate 已统一引用公共实现;
 
 // 获取交易类型文本
 const getTransactionTypeText = (type) => {
@@ -968,13 +964,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .action-buttons {
@@ -1023,7 +1019,7 @@ onMounted(() => {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   padding: 16px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 8px;
 }
 
@@ -1034,12 +1030,12 @@ onMounted(() => {
 }
 
 .transaction-detail-header .label {
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
 .transaction-detail-header .value {
-  color: #303133;
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 </style>

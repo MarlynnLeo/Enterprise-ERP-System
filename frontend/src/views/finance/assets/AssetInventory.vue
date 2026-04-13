@@ -421,9 +421,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.text-success { color: #67c23a; margin-right: 5px;}
-.text-warning { color: #e6a23c; margin-right: 5px;}
-.text-danger { color: #f56c6c; margin-right: 5px;}
+.text-success { color: var(--color-success); margin-right: 5px;}
+.text-warning { color: var(--color-warning); margin-right: 5px;}
+.text-danger { color: var(--color-danger); margin-right: 5px;}
 
 .asset-inventory-container {
   padding: 20px;

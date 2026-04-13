@@ -3,7 +3,7 @@
     title="BOM版本对比"
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
-    width="60%"
+    width="50%"
     top="3vh"
     destroy-on-close
   >
@@ -334,12 +334,12 @@ const diffRowClass = ({ row }) => {
 .bom-header-card p {
   margin: 4px 0;
   font-size: 13px;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 .diff-value {
   font-weight: bold;
-  color: #E6A23C;
+  color: var(--color-warning);
 }
 
 :deep(.diff-row-added) {

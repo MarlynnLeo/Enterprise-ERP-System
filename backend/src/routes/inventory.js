@@ -8,7 +8,15 @@
 const { logger } = require('../utils/logger');
 const express = require('express');
 const router = express.Router();
-const inventoryController = require('../controllers/business/inventory/inventoryController');
+const inventoryStockController = require('../controllers/business/inventory/inventoryStockController');
+const inventoryInboundController = require('../controllers/business/inventory/inventoryInboundController');
+const inventoryOutboundController = require('../controllers/business/inventory/inventoryOutboundController');
+const inventoryTransferController = require('../controllers/business/inventory/inventoryTransferController');
+const inventoryCheckController = require('../controllers/business/inventory/inventoryCheckController');
+const inventoryLedgerController = require('../controllers/business/inventory/inventoryLedgerController');
+const inventoryBatchController = require('../controllers/business/inventory/inventoryBatchController');
+const inventoryManualController = require('../controllers/business/inventory/inventoryManualController');
+const inventoryConsistencyController = require('../controllers/business/inventory/inventoryConsistencyController');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
 const { getUserIdentifierFromRequest } = require('../utils/userUtils');
@@ -28,7 +36,7 @@ router.get(
   '/stock',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.getStockList
+  inventoryStockController.getStockList
 );
 
 // 库存导入导出（必须在动态路由之前）
@@ -36,20 +44,20 @@ router.get(
   '/stock/template',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.downloadStockTemplate
+  inventoryStockController.downloadStockTemplate
 );
 router.post(
   '/stock/import',
   authenticateToken,
   requirePermission('inventory:stock:adjust'),
   uploadToMemory.single('file'),
-  inventoryController.importStock
+  inventoryStockController.importStock
 );
 router.post(
   '/stock/export',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.exportStockData
+  inventoryStockController.exportStockData
 );
 
 // 库存统计直出聚合接口 (Dashboard)
@@ -65,7 +73,7 @@ router.get(
   '/stock/statistics',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.getStockStatistics
+  inventoryLedgerController._getStockStatistics
 );
 
 // 出库单列表
@@ -73,7 +81,7 @@ router.get(
   '/outbound',
   authenticateToken,
   requirePermission('inventory:outbound:view'),
-  inventoryController.getOutboundList
+  inventoryOutboundController.getOutboundList
 );
 
 // 批量发料（必须在 /outbound/:id 之前）
@@ -81,7 +89,7 @@ router.post(
   '/outbound/batch',
   authenticateToken,
   requirePermission('inventory:outbound:create'),
-  inventoryController.batchOutbound
+  inventoryOutboundController.batchOutbound
 );
 
 // 批量更新出库单状态
@@ -89,7 +97,7 @@ router.put(
   '/outbound/batch-status',
   authenticateToken,
   requirePermission('inventory:outbound:update'),
-  inventoryController.batchUpdateOutboundStatus
+  inventoryOutboundController.batchUpdateOutboundStatus
 );
 
 // 批量删除出库单
@@ -97,7 +105,7 @@ router.delete(
   '/outbound/batch-delete',
   authenticateToken,
   requirePermission('inventory:outbound:delete'),
-  inventoryController.batchDeleteOutbound
+  inventoryOutboundController.batchDeleteOutbound
 );
 
 // 仓库列表 - 允许有采购权限或库存权限的用户访问
@@ -108,7 +116,7 @@ router.get(
     ['inventory:stock:view', 'purchase:receipts:view', 'purchase:orders:view'],
     'any'
   ),
-  inventoryController.getLocations
+  inventoryStockController.getLocations
 );
 
 // 获取库存记录
@@ -116,7 +124,7 @@ router.get(
   '/stock/:id/records',
   authenticateToken,
   requirePermission('inventory:stock:view-detail'),
-  inventoryController.getStockRecords
+  inventoryStockController.getStockRecords
 );
 
 // 获取库存记录 - 通过物料ID (统一API: 内部调用getInventoryLedger)
@@ -124,7 +132,7 @@ router.get(
   '/materials/:id/records',
   authenticateToken,
   requirePermission('inventory:stock:view-detail'),
-  inventoryController.getMaterialRecords
+  inventoryStockController.getMaterialRecords
 );
 
 // 批次库存查询
@@ -132,7 +140,7 @@ router.get(
   '/batch-inventory',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.getBatchInventoryDetail
+  inventoryBatchController.getBatchInventoryDetail
 );
 
 // 批次流水查询
@@ -140,7 +148,7 @@ router.get(
   '/batch-transactions',
   authenticateToken,
   requirePermission('inventory:stock:view-detail'),
-  inventoryController.getBatchTransactionsDetail
+  inventoryBatchController.getBatchTransactionsDetail
 );
 
 // 创建出库单
@@ -148,7 +156,7 @@ router.post(
   '/outbound',
   authenticateToken,
   requirePermission('inventory:outbound:create'),
-  inventoryController.createOutbound
+  inventoryOutboundController.createOutbound
 );
 
 // 获取出库单详情
@@ -156,18 +164,18 @@ router.get(
   '/outbound/:id',
   authenticateToken,
   requirePermission('inventory:outbound:view'),
-  inventoryController.getOutboundDetail
+  inventoryOutboundController.getOutboundDetail
 );
 
 // 获取带库存的物料列表
-router.get('/materials-with-stock', authenticateToken, requirePermission('inventory:stock:view'), inventoryController.getMaterialsWithStock);
+router.get('/materials-with-stock', authenticateToken, requirePermission('inventory:stock:view'), inventoryStockController.getMaterialsWithStock);
 
 // 更新出库单
 router.put(
   '/outbound/:id',
   authenticateToken,
   requirePermission('inventory:outbound:update'),
-  inventoryController.updateOutbound
+  inventoryOutboundController.updateOutbound
 );
 
 // 删除出库单
@@ -175,7 +183,7 @@ router.delete(
   '/outbound/:id',
   authenticateToken,
   requirePermission('inventory:outbound:delete'),
-  inventoryController.deleteOutbound
+  inventoryOutboundController.deleteOutbound
 );
 
 // 撤销发料 - 回退已完成的出库单
@@ -183,7 +191,7 @@ router.post(
   '/outbound/:id/cancel',
   authenticateToken,
   requirePermission('inventory:outbound:update'),
-  inventoryController.cancelOutbound
+  inventoryOutboundController.cancelOutbound
 );
 
 // 补发 - 对部分完成的出库单继续发货
@@ -191,7 +199,7 @@ router.post(
   '/outbound/:id/supplement',
   authenticateToken,
   requirePermission('inventory:outbound:update'),
-  inventoryController.supplementOutbound
+  inventoryOutboundController.supplementOutbound
 );
 
 // 更新出库单状态
@@ -199,7 +207,7 @@ router.put(
   '/outbound/:id/status',
   authenticateToken,
   requirePermission('inventory:outbound:update'),
-  inventoryController.updateOutboundStatus
+  inventoryOutboundController.updateOutboundStatus
 );
 
 // 入库单路由
@@ -207,31 +215,31 @@ router.get(
   '/inbound',
   authenticateToken,
   requirePermission('inventory:inbound:view'),
-  inventoryController.getInboundList
+  inventoryInboundController.getInboundList
 );
 router.get(
   '/inbound/:id',
   authenticateToken,
   requirePermission('inventory:inbound:view'),
-  inventoryController.getInboundDetail
+  inventoryInboundController.getInboundDetail
 );
 router.post(
   '/inbound',
   authenticateToken,
   requirePermission('inventory:inbound:create'),
-  inventoryController.createInbound
+  inventoryInboundController.createInbound
 );
 router.post(
   '/inbound/from-quality',
   authenticateToken,
   requirePermission('inventory:inbound:create'),
-  inventoryController.createInboundFromQuality
+  inventoryInboundController.createInboundFromQuality
 );
 router.put(
   '/inbound/status/:id',
   authenticateToken,
   requirePermission('inventory:inbound:update'),
-  inventoryController.updateInboundStatus
+  inventoryInboundController.updateInboundStatus
 );
 
 // 生产退料相关路由
@@ -239,18 +247,18 @@ router.get(
   '/task/:taskId/material-issues',
   authenticateToken,
   requirePermission('inventory:inbound:view'),
-  inventoryController.getTaskMaterialIssueRecords
+  inventoryOutboundController.getTaskMaterialIssueRecords
 );
 
 // 获取物料列表
-router.get('/materials', authenticateToken, requirePermission('inventory:stock:view'), inventoryController.getMaterialsList);
+router.get('/materials', authenticateToken, requirePermission('inventory:stock:view'), inventoryStockController.getMaterialsList);
 
 // 库存调整
 router.post(
   '/stock/adjust',
   authenticateToken,
   requirePermission('inventory:stock:adjust'),
-  inventoryController.adjustStock
+  inventoryStockController.adjustStock
 );
 
 // 统一的库存检查API
@@ -258,7 +266,7 @@ router.post(
   '/check-stock-sufficiency',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.checkStockSufficiency
+  inventoryStockController.checkStockSufficiency
 );
 
 // 注意: 以下测试端点仅供开发调试使用，生产环境应删除
@@ -272,19 +280,19 @@ router.get(
   '/transactions',
   authenticateToken,
   requirePermission('inventory:transactions:view'),
-  inventoryController.getTransactionList
+  inventoryLedgerController.getTransactionList
 );
 router.get(
   '/transactions/stats',
   authenticateToken,
   requirePermission('inventory:transactions:view'),
-  inventoryController.getTransactionStats
+  inventoryLedgerController.getTransactionStats
 );
 router.get(
   '/transactions/export',
   authenticateToken,
   requirePermission('inventory:transactions:export'),
-  inventoryController.exportTransactionReport
+  inventoryLedgerController.exportTransactionReport
 );
 
 // 库存报表
@@ -292,13 +300,13 @@ router.get(
   '/report',
   authenticateToken,
   requirePermission('inventory:report:view'),
-  inventoryController.getInventoryReport
+  inventoryLedgerController.getInventoryReport
 );
 router.get(
   '/report/export',
   authenticateToken,
   requirePermission('inventory:report:export'),
-  inventoryController.exportInventoryReport
+  inventoryLedgerController.exportInventoryReport
 );
 
 // 库存收发结存明细 (主API: 提供完整的筛选和分页功能)
@@ -306,7 +314,7 @@ router.get(
   '/ledger',
   authenticateToken,
   requirePermission('inventory:ledger:view'),
-  inventoryController.getInventoryLedger
+  inventoryLedgerController.getInventoryLedger
 );
 
 // 获取物料库存台账
@@ -314,7 +322,7 @@ router.get(
   '/ledger/material/:materialId',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.getMaterialLedger
+  inventoryLedgerController.getMaterialLedger
 );
 
 // 获取低库存预警
@@ -322,7 +330,7 @@ router.get(
   '/low-stock',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.getLowStock
+  inventoryStockController.getLowStock
 );
 
 // 获取库存变动记录
@@ -330,7 +338,7 @@ router.get(
   '/movements',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.getMovements
+  inventoryLedgerController.getMovements
 );
 
 // 获取物料库存
@@ -338,85 +346,85 @@ router.get(
   '/stock/:materialId/:locationId',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.getMaterialStockDetail
+  inventoryStockController.getMaterialStockDetail
 );
 
 // 批量获取物料库存
-router.post('/stock/batch', authenticateToken, requirePermission('inventory:stock:view'), inventoryController.getBatchMaterialStock);
+router.post('/stock/batch', authenticateToken, requirePermission('inventory:stock:view'), inventoryBatchController.getBatchMaterialStock);
 
 // 库存调拨相关路由
-router.get('/transfer', authenticateToken, requirePermission('inventory:transfer:view'), inventoryController.getTransferList);
-router.get('/transfer/statistics', authenticateToken, requirePermission('inventory:transfer:view'), inventoryController.getTransferStatistics);
-router.get('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:view'), inventoryController.getTransferDetail);
-router.post('/transfer', authenticateToken, requirePermission('inventory:transfer:create'), inventoryController.createTransfer);
-router.put('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:update'), inventoryController.updateTransfer);
-router.delete('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:delete'), inventoryController.deleteTransfer);
-router.put('/transfer/:id/status', authenticateToken, requirePermission('inventory:transfer:update'), inventoryController.updateTransferStatus);
+router.get('/transfer', authenticateToken, requirePermission('inventory:transfer:view'), inventoryTransferController.getTransferList);
+router.get('/transfer/statistics', authenticateToken, requirePermission('inventory:transfer:view'), inventoryTransferController.getTransferStatistics);
+router.get('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:view'), inventoryTransferController.getTransferDetail);
+router.post('/transfer', authenticateToken, requirePermission('inventory:transfer:create'), inventoryTransferController.createTransfer);
+router.put('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:update'), inventoryTransferController.updateTransfer);
+router.delete('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:delete'), inventoryTransferController.deleteTransfer);
+router.put('/transfer/:id/status', authenticateToken, requirePermission('inventory:transfer:update'), inventoryTransferController.updateTransferStatus);
 // 调拨单导出和批量删除
-router.post('/transfers/export', authenticateToken, requirePermission('inventory:transfer:export'), inventoryController.exportTransfers);
-router.post('/transfers/batch-delete', authenticateToken, requirePermission('inventory:transfer:delete'), inventoryController.batchDeleteTransfers);
+router.post('/transfers/export', authenticateToken, requirePermission('inventory:transfer:export'), inventoryTransferController.exportTransfers);
+router.post('/transfers/batch-delete', authenticateToken, requirePermission('inventory:transfer:delete'), inventoryTransferController.batchDeleteTransfers);
 
 // 库存盘点相关路由
-router.get('/check/statistics', authenticateToken, requirePermission('inventory:check:view'), inventoryController.getCheckStatistics);
-router.get('/check', authenticateToken, requirePermission('inventory:check:view'), inventoryController.getCheckList);
-router.get('/check/:id', authenticateToken, requirePermission('inventory:check:view'), inventoryController.getCheckDetail);
-router.post('/check', authenticateToken, requirePermission('inventory:check:create'), inventoryController.createCheck);
-router.put('/check/:id', authenticateToken, requirePermission('inventory:check:update'), inventoryController.updateCheck);
-router.put('/check/:id/status', authenticateToken, requirePermission('inventory:check:update'), inventoryController.updateCheckStatus);
-router.delete('/check/:id', authenticateToken, requirePermission('inventory:check:delete'), inventoryController.deleteCheck);
-router.post('/check/:id/result', authenticateToken, requirePermission('inventory:check:update'), inventoryController.submitCheckResult);
-router.post('/check/:id/adjust', authenticateToken, requirePermission('inventory:check:update'), inventoryController.adjustInventory);
+router.get('/check/statistics', authenticateToken, requirePermission('inventory:check:view'), inventoryCheckController.getCheckStatistics);
+router.get('/check', authenticateToken, requirePermission('inventory:check:view'), inventoryCheckController.getCheckList);
+router.get('/check/:id', authenticateToken, requirePermission('inventory:check:view'), inventoryCheckController.getCheckDetail);
+router.post('/check', authenticateToken, requirePermission('inventory:check:create'), inventoryCheckController.createCheck);
+router.put('/check/:id', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.updateCheck);
+router.put('/check/:id/status', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.updateCheckStatus);
+router.delete('/check/:id', authenticateToken, requirePermission('inventory:check:delete'), inventoryCheckController.deleteCheck);
+router.post('/check/:id/result', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.submitCheckResult);
+router.post('/check/:id/adjust', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.adjustInventory);
 
 // 手工出入库相关路由
 router.get(
   '/manual-transactions',
   authenticateToken,
   requirePermission('inventory:manual:view'),
-  inventoryController.getManualTransactions
+  inventoryManualController.getManualTransactions
 );
 router.get(
   '/manual-transactions/:transaction_no',
   authenticateToken,
   requirePermission('inventory:manual:view'),
-  inventoryController.getManualTransaction
+  inventoryManualController.getManualTransaction
 );
 router.post(
   '/manual-transactions',
   authenticateToken,
   requirePermission('inventory:manual:create'),
-  inventoryController.createManualTransaction
+  inventoryManualController.createManualTransaction
 );
 router.post(
   '/manual-transactions/exchange',
   authenticateToken,
   requirePermission('inventory:manual:create'),
-  inventoryController.createExchange
+  inventoryManualController.createExchange
 );
 // 注意：手工出入库单据不建议修改，如需修改请删除重建。更新接口保留但前端未使用
 router.put(
   '/manual-transactions/:transaction_no',
   authenticateToken,
   requirePermission('inventory:manual:update'),
-  inventoryController.updateManualTransaction
+  inventoryManualController.updateManualTransaction
 );
 router.delete(
   '/manual-transactions/:transaction_no',
   authenticateToken,
   requirePermission('inventory:manual:delete'),
-  inventoryController.deleteManualTransaction
+  inventoryManualController.deleteManualTransaction
 );
 router.post(
   '/manual-transactions/:id/approve',
   authenticateToken,
   requirePermission('inventory:manual:approve'),
-  inventoryController.approveManualTransaction
+  inventoryManualController.approveManualTransaction
 );
 
 // 批量库存查询（优化版）
-router.post('/batch-query', authenticateToken, requirePermission('inventory:stock:view'), inventoryController.getBatchInventory);
+router.post('/batch-query', authenticateToken, requirePermission('inventory:stock:view'), inventoryBatchController.getBatchInventory);
 
 // 获取指定仓库的库存
-router.get('/stock/by-location', authenticateToken, requirePermission('inventory:stock:view'), inventoryController.getStockByLocation);
+router.get('/stock/by-location', authenticateToken, requirePermission('inventory:stock:view'), inventoryStockController.getStockByLocation);
 
 // 缓存管理路由已移除
 
@@ -425,25 +433,25 @@ router.get(
   '/consistency/check',
   authenticateToken,
   requirePermission('inventory:stock:adjust'),
-  inventoryController.runConsistencyCheck
+  inventoryConsistencyController.runConsistencyCheck
 );
 router.get(
   '/consistency/negative-stock',
   authenticateToken,
   requirePermission('inventory:stock:view'),
-  inventoryController.getNegativeStock
+  inventoryConsistencyController.getNegativeStock
 );
 router.post(
   '/consistency/fix-quantities',
   authenticateToken,
   requirePermission('inventory:stock:adjust'),
-  inventoryController.fixQuantityConsistency
+  inventoryConsistencyController.fixQuantityConsistency
 );
 router.post(
   '/consistency/fix-negative-stock',
   authenticateToken,
   requirePermission('inventory:stock:adjust'),
-  inventoryController.fixNegativeStock
+  inventoryConsistencyController.fixNegativeStock
 );
 
 // ==================== 年度结存相关路由 ====================

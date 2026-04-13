@@ -226,6 +226,7 @@
 <script setup>
 import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, computed, onMounted, watch, toRaw, nextTick } from 'vue'
 import { useRouter } from 'vue-router';
@@ -343,16 +344,8 @@ function handleCurrentChange(page) {
 }
 
 // 格式化日期
-function formatDate(dateStr) {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('zh-CN');
-  } catch (e) {
-    console.error('日期格式化错误:', e);
-    return dateStr;
-  }
-}
+// formatDate: 使用公共实现
+
 
 // 获取订单状态颜色
 function getStatusColor(status) {

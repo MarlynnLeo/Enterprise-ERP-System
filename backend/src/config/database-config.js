@@ -44,6 +44,12 @@ const POOL_CONFIG = {
   dateStrings: true,
   supportBigNumbers: true,
   bigNumberStrings: false, // 禁用大整数转字符串，COUNT(*) 等将以 Number 返回
+  /**
+   * [B-4] 设计约束: decimalNumbers = true 将 MySQL DECIMAL 转为 JS Number (IEEE 754 双精度浮点)
+   * - 当前策略: Model 层使用 Math.round(x * 100) 整数化运算消除精度误差
+   * - 安全范围: 金额 < Number.MAX_SAFE_INTEGER / 100 ≈ 900万亿（当前业务规模远低于此）
+   * - 升级路径: 若金额超过该阈值，需改为 decimalNumbers: false + decimal.js 库
+   */
   decimalNumbers: true, // 启用将 MySQL 的 DECIMAL/NUMERIC 转为 JS 浮点数，解决财务金额前端强转困境
   charset: 'utf8mb4',
 
@@ -114,13 +120,34 @@ const SEQUELIZE_CONFIG = {
   timezone: '+08:00',
 };
 
+// ==========================================
+// 连接池安全保护配置
+// 防止因业务代码遗漏 release() 导致连接泄漏、连接池枯竭
+// ==========================================
+const POOL_SAFETY_CONFIG = {
+  /**
+   * 单个连接最大持有时间（毫秒）
+   * 超过此时间后连接将被强制回收并记录告警日志
+   * 注意：对于确实需要长时间运行的大事务，应在业务层显式延长
+   */
+  maxConnectionHoldTime: parseInt(process.env.DB_MAX_HOLD_TIME) || 30000,
+
+  /**
+   * 获取连接超时时间（毫秒）
+   * 当连接池耗尽时，等待此时间后快速返回错误而非无限阻塞
+   */
+  acquireTimeout: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 10000,
+};
+
 module.exports = {
   DATABASE_CONFIG,
   POOL_CONFIG,
   SEQUELIZE_CONFIG,
+  POOL_SAFETY_CONFIG,
   getBasicConfig: () => DATABASE_CONFIG,
   getPoolConfig: () => POOL_CONFIG,
   getSequelizeConfig: () => SEQUELIZE_CONFIG,
+  getPoolSafetyConfig: () => POOL_SAFETY_CONFIG,
 
   // 便捷方法：获取连接字符串（用于脚本）
   getConnectionString: () => {
@@ -138,3 +165,4 @@ module.exports = {
     };
   },
 };
+

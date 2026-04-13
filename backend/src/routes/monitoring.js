@@ -248,23 +248,11 @@ router.get('/logs', authenticateToken, requirePermission('system:monitor'), asyn
   try {
     const { level = 'info', limit = 100 } = req.query;
 
-    // 这里应该实现从日志文件或日志系统中读取日志
-    // 由于我们使用文件日志，这里返回模拟数据
-    const logs = [
-      {
-        timestamp: new Date().toISOString(),
-        level: 'info',
-        message: 'System monitoring endpoint accessed',
-        meta: {
-          userId: req.user.id,
-          ip: req.ip,
-        },
-      },
-    ];
-
-    res.json({
-      success: true,
-      data: logs.slice(0, parseInt(limit)),
+    // 这里原本返回了一条写死的假日志
+    // 企业级系统中，实时监控流应当对接收集网关或采取文件动态流解析，暂不支持直接模拟返回
+    return res.status(501).json({
+      success: false,
+      message: '日志流式读取组件正处于架构升级中，当前版本暂未提供文件日志下发能力'
     });
   } catch (error) {
     logger.error('Failed to get logs:', error);

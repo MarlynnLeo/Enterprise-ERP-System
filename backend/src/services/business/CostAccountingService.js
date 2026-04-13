@@ -412,10 +412,11 @@ class CostAccountingService {
    * @param {number} productionOrderId 生产订单ID
    * @returns {Object} 实际成本信息
    */
-  static async calculateActualCost(productionOrderId) {
-    const connection = await db.pool.getConnection();
+  static async calculateActualCost(productionOrderId, externalConn = null) {
+    const isExternalConn = !!externalConn;
+    const connection = externalConn || await db.pool.getConnection();
     try {
-      await connection.beginTransaction();
+      if (!isExternalConn) await connection.beginTransaction();
 
       // 获取生产任务信息
       const [orderInfo] = await connection.execute('SELECT * FROM production_tasks WHERE id = ?', [
@@ -557,8 +558,8 @@ class CostAccountingService {
 
       if (existingEntries && existingEntries.length > 0) {
         logger.info(`生产任务 ${productionOrderId} 的完工总账凭证已存在，跳过重复生成以防复数记账`);
-        await connection.commit();
-        connection.release(); // 提前返回前必须释放连接
+        if (!isExternalConn) await connection.commit();
+        if (!isExternalConn) connection.release(); // 提前返回前必须释放连接
         return {
           productionOrderId,
           productId: order.product_id,
@@ -664,7 +665,7 @@ class CostAccountingService {
         // 可以选择在这里抛出异常，强制要求配置
       }
 
-      await connection.commit();
+      if (!isExternalConn) await connection.commit();
 
       return {
         productionOrderId,
@@ -684,13 +685,13 @@ class CostAccountingService {
         },
       };
     } catch (error) {
-      if (connection) {
+      if (connection && !isExternalConn) {
          try { await connection.rollback(); } catch(rbErr) { logger.error('Rollback failed:', rbErr); }
       }
       logger.error('计算实际成本产生全局异常:', error);
       throw error;
     } finally {
-      if (connection) connection.release();
+      if (connection && !isExternalConn) connection.release();
     }
   }
 

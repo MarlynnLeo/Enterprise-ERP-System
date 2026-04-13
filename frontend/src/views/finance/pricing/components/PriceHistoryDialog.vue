@@ -91,7 +91,7 @@ const formatDateTime = (date) => date ? dayjs(date).format('YYYY-MM-DD HH:mm') :
 
 .version {
   font-weight: 600;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .history-content {
@@ -105,7 +105,7 @@ const formatDateTime = (date) => date ? dayjs(date).format('YYYY-MM-DD HH:mm') :
 
 .label {
   width: 80px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .value {
@@ -113,7 +113,7 @@ const formatDateTime = (date) => date ? dayjs(date).format('YYYY-MM-DD HH:mm') :
 }
 
 .value.adjusted {
-  color: #67c23a;
+  color: var(--color-success);
   font-weight: 600;
 }
 </style>

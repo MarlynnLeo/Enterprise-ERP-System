@@ -605,6 +605,7 @@ import { generateOutboundPrintHTML } from '@/utils/printTemplates'
 import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 export default {
   name: 'InventoryOutbound',
@@ -692,11 +693,7 @@ export default {
     })
 
     // 工具函数
-    const formatDate = (dateStr) => {
-      if (!dateStr) return ''
-      const date = new Date(dateStr)
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-    }
+    // formatDate 已统一引用公共实现
 
     const getStatusType = (status) => {
       return getInboundOutboundStatusColor(status)
@@ -1146,6 +1143,38 @@ export default {
         'cancelled': '取消'
       }
 
+      // [M-8] 完成出库时前端预检库存充足性
+      if (newStatus === 'completed') {
+        try {
+          const detailRes = await api.get(`/inventory/outbound/${row.id}`)
+          const detail = detailRes.data?.data || detailRes.data || {}
+          const items = detail.items || []
+          const insufficientList = []
+
+          for (const item of items) {
+            const stockQty = parseFloat(item.stock_quantity || item.stockQuantity || 0)
+            const outQty = parseFloat(item.quantity || 0)
+            if (outQty > stockQty) {
+              insufficientList.push(
+                `${item.material_code || item.materialCode || '?'} (${item.material_name || item.materialName || '未知'}): 需出库 ${outQty}, 库存 ${stockQty}`
+              )
+            }
+          }
+
+          if (insufficientList.length > 0) {
+            await ElMessageBox.confirm(
+              `以下物料库存不足：\n${insufficientList.join('\n')}\n\n后端将尝试FIFO分批出库，是否继续？`,
+              '库存预检警告',
+              { confirmButtonText: '继续完成', cancelButtonText: '取消', type: 'warning' }
+            )
+          }
+        } catch (checkError) {
+          if (checkError === 'cancel') return
+          // 预检失败不阻止流程，继续走后端校验
+          console.warn('出库预检失败，将依赖后端校验:', checkError)
+        }
+      }
+
       ElMessageBox.confirm(`确定要${statusText[newStatus]}此出库单吗?`, '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -1157,7 +1186,9 @@ export default {
           fetchOutboundList()
         } catch (error) {
           console.error('更新出库单状态失败:', error)
-          ElMessage.error('更新出库单状态失败')
+          // 提取后端返回的详细错误信息
+          const errorMsg = error.response?.data?.message || error.response?.data?.error || '更新出库单状态失败'
+          ElMessage.error(errorMsg)
         }
       }).catch(() => { })
     }
@@ -2372,13 +2403,13 @@ export default {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {

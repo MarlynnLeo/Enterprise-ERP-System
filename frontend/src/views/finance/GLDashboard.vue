@@ -309,18 +309,21 @@ const viewEntry = (entry) => {
 };
 
 // 货币格式化
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY'
-  }).format(value);
-};
+// formatCurrency: 使用公共实现
 
 // 日期格式化
-const formatDate = (dateString) => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  return date.toISOString().split('T')[0];
+// formatDate 已统一引用公共实现;
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
 };
 
 // 页面加载时执行
@@ -344,13 +347,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .module-card {

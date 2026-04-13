@@ -470,6 +470,7 @@ import { api, purchaseApi, baseDataApi } from '@/services/api';
 import { Plus, Search, Refresh, Select, Promotion, CircleCheck, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { searchMaterials } from '@/utils/searchConfig';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // 初始化 authStore
 const authStore = useAuthStore();
@@ -1172,23 +1173,8 @@ const confirmDelete = (row) => {
 };
 
 // 格式化日期
-const formatDate = (dateStr) => {
-  if (!dateStr) return '未知';
-  
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
-  } catch (e) {
-    console.error('日期格式化错误:', e);
-    return dateStr || '未知';
-  }
-};
+// formatDate: 使用公共实现
+
 
 // 加载申请单统计数据
 const loadRequisitionStats = async () => {
@@ -1262,13 +1248,13 @@ onActivated(async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {

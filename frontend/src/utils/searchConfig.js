@@ -31,6 +31,13 @@ export const SEARCH_CONFIG = {
  * @returns {Promise<Array>} 搜索结果
  */
 export async function searchMaterials(baseDataApi, searchTerm, options = {}) {
+  // 空值防护：searchTerm 可能为 undefined/null
+  if (!searchTerm || typeof searchTerm !== 'string') {
+    searchTerm = String(searchTerm || '')
+  }
+  searchTerm = searchTerm.trim()
+  if (!searchTerm) return []
+
   const {
     pageSize = SEARCH_CONFIG.REMOTE_SEARCH_PAGE_SIZE,
     category = null,

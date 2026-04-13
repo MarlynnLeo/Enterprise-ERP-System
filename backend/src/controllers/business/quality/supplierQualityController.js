@@ -93,7 +93,7 @@ const supplierQualityController = {
         LEFT JOIN suppliers s ON sqs.supplier_id = s.id
         WHERE sqs.supplier_id = ?
         ORDER BY sqs.period DESC
-        LIMIT ${limitStr}
+        LIMIT ${actualPageSize}
       `,
                 [supplierId]
             );

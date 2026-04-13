@@ -478,7 +478,7 @@ watch(() => props.visible, (newVal) => {
 
 .total-value {
   font-size: 18px;
-  color: #f56c6c;
+  color: var(--color-danger);
   font-weight: bold;
 }
 

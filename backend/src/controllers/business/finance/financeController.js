@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 
 const financeModel = require('../../../models/finance');
 const db = require('../../../config/db');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 /**
  * 财务总账控制器
@@ -20,7 +21,6 @@ const financeController = {
    */
   initFinanceTables: async (req, res) => {
     try {
-      const cashModel = require('../../../models/cash');
       const taxModel = require('../../../models/tax');
 
       // 创建财务所需表格
@@ -338,7 +338,7 @@ const financeController = {
         credit: parseFloat(credit) || 0,
         balanceDate,
         notes,
-        setBy: req.user?.id || 'system',
+        setBy: await getCurrentUserName(req),
       });
 
       ResponseHandler.success(res, result, '期初余额设置成功');
@@ -391,8 +391,8 @@ const financeController = {
         return ResponseHandler.error(res, '记账日期为必填项', 'VALIDATION_ERROR', 400);
       }
 
-      // 自动推断 created_by：优先使用请求体中的值，否则从登录会话获取
-      const resolvedCreatedBy = created_by || req.user?.id || req.user?.username || 'system';
+      // 自动推断 created_by：优先从数据库获取真实姓名
+      const resolvedCreatedBy = created_by || await getCurrentUserName(req);
 
       // 自动推断 period_id：优先使用请求体中的值，否则根据 entry_date 自动查找对应的开放会计期间
       let resolvedPeriodId = period_id;
@@ -685,8 +685,8 @@ const financeController = {
         return ResponseHandler.error(res, '会计分录已冲销', 'VALIDATION_ERROR', 400);
       }
 
-      // 使用当前登录用户的ID作为创建人
-      const createdBy = req.user?.id || 0; // 0 代表 system
+      // 使用当前登录用户的真实姓名作为创建人
+      const createdBy = await getCurrentUserName(req);
 
       const reversalEntryId = await financeModel.reverseEntry(id, {
         entry_date,
@@ -932,7 +932,7 @@ const financeController = {
       const PeriodEndService = require('../../../services/business/PeriodEndService'); // Lazy require or top level
 
       // 获取当前登录用户ID
-      const operatorName = req.user?.username || 'system'; // PeriodEndService needs name for closed_by
+      const operatorName = await getCurrentUserName(req); // PeriodEndService needs name for closed_by
 
       const result = await PeriodEndService.closePeriod({
         period_id: parseInt(id),

@@ -150,12 +150,6 @@ const getIconComponent = (iconName) => {
   return iconMap[iconName] || iconMap['icon-document'] || Document
 }
 
-// 获取菜单索引（用于 sub-menu）
-const getMenuIndex = (menu) => {
-  // 优先使用 path，如果没有则用 id
-  return menu.path || `menu-${menu.id}`
-}
-
 // 判断是否有可显示的子菜单（过滤掉 type=2 的按钮权限和没有 path 的项）
 const hasVisibleChildren = (menu) => {
   if (!menu.children || menu.children.length === 0) return false
@@ -163,6 +157,16 @@ const hasVisibleChildren = (menu) => {
   return menu.children.some(child => 
     child.type !== 2 && (child.path || hasVisibleChildren(child))
   )
+}
+
+// 获取菜单索引（用于 sub-menu）
+const getMenuIndex = (menu) => {
+  // 关键修复：包含子菜单时返回随机或固定id作为index，防止 router = true 触发路由跳转导致白屏
+  if (hasVisibleChildren(menu)) {
+    return `menu-${menu.id}`
+  }
+  // 优先使用 path，如果没有则用 id
+  return menu.path || `menu-${menu.id}`
 }
 
 // 获取可显示的子菜单列表（过滤掉 type=2 的按钮权限）

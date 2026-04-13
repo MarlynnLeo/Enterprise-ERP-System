@@ -339,6 +339,7 @@ import ncpApi from '@/api/nonconformingProductApi'
 import request from '@/utils/request'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // 权限store
 const authStore = useAuthStore()
@@ -455,10 +456,7 @@ const handleReset = () => {
 }
 
 // 格式化日期
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
 
 // Handle create
 const handleCreate = () => {
@@ -737,8 +735,8 @@ const fetchNcpByInspection = async (inspectionId) => {
 }
 
 :deep(.el-table th) {
-  background-color: #f5f7fa;
-  color: #606266;
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-regular);
   font-weight: 600;
 }
 
@@ -756,15 +754,15 @@ const fetchNcpByInspection = async (inspectionId) => {
 
 /* 对话框样式 */
 :deep(.el-dialog__header) {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   padding: 16px 20px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 :deep(.el-dialog__title) {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 :deep(.el-descriptions) {
@@ -773,7 +771,7 @@ const fetchNcpByInspection = async (inspectionId) => {
 
 :deep(.el-descriptions__label) {
   font-weight: 600;
-  background-color: #fafafa;
+  background-color: var(--color-bg-light);
 }
 
 :deep(.el-descriptions__content) {

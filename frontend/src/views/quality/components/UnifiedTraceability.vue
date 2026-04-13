@@ -274,6 +274,7 @@ import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
 import { api } from '@/services/api'
 import dayjs from 'dayjs'
+import { formatDateTime } from '@/utils/helpers/dateUtils'
 
 const route = useRoute()
 
@@ -583,14 +584,8 @@ const exportReport = async () => {
 }
 
 // 格式化日期时间
-const formatDateTime = (dateTime) => {
-  if (!dateTime) return '-'
-  try {
-    return dayjs(dateTime).format('YYYY-MM-DD HH:mm:ss')
-  } catch {
-    return dateTime
-  }
-}
+// formatDateTime: 使用公共实现
+
 
 // 获取数量样式
 const getQuantityClass = (quantity) => {
@@ -676,12 +671,12 @@ watch(
 
 .page-header h2 {
   margin: 0 0 10px 0;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .page-header p {
   margin: 0;
-  color: #606266;
+  color: var(--color-text-regular);
   font-size: 14px;
 }
 
@@ -695,22 +690,22 @@ watch(
 
 .test-cases {
   padding: 10px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 4px;
 }
 
 .quantity-zero {
-  color: #f56c6c;
+  color: var(--color-danger);
   font-weight: bold;
 }
 
 .quantity-low {
-  color: #e6a23c;
+  color: var(--color-warning);
   font-weight: bold;
 }
 
 .quantity-normal {
-  color: #67c23a;
+  color: var(--color-success);
   font-weight: bold;
 }
 

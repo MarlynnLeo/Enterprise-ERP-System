@@ -6,7 +6,6 @@
  */
 
 const { ResponseHandler } = require('../../utils/responseHandler');
-const { logger } = require('../../utils/logger');
 
 // 使用统一的连接池，不再自建裸连接
 const { pool } = require('../../config/db');

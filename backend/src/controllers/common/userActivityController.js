@@ -8,8 +8,6 @@
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
-const models = require('../../models');
-const { Op } = require('sequelize');
 
 // 记录用户活动
 exports.logActivity = async (req, res) => {
@@ -34,26 +32,38 @@ exports.getUserActivities = async (req, res) => {
   try {
     const userId = req.user.id;
     const { page = 1, limit = 20, category, startDate, endDate } = req.query;
+    const { AuditService } = require('../../services/AuditService');
 
-    // 模拟活动数据（实际项目中应该从数据库获取）
-    const activities = generateMockActivities(
+    // 调用真实的审计查询引擎
+    const result = await AuditService.query({
       userId,
-      parseInt(page),
-      parseInt(limit),
-      category,
+      module: category,
       startDate,
-      endDate
-    );
+      endDate,
+      page: parseInt(page) || 1,
+      pageSize: parseInt(limit) || 20,
+    });
+
+    // 适配前端期望的数据结构
+    const activities = result.list.map((log) => ({
+      id: log.id,
+      userId: log.user_id,
+      timestamp: log.created_at,
+      content: `${log.module} - ${log.action} ${log.entity_type || ''}`,
+      type: 'info', // 默认状态标
+      category: log.module,
+      createdAt: log.created_at,
+    }));
 
     return res.status(200).json({
       success: true,
       data: {
         activities,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: 100, // 模拟总数
-          totalPages: Math.ceil(100 / parseInt(limit)),
+          page: result.page,
+          limit: result.pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / result.pageSize),
         },
       },
     });
@@ -370,9 +380,23 @@ exports.exportActivities = async (req, res) => {
   try {
     const userId = req.user.id;
     const { category, startDate, endDate, format = 'csv' } = req.query;
+    const { AuditService } = require('../../services/AuditService');
 
-    // 获取活动数据
-    const activities = generateMockActivities(userId, 1, 1000, category, startDate, endDate);
+    // 导出时获取大批量数据
+    const result = await AuditService.query({
+      userId,
+      module: category,
+      startDate,
+      endDate,
+      page: 1,
+      pageSize: 5000,
+    });
+
+    const activities = result.list.map((log) => ({
+      timestamp: new Date(log.created_at).toLocaleString(),
+      content: `${log.module} - ${log.action} ${log.entity_type || ''} (${log.entity_id || ''})`,
+      category: log.module,
+    }));
 
     if (format === 'csv') {
       // 生成CSV格式
@@ -408,53 +432,5 @@ exports.exportActivities = async (req, res) => {
     return ResponseHandler.error(res, '导出失败', 'SERVER_ERROR', 500, error);
   }
 };
-
-// 生成模拟活动数据的辅助函数
-function generateMockActivities(userId, page, limit, category, startDate, endDate) {
-  const activities = [];
-  const activityTypes = ['success', 'warning', 'info', 'danger'];
-  const activityCategories = ['login', 'system', 'profile', 'task'];
-  const activityContents = {
-    login: ['用户登录系统', '用户退出系统', '密码修改成功'],
-    system: ['查看生产报表', '访问库存管理', '查看质量检验'],
-    profile: ['更新个人资料', '修改头像', '更新联系方式'],
-    task: ['创建新任务', '完成任务', '更新任务状态', '删除任务'],
-  };
-
-  const startIndex = (page - 1) * limit;
-
-  for (let i = 0; i < limit; i++) {
-    const randomCategory =
-      category || activityCategories[Math.floor(Math.random() * activityCategories.length)];
-    const randomType = activityTypes[Math.floor(Math.random() * activityTypes.length)];
-    const randomContent =
-      activityContents[randomCategory][
-        Math.floor(Math.random() * activityContents[randomCategory].length)
-      ];
-
-    // 生成随机时间
-    let randomDate;
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      randomDate = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
-    } else {
-      randomDate = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000); // 最近30天
-    }
-
-    activities.push({
-      id: startIndex + i + 1,
-      userId,
-      timestamp: randomDate.toLocaleString(),
-      content: randomContent,
-      type: randomType,
-      category: randomCategory,
-      createdAt: randomDate,
-    });
-  }
-
-  // 按时间倒序排列
-  return activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-}
 
 module.exports = exports;

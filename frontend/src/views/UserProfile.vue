@@ -209,6 +209,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
+import { formatDate } from '@/utils/helpers/dateUtils'
 import {
   User, Lock, List, Brush, Clock, TrendCharts, StarFilled,
   Sunny, Moon, Monitor, Reading, Check, RefreshRight
@@ -568,9 +569,8 @@ const formatOnlineTime = (seconds) => {
   return `${h}小时${m}分钟`
 }
 
-const formatDate = (date) => {
-  return new Date(date).toLocaleString()
-}
+// formatDate 已统一引用公共实现
+
 </script>
 
 <style scoped>

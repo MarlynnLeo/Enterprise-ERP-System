@@ -528,6 +528,7 @@
 
 <script setup>
 import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -559,11 +560,7 @@ const getStatusLabel = (status) => {
 };
 
 // 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('zh-CN');
-};
+// formatDate 已统一引用公共实现;
 
 // 搜索表单
 const searchForm = reactive({
@@ -1217,13 +1214,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -1267,7 +1264,7 @@ onMounted(() => {
 
 .total-value {
   font-size: 18px;
-  color: #f56c6c;
+  color: var(--color-danger);
   font-weight: bold;
   margin-left: 10px;
 }

@@ -117,7 +117,7 @@
               编辑
             </el-button>
             <el-dropdown v-if="scope.row.status !== 'cancelled' && scope.row.status !== 'completed'">
-              <el-button size="small" type="success">
+              <el-button size="small" type="primary" plain>
                 更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
               </el-button>
               <template #dropdown>
@@ -1059,21 +1059,18 @@ onMounted(() => {
 }
 
 .stats-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: var(--spacing-lg);
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 15px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .stat-box {
-  flex: 1;
-  min-width: 120px;
   text-align: center;
   padding: 15px 5px;
   border-radius: var(--radius-sm);
   background-color: #f4f8fd;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border-lighter);
 }
 
 .stat-number {
@@ -1094,7 +1091,7 @@ onMounted(() => {
 }
 
 .text-danger {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 /* 详情对话框长文本处理 - 自动添加 */

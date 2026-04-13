@@ -30,13 +30,27 @@ const batchPayments = async (req, res) => {
     for (let i = 0; i < payments.length; i++) {
       const item = payments[i];
       try {
+        // [B-2] 批量付款也必须执行核心业务校验（与单笔付款对齐）
+        const invoice = await apModel.getInvoiceById(item.invoiceId);
+        if (!invoice) {
+          throw new Error(`发票ID ${item.invoiceId} 不存在`);
+        }
+        if (invoice.status === '已付款') {
+          throw new Error(`发票 ${invoice.invoiceNumber || item.invoiceId} 已全额付款`);
+        }
+        const balanceCents = Math.round(parseFloat(invoice.balance || invoice.balance_amount || 0) * 100);
+        const amountCents = Math.round(parseFloat(item.amount || 0) * 100);
+        if (amountCents > balanceCents) {
+          throw new Error(`付款金额 ${item.amount} 超过发票余额 ${invoice.balance || invoice.balance_amount || 0}`);
+        }
+
         // 生成单个付款单号
         const paymentNumber = `${batchNumber}-${i + 1}`;
 
         const paymentData = {
           payment_number: paymentNumber,
-          supplier_id: item.supplierId,
-          supplier_name: item.supplierName,
+          supplier_id: item.supplierId || invoice.supplierId || invoice.supplier_id,
+          supplier_name: item.supplierName || invoice.supplierName || invoice.supplier_name,
           payment_date: paymentDate,
           total_amount: item.amount,
           payment_method: paymentMethod,

@@ -238,6 +238,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { api } from '@/services/api'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // ========== 数据 ==========
 const loading = ref(false)
@@ -301,10 +302,7 @@ const formatMoney = (val) => {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(num)
 }
 
-const formatDate = (val) => {
-  if (!val) return '-'
-  return String(val).substring(0, 10)
-}
+// formatDate 已统一引用公共实现
 
 const getProgressPercent = (row) => {
   const budget = parseFloat(row.budget || 0)

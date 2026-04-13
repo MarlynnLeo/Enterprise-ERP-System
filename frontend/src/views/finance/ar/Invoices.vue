@@ -1149,9 +1149,14 @@ onMounted(() => {
 });
 
 // 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-  return `¥${Number(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+// formatCurrency 已统一引用公共实现;
+
+// 金额格式化
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '¥0.00';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '¥0.00';
+  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 获取支付方式文本
@@ -1289,13 +1294,13 @@ const handlePrint = async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .table-container {
@@ -1346,7 +1351,7 @@ const handlePrint = async () => {
 .total-amount {
   font-weight: bold;
   font-size: 16px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--color-border-lighter);
   padding-top: 10px;
 }
 
@@ -1361,7 +1366,7 @@ const handlePrint = async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border-lighter);
   padding-bottom: 15px;
 }
 

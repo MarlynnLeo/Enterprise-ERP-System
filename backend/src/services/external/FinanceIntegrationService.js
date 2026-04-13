@@ -426,13 +426,14 @@ class FinanceIntegrationService {
   /**
    * 生成采购红字发票
    */
-  static async generateAPCreditNoteFromPurchaseReturn(purchaseReturn) {
+  static async generateAPCreditNoteFromPurchaseReturn(purchaseReturn, externalConn = null) {
     const autoGenerate = await SystemConfigService.get('auto_generate_ap_credit_note', true);
     if (!autoGenerate) return { skipped: true, message: '功能已关闭' };
 
-    const connection = await db.pool.getConnection();
+    const isExternalConn = !!externalConn;
+    const connection = externalConn || await db.pool.getConnection();
     try {
-      await connection.beginTransaction();
+      if (!isExternalConn) await connection.beginTransaction();
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['ACCOUNTS_PAYABLE', 'GR_IR']);
       const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
@@ -444,7 +445,7 @@ class FinanceIntegrationService {
         ['purchase_return', purchaseReturn.id]
       );
       if (existing.length > 0) {
-        await connection.rollback();
+        if (!isExternalConn) await connection.rollback();
         return { skipped: true, message: '已存在对应单据的应付红字发票' };
       }
 
@@ -465,7 +466,7 @@ class FinanceIntegrationService {
       );
 
       if (returnItems.length === 0) {
-        await connection.rollback();
+        if (!isExternalConn) await connection.rollback();
         return { skipped: true, message: '无明细' };
       }
 
@@ -473,7 +474,7 @@ class FinanceIntegrationService {
       const totalAmount = returnItems.reduce((sum, item) => sum + Math.round(parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0) * 100), 0) / 100;
       const creditNoteAmount = -Math.abs(totalAmount);
       if (totalAmount === 0) {
-        await connection.rollback();
+        if (!isExternalConn) await connection.rollback();
         return { skipped: true, message: '金额为0' };
       }
 
@@ -505,13 +506,13 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await apModel.createInvoice(invoiceData, connection);
-      await connection.commit();
+      if (!isExternalConn) await connection.commit();
       return { invoiceId, invoiceNumber, amount: creditNoteAmount };
     } catch (error) {
-      await connection.rollback();
+      if (!isExternalConn) await connection.rollback();
       throw error;
     } finally {
-      connection.release();
+      if (!isExternalConn) connection.release();
     }
   }
 

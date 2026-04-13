@@ -2,6 +2,7 @@ const NonconformingProductService = require('../../../services/business/Nonconfo
 const NonconformingProduct = require('../../../models/nonconformingProduct');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 /**
  * Get NCP list
@@ -203,7 +204,7 @@ const applyConcession = async (req, res) => {
     const { reason } = req.body;
 
     // Retrieve applicant from authenticated user
-    const applicant = req.user?.real_name || req.user?.username || 'system';
+    const applicant = await getCurrentUserName(req);
 
     if (!reason) {
       return ResponseHandler.error(res, '请提供特采申请理由', 'BAD_REQUEST', 400);
@@ -226,13 +227,13 @@ const approveConcession = async (req, res) => {
     const { status } = req.body; // 'approved' or 'rejected'
 
     // Retrieve approver from authenticated user
-    const approverId = req.user?.id || null;
-    const approverName = req.user?.real_name || req.user?.username || 'system';
+    const approverName = await getCurrentUserName(req);
 
     if (!['approved', 'rejected'].includes(status)) {
       return ResponseHandler.error(res, '审批状态必须为 approved 或 rejected', 'BAD_REQUEST', 400);
     }
 
+    const approverId = req.user?.id || 1; // Fallback to 1 if missing for backwards compatibility where ID was expected
     await NonconformingProductService.approveConcession(id, { status, approverId, approverName });
     return ResponseHandler.success(res, null, `特采审批已${status === 'approved' ? '通过' : '驳回'}`);
   } catch (error) {

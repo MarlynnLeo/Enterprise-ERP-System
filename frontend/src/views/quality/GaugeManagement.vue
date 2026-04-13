@@ -398,8 +398,8 @@ onMounted(fetchData);
 .stat-card { cursor: pointer; }
 .stat-card .el-card__body { display: flex; justify-content: space-between; align-items: center; }
 .stat-content { text-align: left; }
-.stat-number { font-size: 28px; font-weight: 700; color: #303133; }
-.stat-label { font-size: 13px; color: #909399; margin-top: 4px; }
+.stat-number { font-size: 28px; font-weight: 700; color: var(--color-text-primary); }
+.stat-label { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
 .stat-icon { font-size: 40px; opacity: 0.6; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .search-container { margin-bottom: 20px; }

@@ -315,13 +315,13 @@ onUnmounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-card {
@@ -344,9 +344,9 @@ onUnmounted(() => {
   text-align: center;
   padding: 10px 0;
 }
-.text-blue { color: #409EFF; }
-.text-green { color: #67C23A; }
-.text-red { color: #F56C6C; }
+.text-blue { color: var(--color-primary); }
+.text-green { color: var(--color-success); }
+.text-red { color: var(--color-danger); }
 
 .chart-container {
   position: relative;

@@ -461,7 +461,7 @@ import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue';
 import { useSnackbar } from '@/composables/useSnackbar';
 import { purchaseApi, qualityApi, baseDataApi } from '@/services/api';
 import api from '@/services/api';
-import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
+import { formatCurrency } from '@/utils/helpers/formatters';
 import { ElMessage } from 'element-plus'
 import axios from 'axios';
 import { useRoute } from 'vue-router';
@@ -1004,8 +1004,14 @@ function getStatusType(status) {
 
 // 方法：格式化日期
 function formatDate(date) {
-  if (!date) return '';
-  return formatDateUtil(date);
+  if (!date) return '-';
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return date;
+    return d.toISOString().split('T')[0];
+  } catch {
+    return date;
+  }
 }
 
 // 方法：打开创建收货单对话框
@@ -1450,11 +1456,6 @@ const cancelReceipt = async (receipt) => {
   }
 };
 
-// 格式化货币金额
-const formatCurrency = (value) => {
-  if (!value) return '¥0.00';
-  return '¥' + parseFloat(value).toFixed(2);
-};
 
 // 加载收货单统计数据
 const loadReceiptStats = async () => {

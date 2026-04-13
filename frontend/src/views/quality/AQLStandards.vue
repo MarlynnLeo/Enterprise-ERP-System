@@ -338,9 +338,18 @@ const handleCurrentChange = (val) => {
   fetchData();
 };
 
-const formatDate = (date) => {
-  if (!date) return '-';
-  return dayjs(date).format('YYYY-MM-DD HH:mm:ss');
+// formatDate 已统一引用公共实现;
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
 };
 
 // ---- Lifecycle ----

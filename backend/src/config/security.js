@@ -45,6 +45,7 @@ const RATE_LIMIT_CONFIG = {
     message: {
       success: false,
       message: '请求过于频繁，请稍后再试',
+      code: 'RATE_LIMIT_EXCEEDED',
     },
     standardHeaders: true,
     legacyHeaders: false,
@@ -61,6 +62,7 @@ const RATE_LIMIT_CONFIG = {
     message: {
       success: false,
       message: '登录尝试次数过多，请15分钟后再试',
+      code: 'AUTH_RATE_LIMIT_EXCEEDED',
     },
     skipSuccessfulRequests: true,
   },
@@ -132,6 +134,8 @@ const DATABASE_CONFIG = {
 };
 
 // CORS 配置
+// @deprecated — 此配置未被任何模块消费，实际CORS配置在 app.js 中内联定义
+// TODO: 下个版本移除此常量，将 app.js 中的 CORS 配置迁移至此处统一管理
 const CORS_CONFIG = {
   origin: function (origin, callback) {
     // 从环境变量获取允许的源，如果未设置则根据环境使用默认值

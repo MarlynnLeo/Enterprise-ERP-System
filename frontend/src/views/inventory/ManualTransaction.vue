@@ -634,6 +634,10 @@ import { parseListData } from '@/utils/responseParser'
 
 const authStore = useAuthStore()
 
+// 权限控制
+const canApprove = computed(() => authStore.hasPermission('inventory:manualtransaction:approve'))
+const canDelete = computed(() => authStore.hasPermission('inventory:manualtransaction:delete'))
+
 // 业务类型列表
 const businessTypes = ref([])
 const businessTypesMap = ref({})
@@ -1540,13 +1544,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .manual-transaction-container {
@@ -1606,7 +1610,7 @@ onMounted(() => {
 }
 
 .materials-list :deep(.el-table__empty-text) {
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 13px;
 }
 

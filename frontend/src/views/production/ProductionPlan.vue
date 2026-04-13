@@ -182,9 +182,18 @@ const updatePlanStats = (statistics) => {
 };
 
 // 格式化日期
-const formatDate = (date) => {
-  if (!date) return '-';
-  return dayjs(date).format('YYYY-MM-DD');
+// formatDate 已统一引用公共实现;
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
 };
 
 // 层级标签颜色 - L1蓝色, L2橙色, L3+紫色
@@ -340,17 +349,7 @@ const fetchPlanList = async (force = false) => {
 
 // ===== 产品搜索相关函数 =====
 // 防抖函数
-const debounce = (func, wait) => {
-  let timeout
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout)
-      func(...args)
-    }
-    clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
-  }
-}
+import { debounce } from '@/utils/commonHelpers'
 
 // 搜索产品状态记录
 let currentSearchId = 0
@@ -2080,13 +2079,13 @@ const formatMaterialForDisplay = (material) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {

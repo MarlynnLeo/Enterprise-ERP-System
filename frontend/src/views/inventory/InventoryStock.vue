@@ -568,6 +568,7 @@ import { getDocumentType as getDocTypeHelper } from '@/constants/documentTypes'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useRouter } from 'vue-router'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
+import { debounce } from '@/utils/commonHelpers'
 
 // 权限store
 const authStore = useAuthStore()
@@ -576,18 +577,7 @@ const router = useRouter()
 // 权限计算属性
 const canEdit = computed(() => authStore.hasPermission && authStore.hasPermission('inventory:stock:edit'));
 
-// 防抖函数
-function debounce(func, wait) {
-  let timeout
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout)
-      func(...args)
-    }
-    clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
-  }
-}
+
 
 // 数据定义
 const searchQuery = ref('')
@@ -1290,13 +1280,13 @@ const isOutOfStock = (row) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -1352,7 +1342,7 @@ const isOutOfStock = (row) => {
 /* 高级筛选区域 */
 .advanced-filter {
   padding: 15px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: 4px;
   margin-top: 15px;
 }
@@ -1436,7 +1426,7 @@ const isOutOfStock = (row) => {
 .dialog-header span {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 /* 操作按钮 */

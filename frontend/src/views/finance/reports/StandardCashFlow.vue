@@ -203,11 +203,14 @@ const formatAmount = (amount) => {
 };
 
 // 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === null || amount === undefined) return '¥0.00';
-  const num = parseFloat(amount);
+// formatCurrency 已统一引用公共实现;
+
+// 金额格式化
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '¥0.00';
+  const num = parseFloat(value);
   if (isNaN(num)) return '¥0.00';
-  return `¥${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 格式化报表期间
@@ -300,7 +303,7 @@ onMounted(() => {
 <style scoped>
 .report-container {
   padding: 20px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   min-height: 100vh;
 }
 
@@ -318,13 +321,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 4px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-card {
@@ -354,21 +357,21 @@ onMounted(() => {
 .stat-value {
   font-size: 20px;
   font-weight: bold;
-  color: #303133;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 
 .stat-value.positive {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .stat-value.negative {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .stat-label {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .data-card {
@@ -379,31 +382,31 @@ onMounted(() => {
   text-align: center;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border-lighter);
 }
 
 .company-name {
   font-size: 18px;
   font-weight: bold;
-  color: #303133;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 
 .report-title {
   font-size: 16px;
   font-weight: bold;
-  color: #606266;
+  color: var(--color-text-regular);
   margin-bottom: 4px;
 }
 
 .report-period {
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .report-unit {
   font-size: 12px;
-  color: #c0c4cc;
+  color: var(--color-text-placeholder);
   margin-top: 4px;
 }
 
@@ -415,15 +418,15 @@ onMounted(() => {
 
 .cash-flow-table th,
 .cash-flow-table td {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border-lighter);
   padding: 12px;
 }
 
 .cash-flow-table th {
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   font-weight: bold;
   text-align: center;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .row-num-column {
@@ -441,12 +444,12 @@ onMounted(() => {
 
 .row-num {
   text-align: center;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .item-name {
   text-align: left;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .item-name.indent {
@@ -456,11 +459,11 @@ onMounted(() => {
 .amount-cell {
   text-align: right;
   font-family: 'Courier New', monospace;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .amount-cell.negative {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .header-row {
@@ -469,7 +472,7 @@ onMounted(() => {
 
 .header-row .item-name {
   font-weight: bold;
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .total-row {
@@ -479,11 +482,11 @@ onMounted(() => {
 .total-row .item-name,
 .total-row .amount-cell {
   font-weight: bold;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .detail-row:hover {
-  background: #fafafa;
+  background: var(--color-bg-light);
 }
 
 @media print {

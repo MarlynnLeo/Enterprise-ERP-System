@@ -465,12 +465,12 @@ onMounted(() => {
 .title-section h2 {
   margin: 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 5px 0 0;
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
@@ -491,7 +491,7 @@ onMounted(() => {
   margin-bottom: 24px;
   padding: 20px 24px;
   background-color: #ffff;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border-lighter);
   border-radius: 8px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
   cursor: pointer;
@@ -509,7 +509,7 @@ onMounted(() => {
   height: 48px;
   border-radius: 50%;
   background: #ecf5ff;
-  color: #409eff;
+  color: var(--color-primary);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -529,7 +529,7 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 6px;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .cost-label-row .label-text {
@@ -539,7 +539,7 @@ onMounted(() => {
 .cost-value-row {
   display: flex;
   align-items: baseline;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .cost-value-row .currency {
@@ -560,7 +560,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding-left: 20px;
-  border-left: 1px solid #ebeef5;
+  border-left: 1px solid var(--color-border-lighter);
 }
 
 /* Strategy Styles */
@@ -572,7 +572,7 @@ onMounted(() => {
 
 .strategy-tag {
   background: #ecf5ff;
-  color: #409eff;
+  color: var(--color-primary);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;
@@ -596,7 +596,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  background: #f5f7fa;
+  background: var(--color-bg-hover);
   border-radius: 6px;
   margin-bottom: 8px;
 }
@@ -604,7 +604,7 @@ onMounted(() => {
 .strategy-field-compact .field-name {
   flex: 1;
   font-size: 13px;
-  color: #606266;
+  color: var(--color-text-regular);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -612,13 +612,13 @@ onMounted(() => {
 
 .strategy-field-compact .field-unit {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
   min-width: 24px;
 }
 
 .form-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-top: 4px;
 }
 </style>

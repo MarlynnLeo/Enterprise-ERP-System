@@ -155,6 +155,7 @@
 <script setup>
 import { ReportHelper } from '@/utils/commonHelpers'
 import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -331,12 +332,7 @@ const prepareExcelData = (data, sectionTitle) => {
 };
 
 // 格式化日期
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  
-  const date = new Date(dateString);
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-};
+// formatDate 已统一引用公共实现;
 
 // 格式化金额
 const formatAmount = (amount) => {
@@ -380,13 +376,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .header-actions {

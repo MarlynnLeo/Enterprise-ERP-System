@@ -699,8 +699,8 @@ const handleFailedInspectionResult = async (inspectionId, unqualifiedQty) => {
 .measure-grid .el-input { width: 55px; flex: 0 0 auto; }
 
 .average-value-display { text-align: center; font-weight: bold; font-size: 13px; }
-.average-value-display .value-passed { color: #67C23A; }
-.average-value-display .value-failed { color: #F56C6C; }
+.average-value-display .value-passed { color: var(--color-success); }
+.average-value-display .value-failed { color: var(--color-danger); }
 
 /* 结果选择器样式 */
 :deep(.result-select-passed .el-input__wrapper) { background-color: #f0f9ff !important; border-color: var(--color-success) !important; box-shadow: 0 0 0 1px #67C23A inset !important; }

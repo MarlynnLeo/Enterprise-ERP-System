@@ -1,4 +1,4 @@
-/**
+﻿/**
  * purchaseReturnController.js
  * @description 控制器文件
  * @date 2025-08-27
@@ -504,7 +504,7 @@ const updateReturnStatus = async (req, res) => {
       if (warehouseId) {
         for (const item of itemsResult) {
           const [stockCheck] = await connection.query(
-            'SELECT COALESCE(SUM(quantity), 0) as qty FROM inventory_ledger WHERE material_id = ? AND location_id = ?',
+            'SELECT COALESCE(SUM(quantity), 0) as qty FROM inventory_ledger WHERE material_id = ? AND location_id = ? FOR UPDATE',
             [item.material_id, warehouseId]
           );
           if (parseFloat(stockCheck[0].qty) > 0) {
@@ -527,7 +527,7 @@ const updateReturnStatus = async (req, res) => {
           const stockQuery = `
             SELECT COALESCE(SUM(quantity), 0) as current_quantity
             FROM inventory_ledger
-            WHERE material_id = ? AND location_id = ?
+            WHERE material_id = ? AND location_id = ? FOR UPDATE
           `;
           const [stockResult] = await connection.query(stockQuery, [item.material_id, warehouseId]);
 

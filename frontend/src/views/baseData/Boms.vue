@@ -99,6 +99,7 @@
         :canApprove="canApprove"
         @view="handleView"
         @edit="handleEdit"
+        @upgrade="handleUpgrade"
         @delete="handleDelete"
         @approve="handleApprove"
         @unapprove="handleUnapprove"
@@ -173,10 +174,10 @@
       destroy-on-close
     >
       <el-form label-width="100px">
-        <el-form-item label="选择BOM">
+        <el-form-item label="选择源BOM">
           <el-select
             v-model="copySelectedBomId"
-            placeholder="请选择要复制的BOM"
+            placeholder="请选择要复制的源BOM"
             filterable
             style="width: 100%"
           >
@@ -188,13 +189,40 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="目标产品" required>
+          <el-select
+            v-model="copyTargetProductId"
+            placeholder="请选择目标产品编码"
+            clearable
+            filterable
+            remote
+            reserve-keyword
+            :remote-method="searchProductsForCopy"
+            :loading="loadingProductsForCopy"
+            no-data-text="没有找到匹配的产品"
+            loading-text="搜索中..."
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in copyProductOptions"
+              :key="item.id"
+              :label="`${item.code} - ${item.name}`"
+              :value="item.id">
+              <span style="float: left">{{ item.code }}</span>
+              <span style="float: right; color: #8492a6; font-size: 13px">{{ item.name }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="版本号" required>
+          <el-input v-model="copyTargetVersion" placeholder="请输入版本号" />
+        </el-form-item>
         <el-form-item>
-          <el-text type="info" size="small">复制将创建一个新的BOM副本，版本号自动添加"-副本"后缀</el-text>
+          <el-text type="info" size="small">将原BOM配置完全复制给目标产品作为新版本</el-text>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="copyDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="copyLoading" :disabled="!copySelectedBomId" @click="executeCopyBom">确认复制</el-button>
+        <el-button type="primary" :loading="copyLoading" :disabled="!copySelectedBomId || !copyTargetProductId || !copyTargetVersion" @click="executeCopyBom">确认复制</el-button>
       </template>
     </el-dialog>
 
@@ -244,6 +272,10 @@ const locateKeyword = ref('');
 // 复制弹窗状态
 const copyDialogVisible = ref(false);
 const copySelectedBomId = ref(null);
+const copyTargetProductId = ref(null);
+const copyTargetVersion = ref('V1.0');
+const copyProductOptions = ref([]);
+const loadingProductsForCopy = ref(false);
 const copyLoading = ref(false);
 
 const searchForm = reactive({
@@ -350,6 +382,24 @@ const handleEdit = async (row) => {
     dialogVisible.value = true;
   } catch (error) {
     ElMessage.error('获取详情失败');
+  }
+};
+
+// 升版操作：先审核当前BOM，再打开编辑（后端自动触发版本升级+历史保留）
+const handleUpgrade = async (row) => {
+  try {
+    // 先审核当前草稿
+    await bomApi.approveBom(row.id);
+    ElMessage.success('已审核当前版本，正在进入升版编辑...');
+    
+    // 审核后再调用编辑（后端检测到已审核状态，会自动走升版分支）
+    const detail = await bomApi.getBom(row.id);
+    const bomData = parseDataObject(detail);
+    dialogTitle.value = 'BOM升版';
+    currentEditBom.value = bomData;
+    dialogVisible.value = true;
+  } catch (error) {
+    ElMessage.error(error.message || '升版操作失败');
   }
 };
 
@@ -516,6 +566,24 @@ const handleLocatePart = async () => {
   }
 };
 
+// 搜索供复制BOM的目标产品
+const searchProductsForCopy = async (query) => {
+  if (query) {
+    loadingProductsForCopy.value = true;
+    try {
+      const res = await materialApi.getMaterials({ keyword: query, page: 1, pageSize: 20 });
+      copyProductOptions.value = parseListData(res);
+    } catch (error) {
+      console.error('搜索产品失败:', error);
+      copyProductOptions.value = [];
+    } finally {
+      loadingProductsForCopy.value = false;
+    }
+  } else {
+    copyProductOptions.value = [];
+  }
+};
+
 // 复制BOM - 打开选择弹窗
 const handleCopyBom = () => {
   if (tableData.value.length === 0) {
@@ -528,13 +596,24 @@ const handleCopyBom = () => {
   } else {
     copySelectedBomId.value = null;
   }
+  copyTargetProductId.value = null;
+  copyTargetVersion.value = 'V1.0';
+  copyProductOptions.value = [];
   copyDialogVisible.value = true;
 };
 
 // 执行复制BOM
 const executeCopyBom = async () => {
   if (!copySelectedBomId.value) {
-    ElMessage.warning('请选择要复制的BOM');
+    ElMessage.warning('请选择要复制的源BOM');
+    return;
+  }
+  if (!copyTargetProductId.value) {
+    ElMessage.warning('请选择目标产品');
+    return;
+  }
+  if (!copyTargetVersion.value) {
+    ElMessage.warning('请输入目标版本号');
     return;
   }
   
@@ -545,11 +624,11 @@ const executeCopyBom = async () => {
     const bomResponse = await bomApi.getBom(bomId);
     const bomData = parseDataObject(bomResponse);
     
-    // 创建副本：版本号添加"-副本"后缀
+    // 创建副本给新产品
     const newBom = {
-      product_id: bomData.product_id,
-      version: (bomData.version || 'V1') + '-副本',
-      remark: `复制自 BOM #${bomId}: ${bomData.remark || ''}`
+      product_id: copyTargetProductId.value,
+      version: copyTargetVersion.value,
+      remark: `复制自 BOM #${bomId} (${bomData.product_code || ''} ${bomData.version || ''})`
     };
     
     const details = Array.isArray(bomData.details) ? bomData.details.map(d => ({

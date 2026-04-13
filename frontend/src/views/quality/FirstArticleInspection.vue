@@ -136,6 +136,7 @@ import { ElMessage } from 'element-plus'
 import { qualityApi } from '@/api/quality'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // 权限store
 const authStore = useAuthStore()
@@ -145,6 +146,18 @@ import {
   getFirstArticleResultText,
   getFirstArticleResultColor
 } from '@/constants/systemConstants'
+
+// 状态选项
+const statusOptions = [
+  { label: '待检验', value: 'pending' },
+  { label: '合格', value: 'passed' },
+  { label: '不合格', value: 'failed' },
+  { label: '有条件放行', value: 'conditional' },
+  { label: '复检', value: 'review' }
+]
+
+const getResultText = (status) => getFirstArticleResultText(status) || status
+const getResultType = (status) => getFirstArticleResultColor(status)
 
 // 异步加载子组件
 const CreateDialog = defineAsyncComponent(() => import('./components/FirstArticleCreateDialog.vue'))
@@ -431,19 +444,7 @@ const handleInspectSuccess = () => {
 }
 
 // 格式化日期
-const formatDate = (date) => date ? dayjs(date).format('YYYY-MM-DD') : '-'
-
-// 状态映射 - 使用统一常量
-const getResultType = getFirstArticleResultColor
-const getResultText = getFirstArticleResultText
-
-// 状态选项 - 用于下拉框
-const statusOptions = Object.entries(FIRST_ARTICLE_RESULT).map(([value, label]) => ({ value, label }))
-
-onMounted(() => {
-  fetchList()
-  fetchStats()
-})
+// formatDate 已统一引用公共实现)
 </script>
 
 <style scoped>
@@ -470,15 +471,15 @@ onMounted(() => {
 .stat-value {
   font-size: 28px;
   font-weight: bold;
-  color: #303133;
+  color: var(--color-text-primary);
 }
-.stat-value.pending { color: #909399; }
-.stat-value.passed { color: #67c23a; }
-.stat-value.failed { color: #f56c6c; }
-.stat-value.conditional { color: #e6a23c; }
+.stat-value.pending { color: var(--color-text-secondary); }
+.stat-value.passed { color: var(--color-success); }
+.stat-value.failed { color: var(--color-danger); }
+.stat-value.conditional { color: var(--color-warning); }
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-top: 8px;
 }
 </style>

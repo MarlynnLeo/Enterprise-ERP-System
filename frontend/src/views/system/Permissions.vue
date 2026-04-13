@@ -2196,13 +2196,13 @@ onMounted(async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .card-header {
@@ -2325,7 +2325,7 @@ onMounted(async () => {
 
 .example-content {
   padding: 5px;
-  background-color: #fafafa;
+  background-color: var(--color-bg-light);
   border-radius: var(--radius-sm);
 }
 
@@ -2394,7 +2394,7 @@ onMounted(async () => {
 
 /* 添加鼠标悬停效果 */
 :deep(.el-tree-node__content:hover) {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
 }
 
 /* 优化二级菜单样式 */
@@ -2452,7 +2452,7 @@ onMounted(async () => {
 
 /* 修复权限树样式问题 */
 .tree-wrapper {
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--color-border-light);
   border-radius: var(--radius-sm);
   padding: 10px;
   background-color: #fff;
@@ -2468,7 +2468,7 @@ onMounted(async () => {
 }
 
 :deep(.el-tree-node__content:hover) {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
 }
 
 /* 修复展开图标样式 */
@@ -2498,7 +2498,7 @@ onMounted(async () => {
 }
 
 :deep(.el-tree-node__children .el-tree-node__content) {
-  background-color: #fafafa;
+  background-color: var(--color-bg-light);
   border-left: 2px solid #e6e6e6;
   margin-left: 8px;
   padding-left: 12px;

@@ -88,7 +88,7 @@
               <el-button @click="handleRefresh" :loading="loading">
                 <el-icon v-if="!loading"><Refresh /></el-icon>重置
               </el-button>
-              <el-button type="primary" @click="createDialogVisible = true">
+              <el-button type="primary" v-if="canCreate" @click="createDialogVisible = true">
                 <el-icon><Plus /></el-icon>新增
               </el-button>
             </div>
@@ -164,13 +164,13 @@
           <template #default="scope">
             <el-button size="small" @click="handleView(scope.row)">查看</el-button>
             <el-button
-              v-if="scope.row.status === 'pending'"
+              v-if="scope.row.status === 'pending' && canInspect"
               size="small"
               type="primary"
               @click="handleInspect(scope.row)"
             >检验</el-button>
             <el-button
-              v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allow_reinspection"
+              v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allow_reinspection && canInspect"
               size="small"
               type="primary"
               @click="handleReview(scope.row)"
@@ -255,6 +255,7 @@ import { parsePaginatedData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { getQualityStatusText, getQualityStatusColor } from '@/constants/systemConstants'
 import { extractMaterialNameSimple, extractSupplierNameSimple, extractMaterialSpecsSimple, fetchInspectionDetailWithItems } from '@/utils/inspectionHelpers'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // 子组件
 import CreateInspectionDialog from './components/CreateInspectionDialog.vue'
@@ -262,9 +263,16 @@ import InspectDialog from './components/InspectDialog.vue'
 import ReviewDialog from './components/ReviewDialog.vue'
 import DetailDialog from './components/DetailDialog.vue'
 import ReportDialog from './components/ReportDialog.vue'
+import { computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
 // ===== 搜索相关 =====
+const authStore = useAuthStore()
 const searchKeyword = ref('')
+
+// 权限控制
+const canCreate = computed(() => authStore.hasPermission('quality:incoming:create') || authStore.isAdmin)
+const canInspect = computed(() => authStore.hasPermission('quality:incoming:inspect') || authStore.isAdmin)
 const statusFilter = ref('')
 const dateRange = ref([])
 
@@ -463,10 +471,7 @@ const getReworkHintText = (inspectionId) => {
 }
 
 // ===== 辅助函数 =====
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
 
 // ===== 搜索/分页操作 =====
 const handleSearch = () => { currentPage.value = 1; fetchData() }

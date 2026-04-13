@@ -224,7 +224,8 @@ import Chart from 'chart.js/auto';
 import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { qualityApi } from '@/services/api';
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/stores/auth';
+import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig';
 
 // 权限store
 const authStore = useAuthStore()
@@ -288,11 +289,19 @@ function handleCurrentChange(page) {
 }
 
 // 格式化日期
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('zh-CN');
-}
+// formatDate 已统一引用公共实现
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
+};
 
 // 获取检验类型文本
 function getInspectionTypeText(type) {
@@ -477,6 +486,18 @@ async function initPassRateChart() {
         finalData = Array(monthCount).fill(0).map(() => 97 + Math.random() * 3);
       }
       
+      const config = createLineChartConfig({
+        yAxisFormatter: function(value) { return value + '%'; },
+        tooltipFormatter: function(context) {
+          let label = context.dataset.label || '';
+          if (label) { label += ': '; }
+          label += context.raw.toFixed(2) + '%';
+          return label;
+        }
+      });
+      config.scales.y.min = 0;
+      config.scales.y.max = 100;
+      
       passRateChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -485,64 +506,33 @@ async function initPassRateChart() {
             {
               label: '来料检验',
               data: incomingData,
-              borderColor: '#409EFF',
-              backgroundColor: 'rgba(64, 158, 255, 0.1)',
+              borderColor: chartColors.primary[0],
+              backgroundColor: 'rgba(58, 122, 242, 0.1)',
               borderWidth: 2,
-              tension: 0.4,
+              ...config.elements.line,
               fill: false
             },
             {
               label: '过程检验',
               data: processData,
-              borderColor: '#67C23A',
-              backgroundColor: 'rgba(103, 194, 58, 0.1)',
+              borderColor: chartColors.success[0],
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
               borderWidth: 2,
-              tension: 0.4,
+              ...config.elements.line,
               fill: false
             },
             {
               label: '成品检验',
               data: finalData,
-              borderColor: '#909399',
-              backgroundColor: 'rgba(144, 147, 153, 0.1)',
+              borderColor: chartColors.warning[0],
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
               borderWidth: 2,
-              tension: 0.4,
+              ...config.elements.line,
               fill: false
             }
           ]
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top',
-            },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  let label = context.dataset.label || '';
-                  if (label) {
-                    label += ': ';
-                  }
-                  label += context.raw.toFixed(2) + '%';
-                  return label;
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              min: 0,
-              max: 100,
-              ticks: {
-                callback: function(value) {
-                  return value + '%';
-                }
-              }
-            }
-          }
-        }
+        options: config
       });
     }
   } catch (error) {
@@ -579,15 +569,25 @@ async function initDefectTypeChart() {
         console.warn('获取不良原因分类数据失败，使用默认数据:', error);
       }
       
-      // 颜色配置
+      // 颜色配置重置为新版科幻组合
       const backgroundColors = [
-        'rgba(255, 99, 132, 0.7)',
-        'rgba(54, 162, 235, 0.7)',
-        'rgba(255, 206, 86, 0.7)',
-        'rgba(75, 192, 192, 0.7)',
-        'rgba(153, 102, 255, 0.7)',
-        'rgba(255, 159, 64, 0.7)'
+        chartColors.primary[0],
+        chartColors.success[0],
+        chartColors.warning[0],
+        chartColors.primary[2],
+        chartColors.danger[0],
+        chartColors.info[0]
       ];
+      
+      const config = createPieChartConfig({
+        tooltipFormatter: function(context) {
+          const label = context.label || '';
+          const value = context.raw || 0;
+          const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
+          const percentage = Math.round((value / total) * 100);
+          return `${label}: ${value}个 (${percentage}%)`;
+        }
+      });
       
       defectTypeChartInstance = new Chart(ctx, {
         type: 'pie',
@@ -597,30 +597,12 @@ async function initDefectTypeChart() {
             {
               data: defectCounts,
               backgroundColor: backgroundColors,
-              borderWidth: 0
+              borderWidth: config.elements?.arc?.borderWidth || 2,
+              borderColor: config.elements?.arc?.borderColor || '#ffffff'
             }
           ]
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'right'
-            },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  const label = context.label || '';
-                  const value = context.raw || 0;
-                  const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
-                  const percentage = Math.round((value / total) * 100);
-                  return `${label}: ${value}个 (${percentage}%)`;
-                }
-              }
-            }
-          }
-        }
+        options: config
       });
     }
   } catch (error) {

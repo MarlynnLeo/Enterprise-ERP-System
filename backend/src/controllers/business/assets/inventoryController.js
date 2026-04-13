@@ -1,7 +1,6 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const assetInventoryModel = require('../../../models/assetInventory');
-const db = require('../../../config/db');
 
 const inventoryController = {
     /**

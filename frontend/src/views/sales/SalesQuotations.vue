@@ -422,6 +422,7 @@
 <script setup>
 import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
+import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 
 import dayjs from 'dayjs'
 import { ref, onMounted, computed } from 'vue'
@@ -542,16 +543,10 @@ const getStatusLabel = (status) => {
 }
 
 // 格式化日期
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
 
 // 格式化日期时间
-const formatDateTime = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
-}
+// formatDateTime 已统一引用公共实现
 
 // 计算统计数据
 const calculateQuotationStats = () => {
@@ -1107,13 +1102,13 @@ const loadBomDetails = async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -1134,7 +1129,7 @@ const loadBomDetails = async () => {
 
 /* 覆盖Element Plus的默认样式 */
 :deep(.el-table .el-table__header-wrapper th) {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   color: var(--color-text-regular);
   font-weight: bold;
 }

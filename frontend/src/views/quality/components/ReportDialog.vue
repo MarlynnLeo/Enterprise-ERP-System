@@ -138,10 +138,19 @@ const dialogVisible = computed({
 const reportRef = ref(null)
 
 // 辅助函数
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
+};
 
 const getStatusText = (status) => {
   const map = { pending: '待检验', inspecting: '检验中', passed: '合格', failed: '不合格', partial: '部分合格', critical: '关键项不合格', review: '待复检' }

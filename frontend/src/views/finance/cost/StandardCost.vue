@@ -593,12 +593,12 @@ onMounted(() => {
 .title-section h2 {
   margin: 0;
   font-size: 24px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 5px 0 0 0;
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 

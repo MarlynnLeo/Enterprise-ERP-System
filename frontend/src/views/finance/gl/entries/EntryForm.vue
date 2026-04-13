@@ -193,8 +193,14 @@ const isBalanced = computed(() => {
   return Math.abs(totalDebit.value - totalCredit.value) < 0.01 && totalDebit.value > 0;
 });
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
+// formatCurrency 已统一引用公共实现;
+
+// 金额格式化
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '¥0.00';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '¥0.00';
+  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 const goBack = () => {
@@ -365,7 +371,7 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 5px;
   padding: 5px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: 4px;
 }
 .aux-item {
@@ -384,14 +390,14 @@ onMounted(() => {
   margin-right: 20px;
 }
 .is-balanced {
-  color: #67C23A;
+  color: var(--color-success);
 }
 .is-unbalanced {
-  color: #F56C6C;
+  color: var(--color-danger);
 }
 .unbalanced-warning {
   margin-left: 20px;
-  color: #F56C6C;
+  color: var(--color-danger);
   font-size: 14px;
 }
 </style>

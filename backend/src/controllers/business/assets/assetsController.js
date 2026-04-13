@@ -11,6 +11,7 @@ const { validateRequiredFields } = require('../../../utils/validationHelper');
 
 const assetsModel = require('../../../models/assets');
 const db = require('../../../config/db');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 /**
  * 固定资产控制器
@@ -215,7 +216,7 @@ const assetsController = {
       const assetId = await assetsModel.createAsset(assetData);
 
       // 记录变动日志
-      await assetsModel.addChangeLog(assetId, '创建', req.user?.username || 'system', [], `新建资产: ${assetData.asset_name}`);
+      await assetsModel.addChangeLog(assetId, '创建', await getCurrentUserName(req), [], `新建资产: ${assetData.asset_name}`);
 
       // 获取创建的资产完整信息
       const asset = await assetsModel.getAssetById(assetId);
@@ -680,7 +681,7 @@ const assetsController = {
       }
 
       const auditStatus = action === 'approve' ? 'approved' : 'draft';
-      const auditedBy = action === 'approve' ? (req.user?.username || 'system') : null;
+      const auditedBy = action === 'approve' ? (await getCurrentUserName(req)) : null;
       const auditedAt = action === 'approve' ? new Date() : null;
 
       await db.pool.query(
@@ -1159,7 +1160,7 @@ const assetsController = {
         impairment_amount,
         impairment_date,
         reason,
-        handled_by: req.user ? req.user.username : 'system'
+        handled_by: await getCurrentUserName(req)
       };
 
       const id = await assetsModel.createImpairment(assetId, impairmentData);

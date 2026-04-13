@@ -355,12 +355,12 @@ onMounted(() => {
 .title-section h2 {
   margin: 0;
   font-size: 22px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 5px 0 0 0;
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 13px;
 }
 
@@ -404,17 +404,17 @@ onMounted(() => {
 .stat-value {
   font-size: 24px;
   font-weight: bold;
-  color: #303133;
+  color: var(--color-text-primary);
   margin-bottom: 5px;
 }
 
 .stat-label {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
-.positive { color: #67C23A; }
-.negative { color: #F56C6C; }
+.positive { color: var(--color-success); }
+.negative { color: var(--color-danger); }
 
 .data-card {
   margin-bottom: 20px;

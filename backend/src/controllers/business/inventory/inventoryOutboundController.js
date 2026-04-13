@@ -1393,8 +1393,8 @@ const cancelOutbound = async (req, res) => {
 
     const { status, reference_id, reference_type, outbound_no } = checkResult[0];
 
-    // 只允许撤销已完成的出库单
-    if (status !== 'completed') {
+    // ✅ 审计修复: 统一使用状态常量
+    if (status !== STATUS.OUTBOUND.COMPLETED) {
       await connection.rollback();
       return ResponseHandler.error(res, '只能撤销已完成的出库单', 'BAD_REQUEST', 400);
     }

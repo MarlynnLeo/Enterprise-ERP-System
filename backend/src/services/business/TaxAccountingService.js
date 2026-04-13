@@ -12,7 +12,6 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const financeModel = require('../../models/finance');
-const taxModel = require('../../models/tax');
 
 class TaxAccountingService {
   /**

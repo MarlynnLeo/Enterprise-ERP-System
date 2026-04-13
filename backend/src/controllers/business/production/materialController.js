@@ -12,7 +12,6 @@ const { handleError } = require('./shared/errorHandler');
 const {
   calculateMaterialRequirementsWithStock,
 } = require('../../../services/business/MaterialCalculationService');
-const businessConfig = require('../../../config/businessConfig');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
 
 // 状态常量
@@ -254,7 +253,7 @@ exports.getMaterialShortageSummary = async (req, res) => {
         ${searchWhereClause}
         ${purchaseStatusWhereClause}
       ORDER BY pp.start_date ASC, pp.created_at DESC, shortage_quantity DESC
-      LIMIT ${pageSize} OFFSET ${offset}
+      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
     `;
 
     // 统计查询

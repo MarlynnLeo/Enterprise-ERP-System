@@ -463,8 +463,11 @@ import { useAuthStore } from '@/stores/auth'
 // 权限store
 const authStore = useAuthStore()
 
-// 权限计算属性
-
+// 权限计算属性（修复：之前未定义导致运行时 TypeError）
+const canView = computed(() => authStore.hasPermission('production:productionreport:read'));
+const canCreate = computed(() => authStore.hasPermission('production:productionreport:create'));
+const canUpdate = computed(() => authStore.hasPermission('production:productionreport:update'));
+const canDelete = computed(() => authStore.hasPermission('production:productionreport:delete'));
 // 数据定义
 const loading = ref(false)
 const activeTab = ref('summary')
@@ -1057,13 +1060,13 @@ const printReport = async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .report-tabs {
@@ -1108,7 +1111,7 @@ const printReport = async () => {
 }
 
 .task-stats-info b {
-  color: #409EFF;
+  color: var(--color-primary);
 }
 
 /* 详情对话框长文本处理 - 自动添加 */

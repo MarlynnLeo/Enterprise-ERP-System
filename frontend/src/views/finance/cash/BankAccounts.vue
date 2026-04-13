@@ -447,9 +447,14 @@ const getAmountClass = (type, amount) => {
 };
 
 // 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-  return `¥${parseFloat(amount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// formatCurrency 已统一引用公共实现;
+
+// 金额格式化
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '¥0.00';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '¥0.00';
+  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 获取币种文本
@@ -796,13 +801,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .negative-value {

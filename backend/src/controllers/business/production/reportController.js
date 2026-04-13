@@ -114,7 +114,7 @@ exports.getReportDetail = async (req, res) => {
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       ORDER BY pr.report_time DESC, pr.created_at DESC
-      LIMIT ${parseInt(pageSize)} OFFSET ${offset}
+      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
     `;
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL

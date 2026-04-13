@@ -249,7 +249,7 @@ class FinanceEnhancementController {
           'production_cost'
         )
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
+        LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
       `, [pageSizeNum, offset]);
 
       // 获取总数

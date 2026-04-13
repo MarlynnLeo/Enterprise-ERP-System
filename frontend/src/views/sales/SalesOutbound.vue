@@ -585,6 +585,7 @@
 <script setup>
 import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import dayjs from 'dayjs'
 import { ref, computed, onMounted, onActivated } from 'vue'
@@ -686,14 +687,9 @@ const outboundStatuses = [
 // 已在上面使用统一常量定义了状态映射函数，删除重复定义
 
 // 格式化日期
-const formatDate = (date) => date ? dayjs(date).format('YYYY-MM-DD') : '-'
+// formatDate: 使用公共实现
 
-// 格式化日期时间
-const formatDateTime = (date) => date ? dayjs(date).format('YYYY-MM-DD HH:mm:ss') : '-'
-
-// 计算统计数据 - 支持传入数据或使用当前页数据
-const calculateOutboundStats = (data = null) => {
-  const dataToCount = data || outbounds.value;
+const calculateOutboundStats = (dataToCount) => {
   const stats = {
     total: dataToCount.length,
     draft: 0,
@@ -2037,13 +2033,13 @@ const printOutbound = async (row) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -2112,7 +2108,7 @@ const printOutbound = async (row) => {
   border: 1px dashed #dcdfe6;
   border-radius: var(--radius-sm);
   padding: 10px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
 }
 
 .multi-customer-info {

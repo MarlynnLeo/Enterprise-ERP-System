@@ -57,6 +57,26 @@ function getCsrfTokenFromCookie() {
   return null;
 }
 
+// ✅ 审计修复(B-4): Token 刷新并发锁
+// 防止多个请求同时触发刷新，避免竞态导致 token 失效
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+/**
+ * 将等待刷新的请求加入队列
+ */
+function subscribeTokenRefresh(callback) {
+  refreshSubscribers.push(callback);
+}
+
+/**
+ * 刷新成功后，通知所有排队的请求重试
+ */
+function onTokenRefreshed() {
+  refreshSubscribers.forEach(cb => cb());
+  refreshSubscribers = [];
+}
+
 // 响应拦截器
 service.interceptors.response.use(
   response => {
@@ -77,27 +97,42 @@ service.interceptors.response.use(
           message = data.message || '请求参数错误';
           break;
         case 401:
-          // Token过期，尝试刷新
+          // ✅ 审计修复(B-4): Token 过期处理 — 使用并发锁防止多次刷新竞争
           if (data.code === 'TOKEN_EXPIRED') {
-            try {
-              // 尝试刷新token
-              const refreshResponse = await axios.post('/api/auth/refresh', {}, {
-                withCredentials: true
-              });
+            if (!isRefreshing) {
+              // 第一个请求负责刷新
+              isRefreshing = true;
+              try {
+                const refreshResponse = await axios.post('/api/auth/refresh', {}, {
+                  withCredentials: true
+                });
 
-              if (refreshResponse.data.success) {
-                // 刷新成功，重试原请求
-                return service(error.config);
+                if (refreshResponse.data.success) {
+                  // 刷新成功，通知所有排队请求重试
+                  isRefreshing = false;
+                  onTokenRefreshed();
+                  // 重试当前请求
+                  return service(error.config);
+                }
+              } catch (refreshError) {
+                // 刷新失败，清理状态并跳转登录
+                isRefreshing = false;
+                refreshSubscribers = [];
+                message = '登录已过期，请重新登录';
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                if (!window.location.pathname.includes('/login')) {
+                  window.location.href = '/login';
+                }
+                break;
               }
-            } catch (refreshError) {
-              // 刷新失败，跳转登录（避免在登录页循环）
-              message = '登录已过期，请重新登录';
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-              if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login';
-              }
-              break;
+            } else {
+              // 其他请求排队等待刷新完成后重试
+              return new Promise((resolve) => {
+                subscribeTokenRefresh(() => {
+                  resolve(service(error.config));
+                });
+              });
             }
           }
 

@@ -581,6 +581,32 @@ watch(productionTimeRange, () => {
   recreateProductionTrendChart();
 });
 
+// 根据加载完成的统计数据，更新工序完成率图表
+function updateProcessCompletionChart() {
+  try {
+    const chartCanvas = chartRefs.processCompletion?.value;
+    if (!chartCanvas) return;
+
+    const chartInstance = Chart.getChart(chartCanvas);
+    if (!chartInstance) return;
+
+    const completionData = statistics.processCompletion;
+    if (!Array.isArray(completionData) || completionData.length === 0) return;
+
+    const labels = completionData.map(item => item.name || item.processName || '未知工序');
+    const data = completionData.map(item => {
+      const rateStr = item.rate || item.completionRate || '0%';
+      return parseFloat(String(rateStr).replace('%', '')) || 0;
+    });
+
+    chartInstance.data.labels = labels;
+    chartInstance.data.datasets[0].data = data;
+    chartInstance.update();
+  } catch (error) {
+    console.error('[工序完成率图表] 更新失败:', error);
+  }
+}
+
 // 生命周期钩子
 onMounted(async () => {
   try {
@@ -596,6 +622,9 @@ onMounted(async () => {
 
     // 加载数据（统计卡片等）
     await loadData();
+
+    // 数据加载完成后，更新工序完成率图表（因为 initProcessChart 在数据到达前就已创建空图表）
+    updateProcessCompletionChart();
 
     // 加载并更新月度生产趋势
     await loadAndUpdateProductionTrends();

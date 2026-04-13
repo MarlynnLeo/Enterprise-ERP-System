@@ -50,7 +50,7 @@ exports.getPricingList = async (req, res) => {
       ORDER BY 
         CASE WHEN pp.id IS NOT NULL THEN 0 ELSE 1 END ASC,
         m.code ASC
-      LIMIT ? OFFSET ?
+      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
     `;
 
     // 统计总数
@@ -61,7 +61,7 @@ exports.getPricingList = async (req, res) => {
       WHERE ${whereClause}
     `;
 
-    const [rows] = await connection.query(query, [...params, parseInt(pageSize), parseInt(offset)]);
+    const [rows] = await connection.query(query, params);
     const [countResult] = await connection.query(countQuery, params);
 
     // 批量获取所有产品的BOM成本（优化N+1查询）

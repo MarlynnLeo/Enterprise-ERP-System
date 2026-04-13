@@ -492,6 +492,7 @@ import { Search, Refresh, Download, Van, Select, Close } from '@element-plus/ico
 import { salesApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute } from 'vue-router'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // 权限store
 const authStore = useAuthStore()
@@ -642,15 +643,8 @@ const viewDeliveryDetails = async (orderId) => {
 }
 
 // 工具函数
-const formatDate = (date) => {
-  if (!date) return '-'
-  try {
-    return new Date(date).toLocaleDateString('zh-CN')
-  } catch (error) {
-    console.error('日期格式化错误:', error)
-    return '-'
-  }
-}
+// formatDate: 使用公共实现
+
 
 const getStatusType = (status) => {
   const statusMap = {
@@ -1027,13 +1021,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -1122,12 +1116,12 @@ onMounted(() => {
 }
 
 .text-red {
-  color: #f56c6c;
+  color: var(--color-danger);
   font-weight: bold;
 }
 
 .text-green {
-  color: #67c23a;
+  color: var(--color-success);
   font-weight: bold;
 }
 

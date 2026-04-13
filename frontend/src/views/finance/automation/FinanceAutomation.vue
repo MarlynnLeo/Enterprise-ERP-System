@@ -871,13 +871,13 @@ onMounted(() => {
   margin: 0 0 4px 0;
   font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .page-header p {
   margin: 0;
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 /* 区块卡片 */
@@ -890,7 +890,7 @@ onMounted(() => {
 .section-card :deep(.el-card__header) {
   padding: 14px 20px;
   border-bottom: 1px solid #f0f0f0;
-  background-color: #fafafa;
+  background-color: var(--color-bg-light);
 }
 
 .section-card :deep(.el-card__body) {
@@ -909,7 +909,7 @@ onMounted(() => {
   gap: 8px;
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .section-icon {
@@ -926,7 +926,7 @@ onMounted(() => {
 .status-card {
   padding: 16px;
   background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border-lighter);
   border-radius: 8px;
 }
 
@@ -944,7 +944,7 @@ onMounted(() => {
 .status-name {
   font-size: 14px;
   font-weight: 500;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 .status-card-body {
@@ -955,14 +955,14 @@ onMounted(() => {
 
 .status-schedule {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 /* 任务卡片 */
 .task-card {
   padding: 20px;
   background: #fff;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border-lighter);
   border-radius: 8px;
   transition: box-shadow 0.2s;
 }
@@ -988,13 +988,13 @@ onMounted(() => {
   margin: 0 0 4px 0;
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .task-info p {
   margin: 0;
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .task-card-body {
@@ -1030,16 +1030,16 @@ onMounted(() => {
 
 .status-row .status-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .text-success {
-  color: #67c23a;
+  color: var(--color-success);
   font-weight: 600;
 }
 
 .text-danger {
-  color: #f56c6c;
+  color: var(--color-danger);
   font-weight: 600;
 }
 
@@ -1083,7 +1083,7 @@ onMounted(() => {
 }
 
 :deep(.el-table th) {
-  background-color: #fafafa !important;
+  background-color: var(--color-bg-light) !important;
   font-weight: 600;
 }
 </style>

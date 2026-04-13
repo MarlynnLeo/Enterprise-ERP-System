@@ -542,10 +542,13 @@ const createRules = {
 };
 
 // 计算税额
+// 注意：税务发票模块的 tax_rate 使用百分比整数制（13 表示 13%）
+// 与采购/销售模块的小数制（0.13 表示 13%）不同，跨模块传值时需转换
 const calculateTax = () => {
   const amount = createForm.amount_excluding_tax || 0;
   const rate = createForm.tax_rate || 0;
-  createForm.tax_amount = parseFloat((amount * rate / 100).toFixed(2));
+  // 整数化精度控制：先转分再转元，避免浮点数累积误差
+  createForm.tax_amount = Math.round(amount * rate) / 100;
   createForm.total_amount = parseFloat((amount + createForm.tax_amount).toFixed(2));
 };
 
@@ -989,13 +992,13 @@ const handleUnlink = async (row) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-card {
@@ -1028,26 +1031,26 @@ const handleUnlink = async (row) => {
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-bottom: 8px;
 }
 
 .stat-value {
   font-size: 24px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .stat-value.pending {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .stat-value.success {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .stat-value.warning {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .stat-icon {
@@ -1056,19 +1059,19 @@ const handleUnlink = async (row) => {
 }
 
 .stat-icon.total {
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .stat-icon.pending {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .stat-icon.success {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .stat-icon.warning {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .data-card {
@@ -1077,7 +1080,7 @@ const handleUnlink = async (row) => {
 
 .amount-highlight {
   font-weight: 600;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .detail-amount {
@@ -1085,15 +1088,15 @@ const handleUnlink = async (row) => {
 }
 
 .detail-amount.primary {
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .detail-amount.warning {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .detail-amount.danger {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .detail-amount.large {

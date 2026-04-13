@@ -10,7 +10,6 @@ const { logger } = require('../../utils/logger');
 
 const db = require('../../config/db');
 const purchaseModel = require('../../models/purchase');
-const { accountingConfig } = require('../../config/accountingConfig');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
 

@@ -292,8 +292,8 @@ onMounted(() => {
 .cost-center-container { padding: 20px; }
 .header-card { margin-bottom: 20px; }
 .header-content { display: flex; justify-content: space-between; align-items: center; }
-.title-section h2 { margin: 0; font-size: 24px; color: #303133; }
-.subtitle { margin: 5px 0 0 0; color: #909399; font-size: 14px; }
+.title-section h2 { margin: 0; font-size: 24px; color: var(--color-text-primary); }
+.subtitle { margin: 5px 0 0 0; color: var(--color-text-secondary); font-size: 14px; }
 .data-card { margin-bottom: 20px; }
 .report-toolbar { margin-bottom: 15px; }
 </style>

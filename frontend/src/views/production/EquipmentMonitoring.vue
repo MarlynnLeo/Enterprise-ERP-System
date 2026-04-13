@@ -466,7 +466,7 @@ onUnmounted(() => {
 .stat-icon {
   font-size: 32px;
   margin-right: 16px;
-  color: #409eff;
+  color: var(--color-primary);
 }
 
 .stat-info {
@@ -486,7 +486,7 @@ onUnmounted(() => {
 .filter-section {
   margin-bottom: var(--spacing-lg);
   padding: 16px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: var(--radius-sm);
 }
 

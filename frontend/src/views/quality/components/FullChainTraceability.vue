@@ -1020,10 +1020,25 @@ export default {
     }
 
     // 工具函数
-    const formatDateTime = (dateTime) => {
-      if (!dateTime) return '-'
-      return new Date(dateTime).toLocaleString('zh-CN')
-    }
+    // formatDateTime 已统一引用公共实现
+
+// 日期时间格式化
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const h = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    const s = String(date.getSeconds()).padStart(2, '0');
+    return `${y}-${m}-${d} ${h}:${min}:${s}`;
+  } catch {
+    return dateStr;
+  }
+};
 
     const getStatusType = (status) => {
       const statusMap = {
@@ -1203,7 +1218,7 @@ export default {
 
 .test-cases {
   padding: 10px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: var(--radius-sm);
 }
 

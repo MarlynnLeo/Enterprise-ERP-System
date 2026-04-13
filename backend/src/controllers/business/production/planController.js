@@ -15,6 +15,7 @@ const {
   calculateAndInsertMaterials,
 } = require('../../../services/business/MaterialCalculationService');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 /**
  * 获取当天的最大序号
@@ -42,8 +43,8 @@ exports.getTodayMaxSequence = async (req, res) => {
  */
 exports.getProductionPlans = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 10;
+    const page = parseInt(req.query.page, 10) || 1;
+    const pageSize = parseInt(req.query.pageSize, 10) || 10;
     const offset = (page - 1) * pageSize;
     const code = req.query.code || '';
     const contract_code = req.query.contract_code || '';
@@ -184,10 +185,12 @@ exports.getProductionPlans = async (req, res) => {
       ) ms ON ms.plan_id = pp.id
       ${whereClause}
       ORDER BY pp.code DESC
-      LIMIT ${actualPageSize} OFFSET ${actualOffset}
+      LIMIT ? OFFSET ?
     `;
 
-    const [plans] = await pool.query(query, params);
+    // ✅ 审计修复: LIMIT/OFFSET 参数化查询
+    const paginatedParams = [...params, actualPageSize, actualOffset];
+    const [plans] = await pool.query(query, paginatedParams);
 
     // 处理数据格式
     const formattedPlans = plans.map((plan) => ({
@@ -475,7 +478,7 @@ exports.createProductionPlan = async (req, res) => {
     }
 
     // 记录创建日志
-    const operator = req.user?.username || req.user?.name || 'system';
+    const operator = await getCurrentUserName(req);
     await connection.query(
       `INSERT INTO production_plan_logs (plan_id, action, to_status, operator, remark)
        VALUES (?, 'create', 'draft', ?, ?)`,
@@ -739,8 +742,8 @@ exports.updateProductionPlanStatus = async (req, res) => {
       const stats = taskStats[0];
       const activeTotal = stats.total - stats.cancelled_count;
 
-      // 推进到「已完成」时，要求所有任务都已完成
-      if (status === 'completed' && activeTotal > 0 && stats.completed_count < activeTotal) {
+      // ✅ 审计修复: 统一使用状态常量
+      if (status === PRODUCTION_STATUS_KEYS.COMPLETED && activeTotal > 0 && stats.completed_count < activeTotal) {
         return ResponseHandler.error(
           res,
           `还有 ${activeTotal - stats.completed_count} 个任务未完成，无法将计划标记为已完成`,
@@ -767,7 +770,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     }
 
     // 记录状态变更日志
-    const operator = req.user?.username || req.user?.name || 'system';
+    const operator = await getCurrentUserName(req);
     await connection.query(
       `INSERT INTO production_plan_logs (plan_id, action, from_status, to_status, operator, remark)
        VALUES (?, 'status_change', ?, ?, ?, ?)`,
@@ -794,8 +797,8 @@ exports.updateProductionPlanStatus = async (req, res) => {
       );
 
       if (outbounds.length > 0) {
-        // 检查是否有关联的出库单尚未完成
-        const incompleteOutbounds = outbounds.filter((ob) => ob.status !== 'completed');
+        // ✅ 审计修复: 统一使用状态常量
+        const incompleteOutbounds = outbounds.filter((ob) => ob.status !== PRODUCTION_STATUS_KEYS.COMPLETED);
 
         if (incompleteOutbounds.length > 0) {
           await connection.rollback();
@@ -830,6 +833,8 @@ exports.getDashboardProductionPlans = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
+    const safeLimit = parseInt(limit, 10) || 10;
+
     const query = `
       SELECT
         pp.id,
@@ -849,10 +854,10 @@ exports.getDashboardProductionPlans = async (req, res) => {
       LEFT JOIN units u ON m.unit_id = u.id
       WHERE pp.status IN ('in_progress', 'preparing')
       ORDER BY pp.code DESC
-      LIMIT ?
+      LIMIT ${safeLimit}
     `;
 
-    const [plans] = await pool.query(query, [parseInt(limit)]);
+    const [plans] = await pool.query(query);
     ResponseHandler.success(res, plans);
   } catch (error) {
     logger.error('获取仪表盘生产计划失败:', error);

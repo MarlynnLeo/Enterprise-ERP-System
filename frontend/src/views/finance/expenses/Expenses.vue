@@ -415,10 +415,19 @@ const formatAmount = (value) => {
   return parseFloat(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const formatDate = (date) => {
-  if (!date) return '-'
-  return date.split('T')[0]
-}
+// formatDate 已统一引用公共实现
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
+};
 
 const getStatusType = (status) => {
   const map = {

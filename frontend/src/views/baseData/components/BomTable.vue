@@ -17,17 +17,17 @@
         width="55"
         :selectable="(row) => true"
       ></el-table-column>
-      <el-table-column label="产品编码" width="120" sortable prop="product_code">
+      <el-table-column label="产品编码" width="120" sortable prop="product_code" show-overflow-tooltip>
         <template #default="scope">
           {{ scope.row.product_code || '未知' }}
         </template>
       </el-table-column>
-      <el-table-column label="产品名称" width="200" sortable prop="product_name">
+      <el-table-column label="产品名称" min-width="150" sortable prop="product_name" show-overflow-tooltip>
         <template #default="scope">
           {{ scope.row.product_name || '未知' }}
         </template>
       </el-table-column>
-      <el-table-column label="规格型号" width="240">
+      <el-table-column label="规格型号" min-width="180" show-overflow-tooltip>
         <template #default="scope">
           <span v-if="scope.row.product_specs">{{ scope.row.product_specs }}</span>
           <span v-else>-</span>
@@ -42,8 +42,8 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_by" label="创建人" width="100"></el-table-column>
-      <el-table-column prop="updated_by" label="修改人" width="100"></el-table-column>
+      <el-table-column prop="created_by" label="创建人" width="90" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="updated_by" label="修改人" width="90" show-overflow-tooltip></el-table-column>
       <el-table-column label="修改时间" width="120" sortable prop="updated_at">
         <template #default="scope">
           {{ DateFormatter.toDate(scope.row.updated_at) }}
@@ -54,8 +54,8 @@
           {{ DateFormatter.toDate(scope.row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column prop="remark" label="备注" width="250"></el-table-column>
-      <el-table-column label="操作" min-width="280" fixed="right">
+      <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip></el-table-column>
+      <el-table-column label="操作" min-width="250" fixed="right">
         <template #default="scope">
           <el-button size="small" @click="handleView(scope.row)">
             <el-icon><View /></el-icon> 查看
@@ -68,6 +68,15 @@
               type="primary"
               @click="handleEdit(scope.row)">
               <el-icon><Edit /></el-icon> 编辑
+            </el-button>
+            <el-button
+              v-if="canUpdate && !isApproved(scope.row)"
+              size="small"
+              type="primary"
+              plain
+              @click="handleUpgrade(scope.row)"
+              title="创建保留历史版本的新BOM草稿">
+              <el-icon><RefreshRight /></el-icon> 升版
             </el-button>
             <el-popconfirm
               v-if="canDelete && !isApproved(scope.row)"
@@ -126,7 +135,7 @@
 </template>
 
 <script setup>
-import { View, Edit, Delete, Check, Close } from '@element-plus/icons-vue'
+import { View, Edit, Delete, Check, Close, RefreshRight } from '@element-plus/icons-vue'
 import { DateFormatter } from '@/utils/commonHelpers'
 
 const props = defineProps({
@@ -171,7 +180,8 @@ const props = defineProps({
 const emit = defineEmits([
   'selection-change',
   'view',
-  'edit', 
+  'edit',
+  'upgrade',
   'delete',
   'approve',
   'unapprove',
@@ -191,6 +201,10 @@ const handleView = (row) => {
 
 const handleEdit = (row) => {
   emit('edit', row)
+}
+
+const handleUpgrade = (row) => {
+  emit('upgrade', row)
 }
 
 const handleDelete = (row) => {

@@ -115,10 +115,12 @@ const router = createRouter({
         hrRoute
       ]
     },
-    // 404 兜底路由：匹配不到路径时统一调整回首页(控制台)
+    // ✅ 审计修复(A-7): 404 兜底路由改为显示 404 页面，而非静默重定向到首页
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/'
+      name: 'NotFound',
+      component: () => import('@/views/NotFound.vue'),
+      meta: { requiresAuth: false }
     }
   ]
 })

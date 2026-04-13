@@ -327,11 +327,11 @@ class ProductionService {
       // 获取BOM信息
       const bomQuery = `
         SELECT bi.material_id, bi.quantity as bomQuantity, m.name, m.code, m.specs, u.name as unit
-        FROM bom_items bi
+        FROM bom_details bi
         JOIN materials m ON bi.material_id = m.id
         LEFT JOIN units u ON m.unit_id = u.id
         WHERE bi.bom_id = (
-          SELECT id FROM bom WHERE product_id = ? AND status = 'active' LIMIT 1
+          SELECT id FROM bom_masters WHERE product_id = ? AND status = 'active' LIMIT 1
         )
       `;
 

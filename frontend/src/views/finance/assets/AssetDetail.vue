@@ -163,7 +163,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Back, Right } from '@element-plus/icons-vue';
 import { api } from '@/services/api';
-import { formatDate, formatDateTime, formatCurrency as formatCurrencyUtil } from '@/utils/helpers/formatters';
+import { formatDate, formatDateTime, formatCurrency } from '@/utils/helpers/formatters';
 import { getAssetStatusText, getAssetStatusColor } from '@/constants/systemConstants';
 import { parseListData } from '@/utils/responseParser';
 
@@ -217,12 +217,6 @@ const impairmentRules = {
   impairment_amount: [{ required: true, message: '请输入减值金额', trigger: 'blur' }],
   impairment_date: [{ required: true, message: '请选择减值日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入减值原因', trigger: 'blur' }]
-};
-
-// 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-  return formatCurrencyUtil(amount);
 };
 
 // 状态处理
@@ -399,7 +393,7 @@ onMounted(() => {
 .title-section h2 {
   margin: 0;
   font-size: 22px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .back-btn {
@@ -434,7 +428,7 @@ onMounted(() => {
 .card-header {
   font-weight: bold;
   font-size: 16px;
-  color: #303133;
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
 }
@@ -456,11 +450,11 @@ onMounted(() => {
 
 :deep(.el-descriptions__label) {
   width: 120px;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 :deep(.el-descriptions__content) {
-  color: #303133;
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 
@@ -520,7 +514,7 @@ onMounted(() => {
   padding: 12px 16px;
   border-radius: 6px;
   margin-top: 5px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border-lighter);
 }
 
 .log-title {
@@ -531,13 +525,13 @@ onMounted(() => {
 }
 
 .log-title strong {
-  color: #303133;
+  color: var(--color-text-primary);
   font-size: 14px;
 }
 
 .log-user {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .log-details {
@@ -549,12 +543,12 @@ onMounted(() => {
 }
 
 .log-field {
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 .log-old {
   text-decoration: line-through;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .log-new {
@@ -564,11 +558,11 @@ onMounted(() => {
 
 .log-remarks {
   font-size: 13px;
-  color: #606266;
+  color: var(--color-text-regular);
   background: #fff;
   padding: 8px;
   border-radius: 4px;
   margin-top: 8px;
-  border-left: 3px solid #dcdfe6;
+  border-left: 3px solid var(--color-border-base);
 }
 </style>

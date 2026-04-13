@@ -202,7 +202,8 @@
               <el-button v-permission="'production:tasks:update'"
                 v-if="scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing'"
                 size="small"
-                type="success"
+                type="primary"
+                plain
                 @click="handleEdit(scope.row)"
               >
                 编辑
@@ -1334,13 +1335,13 @@ onMounted(async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .task-detail {

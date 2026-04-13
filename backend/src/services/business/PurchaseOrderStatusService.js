@@ -324,6 +324,24 @@ class PurchaseOrderStatusService {
         `[PurchaseOrderStatusService] 更新入库数量：订单ID=${orderId}, 物料ID=${materialId}, 入库数量=${warehousingQuantity}`
       );
 
+      // [M-4] 入库数量上限校验：入库数量不能超过合格数量（或收货数量）
+      const [orderItem] = await client.execute(
+        'SELECT quantity, received_quantity, qualified_quantity, warehoused_quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
+        [orderId, materialId]
+      );
+
+      if (orderItem.length > 0) {
+        const maxAllowed = parseFloat(orderItem[0].qualified_quantity || orderItem[0].received_quantity || orderItem[0].quantity) || 0;
+        const currentWarehoused = parseFloat(orderItem[0].warehoused_quantity) || 0;
+        const newWarehousingQty = parseFloat(warehousingQuantity) || 0;
+
+        if (currentWarehoused + newWarehousingQty > maxAllowed + 0.001) {
+          const errorMsg = `入库数量超额: 允许上限=${maxAllowed}, 已入库=${currentWarehoused}, 本次入库=${newWarehousingQty}`;
+          logger.error(`[PurchaseOrderStatusService] ${errorMsg}`);
+          throw new Error(errorMsg);
+        }
+      }
+
       // 更新采购订单项目的已入库数量
       const updateQuery = `
         UPDATE purchase_order_items

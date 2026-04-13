@@ -88,7 +88,7 @@
               <el-button @click="handleRefresh">
                 <el-icon><Refresh /></el-icon>重置
               </el-button>
-              <el-button type="primary" @click="handleCreate">
+              <el-button type="primary" v-if="canCreate" @click="handleCreate">
                 <el-icon><Plus /></el-icon>新增
               </el-button>
             </div>
@@ -149,7 +149,7 @@
               查看
             </el-button>
             <el-button
-              v-if="!['passed', 'failed', 'conditional'].includes(scope.row.status) && !['completed', 'warehousing'].includes(scope.row.task_status)"
+              v-if="!['passed', 'failed', 'conditional'].includes(scope.row.status) && !['completed', 'warehousing'].includes(scope.row.task_status) && canInspect"
               size="small"
               type="warning"
               @click="handlePunchIn(scope.row)"
@@ -331,7 +331,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, defineAsyncComponent } from 'vue'
+import { ref, reactive, onMounted, defineAsyncComponent, computed } from 'vue'
 import { Search, Refresh, Plus, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
@@ -344,6 +344,10 @@ const RulesDialog = defineAsyncComponent(() => import('./components/ProcessInspe
 
 // 权限store
 const authStore = useAuthStore()
+
+// 权限计算
+const canCreate = computed(() => authStore.hasPermission('quality:process:create') || authStore.isAdmin)
+const canInspect = computed(() => authStore.hasPermission('quality:process:inspect') || authStore.isAdmin)
 
 // 搜索相关
 const searchKeyword = ref('')
@@ -405,10 +409,19 @@ const inspectionStats = ref({
 })
 
 // 添加统一的日期格式化方法
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
+};
 
 // 初始化
 onMounted(() => {

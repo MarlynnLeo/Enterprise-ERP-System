@@ -176,7 +176,7 @@ exports.getDeliveryStats = async (req, res) => {
       ${mainQuery}
       ${statusFilter}
       ORDER BY so.created_at DESC, so.order_no, m.code
-      LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}
+      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
     `;
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL

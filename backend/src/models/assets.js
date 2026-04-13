@@ -90,14 +90,6 @@ const assetsModel = {
 
       await connection.commit();
 
-      // 在事务完成后调用创建完成后处理
-      setTimeout(async () => {
-        try {
-          await assetsModel.createAssetCompleted(assetId);
-        } catch (afterError) {
-          logger.error('创建后处理出错，但不影响主流程:', afterError);
-        }
-      }, 100);
 
       return assetId;
     } catch (error) {
@@ -1357,17 +1349,17 @@ const assetsModel = {
       }
 
       await conn.commit();
-      conn.release();
-
       return {
+
         categories: categoryIds.length,
         assets: assets,
       };
     } catch (error) {
       await conn.rollback();
-      conn.release();
       logger.error('创建示例资产数据失败:', error);
       throw error;
+    } finally {
+      conn.release();
     }
   },
 

@@ -22,12 +22,12 @@ const productCategoryController = {
       const filters = {
         name: req.query.name,
         code: req.query.code,
-        status: req.query.status !== undefined ? parseInt(req.query.status) : undefined,
+        status: req.query.status !== undefined ? parseInt(req.query.status, 10) || 1 : undefined,
       };
 
       // 添加分页参数 - 支持 pageSize 和 limit 两种参数名
-      const page = parseInt(req.query.page) || 1;
-      const pageSize = parseInt(req.query.pageSize) || parseInt(req.query.limit) || 20;
+      const page = parseInt(req.query.page, 10) || 1;
+      const pageSize = parseInt(req.query.pageSize, 10) || parseInt(req.query.limit, 10) || 20;
 
       const result = await productCategoryModel.getAllProductCategories(filters, page, pageSize);
 

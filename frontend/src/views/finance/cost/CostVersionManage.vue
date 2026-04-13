@@ -97,6 +97,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh } from '@element-plus/icons-vue';
 import api from '@/services/api';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 const loading = ref(false);
 const saving = ref(false);
@@ -145,10 +146,7 @@ const getStatusLabel = (status) => {
   return map[status] || status;
 };
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  return dateStr.split('T')[0];
-};
+// formatDate 已统一引用公共实现;
 
 const fetchVersions = async () => {
   loading.value = true;
@@ -253,8 +251,8 @@ onMounted(() => {
 .cost-version-manage { padding: 20px; }
 .header-card { margin-bottom: 20px; }
 .header-content { display: flex; justify-content: space-between; align-items: center; }
-.title-section h2 { margin: 0; font-size: 24px; color: #303133; }
-.subtitle { margin: 5px 0 0 0; color: #909399; font-size: 14px; }
+.title-section h2 { margin: 0; font-size: 24px; color: var(--color-text-primary); }
+.subtitle { margin: 5px 0 0 0; color: var(--color-text-secondary); font-size: 14px; }
 .table-toolbar { display: flex; justify-content: space-between; margin-bottom: 16px; }
 .pagination-container { margin-top: 16px; display: flex; justify-content: flex-end; }
 </style>

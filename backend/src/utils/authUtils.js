@@ -7,7 +7,6 @@
  * - 权限中间件请使用 requirePermission.js
  */
 
-const logger = require('./logger');
 const jwt = require('jsonwebtoken');
 
 /**

@@ -12,6 +12,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const db = require('../../../config/db');
 const pool = db.pool;
 const EightDAIService = require('../../../services/business/EightDAIService');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 // ===================== 辅助工具 =====================
 
@@ -133,8 +134,8 @@ const getReports = async (req, res) => {
 
         // 分页
         const offset = (parseInt(page) - 1) * parseInt(pageSize);
-        sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(pageSize), offset);
+        sql += ` ORDER BY created_at DESC LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}`;
+
 
         const [rows] = await pool.query(sql, params);
 
@@ -168,6 +169,7 @@ const getReportById = async (req, res) => {
         for (const field of jsonFields) {
             if (report[field] && typeof report[field] === 'string') {
                 try { report[field] = JSON.parse(report[field]); } catch (e) { /* 保留原始值 */ }
+              // 静默忽略该错误
             }
         }
 
@@ -205,7 +207,7 @@ const createReport = async (req, res) => {
 
         const data = req.body;
         const reportNo = await generateReportNo();
-        const createdBy = req.user?.real_name || req.user?.username || 'system';
+        const createdBy = await getCurrentUserName(req);
 
         // 必填校验
         if (!data.title) {
@@ -414,7 +416,8 @@ const updateReport = async (req, res) => {
 
         const currentPhase = existing[0].current_phase;
         const newPhase = data.current_phase || currentPhase;
-        await insertAuditLog(conn, id, 'update', currentPhase, newPhase, '更新了报告内容', req.user?.real_name || req.user?.username || 'system');
+        const userName = await getCurrentUserName(req);
+        await insertAuditLog(conn, id, 'update', currentPhase, newPhase, '更新了报告内容', userName);
 
         await conn.commit();
         return ResponseHandler.success(res, null, '8D报告更新成功');
@@ -451,6 +454,7 @@ const submitReview = async (req, res) => {
         for (const field of jsonFields) {
             if (report[field] && typeof report[field] === 'string') {
                 try { report[field] = JSON.parse(report[field]); } catch (e) { /* 忽略 */ }
+              // 静默忽略该错误
             }
         }
 
@@ -465,7 +469,8 @@ const submitReview = async (req, res) => {
             ['review', 'd1_d3', id]
         );
 
-        await insertAuditLog(pool, id, 'submit_review', report.current_phase, 'd1_d3', '提交了报告初审', req.user?.real_name || req.user?.username || 'system');
+        const userName = await getCurrentUserName(req);
+        await insertAuditLog(pool, id, 'submit_review', report.current_phase, 'd1_d3', '提交了报告初审', userName);
 
         return ResponseHandler.success(res, null, '已提交审核');
     } catch (error) {
@@ -481,7 +486,7 @@ const reviewReport = async (req, res) => {
     try {
         const { id } = req.params;
         const { approved, comments } = req.body;
-        const reviewer = req.user?.real_name || req.user?.username || 'system';
+        const reviewer = await getCurrentUserName(req);
 
         const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ?', [id]);
         if (existing.length === 0) {
@@ -579,6 +584,7 @@ const submitPhase2Review = async (req, res) => {
         for (const field of jsonFields) {
             if (report[field] && typeof report[field] === 'string') {
                 try { report[field] = JSON.parse(report[field]); } catch (e) { /* 忽略 */ }
+              // 静默忽略该错误
             }
         }
 
@@ -626,7 +632,8 @@ const completeReport = async (req, res) => {
             ['completed', 'completed', id]
         );
 
-        await insertAuditLog(pool, id, 'complete', report.current_phase, 'completed', '标记报告为完成', req.user?.real_name || req.user?.username || 'system');
+        const userName = await getCurrentUserName(req);
+        await insertAuditLog(pool, id, 'complete', report.current_phase, 'completed', '标记报告为完成', userName);
 
         return ResponseHandler.success(res, null, '报告已完成，等待最终验证与关闭');
     } catch (error) {
@@ -720,7 +727,8 @@ const aiAnalyze = async (req, res) => {
             return ResponseHandler.error(res, '请输入问题描述', 'BAD_REQUEST', 400);
         }
 
-        logger.info(`[8D-AI] 用户 ${req.user?.username || 'unknown'} 请求AI分析`);
+        const userName = await getCurrentUserName(req);
+        logger.info(`[8D-AI] 用户 ${userName} 请求AI分析`);
 
         // 获取真实的部门负责人名单作为AI的上下文 (保障关联真实且精确)
         const [deptManagers] = await pool.query(

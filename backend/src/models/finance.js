@@ -823,11 +823,14 @@ const financeModel = {
         ORDER BY a.account_code
       `;
 
-      // 构建参数列表
-      if (periodStartDate) params.push(periodStartDate);
+      // [M-3] 构建参数列表 — 按 SQL 中占位符顺序依次推入，避免参数错位
+      // SQL 中占位符顺序: 1=opening_net(periodStartDate), 2-3=period_debit(start,end), 4-5=period_credit(start,end)
+      if (periodStartDate) {
+        params.push(periodStartDate);       // 占位符1: opening_net 条件
+      }
       if (periodStartDate && periodEndDate) {
-        params.push(periodStartDate, periodEndDate); // 本期借方
-        params.push(periodStartDate, periodEndDate); // 本期贷方
+        params.push(periodStartDate, periodEndDate); // 占位符2-3: period_debit 条件
+        params.push(periodStartDate, periodEndDate); // 占位符4-5: period_credit 条件
       }
 
       const [rows] = await db.pool.query(query, params);
@@ -1069,45 +1072,49 @@ const financeModel = {
       );
       const entryId = entryResult.insertId;
 
-      // 创建结转凭证明细
+      // [H-5] 创建规范的复式簿记结转分录
+      // 每个损益科目都与"本年利润"配对，生成完整的借贷对
       let totalDebit = 0;
       let totalCredit = 0;
 
       for (const item of preview.closingItems) {
         if (item.closing_amount > 0) {
-          // 结转分录：将损益科目余额转入本年利润
           if (item.account_type === '收入') {
-            // 收入类：借记收入科目，贷记本年利润
+            // 收入类结转：借记收入科目（清零），贷记本年利润（转入利润）
+            // 第1行：借 收入科目
             await conn.execute(
               'INSERT INTO gl_entry_items (entry_id, account_id, debit_amount, credit_amount, description) VALUES (?, ?, ?, ?, ?)',
               [entryId, item.account_id, item.closing_amount, 0, `结转${item.account_name}`]
             );
+            // 第2行：贷 本年利润
+            await conn.execute(
+              'INSERT INTO gl_entry_items (entry_id, account_id, debit_amount, credit_amount, description) VALUES (?, ?, ?, ?, ?)',
+              [entryId, profitAccountId, 0, item.closing_amount, `结转${item.account_name}至本年利润`]
+            );
             totalDebit += item.closing_amount;
+            totalCredit += item.closing_amount;
           } else {
-            // 费用/成本类：借记本年利润，贷记费用科目
+            // 费用/成本类结转：借记本年利润（扣减利润），贷记费用科目（清零）
+            // 第1行：借 本年利润
+            await conn.execute(
+              'INSERT INTO gl_entry_items (entry_id, account_id, debit_amount, credit_amount, description) VALUES (?, ?, ?, ?, ?)',
+              [entryId, profitAccountId, item.closing_amount, 0, `结转${item.account_name}至本年利润`]
+            );
+            // 第2行：贷 费用科目
             await conn.execute(
               'INSERT INTO gl_entry_items (entry_id, account_id, debit_amount, credit_amount, description) VALUES (?, ?, ?, ?, ?)',
               [entryId, item.account_id, 0, item.closing_amount, `结转${item.account_name}`]
             );
+            totalDebit += item.closing_amount;
             totalCredit += item.closing_amount;
           }
         }
       }
 
-      // 添加本年利润对方分录
-      const netAmount = totalDebit - totalCredit;
-      if (netAmount > 0) {
-        // 净利润为正，贷记本年利润
-        await conn.execute(
-          'INSERT INTO gl_entry_items (entry_id, account_id, debit_amount, credit_amount, description) VALUES (?, ?, ?, ?, ?)',
-          [entryId, profitAccountId, 0, netAmount, '本期净利润']
-        );
-      } else if (netAmount < 0) {
-        // 净利润为负，借记本年利润
-        await conn.execute(
-          'INSERT INTO gl_entry_items (entry_id, account_id, debit_amount, credit_amount, description) VALUES (?, ?, ?, ?, ?)',
-          [entryId, profitAccountId, Math.abs(netAmount), 0, '本期净亏损']
-        );
+      // 借贷平衡校验（规范的复式簿记结转凭证必然自平衡）
+      const balanceDiff = Math.abs(Math.round(totalDebit * 100) - Math.round(totalCredit * 100));
+      if (balanceDiff > 1) {
+        throw new Error(`期末结转凭证借贷不平衡: 借方=${totalDebit}, 贷方=${totalCredit}`);
       }
 
       // 关闭会计期间

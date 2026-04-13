@@ -240,7 +240,10 @@ import { useAuthStore } from '@/stores/auth'
 // 权限store
 const authStore = useAuthStore()
 
-// 权限计算属性
+// 权限计算属性（修复：之前未定义导致 TypeError: Cannot convert object to primitive value）
+const canCreate = computed(() => authStore.hasPermission('finance:gl:accounts:create'));
+const canUpdate = computed(() => authStore.hasPermission('finance:gl:accounts:update'));
+const canDelete = computed(() => authStore.hasPermission('finance:gl:accounts:delete'));
 
 // 数据加载状态
 const loading = ref(false);
@@ -520,13 +523,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */

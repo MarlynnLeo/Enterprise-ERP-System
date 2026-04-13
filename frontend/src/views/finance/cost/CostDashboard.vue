@@ -307,8 +307,14 @@ const yearlyComparison = ref({
 });
 
 // 格式化数字
-const formatNumber = (value) => {
-  return value ? Number(value).toFixed(2) : '0.00';
+// formatNumber 已统一引用公共实现;
+
+// 数字格式化
+const formatNumber = (value, decimals = 2) => {
+  if (value === null || value === undefined) return '0';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '0';
+  return num.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 };
 
 // 加载会计期间
@@ -678,12 +684,12 @@ onUnmounted(() => {
 .title-section h2 {
   margin: 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 .subtitle {
   margin: 5px 0 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 .stat-row {
   margin-bottom: 20px;
@@ -703,30 +709,30 @@ onUnmounted(() => {
   font-size: 30px;
   margin-right: 15px;
 }
-.stat-icon.primary { background-color: #ecf5ff; color: #409eff; }
-.stat-icon.success { background-color: #f0f9eb; color: #67c23a; }
-.stat-icon.warning { background-color: #fdf6ec; color: #e6a23c; }
+.stat-icon.primary { background-color: #ecf5ff; color: var(--color-primary); }
+.stat-icon.success { background-color: #f0f9eb; color: var(--color-success); }
+.stat-icon.warning { background-color: #fdf6ec; color: var(--color-warning); }
 
 .stat-info {
   flex: 1;
 }
 .stat-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 .stat-value {
   font-size: 24px;
   font-weight: bold;
   margin: 5px 0;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 .stat-trend {
   font-size: 13px;
 }
-.stat-trend.up { color: #f56c6c; } /* Cost up is usually bad? Or just red. Let's stick to standard colors. usually Green is good. Cost Up = Red? */
-.stat-trend.down { color: #67c23a; }
+.stat-trend.up { color: var(--color-danger); } /* Cost up is usually bad? Or just red. Let's stick to standard colors. usually Green is good. Cost Up = Red? */
+.stat-trend.down { color: var(--color-success); }
 .trend-label {
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-left: 5px;
 }
 .chart-row {
@@ -764,12 +770,12 @@ onUnmounted(() => {
 .action-info h4 {
   margin: 0 0 5px 0;
   font-size: 15px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 .action-info p {
   margin: 0;
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 .closing-result {
   margin-top: 10px;
@@ -789,13 +795,13 @@ onUnmounted(() => {
 }
 .yearly-label {
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-bottom: 10px;
 }
 .yearly-current {
   font-size: 22px;
   font-weight: bold;
-  color: #303133;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 .yearly-growth {
@@ -804,10 +810,10 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 3px;
 }
-.yearly-growth.up { color: #f56c6c; }
-.yearly-growth.down { color: #67c23a; }
+.yearly-growth.up { color: var(--color-danger); }
+.yearly-growth.down { color: var(--color-success); }
 .yearly-last {
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 
@@ -822,6 +828,6 @@ onUnmounted(() => {
   padding: 20px;
   text-align: center;
 }
-.text-success { color: #67c23a; }
-.text-danger { color: #f56c6c; }
+.text-success { color: var(--color-success); }
+.text-danger { color: var(--color-danger); }
 </style>

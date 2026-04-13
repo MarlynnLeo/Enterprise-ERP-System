@@ -11,7 +11,6 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const pool = db.pool; // 正确引用连接池
 const purchaseModel = require('../../../models/purchase');
-const { ErrorFactory } = require('../../../middleware/unifiedErrorHandler');
 const {
   getPurchaseStatusText,
   generateStatusCaseSQL,
@@ -603,8 +602,8 @@ const getSuppliers = async (req, res) => {
 
     // 如果指定了限制数量
     if (limit) {
-      query += ' LIMIT ?';
-      queryParams.push(parseInt(limit));
+      const safeLimit = parseInt(limit, 10) || 100;
+      query += ` LIMIT ${safeLimit}`;
     }
 
     const [rows] = await pool.query(query, queryParams);

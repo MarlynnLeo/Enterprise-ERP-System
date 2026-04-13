@@ -569,10 +569,25 @@ const calculateTotalHours = (processes) => {
 }
 
 // 格式化日期时间
-const formatDateTime = (dateTime) => {
-  if (!dateTime) return '-'
-  return dayjs(dateTime).format('YYYY-MM-DD HH:mm')
-}
+// formatDateTime 已统一引用公共实现
+
+// 日期时间格式化
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const h = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    const s = String(date.getSeconds()).padStart(2, '0');
+    return `${y}-${m}-${d} ${h}:${min}:${s}`;
+  } catch {
+    return dateStr;
+  }
+};
 
 // 搜索
 const handleSearch = async () => {
@@ -991,13 +1006,13 @@ const removeInstructionDoc = (row, index) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -1031,7 +1046,7 @@ const removeInstructionDoc = (row, index) => {
 }
 
 .material-list {
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
 }
 
@@ -1075,10 +1090,10 @@ const removeInstructionDoc = (row, index) => {
 .view-mode :deep(.el-textarea.is-disabled .el-textarea__inner),
 .view-mode :deep(.el-input__inner),
 .view-mode :deep(.el-textarea__inner) {
-  color: #303133 !important;
+  color: var(--color-text-primary) !important;
   font-weight: 500;
   cursor: default !important;
-  -webkit-text-fill-color: #303133 !important;
+  -webkit-text-fill-color: var(--color-text-primary) !important;
 }
 
 .view-mode :deep(.el-input__inner::placeholder),

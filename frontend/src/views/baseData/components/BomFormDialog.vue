@@ -20,7 +20,6 @@
               reserve-keyword
               :remote-method="searchProducts"
               :loading="loadingProducts"
-              @change="handleProductChange"
               no-data-text="没有找到匹配的产品"
               loading-text="搜索中..."
               :disabled="isEditMode">
@@ -212,7 +211,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-import axios from 'axios'
+
 import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElImageViewer } from 'element-plus'
 import { materialApi } from '@/api/material'
@@ -359,7 +358,7 @@ const searchProducts = async (query) => {
   }
 }
 
-const handleProductChange = (val) => {}
+
 
 // 附件处理
 const handleAttachmentChange = (uploadFile, uploadFiles) => {
@@ -415,7 +414,7 @@ const handlePreview = async (file) => {
   } else {
     // 根本解决：采用二进制下载文件，防止跨域或强制转 HTML 问题
     try {
-      const response = await axios.get(url, { responseType: 'blob' })
+      const response = await api.get(url, { responseType: 'blob' })
       const blob = new Blob([response.data])
       const downloadUrl = window.URL.createObjectURL(blob)
       const link = document.createElement('a')

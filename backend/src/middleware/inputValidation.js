@@ -41,6 +41,8 @@ const SKIP_SANITIZE_FIELDS = [
   'name', // 物料名称、产品名称等，可能包含特殊字符（如：水平/垂直可调整型）
   'location_detail',
   'location', // 库位详细位置，可能包含特殊字符（如：J1-01-02/J1-01-03）
+  'rule_value', // 考勤规则 JSON 值
+  'split_details', // 薪资拆分详情 JSON
 ];
 
 /**
@@ -324,26 +326,39 @@ const validateDate = (fieldName) => {
 /**
  * 防止SQL注入 - 检测危险字符
  * @param {*} input - 输入
+ * @param {boolean} relaxed - 宽松模式：仅检测高危SQL关键字，跳过分号/引号/注释检测
  * @returns {boolean} 是否包含危险字符
  */
-const containsSQLInjection = (input) => {
+const containsSQLInjection = (input, relaxed = false) => {
   if (typeof input !== 'string') {
     return false;
   }
 
-  // SQL注入常见模式
-  // 注意：移除了单独的 * 字符检测，因为在物料规格中 * 常用作乘号（如：400x600*120mm）
-  // 保留 /* 和 */ 的检测（SQL注释语法）
-  const sqlPatterns = [
-    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)/i,
+  // 高危 SQL 注入模式（所有模式下都检测）
+  const highRiskPatterns = [
+    /(\b(DROP|ALTER|EXEC|EXECUTE)\b)/i,
     /(UNION\s+SELECT)/i,
     /(OR\s+1\s*=\s*1)/i,
     /(AND\s+1\s*=\s*1)/i,
+  ];
+
+  // 标准模式额外检测的模式（业务文本字段在宽松模式下跳过）
+  const standardPatterns = [
+    /(\b(SELECT|INSERT|UPDATE|DELETE|CREATE)\b)/i,
     /('|;|--)/, // 单引号、分号、双横线注释
     /(\/\*|\*\/)/, // SQL块注释标记
   ];
 
-  return sqlPatterns.some((pattern) => pattern.test(input));
+  if (highRiskPatterns.some((pattern) => pattern.test(input))) {
+    return true;
+  }
+
+  // 宽松模式下跳过标准模式的检测（业务文本字段中分号、引号是常见字符）
+  if (relaxed) {
+    return false;
+  }
+
+  return standardPatterns.some((pattern) => pattern.test(input));
 };
 
 /**
@@ -385,28 +400,39 @@ const detectSQLInjection = (req, res, next) => {
     ) {
       return true;
     }
-    // 物料规格相关字段 - 可能包含 / * 等特殊字符（如：K22/25、400*600*120mm、水平/垂直可调整型、J1-01-02/J1-01-03）
-    // avatar 和 bio 字段也需要跳过，因为 base64 图片数据可能触发误报
-    // issue_reason 和 reason 字段可能包含分号作为分隔符（如：丢件;损坏）
-    const specFields = [
+    // 物料规格/技术字段 — 完全跳过SQL注入检测
+    // 这些字段包含合法的特殊字符（如 400*600*120mm、K22/25、base64图片数据）
+    const technicalFields = [
       'specs',
       'specification',
       'model',
       'drawing_no',
       'color_code',
-      'remark',
-      'remarks',
-      'description',
-      'name',
       'location_detail',
       'location',
       'avatar',
       'bio',
+      'rule_value',
+      'split_details',
+    ];
+    if (technicalFields.some((field) => path.endsWith(field))) {
+      return true;
+    }
+
+    // 业务文本字段 — 仅跳过分号和单引号检测（这些字段最常触发误报）
+    // 但仍然保留对 DROP/UNION SELECT/OR 1=1 等高危模式的检测
+    const textFields = [
+      'remark',
+      'remarks',
+      'description',
+      'name',
       'issue_reason',
       'reason',
     ];
-    if (specFields.some((field) => path.endsWith(field))) {
-      return true;
+    if (textFields.some((field) => path.endsWith(field))) {
+      // 标记为半跳过，仅检测高危模式
+      req._sqlCheckTextFieldOnly = true;
+      return false; // 不跳过，让 checkInput 继续执行，但会使用宽松模式
     }
     return false;
   };
@@ -422,12 +448,20 @@ const detectSQLInjection = (req, res, next) => {
           continue;
         }
 
-        if (typeof value === 'string' && containsSQLInjection(value)) {
+        // 根据字段类型选择检测模式：业务文本字段使用宽松模式
+        const isRelaxed = req._sqlCheckTextFieldOnly || false;
+        // 检测完毕后重置标记
+        if (req._sqlCheckTextFieldOnly) {
+          req._sqlCheckTextFieldOnly = false;
+        }
+
+        if (typeof value === 'string' && containsSQLInjection(value, isRelaxed)) {
           logger.warn('检测到可疑的SQL注入尝试', {
             path: currentPath,
             value: value.substring(0, 100), // 只记录前100个字符
             ip: req.ip,
             user: req.user?.id,
+            mode: isRelaxed ? 'relaxed' : 'strict',
           });
 
           return res.status(403).json({

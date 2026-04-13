@@ -599,6 +599,10 @@ import {
 // 权限store
 const authStore = useAuthStore()
 
+// 权限控制
+const canUpdate = computed(() => authStore.hasPermission('sales:packinglists:update'))
+const canDelete = computed(() => authStore.hasPermission('sales:packinglists:delete'))
+
 // 常量定义
 const SEARCH_DEBOUNCE_DELAY = 300; // 搜索防抖延迟
 const DEFAULT_PAGE_SIZE = 20; // 默认分页大小
@@ -1631,13 +1635,13 @@ const handleSalesOrderNoBlur = (event) => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-buttons {
@@ -1664,7 +1668,7 @@ const handleSalesOrderNoBlur = (event) => {
 }
 
 .operation-group:not(:last-child) {
-  border-right: 1px solid #ebeef5;
+  border-right: 1px solid var(--color-border-lighter);
   padding-right: 8px;
 }
 

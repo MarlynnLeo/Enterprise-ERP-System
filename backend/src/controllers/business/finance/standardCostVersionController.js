@@ -1,6 +1,7 @@
 const db = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 const standardCostVersionController = {
   /**
@@ -27,7 +28,7 @@ const standardCostVersionController = {
         `SELECT * FROM standard_cost_versions 
          WHERE ${whereClause} 
          ORDER BY created_at DESC 
-         LIMIT ${parseInt(pageSize)} OFFSET ${offset}`,
+         LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}`,
         params
       );
 
@@ -49,7 +50,7 @@ const standardCostVersionController = {
   createVersion: async (req, res) => {
     try {
       const { version_no, version_name, effective_date, expiry_date, remark } = req.body;
-      const created_by = req.user?.username || 'system';
+      const created_by = await getCurrentUserName(req);
 
       if (!version_no || !version_name || !effective_date) {
         return ResponseHandler.error(res, '版本号、版本名、生效日期为必填项', 'VALIDATION_ERROR', 400);
@@ -104,7 +105,7 @@ const standardCostVersionController = {
     try {
       await connection.beginTransaction();
       const { id } = req.params;
-      const approved_by = req.user?.username || 'system';
+      const approved_by = await getCurrentUserName(req);
 
       const [version] = await connection.execute('SELECT status, effective_date FROM standard_cost_versions WHERE id = ?', [id]);
       if (version.length === 0) throw new Error('版本不存在');
@@ -146,7 +147,7 @@ const standardCostVersionController = {
     try {
       await connection.beginTransaction();
       const { id } = req.params;
-      const operator = req.user?.username || 'system';
+      const operator = await getCurrentUserName(req);
 
       const [version] = await connection.execute('SELECT status FROM standard_cost_versions WHERE id = ?', [id]);
       if (version.length === 0) throw new Error('版本不存在');

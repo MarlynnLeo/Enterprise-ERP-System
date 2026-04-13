@@ -787,10 +787,25 @@ const remainingQuantity = computed(() => {
 })
 
 // 格式化日期时间
-const formatDateTime = (datetime) => {
-  if (!datetime) return '-'
-  return dayjs(datetime).format('YYYY-MM-DD HH:mm')
-}
+// formatDateTime 已统一引用公共实现
+
+// 日期时间格式化
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const h = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    const s = String(date.getSeconds()).padStart(2, '0');
+    return `${y}-${m}-${d} ${h}:${min}:${s}`;
+  } catch {
+    return dateStr;
+  }
+};
 
 // 格式化数量
 const formatQuantity = (quantity) => {
@@ -1083,10 +1098,19 @@ const submitApplyParts = async () => {
 }
 
 // 格式化日期
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
+
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
+};
 
 // 获取生产任务列表
 const fetchTaskList = async () => {
@@ -1734,13 +1758,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 /* 工序详情 */

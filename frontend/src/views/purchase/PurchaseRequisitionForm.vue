@@ -465,14 +465,14 @@ onMounted(async () => {
 }
 
 :deep(.el-table th.el-table__cell) {
-  background-color: #f5f7fa;
-  color: #606266;
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-regular);
   font-weight: 600;
 }
 
 /* 删除按钮样式 */
 .delete-text-btn {
-  color: #f56c6c !important;
+  color: var(--color-danger) !important;
   font-weight: 500;
 }
 
@@ -494,7 +494,7 @@ onMounted(async () => {
 
 :deep(.el-dialog__header) {
   padding: 16px 20px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border-lighter);
 }
 
 :deep(.el-dialog__body) {
@@ -504,18 +504,18 @@ onMounted(async () => {
 /* 分割线样式 */
 :deep(.el-divider__text) {
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
   background-color: #fff;
 }
 
 /* 表单项标签优化 */
 :deep(.el-form-item__label) {
   font-weight: 500;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 /* 输入框禁用状态优化 */
 :deep(.el-input.is-disabled .el-input__wrapper) {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
 }
 </style>

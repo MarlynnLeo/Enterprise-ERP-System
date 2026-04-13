@@ -5,6 +5,18 @@
  */
 
 /**
+ * 采购订单业务常量
+ */
+/** 默认交期天数（新建订单时自动填入的预计到货日偏移量） */
+export const DEFAULT_DELIVERY_DAYS = 21
+
+/** 默认增值税率（兜底值，优先使用 finance store 中的配置） */
+export const DEFAULT_VAT_RATE = 0.13
+
+/** 采购订单打印模板ID（后台 print_templates 表中的主键） */
+export const PURCHASE_ORDER_PRINT_TEMPLATE_ID = 8
+
+/**
  * 采购订单状态枚举
  */
 export const PURCHASE_STATUS = {

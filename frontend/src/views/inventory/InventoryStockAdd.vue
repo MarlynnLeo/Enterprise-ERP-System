@@ -111,6 +111,7 @@
 
 <script setup>
 import apiAdapter from '@/utils/apiAdapter';
+import { debounce } from '@/utils/commonHelpers'
 
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -157,18 +158,7 @@ const rules = {
 }
 
 // ===== 工具函数 =====
-// 防抖函数
-const debounce = (func, wait) => {
-  let timeout
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout)
-      func(...args)
-    }
-    clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
-  }
-}
+
 
 // ===== 事件处理函数 =====
 // 关闭对话框

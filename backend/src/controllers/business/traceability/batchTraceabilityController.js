@@ -7,7 +7,6 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const BatchManagementService = require('../../../services/business/BatchManagementService');
-const ProductionTraceabilityService = require('../../../services/business/ProductionTraceabilityService');
 const FIFOOutboundService = require('../../../services/business/FIFOOutboundService');
 const InventoryTraceabilityService = require('../../../services/business/InventoryTraceabilityService');
 const ProductSalesTraceabilityService = require('../../../services/business/ProductSalesTraceabilityService');
@@ -895,6 +894,8 @@ const batchTraceabilityController = {
     try {
       const { limit = 10 } = req.query;
 
+      const safeLimit = parseInt(limit, 10) || 10;
+
       // 使用 v_batch_stock 统一获取
       const query = `
         SELECT
@@ -906,10 +907,10 @@ const batchTraceabilityController = {
         LEFT JOIN materials m ON vbs.material_id = m.id
         WHERE vbs.batch_number IS NOT NULL AND vbs.batch_number != ''
         ORDER BY created_at DESC
-        LIMIT ?
+        LIMIT ${safeLimit}
       `;
 
-      const result = await db.query(query, [parseInt(limit)]);
+      const result = await db.query(query);
 
       ResponseHandler.success(res, result.rows || [], '获取最新批次成功');
     } catch (error) {

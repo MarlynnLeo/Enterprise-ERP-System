@@ -320,16 +320,19 @@ const isUpcoming = (todo) => {
   return diff > 0 && diff < 86400000 * 3 // 3天内
 }
 
-const formatDate = (date) => dayjs(date).format('YYYY-MM-DD HH:mm')
+// formatDate 已统一引用公共实现
 
-const formatCountdown = (date) => {
-  const now = dayjs()
-  const target = dayjs(date)
-  const diffHours = target.diff(now, 'hour')
-  
-  if (diffHours < 24) return `${diffHours}小时后`
-  return `${Math.ceil(diffHours / 24)}天后`
-}
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
+};
 
 const getPriorityText = (p) => ({ 3: '高', 2: '中', 1: '低' }[p])
 const getPriorityType = (p) => ({ 3: 'danger', 2: 'warning', 1: 'info' }[p])

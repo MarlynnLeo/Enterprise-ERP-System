@@ -14,6 +14,8 @@ import { formatQuantity } from '@/utils/helpers/quantity'
 import { parseApiResponse, parsePaginatedData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
+import { formatDate } from '@/utils/helpers/dateUtils'
+import { Download, Search, Refresh, ShoppingCart, Select, Close, InfoFilled } from '@element-plus/icons-vue'
 
 // 权限store
 const authStore = useAuthStore()
@@ -83,10 +85,7 @@ const getStatusType = (status) => {
 }
 
 // 格式化日期
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
+// formatDate 已统一引用公共实现
 
 // 获取缺料统计数据
 const fetchShortageData = async (force = false) => {
@@ -649,13 +648,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 /* 浮动批量操作栏样式 */
@@ -759,7 +758,7 @@ onMounted(() => {
 }
 
 .status-item:hover {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
 }
 
 .status-value {
@@ -773,7 +772,7 @@ onMounted(() => {
 }
 
 .text-success {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .drawer-title {

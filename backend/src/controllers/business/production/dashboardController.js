@@ -5,7 +5,6 @@
  * @version 1.0.0
  */
 
-const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');

@@ -74,7 +74,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Document, View, Download } from '@element-plus/icons-vue'
+import { View, Download } from '@element-plus/icons-vue'
 import { ElImageViewer, ElMessage } from 'element-plus'
 
 const props = defineProps({
@@ -181,7 +181,7 @@ const downloadAttachment = async (url) => {
 .attachment-section {
   margin-top: 20px;
   padding: 10px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: 4px;
 }
 </style>

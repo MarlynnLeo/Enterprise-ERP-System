@@ -8,8 +8,9 @@
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const path = require('path');
-const { createCrudController, extendController } = require('../../utils/controllerFactory');
+const { createCrudController } = require('../../utils/controllerFactory');
 const { desensitizeData, hasFinancePermission } = require('../../utils/desensitizer');
+const { getCurrentUserName } = require('../../utils/userHelper');
 
 const categoryService = require('../../services/categoryService');
 const unitService = require('../../services/unitService');
@@ -391,16 +392,17 @@ const baseDataController = {
     try {
       const { pool: dbPool } = require('../../config/db');
 
-      // ✅ 合并为 2 次查询（主表 + 关联表）
+      // 统计：「已审核」基于 approved_by 字段（非 status），与前端 UI 对齐
       const [bomResult] = await dbPool.query(`
         SELECT 
           COUNT(*) as total,
-          SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
-          SUM(CASE WHEN status = 0 OR status IS NULL THEN 1 ELSE 0 END) as inactive,
+          SUM(CASE WHEN approved_by IS NOT NULL THEN 1 ELSE 0 END) as active,
+          SUM(CASE WHEN approved_by IS NULL THEN 1 ELSE 0 END) as inactive,
           (SELECT COUNT(*) FROM bom_details) as detailsCount,
           (SELECT COALESCE(SUM(sc.standard_price), 0) FROM standard_costs sc 
-           JOIN bom_masters bm ON sc.product_id = bm.product_id WHERE bm.status = 1) as totalCost
+           JOIN bom_masters bm ON sc.product_id = bm.product_id WHERE bm.status != 2) as totalCost
         FROM bom_masters
+        WHERE status != 2
       `);
 
       ResponseHandler.success(res, bomResult[0], '获取BOM统计成功');
@@ -707,7 +709,6 @@ const baseDataController = {
 
   async importMaterialsJson(req, res) {
     try {
-      const { pool: dbPool } = require('../../config/db');
 
       if (!req.body || !Array.isArray(req.body)) {
         return ResponseHandler.error(res, '无效的数据格式，应该是数据', 'BAD_REQUEST', 400);
@@ -729,11 +730,11 @@ const baseDataController = {
       const categoryByName = new Map(allCategories.map((c) => [c.name, c.id]));
 
 
-      [allUnits] = await dbPool.query('SELECT id, name FROM units');
+      const [allUnits] = await dbPool.query('SELECT id, name FROM units');
       const unitByName = new Map(allUnits.map((u) => [u.name, u.id]));
 
 
-      [allSources] = await dbPool.query('SELECT id, name, code FROM material_sources');
+      const [allSources] = await dbPool.query('SELECT id, name, code FROM material_sources');
       const sourceByName = new Map(allSources.map((s) => [s.name, s.id]));
       const sourceByCode = new Map(allSources.map((s) => [s.code, s.id]));
 
@@ -748,14 +749,14 @@ const baseDataController = {
       const groupByName = new Map(allGroups.map((g) => [g.name, g.id]));
 
 
-      [allUsers] = await dbPool.query('SELECT id, username, employee_no FROM users');
+      const [allUsers] = await dbPool.query('SELECT id, username, employee_no FROM users');
       const userByUsername = new Map(allUsers.map((u) => [u.username, u.id]));
       const userByEmployeeNo = new Map(
         allUsers.filter((u) => u.employee_no).map((u) => [u.employee_no, u.id])
       );
 
 
-      [allLocations] = await dbPool.query('SELECT id, code, name FROM locations');
+      const [allLocations] = await dbPool.query('SELECT id, code, name FROM locations');
       const locationByCode = new Map(allLocations.map((l) => [l.code, l.id]));
       const locationByName = new Map(allLocations.map((l) => [l.name, l.id]));
 
@@ -776,7 +777,7 @@ const baseDataController = {
           }
 
 
-          categoryId = null;
+          let categoryId = null;
           if (row.category_code) {
             categoryId =
               categoryByCode.get(row.category_code) || categoryByName.get(row.category_code);
@@ -786,7 +787,7 @@ const baseDataController = {
           }
 
 
-          materialSourceId = null;
+          let materialSourceId = null;
           if (row.source_type) {
             materialSourceId =
               sourceByName.get(row.source_type) || sourceByCode.get(row.source_type);
@@ -798,7 +799,7 @@ const baseDataController = {
           }
 
 
-          unitId = null;
+          let unitId = null;
           if (row.unit) {
             unitId = unitByName.get(row.unit);
             if (!unitId) {
@@ -807,7 +808,7 @@ const baseDataController = {
           }
 
 
-          supplierId = null;
+          let supplierId = null;
           if (row.supplier_code) {
             supplierId =
               supplierByCode.get(row.supplier_code) || supplierByName.get(row.supplier_code);
@@ -817,7 +818,7 @@ const baseDataController = {
           }
 
 
-          productionGroupId = null;
+          let productionGroupId = null;
           if (row.production_group_code) {
             productionGroupId =
               groupByCode.get(row.production_group_code) ||
@@ -830,7 +831,7 @@ const baseDataController = {
           }
 
 
-          managerId = null;
+          let managerId = null;
           if (row.manager_code) {
             managerId =
               userByUsername.get(row.manager_code) || userByEmployeeNo.get(row.manager_code);
@@ -840,7 +841,7 @@ const baseDataController = {
           }
 
 
-          locationId = null;
+          let locationId = null;
           if (row.location_code) {
             locationId =
               locationByCode.get(row.location_code) || locationByName.get(row.location_code);
@@ -850,7 +851,7 @@ const baseDataController = {
           }
 
 
-          status = 1; // 默认启用
+          let status = 1; // 默认启用
           if (row.status !== undefined) {
             if (row.status === '启用' || row.status === '1' || row.status === 1) {
               status = 1;
@@ -941,7 +942,7 @@ const baseDataController = {
       const ExcelHelper = require('../../utils/excelHelper');
 
 
-      columns = [
+      const columns = [
         { header: '物料编码', key: 'code', width: 20 },
         { header: '物料名称', key: 'name', width: 25 },
         { header: '规格型号', key: 'specification', width: 20 },
@@ -975,7 +976,7 @@ const baseDataController = {
       const workbook = ExcelHelper.exportData(exportData, columns, '物料列表');
 
 
-      (
+      res.setHeader(
         'Content-Type',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       );
@@ -1048,6 +1049,22 @@ const baseDataController = {
         details = detailsArray;
       }
 
+      // 控制器级输入校验
+      if (!bomData || !bomData.product_id) {
+        return ResponseHandler.error(res, '产品ID为必填项', 'VALIDATION_ERROR', 400);
+      }
+      if (!bomData.version || !String(bomData.version).trim()) {
+        return ResponseHandler.error(res, '版本号为必填项', 'VALIDATION_ERROR', 400);
+      }
+      if (!details || !Array.isArray(details) || details.length === 0) {
+        return ResponseHandler.error(res, 'BOM明细不能为空', 'VALIDATION_ERROR', 400);
+      }
+
+      // 注入当前操作人真实姓名
+      const currentUser = await getCurrentUserName(req);
+      bomData.created_by = currentUser;
+      bomData.updated_by = currentUser;
+
       const newBom = await bomService.createBom(bomData, details);
       ResponseHandler.success(res, newBom, '创建BOM成功', 201);
     } catch (error) {
@@ -1070,6 +1087,15 @@ const baseDataController = {
         bomData = restData;
         details = detailsArray;
       }
+
+      // 控制器级输入校验
+      if (!details || !Array.isArray(details) || details.length === 0) {
+        return ResponseHandler.error(res, 'BOM明细不能为空', 'VALIDATION_ERROR', 400);
+      }
+
+      // 注入当前操作人真实姓名
+      const currentUser = await getCurrentUserName(req);
+      bomData.updated_by = currentUser;
 
       const updatedBom = await bomService.updateBom(req.params.id, bomData, details);
       ResponseHandler.success(res, updatedBom, '更新BOM成功');
@@ -1191,9 +1217,9 @@ const baseDataController = {
   async approveBom(req, res) {
     try {
       const { pool } = require('../../config/db');
-      const bomId = parseInt(req.params.id);
+      const bomId = parseInt(req.params.id, 10) || 1;
 
-      // 审核BOM：同步设置 status=1 + approved_at + approved_by
+      // 审核BOM：同步设置 status=1 + approved_at + approved_by（INT字段，存用户ID）
       await pool.query(
         'UPDATE bom_masters SET status = 1, approved_at = NOW(), approved_by = ? WHERE id = ?',
         [req.user?.id || 1, bomId]
@@ -1223,7 +1249,7 @@ const baseDataController = {
   async unapproveBom(req, res) {
     try {
       const { pool } = require('../../config/db');
-      const bomId = parseInt(req.params.id);
+      const bomId = parseInt(req.params.id, 10) || 1;
 
       // 反审前获取产品ID用于后处理
       const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ?', [bomId]);

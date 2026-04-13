@@ -9,7 +9,7 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
 const printModel = require('../../models/printModel');
-const fs = require('fs');
+const { getCurrentUserName } = require('../../utils/userHelper');
 const path = require('path');
 
 // 打印控制器
@@ -67,9 +67,7 @@ const printController = {
       const data = req.body;
 
       // 添加创建人信息
-      if (req.user && req.user.id) {
-        data.created_by = req.user.id;
-      }
+      data.created_by = await getCurrentUserName(req);
 
       const result = await printModel.createPrintSetting(data);
 
@@ -98,9 +96,7 @@ const printController = {
       const data = req.body;
 
       // 添加更新人信息
-      if (req.user && req.user.id) {
-        data.updated_by = req.user.id;
-      }
+      data.updated_by = await getCurrentUserName(req);
 
       const success = await printModel.updatePrintSetting(id, data);
 
@@ -237,9 +233,7 @@ const printController = {
       const data = req.body;
 
       // 添加创建人信息
-      if (req.user && req.user.id) {
-        data.created_by = req.user.id;
-      }
+      data.created_by = await getCurrentUserName(req);
 
       const result = await printModel.createPrintTemplate(data);
 
@@ -271,9 +265,7 @@ const printController = {
       data.updated_at = new Date();
 
       // 添加更新人信息
-      if (req.user && req.user.id) {
-        data.updated_by = req.user.id;
-      }
+      data.updated_by = await getCurrentUserName(req);
 
       const success = await printModel.updatePrintTemplate(id, data);
 

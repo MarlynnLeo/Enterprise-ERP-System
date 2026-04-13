@@ -519,12 +519,12 @@ onMounted(() => {
 .cost-variance-container { padding: 20px; }
 .header-card { margin-bottom: 20px; }
 .header-content { display: flex; justify-content: space-between; align-items: center; }
-.title-section h2 { margin: 0; font-size: 24px; color: #303133; }
-.subtitle { margin: 5px 0 0 0; color: #909399; font-size: 14px; }
+.title-section h2 { margin: 0; font-size: 24px; color: var(--color-text-primary); }
+.subtitle { margin: 5px 0 0 0; color: var(--color-text-secondary); font-size: 14px; }
 .data-card { margin-bottom: 20px; }
 .search-form-inline { display: flex; align-items: center; flex-wrap: wrap; }
 .stat-card { text-align: center; padding: 10px; }
-.stat-title { font-size: 14px; color: #909399; margin-bottom: 8px; }
-.stat-value { font-size: 28px; font-weight: bold; color: #303133; }
+.stat-title { font-size: 14px; color: var(--color-text-secondary); margin-bottom: 8px; }
+.stat-value { font-size: 28px; font-weight: bold; color: var(--color-text-primary); }
 </style>
 

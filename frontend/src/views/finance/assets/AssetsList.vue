@@ -514,7 +514,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, ArrowDown } from '@element-plus/icons-vue';
 import { api } from '@/services/api';
-import { formatDate, formatCurrency as formatCurrencyUtil } from '@/utils/helpers/formatters';
+import { formatDate, formatCurrency } from '@/utils/helpers/formatters';
 
 const router = useRouter();
 
@@ -699,12 +699,6 @@ const assetRules = {
   status: [
     { required: true, message: '请选择资产状态', trigger: 'change' }
   ]
-};
-
-// 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-  return formatCurrencyUtil(amount);
 };
 
 import { getAssetStatusText, getAssetStatusColor } from '@/constants/systemConstants'
@@ -1223,13 +1217,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 :deep(.el-dialog__body) {

@@ -113,7 +113,11 @@ const apController = {
    */
   getInvoiceById: async (req, res) => {
     try {
-      const invoiceId = req.params.id;
+      // [B-1] 参数类型校验
+      const invoiceId = parseInt(req.params.id);
+      if (isNaN(invoiceId)) {
+        return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
+      }
       const invoice = await apModel.getInvoiceById(invoiceId);
 
       if (!invoice) {
@@ -132,7 +136,11 @@ const apController = {
    */
   getInvoiceForEdit: async (req, res) => {
     try {
-      const invoiceId = req.params.id;
+      // [B-1] 参数类型校验
+      const invoiceId = parseInt(req.params.id);
+      if (isNaN(invoiceId)) {
+        return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
+      }
       const invoice = await apModel.getInvoiceById(invoiceId);
 
       if (!invoice) {
@@ -207,7 +215,11 @@ const apController = {
    */
   updateInvoiceStatus: async (req, res) => {
     try {
-      const invoiceId = req.params.id;
+      // [B-1] 参数类型校验
+      const invoiceId = parseInt(req.params.id);
+      if (isNaN(invoiceId)) {
+        return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
+      }
       const { status } = req.body;
 
       if (!status) {
@@ -352,7 +364,11 @@ const apController = {
    */
   getPaymentById: async (req, res) => {
     try {
-      const paymentId = req.params.id;
+      // [B-1] 参数类型校验
+      const paymentId = parseInt(req.params.id);
+      if (isNaN(paymentId)) {
+        return ResponseHandler.error(res, '无效的付款记录ID', 'VALIDATION_ERROR', 400);
+      }
       const payment = await apModel.getPaymentById(paymentId);
 
       if (!payment) {
@@ -435,11 +451,13 @@ const apController = {
         );
       }
 
-      // 检查付款金额是否超过未付余额
-      if (parseFloat(paymentData.amount) > invoice.balance) {
+      // 检查付款金额是否超过未付余额 (精度修复: 分/整数比对)
+      const payAmountCents = Math.round(parseFloat(paymentData.amount || 0) * 100);
+      const invoiceBalanceCents = Math.round(parseFloat(invoice.balance || invoice.balance_amount || 0) * 100);
+      if (payAmountCents > invoiceBalanceCents) {
         return ResponseHandler.error(
           res,
-          `付款金额 ${paymentData.amount} 超过发票未付余额 ${invoice.balance}`,
+          `付款金额 ${paymentData.amount} 超过发票未付余额 ${invoice.balance || invoice.balance_amount}`,
           'VALIDATION_ERROR',
           400
         );
@@ -850,9 +868,10 @@ const apController = {
         }));
 
         if (formattedData.length === 0) {
-          logger.info('- 没有符合条件的应付账款发票');
+          // [C-1] 调试日志降级：生产环境避免输出敏感财务信息
+          logger.debug('[AP] 准备创建会计分录，invoiceData:');
 
-          logger.info('- 查询条件过于严格');
+          logger.debug('- 查询条件过于严格');
         }
 
         // 返回数据
@@ -985,7 +1004,11 @@ const apController = {
    */
   getInvoicePayments: async (req, res) => {
     try {
-      const invoiceId = req.params.id;
+      // [B-1] 参数类型校验
+      const invoiceId = parseInt(req.params.id);
+      if (isNaN(invoiceId)) {
+        return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
+      }
 
       // 确认发票存在
       const invoice = await apModel.getInvoiceById(invoiceId);

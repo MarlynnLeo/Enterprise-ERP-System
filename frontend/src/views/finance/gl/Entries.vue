@@ -448,8 +448,8 @@ const handlePrint = () => {
           padding: 10px;
           border-top: 2px solid #333;
         }
-        .debit { color: #409EFF; }
-        .credit { color: #F56C6C; }
+        .debit { color: var(--color-primary); }
+        .credit { color: var(--color-danger); }
         .signature-area {
           display: flex;
           justify-content: space-between;
@@ -613,22 +613,24 @@ const loadEntries = async () => {
   }
 };
 
-// 异步加载凭证金额信息
-
-
-// 添加日期格式化函数
-const formatDate = (dateString) => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  return date.toISOString().split('T')[0];
+// 日期格式化
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
+  }
 };
 
-// 格式化金额
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY'
-  }).format(amount || 0);
+// 金额格式化
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '¥0.00';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '¥0.00';
+  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 计算统计数据
@@ -858,13 +860,13 @@ watch(() => [props.fixedType, route.query.type], () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .entry-detail-header {
@@ -995,7 +997,7 @@ watch(() => [props.fixedType, route.query.type], () => {
 .dialog-title {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 /* 打印区域样式 */

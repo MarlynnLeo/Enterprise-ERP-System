@@ -617,9 +617,14 @@ watch(() => transactionForm.type, (newType) => {
 });
 
 // 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-  return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// formatCurrency 已统一引用公共实现;
+
+// 金额格式化
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '¥0.00';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '¥0.00';
+  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 获取交易类型文本
@@ -664,13 +669,18 @@ const getPaymentMethodDisplayText = (method) => {
 };
 
 // 格式化日期，只显示年月日
+// formatDate 已统一引用公共实现
+
+// 日期格式化
 const formatDate = (dateStr) => {
-  if (!dateStr) return '';
-  // 如果日期包含T和Z，说明是ISO格式，需要处理
-  if (typeof dateStr === 'string' && dateStr.includes('T')) {
-    return dateStr.split('T')[0];
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return dateStr;
   }
-  return dateStr;
 };
 
 // 加载交易列表
@@ -1696,13 +1706,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .action-buttons {
@@ -1753,10 +1763,10 @@ onMounted(() => {
 .transaction-detail-header .label {
   font-weight: bold;
   margin-right: 8px;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 .transaction-detail-header .value {
-  color: #303133;
+  color: var(--color-text-primary);
 }
 </style>

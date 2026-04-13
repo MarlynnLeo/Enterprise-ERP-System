@@ -11,6 +11,7 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../models');
 const { Op } = require('sequelize');
 const { generateTemplateCode } = require('../../../utils/codeGenerator');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 class InspectionTemplateController {
   // 获取模板列表
@@ -139,6 +140,7 @@ class InspectionTemplateController {
                 });
               }
             } catch (e) { logger.warn('解析 material_types 失败:', e.message); }
+            // 静默忽略该错误
           }
 
           if (rowMaterialIds.length > 0) {
@@ -246,6 +248,7 @@ class InspectionTemplateController {
               });
             }
           } catch (e) { logger.warn('解析 material_types 失败:', e.message); }
+          // 静默忽略该错误
         }
 
         if (rowMaterialIds.length > 0) {
@@ -316,7 +319,7 @@ class InspectionTemplateController {
           description,
           is_general: is_general || false,
           status: 'inactive',
-          created_by: req.user.id || 'system', // 如果用户ID不存在，使用默认值
+          created_by: await getCurrentUserName(req),
         },
         { transaction: t }
       );
@@ -684,7 +687,7 @@ class InspectionTemplateController {
           version: originalTemplate.version,
           description: originalTemplate.description,
           status: 'draft',
-          created_by: req.user.id,
+          created_by: await getCurrentUserName(req),
         },
         { transaction: t }
       );

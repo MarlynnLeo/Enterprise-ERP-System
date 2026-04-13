@@ -388,9 +388,9 @@ const costController = {
                     ${whereClause}
                     GROUP BY COALESCE(psc.product_id, psc.material_id), p.code, p.name
                     ORDER BY MAX(psc.updated_at) DESC, MAX(psc.id) DESC
-                    LIMIT ? OFFSET ?
+                    LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
                 `,
-          [...params, parseInt(pageSize), offset]
+          params
         );
 
         const [countResult] = await db.pool.query(
@@ -740,8 +740,8 @@ const costController = {
       const [rows] = await db.pool.query(`
                 SELECT * FROM cost_settings_history
                 ORDER BY changed_at DESC
-                LIMIT ${parseInt(pageSize)} OFFSET ${offset}
-            `);
+                LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+            `, [parseInt(pageSize)]);
 
       const [countResult] = await db.pool.execute(
         'SELECT COUNT(*) as total FROM cost_settings_history'
@@ -1012,7 +1012,7 @@ const costController = {
                 LEFT JOIN materials m ON pt.product_id = m.id
                 WHERE ${whereClause}
                 ORDER BY ac.calculated_at DESC
-                LIMIT ${parseInt(pageSize)} OFFSET ${offset}
+                LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
             `,
         params
       );
@@ -1263,7 +1263,7 @@ const costController = {
                     LEFT JOIN materials m ON cv.product_id = m.id
                     WHERE ${whereClause}
                     ORDER BY cv.created_at DESC
-                    LIMIT ${parseInt(pageSize)} OFFSET ${offset}
+                    LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
                 `,
           params
         );
@@ -1565,8 +1565,8 @@ const costController = {
                 ) psc ON pt.product_id = psc.p_id
                 HAVING ABS(variance_rate) > ${threshold}
                 ORDER BY ABS(variance_rate) DESC
-                LIMIT ${parseInt(pageSize)} OFFSET ${offset}
-            `);
+                LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+            `, [parseInt(pageSize)]);
 
       // 处理 alert_level
       const alertsList = rows.map((row) => ({
@@ -2007,7 +2007,7 @@ const costController = {
                 LEFT JOIN materials m ON sc.material_id = m.id
                 WHERE ${whereClause} AND sc.material_id IS NOT NULL
                 ORDER BY sc.created_at DESC
-                LIMIT ${parseInt(pageSize)} OFFSET ${offset}
+                LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
             `,
         params
       );

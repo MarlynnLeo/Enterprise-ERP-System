@@ -110,11 +110,12 @@ class InventoryTraceabilityService {
    * @param {Object} productionData - 生产入库数据
    * @returns {Promise<Object>} - 处理结果
    */
-  static async handleProductionInbound(productionData) {
-    const connection = await db.pool.getConnection();
+  static async handleProductionInbound(productionData, externalConn = null) {
+    const isExternalConn = !!externalConn;
+    const connection = externalConn || await db.pool.getConnection();
 
     try {
-      await connection.beginTransaction();
+      if (!isExternalConn) await connection.beginTransaction();
 
       const {
         production_task_id,
@@ -190,7 +191,7 @@ class InventoryTraceabilityService {
         }
       }
 
-      await connection.commit();
+      if (!isExternalConn) await connection.commit();
 
       return {
         success: true,
@@ -199,11 +200,11 @@ class InventoryTraceabilityService {
         consumption_records: consumptionRecords,
       };
     } catch (error) {
-      await connection.rollback();
+      if (!isExternalConn) await connection.rollback();
       logger.error('处理生产入库追溯失败:', error);
       throw error;
     } finally {
-      connection.release();
+      if (!isExternalConn) connection.release();
     }
   }
 

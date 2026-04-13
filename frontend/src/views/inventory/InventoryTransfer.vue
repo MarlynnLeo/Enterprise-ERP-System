@@ -840,43 +840,15 @@ const loadingMaterials = ref(false);
 let currentSearchId = 0;
 
 // 防抖函数
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
+import { debounce } from '@/utils/commonHelpers'
 
-// 搜索物料
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
-  
   try {
-    if (!query || query.trim().length === 0) {
-      // 首次加载或查询为空时加载默认列表
-      const defaultResults = await searchMaterials(baseDataApi, '', {
-        pageSize: 20,
-        includeAll: true
-      });
-      if (searchId === currentSearchId) {
-        materialOptions.value = mapMaterialData(defaultResults);
-      }
-      return;
-    }
-    
-    const searchResults = await searchMaterials(baseDataApi, query.trim(), {
-      pageSize: SEARCH_CONFIG.REMOTE_SEARCH_PAGE_SIZE,
-      includeAll: true
-    });
-    
+    const results = await searchMaterials(query);
     if (searchId === currentSearchId) {
-      materialOptions.value = mapMaterialData(searchResults);
+      materialOptions.value = results.map(mapMaterialData);
     }
   } catch (error) {
     if (searchId === currentSearchId) materialOptions.value = [];
@@ -1351,13 +1323,13 @@ const batchDeleteTransfers = async () => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {
@@ -1401,7 +1373,7 @@ const batchDeleteTransfers = async () => {
   word-break: break-all;
   margin-top: 4px;
   padding: 2px 4px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: 3px;
 }
 

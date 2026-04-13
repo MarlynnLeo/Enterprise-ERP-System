@@ -389,9 +389,14 @@ const matchingTransactions = ref([]);
 const selectedTransactions = ref([]);
 
 // 格式化货币
-const formatCurrency = (amount) => {
-  if (amount === undefined || amount === null) return '¥0.00';
-  return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// formatCurrency 已统一引用公共实现;
+
+// 金额格式化
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '¥0.00';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '¥0.00';
+  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 获取交易类型文本
@@ -777,13 +782,13 @@ onMounted(() => {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .action-buttons {
@@ -802,7 +807,7 @@ onMounted(() => {
   margin-bottom: 12px;
   font-weight: bold;
   font-size: 15px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .account-selection {
@@ -832,14 +837,14 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
-.stat-card:nth-child(1) .stat-value { color: #409EFF; }
-.stat-card:nth-child(2) .stat-value { color: #67C23A; }
-.stat-card:nth-child(3) .stat-value { color: #E6A23C; }
-.stat-card:nth-child(4) .stat-value { color: #F56C6C; }
+.stat-card:nth-child(1) .stat-value { color: var(--color-primary); }
+.stat-card:nth-child(2) .stat-value { color: var(--color-success); }
+.stat-card:nth-child(3) .stat-value { color: var(--color-warning); }
+.stat-card:nth-child(4) .stat-value { color: var(--color-danger); }
 
 .stat-label {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .status-card {
@@ -881,11 +886,11 @@ onMounted(() => {
 }
 
 .negative-value {
-  color: #F56C6C;
+  color: var(--color-danger);
 }
 
 .positive-value {
-  color: #67C23A;
+  color: var(--color-success);
 }
 
 /* 对话框高度 */
@@ -907,7 +912,7 @@ onMounted(() => {
 
 .tab-info {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 /* 表格样式优化 */
@@ -916,8 +921,8 @@ onMounted(() => {
 }
 
 :deep(.el-table th.el-table__cell) {
-  background-color: #f5f7fa;
-  color: #303133;
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 </style> 

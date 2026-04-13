@@ -10,12 +10,9 @@ const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
 const purchaseModel = require('../../../models/purchase');
-const { ErrorFactory } = require('../../../middleware/unifiedErrorHandler');
-const axios = require('axios');
 const { desensitizeData, hasFinancePermission } = require('../../../utils/desensitizer');
-const { qualityApi } = require('../../../services/business/QualityService');
 const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
-const businessConfig = require('../../../config/businessConfig');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 // 状态常量
 const STATUS = {
@@ -480,7 +477,7 @@ const createReceipt = async (req, res) => {
 
     // 使用提供的收货人，如果没有则使用登录用户名
     // 优先使用前端传入的receiver(真实姓名)作为operator
-    const operator = req.user?.username || 'system';
+    const operator = await getCurrentUserName(req);
 
     // 记录是否来自检验的标记，便于日志和调试
     if (from_inspection) {
@@ -1252,7 +1249,7 @@ const updateReceiptStatus = async (req, res) => {
 
     // 采购入库完成后，通过事件总线异步解耦触发后续财务集成（应付发票、进项发票）
     if (status === STATUS.PURCHASE_RECEIPT.COMPLETED) {
-      setTimeout(() => {
+      setImmediate(() => {
         try {
           const EventBus = require('../../../events/EventBus');
           EventBus.emit('PURCHASE_RECEIPT_COMPLETED', {
@@ -1263,7 +1260,7 @@ const updateReceiptStatus = async (req, res) => {
         } catch (emitErr) {
           logger.error('⚠️ [EventBus] 触发 PURCHASE_RECEIPT_COMPLETED 失败:', emitErr);
         }
-      }, 0);
+      });
     }
 
     res.json({
@@ -1504,7 +1501,7 @@ const getMaterialPurchaseHistory = async (req, res) => {
         LIMIT ${actualPageSize} OFFSET ${offset}
       `;
 
-      const dataParams = queryParams; // 不再包含 LIMIT 和 OFFSET
+      const dataParams = queryParams;
 
       // 记录完整的查询参数用于调试
       logger.debug('执行物料采购历史查询:', {
