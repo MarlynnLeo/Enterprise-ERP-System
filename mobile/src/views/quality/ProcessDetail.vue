@@ -1,16 +1,17 @@
 <!--
 /**
  * ProcessDetail.vue
- * @description 杩囩▼妫€楠岃鎯呴〉闈? * @date 2026-04-14
+ * @description 过程检验详情页面
+ * @date 2026-04-14
  * @version 1.0.0
  */
 -->
 <template>
   <div class="detail-page">
-    <NavBar title="杩囩▼妫€楠岃鎯? left-arrow @click-left="$router.go(-1)" />
+    <NavBar title="过程检验详情" left-arrow @click-left="$router.go(-1)" />
 
     <div class="content-container" v-if="inspection">
-      <!-- 鐘舵€佸崱鐗?-->
+      <!-- 状态卡片 -->
       <div class="status-card">
         <div class="status-badge" :class="getStatusClass(inspection.status)">
           {{ getStatusLabel(inspection.status) }}
@@ -20,65 +21,65 @@
         </div>
       </div>
 
-      <!-- 鍩烘湰淇℃伅 -->
-      <CellGroup inset title="鍩烘湰淇℃伅">
-        <Cell title="宸ュ崟鍙? :value="inspection.production_order_no || '--'" />
-        <Cell title="鐢熶骇宸ュ簭" :value="inspection.process_name || '--'" />
-        <Cell title="鐗╂枡鍚嶇О" :value="inspection.material_name || '--'" />
+      <!-- 基本信息 -->
+      <CellGroup inset title="基本信息">
+        <Cell title="工单号" :value="inspection.production_order_no || '--'" />
+        <Cell title="生产工序" :value="inspection.process_name || '--'" />
+        <Cell title="物料名称" :value="inspection.material_name || '--'" />
         <Cell
-          title="妫€楠屾棩鏈?
+          title="检验日期"
           :value="formatDate(inspection.inspection_date || inspection.created_at)"
         />
       </CellGroup>
 
-      <!-- 鏁伴噺淇℃伅 -->
-      <CellGroup inset title="鏁伴噺淇℃伅">
-        <Cell title="寰呮鏁伴噺" :value="`${inspection.quantity || 0} ${inspection.unit || '浠?}`" />
-        <Cell title="鎶芥鏁伴噺" :value="`${inspection.sample_size || 0}`" />
+      <!-- 数量信息 -->
+      <CellGroup inset title="数量信息">
+        <Cell title="待检数量" :value="`${inspection.quantity || 0} ${inspection.unit || '件'}`" />
+        <Cell title="抽检数量" :value="`${inspection.sample_size || 0}`" />
       </CellGroup>
 
-      <!-- 妫€楠岀粨鏋?-->
-      <CellGroup v-if="inspection.status !== 'pending'" inset title="妫€楠岀粨鏋滃綍鍏?>
+      <!-- 检验结果 -->
+      <CellGroup v-if="inspection.status !== 'pending'" inset title="检验结果录入">
         <Field
           v-model="inspectForm.qualified_quantity"
           type="digit"
-          label="鍚堟牸鏁伴噺"
-          placeholder="璇疯緭鍏ユ湁鏁堝悎鏍兼暟"
+          label="合格数量"
+          placeholder="请输入有效合格数"
           :readonly="inspection.status !== 'in_progress'"
         />
         <Field
           v-model="inspectForm.unqualified_quantity"
           type="digit"
-          label="涓嶅悎鏍兼暟閲?
-          placeholder="璇疯緭鍏ヤ笉鍚堟牸鏁?
+          label="不合格数量"
+          placeholder="请输入不合格数"
           :readonly="inspection.status !== 'in_progress'"
         />
-        <Cell title="鍚堟牸鐜? :value="`${calculatePassRate()}%`" />
+        <Cell title="合格率" :value="`${calculatePassRate()}%`" />
       </CellGroup>
 
-      <!-- 澶囨敞 -->
-      <CellGroup inset title="澶囨敞">
+      <!-- 备注 -->
+      <CellGroup inset title="备注">
         <Field
           v-model="inspectForm.remark"
           type="textarea"
           rows="2"
           autosize
-          label="澶囨敞褰曞叆"
-          placeholder="璇疯緭鍏ヨˉ鍏呰鏄?
+          label="备注录入"
+          placeholder="请输入补充说明"
           :readonly="inspection.status !== 'in_progress' && inspection.status !== 'pending'"
         />
       </CellGroup>
 
-      <!-- 鎿嶄綔鎸夐挳 -->
+      <!-- 操作按钮 -->
       <div class="action-section" v-if="inspection.status === 'pending'">
-        <Button round block type="primary" @click="handleStart"> 寮€濮嬫楠?</Button>
+        <Button round block type="primary" @click="handleStart"> 开始检验 </Button>
       </div>
       <div class="action-section" v-else-if="inspection.status === 'in_progress'">
-        <Button round block type="success" @click="handleComplete"> 鎻愪氦骞跺畬鎴愭楠?</Button>
+        <Button round block type="success" @click="handleComplete"> 提交并完成检验 </Button>
       </div>
     </div>
 
-    <!-- 鍔犺浇鐘舵€?-->
+    <!-- 加载状态 -->
     <div v-else class="loading-container">
       <Loading size="36" />
     </div>
@@ -112,11 +113,11 @@
 
   const getStatusLabel = (status) => {
     const map = {
-      pending: '寰呮楠?,
-      in_progress: '妫€楠屼腑',
-      completed: '宸插畬鎴?,
-      passed: '妫€楠屽強鏍?,
-      failed: '涓嶅強鏍?
+      pending: '待检验',
+      in_progress: '检验中',
+      completed: '已完成',
+      passed: '检验及格',
+      failed: '不及格'
     }
     return map[status] || status
   }
@@ -154,8 +155,8 @@
         inspectForm.unqualified_quantity = inspection.value.unqualified_quantity || 0
         inspectForm.remark = inspection.value.remark || ''
       } catch (e) {
-        console.error('瑙ｆ瀽妫€楠屾暟鎹け璐?', e)
-        showToast('鏁版嵁鍔犺浇澶辫触')
+        console.error('解析检验数据失败:', e)
+        showToast('数据加载失败')
       }
     } else {
       loadFromApi()
@@ -174,22 +175,22 @@
         inspectForm.unqualified_quantity = inspection.value.unqualified_quantity || 0
         inspectForm.remark = inspection.value.remark || ''
       } else {
-        showToast('鏈壘鍒版楠岃褰?)
+        showToast('未找到检验记录')
       }
     } catch (error) {
-      console.error('鍔犺浇璇︽儏澶辫触:', error)
-      showToast('鍔犺浇澶辫触')
+      console.error('加载详情失败:', error)
+      showToast('加载失败')
     }
   }
 
   const handleStart = async () => {
     try {
       await qualityApi.startInspection(inspection.value.id)
-      showToast('妫€楠屽凡寮€濮?)
+      showToast('检验已开始')
       inspection.value.status = 'in_progress'
     } catch (error) {
-      console.error('寮€濮嬫楠屽け璐?', error)
-      showToast('鎿嶄綔澶辫触')
+      console.error('开始检验失败:', error)
+      showToast('操作失败')
     }
   }
 
@@ -197,26 +198,26 @@
     const q = Number(inspectForm.qualified_quantity) || 0
     const uq = Number(inspectForm.unqualified_quantity) || 0
     if (q + uq <= 0) {
-      showToast('璇疯緭鍏ユ湁鏁堢殑鏁伴噺')
+      showToast('请输入有效的数量')
       return
     }
 
     try {
-      await showConfirmDialog({ title: '纭瀹屾垚', message: '纭畾瀹屾垚姝ゆ妫€楠岃褰曟彁浜ゅ悧锛? })
+      await showConfirmDialog({ title: '确认完成', message: '确定完成此次检验记录提交吗？' })
       await qualityApi.completeInspection(inspection.value.id, {
         qualified_quantity: q,
         unqualified_quantity: uq,
         status: 'completed',
         remark: inspectForm.remark
       })
-      showToast('妫€楠屽凡瀹屾垚')
+      showToast('检验已完成')
       inspection.value.status = 'completed'
       setTimeout(() => {
         router.go(-1)
       }, 1000)
     } catch (error) {
-      console.error('瀹屾垚妫€楠屽け璐?', error)
-      showToast('鎿嶄綔澶辫触')
+      console.error('完成检验失败:', error)
+      showToast('操作失败')
     }
   }
 

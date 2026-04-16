@@ -1,31 +1,31 @@
 <!--
 /**
  * Traceability.vue
- * @description 璐ㄩ噺杩芥函绠＄悊 鈥?鎵规鍒楄〃椤甸潰
+ * @description 质量追溯管理 — 批次列表页面
  * @date 2026-04-15
  * @version 1.0.0
  */
 -->
 <template>
   <div class="traceability-page">
-    <NavBar title="杩芥函绠＄悊" left-arrow @click-left="$router.go(-1)">
+    <NavBar title="追溯管理" left-arrow @click-left="$router.go(-1)">
       <template #right>
         <VanIcon name="search" size="18" @click="showSearchPanel = !showSearchPanel" />
       </template>
     </NavBar>
 
     <div class="content-wrapper">
-      <!-- 鎼滅储闈㈡澘 -->
+      <!-- 搜索面板 -->
       <div v-if="showSearchPanel" class="search-section">
         <Search
           v-model="searchKeyword"
-          placeholder="鎼滅储鐗╂枡缂栫爜鎴栨壒娆″彿..."
+          placeholder="搜索物料编码或批次号..."
           @search="handleSearch"
           @clear="handleClear"
         />
       </div>
 
-      <!-- 绫诲瀷绛涢€夋爣绛?-->
+      <!-- 类型筛选标签 -->
       <div class="filter-section">
         <div class="filter-tabs">
           <div
@@ -41,55 +41,55 @@
         </div>
       </div>
 
-      <!-- 鎵规鍒楄〃 -->
+      <!-- 批次列表 -->
       <div class="batch-list">
         <PullRefresh v-model="refreshing" @refresh="onRefresh">
-          <!-- 绌虹姸鎬?-->
-          <Empty v-if="filteredBatches.length === 0 && !loading" description="鏆傛棤杩芥函璁板綍" />
+          <!-- 空状态 -->
+          <Empty v-if="filteredBatches.length === 0 && !loading" description="暂无追溯记录" />
 
-          <!-- 鎵规鍗＄墖 -->
+          <!-- 批次卡片 -->
           <div
             v-for="(batch, index) in filteredBatches"
             :key="batch.batch_number + '-' + index"
             class="batch-card"
             @click="viewBatchDetail(batch)"
           >
-            <!-- 鍗＄墖澶撮儴 -->
+            <!-- 卡片头部 -->
             <div class="card-header">
               <div
                 class="batch-type-indicator"
                 :class="batch.type === 'product' ? 'type-product' : 'type-material'"
               >
-                {{ batch.type === 'product' ? '鎴愬搧' : '鍘熸枡' }}
+                {{ batch.type === 'product' ? '成品' : '原料' }}
               </div>
               <div class="batch-time">{{ formatDate(batch.created_at) }}</div>
             </div>
 
-            <!-- 鍗＄墖涓讳綋 -->
+            <!-- 卡片主体 -->
             <div class="card-body">
               <div class="material-code-row">
-                <span class="material-icon">{{ batch.type === 'product' ? '馃彮' : '馃摝' }}</span>
+                <span class="material-icon">{{ batch.type === 'product' ? '🏭' : '📦' }}</span>
                 <span class="material-code">{{ batch.material_code }}</span>
               </div>
               <div class="batch-number-row">
-                <span class="label">鎵规鍙?/span>
+                <span class="label">批次号</span>
                 <span class="value">{{ batch.batch_number }}</span>
               </div>
             </div>
 
-            <!-- 鍗＄墖搴曢儴锛氭搷浣滄彁绀?-->
+            <!-- 卡片底部：操作提示 -->
             <div class="card-footer">
               <span class="trace-hint">
                 <VanIcon name="guide-o" size="14" />
-                鐐瑰嚮鏌ョ湅杩芥函閾捐矾
+                点击查看追溯链路
               </span>
               <VanIcon name="arrow" size="14" color="var(--text-tertiary)" />
             </div>
           </div>
 
-          <!-- 鍔犺浇鎻愮ず -->
+          <!-- 加载提示 -->
           <div v-if="loading" class="loading-more">
-            <Loading type="spinner" size="20" color="var(--color-accent)">鍔犺浇涓?..</Loading>
+            <Loading type="spinner" size="20" color="var(--color-accent)">加载中...</Loading>
           </div>
         </PullRefresh>
       </div>
@@ -102,39 +102,43 @@
   import { useRouter } from 'vue-router'
   import {
     NavBar,
-    Icon,
+    Icon as VanIcon,
     Search,
     PullRefresh,
     Empty,
     Loading,
-    showToast,
-    Icon as VanIcon
+    showToast
   } from 'vant'
   import { qualityApi } from '@/services/api'
 
   const router = useRouter()
 
-  // 鍝嶅簲寮忔暟鎹?  const batches = ref([])
+  // 响应式数据
+  const batches = ref([])
   const loading = ref(false)
   const refreshing = ref(false)
   const searchKeyword = ref('')
   const activeFilter = ref('all')
   const showSearchPanel = ref(false)
 
-  // 绛涢€夋爣绛鹃厤缃?  const filterTabs = ref([
-    { label: '鍏ㄩ儴', value: 'all', icon: '馃搵' },
-    { label: '鍘熸枡', value: 'material', icon: '馃摝' },
-    { label: '鎴愬搧', value: 'product', icon: '馃彮' }
+  // 筛选标签配置
+  const filterTabs = ref([
+    { label: '全部', value: 'all', icon: '📋' },
+    { label: '原料', value: 'material', icon: '📦' },
+    { label: '成品', value: 'product', icon: '🏭' }
   ])
 
-  // 鎸夌被鍨嬬瓫閫夊悗鐨勬壒娆″垪琛?  const filteredBatches = computed(() => {
+  // 按类型筛选后的批次列表
+  const filteredBatches = computed(() => {
     let result = batches.value
 
-    // 鎸夌被鍨嬬瓫閫?    if (activeFilter.value !== 'all') {
+    // 按类型筛选
+    if (activeFilter.value !== 'all') {
       result = result.filter((b) => b.type === activeFilter.value)
     }
 
-    // 鎸夋悳绱㈠叧閿瓧绛涢€?    if (searchKeyword.value) {
+    // 按搜索关键字筛选
+    if (searchKeyword.value) {
       const kw = searchKeyword.value.toLowerCase()
       result = result.filter(
         (b) =>
@@ -146,20 +150,21 @@
     return result
   })
 
-  // 鏍煎紡鍖栨棩鏈?  const formatDate = (dateStr) => {
+  // 格式化日期
+  const formatDate = (dateStr) => {
     if (!dateStr) return ''
     const date = new Date(dateStr)
     const now = new Date()
     const diffMs = now - date
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-    if (diffDays === 0) return '浠婂ぉ'
-    if (diffDays === 1) return '鏄ㄥぉ'
-    if (diffDays < 7) return `${diffDays}澶╁墠`
+    if (diffDays === 0) return '今天'
+    if (diffDays === 1) return '昨天'
+    if (diffDays < 7) return `${diffDays}天前`
     return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
   }
 
-  // 鍔犺浇鎵规鏁版嵁
+  // 加载批次数据
   const loadBatches = async () => {
     if (loading.value) return
     loading.value = true
@@ -168,7 +173,7 @@
       const params = { limit: 50 }
       const response = await qualityApi.getTraceabilityRecords(params)
 
-      // 瑙ｆ瀽鍝嶅簲
+      // 解析响应
       let data = []
       const responseData = response.data || response
 
@@ -184,30 +189,30 @@
 
       batches.value = data
     } catch (error) {
-      console.error('鍔犺浇杩芥函鎵规澶辫触:', error)
-      showToast('鍔犺浇澶辫触锛岃閲嶈瘯')
+      console.error('加载追溯批次失败:', error)
+      showToast('加载失败，请重试')
     } finally {
       loading.value = false
       refreshing.value = false
     }
   }
 
-  // 涓嬫媺鍒锋柊
+  // 下拉刷新
   const onRefresh = () => {
     refreshing.value = true
     loadBatches()
   }
 
-  // 鎼滅储
+  // 搜索
   const handleSearch = () => {
-    // 鍓嶇杩囨护宸查€氳繃 computed 瀹炵幇
+    // 前端过滤已通过 computed 实现
   }
 
   const handleClear = () => {
     searchKeyword.value = ''
   }
 
-  // 鏌ョ湅鎵规璇︽儏 鈥?璺宠浆鍒拌拷婧鎯呴〉
+  // 查看批次详情 — 跳转到追溯详情页
   const viewBatchDetail = (batch) => {
     router.push({
       path: '/quality/traceability/detail',
@@ -235,7 +240,7 @@
     padding: 0 12px 12px;
   }
 
-  // 鎼滅储鍖哄煙
+  // 搜索区域
   .search-section {
     padding: 8px 0;
     animation: slideDown 0.2s ease-out;
@@ -252,7 +257,8 @@
     }
   }
 
-  // 绛涢€夋爣绛?  .filter-section {
+  // 筛选标签
+  .filter-section {
     padding: 8px 0 4px;
 
     .filter-tabs {
@@ -268,7 +274,7 @@
         padding: 10px 0;
         border-radius: 10px;
         background: var(--bg-secondary);
-        border: 1.5px solid var(--glass-border);
+        border: 1.5px solid var(--van-border-color);
         font-size: 0.8125rem;
         color: var(--text-secondary);
         transition: all 0.25s ease;
@@ -283,25 +289,25 @@
         }
 
         &.active {
-          background: var(--color-accent-bg);
-          border-color: var(--color-accent);
-          color: var(--color-accent);
+          background: var(--color-primary-bg);
+          border-color: var(--color-primary);
+          color: var(--color-primary);
           font-weight: 600;
         }
       }
     }
   }
 
-  // 鎵规鍒楄〃
+  // 批次列表
   .batch-list {
     padding-top: 8px;
   }
 
-  // 鎵规鍗＄墖
+  // 批次卡片
   .batch-card {
     background: var(--bg-secondary);
     border-radius: 12px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--van-border-color);
     margin-bottom: 10px;
     overflow: hidden;
     box-shadow: none;
@@ -313,7 +319,7 @@
       box-shadow: none;
     }
 
-    // 娓愭鍔ㄧ敾
+    // 渐进动画
     @for $i from 1 through 20 {
       &:nth-child(#{$i}) {
         animation-delay: #{$i * 0.04}s;
@@ -332,7 +338,7 @@
     }
   }
 
-  // 鍗＄墖澶撮儴
+  // 卡片头部
   .card-header {
     display: flex;
     justify-content: space-between;
@@ -365,7 +371,7 @@
     color: var(--text-tertiary);
   }
 
-  // 鍗＄墖涓讳綋
+  // 卡片主体
   .card-body {
     padding: 10px 14px;
   }
@@ -411,14 +417,13 @@
     }
   }
 
-  // 鍗＄墖搴曢儴
+  // 卡片底部
   .card-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 8px 14px;
-    border-top: 1px solid var(--glass-border);
-    background: rgba(0, 0, 0, 0.01);
+    border-top: 1px solid var(--van-border-color);
 
     .trace-hint {
       display: flex;
@@ -429,7 +434,7 @@
     }
   }
 
-  // 鍔犺浇鏇村
+  // 加载更多
   .loading-more {
     display: flex;
     justify-content: center;
