@@ -646,7 +646,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .users-page {
   min-height: 100vh;
-  background-color: $background-color;
+  background-color: var(--bg-primary);
 }
 
 .content-container {
@@ -658,7 +658,7 @@ onMounted(() => {
 
   .filter-tabs {
     display: flex;
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 4px;
     margin-top: 12px;
@@ -670,13 +670,13 @@ onMounted(() => {
       align-items: center;
       padding: 8px 12px;
       font-size: 12px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
       border-radius: 6px;
       transition: all 0.2s;
       white-space: nowrap;
 
       &.active {
-        background-color: $primary-color;
+        background-color: var(--color-primary);
         color: #fff;
       }
     }
@@ -685,11 +685,11 @@ onMounted(() => {
 
 .user-stats {
   display: flex;
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
 
   .stats-item {
     flex: 1;
@@ -698,25 +698,25 @@ onMounted(() => {
     .stats-number {
       font-size: 20px;
       font-weight: 600;
-      color: $text-color;
+      color: var(--text-primary);
       margin-bottom: 4px;
 
       &.active {
-        color: #2CCFB0;
+        color: var(--module-green);
       }
 
       &.online {
-        color: #5E7BF6;
+        color: var(--module-blue);
       }
 
       &.disabled {
-        color: #FF6B6B;
+        color: var(--module-red);
       }
     }
 
     .stats-label {
       font-size: 12px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
     }
   }
 }
@@ -725,11 +725,11 @@ onMounted(() => {
   .user-item {
     display: flex;
     align-items: flex-start;
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: none;
 
     .user-avatar {
       position: relative;
@@ -745,7 +745,7 @@ onMounted(() => {
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: $primary-color;
+        background-color: var(--color-primary);
         color: #fff;
         font-size: 18px;
         font-weight: 600;
@@ -757,7 +757,7 @@ onMounted(() => {
         right: 2px;
         width: 12px;
         height: 12px;
-        background-color: #2CCFB0;
+        background-color: var(--module-green);
         border: 2px solid #fff;
         border-radius: 50%;
       }
@@ -775,7 +775,7 @@ onMounted(() => {
         .user-name {
           font-size: 16px;
           font-weight: 500;
-          color: $text-color;
+          color: var(--text-primary);
         }
 
         .status-badge {
@@ -785,15 +785,15 @@ onMounted(() => {
           color: #fff;
 
           &.active {
-            background-color: #2CCFB0;
+            background-color: var(--module-green);
           }
 
           &.disabled {
-            background-color: #FF6B6B;
+            background-color: var(--module-red);
           }
 
           &.pending {
-            background-color: #FF9F45;
+            background-color: var(--module-orange);
           }
         }
       }
@@ -808,7 +808,7 @@ onMounted(() => {
           display: flex;
           align-items: center;
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
 
           span {
             margin-left: 4px;
@@ -825,11 +825,11 @@ onMounted(() => {
           font-size: 11px;
 
           .meta-label {
-            color: $text-color-secondary;
+            color: var(--text-secondary);
           }
 
           .meta-value {
-            color: $text-color;
+            color: var(--text-primary);
             margin-left: 4px;
           }
         }
@@ -857,7 +857,7 @@ onMounted(() => {
     align-items: center;
     justify-content: space-between;
     padding: 16px;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--van-border-color);
     font-size: 16px;
     font-weight: 600;
   }

@@ -311,6 +311,7 @@
                 filterable
                 remote
                 reserve-keyword
+                default-first-option
                 :remote-method="searchPlans"
                 :loading="planSearchLoading"
                 @focus="handlePlanSelectFocus"

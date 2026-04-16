@@ -202,7 +202,7 @@ const inspectionController = {
 
             const result = await QualityInspection.updateInspection(parseInt(id), data);
 
-            // 如果检验状态变为终态，触发不合格品自动创建
+            // 如果检验状态变为终态，触发不合格品自动创建与合格品的流转
             if (
                 data.status &&
                 (data.status === STATUS.QUALITY.COMPLETED ||
@@ -210,15 +210,44 @@ const inspectionController = {
                     data.status === STATUS.QUALITY.FAILED ||
                     data.status === STATUS.QUALITY.PARTIAL)
             ) {
-                // 如果有不合格品，自动创建不合格品记录（已内置幂等校验）
+                const updatedInspection = { ...inspection, ...data };
+
+                // 1. 如果有不合格品，自动创建不合格品记录（已内置幂等校验）
                 if (data.unqualified_quantity && data.unqualified_quantity > 0) {
                     try {
                         const NonconformingProductService = require('../../../services/business/NonconformingProductService');
-                        const inspectionWithUpdatedData = { ...inspection, ...data };
-                        await NonconformingProductService.autoCreateFromInspection(inspectionWithUpdatedData);
+                        await NonconformingProductService.autoCreateFromInspection(updatedInspection);
                         logger.info(`Auto-created NCP for inspection ${inspection.inspection_no}`);
                     } catch (ncpError) {
                         logger.error('Failed to auto-create NCP:', ncpError);
+                    }
+                }
+
+                // 2. [业务闭环修复] 如果是来料检验且有合格品，需打通采购域
+                if (
+                    inspection.inspection_type === 'incoming' &&
+                    ['passed', 'partial', 'completed'].includes(data.status) &&
+                    data.qualified_quantity > 0
+                ) {
+                    try {
+                        // 回写采购订单 QC 数量
+                        const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
+                        await PurchaseOrderStatusService.handleInspectionComplete({
+                            reference_type: 'purchase_order',
+                            reference_id: inspection.reference_id,
+                            material_id: inspection.material_id,
+                            quantity: inspection.quantity,
+                            qualified_quantity: data.qualified_quantity || 0,
+                            unqualified_quantity: data.unqualified_quantity || 0
+                        });
+                        logger.info(`✅ 来料检验单 ${inspection.inspection_no} 已自动回写采购订单 QC数量`);
+
+                        // 自动创建采购入库单
+                        const PurchaseReceiptService = require('../../../services/quality/PurchaseReceiptService');
+                        await PurchaseReceiptService.autoCreateFromInspection(updatedInspection, inspection);
+                        logger.info(`✅ 来料检验单 ${inspection.inspection_no} 已自动创建采购入库单`);
+                    } catch (loopError) {
+                        logger.warn(`⚠️ 来料检验单 ${inspection.inspection_no} 业务闭环联动失败:`, loopError.message);
                     }
                 }
             }

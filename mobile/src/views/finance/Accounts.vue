@@ -25,17 +25,18 @@
         />
       </div>
 
-      <!-- 科目类型筛选 -->
-      <div class="filter-section">
-        <div class="filter-tabs">
-          <div 
-            v-for="type in accountTypes" 
+      <!-- 科目类型筛选 - 横向药丸标签 -->
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
+          <div
+            v-for="type in accountTypes"
             :key="type.value"
-            class="filter-tab"
+            class="filter-chip"
             :class="{ active: selectedType === type.value }"
             @click="selectType(type.value)"
           >
-            {{ type.label }}
+            <span class="chip-text">{{ type.label }}</span>
+            <span v-if="getTypeCount(type.value)" class="chip-badge">{{ getTypeCount(type.value) }}</span>
           </div>
         </div>
       </div>
@@ -187,14 +188,15 @@ const formData = reactive({
 });
 
 // 科目类型配置
+// 科目类型配置（value 与后端 account_type 字段一致）
 const accountTypes = [
   { label: '全部', value: '' },
-  { label: '资产', value: 'assets' },
-  { label: '负债', value: 'liabilities' },
-  { label: '所有者权益', value: 'equity' },
-  { label: '成本', value: 'costs' },
-  { label: '收入', value: 'revenue' },
-  { label: '费用', value: 'expenses' }
+  { label: '资产', value: '资产' },
+  { label: '负债', value: '负债' },
+  { label: '所有者权益', value: '所有者权益' },
+  { label: '成本', value: '成本' },
+  { label: '收入', value: '收入' },
+  { label: '费用', value: '费用' }
 ];
 
 const accountTypeOptions = accountTypes.filter(type => type.value !== '').map(type => ({
@@ -208,14 +210,20 @@ const getTypeLabel = (type) => {
   return typeItem ? typeItem.label : type;
 };
 
+// 获取各类型科目数量（用于药丸标签徽章）
+const getTypeCount = (type) => {
+  if (!type) return accounts.value.length;
+  return accounts.value.filter(a => a.account_type === type).length;
+};
+
 const getTypeBadgeClass = (type) => {
   const classMap = {
-    'assets': 'assets',
-    'liabilities': 'liabilities', 
-    'equity': 'equity',
-    'costs': 'costs',
-    'revenue': 'revenue',
-    'expenses': 'expenses'
+    '资产': 'assets',
+    '负债': 'liabilities', 
+    '所有者权益': 'equity',
+    '成本': 'costs',
+    '收入': 'revenue',
+    '费用': 'expenses'
   };
   return classMap[type] || 'default';
 };
@@ -245,7 +253,8 @@ const loadAccounts = async (isRefresh = false) => {
     };
 
     const response = await financeApi.getAccounts(params);
-    const newAccounts = response.data.accounts || [];
+    const resData = response.data?.data || response.data || {};
+    const newAccounts = resData.list || resData.accounts || [];
     
     if (isRefresh) {
       accounts.value = newAccounts;
@@ -353,7 +362,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .accounts-page {
   min-height: 100vh;
-  background-color: $background-color;
+  background-color: var(--bg-primary);
 }
 
 .content-container {
@@ -364,42 +373,76 @@ onMounted(() => {
   padding: 12px 0;
 }
 
-.filter-section {
-  margin-bottom: 12px;
+// ========== 横向药丸筛选标签 ==========
+.filter-scroll-wrapper {
+  padding: 4px 0 8px;
+  overflow: hidden;
+}
 
-  .filter-tabs {
-    display: flex;
-    background: #fff;
-    border-radius: 8px;
-    padding: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+.filter-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
 
-    .filter-tab {
-      flex: 1;
-      text-align: center;
-      padding: 8px 12px;
-      font-size: 14px;
-      color: $text-color-secondary;
-      border-radius: 6px;
-      transition: all 0.2s;
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--van-border-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
+  cursor: pointer;
 
-      &.active {
-        background-color: $primary-color;
-        color: #fff;
-      }
+  .chip-text {
+    font-weight: 500;
+  }
+
+  .chip-badge {
+    min-width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    font-size: 0.625rem;
+    font-weight: 700;
+    border-radius: 9px;
+    background: var(--van-border-color);
+    color: var(--text-secondary);
+    padding: 0 4px;
+  }
+
+  &.active {
+    background: var(--color-primary-bg, rgba(26, 115, 232, 0.1));
+    border-color: var(--color-primary, #1a73e8);
+    color: var(--color-primary, #1a73e8);
+    .chip-badge {
+      background: var(--color-primary, #1a73e8);
+      color: #fff;
     }
   }
 }
 
 .accounts-list {
   .account-item {
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     margin-bottom: 8px;
     padding: 16px;
     display: flex;
     align-items: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: none;
 
     .account-info {
       flex: 1;
@@ -412,7 +455,7 @@ onMounted(() => {
         .account-code {
           font-size: 16px;
           font-weight: 600;
-          color: $text-color;
+          color: var(--text-primary);
           margin-right: 8px;
         }
 
@@ -422,19 +465,19 @@ onMounted(() => {
           font-size: 10px;
           color: #fff;
 
-          &.assets { background-color: #5E7BF6; }
-          &.liabilities { background-color: #FF6B6B; }
-          &.equity { background-color: #2CCFB0; }
-          &.costs { background-color: #FF9F45; }
-          &.revenue { background-color: #A48BE0; }
-          &.expenses { background-color: #FFC759; }
+          &.assets { background-color: var(--module-blue); }
+          &.liabilities { background-color: var(--module-red); }
+          &.equity { background-color: var(--module-green); }
+          &.costs { background-color: var(--module-orange); }
+          &.revenue { background-color: var(--module-purple); }
+          &.expenses { background-color: var(--module-yellow); }
           &.default { background-color: #c8c9cc; }
         }
       }
 
       .account-name {
         font-size: 14px;
-        color: $text-color;
+        color: var(--text-primary);
         margin-bottom: 8px;
       }
 
@@ -445,7 +488,7 @@ onMounted(() => {
 
         .balance {
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
         }
 
         .status {
@@ -461,7 +504,7 @@ onMounted(() => {
 
     .account-actions {
       margin-left: 12px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
     }
   }
 }
@@ -476,12 +519,12 @@ onMounted(() => {
     align-items: center;
     justify-content: space-between;
     padding: 16px;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--van-border-color);
 
     .dialog-title {
       font-size: 16px;
       font-weight: 600;
-      color: $text-color;
+      color: var(--text-primary);
     }
   }
 
@@ -495,11 +538,11 @@ onMounted(() => {
       align-items: center;
       justify-content: space-between;
       padding: 16px 0;
-      border-bottom: 1px solid $border-color;
+      border-bottom: 1px solid var(--van-border-color);
 
       .form-label {
         font-size: 14px;
-        color: $text-color;
+        color: var(--text-primary);
       }
     }
 

@@ -222,7 +222,7 @@ onMounted(() => {
     align-items: center;
     justify-content: space-between;
     padding: 1rem;
-    background: rgba(17, 24, 39, 0.8);
+    background: var(--bg-secondary);
     backdrop-filter: blur(20px);
     position: sticky;
     top: 0;
@@ -271,7 +271,7 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     color: white;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: none;
 }
 
 .status-info {
@@ -287,18 +287,18 @@ onMounted(() => {
 
 .order-code {
     font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
 }
 
 .status-date {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-tertiary);
 }
 
 .section-title {
     font-size: 0.875rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     margin-bottom: 0.75rem;
     margin-top: 1.5rem;
     text-transform: uppercase;
@@ -319,7 +319,7 @@ onMounted(() => {
 }
 
 .info-label {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     min-width: 5rem;
 }
 
@@ -338,7 +338,7 @@ onMounted(() => {
 .item-details {
     margin-top: 0.75rem;
     padding-top: 0.75rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--van-border-color);
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -351,11 +351,11 @@ onMounted(() => {
 }
 
 .detail-label {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-tertiary);
 }
 
 .detail-value {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-primary);
 }
 
 .detail-value.highlight {
@@ -371,7 +371,7 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-tertiary);
 }
 
 .bottom-actions {
@@ -380,9 +380,9 @@ onMounted(() => {
     left: 0;
     right: 0;
     padding: 1rem;
-    background: rgba(17, 24, 39, 0.9);
+    background: var(--bg-secondary);
     backdrop-filter: blur(20px);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--van-border-color);
     z-index: 40;
 }
 

@@ -366,7 +366,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .incoming-page {
   min-height: 100vh;
-  background-color: $background-color;
+  background-color: var(--bg-primary);
   padding-bottom: 80px;
 }
 
@@ -383,10 +383,10 @@ onMounted(() => {
 
   .filter-tabs {
     display: flex;
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: none;
     overflow-x: auto;
 
     .filter-tab {
@@ -394,14 +394,14 @@ onMounted(() => {
       text-align: center;
       padding: 8px 12px;
       font-size: 14px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
       border-radius: 6px;
       transition: all 0.2s;
       position: relative;
       white-space: nowrap;
 
       &.active {
-        background-color: $primary-color;
+        background-color: var(--color-primary);
         color: #fff;
       }
     }
@@ -410,11 +410,11 @@ onMounted(() => {
 
 .inspections-list {
   .inspection-item {
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     margin-bottom: 8px;
     padding: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: none;
 
     .inspection-header {
       display: flex;
@@ -426,13 +426,13 @@ onMounted(() => {
         .inspection-number {
           font-size: 16px;
           font-weight: 600;
-          color: $text-color;
+          color: var(--text-primary);
           margin-bottom: 4px;
         }
 
         .batch-number {
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
         }
       }
 
@@ -447,14 +447,14 @@ onMounted(() => {
           margin-bottom: 4px;
 
           &.pending { background-color: #c8c9cc; }
-          &.in-progress { background-color: #FF9F45; }
-          &.completed { background-color: #2CCFB0; }
-          &.received { background-color: #5E7BF6; }
+          &.in-progress { background-color: var(--module-orange); }
+          &.completed { background-color: var(--module-green); }
+          &.received { background-color: var(--module-blue); }
         }
 
         .inspection-date {
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
         }
       }
     }
@@ -467,13 +467,13 @@ onMounted(() => {
 
         .material-name {
           font-size: 14px;
-          color: $text-color;
+          color: var(--text-primary);
           margin-bottom: 4px;
         }
 
         .supplier-name {
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
         }
       }
 
@@ -481,12 +481,12 @@ onMounted(() => {
         display: flex;
         justify-content: space-between;
         font-size: 12px;
-        color: $text-color-secondary;
+        color: var(--text-secondary);
       }
     }
 
     .inspection-results {
-      border-top: 1px solid $border-color;
+      border-top: 1px solid var(--van-border-color);
       padding-top: 12px;
       margin-bottom: 12px;
 
@@ -500,7 +500,7 @@ onMounted(() => {
           .result-label {
             display: block;
             font-size: 12px;
-            color: $text-color-secondary;
+            color: var(--text-secondary);
             margin-bottom: 4px;
           }
 
@@ -508,9 +508,9 @@ onMounted(() => {
             font-size: 14px;
             font-weight: 600;
 
-            &.pass { color: #2CCFB0; }
-            &.fail { color: #FF6B6B; }
-            &.rate { color: $text-color; }
+            &.pass { color: var(--module-green); }
+            &.fail { color: var(--module-red); }
+            &.rate { color: var(--text-primary); }
           }
         }
       }
@@ -519,7 +519,7 @@ onMounted(() => {
     .inspection-actions {
       display: flex;
       gap: 8px;
-      border-top: 1px solid $border-color;
+      border-top: 1px solid var(--van-border-color);
       padding-top: 12px;
 
       .van-button {
@@ -553,17 +553,17 @@ onMounted(() => {
     .fab-item {
       display: flex;
       align-items: center;
-      background: #fff;
+      background: var(--bg-secondary);
       border-radius: 24px;
       padding: 12px 16px;
       margin-bottom: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      box-shadow: none;
       white-space: nowrap;
 
       span {
         margin-left: 8px;
         font-size: 14px;
-        color: $text-color;
+        color: var(--text-primary);
       }
     }
   }
@@ -572,11 +572,11 @@ onMounted(() => {
     width: 56px;
     height: 56px;
     border-radius: 28px;
-    background-color: $primary-color;
+    background-color: var(--color-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: none;
     color: #fff;
     transition: all 0.3s ease;
 

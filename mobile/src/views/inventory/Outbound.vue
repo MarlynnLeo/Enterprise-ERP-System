@@ -311,7 +311,7 @@ onMounted(() => {
 .search-filter {
   padding: $padding-md;
   background-color: white;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--van-border-color);
 }
 
 .filter-tabs {
@@ -327,15 +327,15 @@ onMounted(() => {
     flex: 0 0 auto;
     text-align: center;
     padding: $padding-xs $padding-sm;
-    font-size: $font-size-sm;
-    color: $text-color-secondary;
+    font-size: 12px;
+    color: var(--text-secondary);
     border-bottom: 2px solid transparent;
     white-space: nowrap;
     margin-right: $margin-sm;
     
     &.active {
-      color: $primary-color;
-      border-bottom-color: $primary-color;
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
     }
   }
 }
@@ -357,15 +357,15 @@ onMounted(() => {
 }
 
 .outbound-no {
-  font-size: $font-size-sm;
-  color: $text-color-secondary;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .outbound-type {
-  font-size: $font-size-lg;
+  font-size: 16px;
   font-weight: bold;
   margin-bottom: $margin-sm;
-  color: $primary-color;
+  color: var(--color-primary);
 }
 
 .outbound-details {
@@ -377,13 +377,13 @@ onMounted(() => {
     margin-bottom: 4px;
     
     .label {
-      font-size: $font-size-sm;
-      color: $text-color-secondary;
+      font-size: 12px;
+      color: var(--text-secondary);
     }
     
     .value {
-      font-size: $font-size-sm;
-      color: $text-color;
+      font-size: 12px;
+      color: var(--text-primary);
     }
   }
 }
@@ -392,13 +392,13 @@ onMounted(() => {
   margin-bottom: $margin-md;
   
   .items-title {
-    font-size: $font-size-sm;
-    color: $text-color-secondary;
+    font-size: 12px;
+    color: var(--text-secondary);
     margin-bottom: $margin-xs;
   }
   
   .items-list {
-    background-color: #f8f9fa;
+    background-color: var(--bg-primary);
     padding: $padding-sm;
     border-radius: $border-radius-sm;
     
@@ -412,21 +412,21 @@ onMounted(() => {
       }
       
       .item-name {
-        font-size: $font-size-sm;
-        color: $text-color;
+        font-size: 12px;
+        color: var(--text-primary);
         flex: 1;
         margin-right: $margin-sm;
       }
       
       .item-quantity {
-        font-size: $font-size-sm;
-        color: $text-color-secondary;
+        font-size: 12px;
+        color: var(--text-secondary);
       }
     }
     
     .more-items {
-      font-size: $font-size-xs;
-      color: $text-color-secondary;
+      font-size: 10px;
+      color: var(--text-secondary);
       text-align: center;
       margin-top: $margin-xs;
     }

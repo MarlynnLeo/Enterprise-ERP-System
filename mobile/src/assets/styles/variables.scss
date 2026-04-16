@@ -1,33 +1,36 @@
 /**
  * 移动端样式变量
- * @description 基于Vant组件库的移动端主题变量
+ * @description 基于 KACON 主题系统的 SCSS 变量（引用 CSS 变量）
  * @date 2025-10-27
- * @version 2.1.0
+ * @version 3.0.0
  */
 
 // ==================== 颜色变量 ====================
-// 主色系（Vant标准色）
-$primary-color: #1989fa;
-$success-color: #07c160;
-$warning-color: #ff976a;
-$danger-color: #ee0a24;
-$info-color: #1989fa;
+// 直接使用 CSS 变量值作为 SCSS 默认值
+// 实际运行时由 themes/kacon.css 中的 :root 控制
 
-// 文本颜色
-$text-color: #323233;
-$text-color-secondary: #969799;
-$text-color-placeholder: #c8c9cc;
-$text-color-disabled: #c8c9cc;
+// 主色系
+$primary-color: #67c1d9;
+$success-color: #10b981;
+$warning-color: #f59e0b;
+$danger-color: #ef4444;
+$info-color: #3b82f6;
 
-// 背景颜色
-$background-color: #f7f8fa;
-$background-color-light: #fafafa;
-$active-color: #e8f2ff;
+// 文本颜色（KACON 浅色模式）
+$text-color: #1e293b;
+$text-color-secondary: #64748b;
+$text-color-placeholder: #94a3b8;
+$text-color-disabled: #cbd5e1;
+
+// 背景颜色（KACON 浅色模式）
+$background-color: #f4f7fa;
+$background-color-light: #ffffff;
+$active-color: rgba(103, 193, 217, 0.12);
 $white: #ffffff;
 
 // 边框颜色
-$border-color: #ebedf0;
-$border-color-light: #f2f3f5;
+$border-color: rgba(0, 0, 0, 0.06);
+$border-color-light: rgba(0, 0, 0, 0.03);
 
 // ==================== 间距系统 ====================
 $padding-xs: 8px;
@@ -71,10 +74,10 @@ $animation-duration-slow: 0.45s;
 $animation-timing: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ==================== 阴影系统 ====================
-$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-$shadow-md: 0 2px 6px rgba(0, 0, 0, 0.12);
-$shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
-$shadow-xl: 0 6px 16px rgba(0, 0, 0, 0.18);
+$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+$shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+$shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.12);
 
 // ==================== Z-index系统 ====================
 $z-index-dropdown: 1000;

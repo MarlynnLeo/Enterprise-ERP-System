@@ -213,7 +213,7 @@ const goBack = () => {
     border: 1px solid var(--color-border-light);
     border-radius: var(--radius-lg);
     padding: 1.5rem;
-    box-shadow: var(--effect-shadow);
+    box-shadow: none;
   }
 
   .preview-header {
@@ -277,7 +277,7 @@ const goBack = () => {
   &.active {
     background: var(--color-glass-medium);
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
+    box-shadow: none;
   }
 }
 
@@ -338,7 +338,7 @@ const goBack = () => {
     width: 100%;
     aspect-ratio: 1;
     border-radius: var(--radius-md);
-    box-shadow: var(--effect-shadow);
+    box-shadow: none;
     border: 1px solid var(--color-border-light);
   }
 

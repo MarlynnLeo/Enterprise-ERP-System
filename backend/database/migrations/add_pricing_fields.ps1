@@ -5,10 +5,15 @@ $host.UI.RawUI.OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # 数据库连接信息
-$dbHost = "192.168.1.251"
-$dbPort = "3306"
-$dbUser = "root"
-$dbPass = "mysql_n3cEDY"
+$dbHost = $env:DB_HOST
+if ([string]::IsNullOrEmpty($dbHost)) { $dbHost = "localhost" }
+$dbPort = $env:DB_PORT
+if ([string]::IsNullOrEmpty($dbPort)) { $dbPort = "3306" }
+$dbUser = $env:DB_USER
+if ([string]::IsNullOrEmpty($dbUser)) { $dbUser = "root" }
+$dbPass = $env:DB_PASSWORD
+$dbName = $env:DB_NAME
+if ([string]::IsNullOrEmpty($dbName)) { $dbName = "mes" }
 $dbName = "mes"
 
 # 定义所有字段
@@ -56,7 +61,8 @@ Write-Host "开始插入字段..." -ForegroundColor Green
 foreach ($field in $fields) {
     $sql = "INSERT IGNORE INTO pricing_strategy_fields (field_name, field_label, field_type, unit, sort_order, description, is_active) VALUES ('$($field.name)', '$($field.label)', '$($field.type)', '$($field.unit)', $($field.order), '$($field.desc)', 1);"
     
-    $result = & mysql -h $dbHost -P $dbPort -u $dbUser -p$dbPass $dbName --default-character-set=utf8mb4 -e $sql 2>&1
+    $passArg = "-p$dbPass"
+    $result = & mysql -h $dbHost -P $dbPort -u $dbUser $passArg $dbName --default-character-set=utf8mb4 -e $sql 2>&1
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✓ $($field.label)" -ForegroundColor Green
@@ -66,4 +72,5 @@ foreach ($field in $fields) {
 }
 
 Write-Host "`n插入完成!验证数据..." -ForegroundColor Cyan
-& mysql -h $dbHost -P $dbPort -u $dbUser -p$dbPass $dbName --default-character-set=utf8mb4 -e "SELECT COUNT(*) as total FROM pricing_strategy_fields WHERE is_active=1;"
+$passArg = "-p$dbPass"
+& mysql -h $dbHost -P $dbPort -u $dbUser $passArg $dbName --default-character-set=utf8mb4 -e "SELECT COUNT(*) as total FROM pricing_strategy_fields WHERE is_active=1;"

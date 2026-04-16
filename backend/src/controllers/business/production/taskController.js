@@ -560,8 +560,18 @@ exports.getProductionTaskById = async (req, res) => {
 
     const [tasks] = await pool.query(
       `
-      SELECT pt.*, pp.name as planName, pp.contract_code, p.name as productName, p.code as productCode,
-             p.specs as specification, u.name as unit
+      SELECT pt.*,
+             pt.code as task_code,
+             pt.manager as operator_name,
+             pt.start_date as plan_start_time,
+             pt.expected_end_date as plan_end_time,
+             pt.actual_start_time as actual_start_time,
+             pt.actual_end_date as actual_end_time,
+             pp.name as planName, pp.contract_code,
+             p.name as product_name, p.name as productName,
+             p.code as product_code, p.code as productCode,
+             p.specs as specification,
+             u.name as unit
       FROM production_tasks pt
       LEFT JOIN production_plans pp ON pt.plan_id = pp.id
       LEFT JOIN materials p ON pt.product_id = p.id

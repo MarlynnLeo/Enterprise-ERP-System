@@ -1,83 +1,157 @@
 @use './variables.scss' as *;
 
-// 全局样式
-html, body {
+// 全局样式 - 所有颜色引用 CSS 变量令牌
+html,
+body {
   height: 100%;
-  background-color: $background-color;
+  background-color: var(--bg-primary, $background-color);
+  color: var(--text-primary, $text-color);
 }
 
 // 常用辅助类
-.text-primary { color: $primary-color; }
-.text-success { color: $success-color; }
-.text-danger { color: $danger-color; }
-.text-warning { color: $warning-color; }
-.text-secondary { color: $text-color-secondary; }
+.text-primary {
+  color: var(--text-primary);
+}
+.text-success {
+  color: var(--color-success);
+}
+.text-danger {
+  color: var(--color-error);
+}
+.text-warning {
+  color: var(--color-warning);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
 
-.bg-primary { background-color: $primary-color; }
-.bg-white { background-color: $white; }
+.bg-primary {
+  background-color: var(--bg-primary);
+}
+.bg-white {
+  background-color: var(--bg-secondary);
+}
 
-.text-center { text-align: center; }
-.text-left { text-align: left; }
-.text-right { text-align: right; }
+.text-center {
+  text-align: center;
+}
+.text-left {
+  text-align: left;
+}
+.text-right {
+  text-align: right;
+}
 
-.flex { display: flex; }
-.flex-column { flex-direction: column; }
-.flex-center { 
+.flex {
+  display: flex;
+}
+.flex-column {
+  flex-direction: column;
+}
+.flex-center {
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.justify-between { justify-content: space-between; }
-.justify-center { justify-content: center; }
-.align-center { align-items: center; }
+.justify-between {
+  justify-content: space-between;
+}
+.justify-center {
+  justify-content: center;
+}
+.align-center {
+  align-items: center;
+}
 
-.p-xs { padding: $padding-xs; }
-.p-sm { padding: $padding-sm; }
-.p-md { padding: $padding-md; }
-.p-lg { padding: $padding-lg; }
+.p-xs {
+  padding: $padding-xs;
+}
+.p-sm {
+  padding: $padding-sm;
+}
+.p-md {
+  padding: $padding-md;
+}
+.p-lg {
+  padding: $padding-lg;
+}
 
-.m-xs { margin: $margin-xs; }
-.m-sm { margin: $margin-sm; }
-.m-md { margin: $margin-md; }
-.m-lg { margin: $margin-lg; }
+.m-xs {
+  margin: $margin-xs;
+}
+.m-sm {
+  margin: $margin-sm;
+}
+.m-md {
+  margin: $margin-md;
+}
+.m-lg {
+  margin: $margin-lg;
+}
 
-.mt-xs { margin-top: $margin-xs; }
-.mt-sm { margin-top: $margin-sm; }
-.mt-md { margin-top: $margin-md; }
-.mt-lg { margin-top: $margin-lg; }
+.mt-xs {
+  margin-top: $margin-xs;
+}
+.mt-sm {
+  margin-top: $margin-sm;
+}
+.mt-md {
+  margin-top: $margin-md;
+}
+.mt-lg {
+  margin-top: $margin-lg;
+}
 
-.mb-xs { margin-bottom: $margin-xs; }
-.mb-sm { margin-bottom: $margin-sm; }
-.mb-md { margin-bottom: $margin-md; }
-.mb-lg { margin-bottom: $margin-lg; }
+.mb-xs {
+  margin-bottom: $margin-xs;
+}
+.mb-sm {
+  margin-bottom: $margin-sm;
+}
+.mb-md {
+  margin-bottom: $margin-md;
+}
+.mb-lg {
+  margin-bottom: $margin-lg;
+}
 
-// 页面容器
+// 页面容器 (Google 浅色)
 .page-container {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  background-color: $background-color;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   padding-bottom: 50px;
 }
+
+// -----------------------------------------------------------------------------
+// Vant 组件深度覆写 — 已统一迁移至 src/styles/design-tokens.css
+// 注意: main.scss 未被 main.js 直接引入，此处不适合放全局 Vant 样式
+// -----------------------------------------------------------------------------
+
+
 
 .content-container {
   flex: 1;
   padding: $padding-md;
 }
 
-// 卡片样式
+// 卡片样式 (Material Design 3 卡片)
 .card {
-  background-color: $white;
-  border-radius: $border-radius-md;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-sm);
   margin-bottom: $margin-md;
   overflow: hidden;
+  transition: all var(--transition-base);
 }
 
 .card-header {
   padding: $padding-md;
-  border-bottom: 1px solid $border-color;
-  font-weight: bold;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .card-content {
@@ -90,8 +164,9 @@ html, body {
   justify-content: space-between;
   align-items: center;
   padding: $padding-md;
-  border-bottom: 1px solid $border-color;
-  
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--text-primary);
+
   &:last-child {
     border-bottom: none;
   }
@@ -101,16 +176,19 @@ html, body {
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  
-  th, td {
+
+  th,
+  td {
     padding: $padding-sm;
     text-align: left;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--glass-border);
+    color: var(--text-primary);
   }
-  
+
   th {
     font-weight: bold;
-    background-color: #fafafa;
+    background: var(--glass-bg);
+    color: var(--text-secondary);
   }
 }
 
@@ -120,18 +198,34 @@ html, body {
   padding: 2px 8px;
   border-radius: $border-radius-max;
   font-size: $font-size-xs;
-  color: $white;
+  color: white;
   margin-right: 4px;
-  
-  &.tag-primary { background-color: $primary-color; }
-  &.tag-success { background-color: $success-color; }
-  &.tag-danger { background-color: $danger-color; }
-  &.tag-warning { background-color: $warning-color; }
+
+  &.tag-primary {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+  }
+  &.tag-success {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+  }
+  &.tag-danger {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+  }
+  &.tag-warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
 }
 
 // 盘盈盘亏文本样式
-.profit-text { color: $success-color; }
-.loss-text { color: $danger-color; }
+.profit-text {
+  color: var(--color-success);
+}
+.loss-text {
+  color: var(--color-error);
+}
 
 // 底部固定操作栏
 .bottom-action-bar {
@@ -139,8 +233,93 @@ html, body {
   bottom: 0;
   left: 0;
   right: 0;
-  background-color: $white;
+  background: var(--van-background);
   padding: $padding-sm;
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--van-border-color);
   z-index: 100;
-} 
+}
+
+// -----------------------------------------------------------------------------
+// 泛用列表组件全局样式 (Global List Card Styles)
+// -----------------------------------------------------------------------------
+.global-list-card {
+  @extend .unified-card;
+  margin: 12px;
+  margin-bottom: 12px;
+  padding: 16px;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  
+  .list-id {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+    letter-spacing: 0.5px;
+  }
+}
+
+.list-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.list-subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-primary);
+  margin-bottom: 8px;
+}
+
+.list-details {
+  background-color: var(--bg-primary); /* Google 浅灰内部列表槽 */
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+
+  .list-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .label {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .value {
+      font-size: 0.8125rem;
+      color: var(--text-primary);
+      text-align: right;
+      word-break: break-all;
+      
+      &.amount {
+        color: var(--color-primary);
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+.list-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+
+  .van-button {
+    flex: 1;
+    font-weight: 500;
+  }
+}
+

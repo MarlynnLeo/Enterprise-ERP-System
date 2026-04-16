@@ -18,36 +18,36 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router';
-import { Icon, Button } from 'vant';
+  import { useRouter } from 'vue-router'
+  import { Icon, Button } from 'vant'
 
-const router = useRouter();
+  const router = useRouter()
 
-const goHome = () => {
-  router.push('/');
-};
+  const goHome = () => {
+    router.push('/')
+  }
 </script>
 
 <style lang="scss" scoped>
-.page-container {
-  min-height: 100vh;
-}
-
-.not-found-content {
-  padding: $padding-lg;
-  
-  h2 {
-    margin: $margin-md 0;
-    color: $text-color;
+  .unified-page {
+    min-height: 100vh;
   }
-  
-  p {
-    margin-bottom: $margin-md;
-    color: $text-color-secondary;
-  }
-}
 
-.warning-icon {
-  color: $warning-color;
-}
-</style> 
+  .not-found-content {
+    padding: $padding-lg;
+
+    h2 {
+      margin: $margin-md 0;
+      color: var(--text-primary);
+    }
+
+    p {
+      margin-bottom: $margin-md;
+      color: var(--text-secondary);
+    }
+  }
+
+  .warning-icon {
+    color: $warning-color;
+  }
+</style>

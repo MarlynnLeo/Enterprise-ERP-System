@@ -270,7 +270,7 @@ const getStatusText = (status) => {
 .bg-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--bg-primary);
   backdrop-filter: blur(48px);
   -webkit-backdrop-filter: blur(48px);
   z-index: -1;
@@ -282,7 +282,7 @@ const getStatusText = (status) => {
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -340,10 +340,10 @@ const getStatusText = (status) => {
 }
 
 .overview-card {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--van-border-color);
   border-radius: 0.75rem;
   padding: 1rem;
   display: flex;
@@ -385,7 +385,7 @@ const getStatusText = (status) => {
 
 .card-label {
   font-size: 0.75rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .card-value {
@@ -397,7 +397,7 @@ const getStatusText = (status) => {
 
 .card-trend {
   font-size: 0.625rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .card-trend.success {
@@ -410,10 +410,10 @@ const getStatusText = (status) => {
 }
 
 .efficiency-card {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--van-border-color);
   border-radius: 0.75rem;
   padding: 1rem;
   display: flex;
@@ -435,7 +435,7 @@ const getStatusText = (status) => {
 
 .label-text {
   font-size: 0.875rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .label-value {
@@ -446,7 +446,7 @@ const getStatusText = (status) => {
 
 .progress-bar {
   height: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
   border-radius: 0.25rem;
   overflow: hidden;
 }
@@ -474,10 +474,10 @@ const getStatusText = (status) => {
 }
 
 .task-card {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--van-border-color);
   border-radius: 0.75rem;
   padding: 1rem;
 }
@@ -491,7 +491,7 @@ const getStatusText = (status) => {
 
 .task-code {
   font-size: 0.75rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .task-status {
@@ -537,7 +537,7 @@ const getStatusText = (status) => {
 
 .progress-text {
   font-size: 0.75rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .progress-percent {

@@ -27,7 +27,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.use(authenticateToken);
 
 // Customer routes
-// Customer routes
 router.get('/customers', requirePermission('basedata:customers:view'), salesCustomerController.getCustomers);
 router.get('/customers-list', requirePermission('basedata:customers:view'), salesCustomerController.getCustomersList);
 router.get('/products-list', requirePermission('basedata:materials:view'), salesCustomerController.getProductsList);
@@ -37,7 +36,6 @@ router.post('/customers', requirePermission('basedata:customers:create'), salesC
 router.put('/customers/:id', requirePermission('basedata:customers:update'), salesCustomerController.updateCustomer);
 
 // Sales Quotation routes
-// Sales Quotation routes
 router.get('/quotations', requirePermission('sales:quotations:view'), salesQuotationController.getSalesQuotations);
 router.get('/quotations/statistics', requirePermission('sales:reports:view'), salesQuotationController.getSalesQuotationStatistics);
 router.get('/quotations/:id', requirePermission('sales:quotations:view'), salesQuotationController.getSalesQuotation);
@@ -46,7 +44,6 @@ router.put('/quotations/:id', requirePermission('sales:quotations:update'), sale
 router.delete('/quotations/:id', requirePermission('sales:quotations:delete'), salesQuotationController.deleteSalesQuotation);
 router.post('/quotations/:id/convert', requirePermission('sales:quotations:update'), salesQuotationController.convertQuotationToOrder);
 
-// Sales Order routes
 // Sales Order routes
 router.get('/orders', requirePermission('sales:orders:view'), salesOrderController.getSalesOrders);
 router.get('/orders/operators', requirePermission('sales:orders:view'), salesOrderController.getSalesOrderOperators);
@@ -68,7 +65,6 @@ router.post('/orders/:id/unlock', requirePermission('sales:orders:update'), sale
 router.get('/orders/:id/lock-status', requirePermission('sales:orders:view'), salesOrderController.getOrderLockStatus);
 
 // Sales Outbound routes
-// Sales Outbound routes
 router.get('/outbound', requirePermission('sales:outbound:view'), salesOutboundController.getSalesOutbound);
 router.get('/outbound/material/:materialId', requirePermission('sales:outbound:view'), salesOutboundController.getMaterialSalesHistory);
 router.get('/outbound/:id', requirePermission('sales:outbound:view'), salesOutboundController.getSalesOutboundById);
@@ -77,14 +73,12 @@ router.put('/outbound/:id', requirePermission('sales:outbound:update'), salesOut
 router.delete('/outbound/:id', requirePermission('sales:outbound:delete'), salesOutboundController.deleteSalesOutbound);
 
 // Sales Return routes
-// Sales Return routes
 router.get('/returns', requirePermission('sales:returns:view'), salesReturnController.getSalesReturns);
 router.get('/returns/:id', requirePermission('sales:returns:view'), salesReturnController.getSalesReturnById);
 router.post('/returns', requirePermission('sales:returns:create'), salesReturnController.createSalesReturn);
 router.put('/returns/:id', requirePermission('sales:returns:update'), salesReturnController.updateSalesReturn);
 router.delete('/returns/:id', requirePermission('sales:returns:delete'), salesReturnController.deleteSalesReturn);
 
-// Sales Exchange routes
 // Sales Exchange routes
 router.get('/exchanges', requirePermission('sales:returns:view'), salesExchangeController.getSalesExchanges);
 router.get('/exchanges/:id', requirePermission('sales:returns:view'), salesExchangeController.getSalesExchangeById);
@@ -94,7 +88,6 @@ router.delete('/exchanges/:id', requirePermission('sales:returns:delete'), sales
 router.put('/exchanges/:id/status', requirePermission('sales:returns:update'), salesExchangeController.updateExchangeStatus);
 
 // Packing List routes
-// Packing List routes
 router.get('/packing-lists', requirePermission('sales:packing:view'), salesPackingController.getPackingLists);
 router.get('/packing-lists/:id', requirePermission('sales:packing:view'), salesPackingController.getPackingList);
 router.post('/packing-lists', requirePermission('sales:packing:create'), salesPackingController.createPackingList);
@@ -103,7 +96,6 @@ router.delete('/packing-lists/:id', requirePermission('sales:packing:delete'), s
 router.patch('/packing-lists/:id/status', requirePermission('sales:packing:update'), salesPackingController.updatePackingListStatus);
 router.get('/packing-lists-statistics', requirePermission('sales:reports:view'), salesPackingController.getPackingListStatistics);
 
-// Sales Statistics routes
 // Sales Statistics routes
 router.get('/statistics', requirePermission('sales:reports:view'), salesStatsController.getSalesStatistics);
 router.get('/trend', requirePermission('sales:reports:view'), salesStatsController.getSalesTrend);

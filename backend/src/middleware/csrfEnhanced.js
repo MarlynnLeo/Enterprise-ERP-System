@@ -85,6 +85,11 @@ const conditionalCsrfProtection = (req, res, next) => {
     return next();
   }
 
+  // 跳过认证端点（登录/注册/刷新Token不需要CSRF保护）
+  if (req.path === '/api/auth/login' || req.path === '/api/auth/register' || req.path === '/api/auth/refresh') {
+    return next();
+  }
+
   // 跳过打印API端点（打印功能使用token认证）
   if (req.path.startsWith('/api/print/')) {
     return next();
@@ -103,6 +108,12 @@ const conditionalCsrfProtection = (req, res, next) => {
   // 移动端或API调用可能使用JWT而非Cookie，跳过CSRF
   const userAgent = req.get('User-Agent') || '';
   if (userAgent.includes('Mobile') || userAgent.includes('App')) {
+    return next();
+  }
+
+  // 携带 JWT Bearer Token 的请求天然免疫 CSRF 攻击，无需二次校验
+  const authHeader = req.get('Authorization') || '';
+  if (authHeader.startsWith('Bearer ')) {
     return next();
   }
 

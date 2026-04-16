@@ -14,13 +14,20 @@ body {
 }
 
 // 移除默认边距
-h1, h2, h3, h4, h5, h6, p {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
   margin: 0;
   padding: 0;
 }
 
 // 移除列表样式
-ul, ol {
+ul,
+ol {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -30,8 +37,9 @@ ul, ol {
 a {
   color: $primary-color;
   text-decoration: none;
-  
-  &:hover, &:focus {
+
+  &:hover,
+  &:focus {
     text-decoration: none;
   }
 }
@@ -46,7 +54,8 @@ button {
 }
 
 // 输入框样式重置
-input, textarea {
+input,
+textarea {
   outline: none;
 }
 
@@ -75,4 +84,4 @@ img {
 // 禁止选中文本
 .no-select {
   user-select: none;
-} 
+}

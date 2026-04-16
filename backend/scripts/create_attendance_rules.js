@@ -3,7 +3,11 @@ const mysql = require('mysql2/promise');
 
 async function run() {
   const c = await mysql.createConnection({
-    host: '192.168.1.251', user: 'root', password: 'mysql_n3cEDY', database: 'mes'
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'mes'
   });
 
   await c.query(`

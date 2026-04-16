@@ -390,14 +390,14 @@ onMounted(() => {
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: var(--bg-primary);
   overflow-y: auto;
 }
 
 .bg-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--bg-primary);
   backdrop-filter: blur(48px);
   -webkit-backdrop-filter: blur(48px);
   z-index: -1;
@@ -419,10 +419,10 @@ onMounted(() => {
 
 .user-card {
   position: relative;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--van-border-color);
   border-radius: 1rem;
   padding: 1.5rem;
   display: flex;
@@ -451,18 +451,18 @@ onMounted(() => {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  background: #1e293b;
+  background: var(--bg-secondary);
 }
 
 .avatar-placeholder {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .avatar-badge {
@@ -473,7 +473,7 @@ onMounted(() => {
   height: 1.75rem;
   border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: 2px solid #0f172a;
+  border: 2px solid var(--bg-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -494,7 +494,7 @@ onMounted(() => {
 
 .user-role {
   font-size: 0.875rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
   margin-bottom: 0.75rem;
 }
 
@@ -510,7 +510,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.75rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 /* 主要内容区域 */
@@ -543,10 +543,10 @@ onMounted(() => {
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--van-border-color);
   border-radius: 0.75rem;
   padding: 1rem;
   display: flex;
@@ -585,7 +585,7 @@ onMounted(() => {
 
 .stat-label {
   font-size: 0.75rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 /* 个人信息 */
@@ -594,10 +594,10 @@ onMounted(() => {
 }
 
 .info-card {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--van-border-color);
   border-radius: 0.75rem;
   padding: 0.5rem 0;
 }
@@ -607,7 +607,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--van-border-color);
 }
 
 .info-item:last-child {
@@ -616,7 +616,7 @@ onMounted(() => {
 
 .info-label {
   font-size: 0.875rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .info-value {
@@ -632,10 +632,10 @@ onMounted(() => {
 }
 
 .menu-card {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--van-border-color);
   border-radius: 0.75rem;
   padding: 0.5rem 0;
 }
@@ -647,7 +647,7 @@ onMounted(() => {
   padding: 0.875rem 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--van-border-color);
 }
 
 .menu-item:last-child {
@@ -655,18 +655,18 @@ onMounted(() => {
 }
 
 .menu-item:active {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-secondary);
 }
 
 .menu-icon {
   width: 2rem;
   height: 2rem;
   border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -678,7 +678,7 @@ onMounted(() => {
 }
 
 .menu-arrow {
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 /* 退出登录 */

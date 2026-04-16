@@ -164,8 +164,10 @@ const getOutboundList = async (req, res) => {
     `;
 
     // ✅ 审计修复(S-5): LIMIT/OFFSET 使用参数化查询防止SQL注入
+    // ✅ 修复: 先保存过滤参数，count 查询不应包含 LIMIT/OFFSET 参数
+    const filterParams = [...params];
     params.push(parseInt(limit, 10), offset);
-    const [outbounds] = await db.pool.execute(listQuery, params);
+    const [outbounds] = await db.pool.query(listQuery, params);
 
     // 获取总数 - 需要包含生产组筛选所需的JOIN
     const countQuery = `
@@ -178,7 +180,7 @@ const getOutboundList = async (req, res) => {
       ${whereClause}
     `;
 
-    const [countResult] = await db.pool.execute(countQuery, params);
+    const [countResult] = await db.pool.query(countQuery, filterParams);
     const total = countResult[0].total;
 
     // 处理状态显示和日期格式

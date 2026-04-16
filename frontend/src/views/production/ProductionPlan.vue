@@ -1817,6 +1817,7 @@ const formatMaterialForDisplay = (material) => {
                 filterable
                 remote
                 reserve-keyword
+                default-first-option
                 :remote-method="debouncedSearchProducts"
                 :loading="loadingProducts"
                 style="width: 100%"

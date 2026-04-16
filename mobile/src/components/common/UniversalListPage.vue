@@ -1,526 +1,811 @@
 <!--
 /**
  * UniversalListPage.vue - 通用列表页面组件
- * @description 根据配置自动渲染列表页面，支持主题切换
- * @date 2025-12-27
- * @version 1.0.0
+ * @description 根据配置自动渲染列表页面 — 统一卡片风格
+ * @date 2026-04-15
+ * @version 2.0.0
  */
 -->
 <template>
-  <GlassListPage
-    :title="config.title"
-    :show-back="true"
-    :show-add="showAdd"
-    :show-search="true"
-    :search-placeholder="config.searchPlaceholder"
-    v-model:search-value="searchValue"
-    :show-filter="showFilter"
-    :tags="config.tags"
-    v-model:active-tag="activeTag"
-    :stats="statsData"
-    @back="goBack"
-    @add="handleAdd"
-    @filter="handleFilter"
-  >
-    <!-- 列表内容 -->
-    <div class="universal-list">
-      <p class="list-title">{{ listTitle || '列表' }}</p>
-      
-      <!-- 空状态 -->
-      <div v-if="filteredItems.length === 0 && !loading" class="empty-state">
-        <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-        </svg>
-        <p class="empty-text">暂无数据</p>
-      </div>
-      
-      <!-- 列表项 -->
-      <GlassListItem
-        v-for="item in filteredItems"
-        :key="item[config.fields.id]"
-        :title="getFieldValue(item, config.fields.title)"
-        :subtitle="getFieldValue(item, config.fields.subtitle)"
-        :emoji="getEmoji(item)"
-        :show-progress="!!config.fields.progress"
-        :progress-text="getProgressText(item)"
-        :progress-status="getProgressStatus(item)"
-        :progress-value="getProgressValue(item)"
-        :progress-level="getProgressLevel(item)"
-        :alert="isAlert(item)"
-        @click="handleItemClick(item)"
-        @more="handleItemMore(item)"
-      >
-        <!-- 自定义内容插槽 -->
-        <template #default>
-          <div v-if="config.fields.details" class="item-details">
-            <div 
-              v-for="(detail, index) in config.fields.details" 
-              :key="index"
-              class="detail-row"
-            >
-              <span class="detail-label">{{ detail.label }}</span>
-              <span class="detail-value">
-                {{ formatDetailValue(item, detail) }}
-              </span>
-            </div>
+  <div class="universal-page">
+    <NavBar
+      :title="config.title || listTitle || $route.meta?.title || '数据列表'"
+      left-arrow
+      @click-left="goBack"
+    >
+      <template #right>
+        <span v-if="showAdd" @click="handleAdd">
+          <SvgIcon name="plus" size="1.125rem" />
+        </span>
+      </template>
+    </NavBar>
+
+    <div class="page-body">
+      <!-- 统计概览 — 横排统计条 -->
+      <div class="stats-banner" v-if="statsData && statsData.length > 0">
+        <template v-for="(stat, idx) in statsData" :key="stat.label">
+          <div class="stat-item">
+            <span class="stat-num" :class="stat.iconClass">{{ stat.value }}</span>
+            <span class="stat-label">{{ stat.label }}</span>
           </div>
+          <div v-if="idx < statsData.length - 1" class="stat-divider"></div>
         </template>
-        
-        <!-- 状态标签插槽 -->
-        <template #actions v-if="config.fields.status">
-          <span 
-            class="status-badge"
-            :class="getStatusClass(item)"
+      </div>
+
+      <!-- 搜索栏 -->
+      <div v-if="config.searchPlaceholder || showFilter" class="search-section">
+        <Search v-model="searchValue" :placeholder="config.searchPlaceholder || '搜索...'" />
+      </div>
+
+      <!-- 横向滑动筛选标签 -->
+      <div v-if="filterTabs.length > 0" class="filter-scroll-wrapper">
+        <div class="filter-scroll">
+          <div
+            v-for="tab in filterTabs"
+            :key="tab.value"
+            class="filter-chip"
+            :class="{ active: activeTag === tab.value }"
+            @click="activeTag = tab.value"
           >
-            {{ getStatusText(item) }}
-          </span>
-        </template>
-      </GlassListItem>
+            <span class="chip-text">{{ tab.label }}</span>
+            <span v-if="getTabCount(tab.value)" class="chip-badge">{{
+              getTabCount(tab.value)
+            }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 列表 -->
+      <div class="list-area">
+        <PullRefresh v-model="refreshing" @refresh="onRefresh">
+          <Empty v-if="filteredItems.length === 0 && !loading" description="暂无数据" />
+
+          <List
+            v-model:loading="loading"
+            :finished="finished"
+            finished-text="没有更多了"
+            @load="onLoad"
+          >
+            <div
+              v-for="(item, index) in filteredItems"
+              :key="item[config.fields.id]"
+              class="list-card"
+              :style="{ animationDelay: `${index * 0.03}s` }"
+              @click="handleItemClick(item)"
+            >
+              <!-- 左侧色条 -->
+              <div class="card-accent" :class="getAccentColor(item)"></div>
+
+              <!-- 卡片主体 -->
+              <div class="card-body">
+                <!-- 第一行: 标题 + 状态标签 -->
+                <div class="card-top">
+                  <div class="title-area">
+                    <div v-if="getIconName(item)" class="item-icon" :class="getAccentColor(item)">
+                      <SvgIcon :name="getIconName(item)" size="0.875rem" />
+                    </div>
+                    <span class="item-title">{{ getFieldValue(item, config.fields.title) }}</span>
+                  </div>
+                  <template v-if="config.fields.tags && config.fields.tags.length">
+                    <span
+                      v-for="tag in config.fields.tags"
+                      :key="tag.field"
+                      class="status-tag"
+                      :class="getTagClass(item, tag)"
+                      >{{ getTagText(item, tag) }}</span
+                    >
+                  </template>
+                  <template v-else-if="config.fields.status">
+                    <span class="status-tag" :class="getStatusAccent(item)">{{
+                      getStatusText(item)
+                    }}</span>
+                  </template>
+                </div>
+
+                <!-- 第二行: 副标题 -->
+                <div class="item-subtitle" v-if="config.fields.subtitle">
+                  {{ getFieldValue(item, config.fields.subtitle) }}
+                </div>
+
+                <!-- 进度条 -->
+                <div v-if="config.fields.progress" class="progress-section">
+                  <div class="progress-bar">
+                    <div
+                      class="progress-fill"
+                      :class="'fill-' + getProgressLevel(item)"
+                      :style="{ width: getProgressValue(item) + '%' }"
+                    ></div>
+                  </div>
+                  <span class="progress-text">{{ Math.round(getProgressValue(item)) }}%</span>
+                </div>
+
+                <!-- 详细信息网格 -->
+                <div v-if="config.fields.details" class="detail-grid">
+                  <div
+                    v-for="(detail, dIdx) in config.fields.details"
+                    :key="dIdx"
+                    class="detail-item"
+                  >
+                    <span class="detail-label">{{ detail.label }}</span>
+                    <span class="detail-value">{{ formatDetailValue(item, detail) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </List>
+        </PullRefresh>
+      </div>
     </div>
-  </GlassListPage>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { GlassListPage, GlassListItem } from '@/components/glass'
-import { showToast } from 'vant'
-import dayjs from 'dayjs'
+  import { ref, computed, onMounted } from 'vue'
+  import { useRouter } from 'vue-router'
+  import { showToast, NavBar, Search, PullRefresh, List, Empty } from 'vant'
+  import SvgIcon from '@/components/icons/index.vue'
+  import dayjs from 'dayjs'
 
-const props = defineProps({
-  config: {
-    type: Object,
-    required: true
-  },
-  apiFunction: {
-    type: Function,
-    required: true
-  },
-  showAdd: {
-    type: Boolean,
-    default: true
-  },
-  showFilter: {
-    type: Boolean,
-    default: false
-  },
-  listTitle: {
-    type: String,
-    default: ''
-  }
-})
-
-const emit = defineEmits(['add', 'filter', 'item-click', 'item-more'])
-
-const router = useRouter()
-const searchValue = ref('')
-const activeTag = ref('all')
-const loading = ref(false)
-const items = ref([])
-const statistics = ref({})
-
-// 统计数据
-const statsData = computed(() => {
-  if (!props.config.stats) return []
-  
-  return props.config.stats.map(stat => ({
-    label: stat.label,
-    value: (statistics.value[stat.field] || 0).toString() + (stat.suffix || ''),
-    icon: stat.icon,
-    iconClass: stat.iconClass
-  }))
-})
-
-// 过滤后的列表
-const filteredItems = computed(() => {
-  let filtered = items.value
-  
-  // 按标签筛选
-  if (activeTag.value !== 'all') {
-    filtered = filtered.filter(item => {
-      if (props.config.fields.status) {
-        return item[props.config.fields.status.field] === activeTag.value
-      }
-      return true
-    })
-  }
-  
-  // 按搜索值筛选
-  if (searchValue.value) {
-    const search = searchValue.value.toLowerCase()
-    filtered = filtered.filter(item => {
-      const title = getFieldValue(item, props.config.fields.title)
-      const subtitle = getFieldValue(item, props.config.fields.subtitle)
-      return title.toLowerCase().includes(search) || 
-             subtitle.toLowerCase().includes(search)
-    })
-  }
-  
-  return filtered
-})
-
-// 获取字段值
-const getFieldValue = (item, field) => {
-  if (typeof field === 'function') {
-    return field(item)
-  }
-  return item[field] || ''
-}
-
-// 获取表情图标
-const getEmoji = (item) => {
-  if (typeof props.config.fields.emoji === 'function') {
-    return props.config.fields.emoji(item)
-  }
-  return props.config.fields.emoji || '📦'
-}
-
-// 格式化详情值
-const formatDetailValue = (item, detail) => {
-  let value = item[detail.field] || ''
-
-  // 添加前缀
-  if (detail.prefix) {
-    value = detail.prefix + value
-  }
-
-  // 添加后缀
-  if (detail.suffix) {
-    if (typeof detail.suffix === 'string' && detail.suffix.startsWith('_')) {
-      // 从其他字段获取后缀
-      value = value + ' ' + (item[detail.suffix] || '')
-    } else {
-      value = value + ' ' + detail.suffix
-    }
-  }
-
-  // 格式化日期
-  if (detail.format === 'date' && value) {
-    value = dayjs(value).format('YYYY-MM-DD')
-  } else if (detail.format === 'datetime' && value) {
-    value = dayjs(value).format('YYYY-MM-DD HH:mm')
-  }
-
-  return value || '-'
-}
-
-// 获取状态类名
-const getStatusClass = (item) => {
-  if (!props.config.fields.status) return ''
-
-  const status = item[props.config.fields.status.field]
-  const statusMap = props.config.fields.status.map
-
-  return statusMap[status]?.class || ''
-}
-
-// 获取状态文本
-const getStatusText = (item) => {
-  if (!props.config.fields.status) return ''
-
-  const status = item[props.config.fields.status.field]
-  const statusMap = props.config.fields.status.map
-
-  return statusMap[status]?.text || status
-}
-
-// 获取进度文本
-const getProgressText = (item) => {
-  if (!props.config.fields.progress) return ''
-
-  if (props.config.fields.progress.calculate) {
-    const result = props.config.fields.progress.calculate(item)
-    return result.text || ''
-  }
-
-  const current = item[props.config.fields.progress.field] || 0
-  const total = item[props.config.fields.progress.total] || 0
-
-  return `${current} / ${total}`
-}
-
-// 获取进度状态
-const getProgressStatus = (item) => {
-  if (!props.config.fields.progress) return ''
-
-  if (props.config.fields.progress.calculate) {
-    const result = props.config.fields.progress.calculate(item)
-    return result.text || ''
-  }
-
-  return ''
-}
-
-// 获取进度值
-const getProgressValue = (item) => {
-  if (!props.config.fields.progress) return 0
-
-  if (props.config.fields.progress.calculate) {
-    const result = props.config.fields.progress.calculate(item)
-    return result.percent || 0
-  }
-
-  const current = item[props.config.fields.progress.field] || 0
-  const total = item[props.config.fields.progress.total] || 1
-
-  return Math.min((current / total) * 100, 100)
-}
-
-// 获取进度等级
-const getProgressLevel = (item) => {
-  if (!props.config.fields.progress) return 'good'
-
-  if (props.config.fields.progress.calculate) {
-    const result = props.config.fields.progress.calculate(item)
-    return result.level || 'good'
-  }
-
-  const percent = getProgressValue(item)
-  if (percent >= 100) return 'good'
-  if (percent >= 50) return 'medium'
-  return 'low'
-}
-
-// 是否显示警告
-const isAlert = (item) => {
-  if (!props.config.fields.progress) return false
-
-  if (props.config.fields.progress.calculate) {
-    const result = props.config.fields.progress.calculate(item)
-    return result.level === 'low'
-  }
-
-  return false
-}
-
-// 加载数据
-const loadData = async () => {
-  if (loading.value) return
-
-  loading.value = true
-  try {
-    const params = {
-      page: 1,
-      pageSize: 100,
-      search: searchValue.value || undefined
-    }
-
-    console.log('📡 UniversalListPage - 调用 API，参数:', params)
-    const response = await props.apiFunction(params)
-    console.log('📡 UniversalListPage - API 响应:', response)
-    console.log('📡 UniversalListPage - response.data:', response.data)
-
-    // 处理响应数据
-    let data = []
-
-    // 处理 Axios 响应对象
-    let responseData = response
-    if (response.data !== undefined) {
-      responseData = response.data
-      console.log('📦 检测到 Axios 响应，使用 response.data')
-    }
-
-    // 解析数据 - 支持多种后端响应格式
-    if (responseData.list && Array.isArray(responseData.list)) {
-      // 格式: { list: [...], total: ..., page: ... }
-      data = responseData.list
-      console.log('📦 数据格式: responseData.list，数量:', data.length)
-    } else if (responseData.items && Array.isArray(responseData.items)) {
-      // 格式: { items: [...], total: ... }
-      data = responseData.items
-      console.log('📦 数据格式: responseData.items，数量:', data.length)
-    } else if (responseData.data && responseData.data.items && Array.isArray(responseData.data.items)) {
-      // 格式: { data: { items: [...] } }
-      data = responseData.data.items
-      console.log('📦 数据格式: responseData.data.items，数量:', data.length)
-    } else if (responseData.data && responseData.data.list && Array.isArray(responseData.data.list)) {
-      // 格式: { data: { list: [...] } }
-      data = responseData.data.list
-      console.log('📦 数据格式: responseData.data.list，数量:', data.length)
-    } else if (responseData.data && Array.isArray(responseData.data)) {
-      // 格式: { data: [...] }
-      data = responseData.data
-      console.log('📦 数据格式: responseData.data (数组)，数量:', data.length)
-    } else if (Array.isArray(responseData)) {
-      // 格式: [...]
-      data = responseData
-      console.log('📦 数据格式: responseData (数组)，数量:', data.length)
-    } else {
-      console.warn('⚠️ 未识别的数据格式:', responseData)
-      console.warn('⚠️ responseData 的键:', Object.keys(responseData))
-    }
-
-    console.log('📊 解析后的数据:', data)
-    console.log('📊 数据数量:', data.length)
-
-    items.value = data
-
-    // 计算统计数据
-    if (props.config.stats) {
-      statistics.value = calculateStatistics(data, responseData)
-      console.log('📈 统计数据:', statistics.value)
-    }
-  } catch (error) {
-    console.error('❌ 加载数据失败:', error)
-    showToast('加载失败，请重试')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 计算统计数据
-const calculateStatistics = (data, responseData = {}) => {
-  const stats = {}
-
-  props.config.stats.forEach(stat => {
-    if (stat.field === 'total') {
-      // 优先使用后端返回的 total，否则使用数据长度
-      stats.total = responseData.total || data.length
-    } else if (stat.field === 'totalMaterials') {
-      // 物料总数
-      stats.totalMaterials = responseData.total || data.length
-    } else if (stat.field === 'lowStock') {
-      // 低库存数量 - 需要根据实际数据计算
-      stats.lowStock = data.filter(item => {
-        const qty = item.quantity || 0
-        const min = item.min_stock || 0
-        return min > 0 && qty <= min
-      }).length
-    } else if (stat.field === 'inProgress' && props.config.fields.status) {
-      stats.inProgress = data.filter(item =>
-        item[props.config.fields.status.field] === 'in_progress'
-      ).length
-    } else if (stat.field === 'completed' && props.config.fields.status) {
-      stats.completed = data.filter(item =>
-        item[props.config.fields.status.field] === 'completed'
-      ).length
-    } else if (stat.field === 'pending' && props.config.fields.status) {
-      stats.pending = data.filter(item =>
-        item[props.config.fields.status.field] === 'pending'
-      ).length
-    } else if (stat.field === 'active') {
-      // 活跃客户/供应商
-      stats.active = data.filter(item => item.status === 'active').length
-    }
+  const props = defineProps({
+    config: { type: Object, required: true },
+    apiFunction: { type: Function, required: true },
+    showAdd: { type: Boolean, default: true },
+    showFilter: { type: Boolean, default: false },
+    listTitle: { type: String, default: '' }
   })
 
-  return stats
-}
+  const emit = defineEmits(['add', 'filter', 'item-click', 'item-more'])
 
-// 方法
-const goBack = () => {
-  router.back()
-}
+  const router = useRouter()
+  const searchValue = ref('')
+  const activeTag = ref('all')
+  const loading = ref(false)
+  const finished = ref(false)
+  const refreshing = ref(false)
+  const items = ref([])
+  const statistics = ref({})
 
-const handleAdd = () => {
-  emit('add')
-}
+  // 筛选标签 — 优先使用 config.filterTabs，其次 config.tags
+  const filterTabs = computed(() => props.config.filterTabs || props.config.tags || [])
 
-const handleFilter = () => {
-  emit('filter')
-}
+  // 统计数据
+  const statsData = computed(() => {
+    if (!props.config.stats) return []
+    return props.config.stats.map((stat) => ({
+      label: stat.label,
+      value: (statistics.value[stat.field] || 0).toString() + (stat.suffix || ''),
+      icon: stat.icon,
+      iconClass: stat.iconClass
+    }))
+  })
 
-const handleItemClick = (item) => {
-  if (props.config.detailRoute) {
-    const route = props.config.detailRoute.replace(':id', item[props.config.fields.id])
-    router.push(route)
+  const getTabCount = (value) => {
+    if (value === 'all') return items.value.length
+    if (props.config.fields.status) {
+      const field = props.config.fields.status.field || props.config.fields.status
+      return items.value.filter((i) => i[field] === value).length
+    }
+    return 0
   }
-  emit('item-click', item)
-}
 
-const handleItemMore = (item) => {
-  emit('item-more', item)
-}
+  // 过滤后的列表
+  const filteredItems = computed(() => {
+    let filtered = items.value
+    if (activeTag.value !== 'all') {
+      filtered = filtered.filter((item) => {
+        if (props.config.fields.status) {
+          const field =
+            typeof props.config.fields.status === 'string'
+              ? props.config.fields.status
+              : props.config.fields.status.field
+          return item[field] === activeTag.value
+        }
+        return true
+      })
+    }
+    if (searchValue.value) {
+      const s = searchValue.value.toLowerCase()
+      filtered = filtered.filter((item) => {
+        const title = getFieldValue(item, props.config.fields.title)
+        const subtitle = getFieldValue(item, props.config.fields.subtitle)
+        return String(title).toLowerCase().includes(s) || String(subtitle).toLowerCase().includes(s)
+      })
+    }
+    return filtered
+  })
 
-// 页面加载时获取数据
-onMounted(() => {
-  loadData()
-})
+  // 获取字段值
+  const getFieldValue = (item, field) => {
+    if (typeof field === 'function') return field(item)
+    return item[field] || ''
+  }
+
+  // 获取图标名称
+  const getIconName = (item) => {
+    if (!props.config.fields.icon) return null
+    if (typeof props.config.fields.icon === 'function') return props.config.fields.icon(item)
+    return props.config.fields.icon
+  }
+
+  // 色条颜色 — 基于状态
+  const accentMap = {
+    draft: 'accent-gray',
+    pending: 'accent-gray',
+    confirmed: 'accent-blue',
+    allocated: 'accent-blue',
+    preparing: 'accent-yellow',
+    material_issuing: 'accent-yellow',
+    material_issued: 'accent-yellow',
+    in_progress: 'accent-yellow',
+    in_production: 'accent-yellow',
+    in_procurement: 'accent-yellow',
+    ready_to_ship: 'accent-blue',
+    shortage: 'accent-red',
+    partial_shipped: 'accent-blue',
+    shipped: 'accent-blue',
+    delivered: 'accent-green',
+    inspection: 'accent-purple',
+    warehousing: 'accent-blue',
+    processing: 'accent-yellow',
+    completed: 'accent-green',
+    cancelled: 'accent-red',
+    paused: 'accent-red',
+    active: 'accent-blue',
+    inactive: 'accent-gray'
+  }
+  const getAccentColor = (item) => {
+    if (props.config.fields.status) {
+      const field =
+        typeof props.config.fields.status === 'string'
+          ? props.config.fields.status
+          : props.config.fields.status.field
+      return accentMap[item[field]] || 'accent-blue'
+    }
+    return 'accent-blue'
+  }
+
+  // 状态相关
+  const getStatusAccent = (item) => {
+    if (!props.config.fields.status) return ''
+    const field =
+      typeof props.config.fields.status === 'string'
+        ? props.config.fields.status
+        : props.config.fields.status.field
+    return 'st-' + (item[field] || 'default')
+  }
+  const getStatusText = (item) => {
+    if (!props.config.fields.status) return ''
+    const status =
+      item[
+        typeof props.config.fields.status === 'string'
+          ? props.config.fields.status
+          : props.config.fields.status.field
+      ]
+    const map = props.config.fields.status.map
+    return map ? map[status]?.text || status : status
+  }
+
+  // Tag 相关
+  const getTagClass = (item, tag) => {
+    if (!tag.map) return ''
+    const val = item[tag.field]
+    const entry = tag.map[val]
+    if (!entry) return ''
+    return 'tag-' + (entry.color || 'default')
+  }
+  const getTagText = (item, tag) => {
+    if (!tag.map) return item[tag.field] || ''
+    const val = item[tag.field]
+    const entry = tag.map[val]
+    return entry ? entry.text : val || ''
+  }
+
+  // 格式化详情值
+  const formatDetailValue = (item, detail) => {
+    let value
+    if (typeof detail.field === 'function') {
+      value = detail.field(item)
+    } else {
+      value = item[detail.field]
+    }
+    if (value === undefined || value === null) value = ''
+
+    const fmt = detail.format || detail.type
+    if (fmt === 'date' && value) return (detail.prefix || '') + dayjs(value).format('YYYY-MM-DD')
+    if (fmt === 'datetime' && value)
+      return (detail.prefix || '') + dayjs(value).format('YYYY-MM-DD HH:mm')
+    if (fmt === 'money' && value !== '') {
+      const num = Number(value)
+      const formatted = isNaN(num)
+        ? value
+        : num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      return (detail.prefix || '') + formatted
+    }
+
+    if (detail.prefix) value = detail.prefix + value
+    if (detail.suffix) {
+      if (typeof detail.suffix === 'string' && detail.suffix.startsWith('_')) {
+        value = value + ' ' + (item[detail.suffix] || '')
+      } else {
+        value = value + ' ' + detail.suffix
+      }
+    }
+    return value || '—'
+  }
+
+  // 进度相关
+  const getProgressValue = (item) => {
+    if (!props.config.fields.progress) return 0
+    if (props.config.fields.progress.calculate)
+      return props.config.fields.progress.calculate(item).percent || 0
+    const current = item[props.config.fields.progress.field] || 0
+    const total = item[props.config.fields.progress.total] || 1
+    return Math.min((current / total) * 100, 100)
+  }
+  const getProgressLevel = (item) => {
+    if (!props.config.fields.progress) return 'good'
+    if (props.config.fields.progress.calculate)
+      return props.config.fields.progress.calculate(item).level || 'good'
+    const p = getProgressValue(item)
+    if (p >= 100) return 'good'
+    if (p >= 50) return 'medium'
+    return 'low'
+  }
+
+  // 加载数据
+  const loadData = async (isRefresh = false) => {
+    if (isRefresh) {
+      items.value = []
+      finished.value = false
+    }
+    try {
+      const params = { page: 1, pageSize: 100, search: searchValue.value || undefined }
+      const response = await props.apiFunction(params)
+      let data = []
+      let responseData = response
+      if (response.data !== undefined) responseData = response.data
+
+      if (responseData.list && Array.isArray(responseData.list)) data = responseData.list
+      else if (responseData.items && Array.isArray(responseData.items)) data = responseData.items
+      else if (
+        responseData.data &&
+        responseData.data.items &&
+        Array.isArray(responseData.data.items)
+      )
+        data = responseData.data.items
+      else if (responseData.data && responseData.data.list && Array.isArray(responseData.data.list))
+        data = responseData.data.list
+      else if (responseData.data && Array.isArray(responseData.data)) data = responseData.data
+      else if (Array.isArray(responseData)) data = responseData
+      else if (responseData.data && typeof responseData.data === 'object') {
+        const innerData = responseData.data
+        const arrayKey = Object.keys(innerData).find((k) => Array.isArray(innerData[k]))
+        if (arrayKey) data = innerData[arrayKey]
+      } else if (typeof responseData === 'object' && responseData !== null) {
+        const arrayKey = Object.keys(responseData).find((k) => Array.isArray(responseData[k]))
+        if (arrayKey) data = responseData[arrayKey]
+      }
+
+      items.value = data
+      finished.value = true
+      if (props.config.stats) statistics.value = calculateStatistics(data, responseData)
+    } catch (error) {
+      console.error('加载数据失败:', error)
+      showToast('加载失败，请重试')
+    } finally {
+      loading.value = false
+      refreshing.value = false
+    }
+  }
+
+  const calculateStatistics = (data, responseData = {}) => {
+    const stats = {}
+    if (!props.config.stats) return stats
+    props.config.stats.forEach((stat) => {
+      if (stat.field === 'total' || stat.field === 'totalMaterials') {
+        stats[stat.field] = responseData.total || data.length
+      } else if (stat.field === 'lowStock') {
+        stats.lowStock = data.filter((i) => {
+          const q = i.quantity || 0
+          const m = i.min_stock || 0
+          return m > 0 && q <= m
+        }).length
+      } else if (stat.field === 'active') {
+        stats.active = data.filter((i) => i.status === 'active').length
+      } else if (props.config.fields.status) {
+        const field =
+          typeof props.config.fields.status === 'string'
+            ? props.config.fields.status
+            : props.config.fields.status.field
+        stats[stat.field] = data.filter((i) => i[field] === stat.field).length
+      }
+    })
+    return stats
+  }
+
+  const goBack = () => router.back()
+  const handleAdd = () => emit('add')
+  const handleFilter = () => emit('filter')
+  const handleItemClick = (item) => {
+    if (props.config.detailRoute) {
+      const route = props.config.detailRoute.replace(':id', item[props.config.fields.id])
+      router.push(route)
+    }
+    emit('item-click', item)
+  }
+
+  const onLoad = () => {
+    loading.value = true
+    loadData()
+  }
+  const onRefresh = () => {
+    refreshing.value = true
+    loadData(true)
+  }
+
+  onMounted(() => loadData(true))
 </script>
 
 <style lang="scss" scoped>
-.universal-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
+  .universal-page {
+    min-height: 100vh;
+    background: var(--bg-primary);
+    padding-bottom: 80px;
+  }
+  .page-body {
+    padding: 0 12px 12px;
+  }
 
-.list-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin-bottom: 0.5rem;
-}
+  // ========== 统计概览 ==========
+  .stats-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 14px 8px;
+    margin: 8px 0;
+    border: 1px solid var(--glass-border);
+    box-shadow: none;
+  }
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .stat-num {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    &.bg-blue {
+      color: #3b82f6;
+    }
+    &.bg-purple {
+      color: #a855f7;
+    }
+    &.bg-green {
+      color: #34d399;
+    }
+    &.bg-red {
+      color: #ef4444;
+    }
+    &.bg-yellow {
+      color: #fbbf24;
+    }
+    &.bg-orange {
+      color: #f97316;
+    }
+  }
+  .stat-label {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+  }
+  .stat-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--glass-border);
+  }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 1rem;
-}
+  // ========== 搜索 ==========
+  .search-section {
+    padding: 4px 0;
+  }
 
-.empty-icon {
-  width: 4rem;
-  height: 4rem;
-  color: var(--color-text-tertiary);
-  margin-bottom: 1rem;
-}
+  // ========== 横向滑动筛选 ==========
+  .filter-scroll-wrapper {
+    padding: 4px 0 8px;
+    overflow: hidden;
+  }
+  .filter-scroll {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 6px;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+  .filter-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--bg-secondary);
+    border: 1.5px solid var(--glass-border);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    transition: all 0.25s;
+    cursor: pointer;
+    .chip-text {
+      font-weight: 500;
+    }
+    .chip-badge {
+      min-width: 18px;
+      height: 18px;
+      line-height: 18px;
+      text-align: center;
+      font-size: 0.625rem;
+      font-weight: 700;
+      border-radius: 9px;
+      background: var(--glass-border);
+      color: var(--text-secondary);
+      padding: 0 4px;
+    }
+    &.active {
+      background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
+      border-color: var(--color-accent, #3b82f6);
+      color: var(--color-accent, #3b82f6);
+      .chip-badge {
+        background: var(--color-accent, #3b82f6);
+        color: #fff;
+      }
+    }
+  }
 
-.empty-text {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-}
+  // ========== 列表卡片 ==========
+  .list-area {
+    padding-top: 4px;
+  }
+  .list-card {
+    display: flex;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    box-shadow: none;
+    transition: all 0.2s;
+    animation: fadeInUp 0.35s ease-out both;
+    cursor: pointer;
+    &:active {
+      transform: scale(0.98);
+      box-shadow: none;
+    }
+  }
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-.item-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
+  // 左侧色条
+  .card-accent {
+    width: 4px;
+    flex-shrink: 0;
+    &.accent-blue {
+      background: linear-gradient(180deg, #3b82f6, #60a5fa);
+    }
+    &.accent-green {
+      background: linear-gradient(180deg, #10b981, #34d399);
+    }
+    &.accent-yellow {
+      background: linear-gradient(180deg, #f59e0b, #fbbf24);
+    }
+    &.accent-red {
+      background: linear-gradient(180deg, #ef4444, #f87171);
+    }
+    &.accent-gray {
+      background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+    }
+    &.accent-purple {
+      background: linear-gradient(180deg, #a855f7, #c084fc);
+    }
+  }
 
-.detail-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+  .card-body {
+    flex: 1;
+    padding: 12px 14px;
+    min-width: 0;
+  }
 
-.detail-label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-}
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .title-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .item-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    &.accent-blue {
+      background: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+    }
+    &.accent-green {
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+    }
+    &.accent-yellow {
+      background: rgba(245, 158, 11, 0.1);
+      color: #f59e0b;
+    }
+    &.accent-red {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+    &.accent-gray {
+      background: rgba(148, 163, 184, 0.1);
+      color: #94a3b8;
+    }
+    &.accent-purple {
+      background: rgba(168, 85, 247, 0.1);
+      color: #a855f7;
+    }
+  }
+  .item-title {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-.detail-value {
-  font-size: 0.75rem;
-  color: var(--color-text-primary);
-  font-weight: 500;
-}
+  // 状态标签
+  .status-tag {
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    &.st-draft,
+    &.st-pending,
+    &.tag-default {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+    }
+    &.st-confirmed,
+    &.st-allocated,
+    &.st-ready_to_ship,
+    &.st-partial_shipped,
+    &.st-shipped,
+    &.tag-info {
+      background: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+    }
+    &.st-preparing,
+    &.st-material_issuing,
+    &.st-material_issued,
+    &.st-in_progress,
+    &.st-in_production,
+    &.st-in_procurement,
+    &.st-processing,
+    &.tag-warning {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+    }
+    &.st-inspection,
+    &.st-warehousing {
+      background: rgba(168, 85, 247, 0.12);
+      color: #a855f7;
+    }
+    &.st-completed,
+    &.st-delivered,
+    &.tag-success,
+    &.st-active {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+    &.st-cancelled,
+    &.st-inactive {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+    }
+    &.st-paused,
+    &.st-shortage,
+    &.tag-danger {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+  }
 
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-full);
-  font-size: 0.625rem;
-  font-weight: 600;
-}
+  .item-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+    font-family: 'SF Mono', monospace;
+  }
 
-.status-pending {
-  background: rgba(148, 163, 184, 0.2);
-  color: rgb(203, 213, 225);
-}
+  // 进度条
+  .progress-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .progress-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--glass-border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s;
+    &.fill-good {
+      background: linear-gradient(90deg, #10b981, #34d399);
+    }
+    &.fill-medium {
+      background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    }
+    &.fill-low {
+      background: linear-gradient(90deg, #ef4444, #f87171);
+    }
+  }
+  .progress-text {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-family: 'SF Mono', monospace;
+    min-width: 30px;
+    text-align: right;
+  }
 
-.status-progress {
-  background: rgba(234, 179, 8, 0.2);
-  color: rgb(253, 224, 71);
-}
-
-.status-completed {
-  background: rgba(34, 197, 94, 0.2);
-  color: rgb(134, 239, 172);
-}
-
-.status-cancelled {
-  background: rgba(239, 68, 68, 0.2);
-  color: rgb(252, 165, 165);
-}
+  // 详情网格
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--glass-border);
+  }
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .detail-label {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+  }
+  .detail-value {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
 </style>

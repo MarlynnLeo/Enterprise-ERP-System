@@ -1,400 +1,515 @@
+<!--
+/**
+ * TransferDetail.vue
+ * @description 调拨单详情页面 — 与出库/入库详情统一风格，字段与后端对齐
+ * @date 2026-04-15
+ * @version 2.0.0
+ */
+-->
 <template>
-    <div class="page-container">
-        <!-- 导航栏 -->
-        <div class="nav-bar">
-            <button class="back-btn" @click="router.back()">
-                <Icon name="arrow-left" size="1.25rem" />
-            </button>
-            <h1 class="page-title">调拨单详情</h1>
-            <div class="nav-actions">
+  <div class="detail-page">
+    <NavBar title="调拨单详情" left-arrow @click-left="router.back()" />
+
+    <div class="content-wrapper" v-if="detail">
+      <!-- 状态卡片 -->
+      <div class="status-banner">
+        <div class="status-icon-wrap" :class="getStatusAccent(detail.status)">
+          <Icon :name="getStatusIcon(detail.status)" size="1.5rem" />
+        </div>
+        <div class="status-main">
+          <div class="status-top-row">
+            <span class="status-tag" :class="getStatusAccent(detail.status)">{{
+              getStatusText(detail.status)
+            }}</span>
+            <span class="order-date">{{ formatDate(detail.created_at) }}</span>
+          </div>
+          <span class="order-no">{{ detail.transfer_no }}</span>
+        </div>
+      </div>
+
+      <!-- 调拨路线 -->
+      <div class="route-card">
+        <div class="route-side">
+          <span class="route-label">调出仓库</span>
+          <span class="route-name from">{{ detail.from_location || '—' }}</span>
+        </div>
+        <div class="route-arrow">
+          <Icon name="arrow" size="20" color="var(--text-tertiary)" />
+        </div>
+        <div class="route-side">
+          <span class="route-label">调入仓库</span>
+          <span class="route-name to">{{ detail.to_location || '—' }}</span>
+        </div>
+      </div>
+
+      <!-- 基本信息 -->
+      <div class="section-header">基本信息</div>
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-label">调拨日期</span>
+          <span class="info-value">{{ detail.transfer_date || '—' }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">创建人</span>
+          <span class="info-value">{{ detail.creator || '—' }}</span>
+        </div>
+        <div class="info-row" v-if="detail.remark">
+          <span class="info-label">备注</span>
+          <span class="info-value remark">{{ detail.remark }}</span>
+        </div>
+      </div>
+
+      <!-- 物料明细 -->
+      <div class="section-header">
+        物料明细
+        <span class="section-count">{{ detail.items ? detail.items.length : 0 }}</span>
+      </div>
+
+      <div
+        v-for="(item, index) in detail.items"
+        :key="item.id || index"
+        class="material-card"
+        :style="{ animationDelay: `${index * 0.05}s` }"
+      >
+        <div class="card-accent accent-purple"></div>
+        <div class="card-body">
+          <div class="material-header">
+            <div class="material-title-area">
+              <span class="material-name">{{ item.material_name || '未知物料' }}</span>
+              <span class="material-code">{{ item.material_code || '' }}</span>
             </div>
+            <span class="material-qty"
+              >{{ item.quantity }} <span class="qty-unit">{{ item.unit_name || '' }}</span></span
+            >
+          </div>
+          <div class="material-spec" v-if="item.specification">{{ item.specification }}</div>
         </div>
+      </div>
 
-        <div class="content-scroll" v-if="transferOrder">
-            <!-- 状态卡片 -->
-            <div class="status-section">
-                <GlassCard class="status-card">
-                    <div class="status-icon" :class="statusClass[transferOrder.status]">
-                        <Icon :name="getStatusIcon(transferOrder.status)" size="1.5rem" />
-                    </div>
-                    <div class="status-info">
-                        <h2 class="status-text">{{ getStatusText(transferOrder.status) }}</h2>
-                        <p class="order-code">{{ transferOrder.code }}</p>
-                    </div>
-                    <div class="status-date">
-                        {{ formatDate(transferOrder.created_at) }}
-                    </div>
-                </GlassCard>
-            </div>
-
-            <!-- 基本信息 -->
-            <div class="section-title">基本信息</div>
-            <GlassCard class="info-card">
-                <div class="info-row">
-                    <span class="info-label">调出仓库</span>
-                    <span class="info-value highlight-out">{{ transferOrder.from_warehouse_name }}</span>
-                </div>
-                <div class="transfer-arrow">
-                    <Icon name="arrow-down" size="1rem" class="text-gray-500" />
-                </div>
-                <div class="info-row">
-                    <span class="info-label">调入仓库</span>
-                    <span class="info-value highlight-in">{{ transferOrder.to_warehouse_name }}</span>
-                </div>
-                <div class="info-row mt-2">
-                    <span class="info-label">经办人</span>
-                    <span class="info-value">{{ transferOrder.creator_name }}</span>
-                </div>
-                <div class="info-row" v-if="transferOrder.remark">
-                    <span class="info-label">备注</span>
-                    <span class="info-value">{{ transferOrder.remark }}</span>
-                </div>
-            </GlassCard>
-
-            <!-- 物料列表 -->
-            <div class="section-title">物料明细 ({{ transferOrder.items ? transferOrder.items.length : 0 }})</div>
-            <div class="items-list">
-                <GlassListItem v-for="item in transferOrder.items" :key="item.id" :title="item.material_name"
-                    :subtitle="`SKU: ${item.material_code}`" :show-more="false" :clickable="false">
-                    <div class="item-details">
-                        <div class="detail-row">
-                            <span class="detail-label">调拨数量:</span>
-                            <span class="detail-value highlight">{{ item.quantity }} {{ item.unit_name }}</span>
-                        </div>
-                        <div class="detail-row" v-if="item.batch_no">
-                            <span class="detail-label">批次号:</span>
-                            <span class="detail-value">{{ item.batch_no }}</span>
-                        </div>
-                    </div>
-                </GlassListItem>
-            </div>
-        </div>
-
-        <!-- 加载中 -->
-        <div class="loading-container" v-else-if="loading">
-            <van-loading size="24px" vertical color="#a855f7">加载中...</van-loading>
-        </div>
-
-        <!-- 错误/空状态 -->
-        <div class="empty-container" v-else>
-            <Icon name="document-text" size="4rem" class="text-gray-500 mb-4" />
-            <p>未找到调拨单信息</p>
-            <GlassButton class="mt-4" size="sm" @click="fetchDetail">重试</GlassButton>
-        </div>
-
-        <!-- 底部操作栏 -->
-        <div class="bottom-actions glass-panel" v-if="transferOrder && transferOrder.status === 'pending'">
-            <GlassButton type="primary" block :loading="submitting" @click="showExecuteDialog = true">
-                确认调拨
-            </GlassButton>
-        </div>
-
-        <!-- 确认调拨弹窗 -->
-        <van-dialog v-model:show="showExecuteDialog" title="确认调拨" show-cancel-button @confirm="handleExecute">
-            <div class="p-4 text-center">
-                确认执行该调拨单？
-                <br>
-                <span class="text-xs text-gray-500">库存将从调出仓库转移至调入仓库</span>
-            </div>
-        </van-dialog>
+      <div v-if="!detail.items || detail.items.length === 0" class="empty-items">
+        <Empty description="暂无物料明细" />
+      </div>
     </div>
+
+    <!-- 加载中 -->
+    <div class="loading-container" v-else-if="loading">
+      <Loading size="24px" vertical color="var(--color-accent)">加载中...</Loading>
+    </div>
+    <!-- 空状态 -->
+    <div class="empty-container" v-else>
+      <Empty description="未找到调拨单信息" />
+      <VanButton size="small" type="primary" plain @click="fetchDetail" style="margin-top: 12px"
+        >重试</VanButton
+      >
+    </div>
+
+    <!-- 底部操作栏 -->
+    <div
+      class="bottom-bar"
+      v-if="detail && (detail.status === 'draft' || detail.status === 'approved')"
+    >
+      <VanButton
+        v-if="detail.status === 'draft'"
+        type="primary"
+        block
+        round
+        :loading="submitting"
+        @click="handleSubmit"
+        >提交审批</VanButton
+      >
+      <VanButton
+        v-if="detail.status === 'approved'"
+        type="warning"
+        block
+        round
+        :loading="submitting"
+        @click="handleComplete"
+        >执行调拨</VanButton
+      >
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { showToast } from 'vant'
-import { inventoryApi } from '@/services/api'
-import { GlassCard, GlassListItem, GlassButton } from '@/components/glass'
-import Icon from '@/components/icons/index.vue'
-import dayjs from 'dayjs'
+  import { ref, onMounted } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
+  import {
+    NavBar,
+    Icon,
+    Empty,
+    Loading,
+    Button as VanButton,
+    showToast,
+    showConfirmDialog
+  } from 'vant'
+  import { inventoryApi } from '@/services/api'
+  import dayjs from 'dayjs'
 
-const route = useRoute()
-const router = useRouter()
-const id = route.params.id
+  const route = useRoute()
+  const router = useRouter()
+  const id = route.params.id
+  const loading = ref(true)
+  const submitting = ref(false)
+  const detail = ref(null)
 
-const loading = ref(true)
-const submitting = ref(false)
-const transferOrder = ref(null)
-const showExecuteDialog = ref(false)
-
-// 状态样式映射
-const statusClass = {
-    pending: 'bg-yellow-500',
-    processing: 'bg-blue-500',
-    completed: 'bg-green-500',
-    cancelled: 'bg-gray-500'
-}
-
-// 获取详情
-const fetchDetail = async () => {
+  const fetchDetail = async () => {
     loading.value = true
     try {
-        const res = await inventoryApi.getTransferDetail(id)
-        transferOrder.value = res.data || res
-    } catch (error) {
-        console.error('获取调拨单详情失败:', error)
-        showToast('加载失败')
+      const res = await inventoryApi.getTransferDetail(id)
+      detail.value = res.data || res
+    } catch (e) {
+      console.error('获取调拨单详情失败:', e)
+      showToast('加载失败')
     } finally {
-        loading.value = false
+      loading.value = false
     }
-}
+  }
 
-// 状态文本
-const getStatusText = (status) => {
-    const map = {
-        pending: '待调拨',
-        processing: '调拨中',
-        completed: '已完成',
-        cancelled: '已取消'
-    }
-    return map[status] || status
-}
+  const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm') : '—')
+  const getStatusText = (s) =>
+    ({
+      draft: '草稿',
+      pending: '待审批',
+      approved: '已批准',
+      completed: '已完成',
+      cancelled: '已取消'
+    })[s] || s
+  const getStatusIcon = (s) =>
+    ({
+      draft: 'edit',
+      pending: 'clock-o',
+      approved: 'passed',
+      completed: 'checked',
+      cancelled: 'close'
+    })[s] || 'info-o'
+  const getStatusAccent = (s) =>
+    ({
+      draft: 'status-draft',
+      pending: 'status-pending',
+      approved: 'status-approved',
+      completed: 'status-completed',
+      cancelled: 'status-cancelled'
+    })[s] || ''
 
-// 状态图标
-const getStatusIcon = (status) => {
-    const map = {
-        pending: 'clock',
-        processing: 'refresh',
-        completed: 'check-circle',
-        cancelled: 'x-circle'
-    }
-    return map[status] || 'document-text'
-}
-
-// 格式化日期
-const formatDate = (date) => {
-    return date ? dayjs(date).format('YYYY-MM-DD HH:mm') : '-'
-}
-
-// 执行调拨
-const handleExecute = async () => {
-    submitting.value = true
+  const handleSubmit = async () => {
     try {
-        await inventoryApi.updateTransferStatus(id, 'completed')
-        showToast({ type: 'success', message: '调拨成功' })
-        fetchDetail() // 刷新详情
-    } catch (error) {
-        console.error('执行调拨失败:', error)
-        showToast('操作失败')
+      await showConfirmDialog({ title: '提交审批', message: '确定要提交该调拨单审批吗？' })
+      submitting.value = true
+      await inventoryApi.updateTransferStatus(id, 'pending')
+      showToast({ type: 'success', message: '已提交' })
+      fetchDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast('操作失败')
     } finally {
-        submitting.value = false
-        showExecuteDialog.value = false
+      submitting.value = false
     }
-}
+  }
 
-onMounted(() => {
-    fetchDetail()
-})
+  const handleComplete = async () => {
+    try {
+      await showConfirmDialog({
+        title: '执行调拨',
+        message: '确认执行该调拨单？\n库存将从调出仓库转移至调入仓库。'
+      })
+      submitting.value = true
+      await inventoryApi.updateTransferStatus(id, 'completed')
+      showToast({ type: 'success', message: '调拨成功' })
+      fetchDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast('操作失败')
+    } finally {
+      submitting.value = false
+    }
+  }
+
+  onMounted(() => fetchDetail())
 </script>
 
 <style lang="scss" scoped>
-.page-container {
+  .detail-page {
     min-height: 100vh;
-    background: var(--bg-primary);
+    background-color: var(--bg-primary);
     padding-bottom: 80px;
-    display: flex;
-    flex-direction: column;
-}
+  }
+  .content-wrapper {
+    padding: 0 12px 12px;
+  }
 
-.nav-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem;
-    background: rgba(17, 24, 39, 0.8);
-    backdrop-filter: blur(20px);
-    position: sticky;
-    top: 0;
-    z-index: 50;
-}
-
-.back-btn {
-    background: none;
-    border: none;
-    color: white;
-    padding: 0.5rem;
-    margin-left: -0.5rem;
-    cursor: pointer;
-}
-
-.page-title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: white;
-}
-
-.nav-actions {
-    width: 2rem;
-}
-
-.content-scroll {
-    padding: 1rem;
-    padding-bottom: 6rem;
-}
-
-.status-section {
-    margin-bottom: 1.5rem;
-}
-
-.status-card {
+  .status-banner {
     display: flex;
     align-items: center;
-    gap: 1rem;
-}
-
-.status-icon {
-    width: 3rem;
-    height: 3rem;
-    border-radius: 1rem;
+    gap: 12px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin: 8px 0;
+    border: 1px solid var(--glass-border);
+  }
+  .status-icon-wrap {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.status-info {
+    flex-shrink: 0;
+    &.status-draft {
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+    }
+    &.status-pending {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+    }
+    &.status-approved {
+      background: rgba(59, 130, 246, 0.12);
+      color: #3b82f6;
+    }
+    &.status-completed {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+    &.status-cancelled {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+  }
+  .status-main {
     flex: 1;
-}
-
-.status-text {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: white;
-    margin-bottom: 0.25rem;
-}
-
-.order-code {
-    font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.status-date {
+    min-width: 0;
+  }
+  .status-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .status-tag {
+    display: inline-flex;
+    padding: 2px 10px;
+    border-radius: 10px;
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
-}
+    font-weight: 700;
+    &.status-draft {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+    }
+    &.status-pending {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+    }
+    &.status-approved {
+      background: rgba(59, 130, 246, 0.12);
+      color: #3b82f6;
+    }
+    &.status-completed {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+    &.status-cancelled {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+  }
+  .order-date {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  }
+  .order-no {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  }
 
-.section-title {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
-    margin-bottom: 0.75rem;
-    margin-top: 1.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.info-card {
+  // 调拨路线卡片
+  .route-card {
+    display: flex;
+    align-items: center;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 14px 8px;
+    margin: 8px 0;
+    border: 1px solid var(--glass-border);
+  }
+  .route-side {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-}
+    align-items: center;
+    gap: 4px;
+  }
+  .route-label {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+  }
+  .route-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    &.from {
+      color: #ef4444;
+    }
+    &.to {
+      color: #10b981;
+    }
+  }
+  .route-arrow {
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
 
-.info-row {
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin: 16px 4px 8px;
+  }
+  .section-count {
+    min-width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    font-size: 0.625rem;
+    font-weight: 700;
+    border-radius: 9px;
+    background: #a855f7;
+    color: #fff;
+    padding: 0 5px;
+  }
+
+  .info-card {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 4px 0;
+    border: 1px solid var(--glass-border);
+  }
+  .info-row {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    font-size: 0.875rem;
-}
-
-.info-label {
-    color: rgba(255, 255, 255, 0.6);
-    min-width: 5rem;
-}
-
-.info-value {
-    color: white;
+    padding: 10px 16px;
+    &:not(:last-child) {
+      border-bottom: 1px solid var(--glass-border);
+    }
+  }
+  .info-label {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    min-width: 70px;
+  }
+  .info-value {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
     text-align: right;
     flex: 1;
-}
+    &.remark {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+    }
+  }
 
-.highlight-out {
-    color: #f87171;
-}
-
-.highlight-in {
-    color: #4ade80;
-}
-
-.transfer-arrow {
+  .material-card {
     display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 1.5rem;
-}
-
-.items-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.item-details {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.detail-row {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    animation: fadeInUp 0.35s ease-out both;
+  }
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .card-accent {
+    width: 4px;
+    flex-shrink: 0;
+    &.accent-purple {
+      background: linear-gradient(180deg, #a855f7, #c084fc);
+    }
+  }
+  .card-body {
+    flex: 1;
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .material-header {
     display: flex;
     justify-content: space-between;
-    font-size: 0.75rem;
-}
-
-.detail-label {
-    color: rgba(255, 255, 255, 0.5);
-}
-
-.detail-value {
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.detail-value.highlight {
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .material-title-area {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .material-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .material-code {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    flex-shrink: 0;
+  }
+  .material-qty {
+    font-size: 0.875rem;
+    font-weight: 800;
     color: #a855f7;
-    font-weight: 600;
-}
+    flex-shrink: 0;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    .qty-unit {
+      font-size: 0.625rem;
+      font-weight: 500;
+      opacity: 0.7;
+    }
+  }
+  .material-spec {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+  }
 
-.loading-container,
-.empty-container {
+  .empty-items {
+    padding: 30px 0;
+  }
+  .loading-container,
+  .empty-container {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
-    color: rgba(255, 255, 255, 0.5);
-}
-
-.bottom-actions {
+    padding: 80px 20px;
+  }
+  .bottom-bar {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    padding: 1rem;
-    background: rgba(17, 24, 39, 0.9);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--glass-border);
     z-index: 40;
-}
-
-/* 状态颜色 */
-.bg-yellow-500 {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-}
-
-.bg-blue-500 {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-}
-
-.bg-green-500 {
-    background: linear-gradient(135deg, #10b981, #059669);
-}
-
-.bg-gray-500 {
-    background: linear-gradient(135deg, #6b7280, #4b5563);
-}
+  }
 </style>

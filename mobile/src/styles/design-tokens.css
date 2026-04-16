@@ -1,0 +1,281 @@
+/**
+ * Google Material 3 (WithGoogle) — 主题入口
+ * @description 极简无边框设计，大圆角与高级灰白排版
+ * @date 2026-04-16
+ * @version 3.0.0
+ */
+
+/* 基础令牌：间距、圆角、动画、工具类 */
+@import './themes/_base.css';
+
+/* 默认主题：WithGoogle 光明模式配色 */
+@import './themes/kacon.css';
+
+/* ==================== 全局样式 ==================== */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Noto Sans SC', 'Segoe UI', sans-serif;
+  letter-spacing: -0.01em; /* Google Sans 常见微小收缩字距 */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==================== 通用组件类 (Material 样式) ==================== */
+
+/* 通用列表卡片/面板 */
+.unified-card, .kacon-card, .glass-panel, .glass-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-md);
+  margin: 0 var(--spacing-md) var(--spacing-md);
+  transition: all var(--transition-base);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.unified-card:active, .kacon-card:active, .glass-panel:active, .glass-card:active {
+  background: var(--glass-bg-hover);
+  box-shadow: none;
+  transform: scale(0.99); /* 弱化缩放，Google 不做强缩放 */
+}
+
+/* ==================== 按钮 (Material Button) ==================== */
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-full); /* Google 胶囊按钮 */
+  font-weight: 500;
+  font-size: 0.875rem;
+  border: none;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:active {
+  background: #174ea6; /* Google Button Active */
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-primary);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-full);
+  border: 1px solid #dadce0;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.btn-secondary:hover, .btn-secondary:active {
+  background: var(--color-primary-bg);
+  border-color: var(--color-primary-bg);
+}
+
+/* ==================== 状态徽章 ==================== */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: #f1f3f4;
+}
+.status-badge.pending, .status-badge.processing {
+  background: var(--color-warning-bg);
+  color: #b06000;
+}
+.status-badge.approved, .status-badge.completed, .status-badge.success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+.status-badge.rejected, .status-badge.error, .status-badge.danger {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+.status-badge.primary {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+/* ==================== 全局 NavBar 悬浮卡片 (Unified Theme) ==================== */
+/* 所有页面的 Vant NavBar 统一为悬浮圆角卡片，无阴影 */
+body .van-nav-bar {
+  margin: 12px 12px 12px 12px;
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--van-border-color);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  body .van-nav-bar {
+    margin-top: calc(env(safe-area-inset-top) + 12px);
+  }
+}
+
+body .van-nav-bar::after {
+  display: none;
+}
+
+body .van-nav-bar--fixed {
+  width: calc(100% - 24px);
+  left: 12px;
+}
+
+body .van-nav-bar__title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+}
+
+/* ==================== 全局搜索框胶囊化 ==================== */
+body .van-search__content {
+  border-radius: 999px;
+  padding-left: 1rem;
+}
+
+/* ==================== 标签平滑圆角 ==================== */
+body .van-tag {
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* ==================== 选项卡线条 ==================== */
+body .van-tabs__line {
+  height: 3px;
+  border-radius: 3px;
+}
+
+/* ==================== 全局通用布局类 (Unified Layout) ==================== */
+
+/* 页面内容容器 — 统一内边距 */
+.content-container {
+  padding: 0 12px 12px;
+}
+
+/* 统计横幅 */
+.stats-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 14px 8px;
+  margin: 8px 0;
+  border: 1px solid var(--van-border-color);
+  box-shadow: none;
+}
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.stat-num {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.stat-num.color-blue { color: #3b82f6; }
+.stat-num.color-purple { color: #a855f7; }
+.stat-num.color-green { color: #34d399; }
+.stat-num.color-red { color: #ef4444; }
+.stat-num.color-yellow { color: #fbbf24; }
+.stat-num.color-orange { color: #f97316; }
+.stat-label {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+.stat-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--van-border-color);
+}
+
+/* 横向滚动筛选药丸 */
+.filter-scroll-wrapper {
+  padding: 4px 0 8px;
+  overflow: hidden;
+}
+.filter-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--van-border-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+.filter-chip .chip-text {
+  font-weight: 500;
+}
+.filter-chip .chip-badge {
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  font-size: 0.625rem;
+  font-weight: 700;
+  border-radius: 9px;
+  background: var(--van-border-color);
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+.filter-chip.active {
+  background: var(--color-primary-bg);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.filter-chip.active .chip-badge {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* 列表卡片 */
+.list-card {
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  border: 1px solid var(--van-border-color);
+  box-shadow: none;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.list-card:active {
+  transform: scale(0.98);
+}

@@ -420,18 +420,15 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 
 import dayjs from 'dayjs'
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from '@/services/api'
 import { salesApi } from '@/services/api'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { baseDataApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 
 // 权限store

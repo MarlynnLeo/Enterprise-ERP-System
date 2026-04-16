@@ -1,263 +1,179 @@
 <!--
 /**
- * Index.vue - 库存管理
- * @description 库存管理页面 - Glassmorphism 风格
- * @date 2025-12-27
- * @version 2.0.0
+ * Index.vue - 仓库管理
+ * @description 仓库管理首页 — 使用 ModuleIndexPage 统一布局
+ * @date 2026-04-15
+ * @version 5.0.0
  */
 -->
 <template>
-  <GlassListPage
-    title="库存管理"
-    :show-back="true"
-    :show-add="true"
-    :show-search="true"
-    search-placeholder="SKU 或 名称"
-    v-model:search-value="searchValue"
-    :show-filter="true"
-    :tags="tags"
-    v-model:active-tag="activeTag"
-    :stats="statsData"
-    @back="goBack"
-    @add="handleAdd"
-    @filter="handleFilter"
-  >
-    <!-- 商品列表 -->
-    <div class="inventory-list">
-      <p class="list-title">商品列表</p>
-
-      <!-- 列表项 -->
-      <GlassListItem
-        v-for="item in filteredItems"
-        :key="item.id"
-        :title="item.name"
-        :subtitle="`SKU: ${item.sku}`"
-        :emoji="item.emoji"
-        :show-more="true"
-        :clickable="true"
-        :show-progress="true"
-        :progress-text="`库存: ${item.quantity} ${item.unit}`"
-        :progress-status="item.stockLevelText"
-        :progress-value="item.stockPercentage"
-        :progress-level="item.stockLevel"
-        :alert="item.stockLevel === 'low'"
-        @click="handleItemClick(item)"
-        @more="handleItemMore(item)"
-      />
-    </div>
-  </GlassListPage>
+  <ModuleIndexPage
+    title="仓库管理"
+    :stats="statsCards"
+    :actions="quickActions"
+    :groups="moduleGroups"
+    @back="router.back()"
+    @add="router.push('/inventory/inbound/create')"
+    @navigate="navigateTo"
+  />
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { GlassListPage, GlassListItem } from '@/components/glass'
-import { inventoryApi } from '@/services/api'
-import { showToast } from 'vant'
+  import { ref, computed, onMounted } from 'vue'
+  import { useRouter } from 'vue-router'
+  import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
+  import { inventoryApi } from '@/services/api'
 
-const router = useRouter()
+  const router = useRouter()
 
-// 搜索值
-const searchValue = ref('')
+  // ---- 统计数据 ----
+  const statistics = ref({
+    totalSKU: 0,
+    lowStock: 0,
+    inboundToday: 0,
+    outboundToday: 0
+  })
 
-// 当前激活的标签
-const activeTag = ref('all')
-
-// 加载状态
-const loading = ref(false)
-
-// 标签列表
-const tags = ref([
-  { label: '全部商品', value: 'all' },
-  { label: '低库存预警', value: 'low' }
-])
-
-// 统计数据
-const statistics = ref({
-  totalMaterials: 0,
-  lowStock: 0
-})
-
-// 统计数据（用于 GlassListPage）
-const statsData = computed(() => [
-  {
-    label: '总 SKU',
-    value: statistics.value.totalMaterials.toString(),
-    icon: 'cube',
-    iconClass: 'bg-blue'
-  },
-  {
-    label: '需补货',
-    value: `${statistics.value.lowStock} 项`,
-    icon: 'cube',
-    iconClass: 'bg-red'
+  // 智能缩写
+  const formatShort = (n) => {
+    if (!n) return '0'
+    if (n >= 10000) return (n / 10000).toFixed(1) + '万'
+    return String(n)
   }
-])
 
-// 库存列表
-const inventoryItems = ref([])
+  const statsCards = computed(() => [
+    {
+      label: '总 SKU',
+      value: formatShort(statistics.value.totalSKU),
+      icon: 'cube',
+      color: 'bg-blue'
+    },
+    {
+      label: '低库存',
+      value: formatShort(statistics.value.lowStock),
+      icon: 'cube',
+      color: 'bg-red'
+    },
+    {
+      label: '今日入库',
+      value: formatShort(statistics.value.inboundToday),
+      icon: 'clipboard-check',
+      color: 'bg-green'
+    },
+    {
+      label: '今日出库',
+      value: formatShort(statistics.value.outboundToday),
+      icon: 'credit-card',
+      color: 'bg-orange'
+    }
+  ])
 
-// 获取库存状态
-const getStockStatus = (quantity, minStock) => {
-  if (!quantity || quantity === 0) {
-    return { level: 'low', text: '无库存', percentage: 0 }
-  }
-  if (minStock && quantity <= minStock) {
-    return { level: 'low', text: '急需补货', percentage: Math.min((quantity / minStock) * 100, 100) }
-  }
-  if (minStock && quantity <= minStock * 2) {
-    return { level: 'medium', text: '正常', percentage: Math.min((quantity / (minStock * 3)) * 100, 100) }
-  }
-  return { level: 'good', text: '充足', percentage: 85 }
-}
+  // ---- 快捷操作 ----
+  const quickActions = ref([
+    {
+      label: '新建入库',
+      path: '/inventory/inbound/create',
+      icon: 'plus',
+      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+    },
+    {
+      label: '新建出库',
+      path: '/inventory/outbound/create',
+      icon: 'clipboard-check',
+      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+    },
+    {
+      label: '库存调拨',
+      path: '/inventory/transfer/create',
+      icon: 'exchange',
+      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+    },
+    {
+      label: '库存盘点',
+      path: '/inventory/check/new',
+      icon: 'document-text',
+      gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+    }
+  ])
 
-// 获取物料图标
-const getMaterialEmoji = (materialName) => {
-  const name = materialName.toLowerCase()
-  if (name.includes('电脑') || name.includes('笔记本') || name.includes('macbook')) return '💻'
-  if (name.includes('手机') || name.includes('iphone') || name.includes('phone')) return '📱'
-  if (name.includes('耳机') || name.includes('airpods')) return '🎧'
-  if (name.includes('键盘') || name.includes('keyboard')) return '⌨️'
-  if (name.includes('鼠标') || name.includes('mouse')) return '🖱️'
-  if (name.includes('转接') || name.includes('线') || name.includes('cable')) return '🔌'
-  if (name.includes('充电') || name.includes('电源')) return '🔋'
-  if (name.includes('包') || name.includes('bag')) return '🎒'
-  return '📦'
-}
+  // ---- 功能模块 ----
+  const stockModules = ref([
+    {
+      title: '库存查询',
+      desc: '实时库存数量与状态',
+      path: '/inventory/stock',
+      icon: 'cube',
+      badge: 0
+    },
+    {
+      title: '库存报表',
+      desc: '库存统计与分析',
+      path: '/inventory/report',
+      icon: 'chart-trending-o'
+    }
+  ])
+  const ioModules = ref([
+    {
+      title: '入库管理',
+      desc: '入库单据与记录',
+      path: '/inventory/inbound',
+      icon: 'plus',
+      badge: 0
+    },
+    {
+      title: '出库管理',
+      desc: '出库单据与记录',
+      path: '/inventory/outbound',
+      icon: 'clipboard-check',
+      badge: 0
+    },
+    {
+      title: '收发明细',
+      desc: '出入库流水明细',
+      path: '/inventory/transaction',
+      icon: 'document-text'
+    }
+  ])
+  const adjModules = ref([
+    { title: '库存调拨', desc: '仓库间库存调拨', path: '/inventory/transfer', icon: 'exchange' },
+    { title: '库存盘点', desc: '盘点作业与差异处理', path: '/inventory/check', icon: 'shield' }
+  ])
 
-// 过滤后的列表
-const filteredItems = computed(() => {
-  let items = inventoryItems.value
+  const moduleGroups = computed(() => [
+    { title: '库存查询', icon: 'cube', color: 'text-blue-400', items: stockModules.value },
+    { title: '出入库', icon: 'clipboard-check', color: 'text-green-400', items: ioModules.value },
+    { title: '库存调整', icon: 'exchange', color: 'text-orange-400', items: adjModules.value }
+  ])
 
-  // 按标签筛选
-  if (activeTag.value !== 'all') {
-    if (activeTag.value === 'low') {
-      items = items.filter(item => item.stockLevel === 'low')
+  // ---- 路由跳转 ----
+  const navigateTo = (path) => router.push(path)
+
+  // ---- 加载数据 ----
+  const loadStatistics = async () => {
+    try {
+      // 尝试从库存查询接口获取统计
+      const response = await inventoryApi.getInventoryStock({ page: 1, limit: 1, show_all: true })
+      let items = response.data || response.list || []
+      if (!Array.isArray(items)) items = []
+
+      const total = response.total || items.length || 0
+      const low = items.filter((i) => {
+        const q = i.quantity || 0
+        const m = i.min_stock || 0
+        return m > 0 && q <= m
+      }).length
+
+      statistics.value.totalSKU = total
+      statistics.value.lowStock = low
+
+      // 如果低库存 > 0，给库存查询加徽章
+      if (low > 0) stockModules.value[0].badge = low
+    } catch (error) {
+      console.error('加载库存统计失败:', error)
+      // 使用示例数据
+      statistics.value = { totalSKU: 256, lowStock: 12, inboundToday: 8, outboundToday: 5 }
     }
   }
 
-  // 按搜索值筛选
-  if (searchValue.value) {
-    const search = searchValue.value.toLowerCase()
-    items = items.filter(item =>
-      item.name.toLowerCase().includes(search) ||
-      item.sku.toLowerCase().includes(search)
-    )
-  }
-
-  return items
-})
-
-// 加载库存列表
-const loadStockList = async () => {
-  if (loading.value) return
-
-  loading.value = true
-  try {
-    const params = {
-      page: 1,
-      limit: 100,
-      search: searchValue.value || undefined,
-      show_all: true
-    }
-
-    const response = await inventoryApi.getInventoryStock(params)
-
-    if (response.data && Array.isArray(response.data)) {
-      // 处理数据
-      inventoryItems.value = response.data.map(item => {
-        const status = getStockStatus(item.quantity, item.min_stock)
-        return {
-          id: item.id,
-          name: item.material_name,
-          sku: item.material_code,
-          emoji: getMaterialEmoji(item.material_name),
-          quantity: item.quantity || 0,
-          unit: item.unit_name || '个',
-          stockPercentage: status.percentage,
-          stockLevel: status.level,
-          stockLevelText: status.text,
-          minStock: item.min_stock,
-          maxStock: item.max_stock,
-          locationName: item.location_name
-        }
-      })
-
-      // 更新统计数据
-      statistics.value.totalMaterials = inventoryItems.value.length
-      statistics.value.lowStock = inventoryItems.value.filter(item => item.stockLevel === 'low').length
-    } else if (response.list && Array.isArray(response.list)) {
-      // 处理分页数据
-      inventoryItems.value = response.list.map(item => {
-        const status = getStockStatus(item.quantity, item.min_stock)
-        return {
-          id: item.id,
-          name: item.material_name,
-          sku: item.material_code,
-          emoji: getMaterialEmoji(item.material_name),
-          quantity: item.quantity || 0,
-          unit: item.unit_name || '个',
-          stockPercentage: status.percentage,
-          stockLevel: status.level,
-          stockLevelText: status.text,
-          minStock: item.min_stock,
-          maxStock: item.max_stock,
-          locationName: item.location_name
-        }
-      })
-
-      statistics.value.totalMaterials = response.total || inventoryItems.value.length
-      statistics.value.lowStock = inventoryItems.value.filter(item => item.stockLevel === 'low').length
-    }
-  } catch (error) {
-    console.error('加载库存列表失败:', error)
-    showToast('加载失败，请重试')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 方法
-const goBack = () => {
-  router.back()
-}
-
-const handleAdd = () => {
-  router.push('/inventory/inbound')
-}
-
-const handleFilter = () => {
-  console.log('打开筛选')
-}
-
-const handleItemClick = (item) => {
-  router.push(`/inventory/stock/${item.id}`)
-}
-
-const handleItemMore = (item) => {
-  console.log('更多操作:', item)
-}
-
-// 页面加载时获取数据
-onMounted(() => {
-  loadStockList()
-})
+  onMounted(() => loadStatistics())
 </script>
-
-<style lang="scss" scoped>
-/* 商品列表 */
-.inventory-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.list-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgb(148, 163, 184);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-</style>
-

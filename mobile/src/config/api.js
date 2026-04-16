@@ -1,7 +1,7 @@
 /**
  * api.js
  * @description 移动端应用文件
-  * @date 2025-08-27
+ * @date 2025-08-27
  * @version 1.0.0
  */
 
@@ -9,7 +9,7 @@
 const config = {
   // 开发环境配置 - 使用 Vite 代理
   development: {
-    baseURL: '',  // 开发环境使用相对路径，通过 Vite 代理转发
+    baseURL: '', // 开发环境使用相对路径，通过 Vite 代理转发
     apiPrefix: '/api',
     timeout: 10000
   },
@@ -27,27 +27,27 @@ const config = {
     apiPrefix: '/api',
     timeout: 10000
   }
-};
+}
 
 // 获取当前环境
 const getEnvironment = () => {
   // 可以通过环境变量或其他方式判断当前环境
   if (import.meta.env.MODE === 'production') {
-    return 'production';
+    return 'production'
   } else if (import.meta.env.MODE === 'test') {
-    return 'test';
+    return 'test'
   }
-  return 'development';
-};
+  return 'development'
+}
 
 // 获取当前环境的配置
 const getCurrentConfig = () => {
-  const env = getEnvironment();
-  return config[env];
-};
+  const env = getEnvironment()
+  return config[env]
+}
 
 // 导出配置
-export const API_CONFIG = getCurrentConfig();
+export const API_CONFIG = getCurrentConfig()
 
 // 导出常用的API端点
 export const API_ENDPOINTS = {
@@ -58,36 +58,25 @@ export const API_ENDPOINTS = {
     PROFILE: '/auth/profile',
     PERMISSIONS: '/auth/permissions'
   },
-  
-  // 任务相关
-  TODOS: {
-    LIST: '/todos',
-    CREATE: '/todos',
-    UPDATE: (id) => `/todos/${id}`,
-    DELETE: (id) => `/todos/${id}`,
-    DETAIL: (id) => `/todos/${id}`,
-    FILTER: '/todos/filter',
-    TOGGLE: (id) => `/todos/${id}/toggle`
-  },
-  
+
   // 用户相关
   USERS: {
     LIST: '/users',
     PROFILE: '/users/profile',
     AVATAR: '/users/avatar'
   }
-};
+}
 
 // 构建完整的API URL
 export const buildApiUrl = (endpoint) => {
-  const { baseURL, apiPrefix } = API_CONFIG;
+  const { baseURL, apiPrefix } = API_CONFIG
   // 如果 baseURL 为空（开发环境），直接返回相对路径
   if (!baseURL) {
-    return `${apiPrefix}${endpoint}`;
+    return `${apiPrefix}${endpoint}`
   }
   // 生产环境返回完整URL
-  return `${baseURL}${apiPrefix}${endpoint}`;
-};
+  return `${baseURL}${apiPrefix}${endpoint}`
+}
 
 // 导出环境信息
 export const ENV_INFO = {
@@ -95,4 +84,4 @@ export const ENV_INFO = {
   isDevelopment: getEnvironment() === 'development',
   isProduction: getEnvironment() === 'production',
   isTest: getEnvironment() === 'test'
-};
+}

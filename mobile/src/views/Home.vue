@@ -1,692 +1,940 @@
 <!--
 /**
  * Home.vue
- * @description 移动端首页 - Glassmorphism 风格
+ * @description 移动端首页 - KACON 工业风格
  * @date 2025-12-27
- * @version 2.0.0
+ * @version 4.0.0
  */
 -->
 <template>
-  <div class="home-container">
-    <!-- 背景光斑效果 -->
-    <div class="bg-blobs">
-      <div class="blob blob-purple"></div>
-      <div class="blob blob-pink"></div>
-      <div class="blob blob-blue"></div>
-    </div>
-
-    <!-- 顶部用户信息 -->
-    <div class="header-section">
-      <div class="user-card glass-panel">
-        <div class="user-info" @click="navigateTo('/profile')">
-          <div class="avatar">
-            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
-          <div class="user-details">
-            <div class="user-name">{{ userName }}</div>
-            <div class="user-role">{{ userRole }}</div>
-          </div>
+  <div class="home-page">
+    <!-- KACON 品牌 Header -->
+    <header class="kacon-header">
+      <div class="header-left" @click="navigateTo('/profile')">
+        <div class="kacon-logo">
+          <span class="logo-letter">K</span>
         </div>
-        <div class="header-actions">
-          <button class="action-btn" @click="handleNotification">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <span v-if="notificationCount" class="badge">{{ notificationCount }}</span>
-          </button>
-          <button class="action-btn" @click="handleScan">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-            </svg>
-          </button>
+        <div class="header-brand">
+          <div class="brand-row">
+            <h1 class="brand-name">KACON</h1>
+            <span class="brand-tag">ERP</span>
+          </div>
+          <p class="brand-sub">Industrial OS v4.2</p>
         </div>
       </div>
+      <div class="header-right">
+        <button class="header-icon-btn" @click="handleNotification">
+          <BellIcon class="hi-header" />
+          <span v-if="notificationCount" class="header-badge"></span>
+        </button>
+        <div class="header-avatar" @click="navigateTo('/profile')">
+          <UserIcon class="hi-avatar" />
+        </div>
+      </div>
+    </header>
 
-      <!-- 搜索框 -->
-      <GlassInput 
-        v-model="searchValue"
-        placeholder="搜索功能、物料、订单..."
-        readonly
-        @click="handleSearch"
-        class="search-box"
-      >
-        <template #left-icon>
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </template>
-      </GlassInput>
-    </div>
-
-    <!-- 主要内容区域 -->
-    <div class="main-content">
-      <!-- 统计卡片 -->
-      <div class="stats-section">
-        <h3 class="section-title">数据概览</h3>
-        <div class="stats-grid">
-          <GlassCard 
-            v-for="stat in stats" 
-            :key="stat.label"
-            clickable
-            class="stat-card"
-            @click="navigateTo(stat.path)"
-          >
-            <div class="stat-icon" :style="{ background: stat.gradient }">
-              <Icon :name="stat.icon" size="1.5rem" />
+    <!-- 可滚动主内容 -->
+    <main class="main-scroll">
+      <!-- 品牌数据看板 -->
+      <div class="dashboard-card">
+        <div class="dashboard-bg-icon">
+          <BuildingOffice2Icon class="bg-factory" />
+        </div>
+        <div class="dashboard-content">
+          <div class="dashboard-head">
+            <div>
+              <p class="dashboard-label">Real-time Dashboard</p>
+              <h2 class="dashboard-title">数据运行概览</h2>
             </div>
-            <div class="stat-value">{{ stat.value }}</div>
-            <div class="stat-label">{{ stat.label }}</div>
-          </GlassCard>
+            <div class="dashboard-icon-wrap">
+              <ChartBarIcon class="hi-dashboard" />
+            </div>
+          </div>
+          <div class="stats-grid-3">
+            <div v-for="(stat, i) in dashboardStats" :key="i" class="stat-cell">
+              <p class="stat-cell-label">{{ stat.label }}</p>
+              <div class="stat-cell-value-row">
+                <span class="stat-cell-value" :class="{ loading: stat.value === '--' }">{{
+                  stat.value
+                }}</span>
+                <span v-if="stat.trend" class="stat-trend">{{ stat.trend }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 常用功能 -->
-      <div class="menu-section">
-        <div class="section-header">
-          <h3 class="section-title">常用功能</h3>
-          <button class="view-all" @click="showAllModules = !showAllModules">
-            <span>{{ showAllModules ? '收起' : '全部应用' }}</span>
-            <Icon :name="showAllModules ? 'chevron-up' : 'chevron-down'" size="1rem" />
+      <!-- 核心业务功能矩阵 -->
+      <section class="section">
+        <div class="section-head">
+          <div class="section-title-row">
+            <div class="title-accent"></div>
+            <h2 class="section-label">核心业务 / CORE</h2>
+          </div>
+          <button class="toggle-btn" @click="showAllModules = !showAllModules">
+            <span>{{ showAllModules ? '收起' : '全部' }}</span>
+            <ChevronDownIcon class="hi-xs" :class="{ rotated: showAllModules }" />
           </button>
         </div>
-
-        <!-- 功能网格 -->
-        <div class="menu-grid" :class="{ expanded: showAllModules }">
-          <GlassCard 
-            v-for="menu in displayedMenus" 
+        <div class="module-grid" :class="{ expanded: showAllModules }">
+          <button
+            v-for="menu in displayedMenus"
             :key="menu.title"
-            clickable
-            class="menu-card"
+            class="module-btn"
             @click="navigateTo(menu.path)"
           >
-            <div class="menu-icon" :style="{ color: menu.color }">
-              <Icon :name="menu.icon" size="2rem" />
+            <div class="module-icon-box" :class="menu.colorClass">
+              <component :is="menu.icon" class="hi-mod" />
             </div>
-            <div class="menu-title">{{ menu.title }}</div>
-          </GlassCard>
+            <span class="module-label">{{ menu.title }}</span>
+          </button>
         </div>
-      </div>
+      </section>
 
-      <!-- 常用功能快捷入口 -->
-      <div class="quick-actions">
-        <h3 class="section-title">快捷操作</h3>
-        <div class="action-list">
-          <GlassCard 
-            v-for="action in quickActions" 
+      <!-- 实时监控列表 -->
+      <section class="section section-last">
+        <div class="section-head">
+          <h2 class="section-label flex-label">
+            <BoltIcon class="hi-bolt" />
+            快捷操作
+          </h2>
+          <span class="sync-tag">QUICK ACCESS</span>
+        </div>
+        <div class="monitor-list">
+          <div
+            v-for="action in quickActions"
             :key="action.title"
-            clickable
-            class="action-item"
+            class="monitor-card"
             @click="navigateTo(action.path)"
           >
-            <div class="action-icon" :style="{ background: action.gradient }">
-              <Icon :name="action.icon" size="1.25rem" />
+            <div class="monitor-left">
+              <div class="status-dot-wrap">
+                <div class="status-dot running"></div>
+                <div class="status-dot-ping"></div>
+              </div>
+              <div class="monitor-info">
+                <h3 class="monitor-name">{{ action.title }}</h3>
+                <p class="monitor-desc">{{ action.desc }}</p>
+              </div>
             </div>
-            <div class="action-content">
-              <div class="action-title">{{ action.title }}</div>
-              <div class="action-desc">{{ action.desc }}</div>
+            <div class="monitor-right">
+              <span class="monitor-id">{{ action.tag }}</span>
+              <ChevronRightIcon class="hi-chevron" />
             </div>
-            <Icon name="chevron-right" size="1.25rem" class-name="text-secondary" />
-          </GlassCard>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
+
+    <!-- 悬浮扫码按钮 -->
+    <button class="fab-scan" @click="handleScan">
+      <QrCodeIcon class="hi-fab" />
+      <span class="fab-badge"></span>
+    </button>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { GlassCard, GlassInput } from '@/components/glass'
-import { useAuthStore } from '../stores/auth'
-import { inventoryApi, productionApi, salesApi } from '@/services/api'
-import Icon from '@/components/icons/index.vue'
+  import { ref, computed, onMounted } from 'vue'
+  import { useRouter } from 'vue-router'
+  import { useAuthStore } from '../stores/auth'
+  import { inventoryApi, productionApi, salesApi } from '@/services/api'
 
-const router = useRouter()
-const route = useRoute()
-const authStore = useAuthStore()
+  import {
+    BellIcon,
+    UserIcon,
+    QrCodeIcon,
+    ChevronDownIcon,
+    ChevronRightIcon,
+    ChartBarIcon,
+    BuildingOffice2Icon,
+    BoltIcon,
+    // 功能模块图标
+    WrenchScrewdriverIcon,
+    CurrencyDollarIcon,
+    ShoppingCartIcon,
+    ArchiveBoxIcon,
+    Squares2X2Icon,
+    ShieldCheckIcon,
+    UserGroupIcon,
+    BuildingOfficeIcon,
+    BanknotesIcon,
+    Cog6ToothIcon,
+    CpuChipIcon,
+    ClipboardDocumentListIcon
+  } from '@heroicons/vue/24/outline'
 
-// 加载状态
-const statsLoading = ref(false)
+  const router = useRouter()
+  const authStore = useAuthStore()
 
-// 用户信息
-const userName = computed(() => authStore.user?.realName || authStore.user?.username || '用户')
-const userRole = computed(() => authStore.user?.roleName || '管理员')
+  const notificationCount = ref(5)
+  const showAllModules = ref(false)
 
-// 搜索
-const searchValue = ref('')
+  // 看板统计
+  const dashboardStats = ref([
+    { label: '库存物料', value: '--', trend: '' },
+    { label: '生产任务', value: '--', trend: '' },
+    { label: '待处理订单', value: '--', trend: '' }
+  ])
 
-// 通知数量
-const notificationCount = ref(5)
+  // 功能菜单
+  const allMenus = ref([
+    {
+      title: '排产计划',
+      path: '/production',
+      colorClass: 'mod-blue',
+      icon: ClipboardDocumentListIcon
+    },
+    {
+      title: '生产工单',
+      path: '/production/tasks',
+      colorClass: 'mod-cyan',
+      icon: WrenchScrewdriverIcon
+    },
+    {
+      title: '物料管理',
+      path: '/baseData/materials',
+      colorClass: 'mod-indigo',
+      icon: Squares2X2Icon
+    },
+    { title: '品质检验', path: '/quality', colorClass: 'mod-emerald', icon: ShieldCheckIcon },
+    { title: '库存管理', path: '/inventory', colorClass: 'mod-orange', icon: ArchiveBoxIcon },
+    { title: '采购管理', path: '/purchase', colorClass: 'mod-purple', icon: ShoppingCartIcon },
+    { title: '销售管理', path: '/sales', colorClass: 'mod-pink', icon: CurrencyDollarIcon },
+    { title: '客户管理', path: '/baseData/customers', colorClass: 'mod-teal', icon: UserGroupIcon },
+    {
+      title: '供应商',
+      path: '/baseData/suppliers',
+      colorClass: 'mod-amber',
+      icon: BuildingOfficeIcon
+    },
+    { title: '财务管理', path: '/finance', colorClass: 'mod-yellow', icon: BanknotesIcon },
+    { title: '数据采集', path: '/production/plans', colorClass: 'mod-slate', icon: CpuChipIcon },
+    { title: '系统设置', path: '/settings', colorClass: 'mod-gray', icon: Cog6ToothIcon }
+  ])
 
-// 显示所有模块
-const showAllModules = ref(false)
+  const displayedMenus = computed(() =>
+    showAllModules.value ? allMenus.value : allMenus.value.slice(0, 8)
+  )
 
-// 统计数据
-const stats = ref([
-  {
-    label: '库存物料',
-    value: '--',
-    path: '/inventory',
-    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    icon: 'cube'
-  },
-  {
-    label: '生产任务',
-    value: '--',
-    path: '/production/tasks',
-    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    icon: 'clipboard-check'
-  },
-  {
-    label: '待处理订单',
-    value: '--',
-    path: '/sales/orders',
-    gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-    icon: 'document-text'
-  }
-])
+  // 快捷操作
+  const quickActions = ref([
+    { title: '扫码查询', desc: '扫描二维码/条形码快速定位', path: '/scan', tag: 'SCAN' },
+    { title: '库存查询', desc: '查看物料实时库存与批次', path: '/inventory/stock', tag: 'INV' },
+    { title: '生产任务', desc: '查看和管理生产任务进度', path: '/production/tasks', tag: 'PROD' }
+  ])
 
-// 功能菜单
-const allMenus = ref([
-  {
-    title: '生产管理',
-    path: '/production',
-    color: '#667eea',
-    icon: 'beaker'
-  },
-  {
-    title: '销售管理',
-    path: '/sales',
-    color: '#f093fb',
-    icon: 'shopping-bag'
-  },
-  {
-    title: '采购管理',
-    path: '/purchase',
-    color: '#4facfe',
-    icon: 'shopping-cart'
-  },
-  {
-    title: '库存管理',
-    path: '/inventory',
-    color: '#43e97b',
-    icon: 'cube'
-  },
-  {
-    title: '物料管理',
-    path: '/baseData/materials',
-    color: '#fa709a',
-    icon: 'archive'
-  },
-  {
-    title: '质量管理',
-    path: '/quality',
-    color: '#30cfd0',
-    icon: 'badge-check'
-  },
-  {
-    title: '客户管理',
-    path: '/baseData/customers',
-    color: '#a8edea',
-    icon: 'user-group'
-  },
-  {
-    title: '供应商管理',
-    path: '/baseData/suppliers',
-    color: '#fbc2eb',
-    icon: 'office-building'
-  }
-])
+  const navigateTo = (path) => router.push(path)
+  const handleNotification = () => router.push('/notifications')
+  const handleScan = () => router.push('/scan')
 
-// 显示的菜单（根据是否展开）
-const displayedMenus = computed(() => {
-  return showAllModules.value ? allMenus.value : allMenus.value.slice(0, 8)
-})
-
-// 快捷操作
-const quickActions = ref([
-  {
-    title: '扫码功能',
-    desc: '扫描二维码快速查询',
-    path: '/scan',
-    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    icon: 'qrcode'
-  },
-  {
-    title: '库存查询',
-    desc: '查看实时库存信息',
-    path: '/inventory/stock',
-    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    icon: 'search'
-  },
-  {
-    title: '生产任务',
-    desc: '查看和管理生产任务',
-    path: '/production/tasks',
-    gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-    icon: 'clipboard-check'
-  }
-])
-
-
-
-// 方法
-const navigateTo = (path) => {
-  router.push(path)
-}
-
-const handleSearch = () => {
-  router.push('/search')
-}
-
-const handleNotification = () => {
-  router.push('/notifications')
-}
-
-const handleScan = () => {
-  router.push('/scan')
-}
-
-/**
- * 加载首页统计数据
- * 并行调用多个后端 API，获取实时统计数据
- */
-const loadHomeStats = async () => {
-  statsLoading.value = true
-  try {
-    // 并行调用，不阻塞页面渲染
-    const results = await Promise.allSettled([
-      inventoryApi.getInventoryStock({ page: 1, pageSize: 1 }),
-      productionApi.getDashboardStatistics(),
-      salesApi.getSalesOrderStatistics()
-    ])
-
-    // 库存物料数量
-    if (results[0].status === 'fulfilled') {
-      const invData = results[0].value.data
-      // 后端返回的可能是 { total, rows } 或 { totalCount } 格式
-      const total = invData?.total || invData?.totalCount || invData?.length || 0
-      stats.value[0].value = String(total)
+  const loadHomeStats = async () => {
+    try {
+      const results = await Promise.allSettled([
+        inventoryApi.getInventoryStock({ page: 1, pageSize: 1 }),
+        productionApi.getDashboardStatistics(),
+        salesApi.getSalesStatistics()
+      ])
+      if (results[0].status === 'fulfilled') {
+        const d = results[0].value.data
+        dashboardStats.value[0].value = String(d?.total || d?.totalCount || d?.length || 0)
+        dashboardStats.value[0].trend = '↑'
+      }
+      if (results[1].status === 'fulfilled') {
+        const d = results[1].value.data
+        dashboardStats.value[1].value = String(d?.tasks?.in_progress || 0)
+      }
+      if (results[2].status === 'fulfilled') {
+        const d = results[2].value.data
+        dashboardStats.value[2].value = String(d?.pending_orders || 0)
+      }
+    } catch (e) {
+      /* 静默 */
     }
-
-    // 生产任务数量
-    if (results[1].status === 'fulfilled') {
-      const prodData = results[1].value.data
-      const taskCount = prodData?.totalTasks || prodData?.inProgressTasks || 0
-      stats.value[1].value = String(taskCount)
-    }
-
-    // 待处理订单数量
-    if (results[2].status === 'fulfilled') {
-      const salesData = results[2].value.data
-      const orderCount = salesData?.pendingCount || salesData?.total || 0
-      stats.value[2].value = String(orderCount)
-    }
-  } catch (error) {
-    console.error('加载首页统计数据失败:', error)
-    // 失败时保持 "--" 默认值，不影响页面使用
-  } finally {
-    statsLoading.value = false
   }
-}
 
-onMounted(() => {
-  // 获取用户信息 - 只在已登录且有token时才尝试
-  if (authStore.isAuthenticated && authStore.token) {
-    authStore.fetchUserProfile().catch(() => {
-      // 静默失败，错误已在拦截器中处理
-      console.log('获取用户信息失败，可能需要重新登录')
-    })
-
-    // 加载首页统计数据
-    loadHomeStats()
-  }
-})
+  onMounted(() => {
+    if (authStore.isAuthenticated && authStore.token) {
+      authStore.fetchUserProfile().catch(() => {})
+      loadHomeStats()
+    }
+  })
 </script>
 
-<style lang="scss" scoped>
-.home-container {
-  min-height: 100vh;
-  background: var(--bg-primary);
-  position: relative;
-  padding-bottom: calc(var(--van-tabbar-height, 50px) + 16px);
-}
+<style scoped>
+  /* ==============================
+   KACON 工业配色方案
+   主色: #3C4858 (深灰蓝)
+   强调: #67C1D9 (青色)
+   背景: #F4F7FA (浅灰白)
+   ============================== */
 
-/* 背景光斑 */
-.bg-blobs {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow: hidden;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.blob {
-  position: absolute;
-  width: 18rem;
-  height: 18rem;
-  border-radius: 50%;
-  filter: blur(3rem);
-  opacity: 0.2;
-  animation: blob 7s infinite;
-}
-
-.blob-purple {
-  background: linear-gradient(135deg, #a855f7, #ec4899);
-  top: -5rem;
-  left: -5rem;
-}
-
-.blob-pink {
-  background: linear-gradient(135deg, #ec4899, #f97316);
-  top: 50%;
-  right: -5rem;
-  animation-delay: 2s;
-}
-
-.blob-blue {
-  background: linear-gradient(135deg, #6366f1, #a855f7);
-  bottom: -5rem;
-  left: 50%;
-  animation-delay: 4s;
-}
-
-@keyframes blob {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
+  .home-page {
+    flex: 1;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
-  33% {
-    transform: translate(30px, -50px) scale(1.1);
+
+  /* ==============================
+   KACON Header
+   ============================== */
+  .kacon-header {
+    background: var(--bg-secondary);
+    padding: 12px 20px;
+    margin: 20px 20px 0 20px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid var(--van-border-color);
+    box-shadow: none;
+    flex-shrink: 0;
   }
-  66% {
-    transform: translate(-20px, 20px) scale(0.9);
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
-}
 
-/* 头部区域 */
-.header-section {
-  position: relative;
-  z-index: 1;
-  padding: 1rem;
-}
+  .kacon-logo {
+    width: 44px;
+    height: 44px;
+    background: var(--color-accent);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none;
+    transform: rotate(-2deg);
+    transition: transform 0.2s;
+  }
 
-.user-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
+  .kacon-logo:active {
+    transform: rotate(0deg);
+  }
 
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-}
+  .logo-letter {
+    color: var(--color-brand);
+    font-weight: 900;
+    font-size: 1.5rem;
+    font-style: italic;
+    line-height: 1;
+    margin-left: 2px;
+  }
 
-.avatar {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #a855f7, #ec4899);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
-}
+  .header-brand {
+    display: flex;
+    flex-direction: column;
+  }
 
-.user-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
+  .brand-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
 
-.user-name {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
+  .brand-name {
+    font-size: 1.25rem;
+    font-weight: 900;
+    letter-spacing: -0.05em;
+    color: var(--text-primary);
+    font-style: italic;
+    margin: 0;
+  }
 
-.user-role {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
+  .brand-tag {
+    font-size: 0.625rem;
+    font-weight: 900;
+    color: var(--color-accent);
+    background: rgba(103, 193, 217, 0.1);
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(103, 193, 217, 0.2);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
 
-.header-actions {
-  display: flex;
-  gap: 0.75rem;
-}
+  .brand-sub {
+    font-size: 0.5625rem;
+    color: var(--text-secondary);
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    margin: 2px 0 0;
+  }
 
-.action-btn {
-  position: relative;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
 
-.action-btn:active {
-  transform: scale(0.95);
-  background: rgba(255, 255, 255, 0.1);
-}
+  .header-icon-btn {
+    position: relative;
+    padding: 4px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: transform 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
 
-.badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: #ef4444;
-  color: white;
-  font-size: 0.625rem;
-  padding: 0.125rem 0.375rem;
-  border-radius: 0.75rem;
-  min-width: 1.25rem;
-  text-align: center;
-}
+  .header-icon-btn:active {
+    transform: scale(0.9);
+  }
 
-.search-box {
-  margin-top: 0.5rem;
-}
+  .hi-header {
+    width: 24px;
+    height: 24px;
+  }
 
-/* 主要内容 */
-.main-content {
-  position: relative;
-  z-index: 1;
-  padding: 0 1rem 1rem;
-}
+  .header-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 10px;
+    height: 10px;
+    background: var(--color-error);
+    border-radius: 50%;
+    border: 2px solid var(--bg-header);
+  }
 
-.section-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
-}
+  .header-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 2px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
 
-/* 统计卡片 */
-.stats-section {
-  margin-bottom: 2rem;
-}
+  .header-avatar:active {
+    transform: scale(0.9);
+  }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-}
+  .header-avatar > .hi-avatar {
+    width: 100%;
+    height: 100%;
+    padding: 6px;
+    color: var(--color-accent);
+    background: rgba(103, 193, 217, 0.1);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
 
-.stat-card {
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  text-align: center;
-}
+  /* ==============================
+   主滚动区域
+   ============================== */
+  .main-scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px;
+    padding-bottom: calc(var(--van-tabbar-height, 50px) + 24px);
+  }
 
-.stat-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
+  /* ==============================
+   数据看板卡片
+   ============================== */
+  .dashboard-card {
+    background: var(--bg-secondary);
+    padding: 20px 24px;
+    border-radius: 16px;
+    box-shadow: none;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--van-border-color);
+    margin-bottom: 24px;
+  }
 
-.stat-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
+  .dashboard-bg-icon {
+    position: absolute;
+    right: -10%;
+    top: -10%;
+    opacity: 0.06;
+    transform: rotate(12deg);
+  }
 
-.stat-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
+  .bg-factory {
+    width: 160px;
+    height: 160px;
+    color: var(--color-accent);
+  }
 
-/* 功能菜单 */
-.menu-section {
-  margin-bottom: 2rem;
-}
+  .dashboard-content {
+    position: relative;
+    z-index: 1;
+  }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
+  .dashboard-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
 
-.view-all {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.875rem;
-  color: var(--color-primary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.5rem;
-  transition: all 0.2s ease;
-}
+  .dashboard-label {
+    color: var(--color-accent);
+    font-size: 0.6875rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    margin: 0;
+  }
 
-.view-all:active {
-  background: rgba(168, 85, 247, 0.1);
-}
+  .dashboard-title {
+    color: var(--text-primary);
+    font-size: 1.375rem;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: -0.05em;
+    margin: 4px 0 0;
+  }
 
-.menu-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  max-height: 400px;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
-}
+  .dashboard-icon-wrap {
+    background: rgba(103, 193, 217, 0.2);
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+  }
 
-.menu-grid.expanded {
-  max-height: 1000px;
-}
+  .hi-dashboard {
+    width: 20px;
+    height: 20px;
+    color: var(--color-accent);
+  }
 
-.menu-card {
-  padding: 1rem 0.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
+  .stats-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
 
-.menu-icon {
-  width: 3rem;
-  height: 3rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+  .stat-cell {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px;
+    border-radius: 12px;
+  }
 
-.menu-title {
-  font-size: 0.75rem;
-  color: var(--text-primary);
-  text-align: center;
-}
+  .stat-cell-label {
+    color: var(--text-secondary);
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-/* 快捷操作 */
-.quick-actions {
-  margin-bottom: 1rem;
-}
+  .stat-cell-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
 
-.action-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
+  .stat-cell-value {
+    color: var(--text-primary);
+    font-size: 1.25rem;
+    font-weight: 900;
+    font-style: italic;
+    line-height: 1;
+  }
 
-.action-item {
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
+  .stat-cell-value.loading {
+    color: var(--text-disabled);
+    animation: pulse 1.5s infinite;
+  }
 
-.action-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  flex-shrink: 0;
-}
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
 
-.action-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
+  .stat-trend {
+    font-size: 0.625rem;
+    color: var(--color-success);
+    font-weight: 700;
+  }
 
-.action-title {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
+  /* ==============================
+   Section 通用
+   ============================== */
+  .section {
+    margin-bottom: 24px;
+  }
 
-.action-desc {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
+  .section-last {
+    padding-bottom: 16px;
+  }
 
-/* 工具类 */
-.w-4 { width: 1rem; height: 1rem; }
-.w-5 { width: 1.25rem; height: 1.25rem; }
-.w-6 { width: 1.5rem; height: 1.5rem; }
-.w-8 { width: 2rem; height: 2rem; }
-.w-10 { width: 2.5rem; height: 2.5rem; }
-.h-4 { height: 1rem; }
-.h-5 { height: 1.25rem; }
-.h-6 { height: 1.5rem; }
-.h-8 { height: 2rem; }
-.h-10 { height: 2.5rem; }
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding: 0 4px;
+  }
 
-.text-secondary {
-  color: var(--text-secondary);
-}
+  .section-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .title-accent {
+    width: 5px;
+    height: 16px;
+    background: var(--color-accent);
+    border-radius: 3px;
+  }
+
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin: 0;
+  }
+
+  .flex-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .hi-bolt {
+    width: 14px;
+    height: 14px;
+    color: var(--color-accent);
+  }
+
+  .sync-tag {
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: var(--text-disabled);
+    letter-spacing: 0.05em;
+  }
+
+  .toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .toggle-btn:active {
+    background: rgba(103, 193, 217, 0.1);
+  }
+
+  .hi-xs {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.3s;
+  }
+
+  .hi-xs.rotated {
+    transform: rotate(180deg);
+  }
+
+  /* ==============================
+   功能矩阵
+   ============================== */
+  .module-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px 8px;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 200px;
+  }
+
+  .module-grid.expanded {
+    max-height: 500px;
+  }
+
+  .module-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s;
+    padding: 0;
+  }
+
+  .module-btn:active {
+    transform: scale(0.9);
+  }
+
+  .module-icon-box {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none;
+    border: 1px solid var(--van-border-color);
+  }
+
+  .hi-mod {
+    width: 24px;
+    height: 24px;
+    stroke-width: 2;
+  }
+
+  .module-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  /* 模块配色 */
+  .mod-blue {
+    background: var(--bg-secondary);
+    color: var(--color-info);
+  }
+  .mod-cyan {
+    background: var(--bg-secondary);
+    color: var(--color-primary);
+  }
+  .mod-indigo {
+    background: var(--bg-secondary);
+    color: var(--color-info);
+  }
+  .mod-emerald {
+    background: var(--bg-secondary);
+    color: var(--color-success);
+  }
+  .mod-orange {
+    background: var(--bg-secondary);
+    color: var(--color-warning);
+  }
+  .mod-purple {
+    background: var(--bg-secondary);
+    color: var(--color-info);
+  }
+  .mod-pink {
+    background: var(--bg-secondary);
+    color: var(--color-error);
+  }
+  .mod-teal {
+    background: var(--bg-secondary);
+    color: var(--color-primary);
+  }
+  .mod-amber {
+    background: var(--bg-secondary);
+    color: var(--color-warning);
+  }
+  .mod-yellow {
+    background: var(--bg-secondary);
+    color: var(--color-warning);
+  }
+  .mod-slate {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+  .mod-gray {
+    background: var(--bg-tertiary);
+    color: var(--text-tertiary);
+  }
+
+  /* ==============================
+   监控/快捷列表
+   ============================== */
+  .monitor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .monitor-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--glass-border);
+    padding: 16px;
+    border-radius: 14px;
+    box-shadow: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .monitor-card:active {
+    background: var(--bg-primary);
+    transform: scale(0.98);
+  }
+
+  .monitor-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-dot-wrap {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+  }
+
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .status-dot.running {
+    background: var(--color-success);
+  }
+
+  .status-dot-ping {
+    position: absolute;
+    inset: 0;
+    background: var(--color-success);
+    border-radius: 50%;
+    animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    opacity: 0.4;
+  }
+
+  @keyframes ping {
+    75%,
+    100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+
+  .monitor-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .monitor-name {
+    font-size: 0.875rem;
+    font-weight: 900;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  .monitor-desc {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+    font-weight: 500;
+    margin: 2px 0 0;
+  }
+
+  .monitor-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .monitor-id {
+    font-size: 0.625rem;
+    font-weight: 900;
+    color: var(--text-tertiary);
+    font-family: ui-monospace, monospace;
+    background: var(--bg-tertiary);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--glass-border);
+    letter-spacing: 0.05em;
+  }
+
+  .hi-chevron {
+    width: 16px;
+    height: 16px;
+    color: var(--text-disabled);
+  }
+
+  /* ==============================
+   悬浮扫码 FAB
+   ============================== */
+  .fab-scan {
+    position: fixed;
+    bottom: calc(var(--van-tabbar-height, 50px) + 24px);
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background: var(--color-accent);
+    border-radius: 16px;
+    box-shadow: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-brand);
+    border: 4px solid var(--bg-secondary);
+    cursor: pointer;
+    z-index: 40;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .fab-scan:active {
+    transform: scale(0.9) rotate(3deg);
+  }
+
+  .hi-fab {
+    width: 28px;
+    height: 28px;
+    stroke-width: 2.5;
+  }
+
+  .fab-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 14px;
+    height: 14px;
+    background: var(--color-error);
+    border-radius: 50%;
+    border: 2px solid var(--bg-secondary);
+    animation: bounce-sm 2s infinite;
+  }
+
+  @keyframes bounce-sm {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
 </style>
-

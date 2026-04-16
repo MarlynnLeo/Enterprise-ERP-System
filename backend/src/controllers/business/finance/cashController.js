@@ -1099,7 +1099,7 @@ const cashController = {
       };
 
       // 从数据库查询未对账交易
-      const result = await cash.getBankTransactions({
+      const result = await BankTransactionModel.getBankTransactions({
         bank_account_id: filters.accountId,
         start_date: filters.startDate,
         end_date: filters.endDate,
@@ -1125,7 +1125,7 @@ const cashController = {
       };
 
       // 从数据库查询已对账交易
-      const result = await cash.getBankTransactions({
+      const result = await BankTransactionModel.getBankTransactions({
         bank_account_id: filters.accountId,
         start_date: filters.startDate,
         end_date: filters.endDate,
@@ -1160,8 +1160,8 @@ const cashController = {
 
       // 获取未对账和已对账交易统计
       const [unreconciledResult, reconciledResult] = await Promise.all([
-        cash.getBankTransactions({ ...bankTransactionFilters, is_reconciled: false }),
-        cash.getBankTransactions({ ...bankTransactionFilters, is_reconciled: true }),
+        BankTransactionModel.getBankTransactions({ ...bankTransactionFilters, is_reconciled: false }),
+        BankTransactionModel.getBankTransactions({ ...bankTransactionFilters, is_reconciled: true }),
       ]);
 
       const unreconciledItems = unreconciledResult?.transactions?.length || 0;

@@ -1,8 +1,8 @@
 <!--
 /**
  * ErrorBoundary.vue
- * @description Vue组件文件
-  * @date 2025-08-27
+ * @description Vue 错误边界组件
+ * @date 2025-08-27
  * @version 1.0.0
  */
 -->
@@ -274,17 +274,18 @@ defineExpose({
   justify-content: center;
   min-height: 100vh;
   padding: 20px;
-  background-color: #f8f9fa;
+  background-color: var(--bg-primary);
 }
 
 .error-content {
   max-width: 400px;
   width: 100%;
   text-align: center;
-  background-color: #fff;
-  border-radius: 12px;
+  background-color: var(--bg-secondary);
+  border-radius: 16px;
   padding: 32px 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--van-border-color);
+  box-shadow: none;
 }
 
 .error-icon {
@@ -297,13 +298,13 @@ defineExpose({
   .error-title {
     font-size: 20px;
     font-weight: 600;
-    color: $text-color;
+    color: var(--text-primary);
     margin-bottom: 12px;
   }
   
   .error-message {
     font-size: 14px;
-    color: $text-color-secondary;
+    color: var(--text-secondary);
     line-height: 1.5;
     margin: 0;
   }
@@ -318,24 +319,24 @@ defineExpose({
     align-items: center;
     justify-content: space-between;
     padding: 12px;
-    background-color: #f8f9fa;
+    background-color: var(--bg-primary);
     border-radius: 8px;
     cursor: pointer;
     font-size: 14px;
-    color: $text-color-secondary;
+    color: var(--text-secondary);
   }
   
   .details-content {
     margin-top: 8px;
     padding: 12px;
-    background-color: #f8f9fa;
+    background-color: var(--bg-primary);
     border-radius: 8px;
     max-height: 200px;
     overflow-y: auto;
     
     pre {
       font-size: 12px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
       white-space: pre-wrap;
       word-break: break-all;
       margin: 0;
@@ -356,7 +357,7 @@ defineExpose({
 
 .error-feedback {
   .van-button {
-    color: $text-color-secondary;
+    color: var(--text-secondary);
     font-size: 12px;
   }
 }

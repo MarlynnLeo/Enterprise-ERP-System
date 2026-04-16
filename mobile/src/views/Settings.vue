@@ -285,7 +285,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .page-container {
   min-height: 100vh;
-  background-color: $background-color;
+  background-color: var(--bg-primary);
 }
 
 .content-container {
@@ -301,7 +301,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: none;
 
   .user-avatar {
     width: 56px;
@@ -348,8 +348,8 @@ onMounted(() => {
   left: 0;
   right: 0;
   padding: 16px;
-  background-color: $background-color;
-  border-top: 1px solid $border-color;
+  background-color: var(--bg-primary);
+  border-top: 1px solid var(--van-border-color);
 }
 
 .about-content {
@@ -364,12 +364,12 @@ onMounted(() => {
     margin: 8px 0;
     font-size: 18px;
     font-weight: 600;
-    color: $text-color;
+    color: var(--text-primary);
   }
 
   p {
     margin: 4px 0;
-    color: $text-color-secondary;
+    color: var(--text-secondary);
     font-size: 14px;
   }
 }
@@ -384,6 +384,6 @@ onMounted(() => {
 }
 
 :deep(.van-cell__value) {
-  color: $text-color-secondary;
+  color: var(--text-secondary);
 }
 </style>

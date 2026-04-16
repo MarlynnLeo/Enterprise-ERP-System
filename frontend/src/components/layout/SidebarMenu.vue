@@ -141,7 +141,10 @@ const iconMap = {
   'icon-sell': Sell,
   'icon-shopping-cart': ShoppingCart,
   'icon-return': RefreshLeft,
-  'icon-finished': CircleCheck
+  'icon-finished': CircleCheck,
+  'icon-order': Tickets,
+  'icon-exchange': Switch,
+  'icon-quotation': Postcard
 }
 
 // 获取图标组件

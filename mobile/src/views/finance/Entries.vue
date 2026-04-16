@@ -326,7 +326,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .entries-page {
   min-height: 100vh;
-  background-color: $background-color;
+  background-color: var(--bg-primary);
   padding-bottom: 80px;
 }
 
@@ -343,10 +343,10 @@ onMounted(() => {
 
   .filter-tabs {
     display: flex;
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: none;
     overflow-x: auto;
 
     .filter-tab {
@@ -354,14 +354,14 @@ onMounted(() => {
       text-align: center;
       padding: 8px 12px;
       font-size: 14px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
       border-radius: 6px;
       transition: all 0.2s;
       position: relative;
       white-space: nowrap;
 
       &.active {
-        background-color: $primary-color;
+        background-color: var(--color-primary);
         color: #fff;
       }
     }
@@ -370,11 +370,11 @@ onMounted(() => {
 
 .entries-list {
   .entry-item {
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     margin-bottom: 8px;
     padding: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: none;
 
     .entry-header {
       display: flex;
@@ -386,13 +386,13 @@ onMounted(() => {
         .entry-number {
           font-size: 16px;
           font-weight: 600;
-          color: $text-color;
+          color: var(--text-primary);
           margin-bottom: 4px;
         }
 
         .entry-date {
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
         }
       }
 
@@ -407,15 +407,15 @@ onMounted(() => {
           margin-bottom: 4px;
 
           &.draft { background-color: #c8c9cc; }
-          &.pending { background-color: #FF9F45; }
-          &.approved { background-color: #2CCFB0; }
-          &.rejected { background-color: #FF6B6B; }
+          &.pending { background-color: var(--module-orange); }
+          &.approved { background-color: var(--module-green); }
+          &.rejected { background-color: var(--module-red); }
         }
 
         .entry-amount {
           font-size: 14px;
           font-weight: 600;
-          color: $text-color;
+          color: var(--text-primary);
         }
       }
     }
@@ -425,7 +425,7 @@ onMounted(() => {
 
       .entry-summary {
         font-size: 14px;
-        color: $text-color;
+        color: var(--text-primary);
         margin-bottom: 8px;
       }
 
@@ -433,12 +433,12 @@ onMounted(() => {
         display: flex;
         justify-content: space-between;
         font-size: 12px;
-        color: $text-color-secondary;
+        color: var(--text-secondary);
       }
     }
 
     .entry-lines {
-      border-top: 1px solid $border-color;
+      border-top: 1px solid var(--van-border-color);
       padding-top: 12px;
       margin-bottom: 12px;
 
@@ -450,26 +450,26 @@ onMounted(() => {
 
         .line-account {
           font-size: 12px;
-          color: $text-color;
+          color: var(--text-primary);
         }
 
         .line-amounts {
           font-size: 12px;
 
           .debit {
-            color: #FF6B6B;
+            color: var(--module-red);
             margin-right: 8px;
           }
 
           .credit {
-            color: #2CCFB0;
+            color: var(--module-green);
           }
         }
       }
 
       .more-lines {
         font-size: 12px;
-        color: $text-color-secondary;
+        color: var(--text-secondary);
         text-align: center;
         padding: 4px 0;
       }
@@ -478,7 +478,7 @@ onMounted(() => {
     .entry-actions {
       display: flex;
       gap: 8px;
-      border-top: 1px solid $border-color;
+      border-top: 1px solid var(--van-border-color);
       padding-top: 12px;
 
       .van-button {
@@ -512,17 +512,17 @@ onMounted(() => {
     .fab-item {
       display: flex;
       align-items: center;
-      background: #fff;
+      background: var(--bg-secondary);
       border-radius: 24px;
       padding: 12px 16px;
       margin-bottom: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      box-shadow: none;
       white-space: nowrap;
 
       span {
         margin-left: 8px;
         font-size: 14px;
-        color: $text-color;
+        color: var(--text-primary);
       }
     }
   }
@@ -531,11 +531,11 @@ onMounted(() => {
     width: 56px;
     height: 56px;
     border-radius: 28px;
-    background-color: $primary-color;
+    background-color: var(--color-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: none;
     color: #fff;
     transition: all 0.3s ease;
 

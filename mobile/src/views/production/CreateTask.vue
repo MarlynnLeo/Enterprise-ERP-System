@@ -1,386 +1,187 @@
 <!--
 /**
  * CreateTask.vue - 新建生产任务
- * @description 创建生产任务页面 - Glassmorphism 风格
- * @date 2025-12-29
- * @version 1.0.0
+ * @description 统一卡片风格
+ * @date 2026-04-15
+ * @version 3.0.0
  */
 -->
 <template>
-  <div class="create-task-page">
-    <!-- 背景模糊层 -->
-    <div class="bg-overlay"></div>
+  <div class="create-page">
+    <NavBar title="新建任务" left-arrow @click-left="$router.go(-1)" />
 
-    <!-- 顶部导航栏 -->
-    <header class="page-header">
-      <button class="header-btn" @click="goBack">
-        <Icon name="chevron-right" size="1.5rem" class-name="rotate-180" />
-      </button>
-      <h1 class="header-title">新建生产任务</h1>
-      <button class="header-btn" @click="handleSave">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-        </svg>
-      </button>
-    </header>
-
-    <!-- 主要内容区域 -->
-    <div class="page-content">
-      <form @submit.prevent="handleSubmit">
-        <!-- 基本信息 -->
-        <div class="form-section">
-          <h3 class="section-title">基本信息</h3>
-          <div class="form-fields">
-            <van-field
-              v-model="formData.taskCode"
-              label="任务编号"
-              placeholder="自动生成"
-              readonly
-              :border="false"
-            />
-            <van-field
-              v-model="formData.planId"
-              label="生产计划"
-              placeholder="请选择生产计划"
-              readonly
-              is-link
-              @click="showPlanPicker = true"
-              :border="false"
-            />
-            <van-field
-              v-model="formData.productName"
+    <div class="content-wrapper">
+      <div class="info-section">
+        <div class="section-title">任务信息</div>
+        <Form @submit="handleSubmit">
+          <CellGroup inset>
+            <Field v-model="formData.task_code" label="任务编号" placeholder="自动生成" readonly />
+            <Field
+              v-model="formData.product_name"
               label="产品名称"
               placeholder="请输入产品名称"
-              required
-              :border="false"
+              is-link
+              readonly
+              @click="showProductPicker = true"
+              :rules="[{ required: true }]"
             />
-            <van-field
+            <Field
               v-model="formData.quantity"
               type="number"
               label="任务数量"
               placeholder="请输入任务数量"
-              required
-              :border="false"
+              :rules="[{ required: true }]"
             />
-            <van-field
-              v-model="formData.unit"
-              label="单位"
-              placeholder="请输入单位"
-              :border="false"
-            />
-          </div>
-        </div>
-
-        <!-- 时间信息 -->
-        <div class="form-section">
-          <h3 class="section-title">时间信息</h3>
-          <div class="form-fields">
-            <van-field
-              v-model="formData.startDate"
-              label="开始日期"
-              placeholder="请选择开始日期"
-              readonly
+            <Field v-model="formData.unit" label="单位" placeholder="件" />
+            <Field
+              v-model="formData.plan_start_time"
+              label="开始时间"
+              placeholder="请选择"
               is-link
-              @click="showStartDatePicker = true"
-              :border="false"
-            />
-            <van-field
-              v-model="formData.endDate"
-              label="结束日期"
-              placeholder="请选择结束日期"
               readonly
+              @click="showStartPicker = true"
+            />
+            <Field
+              v-model="formData.plan_end_time"
+              label="结束时间"
+              placeholder="请选择"
               is-link
-              @click="showEndDatePicker = true"
-              :border="false"
+              readonly
+              @click="showEndPicker = true"
             />
-          </div>
-        </div>
-
-        <!-- 其他信息 -->
-        <div class="form-section">
-          <h3 class="section-title">其他信息</h3>
-          <div class="form-fields">
-            <van-field
-              v-model="formData.workshop"
-              label="生产车间"
-              placeholder="请输入生产车间"
-              :border="false"
-            />
-            <van-field
-              v-model="formData.remarks"
-              label="备注"
+            <Field
+              v-model="formData.remark"
               type="textarea"
-              placeholder="请输入备注信息"
+              label="备注"
+              placeholder="请输入备注"
               rows="3"
-              :border="false"
             />
-          </div>
-        </div>
+          </CellGroup>
 
-        <!-- 提交按钮 -->
-        <div class="form-actions">
-          <van-button type="primary" block @click="handleSubmit" :loading="submitting">
-            创建任务
-          </van-button>
-        </div>
-      </form>
+          <div class="action-bar">
+            <VanButton type="primary" block round native-type="submit" :loading="submitting"
+              >创建任务</VanButton
+            >
+          </div>
+        </Form>
+      </div>
     </div>
 
     <!-- 日期选择器 -->
-    <van-popup v-model:show="showStartDatePicker" position="bottom">
-      <van-date-picker
+    <Popup v-model:show="showStartPicker" position="bottom">
+      <DatePicker
         v-model="startDate"
-        title="选择开始日期"
-        @confirm="onStartDateConfirm"
-        @cancel="showStartDatePicker = false"
+        title="选择开始时间"
+        @confirm="onStartConfirm"
+        @cancel="showStartPicker = false"
       />
-    </van-popup>
-
-    <van-popup v-model:show="showEndDatePicker" position="bottom">
-      <van-date-picker
+    </Popup>
+    <Popup v-model:show="showEndPicker" position="bottom">
+      <DatePicker
         v-model="endDate"
-        title="选择结束日期"
-        @confirm="onEndDateConfirm"
-        @cancel="showEndDatePicker = false"
+        title="选择结束时间"
+        @confirm="onEndConfirm"
+        @cancel="showEndPicker = false"
       />
-    </van-popup>
-
-    <!-- 生产计划选择器 -->
-    <van-popup v-model:show="showPlanPicker" position="bottom">
-      <van-picker
-        :columns="planOptions"
-        @confirm="onPlanConfirm"
-        @cancel="showPlanPicker = false"
-      />
-    </van-popup>
+    </Popup>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import Icon from '@/components/icons/index.vue'
-import { showToast, showConfirmDialog } from 'vant'
-import dayjs from 'dayjs'
+  import { ref, reactive, onMounted } from 'vue'
+  import { useRouter } from 'vue-router'
+  import {
+    NavBar,
+    Form,
+    Field,
+    CellGroup,
+    Popup,
+    DatePicker,
+    Button as VanButton,
+    showToast
+  } from 'vant'
+  import { productionApi } from '@/services/api'
+  import dayjs from 'dayjs'
 
-const router = useRouter()
+  const router = useRouter()
+  const submitting = ref(false)
+  const showProductPicker = ref(false)
+  const showStartPicker = ref(false)
+  const showEndPicker = ref(false)
+  const startDate = ref([])
+  const endDate = ref([])
 
-// 表单数据
-const formData = ref({
-  taskCode: '自动生成',
-  planId: '',
-  productName: '',
-  quantity: '',
-  unit: '件',
-  startDate: '',
-  endDate: '',
-  workshop: '',
-  remarks: ''
-})
-
-// 日期选择器
-const showStartDatePicker = ref(false)
-const showEndDatePicker = ref(false)
-const startDate = ref(new Date())
-const endDate = ref(new Date())
-
-// 生产计划选择器
-const showPlanPicker = ref(false)
-const planOptions = ref([
-  { text: '计划001 - 产品A生产', value: '1' },
-  { text: '计划002 - 产品B生产', value: '2' },
-  { text: '计划003 - 产品C生产', value: '3' }
-])
-
-// 提交状态
-const submitting = ref(false)
-
-// 方法
-const goBack = () => {
-  showConfirmDialog({
-    title: '提示',
-    message: '确定要放弃创建吗？',
-  }).then(() => {
-    router.back()
-  }).catch(() => {
-    // 取消
+  const formData = reactive({
+    task_code: `SCT${dayjs().format('YYMMDD')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+    product_name: '',
+    product_id: null,
+    quantity: '',
+    unit: '件',
+    plan_start_time: '',
+    plan_end_time: '',
+    remark: ''
   })
-}
 
-const onStartDateConfirm = (value) => {
-  formData.value.startDate = dayjs(value).format('YYYY-MM-DD')
-  showStartDatePicker.value = false
-}
-
-const onEndDateConfirm = (value) => {
-  formData.value.endDate = dayjs(value).format('YYYY-MM-DD')
-  showEndDatePicker.value = false
-}
-
-const onPlanConfirm = (value) => {
-  formData.value.planId = value.selectedOptions[0].text
-  showPlanPicker.value = false
-}
-
-const handleSave = () => {
-  handleSubmit()
-}
-
-const handleSubmit = async () => {
-  // 验证表单
-  if (!formData.value.productName) {
-    showToast('请输入产品名称')
-    return
+  const onStartConfirm = ({ selectedValues }) => {
+    formData.plan_start_time = selectedValues.join('-')
+    showStartPicker.value = false
   }
-  if (!formData.value.quantity) {
-    showToast('请输入任务数量')
-    return
+  const onEndConfirm = ({ selectedValues }) => {
+    formData.plan_end_time = selectedValues.join('-')
+    showEndPicker.value = false
   }
 
-  submitting.value = true
-
-  try {
-    // TODO: 调用API创建任务
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    showToast({
-      type: 'success',
-      message: '创建成功'
-    })
-
-    setTimeout(() => {
-      router.back()
-    }, 500)
-  } catch (error) {
-    showToast({
-      type: 'fail',
-      message: error.message || '创建失败'
-    })
-  } finally {
-    submitting.value = false
+  const handleSubmit = async () => {
+    if (!formData.product_name || !formData.quantity) {
+      showToast('请填写必填项')
+      return
+    }
+    submitting.value = true
+    try {
+      await productionApi.createProductionTask({
+        task_code: formData.task_code,
+        product_name: formData.product_name,
+        planned_quantity: Number(formData.quantity),
+        unit_name: formData.unit,
+        plan_start_time: formData.plan_start_time,
+        plan_end_time: formData.plan_end_time,
+        remark: formData.remark
+      })
+      showToast('创建成功')
+      router.go(-1)
+    } catch (e) {
+      console.error('创建任务失败:', e)
+      showToast('创建失败')
+    } finally {
+      submitting.value = false
+    }
   }
-}
 </script>
 
 <style lang="scss" scoped>
-.create-task-page {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  background: var(--bg-primary);
-}
+  .create-page {
+    min-height: 100vh;
+    background: var(--bg-primary);
+    padding-bottom: 120px;
+  }
+  .content-wrapper {
+    padding: 12px;
+  }
 
-.bg-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(48px);
-  -webkit-backdrop-filter: blur(48px);
-  z-index: -1;
-}
-
-.page-header {
-  padding: 3rem 1.5rem 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.header-btn {
-  padding: 0.5rem;
-  margin: -0.5rem;
-  border-radius: 50%;
-  background: none;
-  border: none;
-  color: rgb(226, 232, 240);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.header-btn:active {
-  transform: scale(0.95);
-}
-
-.header-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: white;
-}
-
-.page-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem;
-}
-
-.page-content::-webkit-scrollbar {
-  display: none;
-}
-
-.form-section {
-  margin-bottom: 1.5rem;
-}
-
-.section-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: white;
-  margin-bottom: 0.75rem;
-}
-
-.form-fields {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-
-.form-fields :deep(.van-cell) {
-  background: transparent;
-  color: white;
-}
-
-.form-fields :deep(.van-field__label) {
-  color: rgb(148, 163, 184);
-}
-
-.form-fields :deep(.van-field__control) {
-  color: white;
-}
-
-.form-fields :deep(.van-field__control::placeholder) {
-  color: rgb(100, 116, 139);
-}
-
-.form-actions {
-  margin-top: 2rem;
-}
-
-.form-actions :deep(.van-button--primary) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  height: 3rem;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.w-6 { width: 1.5rem; height: 1.5rem; }
-
-.rotate-180 {
-  transform: rotate(180deg);
-}
+  .info-section {
+    background: var(--bg-secondary);
+    border-radius: 14px;
+    padding: 16px;
+    border: 1px solid var(--glass-border);
+  }
+  .section-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+  .action-bar {
+    margin-top: 24px;
+    padding: 0 16px;
+  }
 </style>
-
-

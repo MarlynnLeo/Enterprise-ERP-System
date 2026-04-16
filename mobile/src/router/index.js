@@ -1,19 +1,18 @@
 /**
  * index.js
  * @description 应用程序入口文件
-  * @date 2025-08-27
+ * @date 2025-08-27
  * @version 1.0.0
  */
 
-import { createRouter, createWebHistory } from 'vue-router';
-import { refreshFullscreenState, isIOS, enterIOSFullscreen } from '../utils/fullscreen';
+import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
-    meta: { 
+    meta: {
       title: '登录',
       allowGuest: true
     }
@@ -28,8 +27,14 @@ const routes = [
   {
     path: '/dashboard',
     name: 'Dashboard',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '仪表盘' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '仪表盘',
+      api: 'inventoryApi.getDashboard',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   // 生产管理
   {
@@ -96,8 +101,13 @@ const routes = [
   {
     path: '/baseData',
     name: 'BaseData',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '基础数据' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '基础数据',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/baseData/materials',
@@ -114,7 +124,7 @@ const routes = [
   {
     path: '/baseData/boms',
     name: 'BOMs',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/baseData/BOMs.vue'),
     meta: { title: 'BOM管理' }
   },
   {
@@ -138,31 +148,43 @@ const routes = [
   {
     path: '/baseData/suppliers/:id',
     name: 'SupplierDetail',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/baseData/SupplierDetail.vue'),
     meta: { title: '供应商详情' }
   },
   {
     path: '/baseData/categories',
     name: 'Categories',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '分类管理' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '分类管理',
+      api: 'baseDataApi.getCategories',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/baseData/units',
     name: 'Units',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '单位管理' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '单位管理',
+      api: 'baseDataApi.getUnits',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/baseData/locations',
     name: 'Locations',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/baseData/Locations.vue'),
     meta: { title: '库位管理' }
   },
   {
     path: '/baseData/process-templates',
     name: 'ProcessTemplates',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/baseData/ProcessTemplates.vue'),
     meta: { title: '工序模板' }
   },
   // 库存管理
@@ -185,6 +207,12 @@ const routes = [
     meta: { title: '库存入库' }
   },
   {
+    path: '/inventory/inbound/create',
+    name: 'CreateInbound',
+    component: () => import('@/views/inventory/CreateInbound.vue'),
+    meta: { title: '新建入库单' }
+  },
+  {
     path: '/inventory/inbound/:id',
     component: () => import('@/views/inventory/InboundDetail.vue'),
     meta: { title: '入库详情' }
@@ -194,6 +222,12 @@ const routes = [
     name: 'InventoryOutbound',
     component: () => import('@/views/inventory/Outbound.vue'),
     meta: { title: '库存出库' }
+  },
+  {
+    path: '/inventory/outbound/create',
+    name: 'CreateOutbound',
+    component: () => import('@/views/inventory/CreateOutbound.vue'),
+    meta: { title: '新建出库单' }
   },
   {
     path: '/inventory/outbound/:id',
@@ -206,6 +240,12 @@ const routes = [
     name: 'InventoryTransfer',
     component: () => import('@/views/inventory/Transfer.vue'),
     meta: { title: '库存调拨' }
+  },
+  {
+    path: '/inventory/transfer/create',
+    name: 'CreateTransfer',
+    component: () => import('@/views/inventory/CreateTransfer.vue'),
+    meta: { title: '新建调拨单' }
   },
   {
     path: '/inventory/transfer/:id',
@@ -240,14 +280,14 @@ const routes = [
   {
     path: '/inventory/report',
     name: 'InventoryReport',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/inventory/Report.vue'),
     meta: { title: '库存报表' }
   },
   {
     path: '/inventory/transaction',
     name: 'InventoryTransaction',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '流水报表' }
+    component: () => import('@/views/inventory/Transaction.vue'),
+    meta: { title: '库存流水' }
   },
   // 采购管理
   {
@@ -259,8 +299,14 @@ const routes = [
   {
     path: '/purchase/dashboard',
     name: 'PurchaseDashboard',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '采购概览' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '采购概览',
+      api: 'purchaseApi.getStatistics',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/purchase/requisitions',
@@ -269,9 +315,21 @@ const routes = [
     meta: { title: '采购申请' }
   },
   {
+    path: '/purchase/requisitions/create',
+    name: 'CreateRequisition',
+    component: () => import('@/views/purchase/CreateRequisition.vue'),
+    meta: { title: '新建采购申请' }
+  },
+  {
+    path: '/purchase/requisitions/new',
+    name: 'NewRequisition',
+    component: () => import('@/views/purchase/CreateRequisition.vue'),
+    meta: { title: '新建采购申请' }
+  },
+  {
     path: '/purchase/requisitions/:id',
     name: 'PurchaseRequisitionDetail',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/purchase/RequisitionDetail.vue'),
     meta: { title: '采购申请详情' }
   },
   {
@@ -313,20 +371,32 @@ const routes = [
   {
     path: '/purchase/returns',
     name: 'PurchaseReturns',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/purchase/Returns.vue'),
     meta: { title: '采购退货' }
   },
   {
     path: '/purchase/processing',
     name: 'PurchaseProcessing',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '外委加工' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '外委加工',
+      api: 'purchaseApi.getProcessing',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/purchase/processing-receipts',
     name: 'PurchaseProcessingReceipts',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '外委入库' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '外委入库',
+      api: 'purchaseApi.getProcessingReceipts',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   // 销售管理
   {
@@ -342,6 +412,12 @@ const routes = [
     meta: { title: '销售订单' }
   },
   {
+    path: '/sales/orders/new',
+    name: 'CreateSalesOrder',
+    component: () => import('@/views/sales/Orders.vue'),
+    meta: { title: '新建销售订单' }
+  },
+  {
     path: '/sales/orders/:id',
     name: 'SalesOrderDetail',
     component: () => import('@/views/sales/OrderDetail.vue'),
@@ -352,6 +428,12 @@ const routes = [
     name: 'SalesOutbound',
     component: () => import('@/views/sales/Outbound.vue'),
     meta: { title: '销售出库' }
+  },
+  {
+    path: '/sales/outbound/new',
+    name: 'CreateSalesOutbound',
+    component: () => import('@/views/sales/Outbound.vue'),
+    meta: { title: '新建销售出库' }
   },
   {
     path: '/sales/outbound/:id',
@@ -368,20 +450,20 @@ const routes = [
   {
     path: '/sales/returns/:id',
     name: 'SalesReturnDetail',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/sales/ReturnDetail.vue'),
     meta: { title: '销售退货详情' }
   },
   {
     path: '/sales/exchanges',
     name: 'SalesExchanges',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/sales/Exchanges.vue'),
     meta: { title: '销售换货' }
   },
   {
     path: '/sales/quotations',
     name: 'SalesQuotations',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '报价单统计' }
+    component: () => import('@/views/sales/Quotations.vue'),
+    meta: { title: '报价管理' }
   },
   // 删除原来的销售自助相关路由
   // 财务管理
@@ -398,105 +480,195 @@ const routes = [
     meta: { title: '会计科目' }
   },
   {
+    path: '/finance/gl/accounts/:id',
+    name: 'GLAccountDetail',
+    component: () => import('@/views/finance/AccountDetail.vue'),
+    meta: { title: '科目详情' }
+  },
+  {
     path: '/finance/gl/entries',
     name: 'GLEntries',
     component: () => import('@/views/finance/Entries.vue'),
     meta: { title: '会计凭证' }
   },
   {
+    path: '/finance/gl/entries/:id',
+    name: 'GLEntryDetail',
+    component: () => import('@/views/finance/EntryDetail.vue'),
+    meta: { title: '凭证详情' }
+  },
+  {
+    path: '/finance/gl/entries/create',
+    name: 'GLEntryCreate',
+    component: () => import('@/views/finance/Entries.vue'),
+    meta: { title: '新建凭证' }
+  },
+  {
     path: '/finance/gl/periods',
     name: 'GLPeriods',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/Periods.vue'),
     meta: { title: '会计期间' }
+  },
+  {
+    path: '/finance/gl/periods/:id',
+    name: 'GLPeriodDetail',
+    component: () => import('@/views/finance/PeriodDetail.vue'),
+    meta: { title: '期间详情' }
   },
   {
     path: '/finance/ar/invoices',
     name: 'ARInvoices',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/ARInvoices.vue'),
     meta: { title: '应收账款' }
+  },
+  {
+    path: '/finance/ar/invoices/:id',
+    name: 'ARInvoiceDetail',
+    component: () => import('@/views/finance/ARInvoiceDetail.vue'),
+    meta: { title: '应收发票详情' }
   },
   {
     path: '/finance/ar/receipts',
     name: 'ARReceipts',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/ARReceipts.vue'),
     meta: { title: '收款管理' }
   },
   {
     path: '/finance/ar/aging',
     name: 'ARAging',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '账龄分析' }
+    component: () => import('@/views/finance/ARAging.vue'),
+    meta: { title: '应收账龄' }
+  },
+  {
+    path: '/finance/ar/receipts/create',
+    name: 'ARReceiptCreate',
+    component: () => import('@/views/finance/ARReceipts.vue'),
+    meta: { title: '收款登记' }
+  },
+  {
+    path: '/finance/ar/receipts/:id',
+    name: 'ARReceiptDetail',
+    component: () => import('@/views/finance/ARReceiptDetail.vue'),
+    meta: { title: '收款详情' }
   },
   {
     path: '/finance/ap/invoices',
     name: 'APInvoices',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/APInvoices.vue'),
     meta: { title: '应付账款' }
+  },
+  {
+    path: '/finance/ap/invoices/:id',
+    name: 'APInvoiceDetail',
+    component: () => import('@/views/finance/APInvoiceDetail.vue'),
+    meta: { title: '应付发票详情' }
   },
   {
     path: '/finance/ap/payments',
     name: 'APPayments',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/APPayments.vue'),
     meta: { title: '付款管理' }
+  },
+  {
+    path: '/finance/ap/payments/create',
+    name: 'APPaymentCreate',
+    component: () => import('@/views/finance/APPayments.vue'),
+    meta: { title: '付款登记' }
+  },
+  {
+    path: '/finance/ap/payments/:id',
+    name: 'APPaymentDetail',
+    component: () => import('@/views/finance/APPaymentDetail.vue'),
+    meta: { title: '付款详情' }
   },
   {
     path: '/finance/ap/aging',
     name: 'APAging',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '账龄分析' }
+    component: () => import('@/views/finance/APAging.vue'),
+    meta: { title: '应付账龄' }
   },
   {
     path: '/finance/assets/list',
     name: 'AssetsList',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/Assets.vue'),
     meta: { title: '固定资产' }
   },
   {
     path: '/finance/assets/categories',
     name: 'AssetsCategories',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/Assets.vue'),
     meta: { title: '资产类别' }
   },
   {
     path: '/finance/assets/depreciation',
     name: 'AssetsDepreciation',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/Assets.vue'),
     meta: { title: '折旧管理' }
+  },
+  {
+    path: '/finance/assets/:id',
+    name: 'AssetDetail',
+    component: () => import('@/views/finance/AssetDetail.vue'),
+    meta: { title: '资产详情' }
   },
   {
     path: '/finance/cash/accounts',
     name: 'CashAccounts',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/CashAccounts.vue'),
     meta: { title: '银行账户' }
   },
   {
+    path: '/finance/cash/accounts/:id',
+    name: 'CashAccountDetail',
+    component: () => import('@/views/finance/CashAccountDetail.vue'),
+    meta: { title: '账户详情' }
+  },
+  {
     path: '/finance/cash/transactions',
+    name: 'CashTransactionsOld',
+    component: () => import('@/views/finance/BankTransactions.vue'),
+    meta: { title: '银行交易' }
+  },
+  {
+    path: '/finance/cash/bank-transactions',
+    name: 'BankTransactions',
+    component: () => import('@/views/finance/BankTransactions.vue'),
+    meta: { title: '银行交易' }
+  },
+  {
+    path: '/finance/cash/cash-transactions',
     name: 'CashTransactions',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '交易记录' }
+    component: () => import('@/views/finance/CashTransactionsPage.vue'),
+    meta: { title: '现金交易' }
   },
   {
     path: '/finance/cash/reconciliation',
     name: 'CashReconciliation',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/Reconciliation.vue'),
     meta: { title: '银行对账' }
+  },
+  {
+    path: '/finance/cash/transactions/create',
+    name: 'CashTransactionCreate',
+    component: () => import('@/views/finance/BankTransactions.vue'),
+    meta: { title: '新建交易' }
   },
   {
     path: '/finance/reports/balance-sheet',
     name: 'BalanceSheet',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/BalanceSheet.vue'),
     meta: { title: '资产负债表' }
   },
   {
     path: '/finance/reports/income-statement',
     name: 'IncomeStatement',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/IncomeStatement.vue'),
     meta: { title: '利润表' }
   },
   {
     path: '/finance/reports/cash-flow',
     name: 'CashFlowStatement',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/finance/CashFlowReport.vue'),
     meta: { title: '出纳报表' }
   },
   // 质量管理
@@ -515,44 +687,80 @@ const routes = [
   {
     path: '/quality/incoming/create',
     name: 'CreateIncomingInspection',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/quality/CreateIncoming.vue'),
     meta: { title: '新建来料检验' }
   },
   {
     path: '/quality/incoming/:id',
     name: 'IncomingInspectionDetail',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/quality/IncomingDetail.vue'),
     meta: { title: '来料检验详情' }
   },
   {
     path: '/quality/incoming/:id/inspect',
     name: 'IncomingInspect',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/quality/IncomingDetail.vue'),
     meta: { title: '执行检验' }
   },
   {
     path: '/quality/process',
     name: 'QualityProcess',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/quality/Process.vue'),
     meta: { title: '过程检验' }
+  },
+  {
+    path: '/quality/process/create',
+    name: 'CreateProcessInspection',
+    component: () => import('@/views/quality/CreateProcess.vue'),
+    meta: { title: '新建过程检验' }
+  },
+  {
+    path: '/quality/process/:id',
+    name: 'ProcessInspectionDetail',
+    component: () => import('@/views/quality/ProcessDetail.vue'),
+    meta: { title: '过程检验详情' }
   },
   {
     path: '/quality/final',
     name: 'QualityFinal',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/quality/Final.vue'),
     meta: { title: '成品检验' }
+  },
+  {
+    path: '/quality/final/create',
+    name: 'CreateFinalInspection',
+    component: () => import('@/views/quality/CreateFinal.vue'),
+    meta: { title: '新建成品检验' }
+  },
+  {
+    path: '/quality/final/:id',
+    name: 'FinalInspectionDetail',
+    component: () => import('@/views/quality/FinalDetail.vue'),
+    meta: { title: '成品检验详情' }
   },
   {
     path: '/quality/templates',
     name: 'QualityTemplates',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '检验模板' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '检验模板',
+      api: 'qualityApi.getInspectionTemplates',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/quality/traceability',
     name: 'QualityTraceability',
-    component: () => import('@/views/ComingSoon.vue'),
+    component: () => import('@/views/quality/Traceability.vue'),
     meta: { title: '追溯管理' }
+  },
+  {
+    path: '/quality/traceability/detail',
+    name: 'QualityTraceabilityDetail',
+    component: () => import('@/views/quality/TraceabilityDetail.vue'),
+    meta: { title: '追溯详情' }
   },
 
   // 扫码功能
@@ -581,8 +789,14 @@ const routes = [
   {
     path: '/notifications/:id',
     name: 'NotificationDetail',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '消息详情' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '消息详情',
+      api: 'systemApi.getLogs',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
 
   // 系统管理
@@ -601,46 +815,87 @@ const routes = [
   {
     path: '/system/users/create',
     name: 'CreateUser',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '创建用户' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '创建用户',
+      api: 'systemApi.getRoles',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/system/users/:id',
     name: 'UserDetail',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '用户详情' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '用户详情',
+      api: 'systemApi.getLogs',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/system/departments',
     name: 'SystemDepartments',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '部门管理' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '部门管理',
+      api: 'systemApi.getDepartments',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/system/roles',
     name: 'SystemRoles',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '角色管理' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '角色管理',
+      api: 'systemApi.getRoles',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/system/permissions',
     name: 'SystemPermissions',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '权限管理' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '权限管理',
+      api: 'systemApi.getPermissions',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/system/config',
     name: 'SystemConfig',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '系统配置' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '系统配置',
+      api: 'systemApi.getConfig',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
   {
     path: '/system/logs',
     name: 'SystemLogs',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '系统日志' }
+    component: () => import('@/views/common/GenericListView.vue'),
+    meta: {
+      title: '系统日志',
+      api: 'systemApi.getLogs',
+      config: {
+        fields: { id: 'id', title: 'name', subtitle: 'code' }
+      }
+    }
   },
-
 
   {
     path: '/profile',
@@ -685,12 +940,7 @@ const routes = [
   //   component: () => import('@/views/TestHome.vue'),
   //   meta: { title: '首页功能测试', allowGuest: true }
   // },
-  {
-    path: '/user-debug',
-    name: 'UserDebug',
-    component: () => import('@/views/ComingSoon.vue'),
-    meta: { title: '用户调试', allowGuest: true }
-  },
+  // 调试路由已移除
   // {
   //   path: '/api-test',
   //   name: 'ApiTest',
@@ -712,54 +962,24 @@ const routes = [
       allowGuest: true
     }
   }
-];
+]
 
 const router = createRouter({
   history: createWebHistory(),
   routes
-});
+})
 
 router.beforeEach((to, from, next) => {
   // 设置标题
-  document.title = to.meta.title ? `${to.meta.title} - ERP移动版` : 'ERP移动版';
-  
-  // 在路由跳转前尝试应用全屏状态
-  if (localStorage.getItem('isLoggedIn') === 'true' && isIOS()) {
-    enterIOSFullscreen();
-  }
-  
+  document.title = to.meta.title ? `${to.meta.title} - ERP移动版` : 'ERP移动版'
+
   // 检查是否需要登录
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token')
   if (!token && !to.meta.allowGuest) {
-    // 用户未登录且目标页面需要登录权限
-    next({ name: 'Login', query: { redirect: to.fullPath } });
+    next({ name: 'Login', query: { redirect: to.fullPath } })
   } else {
-    next();
+    next()
   }
-});
+})
 
-// 路由完成后刷新全屏状态
-router.afterEach(() => {
-  // 在DOM更新后尝试刷新全屏状态
-  setTimeout(() => {
-    if (localStorage.getItem('isLoggedIn') === 'true' && isIOS()) {
-      // 对iOS已登录状态使用增强型全屏
-      enterIOSFullscreen();
-    } else {
-      // 其他情况使用普通全屏刷新
-      refreshFullscreenState();
-    }
-    
-    // 尝试隐藏地址栏
-    window.scrollTo(0, 1);
-  }, 100);
-  
-  // 300ms后再刷新一次，确保在动画和转场结束后仍然保持全屏
-  setTimeout(() => {
-    if (localStorage.getItem('isLoggedIn') === 'true' && isIOS()) {
-      enterIOSFullscreen();
-    }
-  }, 300);
-});
-
-export default router; 
+export default router

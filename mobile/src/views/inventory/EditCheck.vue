@@ -435,7 +435,7 @@ onMounted(() => {
 
 .loading-text {
   margin-top: $margin-sm;
-  color: $text-color-secondary;
+  color: var(--text-secondary);
 }
 
 .material-list-container {
@@ -450,7 +450,7 @@ onMounted(() => {
 }
 
 .header-title {
-  font-size: $font-size-md;
+  font-size: 14px;
   font-weight: bold;
 }
 
@@ -467,7 +467,7 @@ onMounted(() => {
   border-radius: $border-radius-md;
   padding: $padding-md;
   margin-bottom: $margin-sm;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
 }
 
 .material-header {
@@ -478,8 +478,8 @@ onMounted(() => {
 }
 
 .material-code {
-  font-size: $font-size-sm;
-  color: $text-color-secondary;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .diff-quantity {
@@ -507,13 +507,13 @@ onMounted(() => {
 
 .qty-label {
   display: block;
-  font-size: $font-size-xs;
-  color: $text-color-secondary;
+  font-size: 10px;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
 .qty-value {
-  color: $text-color;
+  color: var(--text-primary);
 }
 
 .qty-input {
@@ -531,7 +531,7 @@ onMounted(() => {
   right: 0;
   padding: $padding-md;
   background-color: white;
-  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
   z-index: 10;
 }
 
@@ -547,11 +547,11 @@ onMounted(() => {
 
 .picker-header {
   padding: $padding-md;
-  border-bottom: 1px solid $border-color;
+  border-bottom: 1px solid var(--van-border-color);
 }
 
 .picker-title {
-  font-size: $font-size-lg;
+  font-size: 16px;
   font-weight: bold;
   text-align: center;
 }

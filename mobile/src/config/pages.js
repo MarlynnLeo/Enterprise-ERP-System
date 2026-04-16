@@ -34,7 +34,7 @@ export const pageConfigs = {
     },
     detailRoute: '/baseData/materials/:id'
   },
-  
+
   customers: {
     title: '客户管理',
     api: 'baseDataApi.getCustomers',
@@ -61,7 +61,7 @@ export const pageConfigs = {
     },
     detailRoute: '/baseData/customers/:id'
   },
-  
+
   suppliers: {
     title: '供应商管理',
     api: 'baseDataApi.getSuppliers',
@@ -88,7 +88,7 @@ export const pageConfigs = {
     },
     detailRoute: '/baseData/suppliers/:id'
   },
-  
+
   // ==================== 生产模块 ====================
   productionPlans: {
     title: '生产计划',
@@ -126,7 +126,7 @@ export const pageConfigs = {
     },
     detailRoute: '/production/plans/:id'
   },
-  
+
   productionTasks: {
     title: '生产任务',
     api: 'productionApi.getProductionTasks',
@@ -206,8 +206,14 @@ export const pageConfigs = {
           const qty = item.quantity || 0
           const min = item.min_stock || 0
           if (qty === 0) return { level: 'low', text: '无库存', percent: 0 }
-          if (min && qty <= min) return { level: 'low', text: '急需补货', percent: Math.min((qty / min) * 100, 100) }
-          if (min && qty <= min * 2) return { level: 'medium', text: '正常', percent: Math.min((qty / (min * 3)) * 100, 100) }
+          if (min && qty <= min)
+            return { level: 'low', text: '急需补货', percent: Math.min((qty / min) * 100, 100) }
+          if (min && qty <= min * 2)
+            return {
+              level: 'medium',
+              text: '正常',
+              percent: Math.min((qty / (min * 3)) * 100, 100)
+            }
           return { level: 'good', text: '充足', percent: 85 }
         }
       }
@@ -328,4 +334,3 @@ export const pageConfigs = {
     detailRoute: '/quality/inspections/:id'
   }
 }
-

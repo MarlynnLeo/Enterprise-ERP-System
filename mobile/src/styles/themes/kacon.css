@@ -1,0 +1,140 @@
+/**
+ * KACON - Google Material (WithGoogle) Theme
+ * @description 采用清爽高级的 Google 经典界面配色，大量留白与极致的色彩点缀
+ * @version 3.0.0
+ *
+ * 切换主题时，只需替换本文件中 :root 的变量值即可
+ */
+
+:root {
+  /* ==================== 背景色 ==================== */
+  --bg-primary: #f8f9fa; /* Google 非常经典的极浅灰背景 */
+  --bg-secondary: #ffffff; /* 纯白卡片 */
+  --bg-tertiary: #e8eaed; /* 浅灰色分隔区/悬浮态 */
+  --bg-header: #ffffff;
+
+  /* ==================== 玻璃/遮罩效果（无玻璃化） ==================== */
+  --glass-bg: rgba(255, 255, 255, 1);
+  --glass-bg-hover: rgba(248, 249, 250, 1);
+  --glass-bg-active: rgba(60, 64, 67, 0.04);
+  --glass-border: transparent; /* 去除卡片边框 */
+  --glass-border-hover: transparent;
+
+  /* ==================== 文字色 ==================== */
+  --text-primary: #202124; /* Google Default Text */
+  --text-secondary: #5f6368; /* Google Secondary Text */
+  --text-tertiary: #80868b;
+  --text-disabled: #bdc1c6;
+  --text-on-dark: #ffffff;
+  --text-on-dark-secondary: rgba(255, 255, 255, 0.8);
+
+  /* ==================== 功能色 (Google Branding Colors) ==================== */
+  --color-primary: #1a73e8; /* Google Blue */
+  --color-primary-bg: #e8f0fe;
+  
+  --color-success: #1e8e3e; /* Google Green */
+  --color-success-bg: #e6f4ea;
+  
+  --color-warning: #f9ab00; /* Google Yellow */
+  --color-warning-bg: #fef7e0;
+  
+  --color-error: #d93025; /* Google Red */
+  --color-error-bg: #fce8e6;
+  
+  --color-info: #1a73e8;
+  --color-info-bg: #e8f0fe;
+
+  --color-accent: #1a73e8;
+
+  /* ==================== 模块功能色 ==================== */
+  --module-blue: #5E7BF6;
+  --module-green: #2CCFB0;
+  --module-red: #FF6B6B;
+  --module-orange: #FF9F45;
+  --module-purple: #A48BE0;
+  --module-yellow: #FFC759;
+
+  /* ==================== 阴影 (Material 3 Shadows) ==================== */
+  --shadow-sm: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+  --shadow-md: 0 1px 2px 0 rgba(60,64,67,0.3), 0 2px 6px 2px rgba(60,64,67,0.15);
+  --shadow-lg: 0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+  --shadow-glow: none; /* 取消发光效果，保持扁平干练 */
+
+  /* ==================== Vant 组件变量映射 ==================== */
+
+  /* 基础 */
+  --van-primary-color: var(--color-primary);
+  --van-success-color: var(--color-success);
+  --van-danger-color: var(--color-error);
+  --van-warning-color: var(--color-warning);
+  --van-text-color: var(--text-primary);
+  --van-text-color-2: var(--text-secondary);
+  --van-text-color-3: var(--text-tertiary);
+  --van-active-color: var(--glass-bg-active);
+  --van-background: var(--bg-secondary);
+  --van-background-2: var(--bg-primary);
+  --van-border-color: #dadce0; /* Google Border Color */
+
+  /* NavBar */
+  --van-nav-bar-background: var(--bg-header);
+  --van-nav-bar-title-text-color: var(--text-primary);
+  --van-nav-bar-icon-color: var(--text-secondary);
+  --van-nav-bar-text-color: var(--text-secondary);
+  --van-nav-bar-arrow-size: 20px;
+
+  /* Search */
+  --van-search-background: var(--bg-primary);
+  --van-search-content-background: #f1f3f4; /* Google Search Box */
+  --van-search-action-text-color: var(--color-primary);
+
+  /* Cell */
+  --van-cell-background: var(--bg-secondary);
+  --van-cell-text-color: var(--text-primary);
+  --van-cell-value-color: var(--text-secondary);
+  --van-cell-label-color: var(--text-tertiary);
+  --van-cell-border-color: #dadce0;
+  --van-cell-active-color: var(--glass-bg-active);
+  --van-cell-group-background: var(--bg-secondary);
+  --van-cell-group-title-color: var(--text-secondary);
+
+  /* Card */
+  --van-card-background: var(--bg-secondary);
+  --van-card-text-color: var(--text-primary);
+  --van-card-desc-color: var(--text-secondary);
+
+  /* Button */
+  --van-button-default-background: var(--bg-secondary);
+  --van-button-default-border-color: #dadce0;
+  --van-button-default-color: var(--text-primary);
+  --van-button-primary-background: var(--color-primary);
+  --van-button-primary-border-color: var(--color-primary);
+
+  /* Field */
+  --van-field-label-color: var(--text-secondary);
+  --van-field-input-text-color: var(--text-primary);
+  --van-field-placeholder-text-color: var(--text-tertiary);
+  --van-field-disabled-text-color: var(--text-disabled);
+
+  /* Popup / Dialog / Picker */
+  --van-popup-background: var(--bg-secondary);
+  --van-dialog-background: var(--bg-secondary);
+  --van-dialog-header-color: var(--text-primary);
+  --van-dialog-message-text-color: var(--text-secondary);
+  --van-picker-background: var(--bg-secondary);
+  --van-picker-title-text-color: var(--text-primary);
+  --van-picker-option-text-color: var(--text-secondary);
+
+  /* Toast */
+  --van-toast-background: rgba(32, 33, 36, 0.9);
+  --van-toast-text-color: #ffffff;
+
+  /* List / PullRefresh / Empty */
+  --van-pull-refresh-text-color: var(--text-secondary);
+  --van-list-text-color: var(--text-secondary);
+  --van-empty-description-color: var(--text-tertiary);
+
+  /* Tabbar */
+  --van-tabbar-background: #ffffff;
+  --van-tabbar-item-text-color: var(--text-secondary);
+  --van-tabbar-item-active-color: var(--color-primary);
+}

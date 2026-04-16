@@ -1,460 +1,567 @@
 <!--
 /**
  * CheckDetail.vue
- * @description 移动端应用文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * @description 盘点单详情页面 — 暗色主题统一风格
+ * @date 2026-04-15
+ * @version 2.0.0
  */
 -->
 <template>
-  <div class="page-container">
-    <NavBar
-      title="盘点单详情"
-      left-arrow
-      @click-left="onClickLeft"
-    />
-    
-    <div class="content-container">
-      <div v-if="loading" class="loading-container">
-        <Loading type="spinner" color="#1989fa" />
-        <p class="loading-text">加载中...</p>
+  <div class="detail-page">
+    <NavBar title="盘点单详情" left-arrow @click-left="router.push('/inventory/check')" />
+
+    <div class="content-wrapper" v-if="!loading && detail.id">
+      <!-- 状态卡片 -->
+      <div class="status-banner">
+        <div class="status-icon-wrap" :class="getStatusAccent(detail.status)">
+          <Icon :name="getStatusIcon(detail.status)" size="1.5rem" />
+        </div>
+        <div class="status-main">
+          <div class="status-top-row">
+            <span class="status-tag" :class="getStatusAccent(detail.status)">{{
+              getStatusText(detail.status)
+            }}</span>
+            <span class="order-date" v-if="detail.check_date">{{ detail.check_date }}</span>
+          </div>
+          <span class="order-no">{{ detail.check_no }}</span>
+        </div>
       </div>
-      
-      <template v-else>
-        <!-- 基本信息 -->
-        <div class="card">
-          <div class="card-header">
-            <div class="check-no">{{ checkDetail.check_no }}</div>
-            <Tag 
-              :type="getStatusType(checkDetail.status)" 
-              size="medium"
-            >
-              {{ getStatusText(checkDetail.status) }}
-            </Tag>
+
+      <!-- 基本信息 -->
+      <div class="section-header">基本信息</div>
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-label">盘点类型</span>
+          <span class="info-value">{{ getCheckTypeText(detail.check_type) }}</span>
+        </div>
+        <div class="info-row" v-if="detail.warehouse">
+          <span class="info-label">仓库/库区</span>
+          <span class="info-value">{{ detail.warehouse }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">创建人</span>
+          <span class="info-value">{{ detail.creator || '—' }}</span>
+        </div>
+        <div class="info-row" v-if="detail.status === 'completed'">
+          <span class="info-label">盘点结果</span>
+          <span class="info-value" :class="getResultClass(detail.profit_loss)">
+            {{ getResultText(detail.profit_loss) }}
+          </span>
+        </div>
+        <div class="info-row" v-if="detail.description">
+          <span class="info-label">描述</span>
+          <span class="info-value remark">{{ detail.description }}</span>
+        </div>
+        <div class="info-row" v-if="detail.remarks">
+          <span class="info-label">备注</span>
+          <span class="info-value remark">{{ detail.remarks }}</span>
+        </div>
+      </div>
+
+      <!-- 物料明细 -->
+      <div class="section-header">
+        物料明细
+        <span class="section-count">{{ detail.items ? detail.items.length : 0 }}</span>
+      </div>
+
+      <div v-if="!detail.items || detail.items.length === 0" class="empty-items">
+        <Empty description="暂无物料明细" />
+      </div>
+
+      <div
+        v-for="(item, index) in detail.items"
+        :key="item.id || index"
+        class="material-card"
+        :style="{ animationDelay: `${index * 0.05}s` }"
+      >
+        <div class="card-accent" :class="getDiffAccent(item.book_qty, item.actual_qty)"></div>
+        <div class="card-body">
+          <div class="mat-header">
+            <div class="mat-title-area">
+              <span class="mat-name">{{ item.material_name || '未知物料' }}</span>
+              <span class="mat-code">{{ item.material_code || '' }}</span>
+            </div>
+            <span class="diff-badge" :class="getDiffAccent(item.book_qty, item.actual_qty)">
+              {{ getDiffText(item.book_qty, item.actual_qty) }}
+            </span>
           </div>
-          
-          <div class="card-content">
-            <div class="info-row">
-              <span class="label">盘点日期：</span>
-              <span class="value">{{ checkDetail.check_date }}</span>
+          <div class="mat-details">
+            <div class="detail-cell">
+              <span class="detail-label">账面数量</span>
+              <span class="detail-value">{{ item.book_qty }} {{ item.unit_name || '' }}</span>
             </div>
-            <div class="info-row">
-              <span class="label">盘点类型：</span>
-              <span class="value">{{ getCheckTypeText(checkDetail.check_type) }}</span>
+            <div class="detail-cell">
+              <span class="detail-label">实盘数量</span>
+              <span class="detail-value highlight"
+                >{{ item.actual_qty }} {{ item.unit_name || '' }}</span
+              >
             </div>
-            <div class="info-row">
-              <span class="label">仓库/库区：</span>
-              <span class="value">{{ checkDetail.warehouse }}</span>
-            </div>
-            <div class="info-row">
-              <span class="label">创建人：</span>
-              <span class="value">{{ checkDetail.creator || '-' }}</span>
-            </div>
-            <div class="info-row" v-if="checkDetail.status === 'completed'">
-              <span class="label">盘点结果：</span>
-              <span class="value" :class="getResultClass(checkDetail.profit_loss)">
-                {{ getResultText(checkDetail.profit_loss) }}
-              </span>
-            </div>
+          </div>
+          <div class="mat-remark" v-if="item.remarks">
+            <span class="remark-label">备注:</span> {{ item.remarks }}
           </div>
         </div>
-        
-        <!-- 描述和备注 -->
-        <div class="card">
-          <div class="card-header">描述与备注</div>
-          <div class="card-content">
-            <div class="info-block">
-              <div class="info-title">盘点描述</div>
-              <div class="info-content">{{ checkDetail.description || '无' }}</div>
-            </div>
-            <div class="info-block">
-              <div class="info-title">备注</div>
-              <div class="info-content">{{ checkDetail.remarks || '无' }}</div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 物料明细 -->
-        <div class="card">
-          <div class="card-header">
-            <div class="flex justify-between align-center">
-              <span>物料明细</span>
-              <span class="item-count">共 {{ checkDetail.items?.length || 0 }} 项</span>
-            </div>
-          </div>
-          
-          <div v-if="!checkDetail.items || checkDetail.items.length === 0" class="empty-tips">
-            暂无物料明细
-          </div>
-          
-          <div v-else class="card-content p-xs">
-            <div 
-              v-for="(item, index) in checkDetail.items" 
-              :key="index" 
-              class="material-item"
-            >
-              <div class="material-header">
-                <span class="material-code">{{ item.material_code }}</span>
-                <span 
-                  class="diff-quantity" 
-                  :class="getDiffClass(item.book_qty, item.actual_qty)"
-                >
-                  {{ getDiffText(item.book_qty, item.actual_qty) }}
-                </span>
-              </div>
-              
-              <div class="material-name">{{ item.material_name }}</div>
-              
-              <div class="material-info">
-                <div class="info-col">
-                  <div class="info-label">账面数量</div>
-                  <div class="info-value">{{ item.book_qty }} {{ item.unit_name }}</div>
-                </div>
-                <div class="info-col">
-                  <div class="info-label">实盘数量</div>
-                  <div class="info-value">{{ item.actual_qty }} {{ item.unit_name }}</div>
-                </div>
-              </div>
-              
-              <div class="material-remark" v-if="item.remarks">
-                <div class="info-label">备注</div>
-                <div class="info-value">{{ item.remarks }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-      
-      <!-- 底部操作栏 -->
-      <div class="bottom-action-bar">
-        <template v-if="checkDetail.status === 'draft'">
-          <Button 
-            type="primary" 
-            size="small" 
-            @click="editCheck"
-          >编辑</Button>
-          <Button 
-            type="success" 
-            size="small" 
-            @click="updateStatus('in_progress')"
-          >开始盘点</Button>
-        </template>
-        <template v-if="checkDetail.status === 'in_progress'">
-          <Button 
-            type="success" 
-            size="small" 
-            @click="updateStatus('completed')"
-          >完成盘点</Button>
-        </template>
-        <template v-if="checkDetail.status === 'completed' && checkDetail.profit_loss !== 0">
-          <Button 
-            type="warning" 
-            size="small" 
-            @click="adjustInventory"
-          >调整库存</Button>
-        </template>
       </div>
     </div>
-    
-    <!-- 确认对话框 -->
-    <Dialog 
-      v-model:show="confirmDialogVisible"
-      title="确认操作"
-      show-cancel-button
-      @confirm="handleConfirm"
+
+    <!-- 加载中 -->
+    <div class="loading-container" v-else-if="loading">
+      <Loading size="24px" vertical color="var(--color-accent)">加载中...</Loading>
+    </div>
+    <!-- 空状态 -->
+    <div class="empty-container" v-else>
+      <Empty description="未找到盘点单信息" />
+    </div>
+
+    <!-- 底部操作栏 -->
+    <div
+      class="bottom-bar"
+      v-if="
+        detail.id &&
+        (detail.status === 'draft' ||
+          detail.status === 'in_progress' ||
+          (detail.status === 'completed' && detail.profit_loss !== 0))
+      "
     >
-      <div class="dialog-content">
-        {{ confirmMessage }}
-      </div>
-    </Dialog>
+      <template v-if="detail.status === 'draft'">
+        <VanButton
+          type="default"
+          round
+          size="small"
+          @click="router.push(`/inventory/check/${detail.id}/edit`)"
+          style="flex: 1"
+          >编辑</VanButton
+        >
+        <VanButton
+          type="primary"
+          round
+          size="small"
+          @click="handleUpdateStatus('in_progress')"
+          :loading="submitting"
+          style="flex: 1"
+          >开始盘点</VanButton
+        >
+      </template>
+      <VanButton
+        v-if="detail.status === 'in_progress'"
+        type="primary"
+        round
+        block
+        :loading="submitting"
+        @click="handleUpdateStatus('completed')"
+        >完成盘点</VanButton
+      >
+      <VanButton
+        v-if="detail.status === 'completed' && detail.profit_loss !== 0"
+        type="warning"
+        round
+        block
+        :loading="submitting"
+        @click="handleAdjust"
+        >调整库存</VanButton
+      >
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { NavBar, Tag, Loading, Button, Dialog, showToast } from 'vant';
-import { inventoryApi } from '@/services/api';
+  import { ref, onMounted } from 'vue'
+  import { useRouter, useRoute } from 'vue-router'
+  import {
+    NavBar,
+    Icon,
+    Empty,
+    Loading,
+    Button as VanButton,
+    showToast,
+    showConfirmDialog
+  } from 'vant'
+  import { inventoryApi } from '@/services/api'
 
-const router = useRouter();
-const route = useRoute();
-const loading = ref(true);
-const checkDetail = ref({});
-const confirmDialogVisible = ref(false);
-const confirmMessage = ref('');
-const currentAction = ref(null);
+  const router = useRouter()
+  const route = useRoute()
+  const loading = ref(true)
+  const submitting = ref(false)
+  const detail = ref({})
 
-// 返回上一页
-const onClickLeft = () => {
-  router.push('/inventory/check');
-};
-
-// 编辑盘点单
-const editCheck = () => {
-  router.push(`/inventory/check/${checkDetail.value.id}/edit`);
-};
-
-// 更新盘点单状态
-const updateStatus = (status) => {
-  confirmMessage.value = `确定要将盘点单状态更新为"${getStatusText(status)}"吗？`;
-  currentAction.value = { type: 'updateStatus', status };
-  confirmDialogVisible.value = true;
-};
-
-// 调整库存
-const adjustInventory = () => {
-  confirmMessage.value = '确定要根据盘点结果调整库存吗？';
-  currentAction.value = { type: 'adjustInventory' };
-  confirmDialogVisible.value = true;
-};
-
-// 确认操作
-const handleConfirm = async () => {
-  try {
-    if (currentAction.value.type === 'updateStatus') {
-      await inventoryApi.updateCheckStatus(checkDetail.value.id, currentAction.value.status);
-      showToast('状态更新成功');
-    } else if (currentAction.value.type === 'adjustInventory') {
-      await inventoryApi.adjustInventory(checkDetail.value.id);
-      showToast('库存调整成功');
+  const loadDetail = async () => {
+    loading.value = true
+    try {
+      const res = await inventoryApi.getCheckDetail(route.params.id)
+      detail.value = res?.data || {}
+    } catch (e) {
+      console.error('获取盘点单详情失败:', e)
+      showToast('加载失败')
+    } finally {
+      loading.value = false
     }
-    
-    // 刷新详情
-    await loadCheckDetail();
-  } catch (error) {
-    console.error('操作失败:', error);
-    showToast('操作失败：' + (error.message || '未知错误'));
   }
-};
 
-// 获取状态文本
-const getStatusText = (status) => {
-  const statusMap = {
-    'draft': '草稿',
-    'in_progress': '进行中',
-    'pending': '待审核',
-    'completed': '已完成',
-    'cancelled': '已取消'
-  };
-  return statusMap[status] || status;
-};
+  const getStatusText = (s) =>
+    ({
+      draft: '草稿',
+      in_progress: '进行中',
+      pending: '待审核',
+      completed: '已完成',
+      cancelled: '已取消'
+    })[s] || s
+  const getStatusIcon = (s) =>
+    ({ draft: 'edit', in_progress: 'clock-o', completed: 'checked', cancelled: 'close' })[s] ||
+    'info-o'
+  const getStatusAccent = (s) =>
+    ({
+      draft: 'status-draft',
+      in_progress: 'status-progress',
+      completed: 'status-completed',
+      cancelled: 'status-cancelled'
+    })[s] || ''
+  const getCheckTypeText = (t) =>
+    ({ cycle: '周期盘点', random: '随机盘点', full: '全面盘点', special: '专项盘点' })[t] ||
+    t ||
+    '—'
+  const getResultText = (v) => (!v ? '无差异' : v > 0 ? `盘盈 +${v}` : `盘亏 ${v}`)
+  const getResultClass = (v) => (!v ? '' : v > 0 ? 'text-profit' : 'text-loss')
+  const getDiffText = (book, actual) => {
+    if (book === undefined || actual === undefined) return '0'
+    const d = actual - book
+    return d > 0 ? `+${d}` : `${d}`
+  }
+  const getDiffAccent = (book, actual) => {
+    if (book === undefined || actual === undefined) return 'accent-neutral'
+    const d = actual - book
+    return d > 0 ? 'accent-green' : d < 0 ? 'accent-red' : 'accent-neutral'
+  }
 
-// 获取状态颜色类型
-const getStatusType = (status) => {
-  const statusMap = {
-    'draft': 'default',
-    'in_progress': 'warning',
-    'pending': 'primary',
-    'completed': 'success',
-    'cancelled': 'danger'
-  };
-  return statusMap[status] || 'default';
-};
-
-// 获取盘点类型文本
-const getCheckTypeText = (type) => {
-  const typeMap = {
-    'cycle': '周期盘点',
-    'random': '随机盘点',
-    'full': '全面盘点',
-    'special': '专项盘点'
-  };
-  return typeMap[type] || type;
-};
-
-// 获取盘点结果文本
-const getResultText = (profitLoss) => {
-  if (!profitLoss) return '无差异';
-  return profitLoss > 0 ? `盘盈 +${profitLoss}` : `盘亏 ${profitLoss}`;
-};
-
-// 获取盘点结果样式
-const getResultClass = (profitLoss) => {
-  if (!profitLoss) return '';
-  return profitLoss > 0 ? 'profit-text' : 'loss-text';
-};
-
-// 计算数量差异
-const getDiffText = (bookQty, actualQty) => {
-  if (bookQty === undefined || actualQty === undefined) return '0';
-  const diff = actualQty - bookQty;
-  return diff > 0 ? `+${diff}` : `${diff}`;
-};
-
-// 获取差异样式
-const getDiffClass = (bookQty, actualQty) => {
-  if (bookQty === undefined || actualQty === undefined) return '';
-  
-  const diff = actualQty - bookQty;
-  if (diff > 0) return 'profit-text';
-  if (diff < 0) return 'loss-text';
-  return '';
-};
-
-// 加载盘点单详情
-const loadCheckDetail = async () => {
-  try {
-    loading.value = true;
-    const id = route.params.id;
-    
-    const response = await inventoryApi.getCheckDetail(id);
-    if (response && response.data) {
-      checkDetail.value = response.data;
-    } else {
-      showToast('获取盘点单详情失败');
-      router.push('/inventory/check');
+  const handleUpdateStatus = async (newStatus) => {
+    try {
+      await showConfirmDialog({
+        title: '确认操作',
+        message: `确定要将状态更新为"${getStatusText(newStatus)}"吗？`
+      })
+      submitting.value = true
+      await inventoryApi.updateCheckStatus(detail.value.id, newStatus)
+      showToast('状态更新成功')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast('操作失败')
+    } finally {
+      submitting.value = false
     }
-  } catch (error) {
-    console.error('获取盘点单详情失败:', error);
-    showToast('获取盘点单详情失败');
-    router.push('/inventory/check');
-  } finally {
-    loading.value = false;
   }
-};
 
-onMounted(() => {
-  loadCheckDetail();
-});
+  const handleAdjust = async () => {
+    try {
+      await showConfirmDialog({ title: '调整库存', message: '确定要根据盘点结果调整库存吗？' })
+      submitting.value = true
+      await inventoryApi.adjustInventory(detail.value.id)
+      showToast('库存调整成功')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast('操作失败')
+    } finally {
+      submitting.value = false
+    }
+  }
+
+  onMounted(() => loadDetail())
 </script>
 
 <style lang="scss" scoped>
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-}
-
-.loading-text {
-  margin-top: $margin-sm;
-  color: $text-color-secondary;
-}
-
-.check-no {
-  font-weight: bold;
-  font-size: $font-size-lg;
-}
-
-.info-row {
-  display: flex;
-  margin-bottom: $margin-xs;
-  
-  &:last-child {
-    margin-bottom: 0;
+  .detail-page {
+    min-height: 100vh;
+    background-color: var(--bg-primary);
+    padding-bottom: 80px;
   }
-  
-  .label {
-    color: $text-color-secondary;
-    min-width: 80px;
+  .content-wrapper {
+    padding: 0 12px 12px;
   }
-  
-  .value {
+
+  .status-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin: 8px 0;
+    border: 1px solid var(--glass-border);
+  }
+  .status-icon-wrap {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    &.status-draft {
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+    }
+    &.status-progress {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+    }
+    &.status-completed {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+    &.status-cancelled {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+  }
+  .status-main {
     flex: 1;
-    color: $text-color;
+    min-width: 0;
   }
-}
-
-.info-block {
-  margin-bottom: $margin-md;
-  
-  &:last-child {
-    margin-bottom: 0;
+  .status-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
   }
-  
-  .info-title {
-    font-size: $font-size-sm;
-    color: $text-color-secondary;
-    margin-bottom: $margin-xs;
+  .status-tag {
+    display: inline-flex;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    &.status-draft {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+    }
+    &.status-progress {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+    }
+    &.status-completed {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+    &.status-cancelled {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
   }
-  
-  .info-content {
-    color: $text-color;
-    word-break: break-all;
+  .order-date {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
   }
-}
-
-.item-count {
-  font-size: $font-size-sm;
-  color: $text-color-secondary;
-}
-
-.empty-tips {
-  padding: $padding-md;
-  text-align: center;
-  color: $text-color-secondary;
-}
-
-.material-item {
-  background-color: #f9f9f9;
-  border-radius: $border-radius-md;
-  padding: $padding-md;
-  margin-bottom: $margin-sm;
-  
-  &:last-child {
-    margin-bottom: 0;
+  .order-no {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
   }
-}
 
-.material-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: $margin-xs;
-}
-
-.material-code {
-  font-size: $font-size-sm;
-  color: $text-color-secondary;
-}
-
-.diff-quantity {
-  font-weight: bold;
-}
-
-.material-name {
-  font-weight: bold;
-  margin-bottom: $margin-sm;
-}
-
-.material-info {
-  display: flex;
-  justify-content: space-between;
-}
-
-.info-col {
-  flex: 1;
-}
-
-.info-label {
-  font-size: $font-size-xs;
-  color: $text-color-secondary;
-  margin-bottom: 2px;
-}
-
-.info-value {
-  color: $text-color;
-}
-
-.material-remark {
-  margin-top: $margin-sm;
-  padding-top: $margin-sm;
-  border-top: 1px dashed $border-color;
-}
-
-.bottom-action-bar {
-  display: flex;
-  justify-content: flex-end;
-  padding: $padding-sm;
-  
-  button {
-    margin-left: $margin-xs;
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin: 16px 4px 8px;
   }
-}
+  .section-count {
+    min-width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    font-size: 0.625rem;
+    font-weight: 700;
+    border-radius: 9px;
+    background: #f59e0b;
+    color: #fff;
+    padding: 0 5px;
+  }
 
-.dialog-content {
-  padding: $padding-md 0;
-  text-align: center;
-}
-</style> 
+  .info-card {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 4px 0;
+    border: 1px solid var(--glass-border);
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px 16px;
+    &:not(:last-child) {
+      border-bottom: 1px solid var(--glass-border);
+    }
+  }
+  .info-label {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    min-width: 70px;
+  }
+  .info-value {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-align: right;
+    flex: 1;
+    &.remark {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+    }
+    &.text-profit {
+      color: #10b981;
+      font-weight: 700;
+    }
+    &.text-loss {
+      color: #ef4444;
+      font-weight: 700;
+    }
+  }
+
+  .empty-items {
+    padding: 30px 0;
+  }
+
+  .material-card {
+    display: flex;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    animation: fadeInUp 0.35s ease-out both;
+  }
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .card-accent {
+    width: 4px;
+    flex-shrink: 0;
+    &.accent-green {
+      background: linear-gradient(180deg, #10b981, #34d399);
+    }
+    &.accent-red {
+      background: linear-gradient(180deg, #ef4444, #f87171);
+    }
+    &.accent-neutral {
+      background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+    }
+  }
+  .card-body {
+    flex: 1;
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .mat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .mat-title-area {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .mat-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mat-code {
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    flex-shrink: 0;
+  }
+  .diff-badge {
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    &.accent-green {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+    &.accent-red {
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+    }
+    &.accent-neutral {
+      background: rgba(148, 163, 184, 0.1);
+      color: #94a3b8;
+    }
+  }
+  .mat-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--glass-border);
+  }
+  .detail-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .detail-label {
+    font-size: 0.625rem;
+    color: var(--text-tertiary);
+  }
+  .detail-value {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    &.highlight {
+      color: #f59e0b;
+      font-weight: 700;
+    }
+  }
+  .mat-remark {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--glass-border);
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+    .remark-label {
+      font-weight: 600;
+    }
+  }
+
+  .loading-container,
+  .empty-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 20px;
+  }
+  .bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--glass-border);
+    z-index: 40;
+    display: flex;
+    gap: 8px;
+  }
+</style>

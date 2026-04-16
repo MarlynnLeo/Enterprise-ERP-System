@@ -1,508 +1,567 @@
 <!--
 /**
  * Check.vue
- * @description 移动端应用文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * @description 库存盘点列表页面 — 暗色主题统一风格
+ * @date 2026-04-15
+ * @version 2.0.0
  */
 -->
 <template>
-  <div class="page-container">
-    <NavBar
-      title="库存盘点"
-      left-arrow
-      @click-left="onClickLeft"
-    >
+  <div class="check-page">
+    <NavBar title="库存盘点" left-arrow @click-left="router.push('/inventory')">
       <template #right>
         <div class="header-actions">
           <Icon name="scan" size="18" @click="openScanner" class="action-icon" />
-          <Icon name="plus" size="18" @click="createCheck" class="action-icon" />
+          <Icon
+            name="plus"
+            size="18"
+            @click="router.push('/inventory/check/new')"
+            class="action-icon"
+          />
         </div>
       </template>
     </NavBar>
-    
-    <div class="content-container">
-      <!-- 搜索 -->
-      <Search
-        v-model="searchValue"
-        placeholder="输入盘点单号"
-        @search="onSearch"
-        shape="round"
-        show-action
-      />
-      
-      <!-- 状态统计 -->
-      <div class="status-stats">
-        <div class="stat-item" :class="{ active: currentStatus === '' }" @click="filterByStatus('')">
-          <div class="stat-value">{{ checkStats.total || 0 }}</div>
-          <div class="stat-label">全部</div>
+
+    <div class="content-wrapper">
+      <!-- 统计概览 -->
+      <div class="stats-banner">
+        <div class="stat-item" @click="filterByStatus('')">
+          <span class="stat-num">{{ checkStats.total || 0 }}</span>
+          <span class="stat-label">全部</span>
         </div>
-        <div class="stat-item" :class="{ active: currentStatus === 'draft' }" @click="filterByStatus('draft')">
-          <div class="stat-value">{{ checkStats.draftCount || 0 }}</div>
-          <div class="stat-label">草稿</div>
+        <div class="stat-divider"></div>
+        <div class="stat-item" @click="filterByStatus('draft')">
+          <span class="stat-num draft">{{ checkStats.draftCount || 0 }}</span>
+          <span class="stat-label">草稿</span>
         </div>
-        <div class="stat-item" :class="{ active: currentStatus === 'in_progress' }" @click="filterByStatus('in_progress')">
-          <div class="stat-value">{{ checkStats.pendingCount || 0 }}</div>
-          <div class="stat-label">进行中</div>
+        <div class="stat-divider"></div>
+        <div class="stat-item" @click="filterByStatus('in_progress')">
+          <span class="stat-num accent">{{ checkStats.pendingCount || 0 }}</span>
+          <span class="stat-label">进行中</span>
         </div>
-        <div class="stat-item" :class="{ active: currentStatus === 'completed' }" @click="filterByStatus('completed')">
-          <div class="stat-value">{{ checkStats.completeCount || 0 }}</div>
-          <div class="stat-label">已完成</div>
+        <div class="stat-divider"></div>
+        <div class="stat-item" @click="filterByStatus('completed')">
+          <span class="stat-num success">{{ checkStats.completeCount || 0 }}</span>
+          <span class="stat-label">已完成</span>
         </div>
       </div>
-      
-      <!-- 盘点单列表 -->
-      <PullRefresh v-model="refreshing" @refresh="onRefresh">
-        <List
-          v-model:loading="loading"
-          :finished="finished"
-          finished-text="没有更多盘点单"
-          @load="onLoad"
-        >
-          <div v-if="checkList.length === 0 && !loading" class="empty-state">
-            <Empty description="暂无盘点单" />
-          </div>
-          
-          <div v-for="item in checkList" :key="item.id" class="check-item" @click="viewCheckDetail(item.id)">
-            <Card class="check-card">
-              <div class="check-header">
-                <div class="check-no">{{ item.check_no }}</div>
-                <Tag 
-                  :type="getStatusType(item.status)" 
-                  size="medium"
-                >
-                  {{ getStatusText(item.status) }}
-                </Tag>
-              </div>
-              
-              <div class="check-info">
-                <div class="info-row">
-                  <span class="label">盘点类型:</span>
-                  <span class="value">{{ getCheckTypeText(item.check_type) }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">仓库/库区:</span>
-                  <span class="value">{{ item.warehouse }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">盘点日期:</span>
-                  <span class="value">{{ item.check_date }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="label">盘点物料:</span>
-                  <span class="value">{{ item.item_count || 0 }}种</span>
-                </div>
-              </div>
-              
-              <div class="check-actions" v-if="item.status !== 'cancelled'">
-                <template v-if="item.status === 'draft'">
-                  <Button 
-                    size="small" 
-                    type="primary" 
-                    @click.stop="editCheck(item.id)"
-                  >编辑</Button>
-                  <Button 
-                    size="small" 
-                    type="success" 
-                    @click.stop="updateStatus(item.id, 'in_progress')"
-                  >开始盘点</Button>
-                </template>
-                <template v-else-if="item.status === 'in_progress'">
-                  <Button 
-                    size="small" 
-                    type="success" 
-                    @click.stop="updateStatus(item.id, 'completed')"
-                  >完成盘点</Button>
-                </template>
-                <template v-else-if="item.status === 'completed' && item.profit_loss !== 0">
-                  <Button 
-                    size="small" 
-                    type="warning" 
-                    @click.stop="adjustInventory(item.id)"
-                  >调整库存</Button>
-                </template>
-              </div>
-            </Card>
-          </div>
-        </List>
-      </PullRefresh>
-      
-      <!-- 新建按钮 -->
-      <div class="fab-button">
-        <Button 
-          type="primary" 
-          icon="plus"
-          size="large"
-          round
-          @click="createNewCheck"
+
+      <!-- 搜索栏 -->
+      <div class="search-section">
+        <Search
+          v-model="searchValue"
+          placeholder="搜索盘点单号"
+          @search="onSearch"
+          @clear="onSearch"
         />
       </div>
-    </div>
-    
-    <!-- 确认对话框 -->
-    <Dialog 
-      v-model:show="confirmDialogVisible"
-      title="确认操作"
-      show-cancel-button
-      @confirm="handleConfirm"
-    >
-      <div class="dialog-content">
-        {{ confirmMessage }}
+
+      <!-- 横向滑动筛选标签 -->
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
+          <div
+            v-for="tab in statusTabs"
+            :key="tab.value"
+            class="filter-chip"
+            :class="{ active: currentStatus === tab.value }"
+            @click="filterByStatus(tab.value)"
+          >
+            <SvgIcon :name="tab.icon" size="0.875rem" />
+            <span class="chip-text">{{ tab.label }}</span>
+          </div>
+        </div>
       </div>
-    </Dialog>
+
+      <!-- 盘点单列表 -->
+      <div class="list-area">
+        <PullRefresh v-model="refreshing" @refresh="onRefresh">
+          <Empty v-if="checkList.length === 0 && !loading" description="暂无盘点单" />
+          <List
+            v-model:loading="loading"
+            :finished="finished"
+            finished-text="没有更多了"
+            @load="onLoad"
+          >
+            <div
+              v-for="(item, index) in checkList"
+              :key="item.id"
+              class="order-card"
+              :style="{ animationDelay: `${index * 0.03}s` }"
+              @click="router.push(`/inventory/check/${item.id}`)"
+            >
+              <div class="card-accent" :class="getStatusAccent(item.status)"></div>
+              <div class="card-body">
+                <div class="card-top">
+                  <div class="code-area">
+                    <span class="order-code">{{ item.check_no }}</span>
+                    <span class="status-tag" :class="getStatusAccent(item.status)">{{
+                      getStatusText(item.status)
+                    }}</span>
+                  </div>
+                  <div class="order-qty" v-if="item.item_count">
+                    {{ item.item_count }}<span class="qty-unit">种</span>
+                  </div>
+                </div>
+                <div class="order-title">{{ getCheckTypeText(item.check_type) }}</div>
+                <div class="card-meta">
+                  <span class="meta-item" v-if="item.warehouse"
+                    ><Icon name="location-o" size="12" /> {{ item.warehouse }}</span
+                  >
+                  <span class="meta-item" v-if="item.check_date">{{ item.check_date }}</span>
+                </div>
+                <div
+                  class="card-bottom"
+                  v-if="
+                    item.status === 'draft' ||
+                    item.status === 'in_progress' ||
+                    (item.status === 'completed' && item.profit_loss !== 0)
+                  "
+                >
+                  <div class="remark-text"></div>
+                  <div class="card-actions" @click.stop>
+                    <div
+                      v-if="item.status === 'draft'"
+                      class="action-btn edit"
+                      @click="router.push(`/inventory/check/${item.id}/edit`)"
+                    >
+                      编辑
+                    </div>
+                    <div
+                      v-if="item.status === 'draft'"
+                      class="action-btn confirm"
+                      @click="updateStatus(item, 'in_progress')"
+                    >
+                      开始盘点
+                    </div>
+                    <div
+                      v-if="item.status === 'in_progress'"
+                      class="action-btn complete"
+                      @click="updateStatus(item, 'completed')"
+                    >
+                      完成盘点
+                    </div>
+                    <div
+                      v-if="item.status === 'completed' && item.profit_loss !== 0"
+                      class="action-btn warning"
+                      @click="adjustInventory(item)"
+                    >
+                      调整库存
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </List>
+        </PullRefresh>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { NavBar, Search, Empty, Card, Tag, Button, PullRefresh, List, Dialog, showToast } from 'vant';
-import { inventoryApi } from '@/services/api';
+  import { ref, reactive, onMounted } from 'vue'
+  import { useRouter } from 'vue-router'
+  import {
+    NavBar,
+    Search,
+    Icon,
+    Empty,
+    PullRefresh,
+    List,
+    showToast,
+    showConfirmDialog
+  } from 'vant'
+  import SvgIcon from '@/components/icons/index.vue'
+  import { inventoryApi } from '@/services/api'
 
-const router = useRouter();
-const searchValue = ref('');
-const refreshing = ref(false);
-const loading = ref(false);
-const finished = ref(false);
-const checkList = ref([]);
-const currentStatus = ref('');
-const confirmDialogVisible = ref(false);
-const confirmMessage = ref('');
-const currentAction = ref(null);
-const actionItem = ref(null);
+  const router = useRouter()
+  const searchValue = ref('')
+  const refreshing = ref(false)
+  const loading = ref(false)
+  const finished = ref(false)
+  const checkList = ref([])
+  const currentStatus = ref('')
 
-// 盘点单统计数据
-const checkStats = ref({
-  total: 0,
-  draftCount: 0,
-  pendingCount: 0,
-  completeCount: 0,
-  accuracyRate: 0,
-  profitLossAmount: 0
-});
+  const checkStats = ref({ total: 0, draftCount: 0, pendingCount: 0, completeCount: 0 })
 
-// 分页参数
-const pagination = reactive({
-  page: 1,
-  limit: 10,
-  total: 0
-});
+  const statusTabs = [
+    { label: '全部', value: '', icon: 'apps' },
+    { label: '草稿', value: 'draft', icon: 'clipboard-check' },
+    { label: '进行中', value: 'in_progress', icon: 'cog' },
+    { label: '已完成', value: 'completed', icon: 'badge-check' },
+    { label: '已取消', value: 'cancelled', icon: 'shield' }
+  ]
 
-// 状态选项
-const statusOptions = [
-  { value: 'draft', label: '草稿' },
-  { value: 'in_progress', label: '进行中' },
-  { value: 'completed', label: '已完成' },
-  { value: 'cancelled', label: '已取消' }
-];
+  const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
-// 盘点类型选项
-const checkTypeOptions = [
-  { value: 'cycle', label: '周期盘点' },
-  { value: 'random', label: '随机盘点' },
-  { value: 'full', label: '全面盘点' },
-  { value: 'special', label: '专项盘点' }
-];
+  const getStatusText = (s) =>
+    ({
+      draft: '草稿',
+      in_progress: '进行中',
+      pending: '待审核',
+      completed: '已完成',
+      cancelled: '已取消'
+    })[s] || s
+  const getStatusAccent = (s) =>
+    ({
+      draft: 'status-draft',
+      in_progress: 'status-progress',
+      pending: 'status-progress',
+      completed: 'status-completed',
+      cancelled: 'status-cancelled'
+    })[s] || 'status-default'
+  const getCheckTypeText = (t) =>
+    ({ cycle: '周期盘点', random: '随机盘点', full: '全面盘点', special: '专项盘点' })[t] ||
+    t ||
+    '盘点'
 
-// 返回上一页
-const onClickLeft = () => {
-  router.push('/inventory');
-};
-
-// 搜索
-const onSearch = (val) => {
-  searchValue.value = val;
-  resetList();
-  loadCheckList();
-};
-
-// 下拉刷新
-const onRefresh = () => {
-  resetList();
-  loadCheckList().finally(() => {
-    refreshing.value = false;
-    showToast('刷新成功');
-  });
-};
-
-// 筛选状态
-const filterByStatus = (status) => {
-  currentStatus.value = status;
-  resetList();
-  loadCheckList();
-};
-
-// 重置列表
-const resetList = () => {
-  checkList.value = [];
-  pagination.page = 1;
-  finished.value = false;
-};
-
-// 加载更多
-const onLoad = () => {
-  loadCheckList();
-};
-
-// 查看盘点单详情
-const viewCheckDetail = (id) => {
-  router.push(`/inventory/check/${id}`);
-};
-
-// 编辑盘点单
-const editCheck = (id) => {
-  router.push(`/inventory/check/${id}/edit`);
-};
-
-// 更新盘点单状态
-const updateStatus = (id, status) => {
-  confirmMessage.value = `确定要将盘点单状态更新为"${getStatusText(status)}"吗？`;
-  currentAction.value = 'updateStatus';
-  actionItem.value = { id, status };
-  confirmDialogVisible.value = true;
-};
-
-// 调整库存
-const adjustInventory = (id) => {
-  confirmMessage.value = '确定要根据盘点结果调整库存吗？';
-  currentAction.value = 'adjustInventory';
-  actionItem.value = { id };
-  confirmDialogVisible.value = true;
-};
-
-// 创建新的盘点单
-const createNewCheck = () => {
-  router.push('/inventory/check/new');
-};
-
-// 确认操作
-const handleConfirm = async () => {
-  try {
-    if (currentAction.value === 'updateStatus') {
-      await inventoryApi.updateCheckStatus(actionItem.value.id, actionItem.value.status);
-      showToast('状态更新成功');
-    } else if (currentAction.value === 'adjustInventory') {
-      await inventoryApi.adjustInventory(actionItem.value.id);
-      showToast('库存调整成功');
-    }
-    
-    // 刷新列表
-    resetList();
-    await loadCheckList();
-    await loadCheckStats();
-  } catch (error) {
-    console.error('操作失败:', error);
-    showToast('操作失败：' + (error.message || '未知错误'));
+  const onSearch = () => {
+    resetAndLoad()
   }
-};
-
-// 获取状态文本
-const getStatusText = (status) => {
-  const statusMap = {
-    'draft': '草稿',
-    'in_progress': '进行中',
-    'pending': '待审核',
-    'completed': '已完成',
-    'cancelled': '已取消'
-  };
-  return statusMap[status] || status;
-};
-
-// 获取状态颜色类型
-const getStatusType = (status) => {
-  const statusMap = {
-    'draft': 'default',
-    'in_progress': 'warning',
-    'pending': 'primary',
-    'completed': 'success',
-    'cancelled': 'danger'
-  };
-  return statusMap[status] || 'default';
-};
-
-// 获取盘点类型文本
-const getCheckTypeText = (type) => {
-  const typeMap = {
-    'cycle': '周期盘点',
-    'random': '随机盘点',
-    'full': '全面盘点',
-    'special': '专项盘点'
-  };
-  return typeMap[type] || type;
-};
-
-// 加载盘点单列表
-const loadCheckList = async () => {
-  if (loading.value) return;
-  
-  loading.value = true;
-  try {
-    // 构建检索参数
-    const params = {
-      page: pagination.page,
-      limit: pagination.limit,
-      check_no: searchValue.value || undefined,
-      status: currentStatus.value || undefined
-    };
-    
-    const response = await inventoryApi.getCheckList(params);
-    
-    if (response.data && Array.isArray(response.data)) {
-      // 兼容返回数组的情况
-      checkList.value = [...checkList.value, ...response.data];
-      finished.value = response.data.length < pagination.limit;
-    } else if (response.data && response.data.items) {
-      // 兼容返回分页对象的情况
-      checkList.value = [...checkList.value, ...response.data.items];
-      pagination.total = response.data.total || 0;
-      finished.value = checkList.value.length >= pagination.total;
-    } else {
-      finished.value = true;
-    }
-    
-    pagination.page++;
-  } catch (error) {
-    console.error('获取盘点单列表失败:', error);
-    showToast('获取盘点单列表失败');
-    finished.value = true;
-  } finally {
-    loading.value = false;
+  const onRefresh = () => {
+    refreshing.value = true
+    resetAndLoad()
   }
-};
+  const onLoad = () => loadCheckList()
+  const openScanner = () => showToast('扫码功能开发中')
 
-// 加载盘点单统计数据
-const loadCheckStats = async () => {
-  try {
-    const response = await inventoryApi.getCheckStatistics();
-    if (response && response.data) {
-      checkStats.value = response.data;
-    }
-  } catch (error) {
-    console.error('获取盘点单统计数据失败:', error);
-    // 使用默认值
-    checkStats.value = {
-      total: 0,
-      draftCount: 0,
-      pendingCount: 0,
-      completeCount: 0,
-      accuracyRate: 0,
-      profitLossAmount: 0
-    };
+  const filterByStatus = (s) => {
+    currentStatus.value = s
+    resetAndLoad()
   }
-};
 
-onMounted(async () => {
-  await loadCheckStats();
-  await loadCheckList();
-});
+  const resetAndLoad = () => {
+    checkList.value = []
+    pagination.page = 1
+    finished.value = false
+    loadCheckList()
+  }
+
+  const loadCheckList = async () => {
+    if (loading.value) return
+    loading.value = true
+    try {
+      const params = {
+        page: pagination.page,
+        limit: pagination.pageSize,
+        check_no: searchValue.value || undefined,
+        status: currentStatus.value || undefined
+      }
+      const res = await inventoryApi.getCheckList(params)
+      let items = []
+      if (res.data && Array.isArray(res.data)) {
+        items = res.data
+      } else {
+        items = res.data?.list || res.data?.items || res.data?.rows || []
+      }
+      const ids = new Set(checkList.value.map((i) => i.id))
+      checkList.value.push(...items.filter((i) => !ids.has(i.id)))
+      pagination.total = res.data?.total || checkList.value.length
+      finished.value = checkList.value.length >= pagination.total || items.length === 0
+      pagination.page++
+    } catch (e) {
+      console.error('获取盘点单列表失败:', e)
+      showToast('获取盘点单列表失败')
+      finished.value = true
+    } finally {
+      loading.value = false
+      refreshing.value = false
+    }
+  }
+
+  const loadCheckStats = async () => {
+    try {
+      const res = await inventoryApi.getCheckStatistics()
+      if (res?.data) checkStats.value = res.data
+    } catch (e) {
+      console.error('获取盘点统计失败:', e)
+    }
+  }
+
+  const updateStatus = async (item, newStatus) => {
+    const label = getStatusText(newStatus)
+    try {
+      await showConfirmDialog({
+        title: '确认操作',
+        message: `确定要将盘点单状态更更新为"${label}"吗？`
+      })
+      await inventoryApi.updateCheckStatus(item.id, newStatus)
+      showToast('状态更新成功')
+      item.status = newStatus
+      await loadCheckStats()
+    } catch (e) {
+      if (e !== 'cancel') showToast('操作失败')
+    }
+  }
+
+  const adjustInventory = async (item) => {
+    try {
+      await showConfirmDialog({ title: '调整库存', message: '确定要根据盘点结果调整库存吗？' })
+      await inventoryApi.adjustInventory(item.id)
+      showToast('库存调整成功')
+      resetAndLoad()
+      await loadCheckStats()
+    } catch (e) {
+      if (e !== 'cancel') showToast('操作失败')
+    }
+  }
+
+  onMounted(async () => {
+    await loadCheckStats()
+    await loadCheckList()
+  })
 </script>
 
 <style lang="scss" scoped>
-.status-stats {
-  display: flex;
-  justify-content: space-between;
-  margin: $margin-md 0;
-  background-color: white;
-  border-radius: $border-radius-md;
-  padding: $padding-sm 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.stat-item {
-  flex: 1;
-  text-align: center;
-  padding: $padding-sm 0;
-  border-right: 1px solid $border-color;
-  
-  &:last-child {
-    border-right: none;
+  .check-page {
+    min-height: 100vh;
+    background-color: var(--bg-primary);
+    padding-bottom: 80px;
   }
-  
-  &.active {
-    background-color: rgba($primary-color, 0.1);
-    
-    .stat-value {
-      color: $primary-color;
+  .content-wrapper {
+    padding: 0 12px 12px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 12px;
+  }
+  .action-icon {
+    cursor: pointer;
+  }
+
+  .stats-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 14px 8px;
+    margin: 8px 0;
+    border: 1px solid var(--glass-border);
+  }
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    cursor: pointer;
+    .stat-num {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      &.draft {
+        color: #94a3b8;
+      }
+      &.accent {
+        color: #f59e0b;
+      }
+      &.success {
+        color: #34d399;
+      }
+    }
+    .stat-label {
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
     }
   }
-}
-
-.stat-value {
-  font-size: $font-size-lg;
-  font-weight: bold;
-  color: $text-color;
-}
-
-.stat-label {
-  font-size: $font-size-xs;
-  color: $text-color-secondary;
-  margin-top: 4px;
-}
-
-.check-item {
-  margin-bottom: $margin-sm;
-}
-
-.check-card {
-  padding: 0;
-}
-
-.check-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: $padding-sm;
-  border-bottom: 1px solid $border-color;
-  background-color: #f9f9f9;
-}
-
-.check-no {
-  font-weight: bold;
-  color: $text-color;
-}
-
-.check-info {
-  padding: $padding-md;
-}
-
-.info-row {
-  display: flex;
-  margin-bottom: 8px;
-  
-  &:last-child {
-    margin-bottom: 0;
+  .stat-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--glass-border);
   }
-  
-  .label {
-    color: $text-color-secondary;
-    min-width: 80px;
+
+  .search-section {
+    padding: 4px 0;
   }
-  
-  .value {
-    color: $text-color;
+  .filter-scroll-wrapper {
+    padding: 4px 0 8px;
+    overflow: hidden;
+  }
+  .filter-scroll {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 6px;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+  .filter-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--bg-secondary);
+    border: 1.5px solid var(--glass-border);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    transition: all 0.25s;
+    cursor: pointer;
+    .chip-text {
+      font-weight: 500;
+    }
+    &.active {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: #3b82f6;
+      color: #3b82f6;
+    }
+  }
+
+  .list-area {
+    padding-top: 4px;
+  }
+  .order-card {
+    display: flex;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    animation: fadeInUp 0.35s ease-out both;
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .card-accent {
+    width: 4px;
+    flex-shrink: 0;
+    &.status-draft {
+      background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+    }
+    &.status-progress {
+      background: linear-gradient(180deg, #f59e0b, #fbbf24);
+    }
+    &.status-completed {
+      background: linear-gradient(180deg, #10b981, #34d399);
+    }
+    &.status-cancelled {
+      background: linear-gradient(180deg, #ef4444, #f87171);
+    }
+  }
+  .card-body {
+    flex: 1;
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .code-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .order-code {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  }
+  .status-tag {
+    display: inline-flex;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    &.status-draft {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+    }
+    &.status-progress {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+    }
+    &.status-completed {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+    }
+    &.status-cancelled {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+  }
+  .order-qty {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    .qty-unit {
+      font-size: 0.625rem;
+      opacity: 0.7;
+    }
+  }
+  .order-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+  }
+  .card-bottom {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--glass-border);
+  }
+  .remark-text {
     flex: 1;
   }
-}
-
-.check-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding: $padding-xs $padding-md $padding-md;
-  
-  button {
-    margin-left: $margin-xs;
+  .card-actions {
+    display: flex;
+    gap: 6px;
+    .action-btn {
+      padding: 3px 12px;
+      border-radius: 8px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      cursor: pointer;
+      &.edit {
+        background: rgba(148, 163, 184, 0.1);
+        color: #94a3b8;
+      }
+      &.confirm {
+        background: rgba(59, 130, 246, 0.1);
+        color: #3b82f6;
+      }
+      &.complete {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+      }
+      &.warning {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+      }
+    }
   }
-}
-
-.fab-button {
-  position: fixed;
-  right: $padding-lg;
-  bottom: 80px;
-  z-index: 99;
-}
-
-.dialog-content {
-  padding: $padding-md 0;
-  text-align: center;
-}
-</style> 
+</style>

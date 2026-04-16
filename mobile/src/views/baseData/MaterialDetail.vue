@@ -341,7 +341,7 @@ onMounted(() => {
   backdrop-filter: blur(var(--effect-blur));
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-lg);
-  box-shadow: var(--effect-shadow);
+  box-shadow: none;
 }
 
 .material-icon {
@@ -400,7 +400,7 @@ onMounted(() => {
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-lg);
   padding: 1.25rem;
-  box-shadow: var(--effect-shadow);
+  box-shadow: none;
 }
 
 .section-title {

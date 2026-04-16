@@ -541,7 +541,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .global-search-page {
   min-height: 100vh;
-  background-color: $background-color;
+  background-color: var(--bg-primary);
 }
 
 .search-container {
@@ -552,7 +552,7 @@ onMounted(() => {
   margin-bottom: 16px;
 
   .search-action {
-    color: $primary-color;
+    color: var(--color-primary);
     font-size: 14px;
     padding: 0 8px;
   }
@@ -568,7 +568,7 @@ onMounted(() => {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: $text-color;
+  color: var(--text-primary);
 }
 
 .search-history,
@@ -590,18 +590,18 @@ onMounted(() => {
 .search-results {
   .result-stats {
     font-size: 14px;
-    color: $text-color-secondary;
+    color: var(--text-secondary);
     margin-bottom: 12px;
 
     .stats-number {
-      color: $primary-color;
+      color: var(--color-primary);
       font-weight: 600;
     }
   }
 
   .result-tabs {
     display: flex;
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 4px;
     margin-bottom: 12px;
@@ -611,13 +611,13 @@ onMounted(() => {
       flex-shrink: 0;
       padding: 8px 12px;
       font-size: 12px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
       border-radius: 6px;
       transition: all 0.2s;
       white-space: nowrap;
 
       &.active {
-        background-color: $primary-color;
+        background-color: var(--color-primary);
         color: #fff;
       }
 
@@ -629,11 +629,11 @@ onMounted(() => {
 
   .result-list {
     .result-item {
-      background: #fff;
+      background: var(--bg-secondary);
       border-radius: 8px;
       padding: 16px;
       margin-bottom: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      box-shadow: none;
 
       .item-header {
         display: flex;
@@ -645,7 +645,7 @@ onMounted(() => {
           display: flex;
           align-items: center;
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
 
           span {
             margin-left: 4px;
@@ -658,11 +658,11 @@ onMounted(() => {
           font-size: 10px;
           color: #fff;
 
-          &.active { background-color: #2CCFB0; }
+          &.active { background-color: var(--module-green); }
           &.inactive { background-color: #c8c9cc; }
-          &.pending { background-color: #FF9F45; }
-          &.completed { background-color: #5E7BF6; }
-          &.cancelled { background-color: #FF6B6B; }
+          &.pending { background-color: var(--module-orange); }
+          &.completed { background-color: var(--module-blue); }
+          &.cancelled { background-color: var(--module-red); }
         }
       }
 
@@ -672,19 +672,19 @@ onMounted(() => {
         .item-title {
           font-size: 14px;
           font-weight: 500;
-          color: $text-color;
+          color: var(--text-primary);
           margin-bottom: 4px;
         }
 
         .item-subtitle {
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
           margin-bottom: 4px;
         }
 
         .item-description {
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
         }
       }
 
@@ -697,11 +697,11 @@ onMounted(() => {
           font-size: 12px;
 
           .meta-label {
-            color: $text-color-secondary;
+            color: var(--text-secondary);
           }
 
           .meta-value {
-            color: $text-color;
+            color: var(--text-primary);
             margin-left: 4px;
           }
         }
@@ -712,7 +712,7 @@ onMounted(() => {
 
 .search-suggestions {
   .suggestion-list {
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     overflow: hidden;
 
@@ -720,9 +720,9 @@ onMounted(() => {
       display: flex;
       align-items: center;
       padding: 12px 16px;
-      border-bottom: 1px solid $border-color;
+      border-bottom: 1px solid var(--van-border-color);
       font-size: 14px;
-      color: $text-color;
+      color: var(--text-primary);
 
       &:last-child {
         border-bottom: none;

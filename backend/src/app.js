@@ -118,6 +118,13 @@ const corsOptions = {
       'http://127.0.0.1:3102',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
+      // HTTPS（移动端 Vite 使用 basicSsl 插件）
+      'https://localhost:3100',
+      'https://localhost:3101',
+      'https://localhost:3102',
+      'https://127.0.0.1:3100',
+      'https://127.0.0.1:3101',
+      'https://127.0.0.1:3102',
     ];
 
     // 开发环境：允许所有局域网IP

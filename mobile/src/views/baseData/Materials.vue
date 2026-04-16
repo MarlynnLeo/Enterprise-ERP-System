@@ -20,66 +20,64 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import UniversalListPage from '@/components/common/UniversalListPage.vue'
-import { baseDataApi } from '@/services/api'
-import { showToast } from 'vant'
+  import { computed } from 'vue'
+  import { useRouter } from 'vue-router'
+  import UniversalListPage from '@/components/common/UniversalListPage.vue'
+  import { baseDataApi } from '@/services/api'
+  import { showToast } from 'vant'
 
-const router = useRouter()
+  const router = useRouter()
 
-// 页面配置
-const pageConfig = computed(() => ({
-  title: '物料管理',
-  searchPlaceholder: '搜索物料编码或名称',
-  tags: [
-    { label: '全部', value: 'all' },
-    { label: '原材料', value: 'raw' },
-    { label: '半成品', value: 'semi' },
-    { label: '成品', value: 'finished' }
-  ],
-  stats: [
-    { label: '总物料', field: 'total', icon: 'cube', iconClass: 'bg-blue' },
-    { label: '低库存', field: 'lowStock', icon: 'cube', iconClass: 'bg-red' }
-  ],
-  fields: {
-    id: 'id',
-    title: 'name',
-    subtitle: 'code',
-    emoji: () => '📦',
-    details: [
-      { label: '规格', field: 'specs' },
-      { label: '单位', field: 'unit_name' },
-      { label: '分类', field: 'category_name' }
-    ]
-  },
-  detailRoute: '/baseData/materials/:id'
-}))
+  // 页面配置
+  const pageConfig = computed(() => ({
+    title: '物料管理',
+    searchPlaceholder: '搜索物料编码或名称',
+    tags: [
+      { label: '全部', value: 'all' },
+      { label: '原材料', value: 'raw' },
+      { label: '半成品', value: 'semi' },
+      { label: '成品', value: 'finished' }
+    ],
+    stats: [
+      { label: '总物料', field: 'total', icon: 'cube', iconClass: 'bg-blue' },
+      { label: '低库存', field: 'lowStock', icon: 'cube', iconClass: 'bg-red' }
+    ],
+    fields: {
+      id: 'id',
+      title: 'name',
+      subtitle: 'code',
+      icon: 'cube',
+      details: [
+        { label: '规格', field: 'specs' },
+        { label: '单位', field: 'unit_name' },
+        { label: '分类', field: 'category_name' }
+      ]
+    },
+    detailRoute: '/baseData/materials/:id'
+  }))
 
-// API 函数
-const loadMaterials = async (params) => {
-  try {
-    console.log('🔧 Materials.vue - 调用 baseDataApi.getMaterials，参数:', params)
-    const response = await baseDataApi.getMaterials(params)
-    console.log('🔧 Materials.vue - API 返回:', response)
-    return response
-  } catch (error) {
-    console.error('❌ 加载物料列表失败:', error)
-    throw error
+  // API 函数
+  const loadMaterials = async (params) => {
+    try {
+      const response = await baseDataApi.getMaterials(params)
+
+      return response
+    } catch (error) {
+      console.error('❌ 加载物料列表失败:', error)
+      throw error
+    }
   }
-}
 
-// 事件处理
-const handleAdd = () => {
-  router.push('/baseData/materials/create')
-}
+  // 事件处理
+  const handleAdd = () => {
+    router.push('/baseData/materials/create')
+  }
 
-const handleFilter = () => {
-  showToast('筛选功能')
-}
+  const handleFilter = () => {
+    // 筛选功能由 UniversalListPage 内置处理
+  }
 
-const handleItemClick = (item) => {
-  console.log('点击物料:', item)
-}
+  const handleItemClick = (item) => {
+    router.push(`/baseData/materials/${item.id}`)
+  }
 </script>
-

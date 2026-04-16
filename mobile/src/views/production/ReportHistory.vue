@@ -246,7 +246,7 @@ const getStatusText = (status) => {
 
 .report-date {
   font-size: 0.75rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .report-status {
@@ -293,7 +293,7 @@ const getStatusText = (status) => {
 
 .detail-label {
   font-size: 0.75rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .detail-value {
@@ -312,12 +312,12 @@ const getStatusText = (status) => {
 
 .report-footer {
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--van-border-color);
 }
 
 .operator {
   font-size: 0.75rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 
 .empty-state {
@@ -337,7 +337,7 @@ const getStatusText = (status) => {
 
 .empty-text {
   font-size: 0.875rem;
-  color: rgb(148, 163, 184);
+  color: var(--text-secondary);
 }
 </style>
 

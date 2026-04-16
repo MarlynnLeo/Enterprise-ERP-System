@@ -7,7 +7,7 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [
     vue(),
-    basicSsl() // 自动生成自签名证书
+    basicSsl()
   ],
   resolve: {
     alias: {
@@ -17,12 +17,7 @@ export default defineConfig({
   server: {
     port: 3100,
     host: '0.0.0.0',
-    hmr: {
-      port: 3101, // 使用不同的端口避免冲突
-      host: 'localhost',
-      protocol: 'wss' // 使用 WSS 而不是 WS
-    },
-    // 禁用缓存
+    // hmr config removed to let vite auto-detect
     headers: {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
@@ -30,7 +25,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: process.env.VITE_APP_API_BASE_URL || 'http://192.168.2.151:8080',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path

@@ -902,7 +902,7 @@ const batchTraceabilityController = {
           m.code as material_code,
           vbs.batch_number,
           vbs.receipt_date as created_at,
-          IF(m.type = 'product', 'product', 'material') as type
+          IF(m.material_type = 'product', 'product', 'material') as type
         FROM v_batch_stock vbs
         LEFT JOIN materials m ON vbs.material_id = m.id
         WHERE vbs.batch_number IS NOT NULL AND vbs.batch_number != ''

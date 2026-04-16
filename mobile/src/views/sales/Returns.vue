@@ -8,16 +8,12 @@
 -->
 <template>
   <div class="page-container">
-    <NavBar
-      title="销售退货"
-      left-arrow
-      @click-left="onClickLeft"
-    >
+    <NavBar title="销售退货" left-arrow @click-left="onClickLeft">
       <template #right>
         <Icon name="plus" size="18" @click="createReturn" />
       </template>
     </NavBar>
-    
+
     <div class="content-container">
       <!-- 搜索和筛选 -->
       <div class="search-filter">
@@ -27,10 +23,10 @@
           @search="onSearch"
           shape="round"
         />
-        
+
         <div class="filter-tabs">
-          <div 
-            v-for="(tab, index) in statusTabs" 
+          <div
+            v-for="(tab, index) in statusTabs"
             :key="index"
             :class="['filter-tab', { active: activeTab === index }]"
             @click="switchTab(index)"
@@ -39,97 +35,95 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 退货单列表 -->
       <PullRefresh v-model="refreshing" @refresh="onRefresh">
         <List
           v-model:loading="loading"
           :finished="finished"
           finished-text="没有更多数据了"
-          @load="onLoad"
+          @load="loadMore"
         >
           <div v-if="returnList.length === 0 && !loading" class="empty-state">
             <Empty description="暂无销售退货单" />
           </div>
-          
-          <Card 
-            v-for="returnItem in returnList" 
-            :key="returnItem.id" 
-            class="return-card"
+
+          <div
+            v-for="returnItem in returnList"
+            :key="returnItem.id"
+            class="global-list-card"
             @click="viewReturnDetail(returnItem.id)"
           >
-            <div class="return-item">
-              <div class="return-header">
-                <span class="return-no">{{ returnItem.return_no }}</span>
+            <div>
+              <div class="list-header">
+                <span class="list-id">{{ returnItem.return_no }}</span>
                 <Tag :type="getReturnStatusType(returnItem.status)" size="medium">
                   {{ getReturnStatusText(returnItem.status) }}
                 </Tag>
               </div>
-              
-              <div class="return-order" v-if="returnItem.order_no">
+
+              <div class="list-subtitle" v-if="returnItem.order_no">
                 关联订单: {{ returnItem.order_no }}
               </div>
-              
-              <div class="return-customer">{{ returnItem.customer_name }}</div>
-              
-              <div class="return-details">
-                <div class="detail-row">
+
+              <div class="list-title">{{ returnItem.customer_name }}</div>
+
+              <div class="list-details">
+                <div class="list-row">
                   <span class="label">退货日期:</span>
                   <span class="value">{{ formatDate(returnItem.return_date) }}</span>
                 </div>
-                <div class="detail-row" v-if="returnItem.total_amount">
+                <div class="list-row" v-if="returnItem.total_amount">
                   <span class="label">退货金额:</span>
                   <span class="value amount">¥{{ formatAmount(returnItem.total_amount) }}</span>
                 </div>
-                <div class="detail-row" v-if="returnItem.return_reason">
+                <div class="list-row" v-if="returnItem.return_reason">
                   <span class="label">退货原因:</span>
                   <span class="value">{{ returnItem.return_reason }}</span>
                 </div>
-                <div class="detail-row" v-if="returnItem.contact_person">
+                <div class="list-row" v-if="returnItem.contact_person">
                   <span class="label">联系人:</span>
                   <span class="value">{{ returnItem.contact_person }}</span>
                 </div>
               </div>
-              
-              <div class="return-items" v-if="returnItem.items && returnItem.items.length > 0">
-                <div class="items-title">退货物料 ({{ returnItem.items.length }}项)</div>
-                <div class="items-list">
-                  <div 
-                    v-for="(item, index) in returnItem.items.slice(0, 2)" 
-                    :key="index"
-                    class="item-row"
-                  >
-                    <span class="item-name">{{ item.material_name }}</span>
-                    <span class="item-quantity">{{ item.quantity }} {{ item.unit_name }}</span>
-                  </div>
-                  <div v-if="returnItem.items.length > 2" class="more-items">
-                    还有 {{ returnItem.items.length - 2 }} 项...
-                  </div>
+
+              <div class="list-details" v-if="returnItem.items && returnItem.items.length > 0">
+                <div class="list-title" style="font-size:0.8125rem;margin-bottom:8px;">退货物料 ({{ returnItem.items.length }}项)</div>
+                <div
+                  v-for="(item, index) in returnItem.items.slice(0, 2)"
+                  :key="index"
+                  class="list-row"
+                >
+                  <span class="label" style="color:var(--text-primary)">{{ item.material_name }}</span>
+                  <span class="value">{{ item.quantity }} {{ item.unit_name }}</span>
+                </div>
+                <div v-if="returnItem.items.length > 2" class="list-row" style="justify-content:center;margin-top:8px;">
+                  <span class="label">还有 {{ returnItem.items.length - 2 }} 项...</span>
                 </div>
               </div>
-              
-              <div class="return-actions">
-                <Button 
-                  size="small" 
-                  type="primary" 
+
+              <div class="list-actions">
+                <Button
+                  size="small"
+                  type="primary"
                   plain
                   @click.stop="viewReturnDetail(returnItem.id)"
                 >
                   查看详情
                 </Button>
-                <Button 
+                <Button
                   v-if="returnItem.status === 'draft'"
-                  size="small" 
-                  type="success" 
+                  size="small"
+                  type="success"
                   plain
                   @click.stop="confirmReturn(returnItem)"
                 >
                   确认退货
                 </Button>
-                <Button 
+                <Button
                   v-if="returnItem.status === 'confirmed'"
-                  size="small" 
-                  type="warning" 
+                  size="small"
+                  type="warning"
                   plain
                   @click.stop="processReturn(returnItem)"
                 >
@@ -137,7 +131,7 @@
                 </Button>
               </div>
             </div>
-          </Card>
+          </div>
         </List>
       </PullRefresh>
     </div>
@@ -145,339 +139,176 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { NavBar, Search, Icon, Empty, Card, Tag, PullRefresh, List, Button, showToast, showConfirmDialog } from 'vant';
-import { salesApi } from '@/services/api';
-import { formatDate } from '@/utils/date';
+  import { ref } from 'vue'
+  import { useRouter } from 'vue-router'
+  import {
+    NavBar,
+    Search,
+    Icon,
+    Empty,
+    Card,
+    Tag,
+    PullRefresh,
+    List,
+    Button,
+    showToast,
+    showConfirmDialog
+  } from 'vant'
+  import { salesApi } from '@/services/api'
+  import { usePagination } from '@/composables/usePagination'
+  import { formatAmount, formatDate } from '@/utils/format'
+  import { SALES_RETURN_STATUS, getDictText } from '@/constants/dict'
 
-const router = useRouter();
-const searchValue = ref('');
-const refreshing = ref(false);
-const loading = ref(false);
-const finished = ref(false);
-const returnList = ref([]);
-const activeTab = ref(0);
+  const router = useRouter()
+  const searchValue = ref('')
+  const activeTab = ref(0)
 
-// 状态标签
-const statusTabs = [
-  { label: '全部', value: '' },
-  { label: '草稿', value: 'draft' },
-  { label: '已确认', value: 'confirmed' },
-  { label: '处理中', value: 'processing' },
-  { label: '已完成', value: 'completed' },
-  { label: '已拒绝', value: 'rejected' }
-];
+  // 状态标签
+  const statusTabs = [
+    { label: '全部', value: '' },
+    { label: '草稿', value: 'draft' },
+    { label: '待处理', value: 'pending' },
+    { label: '已审核', value: 'approved' },
+    { label: '已完成', value: 'completed' },
+    { label: '已拒绝', value: 'rejected' },
+    { label: '已取消', value: 'cancelled' }
+  ]
 
-// 分页参数
-const pagination = reactive({
-  page: 1,
-  limit: 10,
-  total: 0
-});
+  // 初始化分页 Hook
+  const {
+    list: returnList,
+    loading,
+    finished,
+    refreshing,
+    onLoad,
+    onRefresh
+  } = usePagination(salesApi.getSalesReturns, { immediate: true })
 
-// 返回上一页
-const onClickLeft = () => {
-  router.back();
-};
+  // 返回上一页
+  const onClickLeft = () => router.back()
 
-// 创建退货单
-const createReturn = () => {
-  showToast('功能开发中');
-};
-
-// 搜索
-const onSearch = (val) => {
-  searchValue.value = val;
-  resetList();
-  loadReturnList();
-};
-
-// 切换标签
-const switchTab = (index) => {
-  activeTab.value = index;
-  resetList();
-  loadReturnList();
-};
-
-// 下拉刷新
-const onRefresh = () => {
-  resetList();
-  loadReturnList().finally(() => {
-    refreshing.value = false;
-    showToast('刷新成功');
-  });
-};
-
-// 重置列表
-const resetList = () => {
-  returnList.value = [];
-  pagination.page = 1;
-  finished.value = false;
-};
-
-// 加载更多
-const onLoad = () => {
-  loadReturnList();
-};
-
-// 加载退货单列表
-const loadReturnList = async () => {
-  if (loading.value) return;
-  
-  loading.value = true;
-  try {
-    const params = {
-      page: pagination.page,
-      limit: pagination.limit,
+  const reloadData = () => {
+    onRefresh({
       search: searchValue.value || undefined,
       status: statusTabs[activeTab.value].value || undefined
-    };
-    
-    const response = await salesApi.getSalesReturns(params);
-    
-    if (response.data && response.data.items) {
-      returnList.value = [...returnList.value, ...response.data.items];
-      pagination.total = response.data.total || 0;
-      finished.value = returnList.value.length >= pagination.total;
-    } else {
-      finished.value = true;
-    }
-    
-    pagination.page++;
-  } catch (error) {
-    console.error('获取销售退货单列表失败:', error);
-    showToast('获取销售退货单列表失败');
-    finished.value = true;
-  } finally {
-    loading.value = false;
+    })
   }
-};
 
-// 获取退货单状态类型
-const getReturnStatusType = (status) => {
-  const statusMap = {
-    'draft': 'default',
-    'confirmed': 'primary',
-    'processing': 'warning',
-    'completed': 'success',
-    'rejected': 'danger'
-  };
-  return statusMap[status] || 'default';
-};
+  // 搜索
+  const onSearch = (val) => {
+    searchValue.value = val
+    reloadData()
+  }
 
-// 获取退货单状态文本
-const getReturnStatusText = (status) => {
-  const statusMap = {
-    'draft': '草稿',
-    'confirmed': '已确认',
-    'processing': '处理中',
-    'completed': '已完成',
-    'rejected': '已拒绝'
-  };
-  return statusMap[status] || status;
-};
+  // 切换标签
+  const switchTab = (index) => {
+    activeTab.value = index
+    reloadData()
+  }
 
-// 格式化金额
-const formatAmount = (amount) => {
-  if (!amount) return '0.00';
-  return parseFloat(amount).toFixed(2);
-};
+  // 初次挂载或标签搜索时传递参数
+  const loadMore = () => {
+    onLoad({
+      search: searchValue.value || undefined,
+      status: statusTabs[activeTab.value].value || undefined
+    })
+  }
 
-// 查看退货单详情
-const viewReturnDetail = (id) => {
-  router.push(`/sales/returns/${id}`);
-};
+  // 创建退货单
+  const createReturn = () => {
+    router.push('/inventory/inbound/create')
+  }
 
-// 确认退货
-const confirmReturn = async (returnItem) => {
-  try {
-    await showConfirmDialog({
-      title: '确认退货',
-      message: `确定要确认退货单 ${returnItem.return_no} 吗？`
-    });
-    
-    // 这里需要调用确认退货的API
-    showToast('退货单已确认');
-    
-    // 更新本地状态
-    returnItem.status = 'confirmed';
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('确认退货失败:', error);
-      showToast('确认退货失败');
+  // 获取退货单状态类型
+  const getReturnStatusType = (status) => {
+    const statusMap = {
+      draft: 'default',
+      pending: 'warning',
+      approved: 'primary',
+      completed: 'success',
+      rejected: 'danger',
+      cancelled: 'default'
+    }
+    return statusMap[status] || 'default'
+  }
+
+  // 获取退货单状态文本
+  const getReturnStatusText = (status) => getDictText(SALES_RETURN_STATUS, status, status)
+
+  // 查看详情
+  const viewReturnDetail = (id) => router.push(`/sales/returns/${id}`)
+
+  // 确认退单
+  const confirmReturn = async (returnItem) => {
+    try {
+      await showConfirmDialog({
+        title: '确认退单',
+        message: `确定要提交退单 ${returnItem.return_no || returnItem.return_code} 吗？`
+      })
+
+      // API Call placeholder
+      showToast('退单已提交')
+      returnItem.status = 'pending'
+    } catch (error) {
+      if (error !== 'cancel') {
+        console.error('提交退货失败:', error)
+        showToast('提交失败')
+      }
     }
   }
-};
 
-// 处理退货
-const processReturn = async (returnItem) => {
-  try {
-    await showConfirmDialog({
-      title: '处理退货',
-      message: `确定要处理退货单 ${returnItem.return_no} 吗？`
-    });
-    
-    // 这里需要调用处理退货的API
-    showToast('退货单已开始处理');
-    
-    // 更新本地状态
-    returnItem.status = 'processing';
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('处理退货失败:', error);
-      showToast('处理退货失败');
+  // 处理退单
+  const processReturn = async (returnItem) => {
+    try {
+      await showConfirmDialog({
+        title: '处理退货',
+        message: `确定要处理退单 ${returnItem.return_no || returnItem.return_code} 吗？`
+      })
+
+      // API Call placeholder
+      showToast('退单已开始处理')
+      returnItem.status = 'approved'
+    } catch (error) {
+      if (error !== 'cancel') {
+        console.error('处理退货失败:', error)
+        showToast('处理失败')
+      }
     }
   }
-};
-
-onMounted(() => {
-  loadReturnList();
-});
 </script>
 
 <style lang="scss" scoped>
-.search-filter {
-  padding: $padding-md;
-  background-color: white;
-  border-bottom: 1px solid $border-color;
-}
-
-.filter-tabs {
-  display: flex;
-  margin-top: $margin-sm;
-  overflow-x: auto;
-  
-  &::-webkit-scrollbar {
-    display: none;
+  .search-filter {
+    padding: $padding-md;
+    background-color: white;
+    border-bottom: 1px solid var(--van-border-color);
   }
-  
-  .filter-tab {
-    flex: 0 0 auto;
-    text-align: center;
-    padding: $padding-xs $padding-sm;
-    font-size: $font-size-sm;
-    color: $text-color-secondary;
-    border-bottom: 2px solid transparent;
-    white-space: nowrap;
-    margin-right: $margin-sm;
-    
-    &.active {
-      color: $primary-color;
-      border-bottom-color: $primary-color;
-    }
-  }
-}
 
-.return-card {
-  margin: $margin-md;
-  margin-bottom: $margin-sm;
-}
-
-.return-item {
-  padding: $padding-xs 0;
-}
-
-.return-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: $margin-xs;
-}
-
-.return-no {
-  font-size: $font-size-sm;
-  color: $text-color-secondary;
-}
-
-.return-order {
-  font-size: $font-size-sm;
-  color: $primary-color;
-  margin-bottom: $margin-xs;
-}
-
-.return-customer {
-  font-size: $font-size-lg;
-  font-weight: bold;
-  margin-bottom: $margin-sm;
-}
-
-.return-details {
-  margin-bottom: $margin-md;
-  
-  .detail-row {
+  .filter-tabs {
     display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-    
-    .label {
-      font-size: $font-size-sm;
-      color: $text-color-secondary;
-    }
-    
-    .value {
-      font-size: $font-size-sm;
-      color: $text-color;
-      
-      &.amount {
-        color: $primary-color;
-        font-weight: bold;
-      }
-    }
-  }
-}
+    margin-top: $margin-sm;
+    overflow-x: auto;
 
-.return-items {
-  margin-bottom: $margin-md;
-  
-  .items-title {
-    font-size: $font-size-sm;
-    color: $text-color-secondary;
-    margin-bottom: $margin-xs;
-  }
-  
-  .items-list {
-    background-color: #f8f9fa;
-    padding: $padding-sm;
-    border-radius: $border-radius-sm;
-    
-    .item-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 4px;
-      
-      &:last-child {
-        margin-bottom: 0;
-      }
-      
-      .item-name {
-        font-size: $font-size-sm;
-        color: $text-color;
-        flex: 1;
-        margin-right: $margin-sm;
-      }
-      
-      .item-quantity {
-        font-size: $font-size-sm;
-        color: $text-color-secondary;
-      }
+    &::-webkit-scrollbar {
+      display: none;
     }
-    
-    .more-items {
-      font-size: $font-size-xs;
-      color: $text-color-secondary;
+
+    .filter-tab {
+      flex: 0 0 auto;
       text-align: center;
-      margin-top: $margin-xs;
+      padding: $padding-xs $padding-sm;
+      font-size: 12px;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      margin-right: $margin-sm;
+
+      &.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+      }
     }
   }
-}
 
-.return-actions {
-  display: flex;
-  gap: $margin-sm;
-  
-  .van-button {
-    flex: 1;
-  }
-}
+/* 业务自定义CSS已移除，列表由全局.list-*托管 */
 </style>

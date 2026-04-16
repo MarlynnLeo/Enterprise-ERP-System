@@ -543,7 +543,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .notifications-page {
   min-height: 100vh;
-  background-color: $background-color;
+  background-color: var(--bg-primary);
 }
 
 .content-container {
@@ -552,11 +552,11 @@ onMounted(() => {
 
 .message-stats {
   display: flex;
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
 
   .stats-item {
     flex: 1;
@@ -566,21 +566,21 @@ onMounted(() => {
     .stats-number {
       font-size: 24px;
       font-weight: 600;
-      color: $text-color;
+      color: var(--text-primary);
       margin-bottom: 4px;
 
       &.unread {
-        color: #FF6B6B;
+        color: var(--module-red);
       }
 
       &.urgent {
-        color: #FF9F45;
+        color: var(--module-orange);
       }
     }
 
     .stats-label {
       font-size: 12px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
     }
   }
 }
@@ -590,7 +590,7 @@ onMounted(() => {
 
   .filter-tabs {
     display: flex;
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 4px;
     overflow-x: auto;
@@ -601,14 +601,14 @@ onMounted(() => {
       align-items: center;
       padding: 8px 12px;
       font-size: 12px;
-      color: $text-color-secondary;
+      color: var(--text-secondary);
       border-radius: 6px;
       transition: all 0.2s;
       white-space: nowrap;
       position: relative;
 
       &.active {
-        background-color: $primary-color;
+        background-color: var(--color-primary);
         color: #fff;
       }
 
@@ -623,7 +623,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
+  background: var(--bg-secondary);
   padding: 12px 16px;
   border-radius: 8px;
   margin-bottom: 12px;
@@ -638,15 +638,15 @@ onMounted(() => {
   .message-item {
     display: flex;
     align-items: flex-start;
-    background: #fff;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 16px;
     margin-bottom: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: none;
     transition: all 0.2s;
 
     &.unread {
-      border-left: 3px solid $primary-color;
+      border-left: 3px solid var(--color-primary);
     }
 
     &.selected {
@@ -669,7 +669,7 @@ onMounted(() => {
         right: -2px;
         width: 8px;
         height: 8px;
-        background-color: #FF6B6B;
+        background-color: var(--module-red);
         border-radius: 50%;
       }
     }
@@ -686,12 +686,12 @@ onMounted(() => {
         .message-title {
           font-size: 14px;
           font-weight: 500;
-          color: $text-color;
+          color: var(--text-primary);
         }
 
         .message-time {
           font-size: 12px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
         }
       }
 
@@ -700,7 +700,7 @@ onMounted(() => {
 
         .message-text {
           font-size: 13px;
-          color: $text-color-secondary;
+          color: var(--text-secondary);
           line-height: 1.4;
           margin-bottom: 8px;
         }
@@ -714,11 +714,11 @@ onMounted(() => {
             font-size: 12px;
 
             .meta-label {
-              color: $text-color-secondary;
+              color: var(--text-secondary);
             }
 
             .meta-value {
-              color: $text-color;
+              color: var(--text-primary);
               margin-left: 4px;
             }
           }
@@ -740,7 +740,7 @@ onMounted(() => {
       .read-indicator {
         width: 8px;
         height: 8px;
-        background-color: $primary-color;
+        background-color: var(--color-primary);
         border-radius: 50%;
         margin-right: 8px;
       }
@@ -763,7 +763,7 @@ onMounted(() => {
     align-items: center;
     justify-content: space-between;
     padding: 16px;
-    border-bottom: 1px solid $border-color;
+    border-bottom: 1px solid var(--van-border-color);
     font-size: 16px;
     font-weight: 600;
   }
@@ -778,16 +778,16 @@ onMounted(() => {
       .section-title {
         font-size: 14px;
         font-weight: 600;
-        color: $text-color;
+        color: var(--text-primary);
         padding: 16px;
-        background-color: #f8f9fa;
+        background-color: var(--bg-primary);
       }
     }
   }
 
   .dialog-actions {
     padding: 16px;
-    border-top: 1px solid $border-color;
+    border-top: 1px solid var(--van-border-color);
   }
 }
 </style>

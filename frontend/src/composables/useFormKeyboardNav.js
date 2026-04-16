@@ -53,9 +53,12 @@ export function useFormKeyboardNav(submitFn = null) {
     // el-select 下拉展开时的 Enter 不拦截（让 el-select 自行处理选择）
     const selectWrapper = target.closest('.el-select')
     if (selectWrapper) {
-      const dropdown = selectWrapper.querySelector('.el-select-dropdown')
-      // 如果下拉面板可见，让 el-select 自己处理
-      if (dropdown && dropdown.style.display !== 'none') return
+      // 在 Element Plus 中，下拉展开时其内部 wrapper 会有 aria-expanded="true"
+      const expandedEl = target.closest('[aria-expanded="true"]')
+      if (expandedEl) return
+      
+      const selectInner = target.closest('.el-select__wrapper') || target.closest('.el-input')
+      if (selectInner && selectInner.getAttribute('aria-expanded') === 'true') return
     }
 
     // 阻止默认行为（防止表单意外提交）

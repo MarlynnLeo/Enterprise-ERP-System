@@ -69,17 +69,7 @@
             @change-password="changePassword"
           />
 
-          <!-- 待办事项 -->
-          <div v-show="activeTab === 'todos'">
-            <TodoManager 
-              :todos="todos"
-              @save="saveTodo"
-              @delete="deleteTodo"
-              @toggle="toggleTodoStatus"
-              @import="importTodos"
-              @export="exportTodos"
-            />
-          </div>
+
 
           <!-- 外观设置 -->
           <div v-show="activeTab === 'appearance'">
@@ -181,8 +171,6 @@
               :efficiency-score="efficiencyScore"
               :average-response-time="averageResponseTime"
               :days-active="userStats.daysActive"
-              :completed-todos="completedTodosCount"
-              :total-todos="todos.length"
               :login-count="userStats.loginCount"
               :tasks-completed="userStats.tasksCompleted"
             />
@@ -221,7 +209,7 @@ import api from '../services/api'
 import ProfileHeader from './auth/components/ProfileHeader.vue'
 import ProfileStats from './auth/components/ProfileStats.vue'
 import ProfileEdit from './auth/components/ProfileEdit.vue'
-import TodoManager from './auth/components/TodoManager.vue'
+
 import ActivityLog from './auth/components/ActivityLog.vue'
 import UserMetrics from './auth/components/UserMetrics.vue'
 import AvatarSelector from './auth/components/AvatarSelector.vue'
@@ -254,7 +242,7 @@ const appearanceForm = reactive({
 })
 
 // 数据
-const todos = ref([])
+
 const userActivities = ref([])
 const userStats = reactive({
   loginCount: 0,
@@ -281,7 +269,7 @@ const daysFromRegistration = computed(() => {
   return Math.floor((now - created) / (1000 * 60 * 60 * 24)) || 1
 })
 
-const completedTodosCount = computed(() => todos.value.filter(t => t.completed).length)
+
 const efficiencyScore = ref(85)
 const averageResponseTime = ref('2.3小时')
 
@@ -289,7 +277,7 @@ const averageResponseTime = ref('2.3小时')
 const tabs = [
   { id: 'basic', label: '基本信息', icon: 'User' },
   { id: 'password', label: '密码修改', icon: 'Lock' },
-  { id: 'todos', label: '待办事项', icon: 'List' },
+
   { id: 'appearance', label: '外观设置', icon: 'Brush' },
   { id: 'activities', label: '近期活动', icon: 'Clock' },
   { id: 'stats', label: '数据统计', icon: 'TrendCharts' },
@@ -339,7 +327,7 @@ onMounted(async () => {
   try {
     isLoading.value = true
     await loadUserProfile()
-    await loadTodos()
+
     await loadActivities()
     await loadUserStats()
     
@@ -373,23 +361,7 @@ const loadUserProfile = async () => {
   }
 }
 
-const loadTodos = async () => {
-  try {
-    const res = await todoApi.getAllTodos()
-    if (res.success) {
-      todos.value = parseListData(res.data)
-    } else {
-      // 模拟数据
-      todos.value = [] 
-    }
-  } catch (error) {
-    // 使用模拟数据作为降级方案
-    todos.value = [
-      { id: 1, title: '完成各模块单元测试', deadline: new Date(Date.now() + 86400000), completed: false, priority: 3, description: '包含财务、库存模块' },
-      { id: 2, title: '更新用户文档', deadline: new Date(Date.now() + 172800000), completed: true, priority: 2 }
-    ]
-  }
-}
+
 
 const loadActivities = async () => {
   // 模拟活动数据
@@ -478,51 +450,7 @@ const changePassword = async (data, callback) => {
   }
 }
 
-const saveTodo = (todo) => {
-  if (todo.id) {
-    const index = todos.value.findIndex(t => t.id === todo.id)
-    if (index !== -1) todos.value[index] = todo
-  } else {
-    todos.value.unshift({ ...todo, id: Date.now() })
-  }
-  ElMessage.success('待办事项已保存')
-}
 
-const deleteTodo = (id) => {
-  todos.value = todos.value.filter(t => t.id !== id)
-  ElMessage.success('待办事项已删除')
-}
-
-const toggleTodoStatus = (todo) => {
-  ElMessage.info(todo.completed ? '已标记为完成' : '已标记为未完成')
-}
-
-const importTodos = (file) => {
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
-      const data = JSON.parse(e.target.result)
-      if (Array.isArray(data)) {
-        todos.value = [...data, ...todos.value]
-        ElMessage.success(`成功导入 ${data.length} 条待办`)
-      }
-    } catch (err) {
-      ElMessage.error('文件格式错误')
-    }
-  }
-  reader.readAsText(file)
-}
-
-const exportTodos = () => {
-  const data = JSON.stringify(todos.value, null, 2)
-  const blob = new Blob([data], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `todos-${new Date().toISOString().split('T')[0]}.json`
-  a.click()
-  URL.revokeObjectURL(url)
-}
 
 const saveAppearance = () => {
   themeStore.setTheme(appearanceForm.theme)

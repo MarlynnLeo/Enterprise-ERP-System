@@ -576,7 +576,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
@@ -1020,41 +1019,6 @@ const getPackingStatusColor = (status) => {
 const canEditByStatus = (row) => ['draft', 'confirmed'].includes(row.status)
 const canConfirmByStatus = (row) => row.status === 'draft'
 const canDeleteByStatus = (row) => ['draft'].includes(row.status)
-
-// 格式化日期
-const formatDate = (date) => {
-  // 如果日期为空或无效，则返回占位符
-  if (!date) return '-';
-  
-  try {
-    // 检查日期是否为有效值
-    const parsedDate = dayjs(date);
-    if (!parsedDate.isValid()) {
-      return '-';
-    }
-    
-    // 无论什么类型，都只显示年月日
-    return parsedDate.format('YYYY-MM-DD');
-  } catch (error) {
-    console.error('日期格式化错误:', error, '原始日期:', date);
-    return '-';
-  }
-}
-
-// 格式化日期时间
-const formatDateTime = (datetime) => {
-  if (!datetime) return '-';
-  try {
-    const parsedDateTime = dayjs(datetime);
-    if (!parsedDateTime.isValid()) {
-      return '-';
-    }
-    return parsedDateTime.format('YYYY-MM-DD HH:mm:ss');
-  } catch (error) {
-    console.error('日期时间格式化错误:', error, '原始日期时间:', datetime);
-    return '-';
-  }
-}
 
 // 分页处理
 const handleSizeChange = (val) => {
