@@ -1,30 +1,30 @@
 <!--
 /**
  * TraceabilityDetail.vue
- * @description 鎵规杩芥函璇︽儏椤甸潰 鈥?灞曠ず瀹屾暣杩芥函閾捐矾
+ * @description 批次追溯详情页面 — 展示完整追溯链路
  * @date 2026-04-15
  * @version 1.0.0
  */
 -->
 <template>
   <div class="trace-detail-page">
-    <NavBar title="杩芥函璇︽儏" left-arrow @click-left="$router.go(-1)" />
+    <NavBar title="追溯详情" left-arrow @click-left="$router.go(-1)" />
 
     <div class="content-wrapper">
-      <!-- 鍔犺浇鐘舵€?-->
+      <!-- 加载状态 -->
       <div v-if="loading" class="loading-state">
-        <Loading type="spinner" size="28" color="var(--color-accent)">姝ｅ湪杩芥函涓?..</Loading>
+        <Loading type="spinner" size="28" color="var(--color-accent)">正在追溯中...</Loading>
       </div>
 
       <template v-else-if="traceData">
-        <!-- 鎵规鎽樿鍗＄墖 -->
+        <!-- 批次摘要卡片 -->
         <div class="summary-card">
           <div class="summary-header">
             <div
               class="summary-icon"
               :class="batchType === 'product' ? 'icon-product' : 'icon-material'"
             >
-              {{ batchType === 'product' ? '馃彮' : '馃摝' }}
+              {{ batchType === 'product' ? '🏭' : '📦' }}
             </div>
             <div class="summary-info">
               <div class="summary-title">{{ materialCode }}</div>
@@ -34,41 +34,41 @@
               class="summary-badge"
               :class="batchType === 'product' ? 'badge-product' : 'badge-material'"
             >
-              {{ batchType === 'product' ? '鎴愬搧' : '鍘熸枡' }}
+              {{ batchType === 'product' ? '成品' : '原料' }}
             </div>
           </div>
 
-          <!-- 鍩虹淇℃伅缃戞牸 -->
+          <!-- 基础信息网格 -->
           <div v-if="traceData.material_name || traceData.specification" class="info-grid">
             <div class="info-item" v-if="traceData.material_name">
-              <span class="info-label">鐗╂枡鍚嶇О</span>
+              <span class="info-label">物料名称</span>
               <span class="info-value">{{ traceData.material_name }}</span>
             </div>
             <div class="info-item" v-if="traceData.specification">
-              <span class="info-label">瑙勬牸</span>
+              <span class="info-label">规格</span>
               <span class="info-value">{{ traceData.specification }}</span>
             </div>
             <div class="info-item" v-if="traceData.current_stock !== undefined">
-              <span class="info-label">褰撳墠搴撳瓨</span>
+              <span class="info-label">当前库存</span>
               <span class="info-value highlight"
                 >{{ traceData.current_stock }} {{ traceData.unit || '' }}</span
               >
             </div>
             <div class="info-item" v-if="traceData.supplier_name">
-              <span class="info-label">渚涘簲鍟?/span>
+              <span class="info-label">供应商</span>
               <span class="info-value">{{ traceData.supplier_name }}</span>
             </div>
           </div>
         </div>
 
-        <!-- BOM 缁勪欢锛堟垚鍝佽拷婧椂鏄剧ず锛?-->
+        <!-- BOM 组件（成品追溯时显示） -->
         <div
           v-if="traceData.bom_components && traceData.bom_components.length > 0"
           class="section-card"
         >
           <div class="section-title">
-            <span class="section-icon">馃З</span>
-            <span>鍘熸枡缁勬垚</span>
+            <span class="section-icon">📋</span>
+            <span>原料组成</span>
             <span class="section-count">{{ traceData.bom_components.length }}</span>
           </div>
           <div class="bom-list">
@@ -79,7 +79,7 @@
               </div>
               <div class="bom-meta">
                 <span v-if="comp.raw_material_batch" class="bom-batch"
-                  >鎵规: {{ comp.raw_material_batch }}</span
+                  >批次: {{ comp.raw_material_batch }}</span
                 >
                 <span v-if="comp.supplier_name" class="bom-supplier">{{ comp.supplier_name }}</span>
               </div>
@@ -87,11 +87,11 @@
           </div>
         </div>
 
-        <!-- 杩芥函閾捐矾 -->
+        <!-- 追溯链路 -->
         <div v-if="traceData.steps && traceData.steps.length > 0" class="section-card">
           <div class="section-title">
-            <span class="section-icon">馃敆</span>
-            <span>杩芥函閾捐矾</span>
+            <span class="section-icon">🔗</span>
+            <span>追溯链路</span>
             <span class="section-count">{{ traceData.steps.length }}</span>
           </div>
           <div class="timeline">
@@ -108,10 +108,10 @@
                   <div class="step-ref" v-if="step.reference_no">{{ step.reference_no }}</div>
                   <div class="step-remark" v-if="step.remarks">{{ step.remarks }}</div>
                   <div class="step-qty" v-if="step.quantity">
-                    鏁伴噺: <strong>{{ step.quantity }}</strong>
+                    数量: <strong>{{ step.quantity }}</strong>
                   </div>
                   <div class="step-product" v-if="step.product_name">
-                    浜у搧: {{ step.product_name }} ({{ step.product_code }})
+                    产品: {{ step.product_name }} ({{ step.product_code }})
                   </div>
                 </div>
               </div>
@@ -119,21 +119,21 @@
           </div>
         </div>
 
-        <!-- 鎵规娴佹按璁板綍 -->
+        <!-- 批次流水记录 -->
         <div
           v-if="traceData.batch_transactions && traceData.batch_transactions.length > 0"
           class="section-card"
         >
           <div class="section-title">
-            <span class="section-icon">馃摑</span>
-            <span>娴佹按璁板綍</span>
+            <span class="section-icon">📘</span>
+            <span>流水记录</span>
             <span class="section-count">{{ traceData.batch_transactions.length }}</span>
           </div>
           <div class="transaction-list">
             <div v-for="(tx, idx) in traceData.batch_transactions" :key="idx" class="tx-item">
               <div class="tx-row">
                 <span class="tx-type" :class="tx.quantity > 0 ? 'tx-in' : 'tx-out'">
-                  {{ tx.quantity > 0 ? '鍏ュ簱' : '鍑哄簱' }}
+                  {{ tx.quantity > 0 ? '入库' : '出库' }}
                 </span>
                 <span class="tx-qty" :class="tx.quantity > 0 ? 'qty-positive' : 'qty-negative'">
                   {{ tx.quantity > 0 ? '+' : '' }}{{ tx.quantity }}
@@ -148,7 +148,7 @@
           </div>
         </div>
 
-        <!-- 绌洪摼璺彁绀?-->
+        <!-- 空链路提示 -->
         <div
           v-if="
             !traceData.steps?.length &&
@@ -157,15 +157,15 @@
           "
           class="empty-chain"
         >
-          <Empty description="鏆傛棤杩芥函閾捐矾鏁版嵁" />
+          <Empty description="暂无追溯链路数据" />
         </div>
       </template>
 
-      <!-- 閿欒鐘舵€?-->
+      <!-- 错误状态 -->
       <div v-else-if="errorMsg" class="error-state">
         <Empty image="error" :description="errorMsg">
           <template #default>
-            <Button plain type="primary" size="small" @click="loadTraceData">閲嶈瘯</Button>
+            <Button plain type="primary" size="small" @click="loadTraceData">重试</Button>
           </template>
         </Empty>
       </div>
@@ -186,32 +186,34 @@
   const traceData = ref(null)
   const errorMsg = ref('')
 
-  // 浠?query 涓幏鍙栧弬鏁?  const materialCode = route.query.materialCode || ''
+  // 从 query 中获取参数
+  const materialCode = route.query.materialCode || ''
   const batchNumber = route.query.batchNumber || ''
   const batchType = route.query.type || 'material'
 
-  // 姝ラ绫诲瀷鏍囩
+  // 步骤类型标签
   const getStepTypeLabel = (type) => {
     const map = {
-      PURCHASE_IN: '閲囪喘鍏ュ簱',
-      PRODUCTION_IN: '鐢熶骇鍏ュ簱',
-      PRODUCTION_OUT: '鐢熶骇棰嗘枡',
-      SALES_OUT: '閿€鍞嚭搴?,
-      TRANSFER: '璋冩嫧',
-      ADJUSTMENT: '璋冩暣',
-      RETURN_IN: '閫€璐у叆搴?
+      PURCHASE_IN: '采购入库',
+      PRODUCTION_IN: '生产入库',
+      PRODUCTION_OUT: '生产领料',
+      SALES_OUT: '销售出库',
+      TRANSFER: '调拨',
+      ADJUSTMENT: '调整',
+      RETURN_IN: '退货入库'
     }
-    return map[type] || type || '娴佽浆'
+    return map[type] || type || '流转'
   }
 
-  // 姝ラ绫诲瀷鏍峰紡
+  // 步骤类型样式
   const getStepTypeClass = (type) => {
     if (['PURCHASE_IN', 'PRODUCTION_IN', 'RETURN_IN'].includes(type)) return 'step-in'
     if (['SALES_OUT', 'PRODUCTION_OUT'].includes(type)) return 'step-out'
     return 'step-neutral'
   }
 
-  // 鏍煎紡鍖栨棩鏈熸椂闂?  const formatDateTime = (dateStr) => {
+  // 格式化日期时间
+  const formatDateTime = (dateStr) => {
     if (!dateStr) return ''
     const d = new Date(dateStr)
     return d.toLocaleDateString('zh-CN', {
@@ -222,10 +224,10 @@
     })
   }
 
-  // 鍔犺浇杩芥函鏁版嵁
+  // 加载追溯数据
   const loadTraceData = async () => {
     if (!materialCode || !batchNumber) {
-      errorMsg.value = '缂哄皯鐗╂枡缂栫爜鎴栨壒娆″彿'
+      errorMsg.value = '缺少物料编码或批次号'
       return
     }
 
@@ -236,16 +238,16 @@
       const response = await qualityApi.traceBatch(materialCode, batchNumber)
       const respData = response.data || response
 
-      // 瑙ｆ瀽鍝嶅簲
+      // 解析响应
       if (respData.success === false) {
-        errorMsg.value = respData.message || '杩芥函澶辫触'
+        errorMsg.value = respData.message || '追溯失败'
         return
       }
 
       traceData.value = respData.data || respData
     } catch (error) {
-      console.error('杩芥函鏌ヨ澶辫触:', error)
-      errorMsg.value = '杩芥函鏌ヨ澶辫触锛岃閲嶈瘯'
+      console.error('追溯查询失败:', error)
+      errorMsg.value = '追溯查询失败，请重试'
     } finally {
       loading.value = false
     }
@@ -267,21 +269,23 @@
     padding: 12px;
   }
 
-  // 鍔犺浇鐘舵€?  .loading-state {
+  // 加载状态
+  .loading-state {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 60vh;
   }
 
-  // 閿欒鐘舵€?  .error-state {
+  // 错误状态
+  .error-state {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 60vh;
   }
 
-  // 鎽樿鍗＄墖
+  // 摘要卡片
   .summary-card {
     background: var(--bg-secondary);
     border-radius: 14px;
@@ -354,7 +358,7 @@
     }
   }
 
-  // 淇℃伅缃戞牸
+  // 信息网格
   .info-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -385,7 +389,7 @@
     }
   }
 
-  // 鍒嗗尯鍗＄墖
+  // 分区卡片
   .section-card {
     background: var(--bg-secondary);
     border-radius: 14px;
@@ -419,7 +423,7 @@
     }
   }
 
-  // BOM 鍒楄〃
+  // BOM 列表
   .bom-list {
     display: flex;
     flex-direction: column;
@@ -462,7 +466,8 @@
     }
   }
 
-  // 鏃堕棿绾?  .timeline {
+  // 时间线
+  .timeline {
     position: relative;
     padding-left: 20px;
 
@@ -566,7 +571,7 @@
     }
   }
 
-  // 娴佹按璁板綍
+  // 流水记录
   .transaction-list {
     display: flex;
     flex-direction: column;
@@ -624,7 +629,8 @@
     }
   }
 
-  // 绌洪摼璺?  .empty-chain {
+  // 空链路
+  .empty-chain {
     padding: 40px 0;
   }
 </style>

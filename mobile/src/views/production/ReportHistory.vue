@@ -1,15 +1,14 @@
 <!--
 /**
  * ReportHistory.vue - 报工记录
- * @description 报工历史记录页面 - Glassmorphism 风格
- * @date 2025-12-29
+ * @description 报工历史记录页面
+ * @date 2026-04-15
  * @version 1.0.0
  */
 -->
 <template>
-  <GlassListPage
+  <UniversalListPage
     title="报工记录"
-    :show-back="true"
     :show-add="false"
     :show-search="true"
     search-placeholder="搜索任务编号或产品名称"
@@ -17,78 +16,72 @@
     :show-filter="true"
     :tags="dateTabs"
     v-model:active-tag="activeDate"
-    :stats="statsData"
     @back="goBack"
     @filter="handleFilter"
   >
+    <!-- 统计栏 -->
+    <div class="stats-row" v-if="statsData">
+      <div v-for="stat in statsData" :key="stat.label" class="stat-item">
+        <div class="stat-value">{{ stat.value }}</div>
+        <div class="stat-label">{{ stat.label }}</div>
+      </div>
+    </div>
+
     <!-- 报工记录列表 -->
     <div class="report-list">
-      <p class="list-title">报工记录</p>
-      
-      <!-- 列表项 -->
       <div
         v-for="report in filteredReports"
         :key="report.id"
-        class="report-item"
+        class="list-card"
         @click="viewReportDetail(report)"
       >
-        <GlassCard clickable>
-          <!-- 报工头部 -->
-          <div class="report-header">
-            <span class="report-date">{{ report.reportDate }}</span>
-            <span class="report-status" :class="getStatusClass(report.status)">
-              {{ getStatusText(report.status) }}
-            </span>
-          </div>
+        <!-- 报工头部 -->
+        <div class="list-card-header">
+          <div class="list-card-title">{{ report.taskCode }} - {{ report.productName }}</div>
+          <span class="report-status" :class="getStatusClass(report.status)">
+            {{ getStatusText(report.status) }}
+          </span>
+        </div>
 
-          <!-- 任务信息 -->
-          <h3 class="report-title">{{ report.taskCode }} - {{ report.productName }}</h3>
-
-          <!-- 报工详情 -->
-          <div class="report-details">
-            <div class="detail-item">
-              <span class="detail-label">完成数量</span>
-              <span class="detail-value">{{ report.completedQuantity }} {{ report.unit }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">合格数量</span>
-              <span class="detail-value success">{{ report.qualifiedQuantity }} {{ report.unit }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">不良数量</span>
-              <span class="detail-value error">{{ report.defectiveQuantity }} {{ report.unit }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">工时</span>
-              <span class="detail-value">{{ report.workHours }} 小时</span>
-            </div>
+        <!-- 报工详情 -->
+        <div class="list-card-body">
+          <div class="info-row">
+            <span class="info-label">完成数量</span>
+            <span class="info-value">{{ report.completedQuantity }} {{ report.unit }}</span>
           </div>
-
-          <!-- 操作人员 -->
-          <div class="report-footer">
-            <span class="operator">操作人: {{ report.operator }}</span>
+          <div class="info-row">
+            <span class="info-label">合格数量</span>
+            <span class="info-value success">{{ report.qualifiedQuantity }} {{ report.unit }}</span>
           </div>
-        </GlassCard>
+          <div class="info-row">
+            <span class="info-label">不良数量</span>
+            <span class="info-value error">{{ report.defectiveQuantity }} {{ report.unit }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">工时</span>
+            <span class="info-value">{{ report.workHours }} 小时</span>
+          </div>
+        </div>
+
+        <!-- 底部信息 -->
+        <div class="list-card-footer">
+          <span class="footer-left">{{ report.reportDate }}</span>
+          <span class="footer-right">操作人: {{ report.operator }}</span>
+        </div>
       </div>
 
       <!-- 空状态 -->
-      <div v-if="filteredReports.length === 0" class="empty-state">
-        <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <p class="empty-text">暂无报工记录</p>
-      </div>
+      <van-empty v-if="filteredReports.length === 0" description="暂无报工记录" />
     </div>
-  </GlassListPage>
+  </UniversalListPage>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import GlassListPage from '@/components/glass/GlassListPage.vue'
-import GlassCard from '@/components/glass/GlassCard.vue'
+import UniversalListPage from '@/components/common/UniversalListPage.vue'
 import { showToast } from 'vant'
+import { Empty as VanEmpty } from 'vant'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -107,9 +100,9 @@ const dateTabs = ref([
 
 // 统计数据
 const statsData = ref([
-  { label: '总报工', value: 156, icon: 'document-text', iconClass: 'bg-blue' },
-  { label: '今日报工', value: 12, icon: 'document-text', iconClass: 'bg-green' },
-  { label: '本周报工', value: 45, icon: 'document-text', iconClass: 'bg-purple' }
+  { label: '总报工', value: 156 },
+  { label: '今日报工', value: 12 },
+  { label: '本周报工', value: 45 }
 ])
 
 // 模拟报工记录数据
@@ -219,125 +212,79 @@ const getStatusText = (status) => {
 }
 </script>
 
-<style lang="scss" scoped>
-.report-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.list-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: white;
-  margin-bottom: 0.5rem;
-}
-
-.report-item {
-  cursor: pointer;
-}
-
-.report-header {
+<style scoped>
+.stats-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
+  padding: 12px 16px;
+  background-color: var(--van-background);
+  margin-bottom: 12px;
+}
+.stat-item {
+  text-align: center;
+  flex: 1;
+}
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--van-text-color);
+  margin-bottom: 4px;
+}
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--van-text-color-2);
 }
 
-.report-date {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+.report-list {
+  padding: 0 16px 16px;
 }
 
 .report-status {
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.625rem;
-  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .status-pending {
-  background: rgba(234, 179, 8, 0.2);
-  color: rgb(253, 224, 71);
+  background: var(--module-orange-light);
+  color: var(--module-orange);
 }
 
 .status-approved {
-  background: rgba(34, 197, 94, 0.2);
-  color: rgb(134, 239, 172);
+  background: var(--module-green-light);
+  color: var(--module-green);
 }
 
 .status-rejected {
-  background: rgba(239, 68, 68, 0.2);
-  color: rgb(252, 165, 165);
+  background: var(--module-red-light);
+  color: var(--module-red);
 }
 
-.report-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: white;
-  margin-bottom: 0.75rem;
-}
-
-.report-details {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.detail-item {
+.info-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.detail-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.detail-value {
+  justify-content: space-between;
+  margin-bottom: 8px;
   font-size: 0.875rem;
+}
+.info-label {
+  color: var(--van-text-color-2);
+}
+.info-value.success {
+  color: var(--module-green);
   font-weight: 600;
-  color: white;
+}
+.info-value.error {
+  color: var(--module-red);
+  font-weight: 600;
 }
 
-.detail-value.success {
-  color: rgb(134, 239, 172);
-}
-
-.detail-value.error {
-  color: rgb(252, 165, 165);
-}
-
-.report-footer {
-  padding-top: 0.75rem;
+.list-card-footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
   border-top: 1px solid var(--van-border-color);
-}
-
-.operator {
   font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-}
-
-.empty-icon {
-  width: 6rem;
-  height: 6rem;
-  color: rgb(100, 116, 139);
-  margin-bottom: 1rem;
-}
-
-.empty-text {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: var(--van-text-color-2);
 }
 </style>
-

@@ -1,49 +1,50 @@
 <!--
 /**
  * Report.vue
- * @description 搴撳瓨鎶ヨ〃椤甸潰 鈥?灞曠ず搴撳瓨姹囨€汇€佸垎甯冦€佷环鍊笺€侀璀︾瓑澶氱淮搴︽姤琛? * @date 2026-04-15
+ * @description 库存报表页面 — 展示库存汇总、分布、价值、预警等多维度报表
+ * @date 2026-04-15
  * @version 1.0.0
  */
 -->
 <template>
   <div class="report-page">
-    <NavBar title="搴撳瓨鎶ヨ〃" left-arrow @click-left="router.back()" />
+    <NavBar title="库存报表" left-arrow @click-left="router.back()" />
 
     <div class="content-wrapper">
-      <!-- 缁熻姒傝 -->
+      <!-- 统计概览 -->
       <div class="stats-banner">
         <div class="stat-item">
           <span class="stat-num">{{ statistics.totalItems }}</span>
-          <span class="stat-label">鐗╂枡绉嶇被</span>
+          <span class="stat-label">物料种类</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-num accent">{{ formatMoney(statistics.totalValue) }}</span>
-          <span class="stat-label">搴撳瓨鎬诲€?/span>
+          <span class="stat-num accent">￥{{ formatMoney(statistics.totalValue) }}</span>
+          <span class="stat-label">库存总值</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-num success">{{ statistics.totalLocations }}</span>
-          <span class="stat-label">浠撳簱鏁?/span>
+          <span class="stat-label">仓库数</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-num warn">{{ statistics.lowStock }}</span>
-          <span class="stat-label">浣庡簱瀛?/span>
+          <span class="stat-label">低库存</span>
         </div>
       </div>
 
-      <!-- 鎼滅储鏍?-->
+      <!-- 搜索栏 -->
       <div class="search-section">
         <Search
           v-model="searchValue"
-          placeholder="鎼滅储鐗╂枡鍚嶇О/缂栫爜"
+          placeholder="搜索物料名称/编码"
           @search="onSearch"
           @clear="onSearch"
         />
       </div>
 
-      <!-- 妯悜婊戝姩绛涢€夋爣绛?-->
+      <!-- 横向滑动筛选标签 -->
       <div class="filter-scroll-wrapper">
         <div class="filter-scroll">
           <div
@@ -62,19 +63,19 @@
         </div>
       </div>
 
-      <!-- 鎶ヨ〃鍒楄〃 -->
+      <!-- 报表列表 -->
       <PullRefresh v-model="refreshing" @refresh="onRefresh">
         <List
           v-model:loading="loading"
           :finished="finished"
-          finished-text="娌℃湁鏇村鏁版嵁浜?
+          finished-text="没有更多数据了"
           @load="onLoad"
         >
           <div v-if="reportList.length === 0 && !loading" class="empty-state">
-            <Empty description="鏆傛棤鎶ヨ〃鏁版嵁" />
+            <Empty description="暂无报表数据" />
           </div>
 
-          <!-- 姹囨€绘姤琛ㄥ崱鐗?-->
+          <!-- 汇总报表卡片 -->
           <template v-if="currentReportType === 'summary'">
             <div v-for="item in reportList" :key="item.id" class="report-card">
               <div class="card-accent" :class="getStockLevel(item)"></div>
@@ -91,24 +92,24 @@
                 <div class="item-spec" v-if="item.specification">{{ item.specification }}</div>
                 <div class="detail-grid">
                   <div class="detail-item">
-                    <span class="detail-label">鍒嗙被</span>
-                    <span class="detail-value">{{ item.categoryName || '鈥? }}</span>
+                    <span class="detail-label">分类</span>
+                    <span class="detail-value">{{ item.categoryName || '-' }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">鍗曚环</span>
-                    <span class="detail-value">楼{{ formatNum(item.unitPrice) }}</span>
+                    <span class="detail-label">单价</span>
+                    <span class="detail-value">￥{{ formatNum(item.unitPrice) }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">搴撳瓨鎬诲€?/span>
-                    <span class="detail-value highlight">楼{{ formatNum(item.totalValue) }}</span>
+                    <span class="detail-label">库存总值</span>
+                    <span class="detail-value highlight">￥{{ formatNum(item.totalValue) }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">瀹夊叏搴撳瓨</span>
+                    <span class="detail-label">安全库存</span>
                     <span
                       class="detail-value"
                       :class="{ 'text-warn': item.quantity < item.safetyStock }"
                     >
-                      {{ item.safetyStock || '鈥? }}
+                      {{ item.safetyStock || '-' }}
                     </span>
                   </div>
                 </div>
@@ -116,7 +117,7 @@
             </div>
           </template>
 
-          <!-- 鍒嗗竷鎶ヨ〃鍗＄墖 -->
+          <!-- 分布报表卡片 -->
           <template v-if="currentReportType === 'location'">
             <div v-for="(item, idx) in reportList" :key="idx" class="report-card">
               <div class="card-accent accent-blue"></div>
@@ -132,19 +133,19 @@
                 </div>
                 <div class="detail-grid">
                   <div class="detail-item">
-                    <span class="detail-label">浠撳簱</span>
-                    <span class="detail-value">{{ item.locationName || '鈥? }}</span>
+                    <span class="detail-label">仓库</span>
+                    <span class="detail-value">{{ item.locationName || '-' }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">搴撳瓨浠峰€?/span>
-                    <span class="detail-value highlight">楼{{ formatNum(item.totalValue) }}</span>
+                    <span class="detail-label">库存价值</span>
+                    <span class="detail-value highlight">￥{{ formatNum(item.totalValue) }}</span>
                   </div>
                   <div class="detail-item" v-if="item.lastMoveDate">
-                    <span class="detail-label">鏈€鍚庡彉鍔?/span>
+                    <span class="detail-label">最后变动</span>
                     <span class="detail-value">{{ item.lastMoveDate }}</span>
                   </div>
                   <div class="detail-item" v-if="item.specification">
-                    <span class="detail-label">瑙勬牸</span>
+                    <span class="detail-label">规格</span>
                     <span class="detail-value">{{ item.specification }}</span>
                   </div>
                 </div>
@@ -152,38 +153,38 @@
             </div>
           </template>
 
-          <!-- 浠峰€兼姤琛ㄥ崱鐗?-->
+          <!-- 价值报表卡片 -->
           <template v-if="currentReportType === 'value'">
             <div v-for="item in reportList" :key="item.id" class="report-card">
               <div class="card-accent accent-green"></div>
               <div class="card-body">
                 <div class="card-header">
-                  <span class="item-title">{{ item.categoryName || '鏈垎绫? }}</span>
+                  <span class="item-title">{{ item.categoryName || '未分类' }}</span>
                   <span class="qty-badge accent-green">{{ formatNum(item.valuePercent) }}%</span>
                 </div>
                 <div class="detail-grid">
                   <div class="detail-item">
-                    <span class="detail-label">鐗╂枡鏁?/span>
+                    <span class="detail-label">物料数</span>
                     <span class="detail-value">{{ item.materialCount }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">鎬绘暟閲?/span>
+                    <span class="detail-label">总数量</span>
                     <span class="detail-value">{{ formatNum(item.totalQuantity) }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">鎬讳环鍊?/span>
-                    <span class="detail-value highlight">楼{{ formatNum(item.totalValue) }}</span>
+                    <span class="detail-label">总价值</span>
+                    <span class="detail-value highlight">￥{{ formatNum(item.totalValue) }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">鍧囦环</span>
-                    <span class="detail-value">楼{{ formatNum(item.averagePrice) }}</span>
+                    <span class="detail-label">均价</span>
+                    <span class="detail-value">￥{{ formatNum(item.averagePrice) }}</span>
                   </div>
                 </div>
               </div>
             </div>
           </template>
 
-          <!-- 棰勮鎶ヨ〃鍗＄墖 -->
+          <!-- 预警报表卡片 -->
           <template v-if="currentReportType === 'warning'">
             <div v-for="item in reportList" :key="item.id" class="report-card">
               <div class="card-accent accent-red"></div>
@@ -199,17 +200,17 @@
                 </div>
                 <div class="detail-grid">
                   <div class="detail-item">
-                    <span class="detail-label">褰撳墠搴撳瓨</span>
+                    <span class="detail-label">当前库存</span>
                     <span class="detail-value text-warn">{{
                       item.currentQuantity || item.quantity || 0
                     }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">瀹夊叏搴撳瓨</span>
-                    <span class="detail-value">{{ item.safetyStock || item.minStock || '鈥? }}</span>
+                    <span class="detail-label">安全库存</span>
+                    <span class="detail-value">{{ item.safetyStock || item.minStock || '-' }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">缂哄彛鏁伴噺</span>
+                    <span class="detail-label">缺口数量</span>
                     <span class="detail-value text-warn">{{
                       item.shortage ||
                       Math.max(
@@ -219,8 +220,8 @@
                     }}</span>
                   </div>
                   <div class="detail-item">
-                    <span class="detail-label">鍒嗙被</span>
-                    <span class="detail-value">{{ item.categoryName || '鈥? }}</span>
+                    <span class="detail-label">分类</span>
+                    <span class="detail-value">{{ item.categoryName || '-' }}</span>
                   </div>
                 </div>
               </div>
@@ -247,7 +248,7 @@
   const reportList = ref([])
   const activeTab = ref(0)
 
-  // 缁熻鏁版嵁
+  // 统计数据
   const statistics = reactive({
     totalItems: 0,
     totalValue: 0,
@@ -255,14 +256,15 @@
     lowStock: 0
   })
 
-  // 鎶ヨ〃绫诲瀷鏍囩锛堝惈鍥炬爣 鈥?涓庣敓浜т换鍔￠〉闈㈢粺涓€椋庢牸锛?  const reportTabs = [
-    { label: '姹囨€?, value: 'summary', icon: 'apps' },
-    { label: '鍒嗗竷', value: 'location', icon: 'clipboard-check' },
-    { label: '浠峰€?, value: 'value', icon: 'badge-check' },
-    { label: '棰勮', value: 'warning', icon: 'shield' }
+  // 报表类型标签
+  const reportTabs = [
+    { label: '汇总', value: 'summary', icon: 'apps' },
+    { label: '分布', value: 'location', icon: 'clipboard-check' },
+    { label: '价值', value: 'value', icon: 'badge-check' },
+    { label: '预警', value: 'warning', icon: 'shield' }
   ]
 
-  // 鑾峰彇鏍囩璁℃暟
+  // 获取标签计数
   const getTabCount = (value) => {
     if (value === 'summary') return statistics.totalItems
     if (value === 'location') return statistics.totalLocations
@@ -273,28 +275,29 @@
 
   const currentReportType = computed(() => reportTabs[activeTab.value].value)
 
-  // 鍒嗛〉鍙傛暟
+  // 分页参数
   const pagination = reactive({
     page: 1,
     pageSize: 20,
     total: 0
   })
 
-  // 鏍煎紡鍖栨暟瀛?  const formatNum = (val) => {
+  // 格式化数字
+  const formatNum = (val) => {
     if (val === null || val === undefined) return '0'
     const num = Number(val)
     if (isNaN(num)) return val
     return num.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
   }
 
-  // 鏍煎紡鍖栭噾棰濓紙绠€鍖栧ぇ鏁版樉绀猴級
+  // 格式化金额
   const formatMoney = (val) => {
     const num = Number(val) || 0
-    if (num >= 10000) return (num / 10000).toFixed(1) + '涓?
+    if (num >= 10000) return (num / 10000).toFixed(1) + '万'
     return formatNum(num)
   }
 
-  // 鑾峰彇搴撳瓨姘村钩鏍峰紡
+  // 获取库存水平样式
   const getStockLevel = (item) => {
     if (!item.safetyStock || item.safetyStock <= 0) return 'accent-blue'
     if (item.quantity <= 0) return 'accent-red'
@@ -302,55 +305,55 @@
     return 'accent-green'
   }
 
-  // 鑾峰彇棰勮鏍峰紡
+  // 获取预警样式
   const getWarningClass = (item) => {
     const qty = item.currentQuantity || item.quantity || 0
     if (qty <= 0) return 'tag-danger'
     return 'tag-warning'
   }
 
-  // 鑾峰彇棰勮鏂囧瓧
+  // 获取预警文字
   const getWarningText = (item) => {
     const qty = item.currentQuantity || item.quantity || 0
-    if (qty <= 0) return '闆跺簱瀛?
-    return '浣庡簱瀛?
+    if (qty <= 0) return '零库存'
+    return '低库存'
   }
 
-  // 鎼滅储
+  // 搜索
   const onSearch = () => {
     resetList()
     loadReport()
   }
 
-  // 鍒囨崲鎶ヨ〃绫诲瀷
+  // 切换报表类型
   const switchTab = (index) => {
     activeTab.value = index
     resetList()
     loadReport()
   }
 
-  // 涓嬫媺鍒锋柊
+  // 下拉刷新
   const onRefresh = () => {
     resetList()
     loadReport().finally(() => {
       refreshing.value = false
-      showToast('鍒锋柊鎴愬姛')
+      showToast('刷新成功')
     })
   }
 
-  // 閲嶇疆鍒楄〃
+  // 重置列表
   const resetList = () => {
     reportList.value = []
     pagination.page = 1
     finished.value = false
   }
 
-  // 鍔犺浇鏇村
+  // 加载更多
   const onLoad = () => {
     loadReport()
   }
 
-  // 鍔犺浇鎶ヨ〃鏁版嵁
+  // 加载报表数据
   const loadReport = async () => {
     if (loading.value) return
 
@@ -365,10 +368,10 @@
 
       const response = await inventoryApi.getInventoryReport(params)
 
-      // 瑙ｅ寘鍝嶅簲鏁版嵁
+      // 解包响应数据
       let responseData = response.data !== undefined ? response.data : response
 
-      // 鎻愬彇鍒楄〃鏁版嵁
+      // 提取列表数据
       let items = []
       if (responseData.items && Array.isArray(responseData.items)) {
         items = responseData.items
@@ -381,7 +384,7 @@
       reportList.value = [...reportList.value, ...items]
       pagination.total = responseData.total || items.length
 
-      // 鏇存柊缁熻鏁版嵁
+      // 更新统计数据
       if (responseData.statistics) {
         Object.assign(statistics, responseData.statistics)
       }
@@ -389,7 +392,7 @@
       finished.value = reportList.value.length >= pagination.total || items.length === 0
       pagination.page++
     } catch (error) {
-      console.error('鑾峰彇搴撳瓨鎶ヨ〃澶辫触:', error)
+      console.error('获取库存报表失败:', error)
       finished.value = true
     } finally {
       loading.value = false
@@ -412,7 +415,7 @@
     padding: 0 12px 12px;
   }
 
-  // ========== 缁熻姒傝 鈥?涓?Tasks.vue 缁熶竴 ==========
+  // ========== 统计概览 ==========
   .stats-banner {
     display: flex;
     align-items: center;
@@ -457,12 +460,12 @@
     background: var(--glass-border);
   }
 
-  // ========== 鎼滅储 ==========
+  // ========== 搜索 ==========
   .search-section {
     padding: 4px 0;
   }
 
-  // ========== 妯悜婊戝姩绛涢€?鈥?涓?Tasks.vue 瀹屽叏涓€鑷?==========
+  // ========== 横向滑动筛选 ==========
   .filter-scroll-wrapper {
     padding: 4px 0 8px;
     overflow: hidden;
@@ -522,7 +525,7 @@
     }
   }
 
-  // ========== 鎶ヨ〃鍗＄墖鍒楄〃 ==========
+  // ========== 报表卡片列表 ==========
   .report-card {
     display: flex;
     background: var(--bg-secondary);
@@ -551,7 +554,7 @@
     }
   }
 
-  // 宸︿晶鑹叉潯
+  // 左侧色条
   .card-accent {
     width: 4px;
     flex-shrink: 0;
@@ -659,7 +662,7 @@
     }
   }
 
-  // 璇︽儏缃戞牸
+  // 详情网格
   .detail-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -695,7 +698,7 @@
     }
   }
 
-  // ========== 绌虹姸鎬?==========
+  // ========== 空状态 ==========
   .empty-state {
     padding: 60px 0;
   }

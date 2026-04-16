@@ -1,50 +1,50 @@
 <!--
 /**
  * Transaction.vue
- * @description 搴撳瓨娴佹按鎶ヨ〃椤甸潰 鈥?涓庤皟鎷ㄥ垪琛ㄧ粺涓€椋庢牸
+ * @description 库存流水报表页面
  * @date 2026-04-15
  * @version 2.0.0
  */
 -->
 <template>
   <div class="transaction-page">
-    <NavBar title="搴撳瓨娴佹按" left-arrow @click-left="router.back()" />
+    <NavBar title="库存流水" left-arrow @click-left="router.back()" />
 
     <div class="content-wrapper">
-      <!-- 缁熻姒傝 -->
+      <!-- 统计概览 -->
       <div class="stats-banner">
         <div class="stat-item">
           <span class="stat-num">{{ statistics.totalTransactions }}</span>
-          <span class="stat-label">鎬绘祦姘?/span>
+          <span class="stat-label">总流水</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-num in">{{ statistics.inboundCount }}</span>
-          <span class="stat-label">鍏ュ簱</span>
+          <span class="stat-label">入库</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-num out">{{ statistics.outboundCount }}</span>
-          <span class="stat-label">鍑哄簱</span>
+          <span class="stat-label">出库</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-num transfer">{{ statistics.transferCount }}</span>
-          <span class="stat-label">璋冩嫧</span>
+          <span class="stat-label">调拨</span>
         </div>
       </div>
 
-      <!-- 鎼滅储鏍?-->
+      <!-- 搜索栏 -->
       <div class="search-section">
         <Search
           v-model="searchValue"
-          placeholder="鎼滅储鐗╂枡鍚嶇О/缂栫爜"
+          placeholder="搜索物料名称/编码"
           @search="onSearch"
           @clear="onSearch"
         />
       </div>
 
-      <!-- 妯悜婊戝姩绛涢€夋爣绛?-->
+      <!-- 横向滑动筛选标签 -->
       <div class="filter-scroll-wrapper">
         <div class="filter-scroll">
           <div
@@ -63,15 +63,15 @@
         </div>
       </div>
 
-      <!-- 娴佹按鍒楄〃 -->
+      <!-- 流水列表 -->
       <div class="list-area">
         <PullRefresh v-model="refreshing" @refresh="onRefresh">
-          <Empty v-if="transactionList.length === 0 && !loading" description="鏆傛棤娴佹按璁板綍" />
+          <Empty v-if="transactionList.length === 0 && !loading" description="暂无流水记录" />
 
           <List
             v-model:loading="loading"
             :finished="finished"
-            finished-text="娌℃湁鏇村浜?
+            finished-text="没有更多了"
             @load="onLoad"
           >
             <div
@@ -82,7 +82,7 @@
             >
               <div class="card-accent" :class="getAccentClass(item.transactionType)"></div>
               <div class="card-body">
-                <!-- 绗竴琛? 浜ゆ槗绫诲瀷 + 鏁伴噺 -->
+                <!-- 第一行: 交易类型 + 数量 -->
                 <div class="card-top">
                   <div class="code-area">
                     <div class="type-icon" :class="getAccentClass(item.transactionType)">
@@ -97,13 +97,13 @@
                   </span>
                 </div>
 
-                <!-- 绗簩琛? 鐗╂枡淇℃伅 -->
+                <!-- 第二行: 物料信息 -->
                 <div class="order-title">
-                  {{ item.materialName || '鈥? }}
+                  {{ item.materialName || '-' }}
                   <span class="mat-code">{{ item.materialCode || '' }}</span>
                 </div>
 
-                <!-- 绗笁琛? 璇︾粏淇℃伅 -->
+                <!-- 第三行: 详细信息 -->
                 <div class="card-meta">
                   <span class="meta-item" v-if="item.locationName">
                     <Icon name="location-o" size="12" /> {{ item.locationName }}
@@ -113,7 +113,7 @@
                   </span>
                 </div>
 
-                <!-- 绗洓琛? 鍙樺姩鍓嶅悗 + 搴曢儴 -->
+                <!-- 第四行: 变动前后 + 底部 -->
                 <div
                   class="card-bottom"
                   v-if="item.beforeQuantity !== null && item.beforeQuantity !== undefined"
@@ -159,7 +159,7 @@
   const transactionList = ref([])
   const activeType = ref('')
 
-  // 缁熻鏁版嵁
+  // 统计数据
   const statistics = reactive({
     totalTransactions: 0,
     inboundCount: 0,
@@ -168,19 +168,19 @@
     checkCount: 0
   })
 
-  // 绫诲瀷绛涢€夋爣绛撅紙鍚浘鏍囷級
+  // 类型筛选标签（含图标）
   const typeTabs = [
-    { label: '鍏ㄩ儴', value: '', icon: 'apps' },
-    { label: '鍏ュ簱', value: 'inbound', icon: 'badge-check' },
-    { label: '鍑哄簱', value: 'outbound', icon: 'shield' },
-    { label: '璋冩嫧', value: 'transfer', icon: 'cog' },
-    { label: '鐩樼偣', value: 'check', icon: 'clipboard-check' }
+    { label: '全部', value: '', icon: 'apps' },
+    { label: '入库', value: 'inbound', icon: 'badge-check' },
+    { label: '出库', value: 'outbound', icon: 'shield' },
+    { label: '调拨', value: 'transfer', icon: 'cog' },
+    { label: '盘点', value: 'check', icon: 'clipboard-check' }
   ]
 
-  // 鍒嗛〉鍙傛暟
+  // 分页参数
   const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
-  // 鍏ュ簱绫诲瀷闆嗗悎
+  // 入库类型集合
   const inboundTypes = [
     'inbound',
     'in',
@@ -196,7 +196,7 @@
     'production_return'
   ]
 
-  // 鍑哄簱绫诲瀷闆嗗悎
+  // 出库类型集合
   const outboundTypes = [
     'outbound',
     'out',
@@ -210,10 +210,11 @@
     'other_outbound'
   ]
 
-  // 璋冩嫧绫诲瀷闆嗗悎
+  // 调拨类型集合
   const transferTypes = ['transfer', 'transfer_in', 'transfer_out']
 
-  // 鑾峰彇绛涢€夋爣绛捐鏁?  const getChipCount = (type) => {
+  // 获取筛选标签计数
+  const getChipCount = (type) => {
     if (!type) return statistics.totalTransactions
     if (type === 'inbound') return statistics.inboundCount
     if (type === 'outbound') return statistics.outboundCount
@@ -222,7 +223,7 @@
     return 0
   }
 
-  // 鑾峰彇鑹叉潯棰滆壊绫诲悕
+  // 获取色条颜色类名
   const getAccentClass = (type) => {
     if (inboundTypes.includes(type)) return 'accent-green'
     if (outboundTypes.includes(type)) return 'accent-red'
@@ -231,7 +232,7 @@
     return 'accent-blue'
   }
 
-  // 鑾峰彇绫诲瀷鍥炬爣
+  // 获取类型图标
   const getTypeIcon = (type) => {
     if (inboundTypes.includes(type)) return 'down'
     if (outboundTypes.includes(type)) return 'upgrade'
@@ -240,20 +241,21 @@
     return 'orders-o'
   }
 
-  // 鑾峰彇鏁伴噺鏄剧ず鍓嶇紑
+  // 获取数量显示前缀
   const getQtyPrefix = (type) => {
     if (inboundTypes.includes(type)) return '+'
     if (outboundTypes.includes(type)) return '-'
     return ''
   }
 
-  // 鑾峰彇鏁伴噺鏄剧ず鏍峰紡绫?  const getQtyClass = (type) => {
+  // 获取数量显示样式类
+  const getQtyClass = (type) => {
     if (inboundTypes.includes(type)) return 'qty-in'
     if (outboundTypes.includes(type)) return 'qty-out'
     return 'qty-neutral'
   }
 
-  // 鎼滅储
+  // 搜索
   const onSearch = () => {
     resetAndLoad()
   }
@@ -273,7 +275,7 @@
     loadTransactions()
   }
 
-  // 鍔犺浇娴佹按璁板綍
+  // 加载流水记录
   const loadTransactions = async () => {
     if (loading.value) return
     loading.value = true
@@ -298,7 +300,7 @@
       finished.value = transactionList.value.length >= pagination.total || items.length === 0
       pagination.page++
     } catch (error) {
-      console.error('鑾峰彇搴撳瓨娴佹按澶辫触:', error)
+      console.error('获取库存流水失败:', error)
       finished.value = true
     } finally {
       loading.value = false
@@ -319,7 +321,7 @@
     padding: 0 12px 12px;
   }
 
-  // ========== 缁熻姒傝 ==========
+  // ========== 统计概览 ==========
   .stats-banner {
     display: flex;
     align-items: center;
@@ -361,12 +363,12 @@
     background: var(--glass-border);
   }
 
-  // ========== 鎼滅储 ==========
+  // ========== 搜索 ==========
   .search-section {
     padding: 4px 0;
   }
 
-  // ========== 妯悜婊戝姩绛涢€?==========
+  // ========== 横向滑动筛选 ==========
   .filter-scroll-wrapper {
     padding: 4px 0 8px;
     overflow: hidden;
@@ -422,7 +424,7 @@
     }
   }
 
-  // ========== 娴佹按鍗＄墖 ==========
+  // ========== 流水卡片 ==========
   .list-area {
     padding-top: 4px;
   }

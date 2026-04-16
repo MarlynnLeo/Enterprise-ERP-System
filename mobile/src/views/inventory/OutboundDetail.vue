@@ -13,7 +13,7 @@
         <div class="content-scroll" v-if="outboundOrder">
             <!-- 状态卡片 -->
             <div class="status-section">
-                <GlassCard class="status-card">
+                <div class="detail-card status-card">
                     <div class="status-icon" :class="statusClass[outboundOrder.status]">
                         <Icon :name="getStatusIcon(outboundOrder.status)" size="1.5rem" />
                     </div>
@@ -24,12 +24,12 @@
                     <div class="status-date">
                         {{ formatDate(outboundOrder.created_at) }}
                     </div>
-                </GlassCard>
+                </div>
             </div>
 
             <!-- 基本信息 -->
             <div class="section-title">基本信息</div>
-            <GlassCard class="info-card">
+            <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">出库类型</span>
                     <span class="info-value">{{ getOutboundType(outboundOrder.type) }}</span>
@@ -51,13 +51,16 @@
                     <span class="info-label">备注</span>
                     <span class="info-value">{{ outboundOrder.remark }}</span>
                 </div>
-            </GlassCard>
+            </div>
 
             <!-- 物料列表 -->
             <div class="section-title">物料明细 ({{ outboundOrder.items ? outboundOrder.items.length : 0 }})</div>
             <div class="items-list">
-                <GlassListItem v-for="item in outboundOrder.items" :key="item.id" :title="item.material_name"
-                    :subtitle="`SKU: ${item.material_code}`" :show-more="false" :clickable="false">
+                <div class="basic-list-item" v-for="item in outboundOrder.items" :key="item.id">
+       <div class="item-title-row">
+         <div class="item-title">{{ item.material_name }}</div>
+         <div class="item-subtitle">{{ `SKU: ${item.material_code}` || '' }}</div>
+       </div>
                     <div class="item-details">
                         <div class="detail-row">
                             <span class="detail-label">计划数量:</span>
@@ -77,7 +80,7 @@
                             <span class="detail-value">{{ item.warehouse_name }}</span>
                         </div>
                     </div>
-                </GlassListItem>
+                </div>
             </div>
         </div>
 
@@ -90,14 +93,14 @@
         <div class="empty-container" v-else>
             <Icon name="document-text" size="4rem" class="text-gray-500 mb-4" />
             <p>未找到出库单信息</p>
-            <GlassButton class="mt-4" size="sm" @click="fetchDetail">重试</GlassButton>
+            <Button class="mt-4" size="sm" @click="fetchDetail">重试</Button>
         </div>
 
         <!-- 底部操作栏 -->
         <div class="bottom-actions glass-panel" v-if="outboundOrder && outboundOrder.status === 'pending'">
-            <GlassButton type="primary" block :loading="submitting" @click="showExecuteDialog = true">
+            <Button type="primary" block :loading="submitting" @click="showExecuteDialog = true">
                 确认出库
-            </GlassButton>
+            </Button>
         </div>
 
         <!-- 确认出库弹窗 -->
@@ -114,9 +117,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showToast } from 'vant'
+import {  showToast , Button } from 'vant'
 import { inventoryApi } from '@/services/api'
-import { GlassCard, GlassListItem, GlassButton } from '@/components/glass'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
 
@@ -404,5 +406,28 @@ onMounted(() => {
 
 .bg-gray-500 {
     background: linear-gradient(135deg, #6b7280, #4b5563);
+}
+
+.basic-list-item {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--glass-border);
+}
+.item-title-row {
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 8px;
+}
+.item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.item-subtitle {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
 }
 </style>

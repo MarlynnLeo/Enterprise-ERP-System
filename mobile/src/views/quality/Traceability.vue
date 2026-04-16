@@ -100,15 +100,7 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import {
-    NavBar,
-    Icon as VanIcon,
-    Search,
-    PullRefresh,
-    Empty,
-    Loading,
-    showToast
-  } from 'vant'
+  import { NavBar, Icon as VanIcon, Search, PullRefresh, Empty, Loading, showToast } from 'vant'
   import { qualityApi } from '@/services/api'
 
   const router = useRouter()

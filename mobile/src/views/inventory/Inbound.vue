@@ -145,7 +145,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { NavBar, Search, Icon, Empty, Card, Tag, PullRefresh, List, Button, showToast, showConfirmDialog } from 'vant';
 import { inventoryApi } from '@/services/api';
-import { formatDate } from '@/utils/date';
+import { formatDate } from '@/utils/format';
 import { getInboundStatusText, getInboundStatusColor, getInboundTypeText } from '@/constants/statusConstants';
 
 const router = useRouter();
