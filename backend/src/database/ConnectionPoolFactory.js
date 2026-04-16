@@ -77,7 +77,7 @@ class PoolManager extends EventEmitter {
       logger.warn(`[PoolManager] 预热连接失败: ${error.message}`);
     } finally {
       for (const conn of conns) {
-        try { conn.release(); } catch (_) {}
+        try { conn.release(); } catch (e) { logger.warn(`[PoolManager] 预热连接释放失败: ${e.message}`); }
       }
     }
   }
