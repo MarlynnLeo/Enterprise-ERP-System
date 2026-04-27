@@ -41,6 +41,10 @@ export function formatCurrency(value, currency = '¥') {
     return `${currency}0.00`;
   }
   const numValue = Number(value);
+  const abs = Math.abs(numValue);
+  const sign = numValue < 0 ? '-' : '';
+  if (abs >= 1e8) return `${currency}${sign}${(abs / 1e8).toFixed(2)}亿`;
+  if (abs >= 1e4) return `${currency}${sign}${(abs / 1e4).toFixed(2)}万`;
   return currency + numValue.toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2

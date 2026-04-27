@@ -512,7 +512,7 @@ class NonconformingProductService {
 
       // 获取仓库名称
       const [warehouseRows] = await connection.query(
-        'SELECT name FROM locations WHERE id = ?',
+        'SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL',
         [warehouseId]
       );
       const warehouseName = warehouseRows.length > 0 ? warehouseRows[0].name : '物料默认仓库';
@@ -752,7 +752,7 @@ class NonconformingProductService {
       }
 
       const [warehouseRows] = await connection.query(
-        'SELECT id, name FROM locations WHERE id = ?',
+        'SELECT id, name FROM locations WHERE id = ? AND deleted_at IS NULL',
         [returnWarehouseId]
       );
 
@@ -932,22 +932,9 @@ class NonconformingProductService {
     try {
       logger.info(`🔄 处理返工: ${ncp.ncp_no}, 数量: ${quantity}`);
 
-      // 生成返工单号 - 使用配置化的前缀
-      const date = new Date();
-      const dateStr = date.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
-      const prefix = `${businessConfig.documentPrefix.REWORK}${dateStr}`;
-
-      const [maxNoResult] = await connection.query(
-        'SELECT MAX(rework_no) as max_no FROM rework_tasks WHERE rework_no LIKE ?',
-        [`${prefix}%`]
-      );
-
-      let sequence = 1;
-      if (maxNoResult[0] && maxNoResult[0].max_no) {
-        sequence = parseInt(maxNoResult[0].max_no.slice(-3)) + 1;
-      }
-
-      const reworkNo = `${prefix}${String(sequence).padStart(3, '0')}`;
+      // 使用编码引擎生成返工单号
+      const CodeGenSvc = require('./CodeGeneratorService');
+      const reworkNo = await CodeGenSvc.nextCode('rework_task', connection);
 
       // 注：rework_tasks 表应在数据库迁移脚本中创建，不在事务中动态建表
 

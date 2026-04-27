@@ -115,15 +115,41 @@
       :canViewPrice="canViewPrice"
     />
 
-    <!-- 不常用的导入对话框暂略 (或保持原样，如果代码量允许) -->
-    <!-- 由于篇幅限制，这里建议后续也将 ImportDialog 提取为单独组件 -->
+    <!-- 导入对话框 -->
+    <el-dialog title="导入物料" v-model="importDialogVisible" width="520px">
+      <div style="margin-bottom: 16px;">
+        <el-button type="primary" link @click="handleDownloadTemplate">
+          <el-icon><Download /></el-icon> 下载导入模板
+        </el-button>
+      </div>
+      <el-upload
+        ref="importUploadRef"
+        drag
+        action="#"
+        :auto-upload="false"
+        :limit="1"
+        accept=".xlsx,.xls"
+        :on-change="handleImportFileChange"
+        :on-remove="() => importFile = null"
+      >
+        <el-icon style="font-size: 40px; color: var(--el-color-primary);"><Upload /></el-icon>
+        <div style="margin-top: 8px;">将文件拖到此处，或<em>点击上传</em></div>
+        <template #tip>
+          <div class="el-upload__tip">仅支持 .xlsx / .xls 格式</div>
+        </template>
+      </el-upload>
+      <template #footer>
+        <el-button @click="importDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="importLoading" :disabled="!importFile" @click="handleImportSubmit">开始导入</el-button>
+      </template>
+    </el-dialog>
 
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, Download, Upload, DocumentCopy, ArrowDown } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { materialApi } from '@/api/material';
@@ -213,9 +239,27 @@ const buildProductCategoryTree = (flatData, parentId = 0) => {
   return tree;
 };
 
-// 加载基础数据
+// 基础选项数据缓存（分类/单位/来源等变更频率极低，缓存5分钟避免重复请求）
+const OPTIONS_CACHE_KEY = '__material_options_cache__';
+const OPTIONS_CACHE_TTL = 5 * 60 * 1000; // 5分钟
+
+// 加载基础数据（带内存缓存）
 const loadOptions = async () => {
   try {
+    // 检查缓存是否有效
+    const cached = window[OPTIONS_CACHE_KEY];
+    if (cached && Date.now() - cached.timestamp < OPTIONS_CACHE_TTL) {
+      categoryOptions.value = cached.categories;
+      inspectionMethodOptions.value = cached.inspections;
+      materialSourceOptions.value = cached.sources;
+      unitOptions.value = cached.units;
+      locationOptions.value = cached.locations;
+      productCategoryOptions.value = cached.productCategories;
+      productionGroupOptions.value = cached.groups;
+      managerOptions.value = cached.managers;
+      return;
+    }
+
     // 并行请求所有需要的选项数据
     const [cats, sources, units, locs, pCatOptions, groups, users, inspections] = await Promise.all([
       baseDataApi.getCategories(), // 替换 getDictionary('material_category')
@@ -249,6 +293,19 @@ const loadOptions = async () => {
       real_name: u.real_name || u.nickname || u.username
     }));
 
+    // 写入缓存
+    window[OPTIONS_CACHE_KEY] = {
+      timestamp: Date.now(),
+      categories: categoryOptions.value,
+      inspections: inspectionMethodOptions.value,
+      sources: materialSourceOptions.value,
+      units: unitOptions.value,
+      locations: locationOptions.value,
+      productCategories: productCategoryOptions.value,
+      groups: productionGroupOptions.value,
+      managers: managerOptions.value
+    };
+
   } catch (e) {
     console.error('加载选项失败', e);
     ElMessage.error('部分基础数据加载失败');
@@ -263,15 +320,21 @@ const fetchData = async () => {
       pageSize: pageSize.value,
       ...searchForm
     };
-    const res = await materialApi.getMaterials(params);
+
+    // 列表请求与统计请求并行发送，避免串行等待
+    const shouldFetchStats = authStore.hasPermission('basedata:materials:view');
+    const [res, statsRes] = await Promise.all([
+      materialApi.getMaterials(params),
+      shouldFetchStats ? materialApi.getMaterialStats() : Promise.resolve(null)
+    ]);
+
     const { list, total: t } = parsePaginatedData(res);
     tableData.value = list;
     total.value = t;
     
-    // 更新统计：仅在有详细查看权限时调用，避免被接口拦截报错
-    if (authStore.hasPermission('basedata:materials:view')) {
-      const s = await materialApi.getMaterialStats();
-      const statsData = parseDataObject(s);
+    // 更新统计数据
+    if (statsRes) {
+      const statsData = parseDataObject(statsRes);
       if (statsData) {
         Object.assign(stats, statsData);
       }
@@ -320,8 +383,14 @@ const handleEdit = async (row) => {
 
 const handleView = async (row) => {
   try {
-     const detail = await materialApi.getMaterial(row.id);
-     currentViewMaterial.value = parseDataObject(detail);
+     // 详情和附件并行请求
+     const [detail, attachRes] = await Promise.all([
+       materialApi.getMaterial(row.id),
+       materialApi.getMaterialAttachments(row.id).catch(() => null)
+     ]);
+     const data = parseDataObject(detail);
+     data.attachments = attachRes ? parseListData(attachRes) : [];
+     currentViewMaterial.value = data;
      viewDialogVisible.value = true;
   } catch (e) {
     ElMessage.error('获取详情失败');
@@ -358,8 +427,144 @@ const handleDisable = async (row) => {
   }
 };
 
+// 导入相关状态
+const importDialogVisible = ref(false);
+const importLoading = ref(false);
+const importFile = ref(null);
+const importUploadRef = ref(null);
+
+// 更多操作命令分发
 const handleMoreCommand = (command) => {
-  ElMessage.info('功能开发中');
+  switch (command) {
+    case 'copy':
+      handleCopyMaterial();
+      break;
+    case 'export':
+      handleExportMaterials();
+      break;
+    case 'import':
+      importDialogVisible.value = true;
+      importFile.value = null;
+      break;
+    default:
+      ElMessage.info('功能开发中');
+  }
+};
+
+// 复制物料：输入编码 → 通过API全局搜索 → 获取完整详情 → 以新增模式打开
+const handleCopyMaterial = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请输入要复制的物料编码（支持全局搜索）',
+      '复制物料',
+      { confirmButtonText: '复制', cancelButtonText: '取消', inputPlaceholder: '物料编码' }
+    );
+    if (!value?.trim()) return;
+
+    // 通过API全局搜索物料（不受分页限制）
+    ElMessage.info('正在查找物料...');
+    const searchRes = await materialApi.getMaterials({ keyword: value.trim(), page: 1, pageSize: 10 });
+    const { list } = parsePaginatedData(searchRes);
+    // 精确匹配编码
+    const sourceMaterial = list.find(m => m.code === value.trim());
+    if (!sourceMaterial) {
+      ElMessage.warning(`未找到编码为 "${value.trim()}" 的物料`);
+      return;
+    }
+
+    // 通过API获取完整详情数据（包含所有关联字段）
+    const detail = await materialApi.getMaterial(sourceMaterial.id);
+    const fullData = parseDataObject(detail);
+    if (!fullData) {
+      ElMessage.error('获取物料详情失败');
+      return;
+    }
+
+    // 构建复制数据：删除id使其走新增逻辑
+    const copyData = { ...fullData };
+    delete copyData.id;
+    copyData.code = '';  // 清空编码，fillFormData 检测到复制模式会自动生成
+    copyData.name = (copyData.name || '') + ' (副本)';
+    // 保留所有关联ID字段：product_category_id, category_id, unit_id,
+    // supplier_id, location_id, inspection_method_id, material_source_id 等
+
+    dialogTitle.value = '复制物料';
+    currentEditMaterial.value = copyData;
+    dialogVisible.value = true;
+  } catch {
+    // 用户取消
+  }
+};
+
+// 导出物料
+const handleExportMaterials = async () => {
+  try {
+    ElMessage.info('正在生成导出文件...');
+    const res = await materialApi.exportMaterials(searchForm);
+    // 处理 Blob 下载
+    const blob = new Blob([res.data || res], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const timestamp = new Date().toISOString().slice(0, 10);
+    link.download = `物料数据_${timestamp}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    ElMessage.success('导出成功');
+  } catch (error) {
+    console.error('导出失败:', error);
+    ElMessage.error('导出失败，请稍后重试');
+  }
+};
+
+// 下载导入模板
+const handleDownloadTemplate = async () => {
+  try {
+    const res = await materialApi.downloadMaterialTemplate();
+    const blob = new Blob([res.data || res], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '物料导入模板.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('下载模板失败:', error);
+    ElMessage.error('下载模板失败');
+  }
+};
+
+// 导入文件变更
+const handleImportFileChange = (file) => {
+  importFile.value = file.raw;
+};
+
+// 提交导入
+const handleImportSubmit = async () => {
+  if (!importFile.value) {
+    ElMessage.warning('请先选择文件');
+    return;
+  }
+  importLoading.value = true;
+  try {
+    const formData = new FormData();
+    formData.append('file', importFile.value);
+    await materialApi.importMaterials(formData);
+    ElMessage.success('导入成功');
+    importDialogVisible.value = false;
+    importFile.value = null;
+    fetchData(); // 刷新列表
+  } catch (error) {
+    console.error('导入失败:', error);
+    const msg = error.response?.data?.message || error.message || '导入失败，请检查文件格式';
+    ElMessage.error(msg);
+  } finally {
+    importLoading.value = false;
+  }
 };
 
 const searchSuppliers = async (query, callback) => {
@@ -369,10 +574,11 @@ const searchSuppliers = async (query, callback) => {
   }
   try {
     const res = await baseDataApi.getSuppliers({ keyword: query, page: 1, pageSize: 20 });
-    const { list } = parseListData(res);
+    // parseListData 返回的是数组，不是 {list}
+    const list = parseListData(res);
     callback(list);
   } catch (e) {
-    console.error(e);
+    console.error('供应商搜索失败:', e);
     callback([]);
   }
 };

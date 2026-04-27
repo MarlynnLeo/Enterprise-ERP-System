@@ -336,8 +336,8 @@
     }
     &.active {
       background: rgba(59, 130, 246, 0.1);
-      border-color: #3b82f6;
-      color: #3b82f6;
+      border-color: var(--color-primary);
+      color: var(--color-primary);
     }
     &.warehouse-chip {
       gap: 3px;
@@ -374,10 +374,10 @@
     width: 4px;
     flex-shrink: 0;
     &.accent-green {
-      background: linear-gradient(180deg, #10b981, #34d399);
+      background: linear-gradient(180deg, var(--color-success), #34d399);
     }
     &.accent-red {
-      background: linear-gradient(180deg, #ef4444, #f87171);
+      background: linear-gradient(180deg, var(--color-danger), var(--color-danger));
     }
   }
   .card-body {
@@ -421,11 +421,11 @@
     font-family: 'SF Mono', 'Menlo', monospace;
     &.badge-green {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.badge-red {
       background: rgba(239, 68, 68, 0.12);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
   .card-meta {
@@ -488,15 +488,15 @@
       font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
     }
     &.highlight {
-      color: #3b82f6;
+      color: var(--color-primary);
       font-weight: 700;
     }
     &.text-success {
-      color: #10b981;
+      color: var(--color-success);
       font-weight: 700;
     }
     &.text-danger {
-      color: #ef4444;
+      color: var(--color-danger);
       font-weight: 700;
     }
   }

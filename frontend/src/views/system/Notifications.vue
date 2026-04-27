@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Notifications.vue
  * @description 通知列表页面
@@ -252,11 +252,6 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 import { Bell, Message, InfoFilled, Document, Check, Warning, Link } from '@element-plus/icons-vue'
 import notificationApi from '@/services/notificationApi'
 import {

@@ -923,7 +923,7 @@ const assetsController = {
 
       return ResponseHandler.success(res, stats, '获取资产统计成功');
     } catch (error) {
-      res.status(500).json({ error: '获取资产统计失败', details: error.message });
+      ResponseHandler.error(res, '获取资产统计失败', 'SERVER_ERROR', 500, error);
     }
   },
 

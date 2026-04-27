@@ -1,31 +1,36 @@
 /**
  * 增强安全中间件
- * @description 提供额外的安全检查和防护措施（高级安全功能）
+ * @description 提供额外的安全检查和防护措施
  * @author 系统
  * @date 2025-08-28
- * @updated 2025-11-22 - 统一配置管理
+ * @updated 2026-04-18 - 移除 IP 黑名单（内部系统无需），保留输入检测
  */
 
 const helmet = require('helmet');
 const { logger } = require('../utils/logger');
 const { UnifiedAppError } = require('./unifiedErrorHandler');
-const { RATE_LIMIT_CONFIG } = require('../config/security');
 
-// IP 黑名单（可以从数据库或配置文件加载）
-const blacklistedIPs = new Set();
-
-// 可疑活动检测
-const suspiciousActivity = new Map();
-
-// SQL 注入检测模式
-// 注意：移除了单独的 * 和 " 字符检测，因为在物料规格中 * 常用作乘号（如：400x600*120mm）
-// 双引号在很多正常输入中也会出现
+// SQL 注入检测模式（严格）— 用于普通字段
 const SQL_INJECTION_PATTERNS = [
   /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)/i,
-  /(\'|;|--)/, // 单引号、分号、双横线注释
+  /(\';|--)/, // 单引号、分号、双横线注释
   /(\/\*|\*\/)/, // SQL块注释标记
   /(\bOR\b|\bAND\b).*(\=|\<|\>)/i,
   /(UNION.*SELECT|SELECT.*FROM|INSERT.*INTO|UPDATE.*SET|DELETE.*FROM)/i,
+];
+
+// SQL 注入检测模式（宽松）— 用于 description/remark 等可能含特殊字符的业务字段
+// 只检测高危组合，允许单引号、分号、注释符等单独出现
+const SQL_INJECTION_PATTERNS_RELAXED = [
+  /(UNION\s+ALL\s+SELECT|UNION\s+SELECT)/i,
+  /(SELECT\s+.+\s+FROM\s+.+\s+WHERE)/i,
+  /(INSERT\s+INTO\s+\w+)/i,
+  /(UPDATE\s+\w+\s+SET\s+)/i,
+  /(DELETE\s+FROM\s+\w+)/i,
+  /(DROP\s+(TABLE|DATABASE|INDEX))/i,
+  /(ALTER\s+TABLE\s+\w+)/i,
+  /(EXEC(UTE)?\s*\()/i,
+  /(;\s*DROP\s|;\s*DELETE\s|;\s*UPDATE\s|;\s*INSERT\s)/i,
 ];
 
 // XSS 检测模式
@@ -39,103 +44,6 @@ const XSS_PATTERNS = [
 
 // 路径遍历检测模式
 const PATH_TRAVERSAL_PATTERNS = [/\.\.\//g, /\.\.\\/g, /%2e%2e%2f/gi, /%2e%2e%5c/gi];
-
-// IP 黑名单检查中间件
-const ipBlacklistCheck = (req, res, next) => {
-  const clientIP = req.ip || req.connection.remoteAddress;
-
-  if (blacklistedIPs.has(clientIP)) {
-    logger.security('🚫 被封禁IP访问已拦截', {
-      ip: clientIP,
-      url: req.originalUrl,
-      userAgent: req.get('User-Agent'),
-    });
-
-    return res.status(403).json({
-      success: false,
-      message: '访问被拒绝',
-    });
-  }
-
-  next();
-};
-
-// 检查是否为内网IP
-const isPrivateIP = (ip) => {
-  const cleanIP = ip.replace('::ffff:', '');
-  return (
-    cleanIP.startsWith('192.168.') ||
-    cleanIP.startsWith('10.') ||
-    cleanIP.startsWith('172.16.') ||
-    cleanIP.startsWith('127.') ||
-    cleanIP === 'localhost'
-  );
-};
-
-// 可疑活动检测中间件（高级安全功能）
-// 使用统一配置，可通过环境变量控制
-const suspiciousActivityDetection = (req, res, next) => {
-  const config = RATE_LIMIT_CONFIG.suspiciousActivity;
-
-  // 检查是否启用
-  if (!config.enabled) {
-    return next();
-  }
-
-  const clientIP = req.ip || req.connection.remoteAddress;
-
-  // 开发环境跳过检查
-  if (config.skipInDevelopment && process.env.NODE_ENV === 'development') {
-    return next();
-  }
-
-  const now = Date.now();
-  const timeWindow = config.timeWindow;
-  // 对内网IP更宽松的限制
-  const maxRequests = isPrivateIP(clientIP)
-    ? config.maxRequestsInternal
-    : config.maxRequestsExternal;
-
-  if (!suspiciousActivity.has(clientIP)) {
-    suspiciousActivity.set(clientIP, {
-      requests: [],
-      warnings: 0,
-    });
-  }
-
-  const activity = suspiciousActivity.get(clientIP);
-
-  // 清理过期的请求记录
-  activity.requests = activity.requests.filter((time) => now - time < timeWindow);
-
-  // 添加当前请求
-  activity.requests.push(now);
-
-  // 检查是否超过阈值
-  if (activity.requests.length > maxRequests) {
-    activity.warnings++;
-
-    logger.security('⚠️ 检测到可疑活动', {
-      ip: clientIP,
-      requestCount: activity.requests.length,
-      warnings: activity.warnings,
-      url: req.originalUrl,
-    });
-
-    // 如果警告次数过多，加入黑名单（但不对内网IP加入黑名单）
-    if (activity.warnings > config.maxWarnings && !isPrivateIP(clientIP)) {
-      blacklistedIPs.add(clientIP);
-      logger.security('🚫 IP已加入黑名单', { ip: clientIP });
-    }
-
-    return res.status(429).json({
-      success: false,
-      message: '请求过于频繁，请稍后再试',
-    });
-  }
-
-  next();
-};
 
 // SQL 注入检测中间件
 const sqlInjectionDetection = (req, res, next) => {
@@ -174,40 +82,49 @@ const sqlInjectionDetection = (req, res, next) => {
     ) {
       return true;
     }
-    // 物料规格相关字段 - 可能包含 / * 等特殊字符（如：K22/25、400*600*120mm、水平/垂直可调整型、J1-01-02/J1-01-03）
-    const specFields = [
+    // 物料规格相关字段 - 可能包含 / * 等特殊字符，完全跳过检测
+    const specFieldsSkip = [
       'specs',
       'specification',
       'model',
       'drawing_no',
       'color_code',
+    ];
+    if (specFieldsSkip.some((field) => fieldPath.endsWith(field))) {
+      return 'skip';
+    }
+    // 业务文本字段 - 使用宽松规则（只检测高危组合）
+    const relaxedFields = [
       'remark',
       'remarks',
       'description',
-      'name',
       'location_detail',
       'location',
     ];
-    if (specFields.some((field) => fieldPath.endsWith(field))) {
-      return true;
+    if (relaxedFields.some((field) => fieldPath.endsWith(field))) {
+      return 'relaxed';
     }
     return false;
   };
 
   const checkValue = (value, path = '') => {
-    // 跳过白名单字段
-    if (shouldSkipField(path)) {
+    const skipMode = shouldSkipField(path);
+    // 完全跳过的字段（如富文本、文件路径、物料规格）
+    if (skipMode === true || skipMode === 'skip') {
       return;
     }
 
     if (typeof value === 'string') {
-      for (const pattern of SQL_INJECTION_PATTERNS) {
+      // 根据字段类型选择检测模式
+      const patterns = skipMode === 'relaxed' ? SQL_INJECTION_PATTERNS_RELAXED : SQL_INJECTION_PATTERNS;
+      for (const pattern of patterns) {
         if (pattern.test(value)) {
           logger.security('⚠️ 检测到SQL注入尝试', {
             ip: req.ip,
             url: req.originalUrl,
             path,
-            value: value.substring(0, 100), // 只记录前100个字符
+            mode: skipMode === 'relaxed' ? 'relaxed' : 'strict',
+            value: value.substring(0, 100),
             userAgent: req.get('User-Agent'),
           });
 
@@ -365,53 +282,20 @@ const enhancedHelmet = helmet({
   },
 });
 
-// 组合安全中间件
+// 组合安全中间件（内部系统无需 IP 黑名单和可疑活动检测）
 const securityMiddleware = [
   enhancedHelmet,
-  ipBlacklistCheck,
-  suspiciousActivityDetection,
   pathTraversalDetection,
   sqlInjectionDetection,
   xssDetection,
   fileUploadSecurity,
 ];
 
-// 清除黑名单的函数
-const clearBlacklist = () => {
-  blacklistedIPs.clear();
-  suspiciousActivity.clear();
-  logger.info('✅ 安全黑名单已清除');
-};
-
-// 移除特定IP的函数
-const removeFromBlacklist = (ip) => {
-  blacklistedIPs.delete(ip);
-  suspiciousActivity.delete(ip);
-  logger.info('✅ IP已从黑名单移除', { ip });
-};
-
-// 获取黑名单状态
-const getSecurityStatus = () => {
-  return {
-    blacklistedIPs: Array.from(blacklistedIPs),
-    suspiciousActivity: Array.from(suspiciousActivity.entries()).map(([ip, data]) => ({
-      ip,
-      requests: data.requests.length,
-      warnings: data.warnings,
-    })),
-  };
-};
-
 module.exports = {
   securityMiddleware,
-  ipBlacklistCheck,
-  suspiciousActivityDetection,
   sqlInjectionDetection,
   xssDetection,
   pathTraversalDetection,
   fileUploadSecurity,
   enhancedHelmet,
-  clearBlacklist,
-  removeFromBlacklist,
-  getSecurityStatus,
 };

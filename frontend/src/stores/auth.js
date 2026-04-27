@@ -13,14 +13,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api, fastApi } from '../services/api'
-import { tokenManager } from '../utils/unifiedStorage'
+import { tokenManager, permissionManager } from '../utils/unifiedStorage'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(tokenManager.getToken() || '')
   const user = ref(tokenManager.getUser() || null)
 
-  const savedPermissions = localStorage.getItem('user_permissions')
-  const permissions = ref(savedPermissions ? JSON.parse(savedPermissions) : [])
+  const savedPermissions = permissionManager.getUserPermissions()
+  const permissions = ref(Array.isArray(savedPermissions) ? savedPermissions : [])
   // 初始化时不将 permissionsLoaded 置为 true，强制初次访问带 permission 的路由时获取最新权限
   // 但为了不阻塞白屏，我们仍然可以使用缓存的内容作为初始值
   const permissionsLoaded = ref(false) 
@@ -97,7 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
       permissionsLoading.value = false
 
       // ✅ 优化: 清除权限缓存和主题缓存
-      localStorage.removeItem('user_permissions')
+      permissionManager.clearUserPermissions()
       localStorage.removeItem('theme_settings')
 
       tokenManager.clearAuth()
@@ -182,8 +182,8 @@ export const useAuthStore = defineStore('auth', () => {
         permissions.value = []
       }
 
-      // ✅ 优化: 保存权限到 localStorage,避免页面刷新时闪烁
-      localStorage.setItem('user_permissions', JSON.stringify(permissions.value))
+      // ✅ 优化: 保存权限到缓存,避免页面刷新时闪烁
+      permissionManager.setUserPermissions(permissions.value)
 
       permissionsLoaded.value = true
       return true
@@ -193,7 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
       permissionsLoaded.value = false
 
       // ✅ 优化: 获取失败时清除缓存
-      localStorage.removeItem('user_permissions')
+      permissionManager.clearUserPermissions()
 
       throw error
     } finally {
@@ -207,8 +207,8 @@ export const useAuthStore = defineStore('auth', () => {
     permissionsLoaded.value = false
     permissionsLoading.value = false
 
-    // ✅ 优化: 清除 localStorage 中的权限缓存
-    localStorage.removeItem('user_permissions')
+    // ✅ 优化: 清除权限缓存
+    permissionManager.clearUserPermissions()
 
     return await fetchUserPermissions(true)
   }

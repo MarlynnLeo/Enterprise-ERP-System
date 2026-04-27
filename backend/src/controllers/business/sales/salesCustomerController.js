@@ -1,8 +1,8 @@
 /**
- * salesController.js
- * @description 控制器文件
+ * salesCustomerController.js
+ * @description 销售客户控制器
  * @date 2025-08-27
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
@@ -12,67 +12,10 @@ const db = require('../../../config/db');
 const SalesDao = require('../../../database/salesDao');
 const customerService = require('../../../services/customerService');
 const materialService = require('../../../services/materialService');
-const { CodeGenerators } = require('../../../utils/codeGenerator');
-const businessConfig = require('../../../config/businessConfig');
 
-// 状态常量
-const STATUS = {
-  SALES_ORDER: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    CONFIRMED: 'confirmed',
-    READY_TO_SHIP: 'ready_to_ship',
-    IN_PRODUCTION: 'in_production',
-    IN_PROCUREMENT: 'in_procurement',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-  OUTBOUND: businessConfig.status.outbound,
-  SALES_RETURN: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    APPROVED: 'approved',
-    COMPLETED: 'completed',
-    REJECTED: 'rejected',
-    CANCELLED: 'cancelled',
-  },
-  EXCHANGE: {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-};
+// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
+const { STATUS, getConnection } = require('./salesShared');
 
-// 移除了废弃的 ensureSalesExchangeTablesExist, createSalesExchangeTablesDirectly, 和 updateSalesExchangeTableStructure
-// 使用统一的编号生成服务 - 替代原 generateTransactionNo 函数
-async function generateTransactionNo(connection) {
-  return await CodeGenerators.generateTransactionCode(connection);
-}
-
-// Import the connection pool from db
-// 注意: 改名为 connectionPool 避免与函数内局部变量 connection 产生遮蔽
-const connectionPool = db.pool;
-
-// 统一的连接管理函数
-const getConnection = async () => {
-  return await connectionPool.getConnection();
-};
-
-// 带事务的连接管理函数
-const getConnectionWithTransaction = async () => {
-  const conn = await connectionPool.getConnection();
-  await conn.beginTransaction();
-  return conn;
-};
-
-// 统一的销售订单编号生成函数 - 替代所有重复的生成函数
-const generateSalesOrderNo = async (connection) => {
-  return CodeGenerators.generateSalesOrderCode(connection);
-};
-
-// 保持向后兼容的别名函数
-const generateOrderNo = generateSalesOrderNo;
 
 // 添加新的控制器方法
 
@@ -111,7 +54,7 @@ exports.getCustomers = async (req, res) => {
     const { keyword, limit = 50 } = req.query;
 
     let query =
-      'SELECT id, name, code, contact_person, contact_phone, address FROM customers WHERE 1=1';
+      'SELECT id, name, code, contact_person, contact_phone, address FROM customers WHERE deleted_at IS NULL';
     const params = [];
 
     // 如果有搜索关键词，添加搜索条件
@@ -168,7 +111,7 @@ exports.getCustomer = async (req, res) => {
 
     try {
       const [customers] = await connection.query(
-        'SELECT id, name, code, contact_person, contact_phone, delivery_address FROM customers WHERE id = ?',
+        'SELECT id, name, code, contact_person, contact_phone, delivery_address FROM customers WHERE id = ? AND deleted_at IS NULL',
         [customerId]
       );
 

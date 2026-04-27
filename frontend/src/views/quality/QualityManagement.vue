@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * QualityManagement.vue
  * @description 前端界面组件文件
@@ -14,12 +14,6 @@
 
 <script setup>
 import { computed } from 'vue'
-
-import apiAdapter from '@/utils/apiAdapter';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
 
 // 权限计算属性
 // 质量管理主组件

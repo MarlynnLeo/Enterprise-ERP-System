@@ -204,7 +204,7 @@
       
       <div style="margin-bottom: 16px; display:flex; justify-content: space-between;">
         <span style="line-height:32px; font-weight:bold;">已配置专属规则</span>
-        <el-button type="primary" size="small" @click="openAddOverheadForm">新增专属费率</el-button>
+        <el-button type="primary" size="small" @click="openAddOverheadForm" v-permission="'finance:cost:standard'">新增专属费率</el-button>
       </div>
 
       <el-table :data="productOverheads" border v-loading="loadingOverheads" size="small">
@@ -224,7 +224,7 @@
         </el-table-column>
         <el-table-column label="操作" width="90" align="center">
           <template #default="scope">
-            <el-button size="small" link type="danger" @click="deleteProductOverhead(scope.row)">删除</el-button>
+            <el-button size="small" link type="danger" @click="deleteProductOverhead(scope.row)" v-permission="'finance:cost:standard'">删除</el-button>
           </template>
         </el-table-column>
         <template #empty>

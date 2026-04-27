@@ -182,28 +182,10 @@
               v-if="row.status === 'draft'"
               size="small"
               type="success"
-              v-permission="'purchase:requisitions:submit'"
+              v-permission="'purchase:requisitions:update'"
               @click="handleCommand('submit', row)"
             >
               提交审批
-            </el-button>
-            <el-button
-              v-if="row.status === 'submitted'"
-              size="small"
-              type="success"
-              v-permission="'purchase:requisitions:approve'"
-              @click="handleCommand('approve', row)"
-            >
-              审批
-            </el-button>
-            <el-button
-              v-if="row.status === 'submitted'"
-              size="small"
-              type="warning"
-              v-permission="'purchase:requisitions:reject'"
-              @click="handleCommand('reject', row)"
-            >
-              拒绝
             </el-button>
             <el-button
               v-if="row.status === 'rejected'"
@@ -336,6 +318,7 @@
                   type="danger"
                   size="small"
                   @click="removeMaterial($index)"
+                  v-permission="'purchase:requisitions:update'"
                 >
                   删除
                 </el-button>
@@ -410,6 +393,10 @@
         暂无物料数据
       </div>
       </div>
+      <template #footer>
+        <el-button @click="viewDialog.visible = false">关闭</el-button>
+        <el-button type="primary" @click="handlePrintRequisition" :loading="printLoading">打印</el-button>
+      </template>
     </el-dialog>
 
     <!-- 状态更新确认对话框 -->
@@ -445,14 +432,6 @@
             <el-icon><Promotion /></el-icon> 批量提交
           </el-button>
           <el-button
-            v-if="canBatchApprove"
-            type="primary"
-            @click="handleBatchApprove"
-            :loading="batchLoading"
-          >
-            <el-icon><CircleCheck /></el-icon> 批量批准
-          </el-button>
-          <el-button
             @click="clearSelection"
           >
             <el-icon><Close /></el-icon> 清空选择
@@ -471,6 +450,7 @@ import { Plus, Search, Refresh, Select, Promotion, CircleCheck, Close } from '@e
 import { useAuthStore } from '@/stores/auth';
 import { searchMaterials } from '@/utils/searchConfig';
 import { formatDate } from '@/utils/helpers/dateUtils'
+import printService, { parseTemplateResponse } from '@/services/printService'
 
 // 初始化 authStore
 const authStore = useAuthStore();
@@ -977,10 +957,6 @@ const canBatchSubmit = computed(() => {
   return selectedRequisitions.value.every(req => req.status === 'draft');
 });
 
-const canBatchApprove = computed(() => {
-  if (selectedRequisitions.value.length === 0) return false;
-  return selectedRequisitions.value.every(req => req.status === 'submitted');
-});
 
 // 批量操作方法
 const handleSelectionChange = (selection) => {
@@ -1036,59 +1012,11 @@ const handleBatchSubmit = async () => {
   }
 };
 
-const handleBatchApprove = async () => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要批量批准选中的 ${selectedRequisitions.value.length} 个申请单吗？`,
-      '批量批准',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
-    batchLoading.value = true;
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const req of selectedRequisitions.value) {
-      try {
-        await purchaseApi.updateRequisitionStatus(req.id, { newStatus: 'approved' });
-        successCount++;
-      } catch (error) {
-        console.error(`申请单 ${req.requisition_number} 批准失败:`, error);
-        failCount++;
-      }
-    }
-
-    if (successCount > 0) {
-      ElMessage.success(`成功批准 ${successCount} 个申请单${failCount > 0 ? `，${failCount} 个失败` : ''}`);
-      clearSelection();
-      await loadRequisitions();
-    } else {
-      ElMessage.error('批量批准失败');
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('批量批准失败:', error);
-    }
-  } finally {
-    batchLoading.value = false;
-  }
-};
-
 // 处理下拉菜单命令
 const handleCommand = (command, row) => {
   switch (command) {
     case 'submit':
       showStatusDialog(row.id, 'submitted', '状态更新', '将此申请提交审批');
-      break;
-    case 'approve':
-      showStatusDialog(row.id, 'approved', '批准申请', '批准此采购申请');
-      break;
-    case 'reject':
-      showStatusDialog(row.id, 'rejected', '拒绝申请', '拒绝此采购申请');
       break;
     case 'redraft':
       showStatusDialog(row.id, 'draft', '重新编辑', '将此申请退回至草稿状态');
@@ -1117,8 +1045,8 @@ const updateStatus = async () => {
       { newStatus: statusDialog.newStatus }
     );
     
-    // 检查是否是审批通过，并且是否生成了采购订单
-    if (statusDialog.newStatus === 'approved' && response.generated_orders && response.generated_orders.length > 0) {
+    // 检查后端自动审批通过后是否生成了采购订单（auto_approved场景）
+    if (response.generated_orders && response.generated_orders.length > 0) {
       const orders = response.generated_orders;
       let message = `审批成功！已自动生成 ${orders.length} 个采购订单：\n`;
       orders.forEach((order, index) => {
@@ -1232,6 +1160,43 @@ onActivated(async () => {
     console.error('页面激活刷新失败:', error);
   }
 });
+
+// ========== 打印功能 ==========
+const printLoading = ref(false)
+const handlePrintRequisition = async () => {
+  printLoading.value = true
+  try {
+    const response = await printService.getPrintTemplateById(73)
+    const template = parseTemplateResponse(response)
+    if (!template || !template.content) {
+      ElMessage.error('未找到采购申请单打印模板，请在系统管理-打印模板中配置')
+      return
+    }
+    const printData = {
+      requisition_number: viewData.requisition_number || viewData.requisitionNumber || '',
+      request_date: formatDate(viewData.request_date || viewData.requestDate) || '',
+      requester: viewData.real_name || viewData.requester || '',
+      status: getStatusText(viewData.status || 'draft'),
+      remarks: viewData.remarks || '',
+      items: (viewData.materials || []).map((item, idx) => ({
+        index: idx + 1,
+        material_code: item.material_code || item.materialCode || '',
+        material_name: item.material_name || item.materialName || '',
+        specification: item.specification || '',
+        quantity: parseFloat(item.quantity || 0).toFixed(2),
+        unit_name: item.unit || item.unit_name || '',
+        remark: item.remark || ''
+      }))
+    }
+    const html = printService.generatePrintContent(template, printData)
+    printService.previewDocument(html)
+  } catch (error) {
+    console.error('打印采购申请单失败:', error)
+    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+  } finally {
+    printLoading.value = false
+  }
+}
 </script>
 
 <style scoped>

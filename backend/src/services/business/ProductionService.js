@@ -4,6 +4,7 @@
  */
 
 const { pool } = require('../../config/db');
+const { softDelete } = require('../../utils/softDelete');
 
 class ProductionService {
   /**
@@ -180,7 +181,8 @@ class ProductionService {
         throw new Error('该生产计划下存在生产任务，无法删除');
       }
 
-      await connection.query('DELETE FROM production_plans WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(connection, 'production_plans', 'id', id);
 
       await connection.commit();
       return { success: true };

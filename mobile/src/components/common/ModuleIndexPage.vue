@@ -11,7 +11,7 @@
     <!-- 标准 Vant NavBar 改装为悬浮卡片 -->
     <NavBar :title="title" left-arrow @click-left="$emit('back')">
       <template #right>
-        <Icon name="plus" size="18" @click="$emit('add')" />
+        <SvgIcon name="plus" size="18" @click="$emit('add')" />
       </template>
     </NavBar>
 
@@ -91,7 +91,6 @@
 
 <script setup>
   import { NavBar } from 'vant'
-  import Icon from '@/components/icons/index.vue'
   import SvgIcon from '@/components/icons/index.vue'
 
   defineProps({

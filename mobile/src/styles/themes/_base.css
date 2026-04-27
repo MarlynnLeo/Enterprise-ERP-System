@@ -5,6 +5,14 @@
  */
 
 :root {
+  /* ==================== 字体系统（与 PC 端统一） ==================== */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Noto Sans SC',
+    'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New',
+    monospace;
+  --font-display: 'DIN Alternate', 'Inter', var(--font-sans);
+
   /* ==================== 圆角系统 ==================== */
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;

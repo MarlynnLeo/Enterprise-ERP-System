@@ -11,6 +11,7 @@
     :config="pageConfig"
     :api-function="loadOrders"
     :show-add="true"
+    add-permission="purchase:orders:create"
     :show-filter="true"
     list-title="采购订单列表"
     @add="handleAdd"
@@ -49,7 +50,7 @@
       subtitle: 'order_code',
       icon: 'clipboard-check',
       details: [
-        { label: '订单金额', field: 'total_amount', prefix: '¥' },
+        { label: '订单金额', field: (item) => '¥' + Number(item.total_amount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
         { label: '订单日期', field: 'order_date', format: 'date' },
         { label: '预计到货', field: 'expected_date', format: 'date' }
       ],

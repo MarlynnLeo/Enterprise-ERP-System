@@ -283,7 +283,7 @@ const getBatchInventory = async (req, res) => {
     let resolvedLocations = locationIds && locationIds.length > 0 ? locationIds : null;
     if (!resolvedLocations) {
       const [activeLocations] = await connection.execute(
-        'SELECT id FROM locations WHERE status = 1 ORDER BY id ASC LIMIT 10'
+        'SELECT id FROM locations WHERE status = 1 AND deleted_at IS NULL ORDER BY id ASC LIMIT 10'
       );
       resolvedLocations = activeLocations.map((loc) => loc.id);
     }
@@ -291,7 +291,7 @@ const getBatchInventory = async (req, res) => {
     // 预取所有相关库位名称
     const locPlaceholders = resolvedLocations.map(() => '?').join(',');
     const [allLocationInfo] = await connection.execute(
-      `SELECT id, name FROM locations WHERE id IN (${locPlaceholders})`,
+      `SELECT id, name FROM locations WHERE id IN (${locPlaceholders}) AND deleted_at IS NULL`,
       resolvedLocations
     );
     const locationNameMap = {};

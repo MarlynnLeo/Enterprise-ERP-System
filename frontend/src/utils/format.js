@@ -1,9 +1,49 @@
 /**
  * 通用格式化工具函数
+ * @version 2.0.0
+ * ✅ v2: 增加智能中文大数简写（万/亿），提升统计卡片可读性
  */
 
 /**
- * 格式化货币金额
+ * 智能简写大数字（中文单位）
+ * - |值| >= 1亿  → X.XX亿
+ * - |值| >= 1万  → X.XX万
+ * - 其他保持原样千分位
+ * @param {number} val - 数值
+ * @param {number} decimals - 小数位数
+ * @returns {{ text: string, unit: string }} 格式化后的文本和单位
+ */
+const abbreviateNumber = (val, decimals = 2) => {
+    const abs = Math.abs(val);
+    const sign = val < 0 ? '-' : '';
+
+    if (abs >= 1e8) {
+        // 亿级
+        return {
+            text: sign + (abs / 1e8).toFixed(decimals),
+            unit: '亿',
+        };
+    }
+    if (abs >= 1e4) {
+        // 万级
+        return {
+            text: sign + (abs / 1e4).toFixed(decimals),
+            unit: '万',
+        };
+    }
+    // 小数值保持千分位
+    return {
+        text: val.toLocaleString('zh-CN', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        }),
+        unit: '',
+    };
+};
+
+/**
+ * 格式化货币金额（智能简写大数）
+ * 示例：58885693.88 → ¥5,888.57万  |  123456789 → ¥1.23亿
  * @param {number|string} amount - 金额
  * @param {string} currency - 货币符号,默认¥
  * @param {number} decimals - 小数位数,默认2
@@ -14,10 +54,8 @@ export const formatCurrency = (amount, currency = '¥', decimals = 2) => {
     const num = parseFloat(amount);
     if (isNaN(num)) return `${currency}0.00`;
 
-    return `${currency}${num.toLocaleString('zh-CN', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-    })}`;
+    const { text, unit } = abbreviateNumber(num, decimals);
+    return `${currency}${text}${unit}`;
 };
 
 /**
@@ -58,7 +96,8 @@ export const formatDateTime = (date) => {
 };
 
 /**
- * 格式化数字（千分位）
+ * 格式化数字（智能简写大数 + 千分位）
+ * 示例：2616110.72 → 261.61万  |  370 → 370.00
  * @param {number|string} num - 数值
  * @param {number} decimals - 小数位数
  * @returns {string}
@@ -68,8 +107,42 @@ export const formatNumber = (num, decimals = 2) => {
     const val = parseFloat(num);
     if (isNaN(val)) return '0';
 
+    const { text, unit } = abbreviateNumber(val, decimals);
+    return `${text}${unit}`;
+};
+
+/**
+ * 格式化数字（仅千分位，不做大数简写）
+ * 用于表格中需要精确数值的场景
+ * @param {number|string} num - 数值
+ * @param {number} decimals - 小数位数
+ * @returns {string}
+ */
+/**
+ * 格式化金额（不带货币符号，千分位）
+ * 用于表格中显示纯数字金额的场景
+ * @param {number|string} amount - 金额
+ * @param {number} decimals - 小数位数,默认2
+ * @returns {string} 格式化后的金额字符串，空值返回 '-'
+ */
+export const formatAmount = (amount, decimals = 2) => {
+    if (amount === undefined || amount === null || amount === '') return '-';
+    const num = parseFloat(amount);
+    if (isNaN(num)) return '-';
+
+    return num.toLocaleString('zh-CN', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    });
+};
+
+export const formatNumberRaw = (num, decimals = 2) => {
+    if (num === undefined || num === null || num === '') return '0';
+    const val = parseFloat(num);
+    if (isNaN(val)) return '0';
+
     return val.toLocaleString('zh-CN', {
         minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
+        maximumFractionDigits: decimals,
     });
 };

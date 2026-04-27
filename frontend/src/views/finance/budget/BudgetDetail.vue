@@ -75,8 +75,10 @@
 
       <el-divider content-position="left">执行分析</el-divider>
 
-      <el-button type="primary" @click="handleViewAnalysis">查看执行分析</el-button>
-      <el-button type="success" @click="handleViewExecutions">查看执行记录</el-button>
+      <el-button type="primary" @click="handleViewAnalysis"
+        v-permission="'finance:budget:view'">查看执行分析</el-button>
+      <el-button type="success" @click="handleViewExecutions"
+        v-permission="'finance:budget:view'">查看执行记录</el-button>
     </el-card>
   </div>
 </template>
@@ -86,6 +88,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from '@/services/axiosInstance';
+import { formatAmount } from '@/utils/format'
 
 const router = useRouter();
 const route = useRoute();
@@ -124,13 +127,7 @@ const handleViewExecutions = () => {
   router.push(`/finance/budget/executions/${route.params.id}`);
 };
 
-// 格式化金额
-const formatAmount = (amount) => {
-  return parseFloat(amount || 0).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-};
+// 格式化金额 - 已统一使用 @/utils/format 导入
 
 // 计算执行率
 const calculateExecutionRate = () => {

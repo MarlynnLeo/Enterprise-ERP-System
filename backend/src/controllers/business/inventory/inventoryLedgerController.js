@@ -813,7 +813,6 @@ const exportInventoryReport = async (req, res) => {
       `;
     }
 
-    logger.info('查询参数:', params);
 
     const [rows] = await connection.execute(query, params);
     reportData = rows;
@@ -988,7 +987,6 @@ const exportTransactionReport = async (req, res) => {
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-    logger.info('查询参数:', params);
 
     // 查询流水数据，无分页限制
     const [rawTransactions] = await connection.query(

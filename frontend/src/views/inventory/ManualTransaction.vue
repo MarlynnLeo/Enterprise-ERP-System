@@ -139,7 +139,7 @@
           <template #default="{ row }">
             <el-button size="small" @click="handleView(row)">查看</el-button>
             <el-button
-              v-if="row.approval_status === 'pending' && canApprove"
+              v-if="row.approval_status === 'pending'"
               size="small"
               type="success"
               @click="handleApprove(row)"
@@ -351,6 +351,7 @@
                   type="danger"
                   size="small"
                   @click="handleRemoveItem($index)"
+                  v-permission="'inventory:manual:update'"
                 >
                   删除
                 </el-button>
@@ -615,7 +616,7 @@
 
       <template #footer>
         <el-button @click="approvalDialogVisible = false">取消</el-button>
-        <el-button v-permission="'inventory:manualtransaction:reject'" type="danger" :loading="approvalSubmitting" @click="handleReject">拒绝</el-button>
+        <el-button type="danger" :loading="approvalSubmitting" @click="handleReject">拒绝</el-button>
         <el-button type="success" :loading="approvalSubmitting" @click="handleApproveConfirm">通过</el-button>
       </template>
     </el-dialog>
@@ -635,7 +636,6 @@ import { parseListData } from '@/utils/responseParser'
 const authStore = useAuthStore()
 
 // 权限控制
-const canApprove = computed(() => authStore.hasPermission('inventory:manualtransaction:approve'))
 const canDelete = computed(() => authStore.hasPermission('inventory:manualtransaction:delete'))
 
 // 业务类型列表

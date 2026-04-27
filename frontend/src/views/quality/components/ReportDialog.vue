@@ -108,7 +108,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">关闭</el-button>
-        <el-button v-permission="'quality:incominginspection:print'" type="primary" @click="handlePrint">打印报告</el-button>
+        <el-button v-permission="'quality:inspections:view'" type="primary" @click="handlePrint">打印报告</el-button>
       </span>
     </template>
   </el-dialog>
@@ -116,6 +116,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage } from 'element-plus'
 import { qualityApi } from '@/services/api'
 import api from '@/services/api'
@@ -138,19 +139,6 @@ const dialogVisible = computed({
 const reportRef = ref(null)
 
 // 辅助函数
-// formatDate 已统一引用公共实现
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
 
 const getStatusText = (status) => {
   const map = { pending: '待检验', inspecting: '检验中', passed: '合格', failed: '不合格', partial: '部分合格', critical: '关键项不合格', review: '待复检' }

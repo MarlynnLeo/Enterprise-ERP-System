@@ -5,71 +5,29 @@
  * @version 2.0.0
  */
 
-const redis = require('redis');
 const { logger } = require('../../utils/logger');
+const { getRedisClient } = require('../../config/redisClient');
 
 class RedisCacheService {
   constructor() {
     this.client = null;
     this.isConnected = false;
-    this.retryAttempts = 0;
-    this.maxRetries = 5;
   }
 
   /**
-   * 初始化 Redis 连接
+   * 初始化 Redis 连接（复用 redisClient 单例）
    */
   async connect() {
     try {
-      // 从环境变量读取 Redis 配置
-      const redisConfig = {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
-        password: process.env.REDIS_PASSWORD || undefined,
-        database: parseInt(process.env.REDIS_DB || '0'),
-        // 连接选项
-        socket: {
-          reconnectStrategy: (retries) => {
-            if (retries > this.maxRetries) {
-              logger.error('Redis 重连次数超过最大限制，停止重连');
-              return new Error('Redis 连接失败');
-            }
-            // 指数退避策略
-            return Math.min(retries * 100, 3000);
-          },
-        },
-      };
-
-      this.client = redis.createClient(redisConfig);
-
-      // 错误处理
-      this.client.on('error', (err) => {
-        logger.error('Redis 客户端错误:', err);
-        this.isConnected = false;
-      });
-
-      // 连接成功
-      this.client.on('connect', () => {
-        logger.info('Redis 连接成功');
-        this.isConnected = true;
-        this.retryAttempts = 0;
-      });
-
-      // 重连中
-      this.client.on('reconnecting', () => {
-        this.retryAttempts++;
-        logger.warn(`Redis 重连中... (尝试 ${this.retryAttempts}/${this.maxRetries})`);
-      });
-
-      // 连接 Redis
-      await this.client.connect();
-
-      logger.info('Redis 缓存服务初始化成功');
-      return true;
+      this.client = await getRedisClient();
+      this.isConnected = !!this.client;
+      if (this.isConnected) {
+        logger.info('Redis 缓存服务已就绪（复用共享连接）');
+      }
+      return this.isConnected;
     } catch (error) {
-      logger.error('Redis 连接失败:', error);
+      logger.error('Redis 缓存服务初始化失败:', error);
       this.isConnected = false;
-      // 不抛出错误，允许系统在没有 Redis 的情况下运行
       return false;
     }
   }
@@ -280,15 +238,10 @@ class RedisCacheService {
    * 关闭 Redis 连接
    */
   async disconnect() {
-    if (this.client) {
-      try {
-        await this.client.quit();
-        this.isConnected = false;
-        logger.info('Redis 连接已关闭');
-      } catch (error) {
-        logger.error('关闭 Redis 连接失败:', error);
-      }
-    }
+    // 共享连接由 redisClient.js 统一管理，此处仅清除引用
+    this.client = null;
+    this.isConnected = false;
+    logger.info('Redis 缓存服务已断开（共享连接由 redisClient 管理）');
   }
 }
 

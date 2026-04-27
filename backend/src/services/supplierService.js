@@ -1,6 +1,7 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const ExcelJS = require('exceljs');
+const { softDelete } = require('../utils/softDelete');
 
 const supplierService = {
   async getAllSuppliers(page = 1, pageSize = 10, filters = {}) {
@@ -8,7 +9,7 @@ const supplierService = {
       const safePage = Math.max(1, parseInt(page, 10) || 1);
       const safePageSize = Math.max(1, Math.min(10000, parseInt(pageSize, 10) || 10));
       const offset = (safePage - 1) * safePageSize;
-      let whereClause = '1=1';
+      let whereClause = 'deleted_at IS NULL';
       const params = [];
 
       // 关键字搜索（同时搜索编码和名称）
@@ -60,7 +61,7 @@ const supplierService = {
 
   async getSupplierById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM suppliers WHERE id = ?', [id]);
+      const [rows] = await pool.query('SELECT * FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows[0];
     } catch (error) {
       logger.error(`获取供应商详情失败 (ID: ${id}):`, error);
@@ -115,7 +116,7 @@ const supplierService = {
   async updateSupplier(id, data) {
     try {
       // 验证供应商是否存在
-      const [existingSuppliers] = await pool.query('SELECT * FROM suppliers WHERE id = ?', [id]);
+      const [existingSuppliers] = await pool.query('SELECT * FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existingSuppliers || existingSuppliers.length === 0) {
         throw new Error('供应商不存在');
       }
@@ -153,7 +154,7 @@ const supplierService = {
       await pool.query(`UPDATE suppliers SET ${fields} WHERE id = ?`, values);
 
       // 获取并返回更新后的完整数据
-      const [updatedSupplier] = await pool.query('SELECT * FROM suppliers WHERE id = ?', [id]);
+      const [updatedSupplier] = await pool.query('SELECT * FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
       return updatedSupplier[0];
     } catch (error) {
       logger.error('更新供应商失败:', error);
@@ -192,7 +193,8 @@ const supplierService = {
       }
 
       // 如果没有关联数据,执行删除
-      await pool.query('DELETE FROM suppliers WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(pool, 'suppliers', 'id', id);
       return true;
     } catch (error) {
       logger.error('删除供应商失败:', error);
@@ -235,7 +237,7 @@ const supplierService = {
 
           // 检查供应商编码是否已存在
           const [existingSuppliers] = await connection.query(
-            'SELECT id FROM suppliers WHERE code = ?',
+            'SELECT id FROM suppliers WHERE code = ? AND deleted_at IS NULL',
             [supplier.code]
           );
 

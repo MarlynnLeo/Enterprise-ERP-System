@@ -10,28 +10,32 @@
   <div class="unified-page">
     <NavBar title="采购入库" left-arrow @click-left="onClickLeft">
       <template #right>
-        <Icon name="plus" size="18" @click="createReceipt" />
+        <Icon v-permission="'purchase:receipts:create'" name="plus" size="18" @click="createReceipt" />
       </template>
     </NavBar>
 
     <div class="content-container">
-      <!-- 搜索和筛选 -->
-      <div class="search-filter">
+      <!-- 搜索栏 -->
+      <div class="search-section">
         <Search
           v-model="searchValue"
           placeholder="搜索入库单号或订单号"
           @search="onSearch"
           shape="round"
         />
+      </div>
 
-        <div class="filter-tabs">
+      <!-- 横向滑动筛选标签 -->
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
           <div
             v-for="(tab, index) in statusTabs"
             :key="index"
-            :class="['filter-tab', { active: activeTab === index }]"
+            class="filter-chip"
+            :class="{ active: activeTab === index }"
             @click="switchTab(index)"
           >
-            {{ tab.label }}
+            <span class="chip-text">{{ tab.label }}</span>
           </div>
         </div>
       </div>
@@ -113,6 +117,7 @@
                 </Button>
                 <Button
                   v-if="receipt.status === 'draft'"
+                  v-permission="'purchase:receipts:update'"
                   size="small"
                   type="success"
                   plain
@@ -122,6 +127,7 @@
                 </Button>
                 <Button
                   v-if="receipt.status === 'confirmed'"
+                  v-permission="'purchase:receipts:update'"
                   size="small"
                   type="warning"
                   plain
@@ -179,7 +185,7 @@
   // 分页参数
   const pagination = reactive({
     page: 1,
-    limit: 10,
+    limit: 20,
     total: 0
   })
 
@@ -230,7 +236,6 @@
 
   // 加载入库单列表
   const loadReceiptList = async () => {
-    if (loading.value) return
 
     loading.value = true
     try {
@@ -350,135 +355,51 @@
     background: var(--bg-primary);
   }
 
-  .page-content {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
 
-  .toolbar-section {
-    display: flex;
-    align-items: center;
-    padding: 0.5rem 1rem;
-    gap: 0.75rem;
-  }
-
-  .shrink-search {
-    flex: 1;
-    :deep(.van-search__content) {
-      background: var(--bg-secondary);
-    }
-  }
-
-  .filter-btn {
-    width: 2.5rem;
-    height: 2.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.5rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--van-border-color);
-    color: var(--text-secondary, #94a3b8);
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  .stats-panel {
-    display: flex;
-    gap: 0.75rem;
-    padding: 1rem;
-  }
-
-  .stat-card {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1rem;
-    border-radius: 0.75rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--van-border-color);
-  }
-
-  .stat-icon {
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 0.625rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    flex-shrink: 0;
-    &.bg-blue {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-    }
-    &.bg-red {
-      background: linear-gradient(135deg, #f5576c, #ff6b6b);
-    }
-    &.bg-green {
-      background: linear-gradient(135deg, #2ccfb0, #1ba392);
-    }
-    &.bg-purple {
-      background: linear-gradient(135deg, #a855f7, #7c3aed);
-    }
-    &.bg-yellow {
-      background: linear-gradient(135deg, #fbbf24, #f59e0b);
-    }
-  }
-
-  .stat-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .stat-label {
-    font-size: 0.75rem;
-    color: var(--text-secondary, #94a3b8);
-  }
-
-  .stat-value {
-    font-size: 1.125rem;
-    font-weight: 700;
-    color: var(--text-primary, #f1f5f9);
-  }
 
   .content-container {
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    padding: 0 12px;
   }
 
-  .search-filter {
-    padding: 1rem;
-    background-color: var(--bg-secondary);
-    border-bottom: 1px solid var(--glass-border);
+  .search-section {
+    padding: 4px 0;
   }
 
-  .filter-tabs {
+  .filter-scroll-wrapper {
+    padding: 4px 0 8px;
+    overflow: hidden;
+  }
+  .filter-scroll {
     display: flex;
-    margin-top: 0.5rem;
+    gap: 8px;
     overflow-x: auto;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
-
-    .filter-tab {
-      flex: 0 0 auto;
-      text-align: center;
-      padding: 0.25rem 0.5rem;
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      border-bottom: 2px solid transparent;
-      white-space: nowrap;
-      margin-right: 0.5rem;
-
-      &.active {
-        color: var(--color-primary, #3b82f6);
-        border-bottom-color: var(--color-primary, #3b82f6);
-      }
+    padding: 2px 0 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+  .filter-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--bg-secondary);
+    border: 1.5px solid var(--glass-border);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    transition: all 0.25s ease;
+    cursor: pointer;
+    .chip-text { font-weight: 500; }
+    &.active {
+      background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
+      border-color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent, var(--color-primary));
     }
   }
 

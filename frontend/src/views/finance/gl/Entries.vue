@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Entries.vue
  * @description 前端界面组件文件
@@ -18,7 +18,7 @@
           type="primary"
           :icon="Plus"
           @click="createEntry"
-          v-permission="'finance:gl:entries:create'">
+          v-permission="'finance:entries:create'">
           新增凭证
         </el-button>
       </div>
@@ -212,10 +212,11 @@
                 type="warning"
                 size="small"
                 @click="reverseEntry(scope.row)"
+                v-permission="'finance:gl:entries'"
               >冲销</el-button>
 
               <!-- 删除按钮：只在未过账时显示 -->
-              <el-button v-permission="'finance:entries:delete'"
+              <el-button v-permission="'finance:entries:update'"
                 v-if="!scope.row.isPosted"
                 type="danger"
                 size="small"
@@ -253,7 +254,7 @@
       <template #header>
         <div class="dialog-header">
           <span class="dialog-title">凭证明细</span>
-          <el-button v-permission="'finance:entries:print'" type="primary" size="small" @click="handlePrint" :icon="Printer">打印凭证</el-button>
+          <el-button v-permission="'finance:entries:view'" type="primary" size="small" @click="handlePrint" :icon="Printer">打印凭证</el-button>
         </div>
       </template>
       <div ref="printAreaRef" class="print-area">
@@ -321,6 +322,8 @@
 <script setup>
 // Vue核心和路由
 import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { formatDate } from '@/utils/helpers/dateUtils'
+import { formatCurrency } from '@/utils/format'
 import { useRouter, useRoute } from 'vue-router';
 
 // Element Plus
@@ -328,14 +331,12 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Printer, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
 
 // Pinia Stores
-import { useAuthStore } from '@/stores/auth';
 import { useFinanceStore } from '@/stores/finance';
 import { storeToRefs } from 'pinia';
 
 // 项目工具和API
 import { api } from '@/services/api';
 
-import apiAdapter from '@/utils/apiAdapter';
 
 // Props定义
 const props = defineProps({
@@ -346,11 +347,13 @@ const props = defineProps({
 });
 
 // Stores初始化
-const authStore = useAuthStore();
 const financeStore = useFinanceStore();
 const { glConfig } = storeToRefs(financeStore);
 
-// 权限计算属性
+// 权限计算属性
+
+
+
 // 路由
 const route = useRoute();
 const router = useRouter();
@@ -611,26 +614,6 @@ const loadEntries = async () => {
   } finally {
     loading.value = false;
   }
-};
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 计算统计数据

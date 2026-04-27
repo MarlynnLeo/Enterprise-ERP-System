@@ -103,6 +103,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from '@/services/axiosInstance';
+import { formatAmount } from '@/utils/format'
 
 const router = useRouter();
 const route = useRoute();
@@ -141,13 +142,7 @@ const handleBack = () => {
   router.back();
 };
 
-// 格式化金额
-const formatAmount = (amount) => {
-  return parseFloat(amount || 0).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-};
+// 格式化金额 - 已统一使用 @/utils/format 导入
 
 // 获取进度条颜色
 const getProgressColor = (percentage) => {

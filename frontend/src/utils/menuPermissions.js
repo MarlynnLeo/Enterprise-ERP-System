@@ -103,6 +103,18 @@ export const menuPermissions = [
     sort: 6,
     status: 1
   },
+  {
+    id: 27,
+    parentId: 2,
+    name: 'MRP需求计划',
+    path: '/production/mrp',
+    component: 'production/MRPPlanning',
+    icon: 'icon-data-analysis',
+    type: 1,
+    permission: 'production:plans',
+    sort: 7,
+    status: 1
+  },
 
   // 生产计划按钮权限
   {
@@ -542,6 +554,18 @@ export const menuPermissions = [
     sort: 9,
     status: 1
   },
+  {
+    id: 311,
+    parentId: 3,
+    name: '工程变更(ECN)',
+    path: '/basedata/ecn',
+    component: 'baseData/ECNManagement',
+    icon: 'icon-edit',
+    type: 1,
+    permission: 'basedata:bom',
+    sort: 10,
+    status: 1
+  },
 
   // 4. 库存管理
   {
@@ -834,6 +858,18 @@ export const menuPermissions = [
     type: 1,
     permission: 'sales:delivery-stats',
     sort: 7,
+    status: 1
+  },
+  {
+    id: 68,
+    parentId: 6,
+    name: '合同管理',
+    path: '/sales/contracts',
+    component: 'sales/ContractManagement',
+    icon: 'icon-document-copy',
+    type: 1,
+    permission: 'contract:view',
+    sort: 8,
     status: 1
   },
 
@@ -1216,6 +1252,18 @@ export const menuPermissions = [
     type: 1,
     permission: 'finance:automation:manage',
     sort: 16,
+    status: 1
+  },
+  {
+    id: 7191,
+    parentId: 7,
+    name: '汇率维护',
+    path: '/finance/settings/exchange-rates',
+    component: 'finance/settings/ExchangeRates',
+    icon: 'icon-coin',
+    type: 1,
+    permission: 'finance:settings',
+    sort: 161,
     status: 1
   },
   // 税务管理
@@ -1693,6 +1741,54 @@ export const menuPermissions = [
     type: 1,
     permission: 'system:business-types',
     sort: 7,
+    status: 1
+  },
+  {
+    id: 98,
+    parentId: 9,
+    name: '审批工作流',
+    path: '/system/workflow',
+    component: 'system/WorkflowManagement',
+    icon: 'icon-connection',
+    type: 1,
+    permission: 'system:workflow',
+    sort: 8,
+    status: 1
+  },
+  {
+    id: 99,
+    parentId: 9,
+    name: '编码规则',
+    path: '/system/coding-rules',
+    component: 'system/CodingRules',
+    icon: 'icon-stamp',
+    type: 1,
+    permission: 'system:settings',
+    sort: 9,
+    status: 1
+  },
+  {
+    id: 910,
+    parentId: 9,
+    name: '文档管理',
+    path: '/system/documents',
+    component: 'system/DocumentManagement',
+    icon: 'icon-files',
+    type: 1,
+    permission: 'system:documents',
+    sort: 10,
+    status: 1
+  },
+  {
+    id: 911,
+    parentId: 9,
+    name: '业务告警',
+    path: '/system/business-alerts',
+    component: 'system/BusinessAlerts',
+    icon: 'icon-warning',
+    type: 1,
+    permission: 'system:settings',
+    sort: 11,
     status: 1
   },
 

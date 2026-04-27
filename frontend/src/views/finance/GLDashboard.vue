@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * GLDashboard.vue
  * @description 前端界面组件文件
@@ -179,18 +179,13 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Document, Tickets, Calendar, Search, PieChart, Setting, Money, TrendCharts, DataLine, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/services/api';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 权限计算属性
 const router = useRouter();
 const loading = ref(false);
@@ -313,18 +308,6 @@ const viewEntry = (entry) => {
 
 // 日期格式化
 // formatDate 已统一引用公共实现;
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
 
 // 页面加载时执行
 onMounted(() => {

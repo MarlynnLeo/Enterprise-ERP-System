@@ -86,8 +86,8 @@ router.patch('/accounts/:id/status', requirePermission('finance:accounts:update'
 
 // 期初余额管理
 router.get('/opening-balances', requirePermission('finance:accounts:view'), financeController.getOpeningBalances);
-router.post('/opening-balances/:id', requirePermission('finance:accounts:update'), financeController.setOpeningBalance);
 router.post('/opening-balances/batch', requirePermission('finance:accounts:update'), financeController.setBatchOpeningBalance);
+router.post('/opening-balances/:id', requirePermission('finance:accounts:update'), financeController.setOpeningBalance);
 
 // 2. 会计分录管理
 router.get('/entries', requirePermission('finance:entries:view'), financeController.getEntries);
@@ -117,6 +117,7 @@ router.get('/gl/closing/history/:id', requirePermission('finance:closing:view'),
 router.get('/ap/invoices/generate-number', requirePermission('finance:ap:create'), apController.generateInvoiceNumber); // 生成发票编号
 router.get('/ap/invoices', requirePermission('finance:ap:view'), apController.getInvoices);
 router.get('/ap/invoices/unpaid', requirePermission('finance:ap:view'), apController.getUnpaidInvoices);
+router.get('/ap/invoices/overdue', requirePermission('finance:ap:view'), overdueController.getOverdueAPInvoices);
 router.get('/ap/invoices/:id/edit', requirePermission('finance:ap:update'), apController.getInvoiceForEdit);
 router.get('/ap/invoices/:id', requirePermission('finance:ap:view'), apController.getInvoiceById);
 router.get('/ap/invoices/:id/payments', requirePermission('finance:ap:view'), apController.getInvoicePayments);
@@ -133,7 +134,6 @@ router.post('/ap/payments/:id/void', requirePermission('finance:ap:update'), apC
 router.post('/ap/payments/batch', requirePermission('finance:ap:pay'), apBatchController.batchPayments);
 // AP付款冲销
 router.post('/ap/payments/:id/reverse', requirePermission('finance:ap:update'), overdueController.reversePayment);
-router.get('/ap/invoices/overdue', requirePermission('finance:ap:view'), overdueController.getOverdueAPInvoices);
 
 // 3. 应付账款分析
 router.get('/ap/supplier-payables', requirePermission('finance:reports:view'), apController.getSupplierPayables);
@@ -145,6 +145,7 @@ router.get('/ap/aging/:id', requirePermission('finance:reports:view'), apControl
 // 1. 应收账款发票管理
 router.get('/ar/invoices/generate-number', requirePermission('finance:ar:create'), arController.generateInvoiceNumber); // 生成发票编号
 router.get('/ar/invoices', requirePermission('finance:ar:view'), arController.getInvoices);
+router.get('/ar/invoices/overdue', requirePermission('finance:ar:view'), overdueController.getOverdueARInvoices);
 router.get('/ar/invoices/:id', requirePermission('finance:ar:view'), arController.getInvoiceById);
 router.get('/ar/invoices/:id/edit', requirePermission('finance:ar:update'), arController.getInvoiceForEdit);
 router.get('/ar/invoices/:id/payments', requirePermission('finance:ar:view'), arController.getInvoicePayments);
@@ -163,7 +164,6 @@ router.post('/ar/receipts/:id/void', requirePermission('finance:ar:update'), arC
 router.post('/ar/receipts/batch', requirePermission('finance:ar:receive'), arBatchController.batchReceipts);
 // AR收款冲销
 router.post('/ar/receipts/:id/reverse', requirePermission('finance:ar:update'), overdueController.reverseReceipt);
-router.get('/ar/invoices/overdue', requirePermission('finance:ar:view'), overdueController.getOverdueARInvoices);
 
 // 3. 应收账款分析
 router.get('/ar/customer-receivables', requirePermission('finance:reports:view'), arController.getCustomerReceivables);
@@ -389,6 +389,20 @@ router.delete('/tax/account-config/:id', requirePermission('finance:tax:delete')
 // 6. 预算管理模块路由
 router.post('/budgets', requirePermission('finance:budgets:create'), budgetController.createBudget);
 router.get('/budgets', requirePermission('finance:budgets:view'), budgetController.getBudgets);
+// ⚠️ 具体路由必须在 /budgets/:id 之前注册，否则会被参数路由拦截
+// 预算预警
+router.get('/budgets/warnings', requirePermission('finance:budgets:view'), budgetController.getBudgetWarnings);
+router.put('/budgets/warnings/:id/read', requirePermission('finance:budgets:update'), budgetController.markWarningAsRead);
+// 预算检查
+router.get('/budgets/check', requirePermission('finance:budgets:view'), budgetController.checkBudgetAvailability);
+// 部门对比（无 :id）
+router.get('/budgets/analysis/department-comparison', requirePermission('finance:budgets:view'), budgetController.getDepartmentBudgetComparison);
+// AI 预算分析（无 :id 的路由）
+router.get('/budgets/ai/recommendation', requirePermission('finance:budgets:view'), budgetController.getAIRecommendation);
+router.post('/budgets/ai/create-from-ai', requirePermission('finance:budgets:create'), budgetController.createBudgetFromAI);
+router.get('/budgets/ai/year-comparison', requirePermission('finance:budgets:view'), budgetController.getAIYearComparison);
+router.get('/budgets/ai/usage-stats', requirePermission('finance:budgets:view'), budgetController.getAIUsageStats);
+// 参数路由 — 必须在所有具体 GET /budgets/xxx 之后
 router.get('/budgets/:id', requirePermission('finance:budgets:view'), budgetController.getBudgetById);
 router.put('/budgets/:id', requirePermission('finance:budgets:update'), budgetController.updateBudget);
 router.delete('/budgets/:id', requirePermission('finance:budgets:delete'), budgetController.deleteBudget);
@@ -396,23 +410,11 @@ router.post('/budgets/:id/submit', requirePermission('finance:budgets:update'), 
 router.post('/budgets/:id/approve', requirePermission('finance:budgets:approve'), budgetController.approveBudget);
 router.post('/budgets/:id/start', requirePermission('finance:budgets:update'), budgetController.startBudgetExecution);
 router.post('/budgets/:id/close', requirePermission('finance:budgets:update'), budgetController.closeBudget);
-// 预算执行分析
+// 预算执行分析（含 :id 的路由）
 router.get('/budgets/:id/analysis', requirePermission('finance:budgets:view'), budgetController.getRealTimeBudgetAnalysis);
 router.get('/budgets/:id/analysis/execution', requirePermission('finance:budgets:view'), budgetController.getBudgetExecutionAnalysis);
 router.get('/budgets/:id/analysis/variance', requirePermission('finance:budgets:view'), budgetController.getBudgetVarianceAnalysis);
-router.get('/budgets/analysis/department-comparison', requirePermission('finance:budgets:view'), budgetController.getDepartmentBudgetComparison);
-// 预算执行记录
 router.get('/budgets/:id/executions', requirePermission('finance:budgets:view'), budgetController.getBudgetExecutions);
-// 预算预警
-router.get('/budgets/warnings', requirePermission('finance:budgets:view'), budgetController.getBudgetWarnings);
-router.put('/budgets/warnings/:id/read', requirePermission('finance:budgets:update'), budgetController.markWarningAsRead);
-// 预算检查
-router.get('/budgets/check', requirePermission('finance:budgets:view'), budgetController.checkBudgetAvailability);
-// AI 预算分析
-router.get('/budgets/ai/recommendation', requirePermission('finance:budgets:view'), budgetController.getAIRecommendation);
-router.post('/budgets/ai/create-from-ai', requirePermission('finance:budgets:create'), budgetController.createBudgetFromAI);
-router.get('/budgets/ai/year-comparison', requirePermission('finance:budgets:view'), budgetController.getAIYearComparison);
-router.get('/budgets/ai/usage-stats', requirePermission('finance:budgets:view'), budgetController.getAIUsageStats);
 router.get('/budgets/:id/ai/anomalies', requirePermission('finance:budgets:view'), budgetController.getAIAnomalies);
 router.get('/budgets/:id/ai/optimization', requirePermission('finance:budgets:view'), budgetController.getAIOptimization);
 router.get('/budgets/:id/ai/comprehensive-report', requirePermission('finance:budgets:view'), budgetController.getAIComprehensiveReport);
@@ -436,10 +438,10 @@ router.put('/pricing/settings', requirePermission('finance:pricing:update'), pri
 router.get('/pricing', requirePermission('finance:pricing:view'), pricingController.getPricingList);
 router.post('/pricing', requirePermission('finance:pricing:create'), pricingController.createPricing); // 创建产品定价
 router.get('/pricing/export', requirePermission('finance:pricing:export'), pricingExportController.exportPricingList); // 导出功能
+router.get('/pricing/calculate-bom/:productId', requirePermission('finance:pricing:view'), pricingController.calculateBomCost); // 必须在 /:productId 之前
 router.get('/pricing/:productId', requirePermission('finance:pricing:view'), pricingController.getPricingDetail); // 获取单个产品定价详情
 router.get('/pricing/:productId/history', requirePermission('finance:pricing:view'), pricingController.getPricingHistory); // 获取产品定价历史
 router.get('/pricing/:productId/bom', requirePermission('finance:pricing:view'), pricingController.getBomDetails); // 获取BOM明细
-router.get('/pricing/calculate-bom/:productId', requirePermission('finance:pricing:view'), pricingController.calculateBomCost);
 
 // BOM价格调整路由
 router.get('/bom-price-adjustments/:productId', requirePermission('finance:pricing:view'), bomPriceAdjustmentController.getAdjustments); // 获取产品的价格调整列表

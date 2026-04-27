@@ -11,6 +11,7 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const businessConfig = require('../../../config/businessConfig');
+const { CodeGenerators } = require('../../../utils/codeGenerator');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
@@ -290,15 +291,8 @@ const createInbound = async (req, res) => {
       throw new Error('生产退料必须关联生产任务或原出库单');
     }
 
-    // 生成入库单号，退料单使用TL前缀
-    const dateStr = inbound_date.replace(/-/g, '');
-    const prefix = inbound_type === 'production_return' ? 'TL' : 'RK';
-    const [result] = await connection.execute(
-      'SELECT MAX(inbound_no) as max_no FROM inventory_inbound WHERE inbound_no LIKE ?',
-      [`${prefix}${dateStr}%`]
-    );
-    const maxNo = result[0].max_no || `${prefix}${dateStr}000`;
-    const inbound_no = `${prefix}${dateStr}${(parseInt(maxNo.slice(-3)) + 1).toString().padStart(3, '0')}`;
+    // ✅ 使用统一编码规则引擎生成入库单号
+    const inbound_no = await CodeGenerators.generateInboundCode(connection);
 
     // 插入入库单主表（包含入库类型和关联信息）
     const [inboundResult] = await connection.execute(
@@ -434,7 +428,7 @@ const createInboundFromQuality = async (req, res) => {
 
     // 验证必填字段
     if (!inbound_date || !location_id || !operator || !items || items.length === 0) {
-      return res.status(400).json({ error: '缺少必填字段' });
+      return ResponseHandler.error(res, '缺少必填字段', 'BAD_REQUEST', 400);
     }
 
     // ===== 年度结存校验 =====
@@ -455,23 +449,17 @@ const createInboundFromQuality = async (req, res) => {
 
       if (inspectionResult.length === 0) {
         await connection.rollback();
-        return res.status(404).json({ error: '质检单不存在' });
+        return ResponseHandler.notFound(res, '质检单不存在');
       }
 
       if (inspectionResult[0].status !== 'passed') {
         await connection.rollback();
-        return res.status(400).json({ error: '只有质检合格的单据才能生成入库单' });
+        return ResponseHandler.error(res, '只有质检合格的单据才能生成入库单', 'BAD_REQUEST', 400);
       }
     }
 
-    // 生成入库单号
-    const dateStr = inbound_date.replace(/-/g, '');
-    const [result] = await connection.execute(
-      'SELECT MAX(inbound_no) as max_no FROM inventory_inbound WHERE inbound_no LIKE ?',
-      [`RK${dateStr}%`]
-    );
-    const maxNo = result[0].max_no || `RK${dateStr}000`;
-    const inbound_no = `RK${dateStr}${(parseInt(maxNo.slice(-3)) + 1).toString().padStart(3, '0')}`;
+    // ✅ 使用统一编码规则引擎生成入库单号
+    const inbound_no = await CodeGenerators.generateInboundCode(connection);
 
     // 创建入库单
     const [inboundResult] = await connection.execute(
@@ -567,7 +555,7 @@ const createInboundFromQuality = async (req, res) => {
                 // 确保必填字段都存在
                 if (!unit_id || !quantity || quantity <= 0) {
                   await connection.rollback();
-                  return res.status(400).json({ error: '物料明细字段不完整或无效' });
+                  return ResponseHandler.error(res, '物料明细字段不完整或无效', 'BAD_REQUEST', 400);
                 }
 
                 await connection.execute(
@@ -613,7 +601,7 @@ const createInboundFromQuality = async (req, res) => {
       // 确保所有必填字段都存在
       if (!material_id || !unit_id || !quantity || quantity <= 0) {
         await connection.rollback();
-        return res.status(400).json({ error: '物料明细字段不完整或无效' });
+        return ResponseHandler.error(res, '物料明细字段不完整或无效', 'BAD_REQUEST', 400);
       }
 
       // 检查material_id是否存在于materials表中
@@ -712,7 +700,7 @@ const createInboundFromQuality = async (req, res) => {
   } catch (err) {
     await connection.rollback();
     logger.error('创建入库单错误:', err);
-    return res.status(500).json({ error: '服务器错误' });
+    return ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500);
   } finally {
     connection.release();
   }

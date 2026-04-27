@@ -74,7 +74,7 @@
       label: '新建入库',
       path: '/inventory/inbound/create',
       icon: 'plus',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
     },
     {
       label: '新建出库',

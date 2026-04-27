@@ -10,6 +10,7 @@ import { PURCHASE_STATUS, PURCHASE_STATUS_ACTION_TEXT, PURCHASE_ORDER_PRINT_TEMP
 import { getPurchaseStatusText, getPurchaseStatusColor } from '@/constants/systemConstants'
 import { usePurchaseInspection } from '@/composables/usePurchaseInspection'
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { formatCurrency } from '@/utils/format'
 
 export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const { createInspectionForOrder, showInspectionResult } = usePurchaseInspection()
@@ -42,13 +43,12 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const selectedOrders = ref([])
   const batchLoading = ref(false)
   const canBatchSubmit = computed(() => { if (selectedOrders.value.length === 0) return false; return selectedOrders.value.every(order => order.status === 'draft') })
-  const canBatchApprove = computed(() => { if (selectedOrders.value.length === 0) return false; return selectedOrders.value.every(order => order.status === 'pending') })
+  const canBatchApprove = computed(() => false) // 审批由工作流审批人完成，非按钮直接操作
 
   // 统计数据
   const orderStats = ref({ total: 0, totalAmount: 0, pendingCount: 0, approvedCount: 0, completedCount: 0 })
 
-  // 格式化（formatDate 使用 @/utils/helpers/dateUtils 公共实现）
-  const formatCurrency = (value) => { if (!value) return '¥0.00'; return '¥' + parseFloat(value).toFixed(2) }
+  // 格式化（formatDate/formatCurrency 已统一使用公共实现）
   const getStatusText = (status) => getPurchaseStatusText(status)
   const getStatusType = (status) => getPurchaseStatusColor(status)
 
@@ -318,14 +318,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   }
 
   const handleBatchApprove = async () => {
-    try {
-      await ElMessageBox.confirm(`确定要批量批准选中的 ${selectedOrders.value.length} 个订单吗？`, '批量批准', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
-      batchLoading.value = true; let successCount = 0; let failCount = 0
-      for (const order of selectedOrders.value) { try { await purchaseApi.updateOrderStatus(order.id, 'approved'); successCount++ } catch (error) { console.error(`订单 ${order.order_no} 批准失败:`, error); failCount++ } }
-      if (successCount > 0) { ElMessage.success(`成功批准 ${successCount} 个订单${failCount > 0 ? `，${failCount} 个失败` : ''}`); clearSelection(); if (loadOrdersCallback) await loadOrdersCallback() }
-      else ElMessage.error('批量批准失败')
-    } catch (error) { if (error !== 'cancel') console.error('批量批准失败:', error) }
-    finally { batchLoading.value = false }
+    ElMessage.info('审批操作请前往「我的待审」页面处理')
   }
 
   return {

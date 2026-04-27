@@ -91,7 +91,7 @@
     <!-- 盘点类型选择器 -->
     <Popup v-model:show="showCheckTypePicker" position="bottom">
       <Picker
-        :columns="checkTypeOptions.map((item) => item.label)"
+        :columns="checkTypeOptions.map(item => ({ text: item.label, value: item.value }))"
         @confirm="onCheckTypeConfirm"
         @cancel="showCheckTypePicker = false"
       />
@@ -100,7 +100,7 @@
     <!-- 仓库选择器 -->
     <Popup v-model:show="showWarehousePicker" position="bottom">
       <Picker
-        :columns="warehouseOptions.map((item) => item.name)"
+        :columns="warehouseOptions.map(item => ({ text: item.name, value: item.id }))"
         @confirm="onWarehouseConfirm"
         @cancel="showWarehousePicker = false"
         :loading="loadingWarehouses"
@@ -179,15 +179,19 @@
     router.push('/inventory/check')
   }
 
-  // 盘点类型确认
-  const onCheckTypeConfirm = (value, index) => {
-    checkForm.value.check_type = checkTypeOptions[index].value
+  // 盘点类型确认 (Vant 4 格式)
+  const onCheckTypeConfirm = ({ selectedValues }) => {
+    if (selectedValues && selectedValues.length > 0) {
+      checkForm.value.check_type = selectedValues[0]
+    }
     showCheckTypePicker.value = false
   }
 
-  // 仓库确认
-  const onWarehouseConfirm = (value, index) => {
-    checkForm.value.warehouse_id = warehouseOptions.value[index].id
+  // 仓库确认 (Vant 4 格式)
+  const onWarehouseConfirm = ({ selectedValues }) => {
+    if (selectedValues && selectedValues.length > 0) {
+      checkForm.value.warehouse_id = selectedValues[0]
+    }
     showWarehousePicker.value = false
   }
 
@@ -207,9 +211,12 @@
       submitting.value = true
 
       const formData = {
-        ...checkForm.value,
-        status: 'draft',
-        warehouse: warehouseText.value
+        check_date: checkForm.value.check_date,
+        check_type: checkForm.value.check_type,
+        location_id: checkForm.value.warehouse_id, // 后端期望字段名为 location_id
+        remark: checkForm.value.remarks, // 后端期望字段名为 remark
+        description: checkForm.value.description,
+        status: 'draft'
       }
 
       const response = await inventoryApi.createCheck(formData)
@@ -231,8 +238,14 @@
     try {
       loadingWarehouses.value = true
       const response = await inventoryApi.getLocations()
-      if (response.data && response.data.items) {
-        warehouseOptions.value = response.data.items
+      if (response && response.data) {
+        let items = []
+        if (Array.isArray(response.data)) {
+          items = response.data
+        } else {
+          items = response.data.list || response.data.items || response.data.rows || []
+        }
+        warehouseOptions.value = items
       }
     } catch (error) {
       console.error('获取仓库列表失败:', error)

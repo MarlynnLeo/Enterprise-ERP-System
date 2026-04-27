@@ -191,7 +191,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parsePaginatedData } from '@/utils/responseParser';
 
 import { ref, reactive, onMounted, computed } from 'vue';

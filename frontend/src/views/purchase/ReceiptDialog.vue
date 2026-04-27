@@ -160,7 +160,6 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
 
 import { ref, computed, reactive, watch } from 'vue';

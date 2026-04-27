@@ -167,7 +167,7 @@
 
       await qualityApi.createFinalInspection(data)
       closeToast()
-      showToast('✓ 成品检验单创建成功')
+      showToast('成品检验单创建成功')
 
       setTimeout(() => {
         router.replace('/quality/final')
@@ -183,7 +183,7 @@
   }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   .create-page {
     min-height: 100vh;
     background-color: var(--van-background-2);

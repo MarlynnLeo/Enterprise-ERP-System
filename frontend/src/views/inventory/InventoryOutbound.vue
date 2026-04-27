@@ -165,7 +165,8 @@
             </el-button>
             <!-- 草稿和已确认状态显示编辑按钮 -->
             <el-button v-if="scope.row.status === 'draft' || scope.row.status === 'confirmed'" size="small"
-              type="primary" @click="handleEdit(scope.row)">
+              type="primary" @click="handleEdit(scope.row)"
+              v-permission="'inventory:outbound:update'">
               编辑
             </el-button>
             <!-- 部分完成状态显示补发按钮 -->
@@ -176,7 +177,7 @@
             <el-popconfirm v-if="scope.row.status === 'draft'" title="确定要删除该出库单吗？此操作无法恢复。"
               @confirm="handleDelete(scope.row)" confirm-button-type="danger">
               <template #reference>
-                <el-button v-permission="'inventory:inventoryoutbound:delete'" size="small" type="danger">删除</el-button>
+                <el-button v-permission="'inventory:outbound:delete'" size="small" type="danger">删除</el-button>
               </template>
             </el-popconfirm>
             <el-button v-if="scope.row.status === 'draft'" size="small" type="primary"
@@ -369,7 +370,8 @@
           <el-table-column label="操作" width="80" fixed="right" v-if="dialogType !== 'view'">
             <template #default="scope">
               <el-button v-if="!scope.row.isSubstitute && !scope.row.is_from_plan" type="danger" size="small"
-                @click="handleRemoveItem(scope.row.originalIndex)">
+                @click="handleRemoveItem(scope.row.originalIndex)"
+                v-permission="'inventory:outbound:update'">
                 删除
               </el-button>
             </template>
@@ -566,7 +568,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="printDialogVisible = false">取消</el-button>
-          <el-button v-permission="'inventory:inventoryoutbound:print'" type="primary" @click="printOutbound">确认打印</el-button>
+          <el-button v-permission="'inventory:outbound:view'" type="primary" @click="printOutbound">确认打印</el-button>
         </span>
       </template>
     </el-dialog>
@@ -2326,6 +2328,8 @@ export default {
       outboundRules,
       submitting,
       viewDialogVisible,
+      viewLoading,
+      editLoading,
       currentOutbound,
       productionPlanOptions,
       selectedPlan,

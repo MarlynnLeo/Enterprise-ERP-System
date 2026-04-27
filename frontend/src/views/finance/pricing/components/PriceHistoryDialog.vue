@@ -53,6 +53,7 @@
 <script setup>
 import { computed } from 'vue';
 import dayjs from 'dayjs';
+import { formatDateTime as _formatDateTime } from '@/utils/helpers/dateUtils'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -74,7 +75,7 @@ const visible = computed({
 });
 
 const formatNumber = (num) => Number(num || 0).toFixed(2);
-const formatDateTime = (date) => date ? dayjs(date).format('YYYY-MM-DD HH:mm') : '-';
+const formatDateTime = (date) => _formatDateTime(date, 'YYYY-MM-DD HH:mm');
 </script>
 
 <style scoped>

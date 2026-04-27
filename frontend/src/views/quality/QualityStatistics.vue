@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="inspection-container">
     <!-- 日期筛选 -->
     <el-card class="box-card">
@@ -171,10 +171,7 @@
 import { ref, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import * as echarts from 'echarts'
 import { qualityStatisticsApi } from '@/api/quality'
-import { useAuthStore } from '@/stores/auth'
 import { Tools, Delete } from '@element-plus/icons-vue'
-
-const authStore = useAuthStore()
 
 const dateRange = ref([])
 const trendGroupBy = ref('day')

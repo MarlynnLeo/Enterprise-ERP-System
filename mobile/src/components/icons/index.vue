@@ -56,6 +56,14 @@ const materialName = computed(() => {
     'notes': 'receipt_long',
     'receipt': 'receipt',
     'truck': 'local_shipping',
+    'export': 'output',           // 出库图标
+    'import': 'input',            // 入库图标
+    'outbound': 'output',         // 出库别名
+    'inbound': 'input',           // 入库别名
+    'transfer': 'swap_horiz',     // 调拨
+    'inventory-check': 'fact_check', // 盘点
+    'warehouse': 'warehouse',     // 仓库
+    'package': 'package_2',       // 包裹
     
     // ---- 销售、采购与财务 ----
     'shopping-bag': 'local_mall',
@@ -118,6 +126,10 @@ const materialName = computed(() => {
     'folder': 'folder',
     'wrench': 'build',
     'undo': 'undo',
+    'sun': 'light_mode',
+    'moon': 'dark_mode',
+    'settings': 'settings',
+    'layers': 'layers',
 
     // ---- 图表 ----
     'chart-bar': 'bar_chart',
@@ -133,7 +145,52 @@ const materialName = computed(() => {
     'arrow-left': 'arrow_back',
     'check': 'check',
     'check-circle': 'check_circle',
-    'x-circle': 'cancel'
+    'x-circle': 'cancel',
+
+    // ---- Vant 及扩展兼容 ----
+    'contact': 'person_pin',
+    'friends-o': 'diversity_3',
+    'people': 'people',
+    'desktop-o': 'desktop_windows',
+    'play-circle-o': 'play_circle',
+    'setting-o': 'settings',
+    'warning-o': 'warning',
+    'passed': 'check_circle',
+    'completed': 'task_alt',
+    'clock-o': 'schedule',
+    'cluster-o': 'account_tree',
+    'tools': 'build',
+    'notes-o': 'assignment',
+    'calendar-o': 'calendar_month',
+    'todo-list-o': 'checklist',
+    'orders-o': 'list_alt',
+    'scan': 'qr_code_scanner',
+    'eye-o': 'visibility',
+    'label-o': 'label',
+    'location': 'location_on',
+    'logistics': 'local_shipping',
+    'medal-o': 'workspace_premium',
+    'records': 'receipt_long',
+    'replay': 'replay',
+    'revoke': 'undo',
+    'service-o': 'support_agent',
+    'shield-o': 'security',
+    'tree': 'nature',
+    'upgrade': 'upgrade',
+    'clipboard-list': 'assignment',
+    'user-o': 'person_outline',
+    'shop-o': 'storefront',
+    'contact-o': 'contact_mail',
+    'gem-o': 'diamond',
+    'more-o': 'more_horiz',
+    'database-o': 'database',
+    'camera-o': 'photo_camera',
+    'envelop-o': 'mail',
+    'cross': 'close',
+    'guide-o': 'navigation',
+    'arrow': 'arrow_forward',
+    'arrow-down': 'arrow_downward',
+    'success': 'check_circle'
   };
   
   return map[props.name] || props.name; // 若未命中则直接传原值尝试渲染

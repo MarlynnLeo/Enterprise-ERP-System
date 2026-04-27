@@ -58,13 +58,14 @@
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" link @click="handleEdit(row)">编辑</el-button>
-            <el-button v-permission="'finance:expensecategories:create'" 
+            <el-button type="primary" size="small" link @click="handleEdit(row)"
+              v-permission="'finance:expenses:categories'">编辑</el-button>
+            <el-button v-permission="'finance:expenses:create'" 
               v-if="!row.parent_id"
               type="success" size="small" link 
               @click="handleAdd(row.id)"
             >添加子类</el-button>
-            <el-button v-permission="'finance:expensecategories:delete'" type="danger" size="small" link @click="handleDelete(row)">删除</el-button>
+            <el-button v-permission="'finance:expenses:delete'" type="danger" size="small" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -106,7 +107,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:expensecategories:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button v-permission="'finance:expenses:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>

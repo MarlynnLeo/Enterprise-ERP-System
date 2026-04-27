@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * OutsourcedProcessing.vue
  * @description 前端界面组件文件
@@ -128,7 +128,8 @@
               size="small"
               type="primary"
               @click="handleEditProcessing(scope.row)"
-            >
+            
+              v-permission="'purchase:processing:update'">
               编辑
             </el-button>
             <el-button
@@ -136,7 +137,8 @@
               size="small"
               type="danger"
               @click="handleDeleteProcessing(scope.row)"
-            >
+            
+              v-permission="'purchase:processing:delete'">
               删除
             </el-button>
             <el-button
@@ -152,6 +154,7 @@
               size="small"
               type="success"
               @click="handleCreateAndComplete(scope.row)"
+              v-permission="'purchase:processing:create'"
             >
               创建入库单
             </el-button>
@@ -288,6 +291,7 @@
                 type="primary" 
                 size="small" 
                 @click="handleAddMaterial"
+                v-permission="'purchase:processing:update'"
               >
                 添加物料
               </el-button>
@@ -330,7 +334,8 @@
                   type="danger" 
                   size="small" 
                   @click="handleRemoveMaterial(scope.$index)"
-                >
+                
+                  v-permission="'purchase:processing:update'">
                   删除
                 </el-button>
               </template>
@@ -348,6 +353,7 @@
                 type="primary" 
                 size="small" 
                 @click="handleAddProduct"
+                v-permission="'purchase:processing:update'"
               >
                 添加成品
               </el-button>
@@ -411,7 +417,8 @@
                   type="danger" 
                   size="small" 
                   @click="handleRemoveProduct(scope.$index)"
-                >
+                
+                  v-permission="'purchase:processing:update'">
                   删除
                 </el-button>
               </template>
@@ -527,7 +534,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
@@ -536,15 +542,11 @@ import { api, baseDataApi } from '@/services/api';
 import { parseListData } from '@/utils/responseParser';
 import { Plus, Search, Refresh } from '@element-plus/icons-vue'
 import ReceiptDialog from './ReceiptDialog.vue';
-import { useAuthStore } from '@/stores/auth';
 import {
   OUTSOURCED_STATUS_OPTIONS,
   getOutsourcedStatusText,
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
-
-// 权限store
-const authStore = useAuthStore();
 
 // 状态选项（使用统一常量）
 const statusOptions = OUTSOURCED_STATUS_OPTIONS;

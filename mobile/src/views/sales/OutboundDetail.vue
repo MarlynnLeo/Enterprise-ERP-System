@@ -96,7 +96,7 @@
         </div>
 
         <!-- 底部操作栏 -->
-        <div class="bottom-actions glass-panel" v-if="outboundOrder && outboundOrder.status === 'pending'">
+        <div class="bottom-actions glass-panel" v-if="outboundOrder && outboundOrder.status === 'pending'" v-permission="'sales:outbound:approve'">
             <Button type="primary" block :loading="submitting" @click="showExecuteDialog = true">
                 确认出库
             </Button>
@@ -234,7 +234,7 @@ onMounted(() => {
 .back-btn {
     background: none;
     border: none;
-    color: white;
+    color: var(--text-primary);
     padding: 0.5rem;
     margin-left: -0.5rem;
     cursor: pointer;
@@ -243,7 +243,7 @@ onMounted(() => {
 .page-title {
     font-size: 1.125rem;
     font-weight: 600;
-    color: white;
+    color: var(--text-primary);
 }
 
 .nav-actions {
@@ -272,7 +272,7 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--text-primary);
     box-shadow: none;
 }
 
@@ -283,7 +283,7 @@ onMounted(() => {
 .status-text {
     font-size: 1.125rem;
     font-weight: 600;
-    color: white;
+    color: var(--text-primary);
     margin-bottom: 0.25rem;
 }
 
@@ -326,7 +326,7 @@ onMounted(() => {
 }
 
 .info-value {
-    color: white;
+    color: var(--text-primary);
     text-align: right;
     flex: 1;
 }
@@ -390,19 +390,19 @@ onMounted(() => {
 
 /* 状态颜色 */
 .bg-yellow-500 {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
+    background: linear-gradient(135deg, var(--color-warning), #d97706);
 }
 
 .bg-blue-500 {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    background: linear-gradient(135deg, var(--color-primary), #2563eb);
 }
 
 .bg-green-500 {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: linear-gradient(135deg, var(--color-success), var(--color-success));
 }
 
 .bg-gray-500 {
-    background: linear-gradient(135deg, #6b7280, #4b5563);
+    background: linear-gradient(135deg, var(--text-secondary), var(--text-secondary));
 }
 
 .basic-list-item {

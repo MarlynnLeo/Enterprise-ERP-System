@@ -560,6 +560,15 @@ export default {
                 requiresAuth: true,
                 permission: 'finance:settings'
             }
+        },
+        {
+            path: 'settings/exchange-rates',
+            name: 'exchange-rates',
+            component: () => import('../../views/finance/settings/ExchangeRates.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'finance:settings'
+            }
         }
     ]
 }

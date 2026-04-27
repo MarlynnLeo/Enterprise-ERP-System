@@ -110,6 +110,7 @@
     >
       <VanButton
         v-if="detail.status === 'draft'"
+        v-permission="'inventory:transfer:update'"
         type="primary"
         block
         round
@@ -119,6 +120,7 @@
       >
       <VanButton
         v-if="detail.status === 'approved'"
+        v-permission="'inventory:transfer:approve'"
         type="warning"
         block
         round
@@ -255,23 +257,23 @@
     flex-shrink: 0;
     &.status-draft {
       background: rgba(148, 163, 184, 0.15);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
     &.status-pending {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.status-approved {
       background: rgba(59, 130, 246, 0.12);
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
   .status-main {
@@ -292,23 +294,23 @@
     font-weight: 700;
     &.status-draft {
       background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
     &.status-pending {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.status-approved {
       background: rgba(59, 130, 246, 0.12);
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
   .order-date {
@@ -348,10 +350,10 @@
     font-size: 0.9375rem;
     font-weight: 700;
     &.from {
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.to {
-      color: #10b981;
+      color: var(--color-success);
     }
   }
   .route-arrow {
@@ -377,7 +379,7 @@
     font-weight: 700;
     border-radius: 9px;
     background: #a855f7;
-    color: #fff;
+    color: var(--text-primary);
     padding: 0 5px;
   }
 

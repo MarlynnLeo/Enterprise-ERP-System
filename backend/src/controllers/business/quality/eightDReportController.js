@@ -10,7 +10,9 @@
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const db = require('../../../config/db');
+const { softDelete } = require('../../../utils/softDelete');
 const pool = db.pool;
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const EightDAIService = require('../../../services/business/EightDAIService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
@@ -132,9 +134,9 @@ const getReports = async (req, res) => {
         const [countResult] = await pool.query(countSql, params);
         const total = countResult[0].total;
 
-        // 分页
-        const offset = (parseInt(page) - 1) * parseInt(pageSize);
-        sql += ` ORDER BY created_at DESC LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}`;
+        // 分页 — 使用安全分页工具
+        const { limit: safeLimit, offset: safeOffset } = parsePagination(page, pageSize);
+        sql = appendPaginationSQL(sql + ' ORDER BY created_at DESC', safeLimit, safeOffset);
 
 
         const [rows] = await pool.query(sql, params);
@@ -682,7 +684,8 @@ const deleteReport = async (req, res) => {
             return ResponseHandler.error(res, '只有草稿状态的报告才能删除', 'BAD_REQUEST', 400);
         }
 
-        await pool.query('DELETE FROM eight_d_reports WHERE id = ?', [id]);
+        // ✅ 软删除替代硬删除
+        await softDelete(pool, 'eight_d_reports', 'id', id);
         return ResponseHandler.success(res, null, '8D报告已删除');
     } catch (error) {
         logger.error('删除8D报告失败:', error);

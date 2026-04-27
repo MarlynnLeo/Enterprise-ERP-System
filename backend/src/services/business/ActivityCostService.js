@@ -5,6 +5,7 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const { softDelete } = require('../../utils/softDelete');
 
 class ActivityCostService {
   /**
@@ -13,7 +14,7 @@ class ActivityCostService {
   async getActivities(params = {}) {
     const { status, keyword } = params;
 
-    const whereConditions = ['1=1'];
+    const whereConditions = ['deleted_at IS NULL'];
     const queryParams = [];
 
     if (status !== undefined && status !== '') {
@@ -48,7 +49,7 @@ class ActivityCostService {
    * 获取单个作业详情
    */
   async getActivityById(id) {
-    const query = 'SELECT * FROM cost_activities WHERE id = ?';
+    const query = 'SELECT * FROM cost_activities WHERE id = ? AND deleted_at IS NULL';
     const result = await db.query(query, [id]);
     return result.rows?.[0] || null;
   }
@@ -60,7 +61,7 @@ class ActivityCostService {
     const { code, name, description, cost_pool, cost_driver_type, driver_rate, status = 1 } = data;
 
     // 检查编码唯一性
-    const existCheck = await db.query('SELECT id FROM cost_activities WHERE code = ?', [code]);
+    const existCheck = await db.query('SELECT id FROM cost_activities WHERE code = ? AND deleted_at IS NULL', [code]);
     if (existCheck.rows && existCheck.rows.length > 0) {
       throw new Error('作业编码已存在');
     }
@@ -89,7 +90,7 @@ class ActivityCostService {
     const { code, name, description, cost_pool, cost_driver_type, driver_rate, status } = data;
 
     // 检查编码唯一性
-    const existCheck = await db.query('SELECT id FROM cost_activities WHERE code = ? AND id != ?', [
+    const existCheck = await db.query('SELECT id FROM cost_activities WHERE code = ? AND id != ? AND deleted_at IS NULL', [
       code,
       id,
     ]);
@@ -130,7 +131,8 @@ class ActivityCostService {
       throw new Error('该作业已关联产品，无法删除');
     }
 
-    await db.query('DELETE FROM cost_activities WHERE id = ?', [id]);
+    // ✅ 软删除替代硬删除
+    await softDelete(db, 'cost_activities', 'id', id);
     return { success: true };
   }
 
@@ -212,7 +214,7 @@ class ActivityCostService {
         COUNT(DISTINCT pa.product_id) as product_count
       FROM cost_activities ca
       LEFT JOIN product_activities pa ON ca.id = pa.activity_id
-      WHERE ca.status = 1
+      WHERE ca.status = 1 AND ca.deleted_at IS NULL
       GROUP BY ca.id
       ORDER BY ca.code
     `;

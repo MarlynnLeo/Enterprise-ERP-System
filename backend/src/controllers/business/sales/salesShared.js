@@ -82,7 +82,7 @@ const generateTransactionNo = async (connection) => {
 
 // 生成销售出库编号
 const generateSalesOutboundNo = async (conn) => {
-  return await CodeGenerators.generateSalesOutboundCode(conn);
+  return await CodeGenerators.generateOutboundCode(conn);
 };
 
 // 日期格式化函数

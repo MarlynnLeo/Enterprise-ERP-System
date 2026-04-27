@@ -210,13 +210,13 @@
 
     &.active {
       background-color: rgba(99, 102, 241, 0.1);
-      color: #0369a1;
+      color: var(--color-primary);
       border: 1px solid #bae6fd;
     }
 
     &.inactive {
       background-color: var(--bg-secondary);
-      color: #6b7280;
+      color: var(--text-secondary);
       border: 1px solid #d1d5db;
     }
   }

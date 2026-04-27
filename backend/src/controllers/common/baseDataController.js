@@ -402,7 +402,7 @@ const baseDataController = {
           (SELECT COALESCE(SUM(sc.standard_price), 0) FROM standard_costs sc 
            JOIN bom_masters bm ON sc.product_id = bm.product_id WHERE bm.status != 2) as totalCost
         FROM bom_masters
-        WHERE status != 2
+        WHERE status != 2 AND deleted_at IS NULL
       `);
 
       ResponseHandler.success(res, bomResult[0], '获取BOM统计成功');
@@ -557,16 +557,16 @@ const baseDataController = {
 
       // ✅ 批量预加载所有关联数据（消除循环内 N×6 次 SQL）
       const { pool: dbPool } = require('../../config/db');
-      const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories');
+      const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories WHERE deleted_at IS NULL');
       const categoryByCode = new Map(allCategories.map(c => [c.code, c.id]));
 
-      const [allUnits] = await dbPool.query('SELECT id, name FROM units');
+      const [allUnits] = await dbPool.query('SELECT id, name FROM units WHERE deleted_at IS NULL');
       const unitByName = new Map(allUnits.map(u => [u.name, u.id]));
 
-      const [allSources] = await dbPool.query('SELECT id, type FROM material_sources');
+      const [allSources] = await dbPool.query('SELECT id, type FROM material_sources WHERE deleted_at IS NULL');
       const sourceByType = new Map(allSources.map(s => [s.type, s.id]));
 
-      const [allSuppliers] = await dbPool.query('SELECT id, code FROM suppliers');
+      const [allSuppliers] = await dbPool.query('SELECT id, code FROM suppliers WHERE deleted_at IS NULL');
       const supplierByCode = new Map(allSuppliers.map(s => [s.code, s.id]));
 
       const [allGroups] = await dbPool.query('SELECT id, code FROM production_groups');
@@ -579,7 +579,7 @@ const baseDataController = {
         if (u.employee_id) userByCode.set(u.employee_id, u.id);
       }
 
-      const [allLocations] = await dbPool.query('SELECT id, code FROM locations');
+      const [allLocations] = await dbPool.query('SELECT id, code FROM locations WHERE deleted_at IS NULL');
       const locationByCode = new Map(allLocations.map(l => [l.code, l.id]));
 
       const [allExistingMaterials] = await dbPool.query('SELECT id, code FROM materials');
@@ -725,21 +725,21 @@ const baseDataController = {
       logger.info(`开始导入物料，共${req.body.length} 条数据`);
 
       // 1. 批量加载所有分类（编码和名称映射）
-      const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories');
+      const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories WHERE deleted_at IS NULL');
       const categoryByCode = new Map(allCategories.map((c) => [c.code, c.id]));
       const categoryByName = new Map(allCategories.map((c) => [c.name, c.id]));
 
 
-      const [allUnits] = await dbPool.query('SELECT id, name FROM units');
+      const [allUnits] = await dbPool.query('SELECT id, name FROM units WHERE deleted_at IS NULL');
       const unitByName = new Map(allUnits.map((u) => [u.name, u.id]));
 
 
-      const [allSources] = await dbPool.query('SELECT id, name, code FROM material_sources');
+      const [allSources] = await dbPool.query('SELECT id, name, code FROM material_sources WHERE deleted_at IS NULL');
       const sourceByName = new Map(allSources.map((s) => [s.name, s.id]));
       const sourceByCode = new Map(allSources.map((s) => [s.code, s.id]));
 
       // 4. 批量加载所有供应商
-      const [allSuppliers] = await dbPool.query('SELECT id, code, name FROM suppliers');
+      const [allSuppliers] = await dbPool.query('SELECT id, code, name FROM suppliers WHERE deleted_at IS NULL');
       const supplierByCode = new Map(allSuppliers.map((s) => [s.code, s.id]));
       const supplierByName = new Map(allSuppliers.map((s) => [s.name, s.id]));
 
@@ -756,7 +756,7 @@ const baseDataController = {
       );
 
 
-      const [allLocations] = await dbPool.query('SELECT id, code, name FROM locations');
+      const [allLocations] = await dbPool.query('SELECT id, code, name FROM locations WHERE deleted_at IS NULL');
       const locationByCode = new Map(allLocations.map((l) => [l.code, l.id]));
       const locationByName = new Map(allLocations.map((l) => [l.name, l.id]));
 
@@ -1201,7 +1201,7 @@ const baseDataController = {
         INNER JOIN materials m1 ON b.product_id = m1.id
         INNER JOIN materials m2 ON bd.material_id = m2.id
         LEFT JOIN units u ON bd.unit_id = u.id
-        WHERE m2.code = ?
+        WHERE m2.code = ? AND b.deleted_at IS NULL
         ORDER BY b.version DESC
       `,
         [materialCode]
@@ -1228,7 +1228,7 @@ const baseDataController = {
       // 审核后触发关键后处理（与 createBom/deleteBom 保持一致）
       try {
         const BomExplosionService = require('../../services/BomExplosionService');
-        const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ?', [bomId]);
+        const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
         if (bomInfo.length > 0) {
           // 更新该产品在其他BOM中的 has_sub_bom 标记
           await BomExplosionService.updateHasSubBomFlag(bomInfo[0].product_id);
@@ -1252,7 +1252,7 @@ const baseDataController = {
       const bomId = parseInt(req.params.id, 10) || 1;
 
       // 反审前获取产品ID用于后处理
-      const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ?', [bomId]);
+      const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
 
       await pool.query(
         'UPDATE bom_masters SET status = 0, approved_at = NULL, approved_by = NULL WHERE id = ?',
@@ -1297,7 +1297,7 @@ const baseDataController = {
           m.name as product_name
         FROM bom_masters b
         INNER JOIN materials m ON b.product_id = m.id
-        WHERE b.product_id = ?
+        WHERE b.product_id = ? AND b.deleted_at IS NULL
         ORDER BY b.version DESC
       `,
         [materialId]
@@ -1328,7 +1328,7 @@ const baseDataController = {
           m.name as product_name
         FROM bom_masters b
         INNER JOIN materials m ON b.product_id = m.id
-        WHERE b.product_id = ?
+        WHERE b.product_id = ? AND b.deleted_at IS NULL
         ORDER BY b.version DESC
         LIMIT 1
       `,

@@ -15,7 +15,7 @@
           <h2>装箱单管理</h2>
           <p class="subtitle">管理装箱单与发货</p>
         </div>
-        <el-button v-permission="'sales:packinglists:create'" type="primary" :icon="Plus" @click="handleAdd">新增装箱单</el-button>
+        <el-button v-permission="'sales:packing:create'" type="primary" :icon="Plus" @click="handleAdd">新增装箱单</el-button>
       </div>
     </el-card>
 
@@ -406,7 +406,7 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
               <h3>装箱明细</h3>
               <div>
-                <el-button v-permission="'sales:packinglists:create'" type="primary" @click="addDetail">添加明细</el-button>
+                <el-button v-permission="'sales:packing:create'" type="primary" @click="addDetail">添加明细</el-button>
                 <el-button type="success" @click="updateNumbers">
                   <el-icon><Position /></el-icon> 更新编号
                 </el-button>
@@ -576,11 +576,11 @@
 </template>
 
 <script setup>
-
+// 
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import dayjs from 'dayjs'
+import { formatDate } from '@/utils/helpers/dateUtils'
 import { baseDataApi, salesApi } from '@/services/api'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 import { SEARCH_CONFIG, mapMaterialData, searchMaterials as performSearchMaterials } from '@/utils/searchConfig'
@@ -595,14 +595,14 @@ import {
   Position
 } from '@element-plus/icons-vue'
 
-// 权限store
+// 
 const authStore = useAuthStore()
 
-// 权限控制
+// 
 const canUpdate = computed(() => authStore.hasPermission('sales:packinglists:update'))
 const canDelete = computed(() => authStore.hasPermission('sales:packinglists:delete'))
 
-// 常量定义
+// 
 const SEARCH_DEBOUNCE_DELAY = 300; // 搜索防抖延迟
 const DEFAULT_PAGE_SIZE = 20; // 默认分页大小
 

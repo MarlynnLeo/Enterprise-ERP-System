@@ -14,7 +14,7 @@
           <h2>物料类型管理</h2>
           <p class="subtitle">管理物料类型、物料来源与检验方式</p>
         </div>
-        <el-dropdown @command="handleDropdownCommand" trigger="click">
+        <el-dropdown v-if="canCreate" @command="handleDropdownCommand" trigger="click">
           <el-button type="primary">
             <el-icon><Plus /></el-icon> 新增
             <el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -129,7 +129,7 @@
         <el-table-column label="操作" min-width="30" fixed="right">
           <template #default="scope">
             <el-button
-              v-if="Number(scope.row.status) !== 1"
+              v-if="canCreate && Number(scope.row.status) !== 1"
               size="small"
               type="primary"
               link
@@ -138,7 +138,7 @@
               <el-icon><Plus /></el-icon> 添加子类
             </el-button>
             <el-button
-              v-if="Number(scope.row.status) !== 1"
+              v-if="canUpdate && Number(scope.row.status) !== 1"
               size="small"
               type="primary"
               @click="handleEdit(scope.row)"
@@ -146,6 +146,7 @@
               <el-icon><Edit /></el-icon> 编辑
             </el-button>
             <el-button
+              v-if="canUpdate"
               size="small"
               :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
               @click="handleToggleStatus(scope.row)"
@@ -153,7 +154,7 @@
               {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
             </el-button>
             <el-button
-              v-if="Number(scope.row.status) !== 1"
+              v-if="canDelete && Number(scope.row.status) !== 1"
               size="small"
               type="danger"
               @click="handleDelete(scope.row)"
@@ -210,7 +211,7 @@
           <el-table-column label="操作" width="280" fixed="right">
             <template #default="scope">
               <el-button
-                v-if="Number(scope.row.status) !== 1"
+                v-if="canUpdate && Number(scope.row.status) !== 1"
                 size="small"
                 type="primary"
                 link
@@ -219,6 +220,7 @@
                 <el-icon><Edit /></el-icon> 编辑
               </el-button>
               <el-button
+                v-if="canUpdate"
                 size="small"
                 :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
                 link
@@ -228,7 +230,7 @@
                 {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
               </el-button>
               <el-button
-                v-if="Number(scope.row.status) !== 1"
+                v-if="canDelete && Number(scope.row.status) !== 1"
                 size="small"
                 type="danger"
                 link
@@ -277,7 +279,7 @@
           <el-table-column label="操作" width="280" fixed="right">
             <template #default="scope">
               <el-button
-                v-if="Number(scope.row.status) !== 1"
+                v-if="canUpdate && Number(scope.row.status) !== 1"
                 size="small"
                 type="primary"
                 link
@@ -286,6 +288,7 @@
                 <el-icon><Edit /></el-icon> 编辑
               </el-button>
               <el-button
+                v-if="canUpdate"
                 size="small"
                 :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
                 link
@@ -295,7 +298,7 @@
                 {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
               </el-button>
               <el-button
-                v-if="Number(scope.row.status) !== 1"
+                v-if="canDelete && Number(scope.row.status) !== 1"
                 size="small"
                 type="danger"
                 link
@@ -343,7 +346,9 @@
             :props="{ value: 'id', label: 'name', children: 'children' }"
             placeholder="请选择父类型（不选则为顶级类型）"
             clearable
+            filterable
             check-strictly
+            :render-after-expand="true"
             style="width: 100%"
           />
         </el-form-item>
@@ -484,7 +489,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parsePaginatedData } from '@/utils/responseParser';
 
 import { ref, reactive, onMounted, watch, computed } from 'vue'
@@ -496,6 +500,9 @@ import { baseDataApi } from '@/api/baseData';
 
 // 权限store
 const authStore = useAuthStore()
+const canCreate = computed(() => authStore.hasPermission('basedata:product-categories:create'))
+const canUpdate = computed(() => authStore.hasPermission('basedata:product-categories:update'))
+const canDelete = computed(() => authStore.hasPermission('basedata:product-categories:delete'))
 
 // ==================== 通用工具函数 ====================
 

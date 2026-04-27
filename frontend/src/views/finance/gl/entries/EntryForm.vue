@@ -5,7 +5,7 @@
         <h2>{{ isEdit ? '编辑凭证' : '录入凭证' }}</h2>
         <div>
           <el-button @click="goBack">返回</el-button>
-          <el-button v-permission="'finance:entryform:update'" type="primary" @click="saveEntry" :loading="saving">保存</el-button>
+          <el-button v-permission="'finance:entries:update'" type="primary" @click="saveEntry" :loading="saving">保存</el-button>
         </div>
       </div>
     </el-card>
@@ -46,7 +46,7 @@
       <div class="items-section">
         <div class="items-header">
           <h3>凭证明细</h3>
-          <el-button v-permission="'finance:entryform:create'" type="success" size="small" plain @click="addItem">添加明细行</el-button>
+          <el-button v-permission="'finance:entries:create'" type="success" size="small" plain @click="addItem">添加明细行</el-button>
         </div>
         
         <el-table :data="entryForm.items" border style="width: 100%" class="entry-table">
@@ -133,6 +133,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import { formatCurrency } from '@/utils/format'
 
 const router = useRouter();
 const route = useRoute();
@@ -193,16 +194,6 @@ const isBalanced = computed(() => {
   return Math.abs(totalDebit.value - totalCredit.value) < 0.01 && totalDebit.value > 0;
 });
 
-// formatCurrency 已统一引用公共实现;
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
-};
-
 const goBack = () => {
   router.back();
 };
@@ -251,23 +242,23 @@ const loadOptions = async () => {
     try {
       const custRes = await api.get('/sales/customers').catch(()=>({data:[]}));
       customerOptions.value = custRes?.data?.data || custRes?.data || [];
-    } catch(e) {}
+    } catch(e) { console.warn('加载客户选项失败:', e.message) }
     
     try {
       const userRes = await api.get('/system/users/list').catch(()=>({data:[]}));
       userOptions.value = userRes?.data?.data || userRes?.data || [];
-    } catch(e) {}
+    } catch(e) { console.warn('加载用户选项失败:', e.message) }
 
     try {
       const deptRes = await api.get('/system/departments').catch(()=>({data:[]}));
       departmentOptions.value = deptRes?.data?.data || deptRes?.data || [];
-    } catch(e) {}
+    } catch(e) { console.warn('加载部门选项失败:', e.message) }
     
     // Attempt suppliers and projects if routes exist
     try {
       const suppRes = await api.get('/purchase/suppliers').catch(()=>({data:[]}));
       supplierOptions.value = suppRes?.data?.data || suppRes?.data || [];
-    } catch(e) {}
+    } catch(e) { console.warn('加载供应商选项失败:', e.message) }
   } catch (err) {
     console.error('加载选项失败', err);
   }

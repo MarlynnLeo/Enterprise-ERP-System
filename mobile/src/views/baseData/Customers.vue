@@ -11,6 +11,7 @@
     :config="pageConfig"
     :api-function="loadCustomers"
     :show-add="true"
+    add-permission="basedata:customers:create"
     :show-filter="true"
     list-title="客户列表"
     @add="handleAdd"

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProductionTask.vue
  * @description 前端界面组件文件
@@ -209,7 +209,7 @@
                 编辑
               </el-button>
               <!-- 发料按钮：只有在尚未生成关联出库单时才显示 -->
-              <el-button v-permission="'production:tasks:issue'"
+              <el-button v-permission="'production:tasks:update'"
                 v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing') && Number(scope.row.has_outbound_document) !== 1"
                 size="small"
                 type="warning"
@@ -447,7 +447,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailVisible = false">关闭</el-button>
-          <el-button v-permission="'production:productiontask:print'" type="primary" @click="printTaskDetail" v-if="taskDetail.id">打印任务单</el-button>
+          <el-button v-permission="'production:tasks:view'" type="primary" @click="printTaskDetail" v-if="taskDetail.id">打印任务单</el-button>
         </span>
       </template>
     </el-dialog>
@@ -500,13 +500,10 @@ import { productionApi } from '@/services/api'
 import dayjs from 'dayjs'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/utils/helpers/quantity'
-import { useAuthStore } from '@/stores/auth'
 import { parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 
 // 获取当前登录用户
-const authStore = useAuthStore()
-
 // ✅ 键盘导航：Enter 跳转下一字段
 const { onFormKeydown: taskFormKeydown } = useFormKeyboardNav(() => handleModalOk())
 const { onFormKeydown: issueFormKeydown } = useFormKeyboardNav(() => handleMaterialIssue())
@@ -1105,10 +1102,9 @@ const handleMaterialIssue = async () => {
     }
 
     // 3. 准备出库单数据
-    // 下推时不设置操作人，等用户确认时再记录
     const outboundData = {
       outboundDate: materialIssueForm.value.issueDate,
-      operator: 'system',  // 下推时使用系统，确认时才记录实际操作人
+      operator: 'system',
       remark: `生产任务 ${task.code} 发料`,
       status: 'draft',
       productionTaskId: task.id,
@@ -1120,7 +1116,21 @@ const handleMaterialIssue = async () => {
       }))
     }
 
-    // 4. 创建出库单
+    // 4. 创建出库单（支持超额确认重试）
+    await submitOutbound(outboundData, task)
+
+  } catch (error) {
+    console.error('发料失败:', error)
+    console.error('错误详情:', error.response?.data)
+    ElMessage.error('发料失败: ' + (error.response?.data?.error || error.response?.data?.message || error.message))
+  } finally {
+    materialIssueLoading.value = false
+  }
+}
+
+// 提交出库单，支持超额领料确认重试
+const submitOutbound = async (outboundData, task) => {
+  try {
     const outboundRes = await axios.post('/inventory/outbound', outboundData)
 
     if (outboundRes.data?.success || outboundRes.success || outboundRes.data?.id || outboundRes.id) {
@@ -1139,13 +1149,31 @@ const handleMaterialIssue = async () => {
     } else {
       throw new Error(outboundRes.data.message || '创建出库单失败')
     }
-
   } catch (error) {
-    console.error('发料失败:', error)
-    console.error('错误详情:', error.response?.data)
-    ElMessage.error('发料失败: ' + (error.response?.data?.error || error.response?.data?.message || error.message))
-  } finally {
-    materialIssueLoading.value = false
+    // 超额领料需要用户确认
+    if (error.response?.data?.code === 'EXCESS_ISSUE') {
+      const excessItems = error.response.data.details || []
+      const excessDesc = excessItems.map(item =>
+        `• 物料ID ${item.materialId}：${item.message || `超出 ${item.excessQty}`}`
+      ).join('\n')
+
+      try {
+        await ElMessageBox.confirm(
+          `检测到以下物料存在超额领料：\n\n${excessDesc}\n\n是否确认允许超额领料？`,
+          '超额领料确认',
+          { confirmButtonText: '确认超额领料', cancelButtonText: '取消', type: 'warning' }
+        )
+        // 用户确认 → 重新提交，携带超额许可标记
+        outboundData.allowExcess = true
+        outboundData.issueReason = `生产任务 ${task.code} 超额领料（已确认）`
+        await submitOutbound(outboundData, task)
+      } catch {
+        ElMessage.info('已取消超额领料')
+      }
+      return
+    }
+    // 其他错误向上抛出
+    throw error
   }
 }
 

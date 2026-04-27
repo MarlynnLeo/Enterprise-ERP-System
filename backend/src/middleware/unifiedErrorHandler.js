@@ -205,8 +205,12 @@ const unifiedErrorHandler = (err, req, res, next) => {
     response.details = error.details;
     response.stack = error.stack;
   } else if (error.details && error.isOperational) {
-    // 生产环境只返回操作性错误的详细信息
-    response.details = error.details;
+    // ✅ 安全修复: 生产环境过滤掉可能包含内部信息的 details 字段
+    // 仅保留不含 originalError/originalMessage/originalStack 的安全详情
+    const { originalError, originalMessage, originalStack, ...safeDetails } = (error.details || {});
+    if (Object.keys(safeDetails).length > 0) {
+      response.details = safeDetails;
+    }
   }
 
   res.status(error.statusCode).json(response);

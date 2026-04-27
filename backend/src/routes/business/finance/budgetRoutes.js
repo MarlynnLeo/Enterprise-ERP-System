@@ -29,9 +29,41 @@ router.post('/', requirePermission('finance:budgets:create'), budgetController.c
  */
 router.get('/', requirePermission('finance:budgets:view'), budgetController.getBudgets);
 
+// ==================== 预算控制 ====================
+
+/**
+ * @route   GET /api/finance/budgets/check/availability
+ * @desc    检查预算可用性
+ * @access  Private
+ */
+router.get('/check/availability', requirePermission('finance:budgets:view'), budgetController.checkBudgetAvailability);
+
+// ==================== 预算预警 ====================
+
+/**
+ * @route   GET /api/finance/budgets/warnings
+ * @desc    获取预算预警列表
+ * @access  Private
+ */
+router.get('/warnings', requirePermission('finance:budgets:view'), budgetController.getBudgetWarnings);
+
+/**
+ * @route   PUT /api/finance/budgets/warnings/:id/read
+ * @desc    标记预警为已读
+ * @access  Private
+ */
+router.put('/warnings/:id/read', requirePermission('finance:budgets:update'), budgetController.markWarningAsRead);
+
+/**
+ * @route   GET /api/finance/budgets/analysis/department-comparison
+ * @desc    获取部门预算对比分析
+ * @access  Private
+ */
+router.get('/analysis/department-comparison', requirePermission('finance:reports:view'), budgetController.getDepartmentBudgetComparison);
+
 /**
  * @route   GET /api/finance/budgets/:id
- * @desc    获取预算详情
+ * @desc    获取预算详情（参数路由，必须在所有具体路由之后）
  * @access  Private
  */
 router.get('/:id', requirePermission('finance:budgets:view'), budgetController.getBudgetById);
@@ -80,15 +112,6 @@ router.post('/:id/start', requirePermission('finance:budgets:update'), budgetCon
  */
 router.post('/:id/close', requirePermission('finance:budgets:update'), budgetController.closeBudget);
 
-// ==================== 预算控制 ====================
-
-/**
- * @route   GET /api/finance/budgets/check/availability
- * @desc    检查预算可用性
- * @access  Private
- */
-router.get('/check/availability', requirePermission('finance:budgets:view'), budgetController.checkBudgetAvailability);
-
 // ==================== 预算执行 ====================
 
 /**
@@ -115,26 +138,10 @@ router.get('/:id/analysis/execution', requirePermission('finance:reports:view'),
 router.get('/:id/analysis/variance', requirePermission('finance:reports:view'), budgetController.getBudgetVarianceAnalysis);
 
 /**
- * @route   GET /api/finance/budgets/analysis/department-comparison
- * @desc    获取部门预算对比分析
+ * @route   GET /api/finance/budgets/:id/analysis
+ * @desc    获取实时预算执行分析
  * @access  Private
  */
-router.get('/analysis/department-comparison', requirePermission('finance:reports:view'), budgetController.getDepartmentBudgetComparison);
-
-// ==================== 预算预警 ====================
-
-/**
- * @route   GET /api/finance/budgets/warnings
- * @desc    获取预算预警列表
- * @access  Private
- */
-router.get('/warnings', requirePermission('finance:budgets:view'), budgetController.getBudgetWarnings);
-
-/**
- * @route   PUT /api/finance/budgets/warnings/:id/read
- * @desc    标记预警为已读
- * @access  Private
- */
-router.put('/warnings/:id/read', requirePermission('finance:budgets:update'), budgetController.markWarningAsRead);
+router.get('/:id/analysis', requirePermission('finance:budgets:view'), budgetController.getRealTimeBudgetAnalysis);
 
 module.exports = router;

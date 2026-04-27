@@ -12,8 +12,8 @@
       <h2>{{ isEdit ? '编辑采购订单' : '新建采购订单' }}</h2>
       <div>
         <el-button @click="goBack">返回</el-button>
-        <el-button v-permission="'purchase:purchaseorderform:update'" type="primary" @click="saveOrder" :loading="saveLoading">保存</el-button>
-        <el-button v-permission="'purchase:purchaseorderform:approve'" 
+        <el-button v-permission="'purchase:orders:update'" type="primary" @click="saveOrder" :loading="saveLoading">保存</el-button>
+        <el-button v-permission="'purchase:orders:update'" 
           v-if="isEdit && formData.status === 'draft'" 
           type="success" 
           @click="submitOrder"

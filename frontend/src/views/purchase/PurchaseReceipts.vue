@@ -116,6 +116,7 @@
               size="small"
               type="primary"
               @click="editReceipt(scope.row)"
+              v-permission="'purchase:receipts:update'"
             >
               编辑
             </el-button>
@@ -240,7 +241,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="viewDialog.show = false">关闭</el-button>
-          <el-button v-permission="'purchase:receipts:print'" type="primary" @click="printReceipt" v-if="viewDialog.receipt.id">打印</el-button>
+          <el-button v-permission="'purchase:receipts:view'" type="primary" @click="printReceipt" v-if="viewDialog.receipt.id">打印</el-button>
         </span>
       </template>
     </el-dialog>
@@ -454,7 +455,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parsePaginatedData } from '@/utils/responseParser';
 
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue';

@@ -48,7 +48,7 @@
 
             <!-- 仅审批状态允许执行审批 -->
             <template v-if="scope.row.status === 'pending'">
-               <el-button size="small" type="success" @click="handleApprove(scope.row)" :loading="operatingId === scope.row.id" v-permission="['finance:cost:execute']">审核生效</el-button>
+               <el-button size="small" type="success" @click="handleApprove(scope.row)" :loading="operatingId === scope.row.id">审核生效</el-button>
             </template>
           </template>
         </el-table-column>

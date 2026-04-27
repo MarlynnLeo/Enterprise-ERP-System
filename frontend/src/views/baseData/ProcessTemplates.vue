@@ -389,7 +389,6 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -401,6 +400,7 @@ import { baseDataApi } from '@/api/baseData'
 import { loadMaterials, mapMaterialData, searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
+import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useAuthStore } from '@/stores/auth'
 
 // 权限store
@@ -567,27 +567,6 @@ const calculateTotalHours = (processes) => {
   if (!processes || !processes.length) return 0
   return processes.reduce((sum, process) => sum + Number(process.standard_hours || 0), 0).toFixed(1)
 }
-
-// 格式化日期时间
-// formatDateTime 已统一引用公共实现
-
-// 日期时间格式化
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    const h = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    const s = String(date.getSeconds()).padStart(2, '0');
-    return `${y}-${m}-${d} ${h}:${min}:${s}`;
-  } catch {
-    return dateStr;
-  }
-};
 
 // 搜索
 const handleSearch = async () => {

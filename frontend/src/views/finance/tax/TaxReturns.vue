@@ -32,7 +32,7 @@
         <el-form-item>
           <el-button type="primary" @click="handleSearch" :icon="Search">查询</el-button>
           <el-button @click="handleReset" :icon="Refresh">重置</el-button>
-          <el-button v-permission="'finance:taxreturns:create'" type="success" @click="handleCreate" :icon="Plus">新增申报</el-button>
+          <el-button v-permission="'finance:tax:create'" type="success" @click="handleCreate" :icon="Plus">新增申报</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -122,7 +122,8 @@
               size="small" 
               @click="handleSubmit(row)"
               :icon="Check"
-            >提交申报</el-button>
+            
+              >提交申报</el-button>
             
             <!-- 缴纳税款按钮：只在已申报状态显示 -->
             <el-button 
@@ -140,7 +141,8 @@
               size="small" 
               @click="handleDelete(row)"
               :icon="Delete"
-            >删除</el-button>
+            
+              v-permission="'finance:tax:returns'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -329,6 +331,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { formatAmount } from '@/utils/format'
 import { Search, Refresh, Plus, View, Check, Money, Delete } from '@element-plus/icons-vue';
 import { api } from '@/services/axiosInstance';
 
@@ -385,14 +388,7 @@ const viewData = reactive({});
 // 表格高度
 const tableHeight = computed(() => window.innerHeight - 320);
 
-// 格式化金额
-const formatAmount = (amount) => {
-  if (!amount) return '0.00';
-  return parseFloat(amount).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-};
+// 格式化金额 - 已统一使用 @/utils/format 导入
 
 // 获取申报类型颜色
 const getReturnTypeColor = (type) => {

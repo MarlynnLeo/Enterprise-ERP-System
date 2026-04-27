@@ -7,6 +7,7 @@
 
 const db = require('../../config/db');
 const logger = require('../../utils/logger');
+const { softDelete } = require('../../utils/softDelete');
 
 class AccountMappingService {
   /**
@@ -21,7 +22,7 @@ class AccountMappingService {
         SELECT id, business_type, debit_account_id, credit_account_id, 
                supplier_category_id, material_category_id, description
         FROM finance_account_mapping
-        WHERE business_type = ? AND status = TRUE
+        WHERE business_type = ? AND status = TRUE AND deleted_at IS NULL
       `;
       const params = [businessType];
 
@@ -193,7 +194,8 @@ class AccountMappingService {
    */
   static async deleteMapping(id) {
     try {
-      await db.pool.execute('DELETE FROM finance_account_mapping WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(db.pool, 'finance_account_mapping', 'id', id);
 
       logger.info('[AccountMapping] 删除科目映射成功:', { id });
       return true;
@@ -219,7 +221,7 @@ class AccountMappingService {
         FROM finance_account_mapping m
         LEFT JOIN gl_accounts d ON m.debit_account_id = d.id
         LEFT JOIN gl_accounts c ON m.credit_account_id = c.id
-        WHERE 1=1
+        WHERE m.deleted_at IS NULL
       `;
       const params = [];
 

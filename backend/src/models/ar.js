@@ -89,7 +89,7 @@ const arModel = {
         let actualCustomerName = invoiceData.customer_name;
         if (!actualCustomerName && invoiceData.customer_id) {
           const [customers] = await connection.query(
-            'SELECT name FROM customers WHERE id = ?',
+            'SELECT name FROM customers WHERE id = ? AND deleted_at IS NULL',
             [invoiceData.customer_id]
           );
           if (customers.length > 0) {
@@ -525,7 +525,7 @@ const arModel = {
           item.description || '',
           item.quantity || 0,
           item.unit_price || 0,
-          item.amount || (item.quantity * item.unit_price) || 0,
+          item.amount || Math.round((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0) * 100) / 100,
         ]);
         await connection.query(
           `INSERT INTO ar_invoice_items
@@ -710,8 +710,8 @@ const arModel = {
 
             // 更新银行账户余额（收款增加余额）— 整数化精度控制
             const currentBalanceCents = Math.round(parseFloat(bankAccount.current_balance) * 100);
-            const totalPaidCents = Math.round(totalPaid * 100);
-            const newBalance = (currentBalanceCents + totalPaidCents) / 100;
+            const depositAmountCents = Math.round(totalPaid * 100);
+            const newBalance = (currentBalanceCents + depositAmountCents) / 100;
             await connection.execute('UPDATE bank_accounts SET current_balance = ? WHERE id = ?', [
               newBalance,
               receiptData.bank_account_id,

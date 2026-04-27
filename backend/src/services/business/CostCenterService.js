@@ -7,6 +7,7 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const CostAccountingService = require('./CostAccountingService');
+const { softDelete } = require('../../utils/softDelete');
 
 class CostCenterService {
   /**
@@ -26,7 +27,7 @@ class CostCenterService {
                 FROM cost_centers cc
                 LEFT JOIN departments d ON cc.department_id = d.id
                 LEFT JOIN cost_centers pcc ON cc.parent_id = pcc.id
-                WHERE 1=1
+                WHERE cc.deleted_at IS NULL
             `;
       const params = [];
 
@@ -89,7 +90,7 @@ class CostCenterService {
                     pcc.name as parent_name
                 FROM cost_centers cc
                 LEFT JOIN cost_centers pcc ON cc.parent_id = pcc.id
-                WHERE cc.id = ?
+                WHERE cc.id = ? AND cc.deleted_at IS NULL
             `,
         [id]
       );
@@ -222,7 +223,7 @@ class CostCenterService {
     try {
       // 检查是否有子成本中心
       const [children] = await db.pool.execute(
-        'SELECT COUNT(*) as cnt FROM cost_centers WHERE parent_id = ?',
+        'SELECT COUNT(*) as cnt FROM cost_centers WHERE parent_id = ? AND deleted_at IS NULL',
         [id]
       );
       if (children[0].cnt > 0) {
@@ -238,10 +239,11 @@ class CostCenterService {
         throw new Error('存在关联的生产任务，无法删除');
       }
 
-      const [result] = await db.pool.execute('DELETE FROM cost_centers WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      const affected = await softDelete(db.pool, 'cost_centers', 'id', id);
 
       logger.info(`[CostCenter] 删除成本中心 ${id} 成功`);
-      return { affected: result.affectedRows };
+      return { affected };
     } catch (error) {
       logger.error('[CostCenter] 删除成本中心失败:', error);
       throw error;
@@ -270,6 +272,7 @@ class CostCenterService {
                 FROM cost_centers cc
                 LEFT JOIN production_tasks pt ON cc.id = pt.cost_center_id
                     AND pt.status = 'completed'
+                WHERE cc.deleted_at IS NULL
             `;
       const params = [];
 
@@ -305,7 +308,7 @@ class CostCenterService {
       const [rows] = await db.pool.execute(`
                 SELECT id, code, name, type
                 FROM cost_centers
-                WHERE is_active = 1
+                WHERE is_active = 1 AND deleted_at IS NULL
                 ORDER BY type, code
             `);
       return rows;
@@ -416,7 +419,7 @@ class CostCenterService {
       const [centers] = await db.pool.execute(`
                 SELECT id, code, name as cost_center_name
                 FROM cost_centers
-                WHERE is_active = 1 AND type = 'production'
+                WHERE is_active = 1 AND type = 'production' AND deleted_at IS NULL
                 ORDER BY code
             `);
 

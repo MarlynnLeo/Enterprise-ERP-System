@@ -202,19 +202,19 @@
     flex-shrink: 0;
     &.success {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.warning {
       background: rgba(245, 158, 11, 0.1);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.danger {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.default {
       background: rgba(107, 114, 128, 0.1);
-      color: #6b7280;
+      color: var(--text-secondary);
     }
   }
 
@@ -247,16 +247,16 @@
     color: var(--text-primary);
     font-family: 'SF Mono', monospace;
     &.primary {
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.success {
-      color: #10b981;
+      color: var(--color-success);
     }
     &.warning {
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.danger {
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
 

@@ -105,21 +105,11 @@
         <div class="remark-text">{{ plan.remark }}</div>
       </div>
 
-      <!-- 操作按钮 -->
-      <div class="action-bar">
-        <VanButton v-if="plan.status === 'pending'" type="primary" block round @click="handleStart"
-          >开始生产</VanButton
-        >
+      <!-- 操作按钮（与网页端一致：计划只有取消操作） -->
+      <div class="action-bar" v-if="showActions">
         <VanButton
-          v-if="plan.status === 'in_progress'"
-          type="success"
-          block
-          round
-          @click="handleComplete"
-          >完成计划</VanButton
-        >
-        <VanButton
-          v-if="plan.status !== 'completed' && plan.status !== 'cancelled'"
+          v-if="canCancel"
+          v-permission="'production:plans:update'"
           type="danger"
           plain
           block
@@ -138,7 +128,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import { NavBar, Loading, Empty, Button as VanButton, showToast, showConfirmDialog } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
@@ -149,6 +139,13 @@
   const route = useRoute()
   const loading = ref(true)
   const plan = ref(null)
+
+  // 与网页端一致：draft/preparing/material_issued/in_progress 状态均可取消
+  const canCancel = computed(() => {
+    const s = plan.value?.status
+    return ['draft', 'preparing', 'material_issued', 'material_issuing', 'in_progress', 'allocated'].includes(s)
+  })
+  const showActions = computed(() => canCancel.value)
 
   const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm') : '—')
   const getStatusAccent = (s) =>
@@ -202,38 +199,22 @@
     }
   }
 
-  const handleStart = async () => {
-    try {
-      await showConfirmDialog({ title: '确认', message: '确定要开始这个生产计划吗？' })
-      await productionApi.startProductionPlan(plan.value.id)
-      showToast('已开始生产')
-      loadPlanDetail()
-    } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
-    }
-  }
-  const handleComplete = async () => {
-    try {
-      await showConfirmDialog({ title: '确认', message: '确定完成此计划？' })
-      await productionApi.completeProductionPlan(plan.value.id)
-      showToast('计划已完成')
-      loadPlanDetail()
-    } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
-    }
-  }
+  // 取消计划（与网页端 handleCancelPlan 一致）
   const handleCancel = async () => {
     try {
       await showConfirmDialog({
         title: '确认取消',
-        message: '确定取消此计划？',
-        confirmButtonColor: '#ee0a24'
+        message: '确定取消此生产计划？',
+        confirmButtonColor: 'var(--color-danger)'
       })
       await productionApi.cancelProductionPlan(plan.value.id)
       showToast('已取消')
       loadPlanDetail()
     } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
+      if (e !== 'cancel' && e?.message !== 'cancel') {
+        const errorMsg = e.response?.data?.message || '操作失败'
+        showToast(errorMsg)
+      }
     }
   }
 
@@ -270,7 +251,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
+    color: var(--color-primary);
     flex-shrink: 0;
   }
   .hero-info {
@@ -299,15 +280,15 @@
     flex-shrink: 0;
     &.st-pending {
       background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
     &.st-allocated {
       background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.st-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.st-inspection {
       background: rgba(168, 85, 247, 0.12);
@@ -315,7 +296,7 @@
     }
     &.st-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.st-paused {
       background: rgba(249, 115, 22, 0.12);
@@ -323,7 +304,7 @@
     }
     &.st-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
 
@@ -360,16 +341,16 @@
     border-radius: 4px;
     transition: width 0.5s;
     &.fill-green {
-      background: linear-gradient(90deg, #10b981, #34d399);
+      background: linear-gradient(90deg, var(--color-success), #34d399);
     }
     &.fill-blue {
-      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      background: linear-gradient(90deg, var(--color-primary), #60a5fa);
     }
     &.fill-yellow {
-      background: linear-gradient(90deg, #f59e0b, #fbbf24);
+      background: linear-gradient(90deg, var(--color-warning), var(--color-warning));
     }
     &.fill-low {
-      background: linear-gradient(90deg, #ef4444, #f87171);
+      background: linear-gradient(90deg, var(--color-danger), var(--color-danger));
     }
   }
   .progress-meta {
@@ -412,7 +393,7 @@
       font-family: 'SF Mono', monospace;
     }
     &.highlight {
-      color: #3b82f6;
+      color: var(--color-primary);
       font-weight: 700;
     }
   }

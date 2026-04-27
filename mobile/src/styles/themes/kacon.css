@@ -13,12 +13,18 @@
   --bg-tertiary: #e8eaed; /* 浅灰色分隔区/悬浮态 */
   --bg-header: #ffffff;
 
-  /* ==================== 玻璃/遮罩效果（无玻璃化） ==================== */
+  /* ==================== 边框与遮罩效果 ==================== */
+  --border-subtle: rgba(0, 0, 0, 0.06);       /* 细微分割线 */
+  --border-card: transparent;                  /* 卡片边框（Google 风格无边框） */
+  --surface-hover: rgba(248, 249, 250, 1);     /* 卡片悬停态 */
+  --surface-active: rgba(60, 64, 67, 0.04);    /* 卡片点击态 */
+
+  /* 兼容别名（向后兼容旧组件） */
   --glass-bg: rgba(255, 255, 255, 1);
-  --glass-bg-hover: rgba(248, 249, 250, 1);
-  --glass-bg-active: rgba(60, 64, 67, 0.04);
-  --glass-border: transparent; /* 去除卡片边框 */
-  --glass-border-hover: transparent;
+  --glass-bg-hover: var(--surface-hover);
+  --glass-bg-active: var(--surface-active);
+  --glass-border: var(--border-subtle);
+  --glass-border-hover: var(--border-subtle);
 
   /* ==================== 文字色 ==================== */
   --text-primary: #202124; /* Google Default Text */

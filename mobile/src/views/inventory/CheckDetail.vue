@@ -296,19 +296,19 @@
     flex-shrink: 0;
     &.status-draft {
       background: rgba(148, 163, 184, 0.15);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
     &.status-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
   .status-main {
@@ -329,19 +329,19 @@
     font-weight: 700;
     &.status-draft {
       background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
     &.status-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
   .order-date {
@@ -372,8 +372,8 @@
     font-size: 0.625rem;
     font-weight: 700;
     border-radius: 9px;
-    background: #f59e0b;
-    color: #fff;
+    background: var(--color-warning);
+    color: var(--text-primary);
     padding: 0 5px;
   }
 
@@ -409,11 +409,11 @@
       font-size: 0.75rem;
     }
     &.text-profit {
-      color: #10b981;
+      color: var(--color-success);
       font-weight: 700;
     }
     &.text-loss {
-      color: #ef4444;
+      color: var(--color-danger);
       font-weight: 700;
     }
   }
@@ -445,13 +445,13 @@
     width: 4px;
     flex-shrink: 0;
     &.accent-green {
-      background: linear-gradient(180deg, #10b981, #34d399);
+      background: linear-gradient(180deg, var(--color-success), #34d399);
     }
     &.accent-red {
-      background: linear-gradient(180deg, #ef4444, #f87171);
+      background: linear-gradient(180deg, var(--color-danger), var(--color-danger));
     }
     &.accent-neutral {
-      background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+      background: linear-gradient(180deg, var(--text-secondary), #cbd5e1);
     }
   }
   .card-body {
@@ -495,15 +495,15 @@
     font-family: 'SF Mono', 'Menlo', monospace;
     &.accent-green {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.accent-red {
       background: rgba(239, 68, 68, 0.12);
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.accent-neutral {
       background: rgba(148, 163, 184, 0.1);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
   }
   .mat-details {
@@ -527,7 +527,7 @@
     font-weight: 500;
     color: var(--text-primary);
     &.highlight {
-      color: #f59e0b;
+      color: var(--color-warning);
       font-weight: 700;
     }
   }

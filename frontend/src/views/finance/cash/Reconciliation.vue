@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Reconciliation.vue
  * @description 前端界面组件文件
@@ -16,7 +16,7 @@
         </div>
         <div class="action-buttons">
           <el-button type="primary" @click="startReconciliation">开始对账</el-button>
-          <el-button v-permission="'finance:reconciliation:import'" type="success" @click="importStatement" :disabled="!selectedAccount">导入对账单</el-button>
+          <el-button v-permission="'finance:cash:reconcile'" type="success" @click="importStatement" :disabled="!selectedAccount">导入对账单</el-button>
         </div>
       </div>
     </el-card>
@@ -331,18 +331,13 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
+import { formatCurrency } from '@/utils/format'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Check } from '@element-plus/icons-vue'
 
 import { api } from '@/services/api';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 权限计算属性
 
 // 账户选择
@@ -387,17 +382,6 @@ const matchDialogVisible = ref(false);
 const selectedBankTransaction = ref({});
 const matchingTransactions = ref([]);
 const selectedTransactions = ref([]);
-
-// 格式化货币
-// formatCurrency 已统一引用公共实现;
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
-};
 
 // 获取交易类型文本
 const getTransactionTypeText = (type) => {

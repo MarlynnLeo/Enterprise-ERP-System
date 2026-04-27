@@ -15,7 +15,7 @@
           <h2>销售退货管理</h2>
           <p class="subtitle">管理销售退货与处理</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="openCreateDialog">增加退货单</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreateDialog" v-permission="'sales:returns:create'">增加退货单</el-button>
       </div>
     </el-card>
 
@@ -153,7 +153,8 @@
                 size="small"
                 type="success"
                 @click="handleApprove(scope.row)"
-              >
+              
+              v-permission="'sales:returns:update'">
                 审批通过
               </el-button>
               <el-button
@@ -226,6 +227,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailsVisible = false">关闭</el-button>
+          <el-button type="primary" @click="handlePrintReturn" :loading="printLoading">打印</el-button>
         </span>
       </template>
     </el-dialog>
@@ -281,7 +283,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createDialog.visible = false">取消</el-button>
-          <el-button v-permission="'sales:returns:submit'" type="primary" @click="submitCreate">提交</el-button>
+          <el-button v-permission="'sales:returns:create'" type="primary" @click="submitCreate">提交</el-button>
         </span>
       </template>
     </el-dialog>
@@ -331,18 +333,14 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
+import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 
 import dayjs from 'dayjs'
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi } from '@/services/api'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
+import printService, { parseTemplateResponse } from '@/services/printService'
 // 退货单详情相关
 const detailsVisible = ref(false)
 const currentReturn = ref(null)
@@ -402,41 +400,6 @@ const returnStatuses = [
 
 // 删除未使用的状态映射函数，保留实际使用的退货单和订单状态映射
 
-// 格式化日期
-// formatDate 已统一引用公共实现
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
-
-// 格式化日期时间
-// formatDateTime 已统一引用公共实现
-
-// 日期时间格式化
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    const h = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    const s = String(date.getSeconds()).padStart(2, '0');
-    return `${y}-${m}-${d} ${h}:${min}:${s}`;
-  } catch {
-    return dateStr;
-  }
-};
 
 // 计算统计数据
 const calculateReturnStats = () => {
@@ -776,6 +739,45 @@ const handleSizeChange = (val) => {
 const handleCurrentChange = (val) => {
   currentPage.value = val
   fetchData()
+}
+// ========== 打印功能 ==========
+const printLoading = ref(false)
+const handlePrintReturn = async () => {
+  if (!currentReturn.value) return
+  printLoading.value = true
+  try {
+    const response = await printService.getPrintTemplateById(72)
+    const template = parseTemplateResponse(response)
+    if (!template || !template.content) {
+      ElMessage.error('未找到销售退货单打印模板，请在系统管理-打印模板中配置')
+      return
+    }
+    const ret = currentReturn.value
+    const printData = {
+      return_no: ret.return_no || ret.returnNo || '',
+      return_date: formatDate(ret.return_date || ret.returnDate) || '',
+      customer_name: ret.customer_name || ret.customerName || '',
+      order_no: ret.order_no || ret.orderNo || '',
+      reason: ret.return_reason || ret.reason || '',
+      operator: ret.created_by_name || '',
+      items: (ret.items || []).map((item, idx) => ({
+        index: idx + 1,
+        material_code: item.material_code || item.productCode || '',
+        material_name: item.material_name || item.productName || '',
+        specification: item.specification || '',
+        quantity: parseFloat(item.quantity || item.return_quantity || 0).toFixed(2),
+        unit_name: item.unit_name || '',
+        remark: item.reason || item.remark || ''
+      }))
+    }
+    const html = printService.generatePrintContent(template, printData)
+    printService.previewDocument(html)
+  } catch (error) {
+    console.error('打印退货单失败:', error)
+    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+  } finally {
+    printLoading.value = false
+  }
 }
 </script>
 

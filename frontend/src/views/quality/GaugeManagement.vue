@@ -108,8 +108,9 @@
         <el-table-column label="操作" fixed="right" min-width="200">
           <template #default="scope">
             <el-button size="small" type="primary" link @click.stop="handleCalibrate(scope.row)">校准</el-button>
-            <el-button size="small" type="warning" link @click.stop="handleEdit(scope.row)">编辑</el-button>
-            <el-button v-permission="'quality:gaugemanagement:delete'" size="small" type="danger" link @click.stop="handleDelete(scope.row)">删除</el-button>
+            <el-button size="small" type="warning" link @click.stop="handleEdit(scope.row)"
+              v-permission="'quality:settings'">编辑</el-button>
+            <el-button v-permission="'quality:settings:delete'" size="small" type="danger" link @click.stop="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -247,7 +248,7 @@
       </el-form>
       <template #footer>
         <el-button @click="calDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:gaugemanagement:submit'" type="primary" @click="handleCalSubmit" :loading="submitting">提交校准记录</el-button>
+        <el-button v-permission="'quality:settings:create'" type="primary" @click="handleCalSubmit" :loading="submitting">提交校准记录</el-button>
       </template>
     </el-dialog>
   </div>
@@ -260,6 +261,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search, Odometer, CircleCheck, Warning, CircleClose } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 import dayjs from 'dayjs';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -304,8 +306,6 @@ const calRules = {
 
 const statusType = (s) => ({ in_use: 'success', calibrating: 'warning', repaired: 'info', scrapped: 'danger', idle: '' }[s] || '');
 const statusLabel = (s) => ({ in_use: '使用中', calibrating: '校准中', repaired: '维修中', scrapped: '已报废', idle: '闲置' }[s] || s);
-const formatDate = (d) => d ? dayjs(d).format('YYYY-MM-DD') : '-';
-
 const fetchData = async () => {
   loading.value = true;
   try {

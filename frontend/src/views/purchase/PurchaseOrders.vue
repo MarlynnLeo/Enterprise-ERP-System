@@ -229,391 +229,59 @@
               v-if="scope.row.status === 'draft'"
               size="small"
               type="success"
+              v-permission="'purchase:orders:update'"
               @click="updateStatus(scope.row.id, 'pending')"
-              :disabled="loading"
             >
-              提交
+              提交审批
             </el-button>
+            <!-- 审批（pending 状态，不受通用权限控制，由审批流程决定谁可操作） -->
             <el-button
               v-if="scope.row.status === 'pending'"
               size="small"
               type="success"
-              @click="updateStatus(scope.row.id, 'approved')"
-              :disabled="loading"
+              @click="updateStatus(scope.row.id, 'confirmed')"
             >
-              批准订单
-            </el-button>
-            <el-button
-              v-if="scope.row.status === 'approved'"
-              size="small"
-              type="primary"
-              @click="openReceiveDialog(scope.row)"
-              :disabled="loading"
-            >
-              到货
-            </el-button>
-            <el-button
-              v-if="scope.row.status === 'partial_received'"
-              size="small"
-              type="primary"
-              @click="openReceiveDialog(scope.row)"
-              :disabled="loading"
-            >
-              更新收货
+              批准
             </el-button>
             <el-button
               v-if="scope.row.status === 'pending'"
               size="small"
               type="warning"
-              @click="updateStatus(scope.row.id, 'cancelled')"
-              :disabled="loading"
+              @click="updateStatus(scope.row.id, 'draft')"
             >
-              取消
+              驳回
+            </el-button>
+            <!-- 到货（confirmed/approved/partial_received 状态） -->
+            <el-button
+              v-if="['confirmed', 'approved', 'partial_received'].includes(scope.row.status)"
+              size="small"
+              type="primary"
+              v-permission="'purchase:orders:update'"
+              @click="openReceiveDialog(scope.row)"
+            >
+              到货
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
-      <div class="pagination-container">
+      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
         <el-pagination
+          v-model:current-page="pagination.current"
+          v-model:page-size="pagination.size"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="pagination.total"
+          layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
-          :current-page="pagination.current"
-          :page-sizes="[10, 20, 50, 100]"
-          :page-size="pagination.size"
-          :background="true"
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="pagination.total"
-        >
-        </el-pagination>
+        />
       </div>
     </el-card>
-    
-    <!-- 查看订单详情对话框 -->
-    <el-dialog
-      title="采购订单详情"
-      v-model="viewDialogVisible"
-      width="1050px"
-      destroy-on-close
-      align-center
-    >
-      <div v-loading="detailLoading">
-        <el-descriptions border :column="2">
-          <el-descriptions-item label="订单编号">{{ viewData.order_number }}</el-descriptions-item>
-          <el-descriptions-item label="订单日期">{{ viewData.order_date }}</el-descriptions-item>
-          <el-descriptions-item label="预计到货日期">{{ viewData.expected_delivery_date }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="getStatusType(viewData.status)">{{ getStatusText(viewData.status) }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
-          <el-descriptions-item label="总金额">¥{{ parseFloat(viewData.total_amount).toFixed(2) }}</el-descriptions-item>
-          <el-descriptions-item label="联系人">{{ viewData.contact_person }}</el-descriptions-item>
-          <el-descriptions-item label="联系电话">{{ viewData.contact_phone }}</el-descriptions-item>
-          <el-descriptions-item label="关联申请单" v-if="viewData.requisition_id">
-            <el-link type="primary" @click="viewRequisition(viewData.requisition_id)">
-              {{ viewData.requisition_number || `申请单-${viewData.requisition_id}` }}
-            </el-link>
-          </el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ viewData.notes }}</el-descriptions-item>
-        </el-descriptions>
-        
-        <el-divider content-position="center">订单物料</el-divider>
-        <el-table :data="viewData.items || []" border style="width: 100%">
-          <el-table-column type="index" label="序号" width="55" align="center"></el-table-column>
-          <el-table-column prop="material_code" label="物料编码" min-width="120">
-            <template #default="scope">
-              {{ scope.row.material_code || scope.row.materialCode || scope.row.code || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="material_name" label="物料名称" min-width="130">
-            <template #default="scope">
-              {{ scope.row.material_name || scope.row.materialName || scope.row.name || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="规格" min-width="200">
-            <template #default="scope">
-              {{ scope.row.specs || scope.row.specification || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="unit" label="单位" min-width="55">
-            <template #default="scope">
-              {{ scope.row.unit || scope.row.unitName || scope.row.unit_name || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="quantity" label="订购数量" width="90" align="right">
-            <template #default="scope">
-              {{ parseFloat(scope.row.quantity || 0).toFixed(1) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="已收货" width="80" align="right">
-            <template #default="scope">
-              <el-text type="primary">
-                {{ parseFloat(scope.row.received_quantity || 0).toFixed(1) }}
-              </el-text>
-            </template>
-          </el-table-column>
-          <el-table-column label="已入库" width="80" align="right">
-            <template #default="scope">
-              <el-text type="success">
-                {{ parseFloat(scope.row.warehoused_quantity || 0).toFixed(1) }}
-              </el-text>
-            </template>
-          </el-table-column>
-          <el-table-column label="不合格" width="80" align="right">
-            <template #default="scope">
-              <el-text
-                v-if="parseFloat(scope.row.unqualified_quantity || 0) > 0"
-                type="danger"
-              >
-                {{ parseFloat(scope.row.unqualified_quantity || 0).toFixed(1) }}
-              </el-text>
-              <el-text v-else type="info">0.0</el-text>
-            </template>
-          </el-table-column>
-          <el-table-column label="待收货" width="80" align="right">
-            <template #default="scope">
-              <el-text type="warning">
-                {{ (parseFloat(scope.row.quantity || 0) - parseFloat(scope.row.received_quantity || 0)).toFixed(1) }}
-              </el-text>
-            </template>
-          </el-table-column>
-          <el-table-column prop="price" label="单价" width="80" align="right">
-            <template #default="scope">
-              ¥{{ parseFloat(scope.row.price || 0).toFixed(2) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="税率" width="70" align="right">
-            <template #default="scope">
-              {{ ((parseFloat(scope.row.tax_rate || 0)) * 100).toFixed(0) }}%
-            </template>
-          </el-table-column>
-          <el-table-column label="税额" width="90" align="right">
-            <template #default="scope">
-              ¥{{ parseFloat(scope.row.tax_amount || 0).toFixed(2) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="总价" min-width="120">
-            <template #default="scope">
-              ¥{{ (parseFloat(scope.row.total_price || scope.row.totalPrice || (scope.row.quantity * scope.row.price) || 0) + parseFloat(scope.row.tax_amount || 0)).toFixed(2) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="viewDialogVisible = false">关闭</el-button>
-          <el-button v-permission="'purchase:orders:print'" 
-            type="primary" 
-            @click="printOrder"
-            v-if="viewData.status !== 'draft'"
-          >打印订单</el-button>
-        </span>
-      </template>
-    </el-dialog>
-    
-    <!-- 新建/编辑采购订单对话框 -->
-    <el-dialog
-      v-model="orderDialog.visible"
-      :title="orderDialog.isEdit ? '编辑采购订单' : '新建采购订单'"
-      width="1065px"
-      destroy-on-close
-      align-center
-    >
-      <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="120px">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="订单编号" prop="order_number">
-              <el-input v-model="orderForm.order_number" placeholder="系统自动生成" disabled></el-input>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="订单日期" prop="order_date">
-              <el-date-picker
-                v-model="orderForm.order_date"
-                type="date"
-                placeholder="选择订单日期"
-                style="width: 100%"
-                value-format="YYYY-MM-DD"
-              ></el-date-picker>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="预计到货日期" prop="expected_delivery_date">
-              <el-date-picker
-                v-model="orderForm.expected_delivery_date"
-                type="date"
-                placeholder="选择预计到货日期"
-                style="width: 100%"
-                value-format="YYYY-MM-DD"
-              ></el-date-picker>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="供应商" prop="supplier_id">
-              <el-select
-                v-model="orderForm.supplier_id"
-                filterable
-                remote
-                reserve-keyword
-                :remote-method="searchSuppliers"
-                :loading="supplierLoading"
-                placeholder="请输入供应商名称或编码进行搜索"
-                style="width: 100%"
-                @change="handleSupplierChange"
-                @focus="handleSupplierFocus"
-                default-first-option
-              >
-                <el-option
-                  v-for="item in filteredSuppliers"
-                  :key="item.id"
-                  :label="`${item.name} (${item.code || item.supplier_code || ''})`"
-                  :value="String(item.id)"
-                >
-                  <span style="float: left">{{ item.name }}</span>
-                  <span style="float: right; color: #8492a6; font-size: 13px">{{ item.code || item.supplier_code || '' }}</span>
-                </el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="联系人" prop="contact_person">
-              <el-input v-model="orderForm.contact_person" placeholder="供应商联系人"></el-input>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="联系电话" prop="contact_phone">
-              <el-input v-model="orderForm.contact_phone" placeholder="联系电话"></el-input>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <el-row :gutter="20">
 
-          <el-col :span="12">
-            <el-form-item label="备注" prop="notes">
-              <el-input v-model="orderForm.notes" type="textarea" :rows="1" placeholder="备注信息"></el-input>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <!-- 物料列表 -->
-        <el-divider content-position="left">物料列表</el-divider>
-
-        <div class="material-list-header">
-          <el-button type="primary" @click="openRequisitionDialog">选择采购申请</el-button>
-        </div>
-        
-        <el-table :data="orderForm.items" border style="width: 100%; margin-top: 15px;">
-          <el-table-column label="序号" type="index" width="60" align="center"></el-table-column>
-          <el-table-column label="物料编码" width="140">
-            <template #default="{ row, $index }">
-              <el-autocomplete
-                :ref="(el) => setMaterialSelectRef(el, $index)"
-                v-model="row.material_code"
-                placeholder="输入物料编码"
-                clearable
-                :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, $index)"
-                @select="(item) => handleMaterialSelect(item, $index)"
-                @keydown.enter="handleMaterialEnter($index)"
-                style="width: 100%"
-                :trigger-on-focus="false"
-                :debounce="300"
-              >
-                <template #default="{ item }">
-                  <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
-                    <span style="font-weight: 500; font-size: 13px; min-width: 100px;">{{ item.code }}</span>
-                    <span style="color: #606266; font-size: 13px; flex: 1;">{{ item.name }}</span>
-                    <span v-if="item.specs" style="color: #909399; font-size: 12px;">{{ item.specs }}</span>
-                  </div>
-                </template>
-              </el-autocomplete>
-            </template>
-          </el-table-column>
-          <el-table-column label="物料名称" width="140" show-overflow-tooltip>
-            <template #default="scope">
-              {{ scope.row.material_name || scope.row.name || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="规格" width="140" show-overflow-tooltip>
-            <template #default="scope">
-              {{ scope.row.specs || scope.row.specification || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="单位" min-width="70">
-            <template #default="scope">
-              {{ scope.row.unit || scope.row.unit_name || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="quantity" label="数量" width="80">
-            <template #default="{ row, $index }">
-              <el-input
-                :ref="(el) => setQuantityInputRef(el, $index)"
-                v-model="row.quantity"
-                placeholder="数量"
-                style="width: 100%"
-                @change="recalculatePrice(row)"
-                @blur="formatQuantity(row)"
-                @keydown.enter="handleQuantityEnter($index)"
-              ></el-input>
-            </template>
-          </el-table-column>
-          <el-table-column prop="price" label="单价" width="80">
-            <template #default="scope">
-              <el-input
-                v-model="scope.row.price"
-                placeholder="单价"
-                style="width: 100%"
-                @change="recalculatePrice(scope.row)"
-              ></el-input>
-            </template>
-          </el-table-column>
-          <el-table-column prop="tax_rate" label="税率" width="100">
-            <template #default="scope">
-              <el-select 
-                v-model="scope.row.tax_rate" 
-                placeholder="税率" 
-                style="width: 100%" 
-                @change="recalculatePrice(scope.row)"
-              >
-                <el-option
-                  v-for="rate in vatRateOptions"
-                  :key="rate"
-                  :label="formatTaxRate(rate)"
-                  :value="rate"
-                />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column prop="tax_amount" label="税额" width="90">
-            <template #default="scope">
-              <span>{{ (scope.row.tax_amount || 0).toFixed(2) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="total_price" label="总价" width="80">
-            <template #default="scope">
-              <span>{{ (scope.row.quantity * scope.row.price).toFixed(2) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="80" align="center" fixed="right">
-            <template #default="scope">
-              <el-button
-                link
-                class="delete-text-btn"
-                @click="removeItem(scope.$index)"
-              >
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        
+    <!-- 订单编辑对话框 -->
+    <el-dialog v-model="orderDialog.visible" :title="orderDialog.title" width="75%" destroy-on-close>
+      <el-form :model="orderForm" label-width="100px">
         <div class="add-material" style="margin-top: 10px;">
           <el-button type="primary" @click="addMaterialRow">
             <el-icon><Plus /></el-icon>添加物料
@@ -727,6 +395,67 @@
         <span class="dialog-footer">
           <el-button @click="requisitionDialogVisible = false">取消</el-button>
           <el-button type="primary" @click="confirmMaterialSelection">确定 ({{ selectedMaterials.length }})</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 订单详情查看对话框 -->
+    <el-dialog v-model="viewDialogVisible" title="采购订单详情" width="70%" destroy-on-close>
+      <div v-loading="detailLoading">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="订单编号">{{ viewData.order_number }}</el-descriptions-item>
+          <el-descriptions-item label="订单日期">{{ viewData.order_date }}</el-descriptions-item>
+          <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
+          <el-descriptions-item label="预计交货日期">{{ viewData.expected_delivery_date }}</el-descriptions-item>
+          <el-descriptions-item label="联系人">{{ viewData.contact_person || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="联系电话">{{ viewData.contact_phone || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="getStatusType(viewData.status)">{{ getStatusText(viewData.status) }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="订单金额">¥{{ parseFloat(viewData.total_amount || 0).toFixed(2) }}</el-descriptions-item>
+          <el-descriptions-item label="关联申请单" v-if="viewData.requisition_number">{{ viewData.requisition_number }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="viewData.requisition_number ? 1 : 2">{{ viewData.notes || '无' }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-divider content-position="center">订单明细</el-divider>
+
+        <el-table :data="viewData.items || []" border style="width: 100%">
+          <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
+          <el-table-column prop="material_code" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="material_name" label="物料名称" min-width="150" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="specification" label="规格" min-width="150" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="unit" label="单位" width="70"></el-table-column>
+          <el-table-column label="数量" width="90" align="right">
+            <template #default="scope">
+              {{ parseFloat(scope.row.quantity || 0).toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="单价" width="100" align="right">
+            <template #default="scope">
+              ¥{{ parseFloat(scope.row.price || 0).toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="金额" width="120" align="right">
+            <template #default="scope">
+              ¥{{ parseFloat(scope.row.total_price || 0).toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="已收货" width="80" align="right">
+            <template #default="scope">
+              <el-text type="primary">{{ parseFloat(scope.row.received_quantity || 0).toFixed(1) }}</el-text>
+            </template>
+          </el-table-column>
+          <el-table-column label="已入库" width="80" align="right">
+            <template #default="scope">
+              <el-text type="success">{{ parseFloat(scope.row.warehoused_quantity || 0).toFixed(1) }}</el-text>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="viewDialogVisible = false">关闭</el-button>
+          <el-button type="primary" @click="printOrder">打印</el-button>
         </span>
       </template>
     </el-dialog>

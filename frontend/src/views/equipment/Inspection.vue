@@ -12,7 +12,7 @@
       <template #header>
         <div class="card-header">
           <h3>设备检修</h3>
-          <el-button type="primary">添加检修记录</el-button>
+          <el-button type="primary" v-permission="'equipment:inspection:create'">添加检修记录</el-button>
         </div>
       </template>
       <div class="content">

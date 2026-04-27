@@ -11,12 +11,12 @@
   },
   "dependencies": {
     "@heroicons/vue": "^2.2.0",
-    "@zxing/library": "^0.21.3",
     "axios": "^1.6.2",
     "dayjs": "^1.11.10",
     "html5-qrcode": "^2.3.8",
-    "iconv-lite": "^0.7.2",
+    "material-symbols": "^0.44.4",
     "pinia": "^2.1.7",
+    "socket.io-client": "^4.8.3",
     "vant": "^4.8.1",
     "vue": "^3.3.8",
     "vue-router": "^4.2.5"

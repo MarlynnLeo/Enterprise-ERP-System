@@ -126,6 +126,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { formatAmount } from '@/utils/format'
 import { Check, TrendCharts, Warning, CircleCheck } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
@@ -149,10 +150,7 @@ const isBalanced = computed(() => {
   return Math.abs(totalDebit.value - totalCredit.value) < 0.01
 })
 
-// 格式化金额
-const formatAmount = (amount) => {
-  return (amount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+// 格式化金额 - 已统一使用 @/utils/format 导入
 
 // 获取科目类型标签颜色
 const getAccountTypeTag = (type) => {

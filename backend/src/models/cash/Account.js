@@ -249,7 +249,7 @@ class BankAccountModel {
   }
 }
 
-console.log(
+logger.debug(
   '[AccountModel] Exporting BankAccountModel class with methods:',
   Object.getOwnPropertyNames(BankAccountModel)
 );

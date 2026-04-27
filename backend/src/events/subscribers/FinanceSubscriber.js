@@ -46,7 +46,7 @@ class FinanceSubscriber {
                 const receipt = receiptData[0];
                 const receiptNo = receipt.receipt_no;
 
-                // 1. 生成应付发票（Service 内部已有防重复检查）
+                // 1. 生成应付发票
                 try {
                     await FinanceIntegrationService.generateAPInvoiceFromPurchaseReceipt(
                         receipt,

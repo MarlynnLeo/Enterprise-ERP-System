@@ -1,6 +1,7 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const ExcelJS = require('exceljs');
+const { softDelete } = require('../utils/softDelete');
 
 const materialService = {
   async getAllMaterials(page = 1, pageSize = 10, filters = {}) {
@@ -17,38 +18,42 @@ const materialService = {
 
       let sql = `
         SELECT
-          m.*,
+          m.id, m.code, m.name, m.specs, m.status, m.remark,
+          m.category_id, m.product_category_id, m.unit_id,
+          m.material_source_id, m.inspection_method_id,
+          m.supplier_id, m.location_id, m.production_group_id, m.manager_id,
+          m.min_stock, m.max_stock, m.material_type, m.deleted_at,
+          m.created_at, m.updated_at,
           c.name as category_name,
           pc.name as product_category_name,
           u.name as unit_name,
           ms.name as material_source_name,
           im.name as inspection_method_name,
+          s.name as supplier_name,
+          l.name as location_name,
+          pg.name as production_group_name,
           mgr.real_name as manager_name,
           mgr.username as manager_username,
-          COALESCE(stock.quantity, 0) as stock_quantity,
-          COALESCE(stock.quantity, 0) as quantity,
-          CASE WHEN bom_check.bom_id IS NOT NULL THEN 1 ELSE 0 END as has_bom,
-          bom_check.bom_id as bom_id
+          COALESCE((
+            SELECT SUM(il.quantity)
+            FROM inventory_ledger il
+            WHERE il.material_id = m.id
+              AND (m.location_id IS NULL OR il.location_id = m.location_id)
+          ), 0) as stock_quantity,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM bom_masters bm WHERE bm.product_id = m.id AND bm.status = 1
+          ) THEN 1 ELSE 0 END as has_bom,
+          (SELECT MAX(bm.id) FROM bom_masters bm WHERE bm.product_id = m.id AND bm.status = 1) as bom_id
         FROM materials m
         LEFT JOIN categories c ON m.category_id = c.id
         LEFT JOIN categories pc ON m.product_category_id = pc.id
         LEFT JOIN units u ON m.unit_id = u.id
         LEFT JOIN material_sources ms ON m.material_source_id = ms.id
         LEFT JOIN inspection_methods im ON m.inspection_method_id = im.id
+        LEFT JOIN suppliers s ON m.supplier_id = s.id
+        LEFT JOIN locations l ON m.location_id = l.id
+        LEFT JOIN departments pg ON m.production_group_id = pg.id
         LEFT JOIN users mgr ON m.manager_id = mgr.id
-        LEFT JOIN (
-          SELECT il.material_id, SUM(il.quantity) as quantity
-          FROM inventory_ledger il
-          JOIN materials mat ON il.material_id = mat.id
-          WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
-          GROUP BY il.material_id
-        ) stock ON m.id = stock.material_id
-        LEFT JOIN (
-          SELECT product_id, MAX(id) as bom_id
-          FROM bom_masters
-          WHERE status = 1
-          GROUP BY product_id
-        ) bom_check ON m.id = bom_check.product_id
       `;
 
       // 构建WHERE子句
@@ -86,9 +91,10 @@ const materialService = {
         }
       }
 
-      // 分类条件
-      if (filters.category_id) {
-        const categoryId = parseInt(filters.category_id);
+      // 分类条件（兼容 category_id 和 categoryId 两种传参方式）
+      const categoryIdParam = filters.category_id || filters.categoryId;
+      if (categoryIdParam) {
+        const categoryId = parseInt(categoryIdParam);
         if (!isNaN(categoryId)) {
           whereConditions.push('m.category_id = ?');
           params.push(categoryId);
@@ -104,16 +110,17 @@ const materialService = {
         }
       }
 
+      // ✅ 软删除过滤
+      whereConditions.unshift('m.deleted_at IS NULL');
+
       // 组合WHERE子句
-      if (whereConditions.length > 0) {
-        sql += ' WHERE ' + whereConditions.join(' AND ');
-      }
+      sql += ' WHERE ' + whereConditions.join(' AND ');
 
       // 获取总数
       const countSql = `
         SELECT COUNT(*) as total
         FROM materials m
-        ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''}
+        WHERE ${whereConditions.join(' AND ')}
       `;
       const [countResult] = await pool.query(countSql, params);
       const total = countResult[0].total;
@@ -170,7 +177,7 @@ const materialService = {
         LEFT JOIN locations l ON m.location_id = l.id
         LEFT JOIN departments pg ON m.production_group_id = pg.id
         LEFT JOIN users mgr ON m.manager_id = mgr.id
-        WHERE m.id = ?
+        WHERE m.id = ? AND m.deleted_at IS NULL
       `;
       const [rows] = await pool.execute(sql, [id]);
       return rows.length > 0 ? rows[0] : null;
@@ -269,7 +276,8 @@ const materialService = {
         throw new Error('该物料有库存记录，不能删除');
       }
 
-      await pool.query('DELETE FROM materials WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(pool, 'materials', 'id', id);
       return true;
     } catch (error) {
       logger.error('deleteMaterial error:', error);

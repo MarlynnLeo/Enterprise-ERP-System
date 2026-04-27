@@ -11,6 +11,7 @@
     :config="pageConfig"
     :api-function="loadMaterials"
     :show-add="true"
+    add-permission="basedata:materials:create"
     :show-filter="true"
     list-title="物料列表"
     @add="handleAdd"
@@ -63,7 +64,7 @@
 
       return response
     } catch (error) {
-      console.error('❌ 加载物料列表失败:', error)
+      console.error('加载物料列表失败:', error)
       throw error
     }
   }

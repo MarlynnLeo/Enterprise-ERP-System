@@ -1,76 +1,19 @@
 /**
- * salesController.js
- * @description 控制器文件
- * @date 2025-08-27
- * @version 1.0.0
+ * salesQuotationController.js
+ * @description 销售报价控制器
+ * @version 1.1.0
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
-const { CodeGenerators } = require('../../../utils/codeGenerator');
-const businessConfig = require('../../../config/businessConfig');
+const { softDelete } = require('../../../utils/softDelete');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
-// 状态常量
-const STATUS = {
-  SALES_ORDER: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    CONFIRMED: 'confirmed',
-    READY_TO_SHIP: 'ready_to_ship',
-    IN_PRODUCTION: 'in_production',
-    IN_PROCUREMENT: 'in_procurement',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-  OUTBOUND: businessConfig.status.outbound,
-  SALES_RETURN: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    APPROVED: 'approved',
-    COMPLETED: 'completed',
-    REJECTED: 'rejected',
-    CANCELLED: 'cancelled',
-  },
-  EXCHANGE: {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-};
-
-// 移除了废弃的 ensureSalesExchangeTablesExist, createSalesExchangeTablesDirectly, 和 updateSalesExchangeTableStructure
-// 使用统一的编号生成服务 - 替代原 generateTransactionNo 函数
-async function generateTransactionNo(connection) {
-  return await CodeGenerators.generateTransactionCode(connection);
-}
-
-// Import the connection pool from db
-// 注意: 改名为 connectionPool 避免与函数内局部变量 connection 产生遮蔽
-const connectionPool = db.pool;
-
-// 统一的连接管理函数
-const getConnection = async () => {
-  return await connectionPool.getConnection();
-};
-
-// 带事务的连接管理函数
-const getConnectionWithTransaction = async () => {
-  const conn = await connectionPool.getConnection();
-  await conn.beginTransaction();
-  return conn;
-};
-
-// 统一的销售订单编号生成函数 - 替代所有重复的生成函数
-const generateSalesOrderNo = async (connection) => {
-  return CodeGenerators.generateSalesOrderCode(connection);
-};
-
-// 保持向后兼容的别名函数
-const generateOrderNo = generateSalesOrderNo;
+// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
+const { STATUS, getConnection, getConnectionWithTransaction } = require('./salesShared');
+const { CodeGenerators } = require('../../../utils/codeGenerator');
 
 // 添加新的控制器方法
 
@@ -280,29 +223,8 @@ exports.createSalesQuotation = async (req, res) => {
 
     const { quotation, items } = req.body;
 
-    // 生成报价单号 QUO + 年月日 + 3位序号
-    const now = new Date();
-    const year = now.getFullYear().toString().slice(-2);
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const dateStr = `${year}${month}${day}`;
-
-    // 查询当天最大序号
-    const [results] = await conn.query(
-      'SELECT MAX(quotation_no) as max_no FROM sales_quotations WHERE quotation_no LIKE ?',
-      [`QUO${dateStr}%`]
-    );
-
-    let sequence = 1;
-    if (results[0].max_no) {
-      // 提取序号部分并增加1
-      const currentSequence = parseInt(results[0].max_no.slice(-3));
-      sequence = currentSequence + 1;
-    }
-
-    // 确保序号格式为3位
-    const sequenceStr = sequence.toString().padStart(3, '0');
-    const quotationNo = `QUO${dateStr}${sequenceStr}`;
+    // ✅ 使用统一编码规则引擎生成报价单号
+    const quotationNo = await CodeGenerators.generateSalesQuotationCode(conn);
 
     // 插入报价单主表
     const [result] = await conn.query(
@@ -500,8 +422,8 @@ exports.deleteSalesQuotation = async (req, res) => {
     // 删除报价单明细
     await conn.query('DELETE FROM sales_quotation_items WHERE quotation_id = ?', [id]);
 
-    // 删除报价单主表
-    await conn.query('DELETE FROM sales_quotations WHERE id = ?', [id]);
+    // ✅ 软删除报价单主表
+    await softDelete(conn, 'sales_quotations', 'id', id);
 
     // 提交事务
     await conn.commit();
@@ -568,8 +490,8 @@ exports.convertQuotationToOrder = async (req, res) => {
       return ResponseHandler.error(res, '报价单没有明细项目，无法转换为订单', 'BAD_REQUEST', 400);
     }
 
-    // 生成销售订单号
-    const orderNo = await generateOrderNo(conn);
+    // ✅ 使用统一编码规则引擎生成销售订单号
+    const orderNo = await CodeGenerators.generateSalesOrderCode(conn);
 
     // 创建销售订单主表数据
     const orderData = {

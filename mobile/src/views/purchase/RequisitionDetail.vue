@@ -1,9 +1,9 @@
-﻿<!--
+<!--
 /**
  * RequisitionDetail.vue - 采购申请详情
- * @description 采购申请单详情页面 - 替代GenericListView占位
- * @date 2026-04-14
- * @version 1.0.0
+ * @description 采购申请单详情页面 - 对齐网页端操作逻辑
+ * @date 2026-04-25
+ * @version 2.0.0
  */
 -->
 <template>
@@ -17,7 +17,7 @@
           {{ statusMap[detail.status] || detail.status }}
         </div>
         <div class="detail-code">
-          {{ detail.requisition_code || detail.code || `申请#${detail.id}` }}
+          {{ detail.requisition_number || detail.requisition_code || detail.code || `申请#${detail.id}` }}
         </div>
       </div>
 
@@ -25,7 +25,7 @@
       <CellGroup inset title="申请信息">
         <Cell title="申请日期" :value="formatDate(detail.request_date || detail.created_at)" />
         <Cell title="申请部门" :value="detail.department || '--'" />
-        <Cell title="申请人" :value="detail.requester_name || detail.created_by || '--'" />
+        <Cell title="申请人" :value="detail.requester_name || detail.real_name || detail.created_by || '--'" />
         <Cell title="备注" :value="detail.remarks || '--'" />
       </CellGroup>
 
@@ -44,11 +44,29 @@
         </div>
       </CellGroup>
 
-      <!-- 审批操作 -->
-      <div class="action-section" v-if="detail.status === 'pending' || detail.status === 'draft'">
-        <Button round block type="primary" @click="handleApprove" :loading="approving">
-          审批通过
-        </Button>
+      <!-- 操作按钮 — 严格对齐网页端状态流转 -->
+      <div class="action-section">
+        <!-- draft(草稿): 提交审批、删除 -->
+        <template v-if="detail.status === 'draft'">
+          <Button round block type="primary" @click="handleSubmit" :loading="actionLoading" v-permission="'purchase:requisitions:update'"
+            style="margin-bottom: 10px">
+            提交审批
+          </Button>
+          <Button round block type="danger" plain @click="handleDelete" :loading="actionLoading" v-permission="'purchase:requisitions:delete'">
+            删除申请
+          </Button>
+        </template>
+
+        <!-- pending(待审批): 审批通过、拒绝 -->
+        <template v-if="detail.status === 'pending'">
+          <Button round block type="success" @click="handleApprove" :loading="actionLoading"
+            style="margin-bottom: 10px">
+            审批通过
+          </Button>
+          <Button round block type="warning" plain @click="handleReject" :loading="actionLoading">
+            拒绝
+          </Button>
+        </template>
       </div>
     </div>
 
@@ -67,7 +85,7 @@
   const route = useRoute()
   const router = useRouter()
   const detail = ref(null)
-  const approving = ref(false)
+  const actionLoading = ref(false)
 
   const statusMap = {
     draft: '草稿',
@@ -86,25 +104,70 @@
   const loadDetail = async () => {
     try {
       const response = await purchaseApi.getRequisition(route.params.id)
-      detail.value = response.data || response
+      detail.value = response.data?.data || response.data || response
     } catch (error) {
       console.error('加载采购申请详情失败:', error)
       showToast('加载详情失败')
     }
   }
 
+  // 草稿 → 提交审批 (draft → pending)
+  const handleSubmit = async () => {
+    try {
+      await showConfirmDialog({ title: '提交审批', message: '确定提交该采购申请进行审批？' })
+      actionLoading.value = true
+      await purchaseApi.updateRequisitionStatus(route.params.id, 'pending')
+      showToast('已提交审批')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  // 待审批 → 审批通过 (pending → approved)
   const handleApprove = async () => {
     try {
       await showConfirmDialog({ title: '确认', message: '确定审批通过该采购申请？' })
-      approving.value = true
+      actionLoading.value = true
       await purchaseApi.updateRequisitionStatus(route.params.id, 'approved')
       showToast('审批通过')
-      detail.value.status = 'approved'
-    } catch (error) {
-      if (error === 'cancel') return
-      showToast('操作失败')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
     } finally {
-      approving.value = false
+      actionLoading.value = false
+    }
+  }
+
+  // 待审批 → 拒绝 (pending → rejected)
+  const handleReject = async () => {
+    try {
+      await showConfirmDialog({ title: '拒绝申请', message: '确定拒绝该采购申请？' })
+      actionLoading.value = true
+      await purchaseApi.updateRequisitionStatus(route.params.id, 'rejected')
+      showToast('已拒绝')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  // 草稿 → 删除
+  const handleDelete = async () => {
+    try {
+      await showConfirmDialog({ title: '删除确认', message: '确定删除该采购申请？此操作不可撤销。' })
+      actionLoading.value = true
+      await purchaseApi.deleteRequisition(route.params.id)
+      showToast('已删除')
+      router.back()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '删除失败')
+    } finally {
+      actionLoading.value = false
     }
   }
 
@@ -113,7 +176,7 @@
   })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   .detail-page {
     min-height: 100vh;
     background-color: var(--van-background-2);
@@ -135,9 +198,27 @@
     border-radius: 20px;
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--text-primary);
+    color: #fff;
     margin-bottom: 8px;
-    background: var(--text-tertiary);
+
+    &.draft {
+      background: var(--text-tertiary);
+    }
+    &.pending {
+      background: var(--color-warning);
+    }
+    &.approved {
+      background: var(--color-success);
+    }
+    &.rejected {
+      background: var(--color-danger);
+    }
+    &.completed {
+      background: var(--color-primary);
+    }
+    &.cancelled {
+      background: var(--text-secondary);
+    }
   }
   .detail-code {
     font-size: 1.125rem;

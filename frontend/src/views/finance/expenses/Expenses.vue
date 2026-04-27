@@ -148,12 +148,12 @@
               type="warning" size="small" link 
               @click="handleEdit(row)"
             >编辑</el-button>
-            <el-button v-permission="'finance:expenses:submit'" 
+            <el-button
               v-if="['draft', 'rejected'].includes(row.status)" 
               type="success" size="small" link 
               @click="handleSubmit(row)"
             >提交</el-button>
-            <el-button v-permission="'finance:expenses:approve'" 
+            <el-button
               v-if="row.status === 'pending'" 
               type="success" size="small" link 
               @click="handleApprove(row)"
@@ -285,7 +285,7 @@
       <template #footer v-if="dialogMode !== 'view'">
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button v-permission="'finance:expenses:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
-        <el-button v-permission="'finance:expenses:submit'" type="success" @click="handleSaveAndSubmit" :loading="saving">保存并提交</el-button>
+        <el-button type="success" @click="handleSaveAndSubmit" :loading="saving">保存并提交</el-button>
       </template>
     </el-dialog>
 
@@ -307,7 +307,7 @@
       </el-form>
       <template #footer>
         <el-button @click="approveDialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:expenses:reject'" type="danger" @click="handleApproveAction('reject')" :loading="approving">驳回</el-button>
+        <el-button type="danger" @click="handleApproveAction('reject')" :loading="approving">驳回</el-button>
         <el-button type="success" @click="handleApproveAction('approve')" :loading="approving">通过</el-button>
       </template>
     </el-dialog>

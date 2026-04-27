@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * DeliveryStats.vue
  * @description 发货统计页面组件
@@ -490,12 +490,9 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Van, Select, Close } from '@element-plus/icons-vue'
 import { salesApi } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
 import { useRoute } from 'vue-router'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
-// 权限store
-const authStore = useAuthStore()
 const route = useRoute()
 
 // 常量定义

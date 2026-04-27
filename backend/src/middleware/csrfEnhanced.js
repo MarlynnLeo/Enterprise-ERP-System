@@ -95,23 +95,17 @@ const conditionalCsrfProtection = (req, res, next) => {
     return next();
   }
 
-  // 跳过管理员工具API端点（临时修复工具）
-  if (req.path.startsWith('/api/admin/')) {
-    return next();
-  }
-
-  // 跳过钉钉集成API端点（回调和内部同步）
+  // 跳过钉钉集成API端点（回调和内部同步，使用独立的签名验证）
   if (req.path.startsWith('/api/dingtalk/')) {
     return next();
   }
 
-  // 移动端或API调用可能使用JWT而非Cookie，跳过CSRF
-  const userAgent = req.get('User-Agent') || '';
-  if (userAgent.includes('Mobile') || userAgent.includes('App')) {
-    return next();
-  }
+  // ✅ 安全修复: 已移除基于 User-Agent 的跳过（可被伪造）
+  // ✅ 安全修复: 已移除 /api/admin/ 无条件跳过
 
-  // 携带 JWT Bearer Token 的请求天然免疫 CSRF 攻击，无需二次校验
+  // 带 Authorization: Bearer 头的请求由 JS 代码手动附加，
+  // 浏览器在 CSRF 攻击中不会自动携带 Authorization 头（与 Cookie 不同），
+  // 因此 Bearer Token 认证的请求天然免疫 CSRF 攻击，无需校验。
   const authHeader = req.get('Authorization') || '';
   if (authHeader.startsWith('Bearer ')) {
     return next();

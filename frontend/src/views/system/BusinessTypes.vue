@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="business-types-container">
     <el-card class="header-card">
       <div class="header-content">
@@ -129,7 +129,8 @@
                 v-if="row.status !== 1 && String(row.status) !== '1'"
                 size="small"
                 @click="handleEdit(row)"
-              ><el-icon><Edit /></el-icon> 编辑</el-button>
+              
+              v-permission="'system:business-types'"><el-icon><Edit /></el-icon> 编辑</el-button>
 
               <el-popconfirm
                 v-if="row.status !== 1 && String(row.status) !== '1'"
@@ -259,11 +260,6 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue'
 import { systemApi } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 import {
   BUSINESS_TYPE_CATEGORY_OPTIONS,
   getBusinessTypeCategoryName,

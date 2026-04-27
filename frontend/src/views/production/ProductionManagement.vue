@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProductionManagement.vue
  * @description 前端界面组件文件
@@ -113,7 +113,8 @@
               type="primary" 
               @click="handleEdit(scope.row)"
               v-if="scope.row.status === 'draft'"
-            >
+            
+              v-permission="'production:plans:update'">
               编辑
             </el-button>
             <el-dropdown v-if="scope.row.status !== 'cancelled' && scope.row.status !== 'completed'">
@@ -355,7 +356,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
 
 import { ref, onMounted, computed } from 'vue'
@@ -367,11 +367,6 @@ import axios from '@/services/api'
 import { useRouter } from 'vue-router'
 import { parseQuantity, compareQuantities } from '@/utils/helpers/quantity'
 import { purchaseApi } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 路由实例
 const router = useRouter()
 

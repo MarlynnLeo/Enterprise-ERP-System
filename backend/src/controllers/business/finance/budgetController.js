@@ -257,7 +257,7 @@ const budgetController = {
 
       const success = await budgetModel.updateBudgetStatus(id, status, {
         approval_status: approvalStatus,
-        approved_by: await getCurrentUserName(req),
+        approved_by: req.user.id,
       });
 
       if (success) {
@@ -609,7 +609,7 @@ const budgetController = {
       // 查找科目代码对应的account_id
       const codes = recommendations.map(r => r.account_code);
       const placeholders = codes.map(() => '?').join(',');
-      const [accounts] = await require('../../../config/db').pool.execute(
+      const [accounts] = await db.pool.execute(
         `SELECT id, account_code FROM gl_accounts WHERE account_code IN (${placeholders})`,
         codes
       );

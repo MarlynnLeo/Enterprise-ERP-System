@@ -1,4 +1,4 @@
-﻿/**
+/**
  * traceabilityController.js
  * @description 控制器文件
  * @date 2025-08-27
@@ -6,6 +6,7 @@
  */
 
 const { logger } = require('../../../utils/logger');
+const { ResponseHandler } = require('../../../utils/responseHandler');
 
 const getTraceabilityRecords = async (req, res) => {
   try {
@@ -27,22 +28,14 @@ const getTraceabilityRecords = async (req, res) => {
       parseInt(limit)
     );
 
-    res.json({
-      code: 200,
-      data: {
-        records: result.records,
-        total: result.total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-      },
-      message: '获取追溯记录列表成功',
-    });
+    ResponseHandler.success(res, {
+      records: result.records,
+      total: result.total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    }, '获取追溯记录列表成功');
   } catch (error) {
     logger.error('获取追溯记录列表失败:', error);
-    res.status(500).json({
-      code: 500,
-      message: '获取追溯记录列表失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '获取追溯记录列表失败', 'SERVER_ERROR', 500, error);
   }
 };

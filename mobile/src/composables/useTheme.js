@@ -47,8 +47,8 @@ export const useTheme = () => {
   // 所有可用主题
   const availableThemes = computed(() => themes)
 
-  // 检查是否为暗色模式
-  const isDark = computed(() => currentThemeName.value === 'dark')
+  // 检查是否为暗色模式（dark 和 tech 都是深色背景）
+  const isDark = computed(() => ['dark', 'tech'].includes(currentThemeName.value))
 
   return {
     currentTheme,

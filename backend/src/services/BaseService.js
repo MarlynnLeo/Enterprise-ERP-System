@@ -6,9 +6,23 @@ const { getConnection } = require('../config/db');
 const { validateData, cleanData } = require('../utils/validator');
 
 class BaseService {
-  constructor(tableName, primaryKey = 'id') {
+  /**
+   * @param {string} tableName
+   * @param {string} primaryKey
+   * @param {Object} [options]
+   * @param {boolean} [options.softDelete=true] - 是否启用软删除
+   */
+  constructor(tableName, primaryKey = 'id', options = {}) {
     this.tableName = tableName;
     this.primaryKey = primaryKey;
+    this.softDelete = options.softDelete !== false; // 默认启用
+  }
+
+  /**
+   * 软删除过滤条件（内部使用）
+   */
+  _softDeleteFilter() {
+    return this.softDelete ? `${this.tableName}.deleted_at IS NULL` : null;
   }
 
   /**
@@ -84,8 +98,16 @@ class BaseService {
 
     try {
       // 构建查询语句
-      const whereClause = this.buildWhereClause(conditions, params);
+      let whereClause = this.buildWhereClause(conditions, params);
       const orderClause = this.buildOrderClause(sort, order);
+
+      // ✅ 软删除: 自动过滤已删除记录
+      const sdFilter = this._softDeleteFilter();
+      if (sdFilter) {
+        whereClause = whereClause
+          ? `${whereClause} AND ${sdFilter}`
+          : `WHERE ${sdFilter}`;
+      }
 
       let sql = `SELECT ${fields} FROM ${this.tableName} ${whereClause} ${orderClause}`;
 
@@ -129,7 +151,9 @@ class BaseService {
     const connection = await this.getConnection();
 
     try {
-      const sql = `SELECT ${fields} FROM ${this.tableName} WHERE ${this.primaryKey} = ?`;
+      const sdFilter = this._softDeleteFilter();
+      const sdClause = sdFilter ? ` AND ${sdFilter}` : '';
+      const sql = `SELECT ${fields} FROM ${this.tableName} WHERE ${this.primaryKey} = ?${sdClause}`;
       const [rows] = await connection.execute(sql, [id]);
 
       return rows.length > 0 ? rows[0] : null;
@@ -146,7 +170,13 @@ class BaseService {
     const params = [];
 
     try {
-      const whereClause = this.buildWhereClause(conditions, params);
+      let whereClause = this.buildWhereClause(conditions, params);
+      const sdFilter = this._softDeleteFilter();
+      if (sdFilter) {
+        whereClause = whereClause
+          ? `${whereClause} AND ${sdFilter}`
+          : `WHERE ${sdFilter}`;
+      }
       const sql = `SELECT ${fields} FROM ${this.tableName} ${whereClause} LIMIT 1`;
 
       const [rows] = await connection.execute(sql, params);
@@ -256,8 +286,14 @@ class BaseService {
         throw new Error('记录不存在');
       }
 
-      const sql = `DELETE FROM ${this.tableName} WHERE ${this.primaryKey} = ?`;
-      await connection.execute(sql, [id]);
+      // ✅ 软删除: UPDATE SET deleted_at 替代 DELETE FROM
+      if (this.softDelete) {
+        const sql = `UPDATE ${this.tableName} SET deleted_at = NOW() WHERE ${this.primaryKey} = ? AND deleted_at IS NULL`;
+        await connection.execute(sql, [id]);
+      } else {
+        const sql = `DELETE FROM ${this.tableName} WHERE ${this.primaryKey} = ?`;
+        await connection.execute(sql, [id]);
+      }
 
       await connection.commit();
       return existing;
@@ -283,11 +319,18 @@ class BaseService {
       await connection.beginTransaction();
 
       const placeholders = ids.map(() => '?').join(', ');
-      const sql = `DELETE FROM ${this.tableName} WHERE ${this.primaryKey} IN (${placeholders})`;
-      const [result] = await connection.execute(sql, ids);
-
-      await connection.commit();
-      return { deletedCount: result.affectedRows };
+      // ✅ 软删除: UPDATE SET deleted_at 替代 DELETE FROM
+      if (this.softDelete) {
+        const sql = `UPDATE ${this.tableName} SET deleted_at = NOW() WHERE ${this.primaryKey} IN (${placeholders}) AND deleted_at IS NULL`;
+        const [result] = await connection.execute(sql, ids);
+        await connection.commit();
+        return { deletedCount: result.affectedRows };
+      } else {
+        const sql = `DELETE FROM ${this.tableName} WHERE ${this.primaryKey} IN (${placeholders})`;
+        const [result] = await connection.execute(sql, ids);
+        await connection.commit();
+        return { deletedCount: result.affectedRows };
+      }
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -304,7 +347,13 @@ class BaseService {
     const params = [];
 
     try {
-      const whereClause = this.buildWhereClause(conditions, params);
+      let whereClause = this.buildWhereClause(conditions, params);
+      const sdFilter = this._softDeleteFilter();
+      if (sdFilter) {
+        whereClause = whereClause
+          ? `${whereClause} AND ${sdFilter}`
+          : `WHERE ${sdFilter}`;
+      }
       const sql = `SELECT COUNT(*) as total FROM ${this.tableName} ${whereClause}`;
 
       const [rows] = await connection.execute(sql, params);

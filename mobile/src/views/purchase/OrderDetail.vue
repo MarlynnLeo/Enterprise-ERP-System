@@ -1,16 +1,16 @@
 <!--
 /**
  * OrderDetail.vue
- * @description 移动端应用文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * @description 采购订单详情 - 对齐网页端操作逻辑
+ * @date 2026-04-25
+ * @version 2.0.0
  */
 -->
 <template>
   <div class="order-detail-page">
     <NavBar title="采购订单详情" left-arrow @click-left="onClickLeft">
       <template #right>
-        <Icon name="edit" size="18" @click="editOrder" v-if="order && order.status === 'draft'" />
+        <Icon name="edit" size="18" @click="editOrder" v-if="order && order.status === 'draft'" v-permission="'purchase:orders:update'" />
       </template>
     </NavBar>
 
@@ -132,36 +132,78 @@
         </div>
       </div>
 
-      <!-- 操作按钮 -->
+      <!-- 操作按钮 — 严格对齐网页端状态流转 -->
       <div class="action-buttons">
-        <Button
-          v-if="order.status === 'draft'"
-          type="success"
-          size="large"
-          @click="confirmOrder"
-          style="margin-bottom: 12px"
-        >
-          确认订单
-        </Button>
-        <Button
-          v-if="order.status === 'confirmed'"
-          type="primary"
-          size="large"
-          @click="createReceipt"
-          style="margin-bottom: 12px"
-        >
-          创建入库单
-        </Button>
-        <Button
-          v-if="order.status === 'draft'"
-          type="danger"
-          size="large"
-          @click="cancelOrder"
-          style="margin-bottom: 12px"
-        >
-          取消订单
-        </Button>
-        <Button type="default" size="large" @click="viewSupplier" v-if="order.supplier_id">
+        <!-- draft(草稿): 提交审批、删除 -->
+        <template v-if="order.status === 'draft'">
+          <Button
+            v-permission="'purchase:orders:update'"
+            type="success"
+            size="large"
+            round
+            block
+            @click="submitForApproval"
+            :loading="actionLoading"
+            style="margin-bottom: 10px"
+          >
+            提交审批
+          </Button>
+          <Button
+            v-permission="'purchase:orders:delete'"
+            type="danger"
+            size="large"
+            round
+            block
+            plain
+            @click="deleteOrder"
+            :loading="actionLoading"
+          >
+            删除订单
+          </Button>
+        </template>
+
+        <!-- pending(待审批): 批准、驳回 -->
+        <template v-if="order.status === 'pending'">
+          <Button
+            type="success"
+            size="large"
+            round
+            block
+            @click="approveOrder"
+            :loading="actionLoading"
+            style="margin-bottom: 10px"
+          >
+            批准
+          </Button>
+          <Button
+            type="warning"
+            size="large"
+            round
+            block
+            plain
+            @click="rejectOrder"
+            :loading="actionLoading"
+          >
+            驳回
+          </Button>
+        </template>
+
+        <!-- confirmed/approved/partial_received: 到货 -->
+        <template v-if="['confirmed', 'approved', 'partial_received'].includes(order.status)">
+          <Button
+            v-permission="'purchase:orders:update'"
+            type="primary"
+            size="large"
+            round
+            block
+            @click="handleReceive"
+          >
+            确认到货
+          </Button>
+        </template>
+
+        <!-- 所有状态可查看供应商 -->
+        <Button type="default" size="large" round block @click="viewSupplier" v-if="order.supplier_id" style="margin-top: 10px">
           查看供应商
         </Button>
       </div>
@@ -184,7 +226,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
-  import { NavBar, Icon, Button, Loading, Empty, showToast, Dialog } from 'vant'
+  import { NavBar, Icon, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/services/api'
 
   const router = useRouter()
@@ -193,16 +235,16 @@
   const order = ref(null)
   const orderItems = ref([])
   const loading = ref(true)
+  const actionLoading = ref(false)
 
   // 获取订单详情
   const fetchOrderDetail = async () => {
     try {
       loading.value = true
       const orderId = route.params.id
-
       const response = await purchaseApi.getOrder(orderId)
-      order.value = response.data
-      orderItems.value = response.data?.items || []
+      order.value = response.data?.data || response.data || response
+      orderItems.value = order.value?.items || []
     } catch (error) {
       console.error('获取采购订单详情失败:', error)
       showToast('获取采购订单详情失败')
@@ -221,51 +263,73 @@
     router.push(`/purchase/orders/${order.value.id}/edit`)
   }
 
-  // 确认订单
-  const confirmOrder = async () => {
-    try {
-      await Dialog.confirm({
-        title: '确认订单',
-        message: '确定要确认这个采购订单吗？'
-      })
+  // === 状态操作 === //
 
+  // 草稿 → 提交审批 (draft → pending)
+  const submitForApproval = async () => {
+    try {
+      await showConfirmDialog({ title: '提交审批', message: '确定提交该订单进行审批？' })
+      actionLoading.value = true
+      await purchaseApi.updateOrderStatus(order.value.id, 'pending')
+      showToast('已提交审批')
+      await fetchOrderDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  // 待审批 → 批准 (pending → confirmed)
+  const approveOrder = async () => {
+    try {
+      await showConfirmDialog({ title: '批准订单', message: '确定批准该采购订单？' })
+      actionLoading.value = true
       await purchaseApi.updateOrderStatus(order.value.id, 'confirmed')
-      showToast('订单已确认')
-
-      // 刷新数据
-      fetchOrderDetail()
-    } catch (error) {
-      if (error !== 'cancel') {
-        console.error('确认订单失败:', error)
-        showToast('确认订单失败')
-      }
+      showToast('订单已批准')
+      await fetchOrderDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
     }
   }
 
-  // 取消订单
-  const cancelOrder = async () => {
+  // 待审批 → 驳回 (pending → draft)
+  const rejectOrder = async () => {
     try {
-      await Dialog.confirm({
-        title: '取消订单',
-        message: '确定要取消这个采购订单吗？'
-      })
-
-      await purchaseApi.updateOrderStatus(order.value.id, 'cancelled')
-      showToast('订单已取消')
-
-      // 刷新数据
-      fetchOrderDetail()
-    } catch (error) {
-      if (error !== 'cancel') {
-        console.error('取消订单失败:', error)
-        showToast('取消订单失败')
-      }
+      await showConfirmDialog({ title: '驳回订单', message: '确定驳回该采购订单？订单将退回草稿状态。' })
+      actionLoading.value = true
+      await purchaseApi.updateOrderStatus(order.value.id, 'draft')
+      showToast('订单已驳回')
+      await fetchOrderDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
     }
   }
 
-  // 创建入库单
-  const createReceipt = () => {
-    router.push(`/purchase/receipts/create?orderId=${order.value.id}`)
+  // 草稿 → 删除
+  const deleteOrder = async () => {
+    try {
+      await showConfirmDialog({ title: '删除订单', message: '确定删除该采购订单？此操作无法恢复。' })
+      actionLoading.value = true
+      await purchaseApi.deleteOrder(order.value.id)
+      showToast('订单已删除')
+      router.back()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '删除失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  // confirmed/partial_received → 到货（跳转到收货页面或直接操作）
+  const handleReceive = () => {
+    // 跳转到收货单列表，附带订单信息
+    showToast('请在采购入库模块创建收货单')
+    router.push('/purchase/receipts')
   }
 
   // 查看供应商
@@ -275,9 +339,18 @@
 
   import { getPurchaseStatusText } from '@/constants/systemConstants'
 
-  // 获取订单状态文本（使用统一常量）
+  // 获取订单状态文本
   const getOrderStatusText = (status) => {
-    return getPurchaseStatusText(status)
+    const map = {
+      draft: '草稿',
+      pending: '待审批',
+      confirmed: '已批准',
+      approved: '已批准',
+      partial_received: '部分到货',
+      completed: '已完成',
+      cancelled: '已取消'
+    }
+    return map[status] || getPurchaseStatusText(status) || status
   }
 
   // 计算收货进度百分比
@@ -317,6 +390,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 16px;
+    padding-bottom: 32px;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -353,7 +427,12 @@
       color: var(--text-secondary);
     }
 
-    &.confirmed {
+    &.pending {
+      background-color: rgba(234, 179, 8, 0.15);
+      color: var(--color-warning);
+    }
+
+    &.confirmed, &.approved {
       background-color: rgba(59, 130, 246, 0.15);
       color: var(--color-info);
     }

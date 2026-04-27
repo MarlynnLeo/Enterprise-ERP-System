@@ -9,6 +9,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
+const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
 
 // 获取采购申请列表
@@ -200,7 +201,7 @@ const getRequisition = async (req, res) => {
     const [rows] = await db.pool.execute(query, [id]);
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: '采购申请不存在' });
+      return ResponseHandler.notFound(res, '采购申请不存在');
     }
 
     const requisition = rows[0];
@@ -294,13 +295,13 @@ const createRequisition = async (req, res) => {
     // 检查并修复备注中的销售订单ID
     let finalRemarks = remarks !== undefined ? remarks : '';
     if (finalRemarks && finalRemarks.includes('由销售订单') && finalRemarks.includes('自动生成')) {
-      logger.info('🔍 检测到自动生成的采购申请备注:', remarks);
+      logger.debug('检测到自动生成的采购申请备注:', remarks);
 
       // 提取销售订单ID
       const match = remarks.match(/由销售订单\s*(\d+)\s*自动生成/);
       if (match) {
         const salesOrderId = match[1];
-        logger.info('📊 提取到销售订单ID:', salesOrderId);
+        logger.debug('提取到销售订单ID:', salesOrderId);
 
         try {
           // 查询对应的销售订单号
@@ -391,7 +392,7 @@ const createRequisition = async (req, res) => {
 
         // 如果unit为空但有unitId，从units表查询单位名称
         if (!unit && unitId) {
-          const [unitRows] = await connection.query('SELECT name FROM units WHERE id = ?', [
+          const [unitRows] = await connection.query('SELECT name FROM units WHERE id = ? AND deleted_at IS NULL', [
             unitId,
           ]);
           if (unitRows.length > 0) {
@@ -492,13 +493,13 @@ const updateRequisition = async (req, res) => {
 
     if (checkRows.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '采购申请不存在' });
+      return ResponseHandler.notFound(res, '采购申请不存在');
     }
 
     const currentStatus = checkRows[0].status;
     if (currentStatus !== 'draft') {
       await connection.rollback();
-      return res.status(400).json({ error: '只能编辑草稿状态的采购申请' });
+      return ResponseHandler.error(res, '只能编辑草稿状态的采购申请', 'BAD_REQUEST', 400);
     }
 
     // 更新采购申请基本信息（添加合同编码字段）
@@ -617,18 +618,18 @@ const deleteRequisition = async (req, res) => {
 
     if (checkRows.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '采购申请不存在' });
+      return ResponseHandler.notFound(res, '采购申请不存在');
     }
 
     const currentStatus = checkRows[0].status;
     if (currentStatus !== 'draft') {
       await connection.rollback();
-      return res.status(400).json({ error: '只能删除草稿状态的采购申请' });
+      return ResponseHandler.error(res, '只能删除草稿状态的采购申请', 'BAD_REQUEST', 400);
     }
 
     // 删除申请单 (物料项目会通过外键CASCADE自动删除)
-    const deleteQuery = 'DELETE FROM purchase_requisitions WHERE id = ?';
-    await connection.execute(deleteQuery, [id]);
+    // ✅ 软删除替代硬删除
+    await softDelete(connection, 'purchase_requisitions', 'id', id);
 
     await connection.commit();
 
@@ -657,7 +658,7 @@ const updateRequisitionStatus = async (req, res) => {
     const validStatuses = ['draft', 'submitted', 'approved', 'rejected', 'completed'];
     if (!validStatuses.includes(newStatus)) {
       await connection.rollback();
-      return res.status(400).json({ error: '无效的状态值' });
+      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
     // 检查申请单是否存在
@@ -666,7 +667,7 @@ const updateRequisitionStatus = async (req, res) => {
 
     if (checkRows.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '采购申请不存在' });
+      return ResponseHandler.notFound(res, '采购申请不存在');
     }
 
     const currentStatus = checkRows[0].status;
@@ -674,16 +675,45 @@ const updateRequisitionStatus = async (req, res) => {
     // 检查状态变更是否有效
     if (currentStatus === newStatus) {
       await connection.rollback();
-      return res.status(400).json({ error: '当前已经是该状态' });
+      return ResponseHandler.error(res, '当前已经是该状态', 'BAD_REQUEST', 400);
     }
 
-    // 特定状态转换的验证
-    if (
-      (currentStatus === 'approved' && newStatus !== 'rejected') ||
-      (currentStatus === 'rejected' && newStatus !== 'draft')
-    ) {
+    // ✅ 审批结果状态只能由工作流回调变更，前端不可直接设置
+    if (['approved', 'rejected'].includes(newStatus)) {
       await connection.rollback();
-      return res.status(400).json({ error: '无效的状态变更' });
+      return ResponseHandler.error(res, '审批通过/拒绝只能通过工作流完成，请先提交审批(submitted)', 'BAD_REQUEST', 400);
+    }
+
+    // 状态流转规则（前端可操作的转换）
+    const allowedTransitions = {
+      draft:     ['submitted'],      // 草稿 → 提交审批
+      submitted: [],                  // 已提交 → 等待工作流处理，前端不可操作
+      approved:  [],                  // 已批准 → 由工作流管理，前端不可操作
+      rejected:  ['draft'],           // 已拒绝 → 退回草稿重新编辑
+      completed: [],                  // 已完成 → 终态
+    };
+    const allowed = allowedTransitions[currentStatus] || [];
+    if (!allowed.includes(newStatus)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, `不允许从 [${currentStatus}] 转换到 [${newStatus}]`, 'BAD_REQUEST', 400);
+    }
+
+    // 提交审批时发起工作流
+    let finalStatus = newStatus;
+    if (newStatus === 'submitted') {
+      const WorkflowService = require('../../../services/business/WorkflowService');
+      const userId = req.user?.userId || req.user?.id;
+      const [reqInfo] = await connection.execute(
+        'SELECT requisition_number FROM purchase_requisitions WHERE id = ?', [id]
+      );
+      const reqNo = reqInfo[0]?.requisition_number || id;
+      const wfResult = await WorkflowService.tryStartWorkflow(
+        'purchase_requisition', id, reqNo,
+        `采购申请 ${reqNo} 审批`, userId
+      );
+      if (wfResult.auto_approved) {
+        finalStatus = 'approved';
+      }
     }
 
     // 更新状态
@@ -692,261 +722,17 @@ const updateRequisitionStatus = async (req, res) => {
       SET status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
-    const [result] = await connection.execute(updateQuery, [newStatus, id]);
+    const [result] = await connection.execute(updateQuery, [finalStatus, id]);
 
     // 如果状态变更为已批准，自动生成采购订单
-    const generatedOrders = [];
-    if (newStatus === 'approved') {
+    let generatedOrders = [];
+    if (finalStatus === 'approved') {
       try {
-        logger.info(`✅ 采购申请 ${id} 已批准，开始自动生成采购订单...`);
-
-        // 获取采购申请的基本信息和物料项
-        const [requisitionRows] = await connection.execute(
-          'SELECT * FROM purchase_requisitions WHERE id = ?',
-          [id]
-        );
-
-        if (requisitionRows.length === 0) {
-          throw new Error('采购申请不存在');
-        }
-
-        const requisition = requisitionRows[0];
-
-        // 获取采购申请的物料项，同时关联物料表获取供应商信息和价格
-        const [itemsRows] = await connection.execute(
-          `
-          SELECT 
-            pri.*,
-            m.supplier_id,
-            m.code as material_code,
-            m.name as material_name,
-            m.specs as material_specs,
-            m.unit_id,
-            COALESCE(m.cost_price, m.price, 0) as material_price,
-            u.name as unit_name,
-            s.id as supplier_id,
-            s.name as supplier_name,
-            s.contact_person as supplier_contact_person,
-            s.contact_phone as supplier_contact_phone
-          FROM purchase_requisition_items pri
-          LEFT JOIN materials m ON pri.material_id = m.id
-          LEFT JOIN units u ON m.unit_id = u.id
-          LEFT JOIN suppliers s ON m.supplier_id = s.id
-          WHERE pri.requisition_id = ?
-          ORDER BY pri.id
-        `,
-          [id]
-        );
-
-        if (itemsRows.length === 0) {
-          logger.warn(`⚠️ 采购申请 ${id} 没有物料项，跳过生成采购订单`);
-        } else {
-          // 按供应商分组物料
-          const itemsBySupplier = {};
-          const itemsWithoutSupplier = [];
-
-          for (const item of itemsRows) {
-            if (item.supplier_id) {
-              if (!itemsBySupplier[item.supplier_id]) {
-                itemsBySupplier[item.supplier_id] = {
-                  supplier_id: item.supplier_id,
-                  supplier_name: item.supplier_name,
-                  contact_person: item.supplier_contact_person,
-                  contact_phone: item.supplier_contact_phone,
-                  items: [],
-                };
-              }
-              itemsBySupplier[item.supplier_id].items.push(item);
-            } else {
-              itemsWithoutSupplier.push(item);
-            }
-          }
-
-          // 为每个供应商生成采购订单
-          const purchaseModel = require('../../../models/purchase');
-
-          for (const supplierId in itemsBySupplier) {
-            const supplierData = itemsBySupplier[supplierId];
-
-            // 生成订单号
-            const orderNo = await purchaseModel.generateOrderNo(connection);
-
-            // 计算订单总金额
-            let totalAmount = 0;
-            for (const item of supplierData.items) {
-              totalAmount +=
-                (parseFloat(item.quantity) || 0) * (parseFloat(item.material_price) || 0);
-            }
-
-            // 创建采购订单
-            const insertOrderQuery = `
-              INSERT INTO purchase_orders (
-                order_no, order_date, supplier_id, supplier_name, contract_code,
-                expected_delivery_date, contact_person, contact_phone,
-                total_amount, remarks, status, requisition_id, requisition_number
-              )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `;
-
-            const [orderResult] = await connection.execute(insertOrderQuery, [
-              orderNo,
-              new Date().toISOString().split('T')[0], // 当前日期
-              supplierData.supplier_id,
-              supplierData.supplier_name,
-              requisition.contract_code || null, // 从采购申请传递合同编码
-              null, // expected_delivery_date
-              supplierData.contact_person,
-              supplierData.contact_phone,
-              totalAmount,
-              `由采购申请 ${requisition.requisition_number || id} 自动生成`,
-              'draft', // 初始状态为草稿
-              id,
-              requisition.requisition_number,
-            ]);
-
-            const orderId = orderResult.insertId;
-
-            // 插入采购订单物料项
-            for (const item of supplierData.items) {
-              const insertItemQuery = `
-                INSERT INTO purchase_order_items (
-                  order_id, material_id, material_code, material_name,
-                  specification, quantity, price, total,
-                  unit, unit_id, tax_rate, tax_amount
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `;
-
-              const quantity = parseFloat(item.quantity) || 0;
-              const price = parseFloat(item.material_price) || 0;
-              const total = quantity * price;
-              // 默认税率13%
-              const taxRate = 0.13;
-              const taxAmount = total * taxRate;
-
-              await connection.execute(insertItemQuery, [
-                orderId,
-                item.material_id,
-                item.material_code,
-                item.material_name,
-                item.material_specs,
-                quantity,
-                price,
-                total,
-                item.unit_name,
-                item.unit_id,
-                taxRate,
-                taxAmount,
-              ]);
-            }
-
-            generatedOrders.push({
-              order_id: orderId,
-              order_no: orderNo,
-              supplier_name: supplierData.supplier_name,
-              total_amount: totalAmount,
-              items_count: supplierData.items.length,
-            });
-
-            logger.info(
-              `✅ 成功生成采购订单 ${orderNo}，供应商: ${supplierData.supplier_name}，物料数量: ${supplierData.items.length}`
-            );
-          }
-
-          // 没有供应商的物料也要生成采购订单（供应商信息留空，待后续补充）
-          if (itemsWithoutSupplier.length > 0) {
-            logger.info(`📝 有 ${itemsWithoutSupplier.length} 个物料没有设置供应商，仍然生成采购订单（供应商待指定）`);
-
-            // 生成订单号
-            const orderNo = await purchaseModel.generateOrderNo(connection);
-
-            // 计算订单总金额
-            let totalAmount = 0;
-            for (const item of itemsWithoutSupplier) {
-              totalAmount +=
-                (parseFloat(item.quantity) || 0) * (parseFloat(item.material_price) || 0);
-            }
-
-            // 创建采购订单（供应商信息留空）
-            const insertOrderQuery = `
-              INSERT INTO purchase_orders (
-                order_no, order_date, supplier_id, supplier_name, contract_code,
-                expected_delivery_date, contact_person, contact_phone,
-                total_amount, remarks, status, requisition_id, requisition_number
-              )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `;
-
-            const [orderResult] = await connection.execute(insertOrderQuery, [
-              orderNo,
-              new Date().toISOString().split('T')[0],
-              null, // 供应商ID留空
-              '待指定供应商', // 供应商名称提示
-              requisition.contract_code || null,
-              null,
-              null,
-              null,
-              totalAmount,
-              `由采购申请 ${requisition.requisition_number || id} 自动生成（供应商待指定）`,
-              'draft',
-              id,
-              requisition.requisition_number,
-            ]);
-
-            const orderId = orderResult.insertId;
-
-            // 插入采购订单物料项
-            for (const item of itemsWithoutSupplier) {
-              const insertItemQuery = `
-                INSERT INTO purchase_order_items (
-                  order_id, material_id, material_code, material_name,
-                  specification, quantity, price, total,
-                  unit, unit_id, tax_rate, tax_amount
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `;
-
-              const quantity = parseFloat(item.quantity) || 0;
-              const price = parseFloat(item.material_price) || 0;
-              const total = quantity * price;
-              const taxRate = 0.13;
-              const taxAmount = total * taxRate;
-
-              await connection.execute(insertItemQuery, [
-                orderId,
-                item.material_id,
-                item.material_code,
-                item.material_name,
-                item.material_specs,
-                quantity,
-                price,
-                total,
-                item.unit_name,
-                item.unit_id,
-                taxRate,
-                taxAmount,
-              ]);
-            }
-
-            generatedOrders.push({
-              order_id: orderId,
-              order_no: orderNo,
-              supplier_name: '待指定供应商',
-              total_amount: totalAmount,
-              items_count: itemsWithoutSupplier.length,
-            });
-
-            logger.info(
-              `✅ 成功生成采购订单 ${orderNo}（供应商待指定），物料数量: ${itemsWithoutSupplier.length}`
-            );
-          }
-
-          logger.info(`✅ 采购申请 ${id} 共生成了 ${generatedOrders.length} 个采购订单`);
-        }
+        const { generateOrdersFromRequisition } = require('../../../services/business/RequisitionAutoOrderService');
+        generatedOrders = await generateOrdersFromRequisition(id, connection);
       } catch (autoGenerateError) {
         // 自动生成采购订单失败不应该阻止状态更新
         logger.error('自动生成采购订单失败:', autoGenerateError);
-        // 不回滚事务，只记录错误
       }
     }
 
@@ -1138,7 +924,7 @@ const getRecentPurchaseInfo = async (connection, materialId) => {
     const [defaultSupplier] = await connection.execute(`
       SELECT id, name, contact_person, contact_phone
       FROM suppliers
-      WHERE status = 1
+      WHERE status = 1 AND deleted_at IS NULL
       ORDER BY id
       LIMIT 1
     `);

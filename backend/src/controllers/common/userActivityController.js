@@ -363,15 +363,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
     logger.error('获取在线时长排行榜失败:', error);
 
     // 返回空数据，不使用模拟数据
-    return res.status(500).json({
-      success: false,
-      message: '获取在线时长排行榜失败',
-      error: error.message,
-      data: {
-        date: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0],
-        rankings: [],
-      },
-    });
+    return ResponseHandler.error(res, '获取在线时长排行榜失败', 'SERVER_ERROR', 500, error);
   }
 };
 

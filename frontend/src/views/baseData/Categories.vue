@@ -279,7 +279,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
 
 import { ref, reactive, onMounted, computed } from 'vue';

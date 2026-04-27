@@ -58,10 +58,7 @@ const systemController = {
       ResponseHandler.success(res, userData, '获取用户信息成功');
     } catch (error) {
       logger.error('获取用户信息失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取用户信息失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取用户信息失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -85,10 +82,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('创建用户失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '创建用户失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '创建用户失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -109,10 +103,7 @@ const systemController = {
       ResponseHandler.success(res, updatedUser, '更新用户成功');
     } catch (error) {
       logger.error('更新用户失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '更新用户失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '更新用户失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -159,10 +150,7 @@ const systemController = {
       ResponseHandler.success(res, null, `用户状态已${status === 1 ? '启用' : '禁用'}`);
     } catch (error) {
       logger.error('更新用户状态失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '更新用户状态失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '更新用户状态失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -195,10 +183,7 @@ const systemController = {
       ResponseHandler.success(res, null, '密码重置成功');
     } catch (error) {
       logger.error('重置密码失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '重置密码失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '重置密码失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -233,10 +218,7 @@ const systemController = {
       ResponseHandler.success(res, department, '获取部门信息成功');
     } catch (error) {
       logger.error('获取部门信息失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取部门信息失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取部门信息失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -257,10 +239,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('创建部门失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '创建部门失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '创建部门失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -283,10 +262,7 @@ const systemController = {
       ResponseHandler.success(res, null, '更新部门成功');
     } catch (error) {
       logger.error('更新部门失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '更新部门失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '更新部门失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -314,10 +290,7 @@ const systemController = {
       ResponseHandler.success(res, null, `部门状态已${status === 1 ? '启用' : '禁用'}`);
     } catch (error) {
       logger.error('更新部门状态失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '更新部门状态失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '更新部门状态失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -341,10 +314,7 @@ const systemController = {
         });
       }
 
-      res.status(500).json({
-        code: 500,
-        message: '删除部门失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '删除部门失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -368,10 +338,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('获取角色列表失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取角色列表失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取角色列表失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -390,10 +357,7 @@ const systemController = {
       ResponseHandler.success(res, role, '获取角色信息成功');
     } catch (error) {
       logger.error('获取角色信息失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取角色信息失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取角色信息失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -414,10 +378,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('创建角色失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '创建角色失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '创建角色失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -438,10 +399,7 @@ const systemController = {
       ResponseHandler.success(res, result, '更新角色成功');
     } catch (error) {
       logger.error('更新角色失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '更新角色失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '更新角色失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -501,10 +459,7 @@ const systemController = {
       ResponseHandler.success(res, null, `角色状态已${status === 1 ? '启用' : '禁用'}`);
     } catch (error) {
       logger.error('更新角色状态失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '更新角色状态失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '更新角色状态失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -524,10 +479,7 @@ const systemController = {
       ResponseHandler.success(res, null, '删除角色成功');
     } catch (error) {
       logger.error('删除角色失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '删除角色失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '删除角色失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -538,10 +490,7 @@ const systemController = {
       ResponseHandler.success(res, result, '获取菜单列表成功');
     } catch (error) {
       logger.error('获取菜单列表失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取菜单列表失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取菜单列表失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -560,10 +509,7 @@ const systemController = {
       ResponseHandler.success(res, menu, '获取菜单信息成功');
     } catch (error) {
       logger.error('获取菜单信息失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取菜单信息失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取菜单信息失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -584,10 +530,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('创建菜单失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '创建菜单失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '创建菜单失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -610,10 +553,7 @@ const systemController = {
       ResponseHandler.success(res, null, '更新菜单成功');
     } catch (error) {
       logger.error('更新菜单失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '更新菜单失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '更新菜单失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -628,10 +568,7 @@ const systemController = {
       ResponseHandler.success(res, null, '删除菜单成功');
     } catch (error) {
       logger.error('删除菜单失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '删除菜单失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '删除菜单失败', 'SERVER_ERROR', 500, error);
     }
   },
 

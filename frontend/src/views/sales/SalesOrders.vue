@@ -314,7 +314,7 @@
               v-if="canConfirm(row)"
             >
               <template #reference>
-                <el-button size="small" type="primary" v-permission="'sales:orders:confirm'">确认</el-button>
+                <el-button size="small" type="primary" v-permission="'sales:orders:update'">确认</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -333,7 +333,7 @@
               v-if="canLock(row)"
             >
               <template #reference>
-                <el-button size="small" type="warning" v-permission="'sales:orders:lock'">锁定</el-button>
+                <el-button size="small" type="warning" v-permission="'sales:orders:update'">锁定</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -342,7 +342,7 @@
               v-if="canUnlock(row)"
             >
               <template #reference>
-                <el-button size="small" type="info" v-permission="'sales:orders:unlock'">解锁</el-button>
+                <el-button size="small" type="info" v-permission="'sales:orders:update'">解锁</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -352,7 +352,7 @@
               v-if="canCancel(row)"
             >
               <template #reference>
-                <el-button size="small" type="danger" v-permission="'sales:orders:cancel'">取消</el-button>
+                <el-button size="small" type="danger" v-permission="'sales:orders:update'">取消</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -571,7 +571,8 @@
                     type="danger"
                     size="small"
                     @click="removeMaterial($index)"
-                  >
+                  
+                    v-permission="'sales:orders'">
                     删除
                   </el-button>
                 </template>
@@ -668,6 +669,7 @@
       </div>
       <template #footer>
         <el-button @click="detailsVisible = false">关闭</el-button>
+        <el-button type="primary" @click="handlePrintOrder" :loading="printLoading" v-if="currentOrder">打印</el-button>
       </template>
     </el-dialog>
 
@@ -732,7 +734,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="closeImportDialog">取消</el-button>
-          <el-button v-permission="'sales:orders:import'" type="primary" @click="submitImport" :loading="importing">导入</el-button>
+          <el-button v-permission="'sales:orders:create'" type="primary" @click="submitImport" :loading="importing">导入</el-button>
         </span>
       </template>
     </el-dialog>
@@ -742,20 +744,20 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
+import { formatDate } from '@/utils/helpers/dateUtils'
 import { salesApi, api } from '@/api'
 import { usePaginatedFetching } from '@/composables/useDataFetching'
 import { parseListData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
-import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 
-const authStore = useAuthStore()
 const router = useRouter()
 
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 
 import { Search, Plus, Upload, Download, Refresh } from '@element-plus/icons-vue'
 import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
+import printService, { parseTemplateResponse } from '@/services/printService'
 
 // ========== 组合式函数导入 ==========
 import { useOrderForm } from './composables/useOrderForm'
@@ -852,7 +854,7 @@ const {
   vatRateOptions, defaultVATRate, financeStore
 } = useOrderForm(fetchData, updateParams)
 
-// ✅ 键盘导航：Enter 跳转下一字段
+// 键盘导航：Enter 跳转下一字段
 const { onFormKeydown: salesFormKeydown } = useFormKeyboardNav(() => handleSubmit())
 
 const {
@@ -870,13 +872,6 @@ const {
 } = useOrderImportExport(fetchData, searchQuery, statusFilter, operatorFilter, dateRange)
 
 // ========== 本地方法 ==========
-
-// 格式化日期
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
-}
-
 
 // 计算统计数据
 const calculateOrderStats = (data = null) => {
@@ -946,6 +941,53 @@ const getOrderDateFromOrderNo = (orderNo) => {
     const day = parseInt(dateStr.substring(4, 6))
     return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
   } catch (e) { return '2024-05-01' }
+}
+
+
+// ========== 打印功能 ==========
+const printLoading = ref(false)
+const handlePrintOrder = async () => {
+  if (!currentOrder.value) return
+  printLoading.value = true
+  try {
+    // 加载销售订单默认打印模板
+    const response = await printService.getPrintTemplateById(62)
+    const template = parseTemplateResponse(response)
+    if (!template || !template.content) {
+      ElMessage.error('未找到销售订单打印模板，请在系统管理-打印模板中配置')
+      return
+    }
+    // 组装打印数据，匹配模板变量
+    const order = currentOrder.value
+    const printData = {
+      order_no: order.order_no || '',
+      order_date: getOrderDateFromOrderNo(order.order_no) || '',
+      delivery_date: formatDate(order.deliveryDate) || '',
+      customer_name: order.customer_name || order.customer || '',
+      contact_phone: order.phone || '',
+      delivery_address: order.address || '',
+      total_amount: (parseFloat(order.totalAmount) || 0).toFixed(2),
+      remark: order.remark || '',
+      operator: order.created_by_real_name || order.created_by_name || '',
+      items: (order.items || []).map((item, idx) => ({
+        index: idx + 1,
+        product_code: item.material_code || item.code || '',
+        product_name: item.material_name || item.name || '',
+        specification: item.specification || '',
+        quantity: parseFloat(item.quantity || 0).toFixed(2),
+        unit_name: item.unit_name || '',
+        unit_price: (parseFloat(item.unit_price) || 0).toFixed(2),
+        amount: (parseFloat(item.amount) || 0).toFixed(2)
+      }))
+    }
+    const html = printService.generatePrintContent(template, printData)
+    printService.previewDocument(html)
+  } catch (error) {
+    console.error('打印销售订单失败:', error)
+    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+  } finally {
+    printLoading.value = false
+  }
 }
 
 // ========== 生命周期 ==========

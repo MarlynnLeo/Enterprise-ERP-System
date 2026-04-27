@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');
+const { softDelete } = require('../../../utils/softDelete');
 const {
   calculateMaterialRequirementsWithStock,
   calculateAndInsertMaterials,
@@ -644,11 +645,11 @@ exports.deleteProductionPlan = async (req, res) => {
       return ResponseHandler.error(res, '只能删除草稿状态的生产计划', 'BAD_REQUEST', 400);
     }
 
-    // 删除物料需求
+    // 删除物料需求（子表硬删除）
     await connection.query('DELETE FROM production_plan_materials WHERE plan_id = ?', [id]);
 
-    // 删除生产计划
-    await connection.query('DELETE FROM production_plans WHERE id = ?', [id]);
+    // ✅ 软删除生产计划主表
+    await softDelete(connection, 'production_plans', 'id', id);
 
     await connection.commit();
 

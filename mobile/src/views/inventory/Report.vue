@@ -355,8 +355,6 @@
 
   // 加载报表数据
   const loadReport = async () => {
-    if (loading.value) return
-
     loading.value = true
     try {
       const params = {
@@ -439,13 +437,13 @@
       font-weight: 800;
       color: var(--text-primary);
       &.accent {
-        color: #3b82f6;
+        color: var(--color-primary);
       }
       &.success {
         color: #34d399;
       }
       &.warn {
-        color: #ef4444;
+        color: var(--color-danger);
       }
     }
     .stat-label {
@@ -516,11 +514,11 @@
 
     &.active {
       background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
-      border-color: var(--color-accent, #3b82f6);
-      color: var(--color-accent, #3b82f6);
+      border-color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent, var(--color-primary));
       .chip-badge {
-        background: var(--color-accent, #3b82f6);
-        color: #fff;
+        background: var(--color-accent, var(--color-primary));
+        color: var(--text-primary);
       }
     }
   }
@@ -560,19 +558,19 @@
     flex-shrink: 0;
 
     &.accent-green {
-      background: linear-gradient(180deg, #10b981, #34d399);
+      background: linear-gradient(180deg, var(--color-success), #34d399);
     }
     &.accent-red {
-      background: linear-gradient(180deg, #ef4444, #f87171);
+      background: linear-gradient(180deg, var(--color-danger), var(--color-danger));
     }
     &.accent-purple {
       background: linear-gradient(180deg, #a855f7, #c084fc);
     }
     &.accent-yellow {
-      background: linear-gradient(180deg, #f59e0b, #fbbf24);
+      background: linear-gradient(180deg, var(--color-warning), var(--color-warning));
     }
     &.accent-blue {
-      background: linear-gradient(180deg, #3b82f6, #60a5fa);
+      background: linear-gradient(180deg, var(--color-primary), #60a5fa);
     }
   }
 
@@ -629,19 +627,19 @@
 
     &.accent-green {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.accent-red {
       background: rgba(239, 68, 68, 0.12);
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.accent-yellow {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.accent-blue {
       background: rgba(59, 130, 246, 0.12);
-      color: #3b82f6;
+      color: var(--color-primary);
     }
   }
 
@@ -654,11 +652,11 @@
 
     &.tag-danger {
       background: rgba(239, 68, 68, 0.12);
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.tag-warning {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
   }
 
@@ -689,11 +687,11 @@
     color: var(--text-primary);
 
     &.highlight {
-      color: #3b82f6;
+      color: var(--color-primary);
       font-weight: 700;
     }
     &.text-warn {
-      color: #ef4444;
+      color: var(--color-danger);
       font-weight: 700;
     }
   }

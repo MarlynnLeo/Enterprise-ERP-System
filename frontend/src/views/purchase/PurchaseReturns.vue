@@ -14,7 +14,7 @@
           <h2>采购退货管理</h2>
           <p class="subtitle">管理采购退货与处理</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="showAddDialog">新建退货单</el-button>
+        <el-button type="primary" :icon="Plus" @click="showAddDialog" v-permission="'purchase:returns:create'">新建退货单</el-button>
       </div>
     </el-card>
     
@@ -119,6 +119,7 @@
               size="small"
               type="primary"
               @click="editReturn(scope.row)"
+              v-permission="'purchase:returns:update'"
             >
               编辑
             </el-button>
@@ -129,7 +130,7 @@
               confirm-button-type="danger"
             >
               <template #reference>
-                <el-button v-permission="'purchase:returns:delete'" size="small" type="danger">删除</el-button>
+                <el-button v-permission="'purchase:returns:update'" size="small" type="danger">删除</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -138,7 +139,7 @@
               @confirm="handleCommand('confirm', scope.row)"
             >
               <template #reference>
-                <el-button size="small" type="success">确认</el-button>
+                <el-button size="small" type="success" v-permission="'purchase:returns:update'">确认</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -148,7 +149,7 @@
               confirm-button-type="warning"
             >
               <template #reference>
-                <el-button size="small" type="warning">取消</el-button>
+                <el-button size="small" type="warning" v-permission="'purchase:returns:update'">取消</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -157,7 +158,7 @@
               @confirm="handleCommand('complete', scope.row)"
             >
               <template #reference>
-                <el-button size="small" type="primary">完成退货</el-button>
+                <el-button size="small" type="primary" v-permission="'purchase:returns:update'">完成退货</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -224,7 +225,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="viewDialog.show = false">关闭</el-button>
-          <el-button v-permission="'purchase:returns:print'" type="primary" @click="printReturn" v-if="viewDialog.return.id">打印</el-button>
+          <el-button v-permission="'purchase:returns:view'" type="primary" @click="printReturn" v-if="viewDialog.return.id">打印</el-button>
         </span>
       </template>
     </el-dialog>
@@ -383,7 +384,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 
 import { ref, reactive, computed, onMounted } from 'vue';

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Periods.vue
  * @description 前端界面组件文件
@@ -85,7 +85,8 @@
               type="primary"
               size="small"
               @click="handleEdit(scope.row)"
-            >编辑</el-button>
+            
+              v-permission="'finance:gl:periods'">编辑</el-button>
             <el-button
               v-if="!scope.row.isClosed"
               type="warning"
@@ -168,17 +169,12 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { api } from '@/services/api';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
@@ -452,21 +448,6 @@ const handleSizeChange = (size) => {
 const handleCurrentChange = (page) => {
   currentPage.value = page;
   loadPeriods();
-};
-
-// 格式化日期
-// formatDate 已统一引用公共实现;
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
 };
 
 // 页面加载时执行

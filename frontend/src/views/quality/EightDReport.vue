@@ -109,13 +109,14 @@
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handleView(row)">查看</el-button>
-            <el-button size="small" type="primary" @click="handleEdit(row)" v-if="row.status !== 'closed' && row.status !== 'completed'">编辑</el-button>
+            <el-button size="small" type="primary" @click="handleEdit(row)" v-if="row.status !== 'closed' && row.status !== 'completed'"
+              v-permission="'quality:8d'">编辑</el-button>
             <!-- 根据当前阶段显示不同的流程按钮 -->
-            <el-button v-permission="'quality:eightdreport:submit'" size="small" type="warning" @click="handleSubmitReview(row)" v-if="row.status === 'in_progress' && row.current_phase === 'd1_d3'">提交初审</el-button>
-            <el-button v-permission="'quality:eightdreport:submit'" size="small" type="warning" @click="handleSubmitPhase2(row)" v-if="row.status === 'in_progress' && row.current_phase === 'd4_d7'">提交结案</el-button>
-            <el-button v-permission="'quality:eightdreport:audit'" size="small" type="success" @click="handleReview(row)" v-if="row.status === 'review'">审核</el-button>
+            <el-button size="small" type="warning" @click="handleSubmitReview(row)" v-if="row.status === 'in_progress' && row.current_phase === 'd1_d3'">提交初审</el-button>
+            <el-button size="small" type="warning" @click="handleSubmitPhase2(row)" v-if="row.status === 'in_progress' && row.current_phase === 'd4_d7'">提交结案</el-button>
+            <el-button size="small" type="success" @click="handleReview(row)" v-if="row.status === 'review'">审核</el-button>
             <el-button size="small" type="success" @click="handleComplete(row)" v-if="row.current_phase === 'd8' && row.status === 'in_progress'">完成</el-button>
-            <el-button v-permission="'quality:eightdreport:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
+            <el-button v-permission="'quality:8d:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -421,7 +422,7 @@
           </div>
           <div>
             <el-button @click="formDialogVisible = false">取消</el-button>
-            <el-button v-permission="'quality:eightdreport:update'" type="primary" @click="submitForm" :loading="submitLoading">{{ isEdit ? '保存' : '创建' }}</el-button>
+            <el-button v-permission="'quality:8d:update'" type="primary" @click="submitForm" :loading="submitLoading">{{ isEdit ? '保存' : '创建' }}</el-button>
           </div>
         </div>
       </template>
@@ -562,7 +563,7 @@
       </el-form>
       <template #footer>
         <el-button @click="reviewDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:eightdreport:submit'" type="primary" @click="submitReview" :loading="submitLoading">提交</el-button>
+        <el-button type="primary" @click="submitReview" :loading="submitLoading">提交</el-button>
       </template>
     </el-dialog>
 
@@ -653,7 +654,7 @@
       </div>
       <template #footer>
         <el-button @click="logsDialogVisible = false">关闭</el-button>
-        <el-button v-permission="'quality:eightdreport:print'" type="primary" v-if="isPrintMode" @click="handlePrintCommand">确认打印 (A4)</el-button>
+        <el-button v-permission="'quality:8d:view'" type="primary" v-if="isPrintMode" @click="handlePrintCommand">确认打印 (A4)</el-button>
       </template>
     </el-dialog>
 
@@ -670,6 +671,7 @@ import nonconformingProductApi from '@/api/nonconformingProductApi'
 import { systemApi } from '@/api/system'
 import { api } from '@/services/axiosInstance'
 import dayjs from 'dayjs'
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // 响应式状态
 
@@ -1256,8 +1258,6 @@ const handleReset = () => {
 }
 
 // ===================== 辅助方法 =====================
-
-const formatDate = (d) => d ? dayjs(d).format('YYYY-MM-DD') : '-'
 
 const isOverdue = (row) => {
   if (!row.target_close_date) return false

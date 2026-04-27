@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * MaterialShortage.vue
  * @description 生产计划缺料统计页面
@@ -13,12 +13,8 @@ import axios from '@/services/api'
 import { formatQuantity } from '@/utils/helpers/quantity'
 import { parseApiResponse, parsePaginatedData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
-import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { Download, Search, Refresh, ShoppingCart, Select, Close, InfoFilled } from '@element-plus/icons-vue'
-
-// 权限store
-const authStore = useAuthStore()
 
 // 数据定义
 const loading = ref(false)

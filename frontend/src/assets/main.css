@@ -1,3 +1,14 @@
+/* ==================== 全局设计令牌 ==================== */
+:root {
+  /* 字体系统 — 全局统一，组件中使用 var(--font-sans) 替代硬编码 */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei',
+    sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New',
+    monospace;
+  --font-display: 'DIN Alternate', 'Inter', var(--font-sans);
+}
+
 /* 全局样式 */
 html, body {
   margin: 0;
@@ -5,13 +16,10 @@ html, body {
   height: 100%;
   width: 100%;
   overflow-x: hidden; /* 阻止页面级水平滚动条 */
+  font-family: var(--font-sans);
 }
 
 /* 通用样式类 */
-.page-container {
-  padding: 20px;
-}
-
 .flex-center {
   display: flex;
   justify-content: center;
@@ -101,8 +109,8 @@ html.dark .el-table th.el-table__cell {
 }
 
 .el-dialog .el-dialog__header {
-  background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%) !important;
-  border-bottom: 1px solid #EBEEF5 !important;
+  background: linear-gradient(135deg, var(--el-fill-color-light, #f5f7fa) 0%, var(--el-bg-color, #ffffff) 100%) !important;
+  border-bottom: 1px solid var(--el-border-color-lighter, #EBEEF5) !important;
   padding: 18px 24px !important;
   margin: 0 !important;
 }
@@ -110,7 +118,7 @@ html.dark .el-table th.el-table__cell {
 .el-dialog .el-dialog__title {
   font-size: 18px !important;
   font-weight: 600 !important;
-  color: #303133 !important;
+  color: var(--el-text-color-primary, #303133) !important;
 }
 
 .el-dialog .el-dialog__body {
@@ -118,9 +126,9 @@ html.dark .el-table th.el-table__cell {
 }
 
 .el-dialog .el-dialog__footer {
-  border-top: 1px solid #EBEEF5 !important;
+  border-top: 1px solid var(--el-border-color-lighter, #EBEEF5) !important;
   padding: 16px 24px !important;
-  background-color: #FAFAFA !important;
+  background-color: var(--el-fill-color-blank, #FAFAFA) !important;
 }
 
 /* Descriptions 组件圆角 */
@@ -130,12 +138,12 @@ html.dark .el-table th.el-table__cell {
 }
 
 .el-descriptions .el-descriptions__header {
-  background-color: #F5F7FA !important;
+  background-color: var(--el-fill-color-light, #F5F7FA) !important;
   font-weight: 600 !important;
   padding: 12px 16px !important;
 }
 
 .el-descriptions .el-descriptions__label {
-  background-color: #FAFAFA !important;
+  background-color: var(--el-fill-color-blank, #FAFAFA) !important;
   font-weight: 500 !important;
 }

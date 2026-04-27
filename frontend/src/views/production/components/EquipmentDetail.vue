@@ -185,7 +185,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'

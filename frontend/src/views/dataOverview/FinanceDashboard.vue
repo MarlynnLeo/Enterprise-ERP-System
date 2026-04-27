@@ -225,7 +225,6 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 
@@ -233,11 +232,6 @@ import { useRouter } from 'vue-router';
 import Chart from 'chart.js/auto';
 import { ElMessage } from 'element-plus';
 import { financeApi } from '@/services/api';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 权限计算属性
 import { ArrowRight } from '@element-plus/icons-vue'
 

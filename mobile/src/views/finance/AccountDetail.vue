@@ -101,7 +101,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Button, Loading, Empty, showToast } from 'vant'
   import { financeApi } from '@/services/api'
@@ -133,8 +133,10 @@
 
   const loadAccount = async () => {
     loading.value = true
+    account.value = null
     try {
       const id = route.params.id
+      if (!id) return
       const response = await financeApi.getAccount(id)
       const respData = response.data || response
       account.value = respData.data?.account || respData.account || respData.data || respData
@@ -147,13 +149,15 @@
   }
 
   const editAccount = () => {
-    // 返回列表页并触发编辑
     router.go(-1)
   }
 
-  onMounted(() => {
-    loadAccount()
-  })
+  // 监听路由参数变化，解决 KeepAlive 缓存导致首次导航不加载的问题
+  watch(() => route.params.id, (newId) => {
+    if (newId && route.path.includes('/finance/gl/accounts/')) {
+      loadAccount()
+    }
+  }, { immediate: true })
 </script>
 
 <style lang="scss" scoped>
@@ -183,25 +187,25 @@
     width: 5px;
     flex-shrink: 0;
     &.type-assets {
-      background: linear-gradient(180deg, #3b82f6, #60a5fa);
+      background: linear-gradient(180deg, var(--color-primary), #60a5fa);
     }
     &.type-liabilities {
-      background: linear-gradient(180deg, #ef4444, #f87171);
+      background: linear-gradient(180deg, var(--color-danger), var(--color-danger));
     }
     &.type-equity {
       background: linear-gradient(180deg, #8b5cf6, #a78bfa);
     }
     &.type-costs {
-      background: linear-gradient(180deg, #f59e0b, #fbbf24);
+      background: linear-gradient(180deg, var(--color-warning), var(--color-warning));
     }
     &.type-revenue {
-      background: linear-gradient(180deg, #10b981, #34d399);
+      background: linear-gradient(180deg, var(--color-success), #34d399);
     }
     &.type-expenses {
       background: linear-gradient(180deg, #f97316, #fb923c);
     }
     &.type-default {
-      background: linear-gradient(180deg, #6b7280, #9ca3af);
+      background: linear-gradient(180deg, var(--text-secondary), #9ca3af);
     }
   }
 
@@ -231,11 +235,11 @@
     font-weight: 700;
     &.type-assets {
       background: rgba(59, 130, 246, 0.12);
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.type-liabilities {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.type-equity {
       background: rgba(139, 92, 246, 0.1);
@@ -247,7 +251,7 @@
     }
     &.type-revenue {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.type-expenses {
       background: rgba(249, 115, 22, 0.1);
@@ -255,7 +259,7 @@
     }
     &.type-default {
       background: rgba(107, 114, 128, 0.1);
-      color: #6b7280;
+      color: var(--text-secondary);
     }
   }
 
@@ -270,7 +274,7 @@
     font-size: 0.75rem;
     color: var(--text-tertiary);
     &.active {
-      color: #10b981;
+      color: var(--color-success);
     }
   }
 
@@ -309,13 +313,13 @@
     color: var(--text-primary);
     &.main {
       font-size: 1.375rem;
-      color: var(--color-accent, #3b82f6);
+      color: var(--color-accent, var(--color-primary));
     }
     &.debit {
-      color: #10b981;
+      color: var(--color-success);
     }
     &.credit {
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
 

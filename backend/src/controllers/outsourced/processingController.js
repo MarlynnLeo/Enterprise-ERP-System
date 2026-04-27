@@ -520,14 +520,14 @@ const updateProcessingStatus = async (req, res) => {
           // 通过统一方法获取物料默认仓库
           usedWarehouseId = await InventoryService.getMaterialLocation(material.material_id, connection);
           const [locationInfo] = await connection.execute(
-            'SELECT name FROM locations WHERE id = ?',
+            'SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL',
             [usedWarehouseId]
           );
           usedWarehouseName = locationInfo.length > 0 ? locationInfo[0].name : '物料默认仓库';
         }
 
         try {
-          // 🔥 使用统一的 InventoryService 更新库存（自动同步 batch_inventory）
+          // 使用统一的 InventoryService 更新库存
           const InventoryService = require('../../services/InventoryService');
           await InventoryService.updateStock(
             {
@@ -559,11 +559,9 @@ const updateProcessingStatus = async (req, res) => {
         );
         if (glResult.success) {
           logger.info(`外委发料分录生成成功: ${existingProcessing[0].processing_no}`);
-        } else if (!glResult.skipped) {
-          warnings.push(`外委发料分录生成失败: ${glResult.error}`);
         }
       } catch (glError) {
-        logger.error('调用外委发料分录生成服务失败:', glError);
+        logger.error('外委发料分录生成失败:', glError.message);
         warnings.push('外委发料分录生成异常');
       }
     }
@@ -727,7 +725,7 @@ const createReceipt = async (req, res) => {
 
     // 验证仓库是否存在
     const [existingWarehouse] = await connection.execute(
-      'SELECT id, name FROM locations WHERE id = ?',
+      'SELECT id, name FROM locations WHERE id = ? AND deleted_at IS NULL',
       [location_id]
     );
 
@@ -808,11 +806,9 @@ const createReceipt = async (req, res) => {
         );
         if (glResult.success) {
           logger.info(`外委入库分录生成成功: ${receipt_no}`);
-        } else if (!glResult.skipped) {
-          logger.warn(`外委入库分录生成失败: ${glResult.error}`);
         }
       } catch (glError) {
-        logger.error('调用外委入库分录生成服务失败:', glError);
+        logger.error('外委入库分录生成失败:', glError.message);
       }
 
       await connection.commit();
@@ -990,7 +986,7 @@ const updateReceiptStatus = async (req, res) => {
           const location_id = existingReceipt[0].location_id;
           const actualQuantity = parseFloat(item.actual_quantity);
 
-          // 🔥 使用统一的 InventoryService 更新库存（自动同步 batch_inventory）
+          // 使用统一的 InventoryService 更新库存
           const InventoryService = require('../../services/InventoryService');
           await InventoryService.updateStock(
             {

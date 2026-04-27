@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * SalesExchanges.vue
  * @description 前端界面组件文件
@@ -15,7 +15,7 @@
           <h2>销售换货管理</h2>
           <p class="subtitle">管理销售换货与处理</p>
         </div>
-        <el-button v-permission="'sales:exchanges:create'" type="primary" :icon="Plus" @click="handleCreate">新增换货单</el-button>
+        <el-button v-permission="'sales:returns:create'" type="primary" :icon="Plus" @click="handleCreate">新增换货单</el-button>
       </div>
     </el-card>
     
@@ -170,7 +170,8 @@
               v-if="scope.row.status === '已拒绝'"
               size="small"
               @click="handleEdit(scope.row)"
-            >
+            
+              v-permission="'sales:exchanges'">
               编辑
             </el-button>
           </template>
@@ -312,7 +313,8 @@
                   size="small"
                   type="danger"
                   @click="removeReturnItem(scope.$index)"
-                >
+                
+                  v-permission="'sales:exchanges'">
                   删除
                 </el-button>
               </template>
@@ -364,7 +366,8 @@
                   size="small"
                   type="danger"
                   @click="removeNewItem(scope.$index)"
-                >
+                
+                  v-permission="'sales:exchanges'">
                   删除
                 </el-button>
               </template>
@@ -399,7 +402,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleDialogClose">取消</el-button>
-          <el-button v-permission="'sales:exchanges:update'" type="primary" @click="handleSubmit" :loading="submitLoading">保存</el-button>
+          <el-button v-permission="'sales:returns:update'" type="primary" @click="handleSubmit" :loading="submitLoading">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -627,19 +630,14 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import dayjs from 'dayjs'
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, inventoryApi, baseDataApi } from '@/services/api'
 import { Search, Refresh, Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 const loading = ref(false)
 const exchangeRecords = ref([])
 const currentPage = ref(1)
@@ -747,21 +745,6 @@ const getStatusType = (status) => {
 const getStatusText = (status) => {
   return getSalesStatusText(status) || status
 }
-
-// 格式化日期
-// formatDate 已统一引用公共实现
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
 
 // 计算退回商品总价
 const calcReturnTotal = () => {

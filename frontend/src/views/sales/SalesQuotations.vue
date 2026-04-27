@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * SalesQuotations.vue
  * @description 前端界面组件文件
@@ -15,7 +15,7 @@
           <h2>销售报价管理</h2>
           <p class="subtitle">管理销售报价与询价</p>
         </div>
-        <el-button v-permission="'sales:salesquotations:create'" type="primary" :icon="Plus" @click="showCreateDialog">新增报价单</el-button>
+        <el-button v-permission="'sales:quotations:create'" type="primary" :icon="Plus" @click="showCreateDialog">新增报价单</el-button>
       </div>
     </el-card>
 
@@ -141,7 +141,8 @@
               size="small" 
               type="primary" 
               @click="handleEdit(scope.row)"
-            >
+            
+              v-permission="'sales:quotations'">
               编辑
             </el-button>
             <el-popconfirm 
@@ -151,7 +152,7 @@
               confirm-button-type="danger"
             >
               <template #reference>
-                <el-button v-permission="'sales:salesquotations:delete'" size="small" type="danger">删除</el-button>
+                <el-button v-permission="'sales:quotations:delete'" size="small" type="danger">删除</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm 
@@ -340,7 +341,8 @@
                       size="small"
                       @click="removeItem($index)"
                       v-if="dialogType !== 'view'"
-                    >
+                    
+              v-permission="'sales:quotations'">
                     删除
                     </el-button>
                   </template>
@@ -374,7 +376,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-permission="'sales:salesquotations:update'" type="primary" @click="submitQuotation" :loading="dialogLoading">保存</el-button>
+          <el-button v-permission="'sales:quotations:update'" type="primary" @click="submitQuotation" :loading="dialogLoading">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -429,11 +431,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi } from '@/services/api'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 销售报价功能 - 完善版
 // 支持报价单的创建、编辑、查看、删除和转为订单功能
 // 实现了与后端的真实API交互

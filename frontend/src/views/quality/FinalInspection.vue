@@ -92,7 +92,8 @@
               <el-button 
                 type="primary" 
                 @click="handleCreate"
-              >
+              
+                v-permission="'quality:final'">
                 新增
               </el-button>
             </div>
@@ -431,7 +432,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="inspectDialogVisible = false">取消</el-button>
-          <el-button v-permission="'quality:finalinspection:submit'" type="primary" @click="submitInspection" :loading="submitLoading">提交检验</el-button>
+          <el-button v-permission="'quality:inspections:create'" type="primary" @click="submitInspection" :loading="submitLoading">提交检验</el-button>
         </span>
       </template>
     </el-dialog>

@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>预算管理</span>
-          <el-button v-permission="'finance:budgetlist:create'" type="primary" @click="handleCreate">新增预算</el-button>
+          <el-button v-permission="'finance:budgets:create'" type="primary" @click="handleCreate">新增预算</el-button>
         </div>
       </template>
 
@@ -83,21 +83,23 @@
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleView(row)">查看</el-button>
-            <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="row.status === '草稿'">编辑</el-button>
+            <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="row.status === '草稿'"
+              v-permission="'finance:budget:edit'">编辑</el-button>
             <el-popconfirm
               title="确定要提交审批吗？"
               @confirm="handleSubmit(row)"
               v-if="row.status === '草稿'"
             >
               <template #reference>
-                <el-button v-permission="'finance:budgetlist:approve'" link type="primary" size="small">提交审批</el-button>
+                <el-button link type="primary" size="small">提交审批</el-button>
               </template>
             </el-popconfirm>
-            <el-button v-permission="'finance:budgetlist:approve'" link type="success" size="small" @click="handleApprove(row)" v-if="row.status === '待审批'">审批</el-button>
+            <el-button link type="success" size="small" @click="handleApprove(row)" v-if="row.status === '待审批'">审批</el-button>
             <el-popconfirm
               title="确定要启动预算执行吗？"
               @confirm="handleStart(row)"
               v-if="row.status === '已审批'"
+
             >
               <template #reference>
                 <el-button link type="warning" size="small">启动执行</el-button>
@@ -119,7 +121,7 @@
               v-if="row.status === '草稿'"
             >
               <template #reference>
-                <el-button v-permission="'finance:budgetlist:delete'" link type="danger" size="small">删除</el-button>
+                <el-button v-permission="'finance:budgets:delete'" link type="danger" size="small">删除</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -146,6 +148,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import { api } from '@/services/axiosInstance';
+import { formatAmount } from '@/utils/format'
 
 const router = useRouter();
 
@@ -337,13 +340,7 @@ const handleDelete = async (row) => {
   }
 };
 
-// 格式化金额
-const formatAmount = (amount) => {
-  return parseFloat(amount || 0).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-};
+// 格式化金额 - 已统一使用 @/utils/format 导入
 
 // 计算执行率
 const calculateExecutionRate = (row) => {

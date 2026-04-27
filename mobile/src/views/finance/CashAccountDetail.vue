@@ -186,19 +186,19 @@
     flex-shrink: 0;
     &.success {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.default {
       background: rgba(107, 114, 128, 0.1);
-      color: #6b7280;
+      color: var(--text-secondary);
     }
   }
 
   .balance-card {
-    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    background: linear-gradient(135deg, var(--color-primary), #6366f1);
     border-radius: 14px;
     padding: 20px;
-    color: white;
+    color: var(--text-primary);
   }
   .balance-label {
     font-size: 0.75rem;
@@ -268,10 +268,10 @@
     }
   }
   .text-green {
-    color: #10b981;
+    color: var(--color-success);
   }
   .text-red {
-    color: #ef4444;
+    color: var(--color-danger);
   }
 
   .loading-state {

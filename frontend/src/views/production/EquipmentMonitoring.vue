@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * EquipmentMonitoring.vue
  * @description 前端界面组件文件
@@ -219,7 +219,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parsePaginatedData } from '@/utils/responseParser';
 
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
@@ -231,11 +230,6 @@ import EquipmentDetail from './components/EquipmentDetail.vue'
 import EquipmentRealTimeData from './components/EquipmentRealTimeData.vue'
 import { equipmentMonitoringAPI } from '@/api/modules/business/equipmentMonitoring'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 响应式数据
 const loading = ref(false)
 const equipmentList = ref([])

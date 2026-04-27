@@ -127,6 +127,7 @@ const menuStructure = [
     { path: '/production/process', key: 'menu.productionProcess', icon: 'SetUp' },
     { path: '/production/report', key: 'menu.productionReport', icon: 'DataAnalysis' },
     { path: '/production/material-shortage', title: '缺料统计', icon: 'Warning' },
+    { path: '/production/mrp', title: 'MRP需求计划', icon: 'DataAnalysis' },
     { path: '/production/equipment-monitoring', key: 'menu.equipmentMonitoring', icon: 'Monitor' }
   ]},
 

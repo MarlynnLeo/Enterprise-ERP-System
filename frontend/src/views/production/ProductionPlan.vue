@@ -8,6 +8,7 @@
 -->
 <script setup>
 import dayjs from 'dayjs'
+import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, onMounted, reactive, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -17,12 +18,9 @@ import axios from '@/services/api'
 import { Plus } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity } from '@/utils/helpers/quantity'
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig'
-import { useAuthStore } from '@/stores/auth'
 import { parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 
-// 权限store
-const authStore = useAuthStore()
 const router = useRouter()
 
 // ✅ 键盘导航：Enter 跳转下一字段，最后一个字段按 Enter 自动提交
@@ -184,21 +182,6 @@ const updatePlanStats = (statistics) => {
       completed: Number(statistics.completed) || 0,
       cancelled: Number(statistics.cancelled) || 0
     };
-  }
-};
-
-// 格式化日期
-// formatDate 已统一引用公共实现;
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
   }
 };
 
@@ -1513,7 +1496,7 @@ const formatMaterialForDisplay = (material) => {
             v-model="searchForm.keyword"
             placeholder="计划编号/合同编码/产品"
             clearable
-            @keyup.enter="handleSearch"
+            @keyup.enter="searchPlans"
           />
         </el-form-item>
         <el-form-item label="时间范围">
@@ -1733,7 +1716,7 @@ const formatMaterialForDisplay = (material) => {
               type="success"
               @click="handlePushDown(scope.row)"
               v-if="['draft', 'preparing', 'material_issued', 'in_progress'].includes(scope.row.status) && (scope.row.quantity || 0) - (scope.row.pushed_quantity || 0) > 0"
-              v-permission="'production:plans:pushdown'"
+              v-permission="'production:plans:update'"
             >
               下推
             </el-button>
@@ -1958,7 +1941,7 @@ const formatMaterialForDisplay = (material) => {
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleModalCancel">取消</el-button>
-          <el-button v-permission="'production:productionplan:update'" type="primary" @click="handleModalOk" :loading="modalLoading">保存</el-button>
+          <el-button v-permission="'production:plans:update'" type="primary" @click="handleModalOk" :loading="modalLoading">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -1976,8 +1959,8 @@ const formatMaterialForDisplay = (material) => {
             <el-descriptions-item label="计划编号">{{ currentPlan.code }}</el-descriptions-item>
             <el-descriptions-item label="计划名称">{{ currentPlan.name }}</el-descriptions-item>
             <el-descriptions-item label="状态">
-              <el-tag :type="currentPlan.status === 'completed' ? 'success' : currentPlan.status === 'in_progress' ? 'warning' : currentPlan.status === 'cancelled' ? 'danger' : 'info'">
-                {{ { draft: '草稿', material_preparation: '备料/发料', in_progress: '生产中', pending_inspection: '待检验', completed: '已完成', cancelled: '已取消' }[currentPlan.status] || currentPlan.status }}
+              <el-tag :type="getStatusType(currentPlan.status)" :class="getStatusClass(currentPlan.status)">
+                {{ getStatusText(currentPlan.status) }}
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="产品名称">{{ currentPlan.productName || currentPlan.product_name }}</el-descriptions-item>

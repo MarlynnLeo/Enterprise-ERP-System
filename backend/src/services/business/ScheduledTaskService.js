@@ -37,6 +37,9 @@ class ScheduledTaskService {
 
     // 每周一上午9点执行批次过期预警检查
     this.scheduleBatchExpiryCheck();
+
+    // 每30分钟执行业务告警检查（基于 business_alerts 配置表）
+    this.scheduleBusinessAlertCheck();
   }
 
   /**
@@ -252,6 +255,182 @@ class ScheduledTaskService {
     task.start();
     this.tasks.set('batchExpiryCheck', task);
     logger.info('批次过期预警检查定时任务已启动 (每周一上午9点执行)');
+  }
+
+  /**
+   * 调度业务告警检查任务
+   * 每30分钟执行一次，读取 business_alerts 配置并触发检查
+   */
+  static scheduleBusinessAlertCheck() {
+    const task = cron.schedule(
+      '*/30 * * * *',
+      async () => {
+        try {
+          await this.executeBusinessAlertCheck();
+        } catch (error) {
+          logger.error('业务告警检查任务失败:', error);
+        }
+      },
+      { scheduled: false, timezone: 'Asia/Shanghai' }
+    );
+    task.start();
+    this.tasks.set('businessAlertCheck', task);
+    logger.info('业务告警定时检查已启动 (每30分钟执行)');
+  }
+
+  /**
+   * 执行业务告警检查（可手动调用）
+   */
+  static async executeBusinessAlertCheck() {
+    const { pool } = require('../../config/db');
+    const [alerts] = await pool.query('SELECT * FROM business_alerts WHERE is_active = 1');
+    if (!alerts.length) return { checked: 0, triggered: 0 };
+
+    let triggered = 0;
+    for (const alert of alerts) {
+      try {
+        const raw = alert.condition_params;
+        const params = !raw ? {} : (typeof raw === 'object' ? raw : JSON.parse(raw));
+        let hit = false;
+        let detail = '';
+
+        switch (alert.condition_type) {
+          case 'stock_below_safety': {
+            const [rows] = await pool.query(
+              `SELECT m.code, m.name, COALESCE(SUM(il.quantity),0) AS on_hand, m.safety_stock
+               FROM materials m LEFT JOIN inventory_ledger il ON il.material_id = m.id
+               WHERE m.safety_stock > 0 AND m.deleted_at IS NULL
+               GROUP BY m.id HAVING on_hand < m.safety_stock * ? / 100`,
+              [params.threshold_pct || 100]
+            );
+            if (rows.length) { hit = true; detail = `${rows.length}种物料低于安全库存`; }
+            break;
+          }
+          case 'stock_zero': {
+            const [[{ cnt }]] = await pool.query(
+              `SELECT COUNT(*) AS cnt FROM materials m
+               WHERE m.safety_stock > 0 AND m.deleted_at IS NULL
+               AND NOT EXISTS (SELECT 1 FROM inventory_ledger il WHERE il.material_id = m.id AND il.quantity > 0)`
+            );
+            if (cnt > 0) { hit = true; detail = `${cnt}种物料库存为零`; }
+            break;
+          }
+          case 'contract_expiring': {
+            const daysBefore = params.days_before || 30;
+            const [[{ cnt }]] = await pool.query(
+              `SELECT COUNT(*) AS cnt FROM contracts
+               WHERE status IN ('active','effective') AND deleted_at IS NULL
+               AND expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)`,
+              [daysBefore]
+            );
+            if (cnt > 0) { hit = true; detail = `${cnt}份合同将在${daysBefore}天内到期`; }
+            break;
+          }
+          case 'delivery_overdue': {
+            const [[{ cnt }]] = await pool.query(
+              `SELECT COUNT(*) AS cnt FROM sales_orders
+               WHERE status IN ('confirmed','in_production','partial_delivered')
+               AND delivery_date < CURDATE() AND deleted_at IS NULL`
+            );
+            if (cnt > 0) { hit = true; detail = `${cnt}个销售订单交付逾期`; }
+            break;
+          }
+          case 'quality_failure_rate':
+          case 'reject_rate_high': {
+            const threshold = params.threshold_pct || 5;
+            const [[stat]] = await pool.query(
+              `SELECT COUNT(*) AS total,
+                      SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS fail_cnt
+               FROM quality_inspections
+               WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND deleted_at IS NULL`
+            );
+            const rate = stat.total > 0 ? (stat.fail_cnt / stat.total * 100) : 0;
+            if (rate > threshold) { hit = true; detail = `近7天质检不合格率 ${rate.toFixed(1)}% 超过阈值 ${threshold}%`; }
+            break;
+          }
+          case 'ar_overdue': {
+            const days = params.days || 30;
+            const [[{ cnt }]] = await pool.query(
+              `SELECT COUNT(*) AS cnt FROM ar_invoices
+               WHERE status IN ('pending','partial_paid')
+               AND due_date < DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
+              [days]
+            );
+            if (cnt > 0) { hit = true; detail = `${cnt}笔应收账款逾期超过${days}天`; }
+            break;
+          }
+          case 'ap_due_soon': {
+            const days = params.days_before || 7;
+            const [[{ cnt }]] = await pool.query(
+              `SELECT COUNT(*) AS cnt FROM ap_invoices
+               WHERE status IN ('pending','partial_paid')
+               AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)`,
+              [days]
+            );
+            if (cnt > 0) { hit = true; detail = `${cnt}笔应付账款将在${days}天内到期`; }
+            break;
+          }
+          case 'task_overdue': {
+            const days = params.days || 1;
+            const [[{ cnt }]] = await pool.query(
+              `SELECT COUNT(*) AS cnt FROM production_tasks
+               WHERE status IN ('pending','in_progress')
+               AND expected_end_date < DATE_SUB(CURDATE(), INTERVAL ? DAY) AND deleted_at IS NULL`,
+              [days]
+            );
+            if (cnt > 0) { hit = true; detail = `${cnt}个生产任务逾期超过${days}天`; }
+            break;
+          }
+          case 'maintenance_due': {
+            const days = params.days_before || 7;
+            const [[{ cnt }]] = await pool.query(
+              `SELECT COUNT(*) AS cnt FROM equipment
+               WHERE next_inspection_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+               AND status = 'running' AND is_active = 1`,
+              [days]
+            );
+            if (cnt > 0) { hit = true; detail = `${cnt}台设备需在${days}天内保养`; }
+            break;
+          }
+          default:
+            break;
+        }
+
+        if (hit) {
+          triggered++;
+          // 通知目标用户（notify_users > notify_roles > 默认admin=1）
+          let targetUserIds = [];
+          if (alert.notify_users) {
+            try { targetUserIds = JSON.parse(alert.notify_users); } catch { targetUserIds = []; }
+          }
+          if (!targetUserIds.length && alert.notify_roles) {
+            try {
+              const roleIds = JSON.parse(alert.notify_roles);
+              if (roleIds.length) {
+                const [users] = await pool.query('SELECT DISTINCT user_id FROM user_roles WHERE role_id IN (?)', [roleIds]);
+                targetUserIds = users.map(u => u.user_id);
+              }
+            } catch { /* ignore */ }
+          }
+          if (!targetUserIds.length) targetUserIds = [1]; // 默认发给管理员
+          const priorityMap = { low: 0, medium: 1, high: 2, critical: 3 };
+          const prio = priorityMap[alert.severity] || 1;
+          for (const uid of targetUserIds) {
+            await pool.query(
+              `INSERT INTO notifications (user_id, title, content, type, priority, is_read, created_at)
+               VALUES (?, ?, ?, 'business_alert', ?, 0, NOW())`,
+              [uid, `[${alert.severity.toUpperCase()}] ${alert.name}`, detail, prio]
+            );
+          }
+          logger.info(`业务告警触发: [${alert.code}] ${alert.name} — ${detail} → ${targetUserIds.length}人`);
+        }
+        // 更新最后检查时间
+        await pool.query('UPDATE business_alerts SET last_checked_at = NOW() WHERE id = ?', [alert.id]);
+      } catch (e) {
+        logger.error(`业务告警 [${alert.code}] 检查失败:`, e);
+      }
+    }
+    return { checked: alerts.length, triggered };
   }
 
   /**

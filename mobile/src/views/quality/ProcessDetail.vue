@@ -23,12 +23,12 @@
 
       <!-- 基本信息 -->
       <CellGroup inset title="基本信息">
-        <Cell title="工单号" :value="inspection.production_order_no || '--'" />
+        <Cell title="工单号" :value="inspection.reference_no || '--'" />
         <Cell title="生产工序" :value="inspection.process_name || '--'" />
-        <Cell title="物料名称" :value="inspection.material_name || '--'" />
+        <Cell title="产品名称" :value="inspection.item_name || '--'" />
         <Cell
           title="检验日期"
-          :value="formatDate(inspection.inspection_date || inspection.created_at)"
+          :value="formatDate(inspection.actual_date || inspection.created_at)"
         />
       </CellGroup>
 
@@ -71,10 +71,10 @@
       </CellGroup>
 
       <!-- 操作按钮 -->
-      <div class="action-section" v-if="inspection.status === 'pending'">
+      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:process:update'">
         <Button round block type="primary" @click="handleStart"> 开始检验 </Button>
       </div>
-      <div class="action-section" v-else-if="inspection.status === 'in_progress'">
+      <div class="action-section" v-else-if="inspection.status === 'in_progress'" v-permission="'quality:process:update'">
         <Button round block type="success" @click="handleComplete"> 提交并完成检验 </Button>
       </div>
     </div>
@@ -116,8 +116,8 @@
       pending: '待检验',
       in_progress: '检验中',
       completed: '已完成',
-      passed: '检验及格',
-      failed: '不及格'
+      passed: '已合格',
+      failed: '不合格'
     }
     return map[status] || status
   }
@@ -226,7 +226,7 @@
   })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   .detail-page {
     min-height: 100vh;
     background-color: var(--van-background-2);
@@ -252,6 +252,10 @@
     font-size: 0.875rem;
     font-weight: 500;
     margin-bottom: 8px;
+    &.pending { background: rgba(255, 170, 0, 0.15); color: #ffaa00; }
+    &.in-progress { background: rgba(94, 123, 246, 0.15); color: #5E7BF6; }
+    &.completed, &.received { background: rgba(44, 207, 176, 0.15); color: #2CCFB0; }
+    &.failed { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
   }
 
   .inspection-no {

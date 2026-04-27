@@ -86,8 +86,9 @@
             <template v-if="row.status === '建设中'">
               <el-button type="primary" link size="small" @click="handleAddCost(row)">归集成本</el-button>
               <el-button type="success" link size="small" @click="handleTransfer(row)">转固</el-button>
-              <el-button type="warning" link size="small" @click="handleEdit(row)">编辑</el-button>
-              <el-button v-permission="'finance:ciplist:delete'" type="danger" link size="small" @click="handleDelete(row)"
+              <el-button type="warning" link size="small" @click="handleEdit(row)"
+              v-permission="'finance:assets:update'">编辑</el-button>
+              <el-button v-permission="'finance:assets:delete'" type="danger" link size="small" @click="handleDelete(row)"
                 :disabled="parseFloat(row.accumulated_amount) > 0">删除</el-button>
             </template>
             <template v-else>

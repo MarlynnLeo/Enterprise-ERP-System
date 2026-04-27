@@ -48,9 +48,9 @@
             </el-table-column>
             <el-table-column label="操作" min-width="200" fixed="right">
               <template #default="scope">
-                <el-button type="primary" size="small" @click="editCenter(scope.row)">编辑</el-button>
+                <el-button type="primary" size="small" @click="editCenter(scope.row)" v-permission="'finance:cost:settings'">编辑</el-button>
                 <el-button type="info" size="small" @click="viewReport(scope.row)">成本报表</el-button>
-                <el-button v-permission="'finance:costcenter:delete'" type="danger" size="small" @click="deleteCenter(scope.row)" :disabled="scope.row.task_count > 0">删除</el-button>
+                <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteCenter(scope.row)" :disabled="scope.row.task_count > 0">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -127,7 +127,7 @@
       </el-form>
       <template #footer>
         <el-button @click="centerDialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:costcenter:update'" type="primary" @click="saveCenter" :loading="saving">保存</el-button>
+        <el-button v-permission="'finance:cost:update'" type="primary" @click="saveCenter" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
 

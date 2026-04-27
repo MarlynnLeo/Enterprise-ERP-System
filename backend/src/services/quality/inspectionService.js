@@ -1,7 +1,7 @@
-const { pool } = require('../../../config/db');
-const { logger } = require('../../../utils/logger');
-const QualityInspection = require('../../../models/qualityInspection');
-const businessConfig = require('../../../config/businessConfig');
+const { pool } = require('../../config/db');
+const { logger } = require('../../utils/logger');
+const QualityInspection = require('../../models/qualityInspection');
+const businessConfig = require('../../config/businessConfig');
 // 从统一的业务配置获取检验状态常量（原 utils/constants.js 不存在，已修正）
 const STATUS = { QUALITY: businessConfig.status.inspection };
 
@@ -129,7 +129,7 @@ class InspectionService {
                 // 4. 自动创建不合格品记录
                 if (updateData.unqualified_quantity > 0 || (inspection.unqualified_quantity > 0)) {
                     try {
-                        const NonconformingProductService = require('../../../services/business/NonconformingProductService');
+                        const NonconformingProductService = require('../business/NonconformingProductService');
                         // 合并更新后的数量，调用生成不合格品台账
                         const ncpInspection = { ...inspection, ...updateData };
                         await NonconformingProductService.autoCreateFromInspection(ncpInspection);

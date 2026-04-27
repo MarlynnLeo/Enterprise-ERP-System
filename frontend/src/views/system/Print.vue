@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Print.vue
  * @description 前端界面组件文件
@@ -95,7 +95,7 @@
         <el-table-column label="操作" min-width="375" fixed="right">
           <template #default="scope">
             <div class="operation-buttons">
-              <el-button type="primary" size="small" @click="openTemplateDialog(scope.row)">编辑</el-button>
+              <el-button type="primary" size="small" @click="openTemplateDialog(scope.row)" v-permission="'system:print:update'">编辑</el-button>
               <el-button type="success" size="small" @click="previewTemplate(scope.row)">预览</el-button>
               <el-button v-permission="'system:print:delete'" type="danger" size="small" @click="deletePrintTemplate(scope.row.id)">删除</el-button>
             </div>
@@ -258,13 +258,13 @@
                   class="visual-editor"
                   contenteditable="true"
                   @input="onVisualEditorInput"
-                  v-html="visualContent"
+                  v-html="sanitizedVisualContent"
                 ></div>
               </div>
 
               <div class="preview-panel">
                 <h4>实时预览</h4>
-                <div class="live-preview" v-html="previewHtml"></div>
+                <div class="live-preview" v-html="sanitizedPreviewHtml"></div>
               </div>
             </div>
           </div>
@@ -376,10 +376,7 @@ import {
 // 导入公共组件
 import MarginInputs from '../../components/ui/print/MarginInputs.vue'
 import PaperSizeSelect from '../../components/ui/print/PaperSizeSelect.vue'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
+import DOMPurify from 'dompurify'
 
 const templateMargins = computed({
   get() {
@@ -450,6 +447,10 @@ const editMode = ref('visual')
 const visualContent = ref('')
 const previewHtml = ref('')
 const visualEditor = ref(null)
+
+// ✅ 安全修复: v-html 内容经 DOMPurify 清洗后再渲染
+const sanitizedVisualContent = computed(() => DOMPurify.sanitize(visualContent.value))
+const sanitizedPreviewHtml = computed(() => DOMPurify.sanitize(previewHtml.value))
 
 // 使用导入的常量
 const moduleOptions = MODULE_OPTIONS

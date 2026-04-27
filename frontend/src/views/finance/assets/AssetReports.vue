@@ -5,7 +5,7 @@
         <h2 class="page-title">固定资产报表与预测</h2>
         <div class="header-actions">
           <el-button @click="loadData" :icon="Refresh">刷新数据</el-button>
-          <el-button v-permission="'finance:assetreports:export'" type="primary" :icon="Download" @click="exportReports">导出报告</el-button>
+          <el-button v-permission="'finance:assets:export'" type="primary" :icon="Download" @click="exportReports">导出报告</el-button>
         </div>
       </div>
     </el-card>

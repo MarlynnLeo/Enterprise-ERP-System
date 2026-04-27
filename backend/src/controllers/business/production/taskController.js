@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');
+const { softDelete } = require('../../../utils/softDelete');
 const BusinessError = require('../../../utils/BusinessError');
 const QualityInspection = require('../../../models/qualityInspection');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
@@ -133,10 +134,7 @@ exports.getProductionTaskManagers = async (req, res) => {
     });
   } catch (error) {
     logger.error('获取负责人列表失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取负责人列表失败',
-    });
+    ResponseHandler.error(res, '获取负责人列表失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -328,11 +326,21 @@ exports.createProductionTask = async (req, res) => {
 
     const taskId = taskResult.insertId;
 
+    // 自动创建单据关联（生产计划 → 生产任务）
+    if (plan_id) {
+      const DocumentLinkService = require('../../../services/business/DocumentLinkService');
+      const [[planRow]] = await connection.query('SELECT code FROM production_plans WHERE id = ?', [plan_id]);
+      await DocumentLinkService.tryAutoLink(
+        'production_plan', plan_id, planRow?.code || null,
+        'production_task', taskId, code, req.user?.userId || req.user?.id, connection
+      );
+    }
+
     // 如果没有指定工序模板ID，尝试根据产品ID自动查找关联的工序模板
     let effectiveTemplateId = process_template_id;
     if (!effectiveTemplateId && product_id) {
       const [autoTemplates] = await connection.query(
-        'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 ORDER BY created_at DESC LIMIT 1',
+        'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
         [product_id]
       );
       if (autoTemplates.length > 0) {
@@ -342,7 +350,7 @@ exports.createProductionTask = async (req, res) => {
     }
 
     if (effectiveTemplateId) {
-      const [templates] = await connection.query('SELECT * FROM process_templates WHERE id = ?', [
+      const [templates] = await connection.query('SELECT * FROM process_templates WHERE id = ? AND deleted_at IS NULL', [
         effectiveTemplateId,
       ]);
 
@@ -537,7 +545,8 @@ exports.deleteProductionTask = async (req, res) => {
 
     await connection.query('DELETE FROM production_processes WHERE task_id = ?', [id]);
     await connection.query('DELETE FROM production_reports WHERE task_id = ?', [id]);
-    await connection.query('DELETE FROM production_tasks WHERE id = ?', [id]);
+    // ✅ 软删除生产任务主表
+    await softDelete(connection, 'production_tasks', 'id', id);
 
     await connection.commit();
 
@@ -1055,7 +1064,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
           let warehouseInfo = { id: null, name: null };
           if (productInfo.location_id) {
             const [configuredWarehouse] = await connection.query(
-              'SELECT id, name FROM locations WHERE id = ?',
+              'SELECT id, name FROM locations WHERE id = ? AND deleted_at IS NULL',
               [productInfo.location_id]
             );
             if (configuredWarehouse.length > 0) {
@@ -1445,7 +1454,7 @@ exports.getProductionTaskBom = async (req, res) => {
 
     // 2. 获取已审核的BOM
     const [boms] = await pool.query(
-      'SELECT id FROM bom_masters WHERE product_id = ? AND approved_by IS NOT NULL ORDER BY created_at DESC LIMIT 1',
+      'SELECT id FROM bom_masters WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
       [productId]
     );
 

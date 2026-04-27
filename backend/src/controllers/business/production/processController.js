@@ -399,16 +399,8 @@ exports.updateProcess = async (req, res) => {
           logger.info(`任务 ${taskId} 工序完成附加处理：自动跳过 ${updatedInspections.affectedRows} 个未执行的首检/过程检验`);
         }
 
-        // 4. 成本核算异步执行（非关键路径，失败不影响数据一致性，可后续重试）
-        setImmediate(async () => {
-          try {
-            const CostAccountingService = require('../../../services/business/CostAccountingService');
-            await CostAccountingService.calculateActualCost(parseInt(taskId));
-            logger.info(`任务 ${taskId} 工序完成附加处理：成本核算触发成功`);
-          } catch (costErr) {
-            logger.warn(`任务 ${taskId} 工序完成路径成本核算挂起: ${costErr.message}`);
-          }
-        });
+        // 4. 成本核算标记（commit 后异步触发，避免读到未提交数据）
+        // 由下方 commit 后的 setImmediate 统一执行
         // ==============================================================
 
 
@@ -474,6 +466,19 @@ exports.updateProcess = async (req, res) => {
     }
 
     await connection.commit();
+
+    // 成本核算在事务提交后异步执行
+    if (status === STATUS.PROCESS.COMPLETED && taskId) {
+      setImmediate(async () => {
+        try {
+          const CostAccountingService = require('../../../services/business/CostAccountingService');
+          await CostAccountingService.calculateActualCost(parseInt(taskId));
+          logger.info(`任务 ${taskId} 工序完成附加处理：成本核算触发成功`);
+        } catch (costErr) {
+          logger.warn(`任务 ${taskId} 工序完成路径成本核算挂起: ${costErr.message}`);
+        }
+      });
+    }
 
     res.json({ message: '生产工序更新成功' });
   } catch (error) {

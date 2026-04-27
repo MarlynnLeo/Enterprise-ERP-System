@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 
 const bomService = {
   async getAllBoms(page = 1, pageSize = 10, filters = {}) {
@@ -7,7 +8,7 @@ const bomService = {
       const offset = (page - 1) * pageSize;
 
       // 构建WHERE子句
-      let whereClause = '1=1';
+      let whereClause = 'bm.deleted_at IS NULL';
       const params = [];
 
       // 默认不显示历史版本（status=2），除非明确请求
@@ -66,7 +67,7 @@ const bomService = {
         FROM bom_masters bm
         LEFT JOIN materials m ON bm.product_id = m.id
         WHERE ${whereClause}
-        ORDER BY bm.id DESC LIMIT ${parseInt(pageSize)} OFFSET ${offset}
+        ORDER BY bm.id DESC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}
       `;
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       const [bomMasters] = await pool.query(dataSql, params);
@@ -139,7 +140,7 @@ const bomService = {
           CAST(CASE WHEN bm.approved_by IS NOT NULL THEN 1 ELSE 0 END AS SIGNED) as approved
         FROM bom_masters bm
         LEFT JOIN materials m ON bm.product_id = m.id
-        WHERE bm.id = ?
+        WHERE bm.id = ? AND bm.deleted_at IS NULL
       `,
         [id]
       );
@@ -319,7 +320,7 @@ const bomService = {
   // 自动递增版本号辅助方法（V1.1 → V1.2 → V1.3）
   async getNextVersion(connection, productId) {
     const [rows] = await connection.query(
-      'SELECT version FROM bom_masters WHERE product_id = ? ORDER BY id DESC',
+      'SELECT version FROM bom_masters WHERE product_id = ? AND deleted_at IS NULL ORDER BY id DESC',
       [productId]
     );
 
@@ -514,7 +515,7 @@ const bomService = {
 
       // ① 查询旧 BOM 是否存在
       const [oldBomRows] = await connection.query(
-        'SELECT * FROM bom_masters WHERE id = ? FOR UPDATE',
+        'SELECT * FROM bom_masters WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [id]
       );
       if (!oldBomRows || oldBomRows.length === 0) {
@@ -531,13 +532,14 @@ const bomService = {
         
         // 1. 删除该产品已有的更老的历史版本（只保留这一个即将成为历史的旧版本供对比）
         const [existingHistory] = await connection.query(
-          'SELECT id FROM bom_masters WHERE product_id = ? AND status = 2',
+          'SELECT id FROM bom_masters WHERE product_id = ? AND status = 2 AND deleted_at IS NULL',
           [oldBom.product_id]
         );
         for (const hist of existingHistory) {
           if (hist.id !== oldBom.id) {
             await connection.execute('DELETE FROM bom_details WHERE bom_id = ?', [hist.id]);
-            await connection.execute('DELETE FROM bom_masters WHERE id = ?', [hist.id]);
+            // ✅ 软删除历史BOM主表
+            await softDelete(connection, 'bom_masters', 'id', hist.id);
           }
         }
 
@@ -643,7 +645,7 @@ const bomService = {
     try {
       // 检查 BOM 是否存在及审核状态
       const [bomInfo] = await pool.query(
-        'SELECT product_id, approved_by FROM bom_masters WHERE id = ?',
+        'SELECT product_id, approved_by FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
         [id]
       );
       if (!bomInfo || bomInfo.length === 0) {
@@ -672,7 +674,8 @@ const bomService = {
       }
 
       await pool.query('DELETE FROM bom_details WHERE bom_id = ?', [id]);
-      await pool.query('DELETE FROM bom_masters WHERE id = ?', [id]);
+      // ✅ 软删除BOM主表
+      await softDelete(pool, 'bom_masters', 'id', id);
 
       // 更新该产品在其他BOM中的has_sub_bom标记
       if (productId) {
@@ -693,7 +696,7 @@ const bomService = {
 
   async getLatestBomByProductId(productId, status) {
     try {
-      let condition = 'bm.product_id = ?';
+      let condition = 'bm.product_id = ? AND bm.deleted_at IS NULL';
       const params = [productId];
 
       if (status !== undefined && status !== null) {

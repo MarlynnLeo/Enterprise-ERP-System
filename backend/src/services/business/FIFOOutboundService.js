@@ -202,7 +202,6 @@ class FIFOOutboundService {
         total_cost: totalCost,
         weighted_avg_cost: weightedAvgCost,
         batch_details: fifoResult.allocated_batches.map((batch) => ({
-          batch_inventory_id: batch.batch_inventory_id,
           batch_number: batch.batch_number,
           allocated_quantity: batch.allocated_quantity,
           unit_cost: batch.unit_cost || 0,

@@ -1,9 +1,9 @@
 <!--
 /**
- * Outbound.vue
- * @description 移动端应用文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * Outbound.vue - 库存出库列表
+ * @description 移动端出库管理页面
+ * @date 2026-04-24
+ * @version 2.1.0
  */
 -->
 <template>
@@ -14,28 +14,34 @@
       @click-left="onClickLeft"
     >
       <template #right>
-        <Icon name="plus" size="18" @click="createOutbound" />
+        <span v-permission="'inventory:outbound:create'" @click="createOutbound">
+          <SvgIcon name="plus" size="1.125rem" />
+        </span>
       </template>
     </NavBar>
     
     <div class="content-container">
-      <!-- 搜索和筛选 -->
-      <div class="search-filter">
+      <!-- 搜索栏 -->
+      <div class="search-section">
         <Search
           v-model="searchValue"
           placeholder="搜索出库单号或物料名称"
           @search="onSearch"
           shape="round"
         />
-        
-        <div class="filter-tabs">
-          <div 
-            v-for="(tab, index) in statusTabs" 
+      </div>
+
+      <!-- 横向滑动筛选标签 -->
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
+          <div
+            v-for="(tab, index) in statusTabs"
             :key="index"
-            :class="['filter-tab', { active: activeTab === index }]"
+            class="filter-chip"
+            :class="{ active: activeTab === index }"
             @click="switchTab(index)"
           >
-            {{ tab.label }}
+            <span class="chip-text">{{ tab.label }}</span>
           </div>
         </div>
       </div>
@@ -52,88 +58,58 @@
             <Empty description="暂无出库记录" />
           </div>
           
-          <Card 
-            v-for="outbound in outboundList" 
+          <div 
+            v-for="(outbound, idx) in outboundList" 
             :key="outbound.id" 
-            class="outbound-card"
+            class="list-card"
+            :style="{ animationDelay: `${idx * 0.03}s` }"
             @click="viewOutboundDetail(outbound.id)"
           >
-            <div class="outbound-item">
-              <div class="outbound-header">
-                <span class="outbound-no">{{ outbound.outbound_no }}</span>
-                <Tag :type="getOutboundStatusType(outbound.status)" size="medium">
+            <!-- 左侧色条 -->
+            <div class="card-accent" :class="getAccentClass(outbound.status)"></div>
+
+            <!-- 卡片主体 -->
+            <div class="card-body">
+              <!-- 第一行: 出库单号 + 状态 -->
+              <div class="card-top">
+                <div class="title-area">
+                  <div class="item-icon" :class="getAccentClass(outbound.status)">
+                    <SvgIcon name="export" size="0.875rem" />
+                  </div>
+                  <span class="item-title">{{ outbound.outbound_no }}</span>
+                </div>
+                <span class="status-tag" :class="'st-' + outbound.status">
                   {{ getOutboundStatusText(outbound.status) }}
-                </Tag>
+                </span>
               </div>
-              
-              <div class="outbound-type">{{ getOutboundTypeText(outbound.outbound_type) }}</div>
-              
-              <div class="outbound-details">
-                <div class="detail-row">
-                  <span class="label">出库日期:</span>
-                  <span class="value">{{ formatDate(outbound.outbound_date) }}</span>
-                </div>
-                <div class="detail-row" v-if="outbound.warehouse_name">
-                  <span class="label">出库仓库:</span>
-                  <span class="value">{{ outbound.warehouse_name }}</span>
-                </div>
-                <div class="detail-row" v-if="outbound.operator_name">
-                  <span class="label">操作员:</span>
-                  <span class="value">{{ outbound.operator_name }}</span>
-                </div>
-                <div class="detail-row" v-if="outbound.target_no">
-                  <span class="label">目标单号:</span>
-                  <span class="value">{{ outbound.target_no }}</span>
-                </div>
+
+              <!-- 第二行: 出库类型 -->
+              <div class="item-subtitle">
+                {{ getOutboundTypeText(outbound.outbound_type) }}
+                <template v-if="outbound.product_specs"> · {{ outbound.product_specs }}</template>
               </div>
-              
-              <div class="outbound-items" v-if="outbound.items && outbound.items.length > 0">
-                <div class="items-title">出库物料 ({{ outbound.items.length }}项)</div>
-                <div class="items-list">
-                  <div 
-                    v-for="(item, index) in outbound.items.slice(0, 2)" 
-                    :key="index"
-                    class="item-row"
-                  >
-                    <span class="item-name">{{ item.material_name }}</span>
-                    <span class="item-quantity">{{ item.quantity }} {{ item.unit_name }}</span>
-                  </div>
-                  <div v-if="outbound.items.length > 2" class="more-items">
-                    还有 {{ outbound.items.length - 2 }} 项...
-                  </div>
+
+              <!-- 详情网格 -->
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">出库日期</span>
+                  <span class="detail-value">{{ formatDate(outbound.outbound_date, 'YYYY-MM-DD') }}</span>
                 </div>
-              </div>
-              
-              <div class="outbound-actions">
-                <Button 
-                  size="small" 
-                  type="primary" 
-                  plain
-                  @click.stop="viewOutboundDetail(outbound.id)"
-                >
-                  查看详情
-                </Button>
-                <Button 
-                  v-if="outbound.status === 'draft'"
-                  size="small" 
-                  type="success" 
-                  plain
-                  @click.stop="confirmOutbound(outbound)"
-                >
-                  确认出库
-                </Button>
-                <Button 
-                  v-if="outbound.status === 'confirmed'"
-                  size="small" 
-                  type="warning" 
-                  plain
-                  @click.stop="completeOutbound(outbound)"
-                >
-                  完成出库
-                </Button>
+                <div class="detail-item">
+                  <span class="detail-label">物料数</span>
+                  <span class="detail-value">{{ outbound.items_count || 0 }} 项</span>
+                </div>
+                <div class="detail-item" v-if="outbound.total_quantity">
+                  <span class="detail-label">总数量</span>
+                  <span class="detail-value">{{ outbound.total_quantity }}</span>
+                </div>
+                <div class="detail-item" v-if="outbound.operator_name">
+                  <span class="detail-label">操作员</span>
+                  <span class="detail-value">{{ outbound.operator_name }}</span>
+                </div>
               </div>
             </div>
-          </Card>
+          </div>
         </List>
       </PullRefresh>
     </div>
@@ -143,7 +119,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { NavBar, Search, Icon, Empty, Card, Tag, PullRefresh, List, Button, showToast, showConfirmDialog } from 'vant';
+import { NavBar, Search, Empty, PullRefresh, List, showToast, showConfirmDialog } from 'vant';
+import SvgIcon from '@/components/icons/index.vue';
 import { inventoryApi } from '@/services/api';
 import { formatDate } from '@/utils/format';
 import { getOutboundStatusText, getOutboundStatusColor, getOutboundTypeText } from '@/constants/statusConstants';
@@ -168,9 +145,20 @@ const statusTabs = [
 // 分页参数
 const pagination = reactive({
   page: 1,
-  limit: 10,
+  limit: 20,
   total: 0
 });
+
+// 色条/图标颜色映射
+const getAccentClass = (status) => {
+  const map = {
+    draft: 'accent-gray',
+    confirmed: 'accent-blue',
+    completed: 'accent-green',
+    cancelled: 'accent-red'
+  };
+  return map[status] || 'accent-blue';
+};
 
 // 返回上一页
 const onClickLeft = () => {
@@ -179,7 +167,7 @@ const onClickLeft = () => {
 
 // 创建出库单
 const createOutbound = () => {
-  showToast('功能开发中');
+  router.push('/inventory/outbound/create');
 };
 
 // 搜索
@@ -219,8 +207,6 @@ const onLoad = () => {
 
 // 加载出库单列表
 const loadOutboundList = async () => {
-  if (loading.value) return;
-  
   loading.value = true;
   try {
     const params = {
@@ -232,9 +218,13 @@ const loadOutboundList = async () => {
     
     const response = await inventoryApi.getOutboundList(params);
     
-    if (response.data && response.data.items) {
-      outboundList.value = [...outboundList.value, ...response.data.items];
-      pagination.total = response.data.total || 0;
+    // 后端 ResponseHandler.paginated 返回 { data: { list, total } }
+    // 经 axios 响应拦截器解包后，response.data = { list, total }
+    const resData = response.data || response || {};
+    const list = resData.list || resData.items || [];
+    if (list.length > 0) {
+      outboundList.value = [...outboundList.value, ...list];
+      pagination.total = resData.total || 0;
       finished.value = outboundList.value.length >= pagination.total;
     } else {
       finished.value = true;
@@ -270,8 +260,6 @@ const confirmOutbound = async (outbound) => {
     
     await inventoryApi.updateOutboundStatus(outbound.id, 'confirmed');
     showToast('出库单已确认');
-    
-    // 更新本地状态
     outbound.status = 'confirmed';
   } catch (error) {
     if (error !== 'cancel') {
@@ -291,8 +279,6 @@ const completeOutbound = async (outbound) => {
     
     await inventoryApi.updateOutboundStatus(outbound.id, 'completed');
     showToast('出库单已完成');
-    
-    // 更新本地状态
     outbound.status = 'completed';
   } catch (error) {
     if (error !== 'cancel') {
@@ -308,137 +294,148 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.search-filter {
-  padding: $padding-md;
-  background-color: white;
-  border-bottom: 1px solid var(--van-border-color);
-}
-
-.filter-tabs {
+.page-container {
   display: flex;
-  margin-top: $margin-sm;
-  overflow-x: auto;
-  
-  &::-webkit-scrollbar {
-    display: none;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  padding-bottom: 80px;
+}
+.content-container {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 12px;
+}
+.search-section { padding: 4px 0; }
+.filter-scroll-wrapper { padding: 4px 0 8px; overflow: hidden; }
+.filter-scroll {
+  display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+.filter-chip {
+  display: flex; align-items: center; gap: 4px; padding: 6px 14px;
+  border-radius: 20px; background: var(--bg-secondary); border: 1.5px solid var(--glass-border);
+  white-space: nowrap; flex-shrink: 0; font-size: 0.8125rem;
+  color: var(--text-secondary); transition: all 0.25s ease; cursor: pointer;
+  .chip-text { font-weight: 500; }
+  &.active {
+    background: var(--color-accent-bg, rgba(59,130,246,0.1));
+    border-color: var(--color-accent, var(--color-primary)); color: var(--color-accent, var(--color-primary));
   }
-  
-  .filter-tab {
-    flex: 0 0 auto;
-    text-align: center;
-    padding: $padding-xs $padding-sm;
-    font-size: 12px;
-    color: var(--text-secondary);
-    border-bottom: 2px solid transparent;
-    white-space: nowrap;
-    margin-right: $margin-sm;
-    
-    &.active {
-      color: var(--color-primary);
-      border-bottom-color: var(--color-primary);
-    }
+}
+
+// ========== 统一卡片风格（与 UniversalListPage 一致） ==========
+.list-card {
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s;
+  animation: fadeInUp 0.35s ease-out both;
+  cursor: pointer;
+  &:active {
+    transform: scale(0.98);
   }
 }
-
-.outbound-card {
-  margin: $margin-md;
-  margin-bottom: $margin-sm;
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.outbound-item {
-  padding: $padding-xs 0;
+// 左侧色条
+.card-accent {
+  width: 3px;
+  flex-shrink: 0;
+  &.accent-blue { background: linear-gradient(180deg, #3b82f6, #60a5fa); }
+  &.accent-green { background: linear-gradient(180deg, #10b981, #34d399); }
+  &.accent-yellow { background: linear-gradient(180deg, #f59e0b, #fbbf24); }
+  &.accent-red { background: linear-gradient(180deg, #ef4444, #f87171); }
+  &.accent-gray { background: linear-gradient(180deg, #94a3b8, #cbd5e1); }
 }
 
-.outbound-header {
+.card-body {
+  flex: 1;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.card-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: $margin-xs;
+  margin-bottom: 2px;
 }
-
-.outbound-no {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.outbound-type {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: $margin-sm;
-  color: var(--color-primary);
-}
-
-.outbound-details {
-  margin-bottom: $margin-md;
-  
-  .detail-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-    
-    .label {
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-    
-    .value {
-      font-size: 12px;
-      color: var(--text-primary);
-    }
-  }
-}
-
-.outbound-items {
-  margin-bottom: $margin-md;
-  
-  .items-title {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-bottom: $margin-xs;
-  }
-  
-  .items-list {
-    background-color: var(--bg-primary);
-    padding: $padding-sm;
-    border-radius: $border-radius-sm;
-    
-    .item-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 4px;
-      
-      &:last-child {
-        margin-bottom: 0;
-      }
-      
-      .item-name {
-        font-size: 12px;
-        color: var(--text-primary);
-        flex: 1;
-        margin-right: $margin-sm;
-      }
-      
-      .item-quantity {
-        font-size: 12px;
-        color: var(--text-secondary);
-      }
-    }
-    
-    .more-items {
-      font-size: 10px;
-      color: var(--text-secondary);
-      text-align: center;
-      margin-top: $margin-xs;
-    }
-  }
-}
-
-.outbound-actions {
+.title-area {
   display: flex;
-  gap: $margin-sm;
-  
-  .van-button {
-    flex: 1;
-  }
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.item-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  &.accent-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+  &.accent-green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+  &.accent-yellow { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+  &.accent-red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+  &.accent-gray { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+}
+.item-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// 状态标签
+.status-tag {
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  &.st-draft { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+  &.st-confirmed { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+  &.st-completed { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+  &.st-cancelled { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+}
+
+.item-subtitle {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+  font-family: 'SF Mono', monospace;
+}
+
+// 详情网格
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  margin-top: 6px;
+}
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.detail-label {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+.detail-value {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 </style>

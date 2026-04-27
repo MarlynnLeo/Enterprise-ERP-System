@@ -146,7 +146,7 @@
   .date-value {
     font-size: 0.875rem;
     font-weight: 600;
-    color: #3b82f6;
+    color: var(--color-primary);
     cursor: pointer;
     font-family: 'SF Mono', monospace;
   }
@@ -175,13 +175,13 @@
     font-weight: 700;
     font-family: 'SF Mono', monospace;
     &.primary {
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.danger {
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.success {
-      color: #10b981;
+      color: var(--color-success);
     }
   }
 

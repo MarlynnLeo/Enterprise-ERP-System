@@ -20,19 +20,10 @@ const printController = {
       const { page = 1, limit = 10, ...filters } = req.query;
       const result = await printModel.getAllPrintSettings(parseInt(page), parseInt(limit), filters);
 
-      res.json({
-        code: 200,
-        data: result.list,
-        total: result.total,
-        page: parseInt(page),
-        pageSize: parseInt(limit),
-        message: '获取打印设置列表成功',
-      });
+      ResponseHandler.paginated(res, result.list, result.total, parseInt(page), parseInt(limit), '获取打印设置列表成功');
     } catch (error) {
-      res.status(500).json({
-        code: 500,
-        message: '获取打印设置列表失败: ' + error.message,
-      });
+      logger.error('获取打印设置列表失败:', error);
+      ResponseHandler.error(res, '获取打印设置列表失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -48,17 +39,10 @@ const printController = {
         });
       }
 
-      res.json({
-        code: 200,
-        data: printSetting,
-        message: '获取打印设置成功',
-      });
+      ResponseHandler.success(res, printSetting, '获取打印设置成功');
     } catch (error) {
       logger.error('获取打印设置失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取打印设置失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取打印设置失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -83,10 +67,7 @@ const printController = {
       );
     } catch (error) {
       logger.error('创建打印设置失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '创建打印设置失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '创建打印设置失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -107,16 +88,10 @@ const printController = {
         });
       }
 
-      res.json({
-        code: 200,
-        message: '更新打印设置成功',
-      });
+      ResponseHandler.success(res, null, '更新打印设置成功');
     } catch (error) {
       logger.error('更新打印设置失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '更新打印设置失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '更新打印设置失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -132,16 +107,10 @@ const printController = {
         });
       }
 
-      res.json({
-        code: 200,
-        message: '删除打印设置成功',
-      });
+      ResponseHandler.success(res, null, '删除打印设置成功');
     } catch (error) {
       logger.error('删除打印设置失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '删除打印设置失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '删除打印设置失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -151,20 +120,10 @@ const printController = {
       const { page = 1, limit = 10, ...filters } = req.query;
       const result = await printModel.getAllPrintTemplates(page, limit, filters);
 
-      res.json({
-        code: 200,
-        data: result.list,
-        total: result.total,
-        page: result.page,
-        pageSize: result.pageSize,
-        message: '获取打印模板列表成功',
-      });
+      ResponseHandler.paginated(res, result.list, result.total, result.page, result.pageSize, '获取打印模板列表成功');
     } catch (error) {
       logger.error('获取打印模板列表失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取打印模板列表失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取打印模板列表失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -180,17 +139,10 @@ const printController = {
         });
       }
 
-      res.json({
-        code: 200,
-        data: printTemplate,
-        message: '获取打印模板成功',
-      });
+      ResponseHandler.success(res, printTemplate, '获取打印模板成功');
     } catch (error) {
       logger.error('获取打印模板失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取打印模板失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取打印模板失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -214,17 +166,10 @@ const printController = {
         });
       }
 
-      res.json({
-        code: 200,
-        data: template,
-        message: '获取默认打印模板成功',
-      });
+      ResponseHandler.success(res, template, '获取默认打印模板成功');
     } catch (error) {
       logger.error('获取默认打印模板失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '获取默认打印模板失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '获取默认打印模板失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -249,10 +194,7 @@ const printController = {
       );
     } catch (error) {
       logger.error('创建打印模板失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '创建打印模板失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '创建打印模板失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -276,18 +218,12 @@ const printController = {
         });
       }
 
-      return res.json({
-        code: 200,
-        message: '更新打印模板成功',
-      });
+      ResponseHandler.success(res, null, '更新打印模板成功');
     } catch (error) {
       logger.error('更新打印模板失败:', error);
       // 检查响应是否已发送
       if (!res.headersSent) {
-        return res.status(500).json({
-          code: 500,
-          message: '更新打印模板失败: ' + error.message,
-        });
+        ResponseHandler.error(res, '更新打印模板失败', 'SERVER_ERROR', 500, error);
       }
     }
   },
@@ -304,16 +240,10 @@ const printController = {
         });
       }
 
-      res.json({
-        code: 200,
-        message: '删除打印模板成功',
-      });
+      ResponseHandler.success(res, null, '删除打印模板成功');
     } catch (error) {
       logger.error('删除打印模板失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '删除打印模板失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '删除打印模板失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -331,20 +261,10 @@ const printController = {
       const { filename, path: filePath } = req.file;
 
       // 返回文件路径
-      res.json({
-        code: 200,
-        data: {
-          filename,
-          path: `/uploads/logos/${filename}`,
-        },
-        message: '上传成功',
-      });
+      ResponseHandler.success(res, { filename, path: `/uploads/logos/${filename}` }, '上传成功');
     } catch (error) {
       logger.error('上传Logo失败:', error);
-      res.status(500).json({
-        code: 500,
-        message: '上传Logo失败: ' + error.message,
-      });
+      ResponseHandler.error(res, '上传Logo失败', 'SERVER_ERROR', 500, error);
     }
   },
 };

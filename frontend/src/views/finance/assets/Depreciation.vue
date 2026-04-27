@@ -15,12 +15,12 @@
           <p class="subtitle">计算与记录资产折旧</p>
         </div>
         <div class="action-buttons">
-          <el-button type="primary" @click="calculateDepreciation" :loading="loading">计算折旧</el-button>
-          <el-button type="success" @click="confirmBatchDepreciation" :disabled="!hasDepreciation || savingDepreciation || selectedAssets.length === 0">
+          <el-button type="primary" @click="calculateDepreciation" :loading="loading" v-permission="'finance:assets:depreciation'">计算折旧</el-button>
+          <el-button type="success" @click="confirmBatchDepreciation" :disabled="!hasDepreciation || savingDepreciation || selectedAssets.length === 0" v-permission="'finance:assets:depreciation'">
             批量计提{{ selectedAssets.length > 0 ? `(${selectedAssets.length})` : '' }}
             <el-icon v-if="savingDepreciation"><Loading /></el-icon>
           </el-button>
-          <el-button v-permission="'finance:depreciation:export'" type="warning" @click="exportData" :disabled="!hasDepreciation">导出数据</el-button>
+          <el-button v-permission="'finance:assets:export'" type="warning" @click="exportData" :disabled="!hasDepreciation">导出数据</el-button>
         </div>
       </div>
     </el-card>
@@ -223,6 +223,7 @@
 
 <script setup>
 import { parseListData } from '@/utils/responseParser';
+import { formatCurrency } from '@/utils/format'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -275,17 +276,6 @@ const depreciatingAssetsCount = computed(() =>
 const pendingSubmitTotal = computed(() => 
   pendingSubmitAssets.value.reduce((sum, a) => sum + a.depreciationAmount, 0)
 );
-
-// 格式化货币
-// formatCurrency 已统一引用公共实现;
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
-};
 
 import { getAssetStatusText, getAssetStatusColor } from '@/constants/systemConstants'
 

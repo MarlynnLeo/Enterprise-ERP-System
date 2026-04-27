@@ -66,7 +66,7 @@
       label: '来料检验',
       path: '/quality/incoming/create',
       icon: 'cube',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
     },
     {
       label: '过程检验',
@@ -84,7 +84,7 @@
       label: '质量追溯',
       path: '/quality/traceability',
       icon: 'search',
-      gradient: 'linear-gradient(135deg, #FF9F45 0%, #FF8A3D 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
     }
   ])
 

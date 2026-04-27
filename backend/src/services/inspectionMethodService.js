@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 
 const inspectionMethodService = {
   /**
@@ -11,7 +12,7 @@ const inspectionMethodService = {
       const pageSizeNum = Number(pageSize);
       const offset = (pageNum - 1) * pageSizeNum;
 
-      const conditions = [];
+      const conditions = ['deleted_at IS NULL'];
       const params = [];
 
       if (filters.name && filters.name.trim() !== '') {
@@ -34,10 +35,7 @@ const inspectionMethodService = {
         params.push(Number(filters.status));
       }
 
-      let query = 'SELECT * FROM inspection_methods';
-      if (conditions.length > 0) {
-        query += ' WHERE ' + conditions.join(' AND ');
-      }
+      let query = 'SELECT * FROM inspection_methods WHERE ' + conditions.join(' AND ');
       query += ' ORDER BY sort ASC, id DESC LIMIT ?, ?';
 
       params.push(offset, pageSizeNum);
@@ -45,10 +43,7 @@ const inspectionMethodService = {
       const [rows] = await pool.query(query, params);
 
       // 获取总数
-      let countQuery = 'SELECT COUNT(*) as total FROM inspection_methods';
-      if (conditions.length > 0) {
-        countQuery += ' WHERE ' + conditions.join(' AND ');
-      }
+      let countQuery = 'SELECT COUNT(*) as total FROM inspection_methods WHERE ' + conditions.join(' AND ');
       const [countResult] = await pool.query(countQuery, params.slice(0, -2));
       const total = countResult[0].total;
 
@@ -134,7 +129,8 @@ const inspectionMethodService = {
         throw new Error('该检验方式已被物料绑定，不能删除');
       }
 
-      await pool.query('DELETE FROM inspection_methods WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(pool, 'inspection_methods', 'id', id);
       return true;
     } catch (error) {
       logger.error('deleteInspectionMethod error:', error);

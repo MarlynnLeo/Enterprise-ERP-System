@@ -12,6 +12,7 @@ const { financeConfig } = require('../../../config/financeConfig');
 const { accountingConfig } = require('../../../config/accountingConfig');
 const arModel = require('../../../models/ar');
 const BankAccountModel = require('../../../models/cash/Account');
+const db = require('../../../config/db');
 
 /**
  * 应收账款控制器
@@ -30,12 +31,11 @@ const arController = {
       const dateStr = `${year}${month}${day}`;
 
       // 确保配置已加载
-      const dbInstance = require('../../../config/db');
-      await financeConfig.loadFromDatabase(dbInstance);
+      await financeConfig.loadFromDatabase(db);
       const prefix = financeConfig.get('invoice.invoiceNumberPrefix.AR', 'AR');
 
       // 使用 MAX 提取当日最大序号，避免删除记录后编号重复（与 AP 对齐）
-      const [result] = await dbInstance.pool.execute(
+      const [result] = await db.pool.execute(
         `SELECT MAX(CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED)) as maxSerial
          FROM ar_invoices WHERE invoice_number LIKE ?`,
         [`${prefix}-${dateStr}-%`]
@@ -149,13 +149,19 @@ const arController = {
         return ResponseHandler.error(res, '缺少必要的发票信息', 'VALIDATION_ERROR', 400);
       }
 
+      // 验证金额
+      const amount = parseFloat(invoiceData.amount || invoiceData.total_amount);
+      if (isNaN(amount) || amount <= 0) {
+        return ResponseHandler.error(res, '发票金额必须大于0', 'VALIDATION_ERROR', 400);
+      }
+
       // 准备数据模型所需的格式
       const modelData = {
         invoice_number: invoiceData.invoiceNumber,
         customer_id: invoiceData.customerId,
         invoice_date: invoiceData.invoiceDate,
         due_date: invoiceData.dueDate,
-        total_amount: parseFloat(invoiceData.amount) || 0,
+        total_amount: amount,
         currency_code: invoiceData.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'),
         status: invoiceData.status || '草稿',
         notes: invoiceData.notes || '',
@@ -199,7 +205,7 @@ const arController = {
       }
 
       // 从配置获取有效状态列表
-      await financeConfig.loadFromDatabase(require('../../../config/db'));
+      await financeConfig.loadFromDatabase(db);
       const validStatuses = financeConfig.get('status.invoiceStatuses', [
         '草稿',
         '已确认',
@@ -292,6 +298,12 @@ const arController = {
         return ResponseHandler.error(res, `${existingInvoice.status}的发票不允许修改`, 'VALIDATION_ERROR', 400);
       }
 
+      // 验证并转换金额
+      const amount = parseFloat(invoiceData.amount || invoiceData.total_amount);
+      if (isNaN(amount) || amount <= 0) {
+        return ResponseHandler.error(res, '发票金额必须大于0', 'VALIDATION_ERROR', 400);
+      }
+
       // 准备数据以匹配数据库字段
       const formattedData = {
         id: invoiceId,
@@ -299,7 +311,7 @@ const arController = {
         customer_id: invoiceData.customerId || invoiceData.customer_id,
         invoice_date: invoiceData.invoiceDate || invoiceData.invoice_date,
         due_date: invoiceData.dueDate || invoiceData.due_date,
-        total_amount: invoiceData.amount || invoiceData.total_amount,
+        total_amount: amount,
         notes: invoiceData.notes,
         items: invoiceData.items,
       };
@@ -434,8 +446,7 @@ const arController = {
       }
 
       // 准备收款数据 — 使用日期+序号机制生成安全编号
-      const dbInstance = require('../../../config/db');
-      await financeConfig.loadFromDatabase(dbInstance);
+      await financeConfig.loadFromDatabase(db);
       const rcPrefix = financeConfig.get('invoice.receiptNumberPrefix', 'RC');
       const nowDate = new Date();
       const rcYear = nowDate.getFullYear();
@@ -443,7 +454,7 @@ const arController = {
       const rcDay = String(nowDate.getDate()).padStart(2, '0');
       const dateStr = `${rcYear}${rcMonth}${rcDay}`;
       // 使用 MAX 提取当日最大序号，避免并发重复
-      const [maxResult] = await dbInstance.pool.execute(
+      const [maxResult] = await db.pool.execute(
         `SELECT MAX(CAST(SUBSTRING_INDEX(receipt_number, '-', -1) AS UNSIGNED)) as maxSerial
          FROM ar_receipts WHERE receipt_number LIKE ?`,
         [`${rcPrefix}-${dateStr}-%`]
@@ -502,7 +513,6 @@ const arController = {
       ];
 
       // ========== 构建会计凭证数据 ==========
-      const db = require('../../../config/db');
 
       // 校验会计科目是否存在
       let receivableAccountId, bankAccountId;
@@ -632,7 +642,7 @@ const arController = {
       const { customerName, status } = req.query;
 
       // 从数据库获取客户应收款汇总
-      const connection = await require('../../../config/db').pool.getConnection();
+      const connection = await db.pool.getConnection();
 
       try {
         // 构建查询条件
@@ -704,7 +714,7 @@ const arController = {
       const customerId = req.params.id;
 
       // 从数据库获取指定客户的应收款详情
-      const connection = await require('../../../config/db').pool.getConnection();
+      const connection = await db.pool.getConnection();
 
       try {
         // 获取客户信息和应收款汇总
@@ -797,7 +807,7 @@ const arController = {
       const { reportDate, customerType, customerName } = req.query;
 
       // 从数据库获取真实数据
-      const connection = await require('../../../config/db').pool.getConnection();
+      const connection = await db.pool.getConnection();
 
       try {
         // 构建查询条件
@@ -904,7 +914,7 @@ const arController = {
       const customerId = req.params.id;
 
       // 从数据库获取指定客户的账龄分析
-      const connection = await require('../../../config/db').pool.getConnection();
+      const connection = await db.pool.getConnection();
 
       try {
         // 查询客户账龄数据
@@ -1046,12 +1056,11 @@ const arController = {
       const dateStr = `${year}${month}${day}`;
 
       // 确保配置已加载
-      const dbInstance = require('../../../config/db');
-      await financeConfig.loadFromDatabase(dbInstance);
+      await financeConfig.loadFromDatabase(db);
       const prefix = financeConfig.get('invoice.receiptNumberPrefix', 'RC');
 
       // 使用 MAX 提取当日最大序号，避免删除记录后编号冲突
-      const [result] = await dbInstance.pool.execute(
+      const [result] = await db.pool.execute(
         `SELECT MAX(CAST(SUBSTRING_INDEX(receipt_number, '-', -1) AS UNSIGNED)) as maxSerial
          FROM ar_receipts WHERE receipt_number LIKE ?`,
         [`${prefix}-${dateStr}-%`]
@@ -1092,7 +1101,7 @@ const arController = {
 
       query += ' ORDER BY due_date ASC';
 
-      const [invoices] = await require('../../../config/db').pool.execute(query, params);
+      const [invoices] = await db.pool.execute(query, params);
 
       return ResponseHandler.success(res, invoices, '获取未付清发票成功');
     } catch (error) {

@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 
 const locationService = {
   async getWarehouses() {
@@ -11,7 +12,7 @@ const locationService = {
           code,
           type
         FROM locations
-        WHERE type = 'warehouse' OR type IS NULL
+        WHERE (type = 'warehouse' OR type IS NULL) AND deleted_at IS NULL
         ORDER BY name
       `;
       const [rows] = await pool.query(query);
@@ -25,6 +26,7 @@ const locationService = {
             code,
             type
           FROM locations
+          WHERE deleted_at IS NULL
           ORDER BY name
         `;
         const [fallbackRows] = await pool.query(fallbackQuery);
@@ -51,7 +53,7 @@ const locationService = {
       const pageSizeNum = Number(pageSize);
       const offset = (pageNum - 1) * pageSizeNum;
 
-      const conditions = [];
+      const conditions = ['deleted_at IS NULL'];
       const params = [];
 
       if (filters.name && filters.name.trim() !== '') {
@@ -79,20 +81,14 @@ const locationService = {
         params.push(Number(filters.status));
       }
 
-      let query = 'SELECT * FROM locations';
-      if (conditions.length > 0) {
-        query += ' WHERE ' + conditions.join(' AND ');
-      }
+      let query = 'SELECT * FROM locations WHERE ' + conditions.join(' AND ');
       query += ' ORDER BY id DESC LIMIT ?, ?';
 
       params.push(offset, pageSizeNum);
 
       const [rows] = await pool.query(query, params);
 
-      let countQuery = 'SELECT COUNT(*) as total FROM locations';
-      if (conditions.length > 0) {
-        countQuery += ' WHERE ' + conditions.join(' AND ');
-      }
+      let countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
 
       const countParams = params.slice(0, -2);
       const [countResult] = await pool.query(countQuery, countParams);
@@ -112,7 +108,7 @@ const locationService = {
 
   async getLocationById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM locations WHERE id = ?', [Number(id)]);
+      const [rows] = await pool.query('SELECT * FROM locations WHERE id = ? AND deleted_at IS NULL', [Number(id)]);
       return rows[0];
     } catch (error) {
       logger.error(`获取库位详情失败 (ID: ${id}):`, error);
@@ -129,7 +125,7 @@ const locationService = {
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
 
-      const [existingCode] = await pool.query('SELECT id FROM locations WHERE code = ?', [
+      const [existingCode] = await pool.query('SELECT id FROM locations WHERE code = ? AND deleted_at IS NULL', [
         data.code,
       ]);
       if (existingCode.length > 0) {
@@ -235,7 +231,9 @@ const locationService = {
         throw new Error('该库位下有关联的物料，不能删除');
       }
 
-      const [result] = await connection.query('DELETE FROM locations WHERE id = ?', [Number(id)]);
+      // ✅ 软删除替代硬删除
+      const affected = await softDelete(connection, 'locations', 'id', Number(id));
+      const result = { affectedRows: affected };
 
       await connection.commit();
       return result.affectedRows;

@@ -148,7 +148,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'

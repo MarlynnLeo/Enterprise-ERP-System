@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryDashboard.vue
  * @description 前端界面组件文件
@@ -215,7 +215,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router';
@@ -224,11 +223,6 @@ import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/services/api'
 import { useDashboard, useCharts } from '@/composables/useDashboard';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 import { formatCurrency, formatQuantity, getDefaultStatistics, generateMonthLabels } from '@/utils/dashboardUtils'
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig'
 

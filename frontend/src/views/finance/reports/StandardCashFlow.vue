@@ -15,9 +15,9 @@
           <p class="subtitle">间接法 · 符合企业会计准则</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport">生成报表</el-button>
-          <el-button v-permission="'finance:standardcashflow:print'" @click="printReport" :disabled="!reportData.items?.length">打印报表</el-button>
-          <el-button v-permission="'finance:standardcashflow:export'" @click="exportExcel" :disabled="!reportData.items?.length">导出Excel</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:cash-flow'">生成报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.items?.length">打印报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.items?.length">导出Excel</el-button>
         </div>
       </div>
     </el-card>
@@ -139,6 +139,7 @@
 
 <script setup>
 import { ReportHelper } from '@/utils/commonHelpers';
+import { formatCurrency, formatAmount } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
@@ -192,25 +193,6 @@ const generateReport = async () => {
   } finally {
     loading.value = false;
   }
-};
-
-// 格式化金额
-const formatAmount = (amount) => {
-  if (amount === null || amount === undefined) return '';
-  const num = parseFloat(amount);
-  if (isNaN(num)) return '';
-  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-// 格式化货币
-// formatCurrency 已统一引用公共实现;
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 格式化报表期间

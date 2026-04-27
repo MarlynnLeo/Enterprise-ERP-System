@@ -17,35 +17,39 @@ services:
       - DB_HOST=172.17.0.1
       - DB_PORT=3306
       - DB_USER=root
-      - DB_PASSWORD=mysql_n3cEDY
+      - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=mes
       # 数据库连接池
       - DB_CONNECTION_LIMIT=10
       - DB_QUEUE_LIMIT=20
       - DB_CONNECT_TIMEOUT=60000
       # JWT
-      - JWT_SECRET=5pe5qx43BLHECWLvdmkoO7ut58/5Us0cB4z7Byu/KE8=
-      - JWT_REFRESH_SECRET=1ft1BNd/ce+tyaazeUQRiEbSFGKDRGAG70EZUFSkvRc=
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - JWT_ACCESS_TOKEN_EXPIRY=2h
       - JWT_REFRESH_TOKEN_EXPIRY=7d
       - JWT_ACCESS_EXPIRY=2h
       - JWT_REFRESH_EXPIRY=7d
       # CSRF
-      - CSRF_SECRET=mes-csrf-secret-2025-production-key-change-this
+      - CSRF_SECRET=${CSRF_SECRET}
       # CORS — 允许前端容器和外部访问
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:18080,http://192.168.1.251:18081,http://192.168.1.251:18080
       # Redis
-      - REDIS_ENABLED=false
+      - REDIS_ENABLED=true
+      - REDIS_HOST=${REDIS_HOST:-192.168.1.251}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=0
       # Ollama
       - OLLAMA_HOST=http://172.17.0.1:11434
       - OLLAMA_OCR_MODEL=deepseek-ocr:latest
       - OLLAMA_TIMEOUT=60000
       # 智谱AI
-      - ZHIPU_API_KEY=e4e056da37084780a41ea158529b831f.I66UlQKOfKkhhtgR
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY}
       # 天气
-      - AMAP_API_KEY=d00b395cd0623a9a541b7f7bc8618af1
+      - AMAP_API_KEY=${AMAP_API_KEY}
       # SiliconFlow
-      - SILICONFLOW_API_KEY=sk-xewoetkmvgywtaairzinutcowsjcyapmomclofmpvrpdqcoi
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - SILICONFLOW_VLM_MODEL=deepseek-ai/DeepSeek-OCR
       # 日志
       - LOG_LEVEL=info

@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>税务科目配置</span>
-          <el-button v-permission="'finance:taxaccountconfig:create'" type="primary" @click="handleAdd">新增配置</el-button>
+          <el-button v-permission="'finance:tax:create'" type="primary" @click="handleAdd">新增配置</el-button>
         </div>
       </template>
 
@@ -17,8 +17,9 @@
         <el-table-column prop="description" label="说明" show-overflow-tooltip />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button v-permission="'finance:taxaccountconfig:delete'" link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="primary" @click="handleEdit(row)"
+              v-permission="'finance:tax:config'">编辑</el-button>
+            <el-button v-permission="'finance:tax:delete'" link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

@@ -76,7 +76,7 @@
       label: '新建凭证',
       path: '/finance/gl/entries/create',
       icon: 'plus',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
     },
     {
       label: '收款登记',
@@ -94,7 +94,7 @@
       label: '银行交易',
       path: '/finance/cash/transactions/create',
       icon: 'exchange',
-      gradient: 'linear-gradient(135deg, #FF9F45 0%, #FF8A3D 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
     }
   ])
 

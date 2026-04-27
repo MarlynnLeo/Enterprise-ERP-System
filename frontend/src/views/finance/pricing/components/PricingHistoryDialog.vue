@@ -45,6 +45,7 @@
 <script setup>
 import { computed } from 'vue';
 import dayjs from 'dayjs';
+import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -69,18 +70,5 @@ const formatNumber = (value, decimals = 2) => {
   const num = parseFloat(value);
   if (isNaN(num)) return '0';
   return num.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-};
-// formatDate 已统一引用公共实现;
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
 };
 </script>

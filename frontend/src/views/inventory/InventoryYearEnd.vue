@@ -27,13 +27,16 @@
           <el-button type="primary" @click="fetchStatus" :loading="statusLoading">
             查询状态
           </el-button>
-          <el-button type="success" @click="handleExecute" :disabled="statusInfo.isFrozen" :loading="executeLoading">
+          <el-button type="success" @click="handleExecute" :disabled="statusInfo.isFrozen" :loading="executeLoading"
+            v-permission="'inventory:stock:adjust'">
             执行结存
           </el-button>
-          <el-button type="warning" @click="handleFreeze" :disabled="!statusInfo.hasRecords || statusInfo.isFrozen" :loading="freezeLoading">
+          <el-button type="warning" @click="handleFreeze" :disabled="!statusInfo.hasRecords || statusInfo.isFrozen" :loading="freezeLoading"
+            v-permission="'inventory:stock:adjust'">
             冻结结存
           </el-button>
-          <el-button type="info" @click="handleExport" :disabled="!statusInfo.hasRecords">
+          <el-button type="info" @click="handleExport" :disabled="!statusInfo.hasRecords"
+            v-permission="'inventory:stock:adjust'">
             导出报表
           </el-button>
         </el-form-item>
@@ -79,7 +82,8 @@
     <!-- 无记录提示 -->
     <el-card v-if="statusLoaded && !statusInfo.hasRecords" class="empty-card">
       <el-empty description="该年度尚未执行库存结存">
-        <el-button type="primary" @click="handleExecute">立即执行结存</el-button>
+        <el-button type="primary" @click="handleExecute"
+          v-permission="'inventory:stock:adjust'">立即执行结存</el-button>
       </el-empty>
     </el-card>
 

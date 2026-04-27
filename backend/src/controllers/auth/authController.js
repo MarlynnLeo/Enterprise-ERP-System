@@ -40,9 +40,14 @@ async function attachUserRoles(user) {
 const login = async (req, res) => {
   const { username, password } = req.body;
 
+  // 0. 输入校验：用户名和密码不能为空
+  if (!username || !password) {
+    return ResponseHandler.error(res, '用户名和密码不能为空', 'BAD_REQUEST', 400);
+  }
+
   try {
     // 1. 检查账号是否被锁定
-    const lockStatus = AccountLockService.isLocked(username);
+    const lockStatus = await AccountLockService.isLocked(username);
     if (lockStatus.locked) {
       logger.warn(`🔒 [登录拒绝] 账号 ${username} 处于锁定状态，剩余 ${lockStatus.remainingMinutes} 分钟`);
       return ResponseHandler.error(
@@ -59,7 +64,7 @@ const login = async (req, res) => {
 
     if (!user) {
       // 用户不存在也记录失败（防止用户名枚举）
-      const result = AccountLockService.recordFailedAttempt(username, req.ip);
+      const result = await AccountLockService.recordFailedAttempt(username, req.ip);
       const msg = result.locked
         ? `账号已被锁定，请 ${result.lockDurationMinutes} 分钟后再试`
         : `用户名或密码错误，剩余 ${result.remainingAttempts} 次机会`;
@@ -71,11 +76,15 @@ const login = async (req, res) => {
       return ResponseHandler.error(res, '账号已被禁用，请联系管理员', 'CLIENT_ERROR', 403);
     }
 
-    // 4. 验证密码
+    // 4. 验证密码（防御性检查：确保密码哈希存在）
+    if (!user.password) {
+      logger.error(`⚠️ 用户 ${username}(ID:${user.id}) 的密码哈希字段为空，拒绝登录`);
+      return ResponseHandler.error(res, '账户数据异常，请联系管理员', 'SERVER_ERROR', 500);
+    }
     const isMatch = await PasswordSecurity.verifyPassword(password, user.password);
 
     if (!isMatch) {
-      const result = AccountLockService.recordFailedAttempt(username, req.ip);
+      const result = await AccountLockService.recordFailedAttempt(username, req.ip);
       const msg = result.locked
         ? `账号已被锁定，请 ${result.lockDurationMinutes} 分钟后再试`
         : `用户名或密码错误，剩余 ${result.remainingAttempts} 次机会`;
@@ -83,7 +92,7 @@ const login = async (req, res) => {
     }
 
     // 5. 登录成功，清除失败记录
-    AccountLockService.clearFailedAttempts(username);
+    await AccountLockService.clearFailedAttempts(username);
 
     // 6. 生成访问令牌和刷新令牌
     const { accessToken, refreshToken } = generateTokens(user);
@@ -97,7 +106,7 @@ const login = async (req, res) => {
       {
         token: accessToken, // 兼容旧版前端
         accessToken, // 新增：明确返回accessToken
-        refreshToken, // 新增：返回refreshToken供前端fallback使用
+        // ✅ 安全修复: refreshToken 不再通过响应体返回，仅通过 HttpOnly Cookie 传递
         user: {
           id: user.id,
           username: user.username,
@@ -149,10 +158,6 @@ const getUserProfile = async (req, res) => {
 // 更新用户信息
 const updateUserProfile = async (req, res) => {
   try {
-    logger.info('🔍 更新用户资料请求:', {
-      userId: req.user.id,
-      body: req.body,
-    });
 
     const userId = req.user.id;
     const { real_name, name, email, phone, department_id, position, avatar, bio } = req.body;
@@ -197,7 +202,6 @@ const updateUserProfile = async (req, res) => {
     updateFields.push('updated_at = NOW()');
     updateValues.push(userId);
 
-    logger.info('🔍 SQL参数:', updateValues);
 
     await pool.execute(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
 
@@ -260,51 +264,90 @@ const changePassword = async (req, res) => {
     // 加密新密码
     const hashedNewPassword = await PasswordSecurity.hashPassword(newPassword);
 
-    // 更新密码
-    await pool.execute('UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?', [
-      hashedNewPassword,
-      userId,
-    ]);
+    // ✅ 安全修复: 更新密码时同时递增 token_version，强制所有设备重新登录
+    await pool.execute(
+      'UPDATE users SET password = ?, token_version = token_version + 1, updated_at = NOW() WHERE id = ?',
+      [hashedNewPassword, userId]
+    );
 
-    ResponseHandler.success(res, null, '密码修改成功');
+    // 清除当前设备的 Cookie，迫使重新登录
+    clearTokenCookies(res);
+
+    ResponseHandler.success(res, null, '密码修改成功，请重新登录');
   } catch (error) {
     logger.error('Change password error:', error);
     ResponseHandler.error(res, 'Server error', 'SERVER_ERROR', 500, error);
   }
 };
 
-// 上传用户头像
+// Magic bytes 校验 — 防止伪造 Content-Type
+const MAGIC_BYTES = {
+  'image/jpeg': [Buffer.from([0xFF, 0xD8, 0xFF])],
+  'image/png': [Buffer.from([0x89, 0x50, 0x4E, 0x47])],
+  'image/gif': [Buffer.from('GIF87a'), Buffer.from('GIF89a')],
+  'image/webp': [Buffer.from('RIFF')], // RIFF header
+};
+
+function validateMagicBytes(filePath, mimetype) {
+  const fs = require('fs');
+  const buf = Buffer.alloc(12);
+  const fd = fs.openSync(filePath, 'r');
+  fs.readSync(fd, buf, 0, 12, 0);
+  fs.closeSync(fd);
+
+  const signatures = MAGIC_BYTES[mimetype];
+  if (!signatures) return false;
+  return signatures.some((sig) => buf.subarray(0, sig.length).equals(sig));
+}
+
+// 上传用户头像（文件系统存储）
 const uploadAvatar = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    logger.info('上传的文件信息:', req.file);
-
-    // 检查请求中是否有文件
     if (!req.file) {
       return ResponseHandler.error(res, 'No avatar file provided', 'BAD_REQUEST', 400);
     }
 
-    // 获取文件内容并转换为Base64
-    const avatarBuffer = req.file.buffer;
-    const avatarBase64 = `data:${req.file.mimetype};base64,${avatarBuffer.toString('base64')}`;
+    // Magic bytes 校验 — 确保文件内容与声明的 MIME 类型一致
+    if (!validateMagicBytes(req.file.path, req.file.mimetype)) {
+      // 删除不合格的文件
+      const fs = require('fs');
+      fs.unlinkSync(req.file.path);
+      return ResponseHandler.error(res, '文件内容与声明的类型不一致', 'BAD_REQUEST', 400);
+    }
 
-    // 更新用户信息，添加头像数据
-    const [result] = await pool.execute('UPDATE users SET avatar = ?, updated_at = NOW() WHERE id = ?', [avatarBase64, userId]);
+    // 构建相对URL（前端通过 /uploads/avatars/xxx.png 访问）
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+    // 删除旧头像文件（如果是文件系统路径）
+    const [oldUser] = await pool.execute('SELECT avatar FROM users WHERE id = ?', [userId]);
+    if (oldUser[0]?.avatar && oldUser[0].avatar.startsWith('/uploads/avatars/')) {
+      const fs = require('fs');
+      const path = require('path');
+      const oldPath = path.join(process.cwd(), oldUser[0].avatar);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+        logger.info('已删除旧头像文件:', oldPath);
+      }
+    }
+
+    // 更新数据库：存文件路径而非 Base64
+    const [result] = await pool.execute(
+      'UPDATE users SET avatar = ?, updated_at = NOW() WHERE id = ?',
+      [avatarUrl, userId]
+    );
 
     if (result.affectedRows === 0) {
       return ResponseHandler.error(res, 'User not found', 'NOT_FOUND', 404);
     }
 
-    // 确保avatar字段返回给客户端
-
-    // 返回结果，包含完整的头像URL
-    ResponseHandler.success(res, { avatarUrl: avatarBase64 }, '头像上传成功');
+    ResponseHandler.success(res, { avatarUrl }, '头像上传成功');
   } catch (error) {
     logger.error('Upload avatar error:', error);
     ResponseHandler.error(
       res,
-      'Server error during avatar upload: ' + error.message,
+      'Server error during avatar upload',
       'SERVER_ERROR',
       500,
       error
@@ -367,12 +410,20 @@ const updateAvatarFrame = async (req, res) => {
 // 登出
 const logout = async (req, res) => {
   try {
+    // ✅ 安全修复: 递增 token_version 使所有已发出的 refresh token 失效
+    if (req.user?.id) {
+      await pool.execute(
+        'UPDATE users SET token_version = token_version + 1 WHERE id = ?',
+        [req.user.id]
+      );
+    }
+
     // 清除Cookie中的令牌
     clearTokenCookies(res);
 
     ResponseHandler.success(res, null, '登出成功');
 
-    logger.info('用户登出:', { userId: req.user?.id });
+    logger.info('用户登出(已吊销Token):', { userId: req.user?.id });
   } catch (error) {
     logger.error('Logout error:', error);
     ResponseHandler.error(res, 'Server error', 'SERVER_ERROR', 500, error);
@@ -413,7 +464,7 @@ const refreshToken = async (req, res) => {
       {
         token: accessToken, // 兼容旧版前端
         accessToken, // 新增：明确返回accessToken
-        refreshToken: newRefreshToken, // 新增：返回新的refreshToken
+        // ✅ 安全修复: refreshToken 不再通过响应体返回，仅通过 HttpOnly Cookie 传递
         user: {
           id: user.id,
           username: user.username,

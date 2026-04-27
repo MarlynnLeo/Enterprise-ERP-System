@@ -44,7 +44,7 @@ const getReceipts = async (req, res) => {
     const actualPage = parseInt(page, 10);
     // 验证参数
     if (isNaN(actualPage) || isNaN(actualPageSize) || actualPage < 1 || actualPageSize < 1) {
-      return res.status(400).json({ error: '无效的分页参数' });
+      return ResponseHandler.error(res, '无效的分页参数', 'BAD_REQUEST', 400);
     }
 
     const offset = (actualPage - 1) * actualPageSize;
@@ -150,7 +150,7 @@ const getReceipt = async (req, res) => {
       const { id } = req.params;
 
       if (!id || isNaN(parseInt(id, 10))) {
-        return res.status(400).json({ error: '无效的ID参数' });
+        return ResponseHandler.error(res, '无效的ID参数', 'BAD_REQUEST', 400);
       }
 
       const receiptId = parseInt(id, 10);
@@ -181,7 +181,7 @@ const getReceipt = async (req, res) => {
       const [result] = await connection.query(query, [receiptId]);
 
       if (result.length === 0) {
-        return res.status(404).json({ error: '采购入库单不存在' });
+        return ResponseHandler.notFound(res, '采购入库单不存在');
       }
 
       const receipt = result[0];
@@ -296,11 +296,7 @@ const getReceipt = async (req, res) => {
       }
 
       logger.error('获取采购入库详情失败:', error);
-      return res.status(500).json({
-        error: '获取采购入库详情失败',
-        message: error.message,
-        code: error.code,
-      });
+      return ResponseHandler.error(res, '获取采购入库详情失败', 'SERVER_ERROR', 500, error);
     } finally {
       if (connection) {
         connection.release();
@@ -386,7 +382,7 @@ const createReceipt = async (req, res) => {
       
       if (!orderResult || orderResult.length === 0) {
         await client.rollback();
-        return res.status(404).json({ error: '采购订单不存在' });
+        return ResponseHandler.notFound(res, '采购订单不存在');
       }
 
       // 业务硬控：已终止的订单不可在途收货（允许 completed 状态，因为入库可能在订单收货完成后进行）
@@ -395,20 +391,44 @@ const createReceipt = async (req, res) => {
         return res.status(400).json({ error: `采购订单当前状态为 ${orderResult[0].status}，无法操作` });
       }
 
-      // 物理并行阻击：检查该订单名下是否已有尚未决议的收货单（通过索引间隙锁预防双胞胎单据）
-      const activeReceiptsQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE order_id = ? AND status IN ('draft', 'pending', 'inspecting') FOR UPDATE`;
-      const [activeReceipts] = await client.query(activeReceiptsQuery, [orderId]);
-      if (activeReceipts.length > 0) {
-        await client.rollback();
-        return res.status(409).json({ 
-          error: `业务防线拦截：该订单已有活体收货单 (${activeReceipts[0].receipt_no}) 未结算。为防止超收及连击建单，请先完成前置单据。` 
-        });
+      // ========== 防重复建单（基于实际业务关系，非订单级暴力阻击） ==========
+      // 业务事实：一个采购订单允许多次到货、多次检验、多次收货（分批收货）
+      // 防重复的维度应该是：同一张检验单不能重复建单 / 手动建单防连击
+      const inspectionId = req.body.inspectionId || req.body.inspection_id || null;
+
+      if (isFromInspection && inspectionId) {
+        // 场景A：来自检验单的自动建单 → 基于 inspection_id 精确去重
+        const dupQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE inspection_id = ? AND status != 'cancelled' LIMIT 1`;
+        const [dupReceipts] = await client.query(dupQuery, [inspectionId]);
+        if (dupReceipts.length > 0) {
+          await client.rollback();
+          logger.info(`检验单 ${inspectionId} 已有收货单 ${dupReceipts[0].receipt_no}，跳过重复创建`);
+          return ResponseHandler.success(
+            res,
+            {
+              id: dupReceipts[0].id,
+              receiptNo: dupReceipts[0].receipt_no,
+            },
+            '该检验单已创建过收货单',
+            200
+          );
+        }
+      } else {
+        // 场景B：手动创建 → 10秒窗口防连击（同一订单、同一操作员）
+        const clickGuardQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE order_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND) AND status = 'draft' LIMIT 1`;
+        const [recentReceipts] = await client.query(clickGuardQuery, [orderId]);
+        if (recentReceipts.length > 0) {
+          await client.rollback();
+          return res.status(409).json({
+            error: `操作过于频繁，该订单在10秒内已创建收货单 ${recentReceipts[0].receipt_no}，请勿重复提交。`,
+          });
+        }
       }
 
     } catch (dbError) {
       logger.error('查询并锁定订单信息失败:', dbError);
       await client.rollback();
-      return res.status(500).json({ error: '数据库级联合防护错误: ' + dbError.message });
+      return ResponseHandler.error(res, '数据库级联合防护错误', 'SERVER_ERROR', 500, dbError);
     }
 
     const orderNo = orderResult[0].order_no ? orderResult[0].order_no : '';
@@ -416,18 +436,18 @@ const createReceipt = async (req, res) => {
     // 获取供应商信息
     let supplierResult;
     try {
-      const supplierQuery = 'SELECT name FROM suppliers WHERE id = ?';
+      const supplierQuery = 'SELECT name FROM suppliers WHERE id = ? AND deleted_at IS NULL';
       const [rows] = await client.query(supplierQuery, [supplierId]);
       supplierResult = rows;
     } catch (dbError) {
       logger.error('查询供应商信息失败:', dbError);
       await client.rollback();
-      return res.status(500).json({ error: '数据库查询错误: ' + dbError.message });
+      return ResponseHandler.error(res, '数据库查询错误', 'SERVER_ERROR', 500, dbError);
     }
 
     if (!supplierResult || supplierResult.length === 0) {
       await client.rollback();
-      return res.status(404).json({ error: '供应商不存在' });
+      return ResponseHandler.notFound(res, '供应商不存在');
     }
 
     const supplierName = supplierResult.name ? supplierResult.name : '';
@@ -435,19 +455,19 @@ const createReceipt = async (req, res) => {
     // 获取仓库信息
     let warehouseResult;
     try {
-      const warehouseQuery = 'SELECT name FROM locations WHERE id = ?';
+      const warehouseQuery = 'SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL';
       const [rows] = await client.query(warehouseQuery, [warehouseId]);
       warehouseResult = rows;
     } catch (dbError) {
       logger.error('查询仓库信息失败:', dbError);
       await client.rollback();
-      return res.status(500).json({ error: '数据库查询错误: ' + dbError.message });
+      return ResponseHandler.error(res, '数据库查询错误', 'SERVER_ERROR', 500, dbError);
     }
 
     if (!warehouseResult || warehouseResult.length === 0) {
       await client.rollback();
       logger.error(`仓库ID ${warehouseId} 不存在于locations表中`);
-      return res.status(404).json({ error: '仓库不存在' });
+      return ResponseHandler.notFound(res, '仓库不存在');
     }
 
     const warehouseName = warehouseResult.name ? warehouseResult.name : '';
@@ -457,7 +477,7 @@ const createReceipt = async (req, res) => {
     if (!purchaseModel || typeof purchaseModel.generateReceiptNo !== 'function') {
       logger.error('purchaseModel对象缺失或generateReceiptNo方法不存在!');
       await client.rollback();
-      return res.status(500).json({ error: '系统错误: 无法生成入库单号' });
+      return ResponseHandler.error(res, '系统错误: 无法生成入库单号', 'SERVER_ERROR', 500);
     }
 
     let receiptNo;
@@ -466,13 +486,13 @@ const createReceipt = async (req, res) => {
     } catch (genError) {
       logger.error('生成入库单号失败:', genError);
       await client.rollback();
-      return res.status(500).json({ error: '生成入库单号失败: ' + genError.message });
+      return ResponseHandler.error(res, '生成入库单号失败', 'SERVER_ERROR', 500, genError);
     }
 
     if (!receiptNo) {
       logger.error('生成的入库单号为空!');
       await client.rollback();
-      return res.status(500).json({ error: '系统错误: 生成的入库单号为空' });
+      return ResponseHandler.error(res, '系统错误: 生成的入库单号为空', 'SERVER_ERROR', 500);
     }
 
     // 使用提供的收货人，如果没有则使用登录用户名
@@ -523,7 +543,7 @@ const createReceipt = async (req, res) => {
           .filter((i) => i !== null)
       );
       await client.rollback();
-      return res.status(500).json({ error: '数据处理错误：参数包含undefined值' });
+      return ResponseHandler.error(res, '数据处理错误：参数包含undefined值', 'SERVER_ERROR', 500);
     }
 
     // 插入采购入库单
@@ -538,7 +558,7 @@ const createReceipt = async (req, res) => {
     } catch (insertError) {
       logger.error('插入采购入库单失败:', insertError);
       await client.rollback();
-      return res.status(500).json({ error: '数据库插入错误: ' + insertError.message });
+      return ResponseHandler.error(res, '数据库插入错误', 'SERVER_ERROR', 500, insertError);
     }
 
     // 获取检验单批次号（如果来自检验单）
@@ -772,7 +792,7 @@ const createReceipt = async (req, res) => {
     logger.error('错误类型:', error.constructor.name);
     logger.error('错误消息:', error.message);
     logger.error('错误栈:', error.stack);
-    res.status(500).json({ error: error.message || '创建采购入库单失败' });
+    ResponseHandler.error(res, '创建采购入库单失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (client) {
       try {
@@ -824,7 +844,7 @@ const updateReceipt = async (req, res) => {
       if (!checkResult || checkResult.length === 0) {
         // 使用普通查询回滚事务
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: '采购入库单不存在' });
+        return ResponseHandler.notFound(res, '采购入库单不存在');
       }
 
       const currentItem = checkResult[0] || {};
@@ -833,7 +853,7 @@ const updateReceipt = async (req, res) => {
       if (currentStatus !== 'draft') {
         // 使用普通查询回滚事务
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: '只能编辑草稿状态的收货单' });
+        return ResponseHandler.error(res, '只能编辑草稿状态的收货单', 'BAD_REQUEST', 400);
       }
 
       // 如果更改了仓库，则需要获取新仓库的信息
@@ -841,7 +861,7 @@ const updateReceipt = async (req, res) => {
       if (warehouseId && warehouseId !== currentItem.warehouse_id) {
         let warehouseResult;
         try {
-          const warehouseQuery = 'SELECT name FROM locations WHERE id = ?';
+          const warehouseQuery = 'SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL';
           const result = await client.query(warehouseQuery, [warehouseId]);
           // 安全地获取结果，适配不同格式
           warehouseResult = Array.isArray(result)
@@ -854,20 +874,20 @@ const updateReceipt = async (req, res) => {
             // 使用普通查询回滚事务
             await client.query('ROLLBACK');
             logger.error(`仓库ID ${warehouseId} 不存在于locations表中`);
-            return res.status(404).json({ error: '仓库不存在' });
+            return ResponseHandler.notFound(res, '仓库不存在');
           }
 
           warehouseName = (warehouseResult[0] || {}).name || '';
         } catch (dbError) {
           logger.error('查询仓库信息失败:', dbError);
           await client.query('ROLLBACK');
-          return res.status(500).json({ error: '数据库查询错误: ' + dbError.message });
+          return ResponseHandler.error(res, '数据库查询错误', 'SERVER_ERROR', 500, dbError);
         }
       }
     } catch (checkError) {
       logger.error('检查入库单状态失败:', checkError);
       await client.query('ROLLBACK');
-      return res.status(500).json({ error: '数据库查询错误: ' + checkError.message });
+      return ResponseHandler.error(res, '数据库查询错误', 'SERVER_ERROR', 500, checkError);
     }
 
     // 更新入库单基本信息
@@ -887,7 +907,7 @@ const updateReceipt = async (req, res) => {
           .filter((i) => i !== null)
       );
       await client.query('ROLLBACK');
-      return res.status(500).json({ error: '数据处理错误：参数包含undefined值' });
+      return ResponseHandler.error(res, '数据处理错误：参数包含undefined值', 'SERVER_ERROR', 500);
     }
 
     await client.query(updateQuery, queryParams);
@@ -943,7 +963,7 @@ const updateReceipt = async (req, res) => {
       logger.error('事务回滚失败:', rollbackError);
     }
     logger.error('更新采购入库单失败:', error);
-    res.status(500).json({ error: error.message || '更新采购入库单失败' });
+    ResponseHandler.error(res, '更新采购入库单失败', 'SERVER_ERROR', 500, error);
   } finally {
     client.release();
   }
@@ -976,7 +996,7 @@ const updateReceiptStatus = async (req, res) => {
     if (!validStatuses.includes(status)) {
       // 使用标准回滚
       await client.rollback();
-      return res.status(400).json({ error: '无效的状态值' });
+      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
     // 检查入库单是否存在
@@ -987,7 +1007,7 @@ const updateReceiptStatus = async (req, res) => {
 
       if (!checkRows || checkRows.length === 0) {
         await client.rollback();
-        return res.status(404).json({ error: '采购入库单不存在' });
+        return ResponseHandler.notFound(res, '采购入库单不存在');
       }
 
       const currentStatus = checkRows[0].status;
@@ -996,14 +1016,14 @@ const updateReceiptStatus = async (req, res) => {
       if (!isValidStatusTransition(currentStatus, status)) {
         // 使用标准回滚
         await client.rollback();
-        return res.status(400).json({ error: '无效的状态变更' });
+        return ResponseHandler.error(res, '无效的状态变更', 'BAD_REQUEST', 400);
       }
       // 优化：将状态更新移到事务提交前执行，为了减少行锁持有时间
       // 这里先只进行参数准备，不执行SQL update
     } catch (checkError) {
       logger.error('检查入库单状态失败:', checkError);
       await client.rollback();
-      return res.status(500).json({ error: '数据库查询错误: ' + checkError.message });
+      return ResponseHandler.error(res, '数据库查询错误', 'SERVER_ERROR', 500, checkError);
     }
 
     // 准备状态变更备注
@@ -1026,7 +1046,7 @@ const updateReceiptStatus = async (req, res) => {
           .filter((i) => i !== null)
       );
       await client.rollback();
-      return res.status(500).json({ error: '数据处理错误：参数包含undefined值' });
+      return ResponseHandler.error(res, '数据处理错误：参数包含undefined值', 'SERVER_ERROR', 500);
     }
 
     // 如果状态是"completed"，则入库物料到库存
@@ -1191,7 +1211,7 @@ const updateReceiptStatus = async (req, res) => {
     } catch (updateError) {
       logger.error('执行状态更新SQL失败:', updateError);
       await client.rollback();
-      return res.status(500).json({ error: '更新状态失败: ' + updateError.message });
+      return ResponseHandler.error(res, '更新状态失败', 'SERVER_ERROR', 500, updateError);
     }
 
     // 使用普通查询提交事务
@@ -1276,7 +1296,7 @@ const updateReceiptStatus = async (req, res) => {
       logger.error('事务回滚失败:', rollbackError);
     }
     logger.error('更新采购入库单状态失败:', error);
-    res.status(500).json({ error: error.message || '更新采购入库单状态失败' });
+    ResponseHandler.error(res, '更新采购入库单状态失败', 'SERVER_ERROR', 500, error);
   } finally {
     client.release();
   }
@@ -1365,11 +1385,7 @@ const getReceiptStats = async (req, res) => {
     ResponseHandler.success(res, stats, '获取采购收货单统计成功');
   } catch (error) {
     logger.error('获取采购收货单统计失败:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      message: '获取采购收货单统计失败',
-    });
+    ResponseHandler.error(res, '获取采购收货单统计失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -1555,11 +1571,7 @@ const getMaterialPurchaseHistory = async (req, res) => {
     }
   } catch (error) {
     logger.error('获取物料采购历史失败:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      message: '获取物料采购历史失败',
-    });
+    ResponseHandler.error(res, '获取物料采购历史失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -1676,7 +1688,7 @@ const getPurchaseHistoryItems = async (req, res) => {
     }
   } catch (error) {
     logger.error('获取全量采购历史明细失败:', error);
-    res.status(500).json({ error: '获取采购历史失败: ' + error.message });
+    ResponseHandler.error(res, '获取采购历史失败', 'SERVER_ERROR', 500, error);
   }
 };
 

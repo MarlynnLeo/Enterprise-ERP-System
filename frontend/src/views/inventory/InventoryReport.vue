@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryReport.vue
  * @description 前端界面组件文件
@@ -14,7 +14,7 @@
           <h2>库存报表</h2>
           <p class="subtitle">查看库存汇总与分析报表</p>
         </div>
-        <el-button v-permission="'inventory:inventoryreport:export'" type="primary" @click="handleExport">导出报表</el-button>
+        <el-button v-permission="'inventory:report:export'" type="primary" @click="handleExport">导出报表</el-button>
       </div>
     </el-card>
 
@@ -730,7 +730,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency, formatNumber } from '@/utils/format'
 import { debounce } from '@/utils/commonHelpers'
@@ -740,13 +739,6 @@ import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import ExcelJS from 'exceljs'
 import { api as axios } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
-
-
 // 页面数据
 const loading = ref(false)
 const reportData = ref([])

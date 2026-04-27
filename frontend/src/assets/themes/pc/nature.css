@@ -319,11 +319,6 @@
   background: linear-gradient(90deg, #FFFFFF 0%, #F1F8E9 100%) !important;
   border-bottom: 3px solid #81C784 !important;
   box-shadow: 0 2px 10px rgba(81, 207, 102, 0.15) !important;
-}
-
-/* 导航栏所有文字使用绿色 - 最高优先级 */
-[data-theme="nature"] .header,
-[data-theme="nature"] .el-header {
   color: #2E7D32 !important;
 }
 

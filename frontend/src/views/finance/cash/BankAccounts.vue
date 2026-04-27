@@ -14,7 +14,7 @@
           <h2>银行账户管理</h2>
           <p class="subtitle">管理银行账户信息</p>
         </div>
-        <el-button v-permission="'finance:bankaccounts:create'" type="primary" :icon="Plus" @click="showAddDialog">新增账户</el-button>
+        <el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增账户</el-button>
       </div>
     </el-card>
     
@@ -100,7 +100,8 @@
         <el-table-column prop="lastTransactionDate" label="最后交易日期" width="120"></el-table-column>
         <el-table-column label="操作" min-width="220" fixed="right">
           <template #default="scope">
-            <el-button v-if="scope.row.status === 'frozen'" type="primary" size="small" @click="handleEdit(scope.row)">编辑</el-button>
+            <el-button v-if="scope.row.status === 'frozen'" type="primary" size="small" @click="handleEdit(scope.row)"
+              v-permission="'finance:cash:accounts'">编辑</el-button>
             <el-button type="success" size="small" @click="showTransactions(scope.row)">交易明细</el-button>
             <el-button 
               :type="scope.row.status === 'active' ? 'warning' : 'success'"
@@ -254,7 +255,7 @@
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="searchTransactions">查询</el-button>
-            <el-button v-permission="'finance:bankaccounts:export'" type="success" @click="exportTransactions">导出</el-button>
+            <el-button v-permission="'finance:cash:export'" type="success" @click="exportTransactions">导出</el-button>
             <el-button type="warning" @click="goToReconciliation">去对账</el-button>
             <el-button @click="goToTransactions">交易管理</el-button>
           </el-form-item>
@@ -314,125 +315,60 @@
 </template>
 
 <script setup>
-
-import apiAdapter from '@/utils/apiAdapter';
 import { parsePaginatedData, parseDataObject } from '@/utils/responseParser'
-
+import { formatCurrency } from '@/utils/format'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
-import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router';
+import { api } from '@/services/api';
 
-// 权限store
-const authStore = useAuthStore()
-
-// 权限计算属性
-// 数据加载状态
 const loading = ref(false);
-const saveLoading = ref(false);
-const transactionsLoading = ref(false);
-
-// 分页相关
-const total = ref(0);
-const pageSize = ref(10);
-const currentPage = ref(1);
-
-// 交易明细分页
-const transactionsTotal = ref(0);
-const transactionsPageSize = ref(10);
-const transactionsCurrentPage = ref(1);
-
-// 对话框状态
-const dialogVisible = ref(false);
-const dialogTitle = ref('新增银行账户');
-const transactionsDialogVisible = ref(false);
-
-// 表单相关
-const accountFormRef = ref(null);
-const isNewAccount = ref(true);
-
-// 数据列表
 const accountList = ref([]);
-const transactionsList = ref([]);
-const selectedAccount = ref({});
+const total = ref(0);
+const currentPage = ref(1);
+const pageSize = ref(10);
 
-// 账户统计
-const accountStats = reactive({
-  totalAccounts: 0,
-  activeAccounts: 0,
-  totalBalance: 0,
-  totalInLastMonth: 0,
-  totalOutLastMonth: 0
-});
+const searchForm = reactive({ accountName: '', bankName: '', status: '' });
 
-// 搜索表单
-const searchForm = reactive({
-  accountName: '',
-  bankName: '',
-  status: ''
-});
+const dialogTitle = ref('新增银行账户');
+const dialogVisible = ref(false);
+const isNewAccount = ref(true);
+const saveLoading = ref(false);
+const accountFormRef = ref(null);
 
-// 交易搜索表单
-const transactionSearchForm = reactive({
-  dateRange: null,
-  type: ''
-});
-
-// 账户表单
 const accountForm = reactive({
-  id: null,
-  accountName: '',
-  accountNumber: '',
-  bankName: '',
-  branchName: '',
-  currency: 'CNY',
-  initialBalance: 0,
-  balance: 0,
+  id: null, accountName: '', accountNumber: '', bankName: '', branchName: '',
+  currency: 'CNY', initialBalance: 0, balance: 0,
   openDate: new Date().toISOString().slice(0, 10),
-  status: 'active',
-  purpose: '',
-  notes: '',
-  lastTransactionDate: ''
+  status: 'active', purpose: '', notes: '', lastTransactionDate: ''
 });
 
-// 表单验证规则
 const accountRules = {
-  accountName: [
-    { required: true, message: '请输入账户名称', trigger: 'blur' }
-  ],
-  accountNumber: [
-    { required: true, message: '请输入银行账号', trigger: 'blur' }
-  ],
-  bankName: [
-    { required: true, message: '请输入开户银行', trigger: 'blur' }
-  ],
-  branchName: [
-    { required: true, message: '请输入开户网点', trigger: 'blur' }
-  ],
-  currency: [
-    { required: true, message: '请选择币种', trigger: 'change' }
-  ],
-  openDate: [
-    { required: true, message: '请选择开户日期', trigger: 'change' }
-  ],
-  status: [
-    { required: true, message: '请选择账户状态', trigger: 'change' }
-  ]
+  accountName: [{ required: true, message: '请输入账户名称', trigger: 'blur' }],
+  accountNumber: [{ required: true, message: '请输入银行账号', trigger: 'blur' }],
+  bankName: [{ required: true, message: '请输入开户银行', trigger: 'blur' }],
+  currency: [{ required: true, message: '请选择币种', trigger: 'change' }],
+  openDate: [{ required: true, message: '请选择开户日期', trigger: 'change' }]
 };
 
-// 获取交易类型标签的类型
+const selectedAccount = ref({});
+const transactionsDialogVisible = ref(false);
+const transactionsLoading = ref(false);
+const transactionsList = ref([]);
+const transactionsTotal = ref(0);
+const transactionsCurrentPage = ref(1);
+const transactionsPageSize = ref(20);
+const transactionSearchForm = reactive({ dateRange: null, type: '' });
+
+const accountStats = reactive({
+  totalAccounts: 0, activeAccounts: 0, totalBalance: 0,
+  totalInLastMonth: 0, totalOutLastMonth: 0
+});
+
 const getTransactionTagType = (type) => {
-  const typeMap = {
-    '存款': 'success',
-    '取款': 'danger',
-    '转入': 'success',
-    '转出': 'warning',
-    '利息': 'success',
-    '费用': 'danger',
-  };
+  const typeMap = { '存款': 'success', '转入': 'success', '利息': 'success', '取款': 'danger', '转出': 'danger', '费用': 'warning' };
   return typeMap[type] || 'info';
 };
 
@@ -444,17 +380,6 @@ const getAmountClass = (type, amount) => {
     return 'negative-value';
   }
   return '';
-};
-
-// 格式化货币
-// formatCurrency 已统一引用公共实现;
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 获取币种文本

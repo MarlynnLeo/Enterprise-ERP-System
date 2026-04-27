@@ -428,7 +428,7 @@ class DingtalkService {
         try {
           // 检查是否已存在
           const [existing] = await db.pool.execute(
-            'SELECT id, status FROM expenses WHERE dingtalk_instance_id = ?',
+            'SELECT id, status FROM expenses WHERE dingtalk_instance_id = ? AND deleted_at IS NULL',
             [instanceId]
           );
 

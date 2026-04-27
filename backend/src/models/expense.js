@@ -6,7 +6,9 @@
  */
 
 const logger = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 /**
  * 费用管理模块数据库操作
@@ -246,7 +248,7 @@ const expenseModel = {
           pc.name as parent_name
         FROM expense_categories c
         LEFT JOIN expense_categories pc ON c.parent_id = pc.id
-        WHERE 1=1
+        WHERE c.deleted_at IS NULL
       `;
       const params = [];
 
@@ -281,7 +283,7 @@ const expenseModel = {
     try {
       const [rows] = await db.pool.execute(`
         SELECT * FROM expense_categories 
-        WHERE status = 1 
+        WHERE status = 1 AND deleted_at IS NULL
         ORDER BY sort_order, id
       `);
 
@@ -382,7 +384,7 @@ const expenseModel = {
     try {
       // 检查是否有子类型
       const [children] = await db.pool.execute(
-        'SELECT COUNT(*) as count FROM expense_categories WHERE parent_id = ?',
+        'SELECT COUNT(*) as count FROM expense_categories WHERE parent_id = ? AND deleted_at IS NULL',
         [id]
       );
       if (children[0].count > 0) {
@@ -391,14 +393,15 @@ const expenseModel = {
 
       // 检查是否有关联的费用记录
       const [expenses] = await db.pool.execute(
-        'SELECT COUNT(*) as count FROM expenses WHERE category_id = ?',
+        'SELECT COUNT(*) as count FROM expenses WHERE category_id = ? AND deleted_at IS NULL',
         [id]
       );
       if (expenses[0].count > 0) {
         throw new Error('该类型下存在费用记录，无法删除');
       }
 
-      await db.pool.execute('DELETE FROM expense_categories WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(db.pool, 'expense_categories', 'id', id);
       return { success: true };
     } catch (error) {
       logger.error('删除费用类型失败:', error);
@@ -477,7 +480,7 @@ const expenseModel = {
    */
   async getExpenses(filters = {}, page = 1, pageSize = 20) {
     try {
-      let whereClause = 'WHERE 1=1';
+      let whereClause = 'WHERE e.deleted_at IS NULL';
       const params = [];
 
       if (filters.category_id) {
@@ -519,12 +522,9 @@ const expenseModel = {
       // MySQL BigInt 返回字符串，需转换为数字
       const total = parseInt(countResult[0].total, 10) || 0;
 
-      // 获取列表
-      const offset = (page - 1) * pageSize;
-      // 注意：MySQL prepared statements 不支持 LIMIT/OFFSET 使用占位符，需直接嵌入数值
-      const limitNum = parseInt(pageSize, 10) || 20;
-      const offsetNum = parseInt(offset, 10) || 0;
-      const [rows] = await db.pool.execute(
+      // 获取列表 — 使用安全分页工具
+      const { limit: safeLimit, offset: safeOffset } = parsePagination(page, pageSize);
+      const paginatedSql = appendPaginationSQL(
         `SELECT 
           e.*,
           c.name as category_name,
@@ -538,10 +538,10 @@ const expenseModel = {
         LEFT JOIN users u ON e.created_by = u.id
         LEFT JOIN users au ON e.approved_by = au.id
         ${whereClause}
-        ORDER BY e.created_at DESC
-        LIMIT ${limitNum} OFFSET ${offsetNum}`,
-        params
+        ORDER BY e.created_at DESC`,
+        safeLimit, safeOffset
       );
+      const [rows] = await db.pool.execute(paginatedSql, params);
 
       return { data: rows, total, page, pageSize };
     } catch (error) {
@@ -589,7 +589,7 @@ const expenseModel = {
   async updateExpense(id, data) {
     try {
       // 只有草稿和驳回状态可以编辑
-      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ?', [id]);
+      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!current[0] || !['draft', 'rejected'].includes(current[0].status)) {
         throw new Error('当前状态不允许编辑');
       }
@@ -638,7 +638,7 @@ const expenseModel = {
    */
   async submitExpense(id, userId) {
     try {
-      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ?', [id]);
+      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!current[0] || !['draft', 'rejected'].includes(current[0].status)) {
         throw new Error('当前状态不允许提交审批');
       }
@@ -659,7 +659,7 @@ const expenseModel = {
    */
   async approveExpense(id, userId, action, remark = '') {
     try {
-      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ?', [id]);
+      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!current[0] || current[0].status !== 'pending') {
         throw new Error('当前状态不允许审批');
       }
@@ -686,7 +686,7 @@ const expenseModel = {
       await connection.beginTransaction();
 
       // 1. 验证费用状态
-      const [current] = await connection.execute('SELECT * FROM expenses WHERE id = ?', [id]);
+      const [current] = await connection.execute('SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!current[0]) {
         throw new Error('费用记录不存在');
       }
@@ -853,12 +853,13 @@ const expenseModel = {
    */
   async deleteExpense(id) {
     try {
-      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ?', [id]);
+      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!current[0] || !['draft', 'rejected', 'cancelled'].includes(current[0].status)) {
         throw new Error('当前状态不允许删除');
       }
 
-      await db.pool.execute('DELETE FROM expenses WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(db.pool, 'expenses', 'id', id);
       return { success: true };
     } catch (error) {
       logger.error('删除费用记录失败:', error);
@@ -871,7 +872,7 @@ const expenseModel = {
    */
   async cancelExpense(id) {
     try {
-      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ?', [id]);
+      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!current[0] || current[0].status === 'paid') {
         throw new Error('已付款的费用无法取消');
       }
@@ -889,7 +890,7 @@ const expenseModel = {
    */
   async getExpenseStats(filters = {}) {
     try {
-      let whereClause = 'WHERE 1=1';
+      let whereClause = 'WHERE deleted_at IS NULL';
       const params = [];
 
       if (filters.startDate) {
@@ -929,7 +930,7 @@ const expenseModel = {
         LEFT JOIN expenses e ON c.id = e.category_id AND e.status != 'cancelled'
           ${filters.startDate ? 'AND e.expense_date >= ?' : ''}
           ${filters.endDate ? 'AND e.expense_date <= ?' : ''}
-        WHERE c.parent_id IS NULL AND c.status = 1
+        WHERE c.parent_id IS NULL AND c.status = 1 AND c.deleted_at IS NULL
         GROUP BY c.id
         ORDER BY amount DESC`,
         params
@@ -942,7 +943,7 @@ const expenseModel = {
           COUNT(*) as count,
           SUM(amount) as amount
         FROM expenses
-        WHERE status != 'cancelled'
+        WHERE status != 'cancelled' AND deleted_at IS NULL
           AND expense_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
         GROUP BY DATE_FORMAT(expense_date, '%Y-%m')
         ORDER BY month`
@@ -968,7 +969,7 @@ const expenseModel = {
   async getExpenseByDingtalkInstanceId(instanceId) {
     try {
       const [rows] = await db.pool.execute(
-        'SELECT * FROM expenses WHERE dingtalk_instance_id = ?',
+        'SELECT * FROM expenses WHERE dingtalk_instance_id = ? AND deleted_at IS NULL',
         [instanceId]
       );
       return rows[0] || null;

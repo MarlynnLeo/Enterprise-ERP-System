@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * BalanceSheet.vue
  * @description 前端界面组件文件
@@ -15,9 +15,9 @@
           <p class="subtitle">查看资产负债状况</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport">生成报表</el-button>
-          <el-button v-permission="'finance:balancesheet:print'" @click="printReport" :disabled="!reportData.summary">打印报表</el-button>
-          <el-button v-permission="'finance:balancesheet:export'" @click="exportExcel" :disabled="!reportData.summary">导出Excel</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:balance-sheet'">生成报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.summary">打印报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.summary">导出Excel</el-button>
         </div>
       </div>
     </el-card>
@@ -154,18 +154,12 @@
 
 <script setup>
 import { ReportHelper } from '@/utils/commonHelpers'
-import apiAdapter from '@/utils/apiAdapter';
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import ExcelJS from 'exceljs';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 查询参数
 const queryParams = reactive({
   reportDate: new Date().toISOString().slice(0, 10), // 默认为今天

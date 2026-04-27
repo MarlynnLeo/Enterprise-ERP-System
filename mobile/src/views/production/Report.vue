@@ -222,7 +222,7 @@
       font-family: 'SF Mono', monospace;
     }
     &.highlight {
-      color: #3b82f6;
+      color: var(--color-primary);
       font-weight: 700;
     }
   }
@@ -258,7 +258,7 @@
       transform: scale(0.98);
     }
     &.active {
-      border-color: #3b82f6;
+      border-color: var(--color-primary);
       background: rgba(59, 130, 246, 0.05);
     }
   }

@@ -46,35 +46,35 @@
           <div class="tip-item" :class="{ active: hasMinLength }">
             <Icon
               :name="hasMinLength ? 'success' : 'info-o'"
-              :color="hasMinLength ? '#07c160' : '#969799'"
+              :color="hasMinLength ? 'var(--color-success)' : 'var(--text-tertiary)'"
             />
             <span>至少8个字符</span>
           </div>
           <div class="tip-item" :class="{ active: hasUpperCase }">
             <Icon
               :name="hasUpperCase ? 'success' : 'info-o'"
-              :color="hasUpperCase ? '#07c160' : '#969799'"
+              :color="hasUpperCase ? 'var(--color-success)' : 'var(--text-tertiary)'"
             />
             <span>包含大写字母</span>
           </div>
           <div class="tip-item" :class="{ active: hasLowerCase }">
             <Icon
               :name="hasLowerCase ? 'success' : 'info-o'"
-              :color="hasLowerCase ? '#07c160' : '#969799'"
+              :color="hasLowerCase ? 'var(--color-success)' : 'var(--text-tertiary)'"
             />
             <span>包含小写字母</span>
           </div>
           <div class="tip-item" :class="{ active: hasNumber }">
             <Icon
               :name="hasNumber ? 'success' : 'info-o'"
-              :color="hasNumber ? '#07c160' : '#969799'"
+              :color="hasNumber ? 'var(--color-success)' : 'var(--text-tertiary)'"
             />
             <span>包含数字</span>
           </div>
           <div class="tip-item" :class="{ active: hasSpecialChar }">
             <Icon
               :name="hasSpecialChar ? 'success' : 'info-o'"
-              :color="hasSpecialChar ? '#07c160' : '#969799'"
+              :color="hasSpecialChar ? 'var(--color-success)' : 'var(--text-tertiary)'"
             />
             <span>包含特殊字符</span>
           </div>
@@ -102,7 +102,8 @@
     showLoadingToast,
     showConfirmDialog
   } from 'vant'
-  import { useAuthStore } from '../../stores/auth'
+  import { useAuthStore } from '@/stores/auth'
+  import { authApi } from '@/services/api'
 
   const router = useRouter()
   const authStore = useAuthStore()
@@ -167,14 +168,10 @@
         forbidClick: true
       })
 
-      // 这里应该调用修改密码的API
-      // await userApi.changePassword({
-      //   currentPassword: form.currentPassword,
-      //   newPassword: form.newPassword
-      // });
-
-      // 模拟API调用
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await authApi.changePassword({
+        currentPassword: form.currentPassword,
+        newPassword: form.newPassword
+      })
 
       loadingToast.close()
       showToast('密码修改成功，请重新登录')

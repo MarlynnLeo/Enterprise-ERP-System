@@ -229,8 +229,8 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, computed, onMounted, watch } from 'vue'
 
@@ -240,11 +240,6 @@ import Chart from 'chart.js/auto';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { purchaseApi } from '@/services/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 权限计算属性
 import { handleDashboardError, getDefaultStatistics, generateMonthLabels } from '@/utils/dashboardUtils'
 
@@ -459,21 +454,6 @@ function handleSizeChange(size) {
 function handleCurrentChange(page) {
   currentPage.value = page;
 }
-
-// 格式化日期
-// formatDate 已统一引用公共实现
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
 
 // 获取类型文本
 function getTypeText(type) {

@@ -158,8 +158,7 @@ const checkPasswordStrength = () => {
 
 const loginForm = reactive({
   username: '',
-  password: '',
-  rememberPassword: false
+  password: ''
 })
 
 const rules = {
@@ -178,15 +177,8 @@ onMounted(() => {
 const loadSavedCredentials = () => {
   try {
     const savedUsername = unifiedStorage.get('saved_username', { defaultValue: '' })
-    const savedPassword = unifiedStorage.get('saved_password', { defaultValue: '' })
-    const rememberPassword = unifiedStorage.get('remember_password', { defaultValue: false })
-    
     if (savedUsername) {
       loginForm.username = savedUsername
-    }
-    if (savedPassword && rememberPassword) {
-      loginForm.password = savedPassword
-      loginForm.rememberPassword = rememberPassword
     }
   } catch (error) {
     console.error('读取保存的登录信息失败:', error)
@@ -195,13 +187,8 @@ const loadSavedCredentials = () => {
 
 const saveCredentials = () => {
   try {
-    if (loginForm.rememberPassword) {
-      unifiedStorage.set('saved_username', loginForm.username, { expires: 30 * 24 * 60 * 60 * 1000 })
-      unifiedStorage.set('saved_password', loginForm.password, { expires: 30 * 24 * 60 * 60 * 1000 })
-      unifiedStorage.set('remember_password', true, { expires: 30 * 24 * 60 * 60 * 1000 })
-    } else {
-      clearSavedCredentials()
-    }
+    // 安全策略：仅保存用户名，绝不在客户端持久化密码
+    unifiedStorage.set('saved_username', loginForm.username, { expires: 30 * 24 * 60 * 60 * 1000 })
   } catch (error) {
     console.error('保存登录信息失败:', error)
   }
@@ -210,8 +197,6 @@ const saveCredentials = () => {
 const clearSavedCredentials = () => {
   try {
     unifiedStorage.remove('saved_username')
-    unifiedStorage.remove('saved_password')
-    unifiedStorage.remove('remember_password')
   } catch (error) {
     console.error('清除保存的登录信息失败:', error)
   }

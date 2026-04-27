@@ -41,7 +41,7 @@ const RATE_LIMIT_CONFIG = {
   // 全局限制 - 从环境变量读取，支持批量操作场景
   global: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 默认15分钟
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 500, // 默认500次（支持批量处理）
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1500, // 默认1500次（支持多客户端并发+批量处理）
     message: {
       success: false,
       message: '请求过于频繁，请稍后再试',

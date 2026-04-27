@@ -217,10 +217,6 @@
   background: #FFFFFF !important;
   border-bottom: 1px solid #DFE4E8 !important;
   box-shadow: 0 2px 4px rgba(44, 62, 80, 0.08) !important;
-}
-
-[data-theme="professional"] .header,
-[data-theme="professional"] .el-header {
   color: #2C3E50 !important;
 }
 

@@ -447,7 +447,7 @@ class InventoryService {
 
     // 验证库位是否存在
     const [locationResult] = await connection.execute(
-      'SELECT id FROM locations WHERE id = ?',
+      'SELECT id FROM locations WHERE id = ? AND deleted_at IS NULL',
       [locationId]
     );
 

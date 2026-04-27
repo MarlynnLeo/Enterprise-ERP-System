@@ -545,11 +545,11 @@
 
 <script>
 
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download } from '@element-plus/icons-vue'
+import { formatDateTime } from '@/utils/helpers/dateUtils'
 
 export default {
   name: 'FullChainTraceability',
@@ -1021,24 +1021,6 @@ export default {
 
     // 工具函数
     // formatDateTime 已统一引用公共实现
-
-// 日期时间格式化
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    const h = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    const s = String(date.getSeconds()).padStart(2, '0');
-    return `${y}-${m}-${d} ${h}:${min}:${s}`;
-  } catch {
-    return dateStr;
-  }
-};
 
     const getStatusType = (status) => {
       const statusMap = {

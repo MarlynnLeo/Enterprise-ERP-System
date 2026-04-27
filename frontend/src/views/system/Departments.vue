@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Departments.vue
  * @description 前端界面组件文件
@@ -242,11 +242,6 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue';
 import { api } from '../../services/api';
-import { useAuthStore } from '@/stores/auth';
-
-// 权限store
-const authStore = useAuthStore();
-
 // 权限计算属性
 // 数据加载状态
 const loading = ref(false);

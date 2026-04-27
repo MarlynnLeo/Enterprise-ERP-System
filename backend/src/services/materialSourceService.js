@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 
 const materialSourceService = {
   /**
@@ -11,7 +12,7 @@ const materialSourceService = {
       const pageSizeNum = Number(pageSize);
       const offset = (pageNum - 1) * pageSizeNum;
 
-      const conditions = [];
+      const conditions = ['deleted_at IS NULL'];
       const params = [];
 
       if (filters.name && filters.name.trim() !== '') {
@@ -39,10 +40,7 @@ const materialSourceService = {
         params.push(Number(filters.status));
       }
 
-      let query = 'SELECT * FROM material_sources';
-      if (conditions.length > 0) {
-        query += ' WHERE ' + conditions.join(' AND ');
-      }
+      let query = 'SELECT * FROM material_sources WHERE ' + conditions.join(' AND ');
       query += ' ORDER BY sort ASC, id DESC LIMIT ?, ?';
 
       params.push(offset, pageSizeNum);
@@ -50,10 +48,7 @@ const materialSourceService = {
       const [rows] = await pool.query(query, params);
 
       // 获取总数
-      let countQuery = 'SELECT COUNT(*) as total FROM material_sources';
-      if (conditions.length > 0) {
-        countQuery += ' WHERE ' + conditions.join(' AND ');
-      }
+      let countQuery = 'SELECT COUNT(*) as total FROM material_sources WHERE ' + conditions.join(' AND ');
       const [countResult] = await pool.query(countQuery, params.slice(0, -2));
       const total = countResult[0].total;
 
@@ -140,7 +135,8 @@ const materialSourceService = {
         throw new Error('该物料来源正在被使用，不能删除');
       }
 
-      await pool.query('DELETE FROM material_sources WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(pool, 'material_sources', 'id', id);
       return true;
     } catch (error) {
       logger.error('deleteMaterialSource error:', error);

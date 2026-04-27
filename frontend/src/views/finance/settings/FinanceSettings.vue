@@ -8,7 +8,7 @@
         </div>
         <div class="header-actions">
           <el-button type="warning" plain @click="handleReset" :loading="resetting">重置为默认</el-button>
-          <el-button v-permission="'finance:financesettings:update'" type="primary" @click="handleSave" :loading="saving">保存设置</el-button>
+          <el-button v-permission="'finance:settings:update'" type="primary" @click="handleSave" :loading="saving">保存设置</el-button>
         </div>
       </div>
     </el-card>
@@ -164,7 +164,7 @@
           <el-col :span="12">
             <div class="section-header">
               <h4>支付方式配置</h4>
-              <el-button v-permission="'finance:financesettings:create'" size="small" type="primary" :icon="Plus" @click="addPaymentMethod">添加</el-button>
+              <el-button v-permission="'finance:settings:update'" size="small" type="primary" :icon="Plus" @click="addPaymentMethod">添加</el-button>
             </div>
             <el-table :data="settings.bank.paymentMethods" border style="width: 100%" height="400">
               <el-table-column label="显示名称 (Label)" prop="label">
@@ -179,7 +179,7 @@
               </el-table-column>
               <el-table-column label="操作" width="80" align="center">
                 <template #default="scope">
-                  <el-button v-permission="'finance:financesettings:delete'" type="danger" link @click="removePaymentMethod(scope.$index)">删除</el-button>
+                  <el-button v-permission="'finance:settings:update'" type="danger" link @click="removePaymentMethod(scope.$index)">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>

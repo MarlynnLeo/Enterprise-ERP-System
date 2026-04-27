@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="ncp-config-container">
     <el-card class="config-card">
       <template #header>
@@ -88,7 +88,7 @@
         <el-divider />
 
         <el-form-item>
-          <el-button v-permission="'quality:nonconformingproductconfig:update'" type="primary" @click="saveConfig">保存配置</el-button>
+          <el-button v-permission="'quality:nonconforming:update'" type="primary" @click="saveConfig">保存配置</el-button>
           <el-button @click="loadConfig">重新加载</el-button>
         </el-form-item>
       </el-form>
@@ -124,11 +124,6 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 const config = ref({
   enable: false,
   auto_complete: false,

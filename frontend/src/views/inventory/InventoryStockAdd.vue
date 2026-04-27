@@ -101,7 +101,7 @@
         </el-form-item>
         
         <el-form-item>
-          <el-button v-permission="'inventory:inventorystockadd:submit'" type="primary" @click="submitForm" :loading="submitting">提交</el-button>
+          <el-button v-permission="'inventory:stock:edit'" type="primary" @click="submitForm" :loading="submitting">提交</el-button>
           <el-button @click="resetForm">重置</el-button>
         </el-form-item>
       </el-form>
@@ -110,7 +110,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { debounce } from '@/utils/commonHelpers'
 
 import { ref, reactive } from 'vue'

@@ -48,8 +48,8 @@
             </el-table-column>
             <el-table-column label="操作" width="160" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" size="small" @click="editActivity(row)">编辑</el-button>
-                <el-button v-permission="'finance:activitybasedcosting:delete'" type="danger" size="small" @click="deleteActivity(row)">删除</el-button>
+                <el-button type="primary" size="small" @click="editActivity(row)" v-permission="'finance:cost:settings'">编辑</el-button>
+                <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteActivity(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>

@@ -28,8 +28,8 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    // 从 localStorage 获取 JWT token
-    const token = localStorage.getItem('token')
+    // 从 sessionStorage 获取 JWT token（与 auth store 保持一致）
+    const token = sessionStorage.getItem('token')
 
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
@@ -121,7 +121,7 @@ api.interceptors.response.use(
 
           if (accessToken) {
             // 保存新Token
-            localStorage.setItem('token', accessToken)
+            sessionStorage.setItem('token', accessToken)
             api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`
             originalRequest.headers['Authorization'] = `Bearer ${accessToken}`
 
@@ -133,8 +133,8 @@ api.interceptors.response.use(
         } catch (refreshError) {
           processQueue(refreshError, null)
           // 刷新失败，清除token并跳转登录
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
+          sessionStorage.removeItem('token')
+          sessionStorage.removeItem('user')
 
           errorMessage = '登录已过期，请重新登录'
 
@@ -146,7 +146,7 @@ api.interceptors.response.use(
 
           // 延迟跳转，确保toast显示
           setTimeout(() => {
-            window.location.href = '/#/login'
+            window.location.href = '/login'
           }, 500)
 
           return Promise.reject(refreshError)
@@ -159,10 +159,10 @@ api.interceptors.response.use(
           originalRequest.url.includes('/auth/login') ||
           originalRequest.url.includes('/auth/refresh')
         ) {
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
+          sessionStorage.removeItem('token')
+          sessionStorage.removeItem('user')
 
-          if (!window.location.hash.includes('/login')) {
+          if (!window.location.pathname.includes('/login')) {
             errorMessage = '登录已过期，请重新登录'
             showToast({
               type: 'fail',
@@ -171,7 +171,7 @@ api.interceptors.response.use(
             })
 
             setTimeout(() => {
-              window.location.href = '/#/login'
+              window.location.href = '/login'
             }, 500)
           }
         }
@@ -285,9 +285,15 @@ export const inventoryApi = {
     return api.delete(`/inventory/outbound/${id}`)
   },
 
-  updateOutboundStatus(id, status) {
-    return api.put(`/inventory/outbound/${id}/status`, { status })
+  updateOutboundStatus(id, newStatus) {
+    return api.put(`/inventory/outbound/${id}/status`, { newStatus })
   },
+
+  // 撤销出库（已完成 → 草稿，库存回退）
+  cancelOutbound(id, force = false) {
+    return api.post(`/inventory/outbound/${id}/cancel`, { force })
+  },
+
 
   // 入库管理
   getInboundList(params) {
@@ -306,8 +312,8 @@ export const inventoryApi = {
     return api.post('/inventory/inbound/from-quality', data)
   },
 
-  updateInboundStatus(id, status) {
-    return api.put(`/inventory/inbound/status/${id}`, { status })
+  updateInboundStatus(id, newStatus) {
+    return api.put(`/inventory/inbound/status/${id}`, { newStatus })
   },
 
   // 库存调拨
@@ -358,6 +364,10 @@ export const inventoryApi = {
 
   deleteCheck(id) {
     return api.delete(`/inventory/check/${id}`)
+  },
+
+  updateCheckStatus(id, status) {
+    return api.put(`/inventory/check/${id}/status`, { status })
   },
 
   submitCheckResult(id, data) {
@@ -525,6 +535,16 @@ export const productionApi = {
   // 获取今日最大序号
   getTodayMaxSequence() {
     return api.get('/production/today-sequence')
+  },
+
+  // 删除生产任务（仅pending状态）
+  deleteProductionTask(id) {
+    return api.delete(`/production/tasks/${id}`)
+  },
+
+  // 取消生产计划
+  cancelProductionPlan(id) {
+    return api.put(`/production/plans/${id}/status`, { status: 'cancelled' })
   }
 }
 
@@ -670,11 +690,6 @@ export const salesApi = {
 
   deleteSalesExchange(id) {
     return api.delete(`/sales/exchanges/${id}`)
-  },
-
-  // 销售统计
-  getSalesStatistics() {
-    return api.get('/sales/statistics')
   }
 }
 
@@ -749,6 +764,10 @@ export const purchaseApi = {
 
   deleteReceipt(id) {
     return api.delete(`/purchase/receipts/${id}`)
+  },
+
+  updateReceiptStatus(id, status, remarks) {
+    return api.put(`/purchase/receipts/${id}/status`, { status, remarks })
   },
 
   // 采购退货
@@ -833,31 +852,35 @@ export const purchaseApi = {
 export const baseDataApi = {
   // 分类与单位
   getCategories(params) {
-    return api.get('/baseData/categories', { params }).catch(() => {
-      // Mock data
-      return {
-        data: {
-          list: [
-            { id: 1, name: '电子元件', code: 'CAT-ELEC' },
-            { id: 2, name: '机械配件', code: 'CAT-MECH' }
-          ]
-        }
-      }
-    })
+    return api.get('/baseData/categories', { params })
   },
   getUnits(params) {
-    return api.get('/baseData/units', { params }).catch(() => {
-      // Mock data
-      return {
-        data: {
-          list: [
-            { id: 1, name: '件', code: 'pcs' },
-            { id: 2, name: '千克', code: 'kg' },
-            { id: 3, name: '米', code: 'm' }
-          ]
-        }
-      }
-    })
+    return api.get('/baseData/units', { params })
+  },
+
+  // 产品大类选项（树形结构）
+  getProductCategoryOptions() {
+    return api.get('/baseData/product-categories/options')
+  },
+
+  // 物料来源
+  getMaterialSources() {
+    return api.get('/baseData/material-sources')
+  },
+
+  // 检验方式
+  getInspectionMethods() {
+    return api.get('/baseData/inspection-methods')
+  },
+
+  // 供应商搜索
+  getSuppliersList(params) {
+    return api.get('/baseData/suppliers', { params })
+  },
+
+  // 用户列表（物料负责人）
+  getUsersList() {
+    return api.get('/system/users/list')
   },
 
   // 物料管理
@@ -885,8 +908,8 @@ export const baseDataApi = {
     return api.get('/baseData/materials/options')
   },
 
-  getNextMaterialCode() {
-    return api.get('/baseData/materials/next-code')
+  getNextMaterialCode(params) {
+    return api.get('/baseData/materials/next-code', { params })
   },
 
   getMaterialsByIds(ids) {
@@ -1263,6 +1286,26 @@ export const financeApi = {
 
   executeAutomationTask(taskType) {
     return api.post('/finance/automation/execute', { taskType })
+  },
+
+  // 应付发票状态操作
+  updateAPInvoiceStatus(id, status) {
+    return api.put(`/finance/ap/invoices/${id}/status`, { status })
+  },
+
+  // 应付付款作废
+  voidAPPayment(id) {
+    return api.post(`/finance/ap/payments/${id}/void`)
+  },
+
+  // 应收发票状态操作
+  updateARInvoiceStatus(id, status) {
+    return api.put(`/finance/ar/invoices/${id}/status`, { status })
+  },
+
+  // 应收收款作废
+  voidARReceipt(id) {
+    return api.post(`/finance/ar/receipts/${id}/void`)
   }
 }
 
@@ -1278,20 +1321,27 @@ export const qualityApi = {
     return api.get('/quality/inspections/incoming', { params })
   },
 
+  // 单条检验详情（通用路由，适用于 incoming/process/final）
   getIncomingInspection(id) {
-    return api.get(`/quality/inspections/incoming/${id}`)
+    return api.get(`/quality/inspections/${id}`)
+  },
+
+  // 获取检验项目列表
+  getInspectionItems(id) {
+    return api.get(`/quality/inspections/${id}/items`)
   },
 
   createIncomingInspection(data) {
     return api.post('/quality/inspections/incoming', data)
   },
 
+  // 更新检验单（通用路由）
   updateIncomingInspection(id, data) {
-    return api.put(`/quality/inspections/incoming/${id}`, data)
+    return api.put(`/quality/inspections/${id}`, data)
   },
 
   deleteIncomingInspection(id) {
-    return api.delete(`/quality/inspections/incoming/${id}`)
+    return api.delete(`/quality/inspections/${id}`)
   },
 
   startInspection(id) {
@@ -1308,7 +1358,7 @@ export const qualityApi = {
   },
 
   getProcessInspection(id) {
-    return api.get(`/quality/inspections/process/${id}`)
+    return api.get(`/quality/inspections/${id}`)
   },
 
   createProcessInspection(data) {
@@ -1316,7 +1366,7 @@ export const qualityApi = {
   },
 
   updateProcessInspection(id, data) {
-    return api.put(`/quality/inspections/process/${id}`, data)
+    return api.put(`/quality/inspections/${id}`, data)
   },
 
   // 成品检验
@@ -1325,7 +1375,7 @@ export const qualityApi = {
   },
 
   getFinalInspection(id) {
-    return api.get(`/quality/inspections/final/${id}`)
+    return api.get(`/quality/inspections/${id}`)
   },
 
   createFinalInspection(data) {
@@ -1333,7 +1383,7 @@ export const qualityApi = {
   },
 
   updateFinalInspection(id, data) {
-    return api.put(`/quality/inspections/final/${id}`, data)
+    return api.put(`/quality/inspections/${id}`, data)
   },
 
   // 检验模板
@@ -1428,6 +1478,83 @@ export const qualityApi = {
 
   updateInspectionResult(inspectionId, resultId, data) {
     return api.put(`/quality/inspections/${inspectionId}/results/${resultId}`, data)
+  },
+
+  // ==================== 质量统计报表 ====================
+  getStatisticsOverview(params) {
+    return api.get('/quality-statistics/overview', { params })
+  },
+  getDispositionStatistics(params) {
+    return api.get('/quality-statistics/disposition', { params })
+  },
+  getTrendAnalysis(params) {
+    return api.get('/quality-statistics/trend', { params })
+  },
+  getSupplierQualityAnalysis(params) {
+    return api.get('/quality-statistics/supplier', { params })
+  },
+  getMaterialDefectAnalysis(params) {
+    return api.get('/quality-statistics/material', { params })
+  },
+  getCostAnalysis(params) {
+    return api.get('/quality-statistics/cost', { params })
+  },
+
+  // ==================== SPC ====================
+  getSpcPlans(params) {
+    return api.get('/quality/spc/plans', { params })
+  },
+  getSpcCpk(planId) {
+    return api.get(`/quality/spc/plans/${planId}/cpk`)
+  },
+  getSpcChart(planId) {
+    return api.get(`/quality/spc/plans/${planId}/chart`)
+  },
+
+  // ==================== AQL 标准 ====================
+  getAqlStandards(params) {
+    return api.get('/quality/aql-standards', { params })
+  },
+  getAqlLevels() {
+    return api.get('/quality/aql-levels')
+  }
+}
+
+// 设备管理API
+export const equipmentApi = {
+  getList(params) {
+    return api.get('/equipment/list', { params })
+  },
+  getStats() {
+    return api.get('/equipment/stats')
+  },
+  getById(id) {
+    return api.get(`/equipment/${id}`)
+  },
+  addInspection(equipmentId, data) {
+    return api.post(`/equipment/${equipmentId}/inspection`, data)
+  },
+  addFailure(equipmentId, data) {
+    return api.post(`/equipment/${equipmentId}/failure`, data)
+  },
+  addMaintenance(equipmentId, data) {
+    return api.post(`/equipment/${equipmentId}/maintenance`, data)
+  }
+}
+
+// 人事管理API
+export const hrApi = {
+  getEmployees(params) {
+    return api.get('/hr/employees', { params })
+  },
+  getAttendance(params) {
+    return api.get('/hr/attendance', { params })
+  },
+  getAttendanceRules() {
+    return api.get('/hr/attendance/rules')
+  },
+  getSalary(params) {
+    return api.get('/hr/salary', { params })
   }
 }
 
@@ -1441,72 +1568,110 @@ export const authApi = {
   // 获取用户信息
   getUserProfile() {
     return api.get('/auth/profile')
+  },
+
+  // 更新用户资料
+  updateProfile(data) {
+    return api.put('/auth/profile', data)
+  },
+
+  // 修改密码
+  changePassword(data) {
+    return api.put('/auth/change-password', data)
+  },
+
+  // 上传头像
+  uploadAvatar(formData) {
+    return api.put('/auth/users/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
   }
 }
 
 // 系统管理API
 export const systemApi = {
   getDepartments(params) {
-    return api.get('/departments', { params }).catch(() => {
-      // 提供 Mock 数据避免展示开发中
-      return {
-        data: {
-          list: [
-            { id: 1, name: '研发部', code: 'DEP-RD' },
-            { id: 2, name: '业务部', code: 'DEP-BIZ' },
-            { id: 3, name: '生产部', code: 'DEP-PROD' }
-          ]
-        }
-      }
-    })
+    return api.get('/system/departments', { params })
   },
   getRoles(params) {
-    return api.get('/roles', { params }).catch(() => {
-      return {
-        data: {
-          list: [
-            { id: 1, name: '管理员', code: 'admin' },
-            { id: 2, name: '普通员工', code: 'staff' }
-          ]
-        }
-      }
-    })
+    return api.get('/system/roles', { params })
   },
   getPermissions(params) {
-    return api.get('/permissions', { params }).catch(() => {
-      return {
-        data: {
-          list: [
-            { id: 1, name: '查看报表', code: 'view_report' },
-            { id: 2, name: '编辑计划', code: 'edit_plan' }
-          ]
-        }
-      }
-    })
+    return api.get('/system/permissions', { params })
   },
   getLogs(params) {
-    return api.get('/sys-logs', { params }).catch(() => {
-      return {
-        data: {
-          list: [
-            { id: 1, name: 'admin 登录系统', code: '2026-04-14' },
-            { id: 2, name: 'admin 修改了采购单', code: '2026-04-13' }
-          ]
-        }
-      }
-    })
+    return api.get('/system/logs', { params })
   },
   getConfig(params) {
-    return api.get('/config', { params }).catch(() => {
-      return {
-        data: {
-          list: [
-            { id: 1, name: '系统名称', code: 'KACON ERP' },
-            { id: 2, name: '主题设置', code: 'Dark' }
-          ]
-        }
-      }
-    })
+    return api.get('/system/settings', { params })
+  },
+
+  // ==================== 用户管理 ====================
+  getUsers(params) {
+    return api.get('/system/users', { params })
+  },
+  getUserById(id) {
+    return api.get(`/system/users/${id}`)
+  },
+  createUser(data) {
+    return api.post('/system/users', data)
+  },
+  updateUser(id, data) {
+    return api.put(`/system/users/${id}`, data)
+  },
+  updateUserStatus(id, status) {
+    return api.put(`/system/users/${id}/status`, { status })
+  },
+  resetUserPassword(id) {
+    return api.put(`/system/users/${id}/password/reset`)
+  },
+  deleteUser(id) {
+    return api.delete(`/system/users/${id}`)
+  },
+
+  // ==================== 通知管理 ====================
+  getNotifications(params) {
+    return api.get('/notifications', { params })
+  },
+  getUnreadCount() {
+    return api.get('/notifications/unread-count')
+  },
+  getNotificationDetail(id) {
+    return api.get(`/notifications/${id}`)
+  },
+  markNotificationRead(id) {
+    return api.put(`/notifications/${id}/read`)
+  },
+  markAllNotificationsRead() {
+    return api.put('/notifications/mark-all-read')
+  },
+  deleteNotification(id) {
+    return api.delete(`/notifications/${id}`)
+  }
+}
+
+
+// 即时通讯API
+export const chatApi = {
+  // 获取会话列表
+  getConversations() {
+    return api.get('/chat/conversations')
+  },
+  // 创建/获取私聊会话
+  createPrivateConversation(targetUserId) {
+    return api.post('/chat/conversations/private', { targetUserId })
+  },
+  // 创建群聊
+  createGroupConversation(name, memberIds) {
+    return api.post('/chat/conversations/group', { name, memberIds })
+  },
+  // 获取会话消息历史
+  getMessages(conversationId, params) {
+    return api.get(`/chat/conversations/${conversationId}/messages`, { params })
+  },
+  // 获取联系人列表
+  getContacts(params) {
+    return api.get('/chat/contacts', { params })
   }
 }
 

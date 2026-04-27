@@ -18,7 +18,7 @@
           type="primary"
           :icon="Plus"
           @click="showAddDialog"
-          v-permission="'finance:gl:accounts:create'">
+          v-permission="'finance:accounts:create'">
           新增科目
         </el-button>
       </div>
@@ -228,7 +228,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 
 import { ref, reactive, computed, onMounted } from 'vue';

@@ -308,7 +308,7 @@ const getStatusText = (status) => {
 .header-title {
   font-size: 1.25rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .page-content {
@@ -324,7 +324,7 @@ const getStatusText = (status) => {
 .section-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   margin-bottom: 0.75rem;
 }
 
@@ -361,7 +361,7 @@ const getStatusText = (status) => {
 }
 
 .card-icon.bg-blue {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%);
 }
 
 .card-icon.bg-green {
@@ -369,7 +369,7 @@ const getStatusText = (status) => {
 }
 
 .card-icon.bg-yellow {
-  background: linear-gradient(135deg, #FF9F45 0%, #FF8A3D 100%);
+  background: linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%);
 }
 
 .card-icon.bg-purple {
@@ -391,7 +391,7 @@ const getStatusText = (status) => {
 .card-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   line-height: 1;
 }
 
@@ -441,7 +441,7 @@ const getStatusText = (status) => {
 .label-value {
   font-size: 0.875rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .progress-bar {
@@ -453,7 +453,7 @@ const getStatusText = (status) => {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, var(--color-primary) 0%, #764ba2 100%);
   border-radius: 0.25rem;
   transition: width 0.3s ease;
 }
@@ -519,7 +519,7 @@ const getStatusText = (status) => {
 .task-name {
   font-size: 1rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   margin-bottom: 0.75rem;
 }
 
@@ -543,7 +543,7 @@ const getStatusText = (status) => {
 .progress-percent {
   font-size: 0.75rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .w-6 { width: 1.5rem; height: 1.5rem; }

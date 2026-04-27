@@ -3,28 +3,32 @@
     :title="title"
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
-    width="750px"
+    width="900px"
     @open="handleOpen"
     @close="handleClose"
   >
     <el-form :model="form" :rules="rules" ref="formRef" label-width="95px">
-      <!-- 物料大类和物料编码在一行 -->
+      <!-- 物料大类和物料编码 -->
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="物料大类" prop="product_category_id">
-            <el-tree-select
-              v-model="form.product_category_id"
-              :data="productCategoryOptions"
-              :props="{ value: 'id', label: 'displayName', children: 'children' }"
-              placeholder="请选择物料大类"
+            <el-cascader
+              v-model="productCategoryCascaderValue"
+              :options="productCategoryOptions"
+              :props="{
+                value: 'id',
+                label: 'displayName',
+                children: 'children',
+                checkStrictly: true,
+                emitPath: false
+              }"
+              placeholder="请选择物料大类（支持搜索）"
               clearable
               filterable
-              check-strictly
-              default-expand-all
-              :expand-on-click-node="false"
+              :filter-method="cascaderFilterMethod"
+              :debounce="300"
               style="width: 100%"
-              :filter-node-method="filterProductCategory"
-              @change="handleProductCategoryChange"
+              @change="handleCascaderChange"
             />
           </el-form-item>
         </el-col>
@@ -48,7 +52,8 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <!-- 物料名称、物料类型、检验方式在一行 -->
+
+      <!-- 物料名称、物料类型、单位 -->
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="物料名称" prop="name">
@@ -68,6 +73,22 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
+          <el-form-item label="单位" prop="unit_id">
+            <el-select v-model="form.unit_id" placeholder="请选择单位" style="width: 100%">
+              <el-option
+                v-for="item in unitOptions"
+                :key="item.id"
+                :label="item.name"
+                :value="item.id">
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <!-- 检验方式、物料来源、物料位置 -->
+      <el-row :gutter="16">
+        <el-col :span="8">
           <el-form-item label="检验方式" prop="inspection_method_id">
             <el-select v-model="form.inspection_method_id" placeholder="请选择检验方式" clearable style="width: 100%">
               <el-option
@@ -79,10 +100,6 @@
             </el-select>
           </el-form-item>
         </el-col>
-      </el-row>
-
-      <!-- 物料来源、规格型号、供应商在一行 -->
-      <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="物料来源" prop="material_source_id">
             <el-select v-model="form.material_source_id" placeholder="请选择物料来源" style="width: 100%">
@@ -98,15 +115,27 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
+          <el-form-item label="物料位置">
+            <el-input 
+              v-model="form.location_detail"
+              placeholder="如：零部件库-3排-4列"
+              clearable />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <!-- 规格型号、供应商 -->
+      <el-row :gutter="16">
+        <el-col :span="12">
           <el-form-item label="规格型号">
             <el-input v-model="form.specs" placeholder="请输入规格型号"></el-input>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item label="供应商" prop="supplier_id">
             <el-select
               v-model="form.supplier_id"
-              placeholder="请输入供应商名称或编码进行搜索"
+              placeholder="请输入供应商名称或编码搜索"
               clearable
               filterable
               remote
@@ -127,7 +156,7 @@
         </el-col>
       </el-row>
 
-      <!-- 生产组、图号、色号在一行 -->
+      <!-- 生产组、图号、色号 -->
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="生产组" prop="production_group_id">
@@ -159,23 +188,11 @@
         </el-col>
       </el-row>
 
-      <!-- 材质、单位、仓库在一行 -->
+      <!-- 材质、仓库、物料负责人 -->
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="材质">
             <el-input v-model="form.material_type" placeholder="如：304不锈钢"></el-input>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
-          <el-form-item label="单位" prop="unit_id">
-            <el-select v-model="form.unit_id" placeholder="请选择单位" style="width: 100%">
-              <el-option
-                v-for="item in unitOptions"
-                :key="item.id"
-                :label="item.name"
-                :value="item.id">
-              </el-option>
-            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="8">
@@ -193,15 +210,11 @@
             </el-select>
           </el-form-item>
         </el-col>
-      </el-row>
-
-      <!-- 物料负责人和物料位置在一行 -->
-      <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="物料负责人">
             <el-select
               v-model="form.manager_id"
-              placeholder="请选择物料负责人"
+              placeholder="请选择负责人"
               clearable
               filterable
               style="width: 100%"
@@ -215,17 +228,10 @@
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="16">
-          <el-form-item label="物料位置">
-            <el-input 
-              v-model="form.location_detail"
-              placeholder="如：零部件库-3排-4列"
-              clearable />
-          </el-form-item>
-        </el-col>
       </el-row>
 
-      <!-- 价格和库存 -->
+
+      <!-- 销售价格、采购成本、安全库存 -->
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="销售价格">
@@ -250,6 +256,7 @@
         </el-col>
       </el-row>
 
+      <!-- 最小库存、最大库存、税率 -->
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="最小库存">
@@ -276,20 +283,24 @@
       </el-row>
 
       <el-form-item label="备注">
-        <el-input
-          v-model="form.remark"
-          type="textarea"
-          :rows="3"
-          placeholder="请输入备注"
-        ></el-input>
+        <el-input v-model="form.remark" placeholder="请输入备注" clearable></el-input>
       </el-form-item>
 
-      <el-form-item label="附件" v-if="isEdit">
-        <!-- 附件逻辑简化，使用一个Slot或者保留原样 -->
-        <div class="attachment-tip">（附件功能请保存后在详情页操作，或此处预留接口）</div>
-      </el-form-item>
-      <el-form-item v-else>
-        <div class="attachment-tip">保存物料后可上传附件</div>
+      <el-form-item label="上传附件">
+        <el-upload
+          action="#"
+          :auto-upload="false"
+          :on-change="handleAttachmentChange"
+          :on-remove="handleAttachmentRemove"
+          :file-list="attachmentFileList"
+          multiple
+          :limit="5"
+          accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx"
+        >
+          <el-button type="primary" size="small">
+            <el-icon><Upload /></el-icon> 选择文件
+          </el-button>
+        </el-upload>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -303,7 +314,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-import { Refresh, InfoFilled } from '@element-plus/icons-vue'
+import { Refresh, InfoFilled, Upload } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { materialApi } from '@/api/material'
 // 需要引入其他API: productCategory, location, unit, etc.
@@ -360,6 +371,19 @@ const form = reactive({
   remark: ''
 })
 
+// 附件相关状态
+const attachmentFileList = ref([])
+
+// 附件选择
+const handleAttachmentChange = (file, fileList) => {
+  attachmentFileList.value = fileList
+}
+
+// 附件移除
+const handleAttachmentRemove = (file, fileList) => {
+  attachmentFileList.value = fileList
+}
+
 const rules = {
   name: [{ required: true, message: '请输入物料名称', trigger: 'blur' }],
   product_category_id: [{ required: true, message: '请选择物料大类', trigger: 'change' }],
@@ -386,8 +410,36 @@ const fillFormData = (data) => {
         code: data.supplier_code
       }]
     }
+    // 复制模式：有 product_category_id 但没有 id → 自动生成编码
+    if (!data.id && form.product_category_id) {
+      nextTick(() => {
+        regenerateMaterialCode()
+      })
+    }
+    // 编辑模式：加载已有附件列表
+    if (data.id) {
+      loadExistingAttachments(data.id)
+    } else {
+      attachmentFileList.value = []
+    }
   } else {
     resetForm()
+  }
+}
+
+// 加载已有附件（编辑模式）
+const loadExistingAttachments = async (materialId) => {
+  try {
+    const res = await materialApi.getMaterialAttachments(materialId)
+    const list = res?.data || res
+    const items = Array.isArray(list) ? list : (list?.data || [])
+    attachmentFileList.value = items.map(a => ({
+      name: a.file_name || a.original_name || '附件',
+      url: a.file_path || a.url,
+      // 没有raw属性表示是已存在的附件，submitForm中会跳过
+    }))
+  } catch {
+    attachmentFileList.value = []
   }
 }
 
@@ -431,57 +483,36 @@ const resetForm = () => {
   })
 }
 
-// 递归检查节点或其任意祖先是否匹配搜索条件
-const checkNodeOrAncestorMatch = (nodeId, searchValue, allOptions) => {
-  // 递归函数：在树中查找节点并检查其路径上是否有匹配项
-  const findAndCheckPath = (nodes, targetId, ancestorMatched = false) => {
-    for (const node of nodes) {
-      // 检查当前节点是否匹配
-      const currentMatch = 
-        (node.displayName && node.displayName.toLowerCase().indexOf(searchValue) !== -1) ||
-        (node.name && node.name.toLowerCase().indexOf(searchValue) !== -1) ||
-        (node.code && node.code.toLowerCase().indexOf(searchValue) !== -1)
-      
-      // 如果当前节点就是目标
-      if (node.id === targetId) {
-        // 如果当前节点匹配，或者任何祖先节点匹配，返回true
-        return currentMatch || ancestorMatched
-      }
-      
-      // 递归检查子节点
-      if (node.children && node.children.length > 0) {
-        const result = findAndCheckPath(node.children, targetId, ancestorMatched || currentMatch)
-        if (result !== null) return result
-      }
-    }
-    return null
-  }
-  
-  return findAndCheckPath(allOptions, nodeId, false) === true
+// === Cascader 级联选择器逻辑 ===
+// cascader 绑定值（emitPath: false 时直接为选中的 id）
+const productCategoryCascaderValue = ref(null)
+
+// 搜索过滤方法：支持按编码和名称搜索
+const cascaderFilterMethod = (node, keyword) => {
+  const data = node.data
+  const kw = keyword.toLowerCase()
+  return (
+    (data.displayName && data.displayName.toLowerCase().includes(kw)) ||
+    (data.name && data.name.toLowerCase().includes(kw)) ||
+    (data.code && data.code.toLowerCase().includes(kw))
+  )
 }
 
-const filterProductCategory = (value, data) => {
-  if (!value) return true
-  const searchValue = value.toLowerCase()
-  
-  // 检查当前节点是否直接匹配
-  const directMatch = 
-    (data.displayName && data.displayName.toLowerCase().indexOf(searchValue) !== -1) ||
-    (data.name && data.name.toLowerCase().indexOf(searchValue) !== -1) ||
-    (data.code && data.code.toLowerCase().indexOf(searchValue) !== -1)
-  
-  if (directMatch) return true
-  
-  // 检查是否有任何祖先节点匹配（如果父节点匹配，显示其子节点）
-  return checkNodeOrAncestorMatch(data.id, searchValue, props.productCategoryOptions)
-}
-
-const handleProductCategoryChange = () => {
+// cascader 值变更回调
+const handleCascaderChange = (value) => {
+  form.product_category_id = value
   // 选择大类后自动生成编码（仅新增时）
-  if (form.product_category_id && !isEdit.value) {
+  if (value && !isEdit.value) {
     regenerateMaterialCode()
   }
 }
+
+// 同步 cascader 值与 form.product_category_id
+watch(() => form.product_category_id, (val) => {
+  if (val !== productCategoryCascaderValue.value) {
+    productCategoryCascaderValue.value = val
+  }
+}, { immediate: true })
 
 // 递归查找产品大类路径（找到目标ID及其层级结构）
 const findCategoryPath = (targetId, categories, path = []) => {
@@ -579,13 +610,42 @@ const submitForm = async () => {
     if (valid) {
       submitting.value = true
       try {
-        if (form.id) {
-          await materialApi.updateMaterial(form.id, form)
+        let materialId = form.id
+        if (materialId) {
+          await materialApi.updateMaterial(materialId, form)
           ElMessage.success('更新成功')
         } else {
-          await materialApi.createMaterial(form)
+          const res = await materialApi.createMaterial(form)
+          // 获取新创建物料的ID，用于上传附件
+          const resData = res?.data || res
+          materialId = resData?.id || resData?.data?.id
           ElMessage.success('创建成功')
         }
+
+        // 上传待处理的附件文件
+        if (materialId && attachmentFileList.value.length > 0) {
+          const pendingFiles = attachmentFileList.value.filter(f => f.raw) // 只上传新选择的文件
+          if (pendingFiles.length > 0) {
+            let uploadedCount = 0
+            for (const fileItem of pendingFiles) {
+              try {
+                const formData = new FormData()
+                formData.append('file', fileItem.raw)
+                await materialApi.uploadMaterialAttachment(materialId, formData)
+                uploadedCount++
+              } catch (uploadErr) {
+                console.error('附件上传失败:', fileItem.name, uploadErr)
+              }
+            }
+            if (uploadedCount > 0) {
+              ElMessage.success(`已上传 ${uploadedCount} 个附件`)
+            }
+            if (uploadedCount < pendingFiles.length) {
+              ElMessage.warning(`${pendingFiles.length - uploadedCount} 个附件上传失败`)
+            }
+          }
+        }
+
         emit('success')
         handleClose()
       } catch (error) {
@@ -602,5 +662,22 @@ const submitForm = async () => {
 .attachment-tip {
   font-size: 12px;
   color: var(--color-text-secondary);
+}
+
+/* 附件列表显示在按钮前面（左侧），而不是下方 */
+:deep(.el-upload-list) {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+:deep(.el-form-item__content > .el-upload) {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+:deep(.el-upload-list__item) {
+  margin-top: 0;
 }
 </style>

@@ -1,14 +1,15 @@
+<!--
+/**
+ * ReceiptDetail.vue
+ * @description 采购入库详情 - 对齐网页端操作逻辑
+ * @date 2026-04-25
+ * @version 2.0.0
+ */
+-->
 <template>
     <div class="page-container">
         <!-- 导航栏 -->
-        <div class="nav-bar">
-            <button class="back-btn" @click="router.back()">
-                <Icon name="arrow-left" size="1.25rem" />
-            </button>
-            <h1 class="page-title">采购入库详情</h1>
-            <div class="nav-actions">
-            </div>
-        </div>
+        <NavBar title="采购入库详情" left-arrow @click-left="router.back()" />
 
         <div class="content-scroll" v-if="receiptOrder">
             <!-- 状态卡片 -->
@@ -19,7 +20,7 @@
                     </div>
                     <div class="status-info">
                         <h2 class="status-text">{{ getStatusText(receiptOrder.status) }}</h2>
-                        <p class="order-code">{{ receiptOrder.code }}</p>
+                        <p class="order-code">{{ receiptOrder.receipt_no }}</p>
                     </div>
                     <div class="status-date">
                         {{ formatDate(receiptOrder.created_at) }}
@@ -32,7 +33,7 @@
             <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">关联订单</span>
-                    <span class="info-value">{{ receiptOrder.order_code || '-' }}</span>
+                    <span class="info-value">{{ receiptOrder.order_no || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">供应商</span>
@@ -43,12 +44,16 @@
                     <span class="info-value">{{ formatDate(receiptOrder.receipt_date, 'YYYY-MM-DD') || '-' }}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">经办人</span>
-                    <span class="info-value">{{ receiptOrder.creator_name }}</span>
+                    <span class="info-label">收货人</span>
+                    <span class="info-value">{{ receiptOrder.receiver || receiptOrder.operator || '-' }}</span>
                 </div>
-                <div class="info-row" v-if="receiptOrder.remark">
+                <div class="info-row" v-if="receiptOrder.warehouse_name">
+                    <span class="info-label">入库仓库</span>
+                    <span class="info-value">{{ receiptOrder.warehouse_name }}</span>
+                </div>
+                <div class="info-row" v-if="receiptOrder.remarks || receiptOrder.remark">
                     <span class="info-label">备注</span>
-                    <span class="info-value">{{ receiptOrder.remark }}</span>
+                    <span class="info-value">{{ receiptOrder.remarks || receiptOrder.remark }}</span>
                 </div>
             </div>
 
@@ -56,23 +61,34 @@
             <div class="section-title">物料明细 ({{ receiptOrder.items ? receiptOrder.items.length : 0 }})</div>
             <div class="items-list">
                 <div class="basic-list-item" v-for="item in receiptOrder.items" :key="item.id">
-       <div class="item-title-row">
-         <div class="item-title">{{ item.material_name }}</div>
-         <div class="item-subtitle">{{ `SKU: ${item.material_code}` || '' }}</div>
-       </div>
+                    <div class="item-title-row">
+                        <div class="item-title">{{ item.material_name }}</div>
+                        <div class="item-subtitle">{{ `SKU: ${item.material_code}` || '' }}</div>
+                    </div>
                     <div class="item-details">
                         <div class="detail-row">
-                            <span class="detail-label">计划数量:</span>
-                            <span class="detail-value">{{ item.plan_quantity }} {{ item.unit_name }}</span>
+                            <span class="detail-label">订单数量:</span>
+                            <span class="detail-value">{{ item.ordered_quantity || 0 }} {{ item.unit_name }}</span>
                         </div>
                         <div class="detail-row">
-                            <span class="detail-label">实际数量:</span>
-                            <span class="detail-value highlight">{{ item.actual_quantity || '-' }} {{ item.unit_name
-                                }}</span>
+                            <span class="detail-label">实收数量:</span>
+                            <span class="detail-value highlight">{{ item.received_quantity || '-' }} {{ item.unit_name }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.batch_no">
+                        <div class="detail-row" v-if="item.batch_no || item.batch_number">
                             <span class="detail-label">批次号:</span>
-                            <span class="detail-value">{{ item.batch_no }}</span>
+                            <span class="detail-value">{{ item.batch_no || item.batch_number }}</span>
+                        </div>
+                        <div class="detail-row" v-if="item.qualified_quantity != null">
+                            <span class="detail-label">合格数量:</span>
+                            <span class="detail-value">{{ item.qualified_quantity }} {{ item.unit_name }}</span>
+                        </div>
+                        <div class="detail-row" v-if="item.specification || item.specs">
+                            <span class="detail-label">规格:</span>
+                            <span class="detail-value">{{ item.specification || item.specs }}</span>
+                        </div>
+                        <div class="detail-row" v-if="item.price > 0">
+                            <span class="detail-label">单价:</span>
+                            <span class="detail-value">¥{{ parseFloat(item.price).toFixed(2) }}</span>
                         </div>
                         <div class="detail-row" v-if="item.warehouse_name">
                             <span class="detail-label">入库仓库:</span>
@@ -80,6 +96,16 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- 操作按钮 — 严格对齐网页端：draft → 入库/取消 -->
+            <div class="action-section" v-if="receiptOrder.status === 'draft'" v-permission="'purchase:receipts:update'">
+                <Button type="success" round block size="large" @click="handleComplete" :loading="actionLoading" style="margin-bottom: 10px">
+                    确认入库
+                </Button>
+                <Button type="warning" round block size="large" plain @click="handleCancel" :loading="actionLoading">
+                    取消收货单
+                </Button>
             </div>
         </div>
 
@@ -94,29 +120,13 @@
             <p>未找到入库单信息</p>
             <Button class="mt-4" size="sm" @click="fetchDetail">重试</Button>
         </div>
-
-        <!-- 底部操作栏 -->
-        <div class="bottom-actions glass-panel" v-if="receiptOrder && receiptOrder.status === 'pending'">
-            <Button type="primary" block :loading="submitting" @click="showExecuteDialog = true">
-                确认入库
-            </Button>
-        </div>
-
-        <!-- 确认入库弹窗 -->
-        <van-dialog v-model:show="showExecuteDialog" title="确认入库" show-cancel-button @confirm="handleExecute">
-            <div class="p-4 text-center">
-                确认将该单据标记为已入库？
-                <br>
-                <span class="text-xs text-gray-500">库存数量将相应增加</span>
-            </div>
-        </van-dialog>
     </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {  showToast , Button } from 'vant'
+import { showToast, showConfirmDialog, Button } from 'vant'
 import { purchaseApi } from '@/services/api'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
@@ -126,13 +136,14 @@ const router = useRouter()
 const id = route.params.id
 
 const loading = ref(true)
-const submitting = ref(false)
+const actionLoading = ref(false)
 const receiptOrder = ref(null)
-const showExecuteDialog = ref(false)
 
 // 状态样式映射
 const statusClass = {
+    draft: 'bg-yellow-500',
     pending: 'bg-yellow-500',
+    confirmed: 'bg-blue-500',
     processing: 'bg-blue-500',
     completed: 'bg-green-500',
     cancelled: 'bg-gray-500'
@@ -143,7 +154,7 @@ const fetchDetail = async () => {
     loading.value = true
     try {
         const res = await purchaseApi.getReceipt(id)
-        receiptOrder.value = res.data || res
+        receiptOrder.value = res.data?.data || res.data || res
     } catch (error) {
         console.error('获取采购入库单详情失败:', error)
         showToast('加载失败')
@@ -155,7 +166,9 @@ const fetchDetail = async () => {
 // 状态文本
 const getStatusText = (status) => {
     const map = {
+        draft: '草稿',
         pending: '待入库',
+        confirmed: '已确认',
         processing: '入库中',
         completed: '已完成',
         cancelled: '已取消'
@@ -166,7 +179,9 @@ const getStatusText = (status) => {
 // 状态图标
 const getStatusIcon = (status) => {
     const map = {
+        draft: 'clock',
         pending: 'clock',
+        confirmed: 'check-circle',
         processing: 'refresh',
         completed: 'check-circle',
         cancelled: 'x-circle'
@@ -179,23 +194,45 @@ const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
     return date ? dayjs(date).format(format) : '-'
 }
 
-// 执行入库
-const handleExecute = async () => {
-    submitting.value = true
+// 确认入库 (draft → completed)
+const handleComplete = async () => {
     try {
-        // 假设更新 object 状态, 具体取决于后端
-        // 模拟更新状态
-        receiptOrder.value.status = 'completed';
-        await purchaseApi.updateReceipt(id, receiptOrder.value)
-
+        await showConfirmDialog({
+            title: '确认入库',
+            message: '确认将该收货单标记为已入库？库存数量将相应增加。'
+        })
+        actionLoading.value = true
+        await purchaseApi.updateReceiptStatus(id, 'completed', '移动端确认入库')
         showToast({ type: 'success', message: '入库成功' })
-        fetchDetail() // 刷新详情
-    } catch (error) {
-        console.error('执行入库失败:', error)
-        showToast('操作失败')
+        await fetchDetail()
+    } catch (e) {
+        if (e !== 'cancel') {
+            console.error('执行入库失败:', e)
+            showToast(e.response?.data?.message || '操作失败')
+        }
     } finally {
-        submitting.value = false
-        showExecuteDialog.value = false
+        actionLoading.value = false
+    }
+}
+
+// 取消收货单 (draft → cancelled)
+const handleCancel = async () => {
+    try {
+        await showConfirmDialog({
+            title: '取消确认',
+            message: '确定取消该收货单？'
+        })
+        actionLoading.value = true
+        await purchaseApi.updateReceiptStatus(id, 'cancelled', '移动端取消')
+        showToast('收货单已取消')
+        await fetchDetail()
+    } catch (e) {
+        if (e !== 'cancel') {
+            console.error('取消收货单失败:', e)
+            showToast(e.response?.data?.message || '操作失败')
+        }
+    } finally {
+        actionLoading.value = false
     }
 }
 
@@ -213,37 +250,6 @@ onMounted(() => {
     flex-direction: column;
 }
 
-.nav-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem;
-    background: var(--bg-secondary);
-    backdrop-filter: blur(20px);
-    position: sticky;
-    top: 0;
-    z-index: 50;
-}
-
-.back-btn {
-    background: none;
-    border: none;
-    color: white;
-    padding: 0.5rem;
-    margin-left: -0.5rem;
-    cursor: pointer;
-}
-
-.page-title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: white;
-}
-
-.nav-actions {
-    width: 2rem;
-}
-
 .content-scroll {
     padding: 1rem;
     padding-bottom: 6rem;
@@ -259,6 +265,13 @@ onMounted(() => {
     gap: 1rem;
 }
 
+.detail-card {
+    background: var(--bg-secondary);
+    border-radius: 14px;
+    padding: 16px;
+    border: 1px solid var(--glass-border);
+}
+
 .status-icon {
     width: 3rem;
     height: 3rem;
@@ -266,7 +279,7 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--text-primary);
     box-shadow: none;
 }
 
@@ -277,7 +290,7 @@ onMounted(() => {
 .status-text {
     font-size: 1.125rem;
     font-weight: 600;
-    color: white;
+    color: var(--text-primary);
     margin-bottom: 0.25rem;
 }
 
@@ -320,7 +333,7 @@ onMounted(() => {
 }
 
 .info-value {
-    color: white;
+    color: var(--text-primary);
     text-align: right;
     flex: 1;
 }
@@ -370,33 +383,25 @@ onMounted(() => {
     color: var(--text-tertiary);
 }
 
-.bottom-actions {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 1rem;
-    background: var(--bg-secondary);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--van-border-color);
-    z-index: 40;
+.action-section {
+    padding: 20px 0;
 }
 
 /* 状态颜色 */
 .bg-yellow-500 {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
+    background: linear-gradient(135deg, var(--color-warning), #d97706);
 }
 
 .bg-blue-500 {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    background: linear-gradient(135deg, var(--color-primary), #2563eb);
 }
 
 .bg-green-500 {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: linear-gradient(135deg, var(--color-success), var(--color-success));
 }
 
 .bg-gray-500 {
-    background: linear-gradient(135deg, #6b7280, #4b5563);
+    background: linear-gradient(135deg, var(--text-secondary), var(--text-secondary));
 }
 
 .basic-list-item {

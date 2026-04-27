@@ -1,78 +1,21 @@
 /**
- * salesController.js
- * @description 控制器文件
- * @date 2025-08-27
- * @version 1.0.0
+ * salesExchangeController.js
+ * @description 销售换货控制器
+ * @version 1.1.0
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
+const { softDelete } = require('../../../utils/softDelete');
 const InventoryReservationService = require('../../../services/InventoryReservationService');
-const { CodeGenerators } = require('../../../utils/codeGenerator');
 const DBManager = require('../../../utils/dbManager');
-const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { generateProductionAndPurchasePlans } = require('./salesPackingController');
 
-// 状态常量
-const STATUS = {
-  SALES_ORDER: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    CONFIRMED: 'confirmed',
-    READY_TO_SHIP: 'ready_to_ship',
-    IN_PRODUCTION: 'in_production',
-    IN_PROCUREMENT: 'in_procurement',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-  OUTBOUND: businessConfig.status.outbound,
-  SALES_RETURN: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    APPROVED: 'approved',
-    COMPLETED: 'completed',
-    REJECTED: 'rejected',
-    CANCELLED: 'cancelled',
-  },
-  EXCHANGE: {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-};
-
-// 移除了废弃的 ensureSalesExchangeTablesExist, createSalesExchangeTablesDirectly, 和 updateSalesExchangeTableStructure
-// 使用统一的编号生成服务 - 替代原 generateTransactionNo 函数
-async function generateTransactionNo(connection) {
-  return await CodeGenerators.generateTransactionCode(connection);
-}
-
-// Import the connection pool from db
-// 注意: 改名为 connectionPool 避免与函数内局部变量 connection 产生遮蔽
-const connectionPool = db.pool;
-
-// 统一的连接管理函数
-const getConnection = async () => {
-  return await connectionPool.getConnection();
-};
-
-// 带事务的连接管理函数
-const getConnectionWithTransaction = async () => {
-  const conn = await connectionPool.getConnection();
-  await conn.beginTransaction();
-  return conn;
-};
-
-// 统一的销售订单编号生成函数 - 替代所有重复的生成函数
-const generateSalesOrderNo = async (connection) => {
-  return CodeGenerators.generateSalesOrderCode(connection);
-};
-
-// 保持向后兼容的别名函数
-const generateOrderNo = generateSalesOrderNo;
+// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
+const { STATUS, getConnection, getConnectionWithTransaction, generateTransactionNo } = require('./salesShared');
 
 // 添加新的控制器方法
 
@@ -173,7 +116,7 @@ exports.getSalesExchanges = async (req, res) => {
     }
   } catch (error) {
     logger.error('获取销售换货单列表失败:', error);
-    res.status(500).json({ error: '获取销售换货单列表失败' });
+    ResponseHandler.error(res, '获取销售换货单列表失败', 'SERVER_ERROR', 500);
   }
 };
 
@@ -195,7 +138,7 @@ exports.getSalesExchangeById = async (req, res) => {
       const [exchangeResults] = await connection.query(query, [id]);
 
       if (exchangeResults.length === 0) {
-        return res.status(404).json({ error: '换货单不存在' });
+        return ResponseHandler.notFound(res, '换货单不存在');
       }
 
       const exchange = exchangeResults[0];
@@ -254,7 +197,7 @@ exports.getSalesExchangeById = async (req, res) => {
     }
   } catch (error) {
     logger.error('获取销售换货单详情失败:', error);
-    res.status(500).json({ error: '获取销售换货单详情失败' });
+    ResponseHandler.error(res, '获取销售换货单详情失败', 'SERVER_ERROR', 500);
   }
 };
 
@@ -276,7 +219,7 @@ exports.createSalesExchange = async (req, res) => {
 
     // 验证必要参数
     if (!orderNo || !exchangeDate || !reason) {
-      return res.status(400).json({ error: '缺少必要参数：订单号、换货日期、换货原因' });
+      return ResponseHandler.error(res, '缺少必要参数：订单号、换货日期、换货原因', 'BAD_REQUEST', 400);
     }
 
     // 支持新的数据结构（returnItems + newItems）或旧的数据结构（items）
@@ -284,15 +227,15 @@ exports.createSalesExchange = async (req, res) => {
     const hasOldFormat = items && Array.isArray(items) && items.length > 0;
 
     if (!hasNewFormat && !hasOldFormat) {
-      return res.status(400).json({ error: '至少需要退回商品和换出商品，或者换货项目' });
+      return ResponseHandler.error(res, '至少需要退回商品和换出商品，或者换货项目', 'BAD_REQUEST', 400);
     }
 
     if (hasNewFormat) {
       if (!Array.isArray(returnItems) || returnItems.length === 0) {
-        return res.status(400).json({ error: '至少需要一个退回商品' });
+        return ResponseHandler.error(res, '至少需要一个退回商品', 'BAD_REQUEST', 400);
       }
       if (!Array.isArray(newItems) || newItems.length === 0) {
-        return res.status(400).json({ error: '至少需要一个换出商品' });
+        return ResponseHandler.error(res, '至少需要一个换出商品', 'BAD_REQUEST', 400);
       }
     }
 
@@ -300,21 +243,9 @@ exports.createSalesExchange = async (req, res) => {
     connection = await db.pool.getConnection();
     await connection.beginTransaction();
 
-    // 生成换货单号: EX + 年月日 + 3位序号
-    const date = new Date();
-    const dateStr =
-      date.getFullYear() +
-      ('0' + (date.getMonth() + 1)).slice(-2) +
-      ('0' + date.getDate()).slice(-2);
-
-    // 查询当天最大序号
-    const [seqResult] = await connection.query(
-      'SELECT MAX(SUBSTRING(exchange_no, 11)) as max_seq FROM sales_exchanges WHERE exchange_no LIKE ?',
-      [`EX${dateStr}%`]
-    );
-
-    const seq = seqResult[0].max_seq ? parseInt(seqResult[0].max_seq) + 1 : 1;
-    const exchangeNo = `EX${dateStr}${seq.toString().padStart(3, '0')} `;
+    // 使用编码引擎生成换货单号
+    const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+    const exchangeNo = await CodeGeneratorService.nextCode('sales_exchange', connection);
 
     // 插入换货单主表（金额字段后续计算回填）
     const insertQuery = `
@@ -325,22 +256,11 @@ exports.createSalesExchange = async (req, res) => {
           ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 0, 0, 0)
             `;
 
-    const created_by = await getCurrentUserName(req);
+    const created_by = req.user?.userId || req.user?.id || 1;
 
     // 格式化日期为MySQL DATE格式 (YYYY-MM-DD)
     const formattedDate = new Date(exchangeDate).toISOString().split('T')[0];
 
-    logger.info('执行插入查询，参数:', [
-      exchangeNo,
-      orderNo,
-      customerName,
-      contactPhone,
-      formattedDate,
-      reason,
-      '待处理',
-      remark,
-      created_by,
-    ]);
 
     const [result] = await connection.query(insertQuery, [
       exchangeNo,
@@ -505,7 +425,7 @@ exports.createSalesExchange = async (req, res) => {
       await connection.rollback();
     }
     logger.error('创建销售换货单失败:', error);
-    res.status(500).json({ error: '创建销售换货单失败' });
+    ResponseHandler.error(res, '创建销售换货单失败', 'SERVER_ERROR', 500);
   } finally {
     if (connection) {
       connection.release();
@@ -675,6 +595,9 @@ exports.updateSalesExchange = async (req, res) => {
       condition: status === '已完成' && currentStatus !== '已完成',
     });
 
+    // 缓存换货单信息，用于 commit 后异步生成差价分录
+    let pendingExchangeForFinance = null;
+
     if (status === '已完成' && currentStatus !== '已完成') {
       await processExchangeInventory(connection, id, req.user?.username || 'system');
 
@@ -683,18 +606,8 @@ exports.updateSalesExchange = async (req, res) => {
         id,
       ]);
 
-      // 在事务提交后异步生成差价分录
       if (exchangeInfo.length > 0) {
-        const salesExchange = exchangeInfo[0];
-        setImmediate(async () => {
-          try {
-            const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
-            await FinanceIntegrationService.generateExchangeDifferenceEntry(salesExchange);
-            logger.info(`✅ 销售换货差价分录自动生成成功 - 换货单: ${salesExchange.exchange_no} `);
-          } catch (financeError) {
-            logger.warn(`⚠️ 销售换货差价分录自动生成失败（不影响换货）: ${financeError.message} `);
-          }
-        });
+        pendingExchangeForFinance = exchangeInfo[0];
       }
     } else {
       logger.info('跳过库存处理，原因:', {
@@ -704,6 +617,19 @@ exports.updateSalesExchange = async (req, res) => {
     }
 
     await connection.commit();
+
+    // ✅ 时序修复：在事务 commit 之后再异步生成差价分录，确保读取到已提交的数据
+    if (pendingExchangeForFinance) {
+      setImmediate(async () => {
+        try {
+          const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
+          await FinanceIntegrationService.generateExchangeDifferenceEntry(pendingExchangeForFinance);
+          logger.info(`✅ 销售换货差价分录自动生成成功 - 换货单: ${pendingExchangeForFinance.exchange_no}`);
+        } catch (financeError) {
+          logger.warn(`⚠️ 销售换货差价分录自动生成失败（不影响换货）: ${financeError.message}`);
+        }
+      });
+    }
 
     res.json({
       message: '销售换货单更新成功',
@@ -715,10 +641,7 @@ exports.updateSalesExchange = async (req, res) => {
     }
     logger.error('更新销售换货单失败:', error);
     logger.error('错误堆栈:', error.stack);
-    res.status(500).json({
-      error: '更新销售换货单失败',
-      details: error.message,
-    });
+    ResponseHandler.error(res, '更新销售换货单失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
       connection.release();
@@ -739,8 +662,8 @@ exports.deleteSalesExchange = async (req, res) => {
     // 删除明细
     await connection.query('DELETE FROM sales_exchange_items WHERE exchange_id = ?', [id]);
 
-    // 删除主表
-    await connection.query('DELETE FROM sales_exchanges WHERE id = ?', [id]);
+    // ✅ 软删除换货单主表
+    await softDelete(connection, 'sales_exchanges', 'id', id);
 
     await connection.commit();
 
@@ -753,7 +676,7 @@ exports.deleteSalesExchange = async (req, res) => {
       await connection.rollback();
     }
     logger.error('删除销售换货单失败:', error);
-    res.status(500).json({ error: '删除销售换货单失败' });
+    ResponseHandler.error(res, '删除销售换货单失败', 'SERVER_ERROR', 500);
   } finally {
     if (connection) {
       connection.release();
@@ -770,7 +693,7 @@ exports.updateExchangeStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!status) {
-      return res.status(400).json({ error: '缺少必要参数：status' });
+      return ResponseHandler.error(res, '缺少必要参数：status', 'BAD_REQUEST', 400);
     }
 
     // 允许的状态值
@@ -790,7 +713,7 @@ exports.updateExchangeStatus = async (req, res) => {
 
     if (currentResult.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '换货单不存在' });
+      return ResponseHandler.notFound(res, '换货单不存在');
     }
 
     const currentExchange = currentResult[0];
@@ -818,29 +741,36 @@ exports.updateExchangeStatus = async (req, res) => {
       [status, id]
     );
 
+    // 缓存换货单信息，用于 commit 后异步生成差价分录
+    let pendingExchangeForFinance = null;
+
     // 如果状态变为 completed，处理换货库存操作
     if (status === 'completed' && previousStatus !== 'completed') {
       const operator = await getCurrentUserName(req);
       await processExchangeInventory(connection, id, operator);
       logger.info(`✅ 换货单 ${currentExchange.exchange_no} 完成，库存已处理`);
 
-      // 异步生成差价分录
+      // 获取换货单信息用于 commit 后异步生成差价分录
       const [exchangeInfo] = await connection.query('SELECT * FROM sales_exchanges WHERE id = ?', [id]);
       if (exchangeInfo.length > 0) {
-        const salesExchange = exchangeInfo[0];
-        setImmediate(async () => {
-          try {
-            const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
-            await FinanceIntegrationService.generateExchangeDifferenceEntry(salesExchange);
-            logger.info(`✅ 换货差价分录自动生成成功 - 换货单: ${salesExchange.exchange_no}`);
-          } catch (financeError) {
-            logger.warn(`⚠️ 换货差价分录自动生成失败（不影响换货）: ${financeError.message}`);
-          }
-        });
+        pendingExchangeForFinance = exchangeInfo[0];
       }
     }
 
     await connection.commit();
+
+    // ✅ 时序修复：在事务 commit 之后再异步生成差价分录
+    if (pendingExchangeForFinance) {
+      setImmediate(async () => {
+        try {
+          const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
+          await FinanceIntegrationService.generateExchangeDifferenceEntry(pendingExchangeForFinance);
+          logger.info(`✅ 换货差价分录自动生成成功 - 换货单: ${pendingExchangeForFinance.exchange_no}`);
+        } catch (financeError) {
+          logger.warn(`⚠️ 换货差价分录自动生成失败（不影响换货）: ${financeError.message}`);
+        }
+      });
+    }
 
     res.json({
       message: '换货单状态更新成功',
@@ -851,7 +781,7 @@ exports.updateExchangeStatus = async (req, res) => {
       await connection.rollback();
     }
     logger.error('更新换货单状态失败:', error);
-    res.status(500).json({ error: '更新换货单状态失败: ' + error.message });
+    ResponseHandler.error(res, '更新换货单状态失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
       connection.release();
@@ -911,7 +841,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
       if (!locationId) {
         throw new Error(`退回商品 ${item.material_id} 未能获取到归属仓库，操作终止。`);
       }
-      logger.info('🔍 退回商品数量调试:', {
+      logger.debug('退回商品数量:', {
         product_code: item.product_code,
         quantity: item.quantity,
         type: typeof item.quantity,
@@ -967,7 +897,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
       if (!locationId) {
         throw new Error(`换出商品 ${item.material_id} 无法确定仓库起源，操作终止。`);
       }
-      logger.info('🔍 换出商品数量调试:', {
+      logger.debug('换出商品数量:', {
         product_code: item.product_code,
         quantity: item.quantity,
         type: typeof item.quantity,
@@ -1178,46 +1108,7 @@ async function getMaterialsBySourceWithInventoryCheck(items) {
   return materialsBySource;
 }
 
-// 保留原有函数以兼容其他地方的调用
-async function getMaterialsBySource(items) {
-  const materialsBySource = {
-    internal: [], // 自产物料
-    external: [], // 外购物料
-  };
-
-  for (const item of items) {
-    try {
-      // 查询物料信息和来源类型
-      const materialQuery = `
-        SELECT m.*, ms.type as source_type, ms.name as source_name
-        FROM materials m
-        LEFT JOIN material_sources ms ON m.material_source_id = ms.id
-        WHERE m.id = ?
-        `;
-
-      const result = await db.query(materialQuery, [item.material_id]);
-
-      if (result.rows && result.rows.length > 0) {
-        const material = result.rows[0];
-        const itemWithMaterial = {
-          ...item,
-          material: material,
-        };
-
-        // 根据来源类型分类
-        if (material.source_type === 'internal') {
-          materialsBySource.internal.push(itemWithMaterial);
-        } else if (material.source_type === 'external') {
-          materialsBySource.external.push(itemWithMaterial);
-        }
-      }
-    } catch (error) {
-      logger.error(`获取物料信息失败，物料ID: ${item.material_id} `, error);
-    }
-  }
-
-  return materialsBySource;
-}
+// ✅ RED-1 清理：废弃函数 getMaterialsBySource 已删除，被 getMaterialsBySourceWithInventoryCheck 替代
 
 // 使用统一的编号生成服务 - 用于采购申请编号生成
 async function generatePurchaseRequisitionNo(connection = null) {
@@ -1243,3 +1134,5 @@ async function generatePurchaseRequisitionNo(connection = null) {
  * @param {Object} res - 响应对象
  */
 
+// 导出内部工具函数供其他销售模块使用
+exports.autoGenerateFollowUpDocuments = autoGenerateFollowUpDocuments;

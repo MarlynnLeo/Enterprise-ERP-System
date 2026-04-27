@@ -1,4 +1,4 @@
-﻿/**
+/**
  * purchaseReturnController.js
  * @description 控制器文件
  * @date 2025-08-27
@@ -11,7 +11,6 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const pool = db.pool; // 正确引用连接池
 const purchaseModel = require('../../../models/purchase');
-const { ErrorFactory } = require('../../../middleware/unifiedErrorHandler');
 const businessConfig = require('../../../config/businessConfig');
 
 // 状态常量
@@ -169,7 +168,7 @@ const getReturn = async (req, res) => {
     const [result] = await pool.query(query, [id]);
 
     if (result.length === 0) {
-      return res.status(404).json({ error: '采购退货单不存在' });
+      return ResponseHandler.notFound(res, '采购退货单不存在');
     }
 
     const returnData = result[0];
@@ -227,7 +226,7 @@ const createReturn = async (req, res) => {
 
     if (receiptResult.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '完成状态的入库单不存在' });
+      return ResponseHandler.notFound(res, '完成状态的入库单不存在');
     }
 
     const {
@@ -345,13 +344,13 @@ const updateReturn = async (req, res) => {
 
     if (checkResult.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '采购退货单不存在' });
+      return ResponseHandler.notFound(res, '采购退货单不存在');
     }
 
     const currentStatus = checkResult[0].status;
     if (currentStatus !== 'draft' && currentStatus !== 'pending') {
       await connection.rollback();
-      return res.status(400).json({ error: '只能编辑草稿或待处理状态的退货单' });
+      return ResponseHandler.error(res, '只能编辑草稿或待处理状态的退货单', 'BAD_REQUEST', 400);
     }
 
     // ✅ 优先使用前端传来的operator,否则使用当前登录用户
@@ -433,7 +432,7 @@ const updateReturnStatus = async (req, res) => {
     const validStatuses = ['draft', 'confirmed', 'completed', 'cancelled'];
     if (!validStatuses.includes(newStatus)) {
       await connection.rollback();
-      return res.status(400).json({ error: '无效的状态值' });
+      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
     // 检查退货单是否存在
@@ -442,7 +441,7 @@ const updateReturnStatus = async (req, res) => {
 
     if (checkResult.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '采购退货单不存在' });
+      return ResponseHandler.notFound(res, '采购退货单不存在');
     }
 
     const currentStatus = checkResult[0].status;
@@ -450,7 +449,7 @@ const updateReturnStatus = async (req, res) => {
     // 检查状态变更是否有效
     if (currentStatus === newStatus) {
       await connection.rollback();
-      return res.status(400).json({ error: '当前已经是该状态' });
+      return ResponseHandler.error(res, '当前已经是该状态', 'BAD_REQUEST', 400);
     }
 
     // 特定状态转换的验证
@@ -463,10 +462,11 @@ const updateReturnStatus = async (req, res) => {
 
     if (!validTransitions[currentStatus] || !validTransitions[currentStatus].includes(newStatus)) {
       await connection.rollback();
-      return res.status(400).json({ error: '无效的状态变更' });
+      return ResponseHandler.error(res, '无效的状态变更', 'BAD_REQUEST', 400);
     }
 
     // 如果状态变为已完成，则需要更新库存
+    const pendingCostTasks = [];
     if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
       // 获取退货单基本信息,包括关联的入库单ID
       const returnQuery =
@@ -475,7 +475,7 @@ const updateReturnStatus = async (req, res) => {
 
       if (returnResult.length === 0) {
         await connection.rollback();
-        return res.status(404).json({ error: '退货单不存在' });
+        return ResponseHandler.notFound(res, '退货单不存在');
       }
 
       const returnNo = returnResult[0].return_no;
@@ -549,7 +549,7 @@ const updateReturnStatus = async (req, res) => {
           const [unitResult] = await connection.query(unitQuery, [item.material_id]);
           const unitId = unitResult.length > 0 ? unitResult[0].unit_id : null;
 
-          // 🔥 使用统一的 InventoryService 更新库存（自动同步 batch_inventory）
+          // 使用统一的 InventoryService 更新库存
           const InventoryService = require('../../../services/InventoryService');
           await InventoryService.updateStock(
             {
@@ -567,27 +567,16 @@ const updateReturnStatus = async (req, res) => {
             },
             connection
           );
-
-          // 异步生成采购退货的存货出库成本分录 (借暂估/贷库存)
-          setImmediate(async () => {
-            try {
-              const AsyncTaskService = require('../../../services/business/AsyncTaskService');
-              await AsyncTaskService.createCostEntryAsync({
-                transaction_type: 'purchase_return',
-                reference_no: returnNo,
-                reference_type: 'purchase_return',
-                material_id: item.material_id,
-                quantity: returnQuantity, // 这里传绝对值，底层会自动取绝对值或按照正负号计算成本
-                unit_cost: item.unit_price,
-                operator: 'system',
-              });
-            } catch (costErr) {
-              logger.warn(`退货单 ${returnNo} 物料 ${item.material_id} 成本核算触发失败:`, costErr.message);
-            }
+          // 缓存待异步处理的成本核算任务（commit 后统一触发）
+          pendingCostTasks.push({
+            returnNo,
+            materialId: item.material_id,
+            returnQuantity,
+            unitPrice: item.unit_price,
           });
 
           logger.info(
-            `✅ 库存扣减成功（统一服务）及触发存货核算: 物料ID=${item.material_id}, 退货数量=${returnQuantity}`
+            `✅ 库存扣减成功（统一服务）: 物料ID=${item.material_id}, 退货数量=${returnQuantity}`
           );
         }
       } else {
@@ -675,13 +664,13 @@ const updateReturnStatus = async (req, res) => {
     // 获取更新后的数据（事务已提交，使用全局pool可以读到最新数据）
     const updatedReturn = await getReturnById(id);
 
-    // 采购退货完成后，异步生成应付红字发票（在事务提交后执行）
+    // 采购退货完成后，异步生成应付红字发票和成本分录（事务已提交）
     if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
+      // 触发应付红字发票
       setImmediate(async () => {
         try {
           const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
 
-          // 获取完整的退货单信息
           const [returnData] = await pool.execute(
             `SELECT pr.*, s.name as supplier_name
              FROM purchase_returns pr
@@ -692,8 +681,6 @@ const updateReturnStatus = async (req, res) => {
 
           if (returnData.length > 0) {
             const purchaseReturn = returnData[0];
-
-            // 生成应付红字发票（Service 内部已有防重复检查）
             logger.info(
               `📄 采购退货完成，尝试自动生成应付红字发票 - 退货单: ${purchaseReturn.return_no}`
             );
@@ -706,6 +693,28 @@ const updateReturnStatus = async (req, res) => {
           logger.warn(`⚠️ 应付红字发票自动生成失败（不影响退货）: ${invoiceError.message}`);
         }
       });
+
+      // 触发采购退货成本分录（从循环中移出）
+      if (pendingCostTasks.length > 0) {
+        setImmediate(async () => {
+          const AsyncTaskService = require('../../../services/business/AsyncTaskService');
+          for (const task of pendingCostTasks) {
+            try {
+              await AsyncTaskService.createCostEntryAsync({
+                transaction_type: 'purchase_return',
+                reference_no: task.returnNo,
+                reference_type: 'purchase_return',
+                material_id: task.materialId,
+                quantity: task.returnQuantity,
+                unit_cost: task.unitPrice,
+                operator: 'system',
+              });
+            } catch (costErr) {
+              logger.warn(`退货单 ${task.returnNo} 物料 ${task.materialId} 成本核算触发失败:`, costErr.message);
+            }
+          }
+        });
+      }
     }
 
     res.json(updatedReturn);

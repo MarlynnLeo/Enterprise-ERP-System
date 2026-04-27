@@ -81,7 +81,10 @@ const setupInterceptors = (apiInstance) => {
             }
         }
 
-        if (token && tokenManager.isTokenValid()) {
+        // 只要存在 token 就注入 Authorization 头
+        // 即使 token 可能已过期，也应该发送，让后端返回 401 触发前端的 refresh 逻辑
+        // 否则请求不带 Authorization 头会被 CSRF 中间件拦截为 403
+        if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
 

@@ -10,8 +10,8 @@
         <el-empty description="暂无物料数据" />
       </template>
       <el-table-column prop="code" label="物料编码" width="120" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="name" label="物料名称" width="180" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="specs" label="规格型号" width="230" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="name" label="物料名称" width="200" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="specs" label="规格型号" width="260" show-overflow-tooltip></el-table-column>
       <el-table-column prop="category_name" label="物料类型" width="100" show-overflow-tooltip></el-table-column>
       <el-table-column prop="material_source_name" label="物料来源" width="90" show-overflow-tooltip></el-table-column>
       <el-table-column prop="unit_name" label="单位" width="60" show-overflow-tooltip></el-table-column>
@@ -28,7 +28,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" show-overflow-tooltip></el-table-column>
-      <el-table-column label="操作" min-width="240" fixed="right">
+      <el-table-column label="操作" min-width="180" fixed="right">
         <template #default="scope">
           <div style="display: flex; gap: 3px; flex-wrap: wrap;">
             <el-popconfirm

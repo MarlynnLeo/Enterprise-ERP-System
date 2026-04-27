@@ -65,7 +65,7 @@
             <span>物料明细 {{ index + 1 }}</span>
             <Icon
               name="delete-o"
-              color="#ee0a24"
+              color="var(--color-danger)"
               size="18"
               @click="removeItem(index)"
               v-if="form.items.length > 1"
@@ -308,7 +308,7 @@
   })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   .create-page {
     min-height: 100vh;
     background-color: var(--van-background-2);

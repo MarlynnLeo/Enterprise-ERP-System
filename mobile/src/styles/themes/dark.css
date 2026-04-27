@@ -1,0 +1,110 @@
+/**
+ * 移动端 - 暗色模式
+ * @description 深色护眼主题，适合夜间使用
+ * @version 1.0.0
+ *
+ * 色系来源：与 PC 端 dark.css 对齐
+ * 切换方式：html[data-theme="dark"] 激活
+ */
+
+:root[data-theme="dark"] {
+  /* ==================== 背景色 ==================== */
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --bg-header: #1e293b;
+
+  /* ==================== 边框与遮罩 ==================== */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-card: rgba(255, 255, 255, 0.06);
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --surface-active: rgba(255, 255, 255, 0.08);
+
+  --glass-bg: rgba(30, 41, 59, 0.95);
+  --glass-bg-hover: var(--surface-hover);
+  --glass-bg-active: var(--surface-active);
+  --glass-border: var(--border-subtle);
+  --glass-border-hover: rgba(255, 255, 255, 0.12);
+
+  /* ==================== 文字色 ==================== */
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-disabled: #475569;
+  --text-on-dark: #ffffff;
+  --text-on-dark-secondary: rgba(255, 255, 255, 0.8);
+
+  /* ==================== 功能色 ==================== */
+  --color-primary: #60a5fa;
+  --color-primary-bg: rgba(96, 165, 250, 0.15);
+
+  --color-success: #4ade80;
+  --color-success-bg: rgba(74, 222, 128, 0.15);
+
+  --color-warning: #fbbf24;
+  --color-warning-bg: rgba(251, 191, 36, 0.15);
+
+  --color-error: #f87171;
+  --color-error-bg: rgba(248, 113, 113, 0.15);
+
+  --color-info: #38bdf8;
+  --color-info-bg: rgba(56, 189, 248, 0.15);
+
+  --color-accent: #818cf8;
+
+  /* ==================== 模块色（暗色适配） ==================== */
+  --module-blue: #60a5fa;
+  --module-green: #4ade80;
+  --module-red: #f87171;
+  --module-orange: #fb923c;
+  --module-purple: #a78bfa;
+  --module-yellow: #facc15;
+
+  /* ==================== 阴影 ==================== */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(96, 165, 250, 0.1);
+
+  /* ==================== Vant 变量映射 ==================== */
+  --van-primary-color: var(--color-primary);
+  --van-success-color: var(--color-success);
+  --van-danger-color: var(--color-error);
+  --van-warning-color: var(--color-warning);
+  --van-text-color: var(--text-primary);
+  --van-text-color-2: var(--text-secondary);
+  --van-text-color-3: var(--text-tertiary);
+  --van-active-color: var(--glass-bg-active);
+  --van-background: var(--bg-secondary);
+  --van-background-2: var(--bg-primary);
+  --van-border-color: rgba(255, 255, 255, 0.1);
+
+  --van-nav-bar-background: var(--bg-header);
+  --van-nav-bar-title-text-color: var(--text-primary);
+  --van-nav-bar-icon-color: var(--text-secondary);
+  --van-search-background: var(--bg-primary);
+  --van-search-content-background: var(--bg-tertiary);
+  --van-search-action-text-color: var(--color-primary);
+  --van-cell-background: var(--bg-secondary);
+  --van-cell-text-color: var(--text-primary);
+  --van-cell-value-color: var(--text-secondary);
+  --van-cell-border-color: rgba(255, 255, 255, 0.06);
+  --van-cell-active-color: var(--glass-bg-active);
+  --van-cell-group-background: var(--bg-secondary);
+  --van-card-background: var(--bg-secondary);
+  --van-button-default-background: var(--bg-secondary);
+  --van-button-default-border-color: rgba(255, 255, 255, 0.1);
+  --van-button-default-color: var(--text-primary);
+  --van-field-label-color: var(--text-secondary);
+  --van-field-input-text-color: var(--text-primary);
+  --van-field-placeholder-text-color: var(--text-tertiary);
+  --van-popup-background: var(--bg-secondary);
+  --van-dialog-background: var(--bg-secondary);
+  --van-dialog-header-color: var(--text-primary);
+  --van-picker-background: var(--bg-secondary);
+  --van-toast-background: rgba(226, 232, 240, 0.95);
+  --van-toast-text-color: #0f172a;
+  --van-tabbar-background: var(--bg-secondary);
+  --van-tabbar-item-text-color: var(--text-secondary);
+  --van-tabbar-item-active-color: var(--color-primary);
+}

@@ -11,11 +11,16 @@
 /* 默认主题：WithGoogle 光明模式配色 */
 @import './themes/kacon.css';
 
+/* 可切换主题（通过 data-theme 属性激活） */
+@import './themes/dark.css';
+@import './themes/nature.css';
+@import './themes/tech.css';
+
 /* ==================== 全局样式 ==================== */
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Noto Sans SC', 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
   letter-spacing: -0.01em; /* Google Sans 常见微小收缩字距 */
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
@@ -27,7 +32,7 @@ body {
 /* 通用列表卡片/面板 */
 .unified-card, .kacon-card, .glass-panel, .glass-card {
   background: var(--bg-secondary);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
   padding: var(--spacing-md);
@@ -39,7 +44,7 @@ body {
 }
 
 .unified-card:active, .kacon-card:active, .glass-panel:active, .glass-card:active {
-  background: var(--glass-bg-hover);
+  background: var(--surface-hover);
   box-shadow: none;
   transform: scale(0.99); /* 弱化缩放，Google 不做强缩放 */
 }
@@ -278,4 +283,108 @@ body .van-tabs__line {
 }
 .list-card:active {
   transform: scale(0.98);
+}
+
+/* ==================== P0-1: 筛选药丸触摸反馈 ==================== */
+.filter-chip:active {
+  transform: scale(0.93);
+  opacity: 0.8;
+}
+
+/* ==================== P0-2: 操作按钮最小触摸目标 ==================== */
+/* 卡片内的操作按钮（编辑/确认/完成等）确保最小触摸区域 */
+.action-btn,
+.card-actions .action-btn {
+  min-height: 36px;
+  min-width: 56px;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==================== P1-8: 统计横幅触摸目标 ==================== */
+.stat-item {
+  min-height: 44px;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.stat-item:active {
+  opacity: 0.7;
+}
+
+/* ==================== P1-6: 减弱动画（无障碍） ==================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==================== 全局列表卡片样式 ==================== */
+.global-list-card {
+  margin: 10px 12px;
+  padding: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
+  border-radius: 12px;
+  transition: transform 0.15s;
+}
+.global-list-card:active {
+  transform: scale(0.98);
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.list-id {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.list-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.list-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.list-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 0.75rem;
+}
+.list-row .label {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.list-row .value {
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.list-row .value.amount {
+  font-weight: 700;
+  color: var(--color-primary, #3b82f6);
+}
+
+.list-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
 }

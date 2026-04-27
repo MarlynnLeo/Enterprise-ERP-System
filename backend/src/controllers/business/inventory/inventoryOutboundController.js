@@ -10,14 +10,15 @@ const { logger } = require('../../../utils/logger');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 
 const db = require('../../../config/db');
+const { softDelete, softDeleteBatch } = require('../../../utils/softDelete');
 const { qualityApi } = require('../../../services/business/QualityService');
 const InventoryService = require('../../../services/InventoryService');
 const AsyncTaskService = require('../../../services/business/AsyncTaskService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
-// ✅ 审计修复: 导入 checkAndUpdateTaskStatus（此前未导入导致发料时 500 崩溃）
-const { checkAndUpdateTaskStatus } = require('./inventoryConsistencyController');
+// ✅ 审计修复: 导入 checkAndUpdateTaskStatus 和 _syncProductionStatus
+const { checkAndUpdateTaskStatus, _syncProductionStatus } = require('./inventoryConsistencyController');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
@@ -1239,17 +1240,26 @@ const createOutbound = async (req, res) => {
     logger.error('错误堆栈:', error.stack);
     logger.error('请求数据:', JSON.stringify(req.body));
 
-    // 判断错误类型并提供更友好的错误信息
+    // 根据业务错误码选择正确的HTTP状态码
     const errorMessage = error.message;
     let statusCode = 500;
 
-    // 检查是否是物料不存在的错误
-    if (
+    if (error.code === 'EXCESS_ISSUE') {
+      // 超额领料需要用户确认 → 409 Conflict
+      statusCode = 409;
+    } else if (error.code === 'MISSING_ISSUE_REASON') {
+      // 缺少超额原因 → 400 Bad Request
+      statusCode = 400;
+    } else if (
       error.message &&
       error.message.includes('物料ID') &&
       error.message.includes('不存在或没有设置默认库位')
     ) {
-      statusCode = 400; // 使用400表示客户端错误
+      statusCode = 400;
+    } else if (error.message && error.message.includes('库存不足')) {
+      statusCode = 400;
+    } else if (error.message && error.message.includes('年度结存')) {
+      statusCode = 400;
     }
 
     res.status(statusCode).json({
@@ -1358,8 +1368,8 @@ const deleteOutbound = async (req, res) => {
     // 删除出库单明细
     await connection.execute('DELETE FROM inventory_outbound_items WHERE outbound_id = ?', [id]);
 
-    // 删除出库单主表
-    await connection.execute('DELETE FROM inventory_outbound WHERE id = ?', [id]);
+    // ✅ 软删除出库单主表
+    await softDelete(connection, 'inventory_outbound', 'id', id);
 
     await connection.commit();
     logger.info(
@@ -1825,7 +1835,7 @@ const fetchBomItemsForOutbound = async (connection, outboundId, referenceType, r
 
     // 通过product_id获取已审核的BOM（通过approved_by字段判断是否已审核）
     const [bomResult] = await connection.execute(
-      'SELECT id FROM bom_masters WHERE product_id = ? AND approved_by IS NOT NULL ORDER BY id DESC LIMIT 1',
+      'SELECT id FROM bom_masters WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL ORDER BY id DESC LIMIT 1',
       [productId]
     );
 
@@ -3107,11 +3117,9 @@ const batchDeleteOutbound = async (req, res) => {
       ids
     );
 
-    // 批量删除出库单
-    const [result] = await connection.execute(
-      `DELETE FROM inventory_outbound WHERE id IN (${placeholders})`,
-      ids
-    );
+    // ✅ 批量软删除出库单
+    const affected = await softDeleteBatch(connection, 'inventory_outbound', 'id', ids);
+    const result = { affectedRows: affected };
 
     await connection.commit();
 

@@ -13,7 +13,7 @@
     :actions="quickActions"
     :groups="moduleGroups"
     @back="router.back()"
-    @add="router.push('/sales/orders/new')"
+    @add="router.push('/sales/orders/create')"
     @navigate="navigateTo"
   />
 </template>
@@ -76,11 +76,11 @@
       label: '销售订单',
       path: '/sales/orders',
       icon: 'document-text',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
     },
     {
       label: '新建订单',
-      path: '/sales/orders/new',
+      path: '/sales/orders/create',
       icon: 'plus',
       gradient: 'linear-gradient(135deg, #2CCFB0 0%, #1BA392 100%)'
     },
@@ -94,7 +94,7 @@
       label: '客户管理',
       path: '/sales/customers',
       icon: 'users',
-      gradient: 'linear-gradient(135deg, #FF9F45 0%, #FF8A3D 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
     }
   ])
 
@@ -107,7 +107,7 @@
       icon: 'document-text',
       badge: 0
     },
-    { title: '新建订单', desc: '创建新的销售订单', path: '/sales/orders/new', icon: 'plus' }
+    { title: '新建订单', desc: '创建新的销售订单', path: '/sales/orders/create', icon: 'plus' }
   ])
   const outboundModules = ref([
     { title: '销售出库', desc: '查看和管理销售出库单', path: '/sales/outbound', icon: 'truck' },
@@ -126,7 +126,7 @@
 
   // ---- 路由跳转 ----
   const navigateTo = (path) => {
-    const devPaths = ['/sales/orders/new', '/sales/outbound/new', '/sales/customers']
+    const devPaths = ['/sales/orders/create', '/sales/outbound/new', '/sales/customers']
 
     router.push(path)
   }

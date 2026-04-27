@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProductionDashboard.vue
  * @description 前端界面组件文件
@@ -237,7 +237,6 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, computed, onMounted, watch } from 'vue';
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
@@ -246,11 +245,6 @@ import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { productionApi } from '@/services/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 权限计算属性
 import {
   handleDashboardError,

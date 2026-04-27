@@ -10,7 +10,7 @@
   <div class="tasks-page">
     <NavBar title="生产任务" left-arrow @click-left="$router.go(-1)">
       <template #right>
-        <Icon name="plus" size="18" @click="createTask" />
+        <Icon v-permission="'production:tasks:create'" name="plus" size="18" @click="createTask" />
       </template>
     </NavBar>
 
@@ -464,7 +464,7 @@
       font-weight: 800;
       color: var(--text-primary);
       &.accent {
-        color: #fbbf24;
+        color: var(--color-warning);
       }
       &.success {
         color: #34d399;
@@ -538,11 +538,11 @@
 
     &.active {
       background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
-      border-color: var(--color-accent, #3b82f6);
-      color: var(--color-accent, #3b82f6);
+      border-color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent, var(--color-primary));
       .chip-badge {
-        background: var(--color-accent, #3b82f6);
-        color: #fff;
+        background: var(--color-accent, var(--color-primary));
+        color: var(--text-primary);
       }
     }
   }
@@ -585,22 +585,22 @@
     width: 4px;
     flex-shrink: 0;
     &.status-pending {
-      background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+      background: linear-gradient(180deg, var(--text-secondary), #cbd5e1);
     }
     &.status-progress {
-      background: linear-gradient(180deg, #f59e0b, #fbbf24);
+      background: linear-gradient(180deg, var(--color-warning), var(--color-warning));
     }
     &.status-inspection {
       background: linear-gradient(180deg, #a855f7, #c084fc);
     }
     &.status-completed {
-      background: linear-gradient(180deg, #10b981, #34d399);
+      background: linear-gradient(180deg, var(--color-success), #34d399);
     }
     &.status-cancelled {
-      background: linear-gradient(180deg, #ef4444, #f87171);
+      background: linear-gradient(180deg, var(--color-danger), var(--color-danger));
     }
     &.status-default {
-      background: linear-gradient(180deg, #6b7280, #9ca3af);
+      background: linear-gradient(180deg, var(--text-secondary), #9ca3af);
     }
   }
 
@@ -643,11 +643,11 @@
 
     &.status-pending {
       background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
     &.status-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.status-inspection {
       background: rgba(168, 85, 247, 0.12);
@@ -655,15 +655,15 @@
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.status-default {
       background: rgba(107, 114, 128, 0.1);
-      color: #6b7280;
+      color: var(--text-secondary);
     }
   }
 
@@ -710,16 +710,16 @@
     border-radius: 3px;
     transition: width 0.3s ease;
     &.fill-low {
-      background: linear-gradient(90deg, #ef4444, #f87171);
+      background: linear-gradient(90deg, var(--color-danger), var(--color-danger));
     }
     &.fill-medium {
-      background: linear-gradient(90deg, #f59e0b, #fbbf24);
+      background: linear-gradient(90deg, var(--color-warning), var(--color-warning));
     }
     &.fill-good {
-      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      background: linear-gradient(90deg, var(--color-primary), #60a5fa);
     }
     &.fill-completed {
-      background: linear-gradient(90deg, #10b981, #34d399);
+      background: linear-gradient(90deg, var(--color-success), #34d399);
     }
   }
 
@@ -764,14 +764,14 @@
 
       &.start {
         background: rgba(16, 185, 129, 0.1);
-        color: #10b981;
+        color: var(--color-success);
         &:active {
           background: rgba(16, 185, 129, 0.2);
         }
       }
       &.report {
         background: rgba(245, 158, 11, 0.1);
-        color: #f59e0b;
+        color: var(--color-warning);
         &:active {
           background: rgba(245, 158, 11, 0.2);
         }

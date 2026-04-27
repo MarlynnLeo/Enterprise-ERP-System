@@ -115,7 +115,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:incominginspection:submit'" type="primary" @click="handleSubmit" :loading="submitting">提交复检</el-button>
+        <el-button v-permission="'quality:inspections:create'" type="primary" @click="handleSubmit" :loading="submitting">提交复检</el-button>
       </span>
     </template>
   </el-dialog>

@@ -3,6 +3,7 @@
  */
 
 const logger = require('../../../utils/logger');
+const { ResponseHandler } = require('../../../utils/responseHandler');
 const { triggerOverdueCheck } = require('../../../services/scheduler');
 const arModel = require('../../../models/ar');
 const apModel = require('../../../models/ap');
@@ -16,18 +17,10 @@ const checkOverdueInvoices = async (req, res) => {
   try {
     const result = await triggerOverdueCheck();
 
-    res.json({
-      success: true,
-      message: `逾期检查完成 - AR: ${result.ar.count}张, AP: ${result.ap.count}张`,
-      data: result,
-    });
+    ResponseHandler.success(res, result, `逾期检查完成 - AR: ${result.ar.count}张, AP: ${result.ap.count}张`);
   } catch (error) {
     logger.error('手动触发逾期检查失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '逾期检查失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '逾期检查失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -40,18 +33,10 @@ const getOverdueARInvoices = async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const invoices = await arModel.getOverdueInvoices(today);
 
-    res.json({
-      success: true,
-      data: invoices,
-      total: invoices.length,
-    });
+    ResponseHandler.success(res, { data: invoices, total: invoices.length }, '获取逾期应收发票成功');
   } catch (error) {
     logger.error('获取逾期应收发票失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取逾期应收发票失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '获取逾期应收发票失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -64,18 +49,10 @@ const getOverdueAPInvoices = async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const invoices = await apModel.getOverdueInvoices(today);
 
-    res.json({
-      success: true,
-      data: invoices,
-      total: invoices.length,
-    });
+    ResponseHandler.success(res, { data: invoices, total: invoices.length }, '获取逾期应付发票成功');
   } catch (error) {
     logger.error('获取逾期应付发票失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取逾期应付发票失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '获取逾期应付发票失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -91,17 +68,10 @@ const reverseReceipt = async (req, res) => {
     const voidedBy = await getCurrentUserName(req);
     await arModel.voidReceipt(id, { voided_by: voidedBy, void_reason: reason });
 
-    res.json({
-      success: true,
-      message: '收款记录已冲销',
-    });
+    ResponseHandler.success(res, null, '收款记录已冲销');
   } catch (error) {
     logger.error('冲销收款记录失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '冲销收款记录失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '冲销收款记录失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -117,17 +87,10 @@ const reversePayment = async (req, res) => {
     const voidedBy = await getCurrentUserName(req);
     await apModel.voidPayment(id, { voided_by: voidedBy, void_reason: reason });
 
-    res.json({
-      success: true,
-      message: '付款记录已冲销',
-    });
+    ResponseHandler.success(res, null, '付款记录已冲销');
   } catch (error) {
     logger.error('冲销付款记录失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '冲销付款记录失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '冲销付款记录失败', 'SERVER_ERROR', 500, error);
   }
 };
 

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryTransaction.vue
  * @description 前端界面组件文件
@@ -270,7 +270,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
 import { inventoryApi } from '@/api/inventory';
 import { formatCurrency, formatNumber } from '@/utils/format'
@@ -286,11 +285,6 @@ import { TooltipComponent, LegendComponent, GridComponent, TitleComponent } from
 import { CanvasRenderer } from 'echarts/renderers'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import dayjs from 'dayjs'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 注册 ECharts 组件
 echarts.use([
   BarChart,

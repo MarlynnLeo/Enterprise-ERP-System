@@ -28,26 +28,22 @@
   }
 </script>
 
-<style lang="scss" scoped>
-  .unified-page {
-    min-height: 100vh;
-  }
-
+<style scoped>
   .not-found-content {
-    padding: $padding-lg;
+    padding: 24px;
 
     h2 {
-      margin: $margin-md 0;
+      margin: 12px 0;
       color: var(--text-primary);
     }
 
     p {
-      margin-bottom: $margin-md;
+      margin-bottom: 12px;
       color: var(--text-secondary);
     }
   }
 
   .warning-icon {
-    color: $warning-color;
+    color: var(--color-warning);
   }
 </style>

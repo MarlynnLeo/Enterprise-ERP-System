@@ -1,8 +1,7 @@
 /**
- * salesController.js
- * @description 控制器文件
- * @date 2025-08-27
- * @version 1.0.0
+ * salesOrderController.js
+ * @description 销售订单控制器
+ * @version 1.1.0
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
@@ -12,68 +11,13 @@ const db = require('../../../config/db');
 const SalesDao = require('../../../database/salesDao');
 const { SALES_STATUS } = require('../../../constants/systemConstants');
 const InventoryReservationService = require('../../../services/InventoryReservationService');
-const { CodeGenerators } = require('../../../utils/codeGenerator');
-const businessConfig = require('../../../config/businessConfig');
 const XLSX = require('xlsx');
+const { softDelete } = require('../../../utils/softDelete');
 
-// 状态常量
-const STATUS = {
-  SALES_ORDER: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    CONFIRMED: 'confirmed',
-    READY_TO_SHIP: 'ready_to_ship',
-    IN_PRODUCTION: 'in_production',
-    IN_PROCUREMENT: 'in_procurement',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-  OUTBOUND: businessConfig.status.outbound,
-  SALES_RETURN: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    APPROVED: 'approved',
-    COMPLETED: 'completed',
-    REJECTED: 'rejected',
-    CANCELLED: 'cancelled',
-  },
-  EXCHANGE: {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-};
-
-// 移除了废弃的 ensureSalesExchangeTablesExist, createSalesExchangeTablesDirectly, 和 updateSalesExchangeTableStructure
-// 使用统一的编号生成服务 - 替代原 generateTransactionNo 函数
-async function generateTransactionNo(connection) {
-  return await CodeGenerators.generateTransactionCode(connection);
-}
-
-// Import the connection pool from db
-// 注意: 改名为 connectionPool 避免与函数内局部变量 connection 产生遮蔽
-const connectionPool = db.pool;
-
-// 统一的连接管理函数
-const getConnection = async () => {
-  return await connectionPool.getConnection();
-};
-
-// 带事务的连接管理函数
-const getConnectionWithTransaction = async () => {
-  const conn = await connectionPool.getConnection();
-  await conn.beginTransaction();
-  return conn;
-};
-
-// 统一的销售订单编号生成函数 - 替代所有重复的生成函数
-const generateSalesOrderNo = async (connection) => {
-  return CodeGenerators.generateSalesOrderCode(connection);
-};
-
-// 保持向后兼容的别名函数
-const generateOrderNo = generateSalesOrderNo;
+// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
+const { STATUS, getConnection, getConnectionWithTransaction, generateSalesOrderNo, generateTransactionNo } = require('./salesShared');
+const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
+const { generateProductionAndPurchasePlans } = require('./salesPackingController');
 
 // 添加新的控制器方法
 
@@ -230,108 +174,106 @@ exports.getSalesOrders = async (req, res) => {
         orderItems = items;
       }
 
-      // 转换订单数据以匹配前端期望的格式
+      // 校正订单状态 — 库存变化后状态可能漂移，在此统一回写 DB
+      const statusUpdates = [];
+
       const formattedOrders = orders.map((order) => {
-        // 获取该订单的物料明细
         const items = orderItems.filter((item) => item.order_id === order.id);
 
-        // ✅ 新增：检查该订单是否有缺料
+        // 检查库存是否充足
         let hasShortage = false;
-        const shortageItems = [];
-
         if (items.length > 0) {
           for (const item of items) {
-            const orderedQty = parseFloat(item.quantity) || 0;
-            const stockQty = parseFloat(item.stock_quantity) || 0;
-
-            // 如果库存不足，标记缺料
-            if (stockQty < orderedQty) {
+            if ((parseFloat(item.stock_quantity) || 0) < (parseFloat(item.quantity) || 0)) {
               hasShortage = true;
-              shortageItems.push({
-                material_code: item.material_code,
-                material_name: item.material_name,
-                shortage_qty: orderedQty - stockQty,
-              });
+              break;
             }
           }
         }
 
-        // ✅ 新增：根据缺料情况调整状态显示 (动态计算，不修改数据库)
-        let displayStatus = order.status;
-
-        // 逻辑：
-        // 1. 如果缺料，且当前状态是"待发货"/"可发货"/"待处理"，强制显示为"缺料"
-        // 2. 如果不缺料(库存充足)，且当前状态是"已确认"/"缺料"，自动显示为"可发货"
-
+        // 根据库存实际情况校正状态
+        let status = order.status;
         if (hasShortage) {
-          if (['ready_to_ship', 'can_ship', 'pending', 'confirmed'].includes(order.status)) {
-            displayStatus = 'shortage';
+          if (['ready_to_ship', 'can_ship', 'pending', 'confirmed'].includes(status)) {
+            status = 'shortage';
           }
         } else {
-          // 库存充足
-          if (['confirmed', 'shortage'].includes(order.status)) {
-            displayStatus = 'ready_to_ship';
+          if (['confirmed', 'shortage'].includes(status)) {
+            status = 'ready_to_ship';
           }
+        }
+
+        // 状态发生变化，记录回写
+        if (status !== order.status) {
+          statusUpdates.push({ id: order.id, status });
         }
 
         return {
           id: order.id,
           order_no: order.order_no,
           customer: order.customer_name,
-          customer_name: order.customer_name, // 添加前端期望的字段名
-          contract_code: order.contract_code, // 添加合同编码字段
+          customer_name: order.customer_name,
+          contract_code: order.contract_code,
           totalAmount: parseFloat(order.total_amount) || 0,
-          total_amount: parseFloat(order.total_amount) || 0, // 添加前端期望的字段名
+          total_amount: parseFloat(order.total_amount) || 0,
           orderDate: order.order_date,
-          order_date: order.order_date, // 添加前端期望的字段名
+          order_date: order.order_date,
           deliveryDate: order.delivery_date,
-          delivery_date: order.delivery_date, // 添加前端期望的字段名
-          status: displayStatus, // ✅ 使用调整后的状态
-          originalStatus: order.status, // ✅ 保存原始状态便于调试
-          hasShortage: hasShortage, // ✅ 标记是否有缺料
-          shortageItems: shortageItems, // ✅ 保存缺料物料详情
+          delivery_date: order.delivery_date,
+          status: status,
           remark: order.remarks,
-          remarks: order.remarks, // 添加前端期望的字段名
+          remarks: order.remarks,
           address: order.delivery_address,
-          delivery_address: order.delivery_address, // 添加前端期望的字段名
+          delivery_address: order.delivery_address,
           contact: order.contact_person,
-          contact_person: order.contact_person, // 添加前端期望的字段名
+          contact_person: order.contact_person,
           phone: order.contact_phone,
-          contact_phone: order.contact_phone, // 添加前端期望的字段名
+          contact_phone: order.contact_phone,
           created_at: order.created_at,
           updated_at: order.updated_at,
-          // 添加创建人相关字段
           created_by: order.created_by,
           created_by_name: order.created_by_name,
           created_by_real_name: order.created_by_real_name,
-          // 添加锁定相关字段
           is_locked: Boolean(order.is_locked),
           locked_at: order.locked_at,
           locked_by: order.locked_by,
           lock_reason: order.lock_reason,
           locked_by_name: order.locked_by_name,
-          // ✅ 添加草稿出库单标记（控制发货按钮显示）
           has_draft_outbound: Boolean(order.has_draft_outbound),
-          // 添加订单物料信息
           items:
             items.map((item) => ({
               code: item.material_code,
               material_code: item.material_code,
               material_name: item.material_name,
               specification: item.specification,
-              product_code: item.product_code || '', // 产品编码（当没有物料时）
-              product_specs: item.product_specs || '', // 产品规格（当没有物料时）
+              product_code: item.product_code || '',
+              product_specs: item.product_specs || '',
               quantity: parseFloat(item.quantity) || 0,
-              stock_quantity: parseFloat(item.stock_quantity) || 0, // 库存数量
+              stock_quantity: parseFloat(item.stock_quantity) || 0,
               unit_name: item.unit_name,
               unit_price: parseFloat(item.unit_price) || 0,
               amount: parseFloat(item.amount) || 0,
               total_price: parseFloat(item.total_price) || 0,
               remark: item.remark || '',
-              remarks: item.remark || '', // 兼容字段
+              remarks: item.remark || '',
             })) || [],
         };
       });
+
+      // 状态漂移回写 DB — 保证数据库始终是权威数据源
+      if (statusUpdates.length > 0) {
+        const groupedByStatus = {};
+        for (const u of statusUpdates) {
+          (groupedByStatus[u.status] ||= []).push(u.id);
+        }
+        for (const [newStatus, orderIds] of Object.entries(groupedByStatus)) {
+          await connection.execute(
+            `UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id IN (${orderIds.map(() => '?').join(',')})`,
+            [newStatus, ...orderIds]
+          );
+        }
+        logger.info(`📝 订单状态校正: ${statusUpdates.map(u => `#${u.id}→${u.status}`).join(', ')}`);
+      }
 
       // 返回分页格式
       const total = orders.length > 0 ? orders[0].total_count : 0;
@@ -769,7 +711,7 @@ exports.createSalesOrder = async (req, res) => {
 
     // 准备订单数据
     const order = {
-      orderNo: await generateSalesOrderNo(connection), // 使用统一的订单号生成规则
+      orderNo: await generateSalesOrderNo(db.pool), // 使用统一的订单号生成规则
       customerId: orderData.customer_id,
       quotationId: orderData.quotation_id || null,
       contractCode: orderData.contract_code || '',
@@ -826,7 +768,7 @@ exports.createSalesOrder = async (req, res) => {
         }
       }
 
-      const amount = quantity * unit_price;
+      const amount = Math.round(quantity * unit_price * 100) / 100;
 
       items.push({
         material_id: materialId,
@@ -843,13 +785,14 @@ exports.createSalesOrder = async (req, res) => {
       });
     }
 
-    // 计算金额：不含税金额、税额、价税合计
-    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+    // 计算金额：不含税金额、税额、价税合计（使用整数化精度控制）
+    const subtotalCents = items.reduce((sum, item) => sum + Math.round(item.amount * 100), 0);
+    const subtotal = subtotalCents / 100;
     const taxRate = order.taxRate || 0.13;
-    const taxAmount = subtotal * taxRate;
+    const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
     order.subtotal = subtotal;
     order.taxAmount = taxAmount;
-    order.totalAmount = subtotal + taxAmount;
+    order.totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
     try {
       // 创建销售订单
@@ -975,7 +918,7 @@ exports.deleteSalesOrder = async (req, res) => {
 
     if (orderResult.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '销售订单不存在' });
+      return ResponseHandler.notFound(res, '销售订单不存在');
     }
 
     const order = orderResult[0];
@@ -1025,9 +968,10 @@ exports.deleteSalesOrder = async (req, res) => {
       });
     }
 
-    // 6. 安全删除：先删除明细，再删除主表
+    // 6. 安全删除：先删除明细，再软删除主表
     await connection.query('DELETE FROM sales_order_items WHERE order_id = ?', [id]);
-    await connection.query('DELETE FROM sales_orders WHERE id = ?', [id]);
+    // ✅ 软删除替代硬删除
+    await softDelete(connection, 'sales_orders', 'id', id);
 
     await connection.commit();
 
@@ -1042,7 +986,7 @@ exports.deleteSalesOrder = async (req, res) => {
       await connection.rollback();
     }
     logger.error('删除销售订单失败:', error);
-    res.status(500).json({ error: '删除销售订单失败: ' + error.message });
+    ResponseHandler.error(res, '删除销售订单失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
       connection.release();
@@ -1536,7 +1480,7 @@ exports.importOrders = async (req, res) => {
       for (const [groupKey, orderData] of Object.entries(ordersByCustomer)) {
         try {
           // 通过客户编码查找客户ID
-          const [customers] = await connection.query('SELECT id FROM customers WHERE code = ?', [
+          const [customers] = await connection.query('SELECT id FROM customers WHERE code = ? AND deleted_at IS NULL', [
             orderData.customerCode,
           ]);
 
@@ -1702,7 +1646,8 @@ exports.importOrders = async (req, res) => {
 
           // 如果订单没有任何明细项（这种情况理论上不应该发生，因为我们刚刚插入了明细）
           if (orderItems.length === 0) {
-            await connection.query('DELETE FROM sales_orders WHERE id = ?', [orderId]);
+            // ✅ 软删除替代硬删除
+            await softDelete(connection, 'sales_orders', 'id', orderId);
             const errorMsg = `订单 ${orderNo} 没有明细项，已删除`;
             logger.error(errorMsg);
             errors.push(errorMsg);

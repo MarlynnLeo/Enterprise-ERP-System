@@ -161,7 +161,8 @@
               size="small"
               type="primary"
               @click="handleDropdownCommand('rework', scope.row)"
-            >
+            
+              v-permission="'quality:process'">
               返工
             </el-button>
             <el-button
@@ -336,6 +337,7 @@ import { Search, Refresh, Plus, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
+import { formatDate } from '@/utils/helpers/dateUtils'
 import { qualityApi } from '@/api/quality'
 import { productionApi } from '@/api/production'
 
@@ -407,21 +409,6 @@ const inspectionStats = ref({
   failed: 0,
   rework: 0
 })
-
-// 添加统一的日期格式化方法
-// formatDate 已统一引用公共实现
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
 
 // 初始化
 onMounted(() => {

@@ -35,7 +35,7 @@
  *               password:
  *                 type: string
  *                 description: 密码
- *                 example: password123
+ *                 example: YourPassword
  *     responses:
  *       200:
  *         description: 登录成功

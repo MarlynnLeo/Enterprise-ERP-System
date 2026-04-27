@@ -15,7 +15,7 @@
       <div class="avatar-section">
         <div class="avatar-container" @click="handleAvatarClick">
           <img v-if="form.avatar" :src="form.avatar" alt="用户头像" class="avatar-img" />
-          <Icon v-else name="user-o" size="40" color="#999" />
+          <Icon v-else name="user-o" size="40" color="var(--text-tertiary)" />
           <div class="avatar-overlay">
             <Icon name="camera-o" size="20" color="#fff" />
           </div>
@@ -76,7 +76,7 @@
   import { ref, reactive, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, Icon, Field, Form, Button, showToast, showLoadingToast } from 'vant'
-  import { useAuthStore } from '../../stores/auth'
+  import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()
   const authStore = useAuthStore()
@@ -164,7 +164,7 @@
       })
 
       // 调用更新接口
-      await authStore.updateUser({
+      await authStore.updateProfile({
         name: form.name,
         email: form.email,
         phone: form.phone,

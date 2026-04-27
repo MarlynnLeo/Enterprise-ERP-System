@@ -270,8 +270,14 @@ const deleteBusinessType = async (req, res) => {
     }
 
 
-    // 检查是否被使用（这里可以添加检查逻辑）
-    // TODO: 检查 inventory_transactions 表中是否有使用此业务类型的记录
+    // 检查是否在库存台账中被引用
+    const [usageCheck] = await pool.execute(
+      'SELECT COUNT(*) as cnt FROM inventory_ledger WHERE transaction_type = (SELECT code FROM business_types WHERE id = ?) LIMIT 1',
+      [id]
+    );
+    if (usageCheck[0].cnt > 0) {
+      return ResponseHandler.error(res, '该业务类型已被使用，无法删除', 'CONFLICT', 409);
+    }
 
     await pool.execute('DELETE FROM business_types WHERE id = ?', [id]);
 

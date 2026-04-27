@@ -6,8 +6,10 @@
  */
 
 const logger = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
 const { apiStatusToDbStatus } = require('../utils/statusMapper');
+const { appendPaginationSQL } = require('../utils/safePagination');
 const businessConfig = require('../config/businessConfig');
 
 // 从统一配置获取状态常量
@@ -87,7 +89,7 @@ class QualityInspection {
         `;
       }
 
-      query += 'WHERE qi.inspection_type = ?';
+      query += 'WHERE qi.deleted_at IS NULL AND qi.inspection_type = ?';
 
       const sqlParams = [type];
 
@@ -125,7 +127,7 @@ class QualityInspection {
         `;
       }
 
-      countQuery += ' WHERE qi.inspection_type = ?';
+      countQuery += ' WHERE qi.deleted_at IS NULL AND qi.inspection_type = ?';
 
       // 添加筛选条件（与主查询相同）
       if (filters.keyword) {
@@ -148,8 +150,8 @@ class QualityInspection {
         // 防止countRows[0]为undefined导致错误
         const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
 
-        // 添加分页（直接拼接，已验证）
-        query += ` ORDER BY qi.created_at DESC LIMIT ${limit} OFFSET ${offset} `;
+        // 添加分页 — 使用安全分页工具
+        query = appendPaginationSQL(query + ' ORDER BY qi.created_at DESC', limit, offset);
 
         // 使用 query 避免 LIMIT/OFFSET 参数化问题
         const [rows] = await connection.query(query, sqlParams);
@@ -235,7 +237,7 @@ class QualityInspection {
         `;
         }
 
-        query += 'WHERE qi.id = ?';
+        query += 'WHERE qi.deleted_at IS NULL AND qi.id = ?';
 
         // 执行查询
         const [rows] = await connection.query(query, [inspectionId]);
@@ -573,7 +575,7 @@ class QualityInspection {
       try {
         // 获取当前检验单的信息
         const [currentInspection] = await connection.query(
-          'SELECT * FROM quality_inspections WHERE id = ?',
+          'SELECT * FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
           [id]
         );
 
@@ -958,7 +960,8 @@ class QualityInspection {
         ]);
 
         // 删除检验单
-        await connection.execute('DELETE FROM quality_inspections WHERE id = ?', [id]);
+        // ✅ 软删除替代硬删除
+        await softDelete(connection, 'quality_inspections', 'id', id);
 
         await connection.commit();
         return true;
@@ -1137,7 +1140,7 @@ class QualityInspection {
 
       // 验证新生成的编号是否已存在
       const [existCheck] = await connection.query(
-        'SELECT COUNT(*) as count FROM quality_inspections WHERE inspection_no = ?',
+        'SELECT COUNT(*) as count FROM quality_inspections WHERE inspection_no = ? AND deleted_at IS NULL',
         [inspectionNo]
       );
 

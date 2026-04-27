@@ -69,7 +69,7 @@ class CostAccountingService {
     try {
       // 获取产品的BOM（兼容 status 和 approved_by 两种判断方式）
       const [bomMaster] = await db.pool.execute(
-        'SELECT id FROM bom_masters WHERE product_id = ? AND (status = 1 OR approved_by IS NOT NULL) LIMIT 1',
+        'SELECT id FROM bom_masters WHERE product_id = ? AND (status = 1 OR approved_by IS NOT NULL) AND deleted_at IS NULL LIMIT 1',
         [productId]
       );
 
@@ -112,7 +112,7 @@ class CostAccountingService {
         if (hasSubBom === undefined || hasSubBom === null) {
           // 动态检查是否有子BOM
           const [subBom] = await db.pool.execute(
-            'SELECT id FROM bom_masters WHERE product_id = ? AND (status = 1 OR approved_by IS NOT NULL) LIMIT 1',
+            'SELECT id FROM bom_masters WHERE product_id = ? AND (status = 1 OR approved_by IS NOT NULL) AND deleted_at IS NULL LIMIT 1',
             [item.material_id]
           );
           hasSubBom = subBom.length > 0;
@@ -217,7 +217,7 @@ class CostAccountingService {
         let bomItems = [];
         try {
           const [bomMaster] = await db.pool.execute(
-            'SELECT id FROM bom_masters WHERE product_id = ? AND status = 1 LIMIT 1',
+            'SELECT id FROM bom_masters WHERE product_id = ? AND status = 1 AND deleted_at IS NULL LIMIT 1',
             [productId]
           );
 
@@ -276,7 +276,7 @@ class CostAccountingService {
                   pt.name as template_name
            FROM process_templates pt
            JOIN process_template_details ptd ON pt.id = ptd.template_id
-           WHERE pt.product_id = ? AND pt.status = 1
+           WHERE pt.product_id = ? AND pt.status = 1 AND pt.deleted_at IS NULL
            ORDER BY ptd.order_num`,
           [productId]
         );
@@ -1195,21 +1195,9 @@ class CostAccountingService {
    * @returns {number} FIFO单位成本
    */
   static async calculateFIFOCost(connection, materialId, asOfDate) {
-    const [transactions] = await connection.execute(
-      `SELECT unit_cost, quantity, transaction_date
-       FROM inventory_transactions
-       WHERE material_id = ? AND transaction_type = 'in'
-       AND transaction_date <= ? AND quantity > 0
-       ORDER BY transaction_date ASC, id ASC`,
-      [materialId, asOfDate]
-    );
-
-    if (transactions.length === 0) {
-      return await this.getStandardMaterialCost(connection, materialId);
-    }
-
-    // 返回最早入库的成本
-    return transactions[0].unit_cost || 0;
+    // @deprecated inventory_transactions 表不存在，降级为标准成本
+    logger.warn('[CostAccounting] calculateFIFOCost 已降级为标准成本');
+    return await this.getStandardMaterialCost(connection, materialId);
   }
 
   /**
@@ -1220,21 +1208,9 @@ class CostAccountingService {
    * @returns {number} LIFO单位成本
    */
   static async calculateLIFOCost(connection, materialId, asOfDate) {
-    const [transactions] = await connection.execute(
-      `SELECT unit_cost, quantity, transaction_date
-       FROM inventory_transactions
-       WHERE material_id = ? AND transaction_type = 'in'
-       AND transaction_date <= ? AND quantity > 0
-       ORDER BY transaction_date DESC, id DESC`,
-      [materialId, asOfDate]
-    );
-
-    if (transactions.length === 0) {
-      return await this.getStandardMaterialCost(connection, materialId);
-    }
-
-    // 返回最晚入库的成本
-    return transactions[0].unit_cost || 0;
+    // @deprecated inventory_transactions 表不存在，降级为标准成本
+    logger.warn('[CostAccounting] calculateLIFOCost 已降级为标准成本');
+    return await this.getStandardMaterialCost(connection, materialId);
   }
 
   /**
@@ -1245,28 +1221,9 @@ class CostAccountingService {
    * @returns {number} 加权平均单位成本
    */
   static async calculateWeightedAverageCost(connection, materialId, asOfDate) {
-    const [transactions] = await connection.execute(
-      `SELECT unit_cost, quantity, amount
-       FROM inventory_transactions
-       WHERE material_id = ? AND transaction_type = 'in'
-       AND transaction_date <= ? AND quantity > 0`,
-      [materialId, asOfDate]
-    );
-
-    if (transactions.length === 0) {
-      return await this.getStandardMaterialCost(connection, materialId);
-    }
-
-    let totalAmount = 0;
-    let totalQuantity = 0;
-
-    for (const transaction of transactions) {
-      const amount = transaction.amount || transaction.unit_cost * transaction.quantity;
-      totalAmount += amount;
-      totalQuantity += transaction.quantity;
-    }
-
-    return totalQuantity > 0 ? totalAmount / totalQuantity : 0;
+    // @deprecated inventory_transactions 表不存在，降级为标准成本
+    logger.warn('[CostAccounting] calculateWeightedAverageCost 已降级为标准成本');
+    return await this.getStandardMaterialCost(connection, materialId);
   }
 
   /**

@@ -75,6 +75,15 @@ export default {
                 requiresAuth: true,
                 permission: 'sales:delivery-stats'
             }
+        },
+        {
+            path: 'contracts',
+            name: 'contractManagement',
+            component: () => import('../../views/sales/ContractManagement.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'contract:view'
+            }
         }
     ]
 }

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * SalesDashboard.vue
  * @description 前端界面组件文件
@@ -224,7 +224,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
 
@@ -256,11 +255,6 @@ import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { salesApi } from '@/services/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 import {
   handleDashboardError,
   formatCurrency,

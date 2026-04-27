@@ -175,7 +175,7 @@
 
       await qualityApi.createProcessInspection(data)
       closeToast()
-      showToast('✓ 过程检验单创建成功')
+      showToast('过程检验单创建成功')
 
       setTimeout(() => {
         router.replace('/quality/process')
@@ -191,7 +191,7 @@
   }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   .create-page {
     min-height: 100vh;
     background-color: var(--van-background-2);

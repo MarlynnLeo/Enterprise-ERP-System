@@ -11,6 +11,7 @@
     :config="pageConfig"
     :api-function="loadOrders"
     :show-add="true"
+    add-permission="sales:orders:create"
     :show-filter="true"
     list-title="销售订单列表"
     @add="handleAdd"

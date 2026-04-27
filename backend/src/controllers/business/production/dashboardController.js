@@ -6,6 +6,7 @@
  */
 
 const { logger } = require('../../../utils/logger');
+const { ResponseHandler } = require('../../../utils/responseHandler');
 const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
@@ -85,7 +86,7 @@ exports.getDashboardStatistics = async (req, res) => {
       ? `${((processData.completed / processData.total) * 100).toFixed(1)}%`
       : '0%';
 
-    res.json({
+    ResponseHandler.success(res, {
       plans: {
         total: parseInt(plans.total) || 0,
         pending: parseInt(plans.pending) || 0,
@@ -191,7 +192,7 @@ exports.getDashboardTrends = async (req, res) => {
         cursor.setDate(cursor.getDate() + 1);
       }
 
-      return res.json(result);
+      return ResponseHandler.success(res, result);
     }
 
     // ===== 当月日级趋势 =====
@@ -278,7 +279,7 @@ exports.getDashboardTrends = async (req, res) => {
         completedData = days.map((d) => taskCompletedMap.get(d) ?? 0);
       }
 
-      return res.json({ days, plannedData, completedData });
+      return ResponseHandler.success(res, { days, plannedData, completedData });
     }
 
     // ===== 月级趋势（默认） =====
@@ -331,7 +332,7 @@ exports.getDashboardTrends = async (req, res) => {
         completedData = months.map((m) => taskCompletedMap.get(m) ?? 0);
       }
 
-      return res.json({ months, plannedData, completedData });
+      return ResponseHandler.success(res, { months, plannedData, completedData });
     }
   } catch (error) {
     logger.error('获取生产趋势数据失败:', error);

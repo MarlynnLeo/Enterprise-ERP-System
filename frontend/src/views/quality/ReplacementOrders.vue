@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="replacement-orders-container">
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -129,6 +129,7 @@
               size="small" 
               @click="editOrder(row)"
               v-if="row.status === 'pending' || row.status === 'partial'"
+              v-permission="'quality:replacement:update'"
             >
               编辑
             </el-button>
@@ -212,7 +213,7 @@
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:replacementorders:update'" type="primary" @click="submitEdit">保存</el-button>
+        <el-button v-permission="'quality:replacement:update'" type="primary" @click="submitEdit">保存</el-button>
       </template>
     </el-dialog>
 
@@ -254,11 +255,6 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 搜索表单
 const searchForm = reactive({
   replacementNo: '',

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * QualityDashboard.vue
  * @description 前端界面组件文件
@@ -216,7 +216,7 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, computed, onMounted, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -224,11 +224,7 @@ import Chart from 'chart.js/auto';
 import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { qualityApi } from '@/services/api';
-import { useAuthStore } from '@/stores/auth';
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig';
-
-// 权限store
-const authStore = useAuthStore()
 
 // 权限计算属性
 const router = useRouter();
@@ -287,21 +283,6 @@ function handleSizeChange(size) {
 function handleCurrentChange(page) {
   currentPage.value = page;
 }
-
-// 格式化日期
-// formatDate 已统一引用公共实现
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
 
 // 获取检验类型文本
 function getInspectionTypeText(type) {

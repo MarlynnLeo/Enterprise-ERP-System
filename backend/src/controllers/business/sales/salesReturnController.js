@@ -1,76 +1,19 @@
-﻿/**
- * salesController.js
- * @description 鎺у埗鍣ㄦ枃浠? * @date 2025-08-27
- * @version 1.0.0
+/**
+ * salesReturnController.js
+ * @description 销售退货控制器
+ * @version 1.1.0
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
-const { CodeGenerators } = require('../../../utils/codeGenerator');
-const businessConfig = require('../../../config/businessConfig');
-const { getCurrentUserName } = require('../../../utils/userHelper');
+const { softDelete } = require('../../../utils/softDelete');
 
-// 状态常量
-const STATUS = {
-  SALES_ORDER: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    CONFIRMED: 'confirmed',
-    READY_TO_SHIP: 'ready_to_ship',
-    IN_PRODUCTION: 'in_production',
-    IN_PROCUREMENT: 'in_procurement',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-  OUTBOUND: businessConfig.status.outbound,
-  SALES_RETURN: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    APPROVED: 'approved',
-    COMPLETED: 'completed',
-    REJECTED: 'rejected',
-    CANCELLED: 'cancelled',
-  },
-  EXCHANGE: {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-};
+// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
+const { STATUS, getConnection, getConnectionWithTransaction, generateTransactionNo } = require('./salesShared');
 
-// 绉婚櫎浜嗗簾寮冪殑 ensureSalesExchangeTablesExist, createSalesExchangeTablesDirectly, 鍜?updateSalesExchangeTableStructure
-// 浣跨敤缁熶竴鐨勭紪鍙风敓鎴愭湇鍔?- 鏇夸唬鍘?generateTransactionNo 鍑芥暟
-async function generateTransactionNo(connection) {
-  return await CodeGenerators.generateTransactionCode(connection);
-}
-
-// Import the connection pool from db
-// 娉ㄦ剰: 鏀瑰悕涓?connectionPool 閬垮厤涓庡嚱鏁板唴灞€閮ㄥ彉閲?connection 浜х敓閬斀
-const connectionPool = db.pool;
-
-// 统一的连接管理函数
-const getConnection = async () => {
-  return await connectionPool.getConnection();
-};
-
-// 甯︿簨鍔＄殑杩炴帴绠＄悊鍑芥暟
-const getConnectionWithTransaction = async () => {
-  const conn = await connectionPool.getConnection();
-  await conn.beginTransaction();
-  return conn;
-};
-
-// 缁熶竴鐨勯攢鍞鍗曠紪鍙风敓鎴愬嚱鏁?- 鏇夸唬鎵€鏈夐噸澶嶇殑鐢熸垚鍑芥暟
-const generateSalesOrderNo = async (connection) => {
-  return CodeGenerators.generateSalesOrderCode(connection);
-};
-
-// 淇濇寔鍚戝悗鍏煎鐨勫埆鍚嶅嚱鏁?const generateOrderNo = generateSalesOrderNo;
-
-// 娣诲姞鏂扮殑鎺у埗鍣ㄦ柟娉?
+// 添加新的控制器方法
 exports.getSalesReturns = async (req, res) => {
   let conn;
   try {
@@ -79,7 +22,7 @@ exports.getSalesReturns = async (req, res) => {
 
     conn = await getConnection();
 
-    // 鏋勫缓鏌ヨ鏉′欢
+    // 构建查询条件
     let whereClause = '';
     const queryParams = [];
 
@@ -116,7 +59,7 @@ exports.getSalesReturns = async (req, res) => {
     const total = countResult[0].total;
 
     // 鏌ヨ鏁版嵁
-    // 娉ㄦ剰锛歀IMIT 鍜?OFFSET 涓嶈兘浣跨敤鍙傛暟缁戝畾锛屽繀椤荤洿鎺ュ祵鍏?SQL
+    // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const actualPageSize = parseInt(pageSize);
     const actualOffset = parseInt(offset);
     const query = `
@@ -135,9 +78,9 @@ exports.getSalesReturns = async (req, res) => {
     for (let i = 0; i < results.length; i++) {
       const returnItem = results[i];
 
-      // 淇濈暀鑻辨枃鐘舵€?key锛堜笌绯荤粺鍏朵粬妯″潡涓€鑷达級锛屾坊鍔犱腑鏂囨爣绛句緵鍓嶇灞曠ず
+      // 保留英文状态 key，添加中文标签供前端展示
       const statusLabelMap = {
-        draft: '鑽夌',
+        draft: '草稿',
         pending: '',
         approved: '',
         completed: '',
@@ -170,7 +113,7 @@ exports.getSalesReturns = async (req, res) => {
       results[i].total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
     }
 
-    // 缁熻涓嶅悓鐘舵€佺殑鏁伴噺
+    // 统计不同状态的数量
     const statusQuery = `
       SELECT status, COUNT(*) as count
       FROM sales_returns
@@ -205,8 +148,8 @@ exports.getSalesReturns = async (req, res) => {
       statusStats,
     });
   } catch (error) {
-    logger.error('鑾峰彇閿€鍞€€璐у崟鍒楄〃澶辫触:', error);
-    res.status(500).json({ error: '鑾峰彇閿€鍞€€璐у崟鍒楄〃澶辫触' });
+    logger.error('获取销售退货单列表失败:', error);
+    ResponseHandler.error(res, '获取销售退货单列表失败', 'SERVER_ERROR', 500);
   } finally {
     if (conn) conn.release();
   }
@@ -232,12 +175,12 @@ exports.getSalesReturnById = async (req, res) => {
     const [returnResults] = await conn.query(query, [id]);
 
     if (returnResults.length === 0) {
-      return res.status(404).json({ error: 'Data not found' });
+      return ResponseHandler.notFound(res, 'Data not found');
     }
 
     const returnData = returnResults[0];
 
-    // 鏌ヨ閫€璐у崟鏄庣粏
+    // 查询退货单明细
     const detailsQuery = `
       SELECT
       sri.*,
@@ -260,7 +203,7 @@ exports.getSalesReturnById = async (req, res) => {
 
     // 淇濈暀鑻辨枃鐘舵€?key锛屾坊鍔犱腑鏂囨爣绛句緵鍓嶇灞曠ず
     const statusLabelMap = {
-      draft: '鑽夌',
+      draft: '草稿',
       pending: '',
       approved: '',
       completed: '',
@@ -268,14 +211,14 @@ exports.getSalesReturnById = async (req, res) => {
     };
     returnData.status_label = statusLabelMap[returnData.status] || returnData.status;
 
-    // 缁勫悎缁撴灉
+    // 组合结果
     returnData.items = detailsResults;
     returnData.total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
 
     res.json(returnData);
   } catch (error) {
-    logger.error('鑾峰彇閿€鍞€€璐у崟璇︽儏澶辫触:', error);
-    res.status(500).json({ error: '鑾峰彇閿€鍞€€璐у崟璇︽儏澶辫触' });
+    logger.error('获取销售退货单详情失败:', error);
+    ResponseHandler.error(res, '获取销售退货单详情失败', 'SERVER_ERROR', 500);
   } finally {
     if (conn) conn.release();
   }
@@ -298,40 +241,40 @@ exports.createSalesReturn = async (req, res) => {
       items,
     } = req.body;
 
-    // 楠岃瘉蹇呰鍙傛暟锛堟敮鎸佸熀浜庡嚭搴撳崟鎴栬鍗曠殑閫€璐э級
+    // 验证必要参数（支持基于出库单或订单的退货）
     if (!return_date || !return_reason) {
-      return res.status(400).json({ error: 'Data not found' });
+      return ResponseHandler.error(res, 'Data not found', 'BAD_REQUEST', 400);
     }
 
     if (!outbound_id && !order_id) {
-      return res.status(400).json({ error: '蹇呴』鎸囧畾鍑哄簱鍗旾D鎴栬鍗旾D' });
+      return ResponseHandler.error(res, '必须指定出库单ID或订单ID', 'BAD_REQUEST', 400);
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'Data not found' });
+      return ResponseHandler.error(res, 'Data not found', 'BAD_REQUEST', 400);
     }
 
     connection = await getConnection();
     await connection.beginTransaction();
 
-    // 鐢熸垚閫€璐у崟鍙? RT + 骞存湀鏃?+ 3浣嶅簭鍙?
-     date = new Date();
+    // 生成退货单号 RT + 年月日 + 3位序号
+    const date = new Date();
     const dateStr =
       date.getFullYear() +
       ('0' + (date.getMonth() + 1)).slice(-2) +
       ('0' + date.getDate()).slice(-2);
 
-    // 鏌ヨ褰撳ぉ鏈€澶у簭鍙?
-     [seqResult] = await connection.query(
+    // 查询当天最大序号
+    const [seqResult] = await connection.query(
       'SELECT MAX(SUBSTRING(return_no, 11)) as max_seq FROM sales_returns WHERE return_no LIKE ?',
       [`RT${dateStr}%`]
     );
 
     const seq = seqResult[0].max_seq ? parseInt(seqResult[0].max_seq) + 1 : 1;
-    const returnNo = `RT${dateStr}${seq.toString().padStart(3, '0')} `;
+    const returnNo = `RT${dateStr}${seq.toString().padStart(3, '0')}`;
 
-    // 濡傛灉鏄熀浜庡嚭搴撳崟鐨勯€€璐э紝闇€瑕佽幏鍙栬鍗曚俊鎭?
-     finalOrderId = order_id;
+    // 如果是基于出库单的退货，需要获取订单信息
+    let finalOrderId = order_id;
     if (outbound_id && !order_id) {
       const [outboundResult] = await connection.query(
         'SELECT order_id FROM sales_outbound WHERE id = ?',
@@ -342,7 +285,7 @@ exports.createSalesReturn = async (req, res) => {
       }
     }
 
-    // 銆愭柊澧炪€戣秴棰濋€€璐ч槻鑼冩満鍒讹紝涓ユ牸鏍￠獙绱閫€璐ф暟閲忎笉寰楄秴杩囧師璁㈠崟璐拱鏁伴噺
+    // 【新增】超额退货防范机制，严格校验累退货数量不得超过原订单购买数量
     if (finalOrderId && items && items.length > 0) {
       for (const item of items) {
         const productId = item.product_id;
@@ -356,13 +299,13 @@ exports.createSalesReturn = async (req, res) => {
 
         if (orderItemResult.length === 0) {
           await connection.rollback();
-          return res.status(400).json({ error: 'Data not found' });
+          return ResponseHandler.error(res, 'Data not found', 'BAD_REQUEST', 400);
         }
 
         const maxOrderQty = parseFloat(orderItemResult[0].quantity) || 0;
 
-        // 姹囨€昏璁㈠崟涓嬫鐗╂枡鐨勬墍鏈夊巻鍙叉湁鏁堥€€璐ц褰曪紙鎺掗櫎宸茶鎷︽埅鍜屼綔搴熺殑璁板綍锛?
- [historicalReturn] = await connection.query(
+        // 汇总该订单下此物料的所有历史有效退货记录（排除已被拦截和作废的记录）
+        const [historicalReturn] = await connection.query(
           `SELECT SUM(sri.quantity) as total_returned
            FROM sales_return_items sri
            JOIN sales_returns sr ON sri.return_id = sr.id
@@ -375,12 +318,12 @@ exports.createSalesReturn = async (req, res) => {
 
         if (returnQty > maxReturnableQty) {
           await connection.rollback();
-          return res.status(400).json({ error: `閫€璐ф暟閲忚秴闄愰樆姝紒鍘熻鍗曟€昏喘浠舵暟锛?{maxOrderQty}锛屽巻鍙插凡閫€绱浠舵暟锛?{alreadyReturnedQty}銆傛湰娆℃偍鏈€澶氬彧鑳界敵璇烽€€鍥炰綑鏁帮細${maxReturnableQty}浠躲` });
+          return res.status(400).json({ error: `退货数量超限阻止！原订单总购件数：${maxOrderQty}，历史已退累件数：${alreadyReturnedQty}。本次您最多只能申请退回余数：${maxReturnableQty}件。` });
         }
       }
     }
 
-    // 鎻掑叆閫€璐у崟涓昏〃
+    // 插入退货单主表
     const insertQuery = `
       INSERT INTO sales_returns(
           return_no, order_id, return_date, return_reason,
@@ -388,7 +331,7 @@ exports.createSalesReturn = async (req, res) => {
         ) VALUES(?, ?, ?, ?, ?, ?, ?, NOW())
           `;
 
-    const created_by = await getCurrentUserName(req);
+    const created_by = req.user?.userId || req.user?.id || 1;
 
     const [result] = await connection.query(insertQuery, [
       returnNo,
@@ -402,7 +345,7 @@ exports.createSalesReturn = async (req, res) => {
 
     const returnId = result.insertId;
 
-    // 鎻掑叆鏄庣粏琛?
+    // 插入明细行
     if (items && items.length > 0) {
       const detailQuery = `
         INSERT INTO sales_return_items(
@@ -425,19 +368,19 @@ exports.createSalesReturn = async (req, res) => {
     ResponseHandler.success(
       res,
       {
-        message: '閿€鍞€€璐у崟鍒涘缓鎴愬姛',
+        message: '销售退货单创建成功',
         id: returnId,
         return_no: returnNo,
       },
-      '鍒涘缓鎴愬姛',
+      '创建成功',
       201
     );
   } catch (error) {
     if (connection) {
       await connection.rollback();
     }
-    logger.error('鍒涘缓閿€鍞€€璐у崟澶辫触:', error);
-    res.status(500).json({ error: '鍒涘缓閿€鍞€€璐у崟澶辫触' });
+    logger.error('创建销售退货单失败:', error);
+    ResponseHandler.error(res, '创建销售退货单失败', 'SERVER_ERROR', 500);
   } finally {
     if (connection) {
       connection.release();
@@ -455,12 +398,12 @@ exports.updateSalesReturn = async (req, res) => {
     connection = await getConnection();
     await connection.beginTransaction();
 
-    // 濡傛灉鏄熀浜庡嚭搴撳崟鐨勯€€璐э紝闇€瑕佽幏鍙栬鍗曚俊鎭?
-     finalOrderId = order_id;
-    // 濡傛灉鍓嶇鍙紶浜?outbound_id 娌℃湁 order_id锛堣櫧鐒跺墠绔湁鎺у埗锛屼絾涔熼槻鑼冧竴涓嬶級
-    // 鎴栬€呯洿鎺ヤ娇鐢ㄥ師鏁版嵁搴撹褰曠殑 order_id 
+    // 如果是基于出库单的退货，需要获取订单信息
+    let finalOrderId = order_id;
+    // 如果前端只传了 outbound_id 没有 order_id（虽然前端有控制，但也防范一下）
+    // 或者直接使用原数据库记录的 order_id
 
-    // 銆愭柊澧炪€戣秴棰濋€€璐ч槻鑼冩満鍒?
+    // 【新增】超额退货防范机制
      if (finalOrderId && items && items.length > 0) {
       for (const item of items) {
         const productId = item.product_id;
@@ -474,12 +417,12 @@ exports.updateSalesReturn = async (req, res) => {
 
         if (orderItemResult.length === 0) {
           await connection.rollback();
-          return res.status(400).json({ error: '鏁版嵁寮傚父锛氬師璁㈠崟涓笉瀛樺湪鎮ㄨ淇敼鐨勪骇鍝侊紒' });
+          return ResponseHandler.error(res, '数据异常：原订单中不存在您要修改的产品！', 'BAD_REQUEST', 400);
         }
 
         const maxOrderQty = parseFloat(orderItemResult[0].quantity) || 0;
 
-        // 姹囨€昏璁㈠崟涓嬫鐗╂枡鐨勬墍鏈夊巻鍙叉湁鏁堥€€璐ц褰曪紙鎺掗櫎褰撳墠姝ｅ湪淇敼鐨勯€€璐у崟 itself 浠ュ強浣滃簾鍗曪級
+        // 汇总该订单下此物料的所有历史有效退货记录（排除当前正在修改的退货单以及作废单）
         const [historicalReturn] = await connection.query(
           `SELECT SUM(sri.quantity) as total_returned
            FROM sales_return_items sri
@@ -495,12 +438,12 @@ exports.updateSalesReturn = async (req, res) => {
 
         if (returnQty > maxReturnableQty) {
           await connection.rollback();
-          return res.status(400).json({ error: `淇敼鏁伴噺瓒呴檺闃绘锛佸師璁㈠崟鎬昏喘浠舵暟锛?{maxOrderQty}锛岄櫎褰撳墠鍗曞鍘嗗彶宸查€€浠舵暟锛?{alreadyReturnedQty}銆傛湰娆℃偍鏈€澶氬彧鑳藉皢浠舵暟淇敼涓猴細${maxReturnableQty}浠躲` });
+          return res.status(400).json({ error: `修改数量超限阻止！原订单总购件数：${maxOrderQty}，除当前单外历史已退件数：${alreadyReturnedQty}。本次您最多只能将件数修改为：${maxReturnableQty}件。` });
         }
       }
     }
 
-    // 鏇存柊涓昏〃
+    // 更新主表
     const updateQuery = `
       UPDATE sales_returns SET
       return_date = ?,
@@ -521,10 +464,10 @@ exports.updateSalesReturn = async (req, res) => {
       id,
     ]);
 
-    // 鍒犻櫎鍘熸湁鏄庣粏
+    // 删除原有明细
     await connection.query('DELETE FROM sales_return_items WHERE return_id = ?', [id]);
 
-    // 鎻掑叆鏂版槑缁?
+    // 插入新明细
     if (items && items.length > 0) {
       const detailQuery = `
         INSERT INTO sales_return_items(
@@ -553,7 +496,7 @@ exports.updateSalesReturn = async (req, res) => {
           continue;
         }
 
-        // 鑾峰彇鐗╂枡淇℃伅銆佸崟浣嶅拰榛樿浠撳簱
+        // 获取物料信息、单位和默认仓库
         const [materialResults] = await connection.query(
           `
           SELECT m.code, m.name, m.unit_id, m.location_id, m.location_name,
@@ -569,15 +512,15 @@ exports.updateSalesReturn = async (req, res) => {
         if (materialResults.length > 0) {
           const material = materialResults[0];
 
-          // 浣跨敤鐗╂枡鐨勯粯璁や粨搴擄紝濡傛灉娌℃湁鍒欏己鍒舵姏閿欑粓姝笟鍔?
- warehouseId = material.location_id;
+          // 使用物料的默认仓库，如果没有则强制抛错终止业务
+          const warehouseId = material.location_id;
           if (!warehouseId) {
-            throw new Error(`鐗╂枡 ${productId} 鏈厤缃粯璁や粨搴擄紝璇峰湪鐗╂枡璧勬枡涓缃悗鍐嶆搷浣溿`);
+            throw new Error(`物料 ${productId} 未配置默认仓库，请在物料资料中设置后再操作。`);
           }
           const warehouseName = material.warehouse_name || material.location_name || '';
 
-          // 鑾峰彇褰撳墠搴撳瓨锛堜娇鐢ㄥ崟琛ㄦ灦鏋勶紝鍙傝€冮噰璐€€璐ч€昏緫锛?
- [stockResult] = await connection.query(
+          // 获取当前库存（使用单表架构，参考采购退货逻辑）
+          const [stockResult] = await connection.query(
             `
             SELECT COALESCE(SUM(quantity), 0) as current_quantity
             FROM inventory_ledger
@@ -590,70 +533,76 @@ exports.updateSalesReturn = async (req, res) => {
           const changeQuantity = parseFloat(quantity);
           const afterQuantity = beforeQuantity + changeQuantity;
 
-          // 鑾峰彇鐗╂枡鍗曚綅ID
+          // 获取物料单位ID
           const unitId = material.unit_id;
 
-          // 鑾峰彇褰撳墠閫€璐у崟鐨勬纭紪鍙?
- [returnInfo] = await connection.query(
+          // 获取当前退货单的正确编号
+          const [returnInfo] = await connection.query(
             'SELECT return_no FROM sales_returns WHERE id = ?',
             [id]
           );
           const actualReturnNo = returnInfo[0]?.return_no || `RT${id} `;
 
-          // 馃敟 浣跨敤缁熶竴鐨?InventoryService 鏇存柊搴撳瓨锛堣嚜鍔ㄥ悓姝?batch_inventory锛?
- InventoryService = require('../../../services/InventoryService');
+          // 使用统一的 InventoryService 更新库存
+          const InventoryService = require('../../../services/InventoryService');
           await InventoryService.updateStock(
             {
               materialId: productId,
               locationId: warehouseId,
-              quantity: changeQuantity, // 閫€璐т负姝ｆ暟锛堝叆搴擄級
+              quantity: changeQuantity, // 退货为正数（入库）
               transactionType: 'sales_return',
               referenceNo: actualReturnNo,
               referenceType: 'sales_return',
               operator: 'system',
-              remark: `閿€鍞€€璐у叆搴擄細${material.code} ${material.name} `,
+              remark: `销售退货入库：${material.code} ${material.name}`,
               unitId: material.unit_id,
-              batchNumber: null,
+              batchNumber: `RT-${actualReturnNo}-${productId}`,
             },
             connection
           );
 
-          logger.info(`鉁?閿€鍞€€璐у叆搴撳畬鎴愶紙缁熶竴鏈嶅姟锛? 鐗╂枡${productId}, 鏁伴噺${changeQuantity} `);
+          logger.info(`✅ 销售退货入库完成（统一服务） 物料${productId}, 数量${changeQuantity}`);
         }
       }
 
-      // 閫€璐у崟搴撳瓨澶勭悊瀹屾垚
+      // 退货单库存处理完成
 
-      // 鑾峰彇閫€璐у崟淇℃伅鐢ㄤ簬鐢熸垚绾㈠瓧鍙戠エ
+      // 获取退货单信息用于生成红字发票
       const [returnInfo] = await connection.query('SELECT * FROM sales_returns WHERE id = ?', [id]);
 
-      // 鍦ㄤ簨鍔℃彁浜ゅ悗寮傛鐢熸垚绾㈠瓧鍙戠エ
+      // 退货单库存处理完成
+      // 缓存退货信息，commit 后异步生成红字发票
+      let pendingReturnForFinance = null;
       if (returnInfo.length > 0) {
-        const salesReturn = returnInfo[0];
-        setImmediate(async () => {
-          try {
-            const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
-            await FinanceIntegrationService.generateARCreditNoteFromSalesReturn(salesReturn);
-            logger.info(`鉁?閿€鍞€€璐х孩瀛楀彂绁ㄨ嚜鍔ㄧ敓鎴愭垚鍔?- 閫€璐у崟: ${salesReturn.return_no} `);
-          } catch (financeError) {
-            logger.warn(`鈿狅笍 閿€鍞€€璐х孩瀛楀彂绁ㄨ嚜鍔ㄧ敓鎴愬け璐ワ紙涓嶅奖鍝嶉€€璐э級: ${financeError.message} `);
-          }
-        });
+        pendingReturnForFinance = returnInfo[0];
       }
     }
 
     await connection.commit();
 
+    // 在事务 commit 之后异步生成红字发票
+    if (pendingReturnForFinance) {
+      setImmediate(async () => {
+        try {
+          const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
+          await FinanceIntegrationService.generateARCreditNoteFromSalesReturn(pendingReturnForFinance);
+          logger.info(`✅ 销售退货红字发票自动生成成功 - 退货单: ${pendingReturnForFinance.return_no}`);
+        } catch (financeError) {
+          logger.warn(`⚠️ 销售退货红字发票自动生成失败（不影响退货）: ${financeError.message}`);
+        }
+      });
+    }
+
     res.json({
-      message: '閿€鍞€€璐у崟鏇存柊鎴愬姛',
+      message: '销售退货单更新成功',
       id: parseInt(id),
     });
   } catch (error) {
     if (connection) {
       await connection.rollback();
     }
-    logger.error('鏇存柊閿€鍞€€璐у崟澶辫触:', error);
-    res.status(500).json({ error: '鏇存柊閿€鍞€€璐у崟澶辫触' });
+    logger.error('更新销售退货单失败:', error);
+    ResponseHandler.error(res, '更新销售退货单失败', 'SERVER_ERROR', 500);
   } finally {
     if (connection) {
       connection.release();
@@ -661,7 +610,7 @@ exports.updateSalesReturn = async (req, res) => {
   }
 };
 
-// 娣诲姞鍒犻櫎閫€璐у崟鍔熻兘
+// 删除退货单功能
 
 exports.deleteSalesReturn = async (req, res) => {
   let connection;
@@ -671,24 +620,25 @@ exports.deleteSalesReturn = async (req, res) => {
     connection = await getConnection();
     await connection.beginTransaction();
 
-    // 鍒犻櫎鏄庣粏
+    // 删除明细
     await connection.query('DELETE FROM sales_return_items WHERE return_id = ?', [id]);
 
-    // 鍒犻櫎涓昏〃
-    await connection.query('DELETE FROM sales_returns WHERE id = ?', [id]);
+    // 删除主表
+    // ✅ 软删除退货单主表
+    await softDelete(connection, 'sales_returns', 'id', id);
 
     await connection.commit();
 
     res.json({
-      message: '閿€鍞€€璐у崟鍒犻櫎鎴愬姛',
+      message: '销售退货单删除成功',
       id: parseInt(id),
     });
   } catch (error) {
     if (connection) {
       await connection.rollback();
     }
-    logger.error('鍒犻櫎閿€鍞€€璐у崟澶辫触:', error);
-    res.status(500).json({ error: '鍒犻櫎閿€鍞€€璐у崟澶辫触' });
+    logger.error('删除销售退货单失败:', error);
+    ResponseHandler.error(res, '删除销售退货单失败', 'SERVER_ERROR', 500);
   } finally {
     if (connection) {
       connection.release();

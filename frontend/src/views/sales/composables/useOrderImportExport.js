@@ -94,13 +94,20 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
       const formData = new FormData()
       formData.append('file', importFile)
       const response = await salesApi.importOrders(formData)
-      importResult.value = response.data
-      if (response.data?.success > 0) {
-        ElMessage.success(`成功导入 ${response.data.success} 条订单数据`)
+      // 后端经过 unwrapResponse 解包后，response.data = { successCount, errorCount, errors }
+      // 前端模板使用 success / failed 字段，这里做映射转换
+      const raw = response.data || {}
+      importResult.value = {
+        success: raw.successCount || raw.success || 0,
+        failed: raw.errorCount || raw.failed || 0,
+        errors: raw.errors || []
+      }
+      if (importResult.value.success > 0) {
+        ElMessage.success(`成功导入 ${importResult.value.success} 条订单数据`)
         if (fetchDataCallback) fetchDataCallback()
       }
-      if (response.data?.failed > 0) {
-        ElMessage.warning(`${response.data.failed} 条订单数据导入失败，请查看详情`)
+      if (importResult.value.failed > 0) {
+        ElMessage.warning(`${importResult.value.failed} 条订单数据导入失败，请查看详情`)
       }
     } catch (error) {
       console.error('导入订单失败:', error)

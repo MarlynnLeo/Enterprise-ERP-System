@@ -24,7 +24,7 @@
               class="summary-icon"
               :class="batchType === 'product' ? 'icon-product' : 'icon-material'"
             >
-              {{ batchType === 'product' ? '🏭' : '📦' }}
+              <SvgIcon :name="batchType === 'product' ? 'archive' : 'cube'" size="24px" />
             </div>
             <div class="summary-info">
               <div class="summary-title">{{ materialCode }}</div>
@@ -67,7 +67,7 @@
           class="section-card"
         >
           <div class="section-title">
-            <span class="section-icon">📋</span>
+            <span class="section-icon"><SvgIcon name="list_alt" size="18px" /></span>
             <span>原料组成</span>
             <span class="section-count">{{ traceData.bom_components.length }}</span>
           </div>
@@ -90,7 +90,7 @@
         <!-- 追溯链路 -->
         <div v-if="traceData.steps && traceData.steps.length > 0" class="section-card">
           <div class="section-title">
-            <span class="section-icon">🔗</span>
+            <span class="section-icon"><SvgIcon name="account_tree" size="18px" /></span>
             <span>追溯链路</span>
             <span class="section-count">{{ traceData.steps.length }}</span>
           </div>
@@ -125,7 +125,7 @@
           class="section-card"
         >
           <div class="section-title">
-            <span class="section-icon">📘</span>
+            <span class="section-icon"><SvgIcon name="receipt_long" size="18px" /></span>
             <span>流水记录</span>
             <span class="section-count">{{ traceData.batch_transactions.length }}</span>
           </div>
@@ -177,6 +177,7 @@
   import { ref, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Loading, Empty, Button } from 'vant'
+  import SvgIcon from '@/components/icons/index.vue'
   import { qualityApi } from '@/services/api'
 
   const route = useRoute()

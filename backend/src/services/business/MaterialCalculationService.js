@@ -138,7 +138,7 @@ async function calculateAndInsertMaterials(connection, planId, productId, quanti
     if (!bomId) {
       const [bomMasters] = await connection.query(
         `SELECT id, version FROM bom_masters 
-         WHERE product_id = ? AND status != 2 
+         WHERE product_id = ? AND status != 2 AND deleted_at IS NULL
          ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END, created_at DESC 
          LIMIT 1`,
         [productId]
@@ -150,7 +150,7 @@ async function calculateAndInsertMaterials(connection, planId, productId, quanti
       bomVersion = bomMasters[0].version;
     } else {
       const [bomMasters] = await connection.query(
-        `SELECT version FROM bom_masters WHERE id = ?`,
+        `SELECT version FROM bom_masters WHERE id = ? AND deleted_at IS NULL`,
         [bomId]
       );
       if (bomMasters.length > 0) bomVersion = bomMasters[0].version;

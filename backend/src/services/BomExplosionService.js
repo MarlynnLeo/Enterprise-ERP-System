@@ -229,7 +229,7 @@ class BomExplosionService {
     const [rows] = await pool.query(
       `
       SELECT * FROM bom_masters 
-      WHERE product_id = ? AND approved_by IS NOT NULL
+      WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL
       ORDER BY approved_at DESC, id DESC
       LIMIT 1
     `,
@@ -242,7 +242,7 @@ class BomExplosionService {
    * 根据ID获取BOM
    */
   static async getBomById(bomId) {
-    const [rows] = await pool.query('SELECT * FROM bom_masters WHERE id = ?', [bomId]);
+    const [rows] = await pool.query('SELECT * FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
     return rows[0] || null;
   }
 
@@ -276,7 +276,7 @@ class BomExplosionService {
       await connection.beginTransaction();
 
       // 获取产品信息
-      const [bomInfo] = await connection.query('SELECT product_id FROM bom_masters WHERE id = ?', [
+      const [bomInfo] = await connection.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [
         bomId,
       ]);
       const productId = bomInfo[0]?.product_id;
@@ -343,7 +343,7 @@ class BomExplosionService {
         await pool.query('DELETE FROM bom_explosion_cache WHERE bom_id = ?', [currentBomId]);
 
         // 2. 获取该BOM的产品ID
-        const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ?', [
+        const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [
           currentBomId,
         ]);
 
@@ -439,7 +439,7 @@ class BomExplosionService {
     const [rows] = await pool.query(
       `
       SELECT * FROM bom_masters 
-      WHERE product_id = ? AND status = 1 AND approved_by IS NULL
+      WHERE product_id = ? AND status = 1 AND approved_by IS NULL AND deleted_at IS NULL
       ORDER BY id DESC
       LIMIT 1
     `,

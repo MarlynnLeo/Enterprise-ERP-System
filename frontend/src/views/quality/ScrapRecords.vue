@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="scrap-records-container">
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -112,7 +112,8 @@
               size="small" 
               @click="approveScrap(row)"
               v-if="row.status === 'pending'"
-            >
+            
+              v-permission="'quality:scrap:update'">
               审批
             </el-button>
             <el-button 
@@ -121,7 +122,8 @@
               size="small" 
               @click="completeScrap(row)"
               v-if="row.status === 'approved'"
-            >
+            
+              v-permission="'quality:scrap:update'">
               完成报废
             </el-button>
             <el-button 
@@ -130,6 +132,7 @@
               size="small" 
               @click="editRecord(row)"
               v-if="row.status === 'pending' || row.status === 'approved'"
+              v-permission="'quality:scrap:update'"
             >
               编辑
             </el-button>
@@ -173,7 +176,7 @@
       </el-form>
       <template #footer>
         <el-button @click="approveDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:scraprecords:approve'" type="primary" @click="submitApprove">提交审批</el-button>
+        <el-button type="primary" @click="submitApprove">提交审批</el-button>
       </template>
     </el-dialog>
 
@@ -230,7 +233,7 @@
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:scraprecords:update'" type="primary" @click="submitEdit">保存</el-button>
+        <el-button v-permission="'quality:scrap:update'" type="primary" @click="submitEdit">保存</el-button>
       </template>
     </el-dialog>
 
@@ -268,11 +271,6 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 const searchForm = reactive({
   scrapNo: '',
   ncpNo: '',

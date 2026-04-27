@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 
 const customerService = {
   async getAllCustomers(page = 1, pageSize = 10, filters = {}) {
@@ -7,7 +8,7 @@ const customerService = {
       const safePage = Math.max(1, parseInt(page, 10) || 1);
       const safePageSize = Math.max(1, Math.min(10000, parseInt(pageSize, 10) || 10));
       const offset = (safePage - 1) * safePageSize;
-      let whereClause = '1=1';
+      let whereClause = 'deleted_at IS NULL';
       const params = [];
 
       if (filters.code) {
@@ -69,7 +70,7 @@ const customerService = {
 
   async getCustomerById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM customers WHERE id = ?', [id]);
+      const [rows] = await pool.query('SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows[0];
     } catch (error) {
       logger.error(`获取客户详情失败 (ID: ${id}):`, error);
@@ -129,7 +130,7 @@ const customerService = {
       ]);
 
       // 获取插入的完整记录
-      const [newCustomer] = await pool.query('SELECT * FROM customers WHERE id = ?', [
+      const [newCustomer] = await pool.query('SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL', [
         result.insertId,
       ]);
       return newCustomer[0];
@@ -142,7 +143,7 @@ const customerService = {
   async updateCustomer(id, data) {
     try {
       // 验证客户是否存在
-      const [existing] = await pool.query('SELECT * FROM customers WHERE id = ?', [id]);
+      const [existing] = await pool.query('SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existing || existing.length === 0) {
         throw new Error('客户不存在');
       }
@@ -183,7 +184,7 @@ const customerService = {
       await pool.query(`UPDATE customers SET ${fields} WHERE id = ?`, values);
 
       // 获取并返回更新后的完整数据
-      const [updated] = await pool.query('SELECT * FROM customers WHERE id = ?', [id]);
+      const [updated] = await pool.query('SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
       return updated[0];
     } catch (error) {
       logger.error('更新客户失败:', error);
@@ -202,7 +203,8 @@ const customerService = {
         throw new Error('该客户有关联的销售订单，不能删除');
       }
 
-      await pool.query('DELETE FROM customers WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(pool, 'customers', 'id', id);
       return true;
     } catch (error) {
       logger.error('删除客户失败:', error);

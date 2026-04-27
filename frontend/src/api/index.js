@@ -21,7 +21,17 @@ export {
   commonApi,
   metalPricesApi,
   systemApi,
-  equipmentApi
+  equipmentApi,
+  workflowApi,
+  contractApi,
+  mrpApi,
+  codingRuleApi,
+  docLinkApi,
+  exchangeRateApi,
+  performanceApi,
+  ecnApi,
+  documentApi,
+  alertApi
 } from '../services/api.js';
 
 // 默认导出主API实例

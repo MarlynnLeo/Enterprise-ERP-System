@@ -28,7 +28,6 @@ fs.readdirSync(__dirname)
       file.slice(-3) === '.js' &&
       // 排除已经手动加载的模型和其他非Sequelize模型
       ![
-        'bankAccount.js',
         'qualityInspection.js',
         'qualityStandard.js',
         'traceability.js',
@@ -51,15 +50,13 @@ fs.readdirSync(__dirname)
         const model = modelModule(sequelize);
         db[model.name] = model;
       } catch (error) {
-        // 模型加载失败记录到调试日志
-        console.debug(`[Models] 跳过非标准Sequelize模型: ${file} - ${error.message}`);
+        // 非标准 Sequelize 模型（如 Class 形式）静默跳过
       }
     }
   });
 
 // 然后加载其他类型的模型
 const otherModels = [
-  'bankAccount.js',
   'qualityInspection.js',
   'qualityStandard.js',
   'traceability.js',

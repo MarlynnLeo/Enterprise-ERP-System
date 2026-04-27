@@ -141,7 +141,7 @@ body {
 .card {
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-sm);
   margin-bottom: $margin-md;
   overflow: hidden;
@@ -164,7 +164,7 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: $padding-md;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--border-subtle);
   color: var(--text-primary);
 
   &:last-child {
@@ -181,13 +181,13 @@ body {
   td {
     padding: $padding-sm;
     text-align: left;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--border-subtle);
     color: var(--text-primary);
   }
 
   th {
     font-weight: bold;
-    background: var(--glass-bg);
+    background: var(--bg-tertiary);
     color: var(--text-secondary);
   }
 }

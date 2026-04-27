@@ -6,6 +6,7 @@
  */
 
 const logger = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 const pool = require('../config/db');
 
 /**
@@ -46,7 +47,7 @@ const productCategoryModel = {
           parent.name as parent_name
         FROM categories pc
         LEFT JOIN categories parent ON pc.parent_id = parent.id
-        WHERE 1=1
+        WHERE pc.deleted_at IS NULL
       `;
 
 
@@ -253,7 +254,7 @@ const productCategoryModel = {
   async deleteProductCategory(id) {
     try {
       // 检查是否有子分类
-      const childQuery = 'SELECT COUNT(*) as count FROM categories WHERE parent_id = ?';
+      const childQuery = 'SELECT COUNT(*) as count FROM categories WHERE parent_id = ? AND deleted_at IS NULL';
       const childResult = await pool.query(childQuery, [id]);
 
       let childRows;
@@ -293,8 +294,8 @@ const productCategoryModel = {
         }
       }
 
-      const query = 'DELETE FROM categories WHERE id = ?';
-      await pool.query(query, [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(pool, 'categories', 'id', id);
 
       return true;
     } catch (error) {

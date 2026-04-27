@@ -332,21 +332,14 @@
 }
 
 /* 顶部导航栏活力化 */
-[data-theme="vibrant"] .header,
-[data-theme="vibrant"] .el-header {
+[data-theme="vibrant"] .header, [data-theme="vibrant"] .el-header {
   background: #FFFFFF !important;
   border-bottom: 3px solid #FF6B6B !important;
-  box-shadow: 0 4px 20px rgba(255, 107, 107, 0.2) !important;
-}
-
-/* 导航栏所有文字使用粉色 - 最高优先级 */
-[data-theme="vibrant"] .header,
-[data-theme="vibrant"] .el-header {
+  box-shadow: 0 2px 10px rgba(255, 107, 107, 0.15) !important;
   color: #FF6B6B !important;
 }
 
-[data-theme="vibrant"] .header *,
-[data-theme="vibrant"] .el-header * {
+[data-theme="vibrant"] .header *, [data-theme="vibrant"] .el-header * {
   color: #FF6B6B !important;
 }
 

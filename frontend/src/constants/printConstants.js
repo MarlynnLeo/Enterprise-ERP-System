@@ -59,7 +59,9 @@ export const TEMPLATE_TYPE_OPTIONS = [
   { label: '收款凭证', value: 'ar_receipt' },
   { label: '付款凭证', value: 'ap_payment' },
   { label: '库存明细', value: 'inventory_stock' },
-  { label: '库存调拨单', value: 'transfer' }
+  { label: '库存调拨单', value: 'transfer' },
+  { label: '销售退货单', value: 'sales_return' },
+  { label: '采购申请单', value: 'purchase_requisition' }
 ];
 
 // 默认边距设置
@@ -261,6 +263,29 @@ export const PREVIEW_DATA = {
         location_name: '原材料仓库',
         isSubstitute: false
       }
+    ]
+  },
+  sales_return: {
+    return_no: 'RT-20260424001',
+    return_date: '2026-04-24',
+    customer_name: '示例客户公司',
+    order_no: 'SO-20260420001',
+    reason: '产品规格不符',
+    operator: '张三',
+    items: [
+      { index: 1, material_code: 'M001', material_name: '示例产品A', specification: '型号XYZ', quantity: 5, unit_name: '个', remark: '外观缺陷' },
+      { index: 2, material_code: 'M002', material_name: '示例产品B', specification: '型号ABC', quantity: 3, unit_name: '套', remark: '' }
+    ]
+  },
+  purchase_requisition: {
+    requisition_number: 'PR-20260424001',
+    request_date: '2026-04-24',
+    requester: '李四',
+    status: '已提交',
+    remarks: '紧急采购',
+    items: [
+      { index: 1, material_code: 'M001', material_name: '原材料A', specification: 'Ø30mm', quantity: 100, unit_name: '件', remark: '' },
+      { index: 2, material_code: 'M002', material_name: '原材料B', specification: 'Ø50mm', quantity: 50, unit_name: '件', remark: '' }
     ]
   }
 };

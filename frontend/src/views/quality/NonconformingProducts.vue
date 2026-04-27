@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="nonconforming-container">
     <!-- 统计卡片 -->
     <div class="statistics-row">
@@ -154,7 +154,8 @@
               size="small" 
               type="warning" 
               @click="handleApplyConcession(row)" 
-              v-if="(row.status === 'pending' || row.status === 'processing') && row.concession_status !== 'pending' && row.concession_status !== 'approved'">
+              v-if="(row.status === 'pending' || row.status === 'processing') && row.concession_status !== 'pending' && row.concession_status !== 'approved'"
+              v-permission="'quality:nonconforming:update'">
               申请特采
             </el-button>
             <!-- 特采审批按钮: 特采待审状态 -->
@@ -162,14 +163,15 @@
               size="small" 
               type="primary" 
               @click="handleApproveConcession(row)" 
-              v-if="row.concession_status === 'pending'">
+              v-if="row.concession_status === 'pending'"
+              v-permission="'quality:nonconforming:update'">
               特采审批
             </el-button>
 
             <el-button size="small" type="success" @click="handleComplete(row)" v-if="row.status === 'processing' && row.concession_status !== 'pending'">
               完成处理
             </el-button>
-            <el-button v-permission="'quality:nonconformingproducts:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status !== 'completed'">删除</el-button>
+            <el-button v-permission="'quality:nonconforming:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status !== 'completed'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -230,7 +232,7 @@
       </el-form>
       <template #footer>
         <el-button @click="applyConcessionDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:nonconformingproducts:submit'" type="primary" :loading="submitLoading" @click="submitApplyConcession">提交申请</el-button>
+        <el-button v-permission="'quality:nonconforming:create'" type="primary" :loading="submitLoading" @click="submitApplyConcession">提交申请</el-button>
       </template>
     </el-dialog>
 
@@ -249,7 +251,7 @@
         </el-form>
         <template #footer>
           <el-button @click="approveConcessionDialogVisible = false">取消</el-button>
-          <el-button v-permission="'quality:nonconformingproducts:submit'" type="primary" :loading="submitLoading" @click="submitApproveConcession">确认提交</el-button>
+          <el-button type="primary" :loading="submitLoading" @click="submitApproveConcession">确认提交</el-button>
         </template>
     </el-dialog>
 
@@ -305,7 +307,7 @@
       </el-form>
       <template #footer>
         <el-button @click="disposeDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:nonconformingproducts:submit'" type="primary" @click="submitDisposition">提交处理决策</el-button>
+        <el-button v-permission="'quality:nonconforming:create'" type="primary" @click="submitDisposition">提交处理决策</el-button>
       </template>
     </el-dialog>
 
@@ -338,11 +340,7 @@ import { Search, Refresh, Plus, ArrowUp, ArrowDown } from '@element-plus/icons-v
 import ncpApi from '@/api/nonconformingProductApi'
 import request from '@/utils/request'
 import dayjs from 'dayjs'
-import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
-// 权限store
-const authStore = useAuthStore()
 
 const route = useRoute()
 

@@ -129,17 +129,17 @@
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item v-if="scope.row.status === 'draft'" v-permission="'inventory:check:update'" @click="updateStatus(scope.row.id, 'in_progress')">开始盘点</el-dropdown-item>
-                    <el-dropdown-item v-if="scope.row.status === 'in_progress'" v-permission="'inventory:check:update'" @click="updateStatus(scope.row.id, 'pending')">提交盘点结果</el-dropdown-item>
-                    <el-dropdown-item v-if="['draft', 'in_progress', 'pending'].includes(scope.row.status)" v-permission="'inventory:check:update'" @click="updateStatus(scope.row.id, 'cancelled')">取消盘点</el-dropdown-item>
-                    <el-dropdown-item v-if="scope.row.status === 'draft'" v-permission="'inventory:check:delete'" @click="deleteCheck(scope.row.id)" divided>删除</el-dropdown-item>
+                    <el-dropdown-item v-if="scope.row.status === 'draft' && authStore.hasPermission('inventory:check:update')" @click="updateStatus(scope.row.id, 'in_progress')">开始盘点</el-dropdown-item>
+                    <el-dropdown-item v-if="scope.row.status === 'in_progress' && authStore.hasPermission('inventory:check:update')" @click="updateStatus(scope.row.id, 'pending')">提交盘点结果</el-dropdown-item>
+                    <el-dropdown-item v-if="['draft', 'in_progress', 'pending'].includes(scope.row.status) && authStore.hasPermission('inventory:check:update')" @click="updateStatus(scope.row.id, 'cancelled')">取消盘点</el-dropdown-item>
+                    <el-dropdown-item v-if="scope.row.status === 'draft' && authStore.hasPermission('inventory:check:delete')" @click="deleteCheck(scope.row.id)" divided>删除</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
               <el-button
                 size="small"
                 type="warning"
-                v-permission="'inventory:check:adjust'"
+                v-permission="'inventory:stock:adjust'"
                 @click="adjustInventory(scope.row.id)"
                 v-if="scope.row.status === 'pending'"
               >调整库存</el-button>

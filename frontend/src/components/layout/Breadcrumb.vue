@@ -190,6 +190,7 @@ const getTitleByPath = (path, prevPath = '') => {
     'process': t('menu.productionProcess'),
     'equipment-monitoring': '设备监控',
     'material-shortage': '缺料统计',
+    'mrp': 'MRP需求计划',
     'data-view': '数据视图',
 
     // 基础数据

@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 
 const db = require('../../../config/db');
+const { softDelete, softDeleteBatch } = require('../../../utils/softDelete');
 const InventoryService = require('../../../services/InventoryService');
 // const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const businessConfig = require('../../../config/businessConfig');
@@ -530,8 +531,8 @@ const deleteTransfer = async (req, res) => {
     // 删除调拨单物料明细
     await connection.execute('DELETE FROM inventory_transfer_items WHERE transfer_id = ?', [id]);
 
-    // 删除调拨单
-    await connection.execute('DELETE FROM inventory_transfers WHERE id = ?', [id]);
+    // ✅ 软删除调拨单主表
+    await softDelete(connection, 'inventory_transfers', 'id', id);
 
     await connection.commit();
 
@@ -877,11 +878,9 @@ const batchDeleteTransfers = async (req, res) => {
       ids
     );
 
-    // 批量删除调拨单
-    const [result] = await connection.execute(
-      `DELETE FROM inventory_transfers WHERE id IN (${placeholders})`,
-      ids
-    );
+    // ✅ 批量软删除调拨单
+    const affected = await softDeleteBatch(connection, 'inventory_transfers', 'id', ids);
+    const result = { affectedRows: affected };
 
     await connection.commit();
 

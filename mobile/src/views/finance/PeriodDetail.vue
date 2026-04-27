@@ -188,11 +188,11 @@
     flex-shrink: 0;
     &.open {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.closed {
       background: rgba(107, 114, 128, 0.1);
-      color: #6b7280;
+      color: var(--text-secondary);
     }
   }
 
@@ -220,11 +220,11 @@
     flex-shrink: 0;
     &.open {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.closed {
       background: rgba(107, 114, 128, 0.1);
-      color: #6b7280;
+      color: var(--text-secondary);
     }
   }
 
@@ -299,10 +299,10 @@
     color: var(--text-primary);
   }
   .text-green {
-    color: #10b981;
+    color: var(--color-success);
   }
   .text-red {
-    color: #ef4444;
+    color: var(--color-danger);
   }
 
   // 操作栏

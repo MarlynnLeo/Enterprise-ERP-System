@@ -140,6 +140,7 @@
               size="small" 
               type="primary" 
               @click="handleEdit(scope.row)"
+              v-permission="'quality:templates:update'"
             >
               编辑
             </el-button>
@@ -148,6 +149,7 @@
               size="small" 
               type="primary" 
               @click="handleActivate(scope.row)"
+              v-permission="'quality:templates:update'"
             >
               启用
             </el-button>
@@ -171,6 +173,7 @@
               size="small"
               type="danger"
               @click="handleDropdownCommand('delete', scope.row)"
+              v-permission="'quality:templates:delete'"
             >
               删除
             </el-button>
@@ -303,6 +306,7 @@
               <el-button 
                 type="primary" 
                 @click="addItem"
+                v-permission="'quality:templates:update'"
               >
                 添加检验项
               </el-button>
@@ -415,6 +419,7 @@
                         size="small" 
                         type="danger" 
                         @click="removeItem(scope.$index)"
+                        v-permission="'quality:templates:update'"
                       >
                         删除
                       </el-button>
@@ -651,7 +656,7 @@
       </el-form>
       <template #footer>
         <el-button @click="addStandardDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:inspectiontemplates:update'" type="primary" @click="saveNewStandard" :loading="savingStandard">保存</el-button>
+        <el-button v-permission="'quality:templates:update'" type="primary" @click="saveNewStandard" :loading="savingStandard">保存</el-button>
       </template>
     </el-dialog>
     </div>
@@ -669,6 +674,7 @@ import AQLStandards from './AQLStandards.vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
+import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { baseDataApi, systemApi, qualityApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseListData } from '@/utils/responseParser'
@@ -864,7 +870,7 @@ const fetchUsers = async () => {
       userMap.value[user.id] = user
     })
   } catch (error) {
-    // ✅ 优化: 如果是权限不足,静默处理,不影响页面使用
+    // 优化: 如果是权限不足,静默处理,不影响页面使用
     if (error.response?.status === 403) {
       console.warn('无权限获取用户列表,用户信息将无法显示')
     } else {
@@ -1291,10 +1297,7 @@ const getItemsCount = (row) => {
 }
 
 // 日期格式化
-const formatDate = (date) => {
-  if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
-}
+const formatDate = (date) => formatDateTime(date)
 
 // 打印调试信息
 const debug = (message, data) => {

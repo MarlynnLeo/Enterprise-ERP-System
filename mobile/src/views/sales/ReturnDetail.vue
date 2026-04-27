@@ -41,6 +41,21 @@
       <CellGroup inset title="备注" v-if="detail.remarks">
         <Cell :title="detail.remarks" />
       </CellGroup>
+
+      <!-- 操作按钮 -->
+      <div class="action-section" v-if="detail.status === 'pending'">
+        <Button round block type="success" @click="handleApprove" :loading="actionLoading" style="margin-bottom: 10px">
+          审批通过
+        </Button>
+        <Button round block type="danger" @click="handleReject" :loading="actionLoading">
+          拒绝退货
+        </Button>
+      </div>
+      <div class="action-section" v-else-if="detail.status === 'approved'">
+        <Button round block type="primary" @click="handleComplete" :loading="actionLoading">
+          完成退货
+        </Button>
+      </div>
     </div>
 
     <div v-else class="loading-container">
@@ -51,15 +66,15 @@
 
 <script setup>
   import { ref, onMounted } from 'vue'
-  import { useRoute } from 'vue-router'
-  import { NavBar, CellGroup, Cell, Loading, showToast } from 'vant'
+  import { useRoute, useRouter } from 'vue-router'
+  import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
   import { salesApi } from '@/services/api'
-  import { SALES_RETURN_STATUS, getDictText, getDictClass, UI_COLORS } from '@/constants/dict'
+  import { SALES_RETURN_STATUS, getDictText, getDictClass } from '@/constants/dict'
 
   const route = useRoute()
+  const router = useRouter()
   const detail = ref(null)
-
-  // 删除了状态映射对象statusMap
+  const actionLoading = ref(false)
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '--'
@@ -69,10 +84,55 @@
   const loadDetail = async () => {
     try {
       const response = await salesApi.getSalesReturn(route.params.id)
-      detail.value = response.data || response
+      detail.value = response.data?.data || response.data || response
     } catch (error) {
       console.error('加载退货详情失败:', error)
       showToast('加载详情失败')
+    }
+  }
+
+  // 审批通过
+  const handleApprove = async () => {
+    try {
+      await showConfirmDialog({ title: '审批确认', message: '确定审批通过此退货申请？' })
+      actionLoading.value = true
+      await salesApi.updateSalesReturn(detail.value.id, { status: 'approved' })
+      showToast('审批通过')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  // 拒绝退货
+  const handleReject = async () => {
+    try {
+      await showConfirmDialog({ title: '拒绝确认', message: '确定拒绝此退货申请？' })
+      actionLoading.value = true
+      await salesApi.updateSalesReturn(detail.value.id, { status: 'rejected' })
+      showToast('已拒绝')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  // 完成退货
+  const handleComplete = async () => {
+    try {
+      await showConfirmDialog({ title: '完成确认', message: '确定完成此退货？退货商品将入库。' })
+      actionLoading.value = true
+      await salesApi.updateSalesReturn(detail.value.id, { status: 'completed' })
+      showToast('退货完成')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
     }
   }
 
@@ -81,10 +141,11 @@
   })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   .detail-page {
     min-height: 100vh;
     background-color: var(--van-background-2);
+    padding-bottom: 80px;
   }
   .content-container {
     padding: 12px;
@@ -116,5 +177,8 @@
     display: flex;
     justify-content: center;
     padding: 60px 0;
+  }
+  .action-section {
+    padding: 20px 16px;
   }
 </style>

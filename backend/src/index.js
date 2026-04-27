@@ -58,10 +58,16 @@ async function startServer() {
     const PermissionService = require('./services/PermissionService');
     PermissionService.initOnStartup();
 
-    // 启动服务器
-    const server = app.listen(PORT, () => {
+    // 启动服务器（集成 Socket.IO）
+    const http = require('http');
+    const { initSocket } = require('./socket/index');
+    const server = http.createServer(app);
+    initSocket(server);
+
+    server.listen(PORT, () => {
       logger.info(`服务器已启动，监听端口 ${PORT}`);
       logger.info(`API文档: http://localhost:${PORT}/api-docs`);
+      logger.info(`Socket.IO 已就绪: ws://localhost:${PORT}/socket.io`);
     });
 
     // 设置服务器超时

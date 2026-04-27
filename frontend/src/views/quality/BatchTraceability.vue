@@ -231,7 +231,6 @@
 </template>
 
 <script>
-import apiAdapter from '@/utils/apiAdapter';
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive } from 'vue'

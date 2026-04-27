@@ -172,6 +172,7 @@ export const useThemeStore = defineStore('theme', () => {
     // 设置CSS变量
     html.style.setProperty('--el-color-primary', appearance.value.primaryColor)
     html.style.setProperty('--font-size-base', `${appearance.value.fontSize}px`)
+    html.style.setProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
   }
 
   // 应用主题预设
@@ -222,12 +223,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   // 重置主题设置
   const resetTheme = () => {
-    updateAppearance({
-      theme: 'light',
-      preset: 'kacon',
-      primaryColor: '#00A896',
-      fontSize: 14
-    })
+    updateAppearance({ ...defaultAppearance })
   }
 
   // 监听系统主题变化

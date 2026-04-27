@@ -33,8 +33,8 @@ router.get('/aql-standards', authenticateToken, requirePermission('quality:setti
 router.post('/aql-standards', authenticateToken, requirePermission('quality:settings:create'), aqlController.createStandard);
 router.put('/aql-standards/:id', authenticateToken, requirePermission('quality:settings:update'), aqlController.updateStandard);
 router.delete('/aql-standards/:id', authenticateToken, requirePermission('quality:settings:delete'), aqlController.deleteStandard);
-router.get('/aql-levels', authenticateToken, aqlController.getAqlLevels);
-router.post('/aql-sampling/calculate', authenticateToken, aqlController.calculateSampling);
+router.get('/aql-levels', authenticateToken, requirePermission('quality:settings:view'), aqlController.getAqlLevels);
+router.post('/aql-sampling/calculate', authenticateToken, requirePermission('quality:inspections:view'), aqlController.calculateSampling);
 
 /**
  * 质量检验相关路由

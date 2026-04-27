@@ -14,7 +14,7 @@
       @click-left="goBack"
     >
       <template #right>
-        <span v-if="showAdd" @click="handleAdd">
+        <span v-if="showAdd" @click="handleAdd" v-permission="addPermission">
           <SvgIcon name="plus" size="1.125rem" />
         </span>
       </template>
@@ -57,7 +57,19 @@
 
       <!-- 列表 -->
       <div class="list-area">
-        <PullRefresh v-model="refreshing" @refresh="onRefresh">
+        <!-- 骨架屏（首屏加载时显示） -->
+        <div v-if="initialLoading" class="skeleton-list">
+          <div v-for="i in 3" :key="i" class="skeleton-card">
+            <div class="skeleton-accent"></div>
+            <div class="skeleton-body">
+              <div class="skeleton-line title"></div>
+              <div class="skeleton-line subtitle"></div>
+              <div class="skeleton-line detail"></div>
+            </div>
+          </div>
+        </div>
+
+        <PullRefresh v-else v-model="refreshing" @refresh="onRefresh">
           <Empty v-if="filteredItems.length === 0 && !loading" description="暂无数据" />
 
           <List
@@ -136,20 +148,25 @@
         </PullRefresh>
       </div>
     </div>
+
+    <!-- 回到顶部 -->
+    <BackTop bottom="80" right="16" />
   </div>
 </template>
 
 <script setup>
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, computed, watch, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { showToast, NavBar, Search, PullRefresh, List, Empty } from 'vant'
+  import { showToast, NavBar, Search, PullRefresh, List, Empty, BackTop } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import dayjs from 'dayjs'
+  import { useDebouncedRef } from '@/composables/useDebounce'
 
   const props = defineProps({
     config: { type: Object, required: true },
     apiFunction: { type: Function, required: true },
     showAdd: { type: Boolean, default: true },
+    addPermission: { type: String, default: '' },
     showFilter: { type: Boolean, default: false },
     listTitle: { type: String, default: '' }
   })
@@ -158,12 +175,19 @@
 
   const router = useRouter()
   const searchValue = ref('')
+  const debouncedSearch = useDebouncedRef(searchValue, 300)  // 搜索防抖 300ms
   const activeTag = ref('all')
   const loading = ref(false)
   const finished = ref(false)
   const refreshing = ref(false)
   const items = ref([])
   const statistics = ref({})
+  const initialLoading = ref(true)  // 骨架屏控制
+
+  // ==================== 分页状态 ====================
+  const PAGE_SIZE = 20
+  const currentPage = ref(1)
+  const totalCount = ref(0)
 
   // 筛选标签 — 优先使用 config.filterTabs，其次 config.tags
   const filterTabs = computed(() => props.config.filterTabs || props.config.tags || [])
@@ -180,7 +204,7 @@
   })
 
   const getTabCount = (value) => {
-    if (value === 'all') return items.value.length
+    if (value === 'all') return totalCount.value > 0 ? totalCount.value : items.value.length
     if (props.config.fields.status) {
       const field = props.config.fields.status.field || props.config.fields.status
       return items.value.filter((i) => i[field] === value).length
@@ -188,7 +212,7 @@
     return 0
   }
 
-  // 过滤后的列表
+  // 过滤后的列表（客户端筛选已加载的数据）
   const filteredItems = computed(() => {
     let filtered = items.value
     if (activeTag.value !== 'all') {
@@ -203,15 +227,12 @@
         return true
       })
     }
-    if (searchValue.value) {
-      const s = searchValue.value.toLowerCase()
-      filtered = filtered.filter((item) => {
-        const title = getFieldValue(item, props.config.fields.title)
-        const subtitle = getFieldValue(item, props.config.fields.subtitle)
-        return String(title).toLowerCase().includes(s) || String(subtitle).toLowerCase().includes(s)
-      })
-    }
     return filtered
+  })
+
+  // 搜索词变化时重新加载（服务端搜索）
+  watch(debouncedSearch, () => {
+    loadData(true)
   })
 
   // 获取字段值
@@ -251,7 +272,28 @@
     cancelled: 'accent-red',
     paused: 'accent-red',
     active: 'accent-blue',
-    inactive: 'accent-gray'
+    inactive: 'accent-gray',
+    approved: 'accent-green',
+    rejected: 'accent-red',
+    posted: 'accent-green',
+    voided: 'accent-gray',
+    received: 'accent-green',
+    passed: 'accent-green',
+    failed: 'accent-red',
+    overdue: 'accent-red',
+    partial: 'accent-yellow',
+    closed: 'accent-gray',
+    // 中文状态（财务模块使用）
+    '草稿': 'accent-gray',
+    '已确认': 'accent-blue',
+    '部分付款': 'accent-yellow',
+    '已付款': 'accent-green',
+    '已逾期': 'accent-red',
+    '已取消': 'accent-gray',
+    '部分收款': 'accent-yellow',
+    '已收款': 'accent-green',
+    '正常': 'accent-blue',
+    '已作废': 'accent-gray'
   }
   const getAccentColor = (item) => {
     if (props.config.fields.status) {
@@ -352,49 +394,101 @@
     return 'low'
   }
 
-  // 加载数据
+  // ==================== 数据提取工具 ====================
+
+  // 从响应中提取数据数组
+  const extractDataFromResponse = (response) => {
+    let data = []
+    let responseData = response
+    if (response.data !== undefined) responseData = response.data
+
+    if (responseData.list && Array.isArray(responseData.list)) data = responseData.list
+    else if (responseData.items && Array.isArray(responseData.items)) data = responseData.items
+    else if (
+      responseData.data &&
+      responseData.data.items &&
+      Array.isArray(responseData.data.items)
+    )
+      data = responseData.data.items
+    else if (responseData.data && responseData.data.list && Array.isArray(responseData.data.list))
+      data = responseData.data.list
+    else if (responseData.data && Array.isArray(responseData.data)) data = responseData.data
+    else if (Array.isArray(responseData)) data = responseData
+    else if (responseData.data && typeof responseData.data === 'object') {
+      const innerData = responseData.data
+      const arrayKey = Object.keys(innerData).find((k) => Array.isArray(innerData[k]))
+      if (arrayKey) data = innerData[arrayKey]
+    } else if (typeof responseData === 'object' && responseData !== null) {
+      const arrayKey = Object.keys(responseData).find((k) => Array.isArray(responseData[k]))
+      if (arrayKey) data = responseData[arrayKey]
+    }
+
+    return { data, responseData }
+  }
+
+  // 从响应中提取 total 总数
+  const extractTotal = (responseData) => {
+    if (responseData.total !== undefined) return Number(responseData.total)
+    if (responseData.data && responseData.data.total !== undefined) return Number(responseData.data.total)
+    if (responseData.pagination && responseData.pagination.total !== undefined) return Number(responseData.pagination.total)
+    if (responseData.count !== undefined) return Number(responseData.count)
+    return -1  // 未知总数
+  }
+
+  // ==================== 核心加载逻辑（支持无限滚动分页） ====================
   const loadData = async (isRefresh = false) => {
     if (isRefresh) {
       items.value = []
+      currentPage.value = 1
+      totalCount.value = 0
       finished.value = false
     }
-    try {
-      const params = { page: 1, pageSize: 100, search: searchValue.value || undefined }
-      const response = await props.apiFunction(params)
-      let data = []
-      let responseData = response
-      if (response.data !== undefined) responseData = response.data
 
-      if (responseData.list && Array.isArray(responseData.list)) data = responseData.list
-      else if (responseData.items && Array.isArray(responseData.items)) data = responseData.items
-      else if (
-        responseData.data &&
-        responseData.data.items &&
-        Array.isArray(responseData.data.items)
-      )
-        data = responseData.data.items
-      else if (responseData.data && responseData.data.list && Array.isArray(responseData.data.list))
-        data = responseData.data.list
-      else if (responseData.data && Array.isArray(responseData.data)) data = responseData.data
-      else if (Array.isArray(responseData)) data = responseData
-      else if (responseData.data && typeof responseData.data === 'object') {
-        const innerData = responseData.data
-        const arrayKey = Object.keys(innerData).find((k) => Array.isArray(innerData[k]))
-        if (arrayKey) data = innerData[arrayKey]
-      } else if (typeof responseData === 'object' && responseData !== null) {
-        const arrayKey = Object.keys(responseData).find((k) => Array.isArray(responseData[k]))
-        if (arrayKey) data = responseData[arrayKey]
+    try {
+      // 同时传 pageSize 和 limit，兼容不同后端接口
+      const params = {
+        page: currentPage.value,
+        pageSize: PAGE_SIZE,
+        limit: PAGE_SIZE,
+        search: searchValue.value || undefined
       }
 
-      items.value = data
-      finished.value = true
-      if (props.config.stats) statistics.value = calculateStatistics(data, responseData)
+      const response = await props.apiFunction(params)
+      const { data, responseData } = extractDataFromResponse(response)
+
+      if (isRefresh || currentPage.value === 1) {
+        // 首次加载或刷新：替换数据
+        items.value = data
+      } else {
+        // 加载更多：追加数据（去重）
+        const existingIds = new Set(items.value.map(i => i.id || i._id))
+        const newItems = data.filter(i => !existingIds.has(i.id || i._id))
+        items.value = [...items.value, ...newItems]
+      }
+
+      // 判断是否还有更多数据
+      const total = extractTotal(responseData)
+      if (total >= 0) {
+        totalCount.value = total
+        finished.value = items.value.length >= total
+      } else {
+        // 无法获取总数时，根据返回数据量判断
+        finished.value = data.length < PAGE_SIZE
+      }
+
+      // 页码+1 准备下次加载
+      currentPage.value++
+
+      // 更新统计数据
+      if (props.config.stats) statistics.value = calculateStatistics(items.value, responseData)
     } catch (error) {
       console.error('加载数据失败:', error)
       showToast('加载失败，请重试')
+      finished.value = true  // 出错时停止继续加载
     } finally {
       loading.value = false
       refreshing.value = false
+      initialLoading.value = false
     }
   }
 
@@ -403,7 +497,7 @@
     if (!props.config.stats) return stats
     props.config.stats.forEach((stat) => {
       if (stat.field === 'total' || stat.field === 'totalMaterials') {
-        stats[stat.field] = responseData.total || data.length
+        stats[stat.field] = totalCount.value > 0 ? totalCount.value : (responseData.total || data.length)
       } else if (stat.field === 'lowStock') {
         stats.lowStock = data.filter((i) => {
           const q = i.quantity || 0
@@ -434,10 +528,14 @@
     emit('item-click', item)
   }
 
+  // Vant List 组件触发加载更多
   const onLoad = () => {
-    loading.value = true
-    loadData()
+    if (!finished.value) {
+      loading.value = true
+      loadData()
+    }
   }
+  // 下拉刷新
   const onRefresh = () => {
     refreshing.value = true
     loadData(true)
@@ -574,8 +672,8 @@
   .list-card {
     display: flex;
     background: var(--bg-secondary);
-    border-radius: 12px;
-    margin-bottom: 10px;
+    border-radius: 10px;
+    margin-bottom: 8px;
     overflow: hidden;
     border: 1px solid var(--glass-border);
     box-shadow: none;
@@ -600,7 +698,7 @@
 
   // 左侧色条
   .card-accent {
-    width: 4px;
+    width: 3px;
     flex-shrink: 0;
     &.accent-blue {
       background: linear-gradient(180deg, #3b82f6, #60a5fa);
@@ -624,7 +722,7 @@
 
   .card-body {
     flex: 1;
-    padding: 12px 14px;
+    padding: 10px 12px;
     min-width: 0;
   }
 
@@ -632,7 +730,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
   .title-area {
     display: flex;
@@ -735,16 +833,32 @@
     }
     &.st-paused,
     &.st-shortage,
+    &.st-rejected,
+    &.st-overdue,
+    &.st-failed,
     &.tag-danger {
       background: rgba(239, 68, 68, 0.1);
       color: #ef4444;
     }
+    &.st-approved,
+    &.st-posted,
+    &.st-received,
+    &.st-passed,
+    &.tag-primary {
+      background: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+    }
+    &.st-voided,
+    &.st-closed {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+    }
   }
 
   .item-subtitle {
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     color: var(--text-tertiary);
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     font-family: 'SF Mono', monospace;
   }
 
@@ -787,25 +901,82 @@
 
   // 详情网格
   .detail-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    margin-top: 6px;
-    padding-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-top: 4px;
+    padding-top: 6px;
     border-top: 1px solid var(--glass-border);
   }
   .detail-item {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 4px;
   }
   .detail-label {
     font-size: 0.6875rem;
     color: var(--text-tertiary);
   }
   .detail-value {
-    font-size: 0.8125rem;
-    font-weight: 500;
+    font-size: 0.75rem;
+    font-weight: 600;
     color: var(--text-primary);
+  }
+
+  // ========== 骨架屏 ==========
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 4px;
+  }
+  .skeleton-card {
+    display: flex;
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+  }
+  .skeleton-accent {
+    width: 3px;
+    flex-shrink: 0;
+    background: var(--glass-border);
+  }
+  .skeleton-body {
+    flex: 1;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .skeleton-line {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(
+      90deg,
+      var(--bg-tertiary, #e8eaed) 25%,
+      var(--bg-secondary, #f8f9fa) 50%,
+      var(--bg-tertiary, #e8eaed) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite ease-in-out;
+    &.title {
+      width: 60%;
+      height: 14px;
+    }
+    &.subtitle {
+      width: 40%;
+    }
+    &.detail {
+      width: 80%;
+    }
+  }
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
   }
 </style>

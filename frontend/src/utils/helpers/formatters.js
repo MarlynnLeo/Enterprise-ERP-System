@@ -71,6 +71,10 @@ export function formatDateTime(date) {
  */
 export function formatCurrency(amount, currency = '￥', decimals = 2) {
   if (amount === null || amount === undefined || isNaN(amount)) return '';
-  
-  return `${currency}${Number(amount).toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  const num = Number(amount);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (abs >= 1e8) return `${currency}${sign}${(abs / 1e8).toFixed(decimals)}亿`;
+  if (abs >= 1e4) return `${currency}${sign}${(abs / 1e4).toFixed(decimals)}万`;
+  return `${currency}${num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 } 

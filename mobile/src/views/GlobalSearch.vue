@@ -148,7 +148,7 @@
             class="suggestion-item"
             @click="selectSuggestion(suggestion)"
           >
-            <Icon name="search" size="14" color="#c8c9cc" />
+            <Icon name="search" size="14" color="var(--text-disabled)" />
             <span v-html="highlightKeyword(suggestion)"></span>
           </div>
         </div>
@@ -164,6 +164,7 @@ import {
   NavBar, Search, Button, Tag, Icon, PullRefresh, List, Empty,
   showToast, showConfirmDialog 
 } from 'vant';
+import { baseDataApi, salesApi, inventoryApi, productionApi } from '@/services/api';
 
 const router = useRouter();
 
@@ -237,13 +238,13 @@ const getTypeColor = (type) => {
   const colorMap = {
     'material': '#5E7BF6',
     'customer': '#2CCFB0',
-    'supplier': '#FF9F45',
+    'supplier': 'var(--color-warning)',
     'order': '#FF6B6B',
     'task': '#A48BE0',
     'location': '#FFC759',
     'bom': '#FF8A80'
   };
-  return colorMap[type] || '#c8c9cc';
+  return colorMap[type] || 'var(--text-disabled)';
 };
 
 // 获取类型标签
@@ -284,31 +285,104 @@ const getStatusLabel = (status) => {
   return labelMap[status] || status;
 };
 
-// 高亮关键词
-const highlightKeyword = (text) => {
-  if (!searchKeyword.value || !text) return text;
-  const regex = new RegExp(`(${searchKeyword.value})`, 'gi');
-  return text.replace(regex, '<span class="highlight">$1</span>');
+// HTML 转义，防止 XSS
+const escapeHtml = (str) => {
+  if (!str) return str;
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 };
 
-// 执行搜索
+// 转义正则特殊字符
+const escapeRegExp = (str) => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+// 高亮关键词（已做 XSS 防护）
+const highlightKeyword = (text) => {
+  if (!searchKeyword.value || !text) return escapeHtml(text);
+  const safeText = escapeHtml(String(text));
+  const safeKeyword = escapeHtml(searchKeyword.value);
+  const regex = new RegExp(`(${escapeRegExp(safeKeyword)})`, 'gi');
+  return safeText.replace(regex, '<span class="highlight">$1</span>');
+};
+
+// 执行搜索（并行调用多个后端 API，聚合结果）
 const performSearch = async (keyword) => {
   if (!keyword.trim()) return;
 
   hasSearched.value = true;
   loading.value = true;
 
-  try {
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  // 先清空旧结果
+  Object.keys(searchResults).forEach(key => { searchResults[key] = []; });
 
-    // 模拟搜索结果
-    const mockResults = generateMockResults(keyword);
-    
-    // 更新搜索结果
-    Object.keys(searchResults).forEach(key => {
-      searchResults[key] = mockResults[key] || [];
-    });
+  const searchParam = { keyword, page: 1, pageSize: 10 };
+
+  try {
+    // 并行发起多个搜索请求，任一失败不影响其他
+    const [matRes, custRes, suppRes, orderRes, taskRes, locRes] = await Promise.allSettled([
+      baseDataApi.getMaterials(searchParam),
+      salesApi.getCustomers(searchParam),
+      baseDataApi.getSuppliersList(searchParam),
+      salesApi.getSalesOrders(searchParam),
+      productionApi.getTasks(searchParam),
+      inventoryApi.getLocations(searchParam)
+    ]);
+
+    // 解析结果并统一转换格式
+    const extract = (res) => {
+      if (res.status !== 'fulfilled') return [];
+      const d = res.value?.data;
+      return d?.list || d?.rows || (Array.isArray(d) ? d : []);
+    };
+
+    searchResults.materials = extract(matRes).map(m => ({
+      type: 'material', id: m.id,
+      title: m.name, subtitle: m.code,
+      description: m.specs || m.specification || '',
+      status: m.status || 'active'
+    }));
+
+    searchResults.customers = extract(custRes).map(c => ({
+      type: 'customer', id: c.id,
+      title: c.name, subtitle: c.code,
+      description: c.contact_person || '',
+      status: c.status || 'active'
+    }));
+
+    searchResults.suppliers = extract(suppRes).map(s => ({
+      type: 'supplier', id: s.id,
+      title: s.name, subtitle: s.code,
+      description: s.contact_person || '',
+      status: s.status || 'active'
+    }));
+
+    searchResults.orders = extract(orderRes).map(o => ({
+      type: 'order', id: o.id,
+      title: `${o.order_no}`,
+      subtitle: o.customer_name || '',
+      description: o.remarks || '',
+      status: o.status || 'pending'
+    }));
+
+    searchResults.tasks = extract(taskRes).map(t => ({
+      type: 'task', id: t.id,
+      title: t.task_no || t.name,
+      subtitle: t.product_name || '',
+      description: t.remarks || '',
+      status: t.status || 'pending'
+    }));
+
+    searchResults.locations = extract(locRes).map(l => ({
+      type: 'location', id: l.id,
+      title: l.name, subtitle: l.code,
+      description: l.warehouse_name || '',
+      status: l.status || 'active'
+    }));
 
     // 更新分类计数
     resultCategories.value.forEach(category => {
@@ -329,66 +403,6 @@ const performSearch = async (keyword) => {
     loading.value = false;
     finished.value = true;
   }
-};
-
-// 生成模拟搜索结果
-const generateMockResults = (keyword) => {
-  const results = {
-    materials: [],
-    customers: [],
-    suppliers: [],
-    orders: [],
-    tasks: [],
-    locations: [],
-    boms: []
-  };
-
-  // 模拟物料搜索结果
-  if (keyword.includes('304') || keyword.includes('不锈钢') || keyword.includes('物料')) {
-    results.materials.push({
-      type: 'material',
-      title: '304不锈钢板',
-      subtitle: 'MAT-20241201-001',
-      description: '厚度2mm，规格1000x2000',
-      status: 'active',
-      meta: {
-        '库存': '1250 kg',
-        '单价': '¥25.50/kg'
-      }
-    });
-  }
-
-  // 模拟客户搜索结果
-  if (keyword.includes('客户') || keyword.includes('A')) {
-    results.customers.push({
-      type: 'customer',
-      title: '客户A公司',
-      subtitle: 'CUST-001',
-      description: '主要合作伙伴，信用等级AAA',
-      status: 'active',
-      meta: {
-        '联系人': '张经理',
-        '电话': '138****8888'
-      }
-    });
-  }
-
-  // 模拟订单搜索结果
-  if (keyword.includes('订单') || keyword.includes('SO')) {
-    results.orders.push({
-      type: 'order',
-      title: '销售订单SO-20241201-001',
-      subtitle: '客户A公司',
-      description: '304不锈钢板 x 100kg',
-      status: 'pending',
-      meta: {
-        '金额': '¥2,550.00',
-        '交期': '2024-12-15'
-      }
-    });
-  }
-
-  return results;
 };
 
 // 事件处理
@@ -471,16 +485,12 @@ const onLoad = () => {
   }, 1000);
 };
 
-// 搜索建议
+// 搜索建议（基于搜索历史 + 热门搜索关键词）
 const getSuggestions = (keyword) => {
-  // 模拟搜索建议
-  const allSuggestions = [
-    '304不锈钢板', '304不锈钢管', '客户A公司', '客户B公司',
-    '销售订单SO-001', '采购订单PO-001', '生产任务TASK-001',
-    '库位A-01-01', 'BOM清单BOM-001'
-  ];
-  
-  suggestions.value = allSuggestions.filter(item => 
+  const history = getSearchHistory();
+  const combined = [...history, ...hotSearches.value];
+  const unique = [...new Set(combined)];
+  suggestions.value = unique.filter(item =>
     item.toLowerCase().includes(keyword.toLowerCase())
   ).slice(0, 5);
 };
@@ -618,7 +628,7 @@ onMounted(() => {
 
       &.active {
         background-color: var(--color-primary);
-        color: #fff;
+        color: var(--text-primary);
       }
 
       .tab-count {
@@ -656,10 +666,10 @@ onMounted(() => {
           padding: 2px 6px;
           border-radius: 10px;
           font-size: 10px;
-          color: #fff;
+          color: var(--text-primary);
 
           &.active { background-color: var(--module-green); }
-          &.inactive { background-color: #c8c9cc; }
+          &.inactive { background-color: var(--text-disabled); }
           &.pending { background-color: var(--module-orange); }
           &.completed { background-color: var(--module-blue); }
           &.cancelled { background-color: var(--module-red); }
@@ -744,8 +754,8 @@ onMounted(() => {
 }
 
 :deep(.highlight) {
-  background-color: #fff3cd;
-  color: #856404;
+  background-color: var(--bg-secondary);
+  color: var(--color-warning);
   padding: 0 2px;
   border-radius: 2px;
 }

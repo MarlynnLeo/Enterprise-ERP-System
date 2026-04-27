@@ -1,10 +1,11 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 
 const unitService = {
   async getAllUnits(filters = {}, page = 1, pageSize = 10) {
     try {
-      let query = 'SELECT * FROM units WHERE 1=1';
+      let query = 'SELECT * FROM units WHERE deleted_at IS NULL';
       const queryParams = [];
 
       // 添加过滤条件
@@ -43,7 +44,7 @@ const unitService = {
 
   async getUnitById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM units WHERE id = ?', [id]);
+      const [rows] = await pool.query('SELECT * FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows[0] || null;
     } catch (error) {
       logger.error(`获取单位详情失败 (ID: ${id}):`, error);
@@ -75,7 +76,7 @@ const unitService = {
   async updateUnit(id, data) {
     try {
       // 检查单位是否存在
-      const [existing] = await pool.query('SELECT * FROM units WHERE id = ?', [id]);
+      const [existing] = await pool.query('SELECT * FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existing || existing.length === 0) {
         throw new Error('单位不存在');
       }
@@ -104,7 +105,7 @@ const unitService = {
 
       await pool.query(`UPDATE units SET ${fields.join(', ')} WHERE id = ?`, values);
 
-      const [updated] = await pool.query('SELECT * FROM units WHERE id = ?', [id]);
+      const [updated] = await pool.query('SELECT * FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
       return updated[0];
     } catch (error) {
       logger.error('更新单位失败:', error);
@@ -123,7 +124,8 @@ const unitService = {
         throw new Error('该单位下有关联的物料，不能删除');
       }
 
-      await pool.query('DELETE FROM units WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除
+      await softDelete(pool, 'units', 'id', id);
       return true;
     } catch (error) {
       logger.error('删除单位失败:', error);

@@ -102,24 +102,9 @@ class FinanceIntegrationService {
    * 生成业务单据编号
    */
   static async generateInvoiceNumber(prefix, connection) {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const [rows] = await connection.execute(
-      `SELECT invoice_number 
-       FROM ${prefix === 'AR' ? 'ar_invoices' : 'ap_invoices'} 
-       WHERE invoice_number LIKE ? 
-       ORDER BY id DESC LIMIT 1 FOR UPDATE`,
-      [`${prefix}${dateStr}%`]
-    );
-
-    let sequence = 1;
-    if (rows.length > 0) {
-      const lastSequence = parseInt(rows[0].invoice_number.slice(-3), 10);
-      if (!isNaN(lastSequence)) {
-        sequence = lastSequence + 1;
-      }
-    }
-
-    return `${prefix}${dateStr}${sequence.toString().padStart(3, '0')}`;
+    const CodeGeneratorService = require('../business/CodeGeneratorService');
+    const businessType = prefix === 'AR' ? 'ar_invoice' : 'ap_invoice';
+    return await CodeGeneratorService.nextCode(businessType, connection);
   }
 
   // ==================== 销售模块集成 ====================
@@ -141,16 +126,6 @@ class FinanceIntegrationService {
       const incomeAccountId = accountIds.SALES_REVENUE;
 
       await this.loadConfigurations();
-      
-      // 添加防杜绝双重生成校验
-      const [existing] = await connection.execute(
-        'SELECT id FROM ar_invoices WHERE source_type = ? AND source_id = ?',
-        ['sales_order', salesOrder.id]
-      );
-      if (existing.length > 0) {
-        await connection.rollback();
-        return { skipped: true, message: '已存在对应单据的应收发票' };
-      }
 
       const invoiceNumber = await this.generateInvoiceNumber('AR', connection);
 
@@ -260,15 +235,6 @@ class FinanceIntegrationService {
       }
 
       await this.loadConfigurations();
-      
-      const [existing] = await connection.execute(
-        'SELECT id FROM ar_invoices WHERE source_type = ? AND source_id = ?',
-        ['sales_return', salesReturn.id]
-      );
-      if (existing.length > 0) {
-        await connection.rollback();
-        return { skipped: true, message: '已存在对应单据的应收红字发票' };
-      }
 
       const invoiceNumber = await this.generateInvoiceNumber('AR', connection);
 
@@ -354,15 +320,6 @@ class FinanceIntegrationService {
       const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
       const purchaseCostAccountId = accountIds.GR_IR;
       await this.loadConfigurations();
-      
-      const [existing] = await connection.execute(
-        'SELECT id FROM ap_invoices WHERE source_type = ? AND source_id = ?',
-        ['purchase_receipt', purchaseReceipt.id]
-      );
-      if (existing.length > 0) {
-        await connection.rollback();
-        return { skipped: true, message: '已存在对应单据的应付发票' };
-      }
 
       const invoiceNumber = await this.generateInvoiceNumber('AP', connection);
 
@@ -439,15 +396,6 @@ class FinanceIntegrationService {
       const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
       const purchaseCostAccountId = accountIds.GR_IR;
       await this.loadConfigurations();
-      
-      const [existing] = await connection.execute(
-        'SELECT id FROM ap_invoices WHERE source_type = ? AND source_id = ?',
-        ['purchase_return', purchaseReturn.id]
-      );
-      if (existing.length > 0) {
-        if (!isExternalConn) await connection.rollback();
-        return { skipped: true, message: '已存在对应单据的应付红字发票' };
-      }
 
       const invoiceNumber = await this.generateInvoiceNumber('AP', connection);
 
@@ -529,15 +477,6 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
       
-      // 防重复：通过 document_type + document_number 检查是否已生成过成本分录
-      const [existing] = await connection.execute(
-        'SELECT id FROM gl_entries WHERE document_type = ? AND document_number = ?',
-        ['sales_outbound', salesOutbound.outbound_no]
-      );
-      if (existing.length > 0) {
-        await connection.rollback();
-        return { skipped: true, message: '已存在对应单据的成本分录' };
-      }
 
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['COST_OF_GOODS_SOLD', 'INVENTORY']);
@@ -607,14 +546,6 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
       
-      const [existing] = await connection.execute(
-        'SELECT id FROM tax_invoices WHERE related_document_type = ? AND related_document_id = ?',
-        ['销售出库单', salesOutbound.id]
-      );
-      if (existing.length > 0) {
-        await connection.rollback();
-        return { skipped: true, message: '已存在对应单据的销项发票' };
-      }
 
       const invoiceNumber = `待补录-${salesOutbound.outbound_no}`;
 
@@ -678,14 +609,6 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
       
-      const [existing] = await connection.execute(
-        'SELECT id FROM tax_invoices WHERE related_document_type = ? AND related_document_id = ?',
-        ['采购入库单', purchaseReceipt.id]
-      );
-      if (existing.length > 0) {
-        await connection.rollback();
-        return { skipped: true, message: '已存在对应单据的进项发票' };
-      }
 
       const invoiceNumber = `待补录-${purchaseReceipt.receipt_no}`;
 
@@ -757,17 +680,6 @@ class FinanceIntegrationService {
 
       const exchangeId = salesExchange.id;
       const exchangeNo = salesExchange.exchange_no;
-
-      // 防重复：使用 document_type + document_number（与 COGS 分录一致的模式）
-      const [existing] = await connection.query(
-        "SELECT id FROM gl_entries WHERE document_type = 'sales_exchange' AND document_number = ?",
-        [exchangeNo]
-      );
-      if (existing.length > 0) {
-        logger.info(`换货单 ${exchangeNo} 的差价分录已存在，跳过`);
-        await connection.rollback();
-        return null;
-      }
 
       // 查询差价金额（从主表获取）
       const differenceAmount = parseFloat(salesExchange.difference_amount || 0);
@@ -864,15 +776,6 @@ class FinanceIntegrationService {
       const outsourcedAccountId = accountIds.OUTSOURCED_MATERIALS;
       const rawMaterialAccountId = accountIds.RAW_MATERIALS;
 
-      // 防重复：通过 document_type + document_number 检查
-      const [existing] = await connection.execute(
-        'SELECT id FROM gl_entries WHERE document_type = ? AND document_number = ?',
-        ['outsourced_issue', processing.processing_no]
-      );
-      if (existing.length > 0) {
-        await connection.rollback();
-        return { success: false, skipped: true, message: '已存在对应单据的外委发料分录' };
-      }
 
       // 计算发料总金额（精度修复：整数运算）
       const totalAmount = materials.reduce((sum, item) => {
@@ -956,15 +859,6 @@ class FinanceIntegrationService {
 
       const receiptNo = receipt.receipt_no || `OPR-${receipt.processing_id}`;
 
-      // 防重复：通过 document_type + document_number 检查
-      const [existing] = await connection.execute(
-        'SELECT id FROM gl_entries WHERE document_type = ? AND document_number = ?',
-        ['outsourced_receipt', receiptNo]
-      );
-      if (existing.length > 0) {
-        await connection.rollback();
-        return { success: false, skipped: true, message: '已存在对应单据的外委入库分录' };
-      }
 
       // 计算入库总加工费（精度修复：整数运算）
       const totalProcessingFee = (items || []).reduce((sum, item) => {

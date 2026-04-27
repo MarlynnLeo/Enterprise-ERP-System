@@ -15,7 +15,13 @@
   >
     <!-- 错误边界 -->
     <ErrorBoundary ref="errorBoundaryRef">
-      <RouterView />
+      <RouterView v-slot="{ Component, route: viewRoute }">
+        <Transition :name="transitionName" mode="out-in">
+          <KeepAlive :include="keepAlivePages">
+            <component :is="Component" :key="viewRoute.path" />
+          </KeepAlive>
+        </Transition>
+      </RouterView>
 
       <Tabbar v-show="showTabbar" route>
         <TabbarItem name="Home" to="/" icon="home-o">首页</TabbarItem>
@@ -30,19 +36,40 @@
 
 <script setup>
   import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
-  import { useRoute } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import { Tabbar, TabbarItem, Icon } from 'vant'
   import { useAuthStore } from './stores/auth'
+  import { useKeyboardScroll } from './composables/useKeyboardScroll'
 
   import ErrorBoundary from './components/ErrorBoundary.vue'
 
   const route = useRoute()
+  const router = useRouter()
   const authStore = useAuthStore()
   const errorBoundaryRef = ref(null)
+
+  // 路由转场动画方向
+  const transitionName = ref('slide-fade')
+
+  // 全局键盘遮挡自动滚动
+  useKeyboardScroll()
+
+  /**
+   * 需要缓存的列表页组件名
+   * 从详情页返回时保持列表滚动位置和数据状态
+   */
+  const keepAlivePages = [
+    'Home',
+    'Notifications'
+  ]
 
   // 响应式状态
   const isStandalone = ref(false)
   const forceFullscreen = ref(false)
+
+  // 局部定时器（避免污染 window 全局命名空间）
+  let fullscreenRefreshTimer = null
+  let visibilityChangeTimer = null
 
 
   // iOS 检测
@@ -66,7 +93,7 @@
 
   // 计算是否显示底部导航栏
   const showTabbar = computed(() => {
-    const noTabbarRoutes = ['/login']
+    const noTabbarRoutes = ['/login', '/chat']
     if (noTabbarRoutes.includes(route.path)) {
       return false
     }
@@ -77,8 +104,8 @@
   watch(
     () => route.path,
     () => {
-      clearTimeout(window._fullscreenRefreshTimer)
-      window._fullscreenRefreshTimer = setTimeout(() => {
+      clearTimeout(fullscreenRefreshTimer)
+      fullscreenRefreshTimer = setTimeout(() => {
         checkStandaloneMode()
       }, 300)
     },
@@ -88,8 +115,8 @@
   // 在可见性变化时重新检查状态
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      clearTimeout(window._visibilityChangeTimer)
-      window._visibilityChangeTimer = setTimeout(() => {
+      clearTimeout(visibilityChangeTimer)
+      visibilityChangeTimer = setTimeout(() => {
         checkStandaloneMode()
       }, 500)
     }
@@ -113,6 +140,8 @@
   // 在组件卸载前清理
   onBeforeUnmount(() => {
     document.removeEventListener('visibilitychange', handleVisibilityChange)
+    clearTimeout(fullscreenRefreshTimer)
+    clearTimeout(visibilityChangeTimer)
   })
 </script>
 
@@ -124,7 +153,7 @@
     margin: 0;
     padding: 0;
     height: 100% !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans SC', 'Segoe UI', sans-serif;
+    font-family: var(--font-sans);
     background-color: var(--bg-primary);
     color: var(--text-primary);
     /* 防止iOS弹性滚动，但不阻止子容器滚动 */
@@ -268,5 +297,28 @@
     height: 100% !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* ==================== 路由转场动画 ==================== */
+  .slide-fade-enter-active {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .slide-fade-leave-active {
+    transition: all 0.15s cubic-bezier(0.4, 0, 1, 1);
+  }
+  .slide-fade-enter-from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  .slide-fade-leave-to {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  /* ==================== 统一底部安全间距 ==================== */
+  /* 所有路由页面的根容器自动追加底部间距，防止 TabBar 遮挡 */
+  .app-container > .error-boundary-wrapper > div:first-child,
+  .app-container > div:first-child {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }
 </style>

@@ -10,28 +10,32 @@
   <div class="page-container">
     <NavBar title="销售退货" left-arrow @click-left="onClickLeft">
       <template #right>
-        <Icon name="plus" size="18" @click="createReturn" />
+        <Icon v-permission="'sales:returns:create'" name="plus" size="18" @click="createReturn" />
       </template>
     </NavBar>
 
     <div class="content-container">
-      <!-- 搜索和筛选 -->
-      <div class="search-filter">
+      <!-- 搜索栏 -->
+      <div class="search-section">
         <Search
           v-model="searchValue"
           placeholder="搜索退货单号或客户名称"
           @search="onSearch"
           shape="round"
         />
+      </div>
 
-        <div class="filter-tabs">
+      <!-- 横向滑动筛选标签 -->
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
           <div
             v-for="(tab, index) in statusTabs"
             :key="index"
-            :class="['filter-tab', { active: activeTab === index }]"
+            class="filter-chip"
+            :class="{ active: activeTab === index }"
             @click="switchTab(index)"
           >
-            {{ tab.label }}
+            <span class="chip-text">{{ tab.label }}</span>
           </div>
         </div>
       </div>
@@ -113,6 +117,7 @@
                 </Button>
                 <Button
                   v-if="returnItem.status === 'draft'"
+                  v-permission="'sales:returns:update'"
                   size="small"
                   type="success"
                   plain
@@ -122,6 +127,7 @@
                 </Button>
                 <Button
                   v-if="returnItem.status === 'confirmed'"
+                  v-permission="'sales:returns:update'"
                   size="small"
                   type="warning"
                   plain
@@ -278,35 +284,53 @@
 </script>
 
 <style lang="scss" scoped>
-  .search-filter {
-    padding: $padding-md;
-    background-color: white;
-    border-bottom: 1px solid var(--van-border-color);
-  }
-
-  .filter-tabs {
+  .page-container {
     display: flex;
-    margin-top: $margin-sm;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg-primary);
+  }
+  .content-container {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 12px;
+  }
+  .search-section {
+    padding: 4px 0;
+  }
+  .filter-scroll-wrapper {
+    padding: 4px 0 8px;
+    overflow: hidden;
+  }
+  .filter-scroll {
+    display: flex;
+    gap: 8px;
     overflow-x: auto;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
-
-    .filter-tab {
-      flex: 0 0 auto;
-      text-align: center;
-      padding: $padding-xs $padding-sm;
-      font-size: 12px;
-      color: var(--text-secondary);
-      border-bottom: 2px solid transparent;
-      white-space: nowrap;
-      margin-right: $margin-sm;
-
-      &.active {
-        color: var(--color-primary);
-        border-bottom-color: var(--color-primary);
-      }
+    padding: 2px 0 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+  .filter-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--bg-secondary);
+    border: 1.5px solid var(--glass-border);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    transition: all 0.25s ease;
+    cursor: pointer;
+    .chip-text { font-weight: 500; }
+    &.active {
+      background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
+      border-color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent, var(--color-primary));
     }
   }
 

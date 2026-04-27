@@ -84,8 +84,9 @@
 
         <el-table-column label="操作" fixed="right" min-width="150">
           <template #default="scope">
-            <el-button size="small" type="primary" link @click="handleEdit(scope.row)">编辑</el-button>
-            <el-button v-permission="'quality:aqlstandards:delete'" size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
+            <el-button size="small" type="primary" link @click="handleEdit(scope.row)"
+              v-permission="'quality:settings'">编辑</el-button>
+            <el-button v-permission="'quality:standards:delete'" size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -187,6 +188,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search } from '@element-plus/icons-vue';
 import request from '@/utils/request';
@@ -336,20 +338,6 @@ const handleSizeChange = (val) => {
 const handleCurrentChange = (val) => {
   currentPage.value = val;
   fetchData();
-};
-
-// formatDate 已统一引用公共实现;
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
 };
 
 // ---- Lifecycle ----

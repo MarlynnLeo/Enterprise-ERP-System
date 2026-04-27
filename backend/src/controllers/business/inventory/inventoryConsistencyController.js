@@ -186,7 +186,7 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
           if (taskDetail.length > 0) {
             const { product_id: productId, quantity: taskQuantity } = taskDetail[0];
             const [templates] = await connection.execute(
-              'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 ORDER BY created_at DESC LIMIT 1',
+              'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
               [productId]
             );
             if (templates.length > 0) {
@@ -248,7 +248,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     // 查找由于productId可能对应多版本BOM，取最新的已审核版本
     const [boms] = await connection.execute(
       `SELECT id FROM bom_masters 
-       WHERE product_id = ? AND approved_by IS NOT NULL 
+       WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL
        ORDER BY created_at DESC LIMIT 1`,
       [task.product_id]
     );
@@ -429,7 +429,7 @@ async function smartOutboundStock(
     const [bomInfo] = await connection.execute(
       `SELECT bm.id as bom_id
        FROM bom_masters bm
-       WHERE bm.product_id = ? AND bm.approved_by IS NOT NULL`,
+       WHERE bm.product_id = ? AND bm.approved_by IS NOT NULL AND bm.deleted_at IS NULL`,
       [productId]
     );
 

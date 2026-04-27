@@ -39,6 +39,7 @@
       title: 'name',
       subtitle: 'code',
       icon: 'calendar',
+      status: 'status',
 
       // 详情字段
       details: [

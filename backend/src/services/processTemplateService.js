@@ -7,6 +7,7 @@
 
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 
 const processTemplateService = {
     /**
@@ -18,7 +19,7 @@ const processTemplateService = {
     async getAll(page = 1, pageSize = 10, filters = {}) {
         try {
             const offset = (page - 1) * pageSize;
-            let whereClause = 'WHERE 1=1';
+            let whereClause = 'WHERE pt.deleted_at IS NULL';
             const params = [];
 
             if (filters.name) {
@@ -45,7 +46,7 @@ const processTemplateService = {
          LEFT JOIN materials m ON pt.product_id = m.id
          ${whereClause} 
          ORDER BY pt.created_at DESC 
-         LIMIT ${actualPageSize} OFFSET ${offset}`,
+         LIMIT ${actualPageSize} OFFSET ${parseInt(offset)}`,
                 params
             );
 
@@ -83,7 +84,7 @@ const processTemplateService = {
      */
     async getById(id) {
         try {
-            const [templates] = await pool.query('SELECT * FROM process_templates WHERE id = ?', [id]);
+            const [templates] = await pool.query('SELECT * FROM process_templates WHERE id = ? AND deleted_at IS NULL', [id]);
             if (templates.length === 0) return null;
 
             const template = templates[0];
@@ -204,7 +205,8 @@ const processTemplateService = {
             await connection.beginTransaction();
 
             await connection.query('DELETE FROM process_template_details WHERE template_id = ?', [id]);
-            await connection.query('DELETE FROM process_templates WHERE id = ?', [id]);
+            // ✅ 软删除工序模板主表
+            await softDelete(connection, 'process_templates', 'id', id);
 
             await connection.commit();
             return true;

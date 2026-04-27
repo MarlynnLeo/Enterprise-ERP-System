@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * TechnicalCommunication.vue
  * @description 即时通讯管理页面
@@ -373,6 +373,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -384,10 +385,7 @@ import RichTextEditor from '@/components/RichTextEditor.vue'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import UserSelector from '@/components/UserSelector.vue'
 import RecipientsList from '@/components/RecipientsList.vue'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
+import DOMPurify from 'dompurify'
 
 // 路由 - 必须在 setup 顶层调用
 const route = useRoute()
@@ -446,15 +444,10 @@ const viewData = ref({})
 const comments = ref([])
 const commentContent = ref('')
 
-// 【安全增强】XSS防护：对富文本内容进行清洗
+// ✅ 安全修复: 使用 DOMPurify 替代正则表达式清洗，防止 XSS
 const sanitizeHtml = (html) => {
   if (!html) return ''
-  // 移除危险标签和属性
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/javascript:/gi, '')
+  return DOMPurify.sanitize(html)
 }
 
 // 安全的内容渲染
@@ -809,10 +802,7 @@ const getStatusText = (status) => {
   return textMap[status] || status
 }
 
-const formatDate = (date) => {
-  if (!date) return ''
-  return new Date(date).toLocaleString('zh-CN')
-}
+const formatDate = (date) => formatDateTime(date)
 
 // 生命周期
 onMounted(async () => {

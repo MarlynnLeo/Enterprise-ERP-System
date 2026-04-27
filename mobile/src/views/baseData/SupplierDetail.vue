@@ -12,7 +12,7 @@
 
     <div class="content-container" v-if="supplier">
       <div class="info-header">
-        <div class="avatar-icon">🏢</div>
+        <div class="avatar-icon"><VanIcon name="shop-o" size="24px" /></div>
         <div class="supplier-name">{{ supplier.name || '--' }}</div>
         <div class="supplier-code">{{ supplier.code || `编码#${supplier.id}` }}</div>
       </div>
@@ -37,6 +37,21 @@
       <CellGroup inset title="其他信息" v-if="supplier.remark || supplier.remarks">
         <Cell :title="supplier.remark || supplier.remarks" />
       </CellGroup>
+
+      <!-- 操作按钮 -->
+      <div class="action-section">
+        <VanButton
+          v-if="supplier.phone || supplier.contact_phone"
+          round block type="primary" icon="phone-o"
+          @click="handleCall"
+          style="margin-bottom: 10px"
+        >
+          拨打电话
+        </VanButton>
+        <VanButton round block type="default" icon="edit" @click="handleEdit" v-permission="'baseData:suppliers:update'">
+          编辑供应商
+        </VanButton>
+      </div>
     </div>
 
     <div v-else class="loading-container">
@@ -47,21 +62,35 @@
 
 <script setup>
   import { ref, onMounted } from 'vue'
-  import { useRoute } from 'vue-router'
-  import { NavBar, CellGroup, Cell, Loading, showToast } from 'vant'
+  import { useRoute, useRouter } from 'vue-router'
+  import { NavBar, CellGroup, Cell, Button as VanButton, Icon as VanIcon, Loading, showToast } from 'vant'
   import { baseDataApi } from '@/services/api'
 
   const route = useRoute()
+  const router = useRouter()
   const supplier = ref(null)
 
   const loadDetail = async () => {
     try {
       const response = await baseDataApi.getSupplier(route.params.id)
-      supplier.value = response.data || response
+      supplier.value = response.data?.data || response.data || response
     } catch (error) {
       console.error('加载供应商详情失败:', error)
       showToast('加载详情失败')
     }
+  }
+
+  // 拨打电话
+  const handleCall = () => {
+    const phone = supplier.value?.phone || supplier.value?.contact_phone
+    if (phone) {
+      window.location.href = `tel:${phone}`
+    }
+  }
+
+  // 编辑供应商
+  const handleEdit = () => {
+    router.push(`/baseData/suppliers/${supplier.value.id}/edit`)
   }
 
   onMounted(() => {
@@ -69,7 +98,7 @@
   })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   .detail-page {
     min-height: 100vh;
     background-color: var(--van-background-2);
@@ -103,5 +132,8 @@
     display: flex;
     justify-content: center;
     padding: 60px 0;
+  }
+  .action-section {
+    padding: 20px 16px;
   }
 </style>

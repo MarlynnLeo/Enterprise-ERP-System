@@ -78,6 +78,13 @@
         <div class="section-title">备注</div>
         <div class="notes-text">{{ payment.notes || payment.memo }}</div>
       </div>
+
+      <!-- 操作按钮 -->
+      <div class="action-section" v-if="payment.status !== 'void' && payment.status !== '已作废'" v-permission="'finance:ap:update'">
+        <VanButton round block type="danger" @click="handleVoid" :loading="actionLoading">
+          作废付款
+        </VanButton>
+      </div>
     </div>
 
     <div class="loading-state" v-else-if="loading">
@@ -90,7 +97,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { useRoute } from 'vue-router'
-  import { NavBar, Loading, Empty } from 'vant'
+  import { NavBar, Loading, Empty, Button as VanButton, showToast, showConfirmDialog } from 'vant'
   import Icon from '@/components/icons/index.vue'
   import { financeApi } from '@/services/api'
   import dayjs from 'dayjs'
@@ -98,6 +105,7 @@
   const route = useRoute()
   const payment = ref(null)
   const loading = ref(true)
+  const actionLoading = ref(false)
 
   const fd = (d) => (d ? dayjs(d).format('YYYY-MM-DD') : '—')
   const fm = (v) => {
@@ -107,7 +115,7 @@
       : n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-  onMounted(async () => {
+  const loadDetail = async () => {
     try {
       const res = await financeApi.getAPPaymentById(route.params.id)
       const d = res.data || res
@@ -117,7 +125,24 @@
     } finally {
       loading.value = false
     }
-  })
+  }
+
+  // 作废付款
+  const handleVoid = async () => {
+    try {
+      await showConfirmDialog({ title: '作废确认', message: '确定作废此付款记录？此操作不可撤销。' })
+      actionLoading.value = true
+      await financeApi.voidAPPayment(payment.value.id)
+      showToast('付款已作废')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  onMounted(loadDetail)
 </script>
 
 <style lang="scss" scoped>
@@ -174,11 +199,11 @@
     flex-shrink: 0;
     &.success {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.danger {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
   .amount-card {
@@ -257,5 +282,8 @@
     gap: 12px;
     padding-top: 40vh;
     color: var(--text-tertiary);
+  }
+  .action-section {
+    padding: 20px 16px;
   }
 </style>

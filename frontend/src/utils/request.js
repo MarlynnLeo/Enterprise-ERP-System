@@ -8,6 +8,7 @@
 import axios from 'axios';
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus';
 import router from '@/router';
+import { tokenManager } from '@/utils/unifiedStorage';
 
 // 创建axios实例
 const service = axios.create({
@@ -19,9 +20,8 @@ const service = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   config => {
-    // 优先从Cookie获取token（由浏览器自动携带）
-    // 如果没有Cookie，则从localStorage获取（向后兼容）
-    const token = localStorage.getItem('token');
+    // 通过统一的 tokenManager 获取 token
+    const token = tokenManager.getToken();
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -119,8 +119,8 @@ service.interceptors.response.use(
                 isRefreshing = false;
                 refreshSubscribers = [];
                 message = '登录已过期，请重新登录';
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
+                tokenManager.removeToken();
+                tokenManager.removeUser();
                 if (!window.location.pathname.includes('/login')) {
                   window.location.href = '/login';
                 }
@@ -136,12 +136,12 @@ service.interceptors.response.use(
             }
           }
 
-          message = data.message || '未授权，请重新登录';
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          tokenManager.removeToken();
+          tokenManager.removeUser();
           if (!window.location.pathname.includes('/login')) {
             window.location.href = '/login';
           }
+          message = data.message || '未授权，请重新登录';
           break;
         case 403:
           if (data.code === 'INVALID_CSRF_TOKEN') {

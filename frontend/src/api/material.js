@@ -14,10 +14,7 @@ export const materialApi = {
      * @param {Object} params - 查询参数 { page, pageSize, keyword, ... }
      * @returns {Promise} response.data = { list: [], total, page, pageSize, totalPages }
      */
-    getMaterials: (params = {}) => api.get('/baseData/materials', {
-        params: { ...params, timestamp: Date.now() },
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-    }),
+    getMaterials: (params = {}) => api.get('/baseData/materials', { params }),
     getMaterial: (id) => {
         // 验证ID有效性
         if (!id || id === null || id === 'null' || id === 'undefined') {

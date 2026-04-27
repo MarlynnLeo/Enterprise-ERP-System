@@ -15,6 +15,7 @@ const InventoryService = require('../../../services/InventoryService');
 // const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getInventoryLedger } = require('./inventoryLedgerController');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
@@ -267,7 +268,7 @@ const getStockRecords = async (req, res) => {
         locationId = materialResult[0].location_id;
       }
 
-      const checkLocationQuery = 'SELECT id FROM locations WHERE id = ?';
+      const checkLocationQuery = 'SELECT id FROM locations WHERE id = ? AND deleted_at IS NULL';
       const [locationResult] = await db.pool.execute(checkLocationQuery, [locationId]);
 
       if (locationResult.length === 0) {
@@ -756,6 +757,21 @@ let businessTypeCacheTime = 0;
 const BUSINESS_TYPE_CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
 
 // 加载业务类型缓存
+const loadBusinessTypeCache = async () => {
+  const now = Date.now();
+  if (businessTypeCache && (now - businessTypeCacheTime) < BUSINESS_TYPE_CACHE_TTL) {
+    return businessTypeCache;
+  }
+  try {
+    const [rows] = await db.pool.execute('SELECT DISTINCT transaction_type FROM inventory_ledger');
+    businessTypeCache = rows.map(r => r.transaction_type);
+    businessTypeCacheTime = now;
+  } catch (err) {
+    logger.error('加载业务类型缓存失败:', err);
+    businessTypeCache = [];
+  }
+  return businessTypeCache;
+};
 
 const getMaterialStockDetail = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -789,7 +805,7 @@ const getMaterialStockDetail = async (req, res) => {
 
     // 确认库位是否存在
     const [locationExists] = await connection.execute(
-      'SELECT id, name as location_name FROM locations WHERE id = ?',
+      'SELECT id, name as location_name FROM locations WHERE id = ? AND deleted_at IS NULL',
       [locationId]
     );
 
@@ -1148,15 +1164,14 @@ const importStock = async (req, res) => {
           continue;
         }
 
-        // 使用统一验证工具验证数量范围
+        // 验证数量不能为负
         const parsedQuantity = parseFloat(stock.quantity);
-        // const rangeError = validateRange(parsedQuantity, 0, undefined, '库存数量');
 
         if (parsedQuantity < 0) {
           results.errors.push({
             row: stock.row,
             data: stock,
-            error: rangeError.message,
+            error: '库存数量不能为负数',
           });
           continue;
         }
@@ -1188,7 +1203,7 @@ const importStock = async (req, res) => {
 
         // ✅ 增强验证：查找库位ID并验证库位状态
         const [locations] = await connection.query(
-          'SELECT id, name, status FROM locations WHERE code = ?',
+          'SELECT id, name, status FROM locations WHERE code = ? AND deleted_at IS NULL',
           [stock.location_code]
         );
 
@@ -1247,7 +1262,7 @@ const importStock = async (req, res) => {
         // 生成调整单号
         const adjustmentNo = await CodeGenerators.generateAdjustmentCode(connection);
 
-        // 🔥 使用统一的 InventoryService 更新库存（自动同步 batch_inventory，及预警系统）
+        // 使用统一的 InventoryService 更新库存
         const InventoryService = require('../../../services/InventoryService');
         await InventoryService.updateStock(
           {

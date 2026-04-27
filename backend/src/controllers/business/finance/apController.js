@@ -260,9 +260,15 @@ const apController = {
         return ResponseHandler.error(res, '未找到指定的发票', 'NOT_FOUND', 404);
       }
 
-      // 检查发票状态，如果已完成付款则不允许修改
-      if (existingInvoice.status === '已付款') {
-        return ResponseHandler.error(res, '已付款的发票不允许修改', 'VALIDATION_ERROR', 400);
+      // 检查发票状态，已付款或已取消不允许修改
+      if (['已付款', '已取消'].includes(existingInvoice.status)) {
+        return ResponseHandler.error(res, `${existingInvoice.status}的发票不允许修改`, 'VALIDATION_ERROR', 400);
+      }
+
+      // 验证并转换金额
+      const amount = parseFloat(invoiceData.amount || invoiceData.total_amount);
+      if (isNaN(amount) || amount <= 0) {
+        return ResponseHandler.error(res, '发票金额必须大于0', 'VALIDATION_ERROR', 400);
       }
 
       // 准备数据以匹配数据库字段
@@ -273,7 +279,7 @@ const apController = {
         supplier_id: invoiceData.supplierId,
         invoice_date: invoiceData.invoiceDate,
         due_date: invoiceData.dueDate,
-        total_amount: invoiceData.amount,
+        total_amount: amount,
         notes: invoiceData.notes,
         items: invoiceData.items, // 传递明细项
       };
@@ -631,7 +637,7 @@ const apController = {
       const { supplierName, status } = req.query;
 
       // 从数据库获取供应商应付款汇总
-      const connection = await require('../../../config/db').pool.getConnection();
+      const connection = await db.pool.getConnection();
 
       try {
         // 构建查询条件
@@ -706,7 +712,7 @@ const apController = {
       const supplierId = req.params.id;
 
       // 从数据库获取指定供应商的应付款详情
-      const connection = await require('../../../config/db').pool.getConnection();
+      const connection = await db.pool.getConnection();
 
       try {
         // 获取供应商信息和应付款汇总
@@ -799,7 +805,7 @@ const apController = {
       const { reportDate, /* supplierType, */ supplierName } = req.query;
 
       // 从数据库获取真实数据
-      const connection = await require('../../../config/db').pool.getConnection();
+      const connection = await db.pool.getConnection();
 
       try {
         // 构建查询条件
@@ -867,18 +873,15 @@ const apController = {
           contactPhone: item.contactPhone,
         }));
 
-        if (formattedData.length === 0) {
-          // [C-1] 调试日志降级：生产环境避免输出敏感财务信息
-          logger.debug('[AP] 准备创建会计分录，invoiceData:');
-
-          logger.debug('- 查询条件过于严格');
-        }
-
         // 返回数据
-        res.status(200).json({
-          details: formattedData,
-          reportDate: reportDate || new Date().toISOString().slice(0, 10),
-        });
+        return ResponseHandler.success(
+          res,
+          {
+            details: formattedData,
+            reportDate: reportDate || new Date().toISOString().slice(0, 10),
+          },
+          '获取应付账款账龄分析成功'
+        );
       } finally {
         // 释放连接
         connection.release();
@@ -897,7 +900,7 @@ const apController = {
       const supplierId = req.params.id;
 
       // 从数据库获取指定供应商的账龄分析
-      const connection = await require('../../../config/db').pool.getConnection();
+      const connection = await db.pool.getConnection();
 
       try {
         // 查询供应商账龄数据
@@ -989,7 +992,7 @@ const apController = {
           })),
         };
 
-        res.status(200).json(result);
+        return ResponseHandler.success(res, result, '获取供应商账龄分析详情成功');
       } finally {
         connection.release();
       }
@@ -1019,7 +1022,7 @@ const apController = {
       // 查询发票关联的付款记录
       const payments = await apModel.getInvoicePayments(invoiceId);
 
-      res.status(200).json({
+      return ResponseHandler.success(res, {
         data: payments,
         total: payments.length,
         invoice: {
@@ -1029,34 +1032,9 @@ const apController = {
           paidAmount: parseFloat(invoice.paidAmount),
           balance: parseFloat(invoice.balance),
         },
-      });
+      }, '获取发票付款记录成功');
     } catch (error) {
       return ResponseHandler.error(res, '获取发票付款记录失败', 'SERVER_ERROR', 500, error);
-    }
-  },
-
-  /**
-   * 测试数据库连接和表结构
-   */
-  testDatabase: async (req, res) => {
-    try {
-      // 使用pool.execute而不是query
-      try {
-        const [result] = await db.pool.execute('DESCRIBE ap_invoices');
-
-        const [countResult] = await db.pool.execute('SELECT COUNT(*) as count FROM ap_invoices');
-
-        res.status(200).json({
-          message: '数据库连接和表结构测试成功',
-          table_exists: true,
-          record_count: countResult[0].count,
-          table_structure: result,
-        });
-      } catch (tableError) {
-        ResponseHandler.error(res, '表结构测试失败', 'SERVER_ERROR', 500, tableError);
-      }
-    } catch (error) {
-      ResponseHandler.error(res, '数据库连接测试失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -1071,45 +1049,6 @@ const apController = {
       return ResponseHandler.success(res, invoices, '获取未付清发票列表成功');
     } catch (error) {
       return ResponseHandler.error(res, '获取未付清发票列表失败', 'SERVER_ERROR', 500, error);
-    }
-  },
-
-  /**
-   * 获取待付款发票列表
-   */
-  getPendingInvoices: async (req, res) => {
-    try {
-      // 直接查询数据库获取未付清的发票
-      const db = require('../../../config/db');
-
-      // 查询未付清的发票（状态为'草稿'、'已确认'、'部分付款'的发票）
-      const [invoices] = await db.pool.execute(
-        `SELECT a.id, a.invoice_number as invoiceNumber, 
-                a.supplier_id as supplierId, s.name as supplierName,
-                DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoiceDate, 
-                DATE_FORMAT(a.due_date, '%Y-%m-%d') as dueDate,
-                ROUND(a.total_amount, 2) as amount,
-                ROUND(a.paid_amount, 2) as paidAmount,
-                ROUND(a.balance_amount, 2) as balance,
-                a.status
-         FROM ap_invoices a
-         LEFT JOIN suppliers s ON a.supplier_id = s.id
-         WHERE a.status IN ('草稿', '已确认', '部分付款')
-         AND a.balance_amount > 0
-         ORDER BY a.due_date ASC, a.id ASC`
-      );
-
-      // 转换金额为数字类型
-      const formattedInvoices = invoices.map((invoice) => ({
-        ...invoice,
-        amount: parseFloat(invoice.amount),
-        paidAmount: parseFloat(invoice.paidAmount),
-        balance: parseFloat(invoice.balance),
-      }));
-
-      return ResponseHandler.success(res, formattedInvoices, '获取待付款发票列表成功');
-    } catch (error) {
-      return ResponseHandler.error(res, '获取待付款发票列表失败', 'SERVER_ERROR', 500, error);
     }
   },
 };

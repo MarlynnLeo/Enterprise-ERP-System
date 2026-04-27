@@ -233,7 +233,7 @@
 
       <template #footer>
         <el-button @click="pricing.drawerVisible.value = false">取消</el-button>
-        <el-button v-permission="'finance:productpricing:update'" type="primary" @click="handleSubmitPricing" :loading="pricing.submitting.value">保存定价</el-button>
+        <el-button v-permission="'finance:pricing:update'" type="primary" @click="handleSubmitPricing" :loading="pricing.submitting.value">保存定价</el-button>
       </template>
     </el-drawer>
 
@@ -329,7 +329,7 @@
       </el-form>
       <template #footer>
         <el-button @click="strategy.dialogVisible.value = false">取消</el-button>
-        <el-button v-permission="'finance:productpricing:update'" type="primary" @click="handleSaveStrategyField" :loading="strategy.submitting.value">保存</el-button>
+        <el-button v-permission="'finance:pricing:update'" type="primary" @click="handleSaveStrategyField" :loading="strategy.submitting.value">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -342,7 +342,8 @@ import { Search, Refresh, List, Download, Setting, Money } from '@element-plus/i
 
 
 // Utils
-import { formatNumber, formatDate } from './utils/format';
+import { formatNumber } from '@/utils/format';
+import { formatDate } from '@/utils/helpers/dateUtils';
 
 // Composables
 import { usePricing } from './composables/usePricing';

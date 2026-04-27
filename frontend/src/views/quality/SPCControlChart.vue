@@ -199,12 +199,12 @@
           <el-input-number v-model="dataForm.samples[i].measured_value" :precision="4" style="width:100%" placeholder="实测值" />
         </el-form-item>
         <el-form-item>
-          <el-button v-permission="'quality:spccontrolchart:create'" type="primary" link @click="addSample">+ 添加样本</el-button>
+          <el-button v-permission="'quality:settings:create'" type="primary" link @click="addSample">+ 添加样本</el-button>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showDataInput = false">取消</el-button>
-        <el-button v-permission="'quality:spccontrolchart:submit'" type="primary" @click="handleDataSubmit" :loading="submitting">提交</el-button>
+        <el-button v-permission="'quality:settings:create'" type="primary" @click="handleDataSubmit" :loading="submitting">提交</el-button>
       </template>
     </el-dialog>
   </div>

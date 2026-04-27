@@ -73,7 +73,7 @@ class QualityStandard {
 
     // 添加分页（直接拼接，已验证）
     const offset = (page - 1) * pageSize;
-    query += ` ORDER BY qs.created_at DESC LIMIT ${pageSize} OFFSET ${offset}`;
+    query += ` ORDER BY qs.created_at DESC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`;
 
     const [rows] = await db.query(query, queryParams);
 

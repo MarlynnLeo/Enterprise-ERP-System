@@ -12,8 +12,7 @@
       <template #right>
         <div class="header-actions">
           <Icon name="scan" size="18" @click="openScanner" class="action-icon" />
-          <Icon
-            name="plus"
+          <Icon v-permission="'inventory:check:create'" name="plus"
             size="18"
             @click="router.push('/inventory/check/new')"
             class="action-icon"
@@ -82,79 +81,70 @@
             finished-text="没有更多了"
             @load="onLoad"
           >
-            <div
+            <SwipeCell
               v-for="(item, index) in checkList"
               :key="item.id"
-              class="order-card"
-              :style="{ animationDelay: `${index * 0.03}s` }"
-              @click="router.push(`/inventory/check/${item.id}`)"
             >
-              <div class="card-accent" :class="getStatusAccent(item.status)"></div>
-              <div class="card-body">
-                <div class="card-top">
-                  <div class="code-area">
-                    <span class="order-code">{{ item.check_no }}</span>
-                    <span class="status-tag" :class="getStatusAccent(item.status)">{{
-                      getStatusText(item.status)
-                    }}</span>
+              <div
+                class="order-card"
+                :style="{ animationDelay: `${index * 0.03}s` }"
+                @click="router.push(`/inventory/check/${item.id}`)"
+              >
+                <div class="card-accent" :class="getStatusAccent(item.status)"></div>
+                <div class="card-body">
+                  <div class="card-top">
+                    <div class="code-area">
+                      <span class="order-code">{{ item.check_no }}</span>
+                      <span class="status-tag" :class="getStatusAccent(item.status)">{{ getStatusText(item.status) }}</span>
+                    </div>
+                    <div class="order-qty" v-if="item.item_count">
+                      {{ item.item_count }}<span class="qty-unit">种</span>
+                    </div>
                   </div>
-                  <div class="order-qty" v-if="item.item_count">
-                    {{ item.item_count }}<span class="qty-unit">种</span>
-                  </div>
-                </div>
-                <div class="order-title">{{ getCheckTypeText(item.check_type) }}</div>
-                <div class="card-meta">
-                  <span class="meta-item" v-if="item.warehouse"
-                    ><Icon name="location-o" size="12" /> {{ item.warehouse }}</span
-                  >
-                  <span class="meta-item" v-if="item.check_date">{{ item.check_date }}</span>
-                </div>
-                <div
-                  class="card-bottom"
-                  v-if="
-                    item.status === 'draft' ||
-                    item.status === 'in_progress' ||
-                    (item.status === 'completed' && item.profit_loss !== 0)
-                  "
-                >
-                  <div class="remark-text"></div>
-                  <div class="card-actions" @click.stop>
-                    <div
-                      v-if="item.status === 'draft'"
-                      class="action-btn edit"
-                      @click="router.push(`/inventory/check/${item.id}/edit`)"
-                    >
-                      编辑
-                    </div>
-                    <div
-                      v-if="item.status === 'draft'"
-                      class="action-btn confirm"
-                      @click="updateStatus(item, 'in_progress')"
-                    >
-                      开始盘点
-                    </div>
-                    <div
-                      v-if="item.status === 'in_progress'"
-                      class="action-btn complete"
-                      @click="updateStatus(item, 'completed')"
-                    >
-                      完成盘点
-                    </div>
-                    <div
-                      v-if="item.status === 'completed' && item.profit_loss !== 0"
-                      class="action-btn warning"
-                      @click="adjustInventory(item)"
-                    >
-                      调整库存
-                    </div>
+                  <div class="order-title">{{ getCheckTypeText(item.check_type) }}</div>
+                  <div class="card-meta">
+                    <span class="meta-item" v-if="item.warehouse"><Icon name="location-o" size="12" /> {{ item.warehouse }}</span>
+                    <span class="meta-item" v-if="item.check_date">{{ item.check_date }}</span>
                   </div>
                 </div>
               </div>
-            </div>
+              <!-- 左滑操作按钮 -->
+              <template #right>
+                <div class="swipe-actions">
+                  <Button
+                    v-if="item.status === 'draft'"
+                    square
+                    type="primary"
+                    text="编辑"
+                    class="swipe-btn"
+                    @click="router.push(`/inventory/check/${item.id}/edit`)"
+                  />
+                  <Button
+                    v-if="item.status === 'draft'"
+                    square
+                    type="success"
+                    text="开始"
+                    class="swipe-btn"
+                    @click="updateStatus(item, 'in_progress')"
+                  />
+                  <Button
+                    v-if="item.status === 'in_progress'"
+                    square
+                    type="success"
+                    text="完成"
+                    class="swipe-btn"
+                    @click="updateStatus(item, 'completed')"
+                  />
+                </div>
+              </template>
+            </SwipeCell>
           </List>
         </PullRefresh>
       </div>
     </div>
+
+    <!-- 回到顶部 -->
+    <BackTop bottom="80" right="16" />
   </div>
 </template>
 
@@ -168,6 +158,9 @@
     Empty,
     PullRefresh,
     List,
+    SwipeCell,
+    Button,
+    BackTop,
     showToast,
     showConfirmDialog
   } from 'vant'
@@ -223,7 +216,7 @@
     resetAndLoad()
   }
   const onLoad = () => loadCheckList()
-  const openScanner = () => showToast('扫码功能开发中')
+  const openScanner = () => router.push('/scan?mode=check')
 
   const filterByStatus = (s) => {
     currentStatus.value = s
@@ -238,8 +231,7 @@
   }
 
   const loadCheckList = async () => {
-    if (loading.value) return
-    loading.value = true
+    // 移除 if (loading.value) return，因为 van-list 组件触发 load 事件前会自动将其设置为 true
     try {
       const params = {
         page: pagination.page,
@@ -350,10 +342,10 @@
       font-weight: 800;
       color: var(--text-primary);
       &.draft {
-        color: #94a3b8;
+        color: var(--text-secondary);
       }
       &.accent {
-        color: #f59e0b;
+        color: var(--color-warning);
       }
       &.success {
         color: #34d399;
@@ -406,8 +398,8 @@
     }
     &.active {
       background: rgba(59, 130, 246, 0.1);
-      border-color: #3b82f6;
-      color: #3b82f6;
+      border-color: var(--color-primary);
+      color: var(--color-primary);
     }
   }
 
@@ -441,16 +433,16 @@
     width: 4px;
     flex-shrink: 0;
     &.status-draft {
-      background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+      background: linear-gradient(180deg, var(--text-secondary), #cbd5e1);
     }
     &.status-progress {
-      background: linear-gradient(180deg, #f59e0b, #fbbf24);
+      background: linear-gradient(180deg, var(--color-warning), var(--color-warning));
     }
     &.status-completed {
-      background: linear-gradient(180deg, #10b981, #34d399);
+      background: linear-gradient(180deg, var(--color-success), #34d399);
     }
     &.status-cancelled {
-      background: linear-gradient(180deg, #ef4444, #f87171);
+      background: linear-gradient(180deg, var(--color-danger), var(--color-danger));
     }
   }
   .card-body {
@@ -483,19 +475,19 @@
     font-weight: 700;
     &.status-draft {
       background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
     &.status-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.status-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
   .order-qty {
@@ -548,20 +540,31 @@
       cursor: pointer;
       &.edit {
         background: rgba(148, 163, 184, 0.1);
-        color: #94a3b8;
+        color: var(--text-secondary);
       }
       &.confirm {
         background: rgba(59, 130, 246, 0.1);
-        color: #3b82f6;
+        color: var(--color-primary);
       }
       &.complete {
         background: rgba(16, 185, 129, 0.1);
-        color: #10b981;
+        color: var(--color-success);
       }
       &.warning {
         background: rgba(245, 158, 11, 0.1);
-        color: #f59e0b;
+        color: var(--color-warning);
       }
     }
+  }
+
+  /* 滑动操作按钮 */
+  .swipe-actions {
+    display: flex;
+    height: 100%;
+  }
+  .swipe-btn {
+    height: 100%;
+    min-width: 60px;
+    font-size: 0.8125rem;
   }
 </style>

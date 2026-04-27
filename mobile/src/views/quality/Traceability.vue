@@ -25,18 +25,18 @@
         />
       </div>
 
-      <!-- 类型筛选标签 -->
-      <div class="filter-section">
-        <div class="filter-tabs">
+      <!-- 横向滑动筛选标签 -->
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
           <div
             v-for="tab in filterTabs"
             :key="tab.value"
-            class="filter-tab"
+            class="filter-chip"
             :class="{ active: activeFilter === tab.value }"
             @click="activeFilter = tab.value"
           >
-            <span class="tab-icon">{{ tab.icon }}</span>
-            <span class="tab-label">{{ tab.label }}</span>
+            <SvgIcon :name="tab.icon" size="14px" />
+            <span class="chip-text">{{ tab.label }}</span>
           </div>
         </div>
       </div>
@@ -68,7 +68,7 @@
             <!-- 卡片主体 -->
             <div class="card-body">
               <div class="material-code-row">
-                <span class="material-icon">{{ batch.type === 'product' ? '🏭' : '📦' }}</span>
+                <span class="material-icon"><SvgIcon :name="batch.type === 'product' ? 'archive' : 'cube'" size="16px" /></span>
                 <span class="material-code">{{ batch.material_code }}</span>
               </div>
               <div class="batch-number-row">
@@ -100,6 +100,7 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
+  import SvgIcon from '@/components/icons/index.vue'
   import { NavBar, Icon as VanIcon, Search, PullRefresh, Empty, Loading, showToast } from 'vant'
   import { qualityApi } from '@/services/api'
 
@@ -115,9 +116,9 @@
 
   // 筛选标签配置
   const filterTabs = ref([
-    { label: '全部', value: 'all', icon: '📋' },
-    { label: '原料', value: 'material', icon: '📦' },
-    { label: '成品', value: 'product', icon: '🏭' }
+    { label: '全部', value: 'all', icon: 'apps' },
+    { label: '原料', value: 'material', icon: 'cube' },
+    { label: '成品', value: 'product', icon: 'archive' }
   ])
 
   // 按类型筛选后的批次列表
@@ -158,7 +159,6 @@
 
   // 加载批次数据
   const loadBatches = async () => {
-    if (loading.value) return
     loading.value = true
 
     try {
@@ -250,43 +250,38 @@
   }
 
   // 筛选标签
-  .filter-section {
-    padding: 8px 0 4px;
-
-    .filter-tabs {
-      display: flex;
-      gap: 8px;
-
-      .filter-tab {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        padding: 10px 0;
-        border-radius: 10px;
-        background: var(--bg-secondary);
-        border: 1.5px solid var(--van-border-color);
-        font-size: 0.8125rem;
-        color: var(--text-secondary);
-        transition: all 0.25s ease;
-        cursor: pointer;
-
-        .tab-icon {
-          font-size: 0.875rem;
-        }
-
-        .tab-label {
-          font-weight: 500;
-        }
-
-        &.active {
-          background: var(--color-primary-bg);
-          border-color: var(--color-primary);
-          color: var(--color-primary);
-          font-weight: 600;
-        }
-      }
+  .filter-scroll-wrapper {
+    padding: 4px 0 8px;
+    overflow: hidden;
+  }
+  .filter-scroll {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+  .filter-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--bg-secondary);
+    border: 1.5px solid var(--glass-border);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    transition: all 0.25s ease;
+    cursor: pointer;
+    .chip-text { font-weight: 500; }
+    &.active {
+      background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
+      border-color: var(--color-accent, var(--color-primary));
+      color: var(--color-accent, var(--color-primary));
     }
   }
 
@@ -341,11 +336,14 @@
   .batch-type-indicator {
     display: inline-flex;
     align-items: center;
-    padding: 2px 10px;
+    justify-content: center;
+    padding: 4px 10px;
     border-radius: 20px;
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.5px;
+    line-height: 1;
+    vertical-align: middle;
 
     &.type-product {
       background: rgba(103, 193, 217, 0.15);

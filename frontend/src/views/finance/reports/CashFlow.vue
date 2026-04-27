@@ -15,9 +15,9 @@
           <p class="subtitle">查看现金流动情况</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport">生成报表</el-button>
-          <el-button v-permission="'finance:cashflow:print'" @click="printReport" :disabled="!reportData.length">打印报表</el-button>
-          <el-button v-permission="'finance:cashflow:export'" @click="exportExcel" :disabled="!reportData.length">导出Excel</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:cash-flow'">生成报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.length">打印报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.length">导出Excel</el-button>
         </div>
       </div>
     </el-card>
@@ -32,7 +32,6 @@
             placeholder="选择报表月份"
             format="YYYY年MM月"
             value-format="YYYY-MM"
-
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="单位">
@@ -131,20 +130,12 @@
 </template>
 
 <script setup>
-
-import apiAdapter from '@/utils/apiAdapter';
-
 import { ref, reactive, computed, onMounted } from 'vue'
-
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import { formatCurrency } from '@/utils/format';
 import ExcelJS from 'exceljs';
-import { useAuthStore } from '@/stores/auth'
 
-// 权限store
-const authStore = useAuthStore()
-
-// 权限计算属性
 // 查询参数
 const queryParams = reactive({
   reportMonth: new Date().toISOString().slice(0, 7), // 默认为当前月份 YYYY-MM
@@ -323,9 +314,6 @@ const calculateReportStats = () => {
   reportStats.accountCount = reportData.value.length;
 };
 
-// 格式化货币
-// formatCurrency: 使用公共实现
-
 // 格式化金额
 const formatAmount = (amount) => {
   if (amount === undefined || amount === null || amount === 0) return '-';
@@ -374,9 +362,6 @@ onMounted(() => {
   display: flex;
   gap: 10px;
 }
-
-/* 使用全局common-styles.css中的样式，无需重复定义 */
-/* .filter-card 和 .report-card 已在全局定义 */
 
 /* 报表标题样式 */
 .report-header {
@@ -523,7 +508,6 @@ onMounted(() => {
   }
 }
 
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -536,4 +520,4 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

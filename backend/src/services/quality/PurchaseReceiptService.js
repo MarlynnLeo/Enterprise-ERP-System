@@ -183,7 +183,7 @@ class PurchaseReceiptService {
     // 策略1: 使用物料默认仓库
     if (materialLocationId) {
       const [locRows] = await connection.query(
-        'SELECT id, name FROM locations WHERE id = ? AND status = 1',
+        'SELECT id, name FROM locations WHERE id = ? AND status = 1 AND deleted_at IS NULL',
         [materialLocationId]
       );
       if (locRows && locRows.length > 0) {
@@ -201,7 +201,7 @@ class PurchaseReceiptService {
     const defaultId = businessConfig.warehouse.defaultWarehouseId;
     if (defaultId) {
       const [defaultRows] = await connection.query(
-        'SELECT id, name FROM locations WHERE id = ? AND status = 1',
+        'SELECT id, name FROM locations WHERE id = ? AND status = 1 AND deleted_at IS NULL',
         [defaultId]
       );
       if (defaultRows && defaultRows.length > 0) {

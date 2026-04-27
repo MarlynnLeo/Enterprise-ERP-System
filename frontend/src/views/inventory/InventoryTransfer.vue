@@ -51,7 +51,7 @@
       
       <!-- 批量操作按钮 -->
       <div class="batch-actions">
-        <el-dropdown @command="handleBatchCommand">
+        <el-dropdown @command="handleBatchCommand" v-permission="'inventory:transfer:update'">
           <el-button type="primary">
             批量操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
@@ -180,6 +180,7 @@
                 type="primary" 
                 @click="editTransfer(scope.row.id)"
                 v-if="scope.row.status === 'draft'"
+                v-permission="'inventory:transfer:update'"
               >
                 编辑
               </el-button>
@@ -347,7 +348,7 @@
           </el-table-column>
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ $index }">
-              <el-button type="danger" link @click="removeTransferItem($index)">
+              <el-button type="danger" link @click="removeTransferItem($index)" v-permission="'inventory:transfer:update'">
                 删除
               </el-button>
             </template>
@@ -419,7 +420,7 @@ import { computed } from 'vue';
 // 权限store
 const authStore = useAuthStore();
 
-// 权限计算属性
+// 权限计算属性
 // 状态选项（使用统一常量）
 const statusOptions = [
   { value: 'draft', label: getTransferStatusText('draft') },

@@ -7,7 +7,7 @@
           <h2>成本核算设置</h2>
           <p class="subtitle">配置企业成本核算方法、制造费用分摊及标准费率参数</p>
         </div>
-        <el-button v-permission="'finance:costsettings:update'" type="primary" @click="saveSettings" :loading="saving">保存设置</el-button>
+        <el-button v-permission="'finance:cost:update'" type="primary" @click="saveSettings" :loading="saving">保存设置</el-button>
       </div>
     </el-card>
 
@@ -125,7 +125,7 @@
           <template #header>
             <div class="card-header">
               <span>业务单据科目映射</span>
-              <el-button v-permission="'finance:costsettings:update'" type="primary" size="small" @click="saveMappings" :loading="savingMappings">保存映射</el-button>
+              <el-button v-permission="'finance:cost:update'" type="primary" size="small" @click="saveMappings" :loading="savingMappings">保存映射</el-button>
             </div>
           </template>
           
@@ -164,7 +164,7 @@
           <template #header>
             <div class="card-header">
               <span>补料原因配置</span>
-              <el-button v-permission="'finance:costsettings:create'" type="primary" size="small" @click="openReasonDialog()">新增原因</el-button>
+              <el-button v-permission="'finance:cost:create'" type="primary" size="small" @click="openReasonDialog()">新增原因</el-button>
             </div>
           </template>
           
@@ -186,8 +186,8 @@
             </el-table-column>
             <el-table-column label="操作" width="180">
               <template #default="scope">
-                <el-button size="small" @click="openReasonDialog(scope.row)">编辑</el-button>
-                <el-button v-permission="'finance:costsettings:delete'" size="small" type="danger" plain @click="handleDeleteReason(scope.row)">删除</el-button>
+                <el-button size="small" @click="openReasonDialog(scope.row)" v-permission="'finance:cost:settings'">编辑</el-button>
+                <el-button v-permission="'finance:cost:delete'" size="small" type="danger" plain @click="handleDeleteReason(scope.row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -211,7 +211,7 @@
           </el-form>
           <template #footer>
             <el-button @click="reasonDialogVisible = false">取消</el-button>
-            <el-button v-permission="'finance:costsettings:update'" type="primary" @click="saveReason" :loading="savingReason">保存</el-button>
+            <el-button v-permission="'finance:cost:update'" type="primary" @click="saveReason" :loading="savingReason">保存</el-button>
           </template>
         </el-dialog>
       </el-tab-pane>
@@ -251,7 +251,7 @@
             <div class="card-header">
               <span>物料标准成本管理（期初冻结）</span>
               <div>
-                <el-button type="primary" size="small" @click="openFreezeDialog">批量冻结</el-button>
+                <el-button type="primary" size="small" @click="openFreezeDialog" v-permission="'finance:cost:settings'">批量冻结</el-button>
                 <el-button size="small" @click="fetchMaterialStandardCosts">刷新</el-button>
               </div>
             </div>
@@ -362,7 +362,7 @@
           </el-form>
           <template #footer>
             <el-button @click="editStdCostDialogVisible = false">取消</el-button>
-            <el-button v-permission="'finance:costsettings:update'" type="primary" @click="handleUpdateStdCost" :loading="updatingStdCost">保存</el-button>
+            <el-button v-permission="'finance:cost:update'" type="primary" @click="handleUpdateStdCost" :loading="updatingStdCost">保存</el-button>
           </template>
         </el-dialog>
       </el-tab-pane>
@@ -373,7 +373,7 @@
             <div class="card-header">
               <span>制造费用分摊规则配置</span>
               <div>
-                <el-button v-permission="'finance:costsettings:create'" type="primary" size="small" @click="openAllocationRuleDialog()">新增规则</el-button>
+                <el-button v-permission="'finance:cost:create'" type="primary" size="small" @click="openAllocationRuleDialog()">新增规则</el-button>
                 <el-button size="small" @click="fetchAllocationRules">刷新</el-button>
               </div>
             </div>
@@ -417,8 +417,8 @@
             </el-table-column>
             <el-table-column label="操作" width="160" fixed="right">
               <template #default="scope">
-                <el-button size="small" link type="primary" @click="openAllocationRuleDialog(scope.row)">编辑</el-button>
-                <el-button v-permission="'finance:costsettings:delete'" size="small" link type="danger" @click="handleDeleteAllocationRule(scope.row)">删除</el-button>
+                <el-button size="small" link type="primary" @click="openAllocationRuleDialog(scope.row)" v-permission="'finance:cost:settings'">编辑</el-button>
+                <el-button v-permission="'finance:cost:delete'" size="small" link type="danger" @click="handleDeleteAllocationRule(scope.row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -479,7 +479,7 @@
           </el-form>
           <template #footer>
             <el-button @click="allocationRuleDialogVisible = false">取消</el-button>
-            <el-button v-permission="'finance:costsettings:update'" type="primary" @click="saveAllocationRule" :loading="savingAllocationRule">保存</el-button>
+            <el-button v-permission="'finance:cost:update'" type="primary" @click="saveAllocationRule" :loading="savingAllocationRule">保存</el-button>
           </template>
         </el-dialog>
       </el-tab-pane>

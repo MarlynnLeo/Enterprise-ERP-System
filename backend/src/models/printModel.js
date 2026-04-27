@@ -6,14 +6,17 @@
  */
 
 const logger = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 const { pool } = require('../config/db');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 // 打印模块模型
 const printModel = {
   // 打印设置管理
   async getAllPrintSettings(page = 1, pageSize = 10, filters = {}) {
-    const offset = (page - 1) * pageSize;
-    let whereClause = '1=1';
+    // ✅ 安全修复: 使用安全分页工具 + 修复 params 未传入分页查询的 bug
+    const { limit: safeLimit, offset: safeOffset, page: safePage, pageSize: safePageSize } = parsePagination(page, pageSize);
+    let whereClause = 'deleted_at IS NULL';
     const params = [];
 
     if (filters.name) {
@@ -33,20 +36,22 @@ const printModel = {
     const total = countResult[0].total;
 
     // 获取分页数据
-    const [rows] = await pool.execute(
-      `SELECT * FROM print_settings WHERE ${whereClause} ORDER BY id DESC LIMIT ${Number(pageSize)} OFFSET ${Number(offset)}`
+    const sql = appendPaginationSQL(
+      `SELECT * FROM print_settings WHERE ${whereClause} ORDER BY id DESC`,
+      safeLimit, safeOffset
     );
+    const [rows] = await pool.execute(sql, params);
 
     return {
       list: rows,
       total,
-      page,
-      pageSize,
+      page: safePage,
+      pageSize: safePageSize,
     };
   },
 
   async getPrintSettingById(id) {
-    const [rows] = await pool.execute('SELECT * FROM print_settings WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT * FROM print_settings WHERE id = ? AND deleted_at IS NULL', [id]);
     return rows.length > 0 ? rows[0] : null;
   },
 
@@ -111,20 +116,19 @@ const printModel = {
   },
 
   async deletePrintSetting(id) {
-    const [result] = await pool.execute('DELETE FROM print_settings WHERE id = ?', [id]);
-    return result.affectedRows > 0;
+    // ✅ 软删除替代硬删除
+    const affected = await softDelete(pool, 'print_settings', 'id', id);
+    return affected > 0;
   },
 
   // 打印模板管理
   async getAllPrintTemplates(page = 1, pageSize = 10, filters = {}) {
     try {
-      // 转换参数为数字类型
-      const pageNum = Number(page) || 1;
-      const pageSizeNum = Number(pageSize) || 10;
-      const offset = (pageNum - 1) * pageSizeNum;
+      // ✅ 安全修复: 使用安全分页工具替代模板字符串拼接
+      const { limit: safeLimit, offset: safeOffset, page: pageNum, pageSize: pageSizeNum } = parsePagination(page, pageSize);
 
       // 构建查询条件
-      let whereClause = '1=1';
+      let whereClause = 'deleted_at IS NULL';
       const params = [];
 
       if (filters.name) {
@@ -157,8 +161,11 @@ const printModel = {
       const [countResult] = await pool.execute(countSql, params);
       const total = countResult[0].total;
 
-      // 分页查询 - 直接在SQL中嵌入LIMIT和OFFSET值，避免参数类型问题
-      const sql = `SELECT * FROM print_templates WHERE ${whereClause} ORDER BY id DESC LIMIT ${pageSizeNum} OFFSET ${offset}`;
+      // 分页查询 — 使用安全分页工具
+      const sql = appendPaginationSQL(
+        `SELECT * FROM print_templates WHERE ${whereClause} ORDER BY id DESC`,
+        safeLimit, safeOffset
+      );
 
       // 执行查询
       const [rows] = await pool.execute(sql, params);
@@ -176,13 +183,13 @@ const printModel = {
   },
 
   async getPrintTemplateById(id) {
-    const [rows] = await pool.execute('SELECT * FROM print_templates WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT * FROM print_templates WHERE id = ? AND deleted_at IS NULL', [id]);
     return rows.length > 0 ? rows[0] : null;
   },
 
   async getDefaultTemplateByType(module, templateType) {
     const [rows] = await pool.execute(
-      'SELECT * FROM print_templates WHERE module = ? AND template_type = ? AND is_default = 1 AND status = 1 LIMIT 1',
+      'SELECT * FROM print_templates WHERE module = ? AND template_type = ? AND is_default = 1 AND status = 1 AND deleted_at IS NULL LIMIT 1',
       [module, templateType]
     );
     return rows.length > 0 ? rows[0] : null;
@@ -292,8 +299,9 @@ const printModel = {
   },
 
   async deletePrintTemplate(id) {
-    const [result] = await pool.execute('DELETE FROM print_templates WHERE id = ?', [id]);
-    return result.affectedRows > 0;
+    // ✅ 软删除替代硬删除
+    const affected = await softDelete(pool, 'print_templates', 'id', id);
+    return affected > 0;
   },
 };
 

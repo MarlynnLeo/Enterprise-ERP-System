@@ -4,7 +4,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 import { resolve } from 'path';
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     basicSsl()
@@ -13,6 +13,10 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, 'src'),
     },
+  },
+  define: {
+    // 注入构建时间供 About.vue 使用
+    'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString().slice(0, 10))
   },
   server: {
     port: 3100,
@@ -30,6 +34,11 @@ export default defineConfig({
         secure: false,
         rewrite: (path) => path
       },
+      '/socket.io': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
   css: {
@@ -40,10 +49,14 @@ export default defineConfig({
       },
     },
   },
+  esbuild: {
+    // 生产构建时移除 console 和 debugger
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
     minify: true,
   },
-});
+}));

@@ -697,6 +697,14 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
+import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
+// 格式化数量：去除尾零，整数不显示小数点
+const formatQuantity = (val) => {
+  if (val === null || val === undefined || val === '') return '-'
+  const num = Number(val)
+  if (isNaN(num)) return val
+  return num % 1 === 0 ? num.toFixed(0) : parseFloat(num.toFixed(2)).toString()
+}
 import axios from '@/services/api'
 import { baseDataApi } from '@/services/api'
 import { parseListData } from '@/utils/responseParser'
@@ -781,37 +789,6 @@ const completionForm = ref({
   remark: ''
 })
 
-// 计算剩余数量
-const remainingQuantity = computed(() => {
-  return completionForm.value.totalQuantity - completionForm.value.completedQuantity
-})
-
-// 格式化日期时间
-// formatDateTime 已统一引用公共实现
-
-// 日期时间格式化
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    const h = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    const s = String(date.getSeconds()).padStart(2, '0');
-    return `${y}-${m}-${d} ${h}:${min}:${s}`;
-  } catch {
-    return dateStr;
-  }
-};
-
-// 格式化数量
-const formatQuantity = (quantity) => {
-  if (quantity === null || quantity === undefined || quantity === '') return '-'
-  return Number(quantity).toLocaleString()
-}
 
 // 补料申请相关逻辑
 const applyPartsVisible = ref(false)
@@ -860,13 +837,13 @@ const fetchWarehouseList = async () => {
     }
     warehouseList.value = items
     
-    // ✅ 通过仓库类型变量精确匹配
+    // 通过仓库类型变量精确匹配
     const quarantine = items.find(w => w.type === 'quarantine')
     if (quarantine) {
       applyPartsForm.value.returnLocationId = quarantine.id
       // 隔离区匹配成功
     } else {
-      console.warn('[补料调试] ❌ 未找到 type=quarantine 的仓库')
+      console.warn('[补料调试] 未找到 type=quarantine 的仓库')
     }
   } catch (e) {
     console.error('[补料调试] 加载仓库列表失败:', e)
@@ -1023,7 +1000,7 @@ const submitApplyParts = async () => {
       try {
         submittingApply.value = true
         
-        // ✅ 步骤1：生成补料出库单（新料发出）
+        // 步骤1：生成补料出库单（新料发出）
         const payload = {
           outbound_date: dayjs().format('YYYY-MM-DD'),
           status: 'draft',
@@ -1046,7 +1023,7 @@ const submitApplyParts = async () => {
         
         let successMsg = '补料申请已提交，生成的出库单为草稿状态，请联系仓库审核。'
         
-        // ✅ 步骤2：来料不良 → 自动生成不良退回入库单（直接退入隔离区）
+        // 步骤2：来料不良 → 自动生成不良退回入库单（直接退入隔离区）
         if (isDefectiveReason.value && applyPartsForm.value.returnLocationId) {
           try {
             const currentUser = authStore.user?.username || authStore.user?.real_name || 'system'
@@ -1066,7 +1043,7 @@ const submitApplyParts = async () => {
                   material_id: applyPartsForm.value.materialId,
                   quantity: applyPartsForm.value.quantity,
                   unit_id: applyPartsForm.value.unitId,
-                  location_id: applyPartsForm.value.returnLocationId, // ✅ 明确把退回舱位传给明细，防止后端只查明细仓位时丢失
+                  location_id: applyPartsForm.value.returnLocationId, // 明确把退回舱位传给明细，防止后端只查明细仓位时丢失
                   remark: `来料不良退回 - ${applyPartsForm.value.remark || '待质检处置'}`
                 }
               ]
@@ -1074,7 +1051,7 @@ const submitApplyParts = async () => {
             
             await axios.post('/inventory/inbound', inboundPayload)
             
-            // ✅ 新流程：此步骤仅发起退回隔离区的入库单草稿，不越权直接生成 NCP
+            // 新流程：此步骤仅发起退回隔离区的入库单草稿，不越权直接生成 NCP
             // 等待库管确认收货后，由后端服务自动抛出进料检验单(IQA)，再由检验定性抛出 NCP。
             successMsg = '补料申请已提交！不良品收货通知已发送至入库管理，等待库管入库后将由品质部门处理。'
           } catch (returnError) {
@@ -1096,21 +1073,6 @@ const submitApplyParts = async () => {
     }
   })
 }
-
-// 格式化日期
-// formatDate 已统一引用公共实现
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
 
 // 获取生产任务列表
 const fetchTaskList = async () => {

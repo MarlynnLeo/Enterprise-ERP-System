@@ -183,7 +183,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showAlertSettings = false">取消</el-button>
-        <el-button v-permission="'finance:costdashboard:update'" type="primary" @click="saveAlertSettings" :loading="savingAlertSettings">保存</el-button>
+        <el-button v-permission="'finance:cost:update'" type="primary" @click="saveAlertSettings" :loading="savingAlertSettings">保存</el-button>
       </template>
     </el-dialog>
 
@@ -222,7 +222,7 @@
                 <h4>一键月末结转</h4>
                 <p>自动执行：WIP计算 → WIP凭证 → 差异分摊</p>
               </div>
-              <el-button type="primary" @click="executeCostClosing" :loading="closingLoading">
+              <el-button type="primary" @click="executeCostClosing" :loading="closingLoading" v-permission="'finance:cost:settings'">
                 执行结转
               </el-button>
             </div>

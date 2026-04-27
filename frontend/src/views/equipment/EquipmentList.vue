@@ -17,8 +17,8 @@
         </div>
         <div class="header-actions">
           <el-button type="success" :icon="Download" @click="downloadTemplate">下载模板</el-button>
-          <el-button type="warning" :icon="Upload" @click="showImportDialog">批量导入</el-button>
-          <el-button type="primary" :icon="Plus" @click="openDialog(false)">添加设备</el-button>
+          <el-button type="warning" :icon="Upload" @click="showImportDialog" v-permission="'equipment:list:import'">批量导入</el-button>
+          <el-button type="primary" :icon="Plus" @click="openDialog(false)" v-permission="'equipment:list:create'">添加设备</el-button>
         </div>
       </div>
     </el-card>
@@ -117,7 +117,7 @@
               size="small" 
               type="primary" 
               @click="openDialog(true, scope.row)"
-              v-permission="'equipment:list:update'">
+              v-permission="'production:equipment:update'">
               编辑
             </el-button>
             <el-popconfirm
@@ -130,7 +130,7 @@
                 <el-button 
                   size="small" 
                   type="danger" 
-                  v-permission="'equipment:list:delete'">
+                  v-permission="'production:equipment:delete'">
                   删除
                 </el-button>
               </template>
@@ -449,7 +449,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, onMounted, computed } from 'vue'

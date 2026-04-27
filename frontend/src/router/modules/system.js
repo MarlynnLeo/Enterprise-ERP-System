@@ -80,6 +80,42 @@ export default {
                 requiresAuth: true,
                 permission: 'system:tech-comm'
             }
+        },
+        {
+            path: 'workflow',
+            name: 'system-workflow',
+            component: () => import('../../views/system/WorkflowManagement.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'system:workflow'
+            }
+        },
+        {
+            path: 'coding-rules',
+            name: 'system-coding-rules',
+            component: () => import('../../views/system/CodingRules.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'system:settings'
+            }
+        },
+        {
+            path: 'documents',
+            name: 'system-documents',
+            component: () => import('../../views/system/DocumentManagement.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'system:documents'
+            }
+        },
+        {
+            path: 'business-alerts',
+            name: 'system-business-alerts',
+            component: () => import('../../views/system/BusinessAlerts.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'system:settings'
+            }
         }
     ]
 }

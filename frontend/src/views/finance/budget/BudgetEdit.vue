@@ -6,7 +6,7 @@
           <span>{{ isEdit ? '编辑预算' : '新增预算' }}</span>
           <div>
             <el-button @click="handleCancel">取消</el-button>
-            <el-button v-permission="'finance:budgetedit:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
+            <el-button v-permission="'finance:budgets:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
           </div>
         </div>
       </template>
@@ -89,7 +89,7 @@
 
         <el-divider content-position="left">预算明细</el-divider>
 
-        <el-button v-permission="'finance:budgetedit:create'" type="primary" @click="handleAddDetail" style="margin-bottom: 10px">添加明细</el-button>
+        <el-button v-permission="'finance:budgets:create'" type="primary" @click="handleAddDetail" style="margin-bottom: 10px">添加明细</el-button>
 
         <el-table :data="formData.details" border>
           <el-table-column label="会计科目" width="200">
@@ -146,7 +146,7 @@
           </el-table-column>
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ $index }">
-              <el-button v-permission="'finance:budgetedit:delete'" link type="danger" size="small" @click="handleDeleteDetail($index)">删除</el-button>
+              <el-button v-permission="'finance:budgets:delete'" link type="danger" size="small" @click="handleDeleteDetail($index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -166,6 +166,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
 import api from '@/services/axiosInstance';
+import { formatAmount } from '@/utils/format'
 
 const router = useRouter();
 const route = useRoute();
@@ -338,13 +339,7 @@ const handleCancel = () => {
   router.back();
 };
 
-// 格式化金额
-const formatAmount = (amount) => {
-  return parseFloat(amount || 0).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-};
+// 格式化金额 - 已统一使用 @/utils/format 导入
 
 onMounted(async () => {
   await Promise.all([fetchDepartments(), fetchAccounts()]);

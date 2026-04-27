@@ -123,7 +123,7 @@
   .date-value {
     font-size: 0.875rem;
     font-weight: 600;
-    color: #3b82f6;
+    color: var(--color-primary);
     font-family: 'SF Mono', monospace;
   }
 
@@ -133,7 +133,7 @@
     padding: 14px 16px;
     border: 1px solid var(--glass-border);
     &.total-row {
-      border-color: #3b82f6;
+      border-color: var(--color-primary);
       background: rgba(59, 130, 246, 0.05);
     }
   }
@@ -163,13 +163,13 @@
     color: var(--text-primary);
     font-family: 'SF Mono', monospace;
     &.primary {
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.success {
-      color: #10b981;
+      color: var(--color-success);
     }
     &.danger {
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
 

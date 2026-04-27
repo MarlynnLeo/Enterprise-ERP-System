@@ -14,6 +14,12 @@ if (!process.env.JWT_SECRET) {
 }
 
 if (!process.env.JWT_REFRESH_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'JWT_REFRESH_SECRET environment variable is required in production. ' +
+      'Using the same secret for access and refresh tokens is a security risk.'
+    );
+  }
   logger.warn(
     'JWT_REFRESH_SECRET not set, using JWT_SECRET as fallback. This is not recommended for production.'
   );

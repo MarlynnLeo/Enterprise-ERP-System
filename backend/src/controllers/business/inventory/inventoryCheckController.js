@@ -9,6 +9,8 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
+const { softDelete } = require('../../../utils/softDelete');
+const { CodeGenerators } = require('../../../utils/codeGenerator');
 // const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
@@ -240,14 +242,8 @@ const createCheck = async (req, res) => {
     }
     // ===== 年度结存校验结束 =====
 
-    // 生成盘点单号
-    const dateStr = check_date.replace(/-/g, '');
-    const [result] = await connection.execute(
-      'SELECT MAX(check_no) as max_no FROM inventory_checks WHERE check_no LIKE ?',
-      [`IC${dateStr}%`]
-    );
-    const maxNo = result[0].max_no || `IC${dateStr}000`;
-    const checkNo = `IC${dateStr}${(parseInt(maxNo.slice(-3)) + 1).toString().padStart(3, '0')}`;
+    // ✅ 使用统一编码规则引擎生成盘点单号
+    const checkNo = await CodeGenerators.generateCheckCode(connection);
 
     // 创建盘点单
     const [checkResult] = await connection.execute(
@@ -273,54 +269,60 @@ const createCheck = async (req, res) => {
 
     const checkId = checkResult.insertId;
 
-    // 为该库位的所有物料创建盘点明细条目
-    const [stockItems] = await connection.execute(
-      `SELECT 
-        s.material_id, 
-        s.quantity as system_quantity,
-        m.unit_id
-      FROM ${SIMPLE_STOCK_SUBQUERY} as s
-      JOIN materials m ON s.material_id = m.id
-      WHERE s.location_id = ?`,
-      [location_id]
-    );
+    // 仅针对 全面盘点（full）或周期盘点（cycle），或者未分类的库位盘点时，自动加载账面现有库存
+    // 若为随机盘点（random）或专项盘点（special），则默认创建“空”的盘点单，完全由人工扫码一条条追加
+    const shouldPrepopulate = check_type === 'full' || check_type === 'cycle' || check_type === 'warehouse';
 
-    if (stockItems.length > 0) {
-      for (const item of stockItems) {
-        // 获取该物料最新的库存事务记录，确保使用最新的库存数量
-        const [transactionResult] = await connection.execute(
-          `SELECT after_quantity 
-           FROM inventory_ledger 
-           WHERE material_id = ? AND location_id = ? 
-           ORDER BY created_at DESC 
-           LIMIT 1`,
-          [item.material_id, location_id]
-        );
+    if (shouldPrepopulate) {
+      // 为该库位的所有物料创建盘点明细条目
+      const [stockItems] = await connection.execute(
+        `SELECT 
+          s.material_id, 
+          s.quantity as system_quantity,
+          m.unit_id
+        FROM ${SIMPLE_STOCK_SUBQUERY} as s
+        JOIN materials m ON s.material_id = m.id
+        WHERE s.location_id = ?`,
+        [location_id]
+      );
 
-        // 确定实际系统数量 - 优先使用事务记录的after_quantity
-        let actualSystemQuantity = parseFloat(item.system_quantity || 0);
-        if (transactionResult.length > 0 && transactionResult[0].after_quantity !== null) {
-          actualSystemQuantity = parseFloat(transactionResult[0].after_quantity);
+      if (stockItems.length > 0) {
+        for (const item of stockItems) {
+          // 获取该物料最新的库存事务记录，确保使用最新的库存数量
+          const [transactionResult] = await connection.execute(
+            `SELECT after_quantity 
+             FROM inventory_ledger 
+             WHERE material_id = ? AND location_id = ? 
+             ORDER BY created_at DESC 
+             LIMIT 1`,
+            [item.material_id, location_id]
+          );
+
+          // 确定实际系统数量 - 优先使用事务记录的after_quantity
+          let actualSystemQuantity = parseFloat(item.system_quantity || 0);
+          if (transactionResult.length > 0 && transactionResult[0].after_quantity !== null) {
+            actualSystemQuantity = parseFloat(transactionResult[0].after_quantity);
+          }
+
+          await connection.execute(
+            `INSERT INTO inventory_check_items (
+              check_id, 
+              material_id, 
+              system_quantity, 
+              actual_quantity, 
+              unit_id,
+              difference
+            ) VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              checkId,
+              item.material_id,
+              actualSystemQuantity,
+              actualSystemQuantity, // 默认实际数量等于系统数量
+              item.unit_id,
+              0, // 默认差异为零
+            ]
+          );
         }
-
-        await connection.execute(
-          `INSERT INTO inventory_check_items (
-            check_id, 
-            material_id, 
-            system_quantity, 
-            actual_quantity, 
-            unit_id,
-            difference
-          ) VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            checkId,
-            item.material_id,
-            actualSystemQuantity,
-            actualSystemQuantity, // 默认实际数量等于系统数量
-            item.unit_id,
-            0, // 默认差异为零
-          ]
-        );
       }
     }
 
@@ -450,7 +452,8 @@ const deleteCheck = async (req, res) => {
     await connection.execute('DELETE FROM inventory_check_items WHERE check_id = ?', [id]);
 
     // 删除盘点单
-    await connection.execute('DELETE FROM inventory_checks WHERE id = ?', [id]);
+    // ✅ 软删除盘点单主表
+    await softDelete(connection, 'inventory_checks', 'id', id);
 
     await connection.commit();
 

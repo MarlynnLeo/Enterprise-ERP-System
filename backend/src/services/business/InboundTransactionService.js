@@ -473,13 +473,13 @@ class InboundTransactionService {
             const ncpNo = await NonconformingProduct.generateNcpNo();
             let unitName = 'pcs';
             if (item.unit_id) {
-              const [unitRows] = await connection.execute('SELECT name FROM units WHERE id = ?', [item.unit_id]);
+              const [unitRows] = await connection.execute('SELECT name FROM units WHERE id = ? AND deleted_at IS NULL', [item.unit_id]);
               if (unitRows.length > 0 && unitRows[0].name) unitName = unitRows[0].name;
             }
 
             let locationName = '隔离区';
             if (inboundData.location_id) {
-              const [locRows] = await connection.execute('SELECT name FROM locations WHERE id = ?', [inboundData.location_id]);
+              const [locRows] = await connection.execute('SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL', [inboundData.location_id]);
               if (locRows.length > 0) locationName = locRows[0].name;
             }
 

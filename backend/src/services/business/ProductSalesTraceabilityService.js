@@ -106,7 +106,7 @@ class ProductSalesTraceabilityService {
       // 2. 获取客户信息
       const [customerResult] = await connection.execute(
         `
-        SELECT name, contact_person FROM customers WHERE id = ?
+        SELECT name, contact_person FROM customers WHERE id = ? AND deleted_at IS NULL
       `,
         [customer_id]
       );

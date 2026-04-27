@@ -36,24 +36,6 @@ export const financeApi = {
     updateInvoice: (id, data) => api.put(`/finance/invoices/${id}`, data),
     deleteInvoice: (id) => api.delete(`/finance/invoices/${id}`),
 
-    // 财务统计
-    getStatistics: (params) => api.get('/finance/statistics', { params }),
-    getFinancialStatistics: (params) => api.get('/finance/statistics/cash-flow', { params }),
-    getCashFlow: (params) => api.get('/finance/cash-flow', { params }),
-    getCashFlowStatistics: (params) => api.get('/finance/statistics/cash-flow', { params }),
-    getProfitLoss: (params) => api.get('/finance/profit-loss', { params }),
-
-    // 成本核算
-    getCostCalculations: (params) => api.get('/finance/costs', { params }),
-    calculateCost: (data) => api.post('/finance/costs/calculate', data),
-
-    // 财务报表
-    getFinancialReports: (type, params) => api.get(`/finance/reports/${type}`, { params }),
-    exportFinancialReport: (type, params) => api.get(`/finance/reports/${type}/export`, {
-        params,
-        responseType: 'blob'
-    }),
-
     // 银行账户管理
     getBankAccounts: (params) => api.get('/finance/baseData/bankAccounts', { params }),
     getBankAccount: (id) => api.get(`/finance/cash/bank-accounts/${id}`),

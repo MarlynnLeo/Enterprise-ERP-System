@@ -6,7 +6,7 @@ export default [
     {
         path: 'production',
         name: 'production',
-        component: () => import('../../views/production/ProductionManagement.vue'),
+        redirect: '/production/plan',
         meta: {
             requiresAuth: true,
             permission: 'production'
@@ -65,6 +65,16 @@ export default [
             requiresAuth: true,
             permission: 'production:shortage',
             title: '生产计划缺料统计'
+        }
+    },
+    {
+        path: 'production/mrp',
+        name: 'mrpPlanning',
+        component: () => import('../../views/production/MRPPlanning.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:plans',
+            title: 'MRP物料需求计划'
         }
     }
 ]

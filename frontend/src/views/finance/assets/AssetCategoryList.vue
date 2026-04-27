@@ -14,7 +14,7 @@
           <h2>资产类别管理</h2>
           <p class="subtitle">管理资产分类与属性</p>
         </div>
-        <el-button v-permission="'finance:assetcategorylist:create'" type="primary" :icon="Plus" @click="showAddDialog">新增类别</el-button>
+        <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新增类别</el-button>
       </div>
     </el-card>
 
@@ -62,13 +62,14 @@
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="scope">
-            <el-button size="small" type="primary" @click="handleEdit(scope.row)">编辑</el-button>
+            <el-button size="small" type="primary" @click="handleEdit(scope.row)"
+              v-permission="'finance:assets:categories'">编辑</el-button>
             <el-popconfirm
               title="确定删除此类别吗？"
               @confirm="handleDelete(scope.row.id)"
             >
               <template #reference>
-                <el-button v-permission="'finance:assetcategorylist:delete'" size="small" type="danger" :disabled="scope.row.asset_count > 0" :title="scope.row.asset_count > 0 ? '该类别下有资产，不可删除' : ''">删除</el-button>
+                <el-button v-permission="'finance:assets:delete'" size="small" type="danger" :disabled="scope.row.asset_count > 0" :title="scope.row.asset_count > 0 ? '该类别下有资产，不可删除' : ''">删除</el-button>
               </template>
             </el-popconfirm>
           </template>

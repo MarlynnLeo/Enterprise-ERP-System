@@ -74,7 +74,7 @@
       label: '新建申请',
       path: '/purchase/requisitions/new',
       icon: 'document-text',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
     },
     {
       label: '新建订单',
@@ -92,7 +92,7 @@
       label: '采购概览',
       path: '/purchase/dashboard',
       icon: 'chart-trending-o',
-      gradient: 'linear-gradient(135deg, #FF9F45 0%, #FF8A3D 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
     }
   ])
 

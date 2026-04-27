@@ -23,16 +23,19 @@
           @search="handleSearch"
           @clear="handleClear"
         />
-        
-        <div class="filter-tabs">
+      </div>
+
+      <!-- 横向滑动筛选标签 -->
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
           <div 
             v-for="filter in statusFilters" 
             :key="filter.key"
-            class="filter-tab"
+            class="filter-chip"
             :class="{ active: activeFilter === filter.key }"
             @click="selectFilter(filter.key)"
           >
-            {{ filter.label }}
+            <span class="chip-text">{{ filter.label }}</span>
             <Badge v-if="filter.count > 0" :content="filter.count" />
           </div>
         </div>
@@ -93,19 +96,19 @@
                 
                 <div class="user-details">
                   <div class="detail-item">
-                    <Icon name="contact" size="12" color="#c8c9cc" />
+                    <Icon name="contact" size="12" color="var(--text-disabled)" />
                     <span>{{ user.username }}</span>
                   </div>
                   <div class="detail-item" v-if="user.email">
-                    <Icon name="envelop-o" size="12" color="#c8c9cc" />
+                    <Icon name="envelop-o" size="12" color="var(--text-disabled)" />
                     <span>{{ user.email }}</span>
                   </div>
                   <div class="detail-item" v-if="user.department">
-                    <Icon name="cluster-o" size="12" color="#c8c9cc" />
+                    <Icon name="cluster-o" size="12" color="var(--text-disabled)" />
                     <span>{{ user.department }}</span>
                   </div>
                   <div class="detail-item" v-if="user.role">
-                    <Icon name="shield-o" size="12" color="#c8c9cc" />
+                    <Icon name="shield-o" size="12" color="var(--text-disabled)" />
                     <span>{{ user.role }}</span>
                   </div>
                 </div>
@@ -231,6 +234,7 @@ import {
   NavBar, Icon, Search, Badge, PullRefresh, List, Empty, Button,
   ActionSheet, Popup, Form, Field, showToast, showConfirmDialog 
 } from 'vant';
+import { systemApi } from '@/services/api';
 
 const router = useRouter();
 
@@ -331,90 +335,50 @@ const formatTime = (timestamp) => {
   return date.toLocaleDateString('zh-CN');
 };
 
+// 分页状态
+const currentPage = ref(1);
+const pageSize = 20;
+
 // 加载用户数据
 const loadUsers = async (isRefresh = false) => {
   if (isRefresh) {
     users.value = [];
+    currentPage.value = 1;
     finished.value = false;
   }
 
   try {
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 模拟用户数据
-    const mockUsers = [
-      {
-        id: 1,
-        username: 'admin',
-        name: '系统管理员',
-        email: 'admin@example.com',
-        phone: '138****8888',
-        department: '信息技术部',
-        role: '超级管理员',
-        status: 'active',
-        isOnline: true,
-        lastLogin: Date.now() - 300000,
-        loginCount: 1250,
-        avatar: null
-      },
-      {
-        id: 2,
-        username: 'zhangsan',
-        name: '张三',
-        email: 'zhangsan@example.com',
-        phone: '139****9999',
-        department: '生产部',
-        role: '部门经理',
-        status: 'active',
-        isOnline: false,
-        lastLogin: Date.now() - 3600000,
-        loginCount: 856,
-        avatar: null
-      },
-      {
-        id: 3,
-        username: 'lisi',
-        name: '李四',
-        email: 'lisi@example.com',
-        phone: '137****7777',
-        department: '销售部',
-        role: '销售员',
-        status: 'active',
-        isOnline: true,
-        lastLogin: Date.now() - 1800000,
-        loginCount: 432,
-        avatar: null
-      },
-      {
-        id: 4,
-        username: 'wangwu',
-        name: '王五',
-        email: 'wangwu@example.com',
-        phone: '136****6666',
-        department: '财务部',
-        role: '会计',
-        status: 'disabled',
-        isOnline: false,
-        lastLogin: Date.now() - 86400000,
-        loginCount: 123,
-        avatar: null
-      }
-    ];
-    
-    const newUsers = isRefresh ? mockUsers : [];
-    
+    const response = await systemApi.getUsers({
+      page: currentPage.value,
+      pageSize,
+      keyword: searchKeyword.value || undefined
+    });
+    const data = response.data;
+    const list = data?.list || data?.rows || (Array.isArray(data) ? data : []);
+
+    // 规范化字段
+    const normalized = list.map(u => ({
+      ...u,
+      name: u.real_name || u.name || u.username,
+      department: u.department_name || u.department || '',
+      role: u.role_name || u.role || '',
+      isOnline: false,
+      lastLogin: u.last_login_at || u.lastLogin || null,
+      loginCount: u.login_count || 0
+    }));
+
     if (isRefresh) {
-      users.value = newUsers;
+      users.value = normalized;
     } else {
-      users.value.push(...newUsers);
+      users.value.push(...normalized);
     }
-    
-    finished.value = newUsers.length < 20;
-    
+
+    finished.value = normalized.length < pageSize;
+    currentPage.value++;
+
     // 更新筛选器计数
     updateFilterCounts();
-    
+
   } catch (error) {
     console.error('加载用户失败:', error);
     showToast('加载失败，请重试');
@@ -533,38 +497,22 @@ const closeUserDialog = () => {
 
 const saveUser = async () => {
   saving.value = true;
-  
+
   try {
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
     if (editingUser.value) {
-      // 更新用户
-      const index = users.value.findIndex(u => u.id === editingUser.value.id);
-      if (index !== -1) {
-        users.value[index] = { ...users.value[index], ...userForm };
-      }
+      await systemApi.updateUser(editingUser.value.id, { ...userForm });
       showToast('用户更新成功');
     } else {
-      // 创建用户
-      const newUser = {
-        id: Date.now(),
-        ...userForm,
-        isOnline: false,
-        lastLogin: null,
-        loginCount: 0,
-        avatar: null
-      };
-      users.value.unshift(newUser);
+      await systemApi.createUser({ ...userForm });
       showToast('用户创建成功');
     }
-    
+
     closeUserDialog();
-    updateFilterCounts();
-    
+    loadUsers(true);
+
   } catch (error) {
     console.error('保存用户失败:', error);
-    showToast('保存失败，请重试');
+    showToast(error?.response?.data?.message || '保存失败，请重试');
   } finally {
     saving.value = false;
   }
@@ -572,56 +520,54 @@ const saveUser = async () => {
 
 const resetPassword = async (user) => {
   try {
-    const result = await showConfirmDialog({
+    await showConfirmDialog({
       title: '重置密码',
       message: `确定要重置用户 ${user.name} 的密码吗？`
     });
-    
-    if (result === 'confirm') {
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      showToast('密码重置成功');
-    }
+
+    await systemApi.resetUserPassword(user.id);
+    showToast('密码重置成功');
   } catch (error) {
-    // 用户取消
+    if (error !== 'cancel') {
+      showToast('重置失败，请重试');
+    }
   }
 };
 
 const toggleUserStatus = async (user, status) => {
   try {
     const action = status === 'disabled' ? '禁用' : '启用';
-    const result = await showConfirmDialog({
+    await showConfirmDialog({
       title: `${action}用户`,
       message: `确定要${action}用户 ${user.name} 吗？`
     });
-    
-    if (result === 'confirm') {
-      user.status = status;
-      showToast(`用户${action}成功`);
-      updateFilterCounts();
-    }
+
+    await systemApi.updateUserStatus(user.id, status);
+    user.status = status;
+    showToast(`用户${action}成功`);
+    updateFilterCounts();
   } catch (error) {
-    // 用户取消
+    if (error !== 'cancel') {
+      showToast('操作失败，请重试');
+    }
   }
 };
 
 const deleteUser = async (user) => {
   try {
-    const result = await showConfirmDialog({
+    await showConfirmDialog({
       title: '删除用户',
       message: `确定要删除用户 ${user.name} 吗？此操作不可恢复。`
     });
-    
-    if (result === 'confirm') {
-      const index = users.value.findIndex(u => u.id === user.id);
-      if (index !== -1) {
-        users.value.splice(index, 1);
-        showToast('用户删除成功');
-        updateFilterCounts();
-      }
-    }
+
+    await systemApi.deleteUser(user.id);
+    users.value = users.value.filter(u => u.id !== user.id);
+    showToast('用户删除成功');
+    updateFilterCounts();
   } catch (error) {
-    // 用户取消
+    if (error !== 'cancel') {
+      showToast('删除失败，请重试');
+    }
   }
 };
 
@@ -654,32 +600,40 @@ onMounted(() => {
 }
 
 .search-section {
-  margin-bottom: 16px;
-
-  .filter-tabs {
-    display: flex;
-    background: var(--bg-secondary);
-    border-radius: 8px;
-    padding: 4px;
-    margin-top: 12px;
-    overflow-x: auto;
-
-    .filter-tab {
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      padding: 8px 12px;
-      font-size: 12px;
-      color: var(--text-secondary);
-      border-radius: 6px;
-      transition: all 0.2s;
-      white-space: nowrap;
-
-      &.active {
-        background-color: var(--color-primary);
-        color: #fff;
-      }
-    }
+  margin-bottom: 4px;
+}
+.filter-scroll-wrapper {
+  padding: 4px 0 8px;
+  overflow: hidden;
+}
+.filter-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--glass-border);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
+  cursor: pointer;
+  .chip-text { font-weight: 500; }
+  &.active {
+    background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
+    border-color: var(--color-accent, var(--color-primary));
+    color: var(--color-accent, var(--color-primary));
   }
 }
 
@@ -746,7 +700,7 @@ onMounted(() => {
         align-items: center;
         justify-content: center;
         background-color: var(--color-primary);
-        color: #fff;
+        color: var(--text-primary);
         font-size: 18px;
         font-weight: 600;
       }
@@ -782,7 +736,7 @@ onMounted(() => {
           padding: 2px 8px;
           border-radius: 10px;
           font-size: 10px;
-          color: #fff;
+          color: var(--text-primary);
 
           &.active {
             background-color: var(--module-green);

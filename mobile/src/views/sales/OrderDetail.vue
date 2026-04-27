@@ -122,11 +122,22 @@ const order = ref(null)
 
 // 状态样式映射
 const statusClass = {
+    draft: 'bg-gray-500',
     pending: 'bg-yellow-500',
     confirmed: 'bg-blue-500',
+    approved: 'bg-blue-500',
+    in_production: 'bg-indigo-500',
+    in_procurement: 'bg-indigo-500',
+    processing: 'bg-indigo-500',
+    ready_to_ship: 'bg-blue-500',
+    shortage: 'bg-red-500',
+    partial_shipped: 'bg-indigo-500',
+    shipped: 'bg-indigo-500',
     shipping: 'bg-indigo-500',
+    delivered: 'bg-green-500',
     completed: 'bg-green-500',
-    cancelled: 'bg-gray-500'
+    cancelled: 'bg-gray-500',
+    closed: 'bg-gray-500'
 }
 
 // 获取详情
@@ -134,7 +145,7 @@ const fetchDetail = async () => {
     loading.value = true
     try {
         const res = await salesApi.getSalesOrder(id)
-        order.value = res.data || res
+        order.value = res.data?.data || res.data || res
     } catch (error) {
         console.error('获取销售订单详情失败:', error)
         showToast('加载失败')
@@ -146,11 +157,22 @@ const fetchDetail = async () => {
 // 状态文本
 const getStatusText = (status) => {
     const map = {
-        pending: '待确认',
+        draft: '草稿',
+        pending: '待处理',
         confirmed: '已确认',
+        approved: '已批准',
+        in_production: '生产中',
+        in_procurement: '采购中',
+        processing: '处理中',
+        ready_to_ship: '待发货',
+        shortage: '缺料',
+        partial_shipped: '部分发货',
+        shipped: '已发货',
         shipping: '发货中',
+        delivered: '已交付',
         completed: '已完成',
-        cancelled: '已取消'
+        cancelled: '已取消',
+        closed: '已关闭'
     }
     return map[status] || status
 }
@@ -158,11 +180,22 @@ const getStatusText = (status) => {
 // 状态图标
 const getStatusIcon = (status) => {
     const map = {
+        draft: 'document-text',
         pending: 'clock',
         confirmed: 'check',
+        approved: 'check',
+        in_production: 'refresh',
+        in_procurement: 'refresh',
+        processing: 'refresh',
+        ready_to_ship: 'check-circle',
+        shortage: 'x-circle',
+        partial_shipped: 'truck',
+        shipped: 'truck',
         shipping: 'truck',
+        delivered: 'check-circle',
         completed: 'check-circle',
-        cancelled: 'x-circle'
+        cancelled: 'x-circle',
+        closed: 'x-circle'
     }
     return map[status] || 'document-text'
 }
@@ -206,7 +239,7 @@ onMounted(() => {
 .back-btn {
     background: none;
     border: none;
-    color: white;
+    color: var(--text-primary);
     padding: 0.5rem;
     margin-left: -0.5rem;
     cursor: pointer;
@@ -215,7 +248,7 @@ onMounted(() => {
 .page-title {
     font-size: 1.125rem;
     font-weight: 600;
-    color: white;
+    color: var(--text-primary);
 }
 
 .nav-actions {
@@ -243,7 +276,7 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--text-primary);
     box-shadow: none;
 }
 
@@ -254,7 +287,7 @@ onMounted(() => {
 .status-text {
     font-size: 1.125rem;
     font-weight: 600;
-    color: white;
+    color: var(--text-primary);
     margin-bottom: 0.25rem;
 }
 
@@ -297,13 +330,13 @@ onMounted(() => {
 }
 
 .info-value {
-    color: white;
+    color: var(--text-primary);
     text-align: right;
     flex: 1;
 }
 
 .highlight-money {
-    color: #fbbf24;
+    color: var(--color-warning);
     font-family: monospace;
     font-weight: 600;
 }
@@ -350,11 +383,11 @@ onMounted(() => {
 
 /* 状态颜色 */
 .bg-yellow-500 {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
+    background: linear-gradient(135deg, var(--color-warning), #d97706);
 }
 
 .bg-blue-500 {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    background: linear-gradient(135deg, var(--color-primary), #2563eb);
 }
 
 .bg-indigo-500 {
@@ -362,11 +395,15 @@ onMounted(() => {
 }
 
 .bg-green-500 {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: linear-gradient(135deg, var(--color-success), var(--color-success));
 }
 
 .bg-gray-500 {
-    background: linear-gradient(135deg, #6b7280, #4b5563);
+    background: linear-gradient(135deg, var(--text-secondary), var(--text-secondary));
+}
+
+.bg-red-500 {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
 }
 
 .basic-list-item {

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="rework-tasks-container">
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -117,7 +117,8 @@
               size="small" 
               @click="assignTask(row)"
               v-if="row.status === 'pending'"
-            >
+            
+              v-permission="'quality:rework:update'">
               分配任务
             </el-button>
             <el-button 
@@ -126,7 +127,7 @@
               size="small" 
               @click="completeTask(row)"
               v-if="row.status === 'in_progress'"
-            >
+              v-permission="'quality:rework:update'">
               完成返工
             </el-button>
             <el-button 
@@ -135,7 +136,7 @@
               size="small" 
               @click="editTask(row)"
               v-if="row.status === 'pending' || row.status === 'in_progress'"
-            >
+              v-permission="'quality:rework:update'">
               编辑
             </el-button>
           </template>
@@ -241,7 +242,7 @@
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:reworktasks:update'" type="primary" @click="submitEdit">保存</el-button>
+        <el-button v-permission="'quality:rework:update'" type="primary" @click="submitEdit">保存</el-button>
       </template>
     </el-dialog>
 
@@ -281,11 +282,6 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 const searchForm = reactive({
   reworkNo: '',
   ncpNo: '',

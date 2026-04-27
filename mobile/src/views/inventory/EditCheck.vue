@@ -16,7 +16,7 @@
     
     <div class="content-container">
       <div v-if="loading" class="loading-container">
-        <Loading type="spinner" color="#1989fa" />
+        <Loading type="spinner" color="var(--color-primary)" />
         <p class="loading-text">加载中...</p>
       </div>
       
@@ -434,19 +434,19 @@ onMounted(() => {
 }
 
 .loading-text {
-  margin-top: $margin-sm;
+  margin-top: 8px;
   color: var(--text-secondary);
 }
 
 .material-list-container {
-  margin-top: $margin-md;
+  margin-top: 12px;
 }
 
 .material-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 $padding-md $padding-sm;
+  padding: 0 12px 8px;
 }
 
 .header-title {
@@ -455,18 +455,18 @@ onMounted(() => {
 }
 
 .empty-tips {
-  padding: $padding-lg 0;
+  padding: 24px 0;
 }
 
 .material-list {
-  padding: 0 $padding-sm;
+  padding: 0 8px;
 }
 
 .material-card {
-  background-color: white;
-  border-radius: $border-radius-md;
-  padding: $padding-md;
-  margin-bottom: $margin-sm;
+  background-color: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
   box-shadow: none;
 }
 
@@ -474,7 +474,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: $margin-xs;
+  margin-bottom: 4px;
 }
 
 .material-code {
@@ -488,20 +488,20 @@ onMounted(() => {
 
 .material-name {
   font-weight: bold;
-  margin-bottom: $margin-sm;
+  margin-bottom: 8px;
 }
 
 .material-quantities {
   display: flex;
   justify-content: space-between;
-  margin-bottom: $margin-sm;
+  margin-bottom: 8px;
 }
 
 .qty-item {
   flex: 1;
   
   &:first-child {
-    margin-right: $margin-md;
+    margin-right: 12px;
   }
 }
 
@@ -521,7 +521,7 @@ onMounted(() => {
 }
 
 .material-remark {
-  margin-top: $margin-sm;
+  margin-top: 8px;
 }
 
 .bottom-actions {
@@ -529,8 +529,8 @@ onMounted(() => {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: $padding-md;
-  background-color: white;
+  padding: 12px;
+  background-color: var(--bg-primary);
   box-shadow: none;
   z-index: 10;
 }
@@ -546,7 +546,7 @@ onMounted(() => {
 }
 
 .picker-header {
-  padding: $padding-md;
+  padding: 12px;
   border-bottom: 1px solid var(--van-border-color);
 }
 
@@ -557,7 +557,7 @@ onMounted(() => {
 }
 
 .picker-search {
-  padding: $padding-sm;
+  padding: 8px;
 }
 
 .picker-content {

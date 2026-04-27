@@ -6,6 +6,7 @@
  */
 
 const expenseModel = require('../../../models/expense');
+const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
@@ -18,10 +19,10 @@ const expenseController = {
   async initExpenseTables(req, res) {
     try {
       const result = await expenseModel.initTables();
-      res.json({ success: true, message: '费用管理表初始化成功', data: result });
+      ResponseHandler.success(res, result, '费用管理表初始化成功');
     } catch (error) {
       logger.error('初始化费用管理表失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '初始化费用管理表失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -36,7 +37,7 @@ const expenseController = {
 
       if (tree === 'true') {
         const data = await expenseModel.getExpenseCategoryTree();
-        return res.json({ success: true, data });
+        return ResponseHandler.success(res, data, '获取费用类型树成功');
       }
 
       const filters = {};
@@ -44,10 +45,10 @@ const expenseController = {
       if (parentId !== undefined) filters.parentId = parentId;
 
       const data = await expenseModel.getExpenseCategories(filters);
-      res.json({ success: true, data });
+      ResponseHandler.success(res, data, '获取费用类型列表成功');
     } catch (error) {
       logger.error('获取费用类型列表失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '获取费用类型列表失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -59,7 +60,7 @@ const expenseController = {
       const { code, name, parent_id, description, status, sort_order } = req.body;
 
       if (!code || !name) {
-        return res.status(400).json({ success: false, message: '编码和名称为必填项' });
+        return ResponseHandler.error(res, '编码和名称为必填项', 'VALIDATION_ERROR', 400);
       }
 
       const result = await expenseModel.createExpenseCategory({
@@ -71,13 +72,13 @@ const expenseController = {
         sort_order,
       });
 
-      res.json({ success: true, message: '费用类型创建成功', data: result });
+      ResponseHandler.success(res, result, '费用类型创建成功');
     } catch (error) {
       logger.error('创建费用类型失败:', error);
       if (error.code === 'ER_DUP_ENTRY') {
-        return res.status(400).json({ success: false, message: '类型编码已存在' });
+        return ResponseHandler.error(res, '类型编码已存在', 'VALIDATION_ERROR', 400);
       }
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '创建费用类型失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -88,10 +89,10 @@ const expenseController = {
     try {
       const { id } = req.params;
       const result = await expenseModel.updateExpenseCategory(id, req.body);
-      res.json({ success: true, message: '费用类型更新成功', data: result });
+      ResponseHandler.success(res, result, '费用类型更新成功');
     } catch (error) {
       logger.error('更新费用类型失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '更新费用类型失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -102,10 +103,10 @@ const expenseController = {
     try {
       const { id } = req.params;
       const result = await expenseModel.deleteExpenseCategory(id);
-      res.json({ success: true, message: '费用类型删除成功', data: result });
+      ResponseHandler.success(res, result, '费用类型删除成功');
     } catch (error) {
       logger.error('删除费用类型失败:', error);
-      res.status(400).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
     }
   },
 
@@ -117,10 +118,10 @@ const expenseController = {
   async generateExpenseNumber(req, res) {
     try {
       const number = await expenseModel.generateExpenseNumber();
-      res.json({ success: true, data: { expense_number: number } });
+      ResponseHandler.success(res, { expense_number: number }, '生成费用编号成功');
     } catch (error) {
       logger.error('生成费用编号失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '生成费用编号失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -149,10 +150,10 @@ const expenseController = {
       if (created_by) filters.created_by = parseInt(created_by);
 
       const result = await expenseModel.getExpenses(filters, parseInt(page), parseInt(pageSize));
-      res.json({ success: true, ...result });
+      ResponseHandler.success(res, result, '获取费用列表成功');
     } catch (error) {
       logger.error('获取费用列表失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '获取费用列表失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -165,7 +166,7 @@ const expenseController = {
       const data = await expenseModel.getExpenseById(id);
 
       if (!data) {
-        return res.status(404).json({ success: false, message: '费用记录不存在' });
+        return ResponseHandler.error(res, '费用记录不存在', 'NOT_FOUND', 404);
       }
 
       // 确保金额字段是数字类型
@@ -173,10 +174,10 @@ const expenseController = {
         data.amount = parseFloat(data.amount);
       }
 
-      res.json({ success: true, data });
+      ResponseHandler.success(res, data, '获取费用详情成功');
     } catch (error) {
       logger.error('获取费用详情失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '获取费用详情失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -188,9 +189,7 @@ const expenseController = {
       const { category_id, title, amount, expense_date } = req.body;
 
       if (!category_id || !title || !amount || !expense_date) {
-        return res
-          .status(400)
-          .json({ success: false, message: '费用类型、标题、金额和日期为必填项' });
+        return ResponseHandler.error(res, '费用类型、标题、金额和日期为必填项', 'VALIDATION_ERROR', 400);
       }
 
       const data = {
@@ -199,10 +198,10 @@ const expenseController = {
       };
 
       const result = await expenseModel.createExpense(data);
-      res.json({ success: true, message: '费用创建成功', data: result });
+      ResponseHandler.success(res, result, '费用创建成功');
     } catch (error) {
       logger.error('创建费用记录失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '创建费用记录失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -213,10 +212,10 @@ const expenseController = {
     try {
       const { id } = req.params;
       const result = await expenseModel.updateExpense(id, req.body);
-      res.json({ success: true, message: '费用更新成功', data: result });
+      ResponseHandler.success(res, result, '费用更新成功');
     } catch (error) {
       logger.error('更新费用记录失败:', error);
-      res.status(400).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
     }
   },
 
@@ -233,7 +232,7 @@ const expenseController = {
       // 1. 获取费用详情
       const expense = await expenseModel.getExpenseById(id);
       if (!expense) {
-        return res.status(404).json({ success: false, message: '费用记录不存在' });
+        return ResponseHandler.error(res, '费用记录不存在', 'NOT_FOUND', 404);
       }
 
       // 2. 提交到本地审批
@@ -283,14 +282,10 @@ const expenseController = {
         }
       }
 
-      res.json({
-        success: true,
-        message: '已提交审批',
-        data: { ...result, dingtalk: dingtalkResult },
-      });
+      ResponseHandler.success(res, { ...result, dingtalk: dingtalkResult }, '已提交审批');
     } catch (error) {
       logger.error('提交审批失败:', error);
-      res.status(400).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
     }
   },
 
@@ -304,15 +299,15 @@ const expenseController = {
       const userId = req.user?.id || 1;
 
       if (!['approve', 'reject'].includes(action)) {
-        return res.status(400).json({ success: false, message: '无效的审批操作' });
+        return ResponseHandler.error(res, '无效的审批操作', 'VALIDATION_ERROR', 400);
       }
 
       const result = await expenseModel.approveExpense(id, userId, action, remark || '');
       const message = action === 'approve' ? '审批通过' : '已驳回';
-      res.json({ success: true, message, data: result });
+      ResponseHandler.success(res, result, message);
     } catch (error) {
       logger.error('审批费用失败:', error);
-      res.status(400).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
     }
   },
 
@@ -325,16 +320,16 @@ const expenseController = {
       const { bank_account_id, transaction_id } = req.body;
 
       if (!bank_account_id) {
-        return res.status(400).json({ success: false, message: '请选择付款账户' });
+        return ResponseHandler.error(res, '请选择付款账户', 'VALIDATION_ERROR', 400);
       }
 
       // 注意：GL 会计分录已在 expense model 的 payExpense 方法中自动生成（含事务保护），
       // 此处不再重复生成，避免双重记账
       const result = await expenseModel.payExpense(id, { bank_account_id, transaction_id });
-      res.json({ success: true, message: '付款成功，已自动生成会计凭证', data: result });
+      ResponseHandler.success(res, result, '付款成功，已自动生成会计凭证');
     } catch (error) {
       logger.error('付款处理失败:', error);
-      res.status(400).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
     }
   },
 
@@ -345,10 +340,10 @@ const expenseController = {
     try {
       const { id } = req.params;
       const result = await expenseModel.deleteExpense(id);
-      res.json({ success: true, message: '费用删除成功', data: result });
+      ResponseHandler.success(res, result, '费用删除成功');
     } catch (error) {
       logger.error('删除费用记录失败:', error);
-      res.status(400).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
     }
   },
 
@@ -359,10 +354,10 @@ const expenseController = {
     try {
       const { id } = req.params;
       const result = await expenseModel.cancelExpense(id);
-      res.json({ success: true, message: '费用已取消', data: result });
+      ResponseHandler.success(res, result, '费用已取消');
     } catch (error) {
       logger.error('取消费用失败:', error);
-      res.status(400).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
     }
   },
 
@@ -377,10 +372,10 @@ const expenseController = {
       if (endDate) filters.endDate = endDate;
 
       const data = await expenseModel.getExpenseStats(filters);
-      res.json({ success: true, data });
+      ResponseHandler.success(res, data, '获取费用统计成功');
     } catch (error) {
       logger.error('获取费用统计失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, '获取费用统计失败', 'SERVER_ERROR', 500, error);
     }
   },
 };

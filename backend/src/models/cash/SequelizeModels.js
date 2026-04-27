@@ -7,9 +7,73 @@
 
 const sequelize = require('../../config/sequelize');
 const { DataTypes } = require('sequelize');
-const BankAccount = require('../bankAccount'); // 假定bankAccount.js是Sequelize模型。如果不是，这里可能会有问题。检查下cash.js的行）
-// 在 cash.js 某行：const BankAccount = require('./bankAccount');
-// 如果 bankAccount.js 是 Sequelize 模型，则可以直接使用。// 回头看bankAccount.js: Size 1526, 应该也是个模型）
+
+// 银行账户Sequelize模型（原 bankAccount.js 已清理，内联定义于此）
+const BankAccount = sequelize.define(
+  'BankAccount',
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    bank_name: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+    },
+    account_name: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+    },
+    account_number: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+    },
+    account_type: {
+      type: DataTypes.ENUM('checking', 'savings', 'credit', 'cash'),
+      allowNull: false,
+      defaultValue: 'checking',
+    },
+    currency_code: {
+      type: DataTypes.STRING(3),
+      allowNull: false,
+      defaultValue: 'CNY',
+    },
+    opening_balance: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: false,
+      defaultValue: 0.0,
+    },
+    current_balance: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: false,
+      defaultValue: 0.0,
+    },
+    notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
+    created_by: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    updated_by: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+  },
+  {
+    tableName: 'bank_accounts',
+    timestamps: true,
+    underscored: true,
+  }
+);
+
 // 交易模型
 const Transaction = sequelize.define(
   'Transaction',
@@ -192,21 +256,16 @@ const ReconciliationItem = sequelize.define(
 );
 
 // 建立关联关系
-// 注意：如果 BankAccount 也是一个 Sequelize 模型，关系建立会更顺利。假设 BankAccount 可用。如果 bankAccount.js 没有导出 Sequelize 模型，belongsTo 需要一个 Model 类。
-try {
-  Transaction.belongsTo(BankAccount, { foreignKey: 'account_id', as: 'account' });
-  Transaction.belongsTo(BankAccount, { foreignKey: 'target_account_id', as: 'targetAccount' });
+Transaction.belongsTo(BankAccount, { foreignKey: 'account_id', as: 'account' });
+Transaction.belongsTo(BankAccount, { foreignKey: 'target_account_id', as: 'targetAccount' });
 
-  Reconciliation.belongsTo(BankAccount, { foreignKey: 'account_id', as: 'account' });
-  Reconciliation.hasMany(ReconciliationItem, { foreignKey: 'reconciliation_id', as: 'items' });
+Reconciliation.belongsTo(BankAccount, { foreignKey: 'account_id', as: 'account' });
+Reconciliation.hasMany(ReconciliationItem, { foreignKey: 'reconciliation_id', as: 'items' });
 
-  ReconciliationItem.belongsTo(Reconciliation, { foreignKey: 'reconciliation_id' });
-  ReconciliationItem.belongsTo(Transaction, { foreignKey: 'transaction_id' });
+ReconciliationItem.belongsTo(Reconciliation, { foreignKey: 'reconciliation_id' });
+ReconciliationItem.belongsTo(Transaction, { foreignKey: 'transaction_id' });
 
-  Transaction.hasMany(ReconciliationItem, { foreignKey: 'transaction_id' });
-} catch (e) {
-  console.warn('关联关系建立失败，可能是 BankAccount 并非 Sequelize 模型:', e.message);
-}
+Transaction.hasMany(ReconciliationItem, { foreignKey: 'transaction_id' });
 
 module.exports = {
   Transaction,

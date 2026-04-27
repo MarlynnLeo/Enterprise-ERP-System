@@ -33,7 +33,7 @@
     <div v-else-if="material" class="content">
       <!-- 物料头部信息 -->
       <div class="header-card">
-        <div class="material-icon">📦</div>
+        <div class="material-icon"><VanIcon name="orders-o" size="24px" /></div>
         <div class="material-info">
           <h2 class="material-name">{{ material.name }}</h2>
           <p class="material-code">{{ material.code }}</p>
@@ -177,9 +177,9 @@ const loadMaterialDetail = async () => {
 
   loading.value = true
   try {
-    console.log('🔍 加载物料详情，ID:', materialId)
+    // 加载物料详情
     const response = await baseDataApi.getMaterial(materialId)
-    console.log('🔍 物料详情响应:', response)
+    
 
     // 处理响应数据
     if (response.data) {
@@ -188,9 +188,9 @@ const loadMaterialDetail = async () => {
       material.value = response
     }
 
-    console.log('🔍 物料详情:', material.value)
+    
   } catch (error) {
-    console.error('❌ 加载物料详情失败:', error)
+    console.error('加载物料详情失败:', error)
     showToast('加载失败，请重试')
   } finally {
     loading.value = false
@@ -208,7 +208,11 @@ const getStatusClass = (status) => {
   const statusMap = {
     'active': 'status-active',
     'inactive': 'status-inactive',
-    'discontinued': 'status-discontinued'
+    'discontinued': 'status-discontinued',
+    1: 'status-active',
+    0: 'status-inactive',
+    '1': 'status-active',
+    '0': 'status-inactive'
   }
   return statusMap[status] || 'status-inactive'
 }
@@ -218,9 +222,13 @@ const getStatusText = (status) => {
   const statusMap = {
     'active': '启用',
     'inactive': '停用',
-    'discontinued': '停产'
+    'discontinued': '停产',
+    1: '启用',
+    0: '停用',
+    '1': '启用',
+    '0': '停用'
   }
-  return statusMap[status] || status
+  return statusMap[status] ?? '未知'
 }
 
 // 获取物料类型文本
@@ -263,7 +271,7 @@ const goBack = () => {
 
 // 编辑
 const handleEdit = () => {
-  showToast('编辑功能开发中')
+  router.push(`/baseData/materials/${route.params.id}/edit`)
 }
 
 // 页面加载时获取数据

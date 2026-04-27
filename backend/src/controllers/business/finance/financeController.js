@@ -425,24 +425,23 @@ const financeController = {
         return ResponseHandler.error(res, '分录明细为必填项且不能为空', 'VALIDATION_ERROR', 400);
       }
 
-      // 验证借贷平衡
-      let totalDebit = 0;
-      let totalCredit = 0;
+      // 验证借贷平衡（使用整数"分"累加，避免浮点精度偏移）
+      let totalDebitCents = 0;
+      let totalCreditCents = 0;
 
       for (const item of items) {
         if (!item.account_id) {
           return ResponseHandler.error(res, '每个分录明细必须包含科目ID', 'VALIDATION_ERROR', 400);
         }
 
-        totalDebit += parseFloat(item.debit_amount || 0);
-        totalCredit += parseFloat(item.credit_amount || 0);
+        totalDebitCents += Math.round((parseFloat(item.debit_amount) || 0) * 100);
+        totalCreditCents += Math.round((parseFloat(item.credit_amount) || 0) * 100);
       }
 
-      // 四舍五入到两位小数，避免浮点数精度问题
-      totalDebit = Math.round(totalDebit * 100) / 100;
-      totalCredit = Math.round(totalCredit * 100) / 100;
+      const totalDebit = totalDebitCents / 100;
+      const totalCredit = totalCreditCents / 100;
 
-      if (totalDebit !== totalCredit) {
+      if (totalDebitCents !== totalCreditCents) {
         return ResponseHandler.error(res, '借贷不平衡', 'VALIDATION_ERROR', 400, {
           totalDebit,
           totalCredit,

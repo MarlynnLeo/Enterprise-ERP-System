@@ -9,6 +9,7 @@ import axios from 'axios'
 import { api, qualityApi, purchaseApi, baseDataApi } from '@/services/api'
 import { parseApiResponse, parseListData } from '@/utils/responseParser'
 import logger from '@/utils/logger'
+import { tokenManager } from '@/utils/unifiedStorage'
 
 /**
  * 从检验单获取或补全供应商信息
@@ -241,7 +242,7 @@ export async function fetchInspectionDetailWithItems(
       const itemsResponse = await axios.get(
         `${api.defaults.baseURL}/quality/inspections/${id}/items`,
         {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          headers: { 'Authorization': `Bearer ${tokenManager.getToken()}` }
         }
       )
       const itemsResult = parseApiResponse(itemsResponse)

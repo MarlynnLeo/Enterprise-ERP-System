@@ -28,7 +28,6 @@
 
 <script>
 
-import apiAdapter from '@/utils/apiAdapter';
 
 
 import { ElMessage } from 'element-plus';

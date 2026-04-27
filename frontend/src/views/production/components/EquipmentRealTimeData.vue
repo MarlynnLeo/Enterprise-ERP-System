@@ -89,7 +89,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'

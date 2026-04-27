@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * IncomeStatement.vue
  * @description 前端界面组件文件
@@ -15,9 +15,9 @@
           <p class="subtitle">查看收入与利润状况</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport">生成报表</el-button>
-          <el-button v-permission="'finance:incomestatement:print'" @click="printReport" :disabled="!reportData.length">打印报表</el-button>
-          <el-button v-permission="'finance:incomestatement:export'" @click="exportExcel" :disabled="!reportData.length">导出Excel</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:income-statement'">生成报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.length">打印报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.length">导出Excel</el-button>
         </div>
       </div>
     </el-card>
@@ -152,17 +152,11 @@
 
 <script setup>
 import { ReportHelper } from '@/utils/commonHelpers'
-import apiAdapter from '@/utils/apiAdapter';
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import ExcelJS from 'exceljs';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 查询参数
 const queryParams = reactive({
   startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10), // 默认为当月1日

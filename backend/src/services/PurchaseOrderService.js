@@ -37,7 +37,7 @@ class PurchaseOrderService {
    */
   static async getSupplierInfo(connection, supplierId) {
     try {
-      const [rows] = await connection.query('SELECT name FROM suppliers WHERE id = ?', [
+      const [rows] = await connection.query('SELECT name FROM suppliers WHERE id = ? AND deleted_at IS NULL', [
         supplierId,
       ]);
       return rows[0] || null;
@@ -136,6 +136,14 @@ class PurchaseOrderService {
     // 检查必须字段
     if (!itemCode || !itemName) {
       throw new Error(`物料信息不完整，ID: ${material_id}, 编码: ${itemCode}, 名称: ${itemName}`);
+    }
+
+    // ✅ 数据完整性校验：价格和数量必须为非负数
+    if (typeof quantity !== 'number' || quantity <= 0) {
+      throw new Error(`物料 ${itemCode} 的数量必须大于0，当前值: ${quantity}`);
+    }
+    if (itemPrice < 0) {
+      throw new Error(`物料 ${itemCode} 的单价不能为负数，当前值: ${itemPrice}`);
     }
 
     return {

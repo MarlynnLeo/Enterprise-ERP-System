@@ -176,71 +176,29 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 检查用户是否有权限访问该路由
+  // 统一复用 authStore.hasPermission，消除重复的权限判断逻辑
   if (to.meta.permission && authStore.isAuthenticated) {
-    const userPermissions = authStore.permissions || []
     const requiredPermission = to.meta.permission
 
-    // 权限检查函数
-    const checkRoutePermission = (permissions, required) => {
-      // 超级管理员通配符: ["*"] 表示拥有所有权限
-      if (permissions.includes('*')) {
+    // 路由级权限检查：精确匹配 + 拥有子权限也允许进入父级页面
+    const checkRoutePermission = () => {
+      // 核心判断委托给 authStore（支持 * 通配符、精确匹配、前缀通配符）
+      if (authStore.hasPermission(requiredPermission)) {
         return true
       }
-      // 精确匹配
-      if (permissions.includes(required)) {
-        return true
-      }
-      // 通配符匹配和层级权限
-      else if (required.includes(':')) {
-        const parts = required.split(':')
-        const basePermission = parts[0]
-
-        // 检查是否有通配符匹配
-        if (permissions.includes(`${basePermission}:*`)) {
-          return true
-        }
-        // 如果父级权限存在，也认为有权限
-        else if (permissions.includes(basePermission)) {
-          return true
-        }
-        // 检查子权限
-        else {
-          for (const p of permissions) {
-            if (p.startsWith(`${basePermission}:`)) {
-              // 如果有任何子权限，也允许使用父级菜单
-              if (required === basePermission) {
-                return true
-              }
-            }
-          }
-        }
-      }
-      // 为菜单处理特殊逻辑：检查是否有该菜单下的任何子权限
-      else if (!required.includes(':')) {
-        for (const p of permissions) {
-          if (p.startsWith(`${required}:`)) {
-            return true
-          }
-        }
-      }
-      return false
+      // 父级菜单向上兼容：如果用户拥有该模块下任何子权限，也允许进入
+      // 例如 meta.permission='finance' 且用户有 'finance:entries:view' → 允许
+      const permissions = authStore.permissions || []
+      return permissions.some(p => p.startsWith(requiredPermission + ':'))
     }
 
-    let hasPermission = checkRoutePermission(userPermissions, requiredPermission)
+    let hasPermission = checkRoutePermission()
 
     // 如果没有权限，尝试刷新权限后再检查一次
     if (!hasPermission && authStore.permissionsLoaded) {
-      console.log('[路由守卫] 权限不足，尝试刷新权限...')
       try {
         await authStore.refreshPermissions()
-        const newPermissions = authStore.permissions || []
-        hasPermission = checkRoutePermission(newPermissions, requiredPermission)
-
-        if (hasPermission) {
-          console.log('[路由守卫] 权限刷新成功，允许访问')
-        } else {
-          console.log('[路由守卫] 权限刷新后仍无权限')
-        }
+        hasPermission = checkRoutePermission()
       } catch (error) {
         console.error('[路由守卫] 刷新权限失败:', error)
       }
@@ -248,7 +206,7 @@ router.beforeEach(async (to, from, next) => {
 
     if (!hasPermission) {
       ElMessage.error('您没有权限访问此页面')
-      next('/dashboard') // 重定向到有权限的页面
+      next('/dashboard')
       return
     }
   }

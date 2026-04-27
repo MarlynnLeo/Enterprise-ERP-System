@@ -57,6 +57,11 @@ const qualityStatisticsRoutes = require('./routes/business/qualityStatisticsRout
 const weatherRoutes = require('./routes/weather');
 const commonRoutes = require('./routes/common');
 const hrRoutes = require('./routes/hrRoutes');
+const chatRoutes = require('./routes/chat');
+const workflowRoutes = require('./routes/business/workflowRoutes');
+const contractRoutes = require('./routes/business/contractRoutes');
+const mrpRoutes = require('./routes/business/mrpRoutes');
+const enhancedModulesRoutes = require('./routes/business/enhancedModulesRoutes');
 
 // 模型导入已移除 — 原 createPurchaseTablesIfNotExist / createFinanceTablesIfNotExist 已为空操作
 // 表结构由 Knex 迁移文件统一管理
@@ -238,10 +243,14 @@ app.use('/api/auth/login', authLimiter);
 
 // 7. 输入验证和清理中间件（在处理请求体之后）
 const { validateAndSanitizeInput, detectSQLInjection } = require('./middleware/inputValidation');
+const { pathTraversalDetection, xssDetection } = require('./middleware/securityEnhanced');
 if (process.env.ENABLE_INPUT_SANITIZATION !== 'false') {
   app.use(validateAndSanitizeInput);
   app.use(detectSQLInjection);
-  logger.info('✅ 输入验证和SQL注入检测已启用');
+  // ✅ 安全修复: 挂载路径遍历和XSS检测中间件（此前已实现但未启用）
+  app.use(pathTraversalDetection);
+  app.use(xssDetection);
+  logger.info('✅ 输入验证、SQL注入检测、路径遍历检测和XSS检测已启用');
 }
 
 // 添加响应格式化中间件
@@ -412,7 +421,12 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/upload', require('./routes/uploadRoutes'));
 app.use('/api/todos', todoRoutes); // 待办事项路由
 app.use('/api/common', commonRoutes); // 通用接口（枚举等）
+app.use('/api/chat', chatRoutes); // 即时通讯
 app.use('/api/dingtalk', require('./routes/integrations/dingtalkRoutes')); // 钉钉集成
+app.use('/api/workflow', workflowRoutes); // 审批工作流
+app.use('/api/contracts', contractRoutes); // 合同管理
+app.use('/api/mrp', mrpRoutes); // MRP物料需求计划
+app.use('/api/enhanced', enhancedModulesRoutes); // 编码规则/单据关联/汇率/绩效/ECN/文档/告警
 
 // ✅ API v1 版本路由别名 — 将所有核心模块同时挂载到 /api/v1/ 下
 // 新客户端建议使用 /api/v1/ 前缀，未来破坏性变更将通过 /api/v2/ 发布

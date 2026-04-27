@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Aging.vue
  * @description 前端界面组件文件
@@ -15,9 +15,9 @@
           <p class="subtitle">分析供应商账款账龄</p>
         </div>
         <div class="action-buttons">
-          <el-button type="primary" @click="generateReport" :loading="loading">生成报表</el-button>
-          <el-button v-permission="'finance:aging:export'" type="success" @click="exportToExcel" :disabled="!hasData">导出Excel</el-button>
-          <el-button v-permission="'finance:aging:print'" type="info" @click="printReport" :disabled="!hasData">打印报表</el-button>
+          <el-button type="primary" @click="generateReport" :loading="loading" v-permission="'finance:ap:aging'">生成报表</el-button>
+          <el-button v-permission="'finance:ar:view'" type="success" @click="exportToExcel" :disabled="!hasData">导出Excel</el-button>
+          <el-button v-permission="'finance:ar:view'" type="info" @click="printReport" :disabled="!hasData">打印报表</el-button>
         </div>
       </div>
     </el-card>
@@ -217,19 +217,14 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
+import { formatCurrency } from '@/utils/format'
 
 // 版本标识 - 应付账款账龄分析修复版 v1.0
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import * as echarts from 'echarts';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
-// 权限计算属性
+// 权限计算属性
 const loading = ref(false);
 const tableData = ref([]);
 
@@ -282,17 +277,6 @@ let barChartInstance = null;
 const handleChartResize = () => {
   if (pieChartInstance && !pieChartInstance.isDisposed()) pieChartInstance.resize();
   if (barChartInstance && !barChartInstance.isDisposed()) barChartInstance.resize();
-};
-
-// 格式化货币
-// formatCurrency 已统一引用公共实现;
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 计算百分比

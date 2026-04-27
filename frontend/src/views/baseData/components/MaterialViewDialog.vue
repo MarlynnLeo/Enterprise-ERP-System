@@ -88,6 +88,16 @@
         <el-descriptions-item label="备注" :span="2">
           {{ viewData.remark || '无' }}
         </el-descriptions-item>
+        <el-descriptions-item label="附件" :span="2">
+          <template v-if="viewData.attachments && viewData.attachments.length">
+            <div v-for="(file, index) in viewData.attachments" :key="index" style="margin-bottom: 4px;">
+              <el-link type="primary" :href="file.url || file.file_path" target="_blank" :underline="false">
+                <el-icon style="margin-right: 4px;"><Document /></el-icon>{{ file.original_name || file.name || file.file_name || '附件' + (index + 1) }}
+              </el-link>
+            </div>
+          </template>
+          <span v-else style="color: #999;">无</span>
+        </el-descriptions-item>
       </el-descriptions>
     </div>
     <template #footer>
@@ -98,6 +108,7 @@
 
 <script setup>
 import { formatDate } from '@/utils/format'
+import { Document } from '@element-plus/icons-vue'
 
 defineProps({
   modelValue: Boolean,

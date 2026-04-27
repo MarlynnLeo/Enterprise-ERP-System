@@ -87,6 +87,18 @@
           </div>
         </div>
       </div>
+
+      <!-- 操作按钮 -->
+      <div class="action-section" v-if="invoice.status === '草稿'" v-permission="'finance:ar:update'">
+        <VanButton round block type="primary" @click="handleConfirm" :loading="actionLoading">
+          确认发票
+        </VanButton>
+      </div>
+      <div class="action-section" v-else-if="invoice.status === '已确认'" v-permission="'finance:ar:update'">
+        <VanButton round block type="danger" @click="handleVoid" :loading="actionLoading">
+          作废发票
+        </VanButton>
+      </div>
     </div>
 
     <div class="loading-state" v-else-if="loading">
@@ -99,7 +111,7 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useRoute } from 'vue-router'
-  import { NavBar, Loading, Empty, showToast } from 'vant'
+  import { NavBar, Loading, Empty, Button as VanButton, showToast, showConfirmDialog } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import { financeApi } from '@/services/api'
   import dayjs from 'dayjs'
@@ -107,6 +119,7 @@
   const route = useRoute()
   const invoice = ref(null)
   const loading = ref(true)
+  const actionLoading = ref(false)
 
   const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD') : '—')
   const formatMoney = (v) => {
@@ -129,7 +142,7 @@
   )
   const statusClass = computed(() => statusMap[invoice.value?.status]?.cls || 'default')
 
-  onMounted(async () => {
+  const loadDetail = async () => {
     try {
       const res = await financeApi.getARInvoiceById(route.params.id)
       const d = res.data || res
@@ -140,7 +153,39 @@
     } finally {
       loading.value = false
     }
-  })
+  }
+
+  // 确认发票
+  const handleConfirm = async () => {
+    try {
+      await showConfirmDialog({ title: '确认', message: '确定确认此应收发票？' })
+      actionLoading.value = true
+      await financeApi.updateARInvoiceStatus(invoice.value.id, '已确认')
+      showToast('发票已确认')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  // 作废发票
+  const handleVoid = async () => {
+    try {
+      await showConfirmDialog({ title: '作废确认', message: '确定作废此应收发票？此操作不可撤销。' })
+      actionLoading.value = true
+      await financeApi.updateARInvoiceStatus(invoice.value.id, '已取消')
+      showToast('发票已作废')
+      await loadDetail()
+    } catch (e) {
+      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  onMounted(loadDetail)
 </script>
 
 <style lang="scss" scoped>
@@ -173,7 +218,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
+    color: var(--color-primary);
     flex-shrink: 0;
   }
   .hero-info {
@@ -198,23 +243,23 @@
     flex-shrink: 0;
     &.success {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.warning {
       background: rgba(245, 158, 11, 0.1);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.danger {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
     &.info {
       background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.default {
       background: rgba(107, 114, 128, 0.1);
-      color: #6b7280;
+      color: var(--text-secondary);
     }
   }
 
@@ -247,13 +292,13 @@
     color: var(--text-primary);
     font-family: 'SF Mono', monospace;
     &.primary {
-      color: #3b82f6;
+      color: var(--color-primary);
     }
     &.success {
-      color: #10b981;
+      color: var(--color-success);
     }
     &.danger {
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
 
@@ -314,7 +359,7 @@
   .payment-amount {
     font-size: 0.9375rem;
     font-weight: 700;
-    color: #10b981;
+    color: var(--color-success);
     font-family: 'SF Mono', monospace;
   }
 
@@ -325,5 +370,8 @@
     gap: 12px;
     padding-top: 40vh;
     color: var(--text-tertiary);
+  }
+  .action-section {
+    padding: 20px 16px;
   }
 </style>

@@ -182,7 +182,7 @@
               >编辑</el-button>
 
               <!-- 提交按钮：仅草稿状态且未对账显示 -->
-              <el-button v-permission="'finance:transactions:submit'" 
+              <el-button
                 v-if="(scope.row.status === 'draft' || !scope.row.status) && !scope.row.isReconciled"
                 type="success"
                 size="small"
@@ -191,7 +191,7 @@
 
               <!-- 审核按钮：待审核或已复核状态显示 -->
               <el-button 
-                v-if="(scope.row.status === 'pending' || scope.row.status === 'reviewed') && canAudit"
+                v-if="scope.row.status === 'pending' || scope.row.status === 'reviewed'"
                 type="info"
                 size="small"
                 @click="handleAudit(scope.row)"

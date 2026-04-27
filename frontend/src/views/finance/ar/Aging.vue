@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Aging.vue
  * @description 前端界面组件文件
@@ -15,9 +15,9 @@
           <p class="subtitle">分析客户账款账龄</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport">生成报表</el-button>
-          <el-button v-permission="'finance:aging:export'" @click="exportExcel" :disabled="!hasData">导出Excel</el-button>
-          <el-button v-permission="'finance:aging:print'" @click="printReport" :disabled="!hasData">打印报表</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:ar:aging'">生成报表</el-button>
+          <el-button v-permission="'finance:ar:view'" @click="exportExcel" :disabled="!hasData">导出Excel</el-button>
+          <el-button v-permission="'finance:ar:view'" @click="printReport" :disabled="!hasData">打印报表</el-button>
         </div>
       </div>
     </el-card>
@@ -136,19 +136,15 @@
 
 <script setup>
 
-import apiAdapter from '@/utils/apiAdapter';
+import { formatCurrency, formatAmount } from '@/utils/format';
+import { formatDate } from '@/utils/helpers/dateUtils'
 
 // 版本标识 - 强制刷新缓存 v3.0 - 使用安全数据访问器
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import * as echarts from 'echarts';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
-// 权限计算属性
+// 权限计算属性
 import ExcelJS from 'exceljs';
 
 // 查询参数
@@ -200,32 +196,6 @@ const barChart = ref(null);
 const handleChartResize = () => {
   if (pieChartInstance && !pieChartInstance.isDisposed()) pieChartInstance.resize();
   if (barChartInstance && !barChartInstance.isDisposed()) barChartInstance.resize();
-};
-
-// 格式化日期
-// formatDate 已统一引用公共实现;
-
-// 日期格式化
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
-  } catch {
-    return dateStr;
-  }
-};
-
-// 格式化金额
-const formatAmount = (amount) => {
-  if (amount === undefined || amount === null) return '0.00';
-  
-  // 格式化为千分位
-  return amount.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
 };
 
 // 计算逾期比例

@@ -4,6 +4,7 @@
  */
 
 const { financeConfig, DEFAULT_FINANCE_CONFIG } = require('../../../config/financeConfig');
+const { ResponseHandler } = require('../../../utils/responseHandler');
 const db = require('../../../config/db');
 const { logger } = require('../../../utils/logger');
 
@@ -16,18 +17,10 @@ const getSettings = async (req, res) => {
     await financeConfig.loadFromDatabase(db);
     const config = financeConfig.getAll();
 
-    res.json({
-      success: true,
-      data: config,
-      message: '获取财务配置成功',
-    });
+    ResponseHandler.success(res, config, '获取财务配置成功');
   } catch (error) {
     logger.error('获取财务配置失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取财务配置失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '获取财务配置失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -40,10 +33,7 @@ const updateSettings = async (req, res) => {
 
     // 验证配置
     if (!newConfig || typeof newConfig !== 'object') {
-      return res.status(400).json({
-        success: false,
-        message: '无效的配置数据',
-      });
+      return ResponseHandler.error(res, '无效的配置数据', 'BAD_REQUEST', 400);
     }
 
     // 加载现有配置
@@ -59,18 +49,10 @@ const updateSettings = async (req, res) => {
     financeConfig.clearCache();
     await financeConfig.loadFromDatabase(db);
 
-    res.json({
-      success: true,
-      data: financeConfig.getAll(),
-      message: '财务配置已更新',
-    });
+    ResponseHandler.success(res, financeConfig.getAll(), '财务配置已更新');
   } catch (error) {
     logger.error('更新财务配置失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '更新财务配置失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '更新财务配置失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -79,18 +61,10 @@ const updateSettings = async (req, res) => {
  */
 const getDefaultSettings = async (req, res) => {
   try {
-    res.json({
-      success: true,
-      data: DEFAULT_FINANCE_CONFIG,
-      message: '获取默认配置成功',
-    });
+    ResponseHandler.success(res, DEFAULT_FINANCE_CONFIG, '获取默认配置成功');
   } catch (error) {
     logger.error('获取默认配置失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取默认配置失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '获取默认配置失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -105,18 +79,10 @@ const resetSettings = async (req, res) => {
     // 清除缓存
     financeConfig.clearCache();
 
-    res.json({
-      success: true,
-      data: DEFAULT_FINANCE_CONFIG,
-      message: '已重置为默认配置',
-    });
+    ResponseHandler.success(res, DEFAULT_FINANCE_CONFIG, '已重置为默认配置');
   } catch (error) {
     logger.error('重置配置失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '重置配置失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '重置配置失败', 'SERVER_ERROR', 500, error);
   }
 };
 

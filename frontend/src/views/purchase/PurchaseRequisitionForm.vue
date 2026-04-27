@@ -12,8 +12,8 @@
       <h2>{{ isEdit ? '编辑采购申请' : '新建采购申请' }}</h2>
       <div>
         <el-button @click="goBack">返回</el-button>
-        <el-button v-permission="'purchase:purchaserequisitionform:update'" type="primary" @click="saveRequisition" :loading="saveLoading">保存</el-button>
-        <el-button v-permission="'purchase:purchaserequisitionform:approve'" 
+        <el-button v-permission="'purchase:requisitions:update'" type="primary" @click="saveRequisition" :loading="saveLoading">保存</el-button>
+        <el-button v-permission="'purchase:requisitions:update'" 
           v-if="isEdit && requisitionForm.status === 'draft'" 
           type="success" 
           @click="submitRequisition"
@@ -64,7 +64,7 @@
         <el-divider content-position="left">物料列表</el-divider>
         
         <div class="material-list-header">
-          <el-button v-permission="'purchase:purchaserequisitionform:create'" type="primary" @click="openMaterialDialog">添加物料</el-button>
+          <el-button v-permission="'purchase:requisitions:create'" type="primary" @click="openMaterialDialog">添加物料</el-button>
         </div>
         
         <el-table :data="requisitionForm.items" border style="width: 100%; margin-top: 15px;">
@@ -91,7 +91,8 @@
                 link
                 class="delete-text-btn"
                 @click="removeItem(scope.$index)"
-              >
+              
+              v-permission="'purchase:requisitions'">
                 删除
               </el-button>
             </template>

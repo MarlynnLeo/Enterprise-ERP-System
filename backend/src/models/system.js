@@ -10,6 +10,21 @@ const logger = require('../utils/logger');
 const PasswordSecurity = require('../utils/passwordSecurity');
 
 // 系统管理模块模型
+
+/** 部门字段标准化（消除 getAllDepartments / getDepartmentById 重复映射） */
+function _normalizeDept(dept) {
+  return {
+    ...dept,
+    parent_id: dept.parent_id !== undefined ? dept.parent_id : null,
+    code: dept.code || '',
+    manager_id: dept.manager_id || null,
+    manager_name: dept.manager_name || '',
+    phone: dept.phone || '',
+    status: dept.status !== undefined ? dept.status : 1,
+    remark: dept.remark || '',
+  };
+}
+
 const systemModel = {
   // 用户管理
   async getAllUsers(page = 1, pageSize = 10, filters = {}) {
@@ -300,22 +315,12 @@ const systemModel = {
       params
     );
 
-    // 简化树形结构 - 当前表结构包含所有需要的字段
     const departments = rows.map((dept) => ({
-      ...dept,
-      // 仅在字段不存在时设置默认值
-      parent_id: dept.parent_id !== undefined ? dept.parent_id : null,
-      code: dept.code || '',
-      manager_id: dept.manager_id || null,
-      manager_name: dept.manager_name || dept.manager || '',
-      phone: dept.phone || '',
-      status: dept.status !== undefined ? dept.status : 1,
-      remark: dept.remark || '',
+      ..._normalizeDept(dept),
       user_count: dept.user_count || 0,
       children: [],
     }));
 
-    // 简化为平铺结构，不处理树形关系
     return departments;
   },
 
@@ -328,19 +333,7 @@ const systemModel = {
       [id]
     );
     if (!rows.length) return null;
-
-    // 确保返回数据库中存在的值，只在不存在时提供默认值
-    const dept = rows[0];
-    return {
-      ...dept,
-      parent_id: dept.parent_id !== undefined ? dept.parent_id : null,
-      code: dept.code || '',
-      manager_id: dept.manager_id || null,
-      manager_name: dept.manager_name || dept.manager || '',
-      phone: dept.phone || '',
-      status: dept.status !== undefined ? dept.status : 1,
-      remark: dept.remark || '',
-    };
+    return _normalizeDept(rows[0]);
   },
 
   async createDepartment(departmentData) {
@@ -467,7 +460,7 @@ const systemModel = {
 
     // 获取分页数据
     const [rows] = await pool.execute(
-      `SELECT * FROM roles WHERE ${whereClause} ORDER BY id ASC LIMIT ${parseInt(pageSize)} OFFSET ${offset}`,
+      `SELECT * FROM roles WHERE ${whereClause} ORDER BY id ASC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`,
       params
     );
 

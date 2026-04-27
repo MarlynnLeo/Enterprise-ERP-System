@@ -1,5 +1,17 @@
 {
+  "scripts": {
+    "lint": "eslint backend/src --max-warnings 50",
+    "lint:fix": "eslint backend/src --fix",
+    "format": "prettier --write \"backend/src/**/*.js\"",
+    "format:check": "prettier --check \"backend/src/**/*.js\""
+  },
   "dependencies": {
     "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.2.1",
+    "globals": "^17.5.0",
+    "prettier": "^3.8.3"
   }
 }

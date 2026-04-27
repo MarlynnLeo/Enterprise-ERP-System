@@ -212,7 +212,7 @@ const getStatusText = (status) => {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .stats-row {
   display: flex;
   justify-content: space-between;

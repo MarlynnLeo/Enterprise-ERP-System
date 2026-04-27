@@ -87,7 +87,7 @@ const copyStaticMethods = (target, source) => {
     if (['length', 'prototype', 'name'].includes(prop)) return;
     const descriptor = Object.getOwnPropertyDescriptor(source, prop);
     Object.defineProperty(target, prop, descriptor);
-    console.log(`[CashModel] Copied property: ${prop}`);
+    logger.debug(`[CashModel] Copied property: ${prop}`);
   });
 };
 

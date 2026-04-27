@@ -32,6 +32,13 @@
           />
         </Popup>
 
+        <Field
+          v-model="form.requester"
+          label="申请人"
+          placeholder="请输入申请人"
+          :rules="[{ required: true, message: '请输入申请人' }]"
+        />
+
         <Field v-model="form.department" label="申请部门" placeholder="选填" />
 
         <Field
@@ -50,7 +57,7 @@
             <span>物料需求 {{ index + 1 }}</span>
             <Icon
               name="delete-o"
-              color="#ee0a24"
+              color="var(--color-danger)"
               size="18"
               @click="removeItem(index)"
               v-if="form.items.length > 1"
@@ -131,6 +138,7 @@
 
   const form = reactive({
     request_date: formatDate([today.getFullYear(), today.getMonth() + 1, today.getDate()]),
+    requester: '',
     department: '',
     remarks: '',
     items: [{ material_id: '', quantity: '', required_date: '' }]
@@ -171,6 +179,7 @@
     try {
       const payload = {
         request_date: form.request_date,
+        requester: form.requester,
         department: form.department,
         remarks: form.remarks,
         items: form.items.map((i) => ({
@@ -193,7 +202,7 @@
   }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   .create-page {
     min-height: 100vh;
     background-color: var(--van-background-2);
@@ -202,7 +211,7 @@
   .material-item {
     background: var(--van-background);
     margin-bottom: 8px;
-    border-bottom: 1px dashed #eee;
+    border-bottom: 1px dashed var(--van-border-color);
     padding-bottom: 8px;
   }
   .item-header {

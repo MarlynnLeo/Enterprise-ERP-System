@@ -11,6 +11,7 @@
     :config="pageConfig"
     :api-function="loadSuppliers"
     :show-add="true"
+    add-permission="basedata:suppliers:create"
     :show-filter="true"
     list-title="供应商列表"
     @add="handleAdd"

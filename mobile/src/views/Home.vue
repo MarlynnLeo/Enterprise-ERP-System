@@ -28,7 +28,8 @@
           <span v-if="notificationCount" class="header-badge"></span>
         </button>
         <div class="header-avatar" @click="navigateTo('/profile')">
-          <UserIcon class="hi-avatar" />
+          <img v-if="userAvatar" :src="userAvatar" alt="头像" class="avatar-img" />
+          <UserIcon v-else class="hi-avatar" />
         </div>
       </div>
     </header>
@@ -127,23 +128,22 @@
     </main>
 
     <!-- 悬浮扫码按钮 -->
-    <button class="fab-scan" @click="handleScan">
-      <QrCodeIcon class="hi-fab" />
-      <span class="fab-badge"></span>
-    </button>
+
   </div>
 </template>
 
 <script setup>
+  // KeepAlive 需要组件名称
+  defineOptions({ name: 'Home' })
+
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { useAuthStore } from '../stores/auth'
-  import { inventoryApi, productionApi, salesApi } from '@/services/api'
+  import { useAuthStore } from '@/stores/auth'
+  import { inventoryApi, productionApi, salesApi, systemApi } from '@/services/api'
 
   import {
     BellIcon,
     UserIcon,
-    QrCodeIcon,
     ChevronDownIcon,
     ChevronRightIcon,
     ChartBarIcon,
@@ -161,14 +161,18 @@
     BanknotesIcon,
     Cog6ToothIcon,
     CpuChipIcon,
-    ClipboardDocumentListIcon
+    ClipboardDocumentListIcon,
+    CircleStackIcon
   } from '@heroicons/vue/24/outline'
 
   const router = useRouter()
   const authStore = useAuthStore()
 
-  const notificationCount = ref(5)
+  const notificationCount = ref(0)
   const showAllModules = ref(false)
+
+  // 用户头像
+  const userAvatar = computed(() => authStore.user?.avatar || '')
 
   // 看板统计
   const dashboardStats = ref([
@@ -179,50 +183,39 @@
 
   // 功能菜单
   const allMenus = ref([
-    {
-      title: '排产计划',
-      path: '/production',
-      colorClass: 'mod-blue',
-      icon: ClipboardDocumentListIcon
-    },
-    {
-      title: '生产工单',
-      path: '/production/tasks',
-      colorClass: 'mod-cyan',
-      icon: WrenchScrewdriverIcon
-    },
-    {
-      title: '物料管理',
-      path: '/baseData/materials',
-      colorClass: 'mod-indigo',
-      icon: Squares2X2Icon
-    },
-    { title: '品质检验', path: '/quality', colorClass: 'mod-emerald', icon: ShieldCheckIcon },
-    { title: '库存管理', path: '/inventory', colorClass: 'mod-orange', icon: ArchiveBoxIcon },
-    { title: '采购管理', path: '/purchase', colorClass: 'mod-purple', icon: ShoppingCartIcon },
-    { title: '销售管理', path: '/sales', colorClass: 'mod-pink', icon: CurrencyDollarIcon },
-    { title: '客户管理', path: '/baseData/customers', colorClass: 'mod-teal', icon: UserGroupIcon },
-    {
-      title: '供应商',
-      path: '/baseData/suppliers',
-      colorClass: 'mod-amber',
-      icon: BuildingOfficeIcon
-    },
-    { title: '财务管理', path: '/finance', colorClass: 'mod-yellow', icon: BanknotesIcon },
-    { title: '数据采集', path: '/production/plans', colorClass: 'mod-slate', icon: CpuChipIcon },
-    { title: '系统设置', path: '/settings', colorClass: 'mod-gray', icon: Cog6ToothIcon }
+    { title: '基础数据', path: '/baseData', colorClass: 'mod-indigo', icon: CircleStackIcon, permission: 'basedata' },
+    { title: '生产管理', path: '/production', colorClass: 'mod-blue', icon: ClipboardDocumentListIcon, permission: 'production' },
+    { title: '采购管理', path: '/purchase', colorClass: 'mod-purple', icon: ShoppingCartIcon, permission: 'purchase' },
+    { title: '销售管理', path: '/sales', colorClass: 'mod-pink', icon: CurrencyDollarIcon, permission: 'sales' },
+    { title: '库存管理', path: '/inventory', colorClass: 'mod-orange', icon: ArchiveBoxIcon, permission: 'inventory' },
+    { title: '品质检验', path: '/quality', colorClass: 'mod-emerald', icon: ShieldCheckIcon, permission: 'quality' },
+    { title: '财务管理', path: '/finance', colorClass: 'mod-yellow', icon: BanknotesIcon, permission: 'finance' },
+    { title: '设备管理', path: '/equipment', colorClass: 'mod-amber', icon: WrenchScrewdriverIcon, permission: 'equipment' },
+    { title: '人事管理', path: '/hr', colorClass: 'mod-teal', icon: UserGroupIcon, permission: 'hr' },
+    { title: '系统设置', path: '/system', colorClass: 'mod-gray', icon: Cog6ToothIcon, permission: 'system' }
   ])
 
+  // 过滤后的可用菜单
+  const availableMenus = computed(() => {
+    return allMenus.value.filter(menu => authStore.hasPermission(menu.permission))
+  })
+
+  // 控制显示的菜单（展开/折叠）
   const displayedMenus = computed(() =>
-    showAllModules.value ? allMenus.value : allMenus.value.slice(0, 8)
+    showAllModules.value ? availableMenus.value : availableMenus.value.slice(0, 8)
   )
 
   // 快捷操作
-  const quickActions = ref([
-    { title: '扫码查询', desc: '扫描二维码/条形码快速定位', path: '/scan', tag: 'SCAN' },
-    { title: '库存查询', desc: '查看物料实时库存与批次', path: '/inventory/stock', tag: 'INV' },
-    { title: '生产任务', desc: '查看和管理生产任务进度', path: '/production/tasks', tag: 'PROD' }
+  const quickActionsConfig = ref([
+    { title: '扫码查询', desc: '扫描二维码/条形码快速定位', path: '/scan', tag: 'SCAN', permission: '*' },
+    { title: '库存查询', desc: '查看物料实时库存与批次', path: '/inventory/stock', tag: 'INV', permission: 'inventory' },
+    { title: '生产任务', desc: '查看和管理生产任务进度', path: '/production/tasks', tag: 'PROD', permission: 'production' }
   ])
+
+  // 过滤后的快捷操作
+  const quickActions = computed(() => {
+    return quickActionsConfig.value.filter(action => authStore.hasPermission(action.permission))
+  })
 
   const navigateTo = (path) => router.push(path)
   const handleNotification = () => router.push('/notifications')
@@ -253,15 +246,27 @@
     }
   }
 
-  onMounted(() => {
+  onMounted(async () => {
     if (authStore.isAuthenticated && authStore.token) {
+      // 确保权限数据已加载（首页菜单过滤依赖此数据）
+      if (!authStore.permissionsLoaded) {
+        try {
+          await authStore.fetchUserPermissions()
+        } catch (e) {
+          console.warn('[Home] 加载权限失败:', e.message)
+        }
+      }
       authStore.fetchUserProfile().catch(() => {})
       loadHomeStats()
+      // 加载未读通知数
+      systemApi.getUnreadCount().then(res => {
+        notificationCount.value = res.data?.count || res.data || 0
+      }).catch(() => {})
     }
   })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
   /* ==============================
    KACON 工业配色方案
    主色: #3C4858 (深灰蓝)
@@ -376,7 +381,8 @@
 
   .header-icon-btn {
     position: relative;
-    padding: 4px;
+    padding: 10px;  /* 确保触摸目标 >= 44x44pt */
+    margin: -6px;   /* 补偿视觉间距 */
     background: none;
     border: none;
     color: var(--text-primary);
@@ -418,6 +424,13 @@
 
   .header-avatar:active {
     transform: scale(0.9);
+  }
+
+  .header-avatar > .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 14px;
   }
 
   .header-avatar > .hi-avatar {
@@ -524,6 +537,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 12px;
     border-radius: 12px;
+    min-height: 44px;   /* 确保触摸目标最小高度 */
   }
 
   .stat-cell-label {
@@ -643,7 +657,9 @@
     background: none;
     border: none;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 10px 12px;  /* 确保触摸目标 >= 44x44pt */
+    margin: -6px -4px;   /* 补偿视觉间距 */
+    min-height: 44px;
     border-radius: 8px;
     transition: all 0.2s;
     -webkit-tap-highlight-color: transparent;
@@ -689,7 +705,9 @@
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     transition: transform 0.15s;
-    padding: 0;
+    padding: 6px 4px;   /* 扩大整体触摸区域 */
+    min-width: 64px;    /* 确保按钮最小宽度 */
+    border-radius: 12px;
   }
 
   .module-btn:active {

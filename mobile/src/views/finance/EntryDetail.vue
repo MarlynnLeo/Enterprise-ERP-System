@@ -25,8 +25,8 @@
         </div>
         <div class="hero-desc">{{ entry.description || '无摘要' }}</div>
         <div class="hero-meta">
-          <span>📅 {{ formatDate(entry.entry_date) }}</span>
-          <span>👤 {{ entry.created_by || '—' }}</span>
+          <span><VanIcon name="calendar-o" /> {{ formatDate(entry.entry_date) }}</span>
+          <span><VanIcon name="contact-o" /> {{ entry.created_by || '—' }}</span>
         </div>
       </div>
 
@@ -193,7 +193,7 @@
   .post-btn {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--color-accent, #3b82f6);
+    color: var(--color-accent, var(--color-primary));
     padding: 4px 12px;
     border-radius: 16px;
     background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
@@ -228,7 +228,7 @@
     font-weight: 700;
     &.posted {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.draft {
       background: rgba(245, 158, 11, 0.1);
@@ -380,18 +380,18 @@
 
   .item-debit .amt-label {
     background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
+    color: var(--color-success);
   }
   .item-credit .amt-label {
     background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
+    color: var(--color-danger);
   }
 
   .item-debit .amt-value {
-    color: #10b981;
+    color: var(--color-success);
   }
   .item-credit .amt-value {
-    color: #ef4444;
+    color: var(--color-danger);
   }
 
   // 信息区

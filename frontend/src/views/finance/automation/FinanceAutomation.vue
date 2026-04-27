@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * FinanceAutomation.vue
  * @description 前端界面组件文件
@@ -99,6 +99,7 @@
                     @click="executeDepreciation"
                     :loading="depreciationLoading"
                     :disabled="!depreciationForm.month"
+                    v-permission="'finance:automation:manage'"
                   >
                     执行
                   </el-button>
@@ -139,6 +140,7 @@
                     @click="executePeriodEnd"
                     :loading="periodEndLoading"
                     :disabled="!periodEndForm.periodId"
+                    v-permission="'finance:automation:manage'"
                   >
                     执行
                   </el-button>
@@ -329,6 +331,7 @@
               @click="executeProductionCost"
               :loading="productionLoading"
               :disabled="!productionForm.taskId"
+              v-permission="'finance:automation:manage'"
             >
               生成成本分录
             </el-button>
@@ -380,11 +383,6 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Money, Document, VideoPlay, Calendar, Box, Lock } from '@element-plus/icons-vue'
 import { financeApi, api } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 // 响应式数据
 const taskStatus = ref({})
 const depreciationLoading = ref(false)

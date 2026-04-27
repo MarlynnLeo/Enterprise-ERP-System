@@ -106,6 +106,7 @@
               @click="executeClosing" 
               :disabled="!previewData.canClose"
               :loading="closingLoading"
+              v-permission="'finance:gl:closing'"
             >
               确认并执行结转
             </el-button>

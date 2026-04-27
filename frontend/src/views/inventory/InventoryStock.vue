@@ -452,7 +452,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!purchaseHistory || purchaseHistory.length === 0" description="暂无采购历史" />
+
           <!-- F5: 采购历史分页 -->
           <div class="pagination-container" v-if="purchasePagination.total > 0">
             <el-pagination
@@ -501,7 +501,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!salesHistory || salesHistory.length === 0" description="暂无销售历史" />
+
           <!-- F5: 销售历史分页 -->
           <div class="pagination-container" v-if="salesPagination.total > 0">
             <el-pagination

@@ -14,7 +14,7 @@
           <h2>固定资产管理</h2>
           <p class="subtitle">管理固定资产与折旧</p>
         </div>
-        <el-button v-permission="'finance:assetslist:create'" type="primary" :icon="Plus" @click="showAddDialog">新增资产</el-button>
+        <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新增资产</el-button>
       </div>
     </el-card>
     
@@ -128,8 +128,9 @@
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="scope">
-            <el-button type="primary" size="small" @click="handleEdit(scope.row)" v-if="!isDisposed(scope.row.status) && scope.row.auditStatus !== 'approved'">编辑</el-button>
-            <el-button v-permission="'finance:assetslist:audit'" type="success" size="small" @click="handleAudit(scope.row, 'approve')" v-if="scope.row.auditStatus !== 'approved' && !isDisposed(scope.row.status)">审核</el-button>
+            <el-button type="primary" size="small" @click="handleEdit(scope.row)" v-if="!isDisposed(scope.row.status) && scope.row.auditStatus !== 'approved'"
+              v-permission="'finance:assets:update'">编辑</el-button>
+            <el-button type="success" size="small" @click="handleAudit(scope.row, 'approve')" v-if="scope.row.auditStatus !== 'approved' && !isDisposed(scope.row.status)">审核</el-button>
             <el-dropdown v-if="!isDisposed(scope.row.status)" trigger="click" @command="(cmd) => handleMoreCommand(cmd, scope.row)" style="margin-left: 8px;">
               <el-button size="small">
                 更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>

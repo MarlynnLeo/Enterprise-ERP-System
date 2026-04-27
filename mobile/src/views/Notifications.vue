@@ -10,7 +10,10 @@
   <div class="notifications-page">
     <NavBar title="消息通知" left-arrow @click-left="$router.go(-1)">
       <template #right>
-        <Icon name="setting-o" size="18" @click="showSettings" />
+        <div class="nav-right-btns">
+          <Icon name="chat-o" size="20" @click="$router.push('/chat')" />
+          <Icon name="setting-o" size="18" @click="showSettings" />
+        </div>
       </template>
     </NavBar>
     
@@ -32,17 +35,17 @@
       </div>
 
       <!-- 消息类型筛选 -->
-      <div class="message-filters">
-        <div class="filter-tabs">
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
           <div 
             v-for="filter in messageFilters" 
             :key="filter.key"
-            class="filter-tab"
+            class="filter-chip"
             :class="{ active: activeFilter === filter.key }"
             @click="selectFilter(filter.key)"
           >
-            <Icon :name="filter.icon" size="16" />
-            <span>{{ filter.label }}</span>
+            <Icon :name="filter.icon" size="14" />
+            <span class="chip-text">{{ filter.label }}</span>
             <Badge v-if="filter.count > 0" :content="filter.count" />
           </div>
         </div>
@@ -119,7 +122,7 @@
               
               <div class="message-status">
                 <div class="read-indicator" v-if="!message.read"></div>
-                <Icon name="arrow" size="12" color="#c8c9cc" />
+                <Icon name="arrow" size="12" color="var(--text-disabled)" />
               </div>
             </div>
           </List>
@@ -193,12 +196,16 @@
 </template>
 
 <script setup>
+// KeepAlive 需要组件名称
+defineOptions({ name: 'Notifications' })
+
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { 
   NavBar, Icon, Badge, Checkbox, Button, PullRefresh, List, Empty,
   Popup, Cell, Switch, showToast, showConfirmDialog 
 } from 'vant';
+import { systemApi } from '@/services/api';
 
 const router = useRouter();
 
@@ -272,9 +279,9 @@ const getMessageColor = (type) => {
     'task': '#5E7BF6',
     'approval': '#2CCFB0',
     'exception': '#FF6B6B',
-    'system': '#FF9F45'
+    'system': 'var(--color-warning)'
   };
-  return colorMap[type] || '#c8c9cc';
+  return colorMap[type] || 'var(--text-disabled)';
 };
 
 // 格式化时间
@@ -290,93 +297,57 @@ const formatTime = (timestamp) => {
   return date.toLocaleDateString('zh-CN');
 };
 
+// 分页状态
+const currentPage = ref(1);
+const pageSize = 20;
+
 // 加载消息
 const loadMessages = async (isRefresh = false) => {
   if (isRefresh) {
     messages.value = [];
+    currentPage.value = 1;
     finished.value = false;
   }
 
   try {
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 模拟消息数据
-    const mockMessages = [
-      {
-        id: 1,
-        type: 'task',
-        title: '生产任务提醒',
-        content: '生产任务 TASK-20241201-001 即将到期，请及时处理',
-        priority: 'urgent',
-        read: false,
-        created_at: Date.now() - 300000,
-        meta: {
-          '任务编号': 'TASK-20241201-001',
-          '截止时间': '2024-12-01 18:00'
-        },
-        actions: [
-          { key: 'view', label: '查看任务', type: 'primary' },
-          { key: 'complete', label: '完成任务', type: 'success' }
-        ]
-      },
-      {
-        id: 2,
-        type: 'approval',
-        title: '采购订单审批',
-        content: '采购订单 PO-20241201-001 等待您的审批',
-        priority: 'normal',
-        read: false,
-        created_at: Date.now() - 1800000,
-        meta: {
-          '订单编号': 'PO-20241201-001',
-          '金额': '¥25,500.00'
-        },
-        actions: [
-          { key: 'approve', label: '同意', type: 'success' },
-          { key: 'reject', label: '拒绝', type: 'danger' }
-        ]
-      },
-      {
-        id: 3,
-        type: 'exception',
-        title: '库存异常报警',
-        content: '物料 304不锈钢板 库存不足，当前库存：50kg，安全库存：100kg',
-        priority: 'urgent',
-        read: true,
-        created_at: Date.now() - 3600000,
-        meta: {
-          '物料编码': 'MAT-20241201-001',
-          '当前库存': '50kg'
-        },
-        actions: [
-          { key: 'purchase', label: '立即采购', type: 'primary' }
-        ]
-      },
-      {
-        id: 4,
-        type: 'system',
-        title: '系统维护通知',
-        content: '系统将于今晚22:00-24:00进行维护升级，期间可能影响正常使用',
-        priority: 'normal',
-        read: true,
-        created_at: Date.now() - 7200000
-      }
-    ];
-    
-    const newMessages = isRefresh ? mockMessages : [];
-    
-    if (isRefresh) {
-      messages.value = newMessages;
-    } else {
-      messages.value.push(...newMessages);
+    const params = {
+      page: currentPage.value,
+      pageSize,
+    };
+    // 按类型筛选
+    if (activeFilter.value && activeFilter.value !== 'all' && activeFilter.value !== 'unread' && activeFilter.value !== 'urgent') {
+      params.type = activeFilter.value;
     }
-    
-    finished.value = newMessages.length < 20;
-    
+    if (activeFilter.value === 'unread') {
+      params.is_read = false;
+    }
+
+    const response = await systemApi.getNotifications(params);
+    const data = response.data;
+    const list = data?.list || data?.rows || (Array.isArray(data) ? data : []);
+
+    // 规范化字段名（后端 is_read → 前端 read）
+    const normalized = list.map(item => ({
+      ...item,
+      read: item.read ?? item.is_read ?? false,
+      priority: item.priority || 'normal'
+    }));
+
+    if (isRefresh) {
+      messages.value = normalized;
+    } else {
+      // 按 id 去重，防止分页边界导致重复 key
+      const existingIds = new Set(messages.value.map(m => m.id));
+      const newItems = normalized.filter(m => !existingIds.has(m.id));
+      messages.value.push(...newItems);
+    }
+
+    finished.value = normalized.length < pageSize;
+    currentPage.value++;
+
     // 更新筛选器计数
     updateFilterCounts();
-    
+
   } catch (error) {
     console.error('加载消息失败:', error);
     showToast('加载失败，请重试');
@@ -477,35 +448,45 @@ const handleAction = async (message, action) => {
   }
 };
 
-const markAsRead = () => {
-  selectedMessages.value.forEach(id => {
-    const message = messages.value.find(m => m.id === id);
-    if (message) {
-      message.read = true;
-    }
-  });
-  selectedMessages.value = [];
-  selectAll.value = false;
-  updateFilterCounts();
-  showToast('已标记为已读');
+const markAsRead = async () => {
+  try {
+    // 逐个调用后端标记已读
+    await Promise.all(
+      selectedMessages.value.map(id => systemApi.markNotificationRead(id))
+    );
+    selectedMessages.value.forEach(id => {
+      const message = messages.value.find(m => m.id === id);
+      if (message) message.read = true;
+    });
+    selectedMessages.value = [];
+    selectAll.value = false;
+    updateFilterCounts();
+    showToast('已标记为已读');
+  } catch (error) {
+    showToast('标记失败，请重试');
+  }
 };
 
 const deleteMessages = async () => {
   try {
-    const result = await showConfirmDialog({
+    await showConfirmDialog({
       title: '确认删除',
       message: `确定要删除选中的 ${selectedMessages.value.length} 条消息吗？`
     });
-    
-    if (result === 'confirm') {
-      messages.value = messages.value.filter(m => !selectedMessages.value.includes(m.id));
-      selectedMessages.value = [];
-      selectAll.value = false;
-      updateFilterCounts();
-      showToast('删除成功');
-    }
+
+    // 调用后端逐个删除
+    await Promise.all(
+      selectedMessages.value.map(id => systemApi.deleteNotification(id))
+    );
+    messages.value = messages.value.filter(m => !selectedMessages.value.includes(m.id));
+    selectedMessages.value = [];
+    selectAll.value = false;
+    updateFilterCounts();
+    showToast('删除成功');
   } catch (error) {
-    // 用户取消
+    if (error !== 'cancel') {
+      showToast('删除失败，请重试');
+    }
   }
 };
 
@@ -544,6 +525,12 @@ onMounted(() => {
 .notifications-page {
   min-height: 100vh;
   background-color: var(--bg-primary);
+}
+
+.nav-right-btns {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .content-container {
@@ -585,37 +572,38 @@ onMounted(() => {
   }
 }
 
-.message-filters {
-  margin-bottom: 12px;
-
-  .filter-tabs {
-    display: flex;
-    background: var(--bg-secondary);
-    border-radius: 8px;
-    padding: 4px;
-    overflow-x: auto;
-
-    .filter-tab {
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      padding: 8px 12px;
-      font-size: 12px;
-      color: var(--text-secondary);
-      border-radius: 6px;
-      transition: all 0.2s;
-      white-space: nowrap;
-      position: relative;
-
-      &.active {
-        background-color: var(--color-primary);
-        color: #fff;
-      }
-
-      span {
-        margin: 0 4px;
-      }
-    }
+.filter-scroll-wrapper {
+  padding: 4px 0 8px;
+  overflow: hidden;
+}
+.filter-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--glass-border);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
+  cursor: pointer;
+  .chip-text { font-weight: 500; }
+  &.active {
+    background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
+    border-color: var(--color-accent, var(--color-primary));
+    color: var(--color-accent, var(--color-primary));
   }
 }
 
@@ -650,7 +638,7 @@ onMounted(() => {
     }
 
     &.selected {
-      background-color: #f0f9ff;
+      background-color: var(--bg-secondary);
     }
 
     .message-checkbox {

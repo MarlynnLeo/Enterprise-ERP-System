@@ -1,9 +1,9 @@
 <!--
 /**
- * Inbound.vue
- * @description 移动端应用文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * Inbound.vue - 库存入库列表
+ * @description 移动端入库管理页面
+ * @date 2026-04-24
+ * @version 2.1.0
  */
 -->
 <template>
@@ -14,28 +14,34 @@
       @click-left="onClickLeft"
     >
       <template #right>
-        <Icon name="plus" size="18" @click="createInbound" />
+        <span v-permission="'inventory:inbound:create'" @click="createInbound">
+          <SvgIcon name="plus" size="1.125rem" />
+        </span>
       </template>
     </NavBar>
     
     <div class="content-container">
-      <!-- 搜索和筛选 -->
-      <div class="search-filter">
+      <!-- 搜索栏 -->
+      <div class="search-section">
         <Search
           v-model="searchValue"
           placeholder="搜索入库单号或物料名称"
           @search="onSearch"
           shape="round"
         />
-        
-        <div class="filter-tabs">
-          <div 
-            v-for="(tab, index) in statusTabs" 
+      </div>
+
+      <!-- 横向滑动筛选标签 -->
+      <div class="filter-scroll-wrapper">
+        <div class="filter-scroll">
+          <div
+            v-for="(tab, index) in statusTabs"
             :key="index"
-            :class="['filter-tab', { active: activeTab === index }]"
+            class="filter-chip"
+            :class="{ active: activeTab === index }"
             @click="switchTab(index)"
           >
-            {{ tab.label }}
+            <span class="chip-text">{{ tab.label }}</span>
           </div>
         </div>
       </div>
@@ -52,88 +58,58 @@
             <Empty description="暂无入库记录" />
           </div>
           
-          <Card 
-            v-for="inbound in inboundList" 
+          <div 
+            v-for="(inbound, idx) in inboundList" 
             :key="inbound.id" 
-            class="inbound-card"
+            class="list-card"
+            :style="{ animationDelay: `${idx * 0.03}s` }"
             @click="viewInboundDetail(inbound.id)"
           >
-            <div class="inbound-item">
-              <div class="inbound-header">
-                <span class="inbound-no">{{ inbound.inbound_no }}</span>
-                <Tag :type="getInboundStatusType(inbound.status)" size="medium">
+            <!-- 左侧色条 -->
+            <div class="card-accent" :class="getAccentClass(inbound.status)"></div>
+
+            <!-- 卡片主体 -->
+            <div class="card-body">
+              <!-- 第一行: 入库单号 + 状态 -->
+              <div class="card-top">
+                <div class="title-area">
+                  <div class="item-icon" :class="getAccentClass(inbound.status)">
+                    <SvgIcon name="import" size="0.875rem" />
+                  </div>
+                  <span class="item-title">{{ inbound.inbound_no }}</span>
+                </div>
+                <span class="status-tag" :class="'st-' + inbound.status">
                   {{ getInboundStatusText(inbound.status) }}
-                </Tag>
+                </span>
               </div>
-              
-              <div class="inbound-type">{{ getInboundTypeText(inbound.inbound_type) }}</div>
-              
-              <div class="inbound-details">
-                <div class="detail-row">
-                  <span class="label">入库日期:</span>
-                  <span class="value">{{ formatDate(inbound.inbound_date) }}</span>
-                </div>
-                <div class="detail-row" v-if="inbound.warehouse_name">
-                  <span class="label">入库仓库:</span>
-                  <span class="value">{{ inbound.warehouse_name }}</span>
-                </div>
-                <div class="detail-row" v-if="inbound.operator_name">
-                  <span class="label">操作员:</span>
-                  <span class="value">{{ inbound.operator_name }}</span>
-                </div>
-                <div class="detail-row" v-if="inbound.source_no">
-                  <span class="label">来源单号:</span>
-                  <span class="value">{{ inbound.source_no }}</span>
-                </div>
+
+              <!-- 第二行: 入库类型 -->
+              <div class="item-subtitle">
+                {{ getInboundTypeText(inbound.inbound_type) }}
+                <template v-if="inbound.source_no"> · {{ inbound.source_no }}</template>
               </div>
-              
-              <div class="inbound-items" v-if="inbound.items && inbound.items.length > 0">
-                <div class="items-title">入库物料 ({{ inbound.items.length }}项)</div>
-                <div class="items-list">
-                  <div 
-                    v-for="(item, index) in inbound.items.slice(0, 2)" 
-                    :key="index"
-                    class="item-row"
-                  >
-                    <span class="item-name">{{ item.material_name }}</span>
-                    <span class="item-quantity">{{ item.quantity }} {{ item.unit_name }}</span>
-                  </div>
-                  <div v-if="inbound.items.length > 2" class="more-items">
-                    还有 {{ inbound.items.length - 2 }} 项...
-                  </div>
+
+              <!-- 详情网格 -->
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">入库日期</span>
+                  <span class="detail-value">{{ formatDate(inbound.inbound_date, 'YYYY-MM-DD') }}</span>
                 </div>
-              </div>
-              
-              <div class="inbound-actions">
-                <Button 
-                  size="small" 
-                  type="primary" 
-                  plain
-                  @click.stop="viewInboundDetail(inbound.id)"
-                >
-                  查看详情
-                </Button>
-                <Button 
-                  v-if="inbound.status === 'draft'"
-                  size="small" 
-                  type="success" 
-                  plain
-                  @click.stop="confirmInbound(inbound)"
-                >
-                  确认入库
-                </Button>
-                <Button 
-                  v-if="inbound.status === 'confirmed'"
-                  size="small" 
-                  type="warning" 
-                  plain
-                  @click.stop="completeInbound(inbound)"
-                >
-                  完成入库
-                </Button>
+                <div class="detail-item">
+                  <span class="detail-label">物料数</span>
+                  <span class="detail-value">{{ inbound.items_count || 0 }} 项</span>
+                </div>
+                <div class="detail-item" v-if="inbound.total_quantity">
+                  <span class="detail-label">总数量</span>
+                  <span class="detail-value">{{ inbound.total_quantity }}</span>
+                </div>
+                <div class="detail-item" v-if="inbound.operator_name">
+                  <span class="detail-label">操作员</span>
+                  <span class="detail-value">{{ inbound.operator_name }}</span>
+                </div>
               </div>
             </div>
-          </Card>
+          </div>
         </List>
       </PullRefresh>
     </div>
@@ -143,7 +119,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { NavBar, Search, Icon, Empty, Card, Tag, PullRefresh, List, Button, showToast, showConfirmDialog } from 'vant';
+import { NavBar, Search, Empty, PullRefresh, List, showToast, showConfirmDialog } from 'vant';
+import SvgIcon from '@/components/icons/index.vue';
 import { inventoryApi } from '@/services/api';
 import { formatDate } from '@/utils/format';
 import { getInboundStatusText, getInboundStatusColor, getInboundTypeText } from '@/constants/statusConstants';
@@ -168,9 +145,20 @@ const statusTabs = [
 // 分页参数
 const pagination = reactive({
   page: 1,
-  limit: 10,
+  limit: 20,
   total: 0
 });
+
+// 色条/图标颜色映射
+const getAccentClass = (status) => {
+  const map = {
+    draft: 'accent-gray',
+    confirmed: 'accent-blue',
+    completed: 'accent-green',
+    cancelled: 'accent-red'
+  };
+  return map[status] || 'accent-blue';
+};
 
 // 返回上一页
 const onClickLeft = () => {
@@ -179,7 +167,7 @@ const onClickLeft = () => {
 
 // 创建入库单
 const createInbound = () => {
-  showToast('功能开发中');
+  router.push('/inventory/inbound/create');
 };
 
 // 搜索
@@ -219,8 +207,6 @@ const onLoad = () => {
 
 // 加载入库单列表
 const loadInboundList = async () => {
-  if (loading.value) return;
-  
   loading.value = true;
   try {
     const params = {
@@ -232,9 +218,13 @@ const loadInboundList = async () => {
     
     const response = await inventoryApi.getInboundList(params);
     
-    if (response.data && response.data.items) {
-      inboundList.value = [...inboundList.value, ...response.data.items];
-      pagination.total = response.data.total || 0;
+    // 后端 ResponseHandler.paginated 返回 { data: { list, total } }
+    // 经 axios 响应拦截器解包后，response.data = { list, total }
+    const resData = response.data || response || {};
+    const list = resData.list || resData.items || [];
+    if (list.length > 0) {
+      inboundList.value = [...inboundList.value, ...list];
+      pagination.total = resData.total || 0;
       finished.value = inboundList.value.length >= pagination.total;
     } else {
       finished.value = true;
@@ -248,11 +238,6 @@ const loadInboundList = async () => {
   } finally {
     loading.value = false;
   }
-};
-
-// 获取入库单状态类型（使用统一常量）
-const getInboundStatusType = (status) => {
-  return getInboundStatusColor(status);
 };
 
 // 查看入库单详情
@@ -270,8 +255,6 @@ const confirmInbound = async (inbound) => {
     
     await inventoryApi.updateInboundStatus(inbound.id, 'confirmed');
     showToast('入库单已确认');
-    
-    // 更新本地状态
     inbound.status = 'confirmed';
   } catch (error) {
     if (error !== 'cancel') {
@@ -291,8 +274,6 @@ const completeInbound = async (inbound) => {
     
     await inventoryApi.updateInboundStatus(inbound.id, 'completed');
     showToast('入库单已完成');
-    
-    // 更新本地状态
     inbound.status = 'completed';
   } catch (error) {
     if (error !== 'cancel') {
@@ -308,137 +289,148 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.search-filter {
-  padding: $padding-md;
-  background-color: white;
-  border-bottom: 1px solid var(--van-border-color);
-}
-
-.filter-tabs {
+.page-container {
   display: flex;
-  margin-top: $margin-sm;
-  overflow-x: auto;
-  
-  &::-webkit-scrollbar {
-    display: none;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  padding-bottom: 80px;
+}
+.content-container {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 12px;
+}
+.search-section { padding: 4px 0; }
+.filter-scroll-wrapper { padding: 4px 0 8px; overflow: hidden; }
+.filter-scroll {
+  display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+.filter-chip {
+  display: flex; align-items: center; gap: 4px; padding: 6px 14px;
+  border-radius: 20px; background: var(--bg-secondary); border: 1.5px solid var(--glass-border);
+  white-space: nowrap; flex-shrink: 0; font-size: 0.8125rem;
+  color: var(--text-secondary); transition: all 0.25s ease; cursor: pointer;
+  .chip-text { font-weight: 500; }
+  &.active {
+    background: var(--color-accent-bg, rgba(59,130,246,0.1));
+    border-color: var(--color-accent, var(--color-primary)); color: var(--color-accent, var(--color-primary));
   }
-  
-  .filter-tab {
-    flex: 0 0 auto;
-    text-align: center;
-    padding: $padding-xs $padding-sm;
-    font-size: 12px;
-    color: var(--text-secondary);
-    border-bottom: 2px solid transparent;
-    white-space: nowrap;
-    margin-right: $margin-sm;
-    
-    &.active {
-      color: var(--color-primary);
-      border-bottom-color: var(--color-primary);
-    }
+}
+
+// ========== 统一卡片风格（与 UniversalListPage 一致） ==========
+.list-card {
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s;
+  animation: fadeInUp 0.35s ease-out both;
+  cursor: pointer;
+  &:active {
+    transform: scale(0.98);
   }
 }
-
-.inbound-card {
-  margin: $margin-md;
-  margin-bottom: $margin-sm;
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.inbound-item {
-  padding: $padding-xs 0;
+// 左侧色条
+.card-accent {
+  width: 3px;
+  flex-shrink: 0;
+  &.accent-blue { background: linear-gradient(180deg, #3b82f6, #60a5fa); }
+  &.accent-green { background: linear-gradient(180deg, #10b981, #34d399); }
+  &.accent-yellow { background: linear-gradient(180deg, #f59e0b, #fbbf24); }
+  &.accent-red { background: linear-gradient(180deg, #ef4444, #f87171); }
+  &.accent-gray { background: linear-gradient(180deg, #94a3b8, #cbd5e1); }
 }
 
-.inbound-header {
+.card-body {
+  flex: 1;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.card-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: $margin-xs;
+  margin-bottom: 2px;
 }
-
-.inbound-no {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.inbound-type {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: $margin-sm;
-  color: var(--color-primary);
-}
-
-.inbound-details {
-  margin-bottom: $margin-md;
-  
-  .detail-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-    
-    .label {
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-    
-    .value {
-      font-size: 12px;
-      color: var(--text-primary);
-    }
-  }
-}
-
-.inbound-items {
-  margin-bottom: $margin-md;
-  
-  .items-title {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-bottom: $margin-xs;
-  }
-  
-  .items-list {
-    background-color: var(--bg-primary);
-    padding: $padding-sm;
-    border-radius: $border-radius-sm;
-    
-    .item-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 4px;
-      
-      &:last-child {
-        margin-bottom: 0;
-      }
-      
-      .item-name {
-        font-size: 12px;
-        color: var(--text-primary);
-        flex: 1;
-        margin-right: $margin-sm;
-      }
-      
-      .item-quantity {
-        font-size: 12px;
-        color: var(--text-secondary);
-      }
-    }
-    
-    .more-items {
-      font-size: 10px;
-      color: var(--text-secondary);
-      text-align: center;
-      margin-top: $margin-xs;
-    }
-  }
-}
-
-.inbound-actions {
+.title-area {
   display: flex;
-  gap: $margin-sm;
-  
-  .van-button {
-    flex: 1;
-  }
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.item-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  &.accent-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+  &.accent-green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+  &.accent-yellow { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+  &.accent-red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+  &.accent-gray { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+}
+.item-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// 状态标签
+.status-tag {
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  &.st-draft { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+  &.st-confirmed { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+  &.st-completed { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+  &.st-cancelled { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+}
+
+.item-subtitle {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+  font-family: 'SF Mono', monospace;
+}
+
+// 详情网格
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  margin-top: 6px;
+}
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.detail-label {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+.detail-value {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 </style>

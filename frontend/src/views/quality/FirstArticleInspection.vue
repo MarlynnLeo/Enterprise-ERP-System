@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * FirstArticleInspection.vue
  * @description 首检管理页面
@@ -64,7 +64,7 @@
             <div class="search-buttons">
               <el-button type="primary" @click="handleSearch"><el-icon><Search /></el-icon>查询</el-button>
               <el-button @click="handleReset"><el-icon><Refresh /></el-icon>重置</el-button>
-              <el-button v-permission="'quality:firstarticleinspection:create'" type="primary" @click="showCreateDialog = true"><el-icon><Plus /></el-icon>新增</el-button>
+              <el-button v-permission="'quality:inspections:create'" type="primary" @click="showCreateDialog = true"><el-icon><Plus /></el-icon>新增</el-button>
             </div>
           </el-col>
         </el-row>
@@ -103,7 +103,7 @@
             <el-button size="small" @click="handleView(row)">查看</el-button>
             <el-button v-if="row.first_article_result === 'pending'" size="small" type="primary" @click="handleInspect(row)">检验</el-button>
             <el-button v-if="row.first_article_result === 'failed'" size="small" type="warning" @click="handleReinspect(row)">重检</el-button>
-            <el-button v-permission="'quality:firstarticleinspection:print'" v-if="row.first_article_result === 'passed'" size="small" type="success" @click="handlePrint(row)">打印</el-button>
+            <el-button v-permission="'quality:inspections:view'" v-if="row.first_article_result === 'passed'" size="small" type="success" @click="handlePrint(row)">打印</el-button>
           </template>
         </el-table-column>
 
@@ -135,11 +135,7 @@ import { Search, Refresh, Plus, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { qualityApi } from '@/api/quality'
 import dayjs from 'dayjs'
-import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
-// 权限store
-const authStore = useAuthStore()
 
 import {
   FIRST_ARTICLE_RESULT,
@@ -443,8 +439,11 @@ const handleInspectSuccess = () => {
   fetchStats()
 }
 
-// 格式化日期
-// formatDate 已统一引用公共实现)
+// 初始化加载
+onMounted(() => {
+  fetchList()
+  fetchStats()
+})
 </script>
 
 <style scoped>

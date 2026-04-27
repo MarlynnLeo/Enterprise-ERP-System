@@ -38,7 +38,8 @@ const SKIP_SANITIZE_FIELDS = [
   'model',
   'drawing_no',
   'color_code', // 物料规格相关字段
-  'name', // 物料名称、产品名称等，可能包含特殊字符（如：水平/垂直可调整型）
+  // ✅ 安全修复: 移除 'name' — 过于宽泛，几乎所有实体都有 name 字段，跳过会导致 XSS 风险
+  // 如果某个 name 字段确实需要特殊字符，应在具体路由层单独处理
   'location_detail',
   'location', // 库位详细位置，可能包含特殊字符（如：J1-01-02/J1-01-03）
   'rule_value', // 考勤规则 JSON 值

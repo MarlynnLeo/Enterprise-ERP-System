@@ -90,6 +90,15 @@ export default {
                 requiresAuth: true,
                 permission: 'basedata:product-categories'
             }
+        },
+        {
+            path: 'ecn',
+            name: 'ecnManagement',
+            component: () => import('../../views/baseData/ECNManagement.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'basedata:bom'
+            }
         }
     ]
 }

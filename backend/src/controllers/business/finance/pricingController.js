@@ -333,7 +333,7 @@ async function calculateBomCostInternal(connection, productId, bomId = null) {
   // 如果没传bomId，则查询
   if (!bomId) {
     const [boms] = await connection.query(
-      'SELECT id FROM bom_masters WHERE product_id = ? AND status IN (0, 1) ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END ASC, version DESC LIMIT 1',
+      'SELECT id FROM bom_masters WHERE product_id = ? AND status IN (0, 1) AND deleted_at IS NULL ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END ASC, version DESC LIMIT 1',
       [productId]
     );
     if (boms.length === 0) return 0;
@@ -399,7 +399,7 @@ async function calculateProductCost(connection, productId) {
 
   // 2. 检查是否有BOM（优化：查询一次后传递bomId）
   const [boms] = await connection.query(
-    'SELECT id FROM bom_masters WHERE product_id = ? AND status IN (0, 1) ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END ASC, version DESC LIMIT 1',
+    'SELECT id FROM bom_masters WHERE product_id = ? AND status IN (0, 1) AND deleted_at IS NULL ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END ASC, version DESC LIMIT 1',
     [productId]
   );
 
@@ -651,7 +651,7 @@ exports.getBomDetails = async (req, res) => {
 
     // 1. 查找产品的有效BOM（优先使用已审核的）
     const [boms] = await connection.query(
-      'SELECT id, version, status, approved_by FROM bom_masters WHERE product_id = ? AND status IN (0, 1) ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END ASC, status DESC, version DESC LIMIT 1',
+      'SELECT id, version, status, approved_by FROM bom_masters WHERE product_id = ? AND status IN (0, 1) AND deleted_at IS NULL ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END ASC, status DESC, version DESC LIMIT 1',
       [productId]
     );
 

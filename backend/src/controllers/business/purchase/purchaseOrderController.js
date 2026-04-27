@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
 const pool = db.pool; // 正确引用连接池
+const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
 const {
   getPurchaseStatusText,
@@ -176,7 +177,7 @@ const getOrder = async (req, res) => {
       const [rows] = await pool.query(query, [id]);
 
       if (rows.length === 0) {
-        return res.status(404).json({ error: '采购订单不存在' });
+        return ResponseHandler.notFound(res, '采购订单不存在');
       }
 
       orderId = rows[0].id;
@@ -186,7 +187,7 @@ const getOrder = async (req, res) => {
     const order = await getOrderById(orderId);
 
     if (!order) {
-      return res.status(404).json({ error: '采购订单不存在' });
+      return ResponseHandler.notFound(res, '采购订单不存在');
     }
 
     res.json(order);
@@ -357,8 +358,8 @@ const deleteOrder = async (req, res) => {
       // 验证订单是否可编辑（删除）
       await PurchaseOrderService.validateOrderEditable(connection, id);
 
-      // 删除订单 (物料项目会通过外键CASCADE自动删除)
-      await connection.query('DELETE FROM purchase_orders WHERE id = ?', [id]);
+      // ✅ 软删除替代硬删除 (物料项目FK仍在，但主表不再物理删除)
+      await softDelete(connection, 'purchase_orders', 'id', id);
     });
 
     res.json({ message: '采购订单删除成功' });
@@ -411,6 +412,12 @@ const updateOrderStatus = async (req, res) => {
       const currentOrder = checkRows[0];
       const currentStatus = currentOrder.status;
 
+      // ✅ approved 状态保留给工作流回调专用，前端不可直接设置
+      // confirmed 状态允许主管在页面上直接审批
+      if (newStatus === 'approved') {
+        throw new Error('approved 状态仅限工作流回调设置，主管审批请使用"批准"按钮(confirmed)');
+      }
+
       // 如果状态没有变化，直接返回（允许保持相同状态）
       if (currentStatus === newStatus) {
         logger.info(`订单状态保持不变: ${currentStatus}`);
@@ -424,13 +431,27 @@ const updateOrderStatus = async (req, res) => {
         );
       }
 
+      // 提交审批时尝试发起工作流
+      let finalStatus = newStatus;
+      if (newStatus === 'pending') {
+        const WorkflowService = require('../../../services/business/WorkflowService');
+        const userId = req.user?.userId || req.user?.id;
+        const wfResult = await WorkflowService.tryStartWorkflow(
+          'purchase_order', id, currentOrder.order_no,
+          `采购订单 ${currentOrder.order_no} 审批`, userId
+        );
+        if (wfResult.auto_approved) {
+          finalStatus = 'approved';
+        }
+      }
+
       // 更新状态
       const updateQuery = `
         UPDATE purchase_orders
         SET status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `;
-      await connection.query(updateQuery, [newStatus, id]);
+      await connection.query(updateQuery, [finalStatus, id]);
 
       return id;
     });
@@ -733,7 +754,7 @@ const getRequisition = async (req, res) => {
     const [rows] = await pool.query(query, [id, 'approved', 'completed']);
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: '采购申请不存在或状态不是已批准/已完成' });
+      return ResponseHandler.notFound(res, '采购申请不存在或状态不是已批准/已完成');
     }
 
     const requisition = rows[0];
@@ -787,18 +808,7 @@ const getPurchaseDashboardStats = async (req, res) => {
     res.json(dashboardData);
   } catch (error) {
     logger.error('获取采购综合统计数据失败:', error);
-    res.status(500).json({
-      error: error.message,
-      statistics: {
-        requisitions: { total: 0, pending: 0 },
-        orders: { total: 0, pending: 0 },
-        receipts: { total: 0, pending: 0 },
-        returns: { total: 0, pending: 0 },
-      },
-      trendData: [],
-      categoryDistribution: [],
-      pendingItems: [],
-    });
+    ResponseHandler.error(res, '获取采购综合统计数据失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -809,7 +819,7 @@ const updateOrderItemsReceived = async (req, res) => {
     const { items } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: '缺少物料收货信息' });
+      return ResponseHandler.error(res, '缺少物料收货信息', 'BAD_REQUEST', 400);
     }
 
     // 引入采购订单状态服务

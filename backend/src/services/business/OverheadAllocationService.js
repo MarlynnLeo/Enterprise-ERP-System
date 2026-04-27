@@ -7,6 +7,7 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const BusinessError = require('../../utils/BusinessError');
+const { softDelete } = require('../../utils/softDelete');
 
 class OverheadAllocationService {
   // 分摊基础枚举
@@ -163,12 +164,10 @@ class OverheadAllocationService {
    */
   static async deleteConfig(id) {
     try {
-      const [result] = await db.pool.execute(
-        'DELETE FROM overhead_allocation_config WHERE id = ?',
-        [id]
-      );
+      // ✅ 软删除替代硬删除
+      const affected = await softDelete(db.pool, 'overhead_allocation_config', 'id', id);
       logger.info(`[OverheadAllocation] 删除分摊配置 ${id} 成功`);
-      return { affected: result.affectedRows };
+      return { affected };
     } catch (error) {
       logger.error('[OverheadAllocation] 删除分摊配置失败:', error);
       throw error;
@@ -196,6 +195,7 @@ class OverheadAllocationService {
       let sql = `
                 SELECT * FROM overhead_allocation_config
                 WHERE is_active = 1
+                  AND deleted_at IS NULL
                   AND effective_date <= ?
                   AND (expiry_date IS NULL OR expiry_date >= ?)
             `;

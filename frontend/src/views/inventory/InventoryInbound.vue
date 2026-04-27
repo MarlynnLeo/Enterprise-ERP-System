@@ -385,6 +385,7 @@
                 type="danger"
                 size="small"
                 @click="handleRemoveItem($index)"
+                v-permission="'inventory:inbound:update'"
               >
                 删除
               </el-button>
@@ -438,6 +439,10 @@
         <el-table-column prop="remark" label="备注" min-width="150" />
       </el-table>
       </div>
+      <template #footer>
+        <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="handlePrintInbound" :loading="printLoading">打印</el-button>
+      </template>
     </el-dialog>
 
     <!-- 物料选择对话框 -->
@@ -617,6 +622,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
+import printService, { parseTemplateResponse } from '@/services/printService'
 
 const route = useRoute()
 
@@ -889,6 +895,46 @@ const handleCreate = () => {
   form.status = 'draft'
   form.items = []
   dialogVisible.value = true
+}
+
+
+// ========== 打印功能 ==========
+const printLoading = ref(false)
+const handlePrintInbound = async () => {
+  printLoading.value = true
+  try {
+    const response = await printService.getPrintTemplateById(63)
+    const template = parseTemplateResponse(response)
+    if (!template || !template.content) {
+      ElMessage.error('未找到入库单打印模板，请在系统管理-打印模板中配置')
+      return
+    }
+    const printData = {
+      inbound_no: currentInbound.inbound_no || '',
+      inbound_date: currentInbound.inbound_date || '',
+      inbound_type: getInboundTypeText(currentInbound.inbound_type) || '其他入库',
+      supplier_name: currentInbound.supplier_name || '',
+      location_name: currentInbound.location_name || '',
+      remark: currentInbound.remark || '',
+      operator: currentInbound.operator_name || currentInbound.operator || '',
+      items: (currentInbound.items || []).map((item, idx) => ({
+        index: idx + 1,
+        material_code: item.material_code || '',
+        material_name: item.material_name || '',
+        specification: item.specification || item.material_specs || '',
+        quantity: parseFloat(item.quantity || 0).toFixed(2),
+        unit_name: item.unit_name || '',
+        remark: item.remark || ''
+      }))
+    }
+    const html = printService.generatePrintContent(template, printData)
+    printService.previewDocument(html)
+  } catch (error) {
+    console.error('打印入库单失败:', error)
+    ElMessage.error('打印失败: ' + (error.message || '未知错误'))
+  } finally {
+    printLoading.value = false
+  }
 }
 
 // 查看入库单

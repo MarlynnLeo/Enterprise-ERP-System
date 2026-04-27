@@ -14,7 +14,7 @@
           <h2>付款记录管理</h2>
           <p class="subtitle">管理供应商付款记录</p>
         </div>
-        <el-button v-permission="'finance:payments:create'" type="primary" :icon="Plus" @click="showAddDialog">新增付款</el-button>
+        <el-button v-permission="'finance:ap:pay'" type="primary" :icon="Plus" @click="showAddDialog">新增付款</el-button>
       </div>
     </el-card>
     
@@ -100,13 +100,13 @@
         <el-table-column label="操作" min-width="230" fixed="right">
           <template #default="scope">
             <el-button type="info" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
-            <el-button v-permission="'finance:payments:void'" 
+            <el-button v-permission="'finance:ap:update'" 
               v-if="scope.row.status === 'normal'" 
               type="warning" 
               size="small" 
               @click="handleVoid(scope.row)"
             >作废</el-button>
-            <el-button v-permission="'finance:payments:print'" type="success" size="small" @click="handlePrint(scope.row)">打印</el-button>
+            <el-button v-permission="'finance:ap:view'" type="success" size="small" @click="handlePrint(scope.row)">打印</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -313,7 +313,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="voidDialogVisible = false">取消</el-button>
-          <el-button v-permission="'finance:payments:void'" type="danger" @click="confirmVoid" :loading="voidLoading">确认作废</el-button>
+          <el-button v-permission="'finance:ap:update'" type="danger" @click="confirmVoid" :loading="voidLoading">确认作废</el-button>
         </span>
       </template>
     </el-dialog>
@@ -331,9 +331,9 @@
 
 <script setup>
 import { NumberFormatter } from '@/utils/commonHelpers'
+import { formatCurrency } from '@/utils/format'
 
 import PrintDialog from '@/components/common/PrintDialog.vue';
-import apiAdapter from '@/utils/apiAdapter';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
 
 import { ref, reactive, computed, onMounted } from 'vue';
@@ -345,7 +345,8 @@ import { useAuthStore } from '@/stores/auth'
 // 权限store
 const authStore = useAuthStore()
 
-// 权限计算属性
+// 权限计算属性
+
 // 高级搜索展开状态
 const showAdvancedSearch = ref(false);
 
@@ -437,17 +438,6 @@ const paymentRules = {
   paymentMethod: [
     { required: true, message: '请选择付款方式', trigger: 'change' }
   ]
-};
-
-// 格式化货币
-// formatCurrency 已统一引用公共实现;
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 
 // 获取付款方式文本

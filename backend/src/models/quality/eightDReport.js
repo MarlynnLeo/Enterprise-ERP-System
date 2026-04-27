@@ -1,13 +1,16 @@
 const db = require('../../config/db');
+const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
+const { softDelete } = require('../../utils/softDelete');
 
 const EightDReport = {
   // 获取列表（支持分页和搜索条件）
   async findAll(params) {
     const { page = 1, pageSize = 10, keyword, status, priority, startDate, endDate } = params;
-    const offset = (page - 1) * pageSize;
+    // ✅ 安全修复: 使用安全分页工具
+    const { limit: safeLimit, offset: safeOffset } = parsePagination(page, pageSize);
     
-    let sql = `SELECT * FROM eight_d_reports WHERE 1=1 `;
-    let countSql = `SELECT COUNT(*) as total FROM eight_d_reports WHERE 1=1 `;
+    let sql = `SELECT * FROM eight_d_reports WHERE deleted_at IS NULL `;
+    let countSql = `SELECT COUNT(*) as total FROM eight_d_reports WHERE deleted_at IS NULL `;
     const queryParams = [];
 
     if (keyword) {
@@ -35,11 +38,11 @@ const EightDReport = {
       queryParams.push(startDate, endDate);
     }
 
-    sql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    sql = appendPaginationSQL(sql + ` ORDER BY created_at DESC`, safeLimit, safeOffset);
 
     try {
       const dbPool = db.pool || db;
-      const [rows] = await dbPool.query(sql, [...queryParams, parseInt(pageSize), parseInt(offset)]);
+      const [rows] = await dbPool.query(sql, queryParams);
       const [countRows] = await dbPool.query(countSql, queryParams);
       
       return {
@@ -205,19 +208,21 @@ const EightDReport = {
 
   // 删除报告
   async delete(id) {
-    const sql = `DELETE FROM eight_d_reports WHERE id = ? AND status = 'draft'`;
+    // ✅ 软删除替代硬删除（仅草稿状态）
     const dbPool = db.pool || db;
-    const [result] = await dbPool.query(sql, [id]);
-    return result.affectedRows > 0;
+    const [check] = await dbPool.query('SELECT id FROM eight_d_reports WHERE id = ? AND status = \'draft\' AND deleted_at IS NULL', [id]);
+    if (check.length === 0) return false;
+    const affected = await softDelete(dbPool, 'eight_d_reports', 'id', id);
+    return affected > 0;
   },
 
   // 获取统计
   async getStatistics() {
     const dbPool = db.pool || db;
     
-    const [totalRows] = await dbPool.query(`SELECT COUNT(*) as count FROM eight_d_reports`);
-    const [statusRows] = await dbPool.query(`SELECT status, COUNT(*) as count FROM eight_d_reports GROUP BY status`);
-    const [priorityRows] = await dbPool.query(`SELECT priority, COUNT(*) as count FROM eight_d_reports GROUP BY priority`);
+    const [totalRows] = await dbPool.query(`SELECT COUNT(*) as count FROM eight_d_reports WHERE deleted_at IS NULL`);
+    const [statusRows] = await dbPool.query(`SELECT status, COUNT(*) as count FROM eight_d_reports WHERE deleted_at IS NULL GROUP BY status`);
+    const [priorityRows] = await dbPool.query(`SELECT priority, COUNT(*) as count FROM eight_d_reports WHERE deleted_at IS NULL GROUP BY priority`);
     
     const stats = {
       total: totalRows[0].count,

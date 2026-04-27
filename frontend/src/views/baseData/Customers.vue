@@ -202,7 +202,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { parsePaginatedData } from '@/utils/responseParser'
 import CustomerFormDialog from './components/CustomerFormDialog.vue';
 

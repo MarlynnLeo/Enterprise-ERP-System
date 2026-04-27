@@ -18,7 +18,7 @@
           type="primary"
           :icon="Plus"
           @click="showAddDialog"
-          v-permission="'finance:ap:invoices:create'">
+          v-permission="'finance:ap:create'">
           新增发票
         </el-button>
       </div>
@@ -116,11 +116,12 @@
               type="primary" 
               size="small" 
               @click="handleEdit(scope.row)"
-              v-permission="'finance:ap:invoices:update'">
+              v-permission="'finance:ap:update'">
               编辑
             </el-button>
             <el-button 
               v-if="(scope.row.status === '已确认' || scope.row.status === '部分付款') && (scope.row.amount - scope.row.paidAmount) > 0"
+              v-permission="'finance:ap:payments'"
               type="success" 
               size="small" 
               @click="handleRecordPayment(scope.row)">
@@ -295,7 +296,7 @@
                     size="small"
                     link
                     @click="removeInvoiceItem(scope.$index)"
-                    v-permission="'finance:ap:invoices:delete'"
+                    v-permission="'finance:ap:update'"
                     style="padding: 4px 0;">
                     删除
                   </el-button>
@@ -304,7 +305,7 @@
             </el-table>
           </div>
           <div class="add-item" style="margin-top: 10px;">
-            <el-button v-permission="'finance:invoices:create'" type="primary" size="small" @click="addInvoiceItem">添加明细项</el-button>
+            <el-button v-permission="'finance:ar:create'" type="primary" size="small" @click="addInvoiceItem">添加明细项</el-button>
           </div>
         </div>
         
@@ -489,8 +490,9 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailsDialogVisible = false">关闭</el-button>
-          <el-button type="primary" @click="handleRecordPayment(invoiceDetail)" v-if="invoiceDetail.balance > 0">记录付款</el-button>
-          <el-button v-permission="'finance:invoices:print'" type="primary" @click="printInvoiceDetail">打印</el-button>
+          <el-button type="primary" @click="handleRecordPayment(invoiceDetail)" v-if="invoiceDetail.balance > 0"
+              v-permission="'finance:ap:payments'">记录付款</el-button>
+          <el-button v-permission="'finance:ar:view'" type="primary" @click="printInvoiceDetail">打印</el-button>
         </span>
       </template>
     </el-dialog>
@@ -500,18 +502,16 @@
 <script setup>
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig';
+import { formatCurrency } from '@/utils/format'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus'
 import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
 import api from '@/services/api';
-import { useAuthStore } from '@/stores/auth'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
 import request from '@/utils/request' // Import request utility
 
-// 权限store
-const authStore = useAuthStore()
 const financeStore = useFinanceStore()
 const { vatRateOptions, defaultVATRate, paymentTermOptions, defaultPaymentTermDays, pagination } = storeToRefs(financeStore)
 
@@ -636,17 +636,6 @@ const paymentRules = {
   ]
 };
 
-// 格式化货币
-// formatCurrency 已统一引用公共实现;
-
-// 金额格式化
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '¥0.00';
-  const num = parseFloat(value);
-  if (isNaN(num)) return '¥0.00';
-  return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
-};
-
 // 获取状态类型
 const getStatusType = (invoice) => {
   const statusMap = {
@@ -677,26 +666,27 @@ const handleMaterialChange = (item) => {
   }
 };
 
-// 计算单项金额
+// 计算单项金额（整数化精度控制，避免浮点误差）
 const calculateItemAmount = (item) => {
   const quantity = parseFloat(item.quantity) || 0;
   const unitPrice = parseFloat(item.unitPrice) || 0;
-  item.amount = quantity * unitPrice;
+  item.amount = Math.round(quantity * unitPrice * 100) / 100;
 };
 
-// 计算小计
+// 计算小计（整数化累加，避免多行累计误差放大）
 const calculateSubtotal = () => {
-  return invoiceForm.items.reduce((sum, item) => sum + (item.amount || 0), 0);
+  const totalCents = invoiceForm.items.reduce((sum, item) => sum + Math.round((item.amount || 0) * 100), 0);
+  return totalCents / 100;
 };
 
 // 计算税额
 const calculateTax = () => {
-  return calculateSubtotal() * invoiceForm.taxRate;
+  return Math.round(calculateSubtotal() * invoiceForm.taxRate * 100) / 100;
 };
 
 // 计算总计
 const calculateTotal = () => {
-  return calculateSubtotal() + calculateTax();
+  return Math.round((calculateSubtotal() + calculateTax()) * 100) / 100;
 };
 
 // 处理开票日期变化
@@ -1057,8 +1047,8 @@ const printInvoiceDetail = async () => {
 
 // 记录付款
 const handleRecordPayment = (row) => {
-  // 计算剩余金额
-  const balance = row.amount - row.paidAmount;
+  // 直接使用服务端已计算的余额字段，避免前端浮点减法与DB值不一致
+  const balance = parseFloat(row.balance) || parseFloat(row.balance_amount) || 0;
   
   // 填充付款表单
   paymentForm.invoiceId = row.id;

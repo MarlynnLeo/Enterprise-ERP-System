@@ -1,34 +1,13 @@
 const db = require('../config/db');
 const logger = require('../utils/logger');
+const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 
 class NonconformingProduct {
   /**
-   * Generate NCP number
+   * 生成不合格品编号
    */
   static async generateNcpNo() {
-    const prefix = 'NCP';
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}${month}${day}`;
-
-    const query = `
-      SELECT ncp_no FROM nonconforming_products 
-      WHERE ncp_no LIKE ? 
-      ORDER BY ncp_no DESC 
-      LIMIT 1
-    `;
-    const [rows] = await db.pool.query(query, [`${prefix}${dateStr}%`]);
-
-    let sequence = 1;
-    if (rows.length > 0) {
-      const lastNo = rows[0].ncp_no;
-      const lastSeq = parseInt(lastNo.slice(-3));
-      sequence = lastSeq + 1;
-    }
-
-    return `${prefix}${dateStr}${String(sequence).padStart(3, '0')}`;
+    return await CodeGeneratorService.nextCode('nonconforming_product');
   }
 
   /**

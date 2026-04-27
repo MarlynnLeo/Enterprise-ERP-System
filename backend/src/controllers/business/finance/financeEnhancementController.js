@@ -107,55 +107,8 @@ class FinanceEnhancementController {
   }
 
   // ==================== 成本核算功能 ====================
-
-  /**
-   * 计算标准成本
-   */
-  static async calculateStandardCost(req, res) {
-    try {
-      const { productId } = req.params;
-      const { quantity = 1 } = req.query;
-
-      const result = await CostAccountingService.calculateStandardCost(
-        parseInt(productId),
-        parseFloat(quantity)
-      );
-
-      ResponseHandler.success(res, result, '标准成本计算完成');
-    } catch (error) {
-      ResponseHandler.error(res, error.message || '计算标准成本失败', 'SERVER_ERROR', 500, error);
-    }
-  }
-
-  /**
-   * 计算实际成本
-   */
-  static async calculateActualCost(req, res) {
-    try {
-      const { productionOrderId } = req.params;
-
-      const result = await CostAccountingService.calculateActualCost(parseInt(productionOrderId));
-
-      ResponseHandler.success(res, result, '实际成本计算完成');
-    } catch (error) {
-      ResponseHandler.error(res, error.message || '计算实际成本失败', 'SERVER_ERROR', 500, error);
-    }
-  }
-
-  /**
-   * 成本差异分析
-   */
-  static async analyzeCostVariance(req, res) {
-    try {
-      const { productionOrderId } = req.params;
-
-      const result = await CostAccountingService.analyzeCostVariance(parseInt(productionOrderId));
-
-      ResponseHandler.success(res, result, '成本差异分析完成');
-    } catch (error) {
-      ResponseHandler.error(res, error.message || '成本差异分析失败', 'SERVER_ERROR', 500, error);
-    }
-  }
+  // 注意：calculateStandardCost / calculateActualCost / analyzeCostVariance
+  // 已由 costController 中的同名方法替代，此处不再重复定义。
 
   // ==================== 高级报表功能 ====================
 
@@ -233,7 +186,7 @@ class FinanceEnhancementController {
       const offset = (pageNum - 1) * pageSizeNum;
 
       // 从operation_logs表获取自动化相关的操作记录
-      const [rows] = await db.pool.query(`
+      const [rows] = await db.pool.execute(`
         SELECT
           id,
           module,
@@ -249,7 +202,7 @@ class FinanceEnhancementController {
           'production_cost'
         )
         ORDER BY created_at DESC
-        LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+        LIMIT ? OFFSET ?
       `, [pageSizeNum, offset]);
 
       // 获取总数

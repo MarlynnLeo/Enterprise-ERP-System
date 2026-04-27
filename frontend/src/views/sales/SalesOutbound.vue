@@ -176,6 +176,7 @@
               size="small" 
               type="primary" 
               @click="showEditDialog(scope.row)"
+              v-permission="'sales:outbound:update'"
             >
               编辑
             </el-button>
@@ -184,7 +185,8 @@
               size="small" 
               type="danger" 
               @click="handleDelete(scope.row)"
-            >
+            
+              v-permission="'sales:outbound:delete'">
               删除
             </el-button>
             <el-button 
@@ -246,7 +248,7 @@
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(currentOutbound.status)">{{ getStatusText(currentOutbound.status) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间" :span="2">{{ formatDateTime(currentOutbound.created_at) }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间" :span="2">{{ formatDate(currentOutbound.created_at) }}</el-descriptions-item>
         </el-descriptions>
 
         <el-divider>出库明细</el-divider>
@@ -445,7 +447,8 @@
                     type="danger"
                     size="small"
                     @click="removeItem($index)"
-                  >
+                  
+                    v-permission="'sales:outbound:update'">
                     删除
                   </el-button>
                 </template>
@@ -592,12 +595,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, inventoryApi } from '@/api'
 import { usePaginatedFetching, useFormSubmit } from '@/composables/useDataFetching'
 import { api } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import axios from 'axios'
-
-// 权限store
-const authStore = useAuthStore()
 
 // 状态变量
 const loading = ref(false)
@@ -959,7 +958,7 @@ const showEditDialog = async (row) => {
           } else if (typeof item.source_orders === 'string') {
              try {
                 sourceOrders = JSON.parse(item.source_orders)
-             } catch(e) {}
+             } catch(e) { console.warn('解析 source_orders JSON 失败:', e.message) }
           }
        }
        
@@ -1857,7 +1856,7 @@ const handleStatusChange = async (row, status) => {
     const index = outbounds.value.findIndex(item => item.id === row.id)
     if (index !== -1) {
       outbounds.value[index].status = status
-      calculateOutboundStats()
+      calculateOutboundStats(outbounds.value)
     }
     
     ElMessage.success(`出库单状态已更新为${getStatusText(status)}`)

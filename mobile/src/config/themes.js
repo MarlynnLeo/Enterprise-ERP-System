@@ -29,8 +29,30 @@ export const themes = [
     dataTheme: 'dark',
     preview: {
       primary: '#0f172a',
-      accent: '#67C1D9',
+      accent: '#60a5fa',
       bg: '#0f172a'
+    }
+  },
+  {
+    name: 'nature',
+    label: '自然护眼',
+    description: '清新绿色 — 缓解视觉疲劳',
+    dataTheme: 'nature',
+    preview: {
+      primary: '#51CF66',
+      accent: '#40C057',
+      bg: '#F0FFF4'
+    }
+  },
+  {
+    name: 'tech',
+    label: '科技主题',
+    description: '霓虹蓝绿 — 信息密集场景',
+    dataTheme: 'tech',
+    preview: {
+      primary: '#00c3ff',
+      accent: '#7c4dff',
+      bg: '#0B1120'
     }
   }
 ]

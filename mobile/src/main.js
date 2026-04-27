@@ -10,6 +10,7 @@ import App from './App.vue'
 import router from './router'
 import { createPinia } from 'pinia'
 import { initTheme } from './composables/useTheme'
+import permissionDirective from './directives/permission'
 
 import {
   Button,
@@ -53,6 +54,9 @@ import './assets/styles/index.scss'
 
 // 引入设计令牌样式（包含 CSS 变量、Vant 变量映射）
 import './styles/design-tokens.css'
+
+// Material Symbols 图标字体（本地化加载，避免 CDN 加载失败）
+import 'material-symbols/rounded.css'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -99,6 +103,9 @@ vantComponents.forEach((c) => app.use(c))
 
 app.use(pinia)
 app.use(router)
+
+// 注册权限指令 — 与网页端同步
+app.use(permissionDirective)
 
 // 初始化主题系统
 initTheme()

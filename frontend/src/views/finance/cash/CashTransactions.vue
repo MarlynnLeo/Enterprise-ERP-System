@@ -145,7 +145,7 @@
               >编辑</el-button>
 
               <!-- 提交按钮：仅草稿状态显示 -->
-              <el-button v-permission="'finance:cashtransactions:submit'" 
+              <el-button
                 v-if="scope.row.status === 'draft' || !scope.row.status"
                 type="success"
                 size="small"
@@ -154,7 +154,7 @@
 
               <!-- 审核按钮：待审核或已复核状态显示 -->
               <el-button 
-                v-if="(scope.row.status === 'pending' || scope.row.status === 'reviewed') && canAudit"
+                v-if="scope.row.status === 'pending' || scope.row.status === 'reviewed'"
                 type="info"
                 size="small"
                 @click="handleAudit(scope.row)"
@@ -377,12 +377,6 @@ import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { UploadFilled, Plus } from '@element-plus/icons-vue'
 import { api } from '@/services/api';
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
-const canAudit = computed(() => true) // 与银行交易一致，所有用户可审核
 
 // 数据加载状态
 const loading = ref(false);

@@ -111,26 +111,28 @@
         <div class="remark-text">{{ task.remark }}</div>
       </div>
 
-      <!-- 操作 -->
-      <div class="action-bar">
-        <VanButton v-if="task.status === 'pending'" type="primary" block round @click="handleStart"
-          >开始任务</VanButton
+      <!-- 操作按钮（与网页端一致） -->
+      <div class="action-bar" v-if="showActions">
+        <!-- pending状态可删除（网页端只有pending可删除） -->
+        <VanButton
+          v-if="task.status === 'pending'"
+          v-permission="'production:tasks:delete'"
+          type="danger"
+          plain
+          block
+          round
+          @click="handleDelete"
+          >删除任务</VanButton
         >
+        <!-- in_progress状态可报工 -->
         <VanButton
           v-if="task.status === 'in_progress'"
+          v-permission="'production:tasks:update'"
           type="warning"
           block
           round
           @click="handleReport"
           >生产报工</VanButton
-        >
-        <VanButton
-          v-if="task.status === 'in_progress'"
-          type="success"
-          block
-          round
-          @click="handleComplete"
-          >完成任务</VanButton
         >
       </div>
     </div>
@@ -143,7 +145,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import { NavBar, Loading, Empty, Button as VanButton, showToast, showConfirmDialog } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
@@ -154,6 +156,12 @@
   const route = useRoute()
   const loading = ref(true)
   const task = ref(null)
+
+  // 是否显示操作栏
+  const showActions = computed(() => {
+    const s = task.value?.status
+    return s === 'pending' || s === 'in_progress'
+  })
 
   const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm') : '—')
   const getStatusAccent = (s) =>
@@ -207,25 +215,25 @@
     }
   }
 
-  const handleStart = async () => {
-    try {
-      await showConfirmDialog({ title: '确认', message: '确定开始此任务？' })
-      await productionApi.startProductionTask(task.value.id)
-      showToast('任务已开始')
-      loadTaskDetail()
-    } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
-    }
-  }
+  // 生产报工
   const handleReport = () => router.push(`/production/tasks/${task.value.id}/report`)
-  const handleComplete = async () => {
+
+  // 删除任务（仅pending状态，与网页端一致）
+  const handleDelete = async () => {
     try {
-      await showConfirmDialog({ title: '确认', message: '确定完成此任务？' })
-      await productionApi.completeProductionTask(task.value.id)
-      showToast('任务已完成')
-      loadTaskDetail()
+      await showConfirmDialog({
+        title: '删除确认',
+        message: '确定要删除该生产任务吗？此操作无法恢复。',
+        confirmButtonColor: 'var(--color-danger)'
+      })
+      await productionApi.deleteProductionTask(task.value.id)
+      showToast('已删除')
+      router.back()
     } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
+      if (e !== 'cancel' && e?.message !== 'cancel') {
+        const errorMsg = e.response?.data?.message || '操作失败'
+        showToast(errorMsg)
+      }
     }
   }
 
@@ -291,11 +299,11 @@
     flex-shrink: 0;
     &.st-pending {
       background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      color: var(--text-secondary);
     }
     &.st-progress {
       background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.st-inspection {
       background: rgba(168, 85, 247, 0.12);
@@ -303,7 +311,7 @@
     }
     &.st-completed {
       background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.st-paused {
       background: rgba(249, 115, 22, 0.12);
@@ -311,7 +319,7 @@
     }
     &.st-cancelled {
       background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      color: var(--color-danger);
     }
   }
 
@@ -348,16 +356,16 @@
     border-radius: 4px;
     transition: width 0.5s;
     &.fill-green {
-      background: linear-gradient(90deg, #10b981, #34d399);
+      background: linear-gradient(90deg, var(--color-success), #34d399);
     }
     &.fill-blue {
-      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      background: linear-gradient(90deg, var(--color-primary), #60a5fa);
     }
     &.fill-yellow {
-      background: linear-gradient(90deg, #f59e0b, #fbbf24);
+      background: linear-gradient(90deg, var(--color-warning), var(--color-warning));
     }
     &.fill-low {
-      background: linear-gradient(90deg, #ef4444, #f87171);
+      background: linear-gradient(90deg, var(--color-danger), var(--color-danger));
     }
   }
   .progress-meta {

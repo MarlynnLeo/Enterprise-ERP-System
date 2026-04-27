@@ -91,7 +91,7 @@
               </template>
             </el-popconfirm>
             <el-popconfirm
-              v-if="canApprove && !isApproved(scope.row)"
+              v-if="!isApproved(scope.row)"
               title="确定要审核该BOM吗？审核后将无法再编辑。"
               @confirm="handleApprove(scope.row)"
             >
@@ -102,7 +102,7 @@
               </template>
             </el-popconfirm>
             <el-popconfirm
-              v-if="canApprove && isApproved(scope.row)"
+              v-if="isApproved(scope.row)"
               title="确定要反审该BOM吗？反审后可修改。"
               @confirm="handleUnapprove(scope.row)"
               confirm-button-type="warning"
@@ -168,10 +168,6 @@ const props = defineProps({
     default: true
   },
   canDelete: {
-    type: Boolean,
-    default: true
-  },
-  canApprove: {
     type: Boolean,
     default: true
   }

@@ -9,14 +9,7 @@ const InventoryService = require('../InventoryService');
 
 class BatchManagementService {
   /**
-   * 创建批次 (单表架构版本)
-   * 只写入 inventory_ledger，不再使用 batch_inventory
-   * @param {Object} batchData - 批次数据
-   * @returns {Promise<Object>} - 创建的批次记录
-   */
-  /**
-   * 创建批次 (单表架构版本)
-   * 只写入 inventory_ledger，不再使用 batch_inventory
+   * 创建批次
    * @param {Object} batchData - 批次数据
    * @param {Object} [externalConnection] - 外部数据库连接（可选）
    * @returns {Promise<Object>} - 创建的批次记录
@@ -54,7 +47,7 @@ class BatchManagementService {
         created_by,
       } = batchData;
 
-      // ✅ 单表架构：只写入 inventory_ledger
+      // 写入 inventory_ledger 台账
       // 根据入库单号前缀判断交易类型：GR=采购入库，PR=生产入库，其他=通用入库
       const refNo = receipt_no || `BATCH-${batch_number}`;
       let txType = 'inbound';
@@ -123,20 +116,11 @@ class BatchManagementService {
   // 辅助方法：获取单位ID
   static async _getUnitId(connection, unitName) {
     if (!unitName) return null;
-    const [rows] = await connection.execute('SELECT id FROM units WHERE name = ?', [unitName]);
+    const [rows] = await connection.execute('SELECT id FROM units WHERE name = ? AND deleted_at IS NULL', [unitName]);
     return rows.length > 0 ? rows[0].id : null;
   }
 
-  /**
-   * 添加批次到FIFO队列
-   * @param {Object} connection - 数据库连接
-   * @param {number} batchId - 批次ID
-   * @param {Object} queueData - 队列数据
-   */
 
-  /**
-   * (废弃) 添加批次到FIFO队列 => 已移除原双表同步的 batch_transactions 相关记录
-   */
 
   /**
    * 根据批次号获取批次记录 (单表架构版本)
@@ -307,7 +291,7 @@ class BatchManagementService {
           connection
         );
 
-        // (已移除 batch_transactions 写入逻辑，完全依赖 inventory_ledger 台账追踪)
+
 
         outboundRecords.push({
           batch_number: batch.batch_number,
@@ -445,7 +429,7 @@ class BatchManagementService {
           ]
         );
 
-        // (已移除 batch_transactions 写入逻辑，预留完全依赖 inventory_reservations 与 inventory_ledger)
+
 
         reserveRecords.push({
           batch_number: batch.batch_number,

@@ -17,9 +17,6 @@ import { useThemeStore } from './stores/theme'
 import { useDictionaryStore } from './stores/dictionary'
 import i18n from './locales'
 import axios from 'axios'
-import { library } from '@fortawesome/fontawesome-svg-core'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faGoogle, faFacebook } from '@fortawesome/free-brands-svg-icons'
 import Vue3Lottie from 'vue3-lottie'
 import './assets/main.css'
 import './assets/common-styles.css'
@@ -89,9 +86,5 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 // 配置 axios 默认值 - 修复路径，避免重复的 /api
 axios.defaults.baseURL = import.meta.env.VITE_API_URL || '/api'
-
-library.add(faGoogle, faFacebook)
-
-app.component('font-awesome-icon', FontAwesomeIcon)
 
 app.mount('#app')

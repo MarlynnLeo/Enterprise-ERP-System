@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, onErrorCaptured, onMounted } from 'vue';
+import { ref, onErrorCaptured, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon, Button, showToast, showDialog } from 'vant';
 
@@ -86,7 +86,7 @@ const props = defineProps({
   // 是否显示错误详情
   showDetails: {
     type: Boolean,
-    default: process.env.NODE_ENV === 'development'
+    default: import.meta.env.DEV
   },
   // 自定义错误标题
   fallbackTitle: {
@@ -229,24 +229,30 @@ const handleFeedback = async () => {
   }
 };
 
-// 全局错误处理
+// 全局错误处理 — 具名函数便于卸载时移除
+const handleGlobalError = (event) => {
+  if (!hasError.value) {
+    handleError(event.error || new Error(event.message), 'Global error');
+  }
+};
+
+const handleUnhandledRejection = (event) => {
+  if (!hasError.value) {
+    const error = event.reason instanceof Error 
+      ? event.reason 
+      : new Error(String(event.reason));
+    handleError(error, 'Unhandled promise rejection');
+  }
+};
+
 onMounted(() => {
-  // 监听全局未捕获的错误
-  window.addEventListener('error', (event) => {
-    if (!hasError.value) {
-      handleError(event.error || new Error(event.message), 'Global error');
-    }
-  });
-  
-  // 监听未处理的Promise拒绝
-  window.addEventListener('unhandledrejection', (event) => {
-    if (!hasError.value) {
-      const error = event.reason instanceof Error 
-        ? event.reason 
-        : new Error(String(event.reason));
-      handleError(error, 'Unhandled promise rejection');
-    }
-  });
+  window.addEventListener('error', handleGlobalError);
+  window.addEventListener('unhandledrejection', handleUnhandledRejection);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('error', handleGlobalError);
+  window.removeEventListener('unhandledrejection', handleUnhandledRejection);
 });
 
 // 暴露方法给父组件

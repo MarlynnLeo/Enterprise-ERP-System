@@ -1,78 +1,20 @@
 /**
- * salesController.js
- * @description 控制器文件
- * @date 2025-08-27
- * @version 1.0.0
+ * salesOutboundController.js
+ * @description 销售出库控制器
+ * @version 1.1.0
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
+const { softDelete } = require('../../../utils/softDelete');
 const SalesOrderStatusService = require('../../../services/business/SalesOrderStatusService');
-const { CodeGenerators } = require('../../../utils/codeGenerator');
 const DBManager = require('../../../utils/dbManager');
-const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
-// 状态常量
-const STATUS = {
-  SALES_ORDER: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    CONFIRMED: 'confirmed',
-    READY_TO_SHIP: 'ready_to_ship',
-    IN_PRODUCTION: 'in_production',
-    IN_PROCUREMENT: 'in_procurement',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-  OUTBOUND: businessConfig.status.outbound,
-  SALES_RETURN: {
-    DRAFT: 'draft',
-    PENDING: 'pending',
-    APPROVED: 'approved',
-    COMPLETED: 'completed',
-    REJECTED: 'rejected',
-    CANCELLED: 'cancelled',
-  },
-  EXCHANGE: {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-};
-
-// 移除了废弃的 ensureSalesExchangeTablesExist, createSalesExchangeTablesDirectly, 和 updateSalesExchangeTableStructure
-// 使用统一的编号生成服务 - 替代原 generateTransactionNo 函数
-async function generateTransactionNo(connection) {
-  return await CodeGenerators.generateTransactionCode(connection);
-}
-
-// Import the connection pool from db
-// 注意: 改名为 connectionPool 避免与函数内局部变量 connection 产生遮蔽
-const connectionPool = db.pool;
-
-// 统一的连接管理函数
-const getConnection = async () => {
-  return await connectionPool.getConnection();
-};
-
-// 带事务的连接管理函数
-const getConnectionWithTransaction = async () => {
-  const conn = await connectionPool.getConnection();
-  await conn.beginTransaction();
-  return conn;
-};
-
-// 统一的销售订单编号生成函数 - 替代所有重复的生成函数
-const generateSalesOrderNo = async (connection) => {
-  return CodeGenerators.generateSalesOrderCode(connection);
-};
-
-// 保持向后兼容的别名函数
-const generateOrderNo = generateSalesOrderNo;
+// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
+const { STATUS, getConnection, getConnectionWithTransaction, generateSalesOutboundNo, generateTransactionNo } = require('./salesShared');
 
 // 添加新的控制器方法
 
@@ -222,7 +164,7 @@ exports.getSalesOutbound = async (req, res) => {
     }
   } catch (error) {
     logger.error('获取销售出库单列表失败:', error);
-    res.status(500).json({ error: '获取销售出库单列表失败' });
+    ResponseHandler.error(res, '获取销售出库单列表失败', 'SERVER_ERROR', 500);
   }
 };
 
@@ -246,7 +188,7 @@ exports.getSalesOutboundById = async (req, res) => {
     const [results] = await connection.query(query, [id]);
 
     if (results.length === 0) {
-      return res.status(404).json({ error: '出库单不存在' });
+      return ResponseHandler.notFound(res, '出库单不存在');
     }
 
     const outbound = results[0];
@@ -443,7 +385,7 @@ exports.getSalesOutboundById = async (req, res) => {
     }
   } catch (error) {
     logger.error('获取销售出库单详情失败:', error);
-    res.status(500).json({ error: '获取销售出库单详情失败: ' + error.message });
+    ResponseHandler.error(res, '获取销售出库单详情失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
       connection.release();
@@ -451,10 +393,6 @@ exports.getSalesOutboundById = async (req, res) => {
   }
 };
 
-// 使用统一的编号生成服务 - 替代原 generateSalesOutboundNo 函数
-async function generateSalesOutboundNo(conn) {
-  return await CodeGenerators.generateOutboundCode(conn);
-}
 
 
 exports.createSalesOutbound = async (req, res) => {
@@ -478,12 +416,12 @@ exports.createSalesOutbound = async (req, res) => {
         related_orders = JSON.parse(rawRelatedOrders);
       } catch (error) {
         logger.error('解析related_orders JSON失败:', error);
-        return res.status(400).json({ error: '无效的关联订单格式' });
+        return ResponseHandler.error(res, '无效的关联订单格式', 'BAD_REQUEST', 400);
       }
     } else if (Array.isArray(rawRelatedOrders)) {
       related_orders = rawRelatedOrders;
     }
-    const created_by = await getCurrentUserName(req);
+    const created_by = req.user?.userId || req.user?.id || 1;
 
     logger.info(
       '销售出库单创建请求:',
@@ -513,7 +451,7 @@ exports.createSalesOutbound = async (req, res) => {
       }
     } catch (error) {
       logger.error('日期格式转换错误:', error);
-      return res.status(400).json({ error: '无效的日期格式' });
+      return ResponseHandler.error(res, '无效的日期格式', 'BAD_REQUEST', 400);
     }
 
     connection = await DBManager.getConnection();
@@ -559,7 +497,7 @@ exports.createSalesOutbound = async (req, res) => {
       // 多订单模式：验证所有关联订单存在
       if (!related_orders || related_orders.length === 0) {
         await connection.rollback();
-        return res.status(400).json({ error: '多订单模式下必须提供关联订单列表' });
+        return ResponseHandler.error(res, '多订单模式下必须提供关联订单列表', 'BAD_REQUEST', 400);
       }
 
       const [orderCheck] = await connection.query(
@@ -569,7 +507,7 @@ exports.createSalesOutbound = async (req, res) => {
 
       if (orderCheck.length !== related_orders.length) {
         await connection.rollback();
-        return res.status(400).json({ error: '部分关联订单不存在' });
+        return ResponseHandler.error(res, '部分关联订单不存在', 'BAD_REQUEST', 400);
       }
 
       // 检查是否所有订单属于同一客户（可选验证）
@@ -586,7 +524,7 @@ exports.createSalesOutbound = async (req, res) => {
 
         if (orderCheck.length === 0) {
           await connection.rollback();
-          return res.status(400).json({ error: '关联的订单不存在' });
+          return ResponseHandler.error(res, '关联的订单不存在', 'BAD_REQUEST', 400);
         }
       }
     }
@@ -634,7 +572,6 @@ exports.createSalesOutbound = async (req, res) => {
             materialsParams = [materialIds];
           }
 
-          logger.info('物料查询参数:', materialsParams);
 
           const [materialCheck] = await connection.query(materialsQuery, materialsParams);
 
@@ -716,6 +653,16 @@ exports.createSalesOutbound = async (req, res) => {
       }
     }
 
+    // 自动创建单据关联（销售订单 → 出库单）
+    if (order_id) {
+      const DocumentLinkService = require('../../../services/business/DocumentLinkService');
+      const [[orderRow]] = await connection.query('SELECT order_no FROM sales_orders WHERE id = ?', [order_id]);
+      await DocumentLinkService.tryAutoLink(
+        'sales_order', order_id, orderRow?.order_no || null,
+        'sales_outbound', outboundId, outboundNo, created_by, connection
+      );
+    }
+
     await connection.commit();
 
     ResponseHandler.success(
@@ -733,7 +680,7 @@ exports.createSalesOutbound = async (req, res) => {
       await connection.rollback();
     }
     logger.error('创建销售出库单失败:', error);
-    res.status(500).json({ error: '创建销售出库单失败: ' + error.message });
+    ResponseHandler.error(res, '创建销售出库单失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
       connection.release();
@@ -773,7 +720,7 @@ exports.updateSalesOutbound = async (req, res) => {
 
     if (outboundCheck.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '出库单不存在' });
+      return ResponseHandler.notFound(res, '出库单不存在');
     }
 
     const currentOutbound = outboundCheck[0];
@@ -815,7 +762,7 @@ exports.updateSalesOutbound = async (req, res) => {
       // 多订单模式：验证所有关联订单存在
       if (!finalRelatedOrders || finalRelatedOrders.length === 0) {
         await connection.rollback();
-        return res.status(400).json({ error: '多订单模式下必须提供关联订单列表' });
+        return ResponseHandler.error(res, '多订单模式下必须提供关联订单列表', 'BAD_REQUEST', 400);
       }
 
       const [orderCheck] = await connection.query('SELECT id FROM sales_orders WHERE id IN (?)', [
@@ -824,7 +771,7 @@ exports.updateSalesOutbound = async (req, res) => {
 
       if (orderCheck.length !== finalRelatedOrders.length) {
         await connection.rollback();
-        return res.status(400).json({ error: '部分关联订单不存在' });
+        return ResponseHandler.error(res, '部分关联订单不存在', 'BAD_REQUEST', 400);
       }
 
       finalOrderId = null; // 多订单时主订单ID为空
@@ -837,7 +784,7 @@ exports.updateSalesOutbound = async (req, res) => {
 
         if (orderCheck.length === 0) {
           await connection.rollback();
-          return res.status(400).json({ error: '关联的订单不存在' });
+          return ResponseHandler.error(res, '关联的订单不存在', 'BAD_REQUEST', 400);
         }
       } else {
         finalOrderId = currentOutbound.order_id;
@@ -1023,7 +970,7 @@ exports.updateSalesOutbound = async (req, res) => {
     }
 
     // 更新订单状态 - 使用智能状态服务
-    logger.info('🔍 状态更新调试信息:', {
+    logger.debug('状态更新信息:', {
       finalIsMultiOrder,
       finalRelatedOrdersLength: finalRelatedOrders ? finalRelatedOrders.length : 0,
       finalRelatedOrders,
@@ -1205,7 +1152,7 @@ exports.updateSalesOutbound = async (req, res) => {
       await connection.rollback();
     }
     logger.error('更新销售出库单失败:', error);
-    res.status(500).json({ error: '更新销售出库单失败: ' + error.message });
+    ResponseHandler.error(res, '更新销售出库单失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
       connection.release();
@@ -1231,7 +1178,7 @@ exports.deleteSalesOutbound = async (req, res) => {
 
     if (outboundResult.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: '出库单不存在' });
+      return ResponseHandler.notFound(res, '出库单不存在');
     }
 
     const outbound = outboundResult[0];
@@ -1250,8 +1197,8 @@ exports.deleteSalesOutbound = async (req, res) => {
       // 删除明细
       await connection.query('DELETE FROM sales_outbound_items WHERE outbound_id = ?', [id]);
 
-      // 删除主表
-      await connection.query('DELETE FROM sales_outbound WHERE id = ?', [id]);
+      // ✅ 软删除出库单主表
+      await softDelete(connection, 'sales_outbound', 'id', id);
 
       await connection.commit();
 
@@ -1270,7 +1217,7 @@ exports.deleteSalesOutbound = async (req, res) => {
       await connection.rollback();
     }
     logger.error('删除销售出库单失败:', error);
-    res.status(500).json({ error: '删除销售出库单失败: ' + error.message });
+    ResponseHandler.error(res, '删除销售出库单失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
       connection.release();
@@ -1389,11 +1336,7 @@ exports.getMaterialSalesHistory = async (req, res) => {
     });
   } catch (error) {
     logger.error('获取物料销售历史失败:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      message: '获取物料销售历史失败',
-    });
+    ResponseHandler.error(res, '获取物料销售历史失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
       connection.release();

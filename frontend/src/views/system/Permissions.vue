@@ -33,7 +33,7 @@
       <div v-if="activeTab === 'roles'">
         <div class="role-header">
           <h3>系统角色</h3>
-          <el-button type="primary" v-permission="'system:permissions:create'" @click="showAddRoleDialog">新增角色</el-button>
+          <el-button type="primary" v-permission="'system:permissions:manage'" @click="showAddRoleDialog">新增角色</el-button>
         </div>
         
         <el-table
@@ -65,7 +65,7 @@
                   @confirm="handleToggleRoleStatus(scope.row)"
                 >
                   <template #reference>
-                    <el-button size="small" type="success" v-permission="'system:permissions:update'">
+                    <el-button size="small" type="success" v-permission="'system:permissions:manage'">
                       <el-icon><Check /></el-icon> 启用
                     </el-button>
                   </template>
@@ -78,7 +78,7 @@
                   confirm-button-type="danger"
                 >
                   <template #reference>
-                    <el-button size="small" type="warning" v-permission="'system:permissions:update'">
+                    <el-button size="small" type="warning" v-permission="'system:permissions:manage'">
                       <el-icon><Close /></el-icon> 禁用
                     </el-button>
                   </template>
@@ -95,11 +95,11 @@
                   v-if="String(scope.row.status) !== '1'"
                   type="primary"
                   size="small"
-                  v-permission="'system:permissions:update'"
+                  v-permission="'system:permissions:manage'"
                   @click="handleEditRole(scope.row)"
                 ><el-icon><Edit /></el-icon> 编辑</el-button>
 
-                <el-button type="info" size="small" v-permission="'system:permissions:update'" @click="handleRolePermission(scope.row)">
+                <el-button type="info" size="small" v-permission="'system:permissions:manage'" @click="handleRolePermission(scope.row)">
                   <el-icon><Setting /></el-icon> 分配权限
                 </el-button>
               </div>
@@ -127,8 +127,8 @@
         <div class="menu-header">
           <h3>菜单权限</h3>
           <div>
-            <el-button type="primary" v-permission="'system:permissions:create'" @click="showAddMenuDialog">新增菜单</el-button>
-            <el-button type="success" v-permission="'system:permissions:create'" @click="importMenuData">导入完整菜单</el-button>
+            <el-button type="primary" v-permission="'system:permissions:manage'" @click="showAddMenuDialog">新增菜单</el-button>
+            <el-button type="success" v-permission="'system:permissions:manage'" @click="importMenuData">导入完整菜单</el-button>
           </div>
         </div>
         
@@ -185,7 +185,7 @@
                   @confirm="handleToggleRoleStatus(scope.row)"
                 >
                   <template #reference>
-                    <el-button size="small" type="success" v-permission="'system:permissions:update'">
+                    <el-button size="small" type="success" v-permission="'system:permissions:manage'">
                       <el-icon><Check /></el-icon> 显示
                     </el-button>
                   </template>
@@ -198,7 +198,7 @@
                   confirm-button-type="danger"
                 >
                   <template #reference>
-                    <el-button size="small" type="warning" v-permission="'system:permissions:update'">
+                    <el-button size="small" type="warning" v-permission="'system:permissions:manage'">
                       <el-icon><Close /></el-icon> 隐藏
                     </el-button>
                   </template>
@@ -215,11 +215,11 @@
                   v-if="String(scope.row.status) !== '1'"
                   type="primary"
                   size="small"
-                  v-permission="'system:permissions:update'"
+                  v-permission="'system:permissions:manage'"
                   @click="handleEditMenu(scope.row)"
                 ><el-icon><Edit /></el-icon> 编辑</el-button>
 
-                <el-button type="success" size="small" v-permission="'system:permissions:create'" @click="handleAddChildMenu(scope.row)" v-if="scope.row.type < 2">添加子菜单</el-button>
+                <el-button type="success" size="small" v-permission="'system:permissions:manage'" @click="handleAddChildMenu(scope.row)" v-if="scope.row.type < 2">添加子菜单</el-button>
 
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
@@ -228,7 +228,7 @@
                   confirm-button-type="danger"
                 >
                   <template #reference>
-                    <el-button size="small" type="danger" v-permission="'system:permissions:delete'">
+                    <el-button size="small" type="danger" v-permission="'system:permissions:manage'">
                       <el-icon><Delete /></el-icon> 删除
                     </el-button>
                   </template>
@@ -288,78 +288,134 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 分配权限对话框 -->
     <el-dialog
       title="分配权限"
       v-model="permissionDialogVisible"
-      width="800px"
+      width="960px"
+      top="5vh"
       destroy-on-close
       @opened="onPermissionDialogOpened"
     >
-      <div class="current-role">当前角色：<strong>{{ currentRole?.name || '未选择' }}</strong></div>
-      
-      <!-- 权限树组件 -->
-      <div class="permission-tree-container">
-        <div class="tree-operations">
-          <div class="operation-buttons">
-            <el-button type="primary" size="small" @click="expandAll">全部展开</el-button>
-            <el-button type="info" size="small" @click="collapseAll">全部折叠</el-button>
-            <el-button type="warning" size="small" @click="refreshMenuTree">
-              <el-icon><Refresh /></el-icon> 刷新菜单
-            </el-button>
-          </div>
+      <!-- 顶栏：角色 + 搜索 + 统计 -->
+      <div class="perm-toolbar">
+        <div class="perm-toolbar-left">
+          <span class="perm-role-label">当前角色：<strong>{{ currentRole?.name || '未选择' }}</strong></span>
+          <el-tag type="info" size="small" effect="plain" round>
+            已选 <strong>{{ permSelectedCount }}</strong> 项
+          </el-tag>
         </div>
-        
-        <!-- 菜单树 -->
-        <div v-if="hasValidMenuTree" class="tree-wrapper">
-          <div v-if="permissionDialogVisible && treeRenderFlag">
-            <el-tree
-              ref="permissionTreeRef"
-              :data="validMenuTree"
-              show-checkbox
-              node-key="id"
-              :props="{
-                label: 'name',
-                children: 'children'
-              }"
-              :default-checked-keys="selectedMenuIds || []"
-              :default-expand-all="false"
-              :check-strictly="false"
-              :highlight-current="false"
-              :expand-on-click-node="true"
-              :render-after-expand="true"
-              class="permission-menu-tree"
-              @check="handleTreeCheck"
-              @check-change="handleCheckChange"
-            >
-              <template #default="{ node, data }">
-                <span class="custom-tree-node">
-                  <span class="menu-name">{{ data.name }}</span>
-                  <menu-type-tag :type="data.type" />
-                  <span class="permission-code" v-if="data.permission">({{ data.permission }})</span>
-                </span>
-              </template>
-            </el-tree>
-          </div>
+        <el-input
+          v-model="permSearchKeyword"
+          placeholder="搜索权限名称或编码..."
+          clearable
+          style="width: 260px"
+          size="small"
+        >
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+      </div>
+
+      <!-- 操作栏 -->
+      <div class="perm-actions">
+        <div class="perm-actions-left">
+          <el-button type="primary" size="small" @click="expandAll">全部展开</el-button>
+          <el-button type="info" size="small" @click="collapseAll">全部折叠</el-button>
+          <el-button type="warning" size="small" @click="refreshMenuTree">
+            <el-icon><Refresh /></el-icon> 刷新
+          </el-button>
         </div>
-        <div v-else class="empty-tree-message">
-          <el-empty description="菜单数据为空，无法显示权限树">
-            <div class="empty-actions">
-              <el-button type="primary" @click="refreshMenuTree">刷新菜单数据</el-button>
+        <div class="perm-actions-right">
+          <el-popover placement="bottom-end" :width="280" trigger="click">
+            <template #reference>
+              <el-button size="small">模块快捷操作</el-button>
+            </template>
+            <div class="module-quick-list">
+              <div
+                v-for="mod in topModules"
+                :key="mod.id"
+                class="module-quick-item"
+              >
+                <el-checkbox
+                  :model-value="isModuleFullyChecked(mod)"
+                  :indeterminate="isModuleIndeterminate(mod)"
+                  @change="toggleModuleCheck(mod)"
+                  size="small"
+                />
+                <span class="module-quick-name">{{ mod.name }}</span>
+                <el-tag size="small" type="info" effect="plain">{{ getModuleCheckedCount(mod) }}</el-tag>
+              </div>
             </div>
-          </el-empty>
+          </el-popover>
         </div>
       </div>
-      
+
+      <!-- 权限树 -->
+      <div class="perm-tree-container" v-if="hasValidMenuTree">
+        <div v-if="permissionDialogVisible && treeRenderFlag">
+          <el-tree
+            ref="permissionTreeRef"
+            :data="validMenuTree"
+            show-checkbox
+            node-key="id"
+            :props="{ label: 'name', children: 'children' }"
+            :default-checked-keys="selectedMenuIds || []"
+            :default-expand-all="false"
+            :check-strictly="false"
+            :highlight-current="false"
+            :expand-on-click-node="true"
+            :render-after-expand="true"
+            :filter-node-method="filterNode"
+            class="permission-menu-tree"
+            @check="handleTreeCheck"
+            @check-change="handleCheckChange"
+          >
+            <template #default="{ node, data }">
+              <div class="perm-node" :class="'perm-node--type-' + data.type">
+                <span class="perm-node__name">{{ data.name }}</span>
+                <el-tag
+                  :type="data.type === 0 ? 'primary' : data.type === 1 ? 'success' : 'warning'"
+                  size="small"
+                  effect="plain"
+                  class="perm-node__tag"
+                >{{ data.type === 0 ? '目录' : data.type === 1 ? '菜单' : '按钮' }}</el-tag>
+                <span class="perm-node__code" v-if="data.permission">{{ data.permission }}</span>
+                <el-button
+                  v-if="data.type === 0 && data.children && data.children.length > 0"
+                  size="small"
+                  link
+                  type="primary"
+                  class="perm-node__select-all"
+                  @click.stop="toggleModuleCheck(data)"
+                >{{ isModuleFullyChecked(data) ? '取消全选' : '全选' }}</el-button>
+              </div>
+            </template>
+          </el-tree>
+        </div>
+      </div>
+      <div v-else class="empty-tree-message">
+        <el-empty description="菜单数据为空，无法显示权限树">
+          <div class="empty-actions">
+            <el-button type="primary" @click="refreshMenuTree">刷新菜单数据</el-button>
+          </div>
+        </el-empty>
+      </div>
+
       <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="permissionDialogVisible = false">关闭</el-button>
-          <el-button v-permission="'system:permissions:update'" type="primary" @click="saveRolePermission" :loading="permissionSaveLoading">保存权限</el-button>
-        </span>
+        <div class="perm-dialog-footer">
+          <span class="perm-footer-stats">
+            完整选中 <strong>{{ permCheckedCount }}</strong> 项，
+            部分选中 <strong>{{ permHalfCheckedCount }}</strong> 项
+          </span>
+          <span>
+            <el-button @click="permissionDialogVisible = false">关闭</el-button>
+            <el-button v-permission="'system:permissions:manage'" type="primary" @click="saveRolePermission" :loading="permissionSaveLoading">保存权限</el-button>
+          </span>
+        </div>
       </template>
     </el-dialog>
-    
+
     <!-- 菜单添加/编辑/查看对话框 -->
     <el-dialog
       :title="menuDialogTitle"
@@ -398,9 +454,9 @@
             v-model="menuForm.parentId"
             :data="menuTree || []"
             check-strictly
-            default-expand-all
+            filterable
             node-key="id"
-            :render-after-expand="false"
+            :render-after-expand="true"
             :props="{ label: 'name', children: 'children' }"
             placeholder="请选择上级菜单"
             style="width: 100%"
@@ -449,9 +505,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick, computed, h } from 'vue';
+import { ref, reactive, onMounted, nextTick, computed, h, watch } from 'vue';
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
+import { Refresh, Search } from '@element-plus/icons-vue';
 import { api, systemApi } from '@/services/api';
 import menuPermissions, { buildMenuTree, generateMenuSQL } from '../../utils/menuPermissions';
 import { useAuthStore } from '../../stores/auth';
@@ -505,6 +561,9 @@ const selectedMenuIds = ref([]);
 const halfCheckedMenuIds = ref([]);
 const treeRenderFlag = ref(false);  // 控制树组件的渲染
 const treeKey = ref(Date.now());    // 用于强制树组件重新渲染
+
+// 权限搜索关键词
+const permSearchKeyword = ref('');
 
 // 角色表单
 const roleForm = reactive({
@@ -566,6 +625,85 @@ const validMenuTree = computed(() => {
 // 计算菜单树是否有效
 const hasValidMenuTree = computed(() => {
   return Array.isArray(validMenuTree.value) && validMenuTree.value.length > 0;
+});
+
+// 顶级模块列表（用于快捷操作弹出框）
+const topModules = computed(() => validMenuTree.value || []);
+
+// 已选权限计数
+const permSelectedCount = computed(() => {
+  return selectedMenuIds.value?.length || 0;
+});
+
+// 完整选中计数
+const permCheckedCount = computed(() => {
+  if (!permissionTreeRef.value) return selectedMenuIds.value?.length || 0;
+  try { return permissionTreeRef.value.getCheckedKeys().length; } catch { return 0; }
+});
+
+// 半选中计数
+const permHalfCheckedCount = computed(() => {
+  if (!permissionTreeRef.value) return 0;
+  try { return permissionTreeRef.value.getHalfCheckedKeys().length; } catch { return 0; }
+});
+
+// 搜索过滤树节点
+const filterNode = (value, data) => {
+  if (!value) return true;
+  const kw = value.toLowerCase();
+  return (data.name && data.name.toLowerCase().includes(kw)) ||
+         (data.permission && data.permission.toLowerCase().includes(kw));
+};
+
+// 递归收集节点下所有叶子ID
+const collectLeafIds = (node) => {
+  if (!node.children || node.children.length === 0) return [node.id];
+  return node.children.flatMap(c => collectLeafIds(c));
+};
+
+// 切换模块全选/取消全选
+const toggleModuleCheck = (moduleData) => {
+  if (!permissionTreeRef.value) return;
+  const leafIds = collectLeafIds(moduleData);
+  const checked = permissionTreeRef.value.getCheckedKeys();
+  const allChecked = leafIds.length > 0 && leafIds.every(id => checked.includes(id));
+  leafIds.forEach(id => permissionTreeRef.value.setChecked(id, !allChecked, true));
+  handleTreeCheck();
+};
+
+// 模块是否全选
+const isModuleFullyChecked = (moduleData) => {
+  if (!permissionTreeRef.value) return false;
+  const leafIds = collectLeafIds(moduleData);
+  if (leafIds.length === 0) return false;
+  const checked = permissionTreeRef.value.getCheckedKeys();
+  return leafIds.every(id => checked.includes(id));
+};
+
+// 模块是否半选
+const isModuleIndeterminate = (moduleData) => {
+  if (!permissionTreeRef.value) return false;
+  const leafIds = collectLeafIds(moduleData);
+  if (leafIds.length === 0) return false;
+  const checked = permissionTreeRef.value.getCheckedKeys();
+  const count = leafIds.filter(id => checked.includes(id)).length;
+  return count > 0 && count < leafIds.length;
+};
+
+// 获取模块已选计数
+const getModuleCheckedCount = (moduleData) => {
+  if (!permissionTreeRef.value) return '0';
+  const leafIds = collectLeafIds(moduleData);
+  const checked = permissionTreeRef.value.getCheckedKeys();
+  const count = leafIds.filter(id => checked.includes(id)).length;
+  return `${count}/${leafIds.length}`;
+};
+
+// 监听搜索关键词变化，触发树过滤
+watch(permSearchKeyword, (val) => {
+  if (permissionTreeRef.value) {
+    permissionTreeRef.value.filter(val);
+  }
 });
 
 // 加载角色列表
@@ -2420,42 +2558,125 @@ onMounted(async () => {
   /* padding 使用全局主题的 24px */
 }
 
-.permission-tree-container {
-  margin-top: 15px;
-  max-height: 400px;
-  overflow-y: auto;
-  border: none;
-  background: none;
-  box-shadow: none;
-}
-
-.tree-operations {
-  margin-bottom: 10px;
+/* ========== 分配权限对话框样式 ========== */
+.perm-toolbar {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ebeef5;
 }
 
-.tree-operations .operation-buttons {
+.perm-toolbar-left {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
 }
 
-.tree-operations .operation-tip {
-  color: var(--color-text-regular);
+.perm-role-label {
+  font-size: 15px;
+}
+
+.perm-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.perm-actions-left {
+  display: flex;
+  gap: 8px;
+}
+
+.perm-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.module-quick-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.module-quick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.module-quick-item:hover {
+  background-color: #f5f7fa;
+}
+
+.module-quick-name {
+  flex: 1;
   font-size: 13px;
 }
 
-.permission-menu-tree {
-  max-height: 500px;
+.perm-tree-container {
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 8px;
+  background-color: #fafafa;
+  max-height: 55vh;
   overflow-y: auto;
 }
 
-/* 修复权限树样式问题 */
-.tree-wrapper {
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-sm);
-  padding: 10px;
-  background-color: #fff;
+.permission-menu-tree {
+  background: transparent;
+}
+
+/* 权限节点样式 */
+.perm-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  font-size: 13px;
+}
+
+.perm-node__name {
+  font-weight: 500;
+}
+
+.perm-node--type-2 .perm-node__name {
+  font-weight: 400;
+  color: #606266;
+}
+
+.perm-node__tag {
+  flex-shrink: 0;
+}
+
+.perm-node__code {
+  color: #909399;
+  font-size: 11px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  flex-shrink: 0;
+}
+
+.perm-node__select-all {
+  margin-left: auto;
+  font-size: 12px !important;
+  flex-shrink: 0;
+}
+
+.perm-dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.perm-footer-stats {
+  font-size: 13px;
+  color: #909399;
 }
 
 /* 自定义树节点样式 */

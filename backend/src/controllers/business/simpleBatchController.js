@@ -157,8 +157,8 @@ const simpleBatchController = {
   },
 
   /**
-   * @deprecated 此方法已废弃 - 不再使用 batch_inventory 表
-   * 单表架构下，测试数据应通过 inventory_ledger 创建
+   * @deprecated 此方法已废弃
+   * 测试数据应通过 InventoryService.updateStock 创建
    */
   async createTestData(req, res) {
     return ResponseHandler.error(

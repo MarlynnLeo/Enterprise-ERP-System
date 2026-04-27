@@ -6,6 +6,7 @@
  */
 
 const logger = require('../utils/logger');
+const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
 
 const Locations = {
@@ -66,7 +67,7 @@ const Locations = {
       // 处理查询参数
 
       // 构建查询条件
-      const conditions = [];
+      const conditions = ['deleted_at IS NULL'];
       const params = [];
 
       // 处理查询参数
@@ -96,10 +97,7 @@ const Locations = {
       }
 
       // 构建查询语句
-      let query = 'SELECT * FROM locations';
-      if (conditions.length > 0) {
-        query += ' WHERE ' + conditions.join(' AND ');
-      }
+      let query = 'SELECT * FROM locations WHERE ' + conditions.join(' AND ');
       // 使用参数化LIMIT，顺序: LIMIT offset, count
       query += ' ORDER BY id DESC LIMIT ?, ?';
       params.push(offset, pageSizeNum);
@@ -108,10 +106,7 @@ const Locations = {
       const [rows] = await db.pool.query(query, params);
 
       // 构建计数查询
-      let countQuery = 'SELECT COUNT(*) as total FROM locations';
-      if (conditions.length > 0) {
-        countQuery += ' WHERE ' + conditions.join(' AND ');
-      }
+      let countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
 
       // 移除分页参数
       const countParams = params.slice(0, -2);
@@ -133,7 +128,7 @@ const Locations = {
   // 获取单个库位
   getById: async (id) => {
     try {
-      const [rows] = await db.pool.query('SELECT * FROM locations WHERE id = ?', [Number(id)]);
+      const [rows] = await db.pool.query('SELECT * FROM locations WHERE id = ? AND deleted_at IS NULL', [Number(id)]);
       return rows[0];
     } catch (error) {
       logger.error('Error in getById location:', error);
@@ -153,7 +148,7 @@ const Locations = {
       }
 
       // 检查code是否已存在
-      const [existingCode] = await db.pool.query('SELECT id FROM locations WHERE code = ?', [
+      const [existingCode] = await db.pool.query('SELECT id FROM locations WHERE code = ? AND deleted_at IS NULL', [
         locationData.code,
       ]);
       if (existingCode.length > 0) {
@@ -211,7 +206,7 @@ const Locations = {
       }
 
       // 获取原始库位数据
-      const [oldLocation] = await connection.query('SELECT * FROM locations WHERE id = ?', [
+      const [oldLocation] = await connection.query('SELECT * FROM locations WHERE id = ? AND deleted_at IS NULL', [
         Number(id),
       ]);
 
@@ -271,7 +266,7 @@ const Locations = {
       await connection.beginTransaction();
 
       // 获取要删除的库位信息
-      const [location] = await connection.query('SELECT * FROM locations WHERE id = ?', [
+      const [location] = await connection.query('SELECT * FROM locations WHERE id = ? AND deleted_at IS NULL', [
         Number(id),
       ]);
 
@@ -288,7 +283,9 @@ const Locations = {
       }
 
       // 删除库位
-      const [result] = await connection.query('DELETE FROM locations WHERE id = ?', [Number(id)]);
+      // ✅ 软删除替代硬删除
+      const affected = await softDelete(connection, 'locations', 'id', Number(id));
+      const result = { affectedRows: affected };
 
       await connection.commit();
       return result.affectedRows;

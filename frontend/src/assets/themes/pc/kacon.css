@@ -69,7 +69,7 @@
   --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
 
   --font-size-xs: 12px;
-  --font-size-sm: 13px;
+  --font-size-sm: 14px;
   --font-size-base: 14px;
   --font-size-md: 14px;
   --font-size-lg: 16px;
@@ -243,7 +243,7 @@
 [data-theme="kacon"] .el-aside .el-menu-item span,
 [data-theme="kacon"] .el-aside .el-sub-menu__title span {
   color: #4a4a4a !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
 }
 
@@ -359,7 +359,6 @@
 [data-theme="kacon"] .header,
 [data-theme="kacon"] .el-header {
   background: #ffffff !important;
-  border-bottom: 1px solid #e8e8e8 !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -469,7 +468,6 @@
 /* 页面头部卡片 - 扁平化 */
 [data-theme="kacon"] .header-card {
   background: #ffffff !important;
-  border-left: 3px solid #00A896 !important;
   border: 1px solid #e8e8e8 !important;
   border-left: 3px solid #00A896 !important;
 }
@@ -714,8 +712,8 @@
 [data-theme="kacon"] .el-table th.el-table__cell {
   background: #fafafa !important;
   color: #8c8c8c !important;
+  font-size: 14px !important;
   font-weight: 500 !important;
-  font-size: 13px !important;
   border-bottom: 1px solid #f0f0f0 !important;
   padding: 10px 0 !important;
 }
@@ -723,7 +721,7 @@
 [data-theme="kacon"] .el-table td.el-table__cell {
   border-bottom: 1px solid #f5f5f5 !important;
   color: #4a4a4a !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   padding: 10px 0 !important;
 }
 
@@ -766,14 +764,10 @@
   box-shadow: none !important;
   background: #ffffff !important;
   transition: border-color 0.15s ease !important;
+  padding-right: 32px !important;
 }
 
 [data-theme="kacon"] .el-input__wrapper:hover {
-  border-color: #00A896 !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .el-input__wrapper.is-focus {
   border-color: #00A896 !important;
   box-shadow: none !important;
 }
@@ -784,18 +778,8 @@
   box-shadow: none !important;
 }
 
-[data-theme="kacon"] .el-textarea__inner:focus {
-  border-color: #00A896 !important;
-  box-shadow: none !important;
-}
-
 
 /* ========== 12. 选择器 ========== */
-
-[data-theme="kacon"] .el-select .el-input.is-focus .el-input__wrapper {
-  border-color: #00A896 !important;
-  box-shadow: none !important;
-}
 
 [data-theme="kacon"] .el-select-dropdown {
   border: 1px solid #e8e8e8 !important;
@@ -806,6 +790,7 @@
 [data-theme="kacon"] .el-select-dropdown__item.is-selected {
   color: #00A896 !important;
   font-weight: 500 !important;
+  background-color: #e6f7f5 !important;
 }
 
 [data-theme="kacon"] .el-select-dropdown__item:hover {
@@ -818,19 +803,6 @@
 [data-theme="kacon"] .el-tabs__item {
   color: #8c8c8c !important;
   transition: color 0.15s ease !important;
-}
-
-[data-theme="kacon"] .el-tabs__item:hover {
-  color: #00A896 !important;
-}
-
-[data-theme="kacon"] .el-tabs__item.is-active {
-  color: #00A896 !important;
-  font-weight: 500 !important;
-}
-
-[data-theme="kacon"] .el-tabs__active-bar {
-  background-color: #00A896 !important;
 }
 
 [data-theme="kacon"] .el-tabs__nav-wrap::after {
@@ -865,62 +837,6 @@
   border: none !important;
 }
 
-[data-theme="kacon"] .el-tag--primary {
-  background: #e6f7f5 !important;
-  color: #00A896 !important;
-}
-
-[data-theme="kacon"] .el-tag--success {
-  background: #d4f5dd !important;
-  color: #2aa148 !important;
-}
-
-[data-theme="kacon"] .el-tag--warning {
-  background: #fcecd0 !important;
-  color: #c0801a !important;
-}
-
-[data-theme="kacon"] .el-tag--danger {
-  background: #f9dad8 !important;
-  color: #b73e35 !important;
-}
-
-[data-theme="kacon"] .el-tag--info {
-  background: #f0f0f0 !important;
-  color: #707070 !important;
-}
-
-
-/* ========== 16. 表单控件 ========== */
-
-/* 复选框 */
-[data-theme="kacon"] .el-checkbox__input.is-checked .el-checkbox__inner,
-[data-theme="kacon"] .el-checkbox__input.is-indeterminate .el-checkbox__inner {
-  background-color: #00A896 !important;
-  border-color: #00A896 !important;
-}
-
-[data-theme="kacon"] .el-checkbox__input.is-checked+.el-checkbox__label {
-  color: #00A896 !important;
-}
-
-/* 单选框 */
-[data-theme="kacon"] .el-radio__input.is-checked .el-radio__inner {
-  background-color: #00A896 !important;
-  border-color: #00A896 !important;
-}
-
-[data-theme="kacon"] .el-radio__input.is-checked+.el-radio__label {
-  color: #00A896 !important;
-}
-
-/* 开关 */
-[data-theme="kacon"] .el-switch.is-checked .el-switch__core {
-  background-color: #00A896 !important;
-  border-color: #00A896 !important;
-}
-
-
 /* ========== 17. 下拉菜单 ========== */
 
 [data-theme="kacon"] .el-dropdown-menu {
@@ -935,7 +851,7 @@
 
 [data-theme="kacon"] .el-dropdown-menu__item {
   border-radius: 4px !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 [data-theme="kacon"] .el-dropdown-menu__item:hover {
@@ -976,10 +892,6 @@
 
 
 /* ========== 18. 进度条 ========== */
-
-[data-theme="kacon"] .el-progress-bar__inner {
-  background: #00A896 !important;
-}
 
 [data-theme="kacon"] .el-progress-bar__outer {
   background: #f0f0f0 !important;
@@ -1071,7 +983,7 @@
 [data-theme="kacon"] .el-form-item__label {
   color: #4a4a4a !important;
   font-weight: 500 !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 
@@ -1888,11 +1800,6 @@
   box-shadow: 0 0 0 1px #00A896 inset !important;
 }
 
-[data-theme="kacon"] .el-select-dropdown__item.selected {
-  color: #00A896 !important;
-  background-color: #e6f7f5 !important;
-}
-
 [data-theme="kacon"] .el-input__wrapper.is-focus {
   box-shadow: 0 0 0 1px #00A896 inset !important;
 }
@@ -2052,11 +1959,6 @@
 /* ------------------------------------- */
 /* Layout & Form Standardization Fixes   */
 /* ------------------------------------- */
-
-/* 1. Fix Element Plus clearable icon padding jitter */
-[data-theme="kacon"] .el-input__wrapper {
-  padding-right: 32px !important;
-}
 
 [data-theme="kacon"] .el-input__suffix {
   right: 8px !important;

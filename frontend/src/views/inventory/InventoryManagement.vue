@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryManagement.vue
  * @description 前端界面组件文件
@@ -13,15 +13,9 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 
 import { onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-
-// 权限store
-const authStore = useAuthStore()
-
 const router = useRouter()
 
 onMounted(() => {

@@ -4,6 +4,7 @@
  */
 
 const arModel = require('../../../models/ar');
+const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
 
 /**
@@ -15,10 +16,7 @@ const batchReceipts = async (req, res) => {
     const { receipts, receiptDate, paymentMethod, bankAccountId, notes } = req.body;
 
     if (!receipts || !Array.isArray(receipts) || receipts.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: '请提供收款明细',
-      });
+      return ResponseHandler.error(res, '请提供收款明细', 'VALIDATION_ERROR', 400);
     }
 
     // 生成批次收款单号
@@ -83,24 +81,16 @@ const batchReceipts = async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
-      message: `批量收款完成: 成功${results.length}笔，失败${errors.length}笔`,
-      data: {
-        batchNumber,
-        successCount: results.length,
-        errorCount: errors.length,
-        results,
-        errors,
-      },
-    });
+    ResponseHandler.success(res, {
+      batchNumber,
+      successCount: results.length,
+      errorCount: errors.length,
+      results,
+      errors,
+    }, `批量收款完成: 成功${results.length}笔，失败${errors.length}笔`);
   } catch (error) {
     logger.error('批量收款失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '批量收款失败',
-      error: error.message,
-    });
+    ResponseHandler.error(res, '批量收款失败', 'SERVER_ERROR', 500, error);
   }
 };
 

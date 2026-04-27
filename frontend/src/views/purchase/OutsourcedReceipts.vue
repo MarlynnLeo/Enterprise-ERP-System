@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * OutsourcedReceipts.vue
  * @description 前端界面组件文件
@@ -112,7 +112,8 @@
               size="small"
               type="primary"
               @click="handleEditReceipt(scope.row)"
-            >
+            
+              v-permission="'purchase:processing-receipts'">
               编辑
             </el-button>
             <el-button
@@ -164,7 +165,6 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, onMounted, computed } from 'vue';
@@ -172,15 +172,11 @@ import { ElMessage } from 'element-plus'
 import { api } from '@/services/api';
 import { Search, Refresh } from '@element-plus/icons-vue'
 import ReceiptDialog from './ReceiptDialog.vue';
-import { useAuthStore } from '@/stores/auth';
 import {
   OUTSOURCED_STATUS_OPTIONS,
   getOutsourcedStatusText,
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
-
-// 权限store
-const authStore = useAuthStore();
 
 // 状态选项（使用统一常量）
 const statusOptions = OUTSOURCED_STATUS_OPTIONS;

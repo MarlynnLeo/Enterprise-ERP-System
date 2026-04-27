@@ -8,7 +8,7 @@
           <p class="subtitle">管理进项和销项发票，支持认证与抵扣操作</p>
         </div>
         <div class="header-actions">
-          <el-button v-permission="'finance:taxinvoices:create'" type="primary" @click="handleCreate" :icon="Plus">新增发票</el-button>
+          <el-button v-permission="'finance:tax:create'" type="primary" @click="handleCreate" :icon="Plus">新增发票</el-button>
         </div>
       </div>
     </el-card>
@@ -481,6 +481,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { formatAmount } from '@/utils/format'
 import { Search, Refresh, Plus, View, Check, Discount, Delete, ArrowDown, Document, Clock, Download, Upload, Link, CircleClose as Unlink, EditPen } from '@element-plus/icons-vue';
 import { api } from '@/services/axiosInstance';
 
@@ -552,14 +553,7 @@ const calculateTax = () => {
   createForm.total_amount = parseFloat((amount + createForm.tax_amount).toFixed(2));
 };
 
-// 格式化金额
-const formatAmount = (amount) => {
-  if (!amount && amount !== 0) return '0.00';
-  return parseFloat(amount).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-};
+// 格式化金额 - 已统一使用 @/utils/format 导入
 
 // 获取状态类型
 const getStatusType = (status) => {

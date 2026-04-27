@@ -62,7 +62,7 @@
                 <div class="module-title">{{ module.title }}</div>
                 <div class="module-description">{{ module.description }}</div>
               </div>
-              <Icon name="arrow" size="12" color="#c8c9cc" />
+              <Icon name="arrow" size="12" color="var(--text-disabled)" />
             </div>
           </div>
         </div>
@@ -84,7 +84,7 @@
                 <div class="module-title">{{ module.title }}</div>
                 <div class="module-description">{{ module.description }}</div>
               </div>
-              <Icon name="arrow" size="12" color="#c8c9cc" />
+              <Icon name="arrow" size="12" color="var(--text-disabled)" />
             </div>
           </div>
         </div>
@@ -106,7 +106,7 @@
                 <div class="module-title">{{ module.title }}</div>
                 <div class="module-description">{{ module.description }}</div>
               </div>
-              <Icon name="arrow" size="12" color="#c8c9cc" />
+              <Icon name="arrow" size="12" color="var(--text-disabled)" />
             </div>
           </div>
         </div>
@@ -128,7 +128,7 @@
                 <div class="module-title">{{ module.title }}</div>
                 <div class="module-description">{{ module.description }}</div>
               </div>
-              <Icon name="arrow" size="12" color="#c8c9cc" />
+              <Icon name="arrow" size="12" color="var(--text-disabled)" />
             </div>
           </div>
         </div>
@@ -176,7 +176,7 @@
 
           <div class="monitor-card">
             <div class="monitor-header">
-              <Icon name="database-o" size="20" color="#FF9F45" />
+              <Icon name="database-o" size="20" color="var(--color-warning)" />
               <span>磁盘使用率</span>
             </div>
             <div class="monitor-value">{{ systemMonitor.disk }}%</div>
@@ -191,7 +191,7 @@
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted } from 'vue'
+  import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, Icon, Badge, Button, showToast } from 'vant'
 
@@ -238,7 +238,7 @@
       title: '在线会话',
       description: '管理用户登录会话',
       icon: 'clock-o',
-      color: '#FF9F45',
+      color: 'var(--color-warning)',
       path: '/system/sessions',
       badge: systemInfo.onlineUsers
     }
@@ -300,7 +300,7 @@
       title: '访问控制',
       description: '管理访问策略',
       icon: 'eye-o',
-      color: '#FF9F45',
+      color: 'var(--color-warning)',
       path: '/system/access-control',
       badge: null
     }
@@ -364,28 +364,35 @@
 
   // 快速操作
   const createUser = () => {
-    router.push('/system/users/create')
+    showToast('新建用户功能开发中')
   }
 
   const createDepartment = () => {
-    router.push('/system/departments/create')
+    showToast('新建部门功能开发中')
   }
 
   const createRole = () => {
-    router.push('/system/roles/create')
+    showToast('新建角色功能开发中')
   }
 
-  // 更新系统监控数据
+  // 定时器引用
+  let monitorTimer = null
+
+  // 更新系统监控数据（后续对接后端 /system/monitor 接口）
   const updateMonitorData = () => {
-    systemMonitor.cpu = Math.floor(Math.random() * 30) + 30
-    systemMonitor.memory = Math.floor(Math.random() * 40) + 40
-    systemMonitor.disk = Math.floor(Math.random() * 20) + 20
+    // TODO: 替换为 systemApi.getMonitorData() 真实接口
   }
 
   // 初始化
   onMounted(() => {
-    // 定期更新监控数据
-    setInterval(updateMonitorData, 5000)
+    monitorTimer = setInterval(updateMonitorData, 10000)
+  })
+
+  onBeforeUnmount(() => {
+    if (monitorTimer) {
+      clearInterval(monitorTimer)
+      monitorTimer = null
+    }
   })
 </script>
 

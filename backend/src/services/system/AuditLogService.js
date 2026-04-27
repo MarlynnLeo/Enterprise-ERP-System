@@ -38,7 +38,7 @@ class AuditLogService {
             params.module || 'UNKNOWN',
             params.action || 'UNKNOWN',
             params.target_table || null,
-            String(params.target_id || ''),
+            String(params.target_id || '').slice(0, 500),
             params.new_payload ? JSON.stringify(params.new_payload) : null,
             params.ip_address || '',
             params.user_agent || '',
