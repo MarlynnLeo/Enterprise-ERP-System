@@ -1,6 +1,20 @@
 import { api } from '../services/axiosInstance';
 
 export const financeApi = {
+    // ============ 仪表盘 & 统计 ============
+    // 现金流统计（收支趋势、按类型汇总）
+    getCashFlowStatistics: (params) => api.get('/finance/statistics/cash-flow', { params }),
+    // 综合财务统计（仪表盘汇总用）
+    getFinancialStatistics: (params) => api.get('/finance/statistics/cash-flow', { params }),
+    // 应收账款账龄分析
+    getReceivablesAging: (params) => api.get('/finance/ar/aging', { params }),
+    // 应付账款账龄分析
+    getPayablesAging: (params) => api.get('/finance/ap/aging', { params }),
+    // 会计分录列表
+    getEntries: (params) => api.get('/finance/entries', { params }),
+    // 会计分录详情
+    getEntry: (id) => api.get(`/finance/entries/${id}`),
+
     // 应收账款
     getReceivables: (params) => api.get('/finance/receivables', { params }),
     getReceivable: (id) => api.get(`/finance/receivables/${id}`),
