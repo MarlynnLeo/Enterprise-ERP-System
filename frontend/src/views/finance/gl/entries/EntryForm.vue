@@ -167,7 +167,15 @@ const _createEmptItem = () => ({
 
 const entryForm = reactive({
   entry_date: new Date().toISOString().split('T')[0],
-  voucher_word: route.query.type === '收款凭证' ? '收' : (route.query.type === '付款凭证' ? '付' : (route.query.type === '转账凭证' ? '转' : '记')),
+  voucher_word: (() => {
+    const typeMap = {
+      '收款凭证': '收', '收款单': '收',
+      '付款凭证': '付', '付款单': '付',
+      '转账凭证': '转',
+      '记账凭证': '记'
+    };
+    return typeMap[route.query.type] || '记';
+  })(),
   document_number: 0,
   description: '',
   items: [

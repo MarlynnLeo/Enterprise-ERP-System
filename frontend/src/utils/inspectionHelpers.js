@@ -5,11 +5,9 @@
 
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import axios from 'axios'
 import { api, qualityApi, purchaseApi, baseDataApi } from '@/services/api'
-import { parseApiResponse, parseListData } from '@/utils/responseParser'
+import { parseListData } from '@/utils/responseParser'
 import logger from '@/utils/logger'
-import { tokenManager } from '@/utils/unifiedStorage'
 
 /**
  * 从检验单获取或补全供应商信息
@@ -112,6 +110,11 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
     } catch (error) {
       logger.error('查询采购订单ID失败:', error)
     }
+  }
+
+  // 防御性校验：没有关联采购订单时，不发起注定失败的请求
+  if (!orderId) {
+    throw new Error('检验单缺少关联的采购订单信息（reference_id），无法创建入库单。请检查检验单数据完整性。')
   }
 
   // 构造入库单数据
@@ -236,19 +239,17 @@ export async function fetchInspectionDetailWithItems(
   }
   inspectionData.supplierName = supplierName || extractSupplierName(inspectionData)
   
-  // 获取检验项
+  // 获取检验项（使用统一 api 实例，确保经过拦截器和代理）
   if (!inspectionData.items || inspectionData.items.length === 0) {
     try {
-      const itemsResponse = await axios.get(
-        `${api.defaults.baseURL}/quality/inspections/${id}/items`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenManager.getToken()}` }
-        }
-      )
-      const itemsResult = parseApiResponse(itemsResponse)
+      const itemsResponse = await api.get(`/quality/inspections/${id}/items`)
+      const itemsData = itemsResponse.data
 
-      if (itemsResult.success && itemsResult.data) {
-        inspectionData.items = itemsResult.data
+      if (itemsData) {
+        // 兼容多种响应格式：直接数组 / { list: [] } / { data: [] }
+        inspectionData.items = Array.isArray(itemsData) 
+          ? itemsData 
+          : (itemsData.list || itemsData.data || [])
       }
     } catch (error) {
       console.error('获取检验项目失败:', error)
@@ -535,22 +536,17 @@ export function checkDimensionTolerance(item, showMessage = false) {
 }
 
 /**
- * 生成批次号
- * @param {number} quantity - 数量
- * @returns {string} 批次号
- */
-/**
- * 生成批次号 (新规则: PUR-{供应商编码}-{日期YYMMDD}-{序号})
+ * 生成批次号 (规则: PUR-{供应商编码}-{日期YYMMDD}-{序号})
  * @param {string} supplierCode - 供应商编码
  * @param {number} supplierId - 供应商ID（用于查询当天检验单数量）
- * @param {Object} qualityApi - 质检API对象（如果不传则使用简单序号）
+ * @param {Object} qualityApiInstance - 质检API对象（如果不传则使用简单序号）
  * @returns {Promise<string>} 批次号
  */
-export async function generateBatchNumber(supplierCode = '', supplierId = null, qualityApi = null) {
+export async function generateBatchNumber(supplierCode = '', supplierId = null, qualityApiInstance = null) {
   try {
     // 1. 生成日期部分 (YYMMDD)
     const date = new Date()
-    const year = String(date.getFullYear()).slice(-2)  // 取后两位年份
+    const year = String(date.getFullYear()).slice(-2)
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     const dateStr = `${year}${month}${day}`
@@ -562,37 +558,11 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
     
     // 3. 获取今天该供应商的检验单数量，生成递增序号
     let serialNo = '001'
-    if (supplierId && qualityApi) {
+    if (supplierId && qualityApiInstance) {
       try {
-        // 动态导入 dayjs（如果环境支持）
-        let dayjs
-        try {
-          dayjs = (await import('dayjs')).default
-        } catch {
-          // 如果导入失败，使用原生Date格式化
-          const today = new Date()
-          const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-          
-          const response = await qualityApi.getIncomingInspections({
-            supplier_id: supplierId,
-            start_date: todayStr,
-            end_date: todayStr,
-            page: 1,
-            limit: 1000
-          })
-
-          // 拦截器已解包，response.data 就是业务数据
-          if (response.data) {
-            const data = response.data
-            const count = data.total || (Array.isArray(data.list) ? data.list.length : 0) || 0
-            serialNo = String(count + 1).padStart(3, '0')
-          }
-
-          return `PUR-${supplierCode}-${dateStr}-${serialNo}`
-        }
-
+        // 直接使用顶层已导入的 dayjs
         const today = dayjs().format('YYYY-MM-DD')
-        const response = await qualityApi.getIncomingInspections({
+        const response = await qualityApiInstance.getIncomingInspections({
           supplier_id: supplierId,
           start_date: today,
           end_date: today,

@@ -727,15 +727,38 @@ async function generateProductionAndPurchasePlans(
     const internalMaterials = insufficientItems.filter((item) => item.source_type === 'internal');
     const externalMaterials = insufficientItems.filter((item) => item.source_type === 'external');
 
-    // 处理自产物料 - 逐个生成生产计划
+    // 处理自产物料 - 逐个生成生产计划（防重复：检查同物料+同销售订单是否已有未完成生产计划）
     if (internalMaterials.length > 0) {
       try {
         logger.info(`📝 开始为 ${internalMaterials.length} 个自产物料生成生产计划`);
+        let createdCount = 0;
+        let skippedCount = 0;
 
         // 逐个创建生产计划
         for (let i = 0; i < internalMaterials.length; i++) {
           const item = internalMaterials[i];
           const { material_id, material_name, material_code, shortage } = item;
+
+          // ✅ 防重复检查：是否已有同物料+同销售订单来源的未完成生产计划
+          try {
+            const [existingPlans] = await connection.execute(
+              `SELECT id, code, quantity, status FROM production_plans
+               WHERE product_id = ? AND status IN ('draft','preparing','in_progress')
+               AND deleted_at IS NULL
+               AND remark LIKE ?`,
+              [material_id, `%${salesOrderNo}%`]
+            );
+            if (existingPlans.length > 0) {
+              const existing = existingPlans[0];
+              logger.info(
+                `  ⏭️  跳过物料 ${material_name}: 已有生产计划 ${existing.code}（数量: ${existing.quantity}，状态: ${existing.status}）`
+              );
+              skippedCount++;
+              continue;
+            }
+          } catch (checkErr) {
+            logger.warn(`  ⚠️  检查已有生产计划失败（继续创建）: ${checkErr.message}`);
+          }
 
           // 使用统一的编号生成器逐个生成编号（保证唯一性和并发安全）
           const planNo = await CodeGenerators.generatePlanCode(connection);
@@ -783,96 +806,132 @@ async function generateProductionAndPurchasePlans(
               );
               // 不影响计划创建，但记录警告
             }
+            createdCount++;
           } catch (planError) {
             logger.error(`  ❌ 生产计划创建失败(物料: ${material_name}): `, planError.message);
           }
         }
 
-        logger.info(`✅ 共创建 ${internalMaterials.length} 个生产计划`);
+        logger.info(`✅ 生产计划处理完成: 创建 ${createdCount} 个，跳过 ${skippedCount} 个（已有计划）`);
       } catch (batchError) {
         logger.error('❌ 批量生成生产计划编号失败:', batchError.message);
       }
     }
 
-    // 处理外购物料 - 合并到一个采购申请中
+    // 处理外购物料 - 合并到一个采购申请中（防重复：过滤已在同订单采购申请中的物料）
     if (externalMaterials.length > 0) {
       try {
-        const reqNo = await generatePurchaseRequisitionNo(connection);
+        // ✅ 防重复检查：过滤已在同销售订单来源的采购申请中的物料
+        let filteredMaterials = externalMaterials;
+        try {
+          const matIds = externalMaterials.map(m => m.material_id);
+          const [existingReqItems] = await connection.execute(
+            `SELECT pri.material_id, SUM(pri.quantity) as total_qty
+             FROM purchase_requisition_items pri
+             INNER JOIN purchase_requisitions pr ON pri.requisition_id = pr.id
+             WHERE pr.status IN ('draft','pending','approved')
+               AND pr.remarks LIKE ?
+               AND pri.material_id IN (${matIds.map(() => '?').join(',')})
+             GROUP BY pri.material_id`,
+            [`%${salesOrderNo}%`, ...matIds]
+          );
 
-        // 计算预计需求日期
-        const requiredDate = new Date();
-        requiredDate.setDate(requiredDate.getDate() + 3); // 假设3天后需要
+          if (existingReqItems.length > 0) {
+            const existingMap = new Map(existingReqItems.map(r => [r.material_id, Number(r.total_qty)]));
+            filteredMaterials = externalMaterials.filter(item => {
+              const existingQty = existingMap.get(item.material_id);
+              if (existingQty && existingQty >= item.shortage) {
+                logger.info(`  ⏭️  跳过外购物料 ${item.material_name}: 已有采购申请（数量: ${existingQty}，需求: ${item.shortage}）`);
+                return false;
+              }
+              return true;
+            });
+            logger.info(`📋 外购物料防重复: 原始 ${externalMaterials.length} 个，过滤后 ${filteredMaterials.length} 个`);
+          }
+        } catch (checkErr) {
+          logger.warn(`  ⚠️  检查已有采购申请失败（继续创建）: ${checkErr.message}`);
+        }
 
-        // 创建采购申请主记录（添加合同编码字段）
-        const insertReqQuery = `
-          INSERT INTO purchase_requisitions
+        if (filteredMaterials.length === 0) {
+          logger.info('✅ 所有外购物料已有采购申请，跳过创建');
+        } else {
+          const reqNo = await generatePurchaseRequisitionNo(connection);
+
+          // 计算预计需求日期
+          const requiredDate = new Date();
+          requiredDate.setDate(requiredDate.getDate() + 3); // 假设3天后需要
+
+          // 创建采购申请主记录（添加合同编码字段）
+          const insertReqQuery = `
+            INSERT INTO purchase_requisitions
     (requisition_number, request_date, requester, contract_code, real_name, remarks, status, created_at)
   VALUES(?, ?, ?, ?, ?, ?, ?, NOW())
-        `;
-
-        logger.info('📝 创建采购申请，包含', externalMaterials.length, '个外购物料');
-
-        // 构建备注内容（简化版，因为合同编码已独立）
-        const requisitionRemark = `由销售订单${salesOrderNo} 自动生成`;
-
-        // 使用当前用户信息，并从数据库查询真实姓名
-        const requester = userInfo.username || 'system';
-        let realName = userInfo.real_name || '系统';
-
-        // 如果userInfo中没有real_name，尝试从数据库查询
-        if (!userInfo.real_name && userInfo.username && userInfo.username !== 'system') {
-          try {
-            const [userRows] = await connection.execute(
-              'SELECT real_name FROM users WHERE username = ?',
-              [userInfo.username]
-            );
-            if (userRows.length > 0 && userRows[0].real_name) {
-              realName = userRows[0].real_name;
-              logger.info(`✅ 从数据库查询到用户真实姓名: ${realName} `);
-            }
-          } catch (err) {
-            logger.error('查询用户真实姓名失败:', err);
-          }
-        }
-
-        logger.info(
-          `📝 采购申请人信息 - 用户名: ${requester}, 姓名: ${realName}, 合同编码: ${contractCode || '无'} `
-        );
-
-        const [reqResult] = await connection.execute(insertReqQuery, [
-          reqNo,
-          requiredDate.toISOString().split('T')[0],
-          requester,
-          contractCode || null, // 合同编码单独保存
-          realName,
-          requisitionRemark,
-          'draft',
-        ]);
-
-        const requisitionId = reqResult.insertId;
-
-        // 批量创建采购申请明细
-        for (const item of externalMaterials) {
-          const { material_id, material_name, material_code, shortage } = item;
-
-          const insertItemQuery = `
-            INSERT INTO purchase_requisition_items
-    (requisition_id, material_id, material_code, material_name, quantity, created_at)
-  VALUES(?, ?, ?, ?, ?, NOW())
           `;
 
-          await connection.execute(insertItemQuery, [
-            requisitionId,
-            material_id,
-            material_code || '',
-            material_name || '',
-            shortage,
+          logger.info('📝 创建采购申请，包含', filteredMaterials.length, '个外购物料');
+
+          // 构建备注内容（简化版，因为合同编码已独立）
+          const requisitionRemark = `由销售订单${salesOrderNo} 自动生成`;
+
+          // 使用当前用户信息，并从数据库查询真实姓名
+          const requester = userInfo.username || 'system';
+          let realName = userInfo.real_name || '系统';
+
+          // 如果userInfo中没有real_name，尝试从数据库查询
+          if (!userInfo.real_name && userInfo.username && userInfo.username !== 'system') {
+            try {
+              const [userRows] = await connection.execute(
+                'SELECT real_name FROM users WHERE username = ?',
+                [userInfo.username]
+              );
+              if (userRows.length > 0 && userRows[0].real_name) {
+                realName = userRows[0].real_name;
+                logger.info(`✅ 从数据库查询到用户真实姓名: ${realName} `);
+              }
+            } catch (err) {
+              logger.error('查询用户真实姓名失败:', err);
+            }
+          }
+
+          logger.info(
+            `📝 采购申请人信息 - 用户名: ${requester}, 姓名: ${realName}, 合同编码: ${contractCode || '无'} `
+          );
+
+          const [reqResult] = await connection.execute(insertReqQuery, [
+            reqNo,
+            requiredDate.toISOString().split('T')[0],
+            requester,
+            contractCode || null, // 合同编码单独保存
+            realName,
+            requisitionRemark,
+            'draft',
           ]);
 
-          logger.info(`  ✅ 添加物料: ${material_name} (数量: ${shortage})`);
-        }
+          const requisitionId = reqResult.insertId;
 
-        logger.info(`✅ 采购申请创建成功: ${reqNo} (包含${externalMaterials.length}个物料)`);
+          // 批量创建采购申请明细
+          for (const item of filteredMaterials) {
+            const { material_id, material_name, material_code, shortage } = item;
+
+            const insertItemQuery = `
+              INSERT INTO purchase_requisition_items
+    (requisition_id, material_id, material_code, material_name, quantity, created_at)
+  VALUES(?, ?, ?, ?, ?, NOW())
+            `;
+
+            await connection.execute(insertItemQuery, [
+              requisitionId,
+              material_id,
+              material_code || '',
+              material_name || '',
+              shortage,
+            ]);
+
+            logger.info(`  ✅ 添加物料: ${material_name} (数量: ${shortage})`);
+          }
+
+          logger.info(`✅ 采购申请创建成功: ${reqNo} (包含${filteredMaterials.length}个物料)`);
+        }
       } catch (reqError) {
         logger.error('❌ 采购申请创建失败:', reqError.message);
       }

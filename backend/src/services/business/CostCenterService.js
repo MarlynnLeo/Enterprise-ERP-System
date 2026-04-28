@@ -423,32 +423,32 @@ class CostCenterService {
                 ORDER BY code
             `);
 
-      // 获取每个成本中心的实际工时
+      // 批量获取所有成本中心的实际工时（消除 N+1）
+      const centerIds = centers.map(c => c.id);
+      let hoursMap = new Map();
+      if (centerIds.length > 0) {
+        const centerPh = centerIds.map(() => '?').join(',');
+        const [hourResults] = await db.pool.execute(
+          `SELECT pt.cost_center_id,
+                  COALESCE(SUM(TIMESTAMPDIFF(MINUTE, pp.actual_start_time, pp.actual_end_time) / 60), 0) as hours
+           FROM production_tasks pt
+           JOIN production_processes pp ON pp.task_id = pt.id
+           WHERE pt.cost_center_id IN (${centerPh})
+             AND pt.updated_at >= ? AND pt.updated_at <= ?
+             AND pp.actual_end_time IS NOT NULL
+           GROUP BY pt.cost_center_id`,
+          [...centerIds, startDate, endDate]
+        );
+        hoursMap = new Map(hourResults.map(r => [r.cost_center_id, parseFloat(r.hours) || 0]));
+      }
+
+      // 获取全局人工费率（只查一次，移到循环外）
+      const settings = await CostAccountingService.getCostSettings();
+      const laborRate = settings.laborRate;
+
       const list = [];
       for (const cc of centers) {
-        let actualUsed = 0;
-        try {
-          const [hourResult] = await db.pool.execute(
-            `
-                        SELECT COALESCE(SUM(TIMESTAMPDIFF(MINUTE, pp.actual_start_time, pp.actual_end_time) / 60), 0) as hours
-                        FROM production_tasks pt
-                        JOIN production_processes pp ON pp.task_id = pt.id
-                        WHERE pt.cost_center_id = ?
-                          AND pt.updated_at >= ?
-                          AND pt.updated_at <= ?
-                          AND pp.actual_end_time IS NOT NULL
-                    `,
-            [cc.id, startDate, endDate]
-          );
-          actualUsed = parseFloat(hourResult[0]?.hours) || 0;
-        } catch (e) {
-          actualUsed = 0;
-        }
-
-        // 获取最新全局人工费率
-        const settings = await CostAccountingService.getCostSettings();
-        const laborRate = settings.laborRate;
-
+        const actualUsed = hoursMap.get(cc.id) || 0;
         const stdCap = standardCapacityPerCenter;
         const idleCap = Math.max(stdCap - actualUsed, 0);
         const utilRate = stdCap > 0 ? (actualUsed / stdCap) * 100 : 0;

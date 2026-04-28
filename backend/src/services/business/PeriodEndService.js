@@ -289,8 +289,8 @@ class PeriodEndService {
     // 创建结转分录
     const entryId = await financeModel.createEntry(entryData, entryItems, connection);
 
-    // 自动过账
-    await connection.execute('UPDATE gl_entries SET is_posted = true WHERE id = ?', [entryId]);
+    // 期末结转凭证在同一事务中立即过账（期间状态已由 closePeriod 在事务开头校验）
+    await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
 
     return {
       totalIncome,
@@ -644,7 +644,8 @@ class PeriodEndService {
 
         // 创建并过账分录
         const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-        await connection.execute('UPDATE gl_entries SET is_posted = true WHERE id = ?', [entryId]);
+        // 年度结转凭证在同一事务中立即过账（年度期间关闭状态已在事务开头校验）
+        await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
       }
 
       // 7. 记录年度结转日志

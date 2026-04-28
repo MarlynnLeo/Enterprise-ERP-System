@@ -210,55 +210,67 @@ const enhancedReportsController = {
          ORDER BY bank_name, account_name`
       );
 
-      // 构建报表数据
+      // 构建报表数据（批量查询消除 N+1）
+      if (accounts.length === 0) {
+        return ResponseHandler.success(res, { list: [], totals: {} });
+      }
+
+      const accountIds = accounts.map(a => a.id);
+      const ph = accountIds.map(() => '?').join(',');
+      const incomeTypes = "('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')";
+      const expenseTypes = "('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')";
+
+      // 一次性查出本月收入
+      const [incomeRows] = await db.pool.execute(
+        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
+         FROM bank_transactions
+         WHERE bank_account_id IN (${ph}) AND transaction_date BETWEEN ? AND ?
+           AND transaction_type IN ${incomeTypes}
+         GROUP BY bank_account_id`,
+        [...accountIds, startDate, endDate]
+      );
+      const incomeMap = new Map(incomeRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+
+      // 一次性查出本月支出
+      const [expenseRows] = await db.pool.execute(
+        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
+         FROM bank_transactions
+         WHERE bank_account_id IN (${ph}) AND transaction_date BETWEEN ? AND ?
+           AND transaction_type IN ${expenseTypes}
+         GROUP BY bank_account_id`,
+        [...accountIds, startDate, endDate]
+      );
+      const expenseMap = new Map(expenseRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+
+      // 一次性查出历史总收入（startDate 之前）
+      const [histIncomeRows] = await db.pool.execute(
+        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
+         FROM bank_transactions
+         WHERE bank_account_id IN (${ph}) AND transaction_date < ?
+           AND transaction_type IN ${incomeTypes}
+         GROUP BY bank_account_id`,
+        [...accountIds, startDate]
+      );
+      const histIncomeMap = new Map(histIncomeRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+
+      // 一次性查出历史总支出（startDate 之前）
+      const [histExpenseRows] = await db.pool.execute(
+        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
+         FROM bank_transactions
+         WHERE bank_account_id IN (${ph}) AND transaction_date < ?
+           AND transaction_type IN ${expenseTypes}
+         GROUP BY bank_account_id`,
+        [...accountIds, startDate]
+      );
+      const histExpenseMap = new Map(histExpenseRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+
       const reportData = [];
-
       for (const account of accounts) {
-        // 获取本月收入总额
-        const [incomeResult] = await db.pool.execute(
-          `SELECT COALESCE(SUM(amount), 0) as total
-           FROM bank_transactions
-           WHERE bank_account_id = ?
-           AND transaction_date BETWEEN ? AND ?
-           AND transaction_type IN ('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')`,
-          [account.id, startDate, endDate]
-        );
-
-        // 获取本月支出总额
-        const [expenseResult] = await db.pool.execute(
-          `SELECT COALESCE(SUM(amount), 0) as total
-           FROM bank_transactions
-           WHERE bank_account_id = ?
-           AND transaction_date BETWEEN ? AND ?
-           AND transaction_type IN ('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')`,
-          [account.id, startDate, endDate]
-        );
-
-        // 正向计算上月结存：从所有 startDate 之前的历史交易正向计算
-        const [histIncomeResult] = await db.pool.execute(
-          `SELECT COALESCE(SUM(amount), 0) as total
-           FROM bank_transactions
-           WHERE bank_account_id = ?
-           AND transaction_date < ?
-           AND transaction_type IN ('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')`,
-          [account.id, startDate]
-        );
-        const [histExpenseResult] = await db.pool.execute(
-          `SELECT COALESCE(SUM(amount), 0) as total
-           FROM bank_transactions
-           WHERE bank_account_id = ?
-           AND transaction_date < ?
-           AND transaction_type IN ('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')`,
-          [account.id, startDate]
-        );
-
-        const currentIncome = parseFloat(incomeResult[0].total) || 0;
-        const currentExpense = parseFloat(expenseResult[0].total) || 0;
-        // 上月结存 = 历史总收入 - 历史总支出（正向计算，不依赖 current_balance 准确性）
-        const histIncome = parseFloat(histIncomeResult[0].total) || 0;
-        const histExpense = parseFloat(histExpenseResult[0].total) || 0;
+        const currentIncome = incomeMap.get(account.id) || 0;
+        const currentExpense = expenseMap.get(account.id) || 0;
+        const histIncome = histIncomeMap.get(account.id) || 0;
+        const histExpense = histExpenseMap.get(account.id) || 0;
         const lastBalance = histIncome - histExpense;
-        // 本月结存 = 上月结存 + 本月收入 - 本月支出
         const currentBalance = lastBalance + currentIncome - currentExpense;
 
         reportData.push({

@@ -307,6 +307,8 @@ const completeScrap = async (req, res) => {
 
 /**
  * 更新报废状态
+ * 注意：当目标状态为 completed 时，必须触发库存扣减和质量成本记录，
+ * 与 completeScrap 保持一致，避免绕过正规完成流程导致数据断链。
  */
 const updateStatus = async (req, res) => {
   const connection = await pool.getConnection();
@@ -321,12 +323,64 @@ const updateStatus = async (req, res) => {
       return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
-    await connection.query(
-      `UPDATE scrap_records
-       SET status = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [status, id]
-    );
+    // 获取报废记录信息（completed 状态需要做额外处理）
+    const [records] = await connection.query('SELECT * FROM scrap_records WHERE id = ?', [id]);
+    if (records.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '报废记录不存在', 'NOT_FOUND', 404);
+    }
+
+    const record = records[0];
+
+    // 🔒 闭环保护：completed 状态必须走正规流程（库存扣减 + 质量成本）
+    if (status === 'completed') {
+      if (record.status === STATUS.SCRAP.COMPLETED) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '该报废记录已完成', 'BAD_REQUEST', 400);
+      }
+      if (record.status === STATUS.SCRAP.PENDING) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '待审批的报废记录不能直接完成，请先审批', 'BAD_REQUEST', 400);
+      }
+
+      // 更新状态为已完成
+      await connection.query(
+        `UPDATE scrap_records SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [id]
+      );
+
+      // 自动扣减库存
+      try {
+        await QualityIntegrationService.handleScrapInventory(record, connection);
+      } catch (invError) {
+        logger.warn('报废库存扣减失败(继续完成报废):', invError.message);
+      }
+
+      // 记录质量成本
+      try {
+        await QualityIntegrationService.recordQualityCost(
+          {
+            costType: 'scrap',
+            referenceNo: record.scrap_no,
+            materialCode: record.material_code,
+            quantity: record.quantity,
+            cost: record.scrap_cost || 0,
+            operator: record.created_by,
+          },
+          connection
+        );
+      } catch (costError) {
+        logger.warn('记录质量成本失败(继续完成报废):', costError.message);
+      }
+
+      logger.info(`✅ 报废记录 ${record.scrap_no} 通过 updateStatus 完成，已触发库存扣减和成本记录`);
+    } else {
+      // 其他状态：直接更新
+      await connection.query(
+        `UPDATE scrap_records SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [status, id]
+      );
+    }
 
     await connection.commit();
     return ResponseHandler.success(res, null, '状态更新成功');

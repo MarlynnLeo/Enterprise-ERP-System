@@ -29,23 +29,32 @@ router.get('/conversations', async (req, res) => {
       ORDER BY c.last_message_at DESC
     `, [userId]);
 
-    // 为每个会话补充成员信息
+    // 批量查出所有会话的成员信息（消除 N+1）
     const onlineUserIds = getOnlineUsers();
-    for (const conv of rows) {
-      const [members] = await pool.query(`
-        SELECT u.id, u.username, u.real_name, u.avatar
+    if (rows.length > 0) {
+      const convIds = rows.map(c => c.id);
+      const ph = convIds.map(() => '?').join(',');
+      const [allMembers] = await pool.query(`
+        SELECT cm.conversation_id, u.id, u.username, u.real_name, u.avatar
         FROM chat_conversation_members cm
         JOIN users u ON u.id = cm.user_id
-        WHERE cm.conversation_id = ?
-      `, [conv.id]);
-      conv.members = members;
-      // 私聊时，显示对方信息
-      if (conv.type === 'private') {
-        const other = members.find(m => m.id !== userId);
-        if (other) {
-          conv.display_name = other.real_name || other.username;
-          conv.display_avatar = other.avatar;
-          conv.other_online = onlineUserIds.includes(other.id);
+        WHERE cm.conversation_id IN (${ph})
+      `, convIds);
+      // 按会话 ID 分组
+      const memberMap = new Map();
+      for (const m of allMembers) {
+        if (!memberMap.has(m.conversation_id)) memberMap.set(m.conversation_id, []);
+        memberMap.get(m.conversation_id).push(m);
+      }
+      for (const conv of rows) {
+        conv.members = memberMap.get(conv.id) || [];
+        if (conv.type === 'private') {
+          const other = conv.members.find(m => m.id !== userId);
+          if (other) {
+            conv.display_name = other.real_name || other.username;
+            conv.display_avatar = other.avatar;
+            conv.other_online = onlineUserIds.includes(other.id);
+          }
         }
       }
     }

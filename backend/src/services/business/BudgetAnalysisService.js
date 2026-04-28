@@ -147,26 +147,29 @@ class BudgetAnalysisService {
         [budget.start_date, budget.end_date, budgetId]
       );
 
-      // 获取每个明细的执行情况
+      // 批量获取所有明细的执行情况（消除 N+1）
       const analysisResults = [];
+      let execMap = new Map();
+      if (details.length > 0) {
+        const detailIds = details.map(d => d.id);
+        const detailPh = detailIds.map(() => '?').join(',');
+        const [allExecs] = await db.pool.execute(
+          `SELECT budget_detail_id,
+                  SUM(execution_amount) as period_amount,
+                  COUNT(*) as execution_count
+           FROM budget_execution
+           WHERE budget_detail_id IN (${detailPh})
+             AND execution_date >= ? AND execution_date <= ?
+           GROUP BY budget_detail_id`,
+          [...detailIds, startDate, endDate]
+        );
+        execMap = new Map(allExecs.map(r => [r.budget_detail_id, r]));
+      }
 
       for (const detail of details) {
-        // 获取期间内的执行金额
-        const [executions] = await db.pool.execute(
-          `
-          SELECT 
-            SUM(execution_amount) as period_amount,
-            COUNT(*) as execution_count
-          FROM budget_execution
-          WHERE budget_detail_id = ?
-            AND execution_date >= ?
-            AND execution_date <= ?
-        `,
-          [detail.id, startDate, endDate]
-        );
-
-        const periodAmount = executions[0].period_amount || 0;
-        const executionCount = executions[0].execution_count || 0;
+        const exec = execMap.get(detail.id) || { period_amount: 0, execution_count: 0 };
+        const periodAmount = exec.period_amount || 0;
+        const executionCount = exec.execution_count || 0;
         const actualUsed = parseFloat(detail.actual_used) || 0;
 
         // 计算差异（使用实时数据）

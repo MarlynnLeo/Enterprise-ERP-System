@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Entries.vue
  * @description 前端界面组件文件
@@ -533,8 +533,11 @@ const loadEntries = async () => {
       // 根据fixedType映射到对应的凭证字
       const voucherWordMap = {
         '收款单': '收',
+        '收款凭证': '收',
         '付款单': '付',
-        '转账凭证': '转'
+        '付款凭证': '付',
+        '转账凭证': '转',
+        '记账凭证': '记'
       };
       const voucherWord = voucherWordMap[props.fixedType];
       if (voucherWord) {
@@ -589,8 +592,8 @@ const loadEntries = async () => {
       
 
 
-      // 计算统计数据
-      calculateStatistics();
+      // 使用后端返回的统计数据（真实总量）
+      calculateStatistics(response.data.statistics);
     } else {
       ElMessage.warning('返回的数据格式不正确');
       entriesList.value = [];
@@ -616,19 +619,24 @@ const loadEntries = async () => {
   }
 };
 
-// 计算统计数据
-const calculateStatistics = () => {
-  const total = entriesList.value.length;
-  const posted = entriesList.value.filter(entry => entry.isPosted).length;
-  const unposted = total - posted;
-  const totalAmount = entriesList.value.reduce((sum, entry) => {
-    return sum + (parseFloat(entry.totalDebit) || 0);
-  }, 0);
-
-  statistics.total = total;
-  statistics.posted = posted;
-  statistics.unposted = unposted;
-  statistics.totalAmount = totalAmount;
+// 使用后端返回的统计数据（反映筛选后的真实总量，而非当前页）
+const calculateStatistics = (serverStats) => {
+  if (serverStats) {
+    statistics.total = serverStats.total || 0;
+    statistics.posted = serverStats.posted || 0;
+    statistics.unposted = serverStats.unposted || 0;
+    statistics.totalAmount = serverStats.totalAmount || 0;
+  } else {
+    // 降级方案：后端未返回统计时使用当前页数据
+    const pageTotal = entriesList.value.length;
+    const posted = entriesList.value.filter(entry => entry.isPosted).length;
+    statistics.total = total.value || pageTotal;
+    statistics.posted = posted;
+    statistics.unposted = pageTotal - posted;
+    statistics.totalAmount = entriesList.value.reduce((sum, entry) => {
+      return sum + (parseFloat(entry.totalDebit) || 0);
+    }, 0);
+  }
 };
 
 // 搜索凭证

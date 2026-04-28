@@ -173,7 +173,7 @@ const generateReport = async () => {
   
   loading.value = true;
   try {
-    const response = await api.get('/api/finance/reports/standard-cash-flow', {
+    const response = await api.get('/finance/reports/standard-cash-flow', {
       params: {
         startDate: queryParams.startDate,
         endDate: queryParams.endDate,
@@ -181,15 +181,19 @@ const generateReport = async () => {
       }
     });
     
-    if (response.data.success) {
-      reportData.value = response.data.data;
+    // axios 拦截器已解包 ResponseHandler 格式
+    // response.data 直接就是业务数据对象 { reportInfo, summary, items }
+    const data = response.data;
+    if (data && data.items && data.items.length > 0) {
+      reportData.value = data;
       ElMessage.success('现金流量表生成成功');
     } else {
-      ElMessage.error(response.data.message || '生成报表失败');
+      reportData.value = data || {};
+      ElMessage.warning('未查询到数据，请检查日期范围');
     }
   } catch (error) {
     console.error('生成报表失败:', error);
-    ElMessage.error('生成报表失败');
+    ElMessage.error('生成报表失败: ' + (error.response?.data?.message || error.message));
   } finally {
     loading.value = false;
   }

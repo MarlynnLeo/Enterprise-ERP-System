@@ -524,7 +524,8 @@ class FinanceIntegrationService {
       const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
       const entryNumber = entries.length > 0 ? entries[0].entry_number : null;
 
-      await connection.execute('UPDATE gl_entries SET is_posted = true WHERE id = ?', [entryId]);
+      // 自动凭证在同一事务中立即标记过账（期间状态已由 getCurrentPeriod 在事务开头校验，无需走 postEntry 校验）
+      await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
       await connection.commit();
       
       return { entryId, entryNumber, amount: totalCost };
@@ -741,7 +742,8 @@ class FinanceIntegrationService {
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
 
       // 标记为已过账
-      await connection.execute('UPDATE gl_entries SET is_posted = true WHERE id = ?', [entryId]);
+      // 自动凭证在同一事务中立即标记过账（期间状态已由 getCurrentPeriod 在事务开头校验，无需走 postEntry 校验）
+      await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
 
       await connection.commit();
       logger.info(`✅ 换货差价分录生成成功 - ${exchangeNo}: ${differenceAmount > 0 ? '补差价' : '退差价'} ¥${absDiff}`);

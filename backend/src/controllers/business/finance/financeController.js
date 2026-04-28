@@ -627,21 +627,11 @@ const financeController = {
 
   /**
    * 过账会计分录
+   * 安全校验由模型层统一执行：凭证存在性、已过账、已冲销、期间已关闭
    */
   postEntry: async (req, res) => {
     try {
       const { id } = req.params;
-
-      // 检查分录是否存在
-      const entry = await financeModel.getEntryById(id);
-      if (!entry) {
-        return ResponseHandler.error(res, '会计分录不存在', 'NOT_FOUND', 404);
-      }
-
-      // 检查分录是否已过账
-      if (entry.is_posted) {
-        return ResponseHandler.error(res, '会计分录已过账', 'VALIDATION_ERROR', 400);
-      }
 
       const success = await financeModel.postEntry(id);
 
@@ -651,7 +641,14 @@ const financeController = {
         ResponseHandler.error(res, '会计分录过账失败', 'OPERATION_FAILED', 400);
       }
     } catch (error) {
-      ResponseHandler.error(res, '过账会计分录失败', 'SERVER_ERROR', 500, error);
+      logger.error('过账会计分录失败:', error);
+      // 将模型层的业务错误（如"不能在已关闭的期间过账"）返回给前端
+      const isBusinessError = error.message.includes('不能') || 
+                              error.message.includes('已过账') || 
+                              error.message.includes('不存在') ||
+                              error.message.includes('已冲销');
+      const statusCode = isBusinessError ? 400 : 500;
+      ResponseHandler.error(res, error.message || '过账会计分录失败', 'POST_ERROR', statusCode, error);
     }
   },
 
@@ -706,6 +703,28 @@ const financeController = {
     } catch (error) {
       logger.error('冲销会计分录失败:', error);
       ResponseHandler.error(res, '冲销会计分录失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  /**
+   * 删除会计分录（仅允许删除未过账且未冲销的凭证）
+   */
+  deleteEntry: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const success = await financeModel.deleteEntry(id);
+
+      if (success) {
+        ResponseHandler.success(res, { message: '凭证删除成功' }, '删除成功');
+      } else {
+        ResponseHandler.error(res, '凭证删除失败', 'OPERATION_FAILED', 400);
+      }
+    } catch (error) {
+      logger.error('删除会计分录失败:', error);
+      // 将业务错误信息（如"已过账不能删除"）返回给前端
+      const statusCode = error.message.includes('不能删除') || error.message.includes('不存在') ? 400 : 500;
+      ResponseHandler.error(res, error.message || '删除会计分录失败', 'DELETE_ERROR', statusCode, error);
     }
   },
 

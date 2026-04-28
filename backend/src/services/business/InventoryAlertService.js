@@ -64,31 +64,51 @@ class InventoryAlertService {
 
       logger.info(`📦 发现 ${lowStockItems.length} 个低库存物料`);
 
-      // 2. 检查是否已有待处理的采购申请包含这些物料
+      // 2. 检查已有待处理的采购申请中各物料的在途数量（精确数量级扣减，避免与销售订单自动化重复）
       const materialIds = lowStockItems.map((item) => item.material_id);
       const [existingItems] = await connection.execute(
         `
-        SELECT pri.material_id 
+        SELECT pri.material_id, SUM(pri.quantity) as pending_quantity
         FROM purchase_requisition_items pri
         INNER JOIN purchase_requisitions pr ON pri.requisition_id = pr.id
         WHERE pr.status IN ('draft', 'pending', 'approved')
           AND pri.material_id IN (${materialIds.map(() => '?').join(',')})
+        GROUP BY pri.material_id
       `,
         materialIds
       );
 
-      const existingMaterialIds = new Set(existingItems.map((item) => item.material_id));
-
-      // 过滤出尚未在采购申请中的物料
-      const newLowStockItems = lowStockItems.filter(
-        (item) => !existingMaterialIds.has(item.material_id)
+      // 构建已有采购数量映射
+      const pendingQuantityMap = new Map(
+        existingItems.map((item) => [item.material_id, parseFloat(item.pending_quantity) || 0])
       );
+
+      // 精确过滤：已有采购数量 >= 缺口量则跳过，否则只补差额
+      const newLowStockItems = [];
+      for (const item of lowStockItems) {
+        const pendingQty = pendingQuantityMap.get(item.material_id) || 0;
+        if (pendingQty >= item.shortage_quantity) {
+          // 已有采购申请完全覆盖缺口，跳过
+          logger.info(`  ⏭️  跳过物料 ${item.material_code} ${item.material_name}: 已有在途采购 ${pendingQty} >= 缺口 ${item.shortage_quantity}`);
+          continue;
+        }
+        // 只补差额
+        const adjustedShortage = item.shortage_quantity - pendingQty;
+        if (pendingQty > 0) {
+          logger.info(`  📉 物料 ${item.material_code} ${item.material_name}: 缺口 ${item.shortage_quantity} - 已有在途 ${pendingQty} = 实际补充 ${adjustedShortage}`);
+        }
+        newLowStockItems.push({
+          ...item,
+          shortage_quantity: adjustedShortage, // 使用调整后的缺口量
+          original_shortage: item.shortage_quantity, // 保留原始缺口量
+        });
+      }
 
       if (newLowStockItems.length === 0) {
         await connection.commit();
         return {
           success: true,
-          message: '所有低库存物料已有待处理的采购申请',
+          message: '所有低库存物料已有待处理的采购申请覆盖',
           lowStockCount: lowStockItems.length,
           requisitionCreated: false,
           alreadyInRequisition: lowStockItems.length,

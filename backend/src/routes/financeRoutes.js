@@ -15,14 +15,14 @@ const cipController = require('../controllers/business/assets/cipController');
 const inventoryController = require('../controllers/business/assets/inventoryController');
 const cashController = require('../controllers/business/finance/cashController');
 const financeSettingsController = require('../controllers/business/finance/financeSettingsController');
-const taxController = require('../controllers/business/finance/taxController');
+// taxController — 已迁移到 business/finance/taxRoutes.js
 const pricingController = require('../controllers/business/finance/pricingController');
 const arBatchController = require('../controllers/business/finance/arBatchController');
 const apBatchController = require('../controllers/business/finance/apBatchController');
 const overdueController = require('../controllers/business/finance/overdueController');
 const bomPriceAdjustmentController = require('../controllers/business/finance/bomPriceAdjustmentController');
 const expenseController = require('../controllers/business/finance/expenseController');
-const budgetController = require('../controllers/business/finance/budgetController');
+// budgetController — 已迁移到 business/finance/budgetRoutes.js
 // 注意:原reportsController已被enhancedReportsController替代,使用真实数据
 const multer = require('multer');
 const { authenticateToken } = require('../middleware/auth');
@@ -96,6 +96,7 @@ router.get('/entries/:id/items', requirePermission('finance:entries:view'), fina
 router.post('/entries', requirePermission('finance:entries:create'), financeController.createEntry);
 router.patch('/entries/:id/post', requirePermission('finance:entries:approve'), financeController.postEntry);
 router.post('/entries/:id/reverse', requirePermission('finance:entries:update'), financeController.reverseEntry);
+router.delete('/entries/:id', requirePermission('finance:entries:update'), financeController.deleteEntry);
 
 // 3. 会计期间管理
 router.get('/periods', requirePermission('finance:periods:view'), financeController.getAllPeriods);
@@ -195,7 +196,7 @@ router.post('/assets/depreciation/submit', requirePermission('finance:assets:exe
 router.get('/assets/depreciation/export', requirePermission('finance:assets:export'), assetsController.exportDepreciation);
 
 // 资产统计
-router.get('/assets/statistics/summary', requirePermission('finance:assets:view'), assetsController.getAssetStatistics);
+router.get('/assets/statistics/summary', requirePermission('finance:assets:view'), assetsController.getAssetStatistics); // ⚠️ 已弃用，请使用 /assets/stats
 router.get('/assets/stats', requirePermission('finance:assets:view'), assetsController.getAssetStatistics);
 
 // 资产看板数据与折旧预测
@@ -362,62 +363,11 @@ router.get('/reports/summary', requirePermission('finance:reports:view'), enhanc
 
 
 
-// 税务模块路由
-// 1. 税务发票管理
-router.get('/tax/invoices', requirePermission('finance:tax:view'), taxController.getTaxInvoices);
-router.post('/tax/invoices', requirePermission('finance:tax:create'), taxController.createTaxInvoice);
-router.get('/tax/invoices/:id', requirePermission('finance:tax:view'), taxController.getTaxInvoiceById);
-router.post('/tax/invoices/:id/certify', requirePermission('finance:tax:update'), taxController.certifyTaxInvoice);
-router.post('/tax/invoices/:id/deduct', requirePermission('finance:tax:update'), taxController.deductTaxInvoice);
-router.post('/tax/invoices/:id/link', requirePermission('finance:tax:update'), taxController.linkTaxInvoice);
-router.post('/tax/invoices/:id/unlink', requirePermission('finance:tax:update'), taxController.unlinkTaxInvoice);
-router.get('/tax/available-documents', requirePermission('finance:tax:view'), taxController.getAvailableDocuments);
+// 税务模块路由 — 已迁移到 business/finance/taxRoutes.js，由 app.js 挂载到 /api/finance/tax
 
-// 2. 税务申报管理
-router.get('/tax/returns', requirePermission('finance:tax:view'), taxController.getTaxReturns);
-router.post('/tax/returns', requirePermission('finance:tax:create'), taxController.createTaxReturn);
-router.get('/tax/returns/:id', requirePermission('finance:tax:view'), taxController.getTaxReturnById);
-router.post('/tax/returns/:id/submit', requirePermission('finance:tax:update'), taxController.submitTaxReturn);
-router.post('/tax/returns/:id/pay', requirePermission('finance:tax:pay'), taxController.payTaxReturn);
 
-// 3. 税务科目配置
-router.get('/tax/account-config', requirePermission('finance:tax:view'), taxController.getTaxAccountConfigs);
-router.post('/tax/account-config', requirePermission('finance:tax:create'), taxController.createTaxAccountConfig);
-router.put('/tax/account-config/:id', requirePermission('finance:tax:update'), taxController.updateTaxAccountConfig);
-router.delete('/tax/account-config/:id', requirePermission('finance:tax:delete'), taxController.deleteTaxAccountConfig);
+// 预算管理模块路由 — 已迁移到 business/finance/budgetRoutes.js，由 app.js 挂载到 /api/finance/budgets
 
-// 6. 预算管理模块路由
-router.post('/budgets', requirePermission('finance:budgets:create'), budgetController.createBudget);
-router.get('/budgets', requirePermission('finance:budgets:view'), budgetController.getBudgets);
-// ⚠️ 具体路由必须在 /budgets/:id 之前注册，否则会被参数路由拦截
-// 预算预警
-router.get('/budgets/warnings', requirePermission('finance:budgets:view'), budgetController.getBudgetWarnings);
-router.put('/budgets/warnings/:id/read', requirePermission('finance:budgets:update'), budgetController.markWarningAsRead);
-// 预算检查
-router.get('/budgets/check', requirePermission('finance:budgets:view'), budgetController.checkBudgetAvailability);
-// 部门对比（无 :id）
-router.get('/budgets/analysis/department-comparison', requirePermission('finance:budgets:view'), budgetController.getDepartmentBudgetComparison);
-// AI 预算分析（无 :id 的路由）
-router.get('/budgets/ai/recommendation', requirePermission('finance:budgets:view'), budgetController.getAIRecommendation);
-router.post('/budgets/ai/create-from-ai', requirePermission('finance:budgets:create'), budgetController.createBudgetFromAI);
-router.get('/budgets/ai/year-comparison', requirePermission('finance:budgets:view'), budgetController.getAIYearComparison);
-router.get('/budgets/ai/usage-stats', requirePermission('finance:budgets:view'), budgetController.getAIUsageStats);
-// 参数路由 — 必须在所有具体 GET /budgets/xxx 之后
-router.get('/budgets/:id', requirePermission('finance:budgets:view'), budgetController.getBudgetById);
-router.put('/budgets/:id', requirePermission('finance:budgets:update'), budgetController.updateBudget);
-router.delete('/budgets/:id', requirePermission('finance:budgets:delete'), budgetController.deleteBudget);
-router.post('/budgets/:id/submit', requirePermission('finance:budgets:update'), budgetController.submitBudget);
-router.post('/budgets/:id/approve', requirePermission('finance:budgets:approve'), budgetController.approveBudget);
-router.post('/budgets/:id/start', requirePermission('finance:budgets:update'), budgetController.startBudgetExecution);
-router.post('/budgets/:id/close', requirePermission('finance:budgets:update'), budgetController.closeBudget);
-// 预算执行分析（含 :id 的路由）
-router.get('/budgets/:id/analysis', requirePermission('finance:budgets:view'), budgetController.getRealTimeBudgetAnalysis);
-router.get('/budgets/:id/analysis/execution', requirePermission('finance:budgets:view'), budgetController.getBudgetExecutionAnalysis);
-router.get('/budgets/:id/analysis/variance', requirePermission('finance:budgets:view'), budgetController.getBudgetVarianceAnalysis);
-router.get('/budgets/:id/executions', requirePermission('finance:budgets:view'), budgetController.getBudgetExecutions);
-router.get('/budgets/:id/ai/anomalies', requirePermission('finance:budgets:view'), budgetController.getAIAnomalies);
-router.get('/budgets/:id/ai/optimization', requirePermission('finance:budgets:view'), budgetController.getAIOptimization);
-router.get('/budgets/:id/ai/comprehensive-report', requirePermission('finance:budgets:view'), budgetController.getAIComprehensiveReport);
 
 // 5. 产品定价管理
 const pricingExportController = require('../controllers/business/finance/pricingExportController');

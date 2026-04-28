@@ -260,15 +260,32 @@ class GLService {
 
   /**
    * 生成分录技术编号 (内部唯一标识)
-   * 格式: JE + 日期DT + 随机码
-   * @param {Object} connection - 数据库连接
+   * 格式: JE + 日期(YYYYMMDD) + 4位递增序号
+   * 使用 FOR UPDATE 锁保证并发安全，避免编号碰撞
+   * @param {Object} connection - 数据库连接（需在事务内调用）
    * @returns {Promise<string>} 分录编号
    */
   static async generateEntryNumber(connection) {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const timestamp = Date.now().toString().slice(-4);
-    return `JE${dateStr}${timestamp}${randomSuffix}`;
+    const prefix = `JE${dateStr}`;
+
+    // 使用 FOR UPDATE 锁获取当天最大编号
+    const [maxEntry] = await connection.execute(
+      `SELECT entry_number FROM gl_entries 
+       WHERE entry_number LIKE ? 
+       ORDER BY entry_number DESC LIMIT 1 FOR UPDATE`,
+      [`${prefix}%`]
+    );
+
+    let seq = 1;
+    if (maxEntry.length > 0) {
+      const lastNum = parseInt(maxEntry[0].entry_number.substring(prefix.length));
+      if (!isNaN(lastNum)) {
+        seq = lastNum + 1;
+      }
+    }
+
+    return `${prefix}${seq.toString().padStart(4, '0')}`;
   }
 
   /**

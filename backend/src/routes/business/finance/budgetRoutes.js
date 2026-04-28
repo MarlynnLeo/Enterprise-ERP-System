@@ -61,6 +61,36 @@ router.put('/warnings/:id/read', requirePermission('finance:budgets:update'), bu
  */
 router.get('/analysis/department-comparison', requirePermission('finance:reports:view'), budgetController.getDepartmentBudgetComparison);
 
+// ==================== AI 智能分析（无 :id 的路由） ====================
+
+/**
+ * @route   GET /api/finance/budgets/ai/recommendation
+ * @desc    AI 预算建议
+ * @access  Private
+ */
+router.get('/ai/recommendation', requirePermission('finance:budgets:view'), budgetController.getAIRecommendation);
+
+/**
+ * @route   POST /api/finance/budgets/ai/create-from-ai
+ * @desc    从 AI 建议创建预算
+ * @access  Private
+ */
+router.post('/ai/create-from-ai', requirePermission('finance:budgets:create'), budgetController.createBudgetFromAI);
+
+/**
+ * @route   GET /api/finance/budgets/ai/year-comparison
+ * @desc    AI 年度对比分析
+ * @access  Private
+ */
+router.get('/ai/year-comparison', requirePermission('finance:budgets:view'), budgetController.getAIYearComparison);
+
+/**
+ * @route   GET /api/finance/budgets/ai/usage-stats
+ * @desc    AI 使用统计
+ * @access  Private
+ */
+router.get('/ai/usage-stats', requirePermission('finance:budgets:view'), budgetController.getAIUsageStats);
+
 /**
  * @route   GET /api/finance/budgets/:id
  * @desc    获取预算详情（参数路由，必须在所有具体路由之后）
@@ -143,5 +173,37 @@ router.get('/:id/analysis/variance', requirePermission('finance:reports:view'), 
  * @access  Private
  */
 router.get('/:id/analysis', requirePermission('finance:budgets:view'), budgetController.getRealTimeBudgetAnalysis);
+
+// ==================== AI 智能分析 ====================
+
+/**
+ * @route   GET /api/finance/budgets/ai/recommendation
+ * @desc    AI 预算建议
+ * @access  Private
+ * @note    ⚠️ 无 :id 的路由必须在参数路由 /:id 之前注册，已通过路由顺序保证
+ */
+// 注意：以下 AI 路由已在文件上部通过具体路径优先注册的方式处理
+// 如需新增，请在 /:id 路由之前的区域添加
+
+/**
+ * @route   GET /api/finance/budgets/:id/ai/anomalies
+ * @desc    AI 异常检测
+ * @access  Private
+ */
+router.get('/:id/ai/anomalies', requirePermission('finance:budgets:view'), budgetController.getAIAnomalies);
+
+/**
+ * @route   GET /api/finance/budgets/:id/ai/optimization
+ * @desc    AI 优化建议
+ * @access  Private
+ */
+router.get('/:id/ai/optimization', requirePermission('finance:budgets:view'), budgetController.getAIOptimization);
+
+/**
+ * @route   GET /api/finance/budgets/:id/ai/comprehensive-report
+ * @desc    AI 综合分析报告
+ * @access  Private
+ */
+router.get('/:id/ai/comprehensive-report', requirePermission('finance:budgets:view'), budgetController.getAIComprehensiveReport);
 
 module.exports = router;

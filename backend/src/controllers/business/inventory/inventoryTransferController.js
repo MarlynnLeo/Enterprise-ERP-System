@@ -757,6 +757,31 @@ const exportTransfers = async (req, res) => {
       });
     });
 
+    // 批量查出所有调拨单的明细（消除 N+1）
+    const allTransferIds = transfers.map(t => t.id);
+    const detailPlaceholders = allTransferIds.map(() => '?').join(',');
+    const [allItems] = await db.pool.execute(
+      `SELECT 
+        ti.transfer_id,
+        ti.*,
+        m.code as material_code,
+        m.name as material_name,
+        m.specification,
+        u.name as unit_name
+      FROM inventory_transfer_items ti
+      LEFT JOIN materials m ON ti.material_id = m.id
+      LEFT JOIN units u ON m.unit_id = u.id
+      WHERE ti.transfer_id IN (${detailPlaceholders})
+      ORDER BY ti.id`,
+      allTransferIds
+    );
+    // 按 transfer_id 分组
+    const itemsMap = new Map();
+    for (const item of allItems) {
+      if (!itemsMap.has(item.transfer_id)) itemsMap.set(item.transfer_id, []);
+      itemsMap.get(item.transfer_id).push(item);
+    }
+
     // 为每个调拨单创建详细明细表
     for (const transfer of transfers) {
       const detailSheet = workbook.addWorksheet(`调拨单${transfer.transfer_no}`);
@@ -783,24 +808,7 @@ const exportTransfers = async (req, res) => {
         { header: '备注', key: 'item_remark', width: 30 },
       ];
 
-      // 查询调拨单明细
-      const [items] = await db.pool.execute(
-        `
-        SELECT 
-          ti.*,
-          m.code as material_code,
-          m.name as material_name,
-          m.specification,
-          u.name as unit_name
-        FROM inventory_transfer_items ti
-        LEFT JOIN materials m ON ti.material_id = m.id
-        LEFT JOIN units u ON m.unit_id = u.id
-        WHERE ti.transfer_id = ?
-        ORDER BY ti.id
-      `,
-        [transfer.id]
-      );
-
+      const items = itemsMap.get(transfer.id) || [];
       // 添加明细数据
       items.forEach((item) => {
         detailSheet.addRow({

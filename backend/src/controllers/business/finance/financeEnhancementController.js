@@ -185,7 +185,7 @@ class FinanceEnhancementController {
       const pageSizeNum = parseInt(pageSize) || 20;
       const offset = (pageNum - 1) * pageSizeNum;
 
-      // 从operation_logs表获取自动化相关的操作记录
+      // 从operation_logs表获取自动化相关的操作记录（使用参数化查询）
       const [rows] = await db.pool.execute(`
         SELECT
           id,

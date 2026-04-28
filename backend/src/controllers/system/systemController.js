@@ -796,81 +796,57 @@ const systemController = {
         let insertedCount = 0;
         let updatedCount = 0;
 
-        for (const menu of menus) {
-          // 检查菜单是否已存在（通过permission字段匹配）
-          const [existing] = await connection.execute('SELECT id FROM menus WHERE permission = ?', [
-            menu.permission,
-          ]);
+        // 批量查出所有已存在的菜单 permission（消除 N+1）
+        const allPermissions = menus.map(m => m.permission).filter(Boolean);
+        const permPh = allPermissions.map(() => '?').join(',');
+        const [existingMenus] = allPermissions.length > 0
+          ? await connection.execute(`SELECT id, permission FROM menus WHERE permission IN (${permPh})`, allPermissions)
+          : [[]];
+        const existingSet = new Set(existingMenus.map(m => m.permission));
 
-          if (existing.length > 0) {
-            // 更新现有菜单
-            await connection.execute(
-              `UPDATE menus SET
-                parent_id = ?,
-                name = ?,
-                path = ?,
-                component = ?,
-                icon = ?,
-                type = ?,
-                sort_order = ?,
-                status = ?,
-                updated_at = NOW()
-              WHERE permission = ?`,
-              [
-                menu.parentId || 0,
-                menu.name,
-                menu.path || '',
-                menu.component || '',
-                menu.icon || '',
-                menu.type || 1,
-                menu.sort || 0,
-                menu.status || 1,
-                menu.permission,
-              ]
-            );
-            updatedCount++;
-          } else {
-            // 插入新菜单
-            await connection.execute(
-              `INSERT INTO menus (parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW(), NOW())`,
-              [
-                menu.parentId || 0,
-                menu.name,
-                menu.path || '',
-                menu.component || '',
-                menu.icon || '',
-                menu.permission,
-                menu.type || 1,
-                menu.status || 1,
-                menu.sort || 0,
-              ]
-            );
-            insertedCount++;
-          }
+        for (const menu of menus) {
+          // 使用 INSERT ... ON DUPLICATE KEY UPDATE 减少逐条查询
+          await connection.execute(
+            `INSERT INTO menus (parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE
+               parent_id = VALUES(parent_id), name = VALUES(name), path = VALUES(path),
+               component = VALUES(component), icon = VALUES(icon), type = VALUES(type),
+               sort_order = VALUES(sort_order), status = VALUES(status), updated_at = NOW()`,
+            [
+              menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
+              menu.icon || '', menu.permission, menu.type || 1, menu.status || 1, menu.sort || 0,
+            ]
+          );
+          if (existingSet.has(menu.permission)) updatedCount++;
+          else insertedCount++;
         }
 
-        // 更新父子关系（根据parentId字段）
-        // 首先获取所有菜单的id和permission映射
-        const [allMenus] = await connection.execute('SELECT id, permission FROM menus');
+        // 更新父子关系 — 批量获取映射后一次性处理
+        const [allMenusRows] = await connection.execute('SELECT id, permission FROM menus');
         const permissionToId = {};
-        allMenus.forEach((m) => {
-          permissionToId[m.permission] = m.id;
-        });
+        allMenusRows.forEach((m) => { permissionToId[m.permission] = m.id; });
 
-        // 更新parent_id（将parentId转换为实际的数据库id）
+        // 构建批量更新数组，避免逐条 UPDATE（消除第二个 N+1）
+        const parentUpdates = [];
         for (const menu of menus) {
           if (menu.parentId && menu.parentId !== 0) {
-            // 查找父菜单的permission
             const parentMenu = menus.find((m) => m.id === menu.parentId);
             if (parentMenu && permissionToId[parentMenu.permission]) {
-              const actualParentId = permissionToId[parentMenu.permission];
-              await connection.execute('UPDATE menus SET parent_id = ? WHERE permission = ?', [
-                actualParentId,
-                menu.permission,
-              ]);
+              parentUpdates.push({ permission: menu.permission, parentId: permissionToId[parentMenu.permission] });
             }
           }
+        }
+        if (parentUpdates.length > 0) {
+          // 使用 CASE WHEN 批量更新
+          const caseWhen = parentUpdates.map(() => 'WHEN permission = ? THEN ?').join(' ');
+          const caseValues = parentUpdates.flatMap(u => [u.permission, u.parentId]);
+          const inPermissions = parentUpdates.map(() => '?').join(',');
+          const inValues = parentUpdates.map(u => u.permission);
+          await connection.execute(
+            `UPDATE menus SET parent_id = CASE ${caseWhen} END WHERE permission IN (${inPermissions})`,
+            [...caseValues, ...inValues]
+          );
         }
 
         await connection.commit();

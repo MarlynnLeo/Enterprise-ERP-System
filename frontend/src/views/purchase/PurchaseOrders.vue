@@ -280,13 +280,177 @@
     </el-card>
 
     <!-- 订单编辑对话框 -->
-    <el-dialog v-model="orderDialog.visible" :title="orderDialog.title" width="75%" destroy-on-close>
-      <el-form :model="orderForm" label-width="100px">
-        <div class="add-material" style="margin-top: 10px;">
+    <el-dialog v-model="orderDialog.visible" :title="orderDialog.isEdit ? '编辑采购订单' : '新建采购订单'" width="50%" destroy-on-close :close-on-click-modal="false" align-center>
+      <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="110px" v-loading="orderDialog.loading">
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="订单编号">
+              <el-input v-model="orderForm.order_number" placeholder="系统自动生成" disabled></el-input>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="订单日期" prop="order_date">
+              <el-date-picker
+                v-model="orderForm.order_date"
+                type="date"
+                placeholder="选择订单日期"
+                style="width: 100%"
+                value-format="YYYY-MM-DD"
+              ></el-date-picker>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="预计到货日期" prop="expected_delivery_date">
+              <el-date-picker
+                v-model="orderForm.expected_delivery_date"
+                type="date"
+                placeholder="选择预计到货日期"
+                style="width: 100%"
+                value-format="YYYY-MM-DD"
+              ></el-date-picker>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item label="供应商" prop="supplier_id">
+              <el-select
+                v-model="orderForm.supplier_id"
+                filterable
+                remote
+                :remote-method="searchSuppliers"
+                :loading="supplierLoading"
+                placeholder="搜索并选择供应商"
+                style="width: 100%"
+                @change="handleSupplierChange"
+                @focus="handleSupplierFocus"
+              >
+                <el-option
+                  v-for="item in filteredSuppliers"
+                  :key="item.id"
+                  :label="item.name"
+                  :value="String(item.id)"
+                >
+                  <span>{{ item.name }}</span>
+                  <span style="float: right; color: #8492a6; font-size: 12px">{{ item.code }}</span>
+                </el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="联系人">
+              <el-input v-model="orderForm.contact_person" placeholder="供应商联系人"></el-input>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="联系电话">
+              <el-input v-model="orderForm.contact_phone" placeholder="联系电话"></el-input>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="16">
+            <el-form-item label="备注">
+              <el-input v-model="orderForm.notes" type="textarea" :rows="1" placeholder="备注信息"></el-input>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="默认税率">
+              <el-select v-model="orderForm.tax_rate" placeholder="选择税率" style="width: 100%">
+                <el-option v-for="rate in vatRateOptions" :key="rate" :label="formatTaxRate(rate)" :value="rate"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- 物料列表 -->
+        <el-divider content-position="left">物料列表</el-divider>
+
+        <div class="material-actions" style="display: flex; gap: 10px; margin-bottom: 10px;">
           <el-button type="primary" @click="addMaterialRow">
             <el-icon><Plus /></el-icon>添加物料
           </el-button>
+          <el-button @click="openRequisitionDialog">选择采购申请</el-button>
         </div>
+
+        <el-table :data="orderForm.items" border style="width: 100%" max-height="350">
+          <el-table-column label="序号" type="index" width="55" align="center"></el-table-column>
+          <el-table-column label="物料" min-width="250">
+            <template #default="scope">
+              <el-autocomplete
+                v-if="!scope.row.material_id"
+                :ref="(el) => setMaterialSelectRef(el, scope.$index)"
+                v-model="scope.row.material_display"
+                :fetch-suggestions="fetchMaterialSuggestions"
+                placeholder="搜索物料编码/名称"
+                style="width: 100%"
+                value-key="value"
+                :debounce="300"
+                @select="(item) => handleMaterialSelect(item, scope.$index)"
+                @keyup.enter="handleMaterialEnter(scope.$index)"
+              >
+                <template #default="{ item }">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>{{ item.code }} - {{ item.name }}</span>
+                    <span style="color: #8492a6; font-size: 12px">{{ item.specs }}</span>
+                  </div>
+                </template>
+              </el-autocomplete>
+              <div v-else style="line-height: 1.4;">
+                <div>{{ scope.row.material_code }} - {{ scope.row.material_name }}</div>
+                <div v-if="scope.row.specification" style="color: #909399; font-size: 12px;">{{ scope.row.specification }}</div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="unit" label="单位" width="70" align="center">
+            <template #default="scope">{{ scope.row.unit || scope.row.unit_name || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="数量" width="110">
+            <template #default="scope">
+              <el-input-number
+                :ref="(el) => setQuantityInputRef(el, scope.$index)"
+                v-model="scope.row.quantity"
+                :min="0.01"
+                :precision="2"
+                :controls="false"
+                style="width: 100%"
+                @change="recalculatePrice(scope.row)"
+                @keyup.enter="handleQuantityEnter(scope.$index)"
+              ></el-input-number>
+            </template>
+          </el-table-column>
+          <el-table-column label="单价" width="110">
+            <template #default="scope">
+              <el-input-number
+                v-model="scope.row.price"
+                :min="0"
+                :precision="2"
+                :controls="false"
+                style="width: 100%"
+                @change="recalculatePrice(scope.row)"
+              ></el-input-number>
+            </template>
+          </el-table-column>
+          <el-table-column label="税率" width="100">
+            <template #default="scope">
+              <el-select v-model="scope.row.tax_rate" size="small" style="width: 100%">
+                <el-option v-for="rate in vatRateOptions" :key="rate" :label="formatTaxRate(rate)" :value="rate"></el-option>
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="金额" width="100" align="right">
+            <template #default="scope">
+              ¥{{ (scope.row.quantity * scope.row.price || 0).toFixed(2) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="70" align="center" fixed="right">
+            <template #default="scope">
+              <el-button type="danger" link size="small" @click="removeItem(scope.$index)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
         
         <!-- 合计金额 -->
         <div class="total-price" style="margin-top: 15px; padding: 12px; background: #f5f7fa; border-radius: 4px;">

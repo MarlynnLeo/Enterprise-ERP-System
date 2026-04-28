@@ -845,7 +845,7 @@ const editingAllocationRuleId = ref(null);
 const allocationBases = ref([]);
 const materialOptions = ref([]);
 const materialsSearching = ref(false);
-const costCenterOptions = ref([]); // 可以从 api.get('/finance-enhancement/cost/centers') 加载
+const costCenterOptions = ref([]); // 从 api.get('/finance/cost-centers') 加载
 
 const allocationRuleForm = ref({
   name: '',
@@ -902,7 +902,7 @@ const searchMaterials = async (query) => {
 
 const fetchCostCenters = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/centers');
+    const res = await api.get('/finance/cost-centers');
     costCenterOptions.value = res.data?.data || res.data || [];
   } catch(e) { console.error('获取成本中心失败', e); }
 };

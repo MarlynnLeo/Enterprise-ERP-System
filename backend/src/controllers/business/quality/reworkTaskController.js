@@ -396,6 +396,8 @@ const completeTask = async (req, res) => {
 
 /**
  * 更新返工任务状态
+ * 注意：当目标状态为 completed 时，必须触发复检单创建和质量成本记录，
+ * 与 completeTask 保持一致，避免绕过正规完成流程导致闭环断裂。
  */
 const updateStatus = async (req, res) => {
   const connection = await pool.getConnection();
@@ -410,15 +412,70 @@ const updateStatus = async (req, res) => {
       return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
-    await connection.query(
-      `UPDATE rework_tasks
-       SET status = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [status, id]
-    );
+    // 🔒 闭环保护：completed 状态必须走正规流程（复检单 + 质量成本）
+    if (status === 'completed') {
+      // 获取完整任务信息（含 NCP 关联数据，用于创建复检单）
+      const [tasks] = await connection.query(`
+        SELECT rt.*, ncp.ncp_no, ncp.inspection_id 
+        FROM rework_tasks rt
+        LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
+        WHERE rt.id = ?
+      `, [id]);
+
+      if (tasks.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '返工任务不存在', 'NOT_FOUND', 404);
+      }
+
+      const task = tasks[0];
+
+      if (task.status === STATUS.REWORK.COMPLETED) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '该返工任务已完成', 'BAD_REQUEST', 400);
+      }
+
+      if (task.status === STATUS.REWORK.CANCELLED) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '已取消的返工任务不能完成', 'BAD_REQUEST', 400);
+      }
+
+      // 更新状态为已完成
+      await connection.query(
+        `UPDATE rework_tasks SET status = ?, actual_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        ['completed', new Date().toISOString().slice(0, 10), id]
+      );
+
+      // 记录质量成本
+      try {
+        await QualityIntegrationService.recordQualityCost(
+          {
+            costType: 'rework',
+            referenceNo: task.rework_no,
+            materialCode: task.material_code,
+            quantity: task.quantity,
+            cost: task.rework_cost || 0,
+            operator: task.created_by,
+          },
+          connection
+        );
+      } catch (costError) {
+        logger.warn('记录质量成本失败(继续完成返工):', costError.message);
+      }
+
+      // 触发返工复检闭环
+      await createReinspectionTask(task, connection);
+
+      logger.info(`✅ 返工任务 ${task.rework_no} 通过 updateStatus 完成，已触发复检单创建和成本记录`);
+    } else {
+      // 其他状态：直接更新
+      await connection.query(
+        `UPDATE rework_tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [status, id]
+      );
+    }
 
     await connection.commit();
-    res.json({ message: '状态更新成功' });
+    return ResponseHandler.success(res, null, '状态更新成功');
   } catch (error) {
     await connection.rollback();
     logger.error('更新返工任务状态失败:', error);

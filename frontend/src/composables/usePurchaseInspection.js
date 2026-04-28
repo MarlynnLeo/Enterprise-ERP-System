@@ -234,15 +234,19 @@ export const usePurchaseInspection = () => {
           continue;
         }
 
-        // 获取供应商编码
+        // 获取供应商编码（防止 supplier_id 为空时发出无效请求）
         let supplierCode = 'DEFAULT';
-        try {
-          const supplierResponse = await supplierApi.getSupplier(orderData.supplier_id);
-          if (supplierResponse.data && supplierResponse.data.code) {
-            supplierCode = supplierResponse.data.code;
+        if (orderData.supplier_id) {
+          try {
+            const supplierResponse = await supplierApi.getSupplier(orderData.supplier_id);
+            if (supplierResponse.data && supplierResponse.data.code) {
+              supplierCode = supplierResponse.data.code;
+            }
+          } catch (err) {
+            logger.error('获取供应商编码失败:', err);
           }
-        } catch (err) {
-          logger.error('获取供应商编码失败:', err);
+        } else {
+          logger.warn('订单缺少 supplier_id，使用默认供应商编码');
         }
 
         // 生成批次号 - 传递正确的参数类型

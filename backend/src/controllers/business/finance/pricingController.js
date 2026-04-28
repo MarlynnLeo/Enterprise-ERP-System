@@ -613,24 +613,35 @@ exports.getPricingHistory = async (req, res) => {
       [productId]
     );
 
-    // 为每条历史记录获取关联的策略字段
-    for (const record of history) {
-      const [strategies] = await connection.query(
-        `
-                SELECT 
-                    pps.field_value,
-                    psf.field_name,
-                    psf.field_label,
-                    psf.field_type,
-                    psf.unit
-                FROM product_pricing_strategies pps
-                JOIN pricing_strategy_fields psf ON pps.field_id = psf.id
-                WHERE pps.pricing_id = ?
-                ORDER BY psf.sort_order ASC
-            `,
-        [record.id]
+    // 批量获取所有历史记录的策略字段（消除 N+1）
+    const pricingIds = history.filter(r => r.id).map(r => r.id);
+    const strategiesMap = new Map();
+    if (pricingIds.length > 0) {
+      const placeholders = pricingIds.map(() => '?').join(',');
+      const [allStrategies] = await connection.query(
+        `SELECT 
+            pps.pricing_id,
+            pps.field_value,
+            psf.field_name,
+            psf.field_label,
+            psf.field_type,
+            psf.unit
+        FROM product_pricing_strategies pps
+        JOIN pricing_strategy_fields psf ON pps.field_id = psf.id
+        WHERE pps.pricing_id IN (${placeholders})
+        ORDER BY psf.sort_order ASC`,
+        pricingIds
       );
-      record.strategies = strategies;
+      for (const s of allStrategies) {
+        if (!strategiesMap.has(s.pricing_id)) strategiesMap.set(s.pricing_id, []);
+        strategiesMap.get(s.pricing_id).push({
+          field_name: s.field_name, field_label: s.field_label,
+          field_type: s.field_type, field_value: s.field_value, unit: s.unit
+        });
+      }
+    }
+    for (const record of history) {
+      record.strategies = strategiesMap.get(record.id) || [];
     }
 
     ResponseHandler.success(res, history);

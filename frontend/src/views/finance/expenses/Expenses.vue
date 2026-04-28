@@ -471,8 +471,10 @@ const fetchExpenses = async () => {
 
     const res = await request.get('/finance/expenses', { params })
     if (res.success) {
-      expenseList.value = res.data
-      total.value = res.total
+      // 后端返回分页对象 { data: [...], total, page, pageSize }
+      const result = res.data || {}
+      expenseList.value = Array.isArray(result) ? result : (result.data || result.items || result.list || [])
+      total.value = result.total || res.total || 0
     }
   } catch (error) {
     console.error('获取费用列表失败:', error)

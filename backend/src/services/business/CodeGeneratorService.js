@@ -79,16 +79,37 @@ class CodeGeneratorService {
     const values = [];
 
     if (keyword) {
-      where += ' AND (business_type LIKE ? OR name LIKE ?)';
+      where += ' AND (cr.business_type LIKE ? OR cr.name LIKE ?)';
       values.push(`%${keyword}%`, `%${keyword}%`);
     }
 
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM coding_rules ${where}`, values);
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM coding_rules cr ${where}`, values);
     const offset = (page - 1) * pageSize;
+
+    // 一次性 LEFT JOIN 序列表，避免前端逐条请求预览（消除 N+1）
     const [rows] = await pool.query(
-      `SELECT * FROM coding_rules ${where} ORDER BY business_type LIMIT ? OFFSET ?`,
+      `SELECT cr.*, cs.current_value AS _seq_current
+       FROM coding_rules cr
+       LEFT JOIN coding_sequences cs
+         ON cs.business_type = cr.business_type
+         AND cs.period_key = (
+           CASE cr.reset_cycle
+             WHEN 'daily'   THEN DATE_FORMAT(NOW(), '%Y%m%d')
+             WHEN 'monthly' THEN DATE_FORMAT(NOW(), '%Y%m')
+             WHEN 'yearly'  THEN DATE_FORMAT(NOW(), '%Y')
+             ELSE 'default'
+           END
+         )
+       ${where} ORDER BY cr.business_type LIMIT ? OFFSET ?`,
       [...values, Number(pageSize), offset]
     );
+
+    // 在后端直接计算预览编号，前端无需再逐条请求
+    for (const rule of rows) {
+      const nextVal = (rule._seq_current || 0) + (rule.step || 1);
+      rule._preview = this._formatCode(rule, nextVal);
+    }
+
     return { list: rows, total };
   }
 

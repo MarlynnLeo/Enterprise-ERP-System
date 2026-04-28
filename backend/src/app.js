@@ -402,7 +402,7 @@ app.use('/api/finance/budgets', budgetRoutes);
 app.use('/api/finance/cost-centers', costCenterRoutes);
 app.use('/api/finance/cost-ledger', costLedgerRoutes);
 app.use('/api/finance/activity-cost', activityCostRoutes);
-app.use('/api/cost-ledger', costLedgerRoutes); // 将原 costRoutes 重命名或映射
+// /api/cost-ledger 已移除（与 /api/finance/cost-ledger 重复），统一使用 /api/finance/cost-ledger
 app.use('/api/metal-prices', metalPricesRoutes); // 金属价格监控
 app.use('/api/hr', hrRoutes); // HR及薪酬模块
 app.use('/api/monitoring', monitoringRoutes);

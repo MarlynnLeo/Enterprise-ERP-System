@@ -158,65 +158,80 @@ class MRPService {
         materialDemands[d.material_id].total_gross += Number(d.required_qty || 0);
       }
 
-      // ==================== 3. BOM 展开计算相关需求 ====================
-      // 实际表: bom_masters (product_id) + bom_details (bom_id, material_id, quantity)
-      for (const matId of Object.keys(materialDemands)) {
-        const [bomItems] = await conn.query(
-          `SELECT bd.material_id AS child_material_id, bd.quantity AS unit_qty,
+      // ==================== 3. BOM 展开计算相关需求（批量查询消除 N+1） ====================
+      const parentMatIds = Object.keys(materialDemands).map(Number);
+      if (parentMatIds.length > 0) {
+        const bomPh = parentMatIds.map(() => '?').join(',');
+        const [allBomItems] = await conn.query(
+          `SELECT bm.product_id AS parent_material_id,
+                  bd.material_id AS child_material_id, bd.quantity AS unit_qty,
                   m.code AS material_code, m.name AS material_name
            FROM bom_details bd
            JOIN materials m ON m.id = bd.material_id
            JOIN bom_masters bm ON bm.id = bd.bom_id
-           WHERE bm.product_id = ? AND bm.status = 1 AND bm.approved_by IS NOT NULL AND bm.deleted_at IS NULL`,
-          [matId]
+           WHERE bm.product_id IN (${bomPh}) AND bm.status = 1 AND bm.approved_by IS NOT NULL AND bm.deleted_at IS NULL`,
+          parentMatIds
         );
-
-        const parentGross = materialDemands[matId].total_gross;
-        for (const bi of bomItems) {
-          const childDemand = parentGross * Number(bi.unit_qty || 1);
-          if (!materialDemands[bi.child_material_id]) {
-            materialDemands[bi.child_material_id] = {
-              material_id: bi.child_material_id,
-              material_code: bi.material_code,
-              material_name: bi.material_name,
-              demands: [],
-              total_gross: 0,
-            };
+        // 按父物料分组
+        const bomMap = new Map();
+        for (const bi of allBomItems) {
+          if (!bomMap.has(bi.parent_material_id)) bomMap.set(bi.parent_material_id, []);
+          bomMap.get(bi.parent_material_id).push(bi);
+        }
+        for (const matId of parentMatIds) {
+          const bomItems = bomMap.get(matId) || [];
+          const parentGross = materialDemands[matId].total_gross;
+          for (const bi of bomItems) {
+            const childDemand = parentGross * Number(bi.unit_qty || 1);
+            if (!materialDemands[bi.child_material_id]) {
+              materialDemands[bi.child_material_id] = {
+                material_id: bi.child_material_id,
+                material_code: bi.material_code,
+                material_name: bi.material_name,
+                demands: [],
+                total_gross: 0,
+              };
+            }
+            materialDemands[bi.child_material_id].total_gross += childDemand;
+            materialDemands[bi.child_material_id].demands.push({
+              required_qty: childDemand,
+              required_date: endDate,
+              source_type: 'bom_explosion',
+              source_id: matId,
+              requirement_type: 'dependent',
+            });
           }
-          materialDemands[bi.child_material_id].total_gross += childDemand;
-          materialDemands[bi.child_material_id].demands.push({
-            required_qty: childDemand,
-            required_date: endDate,
-            source_type: 'bom_explosion',
-            source_id: Number(matId),
-            requirement_type: 'dependent',
-          });
         }
       }
 
-      // ==================== 4. 计算净需求并生成建议 ====================
+      // ==================== 4. 计算净需求并生成建议（批量查询消除 N+1） ====================
       let totalSuggestions = 0;
+      const allMatIds = Object.keys(materialDemands).map(Number);
 
-      for (const mat of Object.values(materialDemands)) {
-        // 获取现有库存（基于 inventory_ledger 聚合）
-        const [[stock]] = await conn.query(
-          'SELECT COALESCE(SUM(quantity), 0) AS on_hand FROM inventory_ledger WHERE material_id = ?',
-          [mat.material_id]
+      if (allMatIds.length > 0) {
+        const ph = allMatIds.map(() => '?').join(',');
+
+        // 批量获取现有库存
+        const [stockRows] = await conn.query(
+          `SELECT material_id, COALESCE(SUM(quantity), 0) AS on_hand
+           FROM inventory_ledger WHERE material_id IN (${ph}) GROUP BY material_id`,
+          allMatIds
         );
+        const stockMap = new Map(stockRows.map(r => [r.material_id, Number(r.on_hand)]));
 
-        // 获取安全库存和分类信息（materials 表无 lead_time_days / material_type 列）
-        const [[matInfo]] = await conn.query(
-          `SELECT m.safety_stock, mc.name AS category_name
-           FROM materials m
-           LEFT JOIN categories mc ON mc.id = m.category_id
-           WHERE m.id = ?`,
-          [mat.material_id]
+        // 批量获取安全库存和分类
+        const [matInfoRows] = await conn.query(
+          `SELECT m.id, m.safety_stock, mc.name AS category_name
+           FROM materials m LEFT JOIN categories mc ON mc.id = m.category_id
+           WHERE m.id IN (${ph})`,
+          allMatIds
         );
+        const matInfoMap = new Map(matInfoRows.map(r => [r.id, r]));
 
-        // 在途（已下单未完全收货的采购订单）
-        // purchase_order_items 无 received_quantity 列，通过 purchase_receipt_items 汇总已收数量
-        const [[scheduled]] = await conn.query(
-          `SELECT COALESCE(SUM(poi.quantity - COALESCE(rcv.received_qty, 0)), 0) AS scheduled
+        // 批量获取在途采购
+        const [scheduledRows] = await conn.query(
+          `SELECT poi.material_id,
+                  COALESCE(SUM(poi.quantity - COALESCE(rcv.received_qty, 0)), 0) AS scheduled
            FROM purchase_order_items poi
            JOIN purchase_orders po ON po.id = poi.order_id
            LEFT JOIN (
@@ -226,69 +241,77 @@ class MRPService {
              WHERE pr.status != 'cancelled'
              GROUP BY pri.order_item_id
            ) rcv ON rcv.order_item_id = poi.id
-           WHERE poi.material_id = ? AND po.status IN ('confirmed','partial_received','approved')
+           WHERE poi.material_id IN (${ph}) AND po.status IN ('confirmed','partial_received','approved')
              AND po.deleted_at IS NULL
-             AND poi.quantity > COALESCE(rcv.received_qty, 0)`,
-          [mat.material_id]
+             AND poi.quantity > COALESCE(rcv.received_qty, 0)
+           GROUP BY poi.material_id`,
+          allMatIds
         );
+        const scheduledMap = new Map(scheduledRows.map(r => [r.material_id, Number(r.scheduled)]));
 
-        // 已有的采购申请（草稿/待审批状态，尚未转为采购订单，避免与销售订单自动生成的采购申请重复）
-        const [[pendingReq]] = await conn.query(
-          `SELECT COALESCE(SUM(pri.quantity), 0) AS pending_qty
+        // 批量获取待处理采购申请
+        const [pendingReqRows] = await conn.query(
+          `SELECT pri.material_id, COALESCE(SUM(pri.quantity), 0) AS pending_qty
            FROM purchase_requisition_items pri
            JOIN purchase_requisitions pr ON pr.id = pri.requisition_id
-           WHERE pri.material_id = ? AND pr.status IN ('draft','pending','approved')`,
-          [mat.material_id]
+           WHERE pri.material_id IN (${ph}) AND pr.status IN ('draft','pending','approved')
+           GROUP BY pri.material_id`,
+          allMatIds
         );
+        const pendingReqMap = new Map(pendingReqRows.map(r => [r.material_id, Number(r.pending_qty)]));
 
-        // 已有的未完成生产计划（避免与销售订单自动生成的生产计划重复）
-        const [[pendingProd]] = await conn.query(
-          `SELECT COALESCE(SUM(pp.quantity - COALESCE(pp.pushed_quantity, 0)), 0) AS pending_qty
+        // 批量获取待处理生产计划
+        const [pendingProdRows] = await conn.query(
+          `SELECT pp.product_id AS material_id,
+                  COALESCE(SUM(pp.quantity - COALESCE(pp.pushed_quantity, 0)), 0) AS pending_qty
            FROM production_plans pp
-           WHERE pp.product_id = ? AND pp.status IN ('draft','preparing','in_progress')
-             AND pp.deleted_at IS NULL
-             AND pp.quantity > COALESCE(pp.pushed_quantity, 0)`,
-          [mat.material_id]
+           WHERE pp.product_id IN (${ph}) AND pp.status IN ('draft','preparing','in_progress')
+             AND pp.deleted_at IS NULL AND pp.quantity > COALESCE(pp.pushed_quantity, 0)
+           GROUP BY pp.product_id`,
+          allMatIds
         );
+        const pendingProdMap = new Map(pendingProdRows.map(r => [r.material_id, Number(r.pending_qty)]));
 
-        const onHand = Number(stock?.on_hand || 0);
-        const safetyStock = Number(matInfo?.safety_stock || 0);
-        const scheduledReceipts = Number(scheduled?.scheduled || 0);
-        const pendingRequisitions = Number(pendingReq?.pending_qty || 0);
-        const pendingProduction = Number(pendingProd?.pending_qty || 0);
-        const grossRequirement = mat.total_gross;
+        // 在内存中计算净需求并插入建议
+        for (const mat of Object.values(materialDemands)) {
+          const onHand = stockMap.get(mat.material_id) || 0;
+          const matInfo = matInfoMap.get(mat.material_id) || {};
+          const safetyStock = Number(matInfo.safety_stock || 0);
+          const scheduledReceipts = scheduledMap.get(mat.material_id) || 0;
+          const pendingRequisitions = pendingReqMap.get(mat.material_id) || 0;
+          const pendingProduction = pendingProdMap.get(mat.material_id) || 0;
+          const grossRequirement = mat.total_gross;
 
-        // 净需求 = 毛需求 - 现有库存 - 在途采购 - 已有采购申请 - 已有生产计划 + 安全库存
-        const netRequirement = grossRequirement - onHand - scheduledReceipts - pendingRequisitions - pendingProduction + safetyStock;
+          // 净需求 = 毛需求 - 现有库存 - 在途采购 - 已有采购申请 - 已有生产计划 + 安全库存
+          const netRequirement = grossRequirement - onHand - scheduledReceipts - pendingRequisitions - pendingProduction + safetyStock;
 
-        if (netRequirement <= 0) continue; // 无净需求
+          if (netRequirement <= 0) continue;
 
-        // 判断建议类型：通过分类名称推断（含"成品/半成品"→自制，其余→采购）
-        const categoryName = (matInfo?.category_name || '').toLowerCase();
-        const isManufactured = ['成品', '半成品', '产成品', 'finished', 'semi'].some(k => categoryName.includes(k));
-        const suggestionType = isManufactured ? 'production' : 'purchase';
+          const categoryName = (matInfo.category_name || '').toLowerCase();
+          const isManufactured = ['成品', '半成品', '产成品', 'finished', 'semi'].some(k => categoryName.includes(k));
+          const suggestionType = isManufactured ? 'production' : 'purchase';
 
-        // 计算计划日期（前推提前期，默认7天）
-        const leadTimeDays = 7;
-        const latestDemand = mat.demands.reduce((latest, d) => {
-          return d.required_date > latest ? d.required_date : latest;
-        }, startDate);
+          const leadTimeDays = 7;
+          const latestDemand = mat.demands.reduce((latest, d) => {
+            return d.required_date > latest ? d.required_date : latest;
+          }, startDate);
 
-        await conn.query(
-          `INSERT INTO mrp_results (run_id, material_id, material_code, material_name,
-           requirement_type, source_type, source_id, required_date,
-           gross_requirement, on_hand_stock, safety_stock, scheduled_receipts,
-           net_requirement, planned_order_quantity, planned_order_date, suggestion_type)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_SUB(?, INTERVAL ? DAY), ?)`,
-          [runId, mat.material_id, mat.material_code, mat.material_name,
-           mat.demands[0]?.requirement_type || 'independent',
-           mat.demands[0]?.source_type || null, mat.demands[0]?.source_id || null,
-           latestDemand,
-           grossRequirement, onHand, safetyStock, scheduledReceipts,
-           netRequirement, netRequirement, latestDemand, leadTimeDays,
-           suggestionType]
-        );
-        totalSuggestions++;
+          await conn.query(
+            `INSERT INTO mrp_results (run_id, material_id, material_code, material_name,
+             requirement_type, source_type, source_id, required_date,
+             gross_requirement, on_hand_stock, safety_stock, scheduled_receipts,
+             net_requirement, planned_order_quantity, planned_order_date, suggestion_type)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_SUB(?, INTERVAL ? DAY), ?)`,
+            [runId, mat.material_id, mat.material_code, mat.material_name,
+             mat.demands[0]?.requirement_type || 'independent',
+             mat.demands[0]?.source_type || null, mat.demands[0]?.source_id || null,
+             latestDemand,
+             grossRequirement, onHand, safetyStock, scheduledReceipts,
+             netRequirement, netRequirement, latestDemand, leadTimeDays,
+             suggestionType]
+          );
+          totalSuggestions++;
+        }
       }
 
       // ==================== 5. 更新运算状态 ====================

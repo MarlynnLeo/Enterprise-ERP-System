@@ -108,6 +108,29 @@ router.post('/returns/:id/pay', requirePermission('finance:tax:pay'), taxControl
  */
 router.delete('/returns/:id', requirePermission('finance:tax:delete'), taxController.deleteTaxReturn);
 
+// ==================== 税务发票关联路由 ====================
+
+/**
+ * @route   POST /finance/tax/invoices/:id/link
+ * @desc    关联税务发票到业务单据
+ * @access  Private
+ */
+router.post('/invoices/:id/link', requirePermission('finance:tax:update'), taxController.linkTaxInvoice);
+
+/**
+ * @route   POST /finance/tax/invoices/:id/unlink
+ * @desc    取消税务发票关联
+ * @access  Private
+ */
+router.post('/invoices/:id/unlink', requirePermission('finance:tax:update'), taxController.unlinkTaxInvoice);
+
+/**
+ * @route   GET /finance/tax/available-documents
+ * @desc    获取可关联的业务单据
+ * @access  Private
+ */
+router.get('/available-documents', requirePermission('finance:tax:view'), taxController.getAvailableDocuments);
+
 // ==================== 税务科目配置路由 ====================
 
 /**

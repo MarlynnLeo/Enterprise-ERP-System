@@ -1,4 +1,4 @@
-﻿/**
+/**
  * financeEnhancement.js
  * @description 路由定义文件
  * @date 2025-08-27
@@ -197,11 +197,8 @@ router.put('/cost-versions/:id/submit', requirePermission('finance:cost:update')
 router.put('/cost-versions/:id/approve', requirePermission('finance:cost:execute'), standardCostVersionController.approveVersion);
 router.post('/cost-versions/:id/generate', requirePermission('finance:cost:execute'), standardCostVersionController.generateCostsFromPurchase);
 
-// ==================== 成本中心路由 ====================
-
-router.get('/cost/centers', requirePermission('finance:cost:view'), costController.getCostCenters);
-router.post('/cost/centers', requirePermission('finance:cost:create'), costController.createCostCenter);
-router.put('/cost/centers/:id', requirePermission('finance:cost:update'), costController.updateCostCenter);
+// ==================== 成本中心路由 — 已统一到 costCenterRoutes.js ====================
+// 完整 CRUD + 报表由 /api/finance/cost-centers 路由负责
 
 // ==================== 费率历史路由 ====================
 

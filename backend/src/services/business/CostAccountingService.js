@@ -1850,77 +1850,83 @@ class CostAccountingService {
       const semiFinishedDetails = [];
       const finishedDetails = [];
 
-      for (const task of wipTasks) {
-        // 计算截至到期末的投入成本
-        // 1. 材料投入 (Inventory Outbound where date <= endDate)
-        const [matCost] = await connection.execute(
-          `
-          SELECT SUM(ioi.actual_quantity * m.price) as cost
-          FROM inventory_outbound_items ioi
-          JOIN inventory_outbound io ON ioi.outbound_id = io.id
-          JOIN materials m ON ioi.material_id = m.id
-          WHERE io.production_task_id = ? 
-          AND io.outbound_date <= ?
-          AND io.status IN ('confirmed', 'completed')
-        `,
-          [task.id, endDateStr]
-        );
+      if (wipTasks.length > 0) {
+        const taskIds = wipTasks.map(t => t.id);
+        const taskPh = taskIds.map(() => '?').join(',');
 
-        // 2. 人工投入 (基于报工记录的实际工时 × 全局人工费率)
+        // 批量获取所有任务的材料投入成本（消除 N+1）
+        const [allMatCosts] = await connection.execute(
+          `SELECT io.production_task_id AS task_id,
+                  SUM(ioi.actual_quantity * m.price) as cost
+           FROM inventory_outbound_items ioi
+           JOIN inventory_outbound io ON ioi.outbound_id = io.id
+           JOIN materials m ON ioi.material_id = m.id
+           WHERE io.production_task_id IN (${taskPh})
+             AND io.outbound_date <= ?
+             AND io.status IN ('confirmed', 'completed')
+           GROUP BY io.production_task_id`,
+          [...taskIds, endDateStr]
+        );
+        const matCostMap = new Map(allMatCosts.map(r => [r.task_id, parseFloat(r.cost) || 0]));
+
+        // 批量获取所有任务的工时数据（消除 N+1）
+        const [allLaborData] = await connection.execute(
+          `SELECT task_id, COALESCE(SUM(work_hours), 0) as total_hours
+           FROM production_reports
+           WHERE task_id IN (${taskPh}) AND report_date <= ?
+           GROUP BY task_id`,
+          [...taskIds, endDateStr]
+        );
+        const laborMap = new Map(allLaborData.map(r => [r.task_id, parseFloat(r.total_hours) || 0]));
+
+        // 获取成本配置（只查一次，移到循环外）
         const settings = await this.getCostSettings();
-        const [laborData] = await connection.execute(
-          `
-          SELECT COALESCE(SUM(work_hours), 0) as total_hours
-          FROM production_reports
-          WHERE task_id = ? AND report_date <= ?
-        `,
-          [task.id, endDateStr]
-        );
-
-        const totalHours = parseFloat(laborData[0]?.total_hours) || 0;
-        const taskLaborCost = Precision.round2(Precision.mul(totalHours, settings.laborRate));
-
-        // 3. 制造费用：统一通过分摊规则引擎计算
         const OverheadAllocationService = require('./OverheadAllocationService');
-        const taskMaterialCost = matCost[0]?.cost || 0;
-        
-        const ohResult = await OverheadAllocationService.calculateOverhead({
-          productId: task.product_id,
-          costCenterId: task.cost_center_id,
-          laborCost: taskLaborCost,
-          laborHours: totalHours,
-          quantity: task.planned_quantity,
-          materialCost: taskMaterialCost,
-          date: endDateStr,
-        });
-        const taskOverheadCost = Precision.round2(ohResult.overhead);
 
-        const taskTotalCost = taskMaterialCost + taskLaborCost + taskOverheadCost;
+        for (const task of wipTasks) {
+          const taskMaterialCost = matCostMap.get(task.id) || 0;
+          const totalHours = laborMap.get(task.id) || 0;
+          const taskLaborCost = Precision.round2(Precision.mul(totalHours, settings.laborRate));
 
-        if (taskTotalCost > 0) {
-          const detail = {
-            taskId: task.id,
-            taskCode: task.code,
-            productCode: task.product_code,
-            productName: task.product_name,
-            materialCost: taskMaterialCost,
+          // 制造费用：统一通过分摊规则引擎计算
+          const ohResult = await OverheadAllocationService.calculateOverhead({
+            productId: task.product_id,
+            costCenterId: task.cost_center_id,
             laborCost: taskLaborCost,
-            overheadCost: taskOverheadCost,
-            totalCost: taskTotalCost,
-          };
+            laborHours: totalHours,
+            quantity: task.planned_quantity,
+            materialCost: taskMaterialCost,
+            date: endDateStr,
+          });
+          const taskOverheadCost = Precision.round2(ohResult.overhead);
 
-          // 判断是否为半成品（物料编码3开头）
-          const isSemiFinished = task.product_code && task.product_code.startsWith('3');
+          const taskTotalCost = taskMaterialCost + taskLaborCost + taskOverheadCost;
 
-          if (isSemiFinished) {
-            semiFinishedWIPCost += taskTotalCost;
-            semiFinishedDetails.push(detail);
-          } else {
-            finishedWIPCost += taskTotalCost;
-            finishedDetails.push(detail);
+          if (taskTotalCost > 0) {
+            const detail = {
+              taskId: task.id,
+              taskCode: task.code,
+              productCode: task.product_code,
+              productName: task.product_name,
+              materialCost: taskMaterialCost,
+              laborCost: taskLaborCost,
+              overheadCost: taskOverheadCost,
+              totalCost: taskTotalCost,
+            };
+
+            // 判断是否为半成品（物料编码3开头）
+            const isSemiFinished = task.product_code && task.product_code.startsWith('3');
+
+            if (isSemiFinished) {
+              semiFinishedWIPCost += taskTotalCost;
+              semiFinishedDetails.push(detail);
+            } else {
+              finishedWIPCost += taskTotalCost;
+              finishedDetails.push(detail);
+            }
+
+            totalWIPCost += taskTotalCost;
           }
-
-          totalWIPCost += taskTotalCost;
         }
       }
 
@@ -1992,83 +1998,79 @@ class CostAccountingService {
       const details = [];
       const supplierSummary = {};
 
-      for (const order of wipOrders) {
-        // 获取该订单的发料成本
-        const [materials] = await connection.execute(
-          `
-          SELECT 
-            opm.material_id,
-            opm.quantity,
-            m.code as material_code,
-            m.name as material_name,
-            m.price,
-            m.cost_price
-          FROM outsourced_processing_materials opm
-          LEFT JOIN materials m ON opm.material_id = m.id
-          WHERE opm.processing_id = ?
-        `,
-          [order.id]
+      if (wipOrders.length > 0) {
+        const orderIds = wipOrders.map(o => o.id);
+        const orderPh = orderIds.map(() => '?').join(',');
+
+        // 批量获取所有订单的发料成本（消除 N+1）
+        const [allMaterials] = await connection.execute(
+          `SELECT opm.processing_id,
+                  SUM(opm.quantity * COALESCE(m.cost_price, m.price, 0)) as material_cost
+           FROM outsourced_processing_materials opm
+           LEFT JOIN materials m ON opm.material_id = m.id
+           WHERE opm.processing_id IN (${orderPh})
+           GROUP BY opm.processing_id`,
+          orderIds
         );
+        const matCostMap = new Map(allMaterials.map(r => [r.processing_id, parseFloat(r.material_cost) || 0]));
 
-        let orderMaterialCost = 0;
-        for (const mat of materials) {
-          const costPrice = parseFloat(mat.cost_price || mat.price || 0);
-          orderMaterialCost += parseFloat(mat.quantity) * costPrice;
-        }
-
-        // 获取该订单的预计加工费
-        const [products] = await connection.execute(
-          `
-          SELECT SUM(quantity * unit_price) as estimated_fee
-          FROM outsourced_processing_products
-          WHERE processing_id = ?
-        `,
-          [order.id]
+        // 批量获取所有订单的预计加工费（消除 N+1）
+        const [allProducts] = await connection.execute(
+          `SELECT processing_id, SUM(quantity * unit_price) as estimated_fee
+           FROM outsourced_processing_products
+           WHERE processing_id IN (${orderPh})
+           GROUP BY processing_id`,
+          orderIds
         );
-        const estimatedFee = parseFloat(products[0]?.estimated_fee || 0);
+        const feeMap = new Map(allProducts.map(r => [r.processing_id, parseFloat(r.estimated_fee) || 0]));
 
-        // 查询已入库数量
-        const [receipts] = await connection.execute(
-          `
-          SELECT COALESCE(SUM(ori.actual_quantity * ori.unit_price), 0) as received_value
-          FROM outsourced_processing_receipts opr
-          LEFT JOIN outsourced_processing_receipt_items ori ON opr.id = ori.receipt_id
-          WHERE opr.processing_id = ?
-          AND opr.status = 'confirmed'
-        `,
-          [order.id]
+        // 批量获取所有订单的已入库价值（消除 N+1）
+        const [allReceipts] = await connection.execute(
+          `SELECT opr.processing_id,
+                  COALESCE(SUM(ori.actual_quantity * ori.unit_price), 0) as received_value
+           FROM outsourced_processing_receipts opr
+           LEFT JOIN outsourced_processing_receipt_items ori ON opr.id = ori.receipt_id
+           WHERE opr.processing_id IN (${orderPh}) AND opr.status = 'confirmed'
+           GROUP BY opr.processing_id`,
+          orderIds
         );
-        const receivedValue = parseFloat(receipts[0]?.received_value || 0);
+        const receiptMap = new Map(allReceipts.map(r => [r.processing_id, parseFloat(r.received_value) || 0]));
 
-        // 在途成本 = 发料成本 - 已入库价值
-        const wipCost = orderMaterialCost - receivedValue;
+        for (const order of wipOrders) {
+          const orderMaterialCost = matCostMap.get(order.id) || 0;
+          const estimatedFee = feeMap.get(order.id) || 0;
+          const receivedValue = receiptMap.get(order.id) || 0;
 
-        if (wipCost > 0) {
-          totalWIPCost += wipCost;
+          // 在途成本 = 发料成本 - 已入库价值
+          const wipCost = orderMaterialCost - receivedValue;
 
-          details.push({
-            processingId: order.id,
-            processingNo: order.processing_no,
-            supplierId: order.supplier_id,
-            supplierName: order.supplier_name,
-            materialCost: orderMaterialCost,
-            receivedValue: receivedValue,
-            wipCost: wipCost,
-            estimatedFee: estimatedFee,
-            confirmedDate: order.confirmed_at || order.created_at,
-          });
+          if (wipCost > 0) {
+            totalWIPCost += wipCost;
 
-          // 按供应商汇总
-          if (!supplierSummary[order.supplier_id]) {
-            supplierSummary[order.supplier_id] = {
+            details.push({
+              processingId: order.id,
+              processingNo: order.processing_no,
               supplierId: order.supplier_id,
               supplierName: order.supplier_name,
-              orderCount: 0,
-              totalWIPCost: 0,
-            };
+              materialCost: orderMaterialCost,
+              receivedValue: receivedValue,
+              wipCost: wipCost,
+              estimatedFee: estimatedFee,
+              confirmedDate: order.confirmed_at || order.created_at,
+            });
+
+            // 按供应商汇总
+            if (!supplierSummary[order.supplier_id]) {
+              supplierSummary[order.supplier_id] = {
+                supplierId: order.supplier_id,
+                supplierName: order.supplier_name,
+                orderCount: 0,
+                totalWIPCost: 0,
+              };
+            }
+            supplierSummary[order.supplier_id].orderCount++;
+            supplierSummary[order.supplier_id].totalWIPCost += wipCost;
           }
-          supplierSummary[order.supplier_id].orderCount++;
-          supplierSummary[order.supplier_id].totalWIPCost += wipCost;
         }
       }
 
@@ -2659,159 +2661,167 @@ class CostAccountingService {
       let totalWIPLabor = 0;
       let totalWIPOverhead = 0;
 
-      for (const task of wipTasks) {
-        // 计算已投入成本（领料成本）
-        const [materialCosts] = await connection.execute(
-          `
-          SELECT COALESCE(SUM(ioi.actual_quantity * COALESCE(m.price, 0)), 0) as total
-          FROM inventory_outbound io
-          JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
-          JOIN materials m ON ioi.material_id = m.id
-          WHERE io.production_task_id = ? AND io.status IN ('completed', 'confirmed')
-        `,
-          [task.task_id]
+      if (wipTasks.length > 0) {
+        const taskIds = wipTasks.map(t => t.task_id);
+        const taskPh = taskIds.map(() => '?').join(',');
+
+        // 批量获取所有任务的领料成本（消除 N+1）
+        const [allMatCosts] = await connection.execute(
+          `SELECT io.production_task_id as task_id,
+                  COALESCE(SUM(ioi.actual_quantity * COALESCE(m.price, 0)), 0) as total
+           FROM inventory_outbound io
+           JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
+           JOIN materials m ON ioi.material_id = m.id
+           WHERE io.production_task_id IN (${taskPh}) AND io.status IN ('completed', 'confirmed')
+           GROUP BY io.production_task_id`,
+          taskIds
         );
+        const matCostMap = new Map(allMatCosts.map(r => [r.task_id, Precision.round2(parseFloat(r.total) || 0)]));
 
-        const materialCost = Precision.round2(parseFloat(materialCosts[0]?.total) || 0);
-
-        // 计算完工率（基于工序进度）
-        const [processProgress] = await connection.execute(
-          `
-          SELECT 
-            COUNT(*) as total_processes,
-            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_processes
-          FROM production_processes
-          WHERE task_id = ?
-        `,
-          [task.task_id]
+        // 批量获取所有任务的工序进度（消除 N+1）
+        const [allProgress] = await connection.execute(
+          `SELECT task_id,
+                  COUNT(*) as total_processes,
+                  SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_processes
+           FROM production_processes
+           WHERE task_id IN (${taskPh})
+           GROUP BY task_id`,
+          taskIds
         );
+        const progressMap = new Map(allProgress.map(r => [r.task_id, r]));
 
-        let completionRate = 0;
-        if (processProgress[0].total_processes > 0) {
-          completionRate = Precision.round2(
-            (processProgress[0].completed_processes / processProgress[0].total_processes) * 100
-          );
-        } else {
-          // 如果没有工序，使用完工数量比例
-          if (task.planned_quantity > 0) {
-            completionRate = Precision.round2(
-              ((task.completed_quantity || 0) / task.planned_quantity) * 100
-            );
-          }
-        }
+        // 批量获取所有任务的实际工时（消除 N+1）
+        const [allLaborData] = await connection.execute(
+          `SELECT pp.task_id,
+                  COALESCE(SUM(
+                    CASE WHEN pp.status = 'completed'
+                    THEN COALESCE(ptd.standard_hours, 1)
+                    ELSE 0 END
+                  ), 0) as actual_hours
+           FROM production_processes pp
+           LEFT JOIN process_template_details ptd ON pp.process_name = ptd.name
+           WHERE pp.task_id IN (${taskPh})
+           GROUP BY pp.task_id`,
+          taskIds
+        );
+        const laborMap = new Map(allLaborData.map(r => [r.task_id, parseFloat(r.actual_hours) || 0]));
 
-        // 获取成本配置计算人工和制造费用
+        // 获取成本配置（只查一次，移到循环外）
         const settings = await this.getCostSettings();
-
-        // 估算人工成本（基于已完成工序的标准工时）
-        const [laborData] = await connection.execute(
-          `
-          SELECT COALESCE(SUM(
-            CASE WHEN pp.status = 'completed' 
-            THEN COALESCE(ptd.standard_hours, 1) 
-            ELSE 0 END
-          ), 0) as actual_hours
-          FROM production_processes pp
-          LEFT JOIN process_template_details ptd ON pp.process_name = ptd.name
-          WHERE pp.task_id = ?
-        `,
-          [task.task_id]
-        );
-
-        const actualHours = parseFloat(laborData[0]?.actual_hours) || 0;
-        const laborCost = Precision.round2(Precision.mul(actualHours, settings.laborRate));
-        
-        // 制造费用：统一通过分摊规则引擎计算
         const OverheadAllocationService = require('./OverheadAllocationService');
-        const ohResult = await OverheadAllocationService.calculateOverhead({
-          productId: task.product_id,
-          costCenterId: task.cost_center_id,
-          laborCost: laborCost,
-          laborHours: actualHours,
-          quantity: task.planned_quantity,
-          materialCost: materialCost,
-          date: new Date().toISOString().split('T')[0],
-        });
-        const overheadCost = Precision.round2(ohResult.overhead);
 
-        const totalCost = Precision.sumRound2(materialCost, laborCost, overheadCost);
+        for (const task of wipTasks) {
+          const materialCost = matCostMap.get(task.task_id) || 0;
 
-        // 计算约当产量
-        const equivalentUnits = Precision.round2(
-          Precision.mul(task.planned_quantity || 0, completionRate / 100)
-        );
+          // 从批量结果计算完工率
+          let completionRate = 0;
+          const progress = progressMap.get(task.task_id);
+          if (progress && progress.total_processes > 0) {
+            completionRate = Precision.round2(
+              (progress.completed_processes / progress.total_processes) * 100
+            );
+          } else {
+            if (task.planned_quantity > 0) {
+              completionRate = Precision.round2(
+                ((task.completed_quantity || 0) / task.planned_quantity) * 100
+              );
+            }
+          }
 
-        // 计算 WIP 成本（约当产量法）
-        // WIP成本 = 总投入成本 × (1 - 完工率/100)
-        const wipFactor = 1 - completionRate / 100;
-        const wipMaterialCost = Precision.round2(Precision.mul(materialCost, wipFactor));
-        const wipLaborCost = Precision.round2(Precision.mul(laborCost, wipFactor));
-        const wipOverheadCost = Precision.round2(Precision.mul(overheadCost, wipFactor));
-        const wipTotalCost = Precision.sumRound2(wipMaterialCost, wipLaborCost, wipOverheadCost);
+          // 从批量结果获取工时
+          const actualHours = laborMap.get(task.task_id) || 0;
+          const laborCost = Precision.round2(Precision.mul(actualHours, settings.laborRate));
 
-        totalWIPMaterial = Precision.add(totalWIPMaterial, wipMaterialCost);
-        totalWIPLabor = Precision.add(totalWIPLabor, wipLaborCost);
-        totalWIPOverhead = Precision.add(totalWIPOverhead, wipOverheadCost);
+          // 制造费用：统一通过分摊规则引擎计算
+          const ohResult = await OverheadAllocationService.calculateOverhead({
+            productId: task.product_id,
+            costCenterId: task.cost_center_id,
+            laborCost: laborCost,
+            laborHours: actualHours,
+            quantity: task.planned_quantity,
+            materialCost: materialCost,
+            date: new Date().toISOString().split('T')[0],
+          });
+          const overheadCost = Precision.round2(ohResult.overhead);
 
-        // 保存 WIP 快照
-        await connection.execute(
-          `
-          INSERT INTO wip_snapshots (
-            period_id, snapshot_date, task_id, task_code, product_id, product_name,
-            planned_quantity, completed_quantity, material_cost, labor_cost, overhead_cost, total_cost,
-            completion_rate, equivalent_units, wip_material_cost, wip_labor_cost, wip_overhead_cost, wip_total_cost
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-            material_cost = VALUES(material_cost),
-            labor_cost = VALUES(labor_cost),
-            overhead_cost = VALUES(overhead_cost),
-            total_cost = VALUES(total_cost),
-            completion_rate = VALUES(completion_rate),
-            equivalent_units = VALUES(equivalent_units),
-            wip_material_cost = VALUES(wip_material_cost),
-            wip_labor_cost = VALUES(wip_labor_cost),
-            wip_overhead_cost = VALUES(wip_overhead_cost),
-            wip_total_cost = VALUES(wip_total_cost)
-        `,
-          [
-            actualPeriodId,
-            snapDate,
-            task.task_id,
-            task.task_code,
-            task.product_id,
-            task.product_name,
-            task.planned_quantity,
-            task.completed_quantity || 0,
-            materialCost,
-            laborCost,
-            overheadCost,
-            totalCost,
+          const totalCost = Precision.sumRound2(materialCost, laborCost, overheadCost);
+
+          // 计算约当产量
+          const equivalentUnits = Precision.round2(
+            Precision.mul(task.planned_quantity || 0, completionRate / 100)
+          );
+
+          // 计算 WIP 成本（约当产量法）
+          const wipFactor = 1 - completionRate / 100;
+          const wipMaterialCost = Precision.round2(Precision.mul(materialCost, wipFactor));
+          const wipLaborCost = Precision.round2(Precision.mul(laborCost, wipFactor));
+          const wipOverheadCost = Precision.round2(Precision.mul(overheadCost, wipFactor));
+          const wipTotalCost = Precision.sumRound2(wipMaterialCost, wipLaborCost, wipOverheadCost);
+
+          totalWIPMaterial = Precision.add(totalWIPMaterial, wipMaterialCost);
+          totalWIPLabor = Precision.add(totalWIPLabor, wipLaborCost);
+          totalWIPOverhead = Precision.add(totalWIPOverhead, wipOverheadCost);
+
+          // 保存 WIP 快照
+          await connection.execute(
+            `
+            INSERT INTO wip_snapshots (
+              period_id, snapshot_date, task_id, task_code, product_id, product_name,
+              planned_quantity, completed_quantity, material_cost, labor_cost, overhead_cost, total_cost,
+              completion_rate, equivalent_units, wip_material_cost, wip_labor_cost, wip_overhead_cost, wip_total_cost
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              material_cost = VALUES(material_cost),
+              labor_cost = VALUES(labor_cost),
+              overhead_cost = VALUES(overhead_cost),
+              total_cost = VALUES(total_cost),
+              completion_rate = VALUES(completion_rate),
+              equivalent_units = VALUES(equivalent_units),
+              wip_material_cost = VALUES(wip_material_cost),
+              wip_labor_cost = VALUES(wip_labor_cost),
+              wip_overhead_cost = VALUES(wip_overhead_cost),
+              wip_total_cost = VALUES(wip_total_cost)
+          `,
+            [
+              actualPeriodId,
+              snapDate,
+              task.task_id,
+              task.task_code,
+              task.product_id,
+              task.product_name,
+              task.planned_quantity,
+              task.completed_quantity || 0,
+              materialCost,
+              laborCost,
+              overheadCost,
+              totalCost,
+              completionRate,
+              equivalentUnits,
+              wipMaterialCost,
+              wipLaborCost,
+              wipOverheadCost,
+              wipTotalCost,
+            ]
+          );
+
+          wipDetails.push({
+            taskId: task.task_id,
+            taskCode: task.task_code,
+            productId: task.product_id,
+            productName: task.product_name,
+            plannedQuantity: task.planned_quantity,
+            completedQuantity: task.completed_quantity || 0,
             completionRate,
             equivalentUnits,
-            wipMaterialCost,
-            wipLaborCost,
-            wipOverheadCost,
-            wipTotalCost,
-          ]
-        );
-
-        wipDetails.push({
-          taskId: task.task_id,
-          taskCode: task.task_code,
-          productId: task.product_id,
-          productName: task.product_name,
-          plannedQuantity: task.planned_quantity,
-          completedQuantity: task.completed_quantity || 0,
-          completionRate,
-          equivalentUnits,
-          investedCost: { materialCost, laborCost, overheadCost, totalCost },
-          wipCost: {
-            materialCost: wipMaterialCost,
-            laborCost: wipLaborCost,
-            overheadCost: wipOverheadCost,
-            totalCost: wipTotalCost,
-          },
-        });
+            investedCost: { materialCost, laborCost, overheadCost, totalCost },
+            wipCost: {
+              materialCost: wipMaterialCost,
+              laborCost: wipLaborCost,
+              overheadCost: wipOverheadCost,
+              totalCost: wipTotalCost,
+            },
+          });
+        }
       }
 
       await connection.commit();

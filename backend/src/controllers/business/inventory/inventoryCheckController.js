@@ -287,42 +287,32 @@ const createCheck = async (req, res) => {
       );
 
       if (stockItems.length > 0) {
-        for (const item of stockItems) {
-          // 获取该物料最新的库存事务记录，确保使用最新的库存数量
-          const [transactionResult] = await connection.execute(
-            `SELECT after_quantity 
-             FROM inventory_ledger 
-             WHERE material_id = ? AND location_id = ? 
-             ORDER BY created_at DESC 
-             LIMIT 1`,
-            [item.material_id, location_id]
-          );
+        // 批量查出所有物料在该库位的最新 after_quantity（消除 N+1）
+        const materialIds = stockItems.map(i => i.material_id);
+        const mPh = materialIds.map(() => '?').join(',');
+        const [latestRecords] = await connection.execute(
+          `SELECT material_id, after_quantity FROM (
+             SELECT material_id, after_quantity,
+                    ROW_NUMBER() OVER (PARTITION BY material_id ORDER BY created_at DESC) as rn
+             FROM inventory_ledger
+             WHERE material_id IN (${mPh}) AND location_id = ?
+           ) t WHERE rn = 1`,
+          [...materialIds, location_id]
+        );
+        const afterQtyMap = new Map(latestRecords.map(r => [r.material_id, parseFloat(r.after_quantity)]));
 
-          // 确定实际系统数量 - 优先使用事务记录的after_quantity
-          let actualSystemQuantity = parseFloat(item.system_quantity || 0);
-          if (transactionResult.length > 0 && transactionResult[0].after_quantity !== null) {
-            actualSystemQuantity = parseFloat(transactionResult[0].after_quantity);
-          }
-
-          await connection.execute(
-            `INSERT INTO inventory_check_items (
-              check_id, 
-              material_id, 
-              system_quantity, 
-              actual_quantity, 
-              unit_id,
-              difference
-            ) VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              checkId,
-              item.material_id,
-              actualSystemQuantity,
-              actualSystemQuantity, // 默认实际数量等于系统数量
-              item.unit_id,
-              0, // 默认差异为零
-            ]
-          );
-        }
+        // 批量插入盘点明细
+        const insertValues = stockItems.map(item => {
+          const aq = afterQtyMap.get(item.material_id);
+          const actualSystemQuantity = (aq !== undefined && aq !== null) ? aq : parseFloat(item.system_quantity || 0);
+          return [checkId, item.material_id, actualSystemQuantity, actualSystemQuantity, item.unit_id, 0];
+        });
+        const insertPh = insertValues.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
+        await connection.execute(
+          `INSERT INTO inventory_check_items (check_id, material_id, system_quantity, actual_quantity, unit_id, difference)
+           VALUES ${insertPh}`,
+          insertValues.flat()
+        );
       }
     }
 

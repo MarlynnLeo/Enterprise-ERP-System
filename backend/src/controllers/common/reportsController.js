@@ -211,53 +211,56 @@ const reportsController = {
         ORDER BY bank_name, account_name
       `);
 
+      if (bankAccounts.length === 0) return [];
+
+      const accountIds = bankAccounts.map(a => a.id);
+      const placeholders = accountIds.map(() => '?').join(',');
+
+      // 一次性查出所有账户的上月末余额（消除 N+1）
+      const [lastBalanceRows] = await db.pool.execute(
+        `SELECT bank_account_id,
+           COALESCE(SUM(CASE WHEN transaction_type IN ('存款', '转入', '利息') THEN amount
+                            WHEN transaction_type IN ('取款', '转出', '费用') THEN -amount
+                            ELSE 0 END), 0) as balance
+         FROM bank_transactions
+         WHERE bank_account_id IN (${placeholders}) AND transaction_date <= ?
+         GROUP BY bank_account_id`,
+        [...accountIds, lastMonthEnd]
+      );
+      const lastBalanceMap = new Map(lastBalanceRows.map(r => [r.bank_account_id, parseFloat(r.balance) || 0]));
+
+      // 一次性查出所有账户的本月收入（消除 N+1）
+      const [incomeRows] = await db.pool.execute(
+        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as income
+         FROM bank_transactions
+         WHERE bank_account_id IN (${placeholders})
+           AND transaction_type IN ('存款', '转入', '利息')
+           AND transaction_date >= ? AND transaction_date <= ?
+         GROUP BY bank_account_id`,
+        [...accountIds, currentMonthStart, currentMonthEnd]
+      );
+      const incomeMap = new Map(incomeRows.map(r => [r.bank_account_id, parseFloat(r.income) || 0]));
+
+      // 一次性查出所有账户的本月支出（消除 N+1）
+      const [expenseRows] = await db.pool.execute(
+        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as expense
+         FROM bank_transactions
+         WHERE bank_account_id IN (${placeholders})
+           AND transaction_type IN ('取款', '转出', '费用')
+           AND transaction_date >= ? AND transaction_date <= ?
+         GROUP BY bank_account_id`,
+        [...accountIds, currentMonthStart, currentMonthEnd]
+      );
+      const expenseMap = new Map(expenseRows.map(r => [r.bank_account_id, parseFloat(r.expense) || 0]));
+
       const bankData = [];
-      let accountIndex = 2; // 从2开始，因为现金是1
-
+      let accountIndex = 2;
       for (const account of bankAccounts) {
-        // 获取上月末银行账户余额
-        const [lastMonthBalance] = await db.pool.execute(
-          `
-          SELECT
-            COALESCE(SUM(CASE WHEN transaction_type IN ('存款', '转入', '利息') THEN amount
-                             WHEN transaction_type IN ('取款', '转出', '费用') THEN -amount
-                             ELSE 0 END), 0) as balance
-          FROM bank_transactions
-          WHERE bank_account_id = ? AND transaction_date <= ?
-        `,
-          [account.id, lastMonthEnd]
-        );
-
-        // 获取本月银行收入
-        const [currentMonthIncome] = await db.pool.execute(
-          `
-          SELECT COALESCE(SUM(amount), 0) as income
-          FROM bank_transactions
-          WHERE bank_account_id = ?
-          AND transaction_type IN ('存款', '转入', '利息')
-          AND transaction_date >= ? AND transaction_date <= ?
-        `,
-          [account.id, currentMonthStart, currentMonthEnd]
-        );
-
-        // 获取本月银行支出
-        const [currentMonthExpense] = await db.pool.execute(
-          `
-          SELECT COALESCE(SUM(amount), 0) as expense
-          FROM bank_transactions
-          WHERE bank_account_id = ?
-          AND transaction_type IN ('取款', '转出', '费用')
-          AND transaction_date >= ? AND transaction_date <= ?
-        `,
-          [account.id, currentMonthStart, currentMonthEnd]
-        );
-
-        const lastBalance = parseFloat(lastMonthBalance[0].balance) || 0;
-        const monthIncome = parseFloat(currentMonthIncome[0].income) || 0;
-        const monthExpense = parseFloat(currentMonthExpense[0].expense) || 0;
+        const lastBalance = lastBalanceMap.get(account.id) || 0;
+        const monthIncome = incomeMap.get(account.id) || 0;
+        const monthExpense = expenseMap.get(account.id) || 0;
         const currentBalance = lastBalance + monthIncome - monthExpense;
 
-        // 构建账户名称
         let accountDisplayName = `银行存款（${account.bank_name}`;
         if (account.currency_code && account.currency_code !== 'CNY') {
           accountDisplayName += ` ${account.currency_code}`;
@@ -283,7 +286,6 @@ const reportsController = {
       return bankData;
     } catch (error) {
       logger.error('获取银行账户数据失败:', error);
-      // 返回空数组
       return [];
     }
   },

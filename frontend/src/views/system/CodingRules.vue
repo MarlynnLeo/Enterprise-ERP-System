@@ -261,14 +261,7 @@ const fetchList = async () => {
     const res = await codingRuleApi.getList({ pageSize: 200 })
     const d = res.data || res
     const list = d.list || d || []
-    // 批量获取预览
-    const previews = await Promise.allSettled(
-      list.map(r => codingRuleApi.preview(r.business_type))
-    )
-    list.forEach((r, i) => {
-      const p = previews[i]
-      r._preview = p.status === 'fulfilled' ? ((p.value?.data || p.value)?.preview || '--') : '--'
-    })
+    // 后端已通过 LEFT JOIN 一次性计算好 _preview，无需逐条请求
     tableData.value = list
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }

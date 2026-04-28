@@ -526,16 +526,33 @@ exports.updateOrderStatus = async (req, res) => {
         const insufficientItems = [];
         const incompleteMaterials = []; // 收集信息不完整的物料
 
+        // 批量查出所有物料信息（消除 N+1）
+        const materialIds = orderItems.filter(i => i.material_id).map(i => i.material_id);
+        const matPh = materialIds.map(() => '?').join(',');
+        const [allMaterialInfo] = materialIds.length > 0
+          ? await connection.execute(
+              `SELECT id, code, category_id, unit_id, material_source_id FROM materials WHERE id IN (${matPh})`,
+              materialIds
+            )
+          : [[]];
+        const materialInfoMap = new Map(allMaterialInfo.map(m => [m.id, m]));
+
+        // 批量查出所有物料库存（消除 N+1）
+        const [allStockInfo] = materialIds.length > 0
+          ? await connection.execute(
+              `SELECT material_id, COALESCE(SUM(quantity), 0) as current_quantity
+               FROM inventory_ledger WHERE material_id IN (${matPh}) GROUP BY material_id`,
+              materialIds
+            )
+          : [[]];
+        const stockMap = new Map(allStockInfo.map(s => [s.material_id, parseFloat(s.current_quantity) || 0]));
+
         for (const item of orderItems) {
           if (item.material_id) {
-            // 验证物料信息是否完整
-            const [materialInfo] = await connection.execute(
-              'SELECT code, category_id, unit_id, material_source_id FROM materials WHERE id = ?',
-              [item.material_id]
-            );
+            // 从批量结果中获取物料信息
+            const material = materialInfoMap.get(item.material_id);
 
-            if (materialInfo.length > 0) {
-              const material = materialInfo[0];
+            if (material) {
               const isComplete =
                 material.code &&
                 material.category_id &&
@@ -543,7 +560,6 @@ exports.updateOrderStatus = async (req, res) => {
                 material.material_source_id;
 
               if (!isComplete) {
-                // 收集缺失的字段信息
                 const missingFields = [];
                 if (!material.code) missingFields.push('物料编码');
                 if (!material.category_id) missingFields.push('物料分类');
@@ -558,19 +574,12 @@ exports.updateOrderStatus = async (req, res) => {
                 logger.warn(
                   `⚠️  物料信息不完整: ${item.material_name} - 缺少: ${missingFields.join('、')}`
                 );
-                continue; // 跳过此物料，不检查库存
+                continue;
               }
             }
 
-            // 检查库存
-            const [stockResult] = await connection.execute(
-              `SELECT COALESCE(SUM(quantity), 0) as current_quantity
-               FROM inventory_ledger
-               WHERE material_id = ?`,
-              [item.material_id]
-            );
-
-            const currentStock = parseFloat(stockResult[0]?.current_quantity || 0);
+            // 从批量结果中获取库存
+            const currentStock = stockMap.get(item.material_id) || 0;
             const requiredQuantity = parseFloat(item.quantity);
 
             logger.info(
@@ -730,6 +739,21 @@ exports.createSalesOrder = async (req, res) => {
     };
 
     // 处理订单项 - 支持自动从物料获取销售价格
+    // 批量预查所有缺少单价的物料价格（消除 N+1）
+    const allMaterialIds = orderData.items
+      .filter(i => i.material_id && (!parseFloat(i.unit_price) || parseFloat(i.unit_price) <= 0))
+      .map(i => parseInt(i.material_id))
+      .filter(id => !isNaN(id) && id > 0);
+    let priceMap = new Map();
+    if (allMaterialIds.length > 0) {
+      const pricePh = allMaterialIds.map(() => '?').join(',');
+      const [priceRows] = await db.pool.execute(
+        `SELECT id, price FROM materials WHERE id IN (${pricePh})`,
+        allMaterialIds
+      );
+      priceMap = new Map(priceRows.map(r => [r.id, parseFloat(r.price) || 0]));
+    }
+
     const items = [];
     for (let index = 0; index < orderData.items.length; index++) {
       const item = orderData.items[index];
@@ -753,18 +777,12 @@ exports.createSalesOrder = async (req, res) => {
         throw new Error(`订单项 ${index + 1} 的数量必须大于0`);
       }
 
-      // 如果没有提供单价，自动从物料主数据获取销售价格
+      // 如果没有提供单价，从批量预查结果中获取价格
       if (unit_price <= 0) {
-        try {
-          const [materialInfo] = await db.pool.execute('SELECT price FROM materials WHERE id = ?', [
-            materialId,
-          ]);
-          if (materialInfo.length > 0 && materialInfo[0].price > 0) {
-            unit_price = parseFloat(materialInfo[0].price);
-            logger.info(`订单项 ${index + 1} 自动引用物料销售价格: ${unit_price}`);
-          }
-        } catch (err) {
-          logger.warn(`获取物料 ${materialId} 价格失败:`, err);
+        const cachedPrice = priceMap.get(materialId);
+        if (cachedPrice && cachedPrice > 0) {
+          unit_price = cachedPrice;
+          logger.info(`订单项 ${index + 1} 自动引用物料销售价格: ${unit_price}`);
         }
       }
 
