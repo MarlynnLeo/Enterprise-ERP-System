@@ -59,20 +59,86 @@
 
 ## 💎 核心架构亮点
 
-- 🛡️ **悲观锁物理隔离 (Pessimistic Row Locks)**
-  采购入库、生产领料、库存调拨等关键环节原生启用 `SELECT ... FOR UPDATE`，数据库底层物理排他，高并发下防超售水滴不漏。
+<table>
+<tr>
+<td width="50%">
 
-- 🔄 **账实解耦与异步死信队列 (EventBus + DLQ)**
-  产线报工 50ms 内响应！复杂的费用分摊、库存重算通过内部消息总线异步运算。断电宕机后所有任务通过死信队列 (`sys_failed_jobs`) 封存保留，财务记账颗粒级可恢复。
+### 🛡️ 数据库行级悲观锁
 
-- 🖲️ **全链路审计追踪 (Audit Trail & Soft Deletes)**
-  全面取缔 `DELETE FROM`，主业务全线 `deleted_at` 软删除。中间件层全局操作黑匣子，所有写操作强制记录至 `sys_audit_logs`，改价改数量一目了然。
+在采购入库、生产领料、库存调拨、销售出库、质量检验、财务过账等 **19 个关键写入点** 原生启用 `SELECT ... FOR UPDATE` 行级排他锁。
 
-- 🏦 **财务关账防线 (Period Validations)**
-  跨月凭证防御拦截。月结关账后历史凭证严禁补写或时间倒拨，保障财务数据绝对严肃性。
+当多个车间同时扫码领料同一批物料时，数据库底层物理阻塞排队，从根源上杜绝超发、超收、重复扣减。
 
-- ⚡ **N+1 查询零容忍**
-  全站经过 4 轮深度性能审计，累计消除 17 处 N+1 查询瓶颈。核心业务逻辑统一采用「批量 IN 查询 + 内存 Map 映射」模式，确保万级数据量下的高性能。
+```sql
+-- 示例：库存扣减前锁定行
+SELECT quantity FROM inventory_ledger
+WHERE material_id = ? AND location_id = ?
+FOR UPDATE
+```
+
+</td>
+<td width="50%">
+
+### 🔄 事件总线 + 死信队列
+
+业务写入与财务记账完全解耦：工单报工、入库确认等操作 **50ms 内响应**，复杂的费用分摊、制造成本归集、科目余额重算通过 `EventBus` 异步触发 `FinanceSubscriber` 处理。
+
+任务失败自动沉入 `sys_failed_jobs` 死信表，支持重试、人工干预、断点续算。哪怕服务器宕机重启，未完成的财务记账任务颗粒级可恢复，零数据丢失。
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🖲️ 全链路审计 + 无感软删除
+
+**30+ 业务模型** 全面启用 `deleted_at` 软删除，取缔一切物理 `DELETE`。`BaseService` 统一封装，新增模型自动继承。
+
+`auditLogInterceptor` 中间件全局挂载，所有 POST/PUT/PATCH/DELETE 请求的操作人、时间、变更前后数据自动写入 `sys_audit_logs`。谁改了单价、谁删了订单，一条不漏。
+
+</td>
+<td width="50%">
+
+### 🏦 会计期间刚性防线
+
+`PeriodValidationService` 在凭证创建、费用报销、应收应付登记等入口严格校验会计期间状态。
+
+已关账月份的历史凭证 **拒绝一切形式的补写、回填和时间倒拨**，从系统层面保障财务数据的法律严肃性。期末结转流程 (`PeriodEndService`) 自动生成结转凭证并锁定当期。
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### ⚡ N+1 查询零容忍
+
+经过 **4 轮全站深度性能审计**，累计扫描 200+ 后端文件，发现并消除 **17 处 N+1 查询瓶颈**（涵盖 MRP 引擎、成本核算、销售确认、预算分析等核心路径）。
+
+统一采用「收集 ID → 批量 `WHERE IN` → 内存 `Map` 映射」模式，将 O(N) 级数据库交互压缩为 O(1) 常数次 SQL。
+
+</td>
+<td width="50%">
+
+### 🔒 16 层纵深安全中间件
+
+```
+请求 → rateLimiter（速率限制）
+     → csrfEnhanced（CSRF 防护）
+     → securityEnhanced（XSS/注入过滤）
+     → inputValidation（参数校验）
+     → auth + JWT（身份认证）
+     → requirePermission（RBAC 鉴权）
+     → dataPermission（数据权限隔离）
+     → auditLogInterceptor（审计记录）
+     → performanceMonitor（性能监控）
+     → Controller → Service → DB
+```
+
+每个请求经过层层过滤，从网络层到数据层全链路防护。
+
+</td>
+</tr>
+</table>
 
 ---
 
