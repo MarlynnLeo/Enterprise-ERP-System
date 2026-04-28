@@ -271,6 +271,8 @@ Enterprise-ERP-System/
 
 ## 📄 License
 
+QQ/微信：510076394
+
 [MIT License](LICENSE) — 永久免费，可商用、可二开。
 
 *Copyright © 2026. Made with ⚙️ and ❤️ for the Open Source Manufacturing Industry.*
