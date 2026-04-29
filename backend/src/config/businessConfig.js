@@ -136,6 +136,7 @@ module.exports = {
       MATERIAL_PARTIAL_ISSUED: 'material_partial_issued',
       MATERIAL_ISSUED: 'material_issued',
       IN_PROGRESS: 'in_progress',
+      PAUSED: 'paused',
       INSPECTION: 'inspection',
       WAREHOUSING: 'warehousing',
       COMPLETED: 'completed',

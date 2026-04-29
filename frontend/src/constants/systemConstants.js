@@ -22,6 +22,7 @@ const FALLBACK_DICTIONARY = {
     material_partial_issued: { name: '部分发料', color: 'primary' },
     in_progress: { name: '生产中', color: 'success' },
     processing: { name: '生产中', color: 'success' },
+    paused: { name: '已暂停', color: 'warning' },
     inspection: { name: '待检验', color: 'warning' },
     warehousing: { name: '入库中', color: 'primary' },
     completed: { name: '已完成', color: 'success' },
@@ -263,6 +264,7 @@ const getColor = (group, code) => {
     'pending': 'warning', '待审批': 'warning', '待处理': 'warning', '未开始': 'warning',
     'inspecting': 'warning', '待检验': 'warning', '检验中': 'warning',
     'material_issuing': 'warning', '发料中': 'warning', '配料中': 'warning',
+    'paused': 'warning', '已暂停': 'warning', '暂停': 'warning',
     
     // 危险/失败操作 (红色)
     'cancelled': 'danger', '已取消': 'danger', '取消': 'danger',

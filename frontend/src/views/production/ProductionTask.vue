@@ -57,9 +57,11 @@
             <el-option label="未开始" value="pending" />
             <el-option label="分配中" value="allocated" />
             <el-option label="配料中" value="preparing" />
+            <el-option label="发料中" value="material_issuing" />
             <el-option label="已发料" value="material_issued" />
             <el-option label="部分发料" value="material_partial_issued" />
             <el-option label="生产中" value="in_progress" />
+            <el-option label="已暂停" value="paused" />
             <el-option label="待检验" value="inspection" />
             <el-option label="入库中" value="warehousing" />
             <el-option label="已完成" value="completed" />
