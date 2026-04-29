@@ -410,8 +410,10 @@ exports.updateProcess = async (req, res) => {
         // ==============================================================
 
 
-        // 复用外部早已查询到的 planId
+        // 复用外部早已查询到的 planId，同步计划状态
+        if (planId) {
           await syncPlanStatus(planId, connection);
+        }
       } else {
         logger.info(`任务 ${taskId} 还有未完成的工序 (${completed}/${total - cancelled})`);
       }
