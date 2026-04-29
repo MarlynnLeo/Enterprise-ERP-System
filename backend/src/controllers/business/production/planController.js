@@ -15,8 +15,12 @@ const {
   calculateMaterialRequirementsWithStock,
   calculateAndInsertMaterials,
 } = require('../../../services/business/MaterialCalculationService');
-const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
+const { PRODUCTION_STATUS_KEYS, PRODUCTION_PLAN_STATUS_FLOW, getProductionStatusText } = require('../../../constants/systemConstants');
+const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+
+// 计划状态常量别名
+const PLAN_STATUS = businessConfig.status.productionPlan;
 
 /**
  * 获取当天的最大序号
@@ -673,17 +677,8 @@ exports.updateProductionPlanStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    // 验证状态值是否有效
-    const validStatuses = [
-      'draft',
-      'preparing',
-      'material_issued',
-      'in_progress',
-      'inspection',
-      'warehousing',
-      'completed',
-      'cancelled',
-    ];
+    // 验证状态值是否有效（使用统一状态流转规则的 key 集合）
+    const validStatuses = Object.keys(PRODUCTION_PLAN_STATUS_FLOW);
     if (!validStatuses.includes(status)) {
       return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
@@ -698,36 +693,19 @@ exports.updateProductionPlanStatus = async (req, res) => {
       return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
     }
 
-    // 状态机：定义合法的状态转移规则
-    const stateTransitions = {
-      'draft': ['preparing', 'cancelled'],
-      'preparing': ['material_issued', 'cancelled'],
-      'material_issued': ['in_progress', 'cancelled'],
-      'in_progress': ['inspection', 'cancelled'],
-      'inspection': ['warehousing', 'in_progress'],  // 检验不合格可退回生产
-      'warehousing': ['completed'],
-      'completed': [],      // 已完成不可再变更
-      'cancelled': [],      // 已取消不可再变更
-    };
-
     const currentStatus = plans[0].status;
-    const allowedTargets = stateTransitions[currentStatus] || [];
+    const allowedTargets = PRODUCTION_PLAN_STATUS_FLOW[currentStatus] || [];
 
     if (!allowedTargets.includes(status)) {
-      const statusNames = {
-        'draft': '草稿', 'preparing': '备料中', 'material_issued': '已发料',
-        'in_progress': '生产中', 'inspection': '待检验', 'warehousing': '待入库',
-        'completed': '已完成', 'cancelled': '已取消'
-      };
       return ResponseHandler.error(
         res,
-        `不允许从「${statusNames[currentStatus] || currentStatus}」变更为「${statusNames[status] || status}」`,
+        `不允许从「${getProductionStatusText(currentStatus)}」变更为「${getProductionStatusText(status)}」`,
         'INVALID_STATE_TRANSITION',
         400
       );
     }
     // 手动推进时检查关联任务状态（给出警告但不阻止）
-    if (status !== 'cancelled' && status !== 'draft') {
+    if (status !== PLAN_STATUS.CANCELLED && status !== PLAN_STATUS.DRAFT) {
       const [taskStats] = await connection.query(
         `SELECT
           COUNT(*) as total,
@@ -778,7 +756,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     );
 
     // 取消计划时，同步取消关联的未完成任务
-    if (status === 'cancelled') {
+    if (status === PLAN_STATUS.CANCELLED) {
       const [cancelResult] = await connection.query(
         `UPDATE production_tasks SET status = 'cancelled' 
          WHERE plan_id = ? AND status NOT IN ('completed', 'cancelled')`,
@@ -790,7 +768,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     }
 
     // 如果状态更新为已发料，必须确保关联的出库单在仓库端已经全部完成
-    if (status === 'material_issued') {
+    if (status === PLAN_STATUS.MATERIAL_ISSUED) {
       const [outbounds] = await connection.query(
         'SELECT id, status, outbound_no FROM inventory_outbound WHERE reference_id = ? AND reference_type = "production_plan"',
         [id]

@@ -18,15 +18,13 @@ const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { generateBatchNo, syncPlanStatus } = require('../../../services/business/TaskLifecycleService');
 const QualityInspection = require('../../../models/qualityInspection');
 
-// 状态常量
-const STATUS = {
-  PROCESS: {
-    PENDING: 'pending',
-    IN_PROGRESS: 'in_progress',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled',
-  },
-  PRODUCTION_TASK: businessConfig.status.productionTask,
+// 状态常量（统一引用 businessConfig，消除硬编码）
+const TASK_STATUS = businessConfig.status.productionTask;
+const PROC_STATUS = {
+  PENDING: 'pending',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
 };
 
 /**
@@ -335,7 +333,7 @@ exports.updateProcess = async (req, res) => {
                 quantity: task.quantity || 0,
                 unit: '个',
                 planned_date: new Date(),
-                status: 'pending',
+                status: PROC_STATUS.PENDING,
                 note: '工序完成时自动创建',
               });
 
@@ -463,7 +461,7 @@ exports.deleteProcess = async (req, res) => {
       return ResponseHandler.error(res, '生产工序不存在', 'NOT_FOUND', 404);
     }
 
-    if (processCheck[0].status !== 'pending') {
+    if (processCheck[0].status !== PROC_STATUS.PENDING) {
       return ResponseHandler.error(res, '只能删除待处理状态的工序', 'BAD_REQUEST', 400);
     }
 

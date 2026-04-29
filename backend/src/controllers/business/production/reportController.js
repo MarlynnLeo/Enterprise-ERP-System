@@ -14,9 +14,12 @@ const businessConfig = require('../../../config/businessConfig');
 const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 
-// 状态常量
-const STATUS = {
-  PRODUCTION_TASK: businessConfig.status.productionTask,
+// 状态常量（统一引用 businessConfig，消除硬编码）
+const TASK_STATUS = businessConfig.status.productionTask;
+const PROC_STATUS = {
+  PENDING: 'pending',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
 };
 
 /**
@@ -637,7 +640,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
 
       let procProgress = procQuantity > 0 ? Math.round((totalProcReported / procQuantity) * 100) : (totalProcReported > 0 ? 100 : 0);
       if (procProgress > 100) procProgress = 100;
-      let procStatus = procProgress >= 100 ? 'completed' : (totalProcReported > 0 ? 'in_progress' : 'pending');
+      let procStatus = procProgress >= 100 ? PROC_STATUS.COMPLETED : (totalProcReported > 0 ? PROC_STATUS.IN_PROGRESS : PROC_STATUS.PENDING);
 
       await connection.query('UPDATE production_processes SET progress = ?, status = ? WHERE id = ?', [procProgress, procStatus, process_id]);
     }
@@ -656,20 +659,20 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
 
   let apiStatus = null;
   if (processes.length > 0) {
-    const allCompleted = processes.every(p => ['completed', 'qc_passed', 'qc_failed'].includes(p.status));
-    const anyInProgress = processes.some(p => ['in_progress', 'completed', 'qc_passed', 'qc_failed'].includes(p.status));
+    const allCompleted = processes.every(p => [PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(p.status));
+    const anyInProgress = processes.some(p => [PROC_STATUS.IN_PROGRESS, PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(p.status));
 
     if (allCompleted) {
-      apiStatus = STATUS.PRODUCTION_TASK.INSPECTION;
-    } else if (anyInProgress && task.status === STATUS.PRODUCTION_TASK.PENDING) {
-      apiStatus = STATUS.PRODUCTION_TASK.IN_PROGRESS;
+      apiStatus = TASK_STATUS.INSPECTION;
+    } else if (anyInProgress && task.status === TASK_STATUS.PENDING) {
+      apiStatus = TASK_STATUS.IN_PROGRESS;
     }
   } else {
     // 兼容当任务没有配置工序时，沿用老逻辑
     if (totalReported >= planQuantity && planQuantity > 0) {
-      apiStatus = STATUS.PRODUCTION_TASK.INSPECTION;
-    } else if (totalReported > 0 && task.status === STATUS.PRODUCTION_TASK.PENDING) {
-      apiStatus = STATUS.PRODUCTION_TASK.IN_PROGRESS;
+      apiStatus = TASK_STATUS.INSPECTION;
+    } else if (totalReported > 0 && task.status === TASK_STATUS.PENDING) {
+      apiStatus = TASK_STATUS.IN_PROGRESS;
     }
   }
 

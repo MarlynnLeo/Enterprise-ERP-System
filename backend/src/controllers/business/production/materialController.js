@@ -14,14 +14,8 @@ const {
 } = require('../../../services/business/MaterialCalculationService');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
 
-// 状态常量
-const STATUS = {
-  PURCHASE: {
-    PENDING: 'pending',
-    APPROVED: 'approved',
-    ORDERED: 'ordered',
-  },
-};
+// 采购状态常量
+const PURCHASE_PENDING = 'pending';
 
 /**
  * 计算物料需求（支持智能物料替代）- POST方法
@@ -191,7 +185,7 @@ exports.getMaterialShortageSummary = async (req, res) => {
             AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         )
       `;
-    } else if (purchaseStatus === STATUS.PURCHASE.PENDING) {
+    } else if (purchaseStatus === PURCHASE_PENDING) {
       // 只显示待申请的
       purchaseStatusWhereClause = `
         AND NOT EXISTS (
@@ -306,7 +300,7 @@ exports.getMaterialShortageSummary = async (req, res) => {
       shortage_quantity: parseFloat(item.shortage_quantity) || 0,
 
       // 采购状态（从查询结果中获取，而不是硬编码）
-      purchase_status: item.purchase_status || 'pending',
+      purchase_status: item.purchase_status || PURCHASE_PENDING,
     }));
 
     // 计算统计数据（基于筛选条件）

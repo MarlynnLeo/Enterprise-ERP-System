@@ -29,10 +29,13 @@ const CostAccountingService = require('../../../services/business/CostAccounting
 const InventoryTraceabilityService = require('../../../services/business/InventoryTraceabilityService');
 const InventoryService = require('../../../services/InventoryService');
 
-// 状态常量
-const STATUS = {
-  PRODUCTION_TASK: businessConfig.status.productionTask,
-  PRODUCTION_PLAN: businessConfig.status.productionPlan,
+// 状态常量（统一引用 businessConfig，消除硬编码）
+const TASK_STATUS = businessConfig.status.productionTask;
+const PROC_STATUS = {
+  PENDING: 'pending',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
 };
 
 /**
@@ -560,7 +563,7 @@ exports.deleteProductionTask = async (req, res) => {
       return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
     }
 
-    if (taskCheck[0].status !== 'pending') {
+    if (taskCheck[0].status !== TASK_STATUS.PENDING) {
       return ResponseHandler.error(res, '只能删除待生产状态的任务', 'BAD_REQUEST', 400);
     }
 
@@ -937,7 +940,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
             quantity: taskData.quantity || 0,
             unit: '个',
             planned_date: new Date(),
-            status: 'pending',
+            status: PROC_STATUS.PENDING,
             note: '生产任务完成时自动创建',
           });
           logger.info('自动创建检验单成功', { taskId: id });
@@ -1182,7 +1185,7 @@ exports.completeTask = async (req, res) => {
     // 如果全部完工，更新状态为待检验
     if (isFullComplete) {
       updateQuery += ', status = ?';
-      updateParams.push('inspection');
+      updateParams.push(TASK_STATUS.INSPECTION);
     }
 
     updateQuery += ' WHERE id = ?';
@@ -1226,7 +1229,7 @@ exports.completeTask = async (req, res) => {
           batch_no: taskDetail.batch_no || await generateBatchNo(task.code, connection),
           planned_date: new Date(), // 计划检验日期（当天）
           inspection_date: new Date(), // 检验日期
-          status: 'pending', // 待检验状态
+          status: PROC_STATUS.PENDING, // 待检验状态
           remark:
             remark ||
             `生产任务 ${task.code} 完工 ${quantity} 件${isFullComplete ? '（全部完工）' : '（部分完工）'}`,
