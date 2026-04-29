@@ -1,4 +1,4 @@
-<template>
+﻿<template>
     <div class="page-container">
         <!-- 导航栏 -->
         <div class="nav-bar">
@@ -361,7 +361,7 @@ onMounted(() => {
 }
 
 .detail-value.highlight {
-    color: #a855f7;
+    color: var(--module-purple);
     font-weight: 600;
 }
 

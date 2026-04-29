@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PackingLists.vue
  * @description 装箱单管理前端界面组件文件
@@ -418,7 +418,7 @@
               border
               style="width: 100%"
               table-layout="fixed"
-              :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+              :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加装箱明细"
             >
               <el-table-column label="序号" type="index" width="60"></el-table-column>
@@ -1689,7 +1689,7 @@ const handleSalesOrderNoBlur = (event) => {
 
 /* 编号输入框样式 */
 .item-no-input :deep(.el-input__inner) {
-  background-color: #f8f9fa;
+  background-color: var(--color-bg-section);
   border: 1px solid #e9ecef;
   color: #495057;
   font-weight: 500;
@@ -1697,7 +1697,7 @@ const handleSalesOrderNoBlur = (event) => {
 }
 
 .item-no-input :deep(.el-input__inner):focus {
-  background-color: #ffffff;
+  background-color: var(--color-bg-base);
   border-color: var(--color-primary);
 }
 
@@ -1709,7 +1709,7 @@ const handleSalesOrderNoBlur = (event) => {
 
 /* 只读输入框样式 */
 .el-table :deep(.el-input__inner[readonly]) {
-  background-color: #f8f9fa;
+  background-color: var(--color-bg-section);
   border-color: #e9ecef;
   color: #495057;
   cursor: default;

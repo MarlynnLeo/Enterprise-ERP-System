@@ -7,19 +7,19 @@
         <div class="stat-label">全部报告</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #E6A23C;">{{ statistics.in_progress_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-warning);">{{ statistics.in_progress_count || 0 }}</div>
         <div class="stat-label">进行中</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #409EFF;">{{ statistics.review_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-primary);">{{ statistics.review_count || 0 }}</div>
         <div class="stat-label">待审核</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #67C23A;">{{ statistics.completed_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-success);">{{ statistics.completed_count || 0 }}</div>
         <div class="stat-label">已完成</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #F56C6C;">{{ statistics.critical_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-danger);">{{ statistics.critical_count || 0 }}</div>
         <div class="stat-label">紧急</div>
       </el-card>
     </div>
@@ -85,7 +85,7 @@
         <el-table-column label="当前阶段" width="100" align="center">
           <template #default="{ row }">
             <el-tag v-if="!['completed', 'closed'].includes(row.current_phase)" :type="getPhaseType(row.current_phase)" size="small">{{ getPhaseLabel(row.current_phase) }}</el-tag>
-            <span v-else style="color: #909399; font-size: 13px;">-</span>
+            <span v-else style="color: var(--color-text-secondary); font-size: 13px;">-</span>
           </template>
         </el-table-column>
         <el-table-column label="进度" width="130">
@@ -430,12 +430,12 @@
 
     <!-- 详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="8D报告详情" width="920px" destroy-on-close>
-      <div v-if="detailData" id="pdf-detail-content" style="padding: 10px; background-color: #fff;">
+      <div v-if="detailData" id="pdf-detail-content" style="padding: 10px; background-color: var(--color-bg-base);">
         <!-- 角色信息卡片 -->
         <el-row :gutter="16" style="margin-bottom: 16px;">
           <el-col :span="8">
             <el-card shadow="never" class="role-card">
-              <div class="role-icon" style="background: #E6F7FF;">📋</div>
+              <div class="role-icon" style="background: #E6F7FF;"><el-icon><List /></el-icon></div>
               <div class="role-info">
                 <div class="role-title">发起人</div>
                 <div class="role-name">{{ detailData.initiated_by || detailData.created_by || '-' }}</div>
@@ -513,7 +513,7 @@
           <el-timeline-item :type="detailData.d6_completed_at ? 'success' : 'info'" timestamp="D6 - 验证">
             <p><strong>责任人:</strong> {{ detailData.d6_responsible_person || '-' }}</p>
             <p><strong>结果:</strong> {{ detailData.d6_implementation_results || '未填写' }}</p>
-            <p><strong>验证:</strong> {{ detailData.d6_verification_result === 'pass' ? '✅ 通过' : detailData.d6_verification_result === 'fail' ? '❌ 未通过' : '⏳ 待验证' }}</p>
+            <p><strong>验证:</strong> {{ detailData.d6_verification_result === 'pass' ? '通过' : detailData.d6_verification_result === 'fail' ? '未通过' : '待验证' }}</p>
           </el-timeline-item>
           <el-timeline-item :type="detailData.d7_completed_at ? 'success' : 'info'" timestamp="D7 - 预防措施">
             <p><strong>责任人:</strong> {{ detailData.d7_responsible_person || '-' }}</p>
@@ -998,8 +998,8 @@ const submitAiGenerate = async () => {
     }
   } catch (error) {
     console.error('AI生成失败:', error)
-    if (error.response?.data?.message?.includes('API Key')) {
-      ElMessageBox.alert('智谱AI API Key 未配置，请查阅后端 .env 文件进行配置', 'AI 服务未就绪', { type: 'warning' })
+    if (error.response?.data?.message?.includes('ECONNREFUSED') || error.response?.data?.message?.includes('connect')) {
+      ElMessageBox.alert('无法连接到本地 Ollama AI 服务 (192.168.1.251:11434)，请确认服务已启动', 'AI 服务未就绪', { type: 'warning' })
     } else {
       ElMessage.error(error.response?.data?.message || 'AI生成失败，请稍后重试')
     }
@@ -1319,7 +1319,7 @@ onMounted(() => {
 }
 
 :deep(.el-table th) {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   font-weight: 600;
 }
 
@@ -1342,7 +1342,7 @@ onMounted(() => {
 .phase-indicator {
   margin-bottom: 20px;
   padding: 16px 20px;
-  background: #f8f9fa;
+  background: var(--color-bg-section);
   border-radius: 8px;
 }
 
@@ -1374,13 +1374,13 @@ onMounted(() => {
 }
 .role-title {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-bottom: 2px;
 }
 .role-name {
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1388,7 +1388,7 @@ onMounted(() => {
 
 /* 超期样式 */
 .text-danger {
-  color: #F56C6C;
+  color: var(--color-danger);
   font-weight: 600;
 }
 </style>

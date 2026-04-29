@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * APPaymentDetail.vue - 付款详情
  * @date 2026-04-15
@@ -174,7 +174,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
+    color: var(--module-orange);
     flex-shrink: 0;
   }
   .hero-info {
@@ -235,7 +235,7 @@
     color: var(--text-primary);
     font-family: 'SF Mono', monospace;
     &.primary {
-      color: #f97316;
+      color: var(--module-orange);
     }
   }
   .info-section {
@@ -267,7 +267,7 @@
   .payment-amount {
     font-size: 0.9375rem;
     font-weight: 700;
-    color: #f97316;
+    color: var(--module-orange);
     font-family: 'SF Mono', monospace;
   }
   .notes-text {

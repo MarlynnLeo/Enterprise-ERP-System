@@ -21,6 +21,13 @@ const {
 } = require('../../../utils/statusMapper');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const SchedulingService = require('../../../services/business/SchedulingService');
+
+// ===== 审计修复 #1/#2/#9: 提取到顶部的服务引用，消除幻影require =====
+const { validateTaskTransition, syncPlanStatus, generateBatchNo } = require('../../../services/business/TaskLifecycleService');
+const CostAccountingService = require('../../../services/business/CostAccountingService');
+const InventoryTraceabilityService = require('../../../services/business/InventoryTraceabilityService');
+const InventoryService = require('../../../services/InventoryService');
 
 // 状态常量
 const STATUS = {
@@ -164,7 +171,7 @@ exports.getProductionTasks = async (req, res) => {
       LEFT JOIN production_plans pp ON pt.plan_id = pp.id
       LEFT JOIN materials p ON pt.product_id = p.id
       LEFT JOIN units u ON p.unit_id = u.id
-      WHERE 1=1 ${whereClause}
+      WHERE pt.deleted_at IS NULL ${whereClause}
       ORDER BY pt.created_at DESC LIMIT ? OFFSET ?
     `;
 
@@ -214,7 +221,7 @@ exports.getProductionTasks = async (req, res) => {
     // 计数查询
     const countQuery = `SELECT COUNT(*) as total FROM production_tasks pt
       LEFT JOIN materials p ON pt.product_id = p.id
-      WHERE 1=1 ${whereClause}`;
+      WHERE pt.deleted_at IS NULL ${whereClause}`;
     const [totalResult] = await pool.query(countQuery, [...queryParams]);
     const total = totalResult[0].total;
 
@@ -230,7 +237,7 @@ exports.getProductionTasks = async (req, res) => {
         SUM(CASE WHEN pt.status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled
       FROM production_tasks pt
       LEFT JOIN materials p ON pt.product_id = p.id
-      WHERE 1=1 ${whereClause}
+      WHERE pt.deleted_at IS NULL ${whereClause}
     `;
     const [statsResult] = await pool.query(statsQuery, [...queryParams]);
     const statistics = statsResult[0] || {
@@ -316,8 +323,8 @@ exports.createProductionTask = async (req, res) => {
         plan_id || null,
         product_id,
         quantity,
-        start_date,
-        expected_end_date,
+        start_date || null,
+        expected_end_date || null,
         manager || '未分配',
         remarks || '',
         costCenterId,
@@ -382,6 +389,20 @@ exports.createProductionTask = async (req, res) => {
           );
         }
         logger.info(`任务 ${code} 已加载 ${steps.length} 道工序`);
+
+        // ===== 自动排程：填充各工序的计划开始/结束时间 =====
+        if (start_date) {
+          try {
+            // 如果前端传的是纯日期，默认从上班时间开始
+            const startTime = String(start_date).includes(' ') || String(start_date).includes('T')
+              ? start_date
+              : start_date + ' 08:00:00';
+            await SchedulingService.fillProcessSchedule(taskId, startTime, quantity, connection);
+            logger.info(`[排程] 任务 ${code} 工序计划时间已自动填充`);
+          } catch (schedErr) {
+            logger.warn(`[排程] 任务 ${code} 工序时间填充失败(不影响创建):`, schedErr.message);
+          }
+        }
       }
     }
 
@@ -498,8 +519,8 @@ exports.updateProductionTask = async (req, res) => {
         plan_id || null,
         product_id,
         quantity,
-        start_date,
-        expected_end_date,
+        start_date || null,
+        expected_end_date || null,
         manager,
         remarks || '',
         costCenterId,
@@ -688,9 +709,16 @@ exports.updateProductionTaskStatus = async (req, res) => {
     }
 
     // 数据库ENUM定义使用下划线命名，需要转换为数据库格式
-    // 使用 statusMapper 工具进行转换
     let dbStatus = apiStatusToDbStatus(status, 'productionTask');
     logger.info(`[状态转换] 任务ID: ${id}, API状态: ${status}, 数据库状态: ${dbStatus}`);
+
+    // ===== 审计修复 #6: 状态机校验 =====
+    const currentStatus = taskCheck[0].status;
+    const transitionCheck = validateTaskTransition(currentStatus, dbStatus);
+    if (!transitionCheck.valid) {
+      await connection.rollback();
+      return ResponseHandler.error(res, transitionCheck.message, 'INVALID_TRANSITION', 400);
+    }
 
     // 特殊处理：如果用户手动将任务状态更新为completed，需要先检查工序
     if (status === STATUS.PRODUCTION_TASK.COMPLETED) {
@@ -703,7 +731,6 @@ exports.updateProductionTaskStatus = async (req, res) => {
       const { total, completed } = processes[0];
 
       if (total > 0 && completed < total) {
-        // 有工序但未全部完成，不允许直接完成任务
         await connection.rollback();
         return ResponseHandler.error(
           res,
@@ -754,7 +781,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
           const firstArticleQty = isFullInspection ? productionQty : rule.first_article_qty;
 
           // 生成首检单号
-          const inspectionNo = `FAI${Date.now()}`;
+          const inspectionNo = await CodeGenerators.generateInspectionCode(connection);
 
           // 获取产品信息
           const [productInfo] = await connection.query(
@@ -780,7 +807,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
               taskData.product_id,
               product.code || '',
               product.name || '',
-              `BATCH${Date.now()}`,
+              await generateBatchNo(taskData.code, connection),
               firstArticleQty,
               firstArticleQty,
               isFullInspection,
@@ -830,7 +857,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
           const processName = firstProcess[0]?.process_name || '生产过程';
 
           // 生成过程检验单号
-          const processInspectionNo = `PCI${Date.now()}`;
+          const processInspectionNo = await CodeGenerators.generateInspectionCode(connection);
 
           // 获取产品信息
           const [productInfo] = await connection.query(
@@ -861,7 +888,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
               taskData.product_id,
               product.code || '',
               product.name || '',
-              `BATCH${Date.now()}`,
+              await generateBatchNo(taskData.code, connection),
               sampleQty,
               processName,
               processRule.template_id || null,
@@ -906,7 +933,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
             reference_no: taskData.code,
             task_id: id,
             product_id: taskData.product_id,
-            batch_no: `BATCH${Date.now()}`,
+            batch_no: await generateBatchNo(taskData.code, connection),
             quantity: taskData.quantity || 0,
             unit: '个',
             planned_date: new Date(),
@@ -926,67 +953,9 @@ exports.updateProductionTaskStatus = async (req, res) => {
       }
     }
 
-    // ===== (1) 同步更新关联的生产计划状态 =====
+    // ===== 审计修复 #2: 使用统一的计划同步服务替代内联逻辑 =====
     if (planId) {
-      try {
-        const [taskStats] = await connection.query(
-          `SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.PENDING}' THEN 1 ELSE 0 END) as pending_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.ALLOCATED}' THEN 1 ELSE 0 END) as allocated_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.MATERIAL_ISSUING}' THEN 1 ELSE 0 END) as material_issuing_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.PREPARING}' THEN 1 ELSE 0 END) as preparing_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.MATERIAL_ISSUED}' THEN 1 ELSE 0 END) as material_issued_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}' THEN 1 ELSE 0 END) as in_progress_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.INSPECTION}' THEN 1 ELSE 0 END) as inspection_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.WAREHOUSING}' THEN 1 ELSE 0 END) as warehousing_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled_count
-          FROM production_tasks
-          WHERE plan_id = ?`,
-          [planId]
-        );
-
-        const stats = taskStats[0];
-        const activeTotal = stats.total - stats.cancelled_count;
-
-        const [planInfo] = await connection.query(
-          'SELECT status FROM production_plans WHERE id = ? FOR UPDATE',
-          [planId]
-        );
-
-        if (planInfo.length > 0) {
-          const currentPlanStatus = planInfo[0].status;
-          let newPlanStatus = currentPlanStatus;
-
-          if (stats.completed_count === activeTotal && activeTotal > 0) {
-            newPlanStatus = 'completed';
-          } else if (stats.warehousing_count > 0) {
-            newPlanStatus = 'warehousing';
-          } else if (stats.inspection_count > 0) {
-            newPlanStatus = 'inspection';
-          } else if (stats.in_progress_count > 0) {
-            newPlanStatus = 'in_progress';
-          } else if (stats.material_issued_count > 0) {
-            newPlanStatus = 'material_issued';
-          } else if (stats.preparing_count > 0 || stats.material_issuing_count > 0 || stats.allocated_count > 0) {
-            newPlanStatus = 'preparing';
-          } else if (stats.pending_count === activeTotal && activeTotal > 0) {
-            newPlanStatus = 'draft';
-          }
-
-          if (newPlanStatus !== currentPlanStatus) {
-            await connection.query('UPDATE production_plans SET status = ? WHERE id = ?', [
-              newPlanStatus,
-              planId,
-            ]);
-            logger.info(`生产计划 ${planId} 状态已同步更新: ${currentPlanStatus} → ${newPlanStatus}`);
-          }
-        }
-      } catch (error) {
-        logger.error(`同步更新生产计划 ${planId} 状态失败:`, error);
-        throw error;
-      }
+      await syncPlanStatus(planId, connection);
     }
 
     // ===== (2) 工序完成路径的报工+成本核算 =====
@@ -1013,7 +982,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
           const estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
 
           if (estimatedHours > 0) {
-            const reportNo = `RPT${Date.now()}`;
+            const reportNo = await CodeGenerators.generateReportCode(connection);
             const operatorName = taskData.manager || 'System';
 
             await connection.query(
@@ -1040,7 +1009,6 @@ exports.updateProductionTaskStatus = async (req, res) => {
 
         // 强一致性成本核算：直接在事务中调用，并传入 connection
         try {
-          const CostAccountingService = require('../../../services/business/CostAccountingService');
           await CostAccountingService.calculateActualCost(parseInt(id), connection);
         } catch (costError) {
           throw costError;
@@ -1059,8 +1027,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
         const productInfo = productResult && productResult.length > 0 ? productResult[0] : null;
 
         if (productInfo) {
-          const batchNumber = `BATCH${Date.now()}`;
-          const InventoryTraceabilityService = require('../../../services/business/InventoryTraceabilityService');
+          const batchNumber = await generateBatchNo(taskData.code, connection);
           let warehouseInfo = { id: null, name: null };
           if (productInfo.location_id) {
             const [configuredWarehouse] = await connection.query(
@@ -1072,7 +1039,6 @@ exports.updateProductionTaskStatus = async (req, res) => {
             }
           }
           if (!warehouseInfo.id) {
-             const InventoryService = require('../../../services/InventoryService');
              const materialLocationId = await InventoryService.getMaterialLocation(taskData.product_id);
              warehouseInfo.id = materialLocationId;
              warehouseInfo.name = '系统分配默认';
@@ -1138,6 +1104,7 @@ exports.getPendingTasks = async (req, res) => {
         pt.code,
         pt.status,
         pt.quantity,
+        pt.start_date,
         pt.expected_end_date,
         m.name as productName
       FROM production_tasks pt
@@ -1256,7 +1223,7 @@ exports.completeTask = async (req, res) => {
           product_code: taskDetail.product_code,
           quantity: Number(quantity), // 本次完工数量
           unit: taskDetail.unit_name || '件', // 单位
-          batch_no: taskDetail.batch_no || `BATCH${Date.now()}`,
+          batch_no: taskDetail.batch_no || await generateBatchNo(task.code, connection),
           planned_date: new Date(), // 计划检验日期（当天）
           inspection_date: new Date(), // 检验日期
           status: 'pending', // 待检验状态
@@ -1273,7 +1240,7 @@ exports.completeTask = async (req, res) => {
 
     // ===== 自动创建报工记录 =====
     try {
-      const reportNo = `RPT${Date.now()}`;
+      const reportNo = await CodeGenerators.generateReportCode(connection);
       // 尝试获取当前用户，如果不可用则使用默认值
       const operatorId = req.user ? req.user.id : 0;
       const operatorName = await getCurrentUserName(req);
@@ -1346,56 +1313,9 @@ exports.completeTask = async (req, res) => {
     }
     // ===== 自动关闭检验单结束 =====
 
-    // ===== 同步生产计划状态（强一致性要求，移动到 commit 之前，使用共有事务 connection） =====
+    // ===== 审计修复 #2: 使用统一的计划同步服务 =====
     if (isFullComplete && task.plan_id) {
-      try {
-        const [taskStats] = await connection.query(
-          `SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.PENDING}' THEN 1 ELSE 0 END) as pending_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}' THEN 1 ELSE 0 END) as in_progress_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.INSPECTION}' THEN 1 ELSE 0 END) as inspection_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.WAREHOUSING}' THEN 1 ELSE 0 END) as warehousing_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed_count,
-            SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled_count
-          FROM production_tasks WHERE plan_id = ?`,
-          [task.plan_id]
-        );
-
-        const stats = taskStats[0];
-        const activeTotal = stats.total - stats.cancelled_count;
-
-        const [planInfo] = await connection.query(
-          'SELECT status FROM production_plans WHERE id = ? FOR UPDATE',
-          [task.plan_id]
-        );
-
-        if (planInfo.length > 0) {
-          const currentPlanStatus = planInfo[0].status;
-          let newPlanStatus = currentPlanStatus;
-
-          if (stats.completed_count === activeTotal && activeTotal > 0) {
-            newPlanStatus = 'completed';
-          } else if (stats.warehousing_count > 0) {
-            newPlanStatus = 'warehousing';
-          } else if (stats.inspection_count > 0) {
-            newPlanStatus = 'inspection';
-          } else if (stats.in_progress_count > 0) {
-            newPlanStatus = 'in_progress';
-          }
-
-          if (newPlanStatus !== currentPlanStatus) {
-            await connection.query(
-              'UPDATE production_plans SET status = ? WHERE id = ?',
-              [newPlanStatus, task.plan_id]
-            );
-            logger.info(`[completeTask] 计划 ${task.plan_id} 状态同步: ${currentPlanStatus} → ${newPlanStatus}`);
-          }
-        }
-      } catch (err) {
-        logger.error(`[completeTask] 同步计划 ${task.plan_id} 状态失败:`, err);
-        throw err; // 同步失败，向外抛出阻断事务，避免数据撕裂
-      }
+      await syncPlanStatus(task.plan_id, connection);
     }
 
     await connection.commit();

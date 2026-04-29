@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * RequisitionDetail.vue - 采购申请详情
  * @description 采购申请单详情页面 - 对齐网页端操作逻辑
@@ -198,7 +198,7 @@
     border-radius: 20px;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--color-on-primary, #fff);
     margin-bottom: 8px;
 
     &.draft {

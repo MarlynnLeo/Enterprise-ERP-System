@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryInbound.vue
  * @description 前端界面组件文件
@@ -101,27 +101,27 @@
         <el-table-column prop="material_code" label="物料编码" width="120">
           <template #default="{ row }">
             <span v-if="row.material_code">{{ row.material_code }}</span>
-            <span v-else-if="row.items_count > 1" style="color: #909399;">多个物料</span>
-            <span v-else style="color: #c0c4cc;">-</span>
+            <span v-else-if="row.items_count > 1" style="color: var(--color-text-secondary);">多个物料</span>
+            <span v-else style="color: var(--color-text-disabled);">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="material_name" label="物料名称" width="157" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.material_name">{{ row.material_name }}</span>
-            <span v-else-if="row.items_count > 1" style="color: #909399;">多个物料</span>
-            <span v-else style="color: #c0c4cc;">-</span>
+            <span v-else-if="row.items_count > 1" style="color: var(--color-text-secondary);">多个物料</span>
+            <span v-else style="color: var(--color-text-disabled);">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="material_specs" label="型号规格" width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.material_specs">{{ row.material_specs }}</span>
-            <span v-else style="color: #c0c4cc;">-</span>
+            <span v-else style="color: var(--color-text-disabled);">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="first_item_quantity" label="数量" width="80" align="right">
           <template #default="{ row }">
             <span v-if="row.first_item_quantity">{{ row.first_item_quantity }}</span>
-            <span v-else-if="row.total_quantity" style="color: #409EFF;" :title="`总数量：${row.total_quantity}`">{{ row.total_quantity }}</span>
+            <span v-else-if="row.total_quantity" style="color: var(--color-primary);" :title="`总数量：${row.total_quantity}`">{{ row.total_quantity }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -298,7 +298,7 @@
           :data="form.items"
           border
           style="width: 100%"
-          :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+          :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
           empty-text="请添加入库物料"
         >
           <el-table-column label="物料编码" width="160">
@@ -321,16 +321,16 @@
               >
                 <template #default="{ item }">
                   <div style="display: flex; align-items: center; padding: 4px 0; font-size: 13px;">
-                    <span style="font-weight: bold; color: #303133; min-width: 80px;">
+                    <span style="font-weight: bold; color: var(--color-text-primary); min-width: 80px;">
                       {{ item.code }}
                     </span>
-                    <span style="color: #606266; margin: 0 8px; flex: 1;">
+                    <span style="color: var(--color-text-regular); margin: 0 8px; flex: 1;">
                       {{ item.name }}
                     </span>
-                    <span style="color: #909399; margin: 0 8px; min-width: 100px;">
+                    <span style="color: var(--color-text-secondary); margin: 0 8px; min-width: 100px;">
                       {{ item.specs }}
                     </span>
-                    <span style="color: #409EFF; font-weight: bold; min-width: 60px; text-align: right;">
+                    <span style="color: var(--color-primary); font-weight: bold; min-width: 60px; text-align: right;">
                       库存: {{ item.stock_quantity || 0 }}
                     </span>
                   </div>

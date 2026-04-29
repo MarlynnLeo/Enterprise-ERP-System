@@ -1,6 +1,6 @@
 /**
  * 8D报告 AI 智能分析服务（专业深度优化版）
- * @description 基于智谱AI GLM-4，针对浙江开控电气有限公司(KACON)的成品质量问题
+ * @description 基于本地 Ollama gemma4:26b 大模型，针对浙江开控电气有限公司(KACON)的成品质量问题
  *              生成符合 IATF 16949 标准的专业级8D报告
  * 
  * 核心优化：
@@ -14,9 +14,9 @@
 
 const { logger } = require('../../utils/logger');
 
-// 智谱AI配置
-const ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const ZHIPU_MODEL = 'glm-4-flash';
+// 本地 Ollama AI 配置（OpenAI 兼容 API）
+const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://192.168.1.251:11434/v1/chat/completions';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:26b';
 
 // 速率限制
 const RATE_LIMIT = {
@@ -87,11 +87,6 @@ class EightDAIService {
      * @returns {Promise<{content: string, usage: Object}>}
      */
     static async callAI(systemPrompt, userPrompt) {
-        const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
-        if (!ZHIPU_API_KEY || ZHIPU_API_KEY === 'your_zhipu_api_key_here') {
-            throw new Error('智谱AI API Key 未配置。请在 .env 文件中设置 ZHIPU_API_KEY');
-        }
-
         let fetchFn;
         try {
             fetchFn = (await import('node-fetch')).default;
@@ -100,27 +95,32 @@ class EightDAIService {
         }
 
         const requestBody = JSON.stringify({
-            model: ZHIPU_MODEL,
+            model: OLLAMA_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
             ],
-            max_tokens: 4096,
-            temperature: 0.35, // 降低温度，提高专业性和一致性
+            temperature: 0.35,
+            stream: false,
         });
 
         for (let attempt = 0; attempt <= RATE_LIMIT.maxRetries; attempt++) {
             try {
                 await this._throttle();
 
-                const response = await fetchFn(ZHIPU_API_URL, {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 300000); // 本地模型5分钟超时
+
+                const response = await fetchFn(OLLAMA_API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${ZHIPU_API_KEY}`,
                     },
                     body: requestBody,
+                    signal: controller.signal,
                 });
+
+                clearTimeout(timeoutId);
 
                 if (response.status === 429) {
                     if (attempt < RATE_LIMIT.maxRetries) {
@@ -148,13 +148,13 @@ class EightDAIService {
                     total_tokens: data.usage?.total_tokens || 0,
                 };
 
-                logger.info(`[8D-AI] 调用成功 | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
+                logger.info(`[8D-AI] 调用成功 | 模型:${OLLAMA_MODEL} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
 
                 if (!content) throw new Error('AI返回内容为空');
                 return { content, usage };
             } catch (error) {
-                if (attempt < RATE_LIMIT.maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT')) {
-                    logger.warn(`[8D-AI] 网络异常，第${attempt + 1}次重试...`);
+                if (attempt < RATE_LIMIT.maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.name === 'AbortError')) {
+                    logger.warn(`[8D-AI] 网络异常或超时，第${attempt + 1}次重试...`);
                     await this._sleep(RATE_LIMIT.baseDelayMs);
                     continue;
                 }
@@ -329,7 +329,7 @@ ${contextInfo}
                     d8_lessons_learned: result.d8_lessons_learned || '',
                 },
                 usage,
-                model: ZHIPU_MODEL,
+                model: OLLAMA_MODEL,
             };
         } catch (error) {
             logger.error('[8D-AI] 生成8D报告失败:', error.message);

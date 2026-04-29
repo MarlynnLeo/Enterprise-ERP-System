@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ProductionTask.vue
  * @description 前端界面组件文件
@@ -14,7 +14,17 @@
           <h2>生产任务管理</h2>
           <p class="subtitle">管理生产任务分配与执行</p>
         </div>
-        <el-button type="primary" :icon="Plus" v-permission="'production:tasks:create'" @click="showCreateModal">创建任务</el-button>
+        <div style="display: flex; gap: 8px">
+          <el-button type="primary" :icon="Plus" v-permission="'production:tasks:create'" @click="showCreateModal">创建任务</el-button>
+          <el-button
+            type="success"
+            :icon="SetUp"
+            :disabled="selectedTasks.length === 0"
+            @click="openBatchScheduleDialog"
+          >
+            一键排程 ({{ selectedTasks.length }})
+          </el-button>
+        </div>
       </div>
     </el-card>
 
@@ -93,10 +103,6 @@
         <div class="stat-value">{{ taskStats.completed }}</div>
         <div class="stat-label">已完成</div>
       </el-card>
-      <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ taskStats.cancelled }}</div>
-        <div class="stat-label">已取消</div>
-      </el-card>
     </div>
 
     <!-- 数据表格区域 -->
@@ -106,7 +112,9 @@
         border
         style="width: 100%"
         v-loading="loading"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column type="selection" width="45" />
         <template #empty>
           <el-empty description="暂无生产任务数据" />
         </template>
@@ -160,7 +168,10 @@
         </el-table-column>
         <el-table-column prop="startDate" label="开始日期" width="100" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.startDate ? dayjs(scope.row.startDate).format('YYYY-MM-DD') : '-' }}
+            <template v-if="scope.row.startDate">
+              {{ dayjs(scope.row.startDate).format('YYYY-MM-DD') }}
+            </template>
+            <el-tag v-else size="small" type="warning">待排程</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="发料时间" width="110" align="center" show-overflow-tooltip>
@@ -173,7 +184,10 @@
         </el-table-column>
         <el-table-column prop="expectedEndDate" label="预计结束" width="100" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.expectedEndDate ? dayjs(scope.row.expectedEndDate).format('YYYY-MM-DD') : '-' }}
+            <template v-if="scope.row.expectedEndDate">
+              {{ dayjs(scope.row.expectedEndDate).format('YYYY-MM-DD') }}
+            </template>
+            <span v-else>—</span>
           </template>
         </el-table-column>
         <el-table-column prop="manager" label="生产组" width="100" show-overflow-tooltip />
@@ -208,11 +222,13 @@
               >
                 编辑
               </el-button>
-              <!-- 发料按钮：只有在尚未生成关联出库单时才显示 -->
+              <!-- 发料按钮：必须已排程（有开始日期）且未生成出库单 -->
               <el-button v-permission="'production:tasks:update'"
                 v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing') && Number(scope.row.has_outbound_document) !== 1"
                 size="small"
                 type="warning"
+                :disabled="!scope.row.startDate"
+                :title="!scope.row.startDate ? '请先排程后再发料' : ''"
                 @click="showMaterialIssueDialog(scope.row)"
               >
                 发料
@@ -293,7 +309,7 @@
                   :value="group.name"
                 >
                   <span style="float: left">{{ group.name }}</span>
-                  <span style="float: right; color: #8492a6; font-size: 13px">{{ group.code }}</span>
+                  <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ group.code }}</span>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -324,7 +340,7 @@
                 >
                   <div style="display: flex; justify-content: space-between; align-items: center">
                     <span>{{ plan.code }}</span>
-                    <span style="color: #999; font-size: 13px">{{ plan.productName }} ({{ plan.status }})</span>
+                    <span style="color: var(--color-text-secondary); font-size: 13px">{{ plan.productName }} ({{ plan.status }})</span>
                   </div>
                 </el-option>
               </el-select>
@@ -366,7 +382,7 @@
                 >
                   <div style="display: flex; justify-content: space-between; align-items: center">
                     <span>{{ template.name }}</span>
-                    <span style="color: #999; font-size: 13px">{{ (template.processes || []).length }}个工序</span>
+                    <span style="color: var(--color-text-secondary); font-size: 13px">{{ (template.processes || []).length }}个工序</span>
                   </div>
                 </el-option>
               </el-select>
@@ -378,18 +394,69 @@
         
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="开始日期" prop="startDate">
-              <el-date-picker v-model="formData.startDate" type="date" placeholder="选择开始日期" style="width: 100%" />
+            <el-form-item label="开始时间" prop="startDate">
+              <el-date-picker
+                v-model="formData.startDate"
+                type="datetime"
+                placeholder="选择开始时间"
+                style="width: 100%"
+                format="YYYY-MM-DD HH:mm"
+                value-format="YYYY-MM-DD HH:mm"
+                :default-time="new Date(2026, 0, 1, 8, 0, 0)"
+                @change="onScheduleParamsChange"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="结束日期" prop="expectedEndDate">
-              <el-date-picker v-model="formData.expectedEndDate" type="date" placeholder="选择预计结束日期" style="width: 100%" />
+            <el-form-item label="预计结束">
+              <el-input
+                :model-value="scheduleInfo.estimatedEndTime || formData.expectedEndDate || '-'"
+                disabled
+                placeholder="自动计算"
+              >
+                <template #prefix>
+                  <el-icon><Clock /></el-icon>
+                </template>
+              </el-input>
             </el-form-item>
           </el-col>
         </el-row>
+
+        <!-- 排程信息面板 -->
+        <el-row :gutter="20" v-if="scheduleInfo.totalMinutes > 0">
+          <el-col :span="24">
+            <el-alert
+              type="info"
+              :closable="false"
+              show-icon
+            >
+              <template #title>
+                <span>⏱ 预计耗时：<b>{{ scheduleInfo.totalHours }}小时</b>（{{ scheduleInfo.totalMinutes }}分钟）</span>
+                <span style="margin-left: 16px">📅 预计结束：<b>{{ scheduleInfo.estimatedEndTime }}</b></span>
+              </template>
+            </el-alert>
+          </el-col>
+        </el-row>
+
+        <!-- 冲突提醒 -->
+        <el-row :gutter="20" v-if="conflictInfo.hasConflict" style="margin-top: 8px">
+          <el-col :span="24">
+            <el-alert type="warning" :closable="false" show-icon>
+              <template #title>⚠️ 时间冲突检测</template>
+              <template #default>
+                <div v-for="(c, i) in conflictInfo.conflicts" :key="i" style="margin-top: 4px; font-size: 13px">
+                  <span>• 任务 <b>{{ c.taskCode }}</b>（{{ c.productName }} {{ c.quantity }}件）占用 {{ c.occupiedFrom }} ~ {{ c.occupiedTo }}</span>
+                  <span style="margin-left: 8px; color: #e6a23c">重叠 {{ c.overlapMinutes }}分钟</span>
+                  <el-button size="small" type="primary" link @click="applySuggestedStart(c.suggestedStart)" style="margin-left: 8px">
+                    采纳建议 → {{ c.suggestedStart }}
+                  </el-button>
+                </div>
+              </template>
+            </el-alert>
+          </el-col>
+        </el-row>
         
-        <el-row :gutter="20">
+        <el-row :gutter="20" style="margin-top: 8px">
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
               <el-input
@@ -416,9 +483,11 @@
       title="任务详情"
       width="800px"
     >
-      <el-descriptions :column="3" border>
+      <el-descriptions :column="2" border>
         <el-descriptions-item label="任务编号">{{ taskDetail.code }}</el-descriptions-item>
         <el-descriptions-item label="产品名称">{{ taskDetail.productName }}</el-descriptions-item>
+        <el-descriptions-item label="产品编码">{{ taskDetail.productCode || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="规格型号">{{ taskDetail.specs || '-' }}</el-descriptions-item>
         <el-descriptions-item label="关联单据">
           <template v-if="taskDetail.plan_id">
             {{ planList.find(plan => String(plan.id) === String(taskDetail.plan_id))?.code || '未找到计划' }}
@@ -429,9 +498,6 @@
           {{ displayQuantity(taskDetail.quantity) }}
         </el-descriptions-item>
         <el-descriptions-item label="生产组">{{ taskDetail.manager || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="开始日期">{{ taskDetail.startDate }}</el-descriptions-item>
-        <el-descriptions-item label="预计结束日期">{{ taskDetail.expectedEndDate }}</el-descriptions-item>
-        <el-descriptions-item label="实际结束日期">{{ taskDetail.actualEndDate }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag
             :type="getStatusType(taskDetail.status)"
@@ -440,15 +506,131 @@
             {{ getStatusText(taskDetail.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="备注" :span="3">{{ taskDetail.remarks || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="开始日期">{{ taskDetail.startDate }}</el-descriptions-item>
+        <el-descriptions-item label="预计结束日期">{{ taskDetail.expectedEndDate }}</el-descriptions-item>
+        <el-descriptions-item label="实际结束日期">{{ taskDetail.actualEndDate }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ taskDetail.createdAt }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ taskDetail.updatedAt }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ taskDetail.remarks || '-' }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailVisible = false">关闭</el-button>
           <el-button v-permission="'production:tasks:view'" type="primary" @click="printTaskDetail" v-if="taskDetail.id">打印任务单</el-button>
         </span>
+      </template>
+    </el-dialog>
+
+    <!-- 一键排程对话框 -->
+    <el-dialog
+      v-model="batchScheduleVisible"
+      title="一键排程"
+      width="800px"
+      destroy-on-close
+    >
+      <el-alert type="info" :closable="false" style="margin-bottom: 12px">
+        <template #title>同一生产组的任务按顺序串行排程；不同生产组可并行生产</template>
+      </el-alert>
+
+      <!-- 开始时间 -->
+      <el-form :inline="true" style="margin-bottom: 12px">
+        <el-form-item label="排程起始时间">
+          <el-date-picker
+            v-model="batchStartTime"
+            type="datetime"
+            placeholder="第一个任务的开始时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DD HH:mm"
+            :default-time="new Date(2026, 0, 1, 8, 0, 0)"
+            style="width: 220px"
+          />
+        </el-form-item>
+      </el-form>
+
+      <!-- 按生产组分Tab -->
+      <el-tabs v-model="activeBatchGroup" type="card">
+        <el-tab-pane
+          v-for="(group, gIdx) in batchGroupedTasks"
+          :key="group.name"
+          :label="`${group.name} (${group.tasks.length})`"
+          :name="group.name"
+        >
+          <el-table :data="group.tasks" border size="small" max-height="350">
+            <el-table-column label="顺序" width="55" align="center">
+              <template #default="{ $index }">
+                <span style="font-weight: 700; color: var(--el-color-primary)">{{ $index + 1 }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="code" label="任务编号" width="150" />
+            <el-table-column prop="productName" label="产品" min-width="120" show-overflow-tooltip />
+            <el-table-column label="数量" width="70" align="center">
+              <template #default="{ row }">{{ displayQuantity(row.quantity) }}</template>
+            </el-table-column>
+            <el-table-column label="调整" width="100" align="center">
+              <template #default="{ $index }">
+                <el-button-group>
+                  <el-button size="small" :disabled="$index === 0" @click="moveGroupTask(gIdx, $index, -1)">↑</el-button>
+                  <el-button size="small" :disabled="$index === group.tasks.length - 1" @click="moveGroupTask(gIdx, $index, 1)">↓</el-button>
+                </el-button-group>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
+
+      <!-- 排程结果预览 -->
+      <div v-if="batchResult.length > 0" style="margin-top: 12px">
+        <el-divider content-position="center">排程结果</el-divider>
+        <!-- 汇总警告 -->
+        <div v-if="batchResult.some(r => r.warning || r.deliveryStatus === 'overdue')" style="margin-bottom: 8px">
+          <el-alert
+            v-if="batchResult.filter(r => r.warning).length > 0"
+            :title="`⚠️ ${batchResult.filter(r => r.warning).length} 个任务缺少工时数据，排程时间不准确（按默认1天排程）`"
+            type="warning"
+            :closable="false"
+            show-icon
+            style="margin-bottom: 6px"
+          />
+          <el-alert
+            v-if="batchResult.filter(r => r.deliveryStatus === 'overdue').length > 0"
+            :title="`🔴 ${batchResult.filter(r => r.deliveryStatus === 'overdue').length} 个任务超出客户交期！`"
+            type="error"
+            :closable="false"
+            show-icon
+          />
+        </div>
+        <el-table :data="batchResult" border size="small">
+          <el-table-column label="#" width="45" align="center">
+            <template #default="{ $index }">{{ $index + 1 }}</template>
+          </el-table-column>
+          <el-table-column prop="code" label="任务编号" width="150" />
+          <el-table-column prop="productName" label="产品" min-width="100" show-overflow-tooltip />
+          <el-table-column prop="manager" label="生产组" width="90" />
+          <el-table-column label="耗时" width="80" align="center">
+            <template #default="{ row }">
+              <span>{{ row.totalHours }}h</span>
+              <el-icon v-if="row.warning" style="color: #e6a23c; margin-left: 4px" :title="row.warning"><WarningFilled /></el-icon>
+            </template>
+          </el-table-column>
+          <el-table-column prop="startTime" label="开始时间" width="150" />
+          <el-table-column prop="endTime" label="结束时间" width="150" />
+          <el-table-column label="交期" width="120" align="center">
+            <template #default="{ row }">
+              <template v-if="row.deliveryDate">
+                <el-tag v-if="row.deliveryStatus === 'ok'" type="success" size="small">OK</el-tag>
+                <el-tag v-else type="danger" size="small">超{{ row.overdueDays }}天</el-tag>
+              </template>
+              <span v-else class="text-secondary">—</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <template #footer>
+        <el-button @click="batchScheduleVisible = false">取消</el-button>
+        <el-button type="success" :loading="batchScheduleLoading" @click="executeBatchSchedule">
+          确认排程
+        </el-button>
       </template>
     </el-dialog>
 
@@ -493,12 +675,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from '@/services/api'
 import { productionApi } from '@/services/api'
 import dayjs from 'dayjs'
-import { Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { Plus, Refresh, Search, Clock, SetUp, Top, Bottom, WarningFilled } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/utils/helpers/quantity'
 import { parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
@@ -538,6 +720,39 @@ const currentTaskForIssue = ref(null)
 const processTemplateList = ref([])
 const processTemplateLoading = ref(false)
 const selectedTemplate = ref(null)  // 当前选中的工序模板
+
+// ===== 排程相关状态 =====
+const scheduleInfo = ref({
+  totalMinutes: 0,
+  totalHours: '0',
+  estimatedEndTime: '',
+  processSchedule: [],
+})
+const conflictInfo = ref({
+  hasConflict: false,
+  conflicts: [],
+})
+let scheduleDebounceTimer = null
+
+// ===== 批量排程相关状态 =====
+const selectedTasks = ref([])
+const batchScheduleVisible = ref(false)
+const batchScheduleLoading = ref(false)
+const batchStartTime = ref(null)
+const batchTaskList = ref([])
+const batchResult = ref([])
+const activeBatchGroup = ref('')
+
+// 按生产组分组的任务列表
+const batchGroupedTasks = computed(() => {
+  const groups = {}
+  for (const task of batchTaskList.value) {
+    const g = task.manager || '未分配'
+    if (!groups[g]) groups[g] = []
+    groups[g].push(task)
+  }
+  return Object.entries(groups).map(([name, tasks]) => ({ name, tasks }))
+})
 
 // 表单数据和规则
 const formData = ref({
@@ -608,11 +823,14 @@ const fetchTaskList = async () => {
 
     const response = await productionApi.getProductionTasks(params)
 
-    // 拦截器已解包，response.data 就是业务数据
-    const responseData = response.data
+    // 兼容解包：拦截器可能已解包（response 就是业务数据），也可能未解包（response.data 是业务数据）
+    const responseData = response?.data?.items ? response.data
+                       : response?.items ? response
+                       : response?.data || response || {}
 
     // 确保日期字段和产品名称正确映射
-    taskList.value = (responseData?.items || responseData?.list || []).map(item => {
+    const items = responseData?.items || responseData?.list || []
+    taskList.value = items.map(item => {
       // 特殊处理数量字段
       let quantity = parseQuantity(item.quantity);
 
@@ -634,17 +852,21 @@ const fetchTaskList = async () => {
         expectedEndDate: item.expected_end_date || item.expectedEndDate,
         actualEndDate: item.actual_end_date || item.actualEndDate,
         actualStartTime: item.actual_start_time || item.actualStartTime,
+        createdAt: item.created_at || item.createdAt,
+        updatedAt: item.updated_at || item.updatedAt,
         productName: item.product_name || item.productName || '无关联产品',
+        productCode: item.product_code || item.productCode || '',
+        specs: item.specs || item.specification || '',
         quantity: quantity  // 使用处理后的数量
       }
 
       return mappedItem
     })
     
-    total.value = response.data.total || 0
+    total.value = responseData?.total || 0
 
     // 更新统计数据（使用后端返回的统计信息）
-    updateTaskStats(response.data.statistics)
+    updateTaskStats(responseData?.statistics)
   } catch (error) {
     console.error('获取生产任务列表失败:', error)
     ElMessage.error(`获取生产任务列表失败: ${error.message}`)
@@ -887,8 +1109,10 @@ const handleModalOk = async () => {
       plan_id: formData.value.planId,
       product_id: formData.value.productId,
       quantity: formData.value.quantity,
-      start_date: formData.value.startDate ? dayjs(formData.value.startDate).format('YYYY-MM-DD') : null,
-      expected_end_date: formData.value.expectedEndDate ? dayjs(formData.value.expectedEndDate).format('YYYY-MM-DD') : null,
+      start_date: formData.value.startDate || null,
+      expected_end_date: scheduleInfo.value.estimatedEndTime
+        ? scheduleInfo.value.estimatedEndTime.split(' ')[0]
+        : (formData.value.expectedEndDate ? dayjs(formData.value.expectedEndDate).format('YYYY-MM-DD') : null),
       manager: formData.value.manager,
       remarks: formData.value.remarks,
       process_template_id: formData.value.processTemplateId  // 添加工序模板ID
@@ -916,6 +1140,9 @@ const handleModalOk = async () => {
 const handleModalCancel = () => {
   modalVisible.value = false
   formRef.value.resetFields()
+  // 重置排程信息
+  scheduleInfo.value = { totalMinutes: 0, totalHours: '0', estimatedEndTime: '', processSchedule: [] }
+  conflictInfo.value = { hasConflict: false, conflicts: [] }
 }
 
 const handleDelete = async (row) => {
@@ -926,6 +1153,169 @@ const handleDelete = async (row) => {
   } catch (error) {
     console.error('删除生产任务失败:', error)
     ElMessage.error('删除失败: ' + (error.response?.data?.message || error.message))
+  }
+}
+
+// ===== 排程方法 =====
+
+/**
+ * 当排程参数变化时触发（开始时间、数量、产品、生产组）
+ * 自动计算工时并检测冲突
+ */
+const onScheduleParamsChange = () => {
+  // 防抖：避免频繁请求
+  if (scheduleDebounceTimer) clearTimeout(scheduleDebounceTimer)
+  scheduleDebounceTimer = setTimeout(() => {
+    doScheduleCalculation()
+  }, 500)
+}
+
+const doScheduleCalculation = async () => {
+  const { productId, quantity, startDate, manager } = formData.value
+  
+  // 参数不完整时清空
+  if (!productId || !quantity || !startDate) {
+    scheduleInfo.value = { totalMinutes: 0, totalHours: '0', estimatedEndTime: '', processSchedule: [] }
+    conflictInfo.value = { hasConflict: false, conflicts: [] }
+    return
+  }
+
+  try {
+    // 1. 计算排程
+    const calcRes = await axios.post('/production/scheduling/calculate', {
+      productId,
+      quantity: parseFloat(quantity),
+      startTime: startDate,
+    })
+    const data = calcRes.data || calcRes
+    if (data.warning) {
+      // 无工时数据，不显示排程信息
+      scheduleInfo.value = { totalMinutes: 0, totalHours: '0', estimatedEndTime: '', processSchedule: [] }
+      return
+    }
+    scheduleInfo.value = {
+      totalMinutes: data.totalMinutes || 0,
+      totalHours: data.totalHours || '0',
+      estimatedEndTime: data.estimatedEndTime || '',
+      processSchedule: data.processSchedule || [],
+    }
+
+    // 2. 检测冲突
+    if (manager && data.estimatedEndTime) {
+      const conflictRes = await axios.post('/production/scheduling/check-conflicts', {
+        manager,
+        startTime: startDate,
+        endTime: data.estimatedEndTime,
+        excludeTaskId: formData.value.id || null,
+      })
+      const cData = conflictRes.data || conflictRes
+      conflictInfo.value = {
+        hasConflict: cData.hasConflict || false,
+        conflicts: cData.conflicts || [],
+      }
+    } else {
+      conflictInfo.value = { hasConflict: false, conflicts: [] }
+    }
+  } catch (error) {
+    console.error('排程计算失败:', error)
+  }
+}
+
+/**
+ * 采纳建议的开始时间
+ */
+const applySuggestedStart = (suggestedTime) => {
+  if (suggestedTime) {
+    // 只取到分钟
+    formData.value.startDate = suggestedTime.substring(0, 16)
+    onScheduleParamsChange()
+  }
+}
+
+// ===== 批量排程方法 =====
+
+/** 表格多选变化 */
+const handleSelectionChange = (rows) => {
+  selectedTasks.value = rows
+}
+
+/** 打开一键排程对话框 */
+const openBatchScheduleDialog = () => {
+  // 复制选中的任务到排序列表
+  batchTaskList.value = selectedTasks.value.map(t => ({ ...t }))
+  batchStartTime.value = dayjs().format('YYYY-MM-DD') + ' 08:00'
+  batchResult.value = []
+  // 默认选中第一个组的 Tab
+  const firstGroup = batchTaskList.value[0]?.manager || '未分配'
+  activeBatchGroup.value = firstGroup
+  batchScheduleVisible.value = true
+}
+
+/** 组内任务上移/下移 */
+const moveGroupTask = (groupIdx, taskIdx, direction) => {
+  const group = batchGroupedTasks.value[groupIdx]
+  if (!group) return
+  const newIdx = taskIdx + direction
+  if (newIdx < 0 || newIdx >= group.tasks.length) return
+
+  // 在 batchTaskList 中找到对应的两个任务交换
+  const taskA = group.tasks[taskIdx]
+  const taskB = group.tasks[newIdx]
+  const idxA = batchTaskList.value.findIndex(t => t.id === taskA.id)
+  const idxB = batchTaskList.value.findIndex(t => t.id === taskB.id)
+  if (idxA >= 0 && idxB >= 0) {
+    const list = [...batchTaskList.value]
+    const temp = list[idxA]
+    list[idxA] = list[idxB]
+    list[idxB] = temp
+    batchTaskList.value = list
+  }
+  batchResult.value = []
+}
+
+/** 执行批量排程（按生产组并行排程） */
+const executeBatchSchedule = async () => {
+  if (!batchStartTime.value) {
+    ElMessage.warning('请选择排程起始时间')
+    return
+  }
+  if (batchTaskList.value.length === 0) {
+    ElMessage.warning('没有待排程的任务')
+    return
+  }
+
+  batchScheduleLoading.value = true
+  try {
+    // 按组分别调用排程 API，每个组从相同起始时间开始（并行）
+    const groups = batchGroupedTasks.value
+    const allResults = []
+
+    for (const group of groups) {
+      const taskIds = group.tasks.map(t => t.id)
+      const res = await axios.post('/production/scheduling/batch', {
+        taskIds,
+        startTime: batchStartTime.value,
+      })
+      const data = res.data || res
+      if (data.scheduled) {
+        // 给每条结果加上生产组标识
+        data.scheduled.forEach(s => { s.manager = group.name })
+        allResults.push(...data.scheduled)
+      }
+    }
+
+    if (allResults.length > 0) {
+      batchResult.value = allResults
+      ElMessage.success(`成功排程 ${allResults.length} 个任务（${groups.length} 个生产组）`)
+      fetchTaskList()
+    } else {
+      ElMessage.warning('排程结果为空')
+    }
+  } catch (error) {
+    console.error('批量排程失败:', error)
+    ElMessage.error('批量排程失败: ' + (error.response?.data?.message || error.message))
+  } finally {
+    batchScheduleLoading.value = false
   }
 }
 
@@ -973,6 +1363,9 @@ const handlePlanChange = async (planId) => {
 
     // 根据产品ID获取物料信息，从而获取生产组
     await fetchProductionGroupByProduct(selectedPlan.productId)
+
+    // 触发排程计算（产品和数量已就绪）
+    onScheduleParamsChange()
   }
 }
 

@@ -53,6 +53,17 @@
   --color-bg-overlay: rgba(0, 0, 0, 0.7); /* 遮罩层 */
   --color-bg-hover: #252525;          /* 悬停背景 */
   --color-bg-light: #202020;          /* 浅色背景 */
+  --color-bg-section: #1E1E1E;        /* 区块/卡片背景 */
+
+  /* 辅助语义色 */
+  --color-text-muted: #6C6E72;
+  --color-primary-active: #337ecc;
+  --color-success-gradient-end: #529b2e;
+  --color-warning-gradient-end: #b88230;
+  --color-danger-gradient-end: #c45656;
+  --color-danger-hover: #f78989;
+  --color-info-gradient-end: #73767a;
+  --color-on-primary: #ffffff;
   
   /* ========== 间距系统 ========== */
   --spacing-xs: 4px;

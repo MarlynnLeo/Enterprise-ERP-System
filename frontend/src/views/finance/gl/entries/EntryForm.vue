@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="entry-form-container">
     <el-card class="header-card">
       <div class="header-content">
@@ -381,7 +381,7 @@ onMounted(() => {
   align-items: center;
   margin-top: 20px;
   padding: 15px;
-  background-color: #f8f9fa;
+  background-color: var(--color-bg-section);
   border-radius: 4px;
   font-weight: bold;
 }

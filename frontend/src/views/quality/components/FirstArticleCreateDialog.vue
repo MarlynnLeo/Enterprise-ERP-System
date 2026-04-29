@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * FirstArticleCreateDialog.vue
  * @description 新建首检单弹窗
@@ -12,7 +12,7 @@
           <el-option v-for="task in taskOptions" :key="task.id" :label="`${task.code} - ${task.product_name}`" :value="task.id">
             <div style="display: flex; justify-content: space-between;">
               <span>{{ task.code }}</span>
-              <span style="color: #909399; font-size: 12px;">{{ task.product_name }} ({{ task.quantity }}件)</span>
+              <span style="color: var(--color-text-secondary); font-size: 12px;">{{ task.product_name }} ({{ task.quantity }}件)</span>
             </div>
           </el-option>
         </el-select>
@@ -25,7 +25,7 @@
       </el-form-item>
       <el-form-item label="首检数量">
         <el-input-number v-model="form.first_article_qty" :min="1" :max="selectedTask?.quantity || 999" />
-        <span style="margin-left: 10px; color: #909399;">
+        <span style="margin-left: 10px; color: var(--color-text-secondary);">
           <el-tag v-if="isFullInspection" type="warning" size="small">全检</el-tag>
           <el-tag v-else type="primary" size="small">抽检</el-tag>
         </span>

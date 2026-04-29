@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="cost-ledger-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -68,7 +68,7 @@
             </el-table-column>
             <el-table-column prop="total_cost" label="总成本" width="160" align="right">
               <template #default="scope">
-                <span style="font-weight: bold; color: #409eff;">{{ formatCurrency(scope.row.total_cost) }}</span>
+                <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="unit_cost" label="单位成本" width="130" align="right">
@@ -172,7 +172,7 @@
           <el-descriptions-item label="数量">{{ drilldownData.task?.quantity }}</el-descriptions-item>
           <el-descriptions-item label="成本中心">{{ drilldownData.task?.cost_center_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="总成本">
-            <span style="font-weight: bold; color: #409eff;">{{ formatCurrency(drilldownData.task?.actual_cost) }}</span>
+            <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(drilldownData.task?.actual_cost) }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="单位成本">{{ formatCurrency(drilldownData.task?.unit_cost) }}</el-descriptions-item>
         </el-descriptions>

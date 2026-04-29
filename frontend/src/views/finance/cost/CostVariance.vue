@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="cost-variance-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -206,7 +206,7 @@
               <el-card shadow="hover">
                 <div class="stat-card">
                   <div class="stat-title">闲置产能(工时)</div>
-                  <div class="stat-value" style="color: #909399;">{{ capacitySummary.idle_capacity.toFixed(0) }}</div>
+                  <div class="stat-value" style="color: var(--color-text-secondary);">{{ capacitySummary.idle_capacity.toFixed(0) }}</div>
                 </div>
               </el-card>
             </el-col>
@@ -236,7 +236,7 @@
             </el-table-column>
             <el-table-column label="闲置成本" width="130" align="right">
               <template #default="scope">
-                <span style="color: #909399;">{{ formatCurrency(scope.row.idle_cost || 0) }}</span>
+                <span style="color: var(--color-text-secondary);">{{ formatCurrency(scope.row.idle_cost || 0) }}</span>
               </template>
             </el-table-column>
           </el-table>

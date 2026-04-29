@@ -29,6 +29,11 @@ const CodeGenerators = {
     return CodeGeneratorService.nextCode('quality_inspection', connection);
   },
 
+  /** 生成报工单编号 */
+  async generateReportCode(connection) {
+    return CodeGeneratorService.nextCode('production_report', connection);
+  },
+
   /** 生成采购申请编号 */
   async generatePurchaseRequisitionCode(connection) {
     return CodeGeneratorService.nextCode('purchase_requisition', connection);

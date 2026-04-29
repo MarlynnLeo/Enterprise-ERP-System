@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Login.vue
  * @description 移动端登录页面 - 现代沉浸式设计
@@ -257,7 +257,7 @@
   .app-name {
     font-size: 1.75rem;
     font-weight: 800;
-    color: #fff;
+    color: var(--color-on-primary, #fff);
     letter-spacing: 1px;
     margin: 0 0 6px;
   }
@@ -283,7 +283,7 @@
   .card-title {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--color-on-primary, #fff);
     text-align: center;
     margin: 0 0 28px;
   }
@@ -334,7 +334,7 @@
     background: transparent;
     border: none;
     outline: none;
-    color: #fff;
+    color: var(--color-on-primary, #fff);
     font-size: 0.9375rem;
     font-weight: 500;
     height: 100%;
@@ -367,7 +367,7 @@
     border: none;
     border-radius: 14px;
     background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: #fff;
+    color: var(--color-on-primary, #fff);
     font-size: 1rem;
     font-weight: 700;
     letter-spacing: 4px;
@@ -420,7 +420,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--bg-primary);
       animation: dotBounce 0.6s ease-in-out infinite;
 
       &:nth-child(2) { animation-delay: 0.1s; }

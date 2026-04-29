@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-dialog
     title="查看物料详情"
     :model-value="modelValue"
@@ -96,7 +96,7 @@
               </el-link>
             </div>
           </template>
-          <span v-else style="color: #999;">无</span>
+          <span v-else style="color: var(--color-text-secondary);">无</span>
         </el-descriptions-item>
       </el-descriptions>
     </div>

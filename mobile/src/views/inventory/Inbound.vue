@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Inbound.vue - 库存入库列表
  * @description 移动端入库管理页面
@@ -377,10 +377,10 @@ onMounted(() => {
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  &.accent-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+  &.accent-blue { background: rgba(59, 130, 246, 0.1); color: var(--module-blue); }
   &.accent-green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
   &.accent-yellow { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-  &.accent-red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+  &.accent-red { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
   &.accent-gray { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
 }
 .item-title {
@@ -400,9 +400,9 @@ onMounted(() => {
   font-weight: 700;
   flex-shrink: 0;
   &.st-draft { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
-  &.st-confirmed { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+  &.st-confirmed { background: rgba(59, 130, 246, 0.1); color: var(--module-blue); }
   &.st-completed { background: rgba(16, 185, 129, 0.12); color: #10b981; }
-  &.st-cancelled { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+  &.st-cancelled { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
 }
 
 .item-subtitle {

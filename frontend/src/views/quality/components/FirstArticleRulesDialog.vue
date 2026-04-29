@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * FirstArticleRulesDialog.vue
  * @description 首检规则配置弹窗
@@ -61,11 +61,11 @@
         </el-form-item>
         <el-form-item label="首检数量" prop="first_article_qty">
           <el-input-number v-model="ruleForm.first_article_qty" :min="1" :max="100" />
-          <span style="margin-left: 10px; color: #909399;">只</span>
+          <span style="margin-left: 10px; color: var(--color-text-secondary);">只</span>
         </el-form-item>
         <el-form-item label="全检阈值" prop="full_inspection_threshold">
           <el-input-number v-model="ruleForm.full_inspection_threshold" :min="1" :max="100" />
-          <span style="margin-left: 10px; color: #909399;">生产数量小于此值时全检</span>
+          <span style="margin-left: 10px; color: var(--color-text-secondary);">生产数量小于此值时全检</span>
         </el-form-item>
         <el-form-item label="检验模板">
           <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable style="width: 100%">

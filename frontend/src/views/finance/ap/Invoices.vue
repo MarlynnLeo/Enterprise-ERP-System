@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Invoices.vue
  * @description 前端界面组件文件
@@ -310,7 +310,7 @@
         </div>
         
         <!-- 税率和总计 -->
-        <div class="invoice-total" style="margin-top: 16px; padding: 12px; background: #f5f7fa; border-radius: 4px;">
+        <div class="invoice-total" style="margin-top: 16px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="税率" label-width="60px">
@@ -334,7 +334,7 @@
                   <span>税额：</span>
                   <span>{{ formatCurrency(calculateTax()) }}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; color: #409eff; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; color: var(--color-primary); margin-top: 4px;">
                   <span>总计：</span>
                   <span>{{ formatCurrency(calculateTotal()) }}</span>
                 </div>
@@ -420,7 +420,7 @@
             >
               <div style="display: flex; justify-content: space-between; align-items: center">
                 <span>{{ account.bankName }} - {{ account.accountName }}</span>
-                <span style="color: #8492a6; font-size: 13px">{{ formatCurrency(account.balance) }}</span>
+                <span style="color: var(--color-text-muted); font-size: 13px">{{ formatCurrency(account.balance) }}</span>
               </div>
             </el-option>
           </el-select>

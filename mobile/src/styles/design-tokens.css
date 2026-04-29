@@ -67,7 +67,7 @@ body {
 }
 
 .btn-primary:active {
-  background: #174ea6; /* Google Button Active */
+  background: var(--color-primary-active, #174ea6);
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
 }
 
@@ -76,7 +76,7 @@ body {
   color: var(--color-primary);
   padding: 0.75rem 1.5rem;
   border-radius: var(--radius-full);
-  border: 1px solid #dadce0;
+  border: 1px solid var(--van-border-color, #dadce0);
   font-weight: 500;
   font-size: 0.875rem;
   transition: all var(--transition-fast);
@@ -97,11 +97,11 @@ body {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-tertiary);
-  background: #f1f3f4;
+  background: var(--bg-tertiary, #f1f3f4);
 }
 .status-badge.pending, .status-badge.processing {
   background: var(--color-warning-bg);
-  color: #b06000;
+  color: var(--color-warning, #b06000);
 }
 .status-badge.approved, .status-badge.completed, .status-badge.success {
   background: var(--color-success-bg);
@@ -197,12 +197,12 @@ body .van-tabs__line {
   font-weight: 800;
   color: var(--text-primary);
 }
-.stat-num.color-blue { color: #3b82f6; }
-.stat-num.color-purple { color: #a855f7; }
-.stat-num.color-green { color: #34d399; }
-.stat-num.color-red { color: #ef4444; }
-.stat-num.color-yellow { color: #fbbf24; }
-.stat-num.color-orange { color: #f97316; }
+.stat-num.color-blue { color: var(--module-blue, #3b82f6); }
+.stat-num.color-purple { color: var(--module-purple, #a855f7); }
+.stat-num.color-green { color: var(--color-success, #34d399); }
+.stat-num.color-red { color: var(--color-error, #ef4444); }
+.stat-num.color-yellow { color: var(--color-warning, #fbbf24); }
+.stat-num.color-orange { color: var(--module-orange, #f97316); }
 .stat-label {
   font-size: 0.6875rem;
   color: var(--text-tertiary);
@@ -266,7 +266,7 @@ body .van-tabs__line {
 }
 .filter-chip.active .chip-badge {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary, #fff);
 }
 
 /* 列表卡片 */

@@ -247,7 +247,7 @@
               <el-icon><Lock /></el-icon> 私有（仅抄送人可见）
             </el-radio>
           </el-radio-group>
-          <div style="color: #909399; font-size: 12px; margin-top: 5px;">
+          <div style="color: var(--color-text-secondary); font-size: 12px; margin-top: 5px;">
             私有模式下，只有被抄送的人员才能查看此通讯
           </div>
         </el-form-item>
@@ -259,7 +259,7 @@
           required
         >
           <UserSelector v-model="selectedRecipients" />
-          <div style="color: #e6a23c; font-size: 12px; margin-top: 5px;">
+          <div style="color: var(--color-warning); font-size: 12px; margin-top: 5px;">
             <el-icon><Warning /></el-icon> 请至少选择一个用户或部门
           </div>
         </el-form-item>

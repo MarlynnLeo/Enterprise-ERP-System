@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Expenses.vue
  * @description 费用管理页面
@@ -864,22 +864,22 @@ onMounted(() => {
 
 .stat-icon.total {
   background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-icon.pending {
   background: linear-gradient(135deg, #e6a23c 0%, #f5c77c 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-icon.approved {
   background: linear-gradient(135deg, #67c23a 0%, #95d475 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-icon.paid {
   background: linear-gradient(135deg, #909399 0%, #b1b3b8 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-info {

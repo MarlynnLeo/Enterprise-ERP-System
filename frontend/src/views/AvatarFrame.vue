@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="avatar-frame-page">
     <!-- 页面头部 -->
     <div class="page-header-section">
@@ -354,7 +354,7 @@ onMounted(async () => {
   padding: 30px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: var(--radius-lg);
-  color: white;
+  color: var(--color-on-primary, #fff);
   box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
 }
 
@@ -651,7 +651,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--color-on-primary, #fff);
   font-size: 20px;
   box-shadow: 0 4px 12px rgba(103, 194, 58, 0.4);
   z-index: 3;

@@ -675,7 +675,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-size: 14px;
 }
 
@@ -837,7 +837,7 @@ onMounted(() => {
   gap: 8px;
   margin-top: var(--spacing-base);
   padding: 12px;
-  background: #f0f9ff;
+  background: var(--color-primary-light-9);
   border: 1px solid #bfdbfe;
   border-radius: var(--radius-sm);
   color: #1e40af;

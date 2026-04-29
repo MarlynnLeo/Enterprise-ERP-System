@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="pricing-container">
     <!-- Header -->
     <el-card class="header-card">
@@ -509,7 +509,7 @@ onMounted(() => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #ecf5ff;
+  background: var(--color-primary-light-9);
   color: var(--color-primary);
   display: flex;
   justify-content: center;
@@ -572,7 +572,7 @@ onMounted(() => {
 }
 
 .strategy-tag {
-  background: #ecf5ff;
+  background: var(--color-primary-light-9);
   color: var(--color-primary);
   padding: 2px 6px;
   border-radius: 4px;
@@ -581,7 +581,7 @@ onMounted(() => {
 
 .more-tag {
   background: #f0f0f0;
-  color: #666;
+  color: var(--color-text-regular);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;

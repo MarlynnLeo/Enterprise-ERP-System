@@ -887,7 +887,7 @@ onMounted(() => {
 
 .section-card :deep(.el-card__header) {
   padding: 14px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-border-lighter);
   background-color: var(--color-bg-light);
 }
 
@@ -959,7 +959,7 @@ onMounted(() => {
 /* 任务卡片 */
 .task-card {
   padding: 20px;
-  background: #fff;
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-lighter);
   border-radius: 8px;
   transition: box-shadow 0.2s;
@@ -1010,7 +1010,7 @@ onMounted(() => {
 
 .status-info-box {
   padding: 12px;
-  background-color: #f8f9fa;
+  background-color: var(--color-bg-section);
   border-radius: 6px;
   margin-bottom: 16px;
 }

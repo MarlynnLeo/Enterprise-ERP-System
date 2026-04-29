@@ -244,7 +244,7 @@
               >
                 <div style="display: flex; justify-content: space-between; align-items: center; width: 100%">
                   <span style="font-weight: bold">{{ product.code || product.id }}</span>
-                  <span style="color: #8492a6; font-size: 13px">{{ product.name }}</span>
+                  <span style="color: var(--color-text-muted); font-size: 13px">{{ product.name }}</span>
                 </div>
               </el-option>
             </el-select>
@@ -266,7 +266,7 @@
                 border 
               style="width: 100%" 
               table-layout="fixed"
-              :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+              :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加报价物料"
               >
                 <el-table-column label="产品" min-width="200">
@@ -288,7 +288,7 @@
                       >
                         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%">
                           <span style="font-weight: bold">{{ product.code || product.id }}</span>
-                          <span style="color: #8492a6; font-size: 13px">{{ product.name }}</span>
+                          <span style="color: var(--color-text-muted); font-size: 13px">{{ product.name }}</span>
                         </div>
                       </el-option>
                     </el-select>
@@ -356,7 +356,7 @@
               
               <div style="font-size: 16px; font-weight: bold;" v-if="quotationForm.items.length > 0">
                 总计金额：
-                <span style="color: #f56c6c; font-size: 18px; margin-left: 5px;">
+                <span style="color: var(--color-danger); font-size: 18px; margin-left: 5px;">
                   ¥{{ calculateTotalAmount().toFixed(2) }}
                 </span>
               </div>
@@ -411,8 +411,8 @@
       </el-table>
 
       <!-- 合计行 -->
-      <div style="margin-top: 16px; text-align: right; padding: 12px; background-color: #f5f7fa; border: 1px solid #dcdfe6; border-radius: 4px;">
-        <span style="font-size: 16px; font-weight: bold; color: #303133;">
+      <div style="margin-top: 16px; text-align: right; padding: 12px; background-color: var(--color-bg-hover); border: 1px solid var(--color-border-base); border-radius: 4px;">
+        <span style="font-size: 16px; font-weight: bold; color: var(--color-text-primary);">
           合计：¥{{ (currentQuotation.total_amount || 0).toFixed(2) }}
         </span>
       </div>

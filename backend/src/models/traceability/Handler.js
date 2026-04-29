@@ -13,7 +13,7 @@ const Core = require('./Core');
 class TraceabilityHandler {
   /**
    * 自动创建追溯记录
-   * @param {string} triggerType - 触发类型 (purchase, inspection, warehouse, production, product_warehouse, sales)
+   * @param {string} triggerType - 触发类型 (purchase, inbound, inspection, production, product_warehouse, production_return, defective_return, sales_return, outbound, production_outbound, sales_outbound, sales)
    * @param {Object} data - 相关数据
    * @returns {Promise<Object>} - 创建或更新的追溯记录
    */
@@ -27,6 +27,9 @@ class TraceabilityHandler {
         case 'purchase': // 采购入库
           result = await this._handlePurchaseTraceability(data);
           break;
+        case 'inbound': // 通用入库（兜底）
+          result = await this._handlePurchaseTraceability(data);
+          break;
         case 'inspection': // 质量检验
           // 质检通常关联已存在的追溯记录，或者作为节点更新
           // 这里暂时只记录日志，实际逻辑可能在业务层
@@ -37,6 +40,13 @@ class TraceabilityHandler {
           break;
         case 'product_warehouse': // 成品入库
           // 可以更新追溯记录的状态
+          break;
+        case 'production_return': // 产线退料（使用原始发料批次号）
+        case 'defective_return': // 不良退回（使用原始发料批次号）
+          result = await this._handleReturnTraceability(triggerType, data);
+          break;
+        case 'sales_return': // 销售退货
+          result = await this._handleReturnTraceability(triggerType, data);
           break;
         case 'outbound': // 物料出库
         case 'production_outbound': // 生产领料出库
@@ -140,6 +150,84 @@ class TraceabilityHandler {
       return await Core.createTraceability(newRecord);
     } catch (error) {
       logger.error('处理生产追溯失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
+  /**
+   * 处理退料/不良退回追溯
+   * @description 退料时溯源原始发料批次号，将退回物料与原始发料批次关联
+   * @param {string} triggerType - 触发类型 (production_return / defective_return / sales_return)
+   * @param {Object} data - 追溯数据
+   * @private
+   */
+  static async _handleReturnTraceability(triggerType, data) {
+    try {
+      const { material_id, batch_no, quantity, reference_id, inbound_no, operator } = data;
+
+      logger.info(`处理退料追溯 | 类型:${triggerType} | 物料:${material_id} | 批次:${batch_no} | 入库单:${inbound_no}`);
+
+      // 退料的核心追溯逻辑：批次号已在 InboundTransactionService 中溯源
+      // 如果 batch_no 是从原始发料记录中溯源回来的，则追溯链已自动建立
+      // 如果是系统生成的兜底批次号(PWH-)，说明溯源未成功，记录日志
+
+      if (batch_no && batch_no.startsWith('PWH-')) {
+        // 兜底批次号，说明未能溯源到原始发料批次
+        // 再次尝试从台账中查找
+        if (reference_id && material_id) {
+          const connection = await db.pool.getConnection();
+          try {
+            // reference_id 可能是出库单ID或生产任务ID，需要先查出对应的出库单号
+            const [outboundRows] = await connection.execute(
+              `SELECT outbound_no FROM inventory_outbound 
+               WHERE id = ? 
+                  OR production_task_id = ? 
+                  OR (reference_type = 'production_task' AND reference_id = ?)
+               LIMIT 10`,
+              [reference_id, reference_id, reference_id]
+            );
+
+            for (const ob of outboundRows) {
+              const [ledgerRows] = await connection.execute(
+                `SELECT batch_number 
+                 FROM inventory_ledger 
+                 WHERE reference_no = ? 
+                   AND material_id = ? 
+                   AND quantity < 0
+                   AND batch_number IS NOT NULL
+                   AND batch_number != ''
+                 ORDER BY created_at DESC 
+                 LIMIT 1`,
+                [ob.outbound_no, material_id]
+              );
+
+              if (ledgerRows.length > 0) {
+                logger.info(`[退料追溯] 二次溯源成功: 通过出库单 ${ob.outbound_no} 找回原始发料批次 ${ledgerRows[0].batch_number}`);
+                return {
+                  success: true,
+                  message: '退料追溯处理完成（二次溯源成功）',
+                  original_batch: ledgerRows[0].batch_number,
+                  return_batch: batch_no,
+                };
+              }
+            }
+          } finally {
+            connection.release();
+          }
+        }
+
+        logger.warn(`[退料追溯] 物料 ${material_id} 未能溯源到原始发料批次，使用系统生成批次: ${batch_no}`);
+      } else {
+        logger.info(`[退料追溯] 物料 ${material_id} 已成功关联原始发料批次: ${batch_no}`);
+      }
+
+      return {
+        success: true,
+        message: `退料追溯处理完成（${triggerType}）`,
+        batch_no,
+        material_id,
+      };
+    } catch (error) {
+      logger.error(`处理退料追溯失败(${triggerType}):`, error);
       return { success: false, error: error.message };
     }
   }

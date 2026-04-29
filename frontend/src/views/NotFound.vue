@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="not-found-container">
     <div class="not-found-content">
       <div class="error-code">404</div>
@@ -84,7 +84,7 @@ const goBack = () => {
   font-size: 1.8rem;
   font-weight: 600;
   margin-bottom: 1rem;
-  color: #ffffff;
+  color: var(--color-on-primary, #fff);
 }
 
 .error-desc {

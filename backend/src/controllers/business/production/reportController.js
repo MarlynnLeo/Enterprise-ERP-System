@@ -12,6 +12,7 @@ const { handleError } = require('./shared/errorHandler');
 const ExcelJS = require('exceljs');
 const businessConfig = require('../../../config/businessConfig');
 const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
+const { CodeGenerators } = require('../../../utils/codeGenerator');
 
 // 状态常量
 const STATUS = {
@@ -281,7 +282,7 @@ exports.createReport = async (req, res) => {
     const planQuantity = parseFloat(task.quantity) || 0;
 
     // 生成报工单号
-    const reportNo = `RPT${Date.now()}`;
+    const reportNo = await CodeGenerators.generateReportCode(connection);
 
     const [result] = await connection.query(
       `

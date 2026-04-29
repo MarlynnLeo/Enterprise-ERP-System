@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PurchaseOrders.vue
  * @description 前端界面组件文件
@@ -333,7 +333,7 @@
                   :value="String(item.id)"
                 >
                   <span>{{ item.name }}</span>
-                  <span style="float: right; color: #8492a6; font-size: 12px">{{ item.code }}</span>
+                  <span style="float: right; color: var(--color-text-muted); font-size: 12px">{{ item.code }}</span>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -394,13 +394,13 @@
                 <template #default="{ item }">
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span>{{ item.code }} - {{ item.name }}</span>
-                    <span style="color: #8492a6; font-size: 12px">{{ item.specs }}</span>
+                    <span style="color: var(--color-text-muted); font-size: 12px">{{ item.specs }}</span>
                   </div>
                 </template>
               </el-autocomplete>
               <div v-else style="line-height: 1.4;">
                 <div>{{ scope.row.material_code }} - {{ scope.row.material_name }}</div>
-                <div v-if="scope.row.specification" style="color: #909399; font-size: 12px;">{{ scope.row.specification }}</div>
+                <div v-if="scope.row.specification" style="color: var(--color-text-secondary); font-size: 12px;">{{ scope.row.specification }}</div>
               </div>
             </template>
           </el-table-column>
@@ -453,16 +453,16 @@
         </el-table>
         
         <!-- 合计金额 -->
-        <div class="total-price" style="margin-top: 15px; padding: 12px; background: #f5f7fa; border-radius: 4px;">
+        <div class="total-price" style="margin-top: 15px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
             <el-col :span="8" style="text-align: right;">
-              <span style="color: #606266;">小计: ￥{{ orderForm.subtotal?.toFixed(2) || '0.00' }}</span>
+              <span style="color: var(--color-text-regular);">小计: ￥{{ orderForm.subtotal?.toFixed(2) || '0.00' }}</span>
             </el-col>
             <el-col :span="8" style="text-align: right;">
-              <span style="color: #e6a23c;">税额: ￥{{ orderForm.tax_amount?.toFixed(2) || '0.00' }}</span>
+              <span style="color: var(--color-warning);">税额: ￥{{ orderForm.tax_amount?.toFixed(2) || '0.00' }}</span>
             </el-col>
             <el-col :span="8" style="text-align: right;">
-              <span style="font-weight: bold; color: #409eff; font-size: 16px;">订单总金额: ￥{{ calculateTotalAmount() }}</span>
+              <span style="font-weight: bold; color: var(--color-primary); font-size: 16px;">订单总金额: ￥{{ calculateTotalAmount() }}</span>
             </el-col>
           </el-row>
         </div>
@@ -552,7 +552,7 @@
       </el-table>
       
       <div class="pagination-container" v-if="unorderedMaterialsList.length > 0">
-        <span style="color: #606266; font-size: 14px;">共 {{ unorderedMaterialsList.length }} 条未采购物料</span>
+        <span style="color: var(--color-text-regular); font-size: 14px;">共 {{ unorderedMaterialsList.length }} 条未采购物料</span>
       </div>
       
       <template #footer>
@@ -1022,7 +1022,7 @@ onActivated(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-size: 14px;
 }
 

@@ -115,7 +115,7 @@
         <el-table-column prop="batch_no" label="批次号" width="200" show-overflow-tooltip />
         <el-table-column prop="quantity" label="数量" width="80" align="center">
           <template #default="scope">
-            <span style="color: #F56C6C; font-weight: bold;">
+            <span style="color: var(--color-danger); font-weight: bold;">
               {{ Math.floor(scope.row.quantity || 0) }}
             </span>
           </template>
@@ -210,7 +210,7 @@
         <el-descriptions-item label="缺陷描述" :span="2">{{ currentNcp.defect_description }}</el-descriptions-item>
         <el-descriptions-item label="供应商">
           <el-tag v-if="currentNcp.supplier_name" type="warning">{{ currentNcp.supplier_name }}</el-tag>
-          <span v-else style="color: #999;">未关联</span>
+          <span v-else style="color: var(--color-text-secondary);">未关联</span>
         </el-descriptions-item>
         <el-descriptions-item label="责任方">
           <el-tag v-if="currentNcp.responsible_party === 'supplier'" type="danger">供应商</el-tag>
@@ -267,18 +267,18 @@
           <div v-if="currentNcp">
             <p><strong>不合格品编号:</strong> {{ currentNcp.ncp_no }}</p>
             <p><strong>物料名称:</strong> {{ currentNcp.material_name }}</p>
-            <p><strong>不合格数量:</strong> <span style="color: #F56C6C; font-weight: bold;">{{ Math.floor(currentNcp.quantity || 0) }} {{ currentNcp.unit }}</span></p>
+            <p><strong>不合格数量:</strong> <span style="color: var(--color-danger); font-weight: bold;">{{ Math.floor(currentNcp.quantity || 0) }} {{ currentNcp.unit }}</span></p>
           </div>
         </template>
       </el-alert>
       <el-form :model="disposeForm" label-width="120px">
         <el-form-item label="处理方式" required>
           <el-select v-model="disposeForm.disposition" placeholder="请选择处理方式" style="width: 100%;">
-            <el-option label="🔄 退货 - 退回供应商" value="return" />
-            <el-option label="🔁 换货 - 供应商换货" value="replacement" />
-            <el-option label="🔧 返工 - 返工处理" value="rework" />
-            <el-option label="🗑️ 报废 - 报废处理" value="scrap" />
-            <el-option label="✅ 让步接收 - 降级使用" value="use_as_is" />
+            <el-option label="退货 - 退回供应商" value="return" />
+            <el-option label="换货 - 供应商换货" value="replacement" />
+            <el-option label="返工 - 返工处理" value="rework" />
+            <el-option label="报废 - 报废处理" value="scrap" />
+            <el-option label="让步接收 - 降级使用" value="use_as_is" />
           </el-select>
         </el-form-item>
         <el-form-item label="处理原因" required>

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="dashboard-container">
     <el-card class="header-card">
       <div class="header-content">
@@ -709,9 +709,9 @@ onUnmounted(() => {
   font-size: 30px;
   margin-right: 15px;
 }
-.stat-icon.primary { background-color: #ecf5ff; color: var(--color-primary); }
-.stat-icon.success { background-color: #f0f9eb; color: var(--color-success); }
-.stat-icon.warning { background-color: #fdf6ec; color: var(--color-warning); }
+.stat-icon.primary { background-color: var(--color-primary-light-9); color: var(--color-primary); }
+.stat-icon.success { background-color: var(--color-success-light); color: var(--color-success); }
+.stat-icon.warning { background-color: var(--color-warning-light); color: var(--color-warning); }
 
 .stat-info {
   flex: 1;

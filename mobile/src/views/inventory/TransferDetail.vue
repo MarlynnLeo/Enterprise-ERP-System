@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * TransferDetail.vue
  * @description 调拨单详情页面 — 与出库/入库详情统一风格，字段与后端对齐
@@ -477,7 +477,7 @@
   .material-qty {
     font-size: 0.875rem;
     font-weight: 800;
-    color: #a855f7;
+    color: var(--module-purple);
     flex-shrink: 0;
     font-family: 'SF Mono', 'Menlo', monospace;
     .qty-unit {

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Categories.vue
  * @description 前端界面组件文件
@@ -776,7 +776,7 @@ const submitImport = async () => {
 .import-tips {
   margin-top: 10px;
   padding: 10px;
-  background-color: #f0f9ff;
+  background-color: var(--color-primary-light-9);
   border: 1px solid #b3d8ff;
   border-radius: var(--radius-sm);
   font-size: 12px;

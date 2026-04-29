@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="finance-settings">
     <el-card class="header-card">
       <div class="header-content">
@@ -473,7 +473,7 @@ onMounted(() => {
 }
 
 .settings-tabs :deep(.el-tabs__header) {
-  background: #f8f9fa;
+  background: var(--color-bg-section);
   margin: 0;
   padding: 16px 20px 0;
   border-bottom: 1px solid var(--color-border-light);
@@ -566,7 +566,7 @@ onMounted(() => {
 }
 
 .settings-tabs :deep(.el-divider__text) {
-  background-color: white;
+  background-color: var(--color-on-primary, #fff);
   font-weight: 500;
   color: var(--color-text-regular);
 }

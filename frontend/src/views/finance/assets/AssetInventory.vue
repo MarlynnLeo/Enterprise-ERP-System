@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="asset-inventory-container">
     <el-card class="box-card">
       <template #header>
@@ -86,7 +86,7 @@
           <el-input type="textarea" v-model="form.notes" :rows="3" placeholder="可选填"></el-input>
         </el-form-item>
       </el-form>
-      <div style="margin: 10px 0 0 100px; color: #909399; font-size: 13px;">
+      <div style="margin: 10px 0 0 100px; color: var(--color-text-secondary); font-size: 13px;">
         <el-icon><InfoFilled /></el-icon> 将自动把所有在用、闲置的资产加入盘点范围
       </div>
       <template #footer>

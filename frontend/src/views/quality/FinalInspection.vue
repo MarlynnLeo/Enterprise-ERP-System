@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * FinalInspection.vue
  * @description 前端界面组件文件
@@ -120,14 +120,14 @@
         </el-table-column>
         <el-table-column prop="qualified_quantity" label="合格数" min-width="80">
           <template #default="scope">
-            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" style="color: #67C23A; font-weight: bold;">{{ scope.row.qualified_quantity }}</span>
-            <span v-else style="color: #909399;">-</span>
+            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">{{ scope.row.qualified_quantity }}</span>
+            <span v-else style="color: var(--color-text-secondary);">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="unqualified_quantity" label="不合格" min-width="80">
           <template #default="scope">
-            <span v-if="scope.row.unqualified_quantity > 0" style="color: #F56C6C; font-weight: bold;">{{ scope.row.unqualified_quantity }}</span>
-            <span v-else style="color: #909399;">{{ scope.row.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="scope.row.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">{{ scope.row.unqualified_quantity }}</span>
+            <span v-else style="color: var(--color-text-secondary);">{{ scope.row.unqualified_quantity === 0 ? '0' : '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="inspection_date" label="检验日期" min-width="110">
@@ -327,13 +327,13 @@
         <el-form-item label="检验项目" prop="items">
           <div style="width: 100%;">
             <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
-              <el-button type="success" size="small" @click="handleAllPassed">✔ 全部合格</el-button>
+              <el-button type="success" size="small" @click="handleAllPassed"><el-icon style="margin-right: 4px;"><Select /></el-icon>全部合格</el-button>
             </div>
             <el-table :data="inspectForm.items" border style="width: 100%;">
               <el-table-column prop="item_name" label="检验项目" width="120" show-overflow-tooltip>
                 <template #default="scope">
                   <span>{{ scope.row.item_name }}</span>
-                  <el-icon v-if="scope.row.is_critical" style="color: #E6A23C; margin-left: 4px;" :size="14"><StarFilled /></el-icon>
+                  <el-icon v-if="scope.row.is_critical" style="color: var(--color-warning); margin-left: 4px;" :size="14"><StarFilled /></el-icon>
                 </template>
               </el-table-column>
               <el-table-column label="标准±公差" width="150" show-overflow-tooltip>
@@ -362,8 +362,8 @@
                       'result-select-failed': scope.row.result === 'failed'
                     }"
                   >
-                    <el-option label="✓ 合格" value="passed" style="color: #67C23A; font-weight: bold;" />
-                    <el-option label="✗ 不合格" value="failed" style="color: #F56C6C; font-weight: bold;" />
+                    <el-option label="合格" value="passed" style="color: var(--color-success); font-weight: bold;" />
+                    <el-option label="不合格" value="failed" style="color: var(--color-danger); font-weight: bold;" />
                   </el-select>
                 </template>
               </el-table-column>
@@ -457,12 +457,12 @@
           <el-descriptions-item label="检验日期">{{ formatDate(currentInspection.inspection_date) }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ currentInspection.quantity }} {{ currentInspection.unit }}</el-descriptions-item>
           <el-descriptions-item label="合格数">
-            <span v-if="currentInspection.qualified_quantity !== null && currentInspection.qualified_quantity !== undefined" style="color: #67C23A; font-weight: bold;">{{ currentInspection.qualified_quantity }}</span>
-            <span v-else style="color: #909399;">-</span>
+            <span v-if="currentInspection.qualified_quantity !== null && currentInspection.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">{{ currentInspection.qualified_quantity }}</span>
+            <span v-else style="color: var(--color-text-secondary);">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="不合格数">
-            <span v-if="currentInspection.unqualified_quantity > 0" style="color: #F56C6C; font-weight: bold;">{{ currentInspection.unqualified_quantity }}</span>
-            <span v-else style="color: #909399;">{{ currentInspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="currentInspection.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">{{ currentInspection.unqualified_quantity }}</span>
+            <span v-else style="color: var(--color-text-secondary);">{{ currentInspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="检验员">{{ currentInspection.inspector_name || currentInspection.inspector || '-' }}</el-descriptions-item>
           <el-descriptions-item label="合格率">
@@ -470,7 +470,7 @@
                   :style="{ color: (currentInspection.qualified_quantity / currentInspection.quantity) >= 1 ? '#67C23A' : '#F56C6C', fontWeight: 'bold' }">
               {{ ((currentInspection.qualified_quantity / currentInspection.quantity) * 100).toFixed(1) }}%
             </span>
-            <span v-else style="color: #909399;">-</span>
+            <span v-else style="color: var(--color-text-secondary);">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="标准编号">{{ currentInspection.standard_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="3">{{ currentInspection.note || '-' }}</el-descriptions-item>
@@ -486,7 +486,7 @@
               <template #default="scope">
                 <el-tag v-if="scope.row.result === 'passed' || scope.row.result === 'pass'" type="success" size="small">合格</el-tag>
                 <el-tag v-else-if="scope.row.result === 'failed' || scope.row.result === 'fail'" type="danger" size="small">不合格</el-tag>
-                <span v-else style="color: #909399;">{{ scope.row.result || '-' }}</span>
+                <span v-else style="color: var(--color-text-secondary);">{{ scope.row.result || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="remarks" label="备注" min-width="140" />
@@ -1770,7 +1770,7 @@ const handlePrintCertificate = () => {
   text-align: center;
   margin-bottom: var(--spacing-lg);
   padding-bottom: 20px;
-  border-bottom: 2px solid #409EFF;
+  border-bottom: 2px solid var(--color-primary);
 }
 
 .certificate-title {

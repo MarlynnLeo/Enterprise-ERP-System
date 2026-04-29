@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * TaskDetail.vue - 生产任务详情
  * @description 统一卡片风格
@@ -270,7 +270,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(168, 85, 247, 0.1);
-    color: #a855f7;
+    color: var(--module-purple);
     flex-shrink: 0;
   }
   .hero-info {
@@ -307,7 +307,7 @@
     }
     &.st-inspection {
       background: rgba(168, 85, 247, 0.12);
-      color: #a855f7;
+      color: var(--module-purple);
     }
     &.st-completed {
       background: rgba(16, 185, 129, 0.12);
@@ -315,7 +315,7 @@
     }
     &.st-paused {
       background: rgba(249, 115, 22, 0.12);
-      color: #f97316;
+      color: var(--module-orange);
     }
     &.st-cancelled {
       background: rgba(239, 68, 68, 0.1);
@@ -408,7 +408,7 @@
       font-family: 'SF Mono', monospace;
     }
     &.highlight {
-      color: #a855f7;
+      color: var(--module-purple);
       font-weight: 700;
     }
   }

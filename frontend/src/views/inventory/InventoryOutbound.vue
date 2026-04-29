@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryOutbound.vue
  * @description 前端界面组件文件
@@ -225,7 +225,7 @@
                 <el-option v-for="item in productionPlanOptions" :key="item.id"
                   :label="`${item.code} - ${item.name} (${item.quantity}${item.unit_name || ''})`" :value="item.id">
                   <span style="float: left">{{ item.code }}</span>
-                  <span style="float: right; color: #8492a6; font-size: 13px">{{ item.name }}</span>
+                  <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.name }}</span>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -256,18 +256,18 @@
         <el-divider content-position="center">出库明细</el-divider>
 
         <el-table :data="expandedTableData" border style="width: 100%"
-          :header-cell-style="{ background: '#f5f7fa', color: '#606266' }" empty-text="请添加出库物料">
+          :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }" empty-text="请添加出库物料">
           <el-table-column label="序号" width="55">
             <template #default="scope">
               <span v-if="!scope.row.isSubstitute">{{ scope.row.originalIndex + 1 }}</span>
-              <span v-else style="margin-left: 20px; color: #909399;">└</span>
+              <span v-else style="margin-left: 20px; color: var(--color-text-secondary);">└</span>
             </template>
           </el-table-column>
 
           <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
             <template #default="scope">
               <!-- 替代物料显示 -->
-              <span v-if="scope.row.isSubstitute" style="color: #67c23a;">
+              <span v-if="scope.row.isSubstitute" style="color: var(--color-success);">
                 {{ scope.row.material_code || scope.row.materialCode }}
               </span>
               <!-- 来自生产计划的物料(只读) -->
@@ -285,16 +285,16 @@
                 :debounce="300" :hide-loading="false" :popper-append-to-body="false" value-key="code">
                 <template #default="{ item }">
                   <div style="display: flex; align-items: center; padding: 4px 0; font-size: 13px;">
-                    <span style="font-weight: bold; color: #303133; min-width: 80px;">
+                    <span style="font-weight: bold; color: var(--color-text-primary); min-width: 80px;">
                       {{ item.code }}
                     </span>
-                    <span style="color: #606266; margin: 0 8px; flex: 1;">
+                    <span style="color: var(--color-text-regular); margin: 0 8px; flex: 1;">
                       {{ item.name }}
                     </span>
-                    <span style="color: #909399; margin: 0 8px; min-width: 100px;">
+                    <span style="color: var(--color-text-secondary); margin: 0 8px; min-width: 100px;">
                       {{ item.specs }}
                     </span>
-                    <span style="color: #409EFF; font-weight: bold; min-width: 60px; text-align: right;">
+                    <span style="color: var(--color-primary); font-weight: bold; min-width: 60px; text-align: right;">
                       库存: {{ item.stock_quantity || 0 }}
                     </span>
                   </div>
@@ -309,7 +309,7 @@
 
           <el-table-column label="物料名称" min-width="120" show-overflow-tooltip>
             <template #default="scope">
-              <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+              <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
                 {{ scope.row.material_name || scope.row.materialName }}
                 <el-tag v-if="scope.row.isSubstitute" type="success" size="small" style="margin-left: 5px;">替代</el-tag>
               </span>
@@ -318,7 +318,7 @@
 
           <el-table-column label="规格" min-width="120" show-overflow-tooltip>
             <template #default="scope">
-              <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+              <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
                 {{ scope.row.specification || scope.row.specs || '无规格' }}
               </span>
             </template>
@@ -326,7 +326,7 @@
 
           <el-table-column label="单位" min-width="80" show-overflow-tooltip>
             <template #default="scope">
-              <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+              <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
                 {{ scope.row.unit_name || scope.row.unit }}
               </span>
             </template>
@@ -334,7 +334,7 @@
 
           <el-table-column label="出库库位" min-width="100" show-overflow-tooltip>
             <template #default="scope">
-              <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+              <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
                 {{ scope.row.location_name }}
               </span>
             </template>
@@ -343,7 +343,7 @@
           <el-table-column label="库存" min-width="80" show-overflow-tooltip>
             <template #default="scope">
               <span
-                :style="scope.row.isSubstitute ? 'color: #67c23a; font-size: 12px;' : ((dialogType === 'supplement' && (scope.row.stock_quantity || 0) <= 0) ? 'color: #f56c6c;' : '')">
+                :style="scope.row.isSubstitute ? 'color: var(--color-success); font-size: 12px;' : ((dialogType === 'supplement' && (scope.row.stock_quantity || 0) <= 0) ? 'color: var(--color-danger);' : '')">
                 {{ scope.row.stock_quantity || scope.row.stockQuantity || 0 }}
               </span>
             </template>
@@ -351,7 +351,7 @@
 
           <el-table-column label="出库" min-width="120" show-overflow-tooltip>
             <template #default="scope">
-              <div v-if="scope.row.isSubstitute" style="color: #67c23a; font-size: 12px;">
+              <div v-if="scope.row.isSubstitute" style="color: var(--color-success); font-size: 12px;">
                 {{ Math.floor(scope.row.quantity || 0) }}
               </div>
               <el-input v-else-if="dialogType !== 'view' && !scope.row.is_from_plan"
@@ -425,19 +425,19 @@
         <el-table-column label="序号" width="55">
           <template #default="scope">
             <span v-if="!scope.row.isSubstitute">{{ scope.row.originalIndex + 1 }}</span>
-            <span v-else style="margin-left: 20px; color: #909399;">└</span>
+            <span v-else style="margin-left: 20px; color: var(--color-text-secondary);">└</span>
           </template>
         </el-table-column>
         <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
               {{ scope.row.material_code || scope.row.materialCode }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="物料名称" min-width="120" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
               {{ scope.row.material_name || scope.row.materialName }}
               <el-tag v-if="scope.row.isSubstitute" type="success" size="small" style="margin-left: 5px;">替代</el-tag>
             </span>
@@ -445,28 +445,28 @@
         </el-table-column>
         <el-table-column label="规格" min-width="120" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
               {{ scope.row.specification || scope.row.specs || '无规格' }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="单位" min-width="80" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
               {{ scope.row.unit_name || scope.row.unit }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="数量" min-width="100" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
               {{ Math.floor(scope.row.quantity || 0) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="出库库位" width="100" fixed="right">
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: #67c23a;' : ''">
+            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
               {{ scope.row.location_name }}
             </span>
           </template>
@@ -533,7 +533,7 @@
             </thead>
             <tbody>
               <tr v-for="(item, index) in printExpandedTableData" :key="index"
-                :style="item.isSubstitute ? 'color: #67c23a;' : ''">
+                :style="item.isSubstitute ? 'color: var(--color-success);' : ''">
                 <td>
                   <span v-if="!item.isSubstitute">{{ item.originalIndex + 1 }}</span>
                   <span v-else style="margin-left: 20px;">└</span>
@@ -541,7 +541,7 @@
                 <td>{{ item.material_code || item.materialCode }}</td>
                 <td>
                   {{ item.material_name || item.materialName }}
-                  <span v-if="item.isSubstitute" style="font-size: 12px; color: #67c23a;">[替代]</span>
+                  <span v-if="item.isSubstitute" style="font-size: 12px; color: var(--color-success);">[替代]</span>
                 </td>
                 <td>{{ item.specification || item.specs || '-' }}</td>
                 <td>{{ item.unit_name || item.unit }}</td>
@@ -1570,13 +1570,13 @@ export default {
         // 处理超额领料警告
         if (errorData?.code === 'EXCESS_ISSUE' && errorData?.details) {
           const detailsHtml = errorData.details.map(d =>
-            `<div style="color: #F56C6C; margin-bottom: 4px;">• ${d.message || '超额领料'}</div>`
+            `<div style="color: var(--color-danger); margin-bottom: 4px;">• ${d.message || '超额领料'}</div>`
           ).join('');
 
           ElMessageBox.confirm(
             `<div style="font-weight: bold; margin-bottom: 10px;">检测到以下超额领料项，是否确认继续？</div>
               ${detailsHtml}
-              <div style="margin-top: 15px; color: #606266;">确认后请填写补发/超额原因。</div>`,
+              <div style="margin-top: 15px; color: var(--color-text-regular);">确认后请填写补发/超额原因。</div>`,
             '超额领料警告',
             {
               confirmButtonText: '确认并填写原因',
@@ -2538,7 +2538,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-size: 14px;
 }
 

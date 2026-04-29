@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Layout.vue
  * @description 前端界面组件文件
@@ -871,7 +871,7 @@ onMounted(async () => {
   content: '';
   position: absolute;
   inset: 0;
-  background: #ffffff;
+  background: var(--color-bg-base);
   opacity: 0;
   pointer-events: none;
   z-index: 10;

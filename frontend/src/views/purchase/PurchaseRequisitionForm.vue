@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PurchaseRequisitionForm.vue
  * @description 前端界面组件文件
@@ -422,7 +422,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #fff;
+  color: var(--color-on-primary, #fff);
 }
 
 .page-header .el-button {
@@ -436,7 +436,7 @@ onMounted(async () => {
 }
 
 .page-header .el-button--default:hover {
-  background: #fff;
+  background: var(--color-bg-base);
   color: #764ba2;
 }
 
@@ -506,7 +506,7 @@ onMounted(async () => {
 :deep(.el-divider__text) {
   font-weight: 600;
   color: var(--color-text-primary);
-  background-color: #fff;
+  background-color: var(--color-bg-base);
 }
 
 /* 表单项标签优化 */

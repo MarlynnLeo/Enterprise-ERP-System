@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="page-container">
     <NavBar title="质量趋势" left-arrow @click-left="$router.go(-1)" />
     <div class="page-body">
@@ -68,7 +68,7 @@
     flex: 1; text-align: center; padding: 8px 0; border-radius: 8px;
     background: var(--van-background); border: 1px solid var(--van-border-color);
     font-size: 0.8125rem; color: var(--text-secondary); transition: all 0.2s;
-    &.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+    &.active { background: var(--color-primary); color: var(--color-on-primary, #fff); border-color: var(--color-primary); }
   }
 
   .trend-item {

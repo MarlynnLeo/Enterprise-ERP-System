@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Boms.vue
  * @description 前端界面组件文件 (Refactored)
@@ -40,7 +40,7 @@
               :label="`${item.code} - ${item.name}`"
               :value="item.id">
               <span style="float: left">{{ item.code }}</span>
-              <span style="float: right; color: #8492a6; font-size: 13px">{{ item.name }}</span>
+              <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.name }}</span>
             </el-option>
           </el-select>
         </el-form-item>
@@ -209,7 +209,7 @@
               :label="`${item.code} - ${item.name}`"
               :value="item.id">
               <span style="float: left">{{ item.code }}</span>
-              <span style="float: right; color: #8492a6; font-size: 13px">{{ item.name }}</span>
+              <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.name }}</span>
             </el-option>
           </el-select>
         </el-form-item>

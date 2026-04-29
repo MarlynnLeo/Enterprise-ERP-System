@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InspectionTemplates.vue
  * @description 前端界面组件文件
@@ -8,8 +8,8 @@
 -->
 <template>
   <div class="template-container">
-    <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; background-color: #fff; padding: 12px 20px; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,21,41,0.08);">
-      <div style="font-size: 16px; font-weight: bold; color: #303133;">检验控制库</div>
+    <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; background-color: var(--color-bg-base); padding: 12px 20px; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,21,41,0.08);">
+      <div style="font-size: 16px; font-weight: bold; color: var(--color-text-primary);">检验控制库</div>
       <el-radio-group v-model="viewType" size="default">
         <el-radio-button value="templates">检验模板</el-radio-button>
         <el-radio-button value="aql">AQL 抽样规则</el-radio-button>
@@ -248,7 +248,7 @@
                 :value="item.value"
               >
                 <span>{{ item.code }}</span>
-                <span style="margin-left: 8px; color: #8492a6; font-size: 12px;">{{ item.name }}</span>
+                <span style="margin-left: 8px; color: var(--color-text-muted); font-size: 12px;">{{ item.name }}</span>
               </el-option>
             </el-select>
             <!-- 已选物料标签列表 -->
@@ -384,7 +384,7 @@
                         type="number"
                         :step="0.001"
                       />
-                      <span v-else style="color: #909399;">仅尺寸类型</span>
+                      <span v-else style="color: var(--color-text-secondary);">仅尺寸类型</span>
                     </template>
                   </el-table-column>
                   <el-table-column prop="tolerance_upper" label="上公差(+)" width="100">
@@ -397,7 +397,7 @@
                         type="number"
                         :step="0.001"
                       />
-                      <span v-else style="color: #909399;">仅尺寸类型</span>
+                      <span v-else style="color: var(--color-text-secondary);">仅尺寸类型</span>
                     </template>
                   </el-table-column>
                   <el-table-column prop="tolerance_lower" label="下公差(-)" width="100">
@@ -410,7 +410,7 @@
                         type="number"
                         :step="0.001"
                       />
-                      <span v-else style="color: #909399;">仅尺寸类型</span>
+                      <span v-else style="color: var(--color-text-secondary);">仅尺寸类型</span>
                     </template>
                   </el-table-column>
                   <el-table-column label="操作" width="80" fixed="right">

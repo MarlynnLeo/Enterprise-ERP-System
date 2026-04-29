@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Receipts.vue
  * @description 前端界面组件文件
@@ -221,7 +221,7 @@
               :value="account.id"
             ></el-option>
           </el-select>
-          <div class="form-tip">💡 选择后将自动创建银行交易记录并更新账户余额</div>
+          <div class="form-tip"><el-icon style="vertical-align: middle; color: var(--color-primary);"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
         </el-form-item>
         <el-form-item label="备注" prop="notes">
           <el-input

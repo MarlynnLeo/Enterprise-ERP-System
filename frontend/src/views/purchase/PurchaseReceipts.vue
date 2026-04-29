@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PurchaseReceipts.vue
  * @description 前端界面组件文件
@@ -356,7 +356,7 @@
                   </div>
                 </el-option>
               </el-select>
-              <div v-if="warehouses.length === 0" style="color: #F56C6C; font-size: 12px; margin-top: 5px;">
+              <div v-if="warehouses.length === 0" style="color: var(--color-danger); font-size: 12px; margin-top: 5px;">
                 警告：系统中未找到有效的仓库，请先创建仓库
               </div>
             </el-form-item>
@@ -2118,13 +2118,13 @@ function handleQualifiedQuantityChange(item) {
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .subtitle {
   margin: 0;
   font-size: 14px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .search-form {

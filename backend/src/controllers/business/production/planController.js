@@ -155,7 +155,7 @@ exports.getProductionPlans = async (req, res) => {
     const actualOffset = parseInt(offset);
     const query = `
       SELECT
-        pp.id, pp.code, pp.name, pp.start_date, pp.end_date,
+        pp.id, pp.code, pp.name, pp.start_date, pp.end_date, pp.delivery_date,
         pp.quantity, pp.pushed_quantity, pp.status, pp.remark, pp.created_at, pp.updated_at,
         pp.product_id, pp.contract_code, pp.bom_id, pp.bom_version,
         m.name as productName,
@@ -392,6 +392,7 @@ exports.createProductionPlan = async (req, res) => {
       name,
       start_date,
       end_date,
+      delivery_date,
       productId,
       quantity,
       contract_code,
@@ -412,10 +413,7 @@ exports.createProductionPlan = async (req, res) => {
       await connection.rollback();
       return ResponseHandler.error(res, '计划名称为必填项', 'BAD_REQUEST', 400);
     }
-    if (!start_date) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '计划开始日期为必填项', 'BAD_REQUEST', 400);
-    }
+    // start_date 和 end_date 可选，排程后自动反写
 
     // 校验产品是否存在
     const [productCheck] = await connection.query(
@@ -449,18 +447,18 @@ exports.createProductionPlan = async (req, res) => {
       }
     }
 
-    // 处理日期格式，确保是YYYY-MM-DD格式
     const formattedStartDate = start_date ? new Date(start_date).toISOString().split('T')[0] : null;
     const formattedEndDate = end_date ? new Date(end_date).toISOString().split('T')[0] : null;
+    const formattedDeliveryDate = delivery_date ? new Date(delivery_date).toISOString().split('T')[0] : null;
 
     // 插入生产计划
     const [result] = await connection.query(
       `
       INSERT INTO production_plans
-      (code, name, start_date, end_date, product_id, quantity, contract_code, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'draft')
+      (code, name, start_date, end_date, delivery_date, product_id, quantity, contract_code, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft')
     `,
-      [code, name, formattedStartDate, formattedEndDate, productId, quantity, contract_code || null]
+      [code, name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null]
     );
 
     const planId = result.insertId;
@@ -534,11 +532,12 @@ exports.updateProductionPlan = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { name, start_date, end_date, productId, quantity, pushed_quantity, contract_code, bomId } = req.body;
+    const { name, start_date, end_date, delivery_date, productId, quantity, pushed_quantity, contract_code, bomId } = req.body;
 
     // 处理日期格式，确保是YYYY-MM-DD格式
     const formattedStartDate = start_date ? new Date(start_date).toISOString().split('T')[0] : null;
     const formattedEndDate = end_date ? new Date(end_date).toISOString().split('T')[0] : null;
+    const formattedDeliveryDate = delivery_date ? new Date(delivery_date).toISOString().split('T')[0] : null;
 
     // 检查计划状态
     const [plans] = await connection.query('SELECT status, quantity FROM production_plans WHERE id = ?', [
@@ -591,10 +590,10 @@ exports.updateProductionPlan = async (req, res) => {
     await connection.query(
       `
       UPDATE production_plans 
-      SET name = ?, start_date = ?, end_date = ?, product_id = ?, quantity = ?, contract_code = ?
+      SET name = ?, start_date = ?, end_date = ?, delivery_date = ?, product_id = ?, quantity = ?, contract_code = ?
       WHERE id = ?
     `,
-      [name, formattedStartDate, formattedEndDate, productId, quantity, contract_code || null, id]
+      [name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, id]
     );
 
     // 删除原有物料需求

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProcessTemplates.vue
  * @description 前端界面组件文件
@@ -342,7 +342,7 @@
                       {{ doc.name || `文件${index + 1}` }}
                     </el-tag>
                   </div>
-                  <span v-else-if="dialogType === 'view'" style="color: #999;">暂无指导书</span>
+                  <span v-else-if="dialogType === 'view'" style="color: var(--color-text-secondary);">暂无指导书</span>
                 </div>
               </template>
             </el-table-column>

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * CashFlow.vue
  * @description 前端界面组件文件
@@ -374,19 +374,19 @@ onMounted(() => {
   font-size: 18px;
   font-weight: bold;
   margin-bottom: 10px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .report-title {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 8px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .report-period {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-regular);
 }
 
 /* 出纳报表表格样式 */
@@ -454,7 +454,7 @@ onMounted(() => {
 
 .signature-label {
   font-size: 14px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .signature-line {

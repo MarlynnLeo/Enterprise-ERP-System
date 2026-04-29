@@ -54,6 +54,7 @@ const formData = ref({
   name: '',
   startDate: null,
   endDate: null,
+  deliveryDate: null,
   productId: undefined,
   quantity: 1,
   bomId: null,
@@ -103,8 +104,8 @@ const modalLoading = ref(false)
 const rules = {
   code: [{ required: true, message: '请输入计划编号', trigger: 'blur' }],
   name: [{ required: true, message: '请输入计划名称', trigger: 'blur' }],
-  startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
-  endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }],
+  startDate: [],
+  endDate: [],
   productId: [{ required: true, message: '请选择产品', trigger: 'change' }],
   quantity: [{ required: true, message: '请输入计划数量', trigger: 'change' }]
 }
@@ -703,6 +704,7 @@ const showCreateModal = async () => {
     name: '',
     startDate: null,
     endDate: null,
+    deliveryDate: null,
     productId: undefined,
     quantity: 1,
     bomId: null,
@@ -834,17 +836,26 @@ const handleModalOk = async () => {
         modalLoading.value = false
         return
       }
+
+      // 审计修复：交期为必填字段
+      if (!formData.value.deliveryDate) {
+        ElMessage.warning('请填写客户交期，这是排程和交期预警的基础数据')
+        modalLoading.value = false
+        return
+      }
     }
 
     // 格式化日期为 YYYY-MM-DD 格式
     const start_date = startDate ? (typeof startDate === 'object' && startDate.format ? startDate.format('YYYY-MM-DD') : dayjs(startDate).format('YYYY-MM-DD')) : null
     const end_date = endDate ? (typeof endDate === 'object' && endDate.format ? endDate.format('YYYY-MM-DD') : dayjs(endDate).format('YYYY-MM-DD')) : null
+    const delivery_date = formData.value.deliveryDate ? dayjs(formData.value.deliveryDate).format('YYYY-MM-DD') : null
 
     // 基础数据对象
     const data = {
       name,
       start_date,
       end_date,
+      delivery_date,
       productId,
       quantity,
       bomId: formData.value.bomId,
@@ -903,6 +914,7 @@ const handleEdit = async (row) => {
     code: row.code,
     startDate: row.start_date ? row.start_date : null,
     endDate: row.end_date ? row.end_date : null,
+    deliveryDate: row.delivery_date ? row.delivery_date : null,
     productId: row.product_id,
     bomId: null,
     contract_code: row.contract_code || ''
@@ -1063,13 +1075,11 @@ const confirmPushDown = async () => {
       // 如果获取失败，使用默认值
     }
 
-    // 1. 生成生产任务
+    // 1. 生成生产任务（不设时间，由一键排程统一安排）
     const taskData = {
       plan_id: row.id,
       product_id: row.product_id,
       quantity: taskQuantity,
-      start_date: row.start_date || dayjs().format('YYYY-MM-DD'),
-      expected_end_date: row.end_date || dayjs().add(7, 'day').format('YYYY-MM-DD'),
       manager: productionGroupName,
       remarks: pushDownType.value === 'full'
         ? `由生产计划 ${row.code} 全部下推`
@@ -1646,12 +1656,40 @@ const formatMaterialForDisplay = (material) => {
 
         <el-table-column label="开始日期" width="100">
           <template #default="scope">
-            {{ formatDate(scope.row.start_date) }}
+            <template v-if="scope.row.start_date">
+              {{ formatDate(scope.row.start_date) }}
+            </template>
+            <el-tag v-else size="small" type="warning">待排程</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="结束日期" width="100">
           <template #default="scope">
-            {{ formatDate(scope.row.end_date) }}
+            <template v-if="scope.row.end_date">
+              {{ formatDate(scope.row.end_date) }}
+            </template>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="客户交期" width="110">
+          <template #default="scope">
+            <template v-if="scope.row.delivery_date">
+              <span>{{ formatDate(scope.row.delivery_date) }}</span>
+              <el-tag
+                v-if="scope.row.end_date && new Date(scope.row.end_date) > new Date(scope.row.delivery_date)"
+                size="small"
+                type="danger"
+                style="margin-left: 4px"
+              >
+                超{{ Math.ceil((new Date(scope.row.end_date) - new Date(scope.row.delivery_date)) / 86400000) }}天
+              </el-tag>
+              <el-tag
+                v-else-if="scope.row.end_date"
+                size="small"
+                type="success"
+                style="margin-left: 4px"
+              >OK</el-tag>
+            </template>
+            <span v-else class="text-secondary">—</span>
           </template>
         </el-table-column>
         <el-table-column label="计划数量" width="80">
@@ -1782,11 +1820,11 @@ const formatMaterialForDisplay = (material) => {
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="计划日期" prop="startDate" required>
+            <el-form-item label="计划日期" prop="startDate">
               <el-date-picker
                 v-model="formData.startDate"
                 type="date"
-                placeholder="开始日期"
+                placeholder="可选，排程后自动回填"
                 style="width: 100%"
                 @change="updateEndDate"
               />
@@ -1841,14 +1879,24 @@ const formatMaterialForDisplay = (material) => {
               <el-input v-model="formData.contract_code" placeholder="关联合同编码" />
             </el-form-item>
           </el-col>
-          <el-col :span="7">
+          <el-col :span="6">
             <el-form-item label="结束日期" prop="endDate">
               <el-date-picker
                 v-model="formData.endDate"
                 type="date"
-                placeholder="结束日期"
+                placeholder="可选，排程后自动回填"
                 style="width: 100%"
                 :disabled-date="disableBeforeStartDate"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="客户交期" required>
+              <el-date-picker
+                v-model="formData.deliveryDate"
+                type="date"
+                placeholder="必填：客户要求的交货日期"
+                style="width: 100%"
               />
             </el-form-item>
           </el-col>
@@ -2045,7 +2093,7 @@ const formatMaterialForDisplay = (material) => {
 
               placeholder="请输入数量"
             />
-            <span style="margin-left: 10px; color: #909399;">
+            <span style="margin-left: 10px; color: var(--color-text-secondary);">
               / {{ (pushDownPlan.quantity || 0) - (pushDownPlan.pushed_quantity || 0) }} 只（剩余）
             </span>
           </el-form-item>

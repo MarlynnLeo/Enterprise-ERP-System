@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PurchaseRequisitions.vue
  * @description 前端界面组件文件
@@ -279,8 +279,8 @@
                   <template #default="{ item }">
                     <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
                       <span style="font-weight: 500; font-size: 13px; min-width: 100px;">{{ item.code }}</span>
-                      <span style="color: #606266; font-size: 13px; flex: 1;">{{ item.name }}</span>
-                      <span v-if="item.specs" style="color: #909399; font-size: 12px;">{{ item.specs }}</span>
+                      <span style="color: var(--color-text-regular); font-size: 13px; flex: 1;">{{ item.name }}</span>
+                      <span v-if="item.specs" style="color: var(--color-text-secondary); font-size: 12px;">{{ item.specs }}</span>
                     </div>
                   </template>
                 </el-autocomplete>
@@ -1249,7 +1249,7 @@ const handlePrintRequisition = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-size: 14px;
 }
 

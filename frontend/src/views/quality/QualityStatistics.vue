@@ -29,31 +29,31 @@
     <!-- 综合概览 - 使用统一的 stat-card 风格 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #409eff;">{{ overview.total_ncp || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-primary);">{{ overview.total_ncp || 0 }}</div>
         <div class="stat-label">不合格品总数</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #E6A23C;">{{ overview.pending_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-warning);">{{ overview.pending_count || 0 }}</div>
         <div class="stat-label">待处理</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #F56C6C;">{{ overview.return_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-danger);">{{ overview.return_count || 0 }}</div>
         <div class="stat-label">退货</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #909399;">{{ overview.replacement_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-text-secondary);">{{ overview.replacement_count || 0 }}</div>
         <div class="stat-label">换货</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #E6A23C;">{{ overview.rework_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-warning);">{{ overview.rework_count || 0 }}</div>
         <div class="stat-label">返工</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #F56C6C;">{{ overview.scrap_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-danger);">{{ overview.scrap_count || 0 }}</div>
         <div class="stat-label">报废</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: #67C23A;">{{ overview.use_as_is_count || 0 }}</div>
+        <div class="stat-value" style="color: var(--color-success);">{{ overview.use_as_is_count || 0 }}</div>
         <div class="stat-label">让步接收</div>
       </el-card>
     </div>
@@ -81,7 +81,7 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <div class="cost-item">
-                  <div class="cost-icon" style="background: rgba(64,158,255,0.1); color: #409eff;">
+                  <div class="cost-icon" style="background: rgba(64,158,255,0.1); color: var(--color-primary);">
                     <el-icon :size="28"><Tools /></el-icon>
                   </div>
                   <div class="cost-info">
@@ -93,7 +93,7 @@
               </el-col>
               <el-col :span="12">
                 <div class="cost-item">
-                  <div class="cost-icon" style="background: rgba(245,108,108,0.1); color: #F56C6C;">
+                  <div class="cost-icon" style="background: rgba(245,108,108,0.1); color: var(--color-danger);">
                     <el-icon :size="28"><Delete /></el-icon>
                   </div>
                   <div class="cost-info">
@@ -330,7 +330,7 @@ const renderDispositionChart = () => {
       orient: 'vertical',
       right: 10,
       top: 'center',
-      textStyle: { color: '#606266' }
+      textStyle: { color: 'var(--color-text-regular)' }
     },
     color: themeColors,
     series: [
@@ -348,7 +348,7 @@ const renderDispositionChart = () => {
         label: {
           show: true,
           formatter: '{b}: {d}%',
-          color: '#606266'
+          color: 'var(--color-text-regular)'
         },
         emphasis: {
           label: {
@@ -381,7 +381,7 @@ const renderTrendChart = () => {
     },
     legend: {
       data: ['总数', '退货', '换货', '返工', '报废', '让步接收'],
-      textStyle: { color: '#606266' }
+      textStyle: { color: 'var(--color-text-regular)' }
     },
     grid: {
       left: '3%',
@@ -394,12 +394,12 @@ const renderTrendChart = () => {
       type: 'category',
       boundaryGap: false,
       data: chartData.map(item => item.period),
-      axisLabel: { color: '#909399' },
+      axisLabel: { color: 'var(--color-text-secondary)' },
       axisLine: { lineStyle: { color: '#DCDFE6' } }
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: '#909399' },
+      axisLabel: { color: 'var(--color-text-secondary)' },
       splitLine: { lineStyle: { color: '#EBEEF5' } }
     },
     series: [
@@ -551,7 +551,7 @@ onBeforeUnmount(() => {
   padding: 24px 20px;
   background: var(--color-bg-light);
   border-radius: 8px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--color-border-lighter);
 }
 
 .cost-icon {

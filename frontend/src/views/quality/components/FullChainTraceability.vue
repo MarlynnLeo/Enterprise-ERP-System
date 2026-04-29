@@ -1,7 +1,7 @@
-<template>
+﻿<template>
   <div class="unified-traceability">
     <el-card class="page-header">
-      <h2>🔄 批次追溯查询</h2>
+      <h2><el-icon style="vertical-align: middle; margin-right: 6px;"><Refresh /></el-icon>批次追溯查询</h2>
       <p>统一追溯查询：支持原材料批次追溯和成品销售追溯,自动识别物料类型并展示完整追溯链路</p>
     </el-card>
 
@@ -44,7 +44,7 @@
         <!-- 快速测试 -->
         <div class="test-cases" style="margin-top: 10px;">
           <div style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span style="color: #606266; font-size: 12px;">快速测试: </span>
+            <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
             <el-button
               size="small"
               type="success"
@@ -86,7 +86,7 @@
 
             <!-- 成品快速测试案例 -->
             <div class="test-cases" style="margin-top: 10px;">
-              <span style="color: #606266; font-size: 12px;">快速测试: </span>
+              <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
               <el-button
                 v-for="testCase in productTestCases"
                 :key="testCase.id"
@@ -137,7 +137,7 @@
         </el-tab-pane>
 
         <!-- 原材料到客户追溯 -->
-        <el-tab-pane label="📦 原料到客户追溯" name="material-to-customer">
+        <el-tab-pane label="原料到客户追溯" name="material-to-customer">
           <div class="search-section">
             <el-form :model="materialToCustomerForm" inline>
               <el-form-item label="原材料编码">
@@ -168,7 +168,7 @@
 
             <!-- 原材料到客户快速测试案例 -->
             <div class="test-cases" style="margin-top: 10px;">
-              <span style="color: #606266; font-size: 12px;">快速测试: </span>
+              <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
               <el-button
                 v-for="testCase in materialToCustomerTestCases"
                 :key="testCase.id"
@@ -272,24 +272,24 @@
                     </el-tag>
                   </div>
                 </div>
-                <div v-if="step.reference_no" style="margin-top: 8px; color: #606266; font-size: 13px;">
+                <div v-if="step.reference_no" style="margin-top: 8px; color: var(--color-text-regular); font-size: 13px;">
                   单据号: {{ step.reference_no }}
                 </div>
-                <div v-if="step.quantity" style="margin-top: 4px; color: #606266; font-size: 13px;">
+                <div v-if="step.quantity" style="margin-top: 4px; color: var(--color-text-regular); font-size: 13px;">
                   数量: {{ step.quantity }} {{ step.unit || '' }}
                 </div>
-                <div v-if="step.operator" style="margin-top: 4px; color: #606266; font-size: 13px;">
+                <div v-if="step.operator" style="margin-top: 4px; color: var(--color-text-regular); font-size: 13px;">
                   操作人: {{ step.operator }}
                 </div>
-                <div v-if="step.location" style="margin-top: 4px; color: #606266; font-size: 13px;">
+                <div v-if="step.location" style="margin-top: 4px; color: var(--color-text-regular); font-size: 13px;">
                   位置: {{ step.location }}
                 </div>
-                <div v-if="step.remarks" style="margin-top: 4px; color: #909399; font-size: 12px;">
+                <div v-if="step.remarks" style="margin-top: 4px; color: var(--color-text-secondary); font-size: 12px;">
                   备注: {{ step.remarks }}
                 </div>
                 <!-- 对于老库存导入且pending状态的步骤，显示提示 -->
                 <div v-if="traceabilityData.material.is_legacy_import && step.status === 'pending' && isEarlyStep(step.step_type)"
-                     style="margin-top: 8px; padding: 8px; background: #fdf6ec; border-radius: 4px; color: #e6a23c; font-size: 12px;">
+                     style="margin-top: 8px; padding: 8px; background: var(--color-warning-light); border-radius: 4px; color: var(--color-warning); font-size: 12px;">
                   <i class="el-icon-warning"></i> 此步骤无记录（老库存导入数据）
                 </div>
               </el-card>
@@ -302,7 +302,7 @@
       <div v-if="activeTab === 'product' && traceabilityData.product">
         <el-card style="margin-top: 20px;">
           <template #header>
-            <h3>🔍 成品完整追溯链路</h3>
+            <h3><el-icon style="vertical-align: middle; margin-right: 4px;"><Search /></el-icon>成品完整追溯链路</h3>
           </template>
 
           <!-- 成品批次信息 -->
@@ -321,7 +321,7 @@
 
           <!-- BOM零部件列表 -->
           <div v-if="traceabilityData.product.bom_components && traceabilityData.product.bom_components.length > 0">
-            <h4>📋 BOM零部件清单 (共{{ traceabilityData.product.bom_components.length }}项)</h4>
+            <h4><el-icon style="vertical-align: middle; margin-right: 4px;"><List /></el-icon>BOM零部件清单 (共{{ traceabilityData.product.bom_components.length }}项)</h4>
             <el-table :data="traceabilityData.product.bom_components" stripe style="margin-bottom: 20px;" max-height="400">
               <el-table-column type="index" label="序号" width="60" />
               <el-table-column prop="material_code" label="零部件编码" width="150" />
@@ -333,7 +333,7 @@
           </div>
 
           <!-- 使用的原材料 -->
-          <h4>📦 使用的原材料批次</h4>
+          <h4><el-icon style="vertical-align: middle; margin-right: 4px;"><Box /></el-icon>使用的原材料批次</h4>
           <el-table :data="traceabilityData.product.raw_materials" stripe style="margin-bottom: 20px;">
             <el-table-column prop="raw_material_code" label="原材料编码" />
             <el-table-column prop="raw_material_name" label="原材料名称" />
@@ -423,7 +423,7 @@
       <div v-if="activeTab === 'material-to-customer' && traceabilityData.materialToCustomer">
         <el-card style="margin-top: 20px;">
           <template #header>
-            <h3>📦 原材料到客户的完整链路</h3>
+            <h3><el-icon style="vertical-align: middle; margin-right: 4px;"><Connection /></el-icon>原材料到客户的完整链路</h3>
           </template>
 
           <!-- 追溯汇总 -->
@@ -465,7 +465,7 @@
                 <el-table-column prop="quantity" label="销售数量" align="right" />
                 <el-table-column prop="delivery_date" label="交付日期" />
               </el-table>
-              <div v-else style="text-align: center; color: #909399; padding: 20px;">
+              <div v-else style="text-align: center; color: var(--color-text-secondary); padding: 20px;">
                 该成品批次暂未销售
               </div>
             </el-card>

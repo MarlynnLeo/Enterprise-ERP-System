@@ -14,6 +14,9 @@ const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { parsePagination } = require('../../../utils/paginationHelper');
+const { CodeGenerators } = require('../../../utils/codeGenerator');
+const { generateBatchNo, syncPlanStatus } = require('../../../services/business/TaskLifecycleService');
+const QualityInspection = require('../../../models/qualityInspection');
 
 // 状态常量
 const STATUS = {
@@ -321,14 +324,14 @@ exports.updateProcess = async (req, res) => {
 
             // 如果不存在检验单，则创建
             if (existingInspection.length === 0) {
-              const QualityInspection = require('../../../models/qualityInspection');
+
 
               await QualityInspection.createInspection({
                 inspection_type: 'final',
                 reference_id: taskId,
                 reference_no: task.code,
                 product_id: task.product_id,
-                batch_no: `BATCH${Date.now()}`,
+                batch_no: await generateBatchNo(task.code, connection),
                 quantity: task.quantity || 0,
                 unit: '个',
                 planned_date: new Date(),
@@ -368,7 +371,7 @@ exports.updateProcess = async (req, res) => {
           const estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
 
           if (estimatedHours > 0) {
-            const reportNo = `RPT${Date.now()}`;
+            const reportNo = await CodeGenerators.generateReportCode(connection);
             const [taskInfoForHook] = await connection.query('SELECT manager, quantity FROM production_tasks WHERE id = ?', [taskId]);
             const operatorName = taskInfoForHook[0]?.manager || await getCurrentUserName(req);
             const finalQuantity = taskInfoForHook[0]?.quantity || 0;
@@ -408,58 +411,7 @@ exports.updateProcess = async (req, res) => {
 
 
         // 复用外部早已查询到的 planId
-        if (planId) {
-
-          // 检查该计划下的所有任务状态
-          const [taskStats] = await connection.query(
-            `
-            SELECT
-              COUNT(*) as total,
-              SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.INSPECTION}' THEN 1 ELSE 0 END) as inspection_count,
-              SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled_count
-            FROM production_tasks
-            WHERE plan_id = ?
-          `,
-            [planId]
-          );
-
-          const { total: totalTasks, inspection_count, cancelled_count } = taskStats[0];
-          const activeTasksInspection = inspection_count === totalTasks - cancelled_count;
-
-          // 只有当所有有效任务（非取消）都进入待检验状态时，才将计划状态更新为待检验
-          if (activeTasksInspection && totalTasks > 0) {
-            // 查询当前计划状态
-            const [planStatus] = await connection.query(
-              'SELECT status FROM production_plans WHERE id = ?',
-              [planId]
-            );
-
-            if (planStatus.length > 0) {
-              const currentStatus = planStatus[0].status;
-
-              // 只有当计划状态在生产阶段时才更新为待检验
-              if (
-                ['draft', 'preparing', 'material_issued', 'in_progress'].includes(
-                  currentStatus
-                )
-              ) {
-                await connection.query(
-                  'UPDATE production_plans SET status = "inspection" WHERE id = ?',
-                  [planId]
-                );
-                logger.info(
-                  `生产计划 ${planId} 所有任务已完成，状态已更新为待检验: ${currentStatus} → inspection (${inspection_count}/${totalTasks})`
-                );
-              } else {
-                logger.info(`生产计划 ${planId} 当前状态为 ${currentStatus}，跳过更新为待检验`);
-              }
-            }
-          } else {
-            logger.info(
-              `生产计划 ${planId} 还有未进入待检验的任务 (${inspection_count}/${totalTasks - cancelled_count})`
-            );
-          }
-        }
+          await syncPlanStatus(planId, connection);
       } else {
         logger.info(`任务 ${taskId} 还有未完成的工序 (${completed}/${total - cancelled})`);
       }

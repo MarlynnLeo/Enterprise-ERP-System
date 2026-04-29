@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="page-container">
     <NavBar title="会话管理" left-arrow @click-left="$router.go(-1)" />
     <div class="page-body">
@@ -6,7 +6,7 @@
       <template v-else>
         <div class="stat-row">
           <div class="stat-item">
-            <div class="stat-val" style="color:#67C23A">{{ activeCount }}</div>
+            <div class="stat-val" style="color:var(--color-success)">{{ activeCount }}</div>
             <div class="stat-lbl">在线用户</div>
           </div>
           <div class="stat-item">

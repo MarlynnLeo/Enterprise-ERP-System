@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="batch-traceability">
     <el-card class="search-card">
       <template #header>
@@ -52,7 +52,7 @@
 
         <!-- 快速测试按钮 -->
         <div class="test-cases" style="margin-top: 10px;">
-          <span style="color: #606266; font-size: 12px;">快速测试: </span>
+          <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
           <el-button
             v-for="testCase in testCases"
             :key="testCase.code"
@@ -555,7 +555,7 @@ export default {
 }
 
 .flow-node {
-  background: #fff;
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);
   padding: 15px;

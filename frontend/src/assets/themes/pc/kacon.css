@@ -55,6 +55,17 @@
   --color-bg-hover: #f5f5f5;
   --color-bg-light: #fafafa;
 
+  /* 辅助语义色 */
+  --color-bg-section: #fafafa;
+  --color-text-muted: #8c8c8c;
+  --color-primary-active: #008678;
+  --color-success-gradient-end: #2aa148;
+  --color-warning-gradient-end: #c0801a;
+  --color-danger-gradient-end: #b73e35;
+  --color-danger-hover: #ff7875;
+  --color-info-gradient-end: #707070;
+  --color-on-primary: #ffffff;
+
   /* ========== 间距系统 ========== */
   --spacing-xs: 4px;
   --spacing-sm: 8px;

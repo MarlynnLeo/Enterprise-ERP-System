@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="asset-reports-container" v-loading="loading" element-loading-text="正在加载资产报表数据...">
     <el-card class="header-card mb-4" shadow="never">
       <div class="header-section">
@@ -287,7 +287,7 @@ const renderTrendChart = (data = []) => {
         yAxisIndex: 1,
         symbol: 'circle',
         symbolSize: 8,
-        itemStyle: { color: '#F56C6C' },
+        itemStyle: { color: 'var(--color-danger)' },
         lineStyle: { width: 3 },
         data: counts
       }
@@ -315,7 +315,7 @@ const renderForecastChart = (data = []) => {
         type: 'line',
         smooth: true,
         symbolSize: 10,
-        itemStyle: { color: '#67C23A' },
+        itemStyle: { color: 'var(--color-success)' },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: 'rgba(103, 194, 58, 0.5)' },

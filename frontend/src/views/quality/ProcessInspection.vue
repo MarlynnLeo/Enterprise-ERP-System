@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProcessInspection.vue
  * @description 前端界面组件文件
@@ -134,7 +134,7 @@
               >
                 {{ getStatusText(scope.row.status) }}
               </el-tag>
-              <div v-if="scope.row.punch_count && scope.row.punch_count > 0" style="margin-top: 4px; font-size: 12px; color: #606266;">
+              <div v-if="scope.row.punch_count && scope.row.punch_count > 0" style="margin-top: 4px; font-size: 12px; color: var(--color-text-regular);">
                 巡检{{ scope.row.punch_count }}次
               </div>
             </template>

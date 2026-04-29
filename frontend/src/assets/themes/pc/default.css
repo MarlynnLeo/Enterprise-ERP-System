@@ -70,6 +70,26 @@
   /* 悬停背景 */
   --color-bg-light: #FAFAFA;
   /* 浅色背景 */
+  --color-bg-section: #f8fafc;
+  /* 区块/卡片背景 */
+
+  /* 辅助语义色 — 用于替代组件内硬编码 */
+  --color-text-muted: #8492a6;
+  /* 辅助说明文字 */
+  --color-primary-active: #337ecc;
+  /* 按钮/链接点击态（同 primary-dark-2） */
+  --color-success-gradient-end: #95d475;
+  /* 成功色渐变终点 */
+  --color-warning-gradient-end: #f3d19e;
+  /* 警告色渐变终点 */
+  --color-danger-gradient-end: #fab6b6;
+  /* 危险色渐变终点 */
+  --color-danger-hover: #f78989;
+  /* 危险色悬浮态 */
+  --color-info-gradient-end: #c8c9cc;
+  /* 信息色渐变终点 */
+  --color-on-primary: #ffffff;
+  /* 主色上的文字（白色） */
 
   /* ========== 间距系统 ========== */
   --spacing-xs: 4px;

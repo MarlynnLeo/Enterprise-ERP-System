@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Depreciation.vue
  * @description 前端界面组件文件
@@ -848,7 +848,7 @@ onMounted(() => {
 
 .asset-details {
   padding: 5px 20px;
-  background-color: #f8f8f8;
+  background-color: var(--color-bg-section);
 }
 
 .confirm-content {
@@ -858,7 +858,7 @@ onMounted(() => {
 .warning-message {
   margin-top: 15px;
   padding: 10px;
-  background-color: #fef0f0;
+  background-color: var(--color-danger-light);
   color: var(--color-danger);
   border-radius: var(--radius-sm);
   font-weight: bold;

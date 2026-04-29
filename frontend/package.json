@@ -24,10 +24,10 @@
     "handlebars": "^4.7.8",
     "html2pdf.js": "^0.14.0",
     "lodash-es": "^4.17.21",
-    "pinia": "^2.1.7",
+    "pinia": "^3.0.4",
     "vue": "^3.3.8",
     "vue-i18n": "^11.1.11",
-    "vue-router": "^4.2.5",
+    "vue-router": "^5.0.6",
     "vue3-lottie": "^3.3.1"
   },
   "devDependencies": {

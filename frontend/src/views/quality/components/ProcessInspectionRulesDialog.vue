@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProcessInspectionRulesDialog.vue
  * @description 过程检验规则配置弹窗
@@ -69,15 +69,15 @@
         </el-form-item>
         <el-form-item label="检验间隔" prop="inspection_interval">
           <el-input-number v-model="ruleForm.inspection_interval" :min="5" :max="480" />
-          <span style="margin-left: 10px; color: #909399;">分钟</span>
+          <span style="margin-left: 10px; color: var(--color-text-secondary);">分钟</span>
         </el-form-item>
         <el-form-item label="抽检比例" prop="sample_rate">
           <el-input-number v-model="ruleForm.sample_rate" :min="1" :max="100" />
-          <span style="margin-left: 10px; color: #909399;">%</span>
+          <span style="margin-left: 10px; color: var(--color-text-secondary);">%</span>
         </el-form-item>
         <el-form-item label="打卡间隔" prop="punch_interval">
           <el-input-number v-model="ruleForm.punch_interval" :min="1" :max="60" />
-          <span style="margin-left: 10px; color: #909399;">分钟 (防止重复打卡)</span>
+          <span style="margin-left: 10px; color: var(--color-text-secondary);">分钟 (防止重复打卡)</span>
         </el-form-item>
         <el-form-item label="检验模板">
           <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable style="width: 100%">

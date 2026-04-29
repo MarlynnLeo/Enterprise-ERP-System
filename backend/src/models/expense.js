@@ -716,7 +716,8 @@ const expenseModel = {
       }
 
       // 3. 生成交易流水号
-      const txNumber = `EXP${Date.now()}`;
+      const txDateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const txNumber = `TX-${txDateStr}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
 
       // 4. 创建银行交易记录
       await connection.execute(

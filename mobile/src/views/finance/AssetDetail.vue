@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * AssetDetail.vue - 固定资产详情
  * @description 展示固定资产的完整信息
@@ -177,7 +177,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(168, 85, 247, 0.1);
-    color: #a855f7;
+    color: var(--module-purple);
     flex-shrink: 0;
   }
   .hero-info {

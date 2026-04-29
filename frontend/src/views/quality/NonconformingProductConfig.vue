@@ -3,7 +3,7 @@
     <el-card class="config-card">
       <template #header>
         <div class="card-header">
-          <span>🤖 不合格品自动处理配置</span>
+          <span><el-icon style="vertical-align: middle; margin-right: 4px;"><Setting /></el-icon> 不合格品自动处理配置</span>
           <el-tag :type="config.enable ? 'success' : 'info'">
             {{ config.enable ? '已启用' : '已禁用' }}
           </el-tag>
@@ -96,7 +96,7 @@
 
     <el-card class="info-card" style="margin-top: 20px;">
       <template #header>
-        <span>📖 使用说明</span>
+        <span><el-icon style="vertical-align: middle; margin-right: 4px;"><Document /></el-icon> 使用说明</span>
       </template>
       <el-alert type="info" :closable="false">
         <template #default>
@@ -110,9 +110,9 @@
           </ol>
           <h4>注意事项:</h4>
           <ul>
-            <li>⚠️ 自动完成功能会跳过人工审核,请谨慎使用</li>
-            <li>💡 建议先启用自动处理决策,观察一段时间后再考虑启用自动完成</li>
-            <li>🔧 可以根据企业实际情况调整规则(需要修改后端代码)</li>
+            <li><el-icon style="color: var(--color-warning); vertical-align: middle;"><Warning /></el-icon> 自动完成功能会跳过人工审核,请谨慎使用</li>
+            <li><el-icon style="color: var(--color-primary); vertical-align: middle;"><InfoFilled /></el-icon> 建议先启用自动处理决策,观察一段时间后再考虑启用自动完成</li>
+            <li><el-icon style="color: var(--color-text-secondary); vertical-align: middle;"><Setting /></el-icon> 可以根据企业实际情况调整规则(需要修改后端代码)</li>
           </ul>
         </template>
       </el-alert>

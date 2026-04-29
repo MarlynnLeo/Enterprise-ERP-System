@@ -400,7 +400,7 @@ onMounted(() => {
 .report-title h4 {
   font-size: 14px;
   font-weight: normal;
-  color: #666;
+  color: var(--color-text-regular);
 }
 
 .report-body {

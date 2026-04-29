@@ -15,11 +15,11 @@
     "dayjs": "^1.11.10",
     "html5-qrcode": "^2.3.8",
     "material-symbols": "^0.44.4",
-    "pinia": "^2.1.7",
+    "pinia": "^3.0.4",
     "socket.io-client": "^4.8.3",
     "vant": "^4.8.1",
     "vue": "^3.3.8",
-    "vue-router": "^4.2.5"
+    "vue-router": "^5.0.6"
   },
   "devDependencies": {
     "@vitejs/plugin-basic-ssl": "^2.1.4",

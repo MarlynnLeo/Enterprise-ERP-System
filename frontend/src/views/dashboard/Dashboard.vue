@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Dashboard.vue
  * @description 前端界面组件文件
@@ -108,8 +108,8 @@
                 </div>
                 <div class="weather-desc-compact">{{ weather.description }}</div>
                 <div class="weather-details-compact">
-                  <span>💨 {{ weather.windSpeed }}km/h</span>
-                  <span>💧 {{ weather.humidity }}%</span>
+                  <span><el-icon style="font-size: 12px;"><WindPower /></el-icon> {{ weather.windSpeed }}km/h</span>
+                  <span><el-icon style="font-size: 12px;"><Cold /></el-icon> {{ weather.humidity }}%</span>
                 </div>
               </div>
             </div>
@@ -206,7 +206,7 @@
                     <div class="flipper">
                       <div class="front">
                         <template v-if="onlineTimeRanking[config.dataIndex]">
-                          <div class="crown-icon" :class="{ champion: config.isChampion }">👑</div>
+                          <div class="crown-icon" :class="{ champion: config.isChampion }"><el-icon><Trophy /></el-icon></div>
                           <!-- 头像+特效容器：固定尺寸的相对定位盒子 -->
                           <div :style="{
                             position: 'relative',
@@ -248,7 +248,7 @@
                           <div class="time-value">{{ onlineTimeRanking[config.dataIndex].displayTime }}</div>
                         </template>
                         <template v-else>
-                          <div class="crown-icon" :class="{ champion: config.isChampion }" style="opacity: 0.2;">👑</div>
+                          <div class="crown-icon" :class="{ champion: config.isChampion }" style="opacity: 0.2;"><el-icon><Trophy /></el-icon></div>
                           <!-- 暂无数据占位头像：同样用纯内联样式居中 -->
                           <div :style="{
                             position: 'relative',
@@ -269,13 +269,13 @@
                                 justifyContent: 'center',
                                 flexShrink: '0'
                               }">
-                                <el-icon :style="`font-size: ${config.isChampion ? 30 : 24}px; color: #dcdfe6;`"><UserFilled /></el-icon>
+                                <el-icon :style="`font-size: ${config.isChampion ? 30 : 24}px; color: var(--color-border-base);`"><UserFilled /></el-icon>
                               </div>
                             </div>
                           </div>
                           <div class="rank-badge" style="opacity: 0.5;">{{ config.badgeText }}</div>
-                          <div class="user-name" style="opacity: 0.4; color: #909399;">暂无数据</div>
-                          <div class="time-value" style="opacity: 0.4; color: #909399;">--</div>
+                          <div class="user-name" style="opacity: 0.4; color: var(--color-text-secondary);">暂无数据</div>
+                          <div class="time-value" style="opacity: 0.4; color: var(--color-text-secondary);">--</div>
                         </template>
                       </div>
                       <div class="back">
@@ -321,7 +321,7 @@
                     size="small"
                     @click="refreshAllPrices"
                     :loading="exchangeRateLoading || metalPricesLoading"
-                    style="margin-left: auto; color: #409eff;"
+                    style="margin-left: auto; color: var(--color-primary);"
                   >
                     <i class="el-icon-refresh"></i>
                   </el-button>
@@ -1097,7 +1097,7 @@ watch(() => currentDate.value, (newValue) => {
 
 .icon-container .el-icon {
   font-size: 20px;
-  color: white;
+  color: var(--color-on-primary, #fff);
   position: relative;
   z-index: 1;
   transition: all 0.3s ease;
@@ -1110,12 +1110,12 @@ watch(() => currentDate.value, (newValue) => {
 .number {
   font-size: 24px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 5px;
 }
 
 .text {
-  color: #666;
+  color: var(--color-text-regular);
   font-size: 14px;
 }
 
@@ -1204,7 +1204,7 @@ watch(() => currentDate.value, (newValue) => {
   align-items: center;
   justify-content: space-between;
   gap: 15px;
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 /* 左侧个人信息 */
@@ -1443,7 +1443,7 @@ watch(() => currentDate.value, (newValue) => {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 5px;
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 .role-item {
@@ -1454,13 +1454,13 @@ watch(() => currentDate.value, (newValue) => {
   display: flex;
   align-items: center;
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-regular);
 }
 
 .icon-text .el-icon {
   margin-right: 5px;
   font-size: 14px;
-  color: #999;
+  color: var(--color-text-secondary);
 }
 
 /* 公共容器基础样式 - 统一卡片风格 */
@@ -1495,7 +1495,7 @@ watch(() => currentDate.value, (newValue) => {
 
 .list-header {
   padding: 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border-lighter);
   flex-shrink: 0;
   box-sizing: border-box; /* ✨ 统一box-sizing */
 }
@@ -1512,19 +1512,19 @@ watch(() => currentDate.value, (newValue) => {
   align-items: center;
   position: relative;
   cursor: pointer;
-  color: #666;
+  color: var(--color-text-regular);
   font-size: 14px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
 }
 
 .tab:hover {
-  color: #4B9EFF;
+  color: var(--color-primary);
   background-color: rgba(75, 158, 255, 0.05);
 }
 
 .tab.active {
-  color: #4B9EFF;
+  color: var(--color-primary);
   font-weight: bold;
 }
 
@@ -1535,7 +1535,7 @@ watch(() => currentDate.value, (newValue) => {
   left: 0;
   width: 100%;
   height: 3px;
-  background: linear-gradient(90deg, #4B9EFF 0%, #667eea 100%);
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-dark-2) 100%);
   animation: slideIn 0.3s ease-out;
   box-shadow: 0 2px 4px rgba(75, 158, 255, 0.3);
 }
@@ -1744,7 +1744,7 @@ watch(() => currentDate.value, (newValue) => {
 
 .chart-header {
   padding: 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border-lighter);
   flex-shrink: 0;
 }
 
@@ -1771,7 +1771,7 @@ watch(() => currentDate.value, (newValue) => {
 .month-selector {
   display: flex;
   align-items: center;
-  color: #333;
+  color: var(--color-text-primary);
   font-weight: bold;
   font-size: 14px;
 }
@@ -1784,13 +1784,13 @@ watch(() => currentDate.value, (newValue) => {
 }
 
 .more-btn {
-  color: #4B9EFF;
+  color: var(--color-primary);
   font-size: 12px;
 }
 
 .calendar-alert {
   background-color: var(--color-bg-hover);
-  color: #333;
+  color: var(--color-text-primary);
   padding: 8px;
   border-radius: var(--radius-sm);
   text-align: center;
@@ -1847,14 +1847,14 @@ watch(() => currentDate.value, (newValue) => {
 }
 
 .day-number:hover {
-  background-color: #e8f4ff;
+  background-color: var(--color-primary-light-9);
   transform: scale(1.1);
   box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
 }
 
 .day-number.current {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
   font-weight: bold;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
   animation: currentDayPulse 2s ease-in-out infinite;
@@ -1871,7 +1871,7 @@ watch(() => currentDate.value, (newValue) => {
 
 .day-number.has-events {
   background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
   box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
 }
 
@@ -1881,7 +1881,7 @@ watch(() => currentDate.value, (newValue) => {
   bottom: 2px;
   width: 4px;
   height: 4px;
-  background-color: white;
+  background-color: var(--color-on-primary, #fff);
   border-radius: 50%;
 }
 
@@ -2223,7 +2223,7 @@ watch(() => currentDate.value, (newValue) => {
   color: var(--color-text-secondary);
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-border-lighter);
 }
 
 /* 我发起表格特定样式 */
@@ -2261,7 +2261,7 @@ watch(() => currentDate.value, (newValue) => {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: var(--radius-lg);
   padding: 12px;
-  color: white;
+  color: var(--color-on-primary, #fff);
   position: relative;
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -2351,7 +2351,7 @@ watch(() => currentDate.value, (newValue) => {
 }
 
 .exchange-rate-chart {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: var(--radius-lg);
   padding: 12px;
   margin-bottom: 12px;
@@ -2369,19 +2369,19 @@ watch(() => currentDate.value, (newValue) => {
 }
 
 .rate-change.positive {
-  color: #ffffff;
+  color: var(--color-on-primary, #fff);
   background: rgba(76, 175, 80, 0.3);
   border-color: rgba(76, 175, 80, 0.5);
 }
 
 .rate-change.negative {
-  color: #ffffff;
+  color: var(--color-on-primary, #fff);
   background: rgba(244, 67, 54, 0.3);
   border-color: rgba(244, 67, 54, 0.5);
 }
 
 .rate-change.neutral {
-  color: #ffffff;
+  color: var(--color-on-primary, #fff);
   background: rgba(158, 158, 158, 0.3);
   border-color: rgba(158, 158, 158, 0.5);
 }
@@ -2392,7 +2392,7 @@ watch(() => currentDate.value, (newValue) => {
   color: var(--color-text-secondary);
   margin-top: 10px;
   padding: 8px;
-  background: #f8f9fa;
+  background: var(--color-bg-section);
   border-radius: var(--radius-md);
   border-left: 3px solid var(--color-primary);
 }
@@ -2404,7 +2404,7 @@ watch(() => currentDate.value, (newValue) => {
   left: 50%;
   transform: translateX(-50%);
   background: rgba(64, 158, 255, 0.9);
-  color: white;
+  color: var(--color-on-primary, #fff);
   padding: 8px 16px;
   border-radius: 20px;
   font-size: 12px;
@@ -2756,7 +2756,7 @@ watch(() => currentDate.value, (newValue) => {
 }
 
 .rank-1 .bio-text {
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-weight: 600;
   text-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
@@ -2774,7 +2774,7 @@ watch(() => currentDate.value, (newValue) => {
 }
 
 .rank-2 .bio-text {
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-weight: 500;
   text-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
@@ -2791,7 +2791,7 @@ watch(() => currentDate.value, (newValue) => {
 }
 
 .rank-3 .bio-text {
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-weight: 500;
   text-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
@@ -2804,7 +2804,7 @@ watch(() => currentDate.value, (newValue) => {
 .user-name {
   font-size: 12px;
   font-weight: 500;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 4px;
   text-align: center;
   max-width: 100%;
@@ -2816,7 +2816,7 @@ watch(() => currentDate.value, (newValue) => {
 /* 时间值 */
 .time-value {
   font-size: 11px;
-  color: #666;
+  color: var(--color-text-regular);
   text-align: center;
 }
 
@@ -2864,7 +2864,7 @@ watch(() => currentDate.value, (newValue) => {
   cursor: default;
   background: transparent !important;
   box-shadow: none !important;
-  border: 1px dashed #dcdfe6 !important;
+  border: 1px dashed var(--color-border-base) !important;
 }
 
 .podium-item.no-data:hover {

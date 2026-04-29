@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Invoices.vue
  * @description 前端界面组件文件
@@ -261,7 +261,7 @@
         </div>
         
         <!-- 税率和总计 -->
-        <div class="invoice-total" style="margin-top: 16px; padding: 12px; background: #f5f7fa; border-radius: 4px;">
+        <div class="invoice-total" style="margin-top: 16px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="税率" label-width="60px">
@@ -285,7 +285,7 @@
                   <span>税额：</span>
                   <span>{{ formatCurrency(calculateTax()) }}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; color: #409eff; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; color: var(--color-primary); margin-top: 4px;">
                   <span>总计：</span>
                   <span>{{ formatCurrency(calculateTotal()) }}</span>
                 </div>
@@ -364,7 +364,7 @@
               :value="account.id"
             ></el-option>
           </el-select>
-          <div class="form-tip">💡 选择后将自动创建银行交易记录并更新账户余额</div>
+          <div class="form-tip"><el-icon style="vertical-align: middle; color: var(--color-primary);"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
         </el-form-item>
         <el-form-item label="备注" prop="notes">
           <el-input
@@ -1387,7 +1387,7 @@ const handlePrint = async () => {
 
 .notes-content {
   white-space: pre-wrap;
-  background: #f8f8f8;
+  background: var(--color-bg-section);
   padding: 10px;
   border-radius: var(--radius-sm);
   color: var(--color-text-regular);
@@ -1397,7 +1397,7 @@ const handlePrint = async () => {
   text-align: center;
   color: var(--color-text-secondary);
   padding: 20px;
-  background: #f8f8f8;
+  background: var(--color-bg-section);
   border-radius: var(--radius-sm);
 }
 

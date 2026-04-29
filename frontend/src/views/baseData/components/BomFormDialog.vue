@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-dialog
     :title="title"
     :model-value="modelValue"
@@ -30,8 +30,8 @@
                 :value="item.id">
                 <div style="display: flex; justify-content: space-between; align-items: center">
                   <span style="font-weight: bold">{{ item.code }}</span>
-                  <span style="color: #8492a6; margin-left: 10px">{{ item.name }}</span>
-                  <span style="color: #909399; font-size: 12px" v-if="item.specs">{{ item.specs }}</span>
+                  <span style="color: var(--color-text-muted); margin-left: 10px">{{ item.name }}</span>
+                  <span style="color: var(--color-text-secondary); font-size: 12px" v-if="item.specs">{{ item.specs }}</span>
                 </div>
               </el-option>
             </el-select>
@@ -44,7 +44,7 @@
                 v-model="form.version"
                 disabled
               />
-              <div style="font-size: 12px; color: #E6A23C; margin-top: 4px;">
+              <div style="font-size: 12px; color: var(--color-warning); margin-top: 4px;">
                 <el-icon style="vertical-align: middle;"><InfoFilled /></el-icon>
                 保存时版本号将自动升级（旧版本会被保留）
               </div>
@@ -138,7 +138,7 @@
                     :value="item.code">
                     <div style="display: flex; justify-content: space-between; align-items: center">
                       <span style="font-weight: bold">{{ item.code }}</span>
-                      <span style="color: #8492a6; margin-left: 10px">{{ item.name }}</span>
+                      <span style="color: var(--color-text-muted); margin-left: 10px">{{ item.name }}</span>
                     </div>
                   </el-option>
                 </el-select>

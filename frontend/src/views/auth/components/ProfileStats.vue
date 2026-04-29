@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="glass-card user-info-card" shadow="hover">
     <div class="user-header">
       <div class="avatar-wrapper">
@@ -204,7 +204,7 @@ const handleError = () => {
 
 .stat-icon {
   font-size: 20px;
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-icon-1 {
@@ -245,7 +245,7 @@ const handleError = () => {
   background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-light-3) 100%);
   border-radius: 12px;
   box-shadow: 0 8px 16px rgba(64, 158, 255, 0.2);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .time-item {

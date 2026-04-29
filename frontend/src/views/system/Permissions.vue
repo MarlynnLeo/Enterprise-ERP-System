@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Permissions.vue
  * @description 前端界面组件文件
@@ -2416,7 +2416,7 @@ onMounted(async () => {
 }
 
 .permission-code {
-  color: #999;
+  color: var(--color-text-secondary);
   font-size: 12px;
   margin-left: 8px;
 }
@@ -2485,7 +2485,7 @@ onMounted(async () => {
 }
 
 .example-result {
-  background-color: #f0f9eb;
+  background-color: var(--color-success-light);
   padding: 8px;
   border-radius: var(--radius-sm);
   margin-top: 10px;
@@ -2611,7 +2611,7 @@ onMounted(async () => {
 }
 
 .module-quick-item:hover {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
 }
 
 .module-quick-name {
@@ -2620,7 +2620,7 @@ onMounted(async () => {
 }
 
 .perm-tree-container {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--color-border-lighter);
   border-radius: 6px;
   padding: 8px;
   background-color: #fafafa;
@@ -2647,7 +2647,7 @@ onMounted(async () => {
 
 .perm-node--type-2 .perm-node__name {
   font-weight: 400;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 
 .perm-node__tag {
@@ -2655,7 +2655,7 @@ onMounted(async () => {
 }
 
 .perm-node__code {
-  color: #909399;
+  color: var(--color-text-secondary);
   font-size: 11px;
   font-family: 'SFMono-Regular', Consolas, monospace;
   flex-shrink: 0;
@@ -2676,7 +2676,7 @@ onMounted(async () => {
 
 .perm-footer-stats {
   font-size: 13px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 /* 自定义树节点样式 */
@@ -2737,7 +2737,7 @@ onMounted(async () => {
   justify-content: center;
   align-items: center;
   padding: 40px 0;
-  background-color: #f8f8f8;
+  background-color: var(--color-bg-section);
   border-radius: var(--radius-sm);
 }
 

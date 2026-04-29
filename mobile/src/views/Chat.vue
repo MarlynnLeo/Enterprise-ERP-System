@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Chat.vue
  * @description 即时通讯页面 - 会话列表与聊天窗口
@@ -407,7 +407,7 @@ const formatMsgTime = (ts) => {
   gap: 4px;
   padding: 4px;
   background: var(--color-warning);
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-size: 0.75rem;
 }
 
@@ -543,7 +543,7 @@ const formatMsgTime = (ts) => {
     flex-direction: row-reverse;
     .msg-bubble {
       background: var(--color-primary, #5E7BF6);
-      color: #fff;
+      color: var(--color-on-primary, #fff);
       border-radius: 16px 4px 16px 16px;
     }
     .msg-time {

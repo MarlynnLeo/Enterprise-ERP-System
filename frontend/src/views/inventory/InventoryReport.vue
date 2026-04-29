@@ -1533,7 +1533,7 @@ onMounted(() => {
 
 .period-info {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-regular);
   font-weight: normal;
   margin-left: 10px;
 }
@@ -1614,7 +1614,7 @@ onMounted(() => {
 
 .suggestion-text {
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-regular);
 }
 
 /* 响应式设计 */

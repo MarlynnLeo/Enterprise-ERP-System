@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * IncomingInspection.vue
  * @description 来料检验管理主页面
@@ -131,19 +131,19 @@
         </el-table-column>
         <el-table-column prop="qualified_quantity" label="合格数" min-width="90" show-overflow-tooltip align="center">
           <template #default="scope">
-            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" style="color: #67C23A; font-weight: bold;">
+            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">
               {{ Math.floor(scope.row.qualified_quantity) }}
             </span>
-            <span v-else style="color: #909399;">-</span>
+            <span v-else style="color: var(--color-text-secondary);">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="unqualified_quantity" label="不合格" min-width="70" show-overflow-tooltip align="center">
           <template #default="scope">
-            <span v-if="scope.row.unqualified_quantity !== null && scope.row.unqualified_quantity !== undefined && scope.row.unqualified_quantity > 0" style="color: #F56C6C; font-weight: bold;">
+            <span v-if="scope.row.unqualified_quantity !== null && scope.row.unqualified_quantity !== undefined && scope.row.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">
               {{ Math.floor(scope.row.unqualified_quantity) }}
             </span>
-            <span v-else-if="scope.row.unqualified_quantity === 0" style="color: #909399;">0</span>
-            <span v-else style="color: #909399;">-</span>
+            <span v-else-if="scope.row.unqualified_quantity === 0" style="color: var(--color-text-secondary);">0</span>
+            <span v-else style="color: var(--color-text-secondary);">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="inspectionDate" label="检验日期" min-width="100" show-overflow-tooltip>

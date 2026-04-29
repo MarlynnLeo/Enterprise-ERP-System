@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * OutboundDetail.vue - 出库单详情
  * @description 移动端出库单详情页，操作流程与网页端完全一致
@@ -456,10 +456,10 @@ onMounted(() => {
     justify-content: center;
     overflow: hidden;
     &.status-draft { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
-    &.status-confirmed { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    &.status-confirmed { background: rgba(59, 130, 246, 0.15); color: var(--module-blue); }
     &.status-partial { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
     &.status-completed { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-    &.status-cancelled { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    &.status-cancelled { background: rgba(239, 68, 68, 0.15); color: var(--color-error); }
 }
 
 .status-info { flex: 1; }
@@ -508,7 +508,7 @@ onMounted(() => {
     text-align: right;
     flex: 1;
     word-break: break-all;
-    &.accent { color: #3b82f6; font-weight: 500; }
+    &.accent { color: var(--module-blue); font-weight: 500; }
 }
 
 .items-list {
@@ -551,7 +551,7 @@ onMounted(() => {
 }
 .detail-label { color: var(--text-tertiary); }
 .detail-value { color: var(--text-primary); }
-.detail-value.highlight { color: #a855f7; font-weight: 600; }
+.detail-value.highlight { color: var(--module-purple); font-weight: 600; }
 .text-danger { color: #ef4444 !important; font-weight: 600; }
 
 .loading-container,

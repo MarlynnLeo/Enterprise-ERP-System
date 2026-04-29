@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Login.vue
  * @description 前端登录界面 - KACON Teal Split-Screen Style
@@ -146,10 +146,10 @@ const checkPasswordStrength = () => {
   
   const strengthMap = {
     0: { text: '', color: '' },
-    1: { text: '弱', color: '#F56C6C' },
-    2: { text: '中等', color: '#E6A23C' },
-    3: { text: '强', color: '#409EFF' },
-    4: { text: '非常强', color: '#67C23A' }
+    1: { text: '弱', color: 'var(--color-danger)' },
+    2: { text: '中等', color: 'var(--color-warning)' },
+    3: { text: '强', color: 'var(--color-primary)' },
+    4: { text: '非常强', color: 'var(--color-success)' }
   }
   
   strengthText.value = strengthMap[strength].text
@@ -289,7 +289,7 @@ const handleForgotPassword = () => {
   min-height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background-color: #ffffff;
+  background-color: var(--color-bg-base);
 }
 
 /* ================= 左侧：品牌与插画 ================= */
@@ -311,7 +311,7 @@ const handleForgotPassword = () => {
   align-items: center;
   gap: 12px;
   z-index: 10;
-  color: #ffffff;
+  color: var(--color-on-primary, #fff);
 }
 
 .brand-icon {
@@ -440,7 +440,7 @@ const handleForgotPassword = () => {
 /* ================= 右侧：表单区 ================= */
 .login-right {
   flex: 1;
-  background: #ffffff;
+  background: var(--color-bg-base);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -487,7 +487,7 @@ const handleForgotPassword = () => {
 }
 
 .form-box {
-  background: #ffffff;
+  background: var(--color-bg-base);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
   border: 1px solid #f1f5f9;
   border-radius: 12px;
@@ -510,7 +510,7 @@ const handleForgotPassword = () => {
   box-shadow: 0 0 0 1px #e2e8f0 inset !important;
   border-radius: 4px;
   padding: 0 15px;
-  background: #ffffff;
+  background: var(--color-bg-base);
   transition: all 0.3s;
 }
 

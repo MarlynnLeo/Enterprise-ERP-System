@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="stats-container">
     <!-- 顶部标题卡片 -->
     <div class="stats-header">
@@ -112,9 +112,9 @@
                 :width="180"
                 :stroke-width="15"
                 :color="[
-                  { color: '#f56c6c', percentage: 40 },
-                  { color: '#e6a23c', percentage: 70 },
-                  { color: '#67c23a', percentage: 100 }
+                  { color: 'var(--color-danger)', percentage: 40 },
+                  { color: 'var(--color-warning)', percentage: 70 },
+                  { color: 'var(--color-success)', percentage: 100 }
                 ]"
               >
                 <template #default="{ percentage }">
@@ -170,9 +170,9 @@
                 :width="180"
                 :stroke-width="15"
                 :color="[
-                  { color: '#909399', percentage: 40 },
-                  { color: '#e6a23c', percentage: 70 },
-                  { color: '#67c23a', percentage: 100 }
+                  { color: 'var(--color-text-secondary)', percentage: 40 },
+                  { color: 'var(--color-warning)', percentage: 70 },
+                  { color: 'var(--color-success)', percentage: 100 }
                 ]"
               >
                 <template #default="{ percentage }">
@@ -363,7 +363,7 @@ const monthlyActivity = computed(() => {
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  color: white;
+  color: var(--color-on-primary, #fff);
   background: currentColor;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -526,7 +526,7 @@ const monthlyActivity = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--color-on-primary, #fff);
   font-size: 18px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }

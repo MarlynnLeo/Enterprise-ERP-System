@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="page-container">
     <NavBar title="AQL 抽样标准" left-arrow @click-left="$router.go(-1)" />
     <div class="page-body">
@@ -65,6 +65,6 @@
     display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;
     b { color: var(--text-primary); }
   }
-  .ac { color: #67C23A; font-weight: 600; }
-  .re { color: #F56C6C; font-weight: 600; }
+  .ac { color: var(--color-success); font-weight: 600; }
+  .re { color: var(--color-error); font-weight: 600; }
 </style>

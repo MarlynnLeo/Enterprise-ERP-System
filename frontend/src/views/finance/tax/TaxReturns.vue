@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="tax-returns-container">
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -93,7 +93,7 @@
         <!-- 通用列 -->
         <el-table-column prop="tax_payable" label="应纳税额" width="120" align="right">
           <template #default="{ row }">
-            <span style="color: #f56c6c; font-weight: bold;">
+            <span style="color: var(--color-danger); font-weight: bold;">
               {{ formatAmount(row.return_type === '增值税' ? row.tax_payable : row.income_tax_payable) }}
             </span>
           </template>
@@ -293,7 +293,7 @@
           <el-descriptions-item label="进项税额">{{ formatAmount(viewData.purchase_input_tax) }}</el-descriptions-item>
           <el-descriptions-item label="进项税转出">{{ formatAmount(viewData.input_tax_deduction) }}</el-descriptions-item>
           <el-descriptions-item label="应纳税额">
-            <span style="color: #f56c6c; font-weight: bold;">{{ formatAmount(viewData.tax_payable) }}</span>
+            <span style="color: var(--color-danger); font-weight: bold;">{{ formatAmount(viewData.tax_payable) }}</span>
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -308,7 +308,7 @@
           <el-descriptions-item label="应纳税所得额">{{ formatAmount(viewData.taxable_income) }}</el-descriptions-item>
           <el-descriptions-item label="税率">{{ viewData.income_tax_rate }}%</el-descriptions-item>
           <el-descriptions-item label="应纳所得税额">
-            <span style="color: #f56c6c; font-weight: bold;">{{ formatAmount(viewData.income_tax_payable) }}</span>
+            <span style="color: var(--color-danger); font-weight: bold;">{{ formatAmount(viewData.income_tax_payable) }}</span>
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -661,7 +661,7 @@ onMounted(() => {
 }
 
 .table-card {
-  background: #fff;
+  background: var(--color-bg-base);
 }
 </style>
 

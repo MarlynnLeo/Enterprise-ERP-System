@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ReportDialog.vue
  * @description 检验报告弹窗 + 打印功能
@@ -262,7 +262,7 @@ const printWithLegacy = async () => {
 </script>
 
 <style scoped>
-.inspection-report { padding: 20px; border: 1px solid #eee; border-radius: var(--radius-sm); background-color: #fcfcfc; }
+.inspection-report { padding: 20px; border: 1px solid var(--color-border-lighter); border-radius: var(--radius-sm); background-color: #fcfcfc; }
 .report-header { text-align: center; margin-bottom: var(--spacing-lg); }
 .report-title { font-size: 22px; font-weight: bold; margin-bottom: 10px; }
 .report-no { color: var(--color-text-regular); }

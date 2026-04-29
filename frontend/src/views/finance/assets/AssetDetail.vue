@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="asset-detail-container">
     <!-- 头部卡片 -->
     <el-card class="header-card" shadow="never">
@@ -445,7 +445,7 @@ onMounted(() => {
 
 /* 描述列表样式调整 */
 .asset-descriptions {
-  --el-descriptions-item-bordered-label-background: #f8f9fa;
+  --el-descriptions-item-bordered-label-background: var(--color-bg-section);
 }
 
 :deep(.el-descriptions__label) {
@@ -510,7 +510,7 @@ onMounted(() => {
 }
 
 .log-content {
-  background: #f8f9fa;
+  background: var(--color-bg-section);
   padding: 12px 16px;
   border-radius: 6px;
   margin-top: 5px;
@@ -559,7 +559,7 @@ onMounted(() => {
 .log-remarks {
   font-size: 13px;
   color: var(--color-text-regular);
-  background: #fff;
+  background: var(--color-bg-base);
   padding: 8px;
   border-radius: 4px;
   margin-top: 8px;

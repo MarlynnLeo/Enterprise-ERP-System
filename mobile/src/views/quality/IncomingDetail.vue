@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * IncomingDetail.vue
  * @description 来料检验详情页面（与网页端对齐）
@@ -513,7 +513,7 @@
     }
     &.failed {
       background: rgba(239, 68, 68, 0.15);
-      color: #ef4444;
+      color: var(--color-error);
     }
     &.partial {
       background: rgba(245, 158, 11, 0.15);
@@ -594,7 +594,7 @@
     padding: 1px 6px;
     border-radius: 4px;
     background: rgba(239, 68, 68, 0.12);
-    color: #ef4444;
+    color: var(--color-error);
     font-weight: 600;
   }
 
@@ -638,10 +638,10 @@
 
     &.btn-fail {
       border-color: rgba(239, 68, 68, 0.3);
-      color: #ef4444;
+      color: var(--color-error);
       &.active {
         background: rgba(239, 68, 68, 0.15);
-        border-color: #ef4444;
+        border-color: var(--color-error);
       }
     }
   }
@@ -657,7 +657,7 @@
   }
 
   .result-fail {
-    color: #ef4444;
+    color: var(--color-error);
     font-weight: 600;
     font-size: 0.8125rem;
   }

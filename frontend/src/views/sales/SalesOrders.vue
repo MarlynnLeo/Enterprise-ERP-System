@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * SalesOrders.vue
  * @description 前端界面组件文件
@@ -141,13 +141,13 @@
                     <span v-if="row.material_code || row.code">
                       {{ row.material_code || row.code }}
                     </span>
-                    <span v-else-if="row.product_code || row.product_specs" style="color: #E6A23C;">
+                    <span v-else-if="row.product_code || row.product_specs" style="color: var(--color-warning);">
                       {{ row.product_code || row.product_specs }}
                       <el-tooltip content="该产品暂未匹配到物料，请在系统中补充" placement="top">
                         <el-icon style="margin-left: 4px;"><WarningFilled /></el-icon>
                       </el-tooltip>
                     </span>
-                    <span v-else style="color: #F56C6C;">
+                    <span v-else style="color: var(--color-danger);">
                       待补充
                       <el-tooltip content="该产品暂无编码，请补充物料信息" placement="top">
                         <el-icon style="margin-left: 4px;"><WarningFilled /></el-icon>
@@ -160,7 +160,7 @@
                     <span v-if="row.material_name || row.name">
                       {{ row.material_name || row.name }}
                     </span>
-                    <span v-else style="color: #C0C4CC;">-</span>
+                    <span v-else style="color: var(--color-text-disabled);">-</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="specification" label="规格" show-overflow-tooltip />
@@ -407,7 +407,7 @@
                   :value="item.id"
                 >
                   <span style="float: left">{{ item.code }} - {{ item.name }}</span>
-                  <span style="float: right; color: #8492a6; font-size: 13px">{{ item.contact_person || '无联系人' }}</span>
+                  <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.contact_person || '无联系人' }}</span>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -462,7 +462,7 @@
               border
               style="width: 100%"
               table-layout="fixed"
-              :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+              :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加订单物料"
             >
               <el-table-column label="物料编码" width="160">
@@ -484,8 +484,8 @@
                     <template #default="{ item }">
                       <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
                         <span style="font-weight: 500; font-size: 13px; min-width: 100px;">{{ item.code }}</span>
-                        <span style="color: #606266; font-size: 13px; flex: 1;">{{ item.name }}</span>
-                        <span v-if="item.specs" style="color: #909399; font-size: 12px;">{{ item.specs }}</span>
+                        <span style="color: var(--color-text-regular); font-size: 13px; flex: 1;">{{ item.name }}</span>
+                        <span v-if="item.specs" style="color: var(--color-text-secondary); font-size: 12px;">{{ item.specs }}</span>
                       </div>
                     </template>
                   </el-autocomplete>
@@ -588,16 +588,16 @@
         </el-form-item>
 
         <!-- 订单汇总 -->
-        <div class="order-summary" style="margin-top: 15px; padding: 12px; background: #f5f7fa; border-radius: 4px;">
+        <div class="order-summary" style="margin-top: 15px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
             <el-col :span="8" style="text-align: right;">
-              <span style="color: #606266;">小计: ￥{{ form.subtotal?.toFixed(2) || '0.00' }}</span>
+              <span style="color: var(--color-text-regular);">小计: ￥{{ form.subtotal?.toFixed(2) || '0.00' }}</span>
             </el-col>
             <el-col :span="8" style="text-align: right;">
-              <span style="color: #e6a23c;">税额: ￥{{ form.tax_amount?.toFixed(2) || '0.00' }}</span>
+              <span style="color: var(--color-warning);">税额: ￥{{ form.tax_amount?.toFixed(2) || '0.00' }}</span>
             </el-col>
             <el-col :span="8" style="text-align: right;">
-              <span style="font-weight: bold; color: #409eff; font-size: 16px;">合计: ￥{{ form.total_amount?.toFixed(2) || '0.00' }}</span>
+              <span style="font-weight: bold; color: var(--color-primary); font-size: 16px;">合计: ￥{{ form.total_amount?.toFixed(2) || '0.00' }}</span>
             </el-col>
           </el-row>
         </div>
@@ -633,7 +633,7 @@
             <el-descriptions-item label="合同编码">{{ currentOrder.contract_code || '-' }}</el-descriptions-item>
             <el-descriptions-item label="交付日期">{{ formatDate(currentOrder.deliveryDate) }}</el-descriptions-item>
             <el-descriptions-item label="订单金额">
-              <span style="font-weight: bold; color: #409eff;">¥{{ (parseFloat(currentOrder.totalAmount) || 0).toFixed(2) }}</span>
+              <span style="font-weight: bold; color: var(--color-primary);">¥{{ (parseFloat(currentOrder.totalAmount) || 0).toFixed(2) }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="联系人">{{ currentOrder.contact || '-' }}</el-descriptions-item>
             <el-descriptions-item label="联系电话">{{ currentOrder.phone || '-' }}</el-descriptions-item>
@@ -1060,7 +1060,7 @@ onActivated(() => {
 }
 
 .order-detail :deep(.el-descriptions) {
-  background: #fff;
+  background: var(--color-bg-base);
   border-radius: 8px;
   padding: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -1069,7 +1069,7 @@ onActivated(() => {
 .order-detail :deep(.el-descriptions__label) {
   font-weight: 500;
   color: #64748b;
-  background: #f8fafc;
+  background: var(--color-bg-section);
 }
 
 .order-detail :deep(.el-descriptions__content) {
@@ -1206,7 +1206,7 @@ onActivated(() => {
 .import-tips {
   margin-top: 10px;
   padding: 10px;
-  background-color: #f0f9ff;
+  background-color: var(--color-primary-light-9);
   border: 1px solid #b3d8ff;
   border-radius: var(--radius-sm);
   font-size: 12px;

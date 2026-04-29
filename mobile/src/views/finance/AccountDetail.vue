@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * AccountDetail.vue - 会计科目详情
  * @description 展示科目的完整信息、余额变动和关联凭证
@@ -255,7 +255,7 @@
     }
     &.type-expenses {
       background: rgba(249, 115, 22, 0.1);
-      color: #f97316;
+      color: var(--module-orange);
     }
     &.type-default {
       background: rgba(107, 114, 128, 0.1);

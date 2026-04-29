@@ -114,24 +114,66 @@ class InboundTransactionService {
       if (!finalBatchNumber) {
         if (['defective_return', 'production_return'].includes(inboundType) && inboundData.reference_id) {
           try {
-            const [ledgerRows] = await connection.execute(
-              `SELECT batch_number 
-               FROM inventory_ledger 
-               WHERE reference_type = 'production_outbound' 
-                 AND reference_id = ? 
-                 AND material_id = ? 
-                 AND transaction_type = 'outbound'
-                 AND batch_number IS NOT NULL
-                 AND batch_number != ''
-               ORDER BY created_at DESC 
-               LIMIT 1`,
-              [inboundData.reference_id, item.material_id]
+            // reference_id 可能是出库单ID或生产任务ID
+            // 策略1: 按出库单ID查出单号，再从台账匹配批次
+            const [outboundRows] = await connection.execute(
+              `SELECT outbound_no FROM inventory_outbound WHERE id = ? LIMIT 1`,
+              [inboundData.reference_id]
             );
-            if (ledgerRows.length > 0) {
-              finalBatchNumber = ledgerRows[0].batch_number;
-              logger.info(`🔄 [批次号溯源成功] 找回原物料发料批次号: ${finalBatchNumber}`);
-            } else {
-              logger.warn(`⚠️ [批次号溯源失败] 未找到任务 ${inboundData.reference_id} 对物料 ${item.material_id} 的发料记录`);
+
+            if (outboundRows.length > 0) {
+              const outboundNo = outboundRows[0].outbound_no;
+              const [ledgerRows] = await connection.execute(
+                `SELECT batch_number 
+                 FROM inventory_ledger 
+                 WHERE reference_no = ? 
+                   AND material_id = ? 
+                   AND quantity < 0
+                   AND batch_number IS NOT NULL
+                   AND batch_number != ''
+                 ORDER BY created_at DESC 
+                 LIMIT 1`,
+                [outboundNo, item.material_id]
+              );
+              if (ledgerRows.length > 0) {
+                finalBatchNumber = ledgerRows[0].batch_number;
+                logger.info(`🔄 [批次号溯源成功] 通过出库单 ${outboundNo} 找回原始发料批次号: ${finalBatchNumber}`);
+              }
+            }
+
+            // 策略2: 如果策略1未命中，按生产任务ID查出所有关联出库单号
+            if (!finalBatchNumber) {
+              const [taskOutbounds] = await connection.execute(
+                `SELECT outbound_no FROM inventory_outbound 
+                 WHERE production_task_id = ? 
+                    OR (reference_type = 'production_task' AND reference_id = ?)
+                 LIMIT 10`,
+                [inboundData.reference_id, inboundData.reference_id]
+              );
+
+              for (const ob of taskOutbounds) {
+                const [ledgerRows] = await connection.execute(
+                  `SELECT batch_number 
+                   FROM inventory_ledger 
+                   WHERE reference_no = ? 
+                     AND material_id = ? 
+                     AND quantity < 0
+                     AND batch_number IS NOT NULL
+                     AND batch_number != ''
+                   ORDER BY created_at DESC 
+                   LIMIT 1`,
+                  [ob.outbound_no, item.material_id]
+                );
+                if (ledgerRows.length > 0) {
+                  finalBatchNumber = ledgerRows[0].batch_number;
+                  logger.info(`🔄 [批次号溯源成功] 通过生产任务关联出库单 ${ob.outbound_no} 找回批次号: ${finalBatchNumber}`);
+                  break;
+                }
+              }
+            }
+
+            if (!finalBatchNumber) {
+              logger.warn(`⚠️ [批次号溯源失败] 未找到 reference_id=${inboundData.reference_id} 对物料 ${item.material_id} 的发料记录`);
             }
           } catch (traceErr) {
             logger.error(`❌ [批次号溯源报错] `, traceErr);
@@ -173,13 +215,26 @@ class InboundTransactionService {
         allowNegativeStock: true,
       }, connection);
 
+      // 根据入库类型确定追溯触发类型
+      const traceTypeMap = {
+        purchase: 'purchase',
+        production: 'production',
+        production_return: 'production_return',
+        defective_return: 'defective_return',
+        outsourced: 'purchase',
+        sales_return: 'sales_return',
+        other: 'inbound',
+      };
+      const traceTriggerType = traceTypeMap[inboundType] || 'inbound';
+
       // 追溯数据载荷
       const tracePayload = {
-        inbound_no: inboundData.receipt_no,
+        inbound_no: inboundData.inbound_no,
         material_id: item.material_id,
         quantity: parseFloat(item.quantity),
         batch_no: finalBatchNumber,
-        source_type: 'purchase',
+        source_type: inboundType,
+        reference_id: inboundData.reference_id || null,
         operator
       };
 
@@ -188,8 +243,8 @@ class InboundTransactionService {
         `CreateTraceability_${item.material_id}`,
         tracePayload,
         async () => {
-          logger.info(`🔄 异步触发追溯记录构建 - 入库单: ${inboundData.receipt_no}`);
-          await AsyncTaskService.createTraceabilityAsync('inbound', tracePayload);
+          logger.info(`🔄 异步触发追溯记录构建 - 入库单: ${inboundData.inbound_no}, 类型: ${traceTriggerType}`);
+          await AsyncTaskService.createTraceabilityAsync(traceTriggerType, tracePayload);
         }
       );
     }

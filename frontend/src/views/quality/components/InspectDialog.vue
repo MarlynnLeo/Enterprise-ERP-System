@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InspectDialog.vue
  * @description 检验操作弹窗（最复杂的组件）
@@ -61,8 +61,8 @@
                     'result-select-failed': scope.row.result === 'failed'
                   }"
                 >
-                  <el-option label="✓ 合格" value="passed" style="color: #67C23A; font-weight: bold;" />
-                  <el-option label="✗ 不合格" value="failed" style="color: #F56C6C; font-weight: bold;" />
+                  <el-option label="合格" value="passed" style="color: var(--color-success); font-weight: bold;" />
+                  <el-option label="不合格" value="failed" style="color: var(--color-danger); font-weight: bold;" />
                 </el-select>
               </template>
             </el-table-column>

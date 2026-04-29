@@ -841,7 +841,7 @@ onMounted(() => {
 
 .reconciliation-tabs {
   margin-bottom: 16px;
-  background: #fff;
+  background: var(--color-bg-base);
   padding: 16px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);

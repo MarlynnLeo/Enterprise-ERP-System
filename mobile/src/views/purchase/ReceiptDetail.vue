@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ReceiptDetail.vue
  * @description 采购入库详情 - 对齐网页端操作逻辑
@@ -368,7 +368,7 @@ onMounted(() => {
 }
 
 .detail-value.highlight {
-    color: #a855f7;
+    color: var(--module-purple);
     font-weight: 600;
 }
 

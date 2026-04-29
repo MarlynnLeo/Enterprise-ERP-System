@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="aql-standards-container">
     <el-card class="box-card">
       <template #header>
@@ -59,12 +59,12 @@
         <el-table-column prop="sample_size" label="抽样数 (n)" width="120" />
         <el-table-column prop="accept_limit" label="允收数 (Ac)" width="120">
           <template #default="scope">
-            <span style="color: #67C23A; font-weight: bold">{{ scope.row.accept_limit }}</span>
+            <span style="color: var(--color-success); font-weight: bold">{{ scope.row.accept_limit }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="reject_limit" label="拒收数 (Re)" width="120">
           <template #default="scope">
-            <span style="color: #F56C6C; font-weight: bold">{{ scope.row.reject_limit }}</span>
+            <span style="color: var(--color-danger); font-weight: bold">{{ scope.row.reject_limit }}</span>
           </template>
         </el-table-column>
         

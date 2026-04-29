@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * DetailDialog.vue
  * @description 检验单详情查看弹窗
@@ -27,12 +27,12 @@
           <el-descriptions-item label="批次号">{{ inspection.batchNo || inspection.batch_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ Math.floor(inspection.quantity || 0) }}</el-descriptions-item>
           <el-descriptions-item label="合格数">
-            <span v-if="inspection.qualified_quantity !== null && inspection.qualified_quantity !== undefined" style="color: #67C23A; font-weight: bold;">{{ Math.floor(inspection.qualified_quantity) }}</span>
-            <span v-else style="color: #909399;">-</span>
+            <span v-if="inspection.qualified_quantity !== null && inspection.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">{{ Math.floor(inspection.qualified_quantity) }}</span>
+            <span v-else style="color: var(--color-text-secondary);">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="不合格数">
-            <span v-if="inspection.unqualified_quantity > 0" style="color: #F56C6C; font-weight: bold;">{{ Math.floor(inspection.unqualified_quantity) }}</span>
-            <span v-else style="color: #909399;">{{ inspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="inspection.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">{{ Math.floor(inspection.unqualified_quantity) }}</span>
+            <span v-else style="color: var(--color-text-secondary);">{{ inspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="检验日期">{{ inspection.inspectionDate || inspection.actual_date || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验员">{{ inspection.inspector || inspection.inspector_name || '-' }}</el-descriptions-item>
@@ -65,7 +65,7 @@
               <template #default="{ row }">
                 <el-tag v-if="row.result === 'pass' || row.result === 'passed' || row.result === '合格'" type="success" size="small">合格</el-tag>
                 <el-tag v-else-if="row.result === 'fail' || row.result === 'failed' || row.result === '不合格'" type="danger" size="small">不合格</el-tag>
-                <span v-else style="color: #909399;">{{ row.result || '-' }}</span>
+                <span v-else style="color: var(--color-text-secondary);">{{ row.result || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="remarks" label="备注" min-width="100" show-overflow-tooltip />

@@ -1,7 +1,7 @@
-<template>
+﻿<template>
   <div class="unified-traceability">
     <el-card class="page-header">
-      <h2>🔄 批次追溯查询</h2>
+      <h2><el-icon style="vertical-align: middle; margin-right: 6px;"><Refresh /></el-icon>批次追溯查询</h2>
       <p>统一追溯查询：输入物料编码和批次号,自动识别物料类型并展示完整追溯链路</p>
     </el-card>
 
@@ -43,7 +43,7 @@
         <!-- 快速测试 -->
         <div class="test-cases" style="margin-top: 10px;">
           <div style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span style="color: #606266; font-size: 12px;">快速测试: </span>
+            <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
             <el-button
               size="small"
               type="success"
@@ -85,13 +85,13 @@
           <el-table-column prop="supplier_name" label="供应商" min-width="120">
             <template #default="{ row }">
               <span v-if="row.supplier_name">{{ row.supplier_name }}</span>
-              <span v-else style="color: #909399;">-</span>
+              <span v-else style="color: var(--color-text-secondary);">-</span>
             </template>
           </el-table-column>
           <el-table-column prop="purchase_date" label="采购时间" min-width="150">
             <template #default="{ row }">
               <span v-if="row.purchase_date">{{ formatDateTime(row.purchase_date) }}</span>
-              <span v-else style="color: #909399;">-</span>
+              <span v-else style="color: var(--color-text-secondary);">-</span>
             </template>
           </el-table-column>
           <el-table-column prop="raw_material_batch" label="流转记录/消耗说明" min-width="180">
@@ -102,7 +102,7 @@
                 style="cursor: pointer;"
                 @click="navigateToTrace(row.raw_material_code, row.raw_material_batch)"
               >{{ row.raw_material_batch }}</el-tag>
-              <span v-else style="color: #909399;">标准材料</span>
+              <span v-else style="color: var(--color-text-secondary);">标准材料</span>
             </template>
           </el-table-column>
         </el-table>
@@ -175,19 +175,19 @@
                   {{ getStepStatusText(step.status) }}
                 </el-tag>
               </div>
-              <div v-if="step.reference_no" style="margin-top: 8px; color: #606266; font-size: 13px;">
+              <div v-if="step.reference_no" style="margin-top: 8px; color: var(--color-text-regular); font-size: 13px;">
                 单据号: {{ step.reference_no }}
               </div>
-              <div v-if="step.quantity" style="margin-top: 4px; color: #606266; font-size: 13px;">
+              <div v-if="step.quantity" style="margin-top: 4px; color: var(--color-text-regular); font-size: 13px;">
                 数量: {{ step.quantity }} {{ step.unit || '' }}
               </div>
-              <div v-if="step.operator" style="margin-top: 4px; color: #606266; font-size: 13px;">
+              <div v-if="step.operator" style="margin-top: 4px; color: var(--color-text-regular); font-size: 13px;">
                 操作人: {{ step.operator }}
               </div>
-              <div v-if="step.location" style="margin-top: 4px; color: #606266; font-size: 13px;">
+              <div v-if="step.location" style="margin-top: 4px; color: var(--color-text-regular); font-size: 13px;">
                 位置: {{ step.location }}
               </div>
-              <div v-if="step.remarks" style="margin-top: 4px; color: #909399; font-size: 12px;">
+              <div v-if="step.remarks" style="margin-top: 4px; color: var(--color-text-secondary); font-size: 12px;">
                 备注: {{ step.remarks }}
               </div>
             </el-card>
@@ -209,7 +209,7 @@
               <span v-if="row.raw_material_batch && row.raw_material_batch !== '-'">
                 {{ row.raw_material_batch }}
               </span>
-              <span v-else style="color: #999;">-</span>
+              <span v-else style="color: var(--color-text-secondary);">-</span>
             </template>
           </el-table-column>
           <el-table-column prop="supplier_name" label="供应商" min-width="120" />
@@ -229,7 +229,7 @@
           <el-table-column prop="outbound_no" label="出库单号" min-width="150" />
           <el-table-column v-if="traceabilityData.type !== 'product'" label="制成成品" min-width="150">
             <template #default="{ row }">
-              {{ row.product_name }}<span v-if="row.product_specification" style="color: #909399; font-size: 12px; margin-left: 4px;">({{ row.product_specification }})</span>
+              {{ row.product_name }}<span v-if="row.product_specification" style="color: var(--color-text-secondary); font-size: 12px; margin-left: 4px;">({{ row.product_specification }})</span>
             </template>
           </el-table-column>
           <el-table-column prop="customer_name" label="客户名称" min-width="150" />

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Entries.vue
  * @description 前端界面组件文件
@@ -126,15 +126,15 @@
                 <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
                 <el-table-column prop="debitAmount" label="借方金额" width="150">
                   <template #default="scope">
-                    <span style="color: #67C23A;" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                    <span style="color: #F56C6C;" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+                    <span style="color: var(--color-success);" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+                    <span style="color: var(--color-danger);" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="creditAmount" label="贷方金额" width="150">
                   <template #default="scope">
-                    <span style="color: #F56C6C;" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                    <span style="color: #67C23A;" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+                    <span style="color: var(--color-danger);" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+                    <span style="color: var(--color-success);" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
@@ -289,15 +289,15 @@
         <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
         <el-table-column prop="debitAmount" label="借方金额" width="150">
           <template #default="scope">
-            <span style="color: #67C23A;" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span style="color: #F56C6C;" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+            <span style="color: var(--color-success);" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+            <span style="color: var(--color-danger);" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="creditAmount" label="贷方金额" width="150">
           <template #default="scope">
-            <span style="color: #F56C6C;" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span style="color: #67C23A;" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+            <span style="color: var(--color-danger);" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+            <span style="color: var(--color-success);" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>

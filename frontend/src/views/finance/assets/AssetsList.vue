@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * AssetsList.vue
  * @description 前端界面组件文件
@@ -393,7 +393,7 @@
         <el-form-item label="处置金额" prop="disposeAmount">
           <el-input-number v-model="disposeForm.disposeAmount" :precision="2" :min="0" style="width: 100%"></el-input-number>
         </el-form-item>
-        <div style="margin-bottom: 15px; text-align: right; color: #909399; font-size: 13px;">
+        <div style="margin-bottom: 15px; text-align: right; color: var(--color-text-secondary); font-size: 13px;">
           预计处置损益: <span :class="disposeProfitLoss >= 0 ? 'value-text' : 'danger-text'">{{ disposeProfitLoss >= 0 ? '+' : '' }}{{ formatCurrency(disposeProfitLoss) }}</span>
         </div>
         <el-form-item label="处置日期" prop="disposeDate">
@@ -440,7 +440,7 @@
         </el-form-item>
         <el-form-item label="拆分金额" prop="split_cost">
           <el-input-number v-model="splitForm.split_cost" :precision="2" :min="0.01" :max="splitForm.originalValue - 0.01" style="width: 100%"></el-input-number>
-          <div style="font-size: 12px; color: #909399; margin-top: 4px;">拆出部分的价值，剩余原值将被扣除</div>
+          <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">拆出部分的价值，剩余原值将被扣除</div>
         </el-form-item>
         <el-form-item label="新资产名称" prop="new_asset_name">
           <el-input v-model="splitForm.new_asset_name" placeholder="默认为：原名称-拆分X"></el-input>

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <!-- BOM预览对话框(只读模式) -->
   <el-dialog 
     v-model="visible" 
@@ -165,7 +165,7 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--color-on-primary, #fff);
   flex-shrink: 0;
 }
 

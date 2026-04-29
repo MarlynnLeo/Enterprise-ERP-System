@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="gauge-management-container">
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stats-row">
@@ -8,7 +8,7 @@
             <div class="stat-number">{{ stats.total }}</div>
             <div class="stat-label">量具总数</div>
           </div>
-          <el-icon class="stat-icon" style="color: #409EFF"><Odometer /></el-icon>
+          <el-icon class="stat-icon" style="color: var(--color-primary)"><Odometer /></el-icon>
         </el-card>
       </el-col>
       <el-col :span="6">

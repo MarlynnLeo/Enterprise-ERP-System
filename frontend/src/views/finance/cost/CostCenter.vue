@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="cost-center-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -29,7 +29,7 @@
                   <el-icon><OfficeBuilding /></el-icon>
                   {{ scope.row.department_name }}
                 </span>
-                <span v-else style="color: #909399;">-</span>
+                <span v-else style="color: var(--color-text-secondary);">-</span>
               </template>
             </el-table-column>
             <el-table-column prop="type" label="类型" width="100">
@@ -85,7 +85,7 @@
             </el-table-column>
             <el-table-column prop="total_cost" label="总成本" width="200" align="right">
               <template #default="scope">
-                <span style="font-weight: bold; color: #409eff;">{{ formatCurrency(scope.row.total_cost) }}</span>
+                <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="task_count" label="任务数" width="145" align="center"></el-table-column>

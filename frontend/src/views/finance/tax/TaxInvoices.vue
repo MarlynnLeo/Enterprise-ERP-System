@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="tax-invoices-container">
     <!-- 页面标题头 -->
     <el-card class="header-card">
@@ -123,7 +123,7 @@
         <el-table-column prop="invoice_number" label="发票号码" width="190">
           <template #default="{ row }">
             <template v-if="row.invoice_number && row.invoice_number.startsWith('待补录-')">
-              <span style="color: #c0c4cc; font-style: italic; font-size: 12px;">
+              <span style="color: var(--color-text-disabled); font-style: italic; font-size: 12px;">
                 <el-icon style="vertical-align: middle; margin-right: 2px"><Clock /></el-icon>
                 {{ row.invoice_number }}
               </span>
@@ -167,8 +167,8 @@
                 {{ getDocTypeLabel(row.related_document_type) }}: {{ row.linked_document_number }}
               </el-tag>
             </template>
-            <span v-else-if="row.related_document_type" style="color: #909399; font-size: 12px">{{ row.related_document_type }}</span>
-            <span v-else style="color: #c0c4cc; font-size: 12px">未关联</span>
+            <span v-else-if="row.related_document_type" style="color: var(--color-text-secondary); font-size: 12px">{{ row.related_document_type }}</span>
+            <span v-else style="color: var(--color-text-disabled); font-size: 12px">未关联</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="100" align="center" fixed="right">
@@ -440,7 +440,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <div v-if="linkForm.selected_id" style="margin-top: 12px; padding: 8px 12px; background: #f0f9eb; border-radius: 4px; color: #67c23a">
+          <div v-if="linkForm.selected_id" style="margin-top: 12px; padding: 8px 12px; background: var(--color-success-light); border-radius: 4px; color: #67c23a">
             已选择: {{ linkForm.selected_number }}
           </div>
         </el-form-item>
@@ -1069,7 +1069,7 @@ const handleUnlink = async (row) => {
 }
 
 .data-card {
-  background: #fff;
+  background: var(--color-bg-base);
 }
 
 .amount-highlight {

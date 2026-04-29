@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProductionReport.vue
  * @description 前端界面组件文件
@@ -295,7 +295,7 @@
                 >
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%">
                     <span style="font-weight: bold">{{ task.code }}</span>
-                    <span style="color: #8492a6; font-size: 13px">{{ task.productName }}</span>
+                    <span style="color: var(--color-text-muted); font-size: 13px">{{ task.productName }}</span>
                   </div>
                 </el-option>
               </el-select>

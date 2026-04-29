@@ -108,12 +108,12 @@
         <el-table-column prop="reason" label="换货原因" min-width="150" />
         <el-table-column label="退回金额" width="110" align="right">
           <template #default="scope">
-            <span style="color: #67c23a;">¥{{ (parseFloat(scope.row.returnAmount || 0)).toFixed(2) }}</span>
+            <span style="color: var(--color-success);">¥{{ (parseFloat(scope.row.returnAmount || 0)).toFixed(2) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="换出金额" width="110" align="right">
           <template #default="scope">
-            <span style="color: #409eff;">¥{{ (parseFloat(scope.row.newAmount || 0)).toFixed(2) }}</span>
+            <span style="color: var(--color-primary);">¥{{ (parseFloat(scope.row.newAmount || 0)).toFixed(2) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="差价" width="110" align="right">
@@ -221,7 +221,7 @@
                   style="flex: 1; min-width: 0;"
                 />
                 <el-button type="primary" @click="openOrderDialog" style="flex-shrink: 0;">选择订单</el-button>
-                <span v-if="exchangeForm.customerName" style="color: #67c23a; font-size: 12px; flex-shrink: 0;">
+                <span v-if="exchangeForm.customerName" style="color: var(--color-success); font-size: 12px; flex-shrink: 0;">
                   <el-icon><Check /></el-icon>
                 </span>
               </div>
@@ -258,7 +258,7 @@
               <el-tag type="success" size="small" style="margin-right: 8px;">
                 <el-icon><Check /></el-icon> 已完成出库
               </el-tag>
-              <span style="color: #909399; font-size: 12px;">
+              <span style="color: var(--color-text-secondary); font-size: 12px;">
                 出库日期：{{ selectedOrderInfo.deliveryDate || '未知' }}
               </span>
             </el-form-item>
@@ -273,7 +273,7 @@
         </el-form-item>
 
         <el-form-item label="退回商品">
-          <div style="margin-bottom: 10px; color: #666; font-size: 14px;">
+          <div style="margin-bottom: 10px; color: var(--color-text-regular); font-size: 14px;">
             从已出库的商品中选择需要退回的商品
           </div>
           <el-table :data="exchangeForm.returnItems" border style="width: 100%">
@@ -291,12 +291,12 @@
             </el-table-column>
             <el-table-column label="单价" width="100">
               <template #default="scope">
-                <span style="color: #909399;">¥{{ (parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
+                <span style="color: var(--color-text-secondary);">¥{{ (parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="金额" width="110">
               <template #default="scope">
-                <span style="color: #67c23a;">¥{{ (parseFloat(scope.row.returnQuantity || 0) * parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
+                <span style="color: var(--color-success);">¥{{ (parseFloat(scope.row.returnQuantity || 0) * parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="returnReason" label="退回原因" min-width="150">
@@ -323,7 +323,7 @@
         </el-form-item>
 
         <el-form-item label="换出商品">
-          <div style="margin-bottom: 10px; color: #666; font-size: 14px;">
+          <div style="margin-bottom: 10px; color: var(--color-text-regular); font-size: 14px;">
             选择要发给客户的新商品
             <el-button type="primary" size="small" @click="openProductDialog" style="margin-left: 10px;">
               <el-icon><Plus /></el-icon> 添加商品
@@ -344,12 +344,12 @@
             </el-table-column>
             <el-table-column label="单价" width="100">
               <template #default="scope">
-                <span style="color: #909399;">¥{{ (parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
+                <span style="color: var(--color-text-secondary);">¥{{ (parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="金额" width="110">
               <template #default="scope">
-                <span style="color: #409eff;">¥{{ (parseFloat(scope.row.newQuantity || 0) * parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
+                <span style="color: var(--color-primary);">¥{{ (parseFloat(scope.row.newQuantity || 0) * parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="newReason" label="换出说明" min-width="150">
@@ -378,8 +378,8 @@
         <!-- 金额汇总 -->
         <el-form-item label="金额汇总">
           <div style="display: flex; gap: 24px; align-items: center; padding: 8px 0;">
-            <span>退回总价: <span style="color: #67c23a; font-weight: bold;">¥{{ calcReturnTotal() }}</span></span>
-            <span>换出总价: <span style="color: #409eff; font-weight: bold;">¥{{ calcNewTotal() }}</span></span>
+            <span>退回总价: <span style="color: var(--color-success); font-weight: bold;">¥{{ calcReturnTotal() }}</span></span>
+            <span>换出总价: <span style="color: var(--color-primary); font-weight: bold;">¥{{ calcNewTotal() }}</span></span>
             <span>差价: <span :style="{ color: calcDifference() > 0 ? '#f56c6c' : calcDifference() < 0 ? '#67c23a' : '#909399', fontWeight: 'bold', fontSize: '16px' }">
               {{ calcDifference() > 0 ? '+' : '' }}¥{{ calcDifference().toFixed(2) }}
             </span></span>
@@ -425,10 +425,10 @@
         </el-descriptions-item>
         <el-descriptions-item label="换货原因" :span="3">{{ currentExchange.reason || currentExchange.exchange_reason || '-' }}</el-descriptions-item>
         <el-descriptions-item label="退回金额">
-          <span style="color: #67c23a; font-weight: bold;">¥{{ (parseFloat(currentExchange.returnAmount || currentExchange.return_amount || 0)).toFixed(2) }}</span>
+          <span style="color: var(--color-success); font-weight: bold;">¥{{ (parseFloat(currentExchange.returnAmount || currentExchange.return_amount || 0)).toFixed(2) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="换出金额">
-          <span style="color: #409eff; font-weight: bold;">¥{{ (parseFloat(currentExchange.newAmount || currentExchange.new_amount || 0)).toFixed(2) }}</span>
+          <span style="color: var(--color-primary); font-weight: bold;">¥{{ (parseFloat(currentExchange.newAmount || currentExchange.new_amount || 0)).toFixed(2) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="差价">
           <span :style="{ color: (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) > 0 ? '#f56c6c' : (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) < 0 ? '#67c23a' : '#909399', fontWeight: 'bold' }">
@@ -470,7 +470,7 @@
           </el-table-column>
           <el-table-column label="金额" width="110" align="right">
             <template #default="scope">
-              <span style="color: #67c23a;">¥{{ (parseFloat(scope.row.amount || 0)).toFixed(2) }}</span>
+              <span style="color: var(--color-success);">¥{{ (parseFloat(scope.row.amount || 0)).toFixed(2) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="exchange_reason" label="退回原因" min-width="150" />
@@ -505,7 +505,7 @@
           </el-table-column>
           <el-table-column label="金额" width="110" align="right">
             <template #default="scope">
-              <span style="color: #409eff;">¥{{ (parseFloat(scope.row.amount || 0)).toFixed(2) }}</span>
+              <span style="color: var(--color-primary);">¥{{ (parseFloat(scope.row.amount || 0)).toFixed(2) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="exchange_reason" label="换出原因" min-width="150" />
@@ -1498,7 +1498,7 @@ const getExchangeItems = (items) => {
 }
 
 .return-title {
-  background-color: #f0f9ff;
+  background-color: var(--color-primary-light-9);
   color: #0369a1;
   border-left: 4px solid #0ea5e9;
 }

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="supplier-quality-container">
     <!-- 顶部操作栏 -->
     <el-card class="box-card">
@@ -101,7 +101,7 @@
         <el-table-column prop="ranking" label="排名" width="70" align="center">
           <template #default="scope">
             <span :class="{ 'rank-top': scope.row.ranking <= 3 }">
-              {{ scope.row.ranking <= 3 ? ['🥇','🥈','🥉'][scope.row.ranking-1] : scope.row.ranking }}
+              {{ scope.row.ranking <= 3 ? ['①','②','③'][scope.row.ranking-1] : scope.row.ranking }}
             </span>
           </template>
         </el-table-column>

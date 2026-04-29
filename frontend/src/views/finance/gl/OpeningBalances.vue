@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * OpeningBalances.vue
  * @description 期初余额设置界面
@@ -294,22 +294,22 @@ onMounted(() => {
 
 .stat-icon.debit {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-icon.credit {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-icon.balanced {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-icon.unbalanced {
   background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-info {

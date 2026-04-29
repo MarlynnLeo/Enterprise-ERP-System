@@ -311,7 +311,7 @@ const getInitialFormData = () => ({
   tag_type: 'info',
   description: '',
   icon: '',
-  color: '#409EFF',
+  color: 'var(--color-primary)',
   sort_order: 0,
   status: 1,
   is_system: 0

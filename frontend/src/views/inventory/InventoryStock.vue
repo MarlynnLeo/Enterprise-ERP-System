@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryStock.vue
  * @description 前端界面组件文件
@@ -305,7 +305,7 @@
             </el-table-column>
             <el-table-column prop="current_quantity" label="当前数量" width="120" align="right">
               <template #default="{ row }">
-                <span style="font-weight: bold; color: #409EFF;">{{ formatQuantity(row.current_quantity) }}</span>
+                <span style="font-weight: bold; color: var(--color-primary);">{{ formatQuantity(row.current_quantity) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="unit_name" label="单位" width="80" />
@@ -357,10 +357,10 @@
                     }">
                       总数量: {{ group.totalQuantity > 0 ? '+' : '' }}{{ formatQuantity(group.totalQuantity) }}
                     </span>
-                    <span style="color: #909399; font-size: 13px;">
+                    <span style="color: var(--color-text-secondary); font-size: 13px;">
                       {{ formatDateTime(group.date, 'YYYY-MM-DD HH:mm:ss') }}
                     </span>
-                    <span style="color: #909399; font-size: 13px;">
+                    <span style="color: var(--color-text-secondary); font-size: 13px;">
                       操作人: {{ group.operator }}
                     </span>
                     <el-tag v-if="group.items.length > 1" type="info" size="small">
@@ -376,7 +376,7 @@
                   <el-table-column prop="batch_number" label="批次号" width="200">
                     <template #default="{ row }">
                       <el-tag v-if="row.batch_number" type="primary" size="small" style="cursor: pointer;" @click="goToTraceability(row.batch_number, currentDetail.material_code)" title="点击跳转至追溯页面">{{ row.batch_number }}</el-tag>
-                      <span v-else style="color: #999;">-</span>
+                      <span v-else style="color: var(--color-text-secondary);">-</span>
                     </template>
                   </el-table-column>
                   <el-table-column prop="quantity" label="数量" width="80" align="right">
@@ -401,7 +401,7 @@
                   </el-table-column>
                   <el-table-column prop="remark" label="备注" min-width="200">
                     <template #default="{ row }">
-                      <span style="color: #606266;">{{ row.remark || '-' }}</span>
+                      <span style="color: var(--color-text-regular);">{{ row.remark || '-' }}</span>
                     </template>
                   </el-table-column>
                 </el-table>
@@ -1373,7 +1373,7 @@ const isOutOfStock = (row) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff;
+  color: var(--color-on-primary, #fff);
   font-size: 14px;
 }
 

@@ -110,7 +110,8 @@ const processTemplateService = {
             await connection.beginTransaction();
 
             const { name, code, description, product_id, details = [] } = data;
-            const templateCode = code || `PT${Date.now()}`;
+            const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+            const templateCode = code || `TPL-${dateStr}-${String(Math.floor(Math.random() * 900) + 100)}`;
 
             const [result] = await connection.query(
                 'INSERT INTO process_templates (code, name, description, product_id, status) VALUES (?, ?, ?, ?, 1)',

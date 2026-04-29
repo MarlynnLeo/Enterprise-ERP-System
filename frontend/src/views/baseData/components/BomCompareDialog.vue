@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-dialog
     title="BOM版本对比"
     :model-value="modelValue"
@@ -138,10 +138,10 @@
         <el-table-column label="单位" prop="unit_name" width="80" />
         <el-table-column label="变更说明" min-width="180">
           <template #default="{ row }">
-            <span v-if="row.type === 'added'" style="color: #67C23A;">BOM A 新增此物料</span>
-            <span v-else-if="row.type === 'removed'" style="color: #F56C6C;">BOM A 中已移除此物料</span>
-            <span v-else-if="row.type === 'changed'" style="color: #E6A23C;">{{ row.changeDesc }}</span>
-            <span v-else style="color: #909399;">无变化</span>
+            <span v-if="row.type === 'added'" style="color: var(--color-success);">BOM A 新增此物料</span>
+            <span v-else-if="row.type === 'removed'" style="color: var(--color-danger);">BOM A 中已移除此物料</span>
+            <span v-else-if="row.type === 'changed'" style="color: var(--color-warning);">{{ row.changeDesc }}</span>
+            <span v-else style="color: var(--color-text-secondary);">无变化</span>
           </template>
         </el-table-column>
       </el-table>

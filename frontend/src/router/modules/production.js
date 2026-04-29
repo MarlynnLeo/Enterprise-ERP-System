@@ -76,5 +76,25 @@ export default [
             permission: 'production:plans',
             title: 'MRP物料需求计划'
         }
+    },
+    {
+        path: 'production/data-view',
+        name: 'productionDataView',
+        component: () => import('../../views/production/ProductionDataView.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:plans',
+            title: '生产数据看板'
+        }
+    },
+    {
+        path: 'production/gantt',
+        name: 'productionGantt',
+        component: () => import('../../views/production/ProductionGantt.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:tasks',
+            title: '排程甘特图'
+        }
     }
 ]

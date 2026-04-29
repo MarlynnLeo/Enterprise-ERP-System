@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-dialog
     :title="title"
     :model-value="modelValue"
@@ -109,7 +109,7 @@
                 :label="item.name"
                 :value="item.id">
                 <span style="float: left">{{ item.name }}</span>
-                <span style="float: right; color: #8492a6; font-size: 13px">{{ item.type === 'internal' ? '内部' : '外部' }}</span>
+                <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.type === 'internal' ? '内部' : '外部' }}</span>
               </el-option>
             </el-select>
           </el-form-item>
@@ -149,7 +149,7 @@
                 :label="item.name"
                 :value="item.id">
                 <span style="float: left">{{ item.name }}</span>
-                <span style="float: right; color: #8492a6; font-size: 13px">{{ item.code }}</span>
+                <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.code }}</span>
               </el-option>
             </el-select>
           </el-form-item>
@@ -171,7 +171,7 @@
                 :label="item.name"
                 :value="item.id">
                 <span style="float: left">{{ item.name }}</span>
-                <span style="float: right; color: #8492a6; font-size: 13px">{{ item.code }}</span>
+                <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.code }}</span>
               </el-option>
             </el-select>
           </el-form-item>

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="actual-cost-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -61,7 +61,7 @@
         </el-table-column>
         <el-table-column label="总成本" width="140" align="right">
           <template #default="scope">
-            <span style="font-weight: bold; color: #409eff;">
+            <span style="font-weight: bold; color: var(--color-primary);">
               {{ formatCurrency(scope.row.total_cost) }}
             </span>
           </template>
@@ -107,7 +107,7 @@
           <el-descriptions-item label="人工成本">{{ formatCurrency(currentDetail.labor_cost) }}</el-descriptions-item>
           <el-descriptions-item label="制造费用">{{ formatCurrency(currentDetail.overhead_cost) }}</el-descriptions-item>
           <el-descriptions-item label="总成本" :span="2">
-            <span style="font-size: 18px; font-weight: bold; color: #409eff;">
+            <span style="font-size: 18px; font-weight: bold; color: var(--color-primary);">
               {{ formatCurrency(currentDetail.total_cost) }}
             </span>
           </el-descriptions-item>

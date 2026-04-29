@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ManualTransaction.vue
  * @description 手工出入管理页面
@@ -246,7 +246,7 @@
             border
             style="width: 100%"
             max-height="400"
-            :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+            :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
             empty-text="请添加物料，按 Enter 键快速录入"
             show-summary
             :summary-method="getSummaries"
@@ -274,8 +274,8 @@
                   <template #default="{ item }">
                     <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
                       <span style="font-weight: 500; font-size: 13px; min-width: 100px;">{{ item.code }}</span>
-                      <span style="color: #606266; font-size: 13px; flex: 1;">{{ item.name }}</span>
-                      <span v-if="item.specs" style="color: #909399; font-size: 12px;">{{ item.specs }}</span>
+                      <span style="color: var(--color-text-regular); font-size: 13px; flex: 1;">{{ item.name }}</span>
+                      <span v-if="item.specs" style="color: var(--color-text-secondary); font-size: 12px;">{{ item.specs }}</span>
                     </div>
                   </template>
                 </el-autocomplete>
@@ -483,7 +483,7 @@
                 >
                   <div style="display: flex; justify-content: space-between">
                     <span>{{ item.code }} - {{ item.name }}</span>
-                    <span style="color: #8492a6; font-size: 12px">{{ item.specs || '无规格' }}</span>
+                    <span style="color: var(--color-text-muted); font-size: 12px">{{ item.specs || '无规格' }}</span>
                   </div>
                 </el-option>
               </el-select>
@@ -537,7 +537,7 @@
                 >
                   <div style="display: flex; justify-content: space-between">
                     <span>{{ item.code }} - {{ item.name }}</span>
-                    <span style="color: #8492a6; font-size: 12px">{{ item.specs || '无规格' }}</span>
+                    <span style="color: var(--color-text-muted); font-size: 12px">{{ item.specs || '无规格' }}</span>
                   </div>
                 </el-option>
               </el-select>
@@ -579,7 +579,7 @@
         >
           确定
         </el-button>
-        <div v-if="!canSubmitExchange" style="color: #f56c6c; font-size: 12px; margin-top: 8px;">
+        <div v-if="!canSubmitExchange" style="color: var(--color-danger); font-size: 12px; margin-top: 8px;">
           提示：请确保退回和补发物料都已设置默认仓库
         </div>
       </template>

@@ -1,5 +1,5 @@
-/**
- * AI预算分析服务 - 基于智谱AI GLM-4.7 大模型（专业级）
+﻿/**
+ * AI预算分析服务 - 基于本地 Ollama gemma4:26b 大模型
  * 
  * 功能矩阵：
  * 1. 预算编制建议 - 基于历史数据+AI分析推荐预算
@@ -19,10 +19,9 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 
-// 智谱AI配置
-const ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
-const ZHIPU_MODEL = 'glm-4.7'; // 付费模型（500W tokens），效果更优
+// 本地 Ollama AI 配置（OpenAI 兼容 API）
+const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://192.168.1.251:11434/v1/chat/completions';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:26b';
 
 // 速率限制配置
 const RATE_LIMIT_CONFIG = {
@@ -69,7 +68,7 @@ class BudgetAIService {
         const elapsed = now - this._lastRequestTime;
         if (elapsed < RATE_LIMIT_CONFIG.minRequestIntervalMs) {
             const waitTime = RATE_LIMIT_CONFIG.minRequestIntervalMs - elapsed;
-            logger.info(`[智谱AI限流] 距上次请求仅${elapsed}ms，等待${waitTime}ms...`);
+            logger.info(`[Ollama AI限流] 距上次请求仅${elapsed}ms，等待${waitTime}ms...`);
             await this._sleep(waitTime);
         }
         this._lastRequestTime = Date.now();
@@ -114,12 +113,12 @@ class BudgetAIService {
     // ==================== 核心AI调用 ====================
 
     /**
-     * 调用智谱AI大模型（含指数退避重试、请求限流、Token追踪）
+     * 调用本地 Ollama AI 大模型（含指数退避重试、请求限流、Token追踪）
      * @param {string} systemPrompt - 系统提示词
      * @param {string} userPrompt - 用户消息（包含数据）
      * @returns {Promise<{content: string, usage: Object}>} AI回复内容和Token用量
      */
-    static async callZhipuAI(systemPrompt, userPrompt) {
+    static async callOllamaAI(systemPrompt, userPrompt) {
         // 使用动态 import 加载 node-fetch（兼容性处理）
         let fetchFn;
         try {
@@ -129,13 +128,13 @@ class BudgetAIService {
         }
 
         const requestBody = JSON.stringify({
-            model: ZHIPU_MODEL,
+            model: OLLAMA_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
             ],
-            max_tokens: 16384, // GLM-4.7是推理模型，reasoning_tokens+输出共享此配额
             temperature: 0.3,
+            stream: false,
         });
 
         // 带重试的请求循环
@@ -143,14 +142,19 @@ class BudgetAIService {
             try {
                 await this._throttle();
 
-                const response = await fetchFn(ZHIPU_API_URL, {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 300000); // 本地模型5分钟超时
+
+                const response = await fetchFn(OLLAMA_API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${ZHIPU_API_KEY}`,
                     },
                     body: requestBody,
+                    signal: controller.signal,
                 });
+
+                clearTimeout(timeoutId);
 
                 // 处理 429 速率限制
                 if (response.status === 429) {
@@ -160,27 +164,27 @@ class BudgetAIService {
                             RATE_LIMIT_CONFIG.baseDelayMs * Math.pow(2, attempt) + jitter,
                             RATE_LIMIT_CONFIG.maxDelayMs
                         );
-                        logger.warn(`[智谱AI] 触发速率限制(429)，第${attempt + 1}次重试，等待${Math.round(delayMs)}ms...`);
+                        logger.warn(`[Ollama AI] 触发速率限制(429)，第${attempt + 1}次重试，等待${Math.round(delayMs)}ms...`);
                         await this._sleep(delayMs);
                         continue;
                     }
-                    throw new Error(`智谱AI API速率限制: 已重试${RATE_LIMIT_CONFIG.maxRetries}次仍被限流，请稍后再试`);
+                    throw new Error(`Ollama AI 速率限制: 已重试${RATE_LIMIT_CONFIG.maxRetries}次仍被限流，请稍后再试`);
                 }
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    logger.error('智谱AI API调用失败:', response.status, errorText);
-                    throw new Error(`智谱AI API错误: ${response.status} - ${errorText}`);
+                    logger.error('Ollama AI API调用失败:', response.status, errorText);
+                    throw new Error(`Ollama AI API错误: ${response.status} - ${errorText}`);
                 }
 
                 const data = await response.json();
                 const content = data.choices?.[0]?.message?.content;
 
-                // Token用量提取
+                // Token用量提取（Ollama OpenAI 兼容格式）
                 const usage = {
                     prompt_tokens: data.usage?.prompt_tokens || 0,
                     completion_tokens: data.usage?.completion_tokens || 0,
-                    reasoning_tokens: data.usage?.completion_tokens_details?.reasoning_tokens || 0,
+                    reasoning_tokens: 0,
                     total_tokens: data.usage?.total_tokens || 0,
                 };
 
@@ -191,21 +195,21 @@ class BudgetAIService {
                 this._totalUsage.total_tokens += usage.total_tokens;
                 this._totalUsage.call_count += 1;
 
-                logger.info(`[智谱AI] 调用成功 | 模型:${data.model} | Token: 输入${usage.prompt_tokens} 推理${usage.reasoning_tokens} 输出${usage.completion_tokens - usage.reasoning_tokens} 总计${usage.total_tokens}`);
+                logger.info(`[Ollama AI] 调用成功 | 模型:${OLLAMA_MODEL} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
 
                 if (!content) {
-                    logger.error('[智谱AI] 返回内容为空，完整响应:', JSON.stringify(data, null, 2));
-                    throw new Error('智谱AI返回内容为空');
+                    logger.error('[Ollama AI] 返回内容为空，完整响应:', JSON.stringify(data, null, 2));
+                    throw new Error('Ollama AI返回内容为空');
                 }
 
                 return { content, usage };
             } catch (error) {
-                if (attempt < RATE_LIMIT_CONFIG.maxRetries && error.code === 'ECONNRESET') {
-                    logger.warn(`[智谱AI] 网络连接被重置，第${attempt + 1}次重试...`);
+                if (attempt < RATE_LIMIT_CONFIG.maxRetries && (error.code === 'ECONNRESET' || error.name === 'AbortError')) {
+                    logger.warn(`[Ollama AI] 网络异常或超时，第${attempt + 1}次重试...`);
                     await this._sleep(RATE_LIMIT_CONFIG.baseDelayMs);
                     continue;
                 }
-                logger.error('智谱AI调用异常:', error.message);
+                logger.error('Ollama AI调用异常:', error.message);
                 throw error;
             }
         }
@@ -292,7 +296,7 @@ class BudgetAIService {
             if (accountsSummary.length === 0) {
                 return {
                     target_year: targetYear,
-                    ai_model: ZHIPU_MODEL,
+                    ai_model: OLLAMA_MODEL,
                     recommendations: [],
                     ai_summary: '没有找到历史支出数据，无法生成预算建议。请确保系统中有过去几年的会计分录记录。',
                     data_source: '无可用数据',
@@ -339,7 +343,7 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
 
             // 3. 调用AI
             logger.info(`[AI预算建议] 开始为${targetYear}年生成建议，${accountsSummary.length}个科目...`);
-            const { content: aiResponse, usage } = await this.callZhipuAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             // 用真实科目名称补全AI返回数据（AI可能遗漏account_name）
@@ -357,7 +361,7 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
                 target_year: targetYear,
                 department_id: departmentId,
                 analysis_period: `${startYear}-${targetYear - 1}`,
-                ai_model: ZHIPU_MODEL,
+                ai_model: OLLAMA_MODEL,
                 total_recommended_budget: result.total_recommended_budget,
                 overall_analysis: result.overall_analysis,
                 trend_analysis: result.trend_analysis || '',
@@ -414,7 +418,7 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
             if (details.length === 0) {
                 return {
                     budget_id: budgetId,
-                    ai_model: ZHIPU_MODEL,
+                    ai_model: OLLAMA_MODEL,
                     anomalies: [],
                     ai_summary: '该预算没有明细数据，无法进行异常检测。',
                     summary: { total: 0, critical: 0, warning: 0, info: 0 },
@@ -479,7 +483,7 @@ ${JSON.stringify(executionData, null, 2)}
 
             // 4. 调用AI
             logger.info(`[AI异常检测] 开始检测预算#${budgetId}，${executionData.length}个明细项...`);
-            const { content: aiResponse, usage } = await this.callZhipuAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             const rates = executionData.map(d => d.rate);
@@ -488,7 +492,7 @@ ${JSON.stringify(executionData, null, 2)}
             const response = {
                 budget_id: budgetId,
                 budget_name: budgetName,
-                ai_model: ZHIPU_MODEL,
+                ai_model: OLLAMA_MODEL,
                 risk_score: result.risk_score || 0,
                 statistics: {
                     mean_execution_rate: Math.round(mean * 100) / 100,
@@ -555,7 +559,7 @@ ${JSON.stringify(executionData, null, 2)}
             if (details.length === 0) {
                 return {
                     budget_id: budgetId,
-                    ai_model: ZHIPU_MODEL,
+                    ai_model: OLLAMA_MODEL,
                     health_score: 0,
                     health_level: '无数据',
                     ai_analysis: '该预算没有明细数据，无法进行优化分析。',
@@ -638,13 +642,13 @@ ${JSON.stringify(executionData, null, 2)}
 
             // 4. 调用AI
             logger.info(`[AI优化建议] 开始分析预算#${budgetId}...`);
-            const { content: aiResponse, usage } = await this.callZhipuAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             const response = {
                 budget_id: budgetId,
                 budget_name: budgetName,
-                ai_model: ZHIPU_MODEL,
+                ai_model: OLLAMA_MODEL,
                 health_score: result.health_score || 0,
                 health_level: result.health_level || '未知',
                 overall_analysis: result.overall_analysis || '',
@@ -744,7 +748,7 @@ ${JSON.stringify(executionData, null, 2)}
             if (data.length === 0) {
                 return {
                     year1, year2,
-                    ai_model: ZHIPU_MODEL,
+                    ai_model: OLLAMA_MODEL,
                     comparison: [],
                     ai_analysis: '没有找到这两个年度的预算数据。',
                     usage: null,
@@ -797,12 +801,12 @@ ${JSON.stringify(comparisonData, null, 2)}
 4. 整体趋势研判`;
 
             logger.info(`[AI年度对比] 开始对比${year1}年和${year2}年...`);
-            const { content: aiResponse, usage } = await this.callZhipuAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             const response = {
                 year1, year2,
-                ai_model: ZHIPU_MODEL,
+                ai_model: OLLAMA_MODEL,
                 overall_comparison: result.overall_comparison || '',
                 key_changes: result.key_changes || [],
                 trend_insights: result.trend_insights || [],
@@ -858,7 +862,7 @@ ${JSON.stringify(comparisonData, null, 2)}
             if (details.length === 0) {
                 return {
                     budget_id: budgetId,
-                    ai_model: ZHIPU_MODEL,
+                    ai_model: OLLAMA_MODEL,
                     report: { summary: '该预算没有明细数据，无法生成综合报告。' },
                     usage: null,
                 };
@@ -932,14 +936,14 @@ ${JSON.stringify(executionData, null, 2)}
 5. 未来展望`;
 
             logger.info(`[AI综合报告] 开始生成预算#${budgetId}的综合报告...`);
-            const { content: aiResponse, usage } = await this.callZhipuAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             const response = {
                 budget_id: budgetId,
                 budget_name: budget.budget_name,
                 budget_year: budget.budget_year,
-                ai_model: ZHIPU_MODEL,
+                ai_model: OLLAMA_MODEL,
                 generated_at: new Date().toISOString(),
                 report: result,
                 execution_data: executionData,

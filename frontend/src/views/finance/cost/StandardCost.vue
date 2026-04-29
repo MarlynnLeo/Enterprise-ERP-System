@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="standard-cost-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -49,7 +49,7 @@
         </el-table-column>
         <el-table-column label="总成本" width="130" align="right">
           <template #default="scope">
-            <span style="font-weight: bold; color: #409eff;">
+            <span style="font-weight: bold; color: var(--color-primary);">
               {{ formatCurrency(scope.row.total_cost) }}
             </span>
           </template>
@@ -182,12 +182,12 @@
                 </el-table-column>
               </el-table>
               <div style="margin-top: 16px; text-align: right; font-size: 15px;">
-                <span style="font-weight: bold; color: #303133; margin-right: 12px;">制造费用总计:</span>
-                <span style="font-size: 18px; font-weight: bold; color: #f56c6c;">¥{{ formatCurrency(currentDetail.overhead_cost) }}</span>
+                <span style="font-weight: bold; color: var(--color-text-primary); margin-right: 12px;">制造费用总计:</span>
+                <span style="font-size: 18px; font-weight: bold; color: var(--color-danger);">¥{{ formatCurrency(currentDetail.overhead_cost) }}</span>
               </div>
             </template>
             <el-empty v-else description="暂无制造费用明细" :image-size="60"></el-empty>
-            <div style="margin-top: 16px; color: #909399; font-size: 13px;">
+            <div style="margin-top: 16px; color: var(--color-text-secondary); font-size: 13px;">
               <p>* 制造费用 = 各专属规则与全局通用规则的累加之和。</p>
               <p>* 单项费用 = 基数数值 × 计算费率。</p>
             </div>
@@ -239,7 +239,7 @@
              <el-select v-model="overheadForm.templateId" @change="handleTemplateChange" placeholder="选择全局规则模板（如：模具费）" style="width:100%">
                <el-option v-for="tpl in globalOverheadTemplates" :key="tpl.id" :label="tpl.name" :value="tpl.id"></el-option>
              </el-select>
-             <div style="font-size: 12px; color: #909399; margin-top: 4px;">引用模板会自动继承规则名称和分摊标准，并赋予该价格最高优先级。</div>
+             <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">引用模板会自动继承规则名称和分摊标准，并赋予该价格最高优先级。</div>
           </el-form-item>
           <el-form-item label="单品专属价格" required>
             <el-input-number v-model="overheadForm.rate" :precision="4" :step="1" style="width:100%"></el-input-number>

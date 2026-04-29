@@ -110,7 +110,8 @@ const assetInventoryModel = {
                 throw new Error('存在未完成的盘点单，请先完成或取消当前盘点');
             }
 
-            const inventoryNo = `INV${Date.now()}`;
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const inventoryNo = `INV-${dateStr}-${String(Math.floor(Math.random() * 900) + 100)}`;
 
             // 创建主单
             const [result] = await connection.query(

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="profitability-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -286,19 +286,19 @@ const renderTrendChart = () => {
           name: '收入',
           type: 'bar',
           data: trendData.value.map(d => d.total_revenue),
-          itemStyle: { color: '#409EFF' }
+          itemStyle: { color: 'var(--color-primary)' }
         },
         {
           name: '成本',
           type: 'bar',
           data: trendData.value.map(d => d.total_cost),
-          itemStyle: { color: '#E6A23C' }
+          itemStyle: { color: 'var(--color-warning)' }
         },
         {
           name: '毛利',
           type: 'line',
           data: trendData.value.map(d => d.gross_profit),
-          itemStyle: { color: '#67C23A' },
+          itemStyle: { color: 'var(--color-success)' },
           lineStyle: { width: 3 }
         }
       ]
@@ -393,7 +393,7 @@ onMounted(() => {
   justify-content: center;
   margin-right: 15px;
   font-size: 28px;
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-card.revenue .stat-icon { background: linear-gradient(135deg, #409EFF 0%, #66b1ff 100%); }

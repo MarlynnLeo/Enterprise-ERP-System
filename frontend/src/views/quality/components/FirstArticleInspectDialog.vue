@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * FirstArticleInspectDialog.vue
  * @description 首检检验弹窗
@@ -38,14 +38,14 @@
           <el-radio value="failed"><el-tag type="danger">不合格</el-tag></el-radio>
           <el-radio value="conditional"><el-tag type="warning">有条件放行</el-tag></el-radio>
         </el-radio-group>
-        <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+        <div style="margin-top: 8px; font-size: 12px; color: var(--color-text-secondary);">
           <el-icon><InfoFilled /></el-icon> 首检结果会根据检验项目结果自动判定
         </div>
       </el-form-item>
 
       <el-form-item v-if="form.first_article_result === 'conditional'" label="允许继续生产">
         <el-switch v-model="form.production_can_continue" />
-        <span style="margin-left: 10px; color: #909399; font-size: 12px;">开启后生产任务可继续进行</span>
+        <span style="margin-left: 10px; color: var(--color-text-secondary); font-size: 12px;">开启后生产任务可继续进行</span>
       </el-form-item>
       <el-form-item label="检验员" prop="inspector_name">
         <el-input v-model="form.inspector_name" placeholder="自动获取" disabled />

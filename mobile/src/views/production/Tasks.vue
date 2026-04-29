@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Tasks.vue - 生产任务
  * @description 生产任务管理页面 — 与会计科目同风格卡片设计
@@ -651,7 +651,7 @@
     }
     &.status-inspection {
       background: rgba(168, 85, 247, 0.12);
-      color: #a855f7;
+      color: var(--module-purple);
     }
     &.status-completed {
       background: rgba(16, 185, 129, 0.12);

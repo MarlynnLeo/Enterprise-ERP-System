@@ -125,16 +125,16 @@
 
 /* 高级搜索按钮 - 蓝底白字 */
 .advanced-search-btn {
-  background-color: #409eff !important;
-  border-color: #409eff !important;
-  color: #fff !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-on-primary, #fff) !important;
 }
 
 .advanced-search-btn:hover,
 .advanced-search-btn:focus {
-  background-color: #66b1ff !important;
-  border-color: #66b1ff !important;
-  color: #fff !important;
+  background-color: var(--color-primary-light-3) !important;
+  border-color: var(--color-primary-light-3) !important;
+  color: var(--color-on-primary, #fff) !important;
 }
 
 /* 搜索表单组件的默认尺寸规范，防止开启 clearable 时的内部宽度变动引起旁边查询按钮的位置抖动 */
@@ -154,7 +154,7 @@
 
 /* 页面头部卡片 - 增强版 */
 .header-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  background: linear-gradient(135deg, var(--color-bg-base) 0%, var(--color-bg-section) 100%) !important;
   border-left: 4px solid var(--color-primary) !important;
   position: relative;
   overflow: hidden;
@@ -265,7 +265,7 @@
 
 .stat-card.success::before,
 .stat-card:nth-child(2)::before {
-  background: linear-gradient(90deg, var(--color-success) 0%, #95d475 100%);
+  background: linear-gradient(90deg, var(--color-success) 0%, var(--color-success-gradient-end) 100%);
 }
 
 .stat-card.warning .stat-value,
@@ -275,7 +275,7 @@
 
 .stat-card.warning::before,
 .stat-card:nth-child(3)::before {
-  background: linear-gradient(90deg, var(--color-warning) 0%, #f3d19e 100%);
+  background: linear-gradient(90deg, var(--color-warning) 0%, var(--color-warning-gradient-end) 100%);
 }
 
 .stat-card.danger .stat-value,
@@ -285,7 +285,7 @@
 
 .stat-card.danger::before,
 .stat-card:nth-child(4)::before {
-  background: linear-gradient(90deg, var(--color-danger) 0%, #fab6b6 100%);
+  background: linear-gradient(90deg, var(--color-danger) 0%, var(--color-danger-gradient-end) 100%);
 }
 
 .stat-card.info .stat-value,
@@ -295,7 +295,7 @@
 
 .stat-card.info::before,
 .stat-card:nth-child(5)::before {
-  background: linear-gradient(90deg, var(--color-info) 0%, #c8c9cc 100%);
+  background: linear-gradient(90deg, var(--color-info) 0%, var(--color-info-gradient-end) 100%);
 }
 
 /* ==================== 分页 ==================== */
@@ -343,7 +343,7 @@
 }
 
 .delete-text-btn:hover {
-  color: #f78989;
+  color: var(--color-danger-hover);
 }
 
 /* ==================== 统计行 ==================== */

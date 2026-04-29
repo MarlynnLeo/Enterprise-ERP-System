@@ -205,7 +205,7 @@
               :value="user.id"
             >
               <span style="float: left">{{ user.real_name || user.username }}</span>
-              <span style="float: right; color: #8492a6; font-size: 13px">{{ user.department_name || '无部门' }}</span>
+              <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ user.department_name || '无部门' }}</span>
             </el-option>
           </el-select>
         </el-form-item>

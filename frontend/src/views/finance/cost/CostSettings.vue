@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="cost-settings">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -60,7 +60,7 @@
                   <el-col :span="12">
                     <el-form-item label="制造费用率（旧版兜底）">
                       <el-input-number v-model="settingsForm.overheadRate" :min="0" :max="10" :precision="4" :step="0.05" style="width: 100%" />
-                      <div style="font-size: 12px; color: #909399; margin-top: 4px;">仅在分摊规则引擎无法计算时作为降级方案</div>
+                      <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">仅在分摊规则引擎无法计算时作为降级方案</div>
                     </el-form-item>
                   </el-col>
                 </el-row>
@@ -84,7 +84,7 @@
                     </el-form-item>
                   </el-col>
                 </el-row>
-                <div v-if="Math.abs((settingsForm.fallbackMaterialRatio + settingsForm.fallbackLaborRatio + settingsForm.fallbackOverheadRatio) - 1.0) > 0.001" style="color: #f56c6c; font-size: 13px; margin-bottom: 12px;">
+                <div v-if="Math.abs((settingsForm.fallbackMaterialRatio + settingsForm.fallbackLaborRatio + settingsForm.fallbackOverheadRatio) - 1.0) > 0.001" style="color: var(--color-danger); font-size: 13px; margin-bottom: 12px;">
                   ⚠️ 三项之和为 {{ (settingsForm.fallbackMaterialRatio + settingsForm.fallbackLaborRatio + settingsForm.fallbackOverheadRatio).toFixed(4) }}，必须等于 1.0
                 </div>
 
@@ -142,7 +142,7 @@
                       :value="acc.id"
                     >
                       <span style="float: left">{{ acc.account_code }}</span>
-                      <span style="float: right; color: #8492a6; font-size: 13px">{{ acc.account_name }}</span>
+                      <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ acc.account_name }}</span>
                     </el-option>
                  </el-select>
                </template>
@@ -288,7 +288,7 @@
             </el-table-column>
             <el-table-column prop="standard_price" label="标准成本" width="120" align="right">
               <template #default="scope">
-                <span style="color: #409eff; font-weight: 600;">{{ scope.row.standard_price ? Number(scope.row.standard_price).toFixed(2) : '-' }}</span>
+                <span style="color: var(--color-primary); font-weight: 600;">{{ scope.row.standard_price ? Number(scope.row.standard_price).toFixed(2) : '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="effective_date" label="生效日期" width="110" />
@@ -1028,7 +1028,7 @@ onMounted(() => {
 }
 
 .settings-tabs :deep(.el-tabs__header) {
-  background: #f8f9fa;
+  background: var(--color-bg-section);
   margin: 0;
   padding: 16px 20px 0;
   border-bottom: 1px solid var(--color-border-light);

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * SalesOutbound.vue
  * @description 前端界面组件文件
@@ -114,7 +114,7 @@
                   <div v-if="Array.isArray(scope.row.related_order_details) && scope.row.related_order_details.length > 0">
                     <div v-for="(order, index) in scope.row.related_order_details" :key="index" style="margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                       <strong>{{ order.order_no }}</strong>
-                      <span v-if="order.customer_name" style="color: #666; margin-left: 8px;">{{ order.customer_name }}</span>
+                      <span v-if="order.customer_name" style="color: var(--color-text-regular); margin-left: 8px;">{{ order.customer_name }}</span>
                     </div>
                   </div>
                   
@@ -134,7 +134,7 @@
                   
                   <!-- 如果都没有，显示提示信息 -->
                   <div v-else>
-                    <div style="color: #999; font-size: 12px;">
+                    <div style="color: var(--color-text-secondary); font-size: 12px;">
                       暂无订单详情
                     </div>
                   </div>
@@ -326,7 +326,7 @@
                 :value="customer.id"
               >
                 <span style="float: left">{{ customer.name }}</span>
-                <span v-if="customer.code" style="float: right; color: #8492a6; font-size: 13px">{{ customer.code }}</span>
+                <span v-if="customer.code" style="float: right; color: var(--color-text-muted); font-size: 13px">{{ customer.code }}</span>
               </el-option>
             </el-select>
             <el-button type="primary" @click="openCustomerProductsDialog" :disabled="!outboundForm.customer_id">
@@ -373,7 +373,7 @@
               border 
               style="width: 100%" 
               table-layout="fixed"
-              :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+              :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="该订单所有物料已完全发货，无需再次出库"
             >
               <el-table-column type="selection" width="55" />
@@ -404,8 +404,8 @@
               <el-table-column label="订单总量" width="90" align="center">
                 <template #default="{ row }">
                   <div>
-                    <span style="color: #409EFF; font-weight: bold;">{{ row.order_quantity || row.quantity }}</span>
-                    <div v-if="row.source_orders && row.source_orders.length > 1" style="font-size: 10px; color: #909399;">
+                    <span style="color: var(--color-primary); font-weight: bold;">{{ row.order_quantity || row.quantity }}</span>
+                    <div v-if="row.source_orders && row.source_orders.length > 1" style="font-size: 10px; color: var(--color-text-secondary);">
                       合并{{ row.source_orders.length }}单
                     </div>
                   </div>
@@ -413,12 +413,12 @@
               </el-table-column>
               <el-table-column label="已发货" width="80" align="center">
                 <template #default="{ row }">
-                  <span style="color: #E6A23C; font-weight: bold;">{{ row.shipped_quantity || 0 }}</span>
+                  <span style="color: var(--color-warning); font-weight: bold;">{{ row.shipped_quantity || 0 }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="剩余" width="80" align="center">
                 <template #default="{ row }">
-                  <span style="color: #F56C6C; font-weight: bold;">{{ row.remaining_quantity || row.quantity }}</span>
+                  <span style="color: var(--color-danger); font-weight: bold;">{{ row.remaining_quantity || row.quantity }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="发货数量" width="120">
@@ -520,7 +520,7 @@
           border 
           style="width: 100%"
           v-loading="customerProductsLoading"
-          :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+          :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
           @selection-change="handleProductSelectionChange"
         >
           <el-table-column type="selection" width="55" />

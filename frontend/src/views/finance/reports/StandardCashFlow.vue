@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * StandardCashFlow.vue
  * @description 标准现金流量表（间接法）
@@ -453,7 +453,7 @@ onMounted(() => {
 }
 
 .header-row {
-  background: #f0f9eb;
+  background: var(--color-success-light);
 }
 
 .header-row .item-name {
@@ -462,7 +462,7 @@ onMounted(() => {
 }
 
 .total-row {
-  background: #ecf5ff;
+  background: var(--color-primary-light-9);
 }
 
 .total-row .item-name,

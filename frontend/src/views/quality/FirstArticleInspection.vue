@@ -396,7 +396,7 @@ const handlePrint = async (row) => {
           itemsHtml += itemHtml;
         });
       } else {
-        itemsHtml = '<tr><td colspan="7" style="text-align: center; color: #999;">暂无检验项目数据</td></tr>';
+        itemsHtml = '<tr><td colspan="7" style="text-align: center; color: var(--color-text-secondary);">暂无检验项目数据</td></tr>';
       }
       
       renderedContent = renderedContent.replace(/\{\{#each\s+items\}\}[\s\S]*?\{\{\/each\}\}/g, itemsHtml);

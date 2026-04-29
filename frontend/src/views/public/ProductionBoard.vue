@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="production-board">
     <!-- 头部 -->
     <div class="board-header">
@@ -638,7 +638,7 @@ onUnmounted(() => {
 .board-title {
   font-size: 28px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-primary);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -660,14 +660,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #666;
+  color: var(--color-text-regular);
   font-size: 14px;
 }
 
 /* 设置对话框样式 */
 .settings-content h4 {
   margin: 0 0 12px 0;
-  color: #333;
+  color: var(--color-text-primary);
   font-size: 15px;
 }
 
@@ -707,7 +707,7 @@ onUnmounted(() => {
 }
 
 .card-order-item .el-icon {
-  color: #999;
+  color: var(--color-text-secondary);
 }
 
 .card-order-item span {
@@ -755,7 +755,7 @@ onUnmounted(() => {
   width: 140px;
   flex-shrink: 0;
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-regular);
 }
 
 .speed-value {
@@ -771,7 +771,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  color: white;
+  color: var(--color-on-primary, #fff);
   font-size: 18px;
 }
 
@@ -811,7 +811,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .stat-info {
@@ -820,21 +820,21 @@ onUnmounted(() => {
 
 .stat-label {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-regular);
   margin-bottom: 8px;
 }
 
 .stat-value {
   font-size: 32px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-primary);
   line-height: 1;
   margin-bottom: 4px;
 }
 
 .stat-sub {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-secondary);
 }
 
 /* 流程步骤 */
@@ -848,7 +848,7 @@ onUnmounted(() => {
 .section-title {
   font-size: 20px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-primary);
   margin: 0 0 20px 0;
   display: flex;
   align-items: center;
@@ -875,7 +875,7 @@ onUnmounted(() => {
   height: 32px;
   border-radius: 50%;
   background: #e0e0e0;
-  color: #666;
+  color: var(--color-text-regular);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -885,7 +885,7 @@ onUnmounted(() => {
 
 .flow-step.has-data .step-number {
   background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
-  color: white;
+  color: var(--color-on-primary, #fff);
 }
 
 .step-content {
@@ -902,7 +902,7 @@ onUnmounted(() => {
 
 .step-name {
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
   font-size: 14px;
 }
@@ -915,11 +915,11 @@ onUnmounted(() => {
 
 .step-stat {
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-regular);
 }
 
 .step-stat .stat-label {
-  color: #999;
+  color: var(--color-text-secondary);
 }
 
 .step-stat .stat-value {
@@ -929,7 +929,7 @@ onUnmounted(() => {
 }
 
 .step-arrow {
-  color: #999;
+  color: var(--color-text-secondary);
   font-size: 20px;
 }
 
@@ -951,7 +951,7 @@ onUnmounted(() => {
 .card-title {
   font-size: 16px;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-primary);
   margin: 0 0 20px 0;
 }
 
@@ -963,7 +963,7 @@ onUnmounted(() => {
 .completion-detail {
   margin-top: 12px;
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-regular);
 }
 
 /* 最近计划 */

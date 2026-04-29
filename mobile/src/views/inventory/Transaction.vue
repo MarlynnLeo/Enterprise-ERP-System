@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Transaction.vue
  * @description 库存流水报表页面
@@ -511,7 +511,7 @@
     }
     &.accent-purple {
       background: rgba(168, 85, 247, 0.12);
-      color: #a855f7;
+      color: var(--module-purple);
     }
     &.accent-yellow {
       background: rgba(245, 158, 11, 0.12);
