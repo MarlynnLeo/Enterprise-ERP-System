@@ -14,7 +14,7 @@ export const devLogger = {
    * 普通日志 (仅开发环境)
    * @param {...any} args - 日志参数
    */
-  log: (...args) => {
+  log: () => {
     if (isDev) {
     }
   },
@@ -38,10 +38,10 @@ export const devLogger = {
   },
 
   /**
-   * 调试日志 (仅开发环境)
+   * 开发跟踪日志 (仅开发环境)
    * @param {...any} args - 日志参数
    */
-  debug: (...args) => {
+  debug: () => {
     if (isDev) {
     }
   },
@@ -136,4 +136,3 @@ export const createLogger = (prefix) => {
 };
 
 export default devLogger;
-

@@ -191,26 +191,27 @@
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+  import { ref, reactive, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { NavBar, Icon, Badge, Button, showToast } from 'vant'
+  import { NavBar, Icon, Badge, Button } from 'vant'
+  import { systemApi } from '@/services/api'
 
   const router = useRouter()
 
   // 系统信息
   const systemInfo = reactive({
-    version: '1.0.0',
+    version: import.meta.env.VITE_APP_VERSION || '',
     status: 'running', // running, maintenance, error
-    onlineUsers: 25,
-    totalUsers: 156,
-    uptime: '15天'
+    onlineUsers: 0,
+    totalUsers: 0,
+    uptime: '-'
   })
 
   // 系统监控数据
   const systemMonitor = reactive({
-    cpu: 45,
-    memory: 68,
-    disk: 32
+    cpu: 0,
+    memory: 0,
+    disk: 0
   })
 
   // 用户管理模块
@@ -364,36 +365,43 @@
 
   // 快速操作
   const createUser = () => {
-    showToast('新建用户功能开发中')
+    router.push('/system/users/create')
   }
 
   const createDepartment = () => {
-    showToast('新建部门功能开发中')
+    router.push('/system/departments')
   }
 
   const createRole = () => {
-    showToast('新建角色功能开发中')
+    router.push('/system/roles')
   }
 
-  // 定时器引用
-  let monitorTimer = null
-
-  // 更新系统监控数据（后续对接后端 /system/monitor 接口）
-  const updateMonitorData = () => {
-    // TODO: 替换为 systemApi.getMonitorData() 真实接口
+  const getTotalFromResponse = (response) => {
+    const data = response.data || response || {}
+    if (typeof data.total === 'number') return data.total
+    if (Array.isArray(data)) return data.length
+    if (Array.isArray(data.list)) return data.list.length
+    if (Array.isArray(data.items)) return data.items.length
+    return 0
   }
 
-  // 初始化
-  onMounted(() => {
-    monitorTimer = setInterval(updateMonitorData, 10000)
-  })
-
-  onBeforeUnmount(() => {
-    if (monitorTimer) {
-      clearInterval(monitorTimer)
-      monitorTimer = null
+  const loadSystemOverview = async () => {
+    try {
+      const [usersRes, departmentsRes] = await Promise.all([
+        systemApi.getUsers({ page: 1, pageSize: 1 }),
+        systemApi.getDepartments({ page: 1, pageSize: 1 })
+      ])
+      systemInfo.totalUsers = getTotalFromResponse(usersRes)
+      const sessions = userModules.value.find((item) => item.key === 'sessions')
+      if (sessions) sessions.badge = systemInfo.onlineUsers || null
+      const departments = orgModules.value.find((item) => item.key === 'departments')
+      if (departments) departments.badge = getTotalFromResponse(departmentsRes) || null
+    } catch (error) {
+      console.error('加载系统概览失败:', error)
     }
-  })
+  }
+
+  onMounted(loadSystemOverview)
 </script>
 
 <style lang="scss" scoped>

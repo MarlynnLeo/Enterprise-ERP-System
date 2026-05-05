@@ -13,6 +13,7 @@ const purchaseModel = require('../../../models/purchase');
 const { desensitizeData, hasFinancePermission } = require('../../../utils/desensitizer');
 const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const DLQService = require('../../../services/business/DLQService');
 
 // 状态常量
 const STATUS = {
@@ -333,7 +334,7 @@ const createReceipt = async (req, res) => {
     const isFromInspection = from_inspection || fromInspection || false;
 
     // 强制转换items为数组
-    const items = Array.isArray(rawItems) ? rawItems : [];
+    let items = Array.isArray(rawItems) ? rawItems : [];
 
     logger.info('解构后的数据:', {
       orderId,
@@ -379,7 +380,7 @@ const createReceipt = async (req, res) => {
       const orderQuery = 'SELECT order_no, status FROM purchase_orders WHERE id = ? FOR UPDATE';
       const [rows] = await client.query(orderQuery, [orderId]);
       orderResult = rows;
-      
+
       if (!orderResult || orderResult.length === 0) {
         await client.rollback();
         return ResponseHandler.notFound(res, '采购订单不存在');
@@ -499,14 +500,6 @@ const createReceipt = async (req, res) => {
     // 优先使用前端传入的receiver(真实姓名)作为operator
     const operator = await getCurrentUserName(req);
 
-    // 记录是否来自检验的标记，便于日志和调试
-    if (from_inspection) {
-      if (only_inspection_material) {
-      }
-      if (material_id) {
-      }
-    }
-
     // 创建采购入库单
     const insertQuery = `
       INSERT INTO purchase_receipts (
@@ -602,7 +595,7 @@ const createReceipt = async (req, res) => {
       if (from_inspection && only_inspection_material && material_id) {
         const filteredItems = items.filter((item) => {
           const itemMatId = item.materialId || item.material_id;
-          return itemMatId == material_id; // 使用==而不是===，允许字符串和数字的比较
+          return String(itemMatId) === String(material_id);
         });
 
         if (filteredItems.length !== items.length) {
@@ -738,7 +731,6 @@ const createReceipt = async (req, res) => {
           // 继续处理下一个物料项，不中断流程
         }
       }
-    } else {
     }
 
     // 提交事务
@@ -759,7 +751,6 @@ const createReceipt = async (req, res) => {
       throw new Error('无法获取入库单数据');
     }
 
-    const receipt = receiptItems[0];
 
     // 生成追溯链路记录
     // 追溯链路创建已移除
@@ -800,7 +791,6 @@ const createReceipt = async (req, res) => {
       } catch (releaseError) {
         logger.error('释放数据库连接失败:', releaseError);
       }
-    } else {
     }
   }
 };
@@ -857,7 +847,6 @@ const updateReceipt = async (req, res) => {
       }
 
       // 如果更改了仓库，则需要获取新仓库的信息
-      let warehouseName = null;
       if (warehouseId && warehouseId !== currentItem.warehouse_id) {
         let warehouseResult;
         try {
@@ -877,7 +866,6 @@ const updateReceipt = async (req, res) => {
             return ResponseHandler.notFound(res, '仓库不存在');
           }
 
-          warehouseName = (warehouseResult[0] || {}).name || '';
         } catch (dbError) {
           logger.error('查询仓库信息失败:', dbError);
           await client.query('ROLLBACK');
@@ -1000,7 +988,6 @@ const updateReceiptStatus = async (req, res) => {
     }
 
     // 检查入库单是否存在
-    let checkResult;
     try {
       const checkQuery = 'SELECT status FROM purchase_receipts WHERE id = ?';
       const [checkRows] = await client.query(checkQuery, [id]);
@@ -1163,7 +1150,7 @@ const updateReceiptStatus = async (req, res) => {
                   }
                 } catch (inspectionError) {
                   logger.error('查询检验单失败:', inspectionError);
-                  // 不影响主流程
+                  throw inspectionError;
                 }
               }
 
@@ -1200,7 +1187,7 @@ const updateReceiptStatus = async (req, res) => {
         // 不因为追溯失败而影响收货单的完成
       }
 
-      // (原 sales_orders 自动推进逻辑已迁移至 InventoryService.updateStock 统一收口) 
+      // (原 sales_orders 自动推进逻辑已迁移至 InventoryService.updateStock 统一收口)
 
     }
 
@@ -1258,11 +1245,25 @@ const updateReceiptStatus = async (req, res) => {
               );
               logger.info(`🔥 物料 ${item.material_code} MAC 成本凭证生成成功 (单价=${unitPrice}, 数量=${qty})`);
             } catch (costErr) {
-              logger.error(`⚠️ 物料 ${item.material_code} MAC 成本凭证生成失败: ${costErr.message}`);
+              await DLQService.recordSideEffectFailure(
+                'CostAccounting:PurchaseInboundMAC',
+                {
+                  receiptId: id,
+                  materialId: item.material_id,
+                  materialCode: item.material_code,
+                  quantity: qty,
+                  unitPrice,
+                },
+                costErr
+              );
             }
           }
         } catch (macError) {
-          logger.error(`⚠️ 采购入库 MAC 成本更新失败（不影响入库）: ${macError.message}`);
+          await DLQService.recordSideEffectFailure(
+            'CostAccounting:PurchaseInboundMACBatch',
+            { receiptId: id },
+            macError
+          );
         }
       });
     }
@@ -1449,15 +1450,6 @@ const getMaterialPurchaseHistory = async (req, res) => {
       whereClause += ' AND pr.status = ?';
       queryParams.push('completed');
 
-      // 记录查询参数用于调试
-      logger.debug('查询物料采购历史参数:', {
-        materialId: parsedMaterialId,
-        queryParams,
-        actualPage,
-        actualPageSize,
-        offset,
-      });
-
       // 查询总数
       const countQuery = `
         SELECT COUNT(DISTINCT pr.id) as total
@@ -1465,12 +1457,6 @@ const getMaterialPurchaseHistory = async (req, res) => {
         INNER JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
         ${whereClause}
       `;
-
-      logger.debug('执行物料采购历史计数查询:', {
-        queryParams,
-        types: queryParams.map((p) => typeof p),
-        values: queryParams.map((p) => (p === null ? 'null' : p === undefined ? 'undefined' : p)),
-      });
 
       const countResult = await client.query(countQuery, queryParams);
       const countRows = Array.isArray(countResult)
@@ -1518,17 +1504,6 @@ const getMaterialPurchaseHistory = async (req, res) => {
       `;
 
       const dataParams = queryParams;
-
-      // 记录完整的查询参数用于调试
-      logger.debug('执行物料采购历史查询:', {
-        whereClause,
-        dataParams,
-        paramCount: dataParams.length,
-        types: dataParams.map((p) => typeof p),
-        values: dataParams.map((p) => (p === null ? 'null' : p === undefined ? 'undefined' : p)),
-        actualPageSize,
-        offset,
-      });
 
       // 验证参数
       const placeholderCount = (dataQuery.match(/\?/g) || []).length;
@@ -1665,7 +1640,7 @@ const getPurchaseHistoryItems = async (req, res) => {
         ORDER BY pr.receipt_date DESC, pr.id DESC
         LIMIT ${actualPageSize} OFFSET ${offset}
       `;
-      
+
       const dataResult = await client.query(dataQuery, queryParams);
       const dataRows = Array.isArray(dataResult)
         ? dataResult

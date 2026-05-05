@@ -720,7 +720,7 @@ const loadData = async () => {
       };
 
       const response = await api.get('/baseData/product-categories', { params });
-      const { data, total } = parseResponseData(response);
+      const { data } = parseResponseData(response);
 
       // 将平铺数据转换为树形结构
       const fullTree = buildTreeFromFlatData(data);

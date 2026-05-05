@@ -126,7 +126,7 @@ const currentThemeDescription = computed(() => {
 
 // 色板预览（使用主题的 preview 配色）
 const colorPalette = computed(() => {
-  const current = themeOptions.find(t => t.name === currentThemeName.value) || themeOptions[0]
+  
   const themeConfig = getTheme(currentThemeName.value)
   return [
     { name: '主色', value: themeConfig?.preview?.primary || '#1a73e8' },

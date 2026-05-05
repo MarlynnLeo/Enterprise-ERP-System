@@ -67,7 +67,7 @@ const gracefulShutdown = async (signal) => {
     try {
       const { closeRedis } = require('./redisClient');
       await closeRedis();
-    } catch (_) { /* Redis 可能未启用 */ }
+    } catch { /* Redis 可能未启用 */ }
 
     await poolFactory.closeAll();
     logger.info('✅ 所有数据库连接池已关闭');
@@ -138,7 +138,7 @@ const getClient = async () => {
       };
     }
   };
-  
+
   return connection;
 };
 

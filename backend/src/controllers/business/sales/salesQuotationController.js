@@ -7,22 +7,20 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
-const db = require('../../../config/db');
+
 const { softDelete } = require('../../../utils/softDelete');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
-// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
-const { STATUS, getConnection, getConnectionWithTransaction } = require('./salesShared');
+const { getConnection, formatDateToMySQLDate } = require('./salesShared');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
-
-// 添加新的控制器方法
 
 exports.getSalesQuotations = async (req, res) => {
   try {
     const { search, status, startDate, endDate, page = 1, pageSize = 20 } = req.query;
 
     // 构建查询条件
-    const conditions = {};
+
     const params = [];
     let whereClause = '';
 
@@ -239,7 +237,7 @@ exports.createSalesQuotation = async (req, res) => {
         formatDateToMySQLDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
         quotation.status === '待确认' ? 'draft' : quotation.status || 'draft',
         quotation.remarks || '',
-        req.user ? req.user.id : 1,
+        getAuthenticatedUserId(req),
       ]
     );
 
@@ -567,4 +565,3 @@ exports.convertQuotationToOrder = async (req, res) => {
 };
 
 // 获取销售订单操作人列表
-

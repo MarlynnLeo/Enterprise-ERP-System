@@ -35,8 +35,13 @@ const getWeather = async (req, res) => {
 
     // 检查API密钥是否配置
     if (!AMAP_CONFIG.key) {
-      logger.warn('高德地图API密钥未配置，返回默认数据');
-      return ResponseHandler.success(res, getDefaultWeather(city));
+      logger.warn('高德地图API密钥未配置，天气服务不可用');
+      return ResponseHandler.error(
+        res,
+        '天气服务未配置，请维护 AMAP_API_KEY',
+        'WEATHER_CONFIG_MISSING',
+        503
+      );
     }
 
     // 获取城市adcode
@@ -80,28 +85,15 @@ const getWeather = async (req, res) => {
     return ResponseHandler.success(res, weatherData);
   } catch (error) {
     logger.error('获取天气数据失败:', error);
-    return ResponseHandler.success(res, getDefaultWeather(req.query.city || '乐清', error.message));
+    return ResponseHandler.error(
+      res,
+      '天气数据获取失败，请稍后重试',
+      'WEATHER_FETCH_FAILED',
+      502,
+      error
+    );
   }
 };
-
-/**
- * 获取默认天气数据
- */
-const getDefaultWeather = (city, error = null) => ({
-  city: city,
-  temperature: '18',
-  feelsLike: '17',
-  description: '多云',
-  weatherCode: 'cloudy',
-  windSpeed: '3',
-  windDir: '东北风',
-  humidity: '68',
-  pressure: '-',
-  visibility: '-',
-  updateTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-  isDefault: true,
-  ...(error && { error }),
-});
 
 /**
  * 映射高德天气描述到天气类型

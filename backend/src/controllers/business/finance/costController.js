@@ -71,7 +71,7 @@ const costController = {
           [startDate, endDate]
         );
         stats = costData[0];
-      } catch (e) {
+      } catch {
         // actual_costs表可能不存在，忽略
       }
 
@@ -162,7 +162,7 @@ const costController = {
             [startDate, endDate]
           );
           monthStats = costData[0];
-        } catch (e) {
+        } catch {
           // 表可能不存在
         }
 
@@ -234,7 +234,7 @@ const costController = {
           [startDate, endDate]
         );
         composition = costData[0];
-      } catch (e) {
+      } catch {
         // 表可能不存在
       }
 
@@ -368,8 +368,7 @@ const costController = {
       }
 
       // 尝试从standard_costs表获取
-      try {
-        const [rows] = await db.pool.query(
+      const [rows] = await db.pool.query(
           `
                     SELECT 
                         MAX(psc.id) as id,
@@ -393,7 +392,7 @@ const costController = {
           params
         );
 
-        const [countResult] = await db.pool.query(
+      const [countResult] = await db.pool.query(
           `
                     SELECT COUNT(DISTINCT COALESCE(psc.product_id, psc.material_id)) as total
                     FROM standard_costs psc
@@ -403,15 +402,12 @@ const costController = {
           params
         );
 
-        ResponseHandler.success(res, {
-          items: rows,
-          total: countResult[0].total,
-          page: parseInt(page),
-          pageSize: parseInt(pageSize),
-        });
-      } catch (tableError) {
-        throw tableError;
-      }
+      ResponseHandler.success(res, {
+        items: rows,
+        total: countResult[0].total,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+      });
     } catch (error) {
       logger.error('获取标准成本列表失败:', error.stack || error.message);
       ResponseHandler.error(res, '获取标准成本列表失败', 'SERVER_ERROR', 500);
@@ -1225,7 +1221,7 @@ const costController = {
       try {
         const [check] = await db.pool.execute('SELECT COUNT(*) as cnt FROM cost_variance_records');
         hasVarianceRecords = check[0].cnt > 0;
-      } catch (e) {
+      } catch {
         hasVarianceRecords = false;
       }
 
@@ -2193,4 +2189,3 @@ const costController = {
 };
 
 module.exports = costController;
-

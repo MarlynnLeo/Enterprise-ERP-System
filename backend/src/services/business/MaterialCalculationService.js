@@ -93,7 +93,7 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
   const materials = [];
   for (const [matId, req] of netReqMap.entries()) {
     let info = materialInfoMap.get(matId);
-    
+
     // 兜底查询 (极小概率某级半成品由于引用异常未在预展出现)
     if (!info) {
       const [matInfo] = await pool.query(`SELECT m.code, m.name, m.specs, u.name as unit_name FROM materials m LEFT JOIN units u ON m.unit_id = u.id WHERE m.id = ?`, [matId]);
@@ -105,7 +105,7 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
     }
 
     const stock = originalStockMap.get(matId) || { stockQuantity: 0, availableQuantity: 0 };
-    
+
     // 只挑选要求数量严格大于零的数据汇入生产清单
     if (req.requiredQuantity > 0) {
       materials.push({
@@ -170,7 +170,7 @@ async function calculateAndInsertMaterials(connection, planId, productId, quanti
     }
 
     logger.info(`净推演算料完毕: planId=${planId}, 生成真实需发料记录 ${materialRequirements.length} 条 (采用bomId=${bomId})`);
-    
+
     return { bomId, bomVersion };
   } catch (error) {
     logger.error('计算净物料需求发生异常:', error);

@@ -11,22 +11,12 @@ export default defineConfig(({ mode }) => {
     plugins: [vue()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src')
+        '@': path.resolve(__dirname, './src'),
+        'lottie-web': 'lottie-web/build/player/esm/lottie_light.min.js'
       }
     },
     optimizeDeps: {
       include: [
-        'quill',
-        '@vueup/vue-quill',
-        'parchment',
-        'quill-delta',
-        'eventemitter3',
-        'clone',
-        'deep-equal',
-        'extend',
-        'fast-diff',
-        'lodash.clonedeep',
-        'lodash.isequal',
         'dompurify'
       ],
       // 强制预构建这些 CommonJS 模块
@@ -61,6 +51,9 @@ export default defineConfig(({ mode }) => {
     define: {
       __DEV__: mode === 'development'
     },
+    esbuild: {
+      drop: mode === 'production' ? ['console', 'debugger'] : []
+    },
     build: {
       // 调整块大小警告限制
       chunkSizeWarningLimit: 2000,
@@ -82,7 +75,40 @@ export default defineConfig(({ mode }) => {
           format: 'es',
           // 完全禁用手动分块,让 Vite 自动处理
           // 这样可以避免所有循环依赖和模块初始化顺序问题
-          manualChunks: undefined,
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return undefined
+            }
+
+            const normalizedId = id.replace(/\\/g, '/')
+
+            if (/\/node_modules\/(vue|vue-router|pinia|vue-i18n)\//.test(normalizedId)) {
+              return 'vendor-vue'
+            }
+            if (/\/node_modules\/(element-plus|@element-plus)\//.test(normalizedId)) {
+              return 'vendor-element'
+            }
+            if (/\/node_modules\/(echarts|chart\.js|zrender)\//.test(normalizedId)) {
+              return 'vendor-charts'
+            }
+            if (normalizedId.includes('/node_modules/exceljs/')) {
+              return 'vendor-exceljs'
+            }
+            if (normalizedId.includes('/node_modules/@vue-office/docx/')) {
+              return 'vendor-office-docx'
+            }
+            if (normalizedId.includes('/node_modules/@vue-office/excel/')) {
+              return 'vendor-office-excel'
+            }
+            if (/\/node_modules\/(html2pdf\.js|jspdf|html2canvas)\//.test(normalizedId)) {
+              return 'vendor-pdf'
+            }
+            if (/\/node_modules\/(vue3-lottie|lottie-web)\//.test(normalizedId)) {
+              return 'vendor-lottie'
+            }
+
+            return undefined
+          },
           // 添加文件名哈希
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',

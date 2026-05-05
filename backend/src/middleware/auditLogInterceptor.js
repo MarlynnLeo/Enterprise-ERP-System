@@ -32,11 +32,11 @@ const auditLogInterceptor = async (req, res, next) => {
   }
 
   const moduleName = req.baseUrl ? req.baseUrl.split('/').pop() : 'UNKNOWN';
-  let targetTable = moduleName; // 近似表名
+  const targetTable = moduleName; // 近似表名
 
   // 记录原有的 res.send 拦截以便在请求完毕后统一写入审计日志
   const originalSend = res.send;
-  
+
   // 代理 res.send
   res.send = function (data) {
     res.send = originalSend;
@@ -47,7 +47,7 @@ const auditLogInterceptor = async (req, res, next) => {
       if (req.method === 'POST') action = 'CREATE';
       if (req.method === 'PUT') action = 'UPDATE';
       if (req.method === 'DELETE') action = 'DELETE';
-      
+
       let targetId = req.params?.id || req.body?.id || 'N/A';
       // 有些路由以数组批量传入
       if (req.body?.ids && Array.isArray(req.body.ids)) {
@@ -67,7 +67,7 @@ const auditLogInterceptor = async (req, res, next) => {
         ip_address: req.ip || req.connection.remoteAddress,
         user_agent: req.headers['user-agent'],
         remarks: `由 ${req.method} ${req.originalUrl} 触发`
-      }).catch(err => {
+      }).catch(() => {
         // 静默，服务层已处理并打印
       });
     }

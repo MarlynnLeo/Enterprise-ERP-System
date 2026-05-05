@@ -13,124 +13,119 @@ class CashReportsModel {
    * 现金流预测
    */
   static async getCashFlowForecast(startDate, endDate) {
+    // 获取当前银行账户余额
+    const [bankAccounts] = await db.pool.execute(
+      'SELECT id, bank_name, account_name, account_number, currency_code, current_balance FROM bank_accounts WHERE is_active = true'
+    );
+
+    // 获取未来期间的应收账款
+    const [receivables] = await db.pool.execute(
+      `SELECT 
+        DATE(due_date) as date,
+        SUM(balance_amount) as amount,
+        'AR' as type,
+        '应收账款' as description
+      FROM ar_invoices
+      WHERE status != '已付款' AND status != '已取消' AND due_date BETWEEN ? AND ?
+      GROUP BY DATE(due_date)`,
+      [startDate, endDate]
+    );
+
+    // 获取未来期间的应付账款
+    const [payables] = await db.pool.execute(
+      `SELECT 
+        DATE(due_date) as date,
+        SUM(balance_amount) as amount,
+        'AP' as type,
+        '应付账款' as description
+      FROM ap_invoices
+      WHERE status != '已付款' AND status != '已取消' AND due_date BETWEEN ? AND ?
+      GROUP BY DATE(due_date)`,
+      [startDate, endDate]
+    );
+
+    // 获取已知的未来现金流，如计划的交易
+    // 注意：需确保 planned_transactions 表存在，否则这一步可能会报错
+    // 这里保留原逻辑，假设表存在或后续会添加
+    let plannedTransactions = [];
     try {
-      // 获取当前银行账户余额
-      const [bankAccounts] = await db.pool.execute(
-        'SELECT id, bank_name, account_name, account_number, currency_code, current_balance FROM bank_accounts WHERE is_active = true'
-      );
-
-      // 获取未来期间的应收账款
-      const [receivables] = await db.pool.execute(
+      const [pt] = await db.pool.execute(
         `SELECT 
-          DATE(due_date) as date,
-          SUM(balance_amount) as amount,
-          'AR' as type,
-          '应收账款' as description
-        FROM ar_invoices
-        WHERE status != '已付款' AND status != '已取消' AND due_date BETWEEN ? AND ?
-        GROUP BY DATE(due_date)`,
+          DATE(transaction_date) as date,
+          amount,
+          transaction_type as type,
+          description
+        FROM planned_transactions
+        WHERE transaction_date BETWEEN ? AND ?`,
         [startDate, endDate]
       );
+      plannedTransactions = pt;
+    } catch (e) {
+      // 忽略表不存在错误
+      logger.warn('获取 planned_transactions 失败，可能是表不存在，跳过:', e.message);
+    }
 
-      // 获取未来期间的应付账款
-      const [payables] = await db.pool.execute(
-        `SELECT 
-          DATE(due_date) as date,
-          SUM(balance_amount) as amount,
-          'AP' as type,
-          '应付账款' as description
-        FROM ap_invoices
-        WHERE status != '已付款' AND status != '已取消' AND due_date BETWEEN ? AND ?
-        GROUP BY DATE(due_date)`,
-        [startDate, endDate]
-      );
+    // 合并所有现金流数据
+    const cashFlows = [...receivables, ...payables, ...plannedTransactions].sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
+    );
 
-      // 获取已知的未来现金流，如计划的交易
-      // 注意：需确保 planned_transactions 表存在，否则这一步可能会报错
-      // 这里保留原逻辑，假设表存在或后续会添加
-      let plannedTransactions = [];
-      try {
-        const [pt] = await db.pool.execute(
-          `SELECT 
-            DATE(transaction_date) as date,
-            amount,
-            transaction_type as type,
-            description
-          FROM planned_transactions
-          WHERE transaction_date BETWEEN ? AND ?`,
-          [startDate, endDate]
-        );
-        plannedTransactions = pt;
-      } catch (e) {
-        // 忽略表不存在错误
-        logger.warn('获取 planned_transactions 失败，可能是表不存在，跳过:', e.message);
-      }
+    // 计算每日现金流余额
+    let currentBalance = bankAccounts.reduce(
+      (sum, account) => sum + parseFloat(account.current_balance),
+      0
+    );
 
-      // 合并所有现金流数据
-      const cashFlows = [...receivables, ...payables, ...plannedTransactions].sort(
-        (a, b) => new Date(a.date) - new Date(b.date)
-      );
+    const dailyCashFlows = [];
+    const currentDate = new Date(startDate);
+    const endDateObj = new Date(endDate);
 
-      // 计算每日现金流余额
-      let currentBalance = bankAccounts.reduce(
+    while (currentDate <= endDateObj) {
+      const dateStr = currentDate.toISOString().slice(0, 10);
+      const dayFlows = cashFlows.filter((flow) => flow.date === dateStr);
+
+      let inflow = 0;
+      let outflow = 0;
+
+      dayFlows.forEach((flow) => {
+        if (
+          flow.type === 'AR' ||
+          flow.type === '存款' ||
+          flow.type === '转入' ||
+          flow.type === '利息'
+        ) {
+          inflow += parseFloat(flow.amount);
+        } else {
+          outflow += parseFloat(flow.amount);
+        }
+      });
+
+      const netFlow = inflow - outflow;
+      currentBalance += netFlow;
+
+      dailyCashFlows.push({
+        date: dateStr,
+        inflow,
+        outflow,
+        netFlow,
+        balance: currentBalance,
+        details: dayFlows,
+      });
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return {
+      startDate,
+      endDate,
+      initialBalance: bankAccounts.reduce(
         (sum, account) => sum + parseFloat(account.current_balance),
         0
-      );
-
-      const dailyCashFlows = [];
-      const currentDate = new Date(startDate);
-      const endDateObj = new Date(endDate);
-
-      while (currentDate <= endDateObj) {
-        const dateStr = currentDate.toISOString().slice(0, 10);
-        const dayFlows = cashFlows.filter((flow) => flow.date === dateStr);
-
-        let inflow = 0;
-        let outflow = 0;
-
-        dayFlows.forEach((flow) => {
-          if (
-            flow.type === 'AR' ||
-            flow.type === '存款' ||
-            flow.type === '转入' ||
-            flow.type === '利息'
-          ) {
-            inflow += parseFloat(flow.amount);
-          } else {
-            outflow += parseFloat(flow.amount);
-          }
-        });
-
-        const netFlow = inflow - outflow;
-        currentBalance += netFlow;
-
-        dailyCashFlows.push({
-          date: dateStr,
-          inflow,
-          outflow,
-          netFlow,
-          balance: currentBalance,
-          details: dayFlows,
-        });
-
-        // 下一天
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-
-      return {
-        startDate,
-        endDate,
-        initialBalance: bankAccounts.reduce(
-          (sum, account) => sum + parseFloat(account.current_balance),
-          0
-        ),
-        finalBalance: currentBalance,
-        accounts: bankAccounts,
-        dailyCashFlows,
-      };
-    } catch (error) {
-      throw error;
-    }
+      ),
+      finalBalance: currentBalance,
+      accounts: bankAccounts,
+      dailyCashFlows,
+    };
   }
 
   /**

@@ -5,7 +5,7 @@
  */
 
 const { pool } = require('../../config/db');
-const { softDelete, withNotDeleted } = require('../../utils/softDelete');
+const { softDelete } = require('../../utils/softDelete');
 const CodeGeneratorService = require('./CodeGeneratorService');
 
 class ContractService {

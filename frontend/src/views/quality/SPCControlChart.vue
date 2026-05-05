@@ -261,7 +261,7 @@ const fetchPlans = async () => {
   try {
     const res = await qualityApi.getSpcPlans({ keyword: planKeyword.value });
     plans.value = (res.data || res)?.list || [];
-  } catch (e) { ElMessage.error('获取控制计划失败'); }
+  } catch { ElMessage.error('获取控制计划失败'); }
   finally { planLoading.value = false; }
 };
 
@@ -280,7 +280,7 @@ const fetchChartData = async () => {
     const d = res.data || res;
     chartData.value = d.chart;
     cpkData.value = d.cpk;
-  } catch (e) { chartData.value = null; cpkData.value = null; }
+  } catch { chartData.value = null; cpkData.value = null; }
   finally { chartLoading.value = false; }
 };
 
@@ -298,7 +298,7 @@ const handlePlanSubmit = () => {
       ElMessage.success('控制计划创建成功');
       planDialogVisible.value = false;
       fetchPlans();
-    } catch (e) { ElMessage.error('创建失败'); }
+    } catch { ElMessage.error('创建失败'); }
     finally { submitting.value = false; }
   });
 };
@@ -319,7 +319,7 @@ const handleDataSubmit = async () => {
     showDataInput.value = false;
     fetchChartData();
     fetchPlans();
-  } catch (e) { ElMessage.error('录入失败'); }
+  } catch { ElMessage.error('录入失败'); }
   finally { submitting.value = false; }
 };
 

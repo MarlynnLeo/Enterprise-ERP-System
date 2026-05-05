@@ -102,7 +102,7 @@ class TraceabilitySearchService {
       } else {
         // 如果是追溯记录不存在，提供更友好的错误信息
         if (result.message && result.message.includes('追溯记录不存在')) {
-          throw new Error(`未找到产品编码 "${keyword}" 的追溯记录。\n\n可能的原因：\n1. 该产品尚未建立追溯链路\n2. 产品编码输入错误\n3. 批次号不匹配\n\n建议：\n- 检查产品编码是否正确\n- 尝试使用"加载演示数据"功能查看示例`)
+          throw new Error(`未找到产品编码 "${keyword}" 的追溯记录。\n\n可能的原因：\n1. 该产品尚未建立追溯链路\n2. 产品编码输入错误\n3. 批次号不匹配\n\n建议：\n- 检查产品编码是否正确\n- 确认采购、生产、质检、出入库单据已完成追溯建档`)
         }
 
         throw new Error(result.message || errorMessages.notFound)
@@ -248,7 +248,7 @@ class TraceabilitySearchService {
           if (errorData.message) {
             throw new Error(errorData.message)
           }
-        } catch (jsonError) {
+        } catch {
           // 如果不是JSON响应，使用原始错误信息
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -319,11 +319,11 @@ class TraceabilitySearchService {
     }
 
     return {
-      id: `trace_${keyword}_${Date.now()}`,
-      chain_no: `TC${new Date().getFullYear()}${String(Date.now()).slice(-8)}`,
+      id: traceabilityData.id || globalThis.crypto?.randomUUID?.() || `trace_${keyword}`,
+      chain_no: traceabilityData.chain_no || traceabilityData.product?.traceability_no || '',
       product_code: keyword,
       product_name: traceabilityData.product?.name || '未知产品',
-      batch_number: traceabilityData.product?.batch || `BATCH-${keyword}`,
+      batch_number: traceabilityData.product?.batch || '',
       status: 'active',
       steps: steps
     }

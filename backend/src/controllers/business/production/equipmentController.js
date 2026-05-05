@@ -8,17 +8,45 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { validateRequiredFields, validateEnum } = require('../../../utils/validationHelper');
+const { handleError } = require('./shared/errorHandler');
 
 const { pool } = require('../../../config/db');
+
+const handleDatabaseError = (error, res) => handleError(res, error);
+
+const parsePagination = (query) => {
+  const page = Math.max(Number.parseInt(query.page, 10) || 1, 1);
+  const requestedSize = query.pageSize ?? query.limit ?? 10;
+  const pageSize = Math.min(Math.max(Number.parseInt(requestedSize, 10) || 10, 1), 100);
+  return {
+    page,
+    pageSize,
+    offset: (page - 1) * pageSize,
+  };
+};
+
+const normalizeListStatus = (status) => (status && status !== 'all' ? status : '');
+
+const sendPagedEquipmentRecords = (res, rows, total, page, pageSize) => {
+  res.json({
+    success: true,
+    data: {
+      list: rows,
+      total,
+      page,
+      pageSize,
+    },
+  });
+};
 
 /**
  * 获取设备列表
  */
 exports.getEquipmentList = async (req, res) => {
   try {
-    const { page = 1, pageSize = 10, code = '', name = '', status = '', location = '' } = req.query;
-
-    const offset = (page - 1) * pageSize;
+    const { page, pageSize, offset } = parsePagination(req.query);
+    const { code = '', name = '', location = '' } = req.query;
+    const status = normalizeListStatus(req.query.status);
 
     // 构建查询条件
     const conditions = [];
@@ -55,22 +83,149 @@ exports.getEquipmentList = async (req, res) => {
 
     // 查询分页数据
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const actualPageSize = parseInt(pageSize);
-    const actualOffset = offset;
     const [rows] = await pool.query(
-      `SELECT * FROM equipment ${whereClause} ORDER BY created_at DESC LIMIT ${actualPageSize} OFFSET ${actualOffset}`,
+      `SELECT * FROM equipment ${whereClause} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
       params
     );
 
-    res.json({
-      success: true,
-      data: {
-        list: rows,
-        total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
-      },
-    });
+    sendPagedEquipmentRecords(res, rows, total, page, pageSize);
+  } catch (error) {
+    handleDatabaseError(error, res);
+  }
+};
+
+exports.getMaintenanceRecords = async (req, res) => {
+  try {
+    const { page, pageSize, offset } = parsePagination(req.query);
+    const { search = '', equipment_id = '' } = req.query;
+    const status = normalizeListStatus(req.query.status);
+    const conditions = [];
+    const params = [];
+
+    if (equipment_id) {
+      conditions.push('em.equipment_id = ?');
+      params.push(equipment_id);
+    }
+
+    if (status) {
+      conditions.push('em.status = ?');
+      params.push(status);
+    }
+
+    if (search) {
+      conditions.push('(e.name LIKE ? OR e.code LIKE ? OR em.maintenance_type LIKE ? OR em.maintenance_person LIKE ?)');
+      const keyword = `%${search}%`;
+      params.push(keyword, keyword, keyword, keyword);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const [countResult] = await pool.query(
+      `SELECT COUNT(*) as total FROM equipment_maintenance em LEFT JOIN equipment e ON e.id = em.equipment_id ${whereClause}`,
+      params
+    );
+    const [rows] = await pool.query(
+      `SELECT em.*, e.name AS equipmentName, e.code AS equipmentCode
+       FROM equipment_maintenance em
+       LEFT JOIN equipment e ON e.id = em.equipment_id
+       ${whereClause}
+       ORDER BY em.maintenance_date DESC, em.id DESC
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      params
+    );
+
+    sendPagedEquipmentRecords(res, rows, countResult[0].total, page, pageSize);
+  } catch (error) {
+    handleDatabaseError(error, res);
+  }
+};
+
+exports.getFailureRecords = async (req, res) => {
+  try {
+    const { page, pageSize, offset } = parsePagination(req.query);
+    const { search = '', equipment_id = '' } = req.query;
+    const status = normalizeListStatus(req.query.status);
+    const conditions = [];
+    const params = [];
+
+    if (equipment_id) {
+      conditions.push('ef.equipment_id = ?');
+      params.push(equipment_id);
+    }
+
+    if (status) {
+      conditions.push('ef.repair_status = ?');
+      params.push(status);
+    }
+
+    if (search) {
+      conditions.push('(e.name LIKE ? OR e.code LIKE ? OR ef.failure_type LIKE ? OR ef.description LIKE ? OR ef.reported_by LIKE ?)');
+      const keyword = `%${search}%`;
+      params.push(keyword, keyword, keyword, keyword, keyword);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const [countResult] = await pool.query(
+      `SELECT COUNT(*) as total FROM equipment_failure ef LEFT JOIN equipment e ON e.id = ef.equipment_id ${whereClause}`,
+      params
+    );
+    const [rows] = await pool.query(
+      `SELECT ef.*, ef.repair_status AS status, e.name AS equipmentName, e.code AS equipmentCode
+       FROM equipment_failure ef
+       LEFT JOIN equipment e ON e.id = ef.equipment_id
+       ${whereClause}
+       ORDER BY ef.failure_date DESC, ef.id DESC
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      params
+    );
+
+    sendPagedEquipmentRecords(res, rows, countResult[0].total, page, pageSize);
+  } catch (error) {
+    handleDatabaseError(error, res);
+  }
+};
+
+exports.getInspectionRecords = async (req, res) => {
+  try {
+    const { page, pageSize, offset } = parsePagination(req.query);
+    const { search = '', equipment_id = '' } = req.query;
+    const status = normalizeListStatus(req.query.status);
+    const conditions = [];
+    const params = [];
+
+    if (equipment_id) {
+      conditions.push('ei.equipment_id = ?');
+      params.push(equipment_id);
+    }
+
+    if (status) {
+      conditions.push('ei.result = ?');
+      params.push(status);
+    }
+
+    if (search) {
+      conditions.push('(e.name LIKE ? OR e.code LIKE ? OR ei.inspector LIKE ? OR ei.inspection_type LIKE ?)');
+      const keyword = `%${search}%`;
+      params.push(keyword, keyword, keyword, keyword);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const [countResult] = await pool.query(
+      `SELECT COUNT(*) as total FROM equipment_inspection ei LEFT JOIN equipment e ON e.id = ei.equipment_id ${whereClause}`,
+      params
+    );
+    const [rows] = await pool.query(
+      `SELECT ei.*, ei.result AS status, ei.inspection_date AS checkDate, ei.inspector AS checker,
+              COALESCE(ei.action_taken, ei.remarks, ei.abnormal_items, '') AS resultDesc,
+              e.name AS equipmentName, e.code AS equipmentCode
+       FROM equipment_inspection ei
+       LEFT JOIN equipment e ON e.id = ei.equipment_id
+       ${whereClause}
+       ORDER BY ei.inspection_date DESC, ei.id DESC
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      params
+    );
+
+    sendPagedEquipmentRecords(res, rows, countResult[0].total, page, pageSize);
   } catch (error) {
     handleDatabaseError(error, res);
   }

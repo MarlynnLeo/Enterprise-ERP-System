@@ -7,19 +7,24 @@
  */
 -->
 <template>
-  <UniversalListPage
-    title="报工记录"
-    :show-add="false"
-    :show-search="true"
-    search-placeholder="搜索任务编号或产品名称"
-    v-model:search-value="searchValue"
-    :show-filter="true"
-    :tags="dateTabs"
-    v-model:active-tag="activeDate"
-    @back="goBack"
-    @filter="handleFilter"
-  >
-    <!-- 统计栏 -->
+  <div class="report-history-page">
+    <NavBar title="报工记录" left-arrow @click-left="goBack" />
+    <div class="search-section">
+      <Search v-model="searchValue" placeholder="搜索任务编号或产品名称" />
+    </div>
+    <div class="filter-scroll">
+      <button
+        v-for="tab in dateTabs"
+        :key="tab.value"
+        type="button"
+        class="filter-chip"
+        :class="{ active: activeDate === tab.value }"
+        @click="activeDate = tab.value"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+
     <div class="stats-row" v-if="statsData">
       <div v-for="stat in statsData" :key="stat.label" class="stat-item">
         <div class="stat-value">{{ stat.value }}</div>
@@ -71,18 +76,17 @@
       </div>
 
       <!-- 空状态 -->
-      <van-empty v-if="filteredReports.length === 0" description="暂无报工记录" />
+      <VanEmpty v-if="filteredReports.length === 0" description="暂无报工记录" />
     </div>
-  </UniversalListPage>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import UniversalListPage from '@/components/common/UniversalListPage.vue'
-import { showToast } from 'vant'
-import { Empty as VanEmpty } from 'vant'
+import { showToast, Empty as VanEmpty, NavBar, Search } from 'vant'
 import dayjs from 'dayjs'
+import { productionApi } from '@/services/api'
 
 const router = useRouter()
 
@@ -100,53 +104,12 @@ const dateTabs = ref([
 
 // 统计数据
 const statsData = ref([
-  { label: '总报工', value: 156 },
-  { label: '今日报工', value: 12 },
-  { label: '本周报工', value: 45 }
+  { label: '总报工', value: 0 },
+  { label: '今日报工', value: 0 },
+  { label: '本周报工', value: 0 }
 ])
 
-// 模拟报工记录数据
-const reports = ref([
-  {
-    id: '1',
-    taskCode: 'TASK-2025-001',
-    productName: '产品A',
-    completedQuantity: 100,
-    qualifiedQuantity: 98,
-    defectiveQuantity: 2,
-    workHours: 8,
-    unit: '件',
-    operator: '张三',
-    reportDate: dayjs().format('YYYY-MM-DD'),
-    status: 'approved'
-  },
-  {
-    id: '2',
-    taskCode: 'TASK-2025-002',
-    productName: '产品B',
-    completedQuantity: 50,
-    qualifiedQuantity: 50,
-    defectiveQuantity: 0,
-    workHours: 6,
-    unit: '件',
-    operator: '李四',
-    reportDate: dayjs().subtract(1, 'day').format('YYYY-MM-DD'),
-    status: 'pending'
-  },
-  {
-    id: '3',
-    taskCode: 'TASK-2025-003',
-    productName: '产品C',
-    completedQuantity: 80,
-    qualifiedQuantity: 75,
-    defectiveQuantity: 5,
-    workHours: 10,
-    unit: '件',
-    operator: '王五',
-    reportDate: dayjs().subtract(2, 'day').format('YYYY-MM-DD'),
-    status: 'approved'
-  }
-])
+const reports = ref([])
 
 // 过滤后的报工记录
 const filteredReports = computed(() => {
@@ -185,18 +148,63 @@ const goBack = () => {
   router.back()
 }
 
-const handleFilter = () => {
-  showToast('筛选功能')
-}
-
 const viewReportDetail = (report) => {
   showToast(`查看报工详情: ${report.taskCode}`)
+}
+
+const normalizeReport = (row) => ({
+  id: row.id,
+  taskCode: row.task_code || row.taskCode || '',
+  productName: row.product_name || row.productName || '',
+  completedQuantity: Number(row.completed_quantity || row.report_quantity || 0),
+  qualifiedQuantity: Number(row.qualified_quantity || 0),
+  defectiveQuantity: Number(row.defective_quantity || 0),
+  workHours: Number(row.work_hours || 0),
+  unit: row.unit || '',
+  operator: row.operator_name || row.operator || '',
+  reportDate: row.report_time ? dayjs(row.report_time).format('YYYY-MM-DD') : '',
+  status: row.status || 'completed'
+})
+
+const loadReports = async () => {
+  try {
+    const params = { page: 1, pageSize: 200 }
+    const today = dayjs()
+    if (activeDate.value === 'today') {
+      params.startDate = today.format('YYYY-MM-DD')
+      params.endDate = today.format('YYYY-MM-DD')
+    } else if (activeDate.value === 'week') {
+      params.startDate = today.startOf('week').format('YYYY-MM-DD')
+      params.endDate = today.endOf('week').format('YYYY-MM-DD')
+    } else if (activeDate.value === 'month') {
+      params.startDate = today.startOf('month').format('YYYY-MM-DD')
+      params.endDate = today.endOf('month').format('YYYY-MM-DD')
+    }
+
+    const response = await productionApi.getProductionReportDetail(params)
+    const payload = response.data || {}
+    const rows = payload.items || payload.list || []
+    reports.value = rows.map(normalizeReport)
+
+    const todayCount = reports.value.filter((report) => dayjs(report.reportDate).isSame(today, 'day')).length
+    const weekCount = reports.value.filter((report) => dayjs(report.reportDate).isSame(today, 'week')).length
+    statsData.value = [
+      { label: '总报工', value: Number(payload.total || reports.value.length) },
+      { label: '今日报工', value: todayCount },
+      { label: '本周报工', value: weekCount }
+    ]
+  } catch (error) {
+    console.error('加载报工记录失败:', error)
+    reports.value = []
+    showToast('加载报工记录失败')
+  }
 }
 
 const getStatusClass = (status) => {
   const statusMap = {
     pending: 'status-pending',
     approved: 'status-approved',
+    completed: 'status-approved',
     rejected: 'status-rejected'
   }
   return statusMap[status] || 'status-pending'
@@ -206,13 +214,48 @@ const getStatusText = (status) => {
   const statusMap = {
     pending: '待审核',
     approved: '已审核',
+    completed: '已完成',
     rejected: '已拒绝'
   }
   return statusMap[status] || '未知'
 }
+
+watch(activeDate, loadReports)
+onMounted(loadReports)
 </script>
 
 <style lang="scss" scoped>
+.report-history-page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+}
+
+.search-section {
+  padding: 10px 16px 6px;
+}
+
+.filter-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 16px 10px;
+}
+
+.filter-chip {
+  flex: 0 0 auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 6px 14px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+
+  &.active {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+}
+
 .stats-row {
   display: flex;
   justify-content: space-between;

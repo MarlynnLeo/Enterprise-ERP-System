@@ -279,7 +279,7 @@ const loadInspectionData = async () => {
       try {
         const materialInfo = await baseDataApi.getMaterial(inspectionData.material_id)
         if (materialInfo?.data?.specs) inspectionData.specs = materialInfo.data.specs
-      } catch (e) { /* 忽略 */ }
+      } catch { /* 忽略 */ }
     }
 
     // 填充表单
@@ -304,11 +304,8 @@ const loadInspectionData = async () => {
     } else {
       await fetchInspectionTemplates(inspectionData.material_id)
       if (!currentTemplateItems.value || currentTemplateItems.value.length === 0) {
-        inspectForm.items = [
-          { item_name: '外观检查', standard: '无明显缺陷', type: 'visual', is_critical: true, actual_value: '', result: '', remarks: '', measurements: Array(currentSampleSize.value).fill('') },
-          { item_name: '数量检查', standard: '与订单一致', type: 'quantity', is_critical: true, actual_value: '', result: '', remarks: '', measurements: Array(currentSampleSize.value).fill('') },
-          { item_name: '包装检查', standard: '完好无损', type: 'visual', is_critical: false, actual_value: '', result: '', remarks: '', measurements: Array(currentSampleSize.value).fill('') }
-        ]
+        inspectForm.items = []
+        ElMessage.warning('当前物料未匹配检验模板，请先维护检验模板')
       } else {
         inspectForm.items = mapInspectionItems(currentTemplateItems.value)
       }
@@ -340,7 +337,7 @@ const fetchInspectionTemplates = async (materialId) => {
         try {
           const types = typeof t.material_types === 'string' ? JSON.parse(t.material_types) : t.material_types
           if (Array.isArray(types) && types.map(String).includes(String(materialId))) return true
-        } catch (e) { /* 忽略 */ }
+        } catch { /* 忽略 */ }
       }
       return false
     })
@@ -377,12 +374,8 @@ const selectTemplate = (templateId) => {
 
 const handleCancelTemplateSelect = () => {
   if (!inspectForm.items || inspectForm.items.length === 0) {
-    inspectForm.items = [
-      { item_name: '外观检查', standard: '无明显缺陷', type: 'visual', is_critical: true, actual_value: '', result: '', remarks: '', measurements: Array(currentSampleSize.value).fill('') },
-      { item_name: '数量检查', standard: '与订单一致', type: 'quantity', is_critical: true, actual_value: '', result: '', remarks: '', measurements: Array(currentSampleSize.value).fill('') },
-      { item_name: '包装检查', standard: '完好无损', type: 'visual', is_critical: false, actual_value: '', result: '', remarks: '', measurements: Array(currentSampleSize.value).fill('') }
-    ]
-    ElMessage.info('未选择模板，已使用默认检验项')
+    inspectForm.items = []
+    ElMessage.warning('未选择检验模板，不能自动生成检验项')
   }
 }
 
@@ -535,7 +528,7 @@ const formatDimensionTolerance = (item) => {
   return `${dimensionValue.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
 }
 
-const checkDimensionTolerance = (item, showMessage = false) => {
+const checkDimensionTolerance = (item) => {
   if (!item.dimension_value) return
   const dimensionValue = parseFloat(item.dimension_value)
   const toleranceUpper = parseFloat(item.tolerance_upper) || 0

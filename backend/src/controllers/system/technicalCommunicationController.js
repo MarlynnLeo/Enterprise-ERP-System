@@ -7,7 +7,125 @@ const db = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+const ALLOWED_STATUSES = new Set(['draft', 'published', 'archived']);
+const ALLOWED_VISIBILITIES = new Set(['public', 'private']);
+
+function normalizePagination(page, pageSize) {
+  const normalizedPage = Math.max(parseInt(page, 10) || 1, 1);
+  const normalizedPageSize = Math.min(
+    Math.max(parseInt(pageSize, 10) || DEFAULT_PAGE_SIZE, 1),
+    MAX_PAGE_SIZE
+  );
+
+  return {
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+    offset: (normalizedPage - 1) * normalizedPageSize,
+  };
+}
+
+function normalizeIdList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [...new Set(value.map((id) => Number(id)).filter(Number.isInteger))];
+}
+
 class TechnicalCommunicationController {
+  canManagePrivate(req) {
+    const permissions = req.userPermissions || [];
+    return permissions.includes('*') ||
+      permissions.includes('system:tech-comm:*') ||
+      permissions.includes('system:tech-comm:manage');
+  }
+
+  buildVisibilityCondition(req) {
+    if (this.canManagePrivate(req)) {
+      return { condition: null, params: [] };
+    }
+
+    return {
+      condition: `(
+        visibility <> 'private'
+        OR author_id = ?
+        OR EXISTS (
+          SELECT 1 FROM technical_communication_recipients r
+          WHERE r.communication_id = technical_communications.id
+            AND r.user_id = ?
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM technical_communication_department_recipients dr
+          JOIN users u ON u.department_id = dr.department_id
+          WHERE dr.communication_id = technical_communications.id
+            AND u.id = ?
+        )
+      )`,
+      params: [req.user.id, req.user.id, req.user.id],
+    };
+  }
+
+  async canAccessCommunication(communication, req) {
+    if (communication.visibility !== 'private' || this.canManagePrivate(req)) {
+      return true;
+    }
+
+    const userId = req.user.id;
+    if (communication.author_id === userId) {
+      return true;
+    }
+
+    const [recipients] = await db.pool.query(
+      `SELECT 1
+       FROM technical_communication_recipients r
+       WHERE r.communication_id = ? AND r.user_id = ?
+       UNION
+       SELECT 1
+       FROM technical_communication_department_recipients dr
+       JOIN users u ON u.department_id = dr.department_id
+       WHERE dr.communication_id = ? AND u.id = ?
+       LIMIT 1`,
+      [communication.id, userId, communication.id, userId]
+    );
+
+    return recipients.length > 0;
+  }
+
+  async loadAccessibleCommunication(req, res, id) {
+    const [communications] = await db.pool.query(
+      'SELECT * FROM technical_communications WHERE id = ?',
+      [id]
+    );
+
+    if (communications.length === 0) {
+      ResponseHandler.error(res, '即时通讯不存在', 'NOT_FOUND', 404);
+      return null;
+    }
+
+    const communication = communications[0];
+    if (!(await this.canAccessCommunication(communication, req))) {
+      ResponseHandler.error(res, '无权访问此私有通讯', 'FORBIDDEN', 403);
+      return null;
+    }
+
+    return communication;
+  }
+
+  async refreshRecipientCount(communicationId) {
+    const [rows] = await db.pool.query(
+      'SELECT COUNT(DISTINCT user_id) AS total FROM technical_communication_recipients WHERE communication_id = ?',
+      [communicationId]
+    );
+
+    await db.pool.query(
+      'UPDATE technical_communications SET recipient_count = ? WHERE id = ?',
+      [rows[0]?.total || 0, communicationId]
+    );
+  }
+
   /**
    * 获取即时通讯列表
    */
@@ -21,9 +139,19 @@ class TechnicalCommunicationController {
         keyword,
       } = req.query;
 
-      const offset = (page - 1) * pageSize;
+      if (status && !ALLOWED_STATUSES.has(status)) {
+        return ResponseHandler.error(res, '无效的通讯状态', 'VALIDATION_ERROR', 400);
+      }
+
+      const pagination = normalizePagination(page, pageSize);
       const whereConditions = [];
       const params = [];
+      const visibilityScope = this.buildVisibilityCondition(req);
+
+      if (visibilityScope.condition) {
+        whereConditions.push(visibilityScope.condition);
+        params.push(...visibilityScope.params);
+      }
 
       if (category) {
         whereConditions.push('category = ?');
@@ -53,7 +181,6 @@ class TechnicalCommunicationController {
 
       // 获取列表（添加点赞数和收藏数）
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const actualPageSize = parseInt(pageSize);
       const [communications] = await db.pool.query(
         `SELECT id, title, category, tags, summary, author_id, author_name,
                 status, published_at, view_count, like_count, favorite_count,
@@ -62,15 +189,15 @@ class TechnicalCommunicationController {
          FROM technical_communications
          ${whereClause}
          ORDER BY is_pinned DESC, published_at DESC
-         LIMIT ${actualPageSize} OFFSET ${offset}`,
+         LIMIT ${pagination.pageSize} OFFSET ${pagination.offset}`,
         params
       );
 
       ResponseHandler.success(res, {
         list: communications,
         total: countResult[0].total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       });
     } catch (error) {
       logger.error('获取即时通讯列表失败:', error);
@@ -86,31 +213,9 @@ class TechnicalCommunicationController {
       const { id } = req.params;
       const userId = req.user?.id;
 
-      // 获取通讯详情
-      const [communications] = await db.pool.query(
-        'SELECT * FROM technical_communications WHERE id = ?',
-        [id]
-      );
-
-      if (communications.length === 0) {
-        return ResponseHandler.error(res, '即时通讯不存在', 404);
-      }
-
-      const communication = communications[0];
-
-      // 【安全增强】私有通讯权限检查
-      if (communication.visibility === 'private' && userId) {
-        const isAuthor = communication.author_id === userId;
-        if (!isAuthor) {
-          // 检查是否是抄送人员
-          const [recipients] = await db.pool.query(
-            'SELECT id FROM technical_communication_recipients WHERE communication_id = ? AND user_id = ?',
-            [id, userId]
-          );
-          if (recipients.length === 0) {
-            return ResponseHandler.error(res, '无权访问此私有通讯', 403);
-          }
-        }
+      const communication = await this.loadAccessibleCommunication(req, res, id);
+      if (!communication) {
+        return;
       }
 
       // 增加浏览次数
@@ -162,9 +267,21 @@ class TechnicalCommunicationController {
         isPinned = 0,
         attachments,
         visibility = 'public',
-        recipients = [],
-        departmentRecipients = [],
       } = req.body;
+      const recipients = normalizeIdList(req.body.recipients);
+      const departmentRecipients = normalizeIdList(req.body.departmentRecipients);
+
+      if (!title || !category || !content) {
+        return ResponseHandler.error(res, '标题、分类和内容不能为空', 'VALIDATION_ERROR', 400);
+      }
+
+      if (!ALLOWED_STATUSES.has(status)) {
+        return ResponseHandler.error(res, '无效的通讯状态', 'VALIDATION_ERROR', 400);
+      }
+
+      if (!ALLOWED_VISIBILITIES.has(visibility)) {
+        return ResponseHandler.error(res, '无效的可见范围', 'VALIDATION_ERROR', 400);
+      }
 
       const userId = req.user.id;
       const userName = req.user.real_name || req.user.username;
@@ -202,6 +319,8 @@ class TechnicalCommunicationController {
       if (departmentRecipients && departmentRecipients.length > 0) {
         await this.addDepartmentRecipients(communicationId, departmentRecipients);
       }
+
+      await this.refreshRecipientCount(communicationId);
 
       // 如果是发布状态，发送通知
       if (status === 'published') {
@@ -243,15 +362,32 @@ class TechnicalCommunicationController {
         isPinned,
         attachments,
         visibility,
-        recipients = [],
-        departmentRecipients = [],
       } = req.body;
+      const recipientsProvided = Object.prototype.hasOwnProperty.call(req.body, 'recipients');
+      const departmentRecipientsProvided = Object.prototype.hasOwnProperty.call(
+        req.body,
+        'departmentRecipients'
+      );
+      const recipients = normalizeIdList(req.body.recipients);
+      const departmentRecipients = normalizeIdList(req.body.departmentRecipients);
 
       // 先获取原有状态
       const [oldData] = await db.pool.query(
         'SELECT status, title, summary, category, visibility FROM technical_communications WHERE id = ?',
         [id]
       );
+
+      if (oldData.length === 0) {
+        return ResponseHandler.error(res, '即时通讯不存在', 'NOT_FOUND', 404);
+      }
+
+      if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
+        return ResponseHandler.error(res, '无效的通讯状态', 'VALIDATION_ERROR', 400);
+      }
+
+      if (visibility !== undefined && !ALLOWED_VISIBILITIES.has(visibility)) {
+        return ResponseHandler.error(res, '无效的可见范围', 'VALIDATION_ERROR', 400);
+      }
 
       const updateFields = [];
       const params = [];
@@ -297,21 +433,29 @@ class TechnicalCommunicationController {
       }
 
       // 更新抄送人数
-      const totalRecipients = recipients.length;
-      if (totalRecipients > 0 || visibility === 'private') {
+      const finalVisibility = visibility || oldData[0].visibility || 'public';
+      const shouldUpdateRecipients =
+        finalVisibility === 'private' && (recipientsProvided || departmentRecipientsProvided);
+      if (shouldUpdateRecipients) {
         updateFields.push('recipient_count = ?');
-        params.push(totalRecipients);
+        params.push(recipients.length);
+      }
+
+      if (updateFields.length === 0 && !shouldUpdateRecipients) {
+        return ResponseHandler.error(res, '没有可更新的字段', 'VALIDATION_ERROR', 400);
       }
 
       params.push(id);
 
-      await db.pool.query(
-        `UPDATE technical_communications SET ${updateFields.join(', ')} WHERE id = ?`,
-        params
-      );
+      if (updateFields.length > 0) {
+        await db.pool.query(
+          `UPDATE technical_communications SET ${updateFields.join(', ')} WHERE id = ?`,
+          params
+        );
+      }
 
       // 更新抄送人员（先删除旧的，再添加新的）
-      if (visibility === 'private') {
+      if (shouldUpdateRecipients) {
         // 删除旧的抄送记录
         await db.pool.query(
           'DELETE FROM technical_communication_recipients WHERE communication_id = ?',
@@ -331,11 +475,12 @@ class TechnicalCommunicationController {
         if (departmentRecipients && departmentRecipients.length > 0) {
           await this.addDepartmentRecipients(id, departmentRecipients);
         }
+
+        await this.refreshRecipientCount(id);
       }
 
       // 如果从非发布状态改为发布状态，发送通知
       if (oldData.length > 0 && oldData[0].status !== 'published' && status === 'published') {
-        const finalVisibility = visibility || oldData[0].visibility || 'public';
         if (finalVisibility === 'private' && recipients.length > 0) {
           // 私有通讯，只通知抄送人员
           await this.sendNotificationToRecipients(
@@ -372,6 +517,16 @@ class TechnicalCommunicationController {
       const { id } = req.params;
 
       await connection.beginTransaction();
+
+      const [existing] = await connection.query(
+        'SELECT id FROM technical_communications WHERE id = ?',
+        [id]
+      );
+
+      if (existing.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '即时通讯不存在', 'NOT_FOUND', 404);
+      }
 
       // 按依赖顺序删除关联数据
       await connection.query(
@@ -422,6 +577,15 @@ class TechnicalCommunicationController {
       const userId = req.user.id;
       const userName = req.user.real_name || req.user.username;
 
+      if (!content || !String(content).trim()) {
+        return ResponseHandler.error(res, '评论内容不能为空', 'VALIDATION_ERROR', 400);
+      }
+
+      const communication = await this.loadAccessibleCommunication(req, res, id);
+      if (!communication) {
+        return null;
+      }
+
       const [result] = await db.pool.query(
         `INSERT INTO technical_communication_comments 
          (communication_id, user_id, user_name, content, parent_id)
@@ -444,9 +608,26 @@ class TechnicalCommunicationController {
       const { commentId } = req.params;
       const userId = req.user.id;
 
+      const [comments] = await db.pool.query(
+        'SELECT id, communication_id, user_id FROM technical_communication_comments WHERE id = ?',
+        [commentId]
+      );
+
+      if (comments.length === 0) {
+        return ResponseHandler.error(res, '评论不存在', 'NOT_FOUND', 404);
+      }
+
+      if (!(await this.loadAccessibleCommunication(req, res, comments[0].communication_id))) {
+        return null;
+      }
+
+      if (comments[0].user_id !== userId && !this.canManagePrivate(req)) {
+        return ResponseHandler.error(res, '只能删除自己的评论', 'FORBIDDEN', 403);
+      }
+
       await db.pool.query(
-        'DELETE FROM technical_communication_comments WHERE id = ? AND user_id = ?',
-        [commentId, userId]
+        'DELETE FROM technical_communication_comments WHERE id = ?',
+        [commentId]
       );
 
       ResponseHandler.success(res, null, '删除评论成功');
@@ -515,6 +696,10 @@ class TechnicalCommunicationController {
       const { id } = req.params;
       const userId = req.user.id;
 
+      if (!(await this.loadAccessibleCommunication(req, res, id))) {
+        return null;
+      }
+
       // 检查是否已点赞
       const [existing] = await db.pool.query(
         'SELECT id FROM technical_communication_likes WHERE communication_id = ? AND user_id = ?',
@@ -557,6 +742,10 @@ class TechnicalCommunicationController {
       const { id } = req.params;
       const userId = req.user.id;
 
+      if (!(await this.loadAccessibleCommunication(req, res, id))) {
+        return null;
+      }
+
       // 检查是否已收藏
       const [existing] = await db.pool.query(
         'SELECT id FROM technical_communication_favorites WHERE communication_id = ? AND user_id = ?',
@@ -598,6 +787,10 @@ class TechnicalCommunicationController {
     try {
       const { id } = req.params;
       const userId = req.user.id;
+
+      if (!(await this.loadAccessibleCommunication(req, res, id))) {
+        return null;
+      }
 
       const [liked] = await db.pool.query(
         'SELECT id FROM technical_communication_likes WHERE communication_id = ? AND user_id = ?',
@@ -645,10 +838,10 @@ class TechnicalCommunicationController {
       [deptValues]
     );
 
-    // 获取这些部门的所有用户
+    // 获取这些部门的所有启用用户
     const [users] = await db.pool.query(
-      'SELECT id FROM users WHERE department_id IN (?) AND employee_status = ?',
-      [departmentIds, 'active']
+      'SELECT id FROM users WHERE department_id IN (?) AND status = 1',
+      [departmentIds]
     );
 
     if (users.length > 0) {
@@ -664,11 +857,16 @@ class TechnicalCommunicationController {
     try {
       const { id } = req.params;
 
+      if (!(await this.loadAccessibleCommunication(req, res, id))) {
+        return null;
+      }
+
       const [recipients] = await db.pool.query(
         `SELECT r.id, r.user_id, r.recipient_type, r.is_read, r.read_at,
-                u.real_name, u.username, u.department, u.position
+                u.real_name, u.username, d.name as department, u.position
          FROM technical_communication_recipients r
          LEFT JOIN users u ON r.user_id = u.id
+         LEFT JOIN departments d ON u.department_id = d.id
          WHERE r.communication_id = ?
          ORDER BY r.recipient_type, r.created_at`,
         [id]
@@ -704,6 +902,10 @@ class TechnicalCommunicationController {
     try {
       const { id } = req.params;
       const userId = req.user.id;
+
+      if (!(await this.loadAccessibleCommunication(req, res, id))) {
+        return null;
+      }
 
       // 检查是否是抄送人员
       const [recipient] = await db.pool.query(

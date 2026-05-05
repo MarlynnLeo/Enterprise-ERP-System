@@ -363,9 +363,6 @@ class TraceabilityCore {
 
       const result = await db.query(query, []);
 
-      // 添加调试日志
-      logger.info(`获取追溯ID=${id}的物料记录:`, result.rows ? result.rows.length : 0, '条记录');
-
       return result.rows || [];
     } catch (error) {
       logger.error('获取物料记录失败:', error);
@@ -379,95 +376,91 @@ class TraceabilityCore {
    * @returns {Promise<Array>} - 质检记录列表
    */
   static async getQualityRecords(traceabilityId) {
-    try {
-      // 首先查找直接关联到此追溯记录的质检记录
-      const directQuery = `
-        SELECT 
-          qi.id,
-          qi.inspection_no,
-          qi.inspection_type,
-          qi.batch_no AS "batchNumber",
-          qi.inspector_name AS "inspector",
-          qi.actual_date AS "checkTime",
-          qi.status AS "result",
-          qi.note AS "remarks",
-          qi.created_at AS "createdAt",
-          qi.updated_at AS "updatedAt"
-        FROM 
-          quality_inspections qi
-        WHERE 
-          qi.traceability_id = ?
-        ORDER BY 
-          qi.actual_date DESC
-      `;
+    // 首先查找直接关联到此追溯记录的质检记录
+    const directQuery = `
+      SELECT 
+        qi.id,
+        qi.inspection_no,
+        qi.inspection_type,
+        qi.batch_no AS "batchNumber",
+        qi.inspector_name AS "inspector",
+        qi.actual_date AS "checkTime",
+        qi.status AS "result",
+        qi.note AS "remarks",
+        qi.created_at AS "createdAt",
+        qi.updated_at AS "updatedAt"
+      FROM 
+        quality_inspections qi
+      WHERE 
+        qi.traceability_id = ?
+      ORDER BY 
+        qi.actual_date DESC
+    `;
 
-      const directResult = await db.query(directQuery, [traceabilityId]);
-      const directRecords = directResult.rows || [];
+    const directResult = await db.query(directQuery, [traceabilityId]);
+    const directRecords = directResult.rows || [];
 
-      // 如果找到直接关联的质检记录，则返回
-      if (directRecords && directRecords.length > 0) {
-        return directRecords;
-      }
-
-      // 如果没有直接关联的记录，则尝试通过产品代码和批次号查找
-      const traceabilityQuery = `
-        SELECT 
-          id,
-          product_code,
-          product_name,
-          batch_number
-        FROM 
-          traceability
-        WHERE 
-          id = ?
-      `;
-
-      const traceResult = await db.query(traceabilityQuery, [traceabilityId]);
-      const traceData =
-        traceResult.rows && traceResult.rows.length > 0 ? traceResult.rows[0] : null;
-
-      if (!traceData) {
-        return [];
-      }
-
-      // 使用产品名称、产品代码或批次号查询quality_inspections表
-      const fallbackQuery = `
-        SELECT 
-          qi.id,
-          qi.inspection_no,
-          qi.inspection_type,
-          qi.batch_no AS "batchNumber",
-          qi.inspector_name AS "inspector",
-          qi.actual_date AS "checkTime",
-          qi.status AS "result",
-          qi.note AS "remarks",
-          qi.created_at AS "createdAt",
-          qi.updated_at AS "updatedAt"
-        FROM 
-          quality_inspections qi
-        WHERE 
-          (qi.traceability_id IS NULL OR qi.traceability_id = ?)
-          AND (
-            qi.product_code = ?
-            OR qi.batch_no = ?
-            OR qi.product_name = ?
-          )
-        ORDER BY 
-          qi.actual_date DESC
-        LIMIT 1
-      `;
-
-      const fallbackResult = await db.query(fallbackQuery, [
-        traceabilityId,
-        traceData.product_code,
-        traceData.batch_number,
-        traceData.product_name,
-      ]);
-
-      return fallbackResult.rows || [];
-    } catch (error) {
-      throw error;
+    // 如果找到直接关联的质检记录，则返回
+    if (directRecords && directRecords.length > 0) {
+      return directRecords;
     }
+
+    // 如果没有直接关联的记录，则尝试通过产品代码和批次号查找
+    const traceabilityQuery = `
+      SELECT 
+        id,
+        product_code,
+        product_name,
+        batch_number
+      FROM 
+        traceability
+      WHERE 
+        id = ?
+    `;
+
+    const traceResult = await db.query(traceabilityQuery, [traceabilityId]);
+    const traceData =
+      traceResult.rows && traceResult.rows.length > 0 ? traceResult.rows[0] : null;
+
+    if (!traceData) {
+      return [];
+    }
+
+    // 使用产品名称、产品代码或批次号查询quality_inspections表
+    const fallbackQuery = `
+      SELECT 
+        qi.id,
+        qi.inspection_no,
+        qi.inspection_type,
+        qi.batch_no AS "batchNumber",
+        qi.inspector_name AS "inspector",
+        qi.actual_date AS "checkTime",
+        qi.status AS "result",
+        qi.note AS "remarks",
+        qi.created_at AS "createdAt",
+        qi.updated_at AS "updatedAt"
+      FROM 
+        quality_inspections qi
+      WHERE 
+        (qi.traceability_id IS NULL OR qi.traceability_id = ?)
+        AND (
+          qi.product_code = ?
+          OR qi.batch_no = ?
+          OR qi.product_name = ?
+        )
+      ORDER BY 
+        qi.actual_date DESC
+      LIMIT 1
+    `;
+
+    const fallbackResult = await db.query(fallbackQuery, [
+      traceabilityId,
+      traceData.product_code,
+      traceData.batch_number,
+      traceData.product_name,
+    ]);
+
+    return fallbackResult.rows || [];
   }
 }
 

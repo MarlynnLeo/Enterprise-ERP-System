@@ -31,11 +31,11 @@ const createReinspectionTask = async (task, connection) => {
 
     if (originalRows.length === 0) return;
     const origin = originalRows[0];
-    
+
     // 生成新的复检单号 (例如：在原主单号加 R 标记，或者生成全新的)
     const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
     const prefix = `${origin.inspection_type === 'incoming' ? 'IQC' : origin.inspection_type === 'process' ? 'PQC' : 'FQC'}${dateStr}`;
-    
+
     const [maxNoResult] = await connection.query(
       'SELECT MAX(inspection_no) as max_no FROM quality_inspections WHERE inspection_no LIKE ?',
       [`${prefix}%`]
@@ -328,7 +328,7 @@ const completeTask = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { actual_date, rework_cost, note } = req.body;
+    const { actual_date, rework_cost } = req.body;
 
     // 获取返工任务信息 (带上ncp单等信息以便复检使用)
     const [tasks] = await connection.query(`
@@ -582,11 +582,11 @@ const updateProgress = async (req, res) => {
          WHERE id = ?`,
         [STATUS.REWORK.COMPLETED, new Date().toISOString().slice(0, 10), id]
       );
-      
+
       const taskObj = checkResult[0];
       // 触发闭环
       await createReinspectionTask(taskObj, connection);
-      
+
       // 记录质量成本 (自动完成时，成本传0或者以后让质检填写)
       try {
         await QualityIntegrationService.recordQualityCost({

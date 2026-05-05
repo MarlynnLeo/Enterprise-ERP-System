@@ -32,7 +32,7 @@ const SENSITIVE_FIELDS = [
 
 /**
  * 遍历对象或数组，把匹配到的敏感字段设为 null
- * @param {any} data 要遍历的数据 
+ * @param {any} data 要遍历的数据
  * @param {boolean} hasPermission 是否有权限
  */
 function desensitizeData(data, hasPermission) {
@@ -46,7 +46,7 @@ function desensitizeData(data, hasPermission) {
     Object.keys(data).forEach(key => {
       // 匹配关键字或者是数组/对象继续深入
       if (SENSITIVE_FIELDS.includes(key)) {
-        data[key] = null; 
+        data[key] = null;
       } else if (typeof data[key] === 'object') {
          desensitizeData(data[key], hasPermission);
       }
@@ -69,9 +69,9 @@ async function hasFinancePermission(user) {
     // 管理员拥有 * 通配符，自动通过
     if (permissions.includes('*')) return true;
     // 检查财务相关权限标识
-    return permissions.some(p => 
-      p === 'finance:view' || 
-      p === 'finance:view_cost' || 
+    return permissions.some(p =>
+      p === 'finance:view' ||
+      p === 'finance:view_cost' ||
       p.startsWith('finance:')
     );
   } catch (error) {

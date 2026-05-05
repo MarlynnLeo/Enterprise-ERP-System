@@ -40,7 +40,7 @@ cp .env.example .env
 
 ```env
 # API 基础 URL（必须配置）
-VITE_APP_API_BASE_URL=http://192.168.2.151:8080
+VITE_APP_API_BASE_URL=http://127.0.0.1:8080
 
 # 开发服务器端口
 VITE_DEV_PORT=3001
@@ -181,4 +181,3 @@ mobile/
 ## 📄 许可证
 
 Copyright © 2025 KACON
-

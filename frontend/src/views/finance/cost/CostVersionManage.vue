@@ -72,7 +72,7 @@
       <el-alert title="注意：新建版本初始化为【草稿】状态，不影响当前线上业务测算。您可以在该草稿版本中进行成本采价核算，核对无误后进行提审。" type="info" show-icon style="margin-bottom: 20px" :closable="false" />
       <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
         <el-form-item label="版本编码" prop="version_no">
-          <el-input v-model="form.version_no" placeholder="如: 2026-Q2-STD" />
+          <el-input v-model="form.version_no" placeholder="留空时由后端按编码规则生成" />
         </el-form-item>
         <el-form-item label="版本说明" prop="version_name">
           <el-input v-model="form.version_name" placeholder="如: 2026年第二季度标准成本核算表" />
@@ -121,7 +121,6 @@ const form = reactive({
 });
 
 const rules = {
-  version_no: [{ required: true, message: '请输入版本编码', trigger: 'blur' }],
   version_name: [{ required: true, message: '请输入版本说明', trigger: 'blur' }],
   effective_date: [{ required: true, message: '请选择生效日期', trigger: 'change' }]
 };
@@ -160,7 +159,7 @@ const fetchVersions = async () => {
     const data = res.data?.data || res.data;
     versionList.value = data.list || [];
     pagination.total = Number(data.total) || 0;
-  } catch (error) {
+  } catch {
     ElMessage.error('加载版本列表失败');
   } finally {
     loading.value = false;
@@ -169,7 +168,7 @@ const fetchVersions = async () => {
 
 const openCreateDialog = () => {
   if (formRef.value) formRef.value.resetFields();
-  form.version_no = `V${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  form.version_no = '';
   form.version_name = '';
   form.effective_date = new Date().toISOString().split('T')[0];
   form.remark = '';

@@ -13,6 +13,7 @@
   import { computed } from 'vue'
   import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
+  import { equipmentApi } from '@/services/api'
 
   const router = useRouter()
 
@@ -22,8 +23,8 @@
 
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '运行中', value: 'running' },
-      { label: '停机', value: 'stopped' },
+      { label: '正常', value: 'normal' },
+      { label: '保养中', value: 'maintenance' },
       { label: '维修中', value: 'repair' },
       { label: '报废', value: 'scrapped' }
     ],
@@ -45,8 +46,9 @@
           field: 'status',
           type: 'status',
           map: {
-            running: { text: '运行中', color: 'success' },
-            stopped: { text: '停机', color: 'default' },
+            normal: { text: '正常', color: 'success' },
+            maintenance: { text: '保养中', color: 'warning' },
+            idle: { text: '闲置', color: 'default' },
             repair: { text: '维修中', color: 'danger' },
             scrapped: { text: '报废', color: 'default' }
           }
@@ -66,20 +68,14 @@
   }))
 
   const loadEquipment = async (params) => {
-    // 模拟前后端联调数据
-    return {
-      data: {
-        list: [
-          { id: 1, name: '一号数控车床', code: 'EQP-CNC-001', model: 'CNC-X1', location: '一号车间', status: 'running' },
-          { id: 2, name: '二号数控车床', code: 'EQP-CNC-002', model: 'CNC-X2', location: '一号车间', status: 'repair' },
-          { id: 3, name: '全自动点胶机', code: 'EQP-GLU-001', model: 'GL-1000', location: '二号车间', status: 'running' }
-        ],
-        total: 3
-      }
+    const apiParams = { ...params }
+    if (apiParams.status === 'all') {
+      delete apiParams.status
     }
+    return await equipmentApi.getList(apiParams)
   }
 
   const handleItemClick = (item) => {
-    // router.push(`/equipment/detail/${item.id}`)
+    router.push(`/equipment/detail/${item.id}`)
   }
 </script>

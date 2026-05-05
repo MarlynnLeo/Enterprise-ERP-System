@@ -46,7 +46,7 @@ class ProductionTraceabilityService {
         batch_number,
         produced_quantity,
         production_date,
-        consumed_materials,
+        consumed_materials: consumedMaterials,
         operator,
       });
 
@@ -101,7 +101,7 @@ class ProductionTraceabilityService {
       return outboundResult || [];
     } catch (error) {
       logger.error('获取消耗物料失败:', error);
-      return [];
+      throw error;
     }
   }
 
@@ -274,7 +274,7 @@ class ProductionTraceabilityService {
       }
     } catch (error) {
       logger.error('建立追溯关系失败:', error);
-      // 不抛出错误，追溯关系失败不影响主流程
+      throw error;
     }
   }
 

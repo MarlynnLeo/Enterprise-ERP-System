@@ -14,10 +14,11 @@ export default [
     },
     rules: {
       // 关键错误检测
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }],
       'no-undef': 'error',
       'no-constant-condition': 'warn',
       'no-unreachable': 'warn',
+      'no-useless-catch': 'warn',
       
       // 最佳实践
       'eqeqeq': ['warn', 'always'],
@@ -36,7 +37,10 @@ export default [
       'dist/**',
       'build/**',
       'tmp/**',
+      'temp/**',
       'coverage/**',
+      'logs/**',
+      'uploads/**',
       '*.min.js',
       'frontend/src/extract_options.js',
       'frontend/src/replace_vue_options.js',

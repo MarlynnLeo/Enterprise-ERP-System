@@ -92,14 +92,13 @@
 
 <script setup>
   import { ref, onMounted } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
+  import { useRoute } from 'vue-router'
   import { NavBar, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import { financeApi } from '@/services/api'
   import dayjs from 'dayjs'
 
   const route = useRoute()
-  const router = useRouter()
   const period = ref(null)
   const loading = ref(true)
 

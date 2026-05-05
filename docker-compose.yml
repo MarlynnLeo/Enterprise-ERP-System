@@ -13,12 +13,13 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8080
+      - PUBLIC_API_BASE_URL=${PUBLIC_API_BASE_URL}
       # 数据库 — 连接宿主机 MySQL
-      - DB_HOST=172.17.0.1
-      - DB_PORT=3306
-      - DB_USER=root
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=mes
+      - DB_NAME=${DB_NAME:-mes}
       # 数据库连接池
       - DB_CONNECTION_LIMIT=10
       - DB_QUEUE_LIMIT=20
@@ -32,16 +33,16 @@ services:
       - JWT_REFRESH_EXPIRY=7d
       # CSRF
       - CSRF_SECRET=${CSRF_SECRET}
-      # CORS — 允许前端容器和外部访问
-      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:18080,http://192.168.1.251:18081,http://192.168.1.251:18080
+      # CORS – 生产环境必须显式配置允许的前端来源
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       # Redis
       - REDIS_ENABLED=true
-      - REDIS_HOST=${REDIS_HOST:-192.168.1.251}
+      - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DB=0
       # Ollama
-      - OLLAMA_HOST=http://172.17.0.1:11434
+      - OLLAMA_HOST=${OLLAMA_HOST}
       - OLLAMA_OCR_MODEL=deepseek-ocr:latest
       - OLLAMA_TIMEOUT=60000
       # 智谱AI

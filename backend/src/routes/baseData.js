@@ -11,52 +11,10 @@ const baseDataController = require('../controllers/common/baseDataController');
 const productCategoryController = require('../controllers/common/productCategoryController');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
-const multer = require('multer');
-const path = require('path');
-
-// 配置文件上传存储 - 磁盘存储（用于一般文件上传）
-const diskStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../../uploads/'));
-  },
-  filename: function (req, file, cb) {
-    // 创建唯一文件名以避免覆盖
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
-  },
-});
-
-// 内存存储（用于Excel文件导入）
-const memoryStorage = multer.memoryStorage();
-
-const upload = multer({
-  storage: diskStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 限制10MB
-});
-
-const uploadToMemory = multer({
-  storage: memoryStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 限制10MB
-  fileFilter: (req, file, cb) => {
-    // 允许的文件类型
-    const allowedTypes = /\.(xlsx|xls)$/i;
-    const allowedMimeTypes = [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-      'application/vnd.ms-excel', // .xls
-      'application/octet-stream', // 有时Excel文件会被识别为这个类型
-    ];
-
-    if (allowedTypes.test(file.originalname) || allowedMimeTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('只允许上传 Excel 文件 (.xlsx 或 .xls)'));
-    }
-  },
-});
+const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
 // 文件上传路由
-router.post('/upload', authenticateToken, upload.single('file'), baseDataController.uploadFile);
+router.post('/upload', authenticateToken, FileUploadMiddlewares.attachment, baseDataController.uploadFile);
 
 // 文件下载路由 - 支持内网环境下的文件下载
 router.get('/download-file', authenticateToken, baseDataController.downloadFile);
@@ -78,7 +36,7 @@ router.post(
   '/materials/import-file',
   authenticateToken,
   requirePermission('basedata:materials:import'),
-  uploadToMemory.single('file'),
+  FileUploadMiddlewares.excel,
   baseDataController.importMaterials
 );
 // 添加导入物料的路由（JSON数据方式）
@@ -113,7 +71,7 @@ router.post(
   '/materials/:id/attachments',
   authenticateToken,
   requirePermission('basedata:materials:update'),
-  upload.single('file'),
+  FileUploadMiddlewares.attachment,
   baseDataController.uploadMaterialAttachment
 );
 router.delete(
@@ -139,11 +97,12 @@ router.get('/boms/export', authenticateToken, requirePermission('basedata:boms:e
 router.post(
   '/boms/import',
   authenticateToken,
-  uploadToMemory.single('file'),
+  requirePermission('basedata:boms:import'),
+  FileUploadMiddlewares.excel,
   baseDataController.importBoms
 );
 // 添加BOM导入模板下载路由
-router.get('/boms/template', authenticateToken, baseDataController.downloadBomTemplate);
+router.get('/boms/template', authenticateToken, requirePermission('basedata:boms:import'), baseDataController.downloadBomTemplate);
 // 添加BOM物料替换路由
 router.post('/boms/replace', authenticateToken, requirePermission('basedata:boms:update'), baseDataController.replaceBom);
 // 添加零部件定位路由
@@ -189,7 +148,7 @@ router.post(
   '/customers/import',
   authenticateToken,
   requirePermission('basedata:customers:import'),
-  uploadToMemory.single('file'),
+  FileUploadMiddlewares.excel,
   baseDataController.importCustomers
 );
 router.get('/customers/:id', authenticateToken, requirePermission('basedata:customers:view'), baseDataController.getCustomerById);
@@ -207,7 +166,7 @@ router.post(
   '/suppliers/import',
   authenticateToken,
   requirePermission('basedata:suppliers:import'),
-  uploadToMemory.single('file'),
+  FileUploadMiddlewares.excel,
   baseDataController.importSuppliers
 );
 // 添加导出供应商的路由
@@ -224,7 +183,7 @@ router.post(
   '/categories/import',
   authenticateToken,
   requirePermission('basedata:categories:import'),
-  uploadToMemory.single('file'),
+  FileUploadMiddlewares.excel,
   baseDataController.importCategories
 );
 router.post('/categories/import-json', authenticateToken, requirePermission('basedata:categories:import'), baseDataController.importCategoriesJson);

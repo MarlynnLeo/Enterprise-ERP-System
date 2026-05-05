@@ -200,7 +200,7 @@ const enhancedReportsController = {
       const startDateObj = new Date(startDate);
       const lastMonthEnd = new Date(startDateObj);
       lastMonthEnd.setDate(lastMonthEnd.getDate() - 1);
-      const lastMonthEndStr = lastMonthEnd.toISOString().split('T')[0];
+
 
       // 获取所有银行账户
       const [accounts] = await db.pool.execute(

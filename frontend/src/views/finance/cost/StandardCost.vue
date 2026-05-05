@@ -377,9 +377,7 @@ const calculateStandardCost = async () => {
 
   calculating.value = true;
   try {
-    const response = await api.get(`/finance-enhancement/cost/standard/${calculateForm.productId}`, {
-      params: { quantity: calculateForm.quantity }
-    });
+   ;
 
     ElMessage.success('标准成本计算完成');
     calculateDialogVisible.value = false;
@@ -545,7 +543,7 @@ const saveProductOverhead = async () => {
     
     // 自动触发重算以立即生效
     recalculate(currentSelectedProduct.value);
-  } catch (error) {
+  } catch {
     ElMessage.error('保存单品专属费率失败');
   } finally {
     savingOverhead.value = false;

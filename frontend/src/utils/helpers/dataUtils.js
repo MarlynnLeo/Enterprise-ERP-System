@@ -176,7 +176,7 @@ export function formatAmount(amount) {
  * @returns {string} 唯一ID
  */
 export function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}_${performance.now()}`;
 }
 
 /**

@@ -7,6 +7,17 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 
 class DLQService {
+  static safeStringify(value) {
+    try {
+      return JSON.stringify(value || {});
+    } catch (error) {
+      return JSON.stringify({
+        serialization_error: error.message,
+        value_type: typeof value,
+      });
+    }
+  }
+
   /**
    * 记录最终失败的异步任务
    */
@@ -15,11 +26,12 @@ class DLQService {
     try {
       connection = await db.pool.getConnection();
       await connection.query(
-        `INSERT INTO sys_failed_jobs (task_name, payload, error_message, error_stack, status) 
-         VALUES (?, ?, ?, ?, 'pending')`,
+        `INSERT INTO sys_failed_jobs
+          (task_name, payload, error_message, error_stack, status, attempts, next_retry_at)
+         VALUES (?, CAST(? AS JSON), ?, ?, 'pending', 0, NULL)`,
         [
           taskName,
-          JSON.stringify(payload),
+          this.safeStringify(payload),
           error.message || String(error),
           error.stack || '',
         ]
@@ -36,6 +48,52 @@ class DLQService {
         connection.release();
       }
     }
+  }
+
+  static async recordSideEffectFailure(taskName, payload, error) {
+    await this.recordFailedJob(taskName, payload, error);
+  }
+
+  static async listFailedJobs({ status = 'pending', page = 1, pageSize = 50 } = {}) {
+    const allowedStatuses = new Set(['pending', 'retrying', 'resolved', 'ignored']);
+    const actualPage = Math.max(Number(page) || 1, 1);
+    const actualPageSize = Math.min(Math.max(Number(pageSize) || 50, 1), 200);
+    const offset = (actualPage - 1) * actualPageSize;
+    const whereSql = allowedStatuses.has(status) ? 'WHERE status = ?' : '';
+    const params = allowedStatuses.has(status) ? [status] : [];
+
+    const [rows] = await db.pool.query(
+      `SELECT id, task_name, payload, error_message, status, attempts, next_retry_at,
+              locked_at, resolved_at, created_at, updated_at
+       FROM sys_failed_jobs
+       ${whereSql}
+       ORDER BY created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, actualPageSize, offset]
+    );
+
+    const [countRows] = await db.pool.query(
+      `SELECT COUNT(*) AS total FROM sys_failed_jobs ${whereSql}`,
+      params
+    );
+
+    return {
+      list: rows,
+      total: Number(countRows[0]?.total || 0),
+      page: actualPage,
+      pageSize: actualPageSize,
+    };
+  }
+
+  static async markResolved(id, operator = 'system') {
+    await db.pool.query(
+      `UPDATE sys_failed_jobs
+       SET status = 'resolved',
+           resolved_at = NOW(),
+           error_message = CONCAT(COALESCE(error_message, ''), ?)
+       WHERE id = ?`,
+      [`\n[resolved_by=${operator}]`, id]
+    );
   }
 
   /**

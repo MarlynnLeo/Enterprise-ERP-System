@@ -28,8 +28,6 @@
             label="入库单号"
             placeholder="系统自动生成"
             readonly
-            right-icon="refresh"
-            @click-right-icon="generateReceiptNo"
           />
 
           <Field
@@ -267,7 +265,7 @@
     showLoadingToast,
     closeToast
   } from 'vant'
-  import { purchaseApi, baseDataApi, inventoryApi } from '@/services/api'
+  import { purchaseApi, inventoryApi } from '@/services/api'
 
   const router = useRouter()
   const route = useRoute()
@@ -320,19 +318,6 @@
       return sum + quantity * unitPrice
     }, 0)
   })
-
-  // 生成入库单号
-  const generateReceiptNo = async () => {
-    try {
-      const today = new Date()
-      const dateStr = `${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`
-      const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase()
-      receiptForm.receipt_no = `RK${dateStr}${randomStr}`
-    } catch (error) {
-      console.error('生成入库单号失败:', error)
-      showToast('生成入库单号失败')
-    }
-  }
 
   // 获取可入库的采购订单
   const fetchOrders = async () => {
@@ -565,7 +550,6 @@
   }
 
   onMounted(() => {
-    generateReceiptNo()
     fetchOrders()
     fetchWarehouses()
 

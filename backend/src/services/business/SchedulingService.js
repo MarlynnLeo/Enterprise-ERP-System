@@ -191,7 +191,7 @@ class SchedulingService {
 
     for (const task of tasks) {
       // 确定任务的实际时间范围
-      let taskStart = task.task_start
+      const taskStart = task.task_start
         ? new Date(task.task_start).getTime()
         : task.actual_start_time
           ? new Date(task.actual_start_time).getTime()
@@ -199,7 +199,7 @@ class SchedulingService {
             ? new Date(task.start_date).getTime()
             : null;
 
-      let taskEnd = task.task_end
+      const taskEnd = task.task_end
         ? new Date(task.task_end).getTime()
         : task.expected_end_date
           ? new Date(task.expected_end_date + ' 17:30:00').getTime()
@@ -466,8 +466,7 @@ class SchedulingService {
     const [beH, beM] = (calendar.break_end || '13:00:00').split(':').map(Number);
 
     // 每天有效工作分钟数 = (下班-上班) - (午休结束-午休开始)
-    const dailyWorkMinutes =
-      (weH * 60 + weM) - (wsH * 60 + wsM) - ((beH * 60 + beM) - (bsH * 60 + bsM));
+
 
     // 安全保护：最多循环365天
     let safetyCounter = 0;

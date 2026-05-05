@@ -398,15 +398,6 @@
           @error="handleDocError"
         />
 
-        <!-- PDF文档预览 -->
-        <VueOfficePdf
-          v-else-if="previewFileType === '.pdf'"
-          :src="previewFileUrl"
-          style="height: 100%;"
-          @rendered="handleDocRendered"
-          @error="handleDocError"
-        />
-
         <!-- 其他文件类型使用iframe -->
         <iframe
           v-else
@@ -692,7 +683,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { defineAsyncComponent, ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
@@ -715,13 +706,12 @@ const router = useRouter()
 // 权限store
 const authStore = useAuthStore()
 
-// 导入Office文件预览组件
-import VueOfficeDocx from '@vue-office/docx'
-import VueOfficeExcel from '@vue-office/excel'
-import VueOfficePdf from '@vue-office/pdf'
 // 导入样式
 import '@vue-office/docx/lib/index.css'
 import '@vue-office/excel/lib/index.css'
+
+const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx'))
+const VueOfficeExcel = defineAsyncComponent(() => import('@vue-office/excel'))
 
 // 数据定义
 const loading = ref(false)
@@ -789,6 +779,9 @@ const completionForm = ref({
   remark: ''
 })
 
+const remainingQuantity = computed(() => (
+  Number(completionForm.value.totalQuantity || 0) - Number(completionForm.value.completedQuantity || 0)
+))
 
 // 补料申请相关逻辑
 const applyPartsVisible = ref(false)
@@ -841,13 +834,12 @@ const fetchWarehouseList = async () => {
     const quarantine = items.find(w => w.type === 'quarantine')
     if (quarantine) {
       applyPartsForm.value.returnLocationId = quarantine.id
-      // 隔离区匹配成功
     } else {
-      console.warn('[补料调试] 未找到 type=quarantine 的仓库')
+      applyPartsForm.value.returnLocationId = ''
     }
-  } catch (e) {
-    console.error('[补料调试] 加载仓库列表失败:', e)
-    // 加载仓库列表失败，隔离区匹配无法执行
+  } catch {
+    applyPartsForm.value.returnLocationId = ''
+    ElMessage.warning('仓库列表加载失败，请手动选择退回库位')
   }
 }
 

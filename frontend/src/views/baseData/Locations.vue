@@ -281,7 +281,7 @@ const handleExport = async () => {
     link.click();
     document.body.removeChild(link);
     ElMessage.success('导出成功');
-  } catch (error) {
+  } catch {
     ElMessage.error('导出失败');
   }
 };

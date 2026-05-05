@@ -121,7 +121,8 @@ class AccountingConfig {
           let cleanValue = settings[0].value;
           if (typeof cleanValue === 'string') {
             // 移除控制字符（保留换行符和制表符）
-            cleanValue = cleanValue.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+            // eslint-disable-next-line no-control-regex -- intentionally strips unsafe control characters from persisted JSON.
+            cleanValue = cleanValue.replace(new RegExp('[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]', 'g'), '');
           }
 
           const dbConfig = JSON.parse(cleanValue);

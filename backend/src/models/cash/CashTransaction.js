@@ -7,6 +7,7 @@
 
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
+const CodeGeneratorService = require('../../services/business/CodeGeneratorService');
 
 class CashTransactionModel {
   /**
@@ -17,10 +18,7 @@ class CashTransactionModel {
     try {
       await connection.beginTransaction();
 
-      // 生成交易号
-      const transactionNumber = `CASH${Date.now()}${Math.floor(Math.random() * 1000)
-        .toString()
-        .padStart(3, '0')}`;
+      const transactionNumber = await CodeGeneratorService.nextCode('cash_transaction', connection);
 
       // 插入现金交易记录
       const [result] = await connection.execute(
@@ -272,10 +270,7 @@ class CashTransactionModel {
       const results = [];
 
       for (const transactionData of transactionsData) {
-        // 生成交易号
-        const transactionNumber = `CASH${Date.now()}${Math.floor(Math.random() * 1000)
-          .toString()
-          .padStart(3, '0')}`;
+        const transactionNumber = await CodeGeneratorService.nextCode('cash_transaction', connection);
 
         const [result] = await connection.execute(
           `INSERT INTO cash_transactions
@@ -324,7 +319,7 @@ class CashTransactionModel {
    * @param {number} id 交易ID
    * @param {number} userId 提交人ID
    */
-  static async submitForAudit(id, userId) {
+  static async submitForAudit(id) {
     try {
       // status 字段由 migrations/20260312000010 管理
 
@@ -368,7 +363,7 @@ class CashTransactionModel {
    * @param {number} id 交易ID
    * @param {number} userId 审核人ID
    */
-  static async approveTransaction(id, userId) {
+  static async approveTransaction(id) {
     try {
       const [result] = await db.pool.execute(
         `UPDATE cash_transactions

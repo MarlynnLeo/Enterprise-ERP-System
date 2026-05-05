@@ -3,7 +3,7 @@
  * 包含列表、搜索、定价表单等功能
  */
 import { ref, reactive } from 'vue';
-import { ElMessage, ElLoading } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import dayjs from 'dayjs';
 import { financeApi } from '@/api/finance';
 
@@ -158,7 +158,7 @@ export function usePricing() {
                     selectedStrategyFieldIds.value = selectedIds;
                 }
             }
-        } catch (error) {
+        } catch {
             ElMessage.error('获取详情失败');
         } finally {
             drawerLoading.value = false;
@@ -172,7 +172,7 @@ export function usePricing() {
             pricingForm.cost_price = res.data.cost;
             costType.value = res.data.costType || 'none';
             ElMessage.success('成本已更新');
-        } catch (error) {
+        } catch {
             ElMessage.error('计算成本失败');
         }
     };
@@ -239,7 +239,7 @@ export function usePricing() {
                         drawerVisible.value = false;
                         fetchData();
                         resolve(true);
-                    } catch (error) {
+                    } catch {
                         ElMessage.error('保存失败');
                         resolve(false);
                     } finally {
@@ -299,7 +299,7 @@ export function usePricing() {
                         Object.assign(settingsForm, settings);
                         // 同步到后端
                         saveSettings();
-                    } catch (e) { }
+                    } catch { }
                 }
             }
         } catch (error) {
@@ -310,7 +310,7 @@ export function usePricing() {
                 try {
                     const settings = JSON.parse(saved);
                     Object.assign(settingsForm, settings);
-                } catch (e) { }
+                } catch { }
             }
         }
     };
@@ -325,7 +325,7 @@ export function usePricing() {
 
             ElMessage.success('设置已保存');
             fetchData();
-        } catch (error) {
+        } catch {
             ElMessage.error('保存设置失败');
         }
     };

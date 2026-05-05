@@ -48,7 +48,7 @@
         <el-form-item>
           <el-button type="primary" @click="handleSearch" :loading="loading">
             <el-icon v-if="!loading">
-              <Search />
+              <SearchIcon />
             </el-icon> 查询
           </el-button>
           <el-button @click="handleResetSearch" :loading="loading">
@@ -482,7 +482,7 @@
           <template #append>
             <el-button @click="searchMaterialsInDialog">
               <el-icon>
-                <Search />
+                <SearchIcon />
               </el-icon>
             </el-button>
           </template>
@@ -577,7 +577,7 @@
     <Transition name="slide-up">
       <div v-if="selectedOutbounds.length > 0" class="floating-batch-bar">
         <div class="batch-info">
-          <el-icon><Select /></el-icon>
+          <el-icon><SelectIcon /></el-icon>
           <span>已选中 <strong>{{ selectedOutbounds.length }}</strong> 个出库单</span>
         </div>
         <div class="batch-buttons">
@@ -598,9 +598,9 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, computed, nextTick } from 'vue'
+import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, ArrowDown, Printer, InfoFilled, Refresh, Select, Close } from '@element-plus/icons-vue'
+import { Search as SearchIcon, Plus, Printer, Refresh, Select as SelectIcon, Close } from '@element-plus/icons-vue'
 import api, { productionApi, inventoryApi, baseDataApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { generateOutboundPrintHTML } from '@/utils/printTemplates'
@@ -608,17 +608,16 @@ import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/c
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { decodeHtmlEntities, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 export default {
   name: 'InventoryOutbound',
   components: {
-    Search,
+    SearchIcon,
     Plus,
-    ArrowDown,
     Printer,
-    InfoFilled,
     Refresh,
-    Select,
+    SelectIcon,
     Close,
   },
   setup() {
@@ -932,13 +931,13 @@ export default {
         const res = await api.get('/inventory/outbound', { params })
 
         // 使用统一解析器处理分页数据
-        const { list, total: totalCount } = parsePaginatedData(res, { enableLog: false })
+        const { list, total: totalCount, statistics } = parsePaginatedData(res, { enableLog: false })
 
         outboundList.value = list
         total.value = totalCount
 
         // 更新统计数据
-        updateStats()
+        updateStats(statistics)
       } catch (error) {
         console.error('获取出库单列表失败:', error)
         ElMessage.error('获取出库单列表失败')
@@ -960,7 +959,7 @@ export default {
     }
 
     // 共享智能分析函数：获取替代物料信息（handleView 和 handlePrint 共用，DRY原则）
-    const _enrichItemsWithSubstitution = async (items, productionPlanCode, status) => {
+    const _enrichItemsWithSubstitution = async (items, productionPlanCode) => {
       try {
         if (productionPlanCode) {
           // 有生产计划编码：调用智能分析API
@@ -1208,7 +1207,7 @@ export default {
           confirmButtonText: force ? '强制撤销' : '确定撤销',
           cancelButtonText: '取消',
           type: force ? 'error' : 'warning',
-          dangerouslyUseHTMLString: true
+          dangerouslyUseHTMLString: false
         }
       ).then(async () => {
         try {
@@ -1290,7 +1289,7 @@ export default {
     }
 
     // 获取物料建议列表
-    const fetchMaterialSuggestions = async (queryString, callback, index) => {
+    const fetchMaterialSuggestions = async (queryString, callback) => {
       if (!queryString || queryString.trim().length === 0) {
         callback([])
         return
@@ -1323,7 +1322,7 @@ export default {
         }))
 
         callback(suggestions)
-      } catch (error) {
+      } catch {
         ElMessage.error('搜索物料失败')
         callback([])
       }
@@ -1468,6 +1467,11 @@ export default {
           return false
         }
 
+        if (!item.location_id) {
+          ElMessage.warning(`${item.material_name || item.material_code || '物料'} 未配置默认库位，请先维护物料库位`)
+          return false
+        }
+
         // 补发模式下跳过库存检查,因为后端支持预扣库存冲正
         if (dialogType.value === 'supplement') {
           // 补发模式下只检查补发数量不能超过缺料数量
@@ -1569,20 +1573,22 @@ export default {
 
         // 处理超额领料警告
         if (errorData?.code === 'EXCESS_ISSUE' && errorData?.details) {
-          const detailsHtml = errorData.details.map(d =>
-            `<div style="color: var(--color-danger); margin-bottom: 4px;">• ${d.message || '超额领料'}</div>`
-          ).join('');
+          const excessMessage = h('div', [
+            h('div', { style: { fontWeight: 'bold', marginBottom: '10px' } }, '检测到以下超额领料项，是否确认继续？'),
+            ...errorData.details.map(d =>
+              h('div', { style: { color: 'var(--color-danger)', marginBottom: '4px' } }, `• ${d.message || '超额领料'}`)
+            ),
+            h('div', { style: { marginTop: '15px', color: 'var(--color-text-regular)' } }, '确认后请填写补发/超额原因。')
+          ]);
 
           ElMessageBox.confirm(
-            `<div style="font-weight: bold; margin-bottom: 10px;">检测到以下超额领料项，是否确认继续？</div>
-              ${detailsHtml}
-              <div style="margin-top: 15px; color: var(--color-text-regular);">确认后请填写补发/超额原因。</div>`,
+            excessMessage,
             '超额领料警告',
             {
               confirmButtonText: '确认并填写原因',
               cancelButtonText: '取消',
               type: 'warning',
-              dangerouslyUseHTMLString: true,
+              dangerouslyUseHTMLString: false,
               closeOnClickModal: false
             }
           ).then(() => {
@@ -1619,8 +1625,16 @@ export default {
     }
 
     // 更新统计数据
-    // TODO: 当前统计仅基于当前页数据，分页时不准确。应由后端 getOutboundList 返回全局统计。
-    const updateStats = () => {
+    const updateStats = (statistics = null) => {
+      if (statistics) {
+        outboundStats.total = statistics.total || 0
+        outboundStats.draftCount = statistics.draftCount || 0
+        outboundStats.confirmedCount = statistics.confirmedCount || 0
+        outboundStats.partialCompletedCount = statistics.partialCompletedCount || 0
+        outboundStats.completedCount = statistics.completedCount || 0
+        outboundStats.cancelledCount = statistics.cancelledCount || 0
+        return
+      }
       const list = Array.isArray(outboundList.value) ? outboundList.value : []
       outboundStats.total = total.value || 0
       outboundStats.draftCount = list.filter(item => item.status === 'draft').length
@@ -1721,9 +1735,7 @@ export default {
 
           // 解码 HTML 实体（如果模板内容被转义了）
           if (htmlContent.includes('&lt;') || htmlContent.includes('&gt;')) {
-            const textarea = document.createElement('textarea')
-            textarea.innerHTML = htmlContent
-            htmlContent = textarea.value
+            htmlContent = decodeHtmlEntities(htmlContent)
           }
 
           // 替换模板变量
@@ -1807,16 +1819,13 @@ export default {
 
         // 创建打印窗口
         const printWindow = window.open('', '_blank')
-        printWindow.document.write(htmlContent)
-        printWindow.document.close()
+        writeSafeHtmlDocument(printWindow, htmlContent)
 
-      } catch (error) {
-        console.error('获取打印模板失败，使用默认模板:', error)
+      } catch {
         // 降级到默认模板
         const printWindow = window.open('', '_blank')
         const htmlContent = generateOutboundPrintHTML(printData.value, formatDate)
-        printWindow.document.write(htmlContent)
-        printWindow.document.close()
+        writeSafeHtmlDocument(printWindow, htmlContent)
       }
     }
 
@@ -1881,7 +1890,7 @@ export default {
           } else {
             throw new Error('该产品的BOM中没有物料明细')
           }
-        } catch (error) {
+        } catch {
           throw new Error('计算物料需求失败')
         }
       }
@@ -1941,8 +1950,8 @@ export default {
         }
 
         // 初始化映射
-        let materialInfoMap = new Map()
-        let stockMap = new Map()
+        const materialInfoMap = new Map()
+        const stockMap = new Map()
 
         try {
           // 批量获取物料信息
@@ -2037,8 +2046,8 @@ export default {
           const requiredQuantity = selectedTask.quantity * bomQuantity
 
           // 获取该物料的库存信息
-          const stockKey = `${materialId}_${materialInfo.location_id || 1}`
-          const stockInfo = stockMap.get(stockKey) || { quantity: 0, stock_quantity: 0 }
+          const stockKey = materialInfo.location_id ? `${materialId}_${materialInfo.location_id}` : null
+          const stockInfo = stockKey ? (stockMap.get(stockKey) || { quantity: 0, stock_quantity: 0 }) : { quantity: 0, stock_quantity: 0 }
 
           // 将原始物料数据合并，确保规格等信息正确保留
           const materialData = {
@@ -2285,8 +2294,7 @@ export default {
 
         // 打开打印窗口
         const printWindow = window.open('', '_blank')
-        printWindow.document.write(htmlContent)
-        printWindow.document.close()
+        writeSafeHtmlDocument(printWindow, htmlContent)
 
         // 等待内容加载后打印
         printWindow.onload = () => {
@@ -2302,13 +2310,11 @@ export default {
 
     return {
       // 图标组件
-      Search,
+      SearchIcon,
       Plus,
-      ArrowDown,
       Printer,
-      InfoFilled,
       Refresh,
-      Select,
+      SelectIcon,
       Close,
       // 数据
       outboundList,
@@ -2381,7 +2387,6 @@ export default {
       expandedTableData,
       viewExpandedTableData,
       printExpandedTableData,
-      validateOutboundQuantity,
       // 批量选择相关
       outboundTableRef,
       selectedOutbounds,

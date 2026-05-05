@@ -2,6 +2,7 @@ const db = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 
 const standardCostVersionController = {
   /**
@@ -49,12 +50,15 @@ const standardCostVersionController = {
    */
   createVersion: async (req, res) => {
     try {
-      const { version_no, version_name, effective_date, expiry_date, remark } = req.body;
+      const { version_name, effective_date, expiry_date, remark } = req.body;
+      let { version_no } = req.body;
       const created_by = await getCurrentUserName(req);
 
-      if (!version_no || !version_name || !effective_date) {
-        return ResponseHandler.error(res, '版本号、版本名、生效日期为必填项', 'VALIDATION_ERROR', 400);
+      if (!version_name || !effective_date) {
+        return ResponseHandler.error(res, '版本名、生效日期为必填项', 'VALIDATION_ERROR', 400);
       }
+
+      version_no = version_no || await CodeGeneratorService.nextCode('cost_version');
 
       const [existing] = await db.pool.execute(
         'SELECT id FROM standard_cost_versions WHERE version_no = ?',
@@ -85,7 +89,7 @@ const standardCostVersionController = {
     try {
       const { id } = req.params;
       const [version] = await db.pool.execute('SELECT status FROM standard_cost_versions WHERE id = ?', [id]);
-      
+
       if (version.length === 0) return ResponseHandler.error(res, '版本不存在', 'NOT_FOUND', 404);
       if (version[0].status !== 'draft') return ResponseHandler.error(res, '仅草稿状态可提交', 'VALIDATION_ERROR', 400);
 
@@ -235,7 +239,7 @@ const standardCostVersionController = {
       let inserted = 0;
       for (const [matId, mat] of materialGraph.entries()) {
         const finalCost = calculateCost(matId);
-        
+
         // 过滤掉没有成本的项
         if (finalCost <= 0) continue;
 
@@ -245,7 +249,7 @@ const standardCostVersionController = {
           INSERT INTO standard_costs (version_id, material_id, cost_element, standard_price, effective_date, status, is_active, source_type, operator)
           VALUES (?, ?, 'material', ?, CURDATE(), 'draft', 0, ?, ?)
         `, [id, matId, finalCost, sourceType, operator]);
-        
+
         inserted++;
       }
 

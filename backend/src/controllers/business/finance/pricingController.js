@@ -2,6 +2,7 @@ const { getConnection } = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 // 获取产品定价列表
 exports.getPricingList = async (req, res) => {
@@ -543,7 +544,7 @@ exports.createPricing = async (req, res) => {
         1,
         effective_date || new Date(),
         remarks,
-        req.user ? req.user.id : null,
+        getAuthenticatedUserId(req),
       ]
     );
 
@@ -787,11 +788,7 @@ exports.getBomDetails = async (req, res) => {
 exports.getPricingSettings = async (req, res) => {
   let connection;
   try {
-    const userId = req.user ? req.user.id : null;
-    if (!userId) {
-      // 如果没有用户上下文，返回默认设置
-      return ResponseHandler.success(res, {});
-    }
+    const userId = getAuthenticatedUserId(req);
 
     connection = await getConnection();
 
@@ -824,12 +821,8 @@ exports.getPricingSettings = async (req, res) => {
 exports.updatePricingSettings = async (req, res) => {
   let connection;
   try {
-    const userId = req.user ? req.user.id : null;
+    const userId = getAuthenticatedUserId(req);
     const settings = req.body;
-
-    if (!userId) {
-      return ResponseHandler.error(res, '未登录', 'UNAUTHORIZED', 401);
-    }
 
     connection = await getConnection();
 
@@ -850,4 +843,3 @@ exports.updatePricingSettings = async (req, res) => {
     if (connection) connection.release();
   }
 };
-

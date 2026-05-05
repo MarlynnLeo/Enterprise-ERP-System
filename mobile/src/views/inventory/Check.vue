@@ -286,18 +286,6 @@
     }
   }
 
-  const adjustInventory = async (item) => {
-    try {
-      await showConfirmDialog({ title: '调整库存', message: '确定要根据盘点结果调整库存吗？' })
-      await inventoryApi.adjustInventory(item.id)
-      showToast('库存调整成功')
-      resetAndLoad()
-      await loadCheckStats()
-    } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
-    }
-  }
-
   onMounted(async () => {
     await loadCheckStats()
     await loadCheckList()

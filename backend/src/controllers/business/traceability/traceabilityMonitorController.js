@@ -28,6 +28,19 @@ exports.getTraceabilityOverview = async (req, res) => {
       }
     };
 
+    const safeQueryRows = async (sql, params = []) => {
+      try {
+        const result = await db.query(sql, params);
+        return result.rows || [];
+      } catch (error) {
+        if (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_FIELD_ERROR') {
+          logger.warn(`追溯监控查询跳过: ${error.message}`);
+          return [];
+        }
+        throw error;
+      }
+    };
+
     // 1. 追溯记录总数（单表架构）
     overview.totalChains = await safeQueryCount(`
       SELECT COUNT(DISTINCT child_batch_number) as total FROM batch_relationships WHERE process_type = 'production'
@@ -53,8 +66,28 @@ exports.getTraceabilityOverview = async (req, res) => {
       SELECT COUNT(*) as total FROM product_sales_traceability
     `);
 
-    // 6. 最近7天的追溯操作统计 (因日志表废除暂时返回空数组，后期由新表接管)
-    overview.recentOperations = [];
+    overview.recentOperations = await safeQueryRows(`
+      SELECT
+        DATE(created_at) as operation_date,
+        module,
+        action,
+        COUNT(*) as total
+      FROM audit_logs
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND (
+          module LIKE '%trace%'
+          OR entity_type IN (
+            'batch_relationships',
+            'product_sales_traceability',
+            'inventory_ledger',
+            'quality_inspections',
+            'sales_outbound'
+          )
+        )
+      GROUP BY DATE(created_at), module, action
+      ORDER BY operation_date DESC, total DESC
+      LIMIT 50
+    `);
 
     ResponseHandler.success(res, overview);
   } catch (error) {

@@ -23,7 +23,6 @@
         <div class="stat-label">紧急</div>
       </el-card>
     </div>
-
     <el-card class="box-card">
       <template #header>
         <div class="card-header">
@@ -33,7 +32,6 @@
           </el-button>
         </div>
       </template>
-
       <!-- 搜索栏 -->
       <div class="search-container">
         <el-row :gutter="16">
@@ -68,7 +66,6 @@
           </el-col>
         </el-row>
       </div>
-
       <!-- 表格 -->
       <el-table :data="tableData" border v-loading="loading" style="width: 100%; margin-top: 16px;">
         <el-table-column prop="report_no" label="报告编号" width="140" show-overflow-tooltip />
@@ -120,7 +117,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <el-pagination v-model:current-page="pagination.current" v-model:page-size="pagination.pageSize"
         :page-sizes="[10, 20, 50]" :total="pagination.total"
@@ -128,10 +124,8 @@
         @size-change="fetchData" @current-change="fetchData"
         style="margin-top: 20px; justify-content: flex-end;" />
     </el-card>
-
     <!-- 创建/编辑对话框 -->
     <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑8D报告' : '创建8D报告'" width="920px" destroy-on-close>
-
       <!-- 阶段进度指示器 -->
       <div class="phase-indicator" v-if="isEdit">
         <el-steps :active="getPhaseStep(formData.current_phase)" finish-status="success" align-center size="small">
@@ -143,7 +137,6 @@
           <el-step title="完成" />
         </el-steps>
       </div>
-
       <el-tabs v-model="activeTab" type="border-card">
         <!-- 基本信息 -->
         <el-tab-pane label="基本信息" name="basic">
@@ -240,7 +233,6 @@
             </el-row>
           </el-form>
         </el-tab-pane>
-
         <!-- D1: 团队 -->
         <el-tab-pane label="D1 团队" name="d1">
           <el-form :model="formData" label-width="120px">
@@ -254,7 +246,6 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
-
         <!-- D2: 问题描述 -->
         <el-tab-pane label="D2 问题描述" name="d2">
           <el-form :model="formData" label-width="120px">
@@ -283,7 +274,6 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
-
         <!-- D3: 遏制措施 -->
         <el-tab-pane label="D3 遏制措施" name="d3">
           <el-form :model="formData" label-width="120px">
@@ -300,7 +290,6 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
-
         <!-- D4: 根因分析 -->
         <el-tab-pane label="D4 根因分析" name="d4">
           <el-alert v-if="formData.current_phase === 'd1_d3'" title="当前处于D1-D3阶段，请先完成初审后再填写D4" type="info" :closable="false" show-icon style="margin-bottom: 16px" />
@@ -327,7 +316,6 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
-
         <!-- D5: 纠正措施 -->
         <el-tab-pane label="D5 纠正措施" name="d5">
           <el-form :model="formData" label-width="120px">
@@ -350,7 +338,6 @@
             </el-row>
           </el-form>
         </el-tab-pane>
-
         <!-- D6: 验证 -->
         <el-tab-pane label="D6 实施验证" name="d6">
           <el-form :model="formData" label-width="120px">
@@ -374,7 +361,6 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
-
         <!-- D7: 预防 -->
         <el-tab-pane label="D7 预防措施" name="d7">
           <el-form :model="formData" label-width="120px">
@@ -391,7 +377,6 @@
             </el-form-item>
           </el-form>
         </el-tab-pane>
-
         <!-- D8: 总结 -->
         <el-tab-pane label="D8 总结关闭" name="d8">
           <el-alert v-if="formData.current_phase !== 'd8' && formData.current_phase !== 'completed'" title="请先通过D4-D7结案审核后再填写D8总结" type="info" :closable="false" show-icon style="margin-bottom: 16px" />
@@ -427,7 +412,6 @@
         </div>
       </template>
     </el-dialog>
-
     <!-- 详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="8D报告详情" width="920px" destroy-on-close>
       <div v-if="detailData" id="pdf-detail-content" style="padding: 10px; background-color: var(--color-bg-base);">
@@ -461,7 +445,6 @@
             </el-card>
           </el-col>
         </el-row>
-
         <!-- 阶段进度 -->
         <el-steps :active="getPhaseStep(detailData.current_phase)" finish-status="success" align-center size="small" style="margin-bottom: 20px;">
           <el-step title="立案" description="D1-D3" />
@@ -471,7 +454,6 @@
           <el-step title="总结" description="D8" />
           <el-step title="完成" />
         </el-steps>
-
         <el-descriptions :column="2" border>
           <el-descriptions-item label="报告编号">{{ detailData.report_no }}</el-descriptions-item>
           <el-descriptions-item label="标题">{{ detailData.title }}</el-descriptions-item>
@@ -487,7 +469,6 @@
           </el-descriptions-item>
           <el-descriptions-item label="客户联系人">{{ detailData.customer_contact || '-' }}</el-descriptions-item>
         </el-descriptions>
-
         <el-timeline style="margin-top: 20px;">
           <el-timeline-item :type="detailData.d1_completed_at ? 'success' : 'info'" timestamp="D1 - 组建团队">
             <p><strong>组长:</strong> {{ detailData.d1_team_leader || '-' }}</p>
@@ -525,7 +506,6 @@
           </el-timeline-item>
         </el-timeline>
       </div>
-
       <!-- 审核信息 -->
       <el-descriptions :column="2" border style="margin-top: 16px" v-if="detailData && (detailData.phase1_approved_by || detailData.reviewed_by)">
         <el-descriptions-item label="初审人" v-if="detailData.phase1_approved_by">{{ detailData.phase1_approved_by }}</el-descriptions-item>
@@ -544,7 +524,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 审核对话框 -->
     <el-dialog v-model="reviewDialogVisible" title="审核8D报告" width="500px">
       <el-alert
@@ -566,7 +545,6 @@
         <el-button type="primary" @click="submitReview" :loading="submitLoading">提交</el-button>
       </template>
     </el-dialog>
-
     <!-- AI生成对话框 -->
     <el-dialog v-model="aiDialogVisible" title="AI智能分析生成" width="600px" append-to-body>
       <el-alert title="基于KACON公司部门结构，智能生成符合IATF 16949标准的专业8D报告。团队组建将自动匹配品质部/技术部/生产部等真实部门，D2日期使用当天。" type="success" :closable="false" show-icon style="margin-bottom: 20px" />
@@ -657,10 +635,8 @@
         <el-button v-permission="'quality:8d:view'" type="primary" v-if="isPrintMode" @click="handlePrintCommand">确认打印 (A4)</el-button>
       </template>
     </el-dialog>
-
   </div>
 </template>
-
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -672,41 +648,51 @@ import { systemApi } from '@/api/system'
 import { api } from '@/services/axiosInstance'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 // 响应式状态
-
 const logsDialogVisible = ref(false)
 const isPrintMode = ref(false)
 const auditLogs = ref([])
 const currentPrintRow = ref(null)
-
-const viewLogs = async (row) => {
+const _viewLogs = async (row) => {
   try {
     const res = await eightDReportApi.getReportLogs(row.id)
     auditLogs.value = res.data?.data || res.data
     isPrintMode.value = false
     logsDialogVisible.value = true
-  } catch (err) {
+  } catch {
     ElMessage.error('获取审计日志失败')
   }
 }
-
-const printCustomerReport = async (row) => {
+const _printCustomerReport = async (row) => {
   currentPrintRow.value = row
   isPrintMode.value = true
   logsDialogVisible.value = true
 }
-
 const handlePrintCommand = () => {
-  const printContents = document.getElementById('printable-8d-report').innerHTML;
-  const originalContents = document.body.innerHTML;
-  document.body.innerHTML = printContents;
-  window.print();
-  document.body.innerHTML = originalContents;
+  const printElement = document.getElementById('printable-8d-report');
+  if (!printElement) {
+    ElMessage.error('无法获取打印内容');
+    return;
+  }
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    ElMessage.error('无法创建打印窗口，请检查浏览器是否阻止了弹出窗口');
+    return;
+  }
+  writeSafeHtmlDocument(printWindow, `<!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>8D报告</title>
+      </head>
+      <body>${printElement.outerHTML}</body>
+    </html>`);
+  printWindow.onload = () => {
+    printWindow.print();
+  };
   logsDialogVisible.value = false;
-  location.reload(); // 防止 vue 挂载元素丢失
 }
-
 const exportPdfLoading = ref(false)
 const exportDetailToPdf = () => {
   const element = document.getElementById('pdf-detail-content');
@@ -729,7 +715,6 @@ const exportDetailToPdf = () => {
     console.error('PDF Export error:', err);
   });
 }
-
 const loading = ref(false)
 const submitLoading = ref(false)
 const loadingNcp = ref(false)
@@ -749,28 +734,24 @@ const dateRange = ref([])
 const ncpList = ref([])
 const userList = ref([])
 const formRef = ref(null)
-
 // 搜索表单
 const searchForm = reactive({
   keyword: '',
   status: '',
   priority: ''
 })
-
 // 分页
 const pagination = reactive({
   current: 1,
   pageSize: 10,
   total: 0
 })
-
 // 表单校验规则
 const formRules = {
   title: [{ required: true, message: '请输入报告标题', trigger: 'blur' }],
   initiated_by: [{ required: true, message: '请选择发起人', trigger: 'change' }],
   owner: [{ required: true, message: '请选择主负责人', trigger: 'change' }]
 }
-
 // AI表单
 const aiForm = reactive({
   problemDescription: '',
@@ -780,7 +761,6 @@ const aiForm = reactive({
   quantityAffected: 0,
   priority: 'high'
 })
-
 // 表单数据
 const formData = reactive({
   title: '',
@@ -835,15 +815,12 @@ const formData = reactive({
   d8_team_recognition: '',
   d8_responsible_person: ''
 })
-
 // 审核表单
 const reviewForm = reactive({
   approved: true,
   comments: ''
 })
-
 // ===================== 数据获取 =====================
-
 const fetchUsers = async () => {
   try {
     loadingUsers.value = true
@@ -855,7 +832,6 @@ const fetchUsers = async () => {
     loadingUsers.value = false
   }
 }
-
 const fetchNcpList = async (query = '') => {
   try {
     loadingNcp.value = true
@@ -867,7 +843,6 @@ const fetchNcpList = async (query = '') => {
     loadingNcp.value = false
   }
 }
-
 const handleNcpSelect = (val) => {
   if (!val) {
     formData.ncp_id = ''
@@ -889,7 +864,6 @@ const handleNcpSelect = (val) => {
     if (!formData.d2_quantity_affected) formData.d2_quantity_affected = selectedNcp.defect_quantity || 0
   }
 }
-
 const fetchData = async () => {
   try {
     loading.value = true
@@ -914,7 +888,6 @@ const fetchData = async () => {
     loading.value = false
   }
 }
-
 const fetchStatistics = async () => {
   try {
     const response = await eightDReportApi.getStatistics()
@@ -923,7 +896,6 @@ const fetchStatistics = async () => {
     console.error('获取统计数据失败:', error)
   }
 }
-
 // ===================== AI 辅助生成 =====================
 const openAiDialog = () => {
   aiForm.problemDescription = ''
@@ -939,7 +911,6 @@ const submitAiGenerate = async () => {
     ElMessage.warning('请输入至少5个字的详细问题描述')
     return
   }
-
   // 防覆盖警告机制
   if (formData.d2_problem_description || formData.d4_root_cause) {
     try {
@@ -952,7 +923,6 @@ const submitAiGenerate = async () => {
       return
     }
   }
-
   aiLoading.value = true
   try {
     const response = await eightDReportApi.aiAnalyze(aiForm)
@@ -992,14 +962,13 @@ const submitAiGenerate = async () => {
       // D8 - 总结
       if (result.d8_summary) formData.d8_summary = result.d8_summary
       if (result.d8_lessons_learned) formData.d8_lessons_learned = result.d8_lessons_learned
-
       ElMessage.success('🎉 AI已生成专业级8D报告初稿（基于KACON部门结构），请逐步检查并完善')
       aiDialogVisible.value = false
     }
   } catch (error) {
     console.error('AI生成失败:', error)
     if (error.response?.data?.message?.includes('ECONNREFUSED') || error.response?.data?.message?.includes('connect')) {
-      ElMessageBox.alert('无法连接到本地 Ollama AI 服务 (192.168.1.251:11434)，请确认服务已启动', 'AI 服务未就绪', { type: 'warning' })
+      ElMessageBox.alert('无法连接到 AI 服务，请确认后端已配置 OLLAMA_API_URL 和 OLLAMA_MODEL，且服务可访问', 'AI 服务未就绪', { type: 'warning' })
     } else {
       ElMessage.error(error.response?.data?.message || 'AI生成失败，请稍后重试')
     }
@@ -1007,10 +976,8 @@ const submitAiGenerate = async () => {
     aiLoading.value = false
   }
 }
-
-
 // ===================== 附件上传 =====================
-const handleFileUpload = async (options, targetArray) => {
+const _handleFileUpload = async (options, targetArray) => {
   try {
     const fd = new FormData()
     fd.append('file', options.file)
@@ -1033,19 +1000,18 @@ const handleFileUpload = async (options, targetArray) => {
     ElMessage.error('上传失败')
   }
 }
-
-const handleRemoveFile = (file, targetArray) => {
+const _handleRemoveFile = (file, targetArray) => {
   const index = targetArray.findIndex(item => item.name === file.name || item.uid === file.uid)
   if (index !== -1) targetArray.splice(index, 1)
 }
-
-const getFullUrl = (url) => {
+const _getFullUrl = (url) => {
   if (url && url.startsWith('http')) return url;
-  return import.meta.env.VITE_API_BASE_URL + url;
+  if (!url) return '';
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${baseUrl}${path}`;
 }
-
 // ===================== CRUD 操作 =====================
-
 const handleCreate = () => {
   isEdit.value = false
   activeTab.value = 'basic'
@@ -1060,7 +1026,6 @@ const handleCreate = () => {
   })
   formDialogVisible.value = true
 }
-
 const handleEdit = async (row) => {
   isEdit.value = true
   activeTab.value = 'basic'
@@ -1068,49 +1033,42 @@ const handleEdit = async (row) => {
   try {
     const response = await eightDReportApi.getReportById(row.id)
     const data = response.data?.data || response.data
-
     Object.keys(formData).forEach(key => {
       if (key.endsWith('_str')) return
       if (data[key] !== undefined) formData[key] = data[key]
     })
-
     // 数组字段转为文本
     formData.d1_team_members_str = Array.isArray(data.d1_team_members) ? data.d1_team_members.join('\n') : (data.d1_team_members || '')
     formData.d3_containment_actions_str = Array.isArray(data.d3_containment_actions) ? data.d3_containment_actions.join('\n') : (data.d3_containment_actions || '')
     formData.d4_contributing_factors_str = Array.isArray(data.d4_contributing_factors) ? data.d4_contributing_factors.join('\n') : (data.d4_contributing_factors || '')
     formData.d5_corrective_actions_str = Array.isArray(data.d5_corrective_actions) ? data.d5_corrective_actions.join('\n') : (data.d5_corrective_actions || '')
     formData.d7_preventive_actions_str = Array.isArray(data.d7_preventive_actions) ? data.d7_preventive_actions.join('\n') : (data.d7_preventive_actions || '')
-
     
     // 附件数组解析
-    try { formData.d3_attachments = typeof data.d3_attachments === 'string' ? JSON.parse(data.d3_attachments) : (data.d3_attachments || []) } catch(e) { formData.d3_attachments = [] }
-    try { formData.d5_attachments = typeof data.d5_attachments === 'string' ? JSON.parse(data.d5_attachments) : (data.d5_attachments || []) } catch(e) { formData.d5_attachments = [] }
-    try { formData.d6_attachments = typeof data.d6_attachments === 'string' ? JSON.parse(data.d6_attachments) : (data.d6_attachments || []) } catch(e) { formData.d6_attachments = [] }
-
+    try { formData.d3_attachments = typeof data.d3_attachments === 'string' ? JSON.parse(data.d3_attachments) : (data.d3_attachments || []) } catch { formData.d3_attachments = [] }
+    try { formData.d5_attachments = typeof data.d5_attachments === 'string' ? JSON.parse(data.d5_attachments) : (data.d5_attachments || []) } catch { formData.d5_attachments = [] }
+    try { formData.d6_attachments = typeof data.d6_attachments === 'string' ? JSON.parse(data.d6_attachments) : (data.d6_attachments || []) } catch { formData.d6_attachments = [] }
     // 草稿自动转进行中
     if (data.status === 'draft') {
       formData.status = 'in_progress'
       formData.current_phase = 'd1_d3'
     }
-
     formDialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error('获取报告详情失败')
   }
 }
-
 const submitForm = async () => {
   // 表单校验
   if (formRef.value) {
     try {
       await formRef.value.validate()
-    } catch (e) {
+    } catch {
       activeTab.value = 'basic'
       ElMessage.warning('请完善基本信息中的必填项')
       return
     }
   }
-
   submitLoading.value = true
   try {
     const submitData = { ...formData }
@@ -1120,14 +1078,12 @@ const submitForm = async () => {
     submitData.d4_contributing_factors = formData.d4_contributing_factors_str ? formData.d4_contributing_factors_str.split('\n').filter(s => s.trim()) : []
     submitData.d5_corrective_actions = formData.d5_corrective_actions_str ? formData.d5_corrective_actions_str.split('\n').filter(s => s.trim()) : []
     submitData.d7_preventive_actions = formData.d7_preventive_actions_str ? formData.d7_preventive_actions_str.split('\n').filter(s => s.trim()) : []
-
     // 移除 _str 后缀字段
     delete submitData.d1_team_members_str
     delete submitData.d3_containment_actions_str
     delete submitData.d4_contributing_factors_str
     delete submitData.d5_corrective_actions_str
     delete submitData.d7_preventive_actions_str
-
     // 自动标记步骤完成时间
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
     if (submitData.d1_team_leader && !submitData.d1_completed_at) submitData.d1_completed_at = now
@@ -1138,7 +1094,6 @@ const submitForm = async () => {
     if (submitData.d6_implementation_results && !submitData.d6_completed_at) submitData.d6_completed_at = now
     if (submitData.d7_preventive_actions?.length && !submitData.d7_completed_at) submitData.d7_completed_at = now
     if (submitData.d8_summary && !submitData.d8_completed_at) submitData.d8_completed_at = now
-
     if (isEdit.value) {
       await eightDReportApi.updateReport(currentRow.value.id, submitData)
       ElMessage.success('更新成功')
@@ -1146,29 +1101,25 @@ const submitForm = async () => {
       await eightDReportApi.createReport(submitData)
       ElMessage.success('创建成功')
     }
-
     formDialogVisible.value = false
     fetchData()
     fetchStatistics()
-  } catch (error) {
+  } catch {
     ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
   } finally {
     submitLoading.value = false
   }
 }
-
 const handleView = async (row) => {
   try {
     const response = await eightDReportApi.getReportById(row.id)
     detailData.value = response.data?.data || response.data
     detailDialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error('获取详情失败')
   }
 }
-
 // ===================== 流程操作 =====================
-
 const handleSubmitReview = async (row) => {
   try {
     await ElMessageBox.confirm('确定提交D1-D3初审吗？系统将校验必填项。', '提交初审', { type: 'warning' })
@@ -1183,7 +1134,6 @@ const handleSubmitReview = async (row) => {
     }
   }
 }
-
 const handleSubmitPhase2 = async (row) => {
   try {
     await ElMessageBox.confirm('确定提交D4-D7结案审核吗？系统将校验必填项。', '提交结案审核', { type: 'warning' })
@@ -1198,7 +1148,6 @@ const handleSubmitPhase2 = async (row) => {
     }
   }
 }
-
 const handleComplete = async (row) => {
   try {
     await ElMessageBox.confirm('确定完成此8D报告吗？请确认D8总结已填写。', '完成报告', { type: 'warning' })
@@ -1213,14 +1162,12 @@ const handleComplete = async (row) => {
     }
   }
 }
-
 const handleReview = (row) => {
   currentRow.value = row
   reviewForm.approved = true
   reviewForm.comments = ''
   reviewDialogVisible.value = true
 }
-
 const submitReview = async () => {
   submitLoading.value = true
   try {
@@ -1229,13 +1176,12 @@ const submitReview = async () => {
     reviewDialogVisible.value = false
     fetchData()
     fetchStatistics()
-  } catch (error) {
+  } catch {
     ElMessage.error('审核失败')
   } finally {
     submitLoading.value = false
   }
 }
-
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm('确定删除这条8D报告吗？', '提示', { type: 'warning' })
@@ -1247,7 +1193,6 @@ const handleDelete = async (row) => {
     if (error !== 'cancel') ElMessage.error('删除失败')
   }
 }
-
 const handleReset = () => {
   searchForm.keyword = ''
   searchForm.status = ''
@@ -1256,29 +1201,22 @@ const handleReset = () => {
   pagination.current = 1
   fetchData()
 }
-
 // ===================== 辅助方法 =====================
-
 const isOverdue = (row) => {
   if (!row.target_close_date) return false
   if (['completed', 'closed'].includes(row.status)) return false
   return dayjs().isAfter(dayjs(row.target_close_date))
 }
-
 const getPriorityType = (p) => ({ low: 'info', medium: '', high: 'warning', critical: 'danger' }[p] || 'info')
 const getPriorityLabel = (p) => ({ low: '低', medium: '中', high: '高', critical: '紧急' }[p] || p)
-
 const getStatusType = (s) => ({ draft: 'info', in_progress: 'warning', review: '', completed: 'success', closed: 'info' }[s] || 'info')
 const getStatusLabel = (s) => ({ draft: '草稿', in_progress: '进行中', review: '待审核', completed: '已完成', closed: '已关闭' }[s] || s)
-
 const getPhaseType = (p) => ({ draft: 'info', d1_d3: 'warning', d4_d7: '', d8: 'success', completed: 'success', closed: 'info' }[p] || 'info')
 const getPhaseLabel = (p) => ({ draft: '草稿', d1_d3: 'D1-D3', d4_d7: 'D4-D7', d8: 'D8总结', completed: '已完成', closed: '已归档' }[p] || p || '-')
-
 const getPhaseStep = (phase) => {
   const map = { draft: 0, d1_d3: 1, d4_d7: 3, d8: 5, completed: 6, closed: 6 }
   return map[phase] || 0
 }
-
 const getProgress = (row) => {
   let count = 0
   if (row.d1_completed_at) count++
@@ -1291,14 +1229,12 @@ const getProgress = (row) => {
   if (row.d8_completed_at) count++
   return Math.round(count / 8 * 100)
 }
-
 const getProgressColor = (row) => {
   const p = getProgress(row)
   if (p >= 100) return '#67C23A'
   if (p >= 50) return '#409EFF'
   return '#E6A23C'
 }
-
 onMounted(() => {
   fetchData()
   fetchStatistics()
@@ -1306,38 +1242,31 @@ onMounted(() => {
   fetchNcpList()
 })
 </script>
-
 <style scoped>
 .search-container {
   margin-bottom: 16px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 :deep(.el-table th) {
   background-color: var(--color-bg-hover);
   font-weight: 600;
 }
-
 .el-pagination {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
 }
-
 :deep(.el-tabs__content) {
   padding: 20px;
 }
-
 :deep(.el-timeline-item__timestamp) {
   font-weight: 600;
   font-size: 14px;
 }
-
 /* 阶段进度指示器 */
 .phase-indicator {
   margin-bottom: 20px;
@@ -1345,7 +1274,6 @@ onMounted(() => {
   background: var(--color-bg-section);
   border-radius: 8px;
 }
-
 /* 角色信息卡片 */
 .role-card {
   display: flex;
@@ -1385,7 +1313,6 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 超期样式 */
 .text-danger {
   color: var(--color-danger);

@@ -108,33 +108,27 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { debounce } from '@/utils/commonHelpers'
-
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi } from '@/services/api'
 import { SEARCH_CONFIG, searchMaterials as performSearchMaterials, mapMaterialData } from '@/utils/searchConfig'
-
 // ===== 响应式数据 =====
 const formRef = ref(null)
 const materialOptions = ref([])
 const loadingMaterials = ref(false)
 const selectedMaterial = ref({})
 const submitting = ref(false)
-
 // ===== 组件属性和事件 =====
-const props = defineProps({
+const _props = defineProps({
   modelValue: {
     type: Boolean,
     default: false
   }
 })
-
 const emit = defineEmits(['update:modelValue', 'success'])
-
 // ===== 表单数据和验证规则 =====
 const form = reactive({
   materialId: '',
@@ -142,7 +136,6 @@ const form = reactive({
   quantity: 1,
   remark: ''
 })
-
 const rules = {
   materialId: [
     { required: true, message: '请选择物料', trigger: 'change' }
@@ -155,27 +148,21 @@ const rules = {
     { type: 'number', message: '数量必须为数字', trigger: 'blur' }
   ]
 }
-
 // ===== 工具函数 =====
-
-
 // ===== 事件处理函数 =====
 // 关闭对话框
 const handleClose = () => {
   resetForm()
   emit('update:modelValue', false)
 }
-
 // ===== 物料搜索相关函数 =====
 let currentSearchId = 0;
-
 // 处理选择框焦点
 const handleSelectFocus = () => {
   if (materialOptions.value.length === 0) {
     searchMaterials('')
   }
 }
-
 // 搜索物料函数
 const doSearchMaterials = async (query) => {
   const searchId = ++currentSearchId;
@@ -193,12 +180,10 @@ const doSearchMaterials = async (query) => {
       }
       return
     }
-
     const searchResults = await performSearchMaterials(baseDataApi, query.trim(), {
       pageSize: SEARCH_CONFIG.REMOTE_SEARCH_PAGE_SIZE,
       includeAll: true
     })
-
     if (searchId === currentSearchId) {
       materialOptions.value = mapMaterialData(searchResults)
     }
@@ -209,17 +194,14 @@ const doSearchMaterials = async (query) => {
     if (searchId === currentSearchId) loadingMaterials.value = false
   }
 }
-
 // 带防抖的搜索物料函数
 const searchMaterials = debounce(doSearchMaterials, SEARCH_CONFIG.SEARCH_DEBOUNCE_DELAY || 300)
-
 // 物料选择变化处理
 const handleMaterialChange = (materialId) => {
   if (materialId) {
     const material = materialOptions.value.find(item =>
       String(item.id) === String(materialId)
     )
-
     if (material) {
       selectedMaterial.value = material
       ElMessage.success(`已选择物料: ${material.code} - ${material.name}`)
@@ -230,7 +212,6 @@ const handleMaterialChange = (materialId) => {
     selectedMaterial.value = {}
   }
 }
-
 // ===== 表单操作函数 =====
 // 提交表单
 const submitForm = async () => {
@@ -251,15 +232,24 @@ const submitForm = async () => {
           ElMessage.error('请先选择物料')
           return
         }
-
+        const locationId = Number.parseInt(
+          selectedMaterial.value.location_id ||
+            selectedMaterial.value.locationId ||
+            selectedMaterial.value.default_warehouse_id ||
+            selectedMaterial.value.warehouse_id,
+          10
+        )
+        if (!Number.isInteger(locationId) || locationId <= 0) {
+          ElMessage.error('所选物料未配置默认库位，请先在物料资料中维护库位')
+          return
+        }
         const data = {
           materialId: form.materialId,
-          locationId: selectedMaterial.value.location_id || 1,
+          locationId,
           quantity: quantity,
           type: form.type,
           remark: form.remark
         }
-
         await inventoryApi.adjustStock(data)
         
         emit('success')
@@ -274,7 +264,6 @@ const submitForm = async () => {
     }
   })
 }
-
 // 重置表单
 const resetForm = () => {
   if (formRef.value) {
@@ -287,9 +276,7 @@ const resetForm = () => {
   form.quantity = 1
   form.remark = ''
 }
-
 </script>
-
 <style scoped>
 .inventory-stock-add {
   :deep(.el-dialog__body) {
@@ -300,30 +287,25 @@ const resetForm = () => {
     margin-bottom: 22px;
   }
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .stock-form {
   max-width: 800px;
   margin: 0 auto;
 }
-
 .material-option {
   padding: 8px 0;
   line-height: 1.4;
 }
-
 .material-main {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
 }
-
 .material-code {
   color: var(--color-text-regular);
   font-size: 12px;
@@ -335,23 +317,19 @@ const resetForm = () => {
   font-family: 'Courier New', monospace;
   font-weight: 500;
 }
-
 .material-name {
   font-weight: 500;
   color: var(--color-text-primary);
   font-size: 14px;
 }
-
 .material-spec, .material-unit {
   color: var(--color-text-secondary);
   font-size: 12px;
   margin-top: 2px;
 }
-
 .search-tip {
   margin-top: 4px;
 }
-
 .quantity-note {
   color: var(--color-warning);
   font-size: 12px;

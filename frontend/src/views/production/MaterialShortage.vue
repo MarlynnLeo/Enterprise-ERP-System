@@ -7,7 +7,7 @@
  */
 -->
 <script setup>
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from '@/services/api'
 import { formatQuantity } from '@/utils/helpers/quantity'
@@ -15,7 +15,6 @@ import { parseApiResponse, parsePaginatedData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { Download, Search, Refresh, ShoppingCart, Select, Close, InfoFilled } from '@element-plus/icons-vue'
-
 // 数据定义
 const loading = ref(false)
 const shortageList = ref([])
@@ -24,29 +23,24 @@ const statistics = ref({
   shortageMaterials: 0,
   totalShortage: 0
 })
-
 // 添加响应式分页对象
 const pagination = reactive({
   currentPage: 1,
   pageSize: 10,
   total: 0
 })
-
 // 搜索表单
 const searchForm = ref({
   material: '',
   purchaseStatus: '' // 采购状态：'' 全部，'pending' 待申请，'requested' 已申请
 })
-
 // 批量选择相关
 const shortageTableRef = ref(null)
 const selectedShortages = ref([])
 const batchLoading = ref(false)
-
 // 确认对话框相关
 const confirmDialogVisible = ref(false)
 const confirmMaterialList = ref([])
-
 // 获取生产状态文本
 const getStatusText = (status) => {
   const statusMap = {
@@ -63,9 +57,8 @@ const getStatusText = (status) => {
   }
   return statusMap[status] || status
 }
-
 // 获取状态颜色
-const getStatusType = (status) => {
+const _getStatusType = (status) => {
   const statusTypeMap = {
     'draft': 'info',
     'preparing': 'warning',
@@ -79,15 +72,12 @@ const getStatusType = (status) => {
   }
   return statusTypeMap[status] || 'info'
 }
-
 // 格式化日期
 // formatDate 已统一引用公共实现
-
 // 获取缺料统计数据
 const fetchShortageData = async (force = false) => {
   // 防止重复请求，除非强制刷新
   if (loading.value && !force) return
-
   loading.value = true
   try {
     const params = {
@@ -96,9 +86,7 @@ const fetchShortageData = async (force = false) => {
     }
     if (searchForm.value.material) params.material = searchForm.value.material
     if (searchForm.value.purchaseStatus) params.purchaseStatus = searchForm.value.purchaseStatus
-
     const response = await axios.get('/production/material-shortage-summary', { params })
-
     // 使用统一解析器处理分页数据
     const { list, total, statistics: stats } = parsePaginatedData(response, { enableLog: false })
     shortageList.value = list
@@ -115,13 +103,11 @@ const fetchShortageData = async (force = false) => {
     loading.value = false
   }
 }
-
 // 搜索
 const handleSearch = () => {
   pagination.currentPage = 1
   fetchShortageData()
 }
-
 // 重置搜索
 const handleReset = () => {
   searchForm.value = {
@@ -131,23 +117,18 @@ const handleReset = () => {
   pagination.currentPage = 1
   fetchShortageData()
 }
-
 // 导出数据
 const handleExport = async () => {
   if (shortageList.value.length === 0) {
     ElMessage.warning('没有数据可以导出')
     return
   }
-
   try {
-
     // 动态导入 ExcelJS 库
     const { default: ExcelJS } = await import('exceljs')
-
     // 创建工作簿
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('缺料统计')
-
     // 设置列
     worksheet.columns = [
       { header: '计划编号', key: 'plan_code', width: 15 },
@@ -164,7 +145,6 @@ const handleExport = async () => {
       { header: '计划开始日期', key: 'start_date', width: 12 },
       { header: '计划结束日期', key: 'end_date', width: 12 }
     ]
-
     // 添加数据
     shortageList.value.forEach(item => {
       worksheet.addRow({
@@ -183,10 +163,8 @@ const handleExport = async () => {
         end_date: formatDate(item.end_date)
       })
     })
-
     // 生成文件名
     const fileName = `缺料统计_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`
-
     // 生成并下载文件
     const buffer = await workbook.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
@@ -196,43 +174,36 @@ const handleExport = async () => {
     link.download = fileName
     link.click()
     window.URL.revokeObjectURL(url)
-
     ElMessage.success('导出成功')
   } catch (error) {
     console.error('导出失败:', error)
     ElMessage.error('导出失败: ' + (error.message || '未知错误'))
   }
 }
-
 // 分页处理
 const handleSizeChange = (val) => {
   pagination.pageSize = val
   fetchShortageData()
 }
-
 const handleCurrentChange = (val) => {
   pagination.currentPage = val
   fetchShortageData()
 }
-
 // 跳转到生产计划详情
 const viewPlanDetail = (planId) => {
   // 这里可以实现跳转到生产计划详情页面的逻辑
   ElMessage.info(`跳转到生产计划详情 ID: ${planId}`)
 }
-
 // 批量选择相关方法
 const handleSelectionChange = (selection) => {
   selectedShortages.value = selection
 }
-
 const clearSelection = () => {
   if (shortageTableRef.value) {
     shortageTableRef.value.clearSelection()
   }
   selectedShortages.value = []
 }
-
 // 批量创建采购申请 - 显示确认对话框
 const handleBatchCreateRequisition = () => {
   try {
@@ -265,7 +236,6 @@ const handleBatchCreateRequisition = () => {
         })
       }
     })
-
     // 检查是否有已申请的记录
     const requestedItems = selectedShortages.value.filter(item => item.purchase_status === 'requested')
     
@@ -274,7 +244,6 @@ const handleBatchCreateRequisition = () => {
       ElMessage.warning('选中的所有缺料记录都已创建过采购申请，请勿重复提交！')
       return
     }
-
     // 准备确认对话框的数据
     confirmMaterialList.value = Array.from(materialMap.values()).map(item => ({
       ...item,
@@ -289,7 +258,6 @@ const handleBatchCreateRequisition = () => {
     ElMessage.error(error.message || '准备采购申请失败')
   }
 }
-
 // 确认提交采购申请
 const confirmSubmitRequisition = async () => {
   try {
@@ -301,9 +269,7 @@ const confirmSubmitRequisition = async () => {
     }
     
     batchLoading.value = true
-
     const planCodes = Array.from(new Set(selectedShortages.value.map(item => item.plan_code)))
-
     // 准备采购申请数据（使用用户编辑后的数量）
     const materials = confirmMaterialList.value.map(item => ({
       material_id: item.material_id,
@@ -314,10 +280,8 @@ const confirmSubmitRequisition = async () => {
       quantity: parseFloat(item.edit_quantity), // 使用编辑后的数量
       remarks: `生产计划缺料 - ${item.plans.map(p => p.plan_code).join(', ')}`
     }))
-
     // 生成备注信息
     const remarks = `根据生产计划缺料统计自动生成 - 涉及计划: ${planCodes.join(', ')}`
-
     // 创建采购申请
     const response = await axios.post('/purchase/requisitions', {
       request_date: dayjs().format('YYYY-MM-DD'),
@@ -325,17 +289,14 @@ const confirmSubmitRequisition = async () => {
       remarks: remarks
     })
     const result = parseApiResponse(response)
-
     if (result.success && result.data) {
       const requisitionNo = result.data.requisition_number || result.data.requisitionNo || '新申请单'
-
       ElMessage({
         message: `采购申请创建成功！申请单号：${requisitionNo}，共 ${materials.length} 种物料`,
         type: 'success',
         duration: 5000,
         showClose: true
       })
-
       confirmDialogVisible.value = false
       clearSelection()
       batchLoading.value = false
@@ -350,19 +311,16 @@ const confirmSubmitRequisition = async () => {
     batchLoading.value = false
   }
 }
-
 // 取消提交
 const cancelSubmitRequisition = () => {
   confirmDialogVisible.value = false
   confirmMaterialList.value = []
 }
-
 // 生命周期
 onMounted(() => {
   fetchShortageData()
 })
 </script>
-
 <template>
   <div class="material-shortage-container">
     <!-- 页面标题 -->
@@ -414,7 +372,6 @@ onMounted(() => {
         <div class="stat-label">总缺料数量</div>
       </el-card>
     </div>
-
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -463,7 +420,6 @@ onMounted(() => {
             <span v-else>-</span>
           </template>
         </el-table-column>
-
         <el-table-column label="计划数量" width="100" align="right">
           <template #default="scope">
             {{ formatQuantity(scope.row.plan_quantity) }}
@@ -517,7 +473,6 @@ onMounted(() => {
         
         <el-table-column prop="unit" label="单位" width="80" align="center" fixed="right" />
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -535,7 +490,6 @@ onMounted(() => {
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 确认采购申请对话框 -->
     <el-dialog
       v-model="confirmDialogVisible"
@@ -579,7 +533,6 @@ onMounted(() => {
                 v-model.number="scope.row.edit_quantity"
                 type="number"
                 size="small"
-
                 placeholder="请输入数量"
               />
             </template>
@@ -587,13 +540,11 @@ onMounted(() => {
           
           <el-table-column prop="unit" label="单位" width="70" align="center" />
         </el-table>
-
         <div class="dialog-summary">
           <el-icon><InfoFilled /></el-icon>
           <span>共 <strong>{{ confirmMaterialList.length }}</strong> 种物料，总采购数量：<strong>{{ formatQuantity(confirmMaterialList.reduce((sum, item) => sum + parseFloat(item.edit_quantity || 0), 0)) }}</strong></span>
         </div>
       </div>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="cancelSubmitRequisition" :disabled="batchLoading">取消</el-button>
@@ -603,7 +554,6 @@ onMounted(() => {
         </span>
       </template>
     </el-dialog>
-
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedShortages.length > 0" class="floating-batch-bar">
@@ -629,30 +579,25 @@ onMounted(() => {
     </Transition>
   </div>
 </template>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 /* 浮动批量操作栏样式 */
 .floating-batch-bar {
   position: fixed;
@@ -670,7 +615,6 @@ onMounted(() => {
   gap: 32px;
   min-width: 400px;
 }
-
 .floating-batch-bar .batch-info {
   display: flex;
   align-items: center;
@@ -678,56 +622,45 @@ onMounted(() => {
   color: var(--color-on-primary, #fff);
   font-size: 14px;
 }
-
 .floating-batch-bar .batch-info .el-icon {
   font-size: 20px;
 }
-
 .floating-batch-bar .batch-info strong {
   color: #ffd700;
   font-size: 18px;
   margin: 0 2px;
 }
-
 .floating-batch-bar .batch-buttons {
   display: flex;
   gap: 12px;
 }
-
 .floating-batch-bar .batch-buttons .el-button {
   border: 1px solid rgba(255, 255, 255, 0.3);
   transition: all 0.3s ease;
 }
-
 .floating-batch-bar .batch-buttons .el-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
-
 /* 浮动栏进入/离开动画 */
 .slide-up-enter-active,
 .slide-up-leave-active {
   transition: all 0.3s ease;
 }
-
 .slide-up-enter-from,
 .slide-up-leave-to {
   opacity: 0;
   transform: translate(-50%, 100%);
 }
-
 .text-danger {
   color: var(--color-danger);
 }
-
 .danger {
   color: var(--color-danger);
 }
-
 .task-detail {
   padding: 20px;
 }
-
 .specs-text {
   display: inline-block;
   max-width: 140px;
@@ -735,47 +668,37 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .text-nowrap {
   white-space: nowrap;
 }
-
 .status-card {
   margin-bottom: var(--spacing-lg);
 }
-
 .status-card .el-card__body {
   padding: 10px;
 }
-
 .status-item {
   text-align: center;
   cursor: pointer;
 }
-
 .status-item:hover {
   background-color: var(--color-bg-hover);
 }
-
 .status-value {
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 5px;
 }
-
 .status-label {
   color: var(--color-text-regular);
 }
-
 .text-success {
   color: var(--color-success);
 }
-
 .drawer-title {
   font-size: 16px;
   margin-bottom: 10px;
 }
-
 /* 增强型号规格的显示 */
 .el-table .specs-text {
   max-width: 140px;
@@ -784,18 +707,15 @@ onMounted(() => {
   white-space: nowrap;
   display: block;
 }
-
 /* 确保工具提示有足够的宽度 */
 :deep(.el-tooltip__popper) {
   max-width: 500px;
   word-break: break-word;
 }
-
 /* 操作列样式 - 与库存出库页面保持一致 */
 .el-table .el-button + .el-button {
   margin-left: 8px;
 }
-
 /* 加载规格的样式 */
 .loading-specs {
   cursor: pointer;
@@ -803,34 +723,28 @@ onMounted(() => {
   text-decoration: underline;
   text-decoration-style: dotted;
 }
-
 .loading-specs:hover {
   color: var(--color-primary);
 }
-
 /* 产品搜索选项样式 */
 .no-bom {
   color: var(--color-text-secondary) !important;
 }
-
 /* 表格单元格内容不换行，超出省略 */
 :deep(.el-table .cell) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 确保表格列宽度限制 */
 :deep(.el-table th.el-table__cell),
 :deep(.el-table td.el-table__cell) {
   overflow: hidden;
 }
-
 /* 确认对话框样式 */
 .confirm-dialog-content {
   padding: 0;
 }
-
 .dialog-summary {
   display: flex;
   align-items: center;
@@ -843,22 +757,18 @@ onMounted(() => {
   color: #1e40af;
   font-size: 14px;
 }
-
 .dialog-summary .el-icon {
   font-size: 18px;
   color: var(--color-primary);
 }
-
 .dialog-summary strong {
   color: #1e3a8a;
   font-size: 15px;
 }
-
 .dialog-footer {
   display: flex;
   gap: 12px;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -866,10 +776,8 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 </style>
-

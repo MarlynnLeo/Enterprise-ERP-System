@@ -262,6 +262,7 @@
       v-model="bom.priceAdjustDialogVisible.value"
       :form="bom.priceAdjustForm"
       :submitting="bom.priceAdjustSubmitting.value"
+      @update:form="updatePriceAdjustForm"
       @save="() => bom.savePriceAdjustment(pricing.pricingForm.product_id)"
     />
 
@@ -285,6 +286,7 @@
       :form="pricing.settingsForm"
       :strategy-fields="strategy.fieldsList.value"
       :fields-loading="strategy.fieldsLoading.value"
+      @update:form="updatePricingSettingsForm"
       @save="handleSaveSettings"
       @reset="pricing.resetSettings"
       @add-field="strategy.handleAdd"
@@ -408,6 +410,14 @@ const openPricingDrawer = (row) => {
 
 const openBomPriceDialog = () => {
   bom.handleViewBomPrice(pricing.pricingForm.product_id);
+};
+
+const updatePriceAdjustForm = (nextForm) => {
+  Object.assign(bom.priceAdjustForm, nextForm);
+};
+
+const updatePricingSettingsForm = (nextForm) => {
+  Object.assign(pricing.settingsForm, nextForm);
 };
 
 const handleSubmitPricing = async () => {

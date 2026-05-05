@@ -13,20 +13,15 @@ const InventoryService = require('../../../services/InventoryService');
 // const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
+
+let businessTypeCache = null;
+let businessTypeCacheTime = 0;
+const BUSINESS_TYPE_CACHE_TTL = 5 * 60 * 1000;
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
-const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
-const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
-const {
-  getInventoryTransactionTypeText,
-  getTransferStatusText,
-  getSalesStatusText,
-  generateStatusCaseSQL,
-  INVENTORY_TRANSACTION_TYPES,
-  INVENTORY_TRANSACTION_GROUPS,
-} = require('../../../constants/systemConstants');
 
 // 引入库存一致性校验服务
 
@@ -49,7 +44,7 @@ const STATUS = {
  * @param {object} connection - 数据库连接
  * @param {number} materialId - 物料ID
  * @param {number} locationId - 库位ID（可选）
- * @param {string} defaultBatchNo - 默认批次号（如果查询失败）
+ * @param {string} fallbackBatchNo - 调用方显式传入的候选批次号
  * @returns {Promise<string>} 批次号
  */
 
@@ -108,8 +103,7 @@ const getManualTransactions = async (req, res) => {
     const total = countResult[0].total;
 
     // 查询列表数据（按单据编号分组，显示主要信息）
-    const pageSizeNum = Number(pageSize);
-    const offsetNum = Number(offset);
+
 
     let rows;
     if (whereConditions.length > 0) {
@@ -437,16 +431,13 @@ const createManualTransaction = async (req, res) => {
     );
 
     // 批量预取物料信息（消除循环内 N+1 查询）
-    const manualMaterialIds = items.map(i => i.material_id);
-    const manualMaterialInfoMap = await InventoryService.getBatchMaterialInfo(manualMaterialIds, connection);
 
     // 处理每条明细
     for (const item of items) {
       const { material_id, location_id, quantity } = item;
 
       // 从批量预取结果获取物料信息
-      const matInfo = manualMaterialInfoMap.get(material_id);
-      const unit_id = matInfo.unitId;
+
 
       // 插入手工出入库记录 - 默认状态为待审批
       await connection.execute(

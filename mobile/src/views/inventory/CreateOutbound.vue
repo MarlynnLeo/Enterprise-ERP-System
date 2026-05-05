@@ -179,12 +179,10 @@
         text: w.name || w.warehouse_name || `仓库#${w.id}`,
         value: String(w.id)
       }))
-      if (warehouseOptions.value.length === 0) {
-        warehouseOptions.value = [{ text: '默认仓库', value: '1' }]
-      }
     } catch (error) {
       console.error('加载仓库列表失败:', error)
-      warehouseOptions.value = [{ text: '默认仓库', value: '1' }]
+      warehouseOptions.value = []
+      showToast('仓库列表加载失败，请稍后重试')
     } finally {
       warehouseLoading.value = false
     }
@@ -245,7 +243,7 @@
   const form = reactive({
     outbound_type: '销售出库',
     outbound_type_value: 'sales',
-    warehouse_id: 1,
+    warehouse_id: null,
     warehouse_name: '',
     source_no: '',
     remarks: '',
@@ -259,8 +257,13 @@
   }
 
   const onWarehouseConfirm = ({ selectedOptions }) => {
+    const warehouseId = Number.parseInt(selectedOptions[0]?.value, 10)
+    if (!Number.isInteger(warehouseId) || warehouseId <= 0) {
+      showToast('请选择有效仓库')
+      return
+    }
     form.warehouse_name = selectedOptions[0].text
-    form.warehouse_id = parseInt(selectedOptions[0].value) || 1
+    form.warehouse_id = warehouseId
     showWarehousePicker.value = false
   }
 
@@ -275,6 +278,11 @@
   const onSubmit = async () => {
     if (form.items.some((item) => !item.material_id || !item.quantity)) {
       showToast('物料明细填写不完整')
+      return
+    }
+
+    if (!form.warehouse_id) {
+      showToast('请选择仓库')
       return
     }
 

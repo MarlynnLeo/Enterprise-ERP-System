@@ -27,15 +27,9 @@ export const metalPricesApi = {
     // 获取实时金属价格
     getRealTimePrices: () => api.get('/metal-prices/realtime'),
 
-    // 获取最新金属价格
-    getLatestPrices: () => api.get('/metal-prices/latest'),
-
     // 获取历史价格趋势
     getPriceHistory: (params) => api.get('/metal-prices/history', { params }),
 
     // 手动更新价格
-    updatePrice: (data) => api.put('/metal-prices', data),
-
-    // 获取价格预警
-    getPriceAlerts: () => api.get('/metal-prices/alerts')
+    updatePrice: (data) => api.put('/metal-prices', data)
 };

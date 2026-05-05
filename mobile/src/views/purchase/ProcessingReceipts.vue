@@ -60,7 +60,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 外委入库详情
   }
 </script>

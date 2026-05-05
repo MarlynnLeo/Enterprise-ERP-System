@@ -3,16 +3,14 @@
  */
 
 const { getBasicConfig } = require('./database-config');
+const isProduction = process.env.NODE_ENV === 'production';
 
 module.exports = {
   // API 相关配置
   api: {
     baseUrl: process.env.API_BASE_URL || '',
     protocol: process.env.API_PROTOCOL || 'http',
-    host:
-      process.env.API_HOST || process.env.NODE_ENV === 'production'
-        ? 'your-domain.com'
-        : 'localhost',
+    host: process.env.API_HOST || (isProduction ? '' : 'localhost'),
     port: process.env.PORT || 8080,
   },
 

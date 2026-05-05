@@ -250,7 +250,7 @@ const handleLogout = async () => {
     closeToast()
     router.replace('/login')
     showToast({ type: 'success', message: '已退出登录' })
-  } catch (error) {
+  } catch {
     closeToast()
   }
 }

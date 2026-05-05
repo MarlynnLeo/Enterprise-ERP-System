@@ -161,7 +161,7 @@ class DataTransformer {
     if (typeof data === 'object' && data.constructor === Object) {
       const result = {};
       for (const key in data) {
-        if (data.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
           const camelKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
           result[camelKey] = this.toCamelCase(data[key]);
         }
@@ -189,7 +189,7 @@ class DataTransformer {
     if (typeof data === 'object' && data.constructor === Object) {
       const result = {};
       for (const key in data) {
-        if (data.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
           const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
           result[snakeKey] = this.toSnakeCase(data[key]);
         }
@@ -208,7 +208,7 @@ class DataTransformer {
   static filterEmpty(obj) {
     const result = {};
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         const value = obj[key];
         if (value !== null && value !== undefined && value !== '') {
           result[key] = value;

@@ -10,7 +10,10 @@
 
 <script setup>
   import { computed } from 'vue'
+  import dayjs from 'dayjs'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
+  import { hrApi } from '@/services/api'
+  import { filterByKeyword, getResponseList, toPagedResponse } from '@/utils/listResponse'
 
   const pageConfig = computed(() => ({
     title: '考勤记录',
@@ -27,13 +30,15 @@
     fields: {
       id: 'id',
       title: 'empName',
-      subtitle: 'recordDate',
+      subtitle: 'period',
       icon: 'calendar-o',
       status: 'status',
 
       details: [
-        { label: '上班打卡', field: 'clockInTime' },
-        { label: '下班打卡', field: 'clockOutTime' }
+        { label: '部门', field: 'department' },
+        { label: '应出勤', field: 'daysInMonth', suffix: '天' },
+        { label: '请假/缺勤', field: 'leaveDays', suffix: '天' },
+        { label: '加班', field: 'overtimeHours', suffix: '小时' }
       ],
 
       tags: [
@@ -41,10 +46,9 @@
           field: 'status',
           type: 'status',
           map: {
-            normal: { text: '正常', color: 'success' },
-            late: { text: '迟到', color: 'warning' },
-            early: { text: '早退', color: 'warning' },
-            missing: { text: '缺卡', color: 'danger' }
+            draft: { text: '草稿', color: 'warning' },
+            confirmed: { text: '已确认', color: 'success' },
+            normal: { text: '正常', color: 'success' }
           }
         }
       ]
@@ -55,15 +59,19 @@
     ]
   }))
 
-  const loadAttendance = async (params) => {
-    return {
-      data: {
-        list: [
-          { id: 1, empName: '张三', recordDate: '2026-04-18', clockInTime: '08:55', clockOutTime: '18:05', status: 'normal' },
-          { id: 2, empName: '李四', recordDate: '2026-04-18', clockInTime: '09:12', clockOutTime: '-', status: 'late' }
-        ],
-        total: 2
-      }
-    }
+  const loadAttendance = async (params = {}) => {
+    const response = await hrApi.getAttendance({ period: dayjs().format('YYYY-MM') })
+    const records = getResponseList(response).map((row) => ({
+      id: row.id,
+      empName: row.name || row.employee_name || '',
+      period: row.period || '',
+      department: row.department_name || '',
+      daysInMonth: row.days_in_month ?? 0,
+      leaveDays: row.leave_days ?? row.total_leave_days ?? 0,
+      overtimeHours: row.overtime_hours ?? 0,
+      status: row.status || 'normal'
+    }))
+
+    return toPagedResponse(filterByKeyword(records, params.search, ['empName', 'period', 'department']))
   }
 </script>

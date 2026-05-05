@@ -7,9 +7,9 @@
 
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
+const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 const salesCustomerController = require('../controllers/business/sales/salesCustomerController');
 const salesQuotationController = require('../controllers/business/sales/salesQuotationController');
 const salesOrderController = require('../controllers/business/sales/salesOrderController');
@@ -19,9 +19,6 @@ const salesExchangeController = require('../controllers/business/sales/salesExch
 const salesPackingController = require('../controllers/business/sales/salesPackingController');
 const salesStatsController = require('../controllers/business/sales/salesStatsController');
 const deliveryStatsController = require('../controllers/business/sales/deliveryStatsController');
-
-// 配置multer用于文件上传
-const upload = multer({ storage: multer.memoryStorage() });
 
 // 使用中间件进行身份验证
 router.use(authenticateToken);
@@ -49,7 +46,7 @@ router.get('/orders', requirePermission('sales:orders:view'), salesOrderControll
 router.get('/orders/operators', requirePermission('sales:orders:view'), salesOrderController.getSalesOrderOperators);
 
 router.post('/orders/export', requirePermission('sales:orders:export'), salesOrderController.exportOrders);
-router.post('/orders/import', requirePermission('sales:orders:create'), upload.single('file'), salesOrderController.importOrders);
+router.post('/orders/import', requirePermission('sales:orders:create'), FileUploadMiddlewares.excel, salesOrderController.importOrders);
 // 添加销售订单导入模板下载路由
 router.get('/orders/template', requirePermission('sales:orders:view'), salesOrderController.downloadOrderTemplate);
 router.get('/orders/:id', requirePermission('sales:orders:view'), salesOrderController.getSalesOrder);
@@ -77,6 +74,7 @@ router.get('/returns', requirePermission('sales:returns:view'), salesReturnContr
 router.get('/returns/:id', requirePermission('sales:returns:view'), salesReturnController.getSalesReturnById);
 router.post('/returns', requirePermission('sales:returns:create'), salesReturnController.createSalesReturn);
 router.put('/returns/:id', requirePermission('sales:returns:update'), salesReturnController.updateSalesReturn);
+router.put('/returns/:id/status', requirePermission('sales:returns:update'), salesReturnController.updateSalesReturnStatus);
 router.delete('/returns/:id', requirePermission('sales:returns:delete'), salesReturnController.deleteSalesReturn);
 
 // Sales Exchange routes

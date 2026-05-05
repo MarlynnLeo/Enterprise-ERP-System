@@ -2,16 +2,52 @@ const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const db = require('../../../config/db');
 const pool = db.pool;
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const SalaryService = require('../../../services/business/hr/salaryService');
 const DingtalkSyncService = require('../../../services/business/hr/dingtalkSyncService');
+
+const normalizeExcelCellValue = (value) => {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value;
+  if (typeof value !== 'object') return value;
+
+  if (Array.isArray(value.richText)) {
+    return value.richText.map(part => part.text || '').join('');
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'result')) {
+    return normalizeExcelCellValue(value.result);
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'text')) {
+    return value.text || '';
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'hyperlink')) {
+    return value.text || value.hyperlink || '';
+  }
+
+  return String(value);
+};
+
+const worksheetToRows = (worksheet) => {
+  const rows = [];
+  const columnCount = worksheet.columnCount;
+
+  worksheet.eachRow({ includeEmpty: true }, (row) => {
+    const values = [];
+    for (let col = 1; col <= columnCount; col++) {
+      values.push(normalizeExcelCellValue(row.getCell(col).value));
+    }
+    rows.push(values);
+  });
+
+  return rows;
+};
 
 // ---------- 员工管理 ---------- //
 
 const getEmployees = async (req, res) => {
   try {
     const { keyword, status } = req.query;
-    
+
     let query = `
       SELECT e.*, d.name as department_name, u.username as system_user
       FROM hr_employees e
@@ -20,19 +56,19 @@ const getEmployees = async (req, res) => {
       WHERE 1=1
     `;
     const params = [];
-    
+
     if (keyword) {
       query += ` AND (e.name LIKE ? OR e.employee_no LIKE ?)`;
       params.push(`%${keyword}%`, `%${keyword}%`);
     }
-    
+
     if (status) {
       query += ` AND e.employment_status = ?`;
       params.push(status);
     }
-    
+
     query += ` ORDER BY e.id DESC`;
-    
+
     const [rows] = await pool.query(query, params);
     return ResponseHandler.success(res, rows);
   } catch (error) {
@@ -55,7 +91,7 @@ const createEmployee = async (req, res) => {
       split_base_salary: data.split_base_salary || 0,
       insurance_type: data.insurance_type || '有社有公'
     };
-    
+
     const [result] = await pool.query('INSERT INTO hr_employees SET ?', insertData);
     return ResponseHandler.success(res, { id: result.insertId }, '添加员工成功');
   } catch (error) {
@@ -71,7 +107,7 @@ const updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
     const data = req.body;
-    
+
     const allowedFields = [
       'name', 'department_id', 'id_card', 'user_id', 'join_date', 'leave_date',
       'employment_status', 'base_salary', 'split_base_salary', 'insurance_type',
@@ -81,7 +117,7 @@ const updateEmployee = async (req, res) => {
     for (const field of allowedFields) {
       if (data[field] !== undefined) updateData[field] = data[field];
     }
-    
+
     await pool.query('UPDATE hr_employees SET ? WHERE id = ?', [updateData, id]);
     return ResponseHandler.success(res, null, '更新员工信息成功');
   } catch (error) {
@@ -153,11 +189,11 @@ const batchSaveAttendance = async (req, res) => {
     if (!period || !records || records.length === 0) {
       return ResponseHandler.error(res, '参数错误', 'BAD_REQUEST', 400);
     }
-    
+
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      for (let record of records) {
+      for (const record of records) {
         await connection.query(`
           INSERT INTO hr_attendance (employee_id, period, days_in_month, leave_days, vacation_days, overtime_hours, full_attendance, status)
           VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed')
@@ -169,8 +205,8 @@ const batchSaveAttendance = async (req, res) => {
             full_attendance = VALUES(full_attendance),
             status = 'confirmed'
         `, [
-          record.employee_id, period, record.days_in_month || 21.75, 
-          record.leave_days || 0, record.vacation_days || 0, 
+          record.employee_id, period, record.days_in_month || 21.75,
+          record.leave_days || 0, record.vacation_days || 0,
           record.overtime_hours || 0, record.full_attendance || false
         ]);
       }
@@ -195,11 +231,13 @@ const importAttendanceExcel = async (req, res) => {
     const { period } = req.body;
     if (!period) return ResponseHandler.error(res, '请提供考勤周期(period)', 'BAD_REQUEST', 400);
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) return ResponseHandler.error(res, 'Excel 中未找到工作表', 'BAD_REQUEST', 400);
 
     // 先用 header:1 (数组模式) 找到真正的表头行
-    const allRows = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
+    const allRows = worksheetToRows(worksheet);
     let headerRowIdx = -1;
     for (let i = 0; i < Math.min(20, allRows.length); i++) {
       const row = allRows[i];
@@ -356,11 +394,11 @@ const getSalaryRecords = async (req, res) => {
       params.push(period);
     }
     const [rows] = await pool.query(query, params);
-    
+
     // Parse JSON details
     const parsedRows = rows.map(r => {
       if (r.split_details && typeof r.split_details === 'string') {
-        try { r.split_details = JSON.parse(r.split_details); } catch(e) { /* 忽略解析失败 */ }
+        try { r.split_details = JSON.parse(r.split_details); } catch { /* 忽略解析失败 */ }
         // 静默忽略该错误
       }
       return r;
@@ -377,9 +415,9 @@ const calculateSalary = async (req, res) => {
   try {
     const { period } = req.body;
     if (!period) return ResponseHandler.error(res, '缺少计算周期参数', 'BAD_REQUEST', 400);
-    
+
     const calcCount = await SalaryService.calculatePeriodSalary(period);
-    
+
     return ResponseHandler.success(res, { count: calcCount }, `核算完成，共生成 ${calcCount} 条工资单`);
   } catch (error) {
     logger.error('薪资自动核算失败:', error);
@@ -433,10 +471,16 @@ const exportSalary = async (req, res) => {
       ORDER BY d.name, e.name
     `, [period]);
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `${period}薪酬表`);
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(`${period}薪酬表`);
+    const columns = [
+      '工号', '姓名', '部门', '基本工资', '日工资', '加班费', '职位补贴',
+      '房补', '餐补', '满勤奖', '缺勤扣款', '应发工资', '社保扣除',
+      '公积金扣除', '实发工资', '状态'
+    ];
+    worksheet.columns = columns.map(header => ({ header, key: header, width: Math.max(header.length * 2, 12) }));
+    worksheet.addRows(rows);
+    const buffer = await workbook.xlsx.writeBuffer();
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=salary_${period}.xlsx`);
@@ -463,7 +507,7 @@ const updateAttendanceRule = async (req, res) => {
     const { id } = req.params;
     const { rule_value, description } = req.body;
     if (!rule_value) return ResponseHandler.error(res, '规则值不能为空', 'BAD_REQUEST', 400);
-    
+
     await pool.query(
       'UPDATE hr_attendance_rules SET rule_value = ?, description = ? WHERE id = ?',
       [typeof rule_value === 'string' ? rule_value : JSON.stringify(rule_value), description || '', id]

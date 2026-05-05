@@ -10,7 +10,7 @@ const { logger } = require('../../utils/logger');
 
 const printModel = require('../../models/printModel');
 const { getCurrentUserName } = require('../../utils/userHelper');
-const path = require('path');
+
 
 // 打印控制器
 const printController = {
@@ -258,7 +258,7 @@ const printController = {
       }
 
       // 获取上传的文件信息
-      const { filename, path: filePath } = req.file;
+      const { filename } = req.file;
 
       // 返回文件路径
       ResponseHandler.success(res, { filename, path: `/uploads/logos/${filename}` }, '上传成功');

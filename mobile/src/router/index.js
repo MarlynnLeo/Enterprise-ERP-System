@@ -7,6 +7,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import { showToast } from 'vant'
+import { useAuthStore } from '@/stores/auth'
 
 const routes = [
   {
@@ -1126,7 +1127,6 @@ router.beforeEach(async (to, from, next) => {
   // ==================== 权限检查 ====================
   if (to.meta.permission && token) {
     // 延迟导入 authStore，避免循环依赖
-    const { useAuthStore } = await import('@/stores/auth')
     const authStore = useAuthStore()
 
     // 首次导航时自动加载权限数据

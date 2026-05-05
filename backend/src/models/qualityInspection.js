@@ -11,6 +11,7 @@ const db = require('../config/db');
 const { apiStatusToDbStatus } = require('../utils/statusMapper');
 const { appendPaginationSQL } = require('../utils/safePagination');
 const businessConfig = require('../config/businessConfig');
+const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -30,141 +31,137 @@ class QualityInspection {
    * @returns {Promise<{rows: Array, total: number}>} 检验单列表和总数
    */
   static async getInspections(type, filters = {}, page = 1, pageSize = 20) {
-    try {
-      const limit = parseInt(pageSize, 10) || 20;
-      const offset = (parseInt(page, 10) - 1) * limit || 0;
+    const limit = parseInt(pageSize, 10) || 20;
+    const offset = (parseInt(page, 10) - 1) * limit || 0;
 
-      // 根据传入的额外参数决定是否加载供应商和参考数据
-      const includeSupplier = filters.include_supplier === true;
-      const includeReference = filters.include_reference === true;
+    // 根据传入的额外参数决定是否加载供应商和参考数据
+    const includeSupplier = filters.include_supplier === true;
 
-      // 构建基础查询
-      let query = `
-        SELECT
-          qi.*,
-          CASE
-            WHEN qi.inspection_type = 'incoming' THEN m.name
-            WHEN qi.inspection_type = 'final' AND task_m.name IS NOT NULL THEN task_m.name
-            WHEN qi.product_name IS NOT NULL AND qi.product_name != '' THEN qi.product_name
-            ELSE proc_m.name
-          END AS item_name,
-          CASE
-            WHEN qi.inspection_type = 'incoming' THEN m.code
-            WHEN qi.inspection_type = 'final' AND task_m.code IS NOT NULL THEN task_m.code
-            WHEN qi.product_code IS NOT NULL AND qi.product_code != '' THEN qi.product_code
-            ELSE proc_m.code
-          END AS item_code,
-          CASE
-            WHEN qi.inspection_type = 'incoming' THEN m.specs
-            WHEN qi.inspection_type = 'final' AND task_m.specs IS NOT NULL THEN task_m.specs
-            ELSE proc_m.specs
-          END AS item_specs,
-          COALESCE((SELECT COUNT(*) FROM process_inspection_punch_records WHERE inspection_id = qi.id), 0) AS punch_count,
-          pt.status AS task_status
 
+    // 构建基础查询
+    let query = `
+      SELECT
+        qi.*,
+        CASE
+          WHEN qi.inspection_type = 'incoming' THEN m.name
+          WHEN qi.inspection_type = 'final' AND task_m.name IS NOT NULL THEN task_m.name
+          WHEN qi.product_name IS NOT NULL AND qi.product_name != '' THEN qi.product_name
+          ELSE proc_m.name
+        END AS item_name,
+        CASE
+          WHEN qi.inspection_type = 'incoming' THEN m.code
+          WHEN qi.inspection_type = 'final' AND task_m.code IS NOT NULL THEN task_m.code
+          WHEN qi.product_code IS NOT NULL AND qi.product_code != '' THEN qi.product_code
+          ELSE proc_m.code
+        END AS item_code,
+        CASE
+          WHEN qi.inspection_type = 'incoming' THEN m.specs
+          WHEN qi.inspection_type = 'final' AND task_m.specs IS NOT NULL THEN task_m.specs
+          ELSE proc_m.specs
+        END AS item_specs,
+        COALESCE((SELECT COUNT(*) FROM process_inspection_punch_records WHERE inspection_id = qi.id), 0) AS punch_count,
+        pt.status AS task_status
+
+    `;
+
+    // 根据选项添加额外字段
+    if (includeSupplier) {
+      query += `,
+        s.id as supplier_id,
+        s.name as supplier_name,
+        s.contact_person as supplier_contact
+      `;
+    }
+
+    query += `
+      FROM quality_inspections qi
+      LEFT JOIN materials m ON qi.inspection_type = 'incoming' AND qi.material_id = m.id
+      LEFT JOIN materials proc_m ON qi.inspection_type IN('process', 'final') AND qi.product_id = proc_m.id
+      LEFT JOIN production_tasks pt ON qi.inspection_type IN('process', 'final') AND qi.reference_id = pt.id
+      LEFT JOIN materials task_m ON pt.product_id = task_m.id
       `;
 
-      // 根据选项添加额外字段
-      if (includeSupplier) {
-        query += `,
-          s.id as supplier_id,
-          s.name as supplier_name,
-          s.contact_person as supplier_contact
-        `;
-      }
-
+    // 根据选项添加供应商连接
+    if (includeSupplier) {
       query += `
-        FROM quality_inspections qi
-        LEFT JOIN materials m ON qi.inspection_type = 'incoming' AND qi.material_id = m.id
-        LEFT JOIN materials proc_m ON qi.inspection_type IN('process', 'final') AND qi.product_id = proc_m.id
-        LEFT JOIN production_tasks pt ON qi.inspection_type IN('process', 'final') AND qi.reference_id = pt.id
-        LEFT JOIN materials task_m ON pt.product_id = task_m.id
-        `;
+        LEFT JOIN purchase_orders po ON qi.inspection_type = 'incoming' AND qi.reference_no = po.order_no
+        LEFT JOIN suppliers s ON po.supplier_id = s.id
+      `;
+    }
 
-      // 根据选项添加供应商连接
-      if (includeSupplier) {
-        query += `
-          LEFT JOIN purchase_orders po ON qi.inspection_type = 'incoming' AND qi.reference_no = po.order_no
-          LEFT JOIN suppliers s ON po.supplier_id = s.id
-        `;
-      }
+    query += 'WHERE qi.deleted_at IS NULL AND qi.inspection_type = ?';
 
-      query += 'WHERE qi.deleted_at IS NULL AND qi.inspection_type = ?';
+    const sqlParams = [type];
 
-      const sqlParams = [type];
+    // 添加筛选条件
+    if (filters.keyword) {
+      const keyword = `%${filters.keyword}%`;
+      query += ' AND (qi.inspection_no LIKE ? OR qi.reference_no LIKE ? OR qi.batch_no LIKE ?)';
+      sqlParams.push(keyword, keyword, keyword);
+    }
 
-      // 添加筛选条件
-      if (filters.keyword) {
-        const keyword = `%${filters.keyword}%`;
-        query += ' AND (qi.inspection_no LIKE ? OR qi.reference_no LIKE ? OR qi.batch_no LIKE ?)';
-        sqlParams.push(keyword, keyword, keyword);
-      }
+    if (filters.status) {
+      query += ' AND qi.status = ?';
+      sqlParams.push(filters.status);
+    }
 
-      if (filters.status) {
-        query += ' AND qi.status = ?';
-        sqlParams.push(filters.status);
-      }
+    if (filters.startDate && filters.endDate) {
+      query += ' AND qi.planned_date BETWEEN ? AND ?';
+      sqlParams.push(filters.startDate, filters.endDate);
+    }
 
-      if (filters.startDate && filters.endDate) {
-        query += ' AND qi.planned_date BETWEEN ? AND ?';
-        sqlParams.push(filters.startDate, filters.endDate);
-      }
+    // 获取总数的查询 - 单独构建COUNT查询，避免子查询干扰
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM quality_inspections qi
+      LEFT JOIN materials m ON qi.inspection_type = 'incoming' AND qi.material_id = m.id
+      LEFT JOIN materials proc_m ON qi.inspection_type IN('process', 'final') AND qi.product_id = proc_m.id
+      LEFT JOIN production_tasks pt ON qi.inspection_type IN('process', 'final') AND qi.reference_id = pt.id
+      LEFT JOIN materials task_m ON pt.product_id = task_m.id
+      `;
 
-      // 获取总数的查询 - 单独构建COUNT查询，避免子查询干扰
-      let countQuery = `
-        SELECT COUNT(*) as total
-        FROM quality_inspections qi
-        LEFT JOIN materials m ON qi.inspection_type = 'incoming' AND qi.material_id = m.id
-        LEFT JOIN materials proc_m ON qi.inspection_type IN('process', 'final') AND qi.product_id = proc_m.id
-        LEFT JOIN production_tasks pt ON qi.inspection_type IN('process', 'final') AND qi.reference_id = pt.id
-        LEFT JOIN materials task_m ON pt.product_id = task_m.id
-        `;
+    if (includeSupplier) {
+      countQuery += `
+        LEFT JOIN purchase_orders po ON qi.inspection_type = 'incoming' AND qi.reference_no = po.order_no
+        LEFT JOIN suppliers s ON po.supplier_id = s.id
+      `;
+    }
 
-      if (includeSupplier) {
-        countQuery += `
-          LEFT JOIN purchase_orders po ON qi.inspection_type = 'incoming' AND qi.reference_no = po.order_no
-          LEFT JOIN suppliers s ON po.supplier_id = s.id
-        `;
-      }
+    countQuery += ' WHERE qi.deleted_at IS NULL AND qi.inspection_type = ?';
 
-      countQuery += ' WHERE qi.deleted_at IS NULL AND qi.inspection_type = ?';
+    // 添加筛选条件（与主查询相同）
+    if (filters.keyword) {
+      countQuery +=
+        ' AND (qi.inspection_no LIKE ? OR qi.reference_no LIKE ? OR qi.batch_no LIKE ?)';
+    }
+    if (filters.status) {
+      countQuery += ' AND qi.status = ?';
+    }
+    if (filters.startDate && filters.endDate) {
+      countQuery += ' AND DATE(qi.created_at) BETWEEN ? AND ?';
+    }
 
-      // 添加筛选条件（与主查询相同）
-      if (filters.keyword) {
-        countQuery +=
-          ' AND (qi.inspection_no LIKE ? OR qi.reference_no LIKE ? OR qi.batch_no LIKE ?)';
-      }
-      if (filters.status) {
-        countQuery += ' AND qi.status = ?';
-      }
-      if (filters.startDate && filters.endDate) {
-        countQuery += ' AND DATE(qi.created_at) BETWEEN ? AND ?';
-      }
+    // 直接使用connection执行查询
+    const connection = await db.pool.getConnection();
 
-      // 直接使用connection执行查询
-      const connection = await db.pool.getConnection();
+    try {
+      // 执行总数查询
+      const [countRows] = await connection.query(countQuery, sqlParams);
+      // 防止countRows[0]为undefined导致错误
+      const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
 
-      try {
-        // 执行总数查询
-        const [countRows] = await connection.query(countQuery, sqlParams);
-        // 防止countRows[0]为undefined导致错误
-        const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
+      // 添加分页 — 使用安全分页工具
+      query = appendPaginationSQL(query + ' ORDER BY qi.created_at DESC', limit, offset);
 
-        // 添加分页 — 使用安全分页工具
-        query = appendPaginationSQL(query + ' ORDER BY qi.created_at DESC', limit, offset);
+      // 使用 query 避免 LIMIT/OFFSET 参数化问题
+      const [rows] = await connection.query(query, sqlParams);
 
-        // 使用 query 避免 LIMIT/OFFSET 参数化问题
-        const [rows] = await connection.query(query, sqlParams);
-
-        return {
-          rows: rows || [], // 确保返回空数组而不是undefined
-          total: total || 0, // 确保返回0而不是undefined
-        };
-      } finally {
-        connection.release();
-      }
-    } catch (error) {
-      throw error;
+      return {
+        rows: rows || [], // 确保返回空数组而不是undefined
+        total: total || 0, // 确保返回0而不是undefined
+      };
+    } finally {
+      connection.release();
     }
   }
 
@@ -267,35 +264,18 @@ class QualityInspection {
   }
 
   /**
-   * 生成批次号
-   * 格式: PUR-日期-数量
-   * @param {number} quantity - 检验数量
-   * @returns {string} - 格式化的批次号
-   */
-  static generateBatchNumber(quantity = 1) {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}${month}${day} `;
-
-    // 格式化数量为5位数，前导零填充
-    const formattedQuantity = String(Math.round(quantity)).padStart(5, '0');
-
-    // 最终批次号: PUR-日期-数量
-    return `PUR - ${dateStr} -${formattedQuantity} `;
-  }
-
-  /**
    * 创建质量检验单
    * @param {object} inspection 检验单数据
    * @returns {Promise<object>} 创建结果
    */
-  static async createInspection(inspection) {
+  static async createInspection(inspection, externalConnection = null) {
     let connection;
+    const useOwnConnection = !externalConnection;
     try {
-      connection = await db.pool.getConnection();
-      await connection.beginTransaction();
+      connection = externalConnection || await db.pool.getConnection();
+      if (useOwnConnection) {
+        await connection.beginTransaction();
+      }
 
       // 生成检验单号
       let inspectionNo;
@@ -303,13 +283,12 @@ class QualityInspection {
         inspectionNo = inspection.inspection_no;
       } else {
         const prefix = this._getInspectionPrefix(inspection.inspection_type);
-        inspectionNo = await this.generateInspectionNo(prefix);
+        inspectionNo = await this.generateInspectionNo(prefix, connection);
       }
 
-      // 检查批次号，为空或为"默认批次号"时生成新批次号
-      if (!inspection.batch_no || inspection.batch_no === '默认批次号') {
-        inspection.batch_no = this.generateBatchNumber(inspection.quantity);
-        logger.info('生成新批次号:', inspection.batch_no);
+      // 批次号必须来自采购、生产或前端显式录入，避免模型层生成不可追溯的业务编号
+      if (!inspection.batch_no || String(inspection.batch_no).includes('默认')) {
+        throw new Error('批次号不能为空，请从业务来源传入可追溯的批次号');
       }
 
       // ✅ 如果是来料检验,且reference_id为空但reference_no存在,自动查找采购订单ID
@@ -527,7 +506,7 @@ class QualityInspection {
             // 回退: 从 measure_1~6 写入
             for (let si = 1; si <= 6; si++) {
               const val = item[`measure_${si}`];
-              if (val != null) {
+              if (val !== null && val !== undefined) {
                 await connection.query(
                   `INSERT INTO quality_inspection_measurements (item_id, sample_no, measured_value)
                    VALUES (?, ?, ?)`,
@@ -539,8 +518,9 @@ class QualityInspection {
         }
       }
 
-      // 提交事务
-      await connection.commit();
+      if (useOwnConnection) {
+        await connection.commit();
+      }
 
       return {
         id: inspectionId,
@@ -550,10 +530,15 @@ class QualityInspection {
         ...inspection,
       };
     } catch (error) {
+      if (useOwnConnection && connection) {
+        await connection.rollback();
+      }
       logger.error('创建检验单失败:', error);
       throw error;
     } finally {
-      connection.release();
+      if (useOwnConnection && connection) {
+        connection.release();
+      }
     }
   }
 
@@ -690,7 +675,7 @@ class QualityInspection {
             } else {
               for (let si = 1; si <= 6; si++) {
                 const val = item[`measure_${si}`];
-                if (val != null) {
+                if (val !== null && val !== undefined) {
                   await connection.execute(
                     `INSERT INTO quality_inspection_measurements (item_id, sample_no, measured_value)
                      VALUES (?, ?, ?)`,
@@ -908,14 +893,14 @@ class QualityInspection {
                     }
                   } catch (inboundError) {
                     logger.error(`检验单 ${id} 自动创建入库单失败: `, inboundError);
-                    // 不影响主流程，继续执行
+                    throw inboundError;
                   }
                 }
               }
             }
           } catch (error) {
             logger.error('同步更新生产任务、计划和过程状态失败:', error);
-            // 继续处理，不要因为更新失败而回滚整个事务
+            throw error;
           }
         }
 
@@ -1028,7 +1013,7 @@ class QualityInspection {
 
       if (type === 'process' && productionOrders.length > 0) {
         // 获取工序
-        const productIds = [...new Set(productionOrders.map((po) => po.product_id))];
+
         const [processes] = await db.query(
           `
           SELECT pp.id, pp.task_id, pp.process_name, pp.sequence, pp.status
@@ -1096,7 +1081,7 @@ class QualityInspection {
    */
   static _getInspectionPrefix(inspectionType) {
     // 根据检验类型生成不同的前缀
-    let prefix = '';
+    let prefix;
     if (inspectionType === 'incoming') {
       prefix = 'IQC'; // Incoming Quality Control
     } else if (inspectionType === 'process') {
@@ -1115,53 +1100,12 @@ class QualityInspection {
    * @param {string} prefix 检验单号前缀
    * @returns {string} 生成的检验单号
    */
-  static async generateInspectionNo(prefix) {
-    const connection = await db.pool.getConnection();
+  static async generateInspectionNo(_prefix, connection = null) {
     try {
-      await connection.beginTransaction();
-
-      const date = new Date();
-      const year = date.getFullYear().toString().slice(-2); // 获取年份后两位
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const dateStr = `${year}${month}${day} `;
-
-      // 使用更安全的方法获取最大序号
-      const [rows] = await connection.query(
-        `SELECT MAX(CAST(SUBSTRING(inspection_no, -3) AS UNSIGNED)) as max_seq
-         FROM quality_inspections
-         WHERE inspection_no LIKE ? AND created_at >= CURRENT_DATE()`,
-        [`${prefix}${dateStr}%`]
-      );
-
-      const maxSeq = rows[0].max_seq ? parseInt(rows[0].max_seq) : 0;
-      const newSeq = (maxSeq + 1).toString().padStart(3, '0');
-      const inspectionNo = `${prefix}${dateStr}${newSeq} `;
-
-      // 验证新生成的编号是否已存在
-      const [existCheck] = await connection.query(
-        'SELECT COUNT(*) as count FROM quality_inspections WHERE inspection_no = ? AND deleted_at IS NULL',
-        [inspectionNo]
-      );
-
-      if (existCheck[0].count > 0) {
-        // 如果存在冲突，使用时间戳后缀
-        const timestamp = Date.now().toString().slice(-3);
-        const fallbackNo = `${prefix}${dateStr}${timestamp} `;
-        await connection.commit();
-        return fallbackNo;
-      }
-
-      await connection.commit();
-      return inspectionNo;
+      return await CodeGeneratorService.nextCode('quality_inspection', connection);
     } catch (error) {
-      await connection.rollback();
       logger.error('生成检验单号失败:', error);
-      // 生成备用编号
-      const timestamp = Date.now().toString().slice(-6);
-      return `${prefix}${timestamp} `;
-    } finally {
-      connection.release();
+      throw error;
     }
   }
 }

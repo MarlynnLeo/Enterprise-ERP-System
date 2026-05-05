@@ -193,7 +193,7 @@ exports.getProductionPlans = async (req, res) => {
       LIMIT ? OFFSET ?
     `;
 
-    // ✅ 审计修复: LIMIT/OFFSET 参数化查询
+    // LIMIT/OFFSET 使用参数化查询
     const paginatedParams = [...params, actualPageSize, actualOffset];
     const [plans] = await pool.query(query, paginatedParams);
 
@@ -556,11 +556,11 @@ exports.updateProductionPlan = async (req, res) => {
     if (pushed_quantity !== undefined && Object.keys(req.body).length === 1) {
       // 查询当前已下推数量和计划总数量
       const currentQuantity = Number(plans[0].quantity) || 0;
-      const [currentPlan] = await connection.query(
+      await connection.query(
         'SELECT pushed_quantity FROM production_plans WHERE id = ?',
         [id]
       );
-      const currentPushed = Number(currentPlan[0]?.pushed_quantity) || 0;
+
 
       // pushed_quantity 为增量值时的目标值
       const targetPushed = Number(pushed_quantity);
@@ -720,7 +720,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
       const stats = taskStats[0];
       const activeTotal = stats.total - stats.cancelled_count;
 
-      // ✅ 审计修复: 统一使用状态常量
+      // 统一使用状态常量
       if (status === PRODUCTION_STATUS_KEYS.COMPLETED && activeTotal > 0 && stats.completed_count < activeTotal) {
         return ResponseHandler.error(
           res,
@@ -775,7 +775,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
       );
 
       if (outbounds.length > 0) {
-        // ✅ 审计修复: 统一使用状态常量
+        // 统一使用状态常量
         const incompleteOutbounds = outbounds.filter((ob) => ob.status !== PRODUCTION_STATUS_KEYS.COMPLETED);
 
         if (incompleteOutbounds.length > 0) {

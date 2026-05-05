@@ -10,19 +10,16 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const InventoryReservationService = require('../../../services/InventoryReservationService');
-const DBManager = require('../../../utils/dbManager');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
-
-// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
-const { STATUS, getConnection, getConnectionWithTransaction, generateTransactionNo } = require('./salesShared');
-
-// 添加新的控制器方法
+const DLQService = require('../../../services/business/DLQService');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 exports.getSalesExchanges = async (req, res) => {
   try {
     const { page = 1, pageSize = 10, search, startDate, endDate, status } = req.query;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { maxPageSize: 200, defaultPageSize: 10 });
 
     // 构建查询条件
     let whereClause = '';
@@ -62,18 +59,17 @@ exports.getSalesExchanges = async (req, res) => {
       const [countResult] = await connection.query(countQuery, queryParams);
       const total = countResult[0].total;
 
-      // 查询数据
-      // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const actualPageSize = parseInt(pageSize);
-      const actualOffset = parseInt(offset);
-      const query = `
+      const query = appendPaginationSQL(
+        `
         SELECT se.*, 
                se.return_amount, se.new_amount, se.difference_amount
         FROM sales_exchanges se
         WHERE 1 = 1 ${whereClause}
         ORDER BY se.created_at DESC
-        LIMIT ${actualPageSize} OFFSET ${actualOffset}
-      `;
+      `,
+        pagination.limit,
+        pagination.offset
+      );
 
       const [results] = await connection.query(query, queryParams);
 
@@ -92,21 +88,22 @@ exports.getSalesExchanges = async (req, res) => {
         pending: 0,
         processing: 0,
         completed: 0,
-        rejected: 0,
+        cancelled: 0,
       };
 
       statusCounts.forEach((item) => {
-        if (item.status === '待处理') statusStats.pending = item.count;
-        if (item.status === '处理中') statusStats.processing = item.count;
-        if (item.status === '已完成') statusStats.completed = item.count;
-        if (item.status === '已拒绝') statusStats.rejected = item.count;
+        const count = Number(item.count) || 0;
+        if (item.status === 'pending') statusStats.pending = count;
+        if (item.status === 'processing') statusStats.processing = count;
+        if (item.status === 'completed') statusStats.completed = count;
+        if (item.status === 'cancelled') statusStats.cancelled = count;
       });
 
       const responseData = {
         items: results,
         total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
         statusStats,
       };
 
@@ -256,7 +253,7 @@ exports.createSalesExchange = async (req, res) => {
           ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 0, 0, 0)
             `;
 
-    const created_by = req.user?.userId || req.user?.id || 1;
+    const created_by = getAuthenticatedUserId(req);
 
     // 格式化日期为MySQL DATE格式 (YYYY-MM-DD)
     const formattedDate = new Date(exchangeDate).toISOString().split('T')[0];
@@ -278,7 +275,7 @@ exports.createSalesExchange = async (req, res) => {
 
     // 插入明细表 - 支持新旧两种数据格式
     // 预加载物料价格映射（用于金额计算）
-    let materialPriceMap = {};
+    const materialPriceMap = {};
     try {
       const allCodes = [];
       if (hasNewFormat) {
@@ -296,7 +293,7 @@ exports.createSalesExchange = async (req, res) => {
     } catch (e) { logger.warn('预加载物料价格失败:', e.message); }
 
     // 尝试从关联订单获取成交价（退回商品优先使用订单价格）
-    let orderPriceMap = {};
+    const orderPriceMap = {};
     if (orderNo) {
       try {
         const [orderItems] = await connection.query(
@@ -499,8 +496,8 @@ exports.updateSalesExchange = async (req, res) => {
     // 插入新明细
     if (items && items.length > 0) {
       // 预加载物料价格映射
-      let materialPriceMap = {};
-      let orderPriceMap = {};
+      const materialPriceMap = {};
+      const orderPriceMap = {};
       try {
         const allCodes = items.map(i => i.productCode || i.product_code).filter(Boolean);
         if (allCodes.length > 0) {
@@ -626,7 +623,11 @@ exports.updateSalesExchange = async (req, res) => {
           await FinanceIntegrationService.generateExchangeDifferenceEntry(pendingExchangeForFinance);
           logger.info(`✅ 销售换货差价分录自动生成成功 - 换货单: ${pendingExchangeForFinance.exchange_no}`);
         } catch (financeError) {
-          logger.warn(`⚠️ 销售换货差价分录自动生成失败（不影响换货）: ${financeError.message}`);
+          await DLQService.recordSideEffectFailure(
+            'FinanceIntegration:SalesExchangeDifferenceEntry',
+            { exchangeId: pendingExchangeForFinance.id, exchangeNo: pendingExchangeForFinance.exchange_no },
+            financeError
+          );
         }
       });
     }
@@ -767,7 +768,11 @@ exports.updateExchangeStatus = async (req, res) => {
           await FinanceIntegrationService.generateExchangeDifferenceEntry(pendingExchangeForFinance);
           logger.info(`✅ 换货差价分录自动生成成功 - 换货单: ${pendingExchangeForFinance.exchange_no}`);
         } catch (financeError) {
-          logger.warn(`⚠️ 换货差价分录自动生成失败（不影响换货）: ${financeError.message}`);
+          await DLQService.recordSideEffectFailure(
+            'FinanceIntegration:SalesExchangeDifferenceEntry',
+            { exchangeId: pendingExchangeForFinance.id, exchangeNo: pendingExchangeForFinance.exchange_no },
+            financeError
+          );
         }
       });
     }
@@ -790,11 +795,7 @@ exports.updateExchangeStatus = async (req, res) => {
 };
 
 // 辅助函数：将日期格式化为MySQL日期格式 YYYY-MM-DD
-function formatDateToMySQLDate(date) {
-  if (!date) return null;
-  const d = new Date(date);
-  return d.toISOString().split('T')[0];
-}
+
 
 // 处理换货库存操作
 async function processExchangeInventory(connection, exchangeId, operator) {
@@ -864,8 +865,8 @@ async function processExchangeInventory(connection, exchangeId, operator) {
         [item.material_id, locationId]
       );
 
-      const beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
-      const afterQuantity = beforeQuantity + quantity;
+      const _beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
+
 
       // 🔥 使用统一的 InventoryService 记录退回商品的库存增加
       const InventoryService = require('../../../services/InventoryService');
@@ -921,15 +922,14 @@ async function processExchangeInventory(connection, exchangeId, operator) {
         [item.material_id, locationId]
       );
 
-      const beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
+      const _beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
 
-      if (beforeQuantity < quantity) {
+      if (_beforeQuantity < quantity) {
         throw new Error(
-          `换出商品 ${item.product_code} 库存不足，需要 ${quantity}，当前库存 ${beforeQuantity} `
+          `换出商品 ${item.product_code} 库存不足，需要 ${quantity}，当前库存 ${_beforeQuantity} `
         );
       }
 
-      const afterQuantity = beforeQuantity - quantity;
 
       // 🔥 使用统一的 InventoryService 记录换出商品的库存减少
       const InventoryService = require('../../../services/InventoryService');
@@ -1111,20 +1111,7 @@ async function getMaterialsBySourceWithInventoryCheck(items) {
 // ✅ RED-1 清理：废弃函数 getMaterialsBySource 已删除，被 getMaterialsBySourceWithInventoryCheck 替代
 
 // 使用统一的编号生成服务 - 用于采购申请编号生成
-async function generatePurchaseRequisitionNo(connection = null) {
-  if (connection) {
-    // 如果传入了连接，直接使用（在事务中）
-    return await CodeGenerators.generatePurchaseRequisitionCode(connection);
-  } else {
-    // 如果没有传入连接，创建新连接（非事务场景）
-    const newConnection = await DBManager.getConnection();
-    try {
-      return await CodeGenerators.generatePurchaseRequisitionCode(newConnection);
-    } finally {
-      newConnection.release();
-    }
-  }
-}
+
 
 // ==================== 订单锁定功能 ====================
 

@@ -339,7 +339,7 @@ const fetchData = async () => {
         Object.assign(stats, statsData);
       }
     }
-  } catch (error) {
+  } catch {
     ElMessage.error('获取列表失败');
   } finally {
     loading.value = false;
@@ -376,7 +376,7 @@ const handleEdit = async (row) => {
      const detail = await materialApi.getMaterial(row.id);
      currentEditMaterial.value = parseDataObject(detail);
      dialogVisible.value = true;
-  } catch (e) {
+  } catch {
     ElMessage.error('获取详情失败');
   }
 };
@@ -392,7 +392,7 @@ const handleView = async (row) => {
      data.attachments = attachRes ? parseListData(attachRes) : [];
      currentViewMaterial.value = data;
      viewDialogVisible.value = true;
-  } catch (e) {
+  } catch {
     ElMessage.error('获取详情失败');
   }
 };
@@ -402,7 +402,7 @@ const handleDelete = async (row) => {
     await materialApi.deleteMaterial(row.id);
     ElMessage.success('删除成功');
     fetchData();
-  } catch (error) {
+  } catch {
     ElMessage.error('删除失败');
   }
 };
@@ -412,7 +412,7 @@ const handleEnable = async (row) => {
     await materialApi.updateMaterialStatus(row.id, 1);
     ElMessage.success('启用成功');
     fetchData();
-  } catch (error) {
+  } catch {
     ElMessage.error('操作失败');
   }
 };
@@ -422,7 +422,7 @@ const handleDisable = async (row) => {
     await materialApi.updateMaterialStatus(row.id, 0);
     ElMessage.success('禁用成功');
     fetchData();
-  } catch (error) {
+  } catch {
     ElMessage.error('操作失败');
   }
 };
@@ -447,7 +447,7 @@ const handleMoreCommand = (command) => {
       importFile.value = null;
       break;
     default:
-      ElMessage.info('功能开发中');
+      ElMessage.warning('未知操作命令');
   }
 };
 

@@ -233,7 +233,7 @@ const handleDelete = async (row) => {
     await qualityApi.deleteProcessInspectionRule(row.id)
     ElMessage.success('删除成功')
     fetchRules()
-  } catch (error) {
+  } catch {
     ElMessage.error('删除失败')
   }
 }

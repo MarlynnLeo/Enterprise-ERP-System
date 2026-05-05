@@ -376,7 +376,7 @@ import {
 // 导入公共组件
 import MarginInputs from '../../components/ui/print/MarginInputs.vue'
 import PaperSizeSelect from '../../components/ui/print/PaperSizeSelect.vue'
-import DOMPurify from 'dompurify'
+import { sanitizeHtml, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 const templateMargins = computed({
   get() {
@@ -448,9 +448,9 @@ const visualContent = ref('')
 const previewHtml = ref('')
 const visualEditor = ref(null)
 
-// ✅ 安全修复: v-html 内容经 DOMPurify 清洗后再渲染
-const sanitizedVisualContent = computed(() => DOMPurify.sanitize(visualContent.value))
-const sanitizedPreviewHtml = computed(() => DOMPurify.sanitize(previewHtml.value))
+// v-html 内容统一清洗后再渲染
+const sanitizedVisualContent = computed(() => sanitizeHtml(visualContent.value))
+const sanitizedPreviewHtml = computed(() => sanitizeHtml(previewHtml.value))
 
 // 使用导入的常量
 const moduleOptions = MODULE_OPTIONS
@@ -692,12 +692,9 @@ const previewTemplate = (template) => {
 const onPreviewDialogOpened = () => {
   if (previewIframe.value && previewContent.value) {
     try {
-      const iframeDoc = previewIframe.value.contentDocument || previewIframe.value.contentWindow.document;
-      iframeDoc.open();
-      iframeDoc.write(previewContent.value);
-      iframeDoc.close();
-    } catch (error) {
-      console.error('写入 iframe 失败:', error)
+      writeSafeHtmlDocument(previewIframe.value.contentWindow, previewContent.value)
+    } catch {
+      ElMessage.error('预览内容渲染失败')
     }
   }
 }
@@ -710,7 +707,7 @@ const previewCurrentTemplate = () => {
 // 可视化编辑器方法
 const onVisualEditorInput = () => {
   if (visualEditor.value) {
-    const content = visualEditor.value.innerHTML
+    const content = sanitizeHtml(visualEditor.value.innerHTML)
     currentTemplate.content = content
     updatePreview()
   }
@@ -721,15 +718,13 @@ const onCodeEditorInput = () => {
 }
 
 const updatePreview = () => {
-  // 生成预览HTML，替换变量为示例数据
+  // 生成预览HTML，替换变量为预览数据
   let html = currentTemplate.content || ''
 
-  // 根据模板类型选择示例数据
-  let sampleData = {}
+  let previewData = {}
 
   if (currentTemplate.template_type === 'production_outbound') {
-    // 生产出库单示例数据
-    sampleData = {
+    previewData = {
       outbound_no: 'OUT20250830006',
       outbound_date: '2025-08-30',
       outbound_type_text: '生产出库',
@@ -786,11 +781,10 @@ const updatePreview = () => {
     html = html.replace(/\{\{#each items\}\}[\s\S]*?\{\{\/each\}\}/g, itemsHtml)
     html = html.replace(/\{\{#each\}\}[\s\S]*?\{\{\/each\}\}/g, itemsHtml)
   } else {
-    // 其他模板类型的示例数据
-    sampleData = {
-      company_name: '示例公司名称',
+    previewData = {
+      company_name: '预览公司名称',
       order_no: 'SO202501001',
-      customer_name: '示例客户',
+      customer_name: '预览客户',
       date: new Date().toLocaleDateString(),
       outbound_no: 'OUT202501001',
       delivery_date: new Date().toLocaleDateString(),
@@ -798,10 +792,9 @@ const updatePreview = () => {
     }
   }
 
-  // 替换变量为示例数据
-  Object.keys(sampleData).forEach(key => {
+  Object.keys(previewData).forEach(key => {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
-    html = html.replace(regex, sampleData[key])
+    html = html.replace(regex, previewData[key])
   })
 
   previewHtml.value = html
@@ -881,7 +874,8 @@ const insertFooter = () => {
 
 const insertContent = (html) => {
   if (editMode.value === 'visual' && visualEditor.value) {
-    visualEditor.value.innerHTML += html
+    const fragment = document.createRange().createContextualFragment(sanitizeHtml(html))
+    visualEditor.value.appendChild(fragment)
     onVisualEditorInput()
   } else {
     currentTemplate.content += html

@@ -133,7 +133,6 @@
     Search,
     Icon,
     Empty,
-    Card,
     Tag,
     PullRefresh,
     List,

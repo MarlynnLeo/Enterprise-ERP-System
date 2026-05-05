@@ -8,11 +8,7 @@
 -->
 <template>
   <div class="page-container">
-    <NavBar title="销售退货" left-arrow @click-left="onClickLeft">
-      <template #right>
-        <Icon v-permission="'sales:returns:create'" name="plus" size="18" @click="createReturn" />
-      </template>
-    </NavBar>
+    <NavBar title="销售退货" left-arrow @click-left="onClickLeft" />
 
     <div class="content-container">
       <!-- 搜索栏 -->
@@ -126,7 +122,7 @@
                   确认退货
                 </Button>
                 <Button
-                  v-if="returnItem.status === 'confirmed'"
+                  v-if="returnItem.status === 'pending'"
                   v-permission="'sales:returns:update'"
                   size="small"
                   type="warning"
@@ -150,9 +146,7 @@
   import {
     NavBar,
     Search,
-    Icon,
     Empty,
-    Card,
     Tag,
     PullRefresh,
     List,
@@ -220,11 +214,6 @@
     })
   }
 
-  // 创建退货单
-  const createReturn = () => {
-    router.push('/inventory/inbound/create')
-  }
-
   // 获取退货单状态类型
   const getReturnStatusType = (status) => {
     const statusMap = {
@@ -252,13 +241,12 @@
         message: `确定要提交退单 ${returnItem.return_no || returnItem.return_code} 吗？`
       })
 
-      // API Call placeholder
+      await salesApi.updateSalesReturnStatus(returnItem.id, 'pending')
       showToast('退单已提交')
       returnItem.status = 'pending'
     } catch (error) {
       if (error !== 'cancel') {
-        console.error('提交退货失败:', error)
-        showToast('提交失败')
+        showToast(error.response?.data?.message || '提交失败')
       }
     }
   }
@@ -271,13 +259,12 @@
         message: `确定要处理退单 ${returnItem.return_no || returnItem.return_code} 吗？`
       })
 
-      // API Call placeholder
+      await salesApi.updateSalesReturnStatus(returnItem.id, 'approved')
       showToast('退单已开始处理')
       returnItem.status = 'approved'
     } catch (error) {
       if (error !== 'cancel') {
-        console.error('处理退货失败:', error)
-        showToast('处理失败')
+        showToast(error.response?.data?.message || '处理失败')
       }
     }
   }

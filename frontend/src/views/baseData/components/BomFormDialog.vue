@@ -88,14 +88,11 @@
         :url-list="previewList" 
         @close="showImageViewer = false" 
       />
-
       <el-form-item label="备注">
         <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="请输入备注"></el-input>
       </el-form-item>
-
       <!-- BOM明细 -->
       <el-divider content-position="left">BOM明细</el-divider>
-
       <div class="bom-details">
         <div style="margin-bottom: 15px;">
           <el-button type="primary" @click="addDetail">
@@ -105,7 +102,6 @@
             提示：点击表格中的"添加子级"按钮可为该物料添加下级明细
           </el-text>
         </div>
-
         <!-- BOM明细表格（树形表格显示层级关系） -->
         <el-table
           :data="bomDetailsTree"
@@ -208,17 +204,14 @@
     </template>
   </el-dialog>
 </template>
-
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
-
 import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElImageViewer } from 'element-plus'
 import { materialApi } from '@/api/material'
 import { bomApi } from '@/api/bom'
 import { parseListData } from '@/utils/responseParser'
 import api from '@/services/axiosInstance'
-
 const props = defineProps({
   modelValue: Boolean,
   editData: {
@@ -227,9 +220,7 @@ const props = defineProps({
   },
   title: String
 })
-
 const emit = defineEmits(['update:modelValue', 'success'])
-
 const formRef = ref(null)
 const submitting = ref(false)
 const isEditMode = computed(() => !!props.editData)
@@ -238,7 +229,6 @@ const productOptions = ref([])
 const fileList = ref([])
 const showImageViewer = ref(false)
 const previewList = ref([])
-
 const form = reactive({
   id: '',
   product_id: '',
@@ -247,7 +237,6 @@ const form = reactive({
   details: [], // 扁平数组，包含 parent_id
   attachment: null
 })
-
 const rules = {
   product_id: [
     { required: true, message: '请选择产品', trigger: 'change' }
@@ -256,7 +245,6 @@ const rules = {
     { required: true, message: '请输入版本号', trigger: 'blur' }
   ]
 }
-
 // 监听打开，如果是编辑，初始化
 const handleOpen = () => {
   if (props.editData) {
@@ -266,7 +254,6 @@ const handleOpen = () => {
     resetForm()
   }
 }
-
 watch(() => props.editData, (newVal) => {
   if (newVal) {
     nextTick(() => {
@@ -274,12 +261,10 @@ watch(() => props.editData, (newVal) => {
     })
   }
 }, { immediate: true })
-
 const handleClose = () => {
   emit('update:modelValue', false)
   resetForm()
 }
-
 const resetForm = () => {
   if (formRef.value) formRef.value.resetFields()
   form.id = ''
@@ -290,7 +275,6 @@ const resetForm = () => {
   form.attachment = null
   fileList.value = []
 }
-
 const initForm = (data) => {
   form.id = data.id || ''
   form.product_id = data.productId || data.product_id || ''
@@ -325,7 +309,6 @@ const initForm = (data) => {
   } else {
     form.details = []
   }
-
   if (data.productId || data.product_id) {
     productOptions.value = [{
       id: data.productId || data.product_id,
@@ -335,7 +318,6 @@ const initForm = (data) => {
     }]
   }
 }
-
 // 产品搜索
 const searchProducts = async (query) => {
   if (query) {
@@ -357,29 +339,32 @@ const searchProducts = async (query) => {
     productOptions.value = []
   }
 }
-
-
-
 // 附件处理
-const handleAttachmentChange = (uploadFile, uploadFiles) => {
+const handleAttachmentChange = (uploadFile, _uploadFiles) => {
   form.attachment = uploadFile.raw
   fileList.value = [uploadFile]
 }
-
-const handleAttachmentRemove = (file, uploadFiles) => {
+const handleAttachmentRemove = (_file, _uploadFiles) => {
   form.attachment = null
   fileList.value = []
 }
-
 const isImage = (url) => {
   if (!url) return false
   const lowerUrl = url.toLowerCase()
   return lowerUrl.endsWith('.jpg') || lowerUrl.endsWith('.jpeg') || lowerUrl.endsWith('.png') || lowerUrl.endsWith('.gif') || lowerUrl.endsWith('.webp')
 }
-
 const isPdf = (url) => {
   if (!url) return false
   return url.toLowerCase().endsWith('.pdf')
+}
+
+const buildAttachmentUrl = (url) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  const path = url.startsWith('/') ? url : `/${url}`
+  const fullUrl = `${baseUrl}${path}`
+  return /^https?:\/\//i.test(fullUrl) ? fullUrl : `${window.location.origin}${fullUrl}`
 }
 
 const handlePreview = async (file) => {
@@ -400,11 +385,7 @@ const handlePreview = async (file) => {
   }
   
   // 已有文件
-  let url = file.url.startsWith('http') ? file.url : (import.meta.env.VITE_API_URL || '') + (file.url.startsWith('/') ? file.url : '/' + file.url)
-  if (!url.startsWith('http')) {
-     url = window.location.origin + url
-  }
-
+  const url = buildAttachmentUrl(file.url)
   const fileName = file.name || file.url.split('/').pop() || 'attachment'
   if (isImage(fileName)) {
     previewList.value = [url]
@@ -424,13 +405,12 @@ const handlePreview = async (file) => {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(downloadUrl)
-    } catch (e) {
+    } catch {
       ElMessage.error('无法直接下载预览文件，尝试新窗口打开')
       window.open(url, '_blank')
     }
   }
 }
-
 // 上传文件到服务器 (根源解决)
 const uploadFile = async (fileObj) => {
   const formData = new FormData()
@@ -445,19 +425,15 @@ const uploadFile = async (fileObj) => {
     return null
   }
 }
-
 // BOM明细相关逻辑
 const bomDetailsTree = computed(() => {
   if (!form.details || form.details.length === 0) return []
-
   const itemMap = new Map()
   const tree = []
-
   form.details.forEach(item => {
     item.children = []
     itemMap.set(item.id, item)
   })
-
   form.details.forEach(item => {
     if (item.parent_id && item.parent_id !== 0 && item.parent_id !== '0') {
       const parent = itemMap.get(item.parent_id)
@@ -470,7 +446,6 @@ const bomDetailsTree = computed(() => {
       tree.push(item)
     }
   })
-
   const assignWBS = (nodes, prefix = '') => {
     nodes.forEach((node, index) => {
       const currentWBS = prefix ? `${prefix}.${index + 1}` : `${index + 1}`
@@ -481,12 +456,10 @@ const bomDetailsTree = computed(() => {
     })
   }
   assignWBS(tree)
-
   return tree
 })
-
 const addDetail = () => {
-  const newId = `temp_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+  const newId = `temp_${globalThis.crypto?.randomUUID?.() || `${Date.now()}_${performance.now()}`}`
   form.details.push({
     id: newId,
     parent_id: 0,
@@ -501,9 +474,8 @@ const addDetail = () => {
     materialOptions: [] // 用于搜索缓存
   })
 }
-
 const addSubDetailForRow = (row) => {
-  const newId = `temp_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+  const newId = `temp_${globalThis.crypto?.randomUUID?.() || `${Date.now()}_${performance.now()}`}`
   form.details.push({
     id: newId,
     parent_id: row.id,
@@ -518,7 +490,6 @@ const addSubDetailForRow = (row) => {
     materialOptions: []
   })
 }
-
 const removeDetailByRow = (row) => {
   const idsToRemove = [row.id]
   const findChildrenIds = (parentId) => {
@@ -534,7 +505,6 @@ const removeDetailByRow = (row) => {
   const newDetails = form.details.filter(d => !idsToRemove.includes(d.id))
   form.details.splice(0, form.details.length, ...newDetails)
 }
-
 const searchMaterialsForRow = async (query, row) => {
   if (query) {
     row.loading = true
@@ -555,7 +525,6 @@ const searchMaterialsForRow = async (query, row) => {
     row.materialOptions = []
   }
 }
-
 const handleMaterialCodeChangeByRow = async (val, row) => {
   const material = row.materialOptions?.find(m => m.code === val)
   if (material) {
@@ -563,7 +532,6 @@ const handleMaterialCodeChangeByRow = async (val, row) => {
     row.material_name = material.name
     row.material_specs = material.specs || material.specification || ''
     row.unit_name = material.unit_name || material.unit || ''
-
     if (form.product_id && material.id) {
       try {
         const res = await bomApi.detectCircularReference(form.product_id, material.id)
@@ -582,7 +550,6 @@ const handleMaterialCodeChangeByRow = async (val, row) => {
     }
   }
 }
-
 // 提交表单 (根源解决核心: 在提交业务数据之前上传物理文件)
 const submitForm = async () => {
   if (!formRef.value) return
@@ -599,7 +566,6 @@ const submitForm = async () => {
         ElMessage.warning('请补全物料编码和用量信息')
         return
       }
-
       submitting.value = true
       try {
         let attachmentPath = form.attachment
@@ -614,13 +580,11 @@ const submitForm = async () => {
           }
           attachmentPath = uploadedUrl
         }
-
         const payload = {
           ...form,
           attachment: attachmentPath, // 仅传回最终的后台资源路径
           details: form.details.map(({ children, materialOptions, loading, ...rest }) => rest)
         }
-
         if (form.id) {
           await bomApi.updateBom(form.id, payload)
           ElMessage.success('更新成功')
@@ -640,7 +604,6 @@ const submitForm = async () => {
   })
 }
 </script>
-
 <style scoped>
 .bom-details {
   margin-top: 15px;

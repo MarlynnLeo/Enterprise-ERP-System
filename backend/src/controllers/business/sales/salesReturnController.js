@@ -6,23 +6,70 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
-
-const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const DLQService = require('../../../services/business/DLQService');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
-// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
-const { STATUS, getConnection, getConnectionWithTransaction, generateTransactionNo } = require('./salesShared');
+const { STATUS, getConnection } = require('./salesShared');
 
-// 添加新的控制器方法
+const SALES_RETURN_STATUS_LABELS = {
+  [STATUS.SALES_RETURN.DRAFT]: '草稿',
+  [STATUS.SALES_RETURN.PENDING]: '待审批',
+  [STATUS.SALES_RETURN.APPROVED]: '已批准',
+  [STATUS.SALES_RETURN.COMPLETED]: '已完成',
+  [STATUS.SALES_RETURN.REJECTED]: '已驳回',
+  [STATUS.SALES_RETURN.CANCELLED]: '已取消',
+};
+
+const SALES_RETURN_STATUS_TRANSITIONS = {
+  [STATUS.SALES_RETURN.DRAFT]: [STATUS.SALES_RETURN.PENDING, STATUS.SALES_RETURN.CANCELLED],
+  [STATUS.SALES_RETURN.PENDING]: [
+    STATUS.SALES_RETURN.APPROVED,
+    STATUS.SALES_RETURN.REJECTED,
+    STATUS.SALES_RETURN.CANCELLED,
+  ],
+  [STATUS.SALES_RETURN.APPROVED]: [STATUS.SALES_RETURN.COMPLETED, STATUS.SALES_RETURN.CANCELLED],
+  [STATUS.SALES_RETURN.COMPLETED]: [],
+  [STATUS.SALES_RETURN.REJECTED]: [],
+  [STATUS.SALES_RETURN.CANCELLED]: [],
+};
+
+const isValidSalesReturnStatus = (status) => Object.values(STATUS.SALES_RETURN).includes(status);
+
+const canTransitionSalesReturnStatus = (currentStatus, nextStatus) => {
+  return (SALES_RETURN_STATUS_TRANSITIONS[currentStatus] || []).includes(nextStatus);
+};
+
+const getSalesReturnUpdatePayload = async (connection, id, status) => {
+  const [returns] = await connection.query('SELECT * FROM sales_returns WHERE id = ?', [id]);
+  if (returns.length === 0) {
+    return null;
+  }
+
+  const [items] = await connection.query(
+    'SELECT product_id, quantity, reason FROM sales_return_items WHERE return_id = ?',
+    [id]
+  );
+
+  return {
+    return_date: returns[0].return_date,
+    order_id: returns[0].order_id,
+    return_reason: returns[0].return_reason,
+    remarks: returns[0].remarks,
+    status,
+    items,
+  };
+};
+
 exports.getSalesReturns = async (req, res) => {
   let conn;
   try {
     const { page = 1, pageSize = 10, search, startDate, endDate, status } = req.query;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { maxPageSize: 200, defaultPageSize: 10 });
 
     conn = await getConnection();
 
-    // 构建查询条件
     let whereClause = '';
     const queryParams = [];
 
@@ -46,7 +93,6 @@ exports.getSalesReturns = async (req, res) => {
       queryParams.push(status);
     }
 
-    // 鏌ヨ鎬绘暟
     const countQuery = `
       SELECT COUNT(*) as total
       FROM sales_returns sr
@@ -58,19 +104,18 @@ exports.getSalesReturns = async (req, res) => {
     const [countResult] = await conn.query(countQuery, queryParams);
     const total = countResult[0].total;
 
-    // 鏌ヨ鏁版嵁
-    // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const actualPageSize = parseInt(pageSize);
-    const actualOffset = parseInt(offset);
-    const query = `
+    const query = appendPaginationSQL(
+      `
       SELECT sr.*, c.name AS customer_name, o.order_no
       FROM sales_returns sr
       LEFT JOIN sales_orders o ON sr.order_id = o.id
       LEFT JOIN customers c ON o.customer_id = c.id
       WHERE 1 = 1 ${whereClause}
       ORDER BY sr.created_at DESC
-      LIMIT ${actualPageSize} OFFSET ${actualOffset}
-      `;
+      `,
+      pagination.limit,
+      pagination.offset
+    );
 
     const [results] = await conn.query(query, queryParams);
 
@@ -78,15 +123,7 @@ exports.getSalesReturns = async (req, res) => {
     for (let i = 0; i < results.length; i++) {
       const returnItem = results[i];
 
-      // 保留英文状态 key，添加中文标签供前端展示
-      const statusLabelMap = {
-        draft: '草稿',
-        pending: '',
-        approved: '',
-        completed: '',
-        rejected: '',
-      };
-      results[i].status_label = statusLabelMap[returnItem.status] || returnItem.status;
+      results[i].status_label = SALES_RETURN_STATUS_LABELS[returnItem.status] || returnItem.status;
 
       const detailsQuery = `
       SELECT
@@ -130,6 +167,7 @@ exports.getSalesReturns = async (req, res) => {
       approvedCount: 0,
       completedCount: 0,
       rejectedCount: 0,
+      cancelledCount: 0,
     };
 
     statusCounts.forEach((item) => {
@@ -138,13 +176,14 @@ exports.getSalesReturns = async (req, res) => {
       if (item.status === STATUS.SALES_RETURN.APPROVED) statusStats.approvedCount = item.count;
       if (item.status === STATUS.SALES_RETURN.COMPLETED) statusStats.completedCount = item.count;
       if (item.status === STATUS.SALES_RETURN.REJECTED) statusStats.rejectedCount = item.count;
+      if (item.status === STATUS.SALES_RETURN.CANCELLED) statusStats.cancelledCount = item.count;
     });
 
     res.json({
       items: results,
       total,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
       statusStats,
     });
   } catch (error) {
@@ -163,7 +202,6 @@ exports.getSalesReturnById = async (req, res) => {
 
     conn = await getConnection();
 
-    // 查询退货单主信息
     const query = `
       SELECT sr.*, c.name as customer_name, c.contact_person, c.contact_phone, o.order_no
       FROM sales_returns sr
@@ -180,7 +218,6 @@ exports.getSalesReturnById = async (req, res) => {
 
     const returnData = returnResults[0];
 
-    // 查询退货单明细
     const detailsQuery = `
       SELECT
       sri.*,
@@ -201,17 +238,8 @@ exports.getSalesReturnById = async (req, res) => {
 
     const [detailsResults] = await conn.query(detailsQuery, [returnData.order_id, id]);
 
-    // 淇濈暀鑻辨枃鐘舵€?key锛屾坊鍔犱腑鏂囨爣绛句緵鍓嶇灞曠ず
-    const statusLabelMap = {
-      draft: '草稿',
-      pending: '',
-      approved: '',
-      completed: '',
-      rejected: '',
-    };
-    returnData.status_label = statusLabelMap[returnData.status] || returnData.status;
+    returnData.status_label = SALES_RETURN_STATUS_LABELS[returnData.status] || returnData.status;
 
-    // 组合结果
     returnData.items = detailsResults;
     returnData.total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
 
@@ -232,9 +260,6 @@ exports.createSalesReturn = async (req, res) => {
       return_date,
       order_id,
       outbound_id,
-      outbound_no,
-      order_no,
-      customer_name,
       return_reason,
       status,
       remarks,
@@ -243,7 +268,7 @@ exports.createSalesReturn = async (req, res) => {
 
     // 验证必要参数（支持基于出库单或订单的退货）
     if (!return_date || !return_reason) {
-      return ResponseHandler.error(res, 'Data not found', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '退货日期和退货原因不能为空', 'BAD_REQUEST', 400);
     }
 
     if (!outbound_id && !order_id) {
@@ -251,7 +276,7 @@ exports.createSalesReturn = async (req, res) => {
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return ResponseHandler.error(res, 'Data not found', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '退货明细不能为空', 'BAD_REQUEST', 400);
     }
 
     connection = await getConnection();
@@ -291,7 +316,6 @@ exports.createSalesReturn = async (req, res) => {
         const productId = item.product_id;
         const returnQty = parseFloat(item.quantity) || 0;
 
-        // 鑾峰彇璁㈠崟鍘熷璐拱鏁伴噺
         const [orderItemResult] = await connection.query(
           'SELECT quantity FROM sales_order_items WHERE order_id = ? AND material_id = ?',
           [finalOrderId, productId]
@@ -299,7 +323,7 @@ exports.createSalesReturn = async (req, res) => {
 
         if (orderItemResult.length === 0) {
           await connection.rollback();
-          return ResponseHandler.error(res, 'Data not found', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, '原销售订单中不存在该产品', 'BAD_REQUEST', 400);
         }
 
         const maxOrderQty = parseFloat(orderItemResult[0].quantity) || 0;
@@ -331,7 +355,7 @@ exports.createSalesReturn = async (req, res) => {
         ) VALUES(?, ?, ?, ?, ?, ?, ?, NOW())
           `;
 
-    const created_by = req.user?.userId || req.user?.id || 1;
+    const created_by = getAuthenticatedUserId(req);
 
     const [result] = await connection.query(insertQuery, [
       returnNo,
@@ -395,11 +419,16 @@ exports.updateSalesReturn = async (req, res) => {
     const { id } = req.params;
     const { return_date, order_id, return_reason, status, remarks, items } = req.body;
 
+    const bodyKeys = Object.keys(req.body || {});
+    if (bodyKeys.length === 1 && bodyKeys[0] === 'status') {
+      return exports.updateSalesReturnStatus(req, res);
+    }
+
     connection = await getConnection();
     await connection.beginTransaction();
 
     // 如果是基于出库单的退货，需要获取订单信息
-    let finalOrderId = order_id;
+    const finalOrderId = order_id;
     // 如果前端只传了 outbound_id 没有 order_id（虽然前端有控制，但也防范一下）
     // 或者直接使用原数据库记录的 order_id
 
@@ -409,7 +438,6 @@ exports.updateSalesReturn = async (req, res) => {
         const productId = item.product_id;
         const returnQty = parseFloat(item.quantity) || 0;
 
-        // 鑾峰彇璁㈠崟鍘熷璐拱鏁伴噺
         const [orderItemResult] = await connection.query(
           'SELECT quantity FROM sales_order_items WHERE order_id = ? AND material_id = ?',
           [finalOrderId, productId]
@@ -485,10 +513,10 @@ exports.updateSalesReturn = async (req, res) => {
       await connection.query(detailQuery, [detailValues]);
     }
 
-    // 濡傛灉鐘舵€佸彉涓哄凡瀹屾垚锛屽鐞嗗簱瀛樺叆搴?
+    let pendingReturnForFinance = null;
+
      if (status === STATUS.SALES_RETURN.COMPLETED && items && items.length > 0) {
       for (const item of items) {
-        // 鍏煎涓嶅悓鐨勫瓧娈靛悕
         const productId = item.product_id || item.productId || item.material_id;
         const quantity = item.quantity || item.return_quantity;
 
@@ -517,7 +545,7 @@ exports.updateSalesReturn = async (req, res) => {
           if (!warehouseId) {
             throw new Error(`物料 ${productId} 未配置默认仓库，请在物料资料中设置后再操作。`);
           }
-          const warehouseName = material.warehouse_name || material.location_name || '';
+          const _warehouseName = material.warehouse_name || material.location_name || '';
 
           // 获取当前库存（使用单表架构，参考采购退货逻辑）
           const [stockResult] = await connection.query(
@@ -529,12 +557,12 @@ exports.updateSalesReturn = async (req, res) => {
             [productId, warehouseId]
           );
 
-          const beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
+          const _beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
           const changeQuantity = parseFloat(quantity);
-          const afterQuantity = beforeQuantity + changeQuantity;
+
 
           // 获取物料单位ID
-          const unitId = material.unit_id;
+
 
           // 获取当前退货单的正确编号
           const [returnInfo] = await connection.query(
@@ -561,7 +589,7 @@ exports.updateSalesReturn = async (req, res) => {
             connection
           );
 
-          logger.info(`✅ 销售退货入库完成（统一服务） 物料${productId}, 数量${changeQuantity}`);
+          logger.info(`销售退货入库完成（统一服务） 物料${productId}, 数量${changeQuantity}`);
         }
       }
 
@@ -572,7 +600,6 @@ exports.updateSalesReturn = async (req, res) => {
 
       // 退货单库存处理完成
       // 缓存退货信息，commit 后异步生成红字发票
-      let pendingReturnForFinance = null;
       if (returnInfo.length > 0) {
         pendingReturnForFinance = returnInfo[0];
       }
@@ -586,9 +613,13 @@ exports.updateSalesReturn = async (req, res) => {
         try {
           const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
           await FinanceIntegrationService.generateARCreditNoteFromSalesReturn(pendingReturnForFinance);
-          logger.info(`✅ 销售退货红字发票自动生成成功 - 退货单: ${pendingReturnForFinance.return_no}`);
+          logger.info(`销售退货红字发票自动生成成功 - 退货单: ${pendingReturnForFinance.return_no}`);
         } catch (financeError) {
-          logger.warn(`⚠️ 销售退货红字发票自动生成失败（不影响退货）: ${financeError.message}`);
+          await DLQService.recordSideEffectFailure(
+            'FinanceIntegration:SalesReturnCreditNote',
+            { returnId: pendingReturnForFinance.id, returnNo: pendingReturnForFinance.return_no },
+            financeError
+          );
         }
       });
     }
@@ -610,6 +641,74 @@ exports.updateSalesReturn = async (req, res) => {
   }
 };
 
+exports.updateSalesReturnStatus = async (req, res) => {
+  let connection;
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!isValidSalesReturnStatus(status)) {
+      return ResponseHandler.error(res, '无效的销售退货状态', 'BAD_REQUEST', 400);
+    }
+
+    connection = await getConnection();
+    const [returns] = await connection.query(
+      'SELECT id, status FROM sales_returns WHERE id = ?',
+      [id]
+    );
+
+    if (returns.length === 0) {
+      return ResponseHandler.notFound(res, '销售退货单不存在');
+    }
+
+    const currentStatus = returns[0].status;
+    if (currentStatus === status) {
+      return ResponseHandler.success(res, { id: Number(id), status }, '销售退货状态未变化');
+    }
+
+    if (!canTransitionSalesReturnStatus(currentStatus, status)) {
+      return ResponseHandler.error(
+        res,
+        `销售退货状态不允许从 ${currentStatus} 流转到 ${status}`,
+        'INVALID_STATUS_TRANSITION',
+        400
+      );
+    }
+
+    if (status === STATUS.SALES_RETURN.COMPLETED) {
+      const fullPayload = await getSalesReturnUpdatePayload(connection, id, status);
+      connection.release();
+      connection = null;
+
+      if (!fullPayload) {
+        return ResponseHandler.notFound(res, '销售退货单不存在');
+      }
+
+      return exports.updateSalesReturn(
+        {
+          ...req,
+          body: fullPayload,
+        },
+        res
+      );
+    }
+
+    await connection.query(
+      'UPDATE sales_returns SET status = ?, updated_at = NOW() WHERE id = ?',
+      [status, id]
+    );
+
+    return ResponseHandler.success(res, { id: Number(id), status }, '销售退货状态更新成功');
+  } catch (error) {
+    logger.error('更新销售退货状态失败:', error);
+    return ResponseHandler.error(res, '更新销售退货状态失败', 'SERVER_ERROR', 500);
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
 // 删除退货单功能
 
 exports.deleteSalesReturn = async (req, res) => {
@@ -623,8 +722,7 @@ exports.deleteSalesReturn = async (req, res) => {
     // 删除明细
     await connection.query('DELETE FROM sales_return_items WHERE return_id = ?', [id]);
 
-    // 删除主表
-    // ✅ 软删除退货单主表
+    // 软删除退货单主表
     await softDelete(connection, 'sales_returns', 'id', id);
 
     await connection.commit();
@@ -647,4 +745,3 @@ exports.deleteSalesReturn = async (req, res) => {
 };
 
 // Sales Exchange Controllers
-

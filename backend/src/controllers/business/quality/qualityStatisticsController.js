@@ -19,7 +19,7 @@ const pool = db.pool;
  */
 const getQualityStatistics = async (req, res) => {
   try {
-    const { period = 'month', startDate, endDate } = req.query;
+    const {  startDate, endDate } = req.query;
 
     let dateFilter = '';
     let dateParams = [];

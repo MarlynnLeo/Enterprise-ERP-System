@@ -435,44 +435,35 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailsDialogVisible = false">关闭</el-button>
-
           <el-button v-permission="'finance:ar:view'" type="success" @click="handlePrint">打印</el-button>
         </span>
       </template>
     </el-dialog>
   </div>
 </template>
-
 <script setup>
-
 import { formatCurrency } from '@/utils/format'
-
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus'
-
 import { Plus } from '@element-plus/icons-vue';
 import { api } from '@/services/api';
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
-import request from '@/utils/request' // Import request utility
-
+import '@/utils/request' // Import request utility
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 const financeStore = useFinanceStore()
 const { vatRateOptions, defaultVATRate } = storeToRefs(financeStore)
-const router = useRouter()
-
+const _router = useRouter()
 // 权限计算属性
-
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
 const savePaymentLoading = ref(false);
-
 // 分页相关
 const total = ref(0);
 const pageSize = ref(10);
 const currentPage = ref(1);
-
 // 表单相关
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增销售发票');
@@ -480,12 +471,10 @@ const invoiceFormRef = ref(null);
 const paymentDialogVisible = ref(false);
 const paymentFormRef = ref(null);
 const bankAccounts = ref([]);
-
 // 是否显示银行账户字段
 const showBankAccountField = computed(() => {
   return ['bank_transfer', 'credit_card'].includes(paymentForm.paymentMethod);
 });
-
 const detailsDialogVisible = ref(false);
 const invoiceDetails = reactive({
   id: null,
@@ -503,12 +492,10 @@ const invoiceDetails = reactive({
   items: [],
   payments: []
 });
-
 // 数据列表
 const invoiceList = ref([]);
 const customerOptions = ref([]);
 const productOptions = ref([]);
-
 // 搜索表单
 const searchForm = reactive({
   invoiceNumber: '',
@@ -516,7 +503,6 @@ const searchForm = reactive({
   dateRange: [],
   status: ''
 });
-
 // 发票表单
 const invoiceForm = reactive({
   id: null,
@@ -528,7 +514,6 @@ const invoiceForm = reactive({
   notes: '',
   taxRate: defaultVATRate.value // 使用动态配置的默认税率
 });
-
 // 收款表单
 const paymentForm = reactive({
   invoiceId: null,
@@ -544,7 +529,6 @@ const paymentForm = reactive({
   bankAccountId: null,  // 添加银行账户ID字段
   notes: ''
 });
-
 // 表单验证规则
 const invoiceRules = {
   invoice_number: [
@@ -560,7 +544,6 @@ const invoiceRules = {
     { required: true, message: '请选择到期日期', trigger: 'change' }
   ]
 };
-
 const paymentRules = {
   paymentDate: [
     { required: true, message: '请选择收款日期', trigger: 'change' }
@@ -579,7 +562,6 @@ const paymentRules = {
     }
   ]
 };
-
 // 获取状态类型
 const getStatusType = (invoice) => {
   const statusMap = {
@@ -592,36 +574,30 @@ const getStatusType = (invoice) => {
   };
   return statusMap[invoice.status] || 'info';
 };
-
 // 获取状态文本
 const getStatusText = (invoice) => {
   // 直接使用数据库状态字段
   return invoice.status || '草稿';
 };
-
 // 计算单项金额（整数化精度控制，避免浮点误差）
 const calculateItemAmount = (item) => {
   const quantity = parseFloat(item.quantity) || 0;
   const unitPrice = parseFloat(item.unitPrice) || 0;
   item.amount = Math.round(quantity * unitPrice * 100) / 100;
 };
-
 // 计算小计（整数化累加，避免多行累计误差放大）
 const calculateSubtotal = () => {
   const totalCents = invoiceForm.items.reduce((sum, item) => sum + Math.round((item.amount || 0) * 100), 0);
   return totalCents / 100;
 };
-
 // 计算税额
 const calculateTax = () => {
   return Math.round(calculateSubtotal() * invoiceForm.taxRate * 100) / 100;
 };
-
 // 计算总计
 const calculateTotal = () => {
   return Math.round((calculateSubtotal() + calculateTax()) * 100) / 100;
 };
-
 // 添加发票明细项
 const addInvoiceItem = () => {
   invoiceForm.items.push({
@@ -632,7 +608,6 @@ const addInvoiceItem = () => {
     amount: 0
   });
 };
-
 // 监听产品ID变化，自动填充单价
 const handleProductChange = (item) => {
   if (item.productId) {
@@ -644,25 +619,11 @@ const handleProductChange = (item) => {
     }
   }
 };
-
 // 移除发票明细项
 const removeInvoiceItem = (index) => {
   invoiceForm.items.splice(index, 1);
 };
-
-// 自动生成发票编号
-const generateInvoiceNumber = async () => {
-  try {
-    const response = await api.get('/finance/ar/invoices/generate-number');
-    // 拦截器已解包，response.data 就是业务数据
-    invoiceForm.invoice_number = response.data.invoiceNumber;
-    ElMessage.success('发票编号生成成功');
-  } catch (error) {
-    console.error('生成发票编号失败:', error);
-    ElMessage.error('生成发票编号失败');
-  }
-};
-
+// 自动生成发票编号;
 // 加载发票列表
 const loadInvoices = async () => {
   loading.value = true;
@@ -707,7 +668,6 @@ const loadInvoices = async () => {
           total.value = 0;
           ElMessage.error('获取发票数据失败：未知数据格式');
         }
-
         if (invoiceList.value.length === 0) {
           ElMessage.info('未找到符合条件的发票数据');
         }
@@ -732,14 +692,12 @@ const loadInvoices = async () => {
     loading.value = false;
   }
 };
-
 // 加载客户选项
 const loadCustomerOptions = async () => {
   try {
     // 首先尝试使用baseData API
     try {
       const response = await api.get('/baseData/customers');
-
       // 拦截器已解包，response.data 就是业务数据
       if (response.data?.list) {
         customerOptions.value = response.data.list;
@@ -748,21 +706,18 @@ const loadCustomerOptions = async () => {
         customerOptions.value = response.data;
         return;
       }
-    } catch (baseDataError) {
+    } catch {
       // baseData API失败，尝试销售API
     }
-
     // 如果baseData API失败，尝试销售API
     const salesResponse = await api.get('/sales/customers-list');
     customerOptions.value = salesResponse.data || [];
-
   } catch (error) {
     console.error('加载客户列表失败:', error);
     ElMessage.error('加载客户列表失败');
     customerOptions.value = [];
   }
 };
-
 // 加载产品选项
 const loadProductOptions = async () => {
   try {
@@ -773,7 +728,6 @@ const loadProductOptions = async () => {
         type: 'finished'
       }
     });
-
     // 拦截器已解包，response.data 就是业务数据
     if (response.data?.list) {
       productOptions.value = response.data.list;
@@ -788,13 +742,11 @@ const loadProductOptions = async () => {
     productOptions.value = [];
   }
 };
-
 // 搜索发票
 const searchInvoices = () => {
   currentPage.value = 1;
   loadInvoices();
 };
-
 // 重置搜索条件
 const resetSearch = () => {
   searchForm.invoiceNumber = '';
@@ -803,7 +755,6 @@ const resetSearch = () => {
   searchForm.status = '';
   searchInvoices();
 };
-
 // 新增发票
 const showAddDialog = () => {
   dialogTitle.value = '新增销售发票';
@@ -812,7 +763,6 @@ const showAddDialog = () => {
   addInvoiceItem();
   dialogVisible.value = true;
 };
-
 // 编辑发票
 const handleEdit = async (row) => {
   dialogTitle.value = '编辑销售发票';
@@ -854,7 +804,7 @@ const handleEdit = async (row) => {
       addInvoiceItem();
     }
     
-    // 打印调试信息
+    // 打印排障信息
     dialogVisible.value = true;
   } catch (error) {
     console.error('获取发票详情失败:', error);
@@ -874,7 +824,6 @@ const handleEdit = async (row) => {
     dialogVisible.value = true;
   }
 };
-
 // 查看明细
 const handleViewDetails = async (row) => {
   try {
@@ -938,7 +887,6 @@ const handleViewDetails = async (row) => {
     ElMessage.error('获取发票详情失败: ' + (error.message || '未知错误'));
   }
 };
-
 // 加载银行账户列表
 const loadBankAccounts = async () => {
   try {
@@ -955,7 +903,6 @@ const loadBankAccounts = async () => {
     bankAccounts.value = [];
   }
 };
-
 // 收款方式变更处理
 const handlePaymentMethodChange = () => {
   // 如果切换到非银行类支付方式，清空银行账户选择
@@ -963,7 +910,6 @@ const handlePaymentMethodChange = () => {
     paymentForm.bankAccountId = null;
   }
 };
-
 // 记录收款
 const handleRecordPayment = async (row) => {
   // 直接使用数据库字段，避免前端浮点减法与DB值不一致
@@ -985,16 +931,7 @@ const handleRecordPayment = async (row) => {
   
   paymentDialogVisible.value = true;
 };
-
-// 查看发票关联的收款记录
-const handleViewPayments = (row) => {
-  // 导航到收款记录页面，并通过URL参数传递发票编号
-  router.push({
-    path: '/finance/ar/receipts',
-    query: { invoiceNumber: row.invoice_number }
-  });
-};
-
+// 查看发票关联的收款记录;
 // 保存发票
 const saveInvoice = async () => {
   if (!invoiceFormRef.value) return;
@@ -1036,15 +973,13 @@ const saveInvoice = async () => {
           }))
         };
         
-        let response;
-        
         if (invoiceForm.id) {
           // 更新
-          response = await api.put(`/finance/ar/invoices/${invoiceForm.id}`, data);
+          await api.put(`/finance/ar/invoices/${invoiceForm.id}`, data);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          response = await api.post('/finance/ar/invoices', data);
+          await api.post('/finance/ar/invoices', data);
           ElMessage.success('添加成功');
         }
         
@@ -1059,7 +994,6 @@ const saveInvoice = async () => {
     }
   });
 };
-
 // 保存收款记录
 const savePayment = async () => {
   if (!paymentFormRef.value) return;
@@ -1069,7 +1003,7 @@ const savePayment = async () => {
       savePaymentLoading.value = true;
       try {
         // 准备提交的数据
-        const data = {
+        const _data = {
           invoiceId: paymentForm.invoiceId,
           receiptDate: paymentForm.paymentDate,  // 后端期望 receiptDate
           amount: paymentForm.amount,
@@ -1079,7 +1013,7 @@ const savePayment = async () => {
         };
         
         // 发送请求
-        const response = await api.post('/finance/ar/receipts', data);
+       ;
         
         ElMessage.success('收款记录已保存');
         
@@ -1096,7 +1030,6 @@ const savePayment = async () => {
     }
   });
 };
-
 // 重置发票表单
 const resetInvoiceForm = () => {
   invoiceForm.id = null;
@@ -1113,18 +1046,15 @@ const resetInvoiceForm = () => {
     invoiceFormRef.value.resetFields();
   }
 };
-
 // 分页相关方法
 const handleSizeChange = (size) => {
   pageSize.value = size;
   loadInvoices();
 };
-
 const handleCurrentChange = (page) => {
   currentPage.value = page;
   loadInvoices();
 };
-
 // 页面加载时执行
 onMounted(() => {
   loadInvoices();
@@ -1132,29 +1062,15 @@ onMounted(() => {
   loadProductOptions();
   financeStore.loadSettings(); // 加载税率配置
 });
-
 // 格式化货币
 // 格式化货币 - 已统一使用 @/utils/format 导入
-
-// 获取支付方式文本
-const getPaymentMethodText = (method) => {
-  const methodMap = {
-    cash: '现金',
-    bank_transfer: '银行转账',
-    check: '支票',
-    credit_card: '信用卡',
-    other: '其他'
-  };
-  return methodMap[method] || method;
-};
-
+// 获取支付方式文本;
 // 打印发票 - 使用打印模板系统
 const handlePrint = async () => {
   if (!invoiceDetails.id) {
     ElMessage.warning('请先选择要打印的发票');
     return;
   }
-
   try {
     // 获取打印模板
     let templateContent = '';
@@ -1230,114 +1146,87 @@ const handlePrint = async () => {
         }
       }
     }
-
     // 创建打印窗口
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       ElMessage.error('无法打开打印窗口,请检查浏览器弹窗设置');
       return;
     }
-
-    printWindow.document.write(templateContent);
-    printWindow.document.close();
-
+    writeSafeHtmlDocument(printWindow, templateContent);
     // 等待内容加载后打印
     printWindow.onload = () => {
       printWindow.print();
       printWindow.close();
     };
-
     ElMessage.success('打印预览已打开');
   } catch (error) {
     console.error('打印失败:', error);
     ElMessage.error('打印失败');
   }
 };
-
-
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .table-container {
   width: 100%;
   overflow-x: auto;
 }
-
 .el-table {
   min-width: 1400px;
 }
-
-
-
 .invoice-items {
   margin-bottom: var(--spacing-lg);
 }
-
 .invoice-items h3 {
   margin-bottom: 10px;
 }
-
 .invoice-items .details-table-container {
   width: 100%;
   overflow-x: auto;
 }
-
 .invoice-items .el-table {
   min-width: 650px;
 }
-
 .add-item {
   margin-top: 10px;
   display: flex;
   justify-content: center;
 }
-
 .invoice-total {
   margin: 20px 0;
 }
-
 .total-line {
   display: flex;
   justify-content: space-between;
   margin-bottom: 5px;
   padding: 5px 20px;
 }
-
 .total-amount {
   font-weight: bold;
   font-size: 16px;
   border-top: 1px solid var(--color-border-lighter);
   padding-top: 10px;
 }
-
-
-
 .invoice-details {
   padding: 20px;
 }
-
 .details-header {
   display: flex;
   justify-content: space-between;
@@ -1346,19 +1235,16 @@ const handlePrint = async () => {
   border-bottom: 1px solid var(--color-border-lighter);
   padding-bottom: 15px;
 }
-
 .details-header h3 {
   margin: 0;
   color: var(--color-text-primary);
   font-size: 18px;
 }
-
 .detail-item {
   margin-bottom: 15px;
   display: flex;
   align-items: baseline;
 }
-
 .label {
   font-weight: bold;
   color: var(--color-text-regular);
@@ -1366,17 +1252,14 @@ const handlePrint = async () => {
   text-align: right;
   margin-right: 10px;
 }
-
 .value {
   color: var(--color-text-primary);
   flex: 1;
 }
-
 .details-section {
   margin-top: 25px;
   margin-bottom: 25px;
 }
-
 .details-section h3 {
   margin-bottom: 15px;
   font-size: 16px;
@@ -1384,7 +1267,6 @@ const handlePrint = async () => {
   border-left: 3px solid var(--color-primary);
   padding-left: 10px;
 }
-
 .notes-content {
   white-space: pre-wrap;
   background: var(--color-bg-section);
@@ -1392,7 +1274,6 @@ const handlePrint = async () => {
   border-radius: var(--radius-sm);
   color: var(--color-text-regular);
 }
-
 .no-data {
   text-align: center;
   color: var(--color-text-secondary);
@@ -1400,39 +1281,31 @@ const handlePrint = async () => {
   background: var(--color-bg-section);
   border-radius: var(--radius-sm);
 }
-
 .invoice-items .details-table-container,
 .details-table-container {
   width: 100%;
   overflow-x: auto;
 }
-
 .invoice-items .el-table {
   min-width: 550px;
 }
-
 .details-section .el-table {
   width: 100%;
   min-width: 600px;
 }
-
 /* 对话框自适应高度 */
 :deep(.el-dialog__body) {
   max-height: 70vh;
   overflow-y: auto;
   padding: 20px 24px;
 }
-
 /* 移除操作列右侧空白 */
 .invoice-items :deep(.el-table__body-wrapper .el-table__cell:last-child) {
   padding-right: 8px;
 }
-
 .invoice-items :deep(.el-table__header-wrapper .el-table__cell:last-child) {
   padding-right: 8px;
 }
-
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1440,7 +1313,6 @@ const handlePrint = async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

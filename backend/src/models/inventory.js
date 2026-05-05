@@ -27,7 +27,7 @@ const getStockList = async (
       throw new Error('Invalid pagination parameters');
     }
 
-    // 构建查询条件 - 从物料表出发，左连接库存汇总    
+    // 构建查询条件 - 从物料表出发，左连接库存汇总
     let query = `
       SELECT
         CONCAT(m.id, '_', COALESCE(s.location_id, 1)) as id,

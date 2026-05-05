@@ -1073,7 +1073,10 @@ class PeriodEndService {
     const [accounts] = await connection.execute(
       "SELECT id FROM gl_accounts WHERE account_code = '3103' LIMIT 1" // 本年利润
     );
-    return accounts.length > 0 ? accounts[0].id : 1;
+    if (accounts.length === 0) {
+      throw new Error('未配置本年利润科目(3103)，无法生成期末结转凭证');
+    }
+    return accounts[0].id;
   }
 
   /**
@@ -1083,7 +1086,10 @@ class PeriodEndService {
     const [accounts] = await connection.execute(
       "SELECT id FROM gl_accounts WHERE account_code = '3104' LIMIT 1" // 利润分配-未分配利润
     );
-    return accounts.length > 0 ? accounts[0].id : 1;
+    if (accounts.length === 0) {
+      throw new Error('未配置利润分配-未分配利润科目(3104)，无法生成期末结转凭证');
+    }
+    return accounts[0].id;
   }
 
   /**

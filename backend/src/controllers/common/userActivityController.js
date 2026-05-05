@@ -12,8 +12,7 @@ const { logger } = require('../../utils/logger');
 // 记录用户活动
 exports.logActivity = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { action, category, details } = req.body;
+
 
     // 这里可以扩展为使用专门的活动记录表
     // 目前先返回成功响应
@@ -362,7 +361,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
   } catch (error) {
     logger.error('获取在线时长排行榜失败:', error);
 
-    // 返回空数据，不使用模拟数据
+    // 返回空数据，不生成虚构活动记录
     return ResponseHandler.error(res, '获取在线时长排行榜失败', 'SERVER_ERROR', 500, error);
   }
 };

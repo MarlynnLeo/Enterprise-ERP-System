@@ -340,6 +340,7 @@ import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { qualityApi } from '@/api/quality'
 import { productionApi } from '@/api/production'
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 // 异步加载规则和打卡弹窗组件
 const RulesDialog = defineAsyncComponent(() => import('./components/ProcessInspectionRulesDialog.vue'))
@@ -451,11 +452,11 @@ const fetchData = async () => {
 
 // 更新统计数据
 const updateStats = () => {
-  inspectionStats.total = inspectionList.value.length
-  inspectionStats.pending = inspectionList.value.filter(item => item.status === 'pending').length
-  inspectionStats.passed = inspectionList.value.filter(item => item.status === 'passed').length
-  inspectionStats.failed = inspectionList.value.filter(item => item.status === 'failed').length
-  inspectionStats.rework = inspectionList.value.filter(item => item.status === 'rework').length
+  inspectionStats.value.total = inspectionList.value.length
+  inspectionStats.value.pending = inspectionList.value.filter(item => item.status === 'pending').length
+  inspectionStats.value.passed = inspectionList.value.filter(item => item.status === 'passed').length
+  inspectionStats.value.failed = inspectionList.value.filter(item => item.status === 'failed').length
+  inspectionStats.value.rework = inspectionList.value.filter(item => item.status === 'rework').length
 }
 
 
@@ -551,7 +552,7 @@ const getStatusText = (status) => {
 
 // 搜索
 const handleSearch = () => {
-  currentPage.value = 1
+  pagination.currentPage = 1
   fetchData()
 }
 
@@ -753,8 +754,7 @@ const handlePrint = async (row) => {
       return
     }
 
-    printWindow.document.write(renderedContent)
-    printWindow.document.close()
+    writeSafeHtmlDocument(printWindow, renderedContent)
 
     // 等待内容加载后打印
     printWindow.onload = () => {

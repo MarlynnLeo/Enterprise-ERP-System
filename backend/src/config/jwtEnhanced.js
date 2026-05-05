@@ -87,9 +87,9 @@ const verifyAccessToken = (token) => {
     return jwt.verify(token, JWT_CONFIG.accessSecret);
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      throw new Error('访问令牌已过期');
+      throw new Error('访问令牌已过期', { cause: error });
     } else if (error.name === 'JsonWebTokenError') {
-      throw new Error('访问令牌无效');
+      throw new Error('访问令牌无效', { cause: error });
     }
     throw error;
   }
@@ -110,9 +110,9 @@ const verifyRefreshToken = (token) => {
     return decoded;
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      throw new Error('刷新令牌已过期');
+      throw new Error('刷新令牌已过期', { cause: error });
     } else if (error.name === 'JsonWebTokenError') {
-      throw new Error('刷新令牌无效');
+      throw new Error('刷新令牌无效', { cause: error });
     }
     throw error;
   }

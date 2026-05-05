@@ -646,7 +646,7 @@ const saveReason = async () => {
     ElMessage.success('保存成功');
     reasonDialogVisible.value = false;
     fetchSupplementReasons();
-  } catch (error) {
+  } catch {
     ElMessage.error('保存失败');
   } finally {
     savingReason.value = false;
@@ -659,7 +659,7 @@ const handleDeleteReason = async (row) => {
     await api.delete(`/finance-enhancement/cost/supplement-reasons/${row.id}`);
     ElMessage.success('删除成功');
     fetchSupplementReasons();
-  } catch (error) {
+  } catch {
     ElMessage.error('删除失败');
   }
 };
@@ -669,7 +669,7 @@ const handleReasonSwitchChange = async (row) => {
   try {
      await api.post('/finance-enhancement/cost/supplement-reasons', row);
      ElMessage.success('状态更新成功');
-  } catch (error) {
+  } catch {
     ElMessage.error('更新失败');
     fetchSupplementReasons(); // 还原
   }
@@ -699,7 +699,7 @@ const saveMappings = async () => {
   try {
      await api.post('/finance-enhancement/cost/gl-mapping', { mappings: glMappings.value });
      ElMessage.success('映射保存成功');
-  } catch(e) {
+  } catch {
      ElMessage.error('映射保存失败');
   } finally {
      savingMappings.value = false;
@@ -962,7 +962,7 @@ const saveAllocationRule = async () => {
     ElMessage.success('保存规则成功');
     allocationRuleDialogVisible.value = false;
     fetchAllocationRules();
-  } catch (error) {
+  } catch {
     ElMessage.error('保存失败');
   } finally {
     savingAllocationRule.value = false;
@@ -974,7 +974,7 @@ const handleDeleteAllocationRule = async (row) => {
     await api.delete(`/finance-enhancement/cost/overhead-allocation/${row.id}`);
     ElMessage.success('删除成功');
     fetchAllocationRules();
-  } catch (error) {
+  } catch {
     ElMessage.error('删除失败');
   }
 };

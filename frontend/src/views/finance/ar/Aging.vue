@@ -32,7 +32,6 @@
             placeholder="选择截止日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="客户分类">
@@ -56,7 +55,6 @@
         <h3>截至：{{ formatDate(queryParams.reportDate) }}</h3>
         <h4>单位：元</h4>
       </div>
-
       <!-- 报表主体 -->
       <div class="report-body" v-if="hasData">
         <el-table
@@ -125,7 +123,6 @@
           </div>
         </div>
       </div>
-
       <!-- 无数据提示 -->
       <div class="empty-tip" v-if="!loading && !hasData">
         <el-empty description='请选择截止日期并点击"生成报表"按钮'></el-empty>
@@ -133,12 +130,9 @@
     </el-card>
   </div>
 </template>
-
 <script setup>
-
-import { formatCurrency, formatAmount } from '@/utils/format';
+import { formatAmount } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 // 版本标识 - 强制刷新缓存 v3.0 - 使用安全数据访问器
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -146,18 +140,15 @@ import { api } from '@/services/api';
 import * as echarts from 'echarts';
 // 权限计算属性
 import ExcelJS from 'exceljs';
-
 // 查询参数
 const queryParams = reactive({
   reportDate: new Date().toISOString().slice(0, 10), // 默认为今天
   customerType: '',
   customerName: ''
 });
-
 // 报表数据 - 使用响应式数据，确保始终是数组
 const reportData = ref([]);
 const loading = ref(false);
-
 // 创建一个安全的数据访问器
 const safeReportData = computed(() => {
   const data = reportData.value;
@@ -166,7 +157,6 @@ const safeReportData = computed(() => {
   }
   return data;
 });
-
 // 确保reportData始终是数组的辅助函数
 const ensureReportDataIsArray = () => {
   if (!reportData.value || !Array.isArray(reportData.value)) {
@@ -174,7 +164,6 @@ const ensureReportDataIsArray = () => {
     reportData.value = [];
   }
 };
-
 // 计算属性：是否有数据 - 使用安全的数据访问器
 const hasData = computed(() => {
   try {
@@ -185,19 +174,16 @@ const hasData = computed(() => {
     return false;
   }
 });
-
 // 图表实例
 let pieChartInstance = null;
 let barChartInstance = null;
 const pieChart = ref(null);
 const barChart = ref(null);
-
 // 统一的 resize 处理函数（具名引用，确保可移除）
 const handleChartResize = () => {
   if (pieChartInstance && !pieChartInstance.isDisposed()) pieChartInstance.resize();
   if (barChartInstance && !barChartInstance.isDisposed()) barChartInstance.resize();
 };
-
 // 计算逾期比例
 const calculateOverduePercentage = (row) => {
   if (!row.totalAmount || row.totalAmount === 0) return '0.00%';
@@ -207,7 +193,6 @@ const calculateOverduePercentage = (row) => {
   
   return percentage.toFixed(2) + '%';
 };
-
 // 获取客户类型文本
 const getCustomerTypeText = (type) => {
   const typeMap = {
@@ -217,7 +202,6 @@ const getCustomerTypeText = (type) => {
   };
   return typeMap[type] || type;
 };
-
 // 获取表格合计 - 增强错误处理
 const getSummaries = (param) => {
   try {
@@ -226,24 +210,18 @@ const getSummaries = (param) => {
       console.warn('[getSummaries] 参数无效:', param);
       return [];
     }
-
     const { columns, data } = param;
-
     // 确保reportData安全
     ensureReportDataIsArray();
-
     // 安全检查
     if (!data || !Array.isArray(data) || data.length === 0) {
       return Array.isArray(columns) ? columns.map((_, index) => index === 0 ? '总计' : '') : [];
     }
-
     if (!Array.isArray(columns)) {
       console.warn('[getSummaries] columns不是数组:', columns);
       return [];
     }
-
     const sums = [];
-
     columns.forEach((column, index) => {
     if (index === 0) {
       sums[index] = '总计';
@@ -285,7 +263,6 @@ const getSummaries = (param) => {
       }
     }
   });
-
   return sums;
   } catch (error) {
     console.error('[getSummaries错误]:', error);
@@ -293,18 +270,15 @@ const getSummaries = (param) => {
     return Array.isArray(param?.columns) ? param.columns.map((_, index) => index === 0 ? '总计' : '') : [];
   }
 };
-
 // 生成报表
 const generateReport = async () => {
   if (!queryParams.reportDate) {
     ElMessage.warning('请选择截止日期');
     return;
   }
-
   loading.value = true;
   // 重置数据，避免竞态条件
   reportData.value = [];
-
   try {
     const response = await api.get('/finance/ar/aging', {
       params: {
@@ -313,7 +287,6 @@ const generateReport = async () => {
         customerName: queryParams.customerName
       }
     });
-
     // 拦截器已解包，response.data 就是业务数据
     // 后端返回格式：{ data: [...], reportDate: '...' }
     if (Array.isArray(response.data)) {
@@ -321,13 +294,7 @@ const generateReport = async () => {
     } else if (response.data?.data && Array.isArray(response.data.data)) {
       // 处理嵌套的 data 结构
       reportData.value = response.data.data;
-    } else if (response.data?.message === 'API未实现') {
-      // 处理API未实现的情况
-      ElMessage.warning('账龄分析功能正在开发中，暂时无法使用');
-      reportData.value = [];
     } else {
-      // 处理其他意外响应格式
-      console.error('[前端调试] 意外的API响应格式:', response.data);
       ElMessage.error('获取数据格式异常');
       reportData.value = [];
     }
@@ -347,7 +314,6 @@ const generateReport = async () => {
     loading.value = false;
   }
 };
-
 // 初始化图表
 const initCharts = () => {
   // 初始化饼图
@@ -356,16 +322,13 @@ const initCharts = () => {
   // 初始化柱状图
   initBarChart();
 };
-
 // 初始化饼图
 const initPieChart = () => {
   if (!pieChart.value) return;
-
   const data = safeReportData.value;
   if (!Array.isArray(data) || data.length === 0) return;
-
   // 计算各账龄段合计金额
-  const totalAmount = data.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+  const _totalAmount = data.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
   const currentAmount = data.reduce((sum, item) => sum + (item.currentAmount || 0), 0);
   const within30Days = data.reduce((sum, item) => sum + (item.within30Days || 0), 0);
   const within60Days = data.reduce((sum, item) => sum + (item.within60Days || 0), 0);
@@ -427,14 +390,11 @@ const initPieChart = () => {
   
   pieChartInstance.setOption(pieOption);
 };
-
 // 初始化柱状图
 const initBarChart = () => {
   if (!barChart.value) return;
-
   const data = safeReportData.value;
   if (!Array.isArray(data) || data.length === 0) return;
-
   // 筛选出有逾期金额的前10名客户
   const top10Customers = [...data]
     .sort((a, b) => {
@@ -549,21 +509,17 @@ const initBarChart = () => {
   
   barChartInstance.setOption(barOption);
 };
-
 // 导出Excel
 const exportExcel = async () => {
   const data = safeReportData.value;
-
   // 安全检查
   if (!Array.isArray(data) || data.length === 0) {
     ElMessage.warning('没有数据可以导出');
     return;
   }
-
   // 创建工作簿
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('应收账款账龄分析');
-
   // 设置列
   worksheet.columns = [
     { header: '客户名称', key: 'customerName', width: 20 },
@@ -579,7 +535,6 @@ const exportExcel = async () => {
     { header: '联系人', key: 'contactPerson', width: 12 },
     { header: '联系电话', key: 'contactPhone', width: 15 }
   ];
-
   // 添加数据
   data.forEach(item => {
     worksheet.addRow({
@@ -597,7 +552,6 @@ const exportExcel = async () => {
       contactPhone: item.contactPhone
     });
   });
-
   // 生成Excel文件并下载
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -608,21 +562,17 @@ const exportExcel = async () => {
   link.click();
   window.URL.revokeObjectURL(url);
 };
-
 // 打印报表
 const printReport = () => {
   window.print();
 };
-
 // 页面加载时执行
 onMounted(() => {
   // 确保初始数据安全
   ensureReportDataIsArray();
-
   // 注册统一的 resize 监听
   window.addEventListener('resize', handleChartResize);
 });
-
 onUnmounted(() => {
   // 移除 resize 监听
   window.removeEventListener('resize', handleChartResize);
@@ -632,102 +582,80 @@ onUnmounted(() => {
   if (barChartInstance) { barChartInstance.dispose(); barChartInstance = null; }
 });
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .header-actions {
   display: flex;
   gap: 10px;
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 .report-title {
   text-align: center;
   margin-bottom: var(--spacing-lg);
 }
-
 .report-title h1 {
   font-size: 24px;
   margin-bottom: 10px;
 }
-
 .report-title h3 {
   font-size: 16px;
   font-weight: normal;
   margin-bottom: 8px;
 }
-
 .report-title h4 {
   font-size: 14px;
   font-weight: normal;
   color: var(--color-text-regular);
 }
-
 .report-body {
   margin-top: var(--spacing-lg);
 }
-
 .chart-container {
   margin-top: 40px;
 }
-
 .chart-title {
   font-size: 18px;
   font-weight: bold;
   margin-bottom: var(--spacing-lg);
   text-align: center;
 }
-
 .charts {
   display: flex;
   flex-wrap: wrap;
 }
-
 .chart-item {
   flex: 1;
   min-width: 500px;
   margin-bottom: var(--spacing-lg);
 }
-
 .empty-tip {
   padding: 40px 0;
 }
-
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
-
-
-
-
 /* 打印样式 */
 @media print {
   .filter-card,

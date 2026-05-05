@@ -686,7 +686,8 @@ const taxModel = {
    */
   getAvailableDocuments: async (type, keyword = '') => {
     try {
-      let query, params = [];
+      let query;
+      const params = [];
 
       if (type === 'ap') {
         query = `

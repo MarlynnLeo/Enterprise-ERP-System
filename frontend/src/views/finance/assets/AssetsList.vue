@@ -778,15 +778,8 @@ const loadCategoryOptions = async () => {
     categoryOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
     console.error('加载资产类别列表失败:', error);
-    ElMessage.error('加载资产类别列表失败，将使用空列表');
-    // 提供备用选项以允许应用继续运行
-    categoryOptions.value = [
-      { id: 1, name: '电子设备', code: 'ELE' },
-      { id: 2, name: '办公家具', code: 'FUR' },
-      { id: 3, name: '机器设备', code: 'MAC' },
-      { id: 4, name: '运输设备', code: 'VEH' },
-      { id: 5, name: '房屋建筑', code: 'BLD' }
-    ];
+    ElMessage.error('加载资产类别列表失败');
+    categoryOptions.value = [];
   }
 };
 
@@ -878,7 +871,7 @@ const generateCode = async () => {
       assetForm.assetCode = res.data.code;
       ElMessage.success('自动生成编号成功');
     }
-  } catch (err) {
+  } catch {
     ElMessage.error('自动生成编号失败');
   }
 };
@@ -1092,7 +1085,7 @@ const submitDispose = async () => {
 
   try {
     await disposeFormRef.value.validate();
-  } catch (validErr) {
+  } catch {
     // 表单验证未通过，Element Plus 会自动显示字段错误提示
     return;
   }

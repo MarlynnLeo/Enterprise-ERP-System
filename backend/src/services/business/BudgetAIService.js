@@ -1,27 +1,29 @@
 ﻿/**
- * AI预算分析服务 - 基于本地 Ollama gemma4:26b 大模型
- * 
+ * AI预算分析服务 - 基于环境变量配置的本地 Ollama 大模型
+ *
  * 功能矩阵：
  * 1. 预算编制建议 - 基于历史数据+AI分析推荐预算
  * 2. 异常检测 - AI识别执行率异常并给出专业解读
  * 3. 预算优化建议 - AI给出资金调配和管理优化方案
  * 4. 年度对比分析 - AI对比两个年度的预算执行差异
  * 5. 综合报告生成 - 一键生成完整的AI分析报告
- * 
+ *
  * 增强特性：
  * - 内存缓存（30分钟有效期），避免重复调用浪费Token
  * - Token用量追踪，每次调用记录消耗
  * - 指数退避重试 + 请求限流
- * 
+ *
  * @module services/business/BudgetAIService
  */
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const { assertOllamaConfigured, getOllamaConfig } = require('../../config/aiConfig');
+const crypto = require('crypto');
 
 // 本地 Ollama AI 配置（OpenAI 兼容 API）
-const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://192.168.1.251:11434/v1/chat/completions';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:26b';
+const getAIConfig = () => assertOllamaConfigured('Budget AI service');
+const getAIModel = () => getOllamaConfig().model || null;
 
 // 速率限制配置
 const RATE_LIMIT_CONFIG = {
@@ -119,16 +121,17 @@ class BudgetAIService {
      * @returns {Promise<{content: string, usage: Object}>} AI回复内容和Token用量
      */
     static async callOllamaAI(systemPrompt, userPrompt) {
+        const { apiUrl, model, timeoutMs } = getAIConfig();
         // 使用动态 import 加载 node-fetch（兼容性处理）
         let fetchFn;
         try {
             fetchFn = (await import('node-fetch')).default;
-        } catch (e) {
+        } catch {
             fetchFn = globalThis.fetch;
         }
 
         const requestBody = JSON.stringify({
-            model: OLLAMA_MODEL,
+            model,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
@@ -143,9 +146,9 @@ class BudgetAIService {
                 await this._throttle();
 
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 300000); // 本地模型5分钟超时
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-                const response = await fetchFn(OLLAMA_API_URL, {
+                const response = await fetchFn(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -159,7 +162,7 @@ class BudgetAIService {
                 // 处理 429 速率限制
                 if (response.status === 429) {
                     if (attempt < RATE_LIMIT_CONFIG.maxRetries) {
-                        const jitter = Math.random() * 1000;
+                        const jitter = crypto.randomInt(0, 1000);
                         const delayMs = Math.min(
                             RATE_LIMIT_CONFIG.baseDelayMs * Math.pow(2, attempt) + jitter,
                             RATE_LIMIT_CONFIG.maxDelayMs
@@ -195,7 +198,7 @@ class BudgetAIService {
                 this._totalUsage.total_tokens += usage.total_tokens;
                 this._totalUsage.call_count += 1;
 
-                logger.info(`[Ollama AI] 调用成功 | 模型:${OLLAMA_MODEL} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
+                logger.info(`[Ollama AI] 调用成功 | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
 
                 if (!content) {
                     logger.error('[Ollama AI] 返回内容为空，完整响应:', JSON.stringify(data, null, 2));
@@ -230,7 +233,7 @@ class BudgetAIService {
             if (braceMatch) {
                 return JSON.parse(braceMatch[0]);
             }
-            throw new Error('无法从AI回复中提取JSON');
+            throw new Error('无法从AI回复中提取JSON', { cause: e });
         }
     }
 
@@ -296,7 +299,7 @@ class BudgetAIService {
             if (accountsSummary.length === 0) {
                 return {
                     target_year: targetYear,
-                    ai_model: OLLAMA_MODEL,
+                    ai_model: getAIModel(),
                     recommendations: [],
                     ai_summary: '没有找到历史支出数据，无法生成预算建议。请确保系统中有过去几年的会计分录记录。',
                     data_source: '无可用数据',
@@ -361,7 +364,7 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
                 target_year: targetYear,
                 department_id: departmentId,
                 analysis_period: `${startYear}-${targetYear - 1}`,
-                ai_model: OLLAMA_MODEL,
+                ai_model: getAIModel(),
                 total_recommended_budget: result.total_recommended_budget,
                 overall_analysis: result.overall_analysis,
                 trend_analysis: result.trend_analysis || '',
@@ -418,7 +421,7 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
             if (details.length === 0) {
                 return {
                     budget_id: budgetId,
-                    ai_model: OLLAMA_MODEL,
+                    ai_model: getAIModel(),
                     anomalies: [],
                     ai_summary: '该预算没有明细数据，无法进行异常检测。',
                     summary: { total: 0, critical: 0, warning: 0, info: 0 },
@@ -492,7 +495,7 @@ ${JSON.stringify(executionData, null, 2)}
             const response = {
                 budget_id: budgetId,
                 budget_name: budgetName,
-                ai_model: OLLAMA_MODEL,
+                ai_model: getAIModel(),
                 risk_score: result.risk_score || 0,
                 statistics: {
                     mean_execution_rate: Math.round(mean * 100) / 100,
@@ -559,7 +562,7 @@ ${JSON.stringify(executionData, null, 2)}
             if (details.length === 0) {
                 return {
                     budget_id: budgetId,
-                    ai_model: OLLAMA_MODEL,
+                    ai_model: getAIModel(),
                     health_score: 0,
                     health_level: '无数据',
                     ai_analysis: '该预算没有明细数据，无法进行优化分析。',
@@ -648,7 +651,7 @@ ${JSON.stringify(executionData, null, 2)}
             const response = {
                 budget_id: budgetId,
                 budget_name: budgetName,
-                ai_model: OLLAMA_MODEL,
+                ai_model: getAIModel(),
                 health_score: result.health_score || 0,
                 health_level: result.health_level || '未知',
                 overall_analysis: result.overall_analysis || '',
@@ -748,7 +751,7 @@ ${JSON.stringify(executionData, null, 2)}
             if (data.length === 0) {
                 return {
                     year1, year2,
-                    ai_model: OLLAMA_MODEL,
+                    ai_model: getAIModel(),
                     comparison: [],
                     ai_analysis: '没有找到这两个年度的预算数据。',
                     usage: null,
@@ -762,7 +765,7 @@ ${JSON.stringify(executionData, null, 2)}
                 if (!comparisonMap[key]) {
                     comparisonMap[key] = { code: row.account_code, name: row.account_name };
                 }
-                const prefix = row.budget_year == year1 ? 'y1' : 'y2';
+                const prefix = String(row.budget_year) === String(year1) ? 'y1' : 'y2';
                 comparisonMap[key][`${prefix}_budget`] = parseFloat(row.budget_amount);
                 comparisonMap[key][`${prefix}_used`] = parseFloat(row.used_amount);
                 comparisonMap[key][`${prefix}_rate`] = parseFloat(row.execution_rate);
@@ -806,7 +809,7 @@ ${JSON.stringify(comparisonData, null, 2)}
 
             const response = {
                 year1, year2,
-                ai_model: OLLAMA_MODEL,
+                ai_model: getAIModel(),
                 overall_comparison: result.overall_comparison || '',
                 key_changes: result.key_changes || [],
                 trend_insights: result.trend_insights || [],
@@ -862,7 +865,7 @@ ${JSON.stringify(comparisonData, null, 2)}
             if (details.length === 0) {
                 return {
                     budget_id: budgetId,
-                    ai_model: OLLAMA_MODEL,
+                    ai_model: getAIModel(),
                     report: { summary: '该预算没有明细数据，无法生成综合报告。' },
                     usage: null,
                 };
@@ -943,7 +946,7 @@ ${JSON.stringify(executionData, null, 2)}
                 budget_id: budgetId,
                 budget_name: budget.budget_name,
                 budget_year: budget.budget_year,
-                ai_model: OLLAMA_MODEL,
+                ai_model: getAIModel(),
                 generated_at: new Date().toISOString(),
                 report: result,
                 execution_data: executionData,

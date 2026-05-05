@@ -11,12 +11,9 @@
     <router-view></router-view>
   </div>
 </template>
-
 <script setup>
-import { computed } from 'vue'
 // 组件逻辑
 </script>
-
 <style scoped>
 .base-data-content {
   padding: 0;

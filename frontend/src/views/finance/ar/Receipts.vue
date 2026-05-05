@@ -339,7 +339,7 @@ import PrintDialog from '@/components/common/PrintDialog.vue';
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
 import { api } from '@/services/api';
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
@@ -460,17 +460,7 @@ const receiptRules = {
   ]
 };
 
-// 获取收款方式文本
-const getPaymentMethodText = (method) => {
-  const methodMap = {
-    cash: '现金',
-    bank_transfer: '银行转账',
-    check: '支票',
-    credit_card: '信用卡',
-    other: '其他'
-  };
-  return methodMap[method] || method;
-};
+// 获取收款方式文本;
 
 // 加载收款记录列表
 const loadReceipts = async () => {
@@ -777,6 +767,14 @@ const handlePrint = async (row) => {
     const response = await api.get(`/finance/ar/receipts/${row.id}`);
     const data = response.data;
     
+    const operatorName =
+      authStore.realName ||
+      authStore.user?.real_name ||
+      authStore.user?.realName ||
+      authStore.user?.name ||
+      authStore.user?.username ||
+      '-';
+
     // 准备打印数据
     printData.value = {
       receipt_number: data.receipt_number,
@@ -790,7 +788,7 @@ const handlePrint = async (row) => {
       amount_upper: NumberFormatter.digitUppercase(data.total_amount),
       invoice_number: data.invoice_number || '-',
       notes: data.notes || '',
-      operator: authStore.user?.name || '管理员',
+      operator: operatorName,
       print_time: DateFormatter.toDateTime(new Date())
     };
     

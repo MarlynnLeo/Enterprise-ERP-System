@@ -35,7 +35,7 @@ export function generateOutboundPrintHTML(printData, formatDate) {
   })
 
   // 创建表格行HTML
-  const tableRows = expandedTableData.map((item, index) => {
+  const tableRows = expandedTableData.map((item) => {
     const isSubstitute = item.isSubstitute
     const rowStyle = isSubstitute ? ' style="color: #67c23a; font-size: 8pt;"' : ''
     const sequenceNumber = isSubstitute ? '└' : (item.originalIndex + 1)

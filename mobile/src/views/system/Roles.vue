@@ -52,7 +52,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 角色详情
   }
 </script>

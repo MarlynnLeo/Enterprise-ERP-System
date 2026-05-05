@@ -141,7 +141,7 @@ class DocumentLinkService {
   }
 
   /**
-   * 便捷方法：在业务逻辑中一行调用，静默失败不影响主流程
+   * 便捷方法：在业务逻辑中一行调用，失败时进入死信队列等待补偿。
    * @example await DocumentLinkService.tryAutoLink('sales_order', orderId, orderNo, 'sales_outbound', outboundId, outboundNo, userId, conn);
    */
   async tryAutoLink(srcType, srcId, srcCode, tgtType, tgtId, tgtCode, userId, conn) {
@@ -152,9 +152,12 @@ class DocumentLinkService {
         link_type: 'generate', created_by: userId,
       }, conn);
     } catch (e) {
-      // 静默失败，仅日志记录，不影响主业务
-      const { logger } = require('../../utils/logger');
-      logger.warn(`单据关联创建失败 [${srcType}:${srcId} → ${tgtType}:${tgtId}]: ${e.message}`);
+      const DLQService = require('./DLQService');
+      await DLQService.recordSideEffectFailure(
+        'DocumentLink:autoLink',
+        { srcType, srcId, srcCode, tgtType, tgtId, tgtCode, userId },
+        e
+      );
     }
   }
 

@@ -134,7 +134,7 @@ class PasswordSecurity {
     const special = this.config.specialChars;
 
     let password = '';
-    let charset = '';
+    const charset = lowercase + uppercase + numbers + special;
 
     // 确保包含各种字符类型
     password += this.getRandomChar(uppercase);
@@ -142,18 +142,17 @@ class PasswordSecurity {
     password += this.getRandomChar(numbers);
     password += this.getRandomChar(special);
 
-    charset = lowercase + uppercase + numbers + special;
-
     // 填充剩余长度
     for (let i = password.length; i < length; i++) {
       password += this.getRandomChar(charset);
     }
 
-    // 随机打乱
-    return password
-      .split('')
-      .sort(() => Math.random() - 0.5)
-      .join('');
+    const chars = password.split('');
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = crypto.randomInt(0, i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join('');
   }
 
   /**

@@ -129,7 +129,7 @@ function isValidStatus(status, entityType) {
  * @param {string} entityType - 实体类型
  * @returns {string} 中文名称
  */
-function getStatusLabel(status, entityType) {
+function getStatusLabel(status) {
   const statusLabels = {
     draft: '草稿',
     pending: '待处理',

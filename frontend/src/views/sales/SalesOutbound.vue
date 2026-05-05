@@ -50,7 +50,6 @@
             end-placeholder="结束日期"
             @change="handleSearch"
             value-format="YYYY-MM-DD"
-
           />
         </el-form-item>
         
@@ -64,7 +63,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover" @click="resetStatusFilter">
@@ -88,7 +86,6 @@
         <div class="stat-label">已取消</div>
       </el-card>
     </div>
-
     <!-- 出库单表格 -->
     <el-card class="data-card">
       <el-table
@@ -234,7 +231,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 出库单详情对话框 -->
     <el-dialog v-model="detailsVisible" title="出库单详情" width="50%">
       <div v-loading="detailsLoading" style="min-height: 100px;">
@@ -250,7 +246,6 @@
           </el-descriptions-item>
           <el-descriptions-item label="创建时间" :span="2">{{ formatDate(currentOutbound.created_at) }}</el-descriptions-item>
         </el-descriptions>
-
         <el-divider>出库明细</el-divider>
         
         <el-table :data="currentOutbound.items || []" style="width: 100%" border>
@@ -263,7 +258,6 @@
       </div>
       </div>
     </el-dialog>
-
     <!-- 创建/编辑出库单对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -305,7 +299,6 @@
             </el-tag>
           </div>
         </el-form-item>
-
         <el-form-item label="客户信息" prop="customer_id">
           <div style="display: flex; gap: 10px;">
             <el-select
@@ -334,7 +327,6 @@
             </el-button>
           </div>
         </el-form-item>
-
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="联系人">
@@ -347,11 +339,9 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-form-item label="收货地址">
           <el-input v-model="outboundForm.address" placeholder="收货地址" type="textarea" :rows="2" />
         </el-form-item>
-
         <el-form-item label="出库日期" prop="delivery_date">
           <el-date-picker
             v-model="outboundForm.delivery_date"
@@ -362,7 +352,6 @@
             style="width: 100%"
           />
         </el-form-item>
-
         
         <!-- 出库明细 -->
         <el-form-item label="出库明细">
@@ -426,7 +415,6 @@
                   <el-input 
                     v-model="row.quantity" 
                     size="small"
-
                     @blur="validateQuantity(row, $index)"
                     @input="validateQuantity(row, $index)"
                     placeholder="数量"
@@ -457,7 +445,6 @@
             
           </div>
         </el-form-item>
-
         <el-form-item label="备注">
           <el-input type="textarea" v-model="outboundForm.remarks" />
         </el-form-item>
@@ -471,7 +458,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 客户产品查询对话框 -->
     <el-dialog
       v-model="customerProductsDialogVisible"
@@ -498,7 +484,6 @@
                 @keyup.enter="searchCustomerProducts"
                 @clear="searchCustomerProducts"
                 clearable
-
               >
                 <template #append>
                   <el-button @click="searchCustomerProducts" :loading="customerProductsLoading">
@@ -584,11 +569,9 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 import dayjs from 'dayjs'
 import { ref, computed, onMounted, onActivated } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -596,12 +579,10 @@ import { salesApi, inventoryApi } from '@/api'
 import { usePaginatedFetching, useFormSubmit } from '@/composables/useDataFetching'
 import { api } from '@/services/api'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import axios from 'axios'
-
+import { decodeHtmlEntities, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 // 状态变量
 const loading = ref(false)
 const orders = ref([])
-
 // 缓存相关
 const dataLoaded = ref(false)
 const lastLoadTime = ref(0)
@@ -616,7 +597,6 @@ const detailsLoading = ref(false)
 const dialogType = ref('create')
 const outboundFormRef = ref(null)
 const currentOutbound = ref(null)
-
 // 客户产品查询相关
 const customerProductsDialogVisible = ref(false)
 const customerProductsLoading = ref(false)
@@ -624,11 +604,9 @@ const customerProducts = ref([])
 const selectedProducts = ref([])
 const currentCustomer = ref(null)
 const productSearchQuery = ref('')
-
 // 客户搜索相关
 const customerOptions = ref([])
 const customerLoading = ref(false)
-
 // 表单数据
 const outboundForm = ref({
   order_id: '', // 保留兼容性
@@ -643,10 +621,8 @@ const outboundForm = ref({
   remarks: '',
   relatedOrders: [] // 新增：关联的多个订单
 })
-
 // 多订单相关变量
 const selectedOrderId = ref('')
-
 // 表单验证规则
 const rules = {
   customer_id: [
@@ -656,7 +632,6 @@ const rules = {
     { required: true, message: '请选择出库日期', trigger: 'change' }
   ]
 }
-
 // 出库单统计数据
 const outboundStats = ref({
   total: 0,
@@ -665,15 +640,11 @@ const outboundStats = ref({
   completed: 0,
   cancelled: 0
 })
-
 import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
-
 // 状态映射
-
 // 获取状态文本和颜色
 const getStatusText = (status) => getSalesStatusText(status)
 const getStatusType = (status) => getSalesStatusColor(status)
-
 // 状态过滤选项（仅用于搜索过滤）
 const outboundStatuses = [
   { value: 'draft', label: getSalesStatusText('draft') },
@@ -681,12 +652,9 @@ const outboundStatuses = [
   { value: 'completed', label: getSalesStatusText('completed') },
   { value: 'cancelled', label: getSalesStatusText('cancelled') }
 ]
-
 // 已在上面使用统一常量定义了状态映射函数，删除重复定义
-
 // 格式化日期
 // formatDate: 使用公共实现
-
 const calculateOutboundStats = (dataToCount) => {
   const stats = {
     total: dataToCount.length,
@@ -702,7 +670,6 @@ const calculateOutboundStats = (dataToCount) => {
   
   outboundStats.value = stats
 }
-
 // 获取全量出库单统计数据
 const fetchStats = async () => {
   try {
@@ -714,10 +681,9 @@ const fetchStats = async () => {
     console.error('获取出库单统计数据失败:', error);
   }
 }
-
 // 使用统一的分页数据获取Hook
 const {
-  loading: outboundsLoading,
+  loading: _outboundsLoading,
   data: outbounds,
   pagination: outboundPagination,
   fetchData: fetchOutbounds,
@@ -730,20 +696,15 @@ const {
       search: searchQuery.value,
       status: statusFilter.value
     }
-
     // 添加日期范围参数
     if (dateRange.value?.length === 2) {
       searchParams.startDate = dayjs(dateRange.value[0]).format('YYYY-MM-DD')
       searchParams.endDate = dayjs(dateRange.value[1]).format('YYYY-MM-DD')
     }
-
     const response = await salesApi.getOutbounds({ ...searchParams, ...params });
-
     // 使用统一解析器
     const data = parseListData(response, { enableLog: false });
-
     // 统计数据由 fetchStats 独立获取全量数据
-
     // 直接返回响应，让 usePaginatedFetching 处理数据结构
     return {
       ...response,
@@ -759,13 +720,11 @@ const {
     immediate: true
   }
 );
-
 // 搜索方法
 const handleSearch = () => {
   outboundPagination.page = 1
   fetchOutbounds()
 }
-
 // 重置搜索方法
 const resetSearch = () => {
   searchQuery.value = ''
@@ -774,7 +733,6 @@ const resetSearch = () => {
   outboundPagination.page = 1
   fetchOutbounds()
 }
-
 // 获取订单列表
 const fetchOrders = async () => {
   try {
@@ -782,10 +740,8 @@ const fetchOrders = async () => {
     const response = await salesApi.getOrders({
       pageSize: 200 // 增加数量，支持更多订单选择
     })
-
     // 使用统一解析器
     const allOrders = parseListData(response, { enableLog: false })
-
     // 过滤出可发货的订单
     const shippableStatuses = ['confirmed', 'in_production', 'ready_to_ship', 'partial_shipped']
     const filteredOrders = allOrders.filter(order => 
@@ -798,7 +754,6 @@ const fetchOrders = async () => {
     orders.value = []
   }
 }
-
 // 在组件挂载时获取数据
 onMounted(async () => {
   // 检查缓存是否有效
@@ -806,9 +761,7 @@ onMounted(async () => {
   if (dataLoaded.value && (now - lastLoadTime.value) < CACHE_DURATION) {
     return
   }
-
   loading.value = true
-
   try {
     // 并行加载数据，提高加载速度
     await Promise.allSettled([
@@ -816,7 +769,6 @@ onMounted(async () => {
       fetchOrders(),
       fetchStats()
     ])
-
     // 更新缓存状态
     dataLoaded.value = true
     lastLoadTime.value = now
@@ -826,7 +778,6 @@ onMounted(async () => {
     loading.value = false
   }
 })
-
 // 监听页面激活事件（用于 keep-alive 缓存时的自动刷新）
 onActivated(async () => {
   // 强制刷新数据，确保用户切换回来时能看到最新创建的单据
@@ -841,7 +792,6 @@ onActivated(async () => {
     loading.value = false
   }
 })
-
 // 查看详情
 const showDetails = async (row) => {
   detailsVisible.value = true
@@ -856,14 +806,13 @@ const showDetails = async (row) => {
     if (!currentOutbound.value.items) {
       currentOutbound.value.items = []
     }
-  } catch (error) {
+  } catch {
     ElMessage.error('获取出库单详情失败')
     detailsVisible.value = false
   } finally {
     detailsLoading.value = false
   }
 }
-
 // 显示创建对话框
 const showCreateDialog = () => {
   // 检查是否有可发货状态的订单
@@ -892,7 +841,6 @@ const showCreateDialog = () => {
   
   dialogVisible.value = true
 }
-
 // 显示编辑对话框
 const showEditDialog = async (row) => {
   dialogType.value = 'edit'
@@ -947,7 +895,6 @@ const showEditDialog = async (row) => {
          customer_id: fullOutboundData.customer_id || row.customer_id
        })
     }
-
     // 2. 处理出库明细项映射
     const formItems = (fullOutboundData.items || []).map(item => {
        // 解析 source_orders JSON
@@ -978,7 +925,6 @@ const showEditDialog = async (row) => {
          quantity: Number(item.quantity) || 0
        }
     })
-
     // 3. 预填充客户选项，确保回显
     const currentCustomerId = fullOutboundData.customer_id || row.customer_id;
     if (currentCustomerId) {
@@ -994,7 +940,6 @@ const showEditDialog = async (row) => {
          name: fullOutboundData.customer_name || row.customer_name
        }
     }
-
     outboundForm.value = {
       id: row.id,
       order_id: fullOutboundData.order_id || row.order_id,
@@ -1009,7 +954,6 @@ const showEditDialog = async (row) => {
       remarks: fullOutboundData.remarks || row.remarks || '',
       relatedOrders: formRelatedOrders
     }
-
   } catch (error) {
     console.error('获取出库单详情失败:', error)
     ElMessage.error('获取出库单详情失败')
@@ -1020,12 +964,10 @@ const showEditDialog = async (row) => {
     dialogLoading.value = false
   }
 }
-
 // 移除明细项
 const removeItem = (index) => {
   outboundForm.value.items.splice(index, 1)
 }
-
 // 使用统一的表单提交Hook
 const { loading: submittingOutbound, submit: submitOutboundForm } = useFormSubmit(
   async (formData) => {
@@ -1043,7 +985,6 @@ const { loading: submittingOutbound, submit: submitOutboundForm } = useFormSubmi
     }
   }
 );
-
 // 提交出库单
 const submitOutbound = async () => {
   if (!outboundFormRef.value) return;
@@ -1053,7 +994,6 @@ const submitOutbound = async () => {
   });
   
   if (!valid) return;
-
   // 过滤掉无效的物料项（数量为0或没有ID的项）
   const validItems = outboundForm.value.items.filter(item => 
     (item.material_id || item.product_id) && 
@@ -1077,7 +1017,6 @@ const submitOutbound = async () => {
     ElMessage.warning(`以下物料发货数量超过订单数量：${invalidQuantityItems.map(item => item.material_code).join(', ')}`);
     return;
   }
-
   // 构建提交数据
   const submitData = {
     outbound_date: outboundForm.value.delivery_date,
@@ -1087,7 +1026,7 @@ const submitOutbound = async () => {
     is_multi_order: outboundForm.value.relatedOrders.length > 1,
     status: outboundForm.value.status || 'draft',
     remarks: outboundForm.value.remarks || '',
-    warehouse_id: outboundForm.value.warehouse_id || 1,
+    ...(outboundForm.value.warehouse_id ? { warehouse_id: outboundForm.value.warehouse_id } : {}),
     items: validItems.map(item => ({
       material_id: item.material_id || item.product_id,
       product_id: item.material_id || item.product_id,
@@ -1102,11 +1041,9 @@ const submitOutbound = async () => {
       order_no: item.order_no
     }))
   };
-
   // 使用统一的表单提交Hook
   await submitOutboundForm(submitData, outboundFormRef.value);
 };
-
 // 处理删除
 const handleDelete = (row) => {
   ElMessageBox.confirm('确定要删除该出库单吗？', '提示', {
@@ -1118,14 +1055,13 @@ const handleDelete = (row) => {
       await salesApi.deleteOutbound(row.id)
       ElMessage.success('删除成功')
       fetchOutbounds()
-    } catch (error) {
+    } catch {
       ElMessage.error('删除出库单失败')
     }
   }).catch(() => {})
 }
-
 // 验证发货数量
-const validateQuantity = (row, index) => {
+const validateQuantity = (row, _index) => {
   // 确保数量是有效数字
   if (isNaN(row.quantity) || row.quantity < 0) {
     ElMessage.warning('发货数量必须是有效的正数')
@@ -1144,7 +1080,6 @@ const validateQuantity = (row, index) => {
     ElMessage.warning(`${row.material_code} 库存不足，当前库存：${row.stock_quantity}，建议检查库存后再发货`)
   }
 }
-
 // 获取订单状态文本
 const getOrderStatusText = (status) => {
   const statusMap = {
@@ -1158,7 +1093,6 @@ const getOrderStatusText = (status) => {
   }
   return statusMap[status] || '未知状态'
 }
-
 // 多订单管理方法
 const handleAddOrder = () => {
   // 选择订单后自动添加，提升操作便利性
@@ -1166,7 +1100,6 @@ const handleAddOrder = () => {
     addOrderToOutbound()
   }
 }
-
 const addOrderToOutbound = async () => {
   if (!selectedOrderId.value) {
     ElMessage.warning('请先选择要添加的订单')
@@ -1201,14 +1134,13 @@ const addOrderToOutbound = async () => {
     // 添加订单的物料项
     if (orderDetails.items?.length > 0) {
       // 使用专门的API获取物料库存信息
-      let stockInfo = {}
+      const stockInfo = {}
       try {
         // 使用带库存的物料API，传入物料编码进行搜索
         const materialCodes = orderDetails.items
           .filter(item => item.material_id || item.product_id)
           .map(item => item.code || item.material_code)
           .filter(code => code) // 过滤掉空的编码
-
         if (materialCodes.length > 0) {
           // 为每个物料编码查询库存
           const stockPromises = materialCodes.map(async (code) => {
@@ -1217,25 +1149,21 @@ const addOrderToOutbound = async () => {
                 keyword: code,
                 include_stock: true
               })
-
               const stockData = stockResponse.data || []
               // 找到匹配的物料并返回库存信息
               const matchedMaterial = stockData.find(item =>
                 item.code === code || item.material_code === code
               )
-
               return {
                 code: code,
                 materialId: matchedMaterial?.id || matchedMaterial?.material_id,
                 stock: matchedMaterial?.stock_quantity || matchedMaterial?.quantity || 0
               }
-            } catch (error) {
+            } catch {
               return { code, materialId: null, stock: 0 }
             }
           })
-
           const stockResults = await Promise.all(stockPromises)
-
           // 将结果映射到物料ID
           stockResults.forEach(result => {
             if (result.materialId) {
@@ -1245,7 +1173,7 @@ const addOrderToOutbound = async () => {
             stockInfo[result.code] = result.stock
           })
         }
-      } catch (error) {
+      } catch {
         ElMessage.warning('获取库存信息失败，库存显示可能不准确')
       }
       
@@ -1254,10 +1182,8 @@ const addOrderToOutbound = async () => {
         .map(item => {
           const materialId = item.material_id
           const materialCode = item.material_code
-
           // 优先使用物料ID查找库存，其次使用编码
-          let realStockQuantity = stockInfo[materialId] || stockInfo[materialCode] || item.stock_quantity || 0
-
+          const realStockQuantity = stockInfo[materialId] || stockInfo[materialCode] || item.stock_quantity || 0
           return {
             material_id: materialId,
             product_name: item.material_name,
@@ -1347,9 +1273,8 @@ const addOrderToOutbound = async () => {
     ElMessage.error('添加订单失败: ' + (error.message || '未知错误'))
   }
 }
-
 // 计算属性：获取唯一客户数量
-const uniqueCustomers = computed(() => {
+const _uniqueCustomers = computed(() => {
   const customers = new Set()
   outboundForm.value.relatedOrders.forEach(order => {
     if (order.customer) {
@@ -1358,7 +1283,6 @@ const uniqueCustomers = computed(() => {
   })
   return Array.from(customers)
 })
-
 // 可用订单计算属性 - 实现同一客户过滤
 const availableOrders = computed(() => {
   if (!orders.value || orders.value.length === 0) {
@@ -1387,9 +1311,8 @@ const availableOrders = computed(() => {
     !outboundForm.value.relatedOrders.find(relatedOrder => relatedOrder.id === order.id)
   )
 })
-
 // 客户信息显示和过滤相关函数
-const getCustomerDisplayText = () => {
+const _getCustomerDisplayText = () => {
   if (outboundForm.value.relatedOrders.length === 0) {
     return '请先添加订单'
   } else if (outboundForm.value.relatedOrders.length === 1) {
@@ -1404,8 +1327,7 @@ const getCustomerDisplayText = () => {
     }
   }
 }
-
-const getCurrentCustomerId = () => {
+const _getCurrentCustomerId = () => {
   if (outboundForm.value.relatedOrders.length === 0) {
     return null
   }
@@ -1413,7 +1335,6 @@ const getCurrentCustomerId = () => {
   const uniqueCustomerIds = [...new Set(outboundForm.value.relatedOrders.map(order => order.customer_id))]
   return uniqueCustomerIds.length === 1 ? uniqueCustomerIds[0] : null
 }
-
 // 客户搜索相关函数
 const searchCustomers = async (query) => {
   if (!query || query.trim().length < 1) {
@@ -1437,17 +1358,15 @@ const searchCustomers = async (query) => {
       const searchTerm = query.trim().toLowerCase()
       const customerName = (customer.name || '').toLowerCase()
       const customerCode = (customer.code || '').toLowerCase()
-
       return customerName.includes(searchTerm) || customerCode.includes(searchTerm)
     })
-  } catch (error) {
+  } catch {
     ElMessage.error('搜索客户失败')
     customerOptions.value = []
   } finally {
     customerLoading.value = false
   }
 }
-
 const handleCustomerChange = async (customerId) => {
   if (!customerId) {
     outboundForm.value.customer_name = ''
@@ -1457,25 +1376,20 @@ const handleCustomerChange = async (customerId) => {
     currentCustomer.value = null
     return
   }
-
   try {
     // 先从当前选项中查找
     let selectedCustomer = customerOptions.value.find(c => c.id === customerId)
-
     // 如果没找到，可能是编辑模式，需要重新获取客户详情
     if (!selectedCustomer) {
       const response = await salesApi.getCustomer(customerId)
       selectedCustomer = response.data?.data || response.data
     }
-
     if (selectedCustomer) {
       outboundForm.value.customer_name = selectedCustomer.name || ''
-
       // 自动读取联系人和联系电话
       outboundForm.value.contact = selectedCustomer.contact_person || selectedCustomer.contact || ''
       outboundForm.value.phone = selectedCustomer.contact_phone || selectedCustomer.phone || ''
       outboundForm.value.address = selectedCustomer.delivery_address || selectedCustomer.address || ''
-
       // 设置当前客户信息用于产品查询
       currentCustomer.value = {
         id: selectedCustomer.id,
@@ -1483,11 +1397,10 @@ const handleCustomerChange = async (customerId) => {
         code: selectedCustomer.code || ''
       }
     }
-  } catch (error) {
+  } catch {
     ElMessage.error('获取客户详情失败')
   }
 }
-
 // 客户产品查询相关函数
 const openCustomerProductsDialog = async () => {
   // 检查是否已选择客户
@@ -1499,13 +1412,11 @@ const openCustomerProductsDialog = async () => {
   customerProductsDialogVisible.value = true
   await fetchCustomerProducts()
 }
-
 const fetchCustomerProducts = async (searchKeyword = '') => {
   if (!currentCustomer.value?.id) {
     ElMessage.error('客户信息不完整')
     return
   }
-
   customerProductsLoading.value = true
   try {
     // 调用后端API获取客户所有订单的产品明细，支持搜索
@@ -1529,25 +1440,21 @@ const fetchCustomerProducts = async (searchKeyword = '') => {
     customerProductsLoading.value = false
   }
 }
-
 const handleProductSelectionChange = (selection) => {
   selectedProducts.value = selection
 }
-
 // 搜索客户产品
 const searchCustomerProducts = async () => {
   await fetchCustomerProducts(productSearchQuery.value)
 }
-
 // 重置产品搜索
 const resetProductSearch = async () => {
   productSearchQuery.value = ''
   await fetchCustomerProducts()
 }
-
 const validateSelectedQuantity = (row) => {
   // 确保输入的是整数
-  let selectedQty = parseInt(row.selected_quantity) || 0
+  const selectedQty = parseInt(row.selected_quantity) || 0
   const remainingQty = Number(row.remaining_quantity) || 0
   const stockQty = Number(row.stock_quantity) || 0
   
@@ -1582,7 +1489,6 @@ const addSelectedProductsToOutbound = async () => {
     ElMessage.warning('请选择产品并设置发货数量')
     return
   }
-
   // 检查是否有重复产品
   const duplicateProducts = []
   const newProducts = []
@@ -1601,7 +1507,6 @@ const addSelectedProductsToOutbound = async () => {
       })
     }
   })
-
   // 处理重复产品 - 改为智能合并模式
   if (duplicateProducts.length > 0) {
     const duplicateNames = duplicateProducts.map(item => item.product.material_name).join('、')
@@ -1688,7 +1593,6 @@ const addSelectedProductsToOutbound = async () => {
       }
     }
   }
-
   // 添加新产品（处理多订单合并的情况）
   for (const product of newProducts) {
     // 确保订单被添加到关联订单列表中（处理多订单情况）
@@ -1782,7 +1686,6 @@ const addSelectedProductsToOutbound = async () => {
       })
     }
   }
-
   const totalAdded = newProducts.length + duplicateProducts.length
   ElMessage.success(`已处理 ${totalAdded} 个产品`)
   customerProductsDialogVisible.value = false
@@ -1793,9 +1696,7 @@ const addSelectedProductsToOutbound = async () => {
     product.selected_quantity = Number(product.remaining_quantity) || 0
   })
 }
-
 // 在出库成功时记录追溯 (已移至后端由 InventoryTraceabilityService 自动接管)
-
 // 修改出库单状态函数
 const statusUpdating = ref(false)
 const handleStatusChange = async (row, status) => {
@@ -1803,7 +1704,6 @@ const handleStatusChange = async (row, status) => {
   if (statusUpdating.value) {
     return
   }
-
   // 检查状态转换的合法性
   const validTransitions = {
     'draft': ['processing', 'cancelled'],
@@ -1811,19 +1711,16 @@ const handleStatusChange = async (row, status) => {
     'completed': [],
     'cancelled': []
   };
-
   if (!validTransitions[row.status]?.includes(status)) {
     ElMessage.warning(`当前状态 "${row.status}" 不能转换为 "${status}"`)
     return
   }
-
   // 确认对话框
   if (status === 'completed' || status === 'cancelled') {
-    const action = status === 'completed' ? '完成' : '取消'
+    const _action = status === 'completed' ? '完成' : '取消'
     const message = status === 'completed'
       ? '确定要将出库单标记为已完成吗？此操作将减少库存并更新订单状态。'
       : '确定要取消此出库单吗？如果出库单之前已完成，此操作将恢复库存。'
-
     try {
       await ElMessageBox.confirm(message, '确认操作', {
         confirmButtonText: '确定',
@@ -1834,7 +1731,6 @@ const handleStatusChange = async (row, status) => {
       return // 用户取消操作
     }
   }
-
   statusUpdating.value = true
   try {
     // 构建更新数据 - 修复字段名匹配问题
@@ -1845,7 +1741,7 @@ const handleStatusChange = async (row, status) => {
       remarks: row.remarks || ''
     }
     
-    const response = await salesApi.updateOutbound(row.id, updateData)
+    const _response = await salesApi.updateOutbound(row.id, updateData)
     
     // 如果状态为已完成，此时后端会自动接管新版的批次消耗追溯，前端无需再调旧版质量追溯接口
     // if (status === 'completed') {
@@ -1864,26 +1760,22 @@ const handleStatusChange = async (row, status) => {
     await fetchOutbounds()
   } catch (error) {
     console.error('状态更新失败:', error)
-
     // 处理库存相关错误
     if (error.response?.status === 400) {
       const errorData = error.response.data
       const errorMsg = errorData?.error || '状态更新失败'
-
       // 检查是否是库存不足的错误
       if (errorMsg.includes('库存不足') || errorMsg.includes('没有库存记录')) {
         const materialCode = errorData?.material_code
         const materialName = errorData?.material_name
         const required = errorData?.required
         const available = errorData?.available
-
         let detailMsg = errorMsg
         if (materialCode && materialName && required !== undefined && available !== undefined) {
           detailMsg = `物料 ${materialCode}(${materialName}) 库存不足！需要数量：${required}，可用库存：${available}`
         } else if (materialCode && materialName && errorMsg.includes('没有库存记录')) {
           detailMsg = `物料 ${materialCode}(${materialName}) 在任何库位都没有库存记录，无法完成出库操作`
         }
-
         ElMessageBox.alert(detailMsg, '库存不足', {
           confirmButtonText: '确定',
           type: 'warning',
@@ -1900,19 +1792,16 @@ const handleStatusChange = async (row, status) => {
     statusUpdating.value = false
   }
 }
-
 // 重置状态过滤器
 const resetStatusFilter = () => {
   statusFilter.value = ''
   fetchOutbounds()
 }
-
 // 设置状态过滤器
 const setStatusFilter = (status) => {
   statusFilter.value = status
   fetchOutbounds()
 }
-
 // 打印出库单
 const printOutbound = async (row) => {
   try {
@@ -1942,7 +1831,6 @@ const printOutbound = async (row) => {
     } else if (templateResponse.data?.content) {
       template = templateResponse.data
     }
-
     // 如果找到默认模板，使用模板进行打印
     if (template) {
       // 使用模板进行打印
@@ -1951,15 +1839,11 @@ const printOutbound = async (row) => {
         ElMessage.error('无法打开打印窗口，请检查浏览器是否阻止弹出窗口')
         return
       }
-
       // 替换模板中的变量
       let printContent = template.content
-
       // 解码 HTML 实体（如果模板内容被转义了）
       if (printContent.includes('&lt;') || printContent.includes('&gt;')) {
-        const textarea = document.createElement('textarea')
-        textarea.innerHTML = printContent
-        printContent = textarea.value
+        printContent = decodeHtmlEntities(printContent)
       }
       
       // 替换基本变量
@@ -1997,8 +1881,7 @@ const printOutbound = async (row) => {
         }
       }
       
-      printWindow.document.write(printContent)
-      printWindow.document.close()
+      writeSafeHtmlDocument(printWindow, printContent)
       
       // 等待图片加载完成后打印
       printWindow.onload = function() {
@@ -2014,57 +1897,46 @@ const printOutbound = async (row) => {
     console.error('打印出库单失败:', error)
   }
 }
-
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-base);
 }
-
 .outbound-detail {
   padding: 16px;
 }
-
 .materials-table-container {
   margin-bottom: var(--spacing-base);
   width: 100%;
   overflow-x: auto;
 }
-
 .add-material {
   margin-top: 10px;
   text-align: right;
 }
-
 .mt-4 {
   margin-top: var(--spacing-base);
 }
-
 /* 删除打印相关样式 */
 @media print {
   .print-dialog {
@@ -2088,31 +1960,26 @@ const printOutbound = async (row) => {
     box-shadow: none;
   }
 }
-
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
 /* 多订单样式 */
 .multi-order-container {
   display: flex;
   align-items: center;
   width: 100%;
 }
-
 .related-orders {
   border: 1px dashed #dcdfe6;
   border-radius: var(--radius-sm);
   padding: 10px;
   background-color: var(--color-bg-hover);
 }
-
 .multi-customer-info {
   width: 100%;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -2120,56 +1987,46 @@ const printOutbound = async (row) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 表格单元格不换行 */
 :deep(.el-table__cell .cell) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 /* 出库单详情对话框样式 */
 .outbound-detail-content {
   padding: 10px 0;
 }
-
 .outbound-detail-content :deep(.el-descriptions) {
   background: #fafbfc;
   border-radius: 8px;
   padding: 12px;
 }
-
 .outbound-detail-content :deep(.el-descriptions__label) {
   font-weight: 500;
   color: #64748b;
   background: #f1f5f9;
 }
-
 .outbound-detail-content :deep(.el-descriptions__content) {
   color: #1e293b;
 }
-
 .outbound-detail-content :deep(.el-divider) {
   margin: 20px 0 16px 0;
 }
-
 .outbound-detail-content :deep(.el-table) {
   border-radius: 8px;
   overflow: hidden;
 }
-
 .outbound-detail-content :deep(.el-table th) {
   background: #f1f5f9 !important;
   color: #475569;
   font-weight: 600;
   font-size: 13px;
 }
-
 .outbound-detail-content :deep(.el-table td) {
   font-size: 13px;
   color: #334155;

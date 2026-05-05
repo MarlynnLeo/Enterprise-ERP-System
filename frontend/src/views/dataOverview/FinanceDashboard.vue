@@ -18,7 +18,6 @@
         </div>
       </div>
     </el-card>
-
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
@@ -113,7 +112,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 图表区域 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :md="12" class="mb-20">
@@ -133,7 +131,6 @@
           </div>
         </el-card>
       </el-col>
-
       <el-col :xs="24" :md="12" class="mb-20">
         <el-card shadow="hover" class="chart-card">
           <template #header>
@@ -151,7 +148,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 现金流及财务指标 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :md="12" class="mb-20">
@@ -222,19 +218,14 @@
     </el-row>
   </div>
 </template>
-
 <script setup>
-
-
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
-
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router';
 import Chart from 'chart.js/auto';
 import { ElMessage } from 'element-plus';
 import { financeApi } from '@/services/api';
 // 权限计算属性
 import { ArrowRight } from '@element-plus/icons-vue'
-
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import {
   handleDashboardError,
@@ -243,23 +234,17 @@ import {
   generateMonthLabels
 } from '@/utils/dashboardUtils';
 import { createBarChartConfig, chartColors } from '@/utils/chartConfig'
-
-
-const router = useRouter();
-
+const _router = useRouter();
 // 图表引用
 const incomeExpense = ref(null);
 const incomeCategory = ref(null);
-
 const chartRefs = {
   incomeExpense,
   incomeCategory
 };
-
 // 图表配置
 const timeRange = ref('12');
 const chartType = ref('pie');
-
 // 使用仪表盘组合式函数
 const {
   loading,
@@ -270,22 +255,14 @@ const {
   autoRefresh: true,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
-
 // 使用图表管理组合式函数
 const {
   chartInstances,
-  chartsReady,
   initAllCharts,
-  updateChart,
-  destroyAllCharts
 } = useCharts(chartRefs);
-
 // 银行账户数据
 const bankAccounts = ref([]);
 const financialMetrics = ref([]);
-
-
-
 // 获取指标颜色类名
 function getMetricColorClass(metric) {
   if (metric.type === 'percentage') {
@@ -298,7 +275,6 @@ function getMetricColorClass(metric) {
   }
   return '';
 }
-
 // 加载财务数据
 async function loadFinanceData() {
   try {
@@ -309,10 +285,8 @@ async function loadFinanceData() {
         endDate: getMonthEnd()
       })
     ]);
-
     // 同时加载银行账户
     await loadBankAccounts();
-
     // 处理统计数据 - API返回格式: { success, data: { summary, byType, timeSeries } }
     let stats = getDefaultStatistics('finance');
     if (financialStats.status === 'fulfilled' && financialStats.value) {
@@ -320,7 +294,6 @@ async function loadFinanceData() {
       // 正确的数据路径：直接从response中获取summary
       const summary = response.summary || {};
       const byType = response.byType || [];
-
       // 计算收入和支出笔数
       let incomeCount = 0;
       let expenseCount = 0;
@@ -333,7 +306,6 @@ async function loadFinanceData() {
           expenseCount += count;
         }
       });
-
       stats = {
         currentMonth: {
           income: parseFloat(summary.totalIncome || 0),
@@ -351,17 +323,14 @@ async function loadFinanceData() {
         }
       };
     }
-
     // 计算财务指标 - 使用stats对象
     calculateFinancialMetricsFromStats(stats);
-
     return stats;
   } catch (error) {
     console.error('获取财务数据失败:', error);
     throw error;
   }
 }
-
 // 获取月度收支趋势数据
 async function getMonthlyTrendData(months = 12) {
   try {
@@ -369,16 +338,13 @@ async function getMonthlyTrendData(months = 12) {
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
     const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
     const response = await financeApi.getCashFlowStatistics({
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0]
     });
-
     // 处理返回数据
     const data = response.data || response;
     const timeSeries = data.timeSeries || [];
-
     // 生成月份映射：年-月 -> 标签索引
     const monthKeyToIndex = {};
     const labels = generateMonthLabels(months);
@@ -393,7 +359,6 @@ async function getMonthlyTrendData(months = 12) {
     // 初始化收支数据数组
     const incomeData = new Array(months).fill(null);
     const expenseData = new Array(months).fill(null);
-
     // 聚合时间序列数据到月份
     timeSeries.forEach(item => {
       // 从日期提取年-月键（如 2026-01-14 -> 2026-01）
@@ -413,11 +378,9 @@ async function getMonthlyTrendData(months = 12) {
         }
       }
     });
-
     // 四舍五入，并保持 null 依然为 null
     const roundedIncome = incomeData.map(v => v !== null ? Math.round(v) : null);
     const roundedExpense = expenseData.map(v => v !== null ? Math.round(v) : null);
-
     return { labels, incomeData: roundedIncome, expenseData: roundedExpense };
   } catch (error) {
     console.error('获取月度收支趋势失败:', error);
@@ -430,27 +393,21 @@ async function getMonthlyTrendData(months = 12) {
     };
   }
 }
-
 // 初始化收支图表
 async function initIncomeExpenseChart() {
   if (!chartRefs.incomeExpense?.value) return null;
-
   // 销毁旧图表实例（切换时间范围时必须先销毁）
   if (chartInstances.incomeExpense) {
     chartInstances.incomeExpense.destroy();
     chartInstances.incomeExpense = null;
   }
-
   const ctx = chartRefs.incomeExpense.value.getContext('2d');
-
   // 从API获取真实的月度收支数据（根据时间范围动态获取）
   const months = timeRange.value === 'year' ? (new Date().getMonth() + 1) : parseInt(timeRange.value) || 12;
   const { labels, incomeData, expenseData } = await getMonthlyTrendData(months);
-
   const config = createBarChartConfig({
     yAxisTitle: '金额(元)'
   });
-
   const instance = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -474,18 +431,14 @@ async function initIncomeExpenseChart() {
     },
     options: config
   });
-
   // 保存实例引用
   chartInstances.incomeExpense = instance;
   return instance;
 }
-
 // 初始化收入分类图表（按交易类型分类）
 async function initIncomeCategoryChart() {
   if (!chartRefs.incomeCategory?.value) return null;
-
   const ctx = chartRefs.incomeCategory.value.getContext('2d');
-
   // 从API获取交易类型分类数据
   let labels = [];
   let categoryData = [];
@@ -533,7 +486,6 @@ async function initIncomeCategoryChart() {
     'rgba(0, 150, 136, 0.7)',
     'rgba(255, 152, 0, 0.7)'
   ];
-
   return new Chart(ctx, {
     type: 'pie',
     data: {
@@ -566,65 +518,51 @@ async function initIncomeCategoryChart() {
     }
   });
 }
-
-
-
 // 生命周期钩子
 onMounted(async () => {
   try {
     // 等待DOM完全渲染
     await nextTick();
-
     // 等待canvas元素完全渲染
     await new Promise(resolve => setTimeout(resolve, 200));
-
     // 确保canvas元素存在且已渲染
     let retryCount = 0;
     const maxRetries = 5;
-
     while (retryCount < maxRetries) {
       const incomeExpenseCanvas = chartRefs.incomeExpense?.value;
       const incomeCategoryCanvas = chartRefs.incomeCategory?.value;
-
       if (incomeExpenseCanvas && incomeCategoryCanvas &&
           incomeExpenseCanvas.offsetWidth > 0 && incomeExpenseCanvas.offsetHeight > 0 &&
           incomeCategoryCanvas.offsetWidth > 0 && incomeCategoryCanvas.offsetHeight > 0) {
         break;
       }
-
       await new Promise(resolve => setTimeout(resolve, 100));
       retryCount++;
     }
-
     // 初始化图表
     await initAllCharts({
       incomeExpense: initIncomeExpenseChart,
       incomeCategory: initIncomeCategoryChart
     });
-
     // 加载数据
     await loadData();
   } catch (error) {
     handleDashboardError(error, '财务仪表盘初始化失败');
   }
 });
-
 // 加载仪表盘数据
-async function loadDashboardData() {
+async function _loadDashboardData() {
   try {
     // 获取真实的财务统计数据 - axios拦截器已解包
     const response = await financeApi.getFinancialStatistics({
       startDate: getMonthStart(),
       endDate: getMonthEnd()
     });
-
     // 处理解包后的数据
     const data = response.data || response;
-
     // 处理现金流数据
     const cashFlowData = data.cashFlow?.data || data.cashFlow || {};
     const summary = cashFlowData.summary || {};
-
     // 更新统计数据
     statistics.currentMonth = {
       income: summary.totalIncome || 0,
@@ -632,17 +570,13 @@ async function loadDashboardData() {
       count: summary.incomeCount || 0,
       expenseCount: summary.expenseCount || 0
     };
-
     // 单独获取应收账款数据 - axios拦截器已解包
     try {
       const receivablesResponse = await financeApi.getReceivablesAging();
-
       const receivablesData = receivablesResponse.data || receivablesResponse || [];
-
       // 检查数据格式并处理
       let totalReceivables = 0;
       let overdueReceivables = 0;
-
       if (Array.isArray(receivablesData)) {
         // 如果是数组格式，计算总额和逾期数量
         // 遍历每个应收账款项目并累加金额
@@ -650,7 +584,6 @@ async function loadDashboardData() {
           // 从日志可以看出，正确的字段名是totalAmount
           const amount = parseFloat(item.totalAmount || 0);
           totalReceivables += amount;
-
           // 检查是否有逾期金额（超过90天的金额）
           if (item.over90Days && parseFloat(item.over90Days) > 0) {
             overdueReceivables++;
@@ -660,13 +593,11 @@ async function loadDashboardData() {
         // 如果是对象格式，尝试从summary或其他字段获取
         totalReceivables = receivablesData.total || receivablesData.totalAmount || 0;
         overdueReceivables = receivablesData.overdue || receivablesData.overdueCount || 0;
-
         // 如果有summary字段，尝试从中获取
         if (receivablesData.summary) {
           totalReceivables = receivablesData.summary.total || receivablesData.summary.totalAmount || totalReceivables;
           overdueReceivables = receivablesData.summary.overdue || receivablesData.summary.overdueCount || overdueReceivables;
         }
-
         // 如果有details数组，尝试计算
         if (Array.isArray(receivablesData.details)) {
           totalReceivables = receivablesData.details.reduce((sum, item) =>
@@ -675,29 +606,24 @@ async function loadDashboardData() {
             item.over90Days && parseFloat(item.over90Days) > 0).length;
         }
       }
-
       statistics.receivables = {
         total: totalReceivables,
         overdue: overdueReceivables
       };
-    } catch (error) {
+    } catch {
       // 使用空数据
       statistics.receivables = {
         total: 0,
         overdue: 0
       };
     }
-
     // 单独获取应付账款数据 - axios拦截器已解包
     try {
       const payablesResponse = await financeApi.getPayablesAging();
-
       const payablesData = payablesResponse.data || payablesResponse || [];
-
       // 检查数据格式并处理
       let totalPayables = 0;
       let duePayables = 0;
-
       if (Array.isArray(payablesData)) {
         // 如果是数组格式，按原来的方式处理
         // 遍历每个应付账款项目并累加金额
@@ -705,7 +631,6 @@ async function loadDashboardData() {
           // 从日志可以看出，正确的字段名是totalAmount
           const amount = parseFloat(item.totalAmount || 0);
           totalPayables += amount;
-
           // 检查是否即将到期(30天内)
           if (item.within30Days && parseFloat(item.within30Days) > 0) {
             duePayables++;
@@ -715,13 +640,11 @@ async function loadDashboardData() {
         // 如果是对象格式，尝试从summary或其他字段获取
         totalPayables = payablesData.total || payablesData.totalAmount || 0;
         duePayables = payablesData.due || payablesData.dueCount || 0;
-
         // 如果有summary字段，尝试从中获取
         if (payablesData.summary) {
           totalPayables = payablesData.summary.total || payablesData.summary.totalAmount || totalPayables;
           duePayables = payablesData.summary.due || payablesData.summary.dueCount || duePayables;
         }
-
         // 如果有details数组，尝试计算
         if (Array.isArray(payablesData.details)) {
           // 遍历每个应付账款项目并累加金额
@@ -729,7 +652,6 @@ async function loadDashboardData() {
             // 从日志可以看出，正确的字段名是totalAmount
             const amount = parseFloat(item.totalAmount || 0);
             totalPayables += amount;
-
             // 检查是否即将到期(30天内)
             if (item.within30Days && parseFloat(item.within30Days) > 0) {
               duePayables++;
@@ -737,45 +659,30 @@ async function loadDashboardData() {
           });
         }
       }
-
       statistics.payables = {
         total: totalPayables,
         due: duePayables
       };
-    } catch (error) {
+    } catch {
       // 使用空数据
       statistics.payables = {
         total: 0,
         due: 0
       };
     }
-
     // 获取银行账户数据
     await loadBankAccounts();
-
     // 计算财务指标
     await calculateFinancialMetrics(data);
     
   } catch (error) {
     console.error('获取财务统计数据失败:', error);
-    ElMessage.warning('部分财务数据加载失败，显示默认数据');
-
+    ElMessage.warning('部分财务数据加载失败');
     // 出错时使用空数据
     statistics.currentMonth = { income: 0, expense: 0, count: 0, expenseCount: 0 };
     statistics.receivables = { total: 0, overdue: 0 };
     statistics.payables = { total: 0, due: 0 };
-
-    // 设置默认银行账户
-    bankAccounts.value = [
-      {
-        id: 1,
-        name: '企业基本户',
-        accountNumber: '****',
-        bank: '暂无数据',
-        balance: 0
-      }
-    ];
-
+    bankAccounts.value = [];
     // 设置默认财务指标
     financialMetrics.value = [
       {
@@ -790,27 +697,22 @@ async function loadDashboardData() {
     ];
   }
 }
-
 // 获取本月开始日期
 function getMonthStart() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
 }
-
 // 获取本月结束日期
 function getMonthEnd() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 }
-
 // 加载银行账户数据
 async function loadBankAccounts() {
   try {
     const response = await financeApi.getBankAccounts({ limit: 10 });
-
     // API返回格式: { data: { list: [...], total, page, pageSize } }
     const accounts = response.data?.list || response.data?.data?.list || response.data?.data || [];
-
     if (accounts && accounts.length > 0) {
       bankAccounts.value = accounts.map(account => ({
         id: account.id || 0,
@@ -843,7 +745,6 @@ async function loadBankAccounts() {
     ];
   }
 }
-
 // 从stats对象计算财务指标（用于loadFinanceData）
 function calculateFinancialMetricsFromStats(stats) {
   try {
@@ -854,13 +755,11 @@ function calculateFinancialMetricsFromStats(stats) {
     const payablesTotal = stats.payables?.total || 0;
     const receivablesOverdue = stats.receivables?.overdue || 0;
     const payablesDue = stats.payables?.due || 0;
-
     // 计算各种财务比率
     const grossMargin = income > 0 ? ((profit / income) * 100).toFixed(1) : '0.0';
     const netMargin = income > 0 ? ((profit / income) * 100).toFixed(1) : '0.0';
     const receivablesDays = income > 0 ? ((receivablesTotal / income) * 30).toFixed(1) : '0.0';
     const payablesDays = expense > 0 ? ((payablesTotal / expense) * 30).toFixed(1) : '0.0';
-
     financialMetrics.value = [
       {
         label: '毛利率',
@@ -922,22 +821,19 @@ function calculateFinancialMetricsFromStats(stats) {
     setDefaultMetrics();
   }
 }
-
 // 计算财务指标（使用全局statistics）
-async function calculateFinancialMetrics(data) {
+async function calculateFinancialMetrics(_data) {
   try {
     const income = statistics.currentMonth?.income || 0;
     const expense = statistics.currentMonth?.expense || 0;
     const profit = income - expense;
     const receivablesTotal = statistics.receivables?.total || 0;
     const payablesTotal = statistics.payables?.total || 0;
-
     // 计算各种财务比率
     const grossMargin = income > 0 ? ((profit / income) * 100).toFixed(1) : '0.0';
     const netMargin = income > 0 ? ((profit / income) * 100).toFixed(1) : '0.0';
     const receivablesDays = income > 0 ? ((receivablesTotal / income) * 30).toFixed(1) : '0.0';
     const payablesDays = expense > 0 ? ((payablesTotal / expense) * 30).toFixed(1) : '0.0';
-
     financialMetrics.value = [
       {
         label: '毛利率',
@@ -999,7 +895,6 @@ async function calculateFinancialMetrics(data) {
     setDefaultMetrics();
   }
 }
-
 // 设置默认指标
 function setDefaultMetrics() {
   financialMetrics.value = [
@@ -1014,46 +909,39 @@ function setDefaultMetrics() {
     }
   ];
 }
-
 // 获取历史财务数据
-async function getHistoricalFinanceData(monthCount) {
+async function _getHistoricalFinanceData(monthCount) {
   try {
     const incomeData = [];
     const expenseData = [];
     const profitData = [];
-
     // 获取过去几个月的数据
     for (let i = monthCount - 1; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
-
       const startDate = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
       const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
-
       try {
         const response = await financeApi.getCashFlowStatistics({
           startDate,
           endDate
         });
-
         const summary = response.data?.data?.summary || {};
         const income = summary.totalIncome || 0;
         const expense = Math.abs(summary.totalExpense || 0);
         const profit = income - expense;
-
         incomeData.push(income);
         expenseData.push(expense);
         profitData.push(profit);
-      } catch (error) {
+      } catch {
         // 如果获取失败，添加0值保持数组长度一致
         incomeData.push(0);
         expenseData.push(0);
         profitData.push(0);
       }
     }
-
     return { incomeData, expenseData, profitData };
-  } catch (error) {
+  } catch {
     // 返回空数组
     const emptyData = Array(monthCount).fill(0);
     return {
@@ -1063,65 +951,6 @@ async function getHistoricalFinanceData(monthCount) {
     };
   }
 }
-
-// 获取收入分类数据
-async function getIncomeCategoryData() {
-  try {
-    const response = await financeApi.getEntries({
-      startDate: getMonthStart(),
-      endDate: getMonthEnd(),
-      limit: 1000
-    });
-
-    // 确保entries是一个数组
-    const entries = Array.isArray(response.data?.data) ? response.data?.data : 
-                   Array.isArray(response.data) ? response.data : [];
-    const incomeCategories = {};
-
-    // 分析收入类科目的分录
-    entries.forEach(entry => {
-      if (entry.items) {
-        entry.items.forEach(item => {
-          // 假设收入类科目代码以4开头
-          if (item.account_code && item.account_code.startsWith('4') && item.credit_amount > 0) {
-            const categoryName = item.account_name || '其他收入';
-            incomeCategories[categoryName] = (incomeCategories[categoryName] || 0) + parseFloat(item.credit_amount);
-          }
-        });
-      }
-    });
-
-    // 转换为图表数据格式
-    const categories = Object.keys(incomeCategories);
-    const amounts = Object.values(incomeCategories);
-    const total = amounts.reduce((sum, amount) => sum + amount, 0);
-
-    if (total > 0) {
-      const values = amounts.map(amount => Math.round((amount / total) * 100));
-      return { categories, values };
-    } else {
-      // 如果没有收入数据，返回默认分类
-      return {
-        categories: ['销售收入', '服务收入', '利息收入', '其他收入'],
-        values: [70, 20, 5, 5]
-      };
-    }
-  } catch (error) {
-    console.error('获取收入分类数据失败:', error);
-    // 返回默认数据
-    return {
-      categories: ['销售收入', '服务收入', '利息收入', '租赁收入', '其他收入'],
-      values: [65, 20, 8, 5, 2]
-    };
-  }
-}
-
-
-
-
-
-
-
 // 监听时间范围和图表类型变化，更新图表
 watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldChartType]) => {
   if (newTimeRange !== oldTimeRange) {
@@ -1132,137 +961,109 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
   }
 });
 </script>
-
 <style scoped>
 .finance-dashboard {
   padding: 10px;
 }
-
 .header-card {
   margin-bottom: var(--spacing-lg);
 }
-
 .header-card h2 {
   margin: 0;
   font-size: 22px;
   color: var(--el-text-color-primary);
 }
-
 .last-updated {
   margin-left: 10px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
-
 .mt-20 {
   margin-top: var(--spacing-lg);
 }
-
 .mb-20 {
   margin-bottom: var(--spacing-lg);
 }
-
-
 .primary-card {
   border-top: 4px solid var(--el-color-primary);
 }
-
 .success-card {
   border-top: 4px solid var(--el-color-success);
 }
-
 .info-card {
   border-top: 4px solid var(--el-color-info);
 }
-
 .warning-card {
   border-top: 4px solid var(--el-color-warning);
 }
-
 .danger-card {
   border-top: 4px solid var(--el-color-danger);
 }
-
 .stat-content {
   flex-grow: 1;
   padding: 10px 0;
 }
-
 .stat-title {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 15px;
   color: var(--el-text-color-primary);
 }
-
 .stat-info {
   display: flex;
   justify-content: space-between;
 }
-
 .stat-main {
   text-align: left;
 }
-
-
 .stat-secondary {
   text-align: right;
 }
-
 .stat-secondary-value {
   font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
   color: var(--el-text-color-primary);
 }
-
 .stat-secondary-label {
   font-size: 14px;
   color: var(--el-text-color-secondary);
 }
-
 .card-footer {
   padding-top: 10px;
   border-top: 1px solid var(--el-border-color-lighter);
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .chart-container {
   width: 100%;
   height: 300px;
   position: relative;
 }
-
 .chart-card {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
-
 .chart-card :deep(.el-card__body) {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-
 .financial-metrics {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-lg);
   padding: 10px 0;
 }
-
 .metric-item {
   display: flex;
   flex-direction: column;
@@ -1271,18 +1072,15 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
   background-color: var(--el-bg-color-page);
   transition: all var(--transition-base);
 }
-
 .metric-item:hover {
   transform: translateY(-2px);
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
-
 .metric-label {
   font-size: 14px;
   color: var(--el-text-color-secondary);
   margin-bottom: 8px;
 }
-
 .metric-value {
   font-size: 20px;
   font-weight: bold;
@@ -1290,36 +1088,29 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
   display: flex;
   align-items: center;
 }
-
 .info-icon {
   margin-left: 5px;
   color: var(--el-text-color-secondary);
   font-size: 16px;
 }
-
 .metric-trend {
   font-size: 14px;
   margin-top: 5px;
   display: flex;
   align-items: center;
 }
-
 .metric-trend .el-icon {
   margin-right: 5px;
 }
-
 .text-success {
   color: var(--el-color-success);
 }
-
 .text-danger {
   color: var(--el-color-danger);
 }
-
 .text-warning {
   color: var(--el-color-warning);
 }
-
 /* 响应式调整 */
 @media (max-width: 768px) {
   .stat-value {
@@ -1334,8 +1125,6 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
     grid-template-columns: 1fr;
   }
 }
-
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1343,7 +1132,6 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

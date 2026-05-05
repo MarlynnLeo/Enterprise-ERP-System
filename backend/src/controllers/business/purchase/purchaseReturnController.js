@@ -11,7 +11,8 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const pool = db.pool; // 正确引用连接池
 const purchaseModel = require('../../../models/purchase');
-const businessConfig = require('../../../config/businessConfig');
+const DLQService = require('../../../services/business/DLQService');
+
 
 // 状态常量
 const STATUS = {
@@ -26,9 +27,7 @@ const STATUS = {
 /**
  * @deprecated 采购退货表结构已迁移至 Knex 迁移文件 20260312000007 管理，此函数保留为空操作
  */
-const createTablesIfNotExist = async () => {
-  // 表结构由 migrations/20260312000007_baseline_purchase_extended_tables.js 管理
-};
+
 
 // 获取采购退货列表
 const getReturns = async (req, res) => {
@@ -542,7 +541,6 @@ const updateReturnStatus = async (req, res) => {
             });
           }
 
-          const newQuantity = currentQuantity - returnQuantity;
 
           // 获取物料的单位ID
           const unitQuery = 'SELECT unit_id FROM materials WHERE id = ?';
@@ -690,7 +688,11 @@ const updateReturnStatus = async (req, res) => {
             logger.info(`✅ 应付红字发票自动生成成功 - 退货单: ${purchaseReturn.return_no}`);
           }
         } catch (invoiceError) {
-          logger.warn(`⚠️ 应付红字发票自动生成失败（不影响退货）: ${invoiceError.message}`);
+          await DLQService.recordSideEffectFailure(
+            'FinanceIntegration:PurchaseReturnCreditNote',
+            { returnId: id },
+            invoiceError
+          );
         }
       });
 
@@ -710,7 +712,11 @@ const updateReturnStatus = async (req, res) => {
                 operator: 'system',
               });
             } catch (costErr) {
-              logger.warn(`退货单 ${task.returnNo} 物料 ${task.materialId} 成本核算触发失败:`, costErr.message);
+              await DLQService.recordSideEffectFailure(
+                'CostAccounting:PurchaseReturnEntry',
+                task,
+                costErr
+              );
             }
           }
         });

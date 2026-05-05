@@ -25,6 +25,7 @@ class PoolManager extends EventEmitter {
     this.healthCheckTimer = null;
     this.failedChecks = 0;
     this.started = false;
+    this.activeConnections = new Set();
     // 连接回收统计
     this._stats = { autoReclaimed: 0, totalAcquired: 0 };
   }
@@ -39,6 +40,7 @@ class PoolManager extends EventEmitter {
         () => this._healthCheck(),
         this.options.healthCheckInterval
       );
+      this.healthCheckTimer.unref?.();
       // 不阻塞启动的首次健康检查
       this._healthCheck().catch(() => {});
     }
@@ -57,7 +59,7 @@ class PoolManager extends EventEmitter {
       await conn.ping();
       conn.release();
       this.failedChecks = 0;
-    } catch (error) {
+    } catch {
       this.failedChecks++;
       if (this.failedChecks >= 3) {
         this.emit('health:critical', { failedCount: this.failedChecks });
@@ -93,8 +95,32 @@ class PoolManager extends EventEmitter {
       this.healthCheckTimer = null;
     }
     this.started = false;
+    for (const conn of this.activeConnections) {
+      try {
+        conn.release();
+      } catch {
+        try {
+          conn.destroy?.();
+        } catch {
+          // Ignore forced cleanup errors during shutdown.
+        }
+      }
+    }
+    this.activeConnections.clear();
     await this.pool.end();
+    this._forceDestroyRemainingConnections();
     logger.info(`[PoolManager] 连接池 "${this.name}" 已关闭 (自动回收连接数: ${this._stats.autoReclaimed})`);
+  }
+
+  _forceDestroyRemainingConnections() {
+    const allConnections = this.pool.pool?._allConnections?.toArray?.() || [];
+    for (const conn of allConnections) {
+      try {
+        conn.destroy?.();
+      } catch {
+        // Ignore forced cleanup errors during shutdown.
+      }
+    }
   }
 }
 
@@ -136,18 +162,25 @@ class ConnectionPoolFactory {
     const originalGetConnection = pool.getConnection.bind(pool);
 
     pool.getConnection = async function getConnectionWithSafetyNet() {
+      let acquireTimer = null;
       // 添加获取超时：避免连接池耗尽时无限等待导致服务完全阻塞
       const conn = await Promise.race([
         originalGetConnection(),
-        new Promise((_, reject) =>
-          setTimeout(
+        new Promise((_, reject) => {
+          acquireTimer = setTimeout(
             () => reject(new Error(`[连接池] 获取连接超时 (${acquireTimeout}ms)，连接池可能已耗尽`)),
             acquireTimeout
-          )
-        ),
-      ]);
+          );
+          acquireTimer.unref?.();
+        }),
+      ]).finally(() => {
+        if (acquireTimer) {
+          clearTimeout(acquireTimer);
+        }
+      });
 
       manager._stats.totalAcquired++;
+      manager.activeConnections.add(conn);
 
       // 记录获取连接的调用栈（仅开发环境，帮助排查泄漏来源）
       const acquireStack = process.env.NODE_ENV !== 'production'
@@ -160,6 +193,7 @@ class ConnectionPoolFactory {
         if (!released) {
           released = true;
           manager._stats.autoReclaimed++;
+          manager.activeConnections.delete(conn);
 
           logger.warn(
             `[连接池] ⚠️ 连接 #${conn.threadId} 持有超过 ${maxHoldTime / 1000}s，自动强制回收！` +
@@ -168,11 +202,12 @@ class ConnectionPoolFactory {
 
           try {
             originalRelease();
-          } catch (e) {
+          } catch {
             // 连接已损坏，忽略释放错误
           }
         }
       }, maxHoldTime);
+      autoReclaimTimer.unref?.();
 
       // 包装 release()，确保只执行一次并清除定时器
       const originalRelease = conn.release.bind(conn);
@@ -180,6 +215,7 @@ class ConnectionPoolFactory {
         if (released) return; // 防止重复释放
         released = true;
         clearTimeout(autoReclaimTimer);
+        manager.activeConnections.delete(conn);
         return originalRelease();
       };
 

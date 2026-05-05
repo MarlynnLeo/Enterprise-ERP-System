@@ -13,12 +13,7 @@ const pool = db.pool; // 正确引用连接池
 const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
 const {
-  getPurchaseStatusText,
-  generateStatusCaseSQL,
-} = require('../../../constants/systemConstants');
-const {
   PURCHASE_STATUS,
-  PURCHASE_STATUS_TRANSITIONS,
   isValidStatusTransition,
   getStatusLabel,
 } = require('../../../constants/purchaseConstants');
@@ -35,7 +30,6 @@ const getOrders = async (req, res) => {
       contractCode,
       keyword,
       supplierId,
-      operator,
       startDate,
       endDate,
       status,
@@ -706,7 +700,7 @@ const getRequisitions = async (req, res) => {
         row.real_name = row.user_real_name;
       }
 
-      // 移除临时字段
+      // 移除查询辅助字段
       delete row.user_real_name;
 
       const processedReq = {
@@ -764,7 +758,7 @@ const getRequisition = async (req, res) => {
       requisition.real_name = requisition.user_real_name;
     }
 
-    // 删除临时字段
+    // 移除查询辅助字段
     delete requisition.user_real_name;
 
     // 获取申请单物料
@@ -848,18 +842,18 @@ const updateOrderItemsReceived = async (req, res) => {
 };
 
 /**
- * 获取物料的最新采购指导价 (Purchase Info Record 模拟)
+ * 获取物料的最新采购指导价 (Purchase Info Record)
  * 三级降级策略：供应商历史价 → 全局历史价 → 物料主数据预估价
  */
 const getLatestPrice = async (req, res) => {
   try {
     const { material_id, material_code, supplier_id } = req.query;
-    
+
     // 物料标识是必须的，供应商可选（未选供应商时直接走全局历史查询）
     if (!material_id && !material_code) {
       return ResponseHandler.error(res, '缺少必要参数 (物料编码或物料ID)', 'BAD_REQUEST', 400);
     }
-    
+
     // 第一层：查找该供应商历史上卖给我们这个物料的最新有效价格（仅当供应商已选定时）
     if (supplier_id) {
       const supplierQuery = `
@@ -874,7 +868,7 @@ const getLatestPrice = async (req, res) => {
         LIMIT 1
       `;
       const [supplierRows] = await pool.execute(supplierQuery, [material_id || null, material_code || '', supplier_id]);
-      
+
       if (supplierRows.length > 0) {
         return ResponseHandler.success(res, {
           price: supplierRows[0].price,
@@ -883,7 +877,7 @@ const getLatestPrice = async (req, res) => {
         }, '获取供应商历史最新价成功');
       }
     }
-    
+
     // 第二层：查找所有供应商历史上卖给我们这个物料的最新有效价格
     const globalQuery = `
       SELECT poi.price, po.order_date, s.name as supplier_name
@@ -897,7 +891,7 @@ const getLatestPrice = async (req, res) => {
       LIMIT 1
     `;
     const [globalRows] = await pool.execute(globalQuery, [material_id || null, material_code || '']);
-    
+
     if (globalRows.length > 0) {
       return ResponseHandler.success(res, {
         price: globalRows[0].price,
@@ -906,7 +900,7 @@ const getLatestPrice = async (req, res) => {
         last_date: globalRows[0].order_date
       }, '获取全局历史最新参考价成功');
     }
-    
+
     // 第三层：从物料主数据提取预估成本价作为兜底
     const matQuery = `
       SELECT cost_price, price FROM materials 
@@ -914,7 +908,7 @@ const getLatestPrice = async (req, res) => {
       LIMIT 1
     `;
     const [matRows] = await pool.execute(matQuery, [material_id || null, material_code || '']);
-    
+
     if (matRows.length > 0) {
       const mat = matRows[0];
       const fallbackPrice = parseFloat(mat.cost_price) || parseFloat(mat.price) || 0;
@@ -923,7 +917,7 @@ const getLatestPrice = async (req, res) => {
         source: 'material_master',
       }, '获取物料默认预估价成功');
     }
-    
+
     return ResponseHandler.success(res, {
       price: 0,
       source: 'none'

@@ -555,10 +555,8 @@
       }
     } catch (e) {
       console.error('自动生成编码失败:', e)
-      // 回退到简易方案
-      const d = new Date()
-      const s = `${d.getFullYear().toString().slice(-2)}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`
-      form.code = `MAT${s}${Math.random().toString(36).substr(2, 4).toUpperCase()}`
+      form.code = ''
+      showToast('自动生成编码失败，请稍后重试')
     }
   }
 

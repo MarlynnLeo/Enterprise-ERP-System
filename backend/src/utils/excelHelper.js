@@ -11,11 +11,11 @@ class ExcelHelper {
   /**
    * 生成Excel模板
    * @param {Array} columns - 列定义 [{header: '列名', key: 'key', width: 15}]
-   * @param {Array} sampleData - 示例数据（可选）
+   * @param {Array} templateRows - 模板行（可选）
    * @param {String} sheetName - 工作表名称
    * @returns {ExcelJS.Workbook}
    */
-  static createTemplate(columns, sampleData = [], sheetName = 'Sheet1') {
+  static createTemplate(columns, templateRows = [], sheetName = 'Sheet1') {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(sheetName);
 
@@ -34,11 +34,11 @@ class ExcelHelper {
     worksheet.getRow(1).height = 25;
 
     // 添加示例数据
-    if (sampleData.length > 0) {
-      worksheet.addRows(sampleData);
+    if (templateRows.length > 0) {
+      worksheet.addRows(templateRows);
 
       // 设置示例数据样式
-      for (let i = 2; i <= sampleData.length + 1; i++) {
+      for (let i = 2; i <= templateRows.length + 1; i++) {
         worksheet.getRow(i).fill = {
           type: 'pattern',
           pattern: 'solid',
@@ -143,7 +143,7 @@ class ExcelHelper {
       return data;
     } catch (error) {
       logger.error('读取Excel文件失败:', error);
-      throw new Error(`读取Excel文件失败: ${error.message}`);
+      throw new Error(`读取Excel文件失败: ${error.message}`, { cause: error });
     }
   }
 }

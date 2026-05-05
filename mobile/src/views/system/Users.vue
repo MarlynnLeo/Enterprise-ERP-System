@@ -151,6 +151,27 @@
       @select="handleUserAction"
     />
 
+    <ActionSheet
+      v-model:show="showDepartmentSheet"
+      :actions="departmentActions"
+      cancel-text="取消"
+      @select="chooseDepartment"
+    />
+
+    <ActionSheet
+      v-model:show="showRoleSheet"
+      :actions="roleActions"
+      cancel-text="取消"
+      @select="chooseRole"
+    />
+
+    <ActionSheet
+      v-model:show="showStatusSheet"
+      :actions="statusActions"
+      cancel-text="取消"
+      @select="chooseStatus"
+    />
+
     <!-- 创建/编辑用户弹窗 -->
     <Popup v-model:show="showUserDialog" position="bottom" :style="{ height: '80%' }">
       <div class="user-dialog">
@@ -247,9 +268,14 @@ const finished = ref(false);
 const refreshing = ref(false);
 const showActions = ref(false);
 const showUserDialog = ref(false);
+const showDepartmentSheet = ref(false);
+const showRoleSheet = ref(false);
+const showStatusSheet = ref(false);
 const saving = ref(false);
 const selectedUser = ref(null);
 const editingUser = ref(null);
+const departments = ref([]);
+const roles = ref([]);
 
 // 用户表单
 const userForm = reactive({
@@ -258,7 +284,9 @@ const userForm = reactive({
   email: '',
   phone: '',
   department: '',
+  departmentId: null,
   role: '',
+  roleId: null,
   status: 'active'
 });
 
@@ -286,6 +314,25 @@ const userActions = ref([
   { name: '禁用用户', key: 'disable', color: '#ff6b6b' },
   { name: '删除用户', key: 'delete', color: '#ff6b6b' }
 ]);
+
+const statusActions = [
+  { name: '启用', value: 'active' },
+  { name: '禁用', value: 'disabled' }
+];
+
+const departmentActions = computed(() =>
+  departments.value.map(item => ({
+    name: item.name || item.department_name,
+    value: item.id
+  }))
+);
+
+const roleActions = computed(() =>
+  roles.value.map(item => ({
+    name: item.name || item.role_name,
+    value: item.id
+  }))
+);
 
 // 计算属性
 const filteredUsers = computed(() => {
@@ -474,7 +521,11 @@ const createUser = () => {
 
 const editUser = (user) => {
   editingUser.value = user;
-  Object.assign(userForm, user);
+  Object.assign(userForm, {
+    ...user,
+    departmentId: user.department_id || user.departmentId || null,
+    roleId: user.role_id || user.roleId || null
+  });
   showUserDialog.value = true;
 };
 
@@ -485,7 +536,9 @@ const resetUserForm = () => {
     email: '',
     phone: '',
     department: '',
+    departmentId: null,
     role: '',
+    roleId: null,
     status: 'active'
   });
 };
@@ -499,11 +552,16 @@ const saveUser = async () => {
   saving.value = true;
 
   try {
+    const payload = {
+      ...userForm,
+      department_id: userForm.departmentId || undefined,
+      role_id: userForm.roleId || undefined
+    };
     if (editingUser.value) {
-      await systemApi.updateUser(editingUser.value.id, { ...userForm });
+      await systemApi.updateUser(editingUser.value.id, payload);
       showToast('用户更新成功');
     } else {
-      await systemApi.createUser({ ...userForm });
+      await systemApi.createUser(payload);
       showToast('用户创建成功');
     }
 
@@ -571,16 +629,57 @@ const deleteUser = async (user) => {
   }
 };
 
-const selectDepartment = () => {
-  showToast('部门选择功能开发中');
+const extractList = (response) => {
+  const data = response?.data || response || {};
+  return data.list || data.rows || data.data || (Array.isArray(data) ? data : []);
 };
 
-const selectRole = () => {
-  showToast('角色选择功能开发中');
+const loadDepartmentOptions = async () => {
+  if (departments.value.length) return;
+  const response = await systemApi.getDepartments({ page: 1, pageSize: 200 });
+  departments.value = extractList(response);
+};
+
+const loadRoleOptions = async () => {
+  if (roles.value.length) return;
+  const response = await systemApi.getRoles({ page: 1, pageSize: 200 });
+  roles.value = extractList(response);
+};
+
+const selectDepartment = async () => {
+  try {
+    await loadDepartmentOptions();
+    showDepartmentSheet.value = true;
+  } catch {
+    showToast('加载部门失败');
+  }
+};
+
+const chooseDepartment = (action) => {
+  userForm.department = action.name;
+  userForm.departmentId = action.value;
+};
+
+const selectRole = async () => {
+  try {
+    await loadRoleOptions();
+    showRoleSheet.value = true;
+  } catch {
+    showToast('加载角色失败');
+  }
+};
+
+const chooseRole = (action) => {
+  userForm.role = action.name;
+  userForm.roleId = action.value;
 };
 
 const selectStatus = () => {
-  showToast('状态选择功能开发中');
+  showStatusSheet.value = true;
+};
+
+const chooseStatus = (action) => {
+  userForm.status = action.value;
 };
 
 // 初始化

@@ -232,7 +232,7 @@ const loadInventories = async () => {
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false })
     inventoryList.value = list
     total.value = totalCount
-  } catch (err) {
+  } catch {
     ElMessage.error('加载盘点列表失败')
   } finally {
     loading.value = false
@@ -339,7 +339,7 @@ const viewDetail = async (row) => {
     }
     
     detailData.value = data
-  } catch (err) {
+  } catch {
     ElMessage.error('加载详情失败')
     detailVisible.value = false
   } finally {
@@ -386,7 +386,7 @@ const updateItem = async (row, actualQty, status, notes) => {
     row.actual_quantity = actualQty
     row.status = status
     row.notes = notes
-  } catch (err) {
+  } catch {
     ElMessage.error('更新明细记录失败')
   }
 }

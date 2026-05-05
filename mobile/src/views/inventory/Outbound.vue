@@ -119,11 +119,11 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { NavBar, Search, Empty, PullRefresh, List, showToast, showConfirmDialog } from 'vant';
+import { NavBar, Search, Empty, PullRefresh, List, showToast } from 'vant';
 import SvgIcon from '@/components/icons/index.vue';
 import { inventoryApi } from '@/services/api';
 import { formatDate } from '@/utils/format';
-import { getOutboundStatusText, getOutboundStatusColor, getOutboundTypeText } from '@/constants/statusConstants';
+import { getOutboundStatusText, getOutboundTypeText } from '@/constants/statusConstants';
 
 const router = useRouter();
 const searchValue = ref('');
@@ -240,53 +240,16 @@ const loadOutboundList = async () => {
   }
 };
 
-// 获取出库单状态类型（使用统一常量）
-const getOutboundStatusType = (status) => {
-  return getOutboundStatusColor(status);
-};
+// 获取出库单状态类型（使用统一常量）;
 
 // 查看出库单详情
 const viewOutboundDetail = (id) => {
   router.push(`/inventory/outbound/${id}`);
 };
 
-// 确认出库
-const confirmOutbound = async (outbound) => {
-  try {
-    await showConfirmDialog({
-      title: '确认出库',
-      message: `确定要确认出库单 ${outbound.outbound_no} 吗？`
-    });
-    
-    await inventoryApi.updateOutboundStatus(outbound.id, 'confirmed');
-    showToast('出库单已确认');
-    outbound.status = 'confirmed';
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('确认出库失败:', error);
-      showToast('确认出库失败');
-    }
-  }
-};
+// 确认出库;
 
-// 完成出库
-const completeOutbound = async (outbound) => {
-  try {
-    await showConfirmDialog({
-      title: '完成出库',
-      message: `确定要完成出库单 ${outbound.outbound_no} 吗？`
-    });
-    
-    await inventoryApi.updateOutboundStatus(outbound.id, 'completed');
-    showToast('出库单已完成');
-    outbound.status = 'completed';
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('完成出库失败:', error);
-      showToast('完成出库失败');
-    }
-  }
-};
+// 完成出库;
 
 onMounted(() => {
   loadOutboundList();

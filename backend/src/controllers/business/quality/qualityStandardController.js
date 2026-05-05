@@ -2,7 +2,7 @@
  * qualityStandardController.js
  * @description 质量标准控制器 — 从 qualityController.js 拆分
  * @date 2026-03-03
- * 
+ *
  * 职责范围：质量标准 CRUD、目标选项
  */
 

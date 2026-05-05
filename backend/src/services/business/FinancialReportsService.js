@@ -96,7 +96,7 @@ class FinancialReportsService {
         error: error.message,
         stack: error.stack,
       });
-      throw new Error(`计算科目余额失败: ${error.message}`);
+      throw new Error(`计算科目余额失败: ${error.message}`, { cause: error });
     } finally {
       if (connection) {
         connection.release();
@@ -400,7 +400,7 @@ class FinancialReportsService {
         error: error.message,
         stack: error.stack,
       });
-      throw new Error(`生成资产负债表失败: ${error.message}`);
+      throw new Error(`生成资产负债表失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -419,8 +419,7 @@ class FinancialReportsService {
     endDate,
     compareStartDate = null,
     compareEndDate = null,
-    unit = 1,
-    level = 0
+    unit = 1
   ) {
     try {
       // 计算收入、成本和费用
@@ -1083,13 +1082,7 @@ class FinancialReportsService {
         const netProfit = incomeData.totalAmount - costData.totalAmount - expenseData.totalAmount;
 
         // 3. 获取资产负债表项目的期初期末余额用于计算变动
-        const assetChanges = await this.getBalanceChanges(connection, '资产', periodStart, endDate);
-        const liabilityChanges = await this.getBalanceChanges(
-          connection,
-          '负债',
-          periodStart,
-          endDate
-        );
+
 
         // 4. 计算各项目变动
         // 经营活动现金流项目
@@ -1123,18 +1116,8 @@ class FinancialReportsService {
           periodStart,
           endDate
         ); // 应付账款
-        const prepaidChange = await this.getAccountChangeByCode(
-          connection,
-          '1123',
-          periodStart,
-          endDate
-        ); // 预付账款
-        const advancesChange = await this.getAccountChangeByCode(
-          connection,
-          '2203',
-          periodStart,
-          endDate
-        ); // 预收账款
+         // 预付账款
+         // 预收账款
 
         // 投资活动现金流项目
         const fixedAssetChange = await this.getAccountChangeByCode(

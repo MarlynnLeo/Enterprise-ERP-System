@@ -1,7 +1,7 @@
 <!--
 /**
  * ARInvoices.vue - 应收账款
- * @description 应收账款管理页面 - 替代GenericListView占位
+ * @description 应收账款管理页面
  * @date 2026-04-15
  * @version 2.0.0
  */

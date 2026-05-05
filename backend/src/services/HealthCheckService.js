@@ -9,7 +9,6 @@ const { getConnection } = require('../config/db');
 const cacheService = require('./cacheService');
 const DatabaseMonitorService = require('./DatabaseMonitorService');
 const os = require('os');
-const fs = require('fs').promises;
 
 class HealthCheckService {
   constructor() {
@@ -169,23 +168,23 @@ class HealthCheckService {
    */
   async checkCache() {
     try {
-      const testKey = 'health_check_test';
-      const testValue = { timestamp: Date.now() };
+      const probeKey = 'health_check_probe';
+      const probeValue = { timestamp: Date.now() };
 
-      // 测试缓存写入
-      const setResult = await cacheService.set(testKey, testValue, 10);
+      // 验证缓存写入
+      const setResult = await cacheService.set(probeKey, probeValue, 10);
       if (!setResult) {
         throw new Error('缓存写入失败');
       }
 
-      // 测试缓存读取
-      const getValue = await cacheService.get(testKey);
-      if (!getValue || getValue.timestamp !== testValue.timestamp) {
+      // 验证缓存读取
+      const getValue = await cacheService.get(probeKey);
+      if (!getValue || getValue.timestamp !== probeValue.timestamp) {
         throw new Error('缓存读取失败');
       }
 
-      // 清理测试数据
-      await cacheService.delete(testKey);
+      // 清理健康检查探针数据
+      await cacheService.delete(probeKey);
 
       // 获取缓存统计
       const stats = await cacheService.getStats();
@@ -241,7 +240,7 @@ class HealthCheckService {
    */
   async checkDisk() {
     try {
-      const stats = await fs.stat(process.cwd());
+
 
       // 在Windows上获取磁盘使用情况比较复杂，这里简化处理
       // 实际生产环境中可能需要使用第三方库如 'node-disk-info'

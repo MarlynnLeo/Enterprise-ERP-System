@@ -21,6 +21,7 @@ function getApp() {
     // 设置测试环境变量
     process.env.NODE_ENV = 'test';
     process.env.DISABLE_CRON = 'true'; // 禁用定时任务
+    process.env.ENABLE_RATE_LIMIT = 'false'; // 避免限流器 MemoryStore 在测试中创建后台定时器
     appInstance = require('../src/app');
   }
   return appInstance;

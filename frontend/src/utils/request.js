@@ -6,8 +6,8 @@
  */
 
 import axios from 'axios';
-import { ElMessage, ElMessageBox, ElNotification } from 'element-plus';
-import router from '@/router';
+import { ElMessage } from 'element-plus';
+import '@/router';
 import { tokenManager } from '@/utils/unifiedStorage';
 
 // 创建axios实例
@@ -57,7 +57,6 @@ function getCsrfTokenFromCookie() {
   return null;
 }
 
-// ✅ 审计修复(B-4): Token 刷新并发锁
 // 防止多个请求同时触发刷新，避免竞态导致 token 失效
 let isRefreshing = false;
 let refreshSubscribers = [];
@@ -97,7 +96,7 @@ service.interceptors.response.use(
           message = data.message || '请求参数错误';
           break;
         case 401:
-          // ✅ 审计修复(B-4): Token 过期处理 — 使用并发锁防止多次刷新竞争
+          // Token 过期时使用并发锁防止多次刷新竞争
           if (data.code === 'TOKEN_EXPIRED') {
             if (!isRefreshing) {
               // 第一个请求负责刷新
@@ -114,7 +113,7 @@ service.interceptors.response.use(
                   // 重试当前请求
                   return service(error.config);
                 }
-              } catch (refreshError) {
+              } catch {
                 // 刷新失败，清理状态并跳转登录
                 isRefreshing = false;
                 refreshSubscribers = [];

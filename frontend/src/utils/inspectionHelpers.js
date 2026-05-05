@@ -57,12 +57,6 @@ export async function ensureSupplierInfo(inspection) {
     }
   }
   
-  // 如果所有尝试都失败,使用默认供应商
-  if (!inspection.supplier_id) {
-    inspection.supplier_id = 1
-    inspection.supplier_name = inspection.supplier_name || '默认供应商'
-  }
-  
   return inspection
 }
 
@@ -82,15 +76,15 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
   }
   
   // 获取物料的默认库位
-  let warehouseId = 2  // 默认使用零部件仓库ID
-  let warehouseName = '零部件仓库'
+  let warehouseId = null
+  let warehouseName = ''
 
   if (inspection.material_id) {
     try {
       const materialResponse = await baseDataApi.getMaterial(inspection.material_id)
       if (materialResponse.data?.location_id) {
         warehouseId = Number(materialResponse.data.location_id)
-        warehouseName = materialResponse.data.location_name || '零部件仓库'
+        warehouseName = materialResponse.data.location_name || ''
       }
     } catch (error) {
       logger.error('获取物料库位信息失败:', error)
@@ -116,6 +110,19 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
   if (!orderId) {
     throw new Error('检验单缺少关联的采购订单信息（reference_id），无法创建入库单。请检查检验单数据完整性。')
   }
+  if (!warehouseId) {
+    throw new Error('检验单物料未维护默认库位，无法创建入库单')
+  }
+
+  const unitId = Number(inspection.unit_id)
+  if (!Number.isInteger(unitId) || unitId <= 0) {
+    throw new Error('检验单缺少有效单位信息，无法创建入库单')
+  }
+
+  const operatorName = authStore.user?.real_name || authStore.user?.username
+  if (!operatorName) {
+    throw new Error('缺少当前用户信息，无法创建入库单')
+  }
 
   // 构造入库单数据
   const receiptData = {
@@ -138,15 +145,15 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
     fromInspection: true,
     inspectionId: Number(inspection.id),
     // 操作人
-    operator: authStore.user?.real_name || '系统',
-    receiver: authStore.user?.real_name || '系统',
+    operator: operatorName,
+    receiver: operatorName,
     // 物料明细
     items: [{
       materialId: Number(inspection.material_id || 0),
       materialCode: inspection.product_code || inspection.material_code || '',
       materialName: inspection.product_name || inspection.material_name || '',
       specification: inspection.specification || inspection.specs || '',
-      unitId: Number(inspection.unit_id || 1),
+      unitId,
       unit: inspection.unit || '',
       orderedQuantity: parseFloat(inspection.quantity || 0),
       // ✅ 使用合格数量而不是检验数量
@@ -158,7 +165,6 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
         ? `复检后自动入库：${inspection.note || ''}`
         : `自动入库：${inspection.note || ''}`,
       locationId: warehouseId,
-      warehouseId: warehouseId,
       batchNo: inspection.batch_no || '',
       fromInspection: true
     }]
@@ -215,7 +221,7 @@ export async function fetchInspectionDetailWithItems(
     ...inspectionData,
     inspectionNo: inspectionData.inspection_no || inspectionData.inspectionNo || row.inspectionNo || '',
     purchaseOrderNo: inspectionData.reference_no || inspectionData.purchaseOrderNo || row.purchaseOrderNo || '',
-    batchNo: inspectionData.batch_no || inspectionData.batchNo || row.batchNo || '默认批次号',
+    batchNo: inspectionData.batch_no || inspectionData.batchNo || row.batchNo || '',
     materialName: inspectionData.material_name || inspectionData.materialName || extractMaterialName(inspectionData),
     product_name: inspectionData.product_name || inspectionData.materialName || extractMaterialName(inspectionData),
     product_code: inspectionData.product_code || inspectionData.specs || extractMaterialSpecs(inspectionData),
@@ -253,27 +259,7 @@ export async function fetchInspectionDetailWithItems(
       }
     } catch (error) {
       console.error('获取检验项目失败:', error)
-      // 创建默认检验项目
-      inspectionData.items = [
-        { 
-          item_name: '外观检查', 
-          standard: '无明显缺陷', 
-          type: 'visual', 
-          is_critical: true, 
-          actual_value: '合格', 
-          result: 'passed', 
-          remarks: '检验合格' 
-        },
-        { 
-          item_name: '数量检查', 
-          standard: '与订单一致', 
-          type: 'quantity', 
-          is_critical: true, 
-          actual_value: `${inspectionData.quantity || 0}${inspectionData.unit || ''}`, 
-          result: 'passed', 
-          remarks: '数量正确' 
-        }
-      ]
+      inspectionData.items = []
     }
   }
   
@@ -284,7 +270,7 @@ export async function fetchInspectionDetailWithItems(
       item_name: item.item_name || item.name || '未命名检验项',
       standard: item.standard || item.criteria || '无标准',
       actual_value: item.actual_value || item.value || '-',
-      result: item.result || 'passed',
+      result: item.result || '',
       remarks: item.remarks || item.comment || ''
     }))
   }
@@ -539,7 +525,7 @@ export function checkDimensionTolerance(item, showMessage = false) {
  * 生成批次号 (规则: PUR-{供应商编码}-{日期YYMMDD}-{序号})
  * @param {string} supplierCode - 供应商编码
  * @param {number} supplierId - 供应商ID（用于查询当天检验单数量）
- * @param {Object} qualityApiInstance - 质检API对象（如果不传则使用简单序号）
+ * @param {Object} qualityApiInstance - 质检API对象
  * @returns {Promise<string>} 批次号
  */
 export async function generateBatchNumber(supplierCode = '', supplierId = null, qualityApiInstance = null) {
@@ -551,9 +537,8 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
     const day = String(date.getDate()).padStart(2, '0')
     const dateStr = `${year}${month}${day}`
     
-    // 2. 如果没有供应商编码，使用默认值
     if (!supplierCode) {
-      supplierCode = 'UNKNOWN'
+      throw new Error('供应商编码不能为空，无法生成采购检验批次号')
     }
     
     // 3. 获取今天该供应商的检验单数量，生成递增序号
@@ -578,8 +563,7 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
         }
       } catch (error) {
         console.error('获取检验单数量失败:', error)
-        // 失败时使用随机序号避免冲突
-        serialNo = String(Math.floor(Math.random() * 100) + 1).padStart(3, '0')
+        throw new Error('无法获取当天检验单序号，请稍后重试')
       }
     }
     
@@ -587,8 +571,7 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
     return `PUR-${supplierCode}-${dateStr}-${serialNo}`
   } catch (error) {
     console.error('生成批次号失败:', error)
-    // 降级方案：使用时间戳
-    return `PUR-${Date.now()}`
+    throw error
   }
 }
 

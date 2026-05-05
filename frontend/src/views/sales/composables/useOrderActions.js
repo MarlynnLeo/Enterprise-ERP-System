@@ -5,7 +5,7 @@
  */
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesApi, inventoryApi } from '@/api'
+import { salesApi } from '@/api'
 import { checkInventory } from '@/composables/useInventoryCheck'
 
 export function useOrderActions(fetchDataCallback, tableData) {
@@ -139,7 +139,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
       if (error !== 'cancel') {
         console.error('锁定订单失败:', error)
         const errorData = error.response?.data
-        let errorMessage = '锁定订单失败: ' + (errorData?.message || error.message || '未知错误')
+        const errorMessage = '锁定订单失败: ' + (errorData?.message || error.message || '未知错误')
         if (errorData?.insufficientItems && errorData.insufficientItems.length > 0) {
           const insufficientDetails = errorData.insufficientItems.map(item =>
             `${item.materialName}(${item.materialCode}): 需要${item.required}个，可用${item.available}个，缺少${item.shortage}个`).join('\n')

@@ -82,13 +82,18 @@ class DingtalkService {
         throw new Error('发起人UserId未提供');
       }
 
+      const resolvedDeptId = Number.parseInt(deptId, 10);
+      if (!Number.isInteger(resolvedDeptId) || resolvedDeptId <= 0) {
+        throw new Error('Dingtalk deptId must be configured or provided');
+      }
+
       // 构建表单组件数据
       const formComponentValues = this.buildFormComponents(formData);
 
       const requestBody = {
         process_code: processCode,
         originator_user_id: originatorUserId,
-        dept_id: deptId || 1,
+        dept_id: resolvedDeptId,
         form_component_values: formComponentValues,
       };
 
@@ -210,7 +215,6 @@ class DingtalkService {
         originatorDeptId: instance.originator_dept_id,
         formData,
         businessId: instance.business_id,
-        rawFormComponents: instance.form_component_values, // 用于调试
       };
     } catch (error) {
       logger.error('[Dingtalk] 查询审批详情失败:', error.message);
@@ -710,8 +714,16 @@ class DingtalkService {
 const dingtalkService = new DingtalkService();
 
 // 启动定时同步（内网环境替代回调）
-setTimeout(() => {
-  dingtalkService.startPollingSync();
-}, 10000);
+const shouldStartPollingSync =
+  process.env.NODE_ENV !== 'test' &&
+  !process.env.JEST_WORKER_ID &&
+  process.env.DISABLE_CRON !== 'true';
+
+if (shouldStartPollingSync) {
+  const dingtalkPollingTimer = setTimeout(() => {
+    dingtalkService.startPollingSync();
+  }, 10000);
+  dingtalkPollingTimer.unref?.();
+}
 
 module.exports = dingtalkService;

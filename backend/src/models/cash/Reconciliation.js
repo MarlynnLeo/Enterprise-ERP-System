@@ -8,6 +8,14 @@
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
 
+function requirePositiveInteger(value, fieldName) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0 || String(value).trim() !== String(parsed)) {
+    throw new Error(`${fieldName} must be a positive integer`);
+  }
+  return parsed;
+}
+
 class ReconciliationModel {
   /**
    * 银行对账
@@ -123,6 +131,7 @@ class ReconciliationModel {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      const createdBy = requirePositiveInteger(data.created_by, 'created_by');
 
       const [result] = await connection.execute(
         `INSERT INTO reconciliations 
@@ -135,7 +144,7 @@ class ReconciliationModel {
           data.book_balance,
           data.status || 'draft',
           data.notes,
-          data.created_by || 1,
+          createdBy,
         ]
       );
 

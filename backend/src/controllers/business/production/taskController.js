@@ -17,13 +17,13 @@ const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants')
 const {
   apiStatusToDbStatus,
   dbStatusToApiStatus,
-  getStatusConstants,
 } = require('../../../utils/statusMapper');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const SchedulingService = require('../../../services/business/SchedulingService');
 
-// ===== 审计修复 #1/#2/#9: 提取到顶部的服务引用，消除幻影require =====
+// 任务生命周期相关服务统一在顶部声明，避免运行时动态 require
 const { validateTaskTransition, syncPlanStatus, generateBatchNo } = require('../../../services/business/TaskLifecycleService');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const InventoryTraceabilityService = require('../../../services/business/InventoryTraceabilityService');
@@ -60,7 +60,7 @@ function buildFilterConditions(params) {
       whereClause += ` AND pt.status IN (${placeholders})`;
       queryParams.push(...status);
     } else if (status.includes(',')) {
-      // ✅ 审计修复: 支持逗号分隔的多状态筛选（如 'in_progress,allocated'）
+      // 支持逗号分隔的多状态筛选（如 'in_progress,allocated'）
       const statuses = status.split(',').map((s) => s.trim());
       const placeholders = statuses.map(() => '?').join(',');
       whereClause += ` AND pt.status IN (${placeholders})`;
@@ -178,7 +178,7 @@ exports.getProductionTasks = async (req, res) => {
       ORDER BY pt.created_at DESC LIMIT ? OFFSET ?
     `;
 
-    // ✅ 审计修复: LIMIT/OFFSET 参数化查询
+    // LIMIT/OFFSET 使用参数化查询
     queryParams.push(parseInt(pageSize, 10), offset);
     const [tasks] = await pool.query(query, queryParams);
 
@@ -403,7 +403,9 @@ exports.createProductionTask = async (req, res) => {
             await SchedulingService.fillProcessSchedule(taskId, startTime, quantity, connection);
             logger.info(`[排程] 任务 ${code} 工序计划时间已自动填充`);
           } catch (schedErr) {
-            logger.warn(`[排程] 任务 ${code} 工序时间填充失败(不影响创建):`, schedErr.message);
+            throw new Error(`任务 ${code} 工序时间填充失败: ${schedErr.message}`, {
+              cause: schedErr,
+            });
           }
         }
       }
@@ -422,7 +424,7 @@ exports.createProductionTask = async (req, res) => {
 
         // 如果计划是草稿状态，更新为分配中
         if (currentStatus === 'draft') {
-          await connection.query('UPDATE production_plans SET status = \"allocated\" WHERE id = ?', [
+          await connection.query('UPDATE production_plans SET status = "allocated" WHERE id = ?', [
             plan_id,
           ]);
           logger.info(`生产计划 ${plan_id} 状态已更新: draft → allocated（分配中）`);
@@ -481,8 +483,8 @@ exports.updateProductionTask = async (req, res) => {
     }
 
     if (
-      taskCheck[0].status === STATUS.PRODUCTION_TASK.COMPLETED ||
-      taskCheck[0].status === STATUS.PRODUCTION_TASK.CANCELLED
+      taskCheck[0].status === TASK_STATUS.COMPLETED ||
+      taskCheck[0].status === TASK_STATUS.CANCELLED
     ) {
       return ResponseHandler.error(res, '已完成或已取消的任务不能修改', 'BAD_REQUEST', 400);
     }
@@ -697,7 +699,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
     }
 
     // 验证状态值 - 使用状态常量
-    const validStatuses = Object.values(STATUS.PRODUCTION_TASK);
+    const validStatuses = Object.values(TASK_STATUS);
     if (!validStatuses.includes(status)) {
       return ResponseHandler.error(res, `无效的状态值: ${req.body.status}`, 'BAD_REQUEST', 400);
     }
@@ -715,7 +717,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
     let dbStatus = apiStatusToDbStatus(status, 'productionTask');
     logger.info(`[状态转换] 任务ID: ${id}, API状态: ${status}, 数据库状态: ${dbStatus}`);
 
-    // ===== 审计修复 #6: 状态机校验 =====
+    // 状态机校验
     const currentStatus = taskCheck[0].status;
     const transitionCheck = validateTaskTransition(currentStatus, dbStatus);
     if (!transitionCheck.valid) {
@@ -724,7 +726,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
     }
 
     // 特殊处理：如果用户手动将任务状态更新为completed，需要先检查工序
-    if (status === STATUS.PRODUCTION_TASK.COMPLETED) {
+    if (status === TASK_STATUS.COMPLETED) {
       // 检查是否有工序
       const [processes] = await connection.query(
         'SELECT COUNT(*) as total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed FROM production_processes WHERE task_id = ?',
@@ -744,7 +746,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
       }
 
       // 如果没有工序或工序已全部完成，则改为inspection状态（需要先检验）
-      dbStatus = apiStatusToDbStatus(STATUS.PRODUCTION_TASK.INSPECTION, 'productionTask');
+      dbStatus = apiStatusToDbStatus(TASK_STATUS.INSPECTION, 'productionTask');
       logger.info(
         `任务 ${id} 手动完成，自动转为待检验状态（工序: ${completed}/${total}），数据库状态: ${dbStatus}`
       );
@@ -757,7 +759,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
     const planId = taskData.plan_id;
 
     // 任务状态更新为生产中时，自动创建首检单
-    if (status === STATUS.PRODUCTION_TASK.IN_PROGRESS) {
+    if (status === TASK_STATUS.IN_PROGRESS) {
       try {
         // 检查是否已经存在首检单
         const [existingFirstArticle] = await connection.query(
@@ -772,11 +774,13 @@ exports.updateProductionTaskStatus = async (req, res) => {
             [taskData.product_id]
           );
 
-          const rule = rules[0] || {
-            first_article_qty: 5,
-            full_inspection_threshold: 5,
-            is_mandatory: true,
-          };
+          if (rules.length === 0) {
+            throw new BusinessError('产品未配置首件检验规则，无法启动生产任务', {
+              route: '/quality/first-article-inspection',
+              buttonText: '配置首检规则',
+            });
+          }
+          const rule = rules[0];
 
           // 计算首检数量
           const productionQty = taskData.quantity || 0;
@@ -832,7 +836,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
         }
       } catch (faError) {
         logger.error('自动创建首检单失败:', faError);
-        // 不影响任务状态更新
+        throw faError;
       }
 
       // === 自动创建过程检验记录 ===
@@ -850,7 +854,13 @@ exports.updateProductionTaskStatus = async (req, res) => {
             [taskData.product_id]
           );
 
-          const processRule = processRules[0] || { inspection_interval: 60, sample_rate: 10 };
+          if (processRules.length === 0) {
+            throw new BusinessError('产品未配置过程检验规则，无法启动生产任务', {
+              route: '/quality/process-inspection',
+              buttonText: '配置过程检验规则',
+            });
+          }
+          const processRule = processRules[0];
 
           // 获取生产任务的第一个工序名称
           const [firstProcess] = await connection.query(
@@ -911,14 +921,14 @@ exports.updateProductionTaskStatus = async (req, res) => {
         }
       } catch (processError) {
         logger.error('自动创建过程检验记录失败:', processError);
-        // 不影响任务状态更新
+        throw processError;
       }
     }
 
     // 任务状态更新为待检验或完成时，在事务内创建检验单
     if (
-      status === STATUS.PRODUCTION_TASK.INSPECTION ||
-      status === STATUS.PRODUCTION_TASK.COMPLETED
+      status === TASK_STATUS.INSPECTION ||
+      status === TASK_STATUS.COMPLETED
     ) {
       try {
         // 检查是否已经存在检验单（成品检验类型，reference_id为任务ID）
@@ -942,7 +952,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
             planned_date: new Date(),
             status: PROC_STATUS.PENDING,
             note: '生产任务完成时自动创建',
-          });
+          }, connection);
           logger.info('自动创建检验单成功', { taskId: id });
         } else {
           logger.info('检验单已存在，跳过创建', {
@@ -952,73 +962,65 @@ exports.updateProductionTaskStatus = async (req, res) => {
         }
       } catch (inspError) {
         logger.error('自动创建检验单失败:', inspError);
-        // 不影响任务完成
+        throw inspError;
       }
     }
 
-    // ===== 审计修复 #2: 使用统一的计划同步服务替代内联逻辑 =====
+    // 使用统一的计划同步服务替代内联状态同步逻辑
     if (planId) {
       await syncPlanStatus(planId, connection);
     }
 
     // ===== (2) 工序完成路径的报工+成本核算 =====
     if (
-      status === STATUS.PRODUCTION_TASK.INSPECTION ||
-      status === STATUS.PRODUCTION_TASK.COMPLETED
+      status === TASK_STATUS.INSPECTION ||
+      status === TASK_STATUS.COMPLETED
     ) {
-      try {
-        await connection.query(
-          'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND (completed_quantity IS NULL OR completed_quantity < quantity)',
+      await connection.query(
+        'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND (completed_quantity IS NULL OR completed_quantity < quantity)',
+        [id]
+      );
+
+      const [existingReports] = await connection.query(
+        'SELECT COUNT(*) as count FROM production_reports WHERE task_id = ?',
+        [id]
+      );
+
+      if (existingReports[0].count === 0) {
+        const [processHours] = await connection.query(
+          'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
           [id]
         );
+        const estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
 
-        const [existingReports] = await connection.query(
-          'SELECT COUNT(*) as count FROM production_reports WHERE task_id = ?',
-          [id]
-        );
+        if (estimatedHours > 0) {
+          const reportNo = await CodeGenerators.generateReportCode(connection);
+          const operatorName = taskData.manager || 'System';
 
-        if (existingReports[0].count === 0) {
-          const [processHours] = await connection.query(
-            'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
-            [id]
-          );
-          const estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
-
-          if (estimatedHours > 0) {
-            const reportNo = await CodeGenerators.generateReportCode(connection);
-            const operatorName = taskData.manager || 'System';
-
-            await connection.query(
-              `INSERT INTO production_reports
+          await connection.query(
+            `INSERT INTO production_reports
               (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
                completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
                work_hours, remarks, created_at)
               VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
-              [
-                reportNo, id, operatorName, taskData.quantity || 0,
-                taskData.quantity || 0, taskData.quantity || 0,
-                estimatedHours, '工序完成后系统自动生成',
-              ]
-            );
-          }
+            [
+              reportNo, id, operatorName, taskData.quantity || 0,
+              taskData.quantity || 0, taskData.quantity || 0,
+              estimatedHours, '工序完成后系统自动生成',
+            ]
+          );
         }
+      }
 
-        const [updatedInspections] = await connection.query(
+      const [_updatedInspections] = await connection.query(
           `UPDATE quality_inspections
            SET status = 'passed', note = CONCAT(COALESCE(note, ''), ' | 工序全部完成时自动关闭')
            WHERE task_id = ? AND inspection_type IN ('first_article', 'process') AND status = 'pending'`,
-          [id]
-        );
+        [id]
+      );
 
-        // 强一致性成本核算：直接在事务中调用，并传入 connection
-        try {
-          await CostAccountingService.calculateActualCost(parseInt(id), connection);
-        } catch (costError) {
-          throw costError;
-        }
-      } catch (compError) {
-         throw compError;
-      }
+      // 强一致性成本核算：直接在事务中调用，并传入 connection
+      await CostAccountingService.calculateActualCost(parseInt(id), connection);
 
       // ===== (3) 处理批次追溯 =====
       try {
@@ -1117,7 +1119,7 @@ exports.getPendingTasks = async (req, res) => {
       LIMIT ?
     `;
 
-    // ✅ 审计修复: LIMIT 参数化查询
+    // LIMIT 使用参数化查询
     const [tasks] = await pool.query(query, [safeLimit]);
     res.json(tasks);
   } catch (error) {
@@ -1178,6 +1180,24 @@ exports.completeTask = async (req, res) => {
     const newCompletedQuantity = currentCompleted + Number(quantity);
     const isFullComplete = newCompletedQuantity >= totalQuantity;
 
+    if (isFullComplete) {
+      const [openInspections] = await connection.query(
+        `SELECT id, inspection_no, inspection_type, status
+         FROM quality_inspections
+         WHERE task_id = ?
+           AND inspection_type IN ('first_article', 'process')
+           AND (status IS NULL OR status NOT IN ('passed', 'completed', 'cancelled'))`,
+        [id]
+      );
+
+      if (openInspections.length > 0) {
+        throw new BusinessError(
+          `任务 ${task.code} 仍有 ${openInspections.length} 个首检/过程检验未通过，不能自动完工。请先完成或处理相关检验单。`,
+          { route: `/quality/process?taskId=${id}`, buttonText: '去处理检验单' }
+        );
+      }
+    }
+
     // 更新完工数量
     let updateQuery = 'UPDATE production_tasks SET completed_quantity = ?';
     const updateParams = [newCompletedQuantity];
@@ -1233,19 +1253,20 @@ exports.completeTask = async (req, res) => {
           remark:
             remark ||
             `生产任务 ${task.code} 完工 ${quantity} 件${isFullComplete ? '（全部完工）' : '（部分完工）'}`,
-        });
+        }, connection);
 
         logger.info(`任务 ${task.code} 完工 ${quantity} 件，已自动创建成品检验单`);
       }
     } catch (inspectionError) {
-      logger.warn(`创建检验单失败（不影响完工）: ${inspectionError.message}`);
+      logger.error(`创建检验单失败，完工流程已回滚: ${inspectionError.message}`);
+      throw inspectionError;
     }
 
     // ===== 自动创建报工记录 =====
     try {
       const reportNo = await CodeGenerators.generateReportCode(connection);
       // 尝试获取当前用户，如果不可用则使用默认值
-      const operatorId = req.user ? req.user.id : 0;
+      const operatorId = getAuthenticatedUserId(req);
       const operatorName = await getCurrentUserName(req);
 
       // 从工序表中获取标准工时合计，避免 work_hours 为 0 导致人工成本为 0
@@ -1283,7 +1304,7 @@ exports.completeTask = async (req, res) => {
           operatorName,
           quantity, // 报工数量
           quantity, // 完成数量
-          quantity, // 默认合格数量等于完成数量（乐观）
+          0, // 质量结果由成品检验回写，报工阶段不预设合格数量
           estimatedHours, // 使用工序标准工时或兜底估算值
           `自动完工生成: ${remark || ''}`,
         ]
@@ -1292,31 +1313,11 @@ exports.completeTask = async (req, res) => {
       logger.info(`任务 ${task.code} 自动创建报工记录成功，工时: ${estimatedHours}h`);
     } catch (reportError) {
       logger.error('自动创建报工记录失败:', reportError);
-      // 不阻塞主流程，仅记录错误
+      throw reportError;
     }
     // ===== 报工记录结束 =====
 
-    // ===== 自动关闭未完成的首检/过程检验单 =====
-    if (isFullComplete) {
-      try {
-        const [updatedInspections] = await connection.query(
-          `UPDATE quality_inspections 
-           SET status = 'passed', note = CONCAT(COALESCE(note, ''), ' | 任务完工时系统自动按合格跳过')
-           WHERE task_id = ? 
-             AND inspection_type IN ('first_article', 'process')
-             AND status = 'pending'`,
-          [id]
-        );
-        if (updatedInspections.affectedRows > 0) {
-          logger.info(`任务 ${task.code} 完工，自动跳过 ${updatedInspections.affectedRows} 个未执行的首检/过程检验`);
-        }
-      } catch (skipError) {
-        logger.warn(`自动跳过检验单失败: ${skipError.message}`);
-      }
-    }
-    // ===== 自动关闭检验单结束 =====
-
-    // ===== 审计修复 #2: 使用统一的计划同步服务 =====
+    // 使用统一的计划同步服务
     if (isFullComplete && task.plan_id) {
       await syncPlanStatus(task.plan_id, connection);
     }

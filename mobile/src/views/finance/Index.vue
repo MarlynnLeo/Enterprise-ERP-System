@@ -21,7 +21,7 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { showToast } from 'vant'
+  
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
 
   const router = useRouter()

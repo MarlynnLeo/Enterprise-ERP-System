@@ -46,7 +46,7 @@ class ScheduledTaskService {
    * 停止所有定时任务
    */
   static stopAllTasks() {
-    this.tasks.forEach((task, name) => {
+    this.tasks.forEach((task) => {
       task.stop();
     });
 
@@ -398,7 +398,7 @@ class ScheduledTaskService {
 
         if (hit) {
           triggered++;
-          // 通知目标用户（notify_users > notify_roles > 默认admin=1）
+          // 通知目标用户（notify_users > notify_roles > 管理员角色）
           let targetUserIds = [];
           if (alert.notify_users) {
             try { targetUserIds = JSON.parse(alert.notify_users); } catch { targetUserIds = []; }
@@ -412,17 +412,33 @@ class ScheduledTaskService {
               }
             } catch { /* ignore */ }
           }
-          if (!targetUserIds.length) targetUserIds = [1]; // 默认发给管理员
-          const priorityMap = { low: 0, medium: 1, high: 2, critical: 3 };
-          const prio = priorityMap[alert.severity] || 1;
-          for (const uid of targetUserIds) {
-            await pool.query(
-              `INSERT INTO notifications (user_id, title, content, type, priority, is_read, created_at)
-               VALUES (?, ?, ?, 'business_alert', ?, 0, NOW())`,
-              [uid, `[${alert.severity.toUpperCase()}] ${alert.name}`, detail, prio]
+          targetUserIds = [...new Set(targetUserIds.map(Number).filter(Number.isInteger))];
+
+          if (!targetUserIds.length) {
+            const [admins] = await pool.query(
+              `SELECT DISTINCT u.id
+               FROM users u
+               JOIN user_roles ur ON ur.user_id = u.id
+               JOIN roles r ON r.id = ur.role_id
+               WHERE u.status = 1 AND (r.code = 'admin' OR r.name LIKE '%管理员%')`
             );
+            targetUserIds = admins.map((user) => user.id);
           }
-          logger.info(`业务告警触发: [${alert.code}] ${alert.name} — ${detail} → ${targetUserIds.length}人`);
+
+          if (!targetUserIds.length) {
+            logger.warn(`业务告警触发但未找到通知对象: [${alert.code}] ${alert.name}`);
+          } else {
+            const priorityMap = { low: 0, medium: 1, high: 2, critical: 3 };
+            const prio = priorityMap[alert.severity] || 1;
+            for (const uid of targetUserIds) {
+              await pool.query(
+                `INSERT INTO notifications (user_id, title, content, type, priority, is_read, created_at)
+                 VALUES (?, ?, ?, 'business_alert', ?, 0, NOW())`,
+                [uid, `[${alert.severity.toUpperCase()}] ${alert.name}`, detail, prio]
+              );
+            }
+            logger.info(`业务告警触发: [${alert.code}] ${alert.name} — ${detail} → ${targetUserIds.length}人`);
+          }
         }
         // 更新最后检查时间
         await pool.query('UPDATE business_alerts SET last_checked_at = NOW() WHERE id = ?', [alert.id]);

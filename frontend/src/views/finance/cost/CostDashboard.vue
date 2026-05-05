@@ -14,7 +14,6 @@
         </div>
       </div>
     </el-card>
-
     <!-- 核心指标卡片 -->
     <el-row :gutter="20" class="stat-row">
       <el-col :xs="24" :sm="8" v-for="(stat, index) in statistics" :key="index">
@@ -33,9 +32,6 @@
         </el-card>
       </el-col>
     </el-row>
-
-
-
     <!-- 图表区域 -->
     <el-row :gutter="20" class="chart-row">
       <!-- 成本趋势图 -->
@@ -54,7 +50,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <el-row :gutter="20" class="chart-row">
       <!-- 成本构成饼图 -->
       <el-col :xs="24" :lg="12">
@@ -67,7 +62,6 @@
           <div ref="compositionChartRef" class="chart-container"></div>
         </el-card>
       </el-col>
-
       <!-- 成本差异分析柱状图 -->
       <el-col :xs="24" :lg="12">
         <el-card class="chart-card">
@@ -80,7 +74,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 年度成本对比 -->
     <el-row :gutter="20" class="chart-row">
       <el-col :span="24">
@@ -108,7 +101,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 成本预警列表 -->
     <el-row :gutter="20" class="chart-row">
       <el-col :span="24">
@@ -160,7 +152,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 预警设置对话框 -->
     <el-dialog v-model="showAlertSettings" title="成本预警设置" width="500px">
       <el-form :model="alertSettings" label-width="150px">
@@ -186,7 +177,6 @@
         <el-button v-permission="'finance:cost:update'" type="primary" @click="saveAlertSettings" :loading="savingAlertSettings">保存</el-button>
       </template>
     </el-dialog>
-
     <!-- 月末成本结转对话框 -->
     <el-dialog v-model="showWIPDialog" title="月末成本结转" width="600px">
       <el-form label-width="120px">
@@ -200,9 +190,7 @@
             />
           </el-select>
         </el-form-item>
-
         <el-divider content-position="left">操作选项</el-divider>
-
         <div class="closing-actions">
           <el-card shadow="hover" class="action-card">
             <div class="action-content">
@@ -215,7 +203,6 @@
               </el-button>
             </div>
           </el-card>
-
           <el-card shadow="hover" class="action-card">
             <div class="action-content">
               <div class="action-info">
@@ -228,7 +215,6 @@
             </div>
           </el-card>
         </div>
-
         <!-- 结果展示 -->
         <el-divider content-position="left" v-if="closingResult">执行结果</el-divider>
         <div v-if="closingResult" class="closing-result">
@@ -240,40 +226,33 @@
           </el-descriptions>
         </div>
       </el-form>
-
       <template #footer>
         <el-button @click="showWIPDialog = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { api } from '@/services/api';
-import { Money, TrendCharts, DataLine, Setting } from '@element-plus/icons-vue'
-
+import { Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { formatCurrency } from '@/utils/helpers/formatters';
-
 // 状态定义
-const loading = ref(false);
+const _loading = ref(false);
 const trendPeriod = ref('month');
 const trendChartRef = ref(null);
 const compositionChartRef = ref(null);
 const varianceChartRef = ref(null);
-
 let trendChart = null;
 let compositionChart = null;
 let varianceChart = null;
-
 const statistics = ref([
   { label: '本月总生产成本', value: 0, change: 0, icon: 'Money', type: 'primary' },
   { label: '本月材料成本', value: 0, change: 0, icon: 'TrendCharts', type: 'success' },
   { label: '本月制造费用', value: 0, change: 0, icon: 'DataLine', type: 'warning' }
 ]);
-
 // 月末成本结转相关
 const showWIPDialog = ref(false);
 const selectedPeriodId = ref(null);
@@ -282,7 +261,6 @@ const periodsLoading = ref(false);
 const wipLoading = ref(false);
 const closingLoading = ref(false);
 const closingResult = ref(null);
-
 // 成本预警相关
 const alerts = ref([]);
 const alertsLoading = ref(false);
@@ -294,7 +272,6 @@ const alertSettings = ref({
   labor_threshold: 20,
   overhead_threshold: 25
 });
-
 // 年度成本对比相关
 const currentYear = new Date().getFullYear();
 const selectedYear = ref(currentYear);
@@ -305,10 +282,8 @@ const yearlyComparison = ref({
   labor: { label: '人工成本', current: 0, last: 0, growth: 0 },
   overhead: { label: '制造费用', current: 0, last: 0, growth: 0 }
 });
-
 // 格式化数字
 // formatNumber 已统一引用公共实现;
-
 // 数字格式化
 const formatNumber = (value, decimals = 2) => {
   if (value === null || value === undefined) return '0';
@@ -316,7 +291,6 @@ const formatNumber = (value, decimals = 2) => {
   if (isNaN(num)) return '0';
   return num.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 };
-
 // 加载会计期间
 const loadPeriods = async () => {
   periodsLoading.value = true;
@@ -338,7 +312,6 @@ const loadPeriods = async () => {
     periodsLoading.value = false;
   }
 };
-
 // 计算在制品成本
 const calculateWIP = async () => {
   if (!selectedPeriodId.value) {
@@ -365,7 +338,6 @@ const calculateWIP = async () => {
     wipLoading.value = false;
   }
 };
-
 // 执行月末成本结转
 const executeCostClosing = async () => {
   if (!selectedPeriodId.value) {
@@ -382,7 +354,6 @@ const executeCostClosing = async () => {
   } catch {
     return; // 用户取消
   }
-
   closingLoading.value = true;
   try {
     const res = await api.post(`/finance/automation/cost-closing/${selectedPeriodId.value}`);
@@ -401,7 +372,6 @@ const executeCostClosing = async () => {
     closingLoading.value = false;
   }
 };
-
 // 初始化图表
 const initCharts = () => {
   if (trendChartRef.value) {
@@ -416,13 +386,11 @@ const initCharts = () => {
   
   window.addEventListener('resize', handleResize);
 };
-
 const handleResize = () => {
   trendChart?.resize();
   compositionChart?.resize();
   varianceChart?.resize();
 };
-
 // 加载统计数据
 const loadStatistics = async () => {
   try {
@@ -441,7 +409,6 @@ const loadStatistics = async () => {
     console.error('Failed to load statistics', error);
   }
 };
-
 // 加载趋势数据
 const loadTrendData = async () => {
   try {
@@ -475,7 +442,6 @@ const loadTrendData = async () => {
     console.error('Failed to load trend data', error);
   }
 };
-
 // 加载构成数据
 const loadCompositionData = async () => {
   try {
@@ -509,7 +475,6 @@ const loadCompositionData = async () => {
     console.error('Failed to load composition data', error);
   }
 };
-
 // 加载差异数据（从真实API获取）
 const loadVarianceData = async () => {
   try {
@@ -553,7 +518,6 @@ const loadVarianceData = async () => {
     console.error('加载差异数据失败:', error);
   }
 };
-
 // 加载成本预警
 const loadCostAlerts = async () => {
   alertsLoading.value = true;
@@ -567,7 +531,6 @@ const loadCostAlerts = async () => {
     alertsLoading.value = false;
   }
 };
-
 // 加载预警配置
 const loadAlertSettings = async () => {
   try {
@@ -586,7 +549,6 @@ const loadAlertSettings = async () => {
     console.error('加载预警配置失败:', error);
   }
 };
-
 // 保存预警配置
 const saveAlertSettings = async () => {
   savingAlertSettings.value = true;
@@ -602,7 +564,6 @@ const saveAlertSettings = async () => {
     savingAlertSettings.value = false;
   }
 };
-
 // 加载年度成本对比
 const loadYearlyComparison = async () => {
   try {
@@ -642,7 +603,6 @@ const loadYearlyComparison = async () => {
     console.error('加载年度成本对比失败:', error);
   }
 };
-
 const refreshData = () => {
   loadStatistics();
   loadTrendData();
@@ -652,7 +612,6 @@ const refreshData = () => {
   loadYearlyComparison();
   ElMessage.success('数据已刷新');
 };
-
 onMounted(async () => {
   await nextTick();
   initCharts();
@@ -660,7 +619,6 @@ onMounted(async () => {
   loadPeriods(); // 加载会计期间
   loadAlertSettings(); // 加载预警配置
 });
-
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   trendChart?.dispose();
@@ -668,7 +626,6 @@ onUnmounted(() => {
   varianceChart?.dispose();
 });
 </script>
-
 <style scoped>
 .dashboard-container {
   padding: 20px;
@@ -712,7 +669,6 @@ onUnmounted(() => {
 .stat-icon.primary { background-color: var(--color-primary-light-9); color: var(--color-primary); }
 .stat-icon.success { background-color: var(--color-success-light); color: var(--color-success); }
 .stat-icon.warning { background-color: var(--color-warning-light); color: var(--color-warning); }
-
 .stat-info {
   flex: 1;
 }
@@ -780,9 +736,6 @@ onUnmounted(() => {
 .closing-result {
   margin-top: 10px;
 }
-
-
-
 /* 年度成本对比样式 */
 .yearly-comparison-card {
   margin-bottom: 20px;
@@ -816,7 +769,6 @@ onUnmounted(() => {
   color: var(--color-text-secondary);
   font-size: 12px;
 }
-
 /* 成本预警样式 */
 .alert-card {
   margin-bottom: 20px;

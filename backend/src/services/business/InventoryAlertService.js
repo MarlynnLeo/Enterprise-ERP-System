@@ -243,7 +243,12 @@ class InventoryAlertService {
       logger.info('📢 低库存预警通知已发送');
     } catch (error) {
       logger.error('发送低库存通知失败:', error);
-      // 不抛出异常，通知失败不影响主流程
+      const DLQService = require('./DLQService');
+      await DLQService.recordSideEffectFailure(
+        'InventoryAlert:sendLowStockNotification',
+        { lowStockCount: lowStockItems?.length || 0, requisitionNo },
+        error
+      );
     }
   }
 
@@ -403,10 +408,14 @@ class InventoryAlertService {
       }
     } catch (error) {
       logger.error('库存变动后检查预警失败:', error);
-      // 不抛出异常，预警检查失败不影响主流程
+      const DLQService = require('./DLQService');
+      await DLQService.recordSideEffectFailure(
+        'InventoryAlert:checkStockAfterChange',
+        { materialId, newQuantity },
+        error
+      );
     }
   }
 }
 
 module.exports = InventoryAlertService;
-

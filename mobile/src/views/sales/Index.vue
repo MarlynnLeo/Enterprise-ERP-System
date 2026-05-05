@@ -21,7 +21,7 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { showToast } from 'vant'
+  
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
   import { salesApi } from '@/services/api'
 
@@ -126,7 +126,7 @@
 
   // ---- 路由跳转 ----
   const navigateTo = (path) => {
-    const devPaths = ['/sales/orders/create', '/sales/outbound/new', '/sales/customers']
+    
 
     router.push(path)
   }

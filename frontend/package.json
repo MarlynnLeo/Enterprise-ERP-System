@@ -2,18 +2,19 @@
   "name": "erp-mes-frontend",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:alt": "vite --port 3000 || vite --port 3001 || vite --port 3002",
     "build": "vite build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "@vue-office/docx": "^1.6.3",
     "@vue-office/excel": "^1.7.14",
-    "@vue-office/pdf": "^2.0.10",
-    "@vueup/vue-quill": "^1.2.0",
     "axios": "^1.6.2",
     "chart.js": "^4.4.8",
     "dayjs": "^1.11.10",
@@ -33,6 +34,9 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",
     "@vitejs/plugin-vue": "^6.0.3",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.8.0",
     "rollup-plugin-visualizer": "^6.0.5",
     "sass": "^1.69.5",
     "terser": "^5.43.1",

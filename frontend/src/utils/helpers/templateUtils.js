@@ -215,7 +215,7 @@ export function formatTemplate(content) {
   if (!content) return '';
 
   // 简单的HTML格式化
-  let formatted = content
+  const formatted = content
     .replace(/></g, '>\n<')
     .replace(/^\s+|\s+$/gm, '')
     .split('\n')

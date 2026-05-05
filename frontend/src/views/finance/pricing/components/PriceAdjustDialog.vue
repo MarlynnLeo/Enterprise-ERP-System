@@ -23,19 +23,21 @@
       </el-form-item>
       <el-form-item label="调整后价格" prop="adjusted_price" required>
         <el-input-number 
-          v-model="form.adjusted_price" 
+          :model-value="form.adjusted_price" 
           :min="0"
           :precision="2"
           :step="0.01"
           style="width: 100%"
+          @update:model-value="updateFormField('adjusted_price', $event)"
         />
       </el-form-item>
       <el-form-item label="调整原因" prop="adjustment_reason" required>
         <el-input 
-          v-model="form.adjustment_reason" 
+          :model-value="form.adjustment_reason" 
           type="textarea"
           :rows="3"
           placeholder="请输入调整原因"
+          @update:model-value="updateFormField('adjustment_reason', $event)"
         />
       </el-form-item>
     </el-form>
@@ -58,7 +60,7 @@ const props = defineProps({
   submitting: Boolean
 });
 
-const emit = defineEmits(['update:modelValue', 'save']);
+const emit = defineEmits(['update:modelValue', 'update:form', 'save']);
 
 const visible = computed({
   get: () => props.modelValue,
@@ -67,6 +69,10 @@ const visible = computed({
 
 const handleClose = () => {
   visible.value = false;
+};
+
+const updateFormField = (field, value) => {
+  emit('update:form', { ...props.form, [field]: value });
 };
 
 const handleSave = () => {

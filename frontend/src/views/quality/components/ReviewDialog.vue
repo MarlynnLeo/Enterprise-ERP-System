@@ -241,7 +241,7 @@ const formatDimensionTolerance = (item) => {
   return `${dimensionValue.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
 }
 
-const checkDimensionTolerance = (item, showMessage = false) => {
+const checkDimensionTolerance = (item) => {
   if (!item.dimension_value) return
   const dimensionValue = parseFloat(item.dimension_value)
   const toleranceUpper = parseFloat(item.tolerance_upper) || 0

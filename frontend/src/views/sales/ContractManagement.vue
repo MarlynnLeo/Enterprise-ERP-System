@@ -226,7 +226,7 @@ const fetchList = async () => {
     const d = res.data || res
     tableData.value = d.list || []
     total.value = d.total || 0
-  } catch (e) { ElMessage.error('获取合同列表失败') }
+  } catch { ElMessage.error('获取合同列表失败') }
   finally { loading.value = false }
 }
 
@@ -255,7 +255,7 @@ const handleDelete = async (id) => {
     await contractApi.delete(id)
     ElMessage.success('删除成功')
     fetchList()
-  } catch (e) { ElMessage.error('删除失败') }
+  } catch { ElMessage.error('删除失败') }
 }
 
 const viewDetail = async (row) => {
@@ -263,7 +263,7 @@ const viewDetail = async (row) => {
     const res = await contractApi.getById(row.id)
     detailData.value = res.data || res
     detailVisible.value = true
-  } catch (e) { ElMessage.error('获取合同详情失败') }
+  } catch { ElMessage.error('获取合同详情失败') }
 }
 
 onMounted(fetchList)

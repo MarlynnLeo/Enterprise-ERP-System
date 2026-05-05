@@ -11,15 +11,24 @@ const db = require('../../../config/db');
 const SalesDao = require('../../../database/salesDao');
 const { SALES_STATUS } = require('../../../constants/systemConstants');
 const InventoryReservationService = require('../../../services/InventoryReservationService');
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const { softDelete } = require('../../../utils/softDelete');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
-// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
-const { STATUS, getConnection, getConnectionWithTransaction, generateSalesOrderNo, generateTransactionNo } = require('./salesShared');
+const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared');
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
 
-// 添加新的控制器方法
+const getAuthenticatedUserInfo = (req) => {
+  const id = getAuthenticatedUserId(req);
+  return {
+    ...req.user,
+    id,
+    username: req.user?.username || '',
+    real_name: req.user?.real_name || req.user?.name || req.user?.username || '',
+  };
+};
 
 exports.getSalesOrderOperators = async (req, res) => {
   try {
@@ -61,11 +70,9 @@ exports.getSalesOrders = async (req, res) => {
       startDate = '',
       endDate = '',
       operator = '',
-      sort = 'order_no',
-      order = 'desc',
     } = req.query;
 
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { maxPageSize: 200, defaultPageSize: 10 });
 
     const connection = await db.pool.getConnection();
 
@@ -99,11 +106,7 @@ exports.getSalesOrders = async (req, res) => {
         params.push(operator);
       }
 
-      // 优化的单次查询 - 使用JOIN避免N+1问题
-      // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const actualPageSize = parseInt(pageSize);
-      const actualOffset = parseInt(offset);
-      const [orders] = await connection.query(
+      const ordersQuery = appendPaginationSQL(
         `
       SELECT
         so.id,
@@ -136,8 +139,12 @@ exports.getSalesOrders = async (req, res) => {
       LEFT JOIN users creator ON so.created_by = creator.id
       WHERE 1=1${whereClause}
       ORDER BY so.order_no DESC
-      LIMIT ${actualPageSize} OFFSET ${actualOffset}
     `,
+        pagination.limit,
+        pagination.offset
+      );
+      const [orders] = await connection.query(
+        ordersQuery,
         params
       );
 
@@ -282,8 +289,8 @@ exports.getSalesOrders = async (req, res) => {
         res,
         formattedOrders,
         total,
-        parseInt(page),
-        parseInt(pageSize),
+        pagination.page,
+        pagination.pageSize,
         '获取销售订单成功'
       );
     } finally {
@@ -633,7 +640,7 @@ exports.updateOrderStatus = async (req, res) => {
               connection,
               id,
               insufficientItems,
-              req.user || { id: 1, username: 'system', real_name: '系统' }
+              getAuthenticatedUserInfo(req)
             );
 
             // 如果生成了计划，状态应该是in_production或in_procurement
@@ -711,11 +718,9 @@ exports.createSalesOrder = async (req, res) => {
       return ResponseHandler.error(res, '客户ID不能为空', 'BAD_REQUEST', 400);
     }
 
-    // 设置创建者信息
-    if (req.user && req.user.id) {
-      orderData.createdBy = req.user.id;
-    } else {
-      orderData.createdBy = 1; // 假设1是默认管理员ID
+    const createdBy = req.user?.id;
+    if (!createdBy) {
+      return ResponseHandler.error(res, '缺少当前用户信息，无法创建销售订单', 'UNAUTHORIZED', 401);
     }
 
     // 准备订单数据
@@ -735,7 +740,7 @@ exports.createSalesOrder = async (req, res) => {
         : new Date().toISOString().split('T')[0],
       status: orderData.status || 'draft',
       remarks: orderData.remark || '',
-      createdBy: orderData.createdBy,
+      createdBy,
     };
 
     // 处理订单项 - 支持自动从物料获取销售价格
@@ -818,11 +823,7 @@ exports.createSalesOrder = async (req, res) => {
 
       // 根据物料来源自动生成后续单据，并获取建议的订单状态
       // 使用统一的生成函数，传入用户信息
-      const userInfo = req.user || {
-        id: orderData.createdBy,
-        username: 'system',
-        real_name: '系统',
-      };
+      const userInfo = getAuthenticatedUserInfo(req);
       const suggestedStatus = await autoGenerateFollowUpDocuments(result.id, items, userInfo);
 
       // 如果有建议的状态且与当前状态不同，则更新订单状态
@@ -899,7 +900,7 @@ exports.updateSalesOrder = async (req, res) => {
     if (requestData.should_generate_plans) {
       try {
         logger.info(`✅ 编辑订单 ${id}，需要生成生产/采购计划`);
-        const userInfo = req.user || { id: 1, username: 'system', real_name: '系统' };
+        const userInfo = getAuthenticatedUserInfo(req);
 
         // 自动生成生产计划和采购申请
         await autoGenerateFollowUpDocuments(id, items, userInfo);
@@ -1013,7 +1014,6 @@ exports.deleteSalesOrder = async (req, res) => {
 };
 
 
-
 // 添加总体销售统计数据接口
 
 exports.lockOrder = async (req, res) => {
@@ -1023,7 +1023,7 @@ exports.lockOrder = async (req, res) => {
 
     const { id } = req.params;
     const { lock_reason } = req.body;
-    const userId = req.user ? req.user.id : 1;
+    const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
     const [orderResult] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id]);
@@ -1126,7 +1126,7 @@ exports.unlockOrder = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const userId = req.user ? req.user.id : 1;
+    const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
     const [orderResult] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id]);
@@ -1230,17 +1230,12 @@ exports.getOrderLockStatus = async (req, res) => {
 /**
  * @deprecated 装箱单表结构已迁移至 Knex 迁移文件 20260312000009 管理，此函数保留为空操作
  */
-async function ensurePackingListTablesExist() {
-  // 表结构由 migrations/20260312000009_baseline_misc_tables.js 管理
-  // 测试数据应由 seeds/ 种子文件管理
-}
+
 
 /**
  * 使用统一的编号生成服务 - 替代原 generatePackingListNo 函数
  */
-async function generatePackingListNo(connection) {
-  return await CodeGenerators.generatePackingListCode(connection);
-}
+
 
 /**
  * 获取装箱单列表
@@ -1462,12 +1457,6 @@ exports.importOrders = async (req, res) => {
               items: [],
             };
 
-            // 调试日志：记录备注信息
-            if (row['备注']) {
-              logger.info(
-                `📝 读取到备注信息: "${row['备注']}"(客户: ${customerCode}, 合同: ${contractCode})`
-              );
-            }
           }
 
           // 添加订单明细
@@ -1481,12 +1470,6 @@ exports.importOrders = async (req, res) => {
             rowNum: rowNum,
           });
 
-          // 调试日志：记录产品级别的备注
-          if (row['备注']) {
-            logger.info(
-              `📝 读取到产品备注: "${row['备注']}"(产品编码: ${row['产品编码'] || row['产品规格']})`
-            );
-          }
         } catch (error) {
           logger.error(`验证第${rowNum} 行数据失败: `, error);
           errors.push(`第${rowNum} 行: ${error.message} `);
@@ -1495,7 +1478,7 @@ exports.importOrders = async (req, res) => {
       }
 
       // 处理每个分组的订单（按客户+合同编码分组）
-      for (const [groupKey, orderData] of Object.entries(ordersByCustomer)) {
+      for (const [, orderData] of Object.entries(ordersByCustomer)) {
         try {
           // 通过客户编码查找客户ID
           const [customers] = await connection.query('SELECT id FROM customers WHERE code = ? AND deleted_at IS NULL', [
@@ -1519,9 +1502,6 @@ exports.importOrders = async (req, res) => {
           // 生成订单编号
           const orderNo = await generateSalesOrderNo(connection);
 
-          // 调试日志：记录即将插入的备注信息
-          logger.info(`📝 准备插入订单备注: "${orderData.remarks}"(订单号: ${orderNo})`);
-
           // 插入销售订单主记录
           const [orderResult] = await connection.query(
             `
@@ -1538,7 +1518,7 @@ exports.importOrders = async (req, res) => {
               totalAmount,
               'draft',
               orderData.remarks,
-              req.user?.id || 1,
+              getAuthenticatedUserId(req),
             ]
           );
 
@@ -1622,11 +1602,6 @@ exports.importOrders = async (req, res) => {
               logger.warn(
                 `📝 订单明细暂无物料ID：产品编码 = ${productCodeForStorage || '无'}，产品规格 = ${productSpecsForStorage || '无'}，数量 = ${item.quantity}，单价 = ${item.unitPrice} `
               );
-            }
-
-            // 调试日志：记录产品备注插入
-            if (item.remark) {
-              logger.info(`📝 插入产品备注: "${item.remark}"(物料ID: ${materialId || '待补充'})`);
             }
 
             // 插入订单明细（允许material_id为NULL）
@@ -1757,7 +1732,7 @@ exports.importOrders = async (req, res) => {
                   connection,
                   orderId,
                   insufficientItems,
-                  req.user || { id: 1, username: 'system', real_name: '系统' }
+                  getAuthenticatedUserInfo(req)
                 );
 
                 // 根据物料来源类型决定状态
@@ -1865,28 +1840,23 @@ exports.downloadOrderTemplate = async (req, res) => {
       },
     ];
 
-    // 创建工作簿
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('销售订单导入模板');
 
-    // 设置列宽
-    const colWidths = [
-      { wch: 15 }, // 客户编码
-      { wch: 15 }, // 合同编码
-      { wch: 15 }, // 产品编码
-      { wch: 25 }, // 产品规格
-      { wch: 10 }, // 数量
-      { wch: 12 }, // 单价
-      { wch: 15 }, // 交货日期
-      { wch: 15 }, // 订单金额
-      { wch: 30 }, // 备注
+    worksheet.columns = [
+      { header: '客户编码', key: '客户编码', width: 15 },
+      { header: '合同编码', key: '合同编码', width: 15 },
+      { header: '产品编码', key: '产品编码', width: 15 },
+      { header: '产品规格', key: '产品规格', width: 25 },
+      { header: '数量', key: '数量', width: 10 },
+      { header: '单价', key: '单价', width: 12 },
+      { header: '交货日期', key: '交货日期', width: 15 },
+      { header: '订单金额', key: '订单金额', width: 15 },
+      { header: '备注', key: '备注', width: 30 },
     ];
-    worksheet['!cols'] = colWidths;
+    worksheet.addRows(templateData);
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, '销售订单导入模板');
-
-    // 生成Excel文件
-    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const excelBuffer = await workbook.xlsx.writeBuffer();
 
     // 设置响应头
     res.setHeader(
@@ -1999,7 +1969,7 @@ exports.getOrderUnshippedItems = async (req, res) => {
         const shippedQty = shippedMap[item.material_id] || 0;
         const remainingQty = orderedQty - shippedQty;
 
-        let shippingStatus = 'unshipped';
+        let shippingStatus;
         if (shippedQty === 0) {
           shippingStatus = 'unshipped';
         } else if (shippedQty >= orderedQty) {
@@ -2051,4 +2021,3 @@ exports.getOrderUnshippedItems = async (req, res) => {
 };
 
 // 获取客户所有订单的产品明细
-

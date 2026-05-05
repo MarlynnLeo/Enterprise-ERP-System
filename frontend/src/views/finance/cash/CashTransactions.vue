@@ -369,14 +369,15 @@
 </template>
 
 <script setup>
-import apiAdapter from '@/utils/apiAdapter';
+import '@/utils/apiAdapter';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
 
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { UploadFilled, Plus } from '@element-plus/icons-vue'
 import { api } from '@/services/api';
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 // 数据加载状态
 const loading = ref(false);
@@ -401,7 +402,7 @@ const uploadRef = ref(null);
 // 导入相关
 const importLoading = ref(false);
 const importFileList = ref([]);
-const importResult = ref(null);
+
 
 // 数据列表
 const transactionList = ref([]);
@@ -455,7 +456,7 @@ const transactionRules = {
 };
 
 // 监听交易类型变化，重置分类
-watch(() => transactionForm.type, (newType) => {
+watch(() => transactionForm.type, () => {
   transactionForm.category = '';
 });
 
@@ -899,8 +900,7 @@ const printCashStatement = async () => {
         printContent = printContent.replace(/{{totalExpense}}/g, totalExpense.toLocaleString('zh-CN', { minimumFractionDigits: 2 }));
         printContent = printContent.replace(/{{finalBalance}}/g, runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 }));
 
-        printWindow.document.write(printContent);
-        printWindow.document.close();
+        writeSafeHtmlDocument(printWindow, printContent);
 
         // 等待内容加载完成后打印
         printWindow.onload = function() {

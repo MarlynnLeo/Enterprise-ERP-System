@@ -17,6 +17,7 @@ const { parsePagination } = require('../../../utils/paginationHelper');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { generateBatchNo, syncPlanStatus } = require('../../../services/business/TaskLifecycleService');
 const QualityInspection = require('../../../models/qualityInspection');
+const BusinessError = require('../../../utils/BusinessError');
 
 // 状态常量（统一引用 businessConfig，消除硬编码）
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -253,7 +254,7 @@ exports.updateProcess = async (req, res) => {
     const planId = taskInfoContext.length > 0 ? taskInfoContext[0].plan_id : null;
 
     // 工序开始或进行中时，更新生产任务和计划状态为"生产中"
-    if (status === STATUS.PROCESS.IN_PROGRESS) {
+    if (status === PROC_STATUS.IN_PROGRESS) {
       // 1. 更新生产任务状态为生产中(只更新允许的前置状态)
       await connection.query(
         'UPDATE production_tasks SET status = "in_progress" WHERE id = ? AND status IN ("pending", "preparing", "material_issued", "material_partial_issued")',
@@ -271,7 +272,7 @@ exports.updateProcess = async (req, res) => {
     }
 
     // 工序完成时检查是否所有工序都已完成
-    if (status === STATUS.PROCESS.COMPLETED) {
+    if (status === PROC_STATUS.COMPLETED) {
       // 统计该任务下的所有工序状态
       const [allProcesses] = await connection.query(
         `
@@ -291,7 +292,7 @@ exports.updateProcess = async (req, res) => {
       // 所有有效工序（非取消）都完成时，自动将任务状态更新为待检验
       if (activeProcessesCompleted && total > 0) {
         // 将API状态转换为数据库ENUM状态
-        const dbStatus = apiStatusToDbStatus(STATUS.PRODUCTION_TASK.INSPECTION, 'productionTask');
+        const dbStatus = apiStatusToDbStatus(TASK_STATUS.INSPECTION, 'productionTask');
 
         // 更新任务状态为待检验
         await connection.query(
@@ -335,7 +336,7 @@ exports.updateProcess = async (req, res) => {
                 planned_date: new Date(),
                 status: PROC_STATUS.PENDING,
                 note: '工序完成时自动创建',
-              });
+              }, connection);
 
               logger.info(`任务 ${taskId} 工序完成，自动创建检验单成功`);
             } else {
@@ -344,7 +345,7 @@ exports.updateProcess = async (req, res) => {
           }
         } catch (inspectionError) {
           logger.error(`任务 ${taskId} 自动创建检验单失败:`, inspectionError);
-          // 不影响主流程，继续执行
+          throw inspectionError;
         }
 
         // ===== 工序完工的附加处理（主事务内执行，保障数据一致性）=====
@@ -381,7 +382,7 @@ exports.updateProcess = async (req, res) => {
                work_hours, remarks, created_at)
               VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
               [
-                reportNo, taskId, operatorName, finalQuantity, finalQuantity, finalQuantity,
+                reportNo, taskId, operatorName, finalQuantity, finalQuantity, 0,
                 estimatedHours, '工序完成后系统自动生成'
               ]
             );
@@ -389,15 +390,20 @@ exports.updateProcess = async (req, res) => {
           }
         }
 
-        // 3. 自动关闭未完成的首检/过程检验单
-        const [updatedInspections] = await connection.query(
-          `UPDATE quality_inspections
-           SET status = 'passed', note = CONCAT(COALESCE(note, ''), ' | 工序全部完成时系统自动按合格跳过')
-           WHERE task_id = ? AND inspection_type IN ('first_article', 'process') AND status = 'pending'`,
+        // 3. 工序全部完成前必须先处理首检/过程检验，禁止绕过质量判定
+        const [openInspections] = await connection.query(
+          `SELECT id, inspection_no, inspection_type, status
+           FROM quality_inspections
+           WHERE task_id = ?
+             AND inspection_type IN ('first_article', 'process')
+             AND (status IS NULL OR status NOT IN ('passed', 'completed', 'cancelled'))`,
           [taskId]
         );
-        if (updatedInspections.affectedRows > 0) {
-          logger.info(`任务 ${taskId} 工序完成附加处理：自动跳过 ${updatedInspections.affectedRows} 个未执行的首检/过程检验`);
+        if (openInspections.length > 0) {
+          throw new BusinessError(
+            `任务 ${taskId} 仍有 ${openInspections.length} 个首检/过程检验未通过，不能自动完成工序收尾。请先完成或处理相关检验单。`,
+            { route: `/quality/process?taskId=${taskId}`, buttonText: '去处理检验单' }
+          );
         }
 
         // 4. 成本核算标记（commit 后异步触发，避免读到未提交数据）
@@ -420,7 +426,7 @@ exports.updateProcess = async (req, res) => {
     await connection.commit();
 
     // 成本核算在事务提交后异步执行
-    if (status === STATUS.PROCESS.COMPLETED && taskId) {
+    if (status === PROC_STATUS.COMPLETED && taskId) {
       setImmediate(async () => {
         try {
           const CostAccountingService = require('../../../services/business/CostAccountingService');

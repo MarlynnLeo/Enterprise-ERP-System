@@ -11,14 +11,10 @@
     <router-view />
   </div>
 </template>
-
 <script setup>
-import { computed } from 'vue'
-
 // 权限计算属性
 // 质量管理主组件
 </script>
-
 <style scoped>
 .quality-management {
   height: 100%;

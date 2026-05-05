@@ -167,7 +167,7 @@
 <script setup>
 import { formatDate } from '@/utils/helpers/dateUtils'
 
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus'
 import { api } from '@/services/api';
 import { Search, Refresh } from '@element-plus/icons-vue'

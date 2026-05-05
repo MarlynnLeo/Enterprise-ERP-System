@@ -48,15 +48,6 @@
         @error="handleDocError"
       />
 
-      <!-- PDF文档预览 -->
-      <VueOfficePdf
-        v-else-if="fileType === '.pdf'"
-        :src="fileUrl"
-        style="height: 100%;"
-        @rendered="handleDocRendered"
-        @error="handleDocError"
-      />
-
       <!-- 其他文件类型使用iframe -->
       <iframe
         v-else
@@ -74,14 +65,14 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { defineAsyncComponent, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '@/services/axiosInstance'
-import VueOfficeDocx from '@vue-office/docx'
-import VueOfficeExcel from '@vue-office/excel'
-import VueOfficePdf from '@vue-office/pdf'
 import '@vue-office/docx/lib/index.css'
 import '@vue-office/excel/lib/index.css'
+
+const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx'))
+const VueOfficeExcel = defineAsyncComponent(() => import('@vue-office/excel'))
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

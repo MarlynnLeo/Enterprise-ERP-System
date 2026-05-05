@@ -63,7 +63,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 日志详情
   }
 </script>

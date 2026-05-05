@@ -99,7 +99,7 @@ export async function searchMaterials(baseDataApi, searchTerm, options = {}) {
     })
   }
 
-  let allResults = []
+  const allResults = []
 
   for (const endpoint of searchEndpoints) {
     try {
@@ -115,7 +115,7 @@ export async function searchMaterials(baseDataApi, searchTerm, options = {}) {
         }
       })
 
-    } catch (error) {
+    } catch {
       // 搜索失败时静默处理，继续尝试其他端点
     }
   }

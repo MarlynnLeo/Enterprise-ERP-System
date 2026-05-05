@@ -31,7 +31,6 @@
         <div class="stat-label">复检</div>
       </el-card>
     </div>
-
     <el-card class="box-card">
       <template #header>
         <div class="card-header">
@@ -100,7 +99,6 @@
           </el-col>
         </el-row>
       </div>
-
       <!-- 检验单列表 -->
       <el-table
         :data="inspectionList"
@@ -322,7 +320,6 @@
           <el-descriptions-item label="批次号">{{ inspectForm.batch_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ inspectForm.quantity }} {{ inspectForm.unit || '' }}</el-descriptions-item>
         </el-descriptions>
-
         <!-- 检验项目表格 -->
         <el-form-item label="检验项目" prop="items">
           <div style="width: 100%;">
@@ -411,7 +408,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="检验员" prop="inspector_name">
@@ -475,7 +471,6 @@
           <el-descriptions-item label="标准编号">{{ currentInspection.standard_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="3">{{ currentInspection.note || '-' }}</el-descriptions-item>
         </el-descriptions>
-
         <div class="inspection-items" style="margin-top: 20px;">
           <h4>检验项目</h4>
           <el-table :data="currentInspection.items" border style="width: 100%">
@@ -700,22 +695,19 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, StarFilled } from '@element-plus/icons-vue'
-import dayjs from 'dayjs'
+import 'dayjs'
 import { qualityApi, productionApi } from '@/services/api'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 // 权限store
 const authStore = useAuthStore()
-
 // 搜索相关 - 使用统一的filters对象
 const filters = reactive({
   keyword: '',
@@ -723,7 +715,6 @@ const filters = reactive({
   startDate: '',
   endDate: ''
 })
-
 // 为了兼容现有模板，保留原有的ref
 const searchKeyword = computed({
   get: () => filters.keyword,
@@ -745,7 +736,6 @@ const dateRange = computed({
     }
   }
 })
-
 // 表格数据相关
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -753,7 +743,6 @@ const inspectionList = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
-
 // 创建检验单相关
 const createDialogVisible = ref(false)
 const formRef = ref(null)
@@ -770,7 +759,6 @@ const form = reactive({
   plannedDate: new Date(),
   note: ''
 })
-
 // 表单验证规则
 const rules = {
   productionOrderNo: [{ required: true, message: '请选择工单号', trigger: 'change' }],
@@ -780,10 +768,8 @@ const rules = {
   standardNo: [{ required: true, message: '请输入标准编号', trigger: 'blur' }],
   plannedDate: [{ required: true, message: '请选择计划检验日期', trigger: 'change' }]
 }
-
 // 工单选项
 const productionOrderOptions = ref([])
-
 // 添加检验单统计数据
 const inspectionStats = ref({
   total: 0,
@@ -792,31 +778,18 @@ const inspectionStats = ref({
   failed: 0,
   review: 0
 })
-
 // 返工状态缓存: key 为检验单ID, value 为返工状态对象
 const reworkStatusMap = ref({})
-
 // 添加检验模板相关数据
-const inspectionTemplates = ref([])
+const _inspectionTemplates = ref([])
 const currentTemplateItems = ref([])
-
 // 在script setup部分添加
 const viewDialogVisible = ref(false)
 const currentInspection = ref({})
-
 // 添加报告和证书对话框的ref
 const reportDialogVisible = ref(false)
 const certificateDialogVisible = ref(false)
-
-const router = useRouter()
-
-// 成品检验默认检验项（无模板时的回退项）
-const DEFAULT_FQC_ITEMS = [
-  { id: 1, item_name: '外观检查', standard: '无划痕、无变形', type: 'visual', is_critical: true },
-  { id: 2, item_name: '尺寸检查', standard: '符合图纸要求', type: 'dimension', is_critical: true },
-  { id: 3, item_name: '功能测试', standard: '功能正常', type: 'function', is_critical: true }
-]
-
+const _router = useRouter()
 // 获取工单选项
 const fetchProductionOrders = async () => {
   try {
@@ -824,7 +797,6 @@ const fetchProductionOrders = async () => {
       status: 'completed',
       pageSize: 1000
     });
-
     const taskItems = parseListData(response, { enableLog: false });
     if (taskItems.length > 0) {
       productionOrderOptions.value = taskItems
@@ -835,6 +807,7 @@ const fetchProductionOrders = async () => {
           productId: task.product_id || task.material_id || null, // 关键：保存物料/产品ID
           productName: task.productName || task.product_name || '未知产品',
           productCode: task.specs || task.productCode || task.product_code || '未知型号',
+          batchNo: task.batchNo || task.batch_no || '',
           unit: task.unit || '个'
         }));
     }
@@ -847,11 +820,9 @@ const fetchProductionOrders = async () => {
     productionOrderOptions.value = [];
   }
 }
-
 // 获取成品检验模板（使用物料/产品ID查询，同时包含通用模板）
 const fetchInspectionTemplate = async (materialId) => {
   if (!materialId) return;
-
   submitLoading.value = true
   try {
     const response = await qualityApi.getTemplates({
@@ -862,9 +833,7 @@ const fetchInspectionTemplate = async (materialId) => {
       pageSize: 100,
       page: 1
     });
-
     const templatesData = parseListData(response, { enableLog: false });
-
     if (templatesData.length > 0) {
       // 优先专属模板，没有则回退到通用模板
       const specificTemplates = templatesData.filter(t => {
@@ -873,17 +842,15 @@ const fetchInspectionTemplate = async (materialId) => {
           try {
             const types = typeof t.material_types === 'string' ? JSON.parse(t.material_types) : t.material_types;
             if (Array.isArray(types) && types.map(String).includes(String(materialId))) return true;
-          } catch (e) { /* 忽略 */ }
+          } catch { /* 忽略 */ }
         }
         return false;
       });
       const generalTemplates = templatesData.filter(t => t.is_general);
       const effectiveTemplates = specificTemplates.length > 0 ? specificTemplates : generalTemplates;
-
       if (effectiveTemplates.length > 0) {
         const template = effectiveTemplates.find(t => t.is_default) || effectiveTemplates[0];
         const templateItems = template.items || template.InspectionItems || [];
-
         if (templateItems.length > 0) {
           currentTemplateItems.value = templateItems.map(item => ({
             id: item.id,
@@ -899,18 +866,16 @@ const fetchInspectionTemplate = async (materialId) => {
         }
       }
     }
-
-    // 未找到有效模板，使用默认检验项
-    currentTemplateItems.value = [...DEFAULT_FQC_ITEMS];
+    currentTemplateItems.value = [];
+    throw new Error('未找到可用的成品检验模板');
   } catch (error) {
     console.error('获取检验模板失败:', error);
-    ElMessage.warning('获取检验模板失败，使用默认检验项');
-    currentTemplateItems.value = [...DEFAULT_FQC_ITEMS];
+    currentTemplateItems.value = [];
+    throw error;
   } finally {
     submitLoading.value = false;
   }
 }
-
 // 从后端获取各状态的统计总数（使用轻量请求 limit=1 只取 total 字段）
 const calculateInspectionStats = async () => {
   try {
@@ -945,10 +910,8 @@ const calculateInspectionStats = async () => {
     inspectionStats.value = stats
   }
 }
-
 // 添加统一的日期格式化方法
 // formatDate 已统一引用公共实现
-
 // 工单选择后，提取物料信息并查询模板
 const handleOrderChange = (orderNo) => {
   const order = productionOrderOptions.value.find(item => item.orderNo === orderNo)
@@ -959,14 +922,7 @@ const handleOrderChange = (orderNo) => {
     form.productCode = order.productCode
     form.unit = order.unit
     
-    // 自动生成批次号
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}${month}${day}`;
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    form.batchNo = `SCT-${dateStr}-${randomNum}`;
+    form.batchNo = order.batchNo || ''
     
     // 使用物料/产品ID查询检验模板（而非工单ID）
     const materialId = order.productId || order.id;
@@ -976,40 +932,32 @@ const handleOrderChange = (orderNo) => {
     form.standardNo = orderNo.replace('PD', 'STD') + '-FQC'
   }
 }
-
 // 初始化
 onMounted(() => {
   fetchData()
   fetchProductionOrders()
 })
-
 // 获取检验单列表
 const fetchData = async () => {
   loading.value = true;
-
   try {
     // 构建查询参数对象 - 使用filters对象
     const queryParams = {
       page: currentPage.value,
       limit: pageSize.value
     };
-
     if (filters.keyword) {
       queryParams.keyword = filters.keyword;
     }
-
     if (filters.status) {
       queryParams.status = filters.status;
     }
-
     if (filters.startDate && filters.endDate) {
       queryParams.startDate = filters.startDate;
       queryParams.endDate = filters.endDate;
     }
-
     // 使用统一的API调用方式
     const response = await qualityApi.getFinalInspections(queryParams);
-
     // axios 拦截器已自动解包，response.data 是分页数据对象 {list, total, page, pageSize}
     const responseData = response.data;
     if (responseData && (responseData.list || Array.isArray(responseData))) {
@@ -1029,7 +977,6 @@ const fetchData = async () => {
     loading.value = false;
   }
 }
-
 /**
  * 批量查询当前列表中所有 failed 状态检验单的返工任务状态
  * 闭环逻辑: 只有当返工任务完成后，复检按钮才可点击
@@ -1037,7 +984,6 @@ const fetchData = async () => {
 const fetchReworkStatusForFailedInspections = async () => {
   const failedInspections = inspectionList.value.filter(row => row.status === 'failed');
   if (failedInspections.length === 0) return;
-
   // 并行查询所有 failed 检验单的返工状态
   const promises = failedInspections.map(async (row) => {
     try {
@@ -1051,7 +997,6 @@ const fetchReworkStatusForFailedInspections = async () => {
   });
   await Promise.all(promises);
 }
-
 /**
  * 根据检验单的返工闭环状态，返回对应的提示文字
  */
@@ -1066,30 +1011,24 @@ const getReworkHintText = (inspectionId) => {
   if (status.rework_completed) return '复检'; // 不应该走到这里，因为 allow_reinspection 已经为 true
   return '返工中';
 }
-
 import { getQualityStatusText, getQualityStatusColor, getQualityInspectionTypeText } from '@/constants/systemConstants'
-
 // 获取状态类型（用于tag颜色）
 const getStatusType = (status) => {
   return getQualityStatusColor(status)
 }
-
 // 获取状态文本
 const getStatusText = (status) => {
   return getQualityStatusText(status)
 }
-
 // 添加获取检验类型的中文文本函数
 const getTypeText = (type) => {
   return getQualityInspectionTypeText(type)
 }
-
 // 搜索
 const handleSearch = () => {
   currentPage.value = 1
   fetchData()
 }
-
 // 刷新
 const handleRefresh = () => {
   // 重置filters对象
@@ -1101,18 +1040,15 @@ const handleRefresh = () => {
   pageSize.value = 20
   fetchData()
 }
-
 // 分页相关
 const handleSizeChange = (val) => {
   pageSize.value = val
   fetchData()
 }
-
 const handleCurrentChange = (val) => {
   currentPage.value = val
   fetchData()
 }
-
 // 新建检验单
 const handleCreate = () => {
   // 重置表单
@@ -1130,7 +1066,6 @@ const handleCreate = () => {
   
   createDialogVisible.value = true
 }
-
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return
@@ -1139,10 +1074,9 @@ const submitForm = async () => {
     await formRef.value.validate()
     
     // 获取选中的工单信息
-    const selectedOrder = productionOrderOptions.value.find(
+    const _selectedOrder = productionOrderOptions.value.find(
       order => order.orderNo === form.productionOrderNo
     );
-
     // 准备数据
     const formData = {
       inspection_type: 'final',
@@ -1162,10 +1096,8 @@ const submitForm = async () => {
     }
     
     submitLoading.value = true
-
     // 使用统一的API调用方式
     const response = await qualityApi.createFinalInspection(formData);
-
     if (response.data) {
       ElMessage.success('检验单创建成功')
       createDialogVisible.value = false
@@ -1180,13 +1112,11 @@ const submitForm = async () => {
     submitLoading.value = false
   }
 }
-
 // 查看详情
 const handleView = async (row) => {
   try {
     // 使用统一的API调用方式
     const response = await qualityApi.getFinalInspection(row.id);
-
     // axios 拦截器已自动解包，response.data 是详情数据对象
     const data = response.data;
     if (data) {
@@ -1206,13 +1136,9 @@ const handleView = async (row) => {
       throw new Error('获取检验单详情失败');
     }
     
-    // 如果没有检验项，使用默认项
     if (!currentInspection.value.items || currentInspection.value.items.length === 0) {
-      currentInspection.value.items = [
-        { item_name: '外观检查', standard: '无明显缺陷', type: 'visual', result: '-' },
-        { item_name: '尺寸检查', standard: '符合图纸要求', type: 'dimension', result: '-' },
-        { item_name: '功能测试', standard: '功能正常', type: 'function', result: '-' }
-      ];
+      currentInspection.value.items = [];
+      ElMessage.warning('当前检验单未配置检验项目');
     }
     
     viewDialogVisible.value = true;
@@ -1221,7 +1147,6 @@ const handleView = async (row) => {
     ElMessage.error('获取检验单详情失败: ' + error.message);
   }
 }
-
 // 修改检验弹窗相关功能
 const inspectDialogVisible = ref(false)
 const inspectFormRef = ref(null)
@@ -1238,17 +1163,15 @@ const inspectForm = reactive({
   quantity: 0,
   qualified_quantity: 0,
   unqualified_quantity: 0,
-  unit_id: 1,
+  unit_id: null,
   unit: '',
   batch_no: '',
   reference_no: ''
 })
-
 // 合格数量变更时自动计算不合格数量
 const onQualifiedQuantityChange = (val) => {
   inspectForm.unqualified_quantity = Math.max(0, (inspectForm.quantity || 0) - (val || 0));
 }
-
 // “全部合格”快捷按钮——一键将所有检验项标记为合格
 const handleAllPassed = () => {
   if (!inspectForm.items || inspectForm.items.length === 0) return
@@ -1264,7 +1187,6 @@ const handleAllPassed = () => {
   inspectForm.unqualified_quantity = 0
   ElMessage.success('已将所有检验项标记为合格')
 }
-
 // 格式化FQC检验项的标准±公差展示
 const formatFqcStandard = (item) => {
   if (item.type === 'dimension' && item.standard_value) {
@@ -1275,7 +1197,6 @@ const formatFqcStandard = (item) => {
   }
   return item.standard || '-'
 }
-
 // 尺寸类检验项输入后自动检查公差
 const checkFqcTolerance = (item) => {
   if (item.type !== 'dimension' || !item.standard_value || !item.actual_value) return
@@ -1291,7 +1212,6 @@ const checkFqcTolerance = (item) => {
     item.result = 'failed'
   }
 }
-
 // 检验表单验证规则
 const inspectRules = {
   inspector_name: [
@@ -1301,39 +1221,35 @@ const inspectRules = {
     { required: true, message: '请选择检验日期', trigger: 'change' }
   ]
 }
-
 // 进行检验
 const handleInspect = async (row) => {
   try {
     // 使用统一的API调用方式
     const response = await qualityApi.getFinalInspection(row.id);
-
     // axios 拦截器已自动解包，response.data 是详情数据对象
     const inspection = response.data;
     if (!inspection) {
       throw new Error('获取检验单详情失败');
     }
-
     // 初始化表单数据 - 优先使用传入的row.id，确保ID正确
     inspectForm.id = row.id || inspection.id;
     inspectForm.inspection_no = inspection.inspection_no;
-
     // 设置产品相关信息
     inspectForm.product_id = inspection.product_id;
     inspectForm.product_name = inspection.product_name || inspection.item_name || '';
     inspectForm.quantity = inspection.quantity || 1;
     inspectForm.qualified_quantity = inspection.qualified_quantity || inspection.quantity || 0;
     inspectForm.unqualified_quantity = inspection.unqualified_quantity || 0;
-    inspectForm.unit_id = inspection.unit_id || 1;
+    inspectForm.unit_id = inspection.unit_id || null;
     inspectForm.unit = inspection.unit || '';
     inspectForm.batch_no = inspection.batch_no || '';
     inspectForm.reference_no = inspection.reference_no || '';
     
     // 确保检验项目数据
     // 这部分逻辑与handleView保持一致，确保两种方式获取的检验项目一致
-    let inspectionItems = inspection.items || [];
+    const inspectionItems = inspection.items || [];
     
-    // 如果没有检验项，将在后面使用模板或默认项
+    // 如果没有检验项，将在后面使用检验模板
     
     // 如果从API获取到了检验项目，使用这些项目
     if (inspectionItems.length > 0) {
@@ -1351,7 +1267,6 @@ const handleInspect = async (row) => {
         // 使用物料/产品ID获取检验模板
         const materialId = inspection.material_id || inspection.product_id;
         if (!materialId) {
-          console.warn('检验单没有关联物料/产品ID，将使用默认检验项');
           throw new Error('缺少物料/产品ID');
         }
         
@@ -1371,10 +1286,8 @@ const handleInspect = async (row) => {
         }
       } catch (templateError) {
         console.error('获取或处理检验模板失败:', templateError);
-        // 使用默认检验项
-        inspectForm.items = DEFAULT_FQC_ITEMS.map(item => ({
-          ...item, actual_value: '', result: '', remarks: ''
-        }));
+        inspectForm.items = [];
+        ElMessage.warning('未找到可用的检验模板，请先维护成品检验模板');
       }
     }
     
@@ -1403,19 +1316,15 @@ const handleInspect = async (row) => {
     ElMessage.error('获取检验单详情失败: ' + error.message);
   }
 }
-
 // 提交检验结果
 const submitInspection = async () => {
   if (!inspectFormRef.value) return
-
   // 防止重复提交
   if (submitLoading.value) {
     ElMessage.warning('正在提交中，请勿重复操作');
     return;
   }
-
   submitLoading.value = true;
-
   try {
     await inspectFormRef.value.validate()
     
@@ -1448,23 +1357,18 @@ const submitInspection = async () => {
       qualified_quantity: inspectForm.qualified_quantity || 0,
       unqualified_quantity: inspectForm.unqualified_quantity || 0
     }
-
     // 提交检验结果 - 需要分离ID和数据
     const inspectionId = submitData.id
-
     if (!inspectionId) {
       ElMessage.error('检验单ID缺失，无法提交');
       return;
     }
-
     const inspectionData = { ...submitData }
     delete inspectionData.id  // 从数据对象中移除ID
     
-    const response = await qualityApi.updateFinalInspection(inspectionId, inspectionData)
-
+    const _response = await qualityApi.updateFinalInspection(inspectionId, inspectionData)
     // 拦截器已解包，如果业务失败会抛出错误
     inspectDialogVisible.value = false // 关闭检验对话框
-
     // 入库单由后端统一创建（qualityInspection.js 中的 updateInspection 方法）
     // 避免前后端重复创建入库单的问题
     if (status === 'passed') {
@@ -1472,7 +1376,6 @@ const submitInspection = async () => {
     } else {
       ElMessage.success('检验结果提交成功')
     }
-
     // 重新加载列表
     fetchData()
   } catch (error) {
@@ -1482,7 +1385,6 @@ const submitInspection = async () => {
     submitLoading.value = false
   }
 }
-
 // 处理下拉菜单命令
 const handleDropdownCommand = (command, row) => {
   if (command === 'report') {
@@ -1495,7 +1397,6 @@ const handleDropdownCommand = (command, row) => {
     handlePrint(row)
   }
 }
-
 // 查看报告
 const handleReport = (row) => {
   // 先获取检验单详情，确保数据完整
@@ -1505,7 +1406,6 @@ const handleReport = (row) => {
     ElMessage.error('获取检验报告数据失败: ' + error.message);
   });
 }
-
 // 复检
 const handleReview = (row) => {
   ElMessageBox.confirm('确定要对该检验单进行复检吗?', '复检确认', {
@@ -1551,19 +1451,16 @@ const handleReview = (row) => {
     // 用户取消操作
   });
 }
-
 // 获取检验单详情的通用方法
 const handleGetInspectionDetail = async (id) => {
   try {
     // 使用统一的API调用方式
     const response = await qualityApi.getFinalInspection(id);
-
     // axios 拦截器已自动解包，response.data 是详情数据对象
     const data = response.data;
     if (!data) {
       throw new Error('获取检验单详情失败');
     }
-
     // 确保currentInspection中包含items属性
     currentInspection.value = {
       ...data,
@@ -1576,14 +1473,9 @@ const handleGetInspectionDetail = async (id) => {
       // 使用模板编号作为标准编号
       standard_no: data.template_code || data.standard_no
     };
-
-    // 如果没有检验项，使用默认项
     if (!currentInspection.value.items || currentInspection.value.items.length === 0) {
-      currentInspection.value.items = [
-        { item_name: '外观检查', standard: '无明显缺陷', type: 'visual', result: '-' },
-        { item_name: '尺寸检查', standard: '符合图纸要求', type: 'dimension', result: '-' },
-        { item_name: '功能测试', standard: '功能正常', type: 'function', result: '-' }
-      ];
+      currentInspection.value.items = [];
+      ElMessage.warning('当前检验单未配置检验项目');
     }
     
     return currentInspection.value;
@@ -1592,7 +1484,6 @@ const handleGetInspectionDetail = async (id) => {
     throw error;
   }
 }
-
 // 生成合格证
 const handleGenerateCertificate = (row) => {
   // 检查检验单是否合格
@@ -1608,7 +1499,6 @@ const handleGenerateCertificate = (row) => {
     ElMessage.error('获取合格证书数据失败: ' + error.message);
   });
 }
-
 // 打印报告
 const handlePrint = (row) => {
   // 获取检验单详情并显示打印预览
@@ -1622,7 +1512,6 @@ const handlePrint = (row) => {
     ElMessage.error('获取打印数据失败: ' + error.message);
   });
 }
-
 // 打印报告实现
 const handlePrintReport = () => {
   // 获取报告内容
@@ -1660,7 +1549,7 @@ const handlePrintReport = () => {
   printWindow.document.title = `检验报告 - ${currentInspection.value.inspection_no}`;
   
   // 添加内容
-  printWindow.document.body.innerHTML = reportContent.innerHTML;
+  printWindow.document.body.replaceChildren(reportContent.cloneNode(true));
   printWindow.document.head.appendChild(style);
   
   // 添加打印脚本
@@ -1668,7 +1557,6 @@ const handlePrintReport = () => {
   script.textContent = 'window.onload = function() { window.print(); }';
   printWindow.document.body.appendChild(script);
 }
-
 // 打印合格证书
 const handlePrintCertificate = () => {
   // 获取证书内容
@@ -1704,7 +1592,7 @@ const handlePrintCertificate = () => {
   printWindow.document.title = `合格证书 - ${currentInspection.value.inspection_no}`;
   
   // 添加内容
-  printWindow.document.body.innerHTML = certificateContent.innerHTML;
+  printWindow.document.body.replaceChildren(certificateContent.cloneNode(true));
   printWindow.document.head.appendChild(style);
   
   // 添加打印脚本
@@ -1712,90 +1600,72 @@ const handlePrintCertificate = () => {
   script.textContent = 'window.onload = function() { window.print(); }';
   printWindow.document.body.appendChild(script);
 }
-
 </script>
-
 <style scoped>
-
 .search-container {
   margin-bottom: var(--spacing-base);
 }
-
 .search-buttons {
   display: flex;
   gap: 8px;
 }
-
 /* 使用全局样式 common-styles.css 中的 .statistics-row 和 .stat-card */
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .unit-text {
   margin-left: 8px;
 }
-
 .inspection-criteria {
   margin-top: var(--spacing-base);
 }
-
 .criteria-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
 }
-
 .criteria-item {
   margin-bottom: 15px;
   padding-bottom: 15px;
   border-bottom: 1px dashed #eee;
 }
-
 .criteria-item:last-child {
   border-bottom: none;
 }
-
 .certificate-container {
   padding: 20px;
   border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
   background-color: #f7f7f7;
 }
-
 .certificate-header {
   text-align: center;
   margin-bottom: var(--spacing-lg);
   padding-bottom: 20px;
   border-bottom: 2px solid var(--color-primary);
 }
-
 .certificate-title {
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 10px;
 }
-
 /* 添加表格操作按钮的统一样式 */
 :deep(.el-table .el-button) {
   vertical-align: middle !important;
 }
-
 :deep(.el-table .el-dropdown .el-button) {
   vertical-align: middle !important;
   padding: 2px 4px !important;
   line-height: 1.5 !important;
   height: 24px !important;
 }
-
 /* 确保所有按钮图标垂直对齐 */
 :deep(.el-button .el-icon) {
   vertical-align: middle !important;
   }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1803,12 +1673,10 @@ const handlePrintCertificate = () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 检验结果选择器样式 */
 .result-select-passed :deep(.el-input__wrapper) {
   border-color: var(--color-success) !important;

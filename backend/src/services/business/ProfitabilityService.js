@@ -15,7 +15,7 @@ class ProfitabilityService {
   async getProductProfitability(params = {}) {
     const { startDate, endDate, limit = 20 } = params;
 
-    let dateCondition = '';
+    let dateCondition;
     const queryParams = [];
 
     if (startDate && endDate) {
@@ -71,7 +71,7 @@ class ProfitabilityService {
   async getCustomerProfitability(params = {}) {
     const { startDate, endDate, limit = 20 } = params;
 
-    let dateCondition = '';
+    let dateCondition;
     const queryParams = [];
 
     if (startDate && endDate) {
@@ -148,7 +148,7 @@ class ProfitabilityService {
         break;
     }
 
-    let dateCondition = '';
+    let dateCondition;
     const queryParams = [];
 
     if (startDate && endDate) {
@@ -198,7 +198,7 @@ class ProfitabilityService {
   async getProfitSummary(params = {}) {
     const { startDate, endDate } = params;
 
-    let dateCondition = '';
+    let dateCondition;
     const queryParams = [];
 
     if (startDate && endDate) {

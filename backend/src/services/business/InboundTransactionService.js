@@ -83,7 +83,7 @@ class InboundTransactionService {
       other: 'inbound',
     };
     const transactionType = transactionTypeMap[inboundType] || 'inbound';
-    
+
     logger.info('入库交易类型:', { inbound_type: inboundType, transaction_type: transactionType });
 
     for (const item of items) {
@@ -106,8 +106,8 @@ class InboundTransactionService {
         item.material_id, itemLocationId, connection, false, false
       );
 
-      let beforeQuantity = currentStock;
-      let afterQuantity = beforeQuantity + parseFloat(item.quantity);
+      const beforeQuantity = currentStock;
+      const afterQuantity = beforeQuantity + parseFloat(item.quantity);
 
       // 处理批次溯源：判断是否产线退料或不良退回，追溯原始批次
       let finalBatchNumber = item.batch_number;
@@ -180,9 +180,10 @@ class InboundTransactionService {
           }
         }
 
-        // 系统兜底
         if (!finalBatchNumber) {
-          finalBatchNumber = `PWH-${inboundData.inbound_no}-${item.material_id}`;
+          throw new Error(
+            `入库明细缺少可追溯批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
+          );
         }
 
         // 回写明细
@@ -190,6 +191,11 @@ class InboundTransactionService {
           'UPDATE inventory_inbound_items SET batch_number = ? WHERE id = ?',
           [finalBatchNumber, item.id]
         );
+      }
+
+      const sideEffectItem = inboundItems.find(row => row.id === item.id);
+      if (sideEffectItem) {
+        sideEffectItem.batch_number = finalBatchNumber;
       }
 
       logger.info('入库库存变动:', {
@@ -212,7 +218,6 @@ class InboundTransactionService {
         remark: inboundData.remark || '',
         unitId: unitId,
         batchNumber: finalBatchNumber,
-        allowNegativeStock: true,
       }, connection);
 
       // 根据入库类型确定追溯触发类型
@@ -289,7 +294,12 @@ class InboundTransactionService {
                 }
               }
 
-              const batchNumber = item.batch_number || `PWH-${inboundData.inbound_no}-${item.material_id}`;
+              if (!item.batch_number) {
+                throw new Error(
+                  `产品入库追溯缺少批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
+                );
+              }
+              const batchNumber = item.batch_number;
 
               await qualityApi.autoCreateTraceability('product_warehouse', {
                 location_id: inboundId,
@@ -313,6 +323,7 @@ class InboundTransactionService {
               }
             } catch (itemTraceError) {
               logger.error(`为物料 ${item.material_id} 创建入库追溯记录失败:`, itemTraceError);
+              throw itemTraceError;
             }
           }
         } catch (traceError) {
@@ -399,12 +410,12 @@ class InboundTransactionService {
                      WHERE production_task_id = ? OR (reference_type = 'production_task' AND reference_id = ?)`,
                     [taskId, taskId]
                   );
-                  
+
                   let consumedRows = [];
                   if (outbounds.length > 0) {
                     const outNos = outbounds.map(o => o.outbound_no);
                     const placeholders = outNos.map(() => '?').join(',');
-                    
+
                     // 2. 查询这些出库单在台账中的扣减明细
                     const [ledgerRows] = await connection.query(
                       `SELECT 
@@ -430,7 +441,7 @@ class InboundTransactionService {
                     const fallbackNos = [];
                     if (taskCode) fallbackNos.push(taskCode);
                     if (inboundData.inbound_no) fallbackNos.push(inboundData.inbound_no);
-                    
+
                     if (fallbackNos.length > 0) {
                         const fallPlaceholders = fallbackNos.map(() => '?').join(',');
                         const [fallbackRows] = await connection.query(
@@ -572,7 +583,7 @@ class InboundTransactionService {
               `退料不良自动单-入库: ${inboundData.inbound_no}`,
               inboundData.operator || 'system', 'pending'
             ]);
-            
+
             logger.info(`✅ [流程引擎] 退料入库单 ${inboundData.inbound_no} 直接生成NCP记录: ${ncpNo}`);
           }
           await connection.commit();

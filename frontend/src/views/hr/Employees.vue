@@ -172,7 +172,7 @@ const fetchEmployees = async () => {
   try {
     const res = await hrApi.getEmployees({})
     tableData.value = res.data.data || res.data
-  } catch(e) {
+  } catch {
     ElMessage.error('获取员工列表失败')
   } finally {
     loading.value = false

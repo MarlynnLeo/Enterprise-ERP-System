@@ -2,13 +2,14 @@
  * RequisitionAutoOrderService.js
  * @description 采购申请批准后自动生成采购订单的独立服务
  * @date 2026-04-22
- * 
+ *
  * 从 purchaseRequisitionController.updateRequisitionStatus 中提取，
  * 供控制器直接调用和工作流回调共用。
  */
 
 const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const { financeConfig } = require('../../config/financeConfig');
 
 /**
  * 采购申请批准后自动生成采购订单
@@ -87,7 +88,15 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       }
     }
 
+    if (itemsWithoutSupplier.length > 0) {
+      const missingMaterials = itemsWithoutSupplier
+        .map(item => item.material_code || item.material_name || item.material_id)
+        .join(', ');
+      throw new Error(`采购申请存在未维护供应商的物料，无法自动生成采购订单: ${missingMaterials}`);
+    }
+
     const purchaseModel = require('../../models/purchase');
+    const taxRate = Number(financeConfig.get('tax.defaultVATRate', 0));
 
     // 为每个供应商生成采购订单
     for (const supplierId in itemsBySupplier) {
@@ -127,7 +136,6 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
         const quantity = parseFloat(item.quantity) || 0;
         const price = parseFloat(item.material_price) || 0;
         const total = quantity * price;
-        const taxRate = 0.13;
         const taxAmount = total * taxRate;
 
         await conn.execute(
@@ -162,68 +170,6 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       }
 
       logger.info(`✅ 成功生成采购订单 ${orderNo}，供应商: ${supplierData.supplier_name}，物料数量: ${supplierData.items.length}`);
-    }
-
-    // 没有供应商的物料也要生成采购订单
-    if (itemsWithoutSupplier.length > 0) {
-      logger.info(`📝 有 ${itemsWithoutSupplier.length} 个物料没有设置供应商，仍然生成采购订单（供应商待指定）`);
-
-      const orderNo = await purchaseModel.generateOrderNo(conn);
-      let totalAmount = 0;
-      for (const item of itemsWithoutSupplier) {
-        totalAmount += (parseFloat(item.quantity) || 0) * (parseFloat(item.material_price) || 0);
-      }
-
-      const [orderResult] = await conn.execute(
-        `INSERT INTO purchase_orders (
-          order_no, order_date, supplier_id, supplier_name, contract_code,
-          expected_delivery_date, contact_person, contact_phone,
-          total_amount, remarks, status, requisition_id, requisition_number
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          orderNo,
-          new Date().toISOString().split('T')[0],
-          null,
-          '待指定供应商',
-          requisition.contract_code || null,
-          null, null, null,
-          totalAmount,
-          `由采购申请 ${requisition.requisition_number || requisitionId} 自动生成（供应商待指定）`,
-          'draft',
-          requisitionId,
-          requisition.requisition_number,
-        ]
-      );
-      const orderId = orderResult.insertId;
-
-      for (const item of itemsWithoutSupplier) {
-        const quantity = parseFloat(item.quantity) || 0;
-        const price = parseFloat(item.material_price) || 0;
-        const total = quantity * price;
-        const taxRate = 0.13;
-        const taxAmount = total * taxRate;
-
-        await conn.execute(
-          `INSERT INTO purchase_order_items (
-            order_id, material_id, material_code, material_name,
-            specification, quantity, price, total,
-            unit, unit_id, tax_rate, tax_amount
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [orderId, item.material_id, item.material_code, item.material_name,
-           item.material_specs, quantity, price, total,
-           item.unit_name, item.unit_id, taxRate, taxAmount]
-        );
-      }
-
-      generatedOrders.push({
-        order_id: orderId,
-        order_no: orderNo,
-        supplier_name: '待指定供应商',
-        total_amount: totalAmount,
-        items_count: itemsWithoutSupplier.length,
-      });
-
-      logger.info(`✅ 成功生成采购订单 ${orderNo}（供应商待指定），物料数量: ${itemsWithoutSupplier.length}`);
     }
 
     logger.info(`✅ 采购申请 ${requisitionId} 共生成了 ${generatedOrders.length} 个采购订单`);

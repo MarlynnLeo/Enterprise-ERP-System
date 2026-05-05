@@ -162,7 +162,6 @@
         />
       </div>
     </el-card>
-
     <!-- 新建/编辑盘点单对话框 -->
     <el-dialog 
       :title="dialogType === 'create' ? '新建盘点单' : '编辑盘点单'" 
@@ -339,7 +338,6 @@
         </div>
       </template>
     </el-dialog>
-
     <!-- 查看盘点单详情对话框 -->
     <el-dialog 
       title="盘点单详情" 
@@ -399,7 +397,6 @@
         </div>
       </template>
     </el-dialog>
-
     <!-- 调整库存确认对话框 -->
     <el-dialog
       title="库存调整确认"
@@ -421,13 +418,12 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search, Refresh, ArrowDown, Delete, RefreshRight } from '@element-plus/icons-vue';
-import { inventoryApi, baseDataApi } from '@/services/api';
+import { inventoryApi } from '@/services/api';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { useAuthStore } from '@/stores/auth';
@@ -436,17 +432,11 @@ import {
   INVENTORY_CHECK_STATUS_COLORS,
   INVENTORY_CHECK_STATUS_OPTIONS
 } from '@/constants/systemConstants';
-
 // 权限store
 const authStore = useAuthStore();
-
 // 权限计算属性
-
-
-
 // 状态选项（使用统一常量）
 const statusOptions = INVENTORY_CHECK_STATUS_OPTIONS;
-
 // 盘点类型选项
 const checkTypeOptions = [
   { value: 'warehouse', label: '仓库盘点' },
@@ -455,7 +445,6 @@ const checkTypeOptions = [
   { value: 'full', label: '全面盘点' },
   { value: 'special', label: '专项盘点' }
 ];
-
 // 搜索表单
 const searchForm = reactive({
   check_no: '',
@@ -463,14 +452,12 @@ const searchForm = reactive({
   check_type: '',
   date_range: []
 });
-
 // 分页配置
 const pagination = reactive({
   currentPage: 1,
   pageSize: 10,
   total: 0
 });
-
 // 其他状态变量
 const loading = ref(false);
 const checkList = ref([]);
@@ -485,10 +472,8 @@ const detailLoading = ref(false); // 详情加载状态
 const checkDialogLoading = ref(false); // 盘点单弹窗加载状态
 const adjusting = ref(false); // 调整库存状态
 const selectionType = ref('manual'); // 物料选择方式：manual-手动，auto-自动
-
 // 表单引用
 const checkFormRef = ref(null);
-
 // 盘点单表单
 const checkForm = reactive({
   id: '',
@@ -499,20 +484,16 @@ const checkForm = reactive({
   remarks: '',
   items: []
 });
-
 // 盘点单详情
 const checkDetail = ref({});
-
 // 正在调整的盘点单
 const adjustingCheck = ref({});
-
 // 表单验证规则
 const checkRules = {
   check_date: [{ required: true, message: '请选择盘点日期', trigger: 'change' }],
   check_type: [{ required: true, message: '请选择盘点类型', trigger: 'change' }],
   warehouse_id: [{ required: true, message: '请选择仓库/库区', trigger: 'change' }]
 };
-
 // 盘点单统计数据
 const checkStats = ref({
   total: 0,
@@ -521,17 +502,14 @@ const checkStats = ref({
   accuracyRate: 0,
   profitLossAmount: 0
 });
-
 // 获取状态文本
 const getStatusText = (status) => {
   return INVENTORY_CHECK_STATUS[status] || status;
 };
-
 // 获取状态类型
 const getStatusType = (status) => {
   return INVENTORY_CHECK_STATUS_COLORS[status] || 'info';
 };
-
 // 获取盘点类型文本
 const getCheckTypeText = (type) => {
   const typeMap = {
@@ -543,7 +521,6 @@ const getCheckTypeText = (type) => {
   };
   return typeMap[type] || type;
 };
-
 // 获取盘点类型颜色
 const getCheckTypeType = (type) => {
   const typeMap = {
@@ -555,20 +532,17 @@ const getCheckTypeType = (type) => {
   };
   return typeMap[type] || 'info';
 };
-
 // 格式化百分比
 const formatPercent = (value) => {
   if (value === undefined || value === null) return '0%';
   return `${(value * 100).toFixed(2)}%`;
 };
-
 // 计算盈亏数量
 const getDiff = (bookQty, actualQty) => {
   if (bookQty === undefined || actualQty === undefined) return '0';
   const diff = actualQty - bookQty;
   return diff > 0 ? `+${diff}` : `${diff}`;
 };
-
 // 获取盈亏显示的CSS类
 const getDiffClass = (bookQty, actualQty) => {
   if (bookQty === undefined || actualQty === undefined) return '';
@@ -578,7 +552,6 @@ const getDiffClass = (bookQty, actualQty) => {
   if (diff < 0) return 'loss-text';
   return '';
 };
-
 // 查看盘点单
 const viewCheck = async (id) => {
   try {
@@ -601,9 +574,6 @@ const viewCheck = async (id) => {
     detailLoading.value = false;
   }
 };
-
-
-
 // 编辑盘点单
 const editCheck = async (id) => {
   dialogType.value = 'edit';
@@ -654,7 +624,6 @@ const editCheck = async (id) => {
     checkDialogLoading.value = false;
   }
 };
-
 // 更新盘点单状态
 const updateStatus = async (id, status) => {
   try {
@@ -675,7 +644,6 @@ const updateStatus = async (id, status) => {
     }
   }
 };
-
 // 删除盘点单
 const deleteCheck = async (id) => {
   try {
@@ -696,13 +664,11 @@ const deleteCheck = async (id) => {
     }
   }
 };
-
 // 处理搜索
 const handleSearch = async () => {
   pagination.currentPage = 1;
   await loadCheckList();
 };
-
 // 重置搜索
 const resetSearch = async () => {
   searchForm.check_no = '';
@@ -711,19 +677,16 @@ const resetSearch = async () => {
   searchForm.date_range = [];
   await handleSearch();
 };
-
 // 处理分页大小变化
 const handleSizeChange = async (size) => {
   pagination.pageSize = Number(size);
   await loadCheckList();
 };
-
 // 处理页码变化
 const handleCurrentChange = async (current) => {
   pagination.currentPage = Number(current);
   await loadCheckList();
 };
-
 // 打开新建盘点单对话框
 const openCheckDialog = async () => {
   dialogType.value = 'create';
@@ -743,7 +706,6 @@ const openCheckDialog = async () => {
     checkDialogLoading.value = false;
   }
 };
-
 // 重置盘点单表单
 const resetCheckForm = () => {
   if (checkFormRef.value) {
@@ -758,7 +720,6 @@ const resetCheckForm = () => {
   checkForm.remarks = '';
   checkForm.items = [];
 };
-
 // 添加盘点物料
 const addCheckItem = () => {
   checkForm.items.push({
@@ -772,12 +733,10 @@ const addCheckItem = () => {
     remarks: ''
   });
 };
-
 // 移除盘点物料
 const removeCheckItem = (index) => {
   checkForm.items.splice(index, 1);
 };
-
 // 处理物料变更
 const handleMaterialChange = async (materialId, index) => {
   if (!materialId) return;
@@ -808,7 +767,6 @@ const handleMaterialChange = async (materialId, index) => {
         if (stockItem) {
           // 从库存项目中获取数量
           const quantity = parseFloat(stockItem.quantity || 0);
-
           
           // 设置表单中的账面数量和初始实盘数量
           checkForm.items[index].book_qty = quantity;
@@ -816,14 +774,10 @@ const handleMaterialChange = async (materialId, index) => {
         } else {
           // 如果在库存中找不到该物料，尝试使用getMaterialStock API
           const response = await inventoryApi.getMaterialStock(materialId, checkForm.warehouse_id);
-
           // 拦截器已解包，response.data 就是业务数据
           const stockData = response.data;
-
           if (stockData && stockData.quantity !== undefined) {
             const quantity = parseFloat(stockData.quantity || 0);
-
-
             checkForm.items[index].book_qty = quantity;
             checkForm.items[index].actual_qty = quantity;
           } else {
@@ -833,7 +787,6 @@ const handleMaterialChange = async (materialId, index) => {
         }
       } catch (error) {
         console.error(`获取物料${material.code}(${materialId})库存失败:`, error);
-
         // 出错时尝试使用getMaterialStock API作为备选
         try {
           const response = await inventoryApi.getMaterialStock(materialId, checkForm.warehouse_id);
@@ -856,7 +809,6 @@ const handleMaterialChange = async (materialId, index) => {
     }
   }
 };
-
 // 处理仓库变更
 const handleWarehouseChange = async () => {
   // 如果有选择物料，更新物料的库存数量
@@ -869,7 +821,6 @@ const handleWarehouseChange = async () => {
     }
   }
 };
-
 // 加载仓库物料
 const loadWarehouseItems = async () => {
   if (!checkForm.warehouse_id) {
@@ -889,7 +840,6 @@ const loadWarehouseItems = async () => {
         // 确保数量是数值类型
         const quantity = parseFloat(item.quantity || 0);
         
-
         
         return {
           material_id: item.material_id || item.id,
@@ -917,7 +867,6 @@ const loadWarehouseItems = async () => {
     checkDialogLoading.value = false;
   }
 };
-
 // 提交盘点单表单
 const submitCheckForm = async () => {
   if (!checkFormRef.value) return;
@@ -953,12 +902,11 @@ const submitCheckForm = async () => {
     };
     
     // 提交表单
-    let response;
     if (dialogType.value === 'create') {
-      response = await inventoryApi.createCheck(formData);
+      await inventoryApi.createCheck(formData);
       ElMessage.success('盘点单创建成功');
     } else {
-      response = await inventoryApi.updateCheck(formData.id, formData);
+      await inventoryApi.updateCheck(formData.id, formData);
       ElMessage.success('盘点单更新成功');
     }
     
@@ -978,7 +926,6 @@ const submitCheckForm = async () => {
     submitting.value = false;
   }
 };
-
 // 调整库存
 const adjustInventory = async (id) => {
   try {
@@ -1014,7 +961,6 @@ const adjustInventory = async (id) => {
     detailLoading.value = false;
   }
 };
-
 // 确认调整库存
 const confirmAdjustInventory = async () => {
   try {
@@ -1039,14 +985,11 @@ const confirmAdjustInventory = async () => {
     adjusting.value = false;
   }
 };
-
 // ====== 物料搜索相关 (开始) ======
 const loadingMaterials = ref(false);
 let currentSearchId = 0;
-
 // 防抖函数
 import { debounce } from '@/utils/commonHelpers'
-
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
@@ -1062,21 +1005,17 @@ const searchProducts = async (query) => {
     if (searchId === currentSearchId) loadingMaterials.value = false;
   }
 };
-
 const debouncedSearchMaterials = debounce(searchProducts, SEARCH_CONFIG.SEARCH_DEBOUNCE_DELAY || 300);
-
 const handleMaterialSelectFocus = () => {
   if (materialOptions.value.length === 0) {
     debouncedSearchMaterials('');
   }
 };
-
 // 获取初始物料列表 (替换原有全量加载)
 const fetchMaterials = async () => {
   debouncedSearchMaterials('');
 };
 // ====== 物料搜索相关 (结束) ======
-
 // 获取仓库列表
 const fetchWarehouses = async () => {
   try {
@@ -1087,7 +1026,6 @@ const fetchWarehouses = async () => {
     warehouseOptions.value = [];
   }
 };
-
 // 加载盘点单列表
 const loadCheckList = async () => {
   loading.value = true;
@@ -1110,7 +1048,6 @@ const loadCheckList = async () => {
     try {
       // 尝试调用API获取数据
       const response = await inventoryApi.getCheckList(params);
-
       // 使用统一解析器处理分页数据
       const { list, total } = parsePaginatedData(response, { enableLog: false });
       checkList.value = list;
@@ -1129,7 +1066,6 @@ const loadCheckList = async () => {
     loading.value = false;
   }
 };
-
 // 加载盘点单统计数据
 const loadCheckStats = async () => {
   try {
@@ -1183,9 +1119,6 @@ const loadCheckStats = async () => {
     };
   }
 };
-
-
-
 // 页面加载完成后执行
 onMounted(async () => {
   try {
@@ -1206,81 +1139,53 @@ onMounted(async () => {
   }
 });
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 /* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
-
-
-
-
-
-
-
-
-
-
-
 .action-bar {
   margin-bottom: 15px;
   display: flex;
   align-items: center;
 }
-
 .profit-text {
   color: var(--color-success);
   font-weight: bold;
 }
-
 .loss-text {
   color: var(--color-danger);
   font-weight: bold;
 }
-
-
-
-
-
 .operation-btns .el-button {
   margin: 0;
   vertical-align: middle;
 }
-
 .operation-dropdown {
   margin-right: 0;
 }
-
 .operation-dropdown .el-button {
   margin: 0;
 }
-
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1288,7 +1193,6 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

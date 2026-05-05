@@ -13,6 +13,7 @@ const { accountingConfig } = require('../../../config/accountingConfig');
 const arModel = require('../../../models/ar');
 const BankAccountModel = require('../../../models/cash/Account');
 const db = require('../../../config/db');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 /**
  * 应收账款控制器
@@ -612,8 +613,7 @@ const arController = {
         return ResponseHandler.error(res, '请填写作废原因', 'VALIDATION_ERROR', 400);
       }
 
-      // 获取当前用户ID (从req.user或session中获取，这里假设是1)
-      const userId = req.user?.id || 1;
+      const userId = getAuthenticatedUserId(req);
 
       // 调用模型方法作废收款记录
       await arModel.voidReceipt(receiptId, {

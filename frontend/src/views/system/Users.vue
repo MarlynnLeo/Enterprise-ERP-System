@@ -226,9 +226,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Check, Close, View, Edit, Delete, Key } from '@element-plus/icons-vue';
+import { Plus, Check, Close, View, Edit, Key } from '@element-plus/icons-vue';
 import { api } from '../../services/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';
 // 权限计算属性
@@ -485,7 +485,7 @@ const loadUserDataForDialog = async (row, displayTitle) => {
   try {
     const response = await api.get(`/api/system/users/${row.id}`);
     // 拦截器已解包，response.data 就是业务数据
-    let user = response.data;
+    const user = response.data;
 
     if (!user) {
       throw new Error('无法获取用户数据');

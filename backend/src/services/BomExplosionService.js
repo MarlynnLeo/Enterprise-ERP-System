@@ -3,7 +3,7 @@
  * @description BOM展开服务 - 实现引用式BOM的展开、缓存和循环检测
  * @date 2025-12-11
  * @version 2.0.0
- * 
+ *
  * v2.0.0 重大优化：
  * - 修复循环引用检测缺陷：使用祖先路径数组替代Set副本，避免菱形依赖和跨BOM循环绕过
  * - 添加展开深度上限（MAX_DEPTH=20），防御性编程避免无限递归
@@ -29,7 +29,7 @@ class BomExplosionService {
    * @returns {Promise<Array>} - 展开后的物料列表
    */
   static async explodeBom(productId, bomId = null, quantity = 1, useCache = true, options = {}) {
-    const { netStockMap = null, netReqMap = null } = options;
+    const { netStockMap = null } = options;
     if (netStockMap) useCache = false; // 净推演强依赖实时查库存，禁用静态缓存
 
     try {
@@ -51,7 +51,7 @@ class BomExplosionService {
       }
 
       const ancestorPath = [];
-      const baseQuantity = netStockMap ? quantity : 1; 
+      const baseQuantity = netStockMap ? quantity : 1;
 
       const explosionResult = await this.recursiveExplode(
         bom.id,
@@ -139,15 +139,15 @@ class BomExplosionService {
           : currentDetail.material_code;
 
         const quantityPer = parseFloat(currentDetail.quantity) * internalParentQty;
-        
-        let qtyFromStock = 0;
+
+        let qtyFromStock;
         let childNetDemand = quantityPer;
 
         if (netStockMap) {
-          let stockQty = netStockMap.get(currentDetail.material_id) || 0;
-          qtyFromStock = Math.min(childNetDemand, stockQty); 
+          const stockQty = netStockMap.get(currentDetail.material_id) || 0;
+          qtyFromStock = Math.min(childNetDemand, stockQty);
           childNetDemand = childNetDemand - qtyFromStock;
-          
+
           netStockMap.set(currentDetail.material_id, stockQty - qtyFromStock);
 
           if (qtyFromStock > 0 && netReqMap) {
@@ -178,19 +178,19 @@ class BomExplosionService {
             const inlineChildren = details.filter(c => c.parent_id === currentDetail.id);
             const hasExternal = currentDetail.has_sub_bom;
             const hasInternal = inlineChildren.length > 0;
-            
+
             if (hasExternal) {
                 const childBom = currentDetail.ref_bom_id
                     ? await this.getBomById(currentDetail.ref_bom_id)
                     : await this.getLatestApprovedBom(currentDetail.material_id);
-    
+
                 if (childBom) {
                   const externalChildren = await this.recursiveExplode(
                       childBom.id,
                       currentDetail.material_id,
                       currentPath,
                       internalLevel + 1,
-                      childNetDemand,  
+                      childNetDemand,
                       ancestorPath,
                       options
                   );
@@ -203,7 +203,7 @@ class BomExplosionService {
                     await traverseInternalTree(child, currentPath, internalLevel + 1, childNetDemand, currentDetail.material_id);
                 }
             }
-            
+
             if (netStockMap && netReqMap && !hasExternal && !hasInternal) {
                 if (!netReqMap.has(currentDetail.material_id)) {
                      netReqMap.set(currentDetail.material_id, { requiredQuantity: 0, level: internalLevel });
@@ -371,6 +371,7 @@ class BomExplosionService {
       logger.info(`BOM ${bomId} 及所有祖先缓存已失效，共清除 ${invalidated.size} 个BOM缓存`);
     } catch (error) {
       logger.error('使BOM缓存失效失败:', error);
+      throw error;
     }
   }
 
@@ -468,6 +469,7 @@ class BomExplosionService {
       logger.info(`物料 ${materialId} 的 has_sub_bom 标记已更新为 ${hasSubBom}`);
     } catch (error) {
       logger.error('更新has_sub_bom标记失败:', error);
+      throw error;
     }
   }
 

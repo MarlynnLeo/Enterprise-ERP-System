@@ -7,7 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+
 import { ElMessage } from 'element-plus'
 
 // Element Plus 语言包

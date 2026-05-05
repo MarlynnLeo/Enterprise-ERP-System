@@ -344,7 +344,7 @@ const loadReceiptDetail = async () => {
     receiptForm.operator = data.operator || '';
     receiptForm.remarks = data.remarks || '';
     receiptForm.items = data.items || [];
-  } catch (error) {
+  } catch {
     ElMessage.error('获取入库单详情失败');
   }
 };

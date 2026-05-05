@@ -461,6 +461,7 @@ import { parseListData } from '@/utils/responseParser'
 import { productionApi } from '@/api/production'
 import { useAuthStore } from '@/stores/auth'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 // 权限store
 const authStore = useAuthStore()
@@ -552,7 +553,7 @@ const rules = {
 // 获取任务列表
 const fetchTaskList = async () => {
   try {
-    // ✅ 审计修复: 扩大任务搜索范围，包含分配中+生产中+已发料的任务
+    // 报工可选择分配中、生产中和已发料的任务
     const response = await axios.get('/production/tasks', {
       params: { status: 'in_progress,allocated,material_issued' }
     })
@@ -807,7 +808,7 @@ const handleDeleteReport = async (record) => {
 
 // 显示新增报工弹窗
 const showReportModal = () => {
-  // ✅ 审计修复: 报工人默认填充当前登录用户
+  // 报工人默认填充当前登录用户
   const currentUser = authStore.user
   formData.value = {
     taskId: undefined,
@@ -1044,8 +1045,7 @@ const printReport = async () => {
     }
     
     const printWindow = window.open('', '_blank');
-    printWindow.document.write(templateContent);
-    printWindow.document.close();
+    writeSafeHtmlDocument(printWindow, templateContent);
   } catch (error) {
     console.error('打印失败:', error);
     ElMessage.error('打印失败');

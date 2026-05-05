@@ -2,7 +2,7 @@
  * 8D报告控制器（P0重构版）
  * @description 8D问题解决报告的CRUD操作、阶段门控、状态流转
  * 8D方法论步骤: D1团队 → D2问题描述 → D3临时措施 → D4根因分析 → D5纠正措施 → D6实施验证 → D7预防措施 → D8总结关闭
- * 
+ *
  * 流程阶段:
  *   draft → d1_d3(立案) → [初审] → d4_d7(整改) → [结案审核] → d8(总结) → completed → closed
  */
@@ -170,7 +170,7 @@ const getReportById = async (req, res) => {
         const jsonFields = ['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions', 'd7_standardization', 'd3_attachments', 'd5_attachments', 'd6_attachments'];
         for (const field of jsonFields) {
             if (report[field] && typeof report[field] === 'string') {
-                try { report[field] = JSON.parse(report[field]); } catch (e) { /* 保留原始值 */ }
+                try { report[field] = JSON.parse(report[field]); } catch { /* 保留原始值 */ }
               // 静默忽略该错误
             }
         }
@@ -232,7 +232,6 @@ const createReport = async (req, res) => {
         }
 
         const now = new Date();
-        
 
 
         // 使用键值对动态构建 INSERT，杜绝列数/值数不匹配
@@ -455,7 +454,7 @@ const submitReview = async (req, res) => {
         const jsonFields = ['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions', 'd7_standardization', 'd3_attachments', 'd5_attachments', 'd6_attachments'];
         for (const field of jsonFields) {
             if (report[field] && typeof report[field] === 'string') {
-                try { report[field] = JSON.parse(report[field]); } catch (e) { /* 忽略 */ }
+                try { report[field] = JSON.parse(report[field]); } catch { /* 忽略 */ }
               // 静默忽略该错误
             }
         }
@@ -585,7 +584,7 @@ const submitPhase2Review = async (req, res) => {
         const jsonFields = ['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions', 'd3_attachments', 'd5_attachments', 'd6_attachments'];
         for (const field of jsonFields) {
             if (report[field] && typeof report[field] === 'string') {
-                try { report[field] = JSON.parse(report[field]); } catch (e) { /* 忽略 */ }
+                try { report[field] = JSON.parse(report[field]); } catch { /* 忽略 */ }
               // 静默忽略该错误
             }
         }
@@ -740,7 +739,7 @@ const aiAnalyze = async (req, res) => {
              INNER JOIN users u ON d.manager_id = u.id 
              WHERE d.status = 1 AND u.status = 1`
         );
-        
+
         // 整理为准确的部门负责人字符串，例如："品质部负责人：张三 \n 技术部负责人：李四"
         const usersListStr = deptManagers.map(d => `${d.dept_name}负责人：${d.manager_name}`).join('\n');
 

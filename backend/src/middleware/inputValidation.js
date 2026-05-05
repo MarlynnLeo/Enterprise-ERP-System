@@ -88,13 +88,13 @@ const sanitizeObject = (obj, depth = 0, maxDepth = 10, currentKey = '') => {
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item, index) => sanitizeObject(item, depth + 1, maxDepth, currentKey));
+    return obj.map((item) => sanitizeObject(item, depth + 1, maxDepth, currentKey));
   }
 
   if (obj !== null && typeof obj === 'object') {
     const sanitized = {};
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         sanitized[key] = sanitizeObject(obj[key], depth + 1, maxDepth, key);
       }
     }
@@ -440,7 +440,7 @@ const detectSQLInjection = (req, res, next) => {
 
   const checkInput = (obj, path = '') => {
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         const value = obj[key];
         const currentPath = path ? `${path}.${key}` : key;
 

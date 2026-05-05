@@ -108,13 +108,12 @@
 
 <script setup>
   import { ref, onMounted } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
+  import { useRoute } from 'vue-router'
   import { NavBar, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { financeApi, default as api } from '@/services/api'
   import dayjs from 'dayjs'
 
   const route = useRoute()
-  const router = useRouter()
   const entry = ref(null)
   const items = ref([])
   const loading = ref(true)

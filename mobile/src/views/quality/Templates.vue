@@ -68,7 +68,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 模板详情 — 可在后续开发
   }
 </script>

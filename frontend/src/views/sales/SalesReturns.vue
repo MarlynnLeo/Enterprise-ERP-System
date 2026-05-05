@@ -336,7 +336,7 @@
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 
 import dayjs from 'dayjs'
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi } from '@/services/api'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
@@ -449,7 +449,7 @@ const onOutboundPageSize = async (size) => {
 // 验证退货数量
 const validateReturnQuantity = (row) => {
   // 确保输入值是数字
-  let value = parseFloat(row.return_quantity)
+  const value = parseFloat(row.return_quantity)
   if (isNaN(value) || value < 0) {
     row.return_quantity = 0
     return
@@ -685,7 +685,7 @@ const handleApprove = (row) => {
     try {
       await updateReturnStatus(row, 'approved')
       ElMessage.success(`退货单 ${row.returnNo || row.id} 已审批通过`)
-    } catch (error) {
+    } catch {
       ElMessage.error('审批失败，请重试')
     }
   }).catch(() => {})
@@ -707,7 +707,7 @@ const handleReject = (row) => {
 
       await updateReturnStatus(row, 'rejected', newRemarks)
       ElMessage.success(`退货单 ${row.returnNo || row.id} 已拒绝`)
-    } catch (error) {
+    } catch {
       ElMessage.error('拒绝失败，请重试')
     }
   }).catch(() => {})
@@ -723,7 +723,7 @@ const handleComplete = (row) => {
     try {
       await updateReturnStatus(row, 'completed')
       ElMessage.success(`退货单 ${row.returnNo || row.id} 已完成`)
-    } catch (error) {
+    } catch {
       ElMessage.error('完成失败，请重试')
     }
   }).catch(() => {})

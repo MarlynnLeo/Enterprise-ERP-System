@@ -4,7 +4,7 @@
  * @date 2025-11-04
  */
 
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive } from 'vue';
 import technicalCommunicationApi from '@/services/technicalCommunicationApi';
 import { ElMessage } from 'element-plus';
 import { parseListData } from '@/utils/responseParser';
@@ -60,7 +60,7 @@ export function useCommunicationList() {
       // 使用统一解析器
       communicationList.value = parseListData(res, { enableLog: false });
       total.value = res.data?.total || 0;
-    } catch (error) {
+    } catch {
       ElMessage.error('加载失败');
       communicationList.value = [];
       total.value = 0;
@@ -139,7 +139,7 @@ export function useCommunicationDetail() {
       comments.value = res.data.comments || [];
       
       return detail.value;
-    } catch (error) {
+    } catch {
       ElMessage.error('加载详情失败');
       return null;
     } finally {
@@ -269,7 +269,7 @@ export function useCommunicationForm() {
       }
       
       return true;
-    } catch (error) {
+    } catch {
       ElMessage.error(form.id ? '更新失败' : '创建失败');
       return false;
     } finally {
@@ -304,7 +304,7 @@ export function useCommunicationInteraction() {
       // axios拦截器已自动解包ResponseHandler格式
       liked.value = res.data.liked || false;
       favorited.value = res.data.favorited || false;
-    } catch (error) {
+    } catch {
       // 静默失败
       liked.value = false;
       favorited.value = false;
@@ -320,10 +320,10 @@ export function useCommunicationInteraction() {
       const res = await technicalCommunicationApi.toggleLike(id);
       // axios拦截器已自动解包ResponseHandler格式
       liked.value = res.data.liked;
-      ElMessage.success(data.liked ? '点赞成功' : '已取消点赞');
+      ElMessage.success(liked.value ? '点赞成功' : '已取消点赞');
       
-      return data.liked;
-    } catch (error) {
+      return liked.value;
+    } catch {
       ElMessage.error('操作失败');
       return null;
     } finally {
@@ -340,10 +340,10 @@ export function useCommunicationInteraction() {
       const res = await technicalCommunicationApi.toggleFavorite(id);
       // axios拦截器已自动解包ResponseHandler格式
       favorited.value = res.data.favorited;
-      ElMessage.success(data.favorited ? '收藏成功' : '已取消收藏');
+      ElMessage.success(favorited.value ? '收藏成功' : '已取消收藏');
       
-      return data.favorited;
-    } catch (error) {
+      return favorited.value;
+    } catch {
       ElMessage.error('操作失败');
       return null;
     } finally {
@@ -360,4 +360,3 @@ export function useCommunicationInteraction() {
     toggleFavorite
   };
 }
-

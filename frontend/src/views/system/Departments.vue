@@ -349,7 +349,7 @@ const loadDepartments = async () => {
     const response = await api.get('/system/departments', { params });
 
     // 确保我们处理的是数组数据
-    let responseData = response.data;
+    const responseData = response.data;
     let flatDepartments = [];
 
     // 处理不同的响应数据格式

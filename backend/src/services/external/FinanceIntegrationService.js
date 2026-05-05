@@ -213,7 +213,7 @@ class FinanceIntegrationService {
       const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
       const receivableAccountId = accountIds.ACCOUNTS_RECEIVABLE;
       const incomeAccountId = accountIds.SALES_REVENUE;
-      
+
       let customerId = salesReturn.customer_id;
       let customerName = salesReturn.customer_name;
       if (!customerId && salesReturn.order_id) {
@@ -476,13 +476,13 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      
+
 
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['COST_OF_GOODS_SOLD', 'INVENTORY']);
       const cogsAccountId = accountIds.COST_OF_GOODS_SOLD;
       const inventoryAccountId = accountIds.INVENTORY;
-      
+
       const [outboundItems] = await connection.execute(
         `SELECT soi.product_id, soi.quantity, m.cost_price, m.price, m.name as material_name
          FROM sales_outbound_items soi 
@@ -527,7 +527,7 @@ class FinanceIntegrationService {
       // 自动凭证在同一事务中立即标记过账（期间状态已由 getCurrentPeriod 在事务开头校验，无需走 postEntry 校验）
       await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
       await connection.commit();
-      
+
       return { entryId, entryNumber, amount: totalCost };
     } catch (error) {
       await connection.rollback();
@@ -546,7 +546,7 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      
+
 
       const invoiceNumber = `待补录-${salesOutbound.outbound_no}`;
 
@@ -609,7 +609,7 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      
+
 
       const invoiceNumber = `待补录-${purchaseReceipt.receipt_no}`;
 
@@ -679,7 +679,7 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
-      const exchangeId = salesExchange.id;
+
       const exchangeNo = salesExchange.exchange_no;
 
       // 查询差价金额（从主表获取）

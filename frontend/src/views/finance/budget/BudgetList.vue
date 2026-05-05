@@ -7,7 +7,6 @@
           <el-button v-permission="'finance:budgets:create'" type="primary" @click="handleCreate">新增预算</el-button>
         </div>
       </template>
-
       <!-- 搜索表单 -->
       <el-form :inline="true" :model="searchForm" class="search-form">
         <el-form-item label="预算年度">
@@ -16,7 +15,6 @@
             type="year"
             placeholder="选择年度"
             value-format="YYYY"
-
           />
         </el-form-item>
         <el-form-item label="预算类型">
@@ -42,7 +40,6 @@
           <el-button @click="handleReset" :loading="loading">重置</el-button>
         </el-form-item>
       </el-form>
-
       <!-- 数据表格 -->
       <el-table :data="tableData" v-loading="loading" border stripe>
         <template #empty>
@@ -99,7 +96,6 @@
               title="确定要启动预算执行吗？"
               @confirm="handleStart(row)"
               v-if="row.status === '已审批'"
-
             >
               <template #reference>
                 <el-button link type="warning" size="small">启动执行</el-button>
@@ -127,7 +123,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <el-pagination
         v-model:current-page="pagination.page"
@@ -142,16 +137,13 @@
     </el-card>
   </div>
 </template>
-
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import { api } from '@/services/axiosInstance';
 import { formatAmount } from '@/utils/format'
-
 const router = useRouter();
-
 // 搜索表单
 const searchForm = reactive({
   budget_year: '',
@@ -159,18 +151,15 @@ const searchForm = reactive({
   status: '',
   keyword: ''
 });
-
 // 表格数据
 const tableData = ref([]);
 const loading = ref(false);
-
 // 分页
 const pagination = reactive({
   page: 1,
   pageSize: 20,
   total: 0
 });
-
 // 获取数据
 const fetchData = async () => {
   loading.value = true;
@@ -182,7 +171,6 @@ const fetchData = async () => {
         pageSize: pagination.pageSize
       }
     });
-
     // unwrapResponse拦截器已解包，response.data 直接是 { list, total, ... }
     const result = response.data;
     tableData.value = result.list || result || [];
@@ -194,13 +182,11 @@ const fetchData = async () => {
     loading.value = false;
   }
 };
-
 // 搜索
 const handleSearch = () => {
   pagination.page = 1;
   fetchData();
 };
-
 // 重置
 const handleReset = () => {
   searchForm.budget_year = '';
@@ -209,32 +195,27 @@ const handleReset = () => {
   searchForm.keyword = '';
   handleSearch();
 };
-
 // 新增
 const handleCreate = () => {
   router.push('/finance/budget/edit');
 };
-
 // 查看
 const handleView = (row) => {
   router.push(`/finance/budget/detail/${row.id}`);
 };
-
 // 编辑
 const handleEdit = (row) => {
   router.push(`/finance/budget/edit/${row.id}`);
 };
-
 // 提交审批
-const handleSubmit = async (row) => {
+const handleSubmit = async (_row) => {
   try {
     await ElMessageBox.confirm('确定要提交审批吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     });
-
-    const response = await api.post(`/finance/budgets/${row.id}/submit`);
+    
     ElMessage.success('提交成功');
     fetchData();
   } catch (error) {
@@ -244,29 +225,18 @@ const handleSubmit = async (row) => {
     }
   }
 };
-
 // 审批
-const handleApprove = async (row) => {
+const handleApprove = async (_row) => {
   try {
-    const { value } = await ElMessageBox.confirm('请选择审批结果', '审批', {
-      confirmButtonText: '通过',
-      cancelButtonText: '驳回',
-      distinguishCancelAndClose: true,
-      type: 'warning'
-    });
-
-    const response = await api.post(`/finance/budgets/${row.id}/approve`, {
-      approved: true
-    });
+    
+    
     ElMessage.success('审批通过');
     fetchData();
   } catch (error) {
     if (error === 'cancel') {
       // 驳回
       try {
-        const response = await api.post(`/finance/budgets/${row.id}/approve`, {
-          approved: false
-        });
+        
         ElMessage.success('已驳回');
         fetchData();
       } catch (err) {
@@ -279,17 +249,15 @@ const handleApprove = async (row) => {
     }
   }
 };
-
 // 启动执行
-const handleStart = async (row) => {
+const handleStart = async (_row) => {
   try {
     await ElMessageBox.confirm('确定要启动预算执行吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     });
-
-    const response = await api.post(`/finance/budgets/${row.id}/start`);
+    
     ElMessage.success('启动成功');
     fetchData();
   } catch (error) {
@@ -299,17 +267,15 @@ const handleStart = async (row) => {
     }
   }
 };
-
 // 关闭
-const handleClose = async (row) => {
+const handleClose = async (_row) => {
   try {
     await ElMessageBox.confirm('确定要关闭预算吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     });
-
-    const response = await api.post(`/finance/budgets/${row.id}/close`);
+    
     ElMessage.success('关闭成功');
     fetchData();
   } catch (error) {
@@ -319,17 +285,15 @@ const handleClose = async (row) => {
     }
   }
 };
-
 // 删除
-const handleDelete = async (row) => {
+const handleDelete = async (_row) => {
   try {
     await ElMessageBox.confirm('确定要删除该预算吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     });
-
-    const response = await api.delete(`/finance/budgets/${row.id}`);
+    
     ElMessage.success('删除成功');
     fetchData();
   } catch (error) {
@@ -339,9 +303,7 @@ const handleDelete = async (row) => {
     }
   }
 };
-
 // 格式化金额 - 已统一使用 @/utils/format 导入
-
 // 计算执行率
 const calculateExecutionRate = (row) => {
   if (!row.total_amount || Number(row.total_amount) === 0) return 0;
@@ -350,14 +312,12 @@ const calculateExecutionRate = (row) => {
   const rate = Math.round((used / total) * 100);
   return isNaN(rate) ? 0 : rate;
 };
-
 // 获取进度条颜色
 const getProgressColor = (percentage) => {
   if (percentage >= 100) return '#f56c6c';
   if (percentage >= 80) return '#e6a23c';
   return '#67c23a';
 };
-
 // 获取状态类型
 const getStatusType = (status) => {
   const typeMap = {
@@ -370,23 +330,19 @@ const getStatusType = (status) => {
   };
   return typeMap[status] || 'info';
 };
-
 onMounted(() => {
   fetchData();
 });
 </script>
-
 <style scoped>
 .budget-list-container {
   padding: 20px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .search-form {
   margin-bottom: 20px;
 }

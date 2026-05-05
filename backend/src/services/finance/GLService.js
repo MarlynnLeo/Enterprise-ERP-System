@@ -7,6 +7,7 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const crypto = require('crypto');
 
 /**
  * 总账服务类
@@ -112,7 +113,7 @@ class GLService {
         if (error.code === 'ER_LOCK_DEADLOCK' && retries > 1 && !connection) {
           logger.warn(`检测到死锁，准备重试 (剩余 ${retries - 1} 次) - 单据: ${entryData.document_number || '未知'}...`);
           retries--;
-          await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 100)); // 等待 100-300ms
+          await new Promise((resolve) => setTimeout(resolve, crypto.randomInt(100, 301)));
           continue;
         }
         throw error;

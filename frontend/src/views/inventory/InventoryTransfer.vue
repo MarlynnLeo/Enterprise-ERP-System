@@ -408,14 +408,15 @@
 import { ref, reactive, onMounted, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search, Refresh, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download } from '@element-plus/icons-vue';
-import { inventoryApi, baseDataApi } from '@/services/api';
+import { inventoryApi } from '@/services/api';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { formatDate } from '@/utils/helpers/formatters';
 import { getTransferStatusText, getTransferStatusColor } from '@/constants/systemConstants';
 import { useAuthStore } from '@/stores/auth';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
-import { computed } from 'vue';
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity';
+
 
 // 权限store
 const authStore = useAuthStore();
@@ -851,7 +852,7 @@ const searchProducts = async (query) => {
     if (searchId === currentSearchId) {
       materialOptions.value = results.map(mapMaterialData);
     }
-  } catch (error) {
+  } catch {
     if (searchId === currentSearchId) materialOptions.value = [];
   } finally {
     if (searchId === currentSearchId) loadingMaterials.value = false;
@@ -1012,7 +1013,7 @@ const printTransfer = async (id) => {
     
     // 创建打印样式
     const printStyle = document.createElement('style');
-    printStyle.innerHTML = `
+    printStyle.textContent = `
       @media print {
         body * {
           visibility: hidden;
@@ -1229,8 +1230,7 @@ const batchPrintTransfers = async () => {
       allContent += pageContent;
     }
     
-    printWindow.document.write(allContent);
-    printWindow.document.close();
+    writeSafeHtmlDocument(printWindow, allContent);
     
     // 等待内容加载完成后打印
     printWindow.onload = function() {

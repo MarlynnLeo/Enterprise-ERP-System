@@ -26,13 +26,13 @@ class ImportExportService {
       { header: '备注', key: 'remarks', width: 30 },
     ];
 
-    const sampleData = [
-      { code: 'RAW', name: '原材料', parent_code: '', sort_order: 1, remarks: '示例数据' },
-      { code: 'FIN', name: '成品', parent_code: '', sort_order: 2, remarks: '示例数据' },
-      { code: 'RAW-STEEL', name: '钢材', parent_code: 'RAW', sort_order: 1, remarks: '示例数据' },
+    const templateRows = [
+      { code: 'RAW', name: '原材料', parent_code: '', sort_order: 1, remarks: '模板行' },
+      { code: 'FIN', name: '成品', parent_code: '', sort_order: 2, remarks: '模板行' },
+      { code: 'RAW-STEEL', name: '钢材', parent_code: 'RAW', sort_order: 1, remarks: '模板行' },
     ];
 
-    return ExcelHelper.createTemplate(columns, sampleData, '分类导入模板');
+    return ExcelHelper.createTemplate(columns, templateRows, '分类导入模板');
   }
 
   /**
@@ -127,26 +127,26 @@ class ImportExportService {
       { header: '供应商名称*', key: 'name', width: 25 },
       { header: '联系人', key: 'contact_person', width: 15 },
       { header: '联系电话', key: 'contact_phone', width: 15 },
-      { header: '联系邮箱', key: 'contact_email', width: 25 },
+      { header: '联系邮箱', key: 'email', width: 25 },
       { header: '地址', key: 'address', width: 30 },
       { header: '信用等级', key: 'credit_rating', width: 12 },
       { header: '备注', key: 'remarks', width: 30 },
     ];
 
-    const sampleData = [
+    const templateRows = [
       {
         code: 'SUP001',
-        name: '某某钢材公司',
-        contact_person: '张三',
-        contact_phone: '13800138000',
-        contact_email: 'zhangsan@example.com',
-        address: '浙江省温州市乐清市',
+        name: '供应商名称',
+        contact_person: '联系人',
+        contact_phone: '',
+        email: '',
+        address: '',
         credit_rating: 'A',
-        remarks: '示例数据',
+        remarks: '模板行',
       },
     ];
 
-    return ExcelHelper.createTemplate(columns, sampleData, '供应商导入模板');
+    return ExcelHelper.createTemplate(columns, templateRows, '供应商导入模板');
   }
 
   /**
@@ -175,7 +175,7 @@ class ImportExportService {
           name: row['供应商名称*'],
           contact_person: row['联系人'] || '',
           contact_phone: row['联系电话'] || '',
-          contact_email: row['联系邮箱'] || '',
+          email: row['联系邮箱'] || '',
           address: row['地址'] || '',
           credit_rating: row['信用等级'] || '',
           remarks: row['备注'] || '',
@@ -212,7 +212,7 @@ class ImportExportService {
       { header: '供应商名称', key: 'name', width: 25 },
       { header: '联系人', key: 'contact_person', width: 15 },
       { header: '联系电话', key: 'contact_phone', width: 15 },
-      { header: '联系邮箱', key: 'contact_email', width: 25 },
+      { header: '联系邮箱', key: 'email', width: 25 },
       { header: '地址', key: 'address', width: 30 },
       { header: '信用等级', key: 'credit_rating', width: 12 },
       { header: '状态', key: 'status_text', width: 10 },
@@ -224,7 +224,7 @@ class ImportExportService {
       name: item.name,
       contact_person: item.contact_person || '',
       contact_phone: item.contact_phone || '',
-      contact_email: item.contact_email || '',
+      email: item.email || '',
       address: item.address || '',
       credit_rating: item.credit_rating || '',
       status_text: item.status === 1 ? '启用' : '停用',
@@ -249,7 +249,7 @@ class ImportExportService {
       { header: '备注', key: 'remarks', width: 30 },
     ];
 
-    const sampleData = [
+    const templateRows = [
       {
         bom_code: 'BOM001',
         product_code: 'M002',
@@ -258,11 +258,11 @@ class ImportExportService {
         quantity: 2,
         unit: '张',
         loss_rate: 5,
-        remarks: '示例数据',
+        remarks: '模板行',
       },
     ];
 
-    return ExcelHelper.createTemplate(columns, sampleData, 'BOM导入模板');
+    return ExcelHelper.createTemplate(columns, templateRows, 'BOM导入模板');
   }
 
   /**
@@ -489,21 +489,21 @@ class ImportExportService {
       { header: '备注', key: 'remark', width: 30 },
     ];
 
-    const sampleData = [
+    const templateRows = [
       {
         code: '',
-        name: '某某科技有限公司',
+        name: '客户名称',
         customer_type: 'direct',
-        contact_person: '李四',
-        contact_phone: '13900139000',
-        email: 'lisi@example.com',
-        address: '浙江省杭州市',
+        contact_person: '联系人',
+        contact_phone: '',
+        email: '',
+        address: '',
         credit_limit: 50000,
         remark: '编码留空则自动生成；类型可选：direct/distributor/oem',
       },
     ];
 
-    return ExcelHelper.createTemplate(columns, sampleData, '客户导入模板');
+    return ExcelHelper.createTemplate(columns, templateRows, '客户导入模板');
   }
 
   /**

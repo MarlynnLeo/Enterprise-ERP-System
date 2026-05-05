@@ -38,5 +38,5 @@
     return await financeApi.getReconciliation(params)
   }
 
-  const handleItemClick = (item) => {}
+  const handleItemClick = () => {}
 </script>

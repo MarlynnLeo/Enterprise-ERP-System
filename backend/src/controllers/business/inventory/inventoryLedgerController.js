@@ -11,7 +11,6 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 // const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
-const businessConfig = require('../../../config/businessConfig');
 const BusinessTypeService = require('../../../services/BusinessTypeService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
@@ -21,11 +20,6 @@ const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
 const {
   getInventoryTransactionTypeText,
-  getTransferStatusText,
-  getSalesStatusText,
-  generateStatusCaseSQL,
-  INVENTORY_TRANSACTION_TYPES,
-  INVENTORY_TRANSACTION_GROUPS,
 } = require('../../../constants/systemConstants');
 
 // 引入库存一致性校验服务
@@ -35,21 +29,14 @@ const {
 // 引入重构后的入库处理服务
 
 // 引入状态映射工具和状态常量
-const STATUS = {
-  OUTBOUND: businessConfig.status.outbound,
-  INBOUND: businessConfig.status.inbound,
-  PRODUCTION_TASK: businessConfig.status.productionTask,
-  PRODUCTION_PLAN: businessConfig.status.productionPlan,
-  APPROVAL: businessConfig.status.approval,
-  TRANSFER: businessConfig.status.transfer,
-};
+
 
 /**
  * 获取物料的批次号（FIFO原则）
  * @param {object} connection - 数据库连接
  * @param {number} materialId - 物料ID
  * @param {number} locationId - 库位ID（可选）
- * @param {string} defaultBatchNo - 默认批次号（如果查询失败）
+ * @param {string} fallbackBatchNo - 调用方显式传入的候选批次号
  * @returns {Promise<string>} 批次号
  */
 
@@ -65,11 +52,8 @@ const _insertInventoryLedgerLocal = async (
     reference_no,
     reference_type,
     operator,
-    remark = null,
-    beforeQuantity = null,
-    afterQuantity = null,
-    checkStockSufficiency = false, // 是否校验库存充足性
-    allowNegativeStock = true, // 是否允许负库存（某些业务场景需要）
+    remark = null, // 是否校验库存充足性
+    allowNegativeStock = false, // 默认不允许负库存，特殊场景必须由调用方显式开启
     issue_reason = null,
     is_excess = 0,
     bom_required_qty = null,
@@ -1666,6 +1650,32 @@ const calculatePeriodInventory = async (
 };
 
 // 计算期间统计数据
+const calculatePeriodStatistics = (items = []) => {
+  const sum = (field) =>
+    items.reduce((total, item) => total + (parseFloat(item[field]) || 0), 0);
+
+  const totalItems = items.length;
+  const totalBeginningValue = sum('beginningValue');
+  const totalInboundValue = sum('inboundValue');
+  const totalOutboundValue = sum('outboundValue');
+  const totalEndingQuantity = sum('endingQuantity');
+  const totalEndingValue = sum('endingValue');
+  const turnoverRateTotal = sum('turnoverRate');
+
+  return {
+    totalItems,
+    totalBeginningQuantity: sum('beginningQuantity'),
+    totalBeginningValue,
+    totalInboundQuantity: sum('inboundQuantity'),
+    totalInboundValue,
+    totalOutboundQuantity: sum('outboundQuantity'),
+    totalOutboundValue,
+    totalEndingQuantity,
+    totalEndingValue,
+    avgTurnoverRate:
+      totalItems > 0 ? parseFloat((turnoverRateTotal / totalItems).toFixed(2)) : 0,
+  };
+};
 
 const getInventoryLedger = async (req, res) => {
   const connection = await db.pool.getConnection();

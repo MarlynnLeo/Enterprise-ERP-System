@@ -18,7 +18,6 @@
         <el-button type="primary" :icon="Plus" v-permission="'sales:orders:create'" @click="handleAdd">{{ $t('page.sales.orders.add') }}</el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
@@ -31,7 +30,6 @@
             clearable
           ></el-input>
         </el-form-item>
-
         <el-form-item :label="$t('page.sales.orders.status')">
           <el-select v-model="statusFilter" :placeholder="$t('page.sales.orders.status')" clearable @change="() => handleSearch(true)" style="width: 110px !important">
             <el-option
@@ -42,7 +40,6 @@
             />
           </el-select>
         </el-form-item>
-
         <el-form-item label="操作人">
           <el-select v-model="operatorFilter" placeholder="请选择" clearable @change="handleOperatorChange" style="width: 110px !important">
             <el-option
@@ -62,7 +59,6 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             @change="() => handleSearch(true)"
-
           />
         </el-form-item>
         
@@ -91,7 +87,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -111,7 +106,6 @@
         <div class="stat-label">已发货</div>
       </el-card>
     </div>
-
     <!-- 订单表格 -->
     <el-card class="data-card">
       <el-table
@@ -376,7 +370,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 新增/编辑订单对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -435,7 +428,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-row :gutter="20">
           <el-col :span="6">
             <el-form-item label="联系人" prop="contact">
@@ -520,15 +512,12 @@
                   />
                 </template>
               </el-table-column>
-
               <el-table-column label="单位" prop="unit_name" width="70" />
-
               <el-table-column label="金额" width="100">
                 <template #default="{ row }">
                     ¥{{ row.amount ? row.amount.toFixed(2) : '0.00' }}
                 </template>
               </el-table-column>
-
               <el-table-column label="税率" width="100">
                 <template #default="{ row, $index }">
                   <el-select 
@@ -547,13 +536,11 @@
                   </el-select>
                 </template>
               </el-table-column>
-
               <el-table-column label="税额" width="90">
                 <template #default="{ row }">
                   ¥{{ row.tax_amount ? row.tax_amount.toFixed(2) : '0.00' }}
                 </template>
               </el-table-column>
-
               <el-table-column label="备注" width="125">
                 <template #default="{ row }">
                   <el-input 
@@ -564,7 +551,6 @@
                     clearable />
                 </template>
               </el-table-column>
-
               <el-table-column label="操作" width="80" fixed="right">
                 <template #default="{ $index }">
                   <el-button
@@ -578,7 +564,6 @@
                 </template>
               </el-table-column>
             </el-table>
-
             <div class="add-material" style="margin-top: 10px;">
               <el-button type="primary" @click="addMaterial">
                 <el-icon><Plus /></el-icon>添加物料
@@ -586,7 +571,6 @@
             </div>
           </div>
         </el-form-item>
-
         <!-- 订单汇总 -->
         <div class="order-summary" style="margin-top: 15px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
@@ -601,7 +585,6 @@
             </el-col>
           </el-row>
         </div>
-
         <el-form-item label="备注" style="margin-top: 15px;">
           <el-input type="textarea" v-model="form.remark" />
         </el-form-item>
@@ -614,7 +597,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 订单详情对话框 -->
     <el-dialog
       v-model="detailsVisible"
@@ -640,7 +622,6 @@
             <el-descriptions-item label="收货地址">{{ currentOrder.address || '-' }}</el-descriptions-item>
             <el-descriptions-item label="备注" :span="3">{{ currentOrder.remark || '-' }}</el-descriptions-item>
           </el-descriptions>
-
           <el-divider content-position="left">订单物料明细</el-divider>
           <el-table :data="currentOrder.items || []" border style="width: 100%" table-layout="fixed">
             <el-table-column prop="material_code" label="物料编码" width="140" show-overflow-tooltip />
@@ -672,7 +653,6 @@
         <el-button type="primary" @click="handlePrintOrder" :loading="printLoading" v-if="currentOrder">打印</el-button>
       </template>
     </el-dialog>
-
     <!-- 导入对话框 -->
     <el-dialog
       title="导入订单"
@@ -713,7 +693,6 @@
           ></el-input>
         </el-tab-pane>
       </el-tabs>
-
       <div v-if="importResult" class="import-result">
         <h4>导入结果</h4>
         <el-alert
@@ -730,7 +709,6 @@
           </ul>
         </div>
       </div>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="closeImportDialog">取消</el-button>
@@ -740,7 +718,6 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -750,30 +727,23 @@ import { usePaginatedFetching } from '@/composables/useDataFetching'
 import { parseListData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
-
-const router = useRouter()
-
+const _router = useRouter()
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
-
 import { Search, Plus, Upload, Download, Refresh } from '@element-plus/icons-vue'
 import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
 import printService, { parseTemplateResponse } from '@/services/printService'
-
 // ========== 组合式函数导入 ==========
 import { useOrderForm } from './composables/useOrderForm'
 import { useOrderActions } from './composables/useOrderActions'
 import { useOrderImportExport } from './composables/useOrderImportExport'
-
 // ========== 本地状态 ==========
 const searchQuery = ref('')
 const statusFilter = ref('')
 const operatorFilter = ref('')
 const dateRange = ref([])
 const operators = ref([])
-
 // 常量定义
 const SEARCH_DEBOUNCE_DELAY = 300
-
 // 状态映射
 const orderStatuses = [
   { value: 'pending', label: '待处理' },
@@ -783,13 +753,11 @@ const orderStatuses = [
   { value: 'completed', label: '已完成' },
   { value: 'cancelled', label: '已取消' }
 ]
-
 // 订单统计数据
 const orderStats = ref({
   total: 0, pending: 0, confirmed: 0, inProduction: 0,
   readyToShip: 0, shipped: 0, cancelled: 0
 })
-
 // 数据规范化处理函数
 const normalizeOrdersData = (orders) => {
   if (!Array.isArray(orders)) return []
@@ -805,7 +773,6 @@ const normalizeOrdersData = (orders) => {
     return orderNoB.localeCompare(orderNoA)
   })
 }
-
 // 使用统一的分页数据获取Hook
 const {
   loading, data: ordersData, pagination,
@@ -831,48 +798,38 @@ const {
   },
   { pageSize: 10, immediate: true }
 )
-
 const tableData = computed(() => ordersData.value)
 const currentPage = computed(() => pagination.current)
 const pageSize = computed(() => pagination.pageSize)
 const total = computed(() => pagination.total)
-
 // ========== 解构组合式函数 ==========
 const {
   dialogVisible, dialogLoading, dialogType,
-  formRef, contractCodeInput, form, rules,
-  customers, filteredCustomers, customerSearchLoading,
+  formRef, contractCodeInput, form, rules, filteredCustomers, customerSearchLoading,
   fetchCustomers, searchCustomers, handleCustomerChange, handleCustomerEnterKey,
-  products, filteredProducts, materialsLoading,
-  materialSelectRefs, quantityInputRefs,
   setMaterialSelectRef, setQuantityInputRef,
   addMaterial, removeMaterial,
   fetchMaterialSuggestions, handleMaterialSelect, handleMaterialClear,
   handleMaterialEnter, handleQuantityEnter,
-  calculateItemAmount, calculateTotalAmount,
+  calculateItemAmount,
   handleSubmit, handleAdd, handleEdit,
-  vatRateOptions, defaultVATRate, financeStore
+  vatRateOptions, financeStore
 } = useOrderForm(fetchData, updateParams)
-
 // 键盘导航：Enter 跳转下一字段
 const { onFormKeydown: salesFormKeydown } = useFormKeyboardNav(() => handleSubmit())
-
 const {
   detailsVisible, detailsLoading, currentOrder,
   handleConfirm, handleCancel, handleShip,
   handleLock, handleUnlock, handleView,
   canConfirm, canShip, canCancel, canLock, canUnlock
 } = useOrderActions(fetchData, tableData)
-
 const {
   importDialogVisible, importMethod, uploadRef, importJsonData,
   importing, importResult,
   handleImport, closeImportDialog, downloadTemplate,
   handleFileChange, submitImport, handleExport
 } = useOrderImportExport(fetchData, searchQuery, statusFilter, operatorFilter, dateRange)
-
 // ========== 本地方法 ==========
-
 // 计算统计数据
 const calculateOrderStats = (data = null) => {
   const ordersToCount = data || tableData.value
@@ -891,7 +848,6 @@ const calculateOrderStats = (data = null) => {
   })
   orderStats.value = stats
 }
-
 // 获取全量订单统计数据
 const fetchStats = async () => {
   try {
@@ -902,7 +858,6 @@ const fetchStats = async () => {
     console.error('获取订单统计数据失败:', error)
   }
 }
-
 // 获取操作人列表
 const fetchOperators = async () => {
   try {
@@ -913,9 +868,7 @@ const fetchOperators = async () => {
     operators.value = []
   }
 }
-
 const handleOperatorChange = (value) => { fetchData({ operator: value }) }
-
 const resetSearch = () => {
   searchQuery.value = ''
   statusFilter.value = ''
@@ -923,7 +876,6 @@ const resetSearch = () => {
   dateRange.value = []
   fetchData()
 }
-
 let searchTimeout = null
 let materialSearchTimeout = null
 const handleSearch = (immediate = false) => {
@@ -931,7 +883,6 @@ const handleSearch = (immediate = false) => {
   if (immediate) updateParams({ page: 1 })
   else searchTimeout = setTimeout(() => { updateParams({ page: 1 }) }, SEARCH_DEBOUNCE_DELAY)
 }
-
 const getOrderDateFromOrderNo = (orderNo) => {
   if (!orderNo || orderNo.length < 8) return '2024-04-01'
   try {
@@ -940,10 +891,8 @@ const getOrderDateFromOrderNo = (orderNo) => {
     const month = parseInt(dateStr.substring(2, 4))
     const day = parseInt(dateStr.substring(4, 6))
     return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
-  } catch (e) { return '2024-05-01' }
+  } catch { return '2024-05-01' }
 }
-
-
 // ========== 打印功能 ==========
 const printLoading = ref(false)
 const handlePrintOrder = async () => {
@@ -989,7 +938,6 @@ const handlePrintOrder = async () => {
     printLoading.value = false
   }
 }
-
 // ========== 生命周期 ==========
 onMounted(async () => {
   try {
@@ -1002,160 +950,131 @@ onMounted(async () => {
     console.error('❌ 组件挂载时出错:', error)
   }
 })
-
 onUnmounted(() => {
   if (searchTimeout) { clearTimeout(searchTimeout); searchTimeout = null }
   if (materialSearchTimeout) { clearTimeout(materialSearchTimeout); materialSearchTimeout = null }
   currentOrder.value = null
 })
-
 onActivated(() => {
   fetchData()
   fetchStats()
 })
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form .el-select {
   width: 150px !important;
 }
-
 .search-buttons {
   display: flex;
   gap: 8px;
 }
-
 .more-actions {
   display: flex;
   justify-content: flex-start;
 }
-
 .order-detail {
   padding: 20px;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border-radius: 8px;
   margin: 10px 0;
 }
-
 .order-detail :deep(.el-descriptions) {
   background: var(--color-bg-base);
   border-radius: 8px;
   padding: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
-
 .order-detail :deep(.el-descriptions__label) {
   font-weight: 500;
   color: #64748b;
   background: var(--color-bg-section);
 }
-
 .order-detail :deep(.el-descriptions__content) {
   color: #1e293b;
 }
-
 .order-detail :deep(.el-divider) {
   margin: 20px 0 16px 0;
 }
-
 /* 订单物料表格样式 */
 .order-detail :deep(.el-table) {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
-
 .order-detail :deep(.el-table th) {
   background: #f1f5f9 !important;
   color: #475569;
   font-weight: 600;
   font-size: 13px;
 }
-
 .order-detail :deep(.el-table td) {
   font-size: 13px;
   color: #334155;
 }
-
 .order-detail :deep(.el-table--striped .el-table__body tr.el-table__row--striped td) {
   background: #fafbfc;
 }
-
 /* 查看对话框中的订单详情样式 */
 .order-details {
   padding: 10px 0;
 }
-
 .order-details :deep(.el-descriptions) {
   background: #fafbfc;
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 10px;
 }
-
 .order-details :deep(.el-descriptions__label) {
   font-weight: 500;
   color: #64748b;
 }
-
 .order-details :deep(.el-divider) {
   margin: 20px 0 16px 0;
 }
-
 .order-details :deep(.el-table) {
   border-radius: 8px;
   overflow: hidden;
 }
-
 .order-details :deep(.el-table th) {
   background: #f1f5f9 !important;
   color: #475569;
   font-weight: 600;
   font-size: 13px;
 }
-
 .order-details :deep(.el-table td) {
   font-size: 13px;
   color: #334155;
 }
-
 .operation-group {
   display: flex;
   gap: 4px;
 }
-
 .operation-group:not(:last-child) {
   border-right: 1px solid var(--color-border-lighter);
   padding-right: 8px;
 }
-
 .materials-table {
   margin-bottom: var(--spacing-lg);
   overflow: visible;
 }
-
 /* 移除所有高度限制 */
 .el-table-column,
 .el-table__body,
@@ -1166,42 +1085,34 @@ onActivated(() => {
   height: auto !important;
   overflow: visible !important;
 }
-
 /* 物料选择下拉样式 */
 :deep(.material-select-dropdown) {
   max-height: 400px !important;
 }
-
 :deep(.material-select-dropdown .el-scrollbar__wrap) {
   max-height: 400px !important;
 }
-
 :deep(.el-select-dropdown__list) {
   max-height: none !important;
 }
-
 :deep(.el-select-dropdown__wrap) {
   max-height: 400px !important;
 }
-
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
 /* 隐藏数字输入框的加减按钮 */
 :deep(.el-input__inner[type="number"]) {
   -moz-appearance: textfield;
   appearance: textfield;
 }
-
 :deep(.el-input__inner[type="number"]::-webkit-outer-spin-button),
 :deep(.el-input__inner[type="number"]::-webkit-inner-spin-button) {
   -webkit-appearance: none;
   margin: 0;
 }
-
 /* 导入对话框样式 */
 .import-tips {
   margin-top: 10px;
@@ -1212,70 +1123,57 @@ onActivated(() => {
   font-size: 12px;
   color: var(--color-text-regular);
 }
-
 .import-tips p {
   margin: 5px 0;
 }
-
 .import-result {
   margin-top: var(--spacing-lg);
   padding: 15px;
   background-color: var(--color-bg-hover);
   border-radius: var(--radius-sm);
 }
-
 .import-result h3 {
   margin: 0 0 10px 0;
   color: var(--color-text-primary);
   font-size: 16px;
 }
-
 .import-result h4 {
   margin: 15px 0 10px 0;
   color: var(--color-text-regular);
   font-size: 14px;
 }
-
 /* 物料选择框优化样式 */
 .material-select-dropdown {
   min-width: 400px !important;
   max-width: 600px !important;
 }
-
 .material-select-dropdown .el-select-dropdown__item {
   height: auto !important;
   line-height: 1.4 !important;
   padding: 8px 12px !important;
   white-space: normal !important;
 }
-
 .material-select-dropdown .el-select-dropdown__item > div {
   width: 100% !important;
 }
-
 /* 确保物料编码完整显示 */
 .el-table .el-table__cell {
   overflow: visible !important;
 }
-
 .el-select {
   width: 100% !important;
 }
-
 .el-select .el-input__inner {
   text-overflow: ellipsis !important;
 }
-
 /* 必填字段样式 */
 .is-required-field :deep(.el-input__wrapper) {
   border-color: var(--color-danger) !important;
   background-color: #fef0f0 !important;
 }
-
 .is-required-field :deep(.el-input__wrapper):hover {
   border-color: var(--color-danger) !important;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1283,23 +1181,19 @@ onActivated(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 对话框滚动样式 */
 :deep(.el-dialog__body) {
   max-height: 70vh;
   overflow-y: auto;
   overflow-x: hidden;
 }
-
 /* 表格容器宽度控制 */
 .materials-table-container {
   width: 100%;
   overflow-x: auto;
 }
-
 </style>

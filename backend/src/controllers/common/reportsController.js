@@ -19,15 +19,18 @@ const reportsController = {
    */
   getBalanceSheet: async (req, res) => {
     try {
-      const { reportDate, compareDate, level = 0, unit = 1 } = req.query;
+      const { reportDate } = req.query;
 
       if (!reportDate) {
         return ResponseHandler.error(res, '请提供报表日期', 'BAD_REQUEST', 400);
       }
 
-      // 这里原本是造假的静态数字，现根据整站审查原则被移除
-      // 财务统计需结合企业特定科目动态计算，不应由写死的数据顶替
-      return ResponseHandler.error(res, '资产负债表功能核心级开发中，暂时不支持查询', 'NOT_IMPLEMENTED', 501);
+      return ResponseHandler.error(
+        res,
+        '资产负债表未启用，请先配置标准财务报表取数规则',
+        'NOT_IMPLEMENTED',
+        501
+      );
     } catch (error) {
       ResponseHandler.error(res, '获取资产负债表失败', 'SERVER_ERROR', 500, error);
     }
@@ -41,18 +44,18 @@ const reportsController = {
       const {
         startDate,
         endDate,
-        compareStartDate,
-        compareEndDate,
-        level = 0,
-        unit = 1,
       } = req.query;
 
       if (!startDate || !endDate) {
         return ResponseHandler.error(res, '请提供开始日期和结束日期', 'BAD_REQUEST', 400);
       }
 
-      // 这里原本是造假的静态数字，现根据整站审查原则被移除。
-      return ResponseHandler.error(res, '利润表功能核心级开发中，暂时不支持查询', 'NOT_IMPLEMENTED', 501);
+      return ResponseHandler.error(
+        res,
+        '利润表未启用，请先配置标准财务报表取数规则',
+        'NOT_IMPLEMENTED',
+        501
+      );
     } catch (error) {
       ResponseHandler.error(res, '获取利润表失败', 'SERVER_ERROR', 500, error);
     }
@@ -63,7 +66,7 @@ const reportsController = {
    */
   getCashFlow: async (req, res) => {
     try {
-      const { reportMonth, unit = 1 } = req.query;
+      const { reportMonth } = req.query;
 
       if (!reportMonth) {
         return ResponseHandler.error(res, '请提供报表月份', 'BAD_REQUEST', 400);

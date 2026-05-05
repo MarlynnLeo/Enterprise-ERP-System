@@ -4,10 +4,12 @@ const pool = db.pool;
 const dingtalkConfig = require('../../../config/dingtalkConfig');
 const { logger } = require('../../../utils/logger');
 
+const DINGTALK_ROOT_DEPT_ID = 1;
+
 // 注意：钉钉 HTTPS 请求单独设置 rejectUnauthorized: false（见 requestJSON 方法第29行）
 
 class DingtalkSyncService {
-  
+
   // 通用 HTTPS 请求封装
   static requestJSON(method, urlString, queryParams = {}, bodyObj = null) {
     return new Promise((resolve, reject) => {
@@ -75,7 +77,7 @@ class DingtalkSyncService {
     const url = 'https://oapi.dingtalk.com/topapi/v2/department/listsub';
     const resp = await this.requestJSON('POST', url, { access_token: accessToken }, { dept_id: deptId });
     if (resp.errcode !== 0) throw new Error(`获取子部门失败: errcode=${resp.errcode}, errmsg=${resp.errmsg}`);
-    
+
     const result = resp.result;
     logger.info(`[钉钉] 部门 ${deptId} 的子部门原始返回: ${JSON.stringify(result)}`);
 
@@ -132,7 +134,7 @@ class DingtalkSyncService {
       users.push(...list);
 
       hasMore = result.has_more === true || result.hasMore === true;
-      if (hasMore) cursor = result.next_cursor != null ? result.next_cursor : result.nextCursor;
+      if (hasMore) cursor = result.next_cursor !== null && result.next_cursor !== undefined ? result.next_cursor : result.nextCursor;
     }
     return users;
   }
@@ -141,22 +143,22 @@ class DingtalkSyncService {
   static async syncAllUsersToDb() {
     logger.info('开始请求钉钉 Access Token...');
     const accessToken = await this.getAccessToken();
-    
+
     logger.info('开始获取钉钉全公司部门结构...');
-    const deptIds = await this.getAllDepartmentIds(accessToken, 1);
-    
+    const deptIds = await this.getAllDepartmentIds(accessToken, DINGTALK_ROOT_DEPT_ID);
+
     // 获取每个部门的名称和父子关系
     const deptNameMap = {};   // deptId -> deptName
     const deptParentMap = {}; // deptId -> parentDeptId
     for (const deptId of deptIds) {
       try {
-        const resp = await this.requestJSON('POST', 'https://oapi.dingtalk.com/topapi/v2/department/get', 
+        const resp = await this.requestJSON('POST', 'https://oapi.dingtalk.com/topapi/v2/department/get',
           { access_token: accessToken }, { dept_id: deptId });
         if (resp.errcode === 0 && resp.result) {
           deptNameMap[deptId] = (resp.result.name || '').trim();
-          deptParentMap[deptId] = resp.result.parent_id || 1;
+          deptParentMap[deptId] = resp.result.parent_id || DINGTALK_ROOT_DEPT_ID;
         }
-      } catch (e) { /* 忽略 */ }
+      } catch { /* 忽略 */ }
     }
     logger.info(`获取到 ${Object.keys(deptNameMap).length} 个部门名称`);
 
@@ -190,7 +192,7 @@ class DingtalkSyncService {
 
       // 3. 如果是子部门，尝试归到父部门
       const parentId = deptParentMap[deptId];
-      if (parentId && parentId !== 1 && deptNameMap[parentId]) {
+      if (parentId && parentId !== DINGTALK_ROOT_DEPT_ID && deptNameMap[parentId]) {
         const parentName = deptNameMap[parentId];
         if (localDeptMap[parentName]) return localDeptMap[parentName];
       }

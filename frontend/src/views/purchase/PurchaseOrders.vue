@@ -17,7 +17,6 @@
         <el-button type="primary" :icon="Plus" @click="openOrderDialog()">{{ $t('page.purchase.orders.add') }}</el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :model="searchForm" :inline="true" class="search-form">
@@ -26,7 +25,6 @@
             v-model="searchForm.keyword"
             placeholder="订单号或合同编码"
             clearable
-
             @clear="handleSearch"
             @keyup.enter="handleSearch"
           ></el-input>
@@ -36,7 +34,6 @@
             v-model="searchForm.status" 
             :placeholder="$t('page.baseData.materials.statusPlaceholder')" 
             clearable 
-
             @change="handleSearch"
           >
             <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value"></el-option>
@@ -54,7 +51,6 @@
           </el-button>
         </el-form-item>
       </el-form>
-
       <!-- 高级筛选区域 -->
       <el-collapse-transition>
         <div v-show="showAdvancedFilter" class="advanced-filter" style="margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--color-border-base);">
@@ -264,7 +260,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
         <el-pagination
@@ -278,7 +273,6 @@
         />
       </div>
     </el-card>
-
     <!-- 订单编辑对话框 -->
     <el-dialog v-model="orderDialog.visible" :title="orderDialog.isEdit ? '编辑采购订单' : '新建采购订单'" width="50%" destroy-on-close :close-on-click-modal="false" align-center>
       <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="110px" v-loading="orderDialog.loading">
@@ -311,7 +305,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="供应商" prop="supplier_id">
@@ -349,7 +342,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-row :gutter="20">
           <el-col :span="16">
             <el-form-item label="备注">
@@ -364,17 +356,14 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <!-- 物料列表 -->
         <el-divider content-position="left">物料列表</el-divider>
-
         <div class="material-actions" style="display: flex; gap: 10px; margin-bottom: 10px;">
           <el-button type="primary" @click="addMaterialRow">
             <el-icon><Plus /></el-icon>添加物料
           </el-button>
           <el-button @click="openRequisitionDialog">选择采购申请</el-button>
         </div>
-
         <el-table :data="orderForm.items" border style="width: 100%" max-height="350">
           <el-table-column label="序号" type="index" width="55" align="center"></el-table-column>
           <el-table-column label="物料" min-width="250">
@@ -475,7 +464,6 @@
         </span>
       </template>
     </el-dialog>
-
     <el-dialog
       title="选择未采购物料"
       v-model="requisitionDialogVisible"
@@ -562,7 +550,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 订单详情查看对话框 -->
     <el-dialog v-model="viewDialogVisible" title="采购订单详情" width="70%" destroy-on-close>
       <div v-loading="detailLoading">
@@ -580,9 +567,7 @@
           <el-descriptions-item label="关联申请单" v-if="viewData.requisition_number">{{ viewData.requisition_number }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="viewData.requisition_number ? 1 : 2">{{ viewData.notes || '无' }}</el-descriptions-item>
         </el-descriptions>
-
         <el-divider content-position="center">订单明细</el-divider>
-
         <el-table :data="viewData.items || []" border style="width: 100%">
           <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
@@ -623,7 +608,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 申请单详情对话框 -->
     <el-dialog
       v-model="requisitionViewDialog.visible"
@@ -646,9 +630,7 @@
           <el-descriptions-item label="更新时间">{{ formatDate(requisitionViewData.updated_at || requisitionViewData.updatedAt) }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ requisitionViewData.remarks || '无' }}</el-descriptions-item>
         </el-descriptions>
-
         <el-divider content-position="center">申请物料</el-divider>
-
         <el-table :data="requisitionViewData.materials || []" border style="width: 100%">
           <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" min-width="120">
@@ -684,7 +666,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 到货对话框 -->
     <el-dialog
       v-model="receiveDialogVisible"
@@ -703,7 +684,6 @@
         >
           请选择本次到货的物料并填写到货数量。可以只选择部分物料到货。
         </el-alert>
-
         <el-table
           ref="receiveTableRef"
           :data="receiveForm.items"
@@ -772,7 +752,6 @@
               <el-input
                 v-model="scope.row.receive_quantity"
                 size="small"
-
                 :disabled="parseFloat(scope.row.pending_quantity || 0) <= 0"
                 @blur="handleReceiveQuantityChange(scope.row)"
                 @keyup.enter="handleReceiveQuantityChange(scope.row)"
@@ -780,14 +759,12 @@
             </template>
           </el-table-column>
         </el-table>
-
         <div style="margin-top: 20px; text-align: right;">
           <el-text type="primary" size="large">
             本次到货总数量：{{ totalReceiveQuantity.toFixed(2) }}
           </el-text>
         </div>
       </div>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="receiveDialogVisible = false">取消</el-button>
@@ -797,7 +774,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedOrders.length > 0" class="floating-batch-bar">
@@ -832,52 +808,40 @@
     </Transition>
   </div>
 </template>
-
 <script setup>
-import { ref, reactive, onMounted, onActivated, computed } from 'vue'
+import { ref, reactive, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/services/api'
 import { Plus, Search, Refresh, Select, Promotion, CircleCheck, Close, Filter } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { PURCHASE_STATUS_OPTIONS } from '@/constants/purchaseConstants'
 import { parseListData } from '@/utils/responseParser'
-
-const router = useRouter()
+const _router = useRouter()
 const authStore = useAuthStore()
 const showAdvancedFilter = ref(false)
-
 // ========== 组合式函数导入 ==========
 import { usePurchaseOrderForm } from './composables/usePurchaseOrderForm'
 import { usePurchaseOrderActions } from './composables/usePurchaseOrderActions'
-
 // ========== 搜索表单和分页 ==========
 const searchForm = reactive({ keyword: '', status: '', supplier_id: '', operator: '', date_range: [] })
 const pagination = reactive({ current: 1, size: 10, total: 0 })
 const loading = ref(false)
 const orderList = ref([])
 const operators = ref([])
-
 // 状态选项
 const statusOptions = PURCHASE_STATUS_OPTIONS
-
 // ========== 解构表单组合式函数 ==========
 const {
-  financeStore, vatRateOptions, defaultVATRate, formatTaxRate,
+  financeStore, vatRateOptions, formatTaxRate,
   suppliers, filteredSuppliers, supplierLoading,
-  filteredProducts, materialsLoading, materialSearchLoading,
-  orderFormRef, orderDialog, orderForm, orderRules,
-  materialSelectRefs, quantityInputRefs, setMaterialSelectRef, setQuantityInputRef,
-  requisitionDialogVisible, requisitionDialogLoading, requisitionSearchKeyword,
-  requisitionList, unorderedMaterialsList, selectedMaterials, materialTableRef, requisitionPagination,
-  loadSuppliers, ensureSupplierExists, searchSuppliers, handleSupplierFocus, handleSupplierChange,
-  addMaterialRow, removeItem, recalculatePrice, formatQuantity, calculateTotalAmount,
-  fetchMaterialSuggestions, handleMaterialSelect, handleMaterialEnter, handleQuantityEnter,
-  handleMaterialDisplayChange, handleMaterialChange, formatMaterialLabel,
-  resetOrderForm, loadOrderDetails, openOrderDialog, handleCreate, editOrder, submitOrderForm,
-  searchRequisitions, openRequisitionDialog, removeRequisition,
-  handleMaterialSelectionChange, loadRequisitions, confirmMaterialSelection
+  orderFormRef, orderDialog, orderForm, orderRules, setMaterialSelectRef, setQuantityInputRef,
+  requisitionDialogVisible, requisitionSearchKeyword, unorderedMaterialsList, selectedMaterials, materialTableRef,
+  loadSuppliers, searchSuppliers, handleSupplierFocus, handleSupplierChange,
+  addMaterialRow, removeItem, recalculatePrice, calculateTotalAmount,
+  fetchMaterialSuggestions, handleMaterialSelect, handleMaterialEnter, handleQuantityEnter, openOrderDialog, editOrder, submitOrderForm,
+  searchRequisitions, openRequisitionDialog,
+  handleMaterialSelectionChange, confirmMaterialSelection
 } = usePurchaseOrderForm(loadOrders)
-
 // ========== 解构操作组合式函数 ==========
 const {
   detailLoading, viewDialogVisible, viewData,
@@ -887,13 +851,11 @@ const {
   orderStats, formatDate, formatCurrency, getStatusText, getStatusType,
   getCountdownText, getCountdownType,
   viewOrder, viewRequisition, updateStatus, deleteOrder,
-  openReceiveDialog, handleReceiveQuantityChange, confirmReceive, updateReceiving,
+  openReceiveDialog, handleReceiveQuantityChange, confirmReceive,
   printOrder, getOrderStats,
   handleSelectionChange, clearSelection, handleBatchSubmit, handleBatchApprove
 } = usePurchaseOrderActions(loadOrders, orderList)
-
 // ========== 本地方法 ==========
-
 // 加载订单列表
 async function loadOrders() {
   loading.value = true
@@ -932,7 +894,6 @@ async function loadOrders() {
     getOrderStats()
   }
 }
-
 // 加载操作人列表
 const loadOperators = async () => {
   try {
@@ -940,7 +901,6 @@ const loadOperators = async () => {
     operators.value = parseListData(res, { logPrefix: '操作人', enableLog: false })
   } catch (error) { console.error('加载操作人列表失败:', error); operators.value = [] }
 }
-
 // 搜索
 const handleSearch = async () => { pagination.current = 1; await loadOrders(); await getOrderStats() }
 const resetSearch = () => {
@@ -949,10 +909,8 @@ const resetSearch = () => {
 }
 const handleSizeChange = (val) => { pagination.size = val; loadOrders() }
 const handleCurrentChange = (val) => { pagination.current = val; loadOrders() }
-
 // 到货数量相关
-const checkItemSelectable = (row) => parseFloat(row.pending_quantity || 0) > 0
-
+const _checkItemSelectable = (row) => parseFloat(row.pending_quantity || 0) > 0
 // ========== 生命周期 ==========
 onMounted(async () => {
   loading.value = true
@@ -965,41 +923,34 @@ onMounted(async () => {
   } catch (error) { console.error('页面初始化失败:', error) }
   finally { loading.value = false }
 })
-
 onActivated(async () => {
   try { await Promise.allSettled([loadOrders(), getOrderStats()]) }
   catch (error) { console.error('页面激活刷新失败:', error) }
 })
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 /* 浮动批量操作栏样式 */
 .floating-batch-bar {
   position: fixed;
@@ -1017,7 +968,6 @@ onActivated(async () => {
   gap: 32px;
   min-width: 400px;
 }
-
 .floating-batch-bar .batch-info {
   display: flex;
   align-items: center;
@@ -1025,55 +975,45 @@ onActivated(async () => {
   color: var(--color-on-primary, #fff);
   font-size: 14px;
 }
-
 .floating-batch-bar .batch-info .el-icon {
   font-size: 20px;
 }
-
 .floating-batch-bar .batch-info strong {
   color: #ffd700;
   font-size: 18px;
   margin: 0 2px;
 }
-
 .floating-batch-bar .batch-buttons {
   display: flex;
   gap: 12px;
 }
-
 .floating-batch-bar .batch-buttons .el-button {
   border: 1px solid rgba(255, 255, 255, 0.3);
   transition: all 0.3s ease;
 }
-
 .floating-batch-bar .batch-buttons .el-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
-
 /* 浮动栏进入/离开动画 */
 .slide-up-enter-active,
 .slide-up-leave-active {
   transition: all 0.3s ease;
 }
-
 .slide-up-enter-from,
 .slide-up-leave-to {
   opacity: 0;
   transform: translate(-50%, 100%);
 }
-
 /* 操作按钮样式 - 与库存出库页面保持一致 */
 .el-table .el-button + .el-button {
   margin-left: 8px;
 }
-
 .material-list-header {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 10px;
 }
-
 .total-price {
   text-align: right;
   margin-top: 15px;
@@ -1081,13 +1021,11 @@ onActivated(async () => {
   font-weight: bold;
   color: var(--color-primary);
 }
-
 /* 物料选择下拉框样式 - 强制覆盖 */
 :deep(.material-select-dropdown) {
   max-height: 500px !important;
   overflow-y: auto !important;
 }
-
 :deep(.material-select-dropdown .el-select-dropdown__item) {
   height: auto !important;
   min-height: 80px !important;
@@ -1096,17 +1034,14 @@ onActivated(async () => {
   white-space: normal !important;
   overflow: visible !important;
 }
-
 :deep(.material-select-dropdown .el-select-dropdown__item.hover) {
   background-color: var(--color-bg-hover) !important;
 }
-
 :deep(.material-select-dropdown .el-select-dropdown__item > div) {
   overflow: visible !important;
   white-space: normal !important;
   word-wrap: break-word !important;
 }
-
 /* 快速搜索下拉框样式 */
 .quick-search-dropdown {
   position: absolute;
@@ -1121,26 +1056,21 @@ onActivated(async () => {
   max-height: 200px;
   overflow-y: auto;
 }
-
 .quick-search-item {
   padding: 8px 12px;
   cursor: pointer;
   border-bottom: 1px solid #f5f7fa;
   transition: background-color 0.3s;
 }
-
 .quick-search-item:hover {
   background-color: var(--color-bg-hover);
 }
-
 .quick-search-item:last-child {
   border-bottom: none;
 }
-
 .quick-add-material {
   position: relative;
 }
-
 .material-search, .requisition-search {
   margin-bottom: 15px;
 }
@@ -1149,11 +1079,9 @@ onActivated(async () => {
   max-height: 70vh;
   overflow-y: auto;
 }
-
 .delete-text-btn {
   padding: 0 4px;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1161,25 +1089,21 @@ onActivated(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 表格单元格不换行显示省略号 */
 :deep(.el-table .cell) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 删除按钮红色样式 */
 .delete-text-btn {
   color: var(--color-danger) !important;
   font-weight: 500;
 }
-
 .delete-text-btn:hover {
   color: #f78989 !important;
 }

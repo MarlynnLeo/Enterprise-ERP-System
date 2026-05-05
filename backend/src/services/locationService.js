@@ -88,7 +88,7 @@ const locationService = {
 
       const [rows] = await pool.query(query, params);
 
-      let countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
+      const countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
 
       const countParams = params.slice(0, -2);
       const [countResult] = await pool.query(countQuery, countParams);

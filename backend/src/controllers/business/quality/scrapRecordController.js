@@ -192,7 +192,7 @@ const approveScrap = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { approved, note, approver } = req.body;
+    const { approved, approver } = req.body;
 
     // 检查报废记录是否存在
     const [checkResult] = await connection.query('SELECT status FROM scrap_records WHERE id = ?', [
@@ -240,7 +240,7 @@ const completeScrap = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { scrap_cost, note } = req.body;
+    const { scrap_cost } = req.body;
 
     // 获取报废记录信息
     const [records] = await connection.query('SELECT * FROM scrap_records WHERE id = ?', [id]);

@@ -112,7 +112,7 @@ const ErrorFactory = {
 };
 
 // 统一错误处理中间件
-const unifiedErrorHandler = (err, req, res, next) => {
+const unifiedErrorHandler = (err, req, res) => {
   // 生成请求ID用于追踪
   const requestId = req.requestId || generateRequestId();
 
@@ -207,7 +207,7 @@ const unifiedErrorHandler = (err, req, res, next) => {
   } else if (error.details && error.isOperational) {
     // ✅ 安全修复: 生产环境过滤掉可能包含内部信息的 details 字段
     // 仅保留不含 originalError/originalMessage/originalStack 的安全详情
-    const { originalError, originalMessage, originalStack, ...safeDetails } = (error.details || {});
+    const {  originalMessage, ...safeDetails } = (error.details || {});
     if (Object.keys(safeDetails).length > 0) {
       response.details = safeDetails;
     }

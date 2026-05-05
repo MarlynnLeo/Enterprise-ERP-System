@@ -25,7 +25,7 @@
           </div>
         </template>
         
-        <el-form :model="userForm" :rules="rules" ref="userFormRef" label-width="100px" :disabled="!isEditing">
+        <el-form :model="localUserForm" :rules="rules" ref="userFormRef" label-width="100px" :disabled="!isEditing">
           <div class="form-section">
             <div class="section-title">
               <el-icon><User /></el-icon>
@@ -34,12 +34,12 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="姓名" prop="name">
-                  <el-input v-model="userForm.name" placeholder="请输入姓名" prefix-icon="User" />
+                  <el-input :model-value="localUserForm.name" placeholder="请输入姓名" prefix-icon="User" @update:model-value="updateUserFormField('name', $event)" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="邮箱" prop="email">
-                  <el-input v-model="userForm.email" placeholder="请输入邮箱" prefix-icon="Message" />
+                  <el-input :model-value="localUserForm.email" placeholder="请输入邮箱" prefix-icon="Message" @update:model-value="updateUserFormField('email', $event)" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -47,12 +47,12 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="手机号" prop="phone">
-                  <el-input v-model="userForm.phone" placeholder="请输入手机号" prefix-icon="Phone" />
+                  <el-input :model-value="localUserForm.phone" placeholder="请输入手机号" prefix-icon="Phone" @update:model-value="updateUserFormField('phone', $event)" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="角色">
-                  <el-input v-model="userForm.role" disabled prefix-icon="Briefcase" />
+                  <el-input :model-value="localUserForm.role" disabled prefix-icon="Briefcase" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -67,28 +67,29 @@
             </div>
             <el-form-item label="所在地区">
               <el-cascader
-                v-model="userForm.location"
+                :model-value="localUserForm.location"
                 :options="locationOptions"
                 placeholder="选择所在地区"
                 style="width: 100%"
+                @update:model-value="updateUserFormField('location', $event)"
               />
             </el-form-item>
             
             <el-form-item label="个人简介">
               <el-input 
-                v-model="userForm.bio" 
+                :model-value="localUserForm.bio" 
                 type="textarea" 
                 :rows="4" 
                 placeholder="介绍一下自己..."
                 maxlength="200"
                 show-word-limit
+                @update:model-value="updateUserFormField('bio', $event)"
               />
             </el-form-item>
           </div>
         </el-form>
       </el-card>
     </div>
-
     <!-- 密码修改 -->
     <div v-show="activeTab === 'password'">
       <el-card class="glass-card password-card" shadow="hover">
@@ -142,7 +143,6 @@
                 :percentage="passwordStrength" 
                 :color="passwordStrengthColor"
                 :show-text="false"
-
               />
               <span class="strength-text" :style="{color: passwordStrengthColor}">
                 {{ passwordStrengthText }}
@@ -173,42 +173,54 @@
     </div>
   </div>
 </template>
-
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { 
-  User, Check, Close, Edit, Location, Message, Phone, Briefcase,
+  User, Check, Close, Edit, Location,
   Lock, RefreshRight
 } from '@element-plus/icons-vue'
-
 const props = defineProps({
   activeTab: String,
   userForm: Object,
   locationOptions: Array,
   isEditing: Boolean
 })
-
 const emit = defineEmits([
   'start-editing', 'cancel-editing', 'save-profile', 
   'update:userForm', 'change-password'
 ])
-
 const userFormRef = ref(null)
 const passwordFormRef = ref(null)
 const passwordChanging = ref(false)
+const localUserForm = reactive({})
 
+watch(
+  () => props.userForm,
+  (value) => {
+    Object.keys(localUserForm).forEach((key) => {
+      if (!value || !(key in value)) {
+        delete localUserForm[key]
+      }
+    })
+    Object.assign(localUserForm, value || {})
+  },
+  { immediate: true }
+)
+
+const updateUserFormField = (field, value) => {
+  localUserForm[field] = value
+  emit('update:userForm', { ...localUserForm })
+}
 // 密码表单
 const passwordForm = reactive({
   currentPassword: '',
   newPassword: '',
   confirmPassword: ''
 })
-
 // 密码强度
 const passwordStrength = ref(0)
 const passwordStrengthText = ref('')
 const passwordStrengthColor = ref('')
-
 const rules = {
   name: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -223,7 +235,6 @@ const rules = {
     { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
   ]
 }
-
 const passwordRules = {
   currentPassword: [
     { required: true, message: '请输入当前密码', trigger: 'blur' }
@@ -246,19 +257,17 @@ const passwordRules = {
     }
   ]
 }
-
 const startEditing = () => emit('start-editing')
 const cancelEditing = () => emit('cancel-editing')
-
 const saveProfile = async () => {
   if (!userFormRef.value) return
   await userFormRef.value.validate((valid) => {
     if (valid) {
+      emit('update:userForm', { ...localUserForm })
       emit('save-profile')
     }
   })
 }
-
 const checkStrength = (value) => {
   if (!value) {
     passwordStrength.value = 0
@@ -285,7 +294,6 @@ const checkStrength = (value) => {
     passwordStrengthColor.value = '#67C23A'
   }
 }
-
 const submitPasswordChange = async () => {
   if (!passwordFormRef.value) return
   await passwordFormRef.value.validate(async (valid) => {
@@ -296,13 +304,12 @@ const submitPasswordChange = async () => {
           passwordChanging.value = false
           resetPasswordForm()
         })
-      } catch (e) {
+      } catch {
         passwordChanging.value = false
       }
     }
   })
 }
-
 const resetPasswordForm = () => {
   if (passwordFormRef.value) {
     passwordFormRef.value.resetFields()
@@ -310,27 +317,23 @@ const resetPasswordForm = () => {
   }
 }
 </script>
-
 <style scoped>
 .glass-card {
   border-radius: 16px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
 }
-
 .header-left {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-
 .header-icon {
   font-size: 20px;
   background: var(--el-fill-color-light);
@@ -338,22 +341,18 @@ const resetPasswordForm = () => {
   border-radius: 8px;
   box-sizing: content-box;
 }
-
 .header-title {
   font-size: 16px;
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
-
 .header-actions {
   display: flex;
   gap: 12px;
 }
-
 .form-section {
   margin-bottom: 30px;
 }
-
 .section-title {
   display: flex;
   align-items: center;
@@ -365,12 +364,10 @@ const resetPasswordForm = () => {
   padding-bottom: 10px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
-
 .editing-mode {
   border: 1px solid var(--el-color-primary);
   background: var(--el-color-primary-light-9);
 }
-
 .password-strength {
   display: flex;
   align-items: center;
@@ -378,15 +375,12 @@ const resetPasswordForm = () => {
   margin-top: 8px;
   font-size: 12px;
 }
-
 .strength-label {
   color: var(--el-text-color-secondary);
 }
-
 .strength-text {
   font-weight: 600;
 }
-
 .security-tips {
   padding-left: 20px;
   margin: 0;

@@ -52,6 +52,37 @@ export const baseChartConfig = {
   }
 };
 
+export const createCartesianScales = () => ({
+  x: {
+    grid: {
+      display: false
+    },
+    ticks: {
+      font: {
+        size: 11
+      },
+      color: '#8A8F99'
+    }
+  },
+  y: {
+    beginAtZero: true,
+    grid: {
+      color: 'rgba(0, 0, 0, 0.04)',
+      lineWidth: 1,
+      borderDash: [5, 5]
+    },
+    border: {
+      display: false
+    },
+    ticks: {
+      font: {
+        size: 11
+      },
+      color: '#8A8F99'
+    }
+  }
+});
+
 /**
  * 柱状图配置
  */
@@ -63,36 +94,7 @@ export const barChartConfig = {
       borderSkipped: false
     }
   },
-  scales: {
-    x: {
-      grid: {
-        display: false
-      },
-      ticks: {
-        font: {
-          size: 11
-        },
-        color: '#8A8F99'
-      }
-    },
-    y: {
-      beginAtZero: true,
-      grid: {
-        color: 'rgba(0, 0, 0, 0.04)',
-        lineWidth: 1,
-        borderDash: [5, 5]
-      },
-      border: {
-        display: false
-      },
-      ticks: {
-        font: {
-          size: 11
-        },
-        color: '#8A8F99'
-      }
-    }
-  }
+  scales: createCartesianScales()
 };
 
 /**
@@ -113,36 +115,7 @@ export const lineChartConfig = {
       hoverBorderWidth: 3
     }
   },
-  scales: {
-    x: {
-      grid: {
-        display: false
-      },
-      ticks: {
-        font: {
-          size: 11
-        },
-        color: '#8A8F99'
-      }
-    },
-    y: {
-      beginAtZero: true,
-      grid: {
-        color: 'rgba(0, 0, 0, 0.04)',
-        lineWidth: 1,
-        borderDash: [5, 5]
-      },
-      border: {
-        display: false
-      },
-      ticks: {
-        font: {
-          size: 11
-        },
-        color: '#8A8F99'
-      }
-    }
-  }
+  scales: createCartesianScales()
 };
 
 /**

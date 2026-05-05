@@ -8,35 +8,19 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 const db = require('../../../config/db');
 const { softDelete, softDeleteBatch } = require('../../../utils/softDelete');
 const InventoryService = require('../../../services/InventoryService');
-// const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
-// DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
-const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
-const {
-  getInventoryTransactionTypeText,
-  getTransferStatusText,
-  getSalesStatusText,
-  generateStatusCaseSQL,
-  INVENTORY_TRANSACTION_TYPES,
-  INVENTORY_TRANSACTION_GROUPS,
-} = require('../../../constants/systemConstants');
+const { getTransferStatusText } = require('../../../constants/systemConstants');
 
-// 引入库存一致性校验服务
-
-// 引入成本凭证服务（用于生成领料凭证）
-
-// 引入重构后的入库处理服务
-
-// 引入状态映射工具和状态常量
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
   INBOUND: businessConfig.status.inbound,
@@ -51,7 +35,7 @@ const STATUS = {
  * @param {object} connection - 数据库连接
  * @param {number} materialId - 物料ID
  * @param {number} locationId - 库位ID（可选）
- * @param {string} defaultBatchNo - 默认批次号（如果查询失败）
+ * @param {string} fallbackBatchNo - 调用方显式传入的候选批次号
  * @returns {Promise<string>} 批次号
  */
 
@@ -67,8 +51,7 @@ const getTransferList = async (req, res) => {
       start_date = '',
       end_date = '',
     } = req.query;
-    const offsetValue = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-    const limitValue = parseInt(limit, 10);
+    const pagination = parsePagination(page, limit, { maxPageSize: 200, defaultPageSize: 10 });
 
     let whereClause = 'WHERE 1=1';
     const params = [];
@@ -112,8 +95,8 @@ const getTransferList = async (req, res) => {
 
     const total = countResult[0].total;
 
-    // 使用query代替execute，使用?号占位符插入，但手动拼接LIMIT OFFSET部分
-    const query = `
+    const query = appendPaginationSQL(
+      `
       SELECT
         t.id,
         t.transfer_no,
@@ -136,8 +119,10 @@ const getTransferList = async (req, res) => {
       LEFT JOIN locations fl ON t.from_location_id = fl.id
       LEFT JOIN locations tl ON t.to_location_id = tl.id
       ${whereClause}
-      ORDER BY t.created_at DESC
-      LIMIT ${limitValue} OFFSET ${offsetValue}`;
+      ORDER BY t.created_at DESC`,
+      pagination.limit,
+      pagination.offset
+    );
 
     const [transfers] = await db.pool.query(query, params);
 
@@ -145,8 +130,8 @@ const getTransferList = async (req, res) => {
       res,
       transfers,
       total,
-      parseInt(page, 10),
-      parseInt(limit, 10),
+      pagination.page,
+      pagination.pageSize,
       '获取调拨单列表成功'
     );
   } catch (error) {

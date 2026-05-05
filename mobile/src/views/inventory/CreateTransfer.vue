@@ -165,12 +165,10 @@
         text: w.name || w.warehouse_name || `仓库#${w.id}`,
         value: String(w.id)
       }))
-      if (warehouseOptions.value.length === 0) {
-        warehouseOptions.value = [{ text: '默认仓库', value: '1' }]
-      }
     } catch (error) {
       console.error('加载仓库列表失败:', error)
-      warehouseOptions.value = [{ text: '默认仓库', value: '1' }]
+      warehouseOptions.value = []
+      showToast('仓库列表加载失败，请稍后重试')
     } finally {
       warehouseLoading.value = false
     }
@@ -183,7 +181,11 @@
 
   const onWarehouseConfirm = ({ selectedOptions }) => {
     const name = selectedOptions[0].text
-    const id = parseInt(selectedOptions[0].value) || 1
+    const id = Number.parseInt(selectedOptions[0]?.value, 10)
+    if (!Number.isInteger(id) || id <= 0) {
+      showToast('请选择有效仓库')
+      return
+    }
     if (warehousePickerTarget.value === 'out') {
       form.out_warehouse_name = name
       form.out_location_id = id
@@ -266,6 +268,11 @@
   const onSubmit = async () => {
     if (form.items.some((item) => !item.material_id || !item.quantity)) {
       showToast('物料明细填写不完整')
+      return
+    }
+
+    if (!form.out_location_id || !form.in_location_id) {
+      showToast('请选择调出和调入仓库')
       return
     }
 

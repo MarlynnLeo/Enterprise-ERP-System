@@ -1,6 +1,7 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
+const DLQService = require('./business/DLQService');
 
 const bomService = {
   async getAllBoms(page = 1, pageSize = 10, filters = {}) {
@@ -180,7 +181,7 @@ const bomService = {
         details.push(detail);
         // 查找该明细的所有子级
         detailRows.forEach((child) => {
-          if (child.parent_id == detail.id) {
+          if (String(child.parent_id) === String(detail.id)) {
             addDetailWithChildren(child);
           }
         });
@@ -188,7 +189,7 @@ const bomService = {
 
       // 先添加所有一级明细及其子级
       detailRows.forEach((detail) => {
-        if (detail.level == 1 || detail.parent_id == 0) {
+        if (Number(detail.level) === 1 || Number(detail.parent_id) === 0) {
           // 检查是否已经添加过（避免重复）
           if (!details.find((d) => d.id === detail.id)) {
             addDetailWithChildren(detail);
@@ -375,11 +376,15 @@ const bomService = {
     if (!detail.material_id) {
       throw new Error('物料ID不能为空');
     }
+    const unitId = Number(detail.unit_id);
+    if (!Number.isInteger(unitId) || unitId <= 0) {
+      throw new Error('BOM明细单位ID不能为空');
+    }
 
     return {
       material_id: Number(detail.material_id),
       quantity: Number(detail.quantity) || 0,
-      unit_id: Number(detail.unit_id) || 1, // 默认使用单位ID 1，因为数据库不允许NULL
+      unit_id: unitId,
       remark: detail.remark || null,
       level: Number(detail.level) || 1,
       parent_id: detail.parent_id || 0,
@@ -492,7 +497,11 @@ const bomService = {
         const BomExplosionService = require('./BomExplosionService');
         await BomExplosionService.updateHasSubBomFlag(normalizedBomData.product_id);
       } catch (e) {
-        logger.warn('更新has_sub_bom标记失败:', e.message);
+        await DLQService.recordSideEffectFailure(
+          'BOM:createPostProcess',
+          { productId: normalizedBomData.product_id, bomId },
+          e
+        );
       }
 
       // ✅ 使用公共方法异步重算标准成本
@@ -502,7 +511,7 @@ const bomService = {
     } catch (error) {
       await connection.rollback();
       logger.error('创建BOM失败:', error);
-      throw new Error(`创建BOM失败: ${error.message}`);
+      throw new Error(`创建BOM失败: ${error.message}`, { cause: error });
     } finally {
       connection.release();
     }
@@ -522,14 +531,14 @@ const bomService = {
         throw new Error('BOM不存在');
       }
       const oldBom = oldBomRows[0];
-      
+
       const isApproved = oldBom.approved_by !== null && oldBom.approved_by !== undefined;
 
       if (isApproved) {
         // ==========================
         // 分支 A: 已审核 BOM -> 升版流程 (BOM Revision)
         // ==========================
-        
+
         // 1. 删除该产品已有的更老的历史版本（只保留这一个即将成为历史的旧版本供对比）
         const [existingHistory] = await connection.query(
           'SELECT id FROM bom_masters WHERE product_id = ? AND status = 2 AND deleted_at IS NULL',
@@ -584,7 +593,7 @@ const bomService = {
           const BomExplosionService = require('./BomExplosionService');
           await BomExplosionService.invalidateCache(id);
         } catch (e) {
-          logger.warn('使BOM缓存失效失败:', e.message);
+          await DLQService.recordSideEffectFailure('BOM:updateApprovedInvalidateCache', { bomId: id }, e);
         }
 
         this._asyncRecalcStandardCost(normalizedBomData.product_id);
@@ -598,8 +607,8 @@ const bomService = {
         // ==========================
         const normalizedBomData = this.validateAndNormalizeBomData({
           ...bomData,
-          status: oldBom.status, 
-          product_id: oldBom.product_id 
+          status: oldBom.status,
+          product_id: oldBom.product_id
         });
 
         // 原地更新 BOM 主表
@@ -624,7 +633,7 @@ const bomService = {
           const BomExplosionService = require('./BomExplosionService');
           await BomExplosionService.invalidateCache(id);
         } catch (e) {
-          logger.warn('使BOM缓存失效失败:', e.message);
+          await DLQService.recordSideEffectFailure('BOM:updateDraftInvalidateCache', { bomId: id }, e);
         }
 
         this._asyncRecalcStandardCost(normalizedBomData.product_id);
@@ -635,7 +644,7 @@ const bomService = {
     } catch (error) {
       await connection.rollback();
       logger.error('修改BOM失败:', error);
-      throw new Error(`修改BOM失败: ${error.message}`);
+      throw new Error(`修改BOM失败: ${error.message}`, { cause: error });
     } finally {
       connection.release();
     }
@@ -670,7 +679,7 @@ const bomService = {
         const BomExplosionService = require('./BomExplosionService');
         await BomExplosionService.invalidateCache(id);
       } catch (e) {
-        logger.warn('使BOM缓存失效失败:', e.message);
+        await DLQService.recordSideEffectFailure('BOM:deleteInvalidateCache', { bomId: id }, e);
       }
 
       await pool.query('DELETE FROM bom_details WHERE bom_id = ?', [id]);
@@ -683,7 +692,7 @@ const bomService = {
           const BomExplosionService = require('./BomExplosionService');
           await BomExplosionService.updateHasSubBomFlag(productId);
         } catch (e) {
-          logger.warn('更新has_sub_bom标记失败:', e.message);
+          await DLQService.recordSideEffectFailure('BOM:deleteUpdateFlag', { productId, bomId: id }, e);
         }
       }
 
@@ -766,7 +775,7 @@ const bomService = {
   getById(id) {
     return this.getBomById(id);
   },
-  
+
   // 批量替换BOM物料
   async replaceBom(oldMaterialCode, newMaterialCode) {
     let connection;
@@ -788,7 +797,7 @@ const bomService = {
 
       // 3. 查找受影响的BOM并检查循环引用
       const [affectedBoms] = await connection.query('SELECT DISTINCT bom_id FROM bom_details WHERE material_id = ?', [oldMaterialId]);
-      
+
       if (affectedBoms.length === 0) {
         return { affectedRows: 0, bomsCount: 0, message: '没有找到使用该被替换物料的BOM' };
       }
@@ -816,7 +825,11 @@ const bomService = {
           await BomExplosionService.invalidateCache(row.bom_id);
         }
       } catch (e) {
-        logger.warn('替换物料后失效缓存失败:', e.message);
+        await DLQService.recordSideEffectFailure(
+          'BOM:replaceMaterialInvalidateCache',
+          { oldMaterialId, newMaterialId, affectedBomIds: affectedBoms.map(row => row.bom_id) },
+          e
+        );
       }
 
       return { affectedRows: result.affectedRows, bomsCount: affectedBoms.length };
@@ -841,4 +854,3 @@ const bomService = {
 };
 
 module.exports = bomService;
-

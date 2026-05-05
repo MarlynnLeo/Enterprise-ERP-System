@@ -18,7 +18,6 @@
         </div>
       </div>
     </el-card>
-
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
@@ -113,7 +112,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 图表区域 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :md="12" class="mb-20">
@@ -132,7 +130,6 @@
           </div>
         </el-card>
       </el-col>
-
       <el-col :xs="24" :md="12" class="mb-20">
         <el-card shadow="hover">
           <template #header>
@@ -146,7 +143,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 最近销售订单 -->
     <el-row class="mt-20">
       <el-col :span="24">
@@ -222,15 +218,11 @@
     </el-row>
   </div>
 </template>
-
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 import { ref, computed, onMounted, watch, toRaw, nextTick } from 'vue'
-import { useRouter } from 'vue-router';
 import Chart from 'chart.js/auto';
-
 // 安全的Chart.js创建函数
 function createSafeChart(ctx, config) {
   try {
@@ -240,7 +232,7 @@ function createSafeChart(ctx, config) {
       return null;
     }
     
-    // 测试上下文是否可用
+    // 验证上下文是否可用
     ctx.save();
     ctx.restore();
     
@@ -251,7 +243,6 @@ function createSafeChart(ctx, config) {
     return null;
   }
 }
-import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { salesApi } from '@/services/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
@@ -266,21 +257,16 @@ import {
   createLineChartConfig,
   chartColors
 } from '@/utils/chartConfig';
-
-const router = useRouter();
-
+;
 // 图表引用
 const salesTrend = ref(null);
 const customerRank = ref(null);
-
 const chartRefs = {
   salesTrend,
   customerRank
 };
-
 // 销售趋势类型（金额/数量）选择
 const salesTrendType = ref('amount');
-
 // 使用仪表盘组合式函数
 const {
   loading,
@@ -291,22 +277,16 @@ const {
   autoRefresh: true,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
-
 // 使用图表管理组合式函数
 const {
   chartInstances,
-  chartsReady,
   initAllCharts,
-  updateChart,
-  destroyAllCharts
 } = useCharts(chartRefs);
-
 // 销售订单数据
 const recentOrders = ref([]);
 const search = ref('');
 const currentPage = ref(1);
 const pageSize = ref(10);
-
 // 筛选后的订单
 const filteredRecentOrders = computed(() => {
   const startIndex = (currentPage.value - 1) * pageSize.value;
@@ -326,25 +306,19 @@ const filteredRecentOrders = computed(() => {
   
   return orders.slice(startIndex, endIndex);
 });
-
 // 分页处理
 function handleSizeChange(size) {
   pageSize.value = size;
   currentPage.value = 1;
 }
-
 function handleCurrentChange(page) {
   currentPage.value = page;
 }
-
 // 格式化日期
 // formatDate: 使用公共实现
-
-
 // 获取订单状态颜色
 function getStatusColor(status) {
   if (!status) return 'info';
-
   const statusMap = {
     'pending': 'warning',
     'confirmed': 'primary',
@@ -365,14 +339,11 @@ function getStatusColor(status) {
     '已完成': 'success',
     '已取消': 'danger'
   };
-
   return statusMap[status] || 'info';
 }
-
 // 获取付款状态颜色
 function getPaymentStatusColor(status) {
   if (!status) return 'info';
-
   const statusMap = {
     'unpaid': 'danger',
     'partial': 'warning',
@@ -383,10 +354,8 @@ function getPaymentStatusColor(status) {
     '已付款': 'success',
     '已退款': 'info'
   };
-
   return statusMap[status] || 'info';
 }
-
 // 获取状态文本
 function getStatusText(status) {
   if (!status) return '-';
@@ -405,21 +374,17 @@ function getStatusText(status) {
   
   return statusTextMap[status] || status;
 }
-
 // 获取付款状态文本
 function getPaymentStatusText(status) {
   if (!status) return '-';
-
   const paymentStatusTextMap = {
     'unpaid': '未付款',
     'partial': '部分付款',
     'paid': '已付款',
     'refunded': '已退款'
   };
-
   return paymentStatusTextMap[status] || status;
 }
-
 // 根据订单状态推断付款状态
 function getPaymentStatusFromOrderStatus(orderStatus) {
   const statusMap = {
@@ -434,10 +399,8 @@ function getPaymentStatusFromOrderStatus(orderStatus) {
     'completed': 'paid',
     'cancelled': 'unpaid'
   };
-
   return statusMap[orderStatus] || 'unpaid';
 }
-
 // 加载销售数据
 async function loadSalesData() {
   try {
@@ -452,7 +415,6 @@ async function loadSalesData() {
       }),
       salesApi.getSalesTrend()
     ]);
-
     // 处理统计数据
     let stats = getDefaultStatistics('sales');
     if (statsResponse.status === 'fulfilled' && statsResponse.value?.data) {
@@ -475,22 +437,18 @@ async function loadSalesData() {
           pending: parseFloat(data.pending_amount || 0)
         }
       };
-
       // 保存Top客户和产品数据用于图表
       stats.top_customers = data.top_customers || [];
       stats.top_products = data.top_products || [];
     }
-
     // 处理趋势数据
     if (trendResponse.status === 'fulfilled' && trendResponse.value?.data) {
       stats.trend_data = trendResponse.value.data.trend_data || [];
     }
-
     // 处理订单数据
     if (ordersResponse.status === 'fulfilled' && ordersResponse.value) {
       // 使用统一解析器处理响应数据
       const ordersItems = parseListData(ordersResponse.value, { enableLog: false });
-
       recentOrders.value = ordersItems.slice(0, 10).map(order => ({
         id: order.id,
         orderNo: order.order_no || order.orderNumber || `SO${order.id}`,
@@ -501,21 +459,18 @@ async function loadSalesData() {
         paymentStatus: order.payment_status || getPaymentStatusFromOrderStatus(order.status)
       }));
     }
-
     return stats;
   } catch (error) {
     console.error('获取销售数据失败:', error);
     throw error;
   }
 }
-
 // 初始化销售趋势图表
 function initSalesTrendChart() {
   if (!chartRefs.salesTrend?.value) {
     console.warn('salesTrend canvas元素不存在');
     return null;
   }
-
   const canvas = chartRefs.salesTrend.value;
   if (!canvas) {
     console.warn('salesTrend canvas元素为null');
@@ -546,15 +501,12 @@ function initSalesTrendChart() {
     console.error('salesTrend canvas上下文不可用:', error);
     return null;
   }
-
   // 初始化时使用空数据，等待数据加载完成后更新
   const labels = generateMonthLabels(12);
   const salesData = new Array(12).fill(0);
-
   const config = createLineChartConfig({
     yAxisTitle: '销售金额(元)' // 使用静态值，后续通过update更新
   });
-
   return createSafeChart(ctx, {
     type: 'line',
     data: {
@@ -573,14 +525,12 @@ function initSalesTrendChart() {
     options: config
   });
 }
-
 // 初始化客户排名图表
 function initCustomerRankChart() {
   if (!chartRefs.customerRank?.value) {
     console.warn('customerRank canvas元素不存在');
     return null;
   }
-
   const canvas = chartRefs.customerRank.value;
   if (!canvas) {
     console.warn('customerRank canvas元素为null');
@@ -611,15 +561,12 @@ function initCustomerRankChart() {
     console.error('customerRank canvas上下文不可用:', error);
     return null;
   }
-
   // 初始化时使用空数据，等待数据加载完成后更新
   const labels = ['加载中...'];
   const salesData = [0];
-
   const config = createBarChartConfig({
     yAxisTitle: '销售金额(元)'
   });
-
   return createSafeChart(ctx, {
     type: 'bar',
     data: {
@@ -637,7 +584,6 @@ function initCustomerRankChart() {
     options: config
   });
 }
-
 // 重新创建销售趋势图表
 function recreateSalesTrendChart() {
   try {
@@ -646,7 +592,6 @@ function recreateSalesTrendChart() {
       chartInstances.salesTrend.destroy();
       chartInstances.salesTrend = null;
     }
-
     // 重新创建图表
     if (chartRefs.salesTrend?.value) {
       const canvas = chartRefs.salesTrend.value;
@@ -670,9 +615,7 @@ function recreateSalesTrendChart() {
         console.error('salesTrend canvas上下文不可用:', error);
         return;
       }
-
       const trendData = toRaw(statistics.trend_data) || [];
-
       let labels, salesData;
       if (trendData.length > 0) {
         labels = trendData.map(item => {
@@ -687,11 +630,9 @@ function recreateSalesTrendChart() {
         labels = generateMonthLabels(12);
         salesData = new Array(12).fill(null);
       }
-
       const config = createLineChartConfig({
         yAxisTitle: salesTrendType.value === 'amount' ? '销售金额(元)' : '订单数量'
       });
-
       chartInstances.salesTrend = createSafeChart(ctx, {
         type: 'line',
         data: {
@@ -714,7 +655,6 @@ function recreateSalesTrendChart() {
     console.error('[销售趋势图表] 重新创建失败:', error);
   }
 }
-
 // 重新创建客户排名图表
 function recreateCustomerRankChart() {
   try {
@@ -723,7 +663,6 @@ function recreateCustomerRankChart() {
       chartInstances.customerRank.destroy();
       chartInstances.customerRank = null;
     }
-
     // 重新创建图表
     if (chartRefs.customerRank?.value) {
       const canvas = chartRefs.customerRank.value;
@@ -747,20 +686,16 @@ function recreateCustomerRankChart() {
         console.error('customerRank canvas上下文不可用:', error);
         return;
       }
-
       const topCustomers = toRaw(statistics.top_customers) || [];
-
       const labels = topCustomers.length > 0
         ? topCustomers.map(customer => customer.name || '未知客户')
         : ['暂无数据'];
       const salesData = topCustomers.length > 0
         ? topCustomers.map(customer => customer.sales !== undefined ? customer.sales : null)
         : [];
-
       const config = createBarChartConfig({
         yAxisTitle: '销售金额(元)'
       });
-
       chartInstances.customerRank = createSafeChart(ctx, {
         type: 'bar',
         data: {
@@ -782,16 +717,13 @@ function recreateCustomerRankChart() {
     console.error('[客户排名图表] 重新创建失败:', error);
   }
 }
-
 // 监听销售趋势类型变化
 watch(salesTrendType, () => {
   recreateSalesTrendChart();
 });
-
 // 监听statistics变化，当数据更新时更新图表
 let customerUpdateTimer = null;
 let trendUpdateTimer = null;
-
 watch(() => statistics.top_customers, (newCustomers, oldCustomers) => {
   if (newCustomers && newCustomers.length > 0 && newCustomers !== oldCustomers) {
     // 清除之前的定时器，避免重复更新
@@ -804,7 +736,6 @@ watch(() => statistics.top_customers, (newCustomers, oldCustomers) => {
     }, 200);
   }
 }, { deep: false }); // 改为浅监听，避免深度监听导致的性能问题
-
 watch(() => statistics.trend_data, (newTrendData, oldTrendData) => {
   if (newTrendData && newTrendData.length > 0 && newTrendData !== oldTrendData) {
     // 清除之前的定时器，避免重复更新
@@ -817,7 +748,6 @@ watch(() => statistics.trend_data, (newTrendData, oldTrendData) => {
     }, 200);
   }
 }, { deep: false }); // 改为浅监听，避免深度监听导致的性能问题
-
 // 生命周期钩子
 onMounted(async () => {
   try {
@@ -850,287 +780,118 @@ onMounted(async () => {
       salesTrend: initSalesTrendChart,
       customerRank: initCustomerRankChart
     });
-
     // 加载数据 - 数据加载完成后会通过watch自动更新图表
     await loadData();
   } catch (error) {
     handleDashboardError(error, '销售仪表盘初始化失败');
   }
 });
-
-// 加载仪表盘数据
-async function loadDashboardData() {
-  try {
-    // 获取销售统计数据 - axios拦截器已解包，statsResponse.data就是业务数据
-    const statsResponse = await salesApi.getSalesStatistics();
-    // 处理axios解包后的数据结构
-    const statsData = statsResponse.data || statsResponse;
-
-    if (statsData) {
-      // 更新统计数据 - 修正字段映射
-      statistics.orders = {
-        total: parseInt(statsData.completed_orders || 0) + parseInt(statsData.pending_orders || 0),
-        pending: parseInt(statsData.pending_orders || 0)
-      };
-      statistics.currentMonth = {
-        amount: parseFloat(statsData.monthly_sales || 0),
-        count: parseInt(statsData.monthly_orders || 0)
-      };
-      statistics.returns = {
-        total: parseInt(statsData.returns_count || 0),
-        amount: parseFloat(statsData.returns_amount || 0)
-      };
-      statistics.receivables = {
-        collected: parseFloat(statsData.collected_amount || 0),
-        pending: parseFloat(statsData.pending_amount || 0)
-      };
-
-      // 保存Top客户数据用于图表
-      statistics.top_customers = statsData.top_customers || [];
-      statistics.top_products = statsData.top_products || [];
-    }
-
-    // 获取最近销售订单 - axios拦截器已解包
-    const ordersResponse = await salesApi.getOrders({
-      page: 1,
-      pageSize: 20,
-      sort: 'created_at',
-      order: 'desc'
-    });
-
-    // 处理解包后的订单数据
-    let ordersItems = [];
-    const respData = ordersResponse.data || ordersResponse;
-    if (respData?.items && Array.isArray(respData.items)) {
-      ordersItems = respData.items;
-    } else if (respData?.list && Array.isArray(respData.list)) {
-      ordersItems = respData.list;
-    } else if (Array.isArray(respData)) {
-      ordersItems = respData;
-    }
-
-    if (Array.isArray(ordersItems) && ordersItems.length > 0) {
-      // 格式化订单数据
-      recentOrders.value = ordersItems.map(order => ({
-        id: order.id,
-        orderNo: order.order_no,
-        customerName: order.customer_name || order.customer,
-        orderDate: order.created_at || order.order_date,
-        amount: order.total_amount || order.amount,
-        status: order.status,
-        // 根据订单状态推断付款状态
-        paymentStatus: order.payment_status || getPaymentStatusFromOrderStatus(order.status)
-      }));
-    } else {
-      recentOrders.value = [];
-    }
-
-  } catch (error) {
-    console.error('获取销售统计数据失败:', error);
-    ElMessage.error('获取销售统计数据失败，请检查网络连接');
-
-    // 出错时使用默认数据
-    statistics.orders = { total: 0, pending: 0 };
-    statistics.currentMonth = { amount: 0, count: 0 };
-    statistics.returns = { total: 0, amount: 0 };
-    statistics.receivables = { collected: 0, pending: 0 };
-    recentOrders.value = [];
-
-    throw error;
-  }
-}
-
-// 初始化图表
-function initCharts() {
-  initSalesTrendChart();
-  initCustomerRankChart();
-}
-
-// 获取销售趋势数据
-async function getSalesTrendData() {
-  try {
-    // 获取过去12个月的销售数据
-    const months = [];
-    const salesAmountData = [];
-    const salesCountData = [];
-
-    const now = new Date();
-
-    for (let i = 11; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthStart = date.toISOString().slice(0, 10);
-      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().slice(0, 10);
-
-      // 月份标签
-      const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
-      months.push(monthNames[date.getMonth()]);
-
-      try {
-        // 获取该月的销售数据
-        const response = await salesApi.getOrders({
-          startDate: monthStart,
-          endDate: monthEnd,
-          pageSize: 1000 // 获取足够多的数据
-        });
-
-        // 使用统一解析器处理响应数据
-        const orders = parseListData(response, { enableLog: false });
-
-        // 计算该月的销售金额和订单数量
-        const monthAmount = orders.reduce((sum, order) => sum + parseFloat(order.total_amount || 0), 0);
-        const monthCount = orders.length;
-
-        salesAmountData.push(monthAmount);
-        salesCountData.push(monthCount);
-      } catch (error) {
-        console.warn(`获取${date.getMonth() + 1}月销售数据失败:`, error);
-        salesAmountData.push(0);
-        salesCountData.push(0);
-      }
-    }
-
-    return { months, salesAmountData, salesCountData };
-  } catch (error) {
-    console.error('获取销售趋势数据失败:', error);
-    // 返回默认数据
-    const months = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
-    return {
-      months,
-      salesAmountData: new Array(12).fill(0),
-      salesCountData: new Array(12).fill(0)
-    };
-  }
-}
-
+// 加载仪表盘数据}
+// 初始化图表}
+// 获取销售趋势数据}
 // 监听销售趋势类型变化，更新图表
 watch(salesTrendType, () => {
   initSalesTrendChart();
 });
 </script>
-
 <style scoped>
 .sales-dashboard {
   padding: 10px;
 }
-
 .header-card {
   margin-bottom: var(--spacing-lg);
 }
-
 .header-card h2 {
   margin: 0;
   font-size: 22px;
   color: var(--el-text-color-primary);
 }
-
 .last-updated {
   margin-left: 10px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
-
 .mt-20 {
   margin-top: var(--spacing-lg);
 }
-
 .mb-20 {
   margin-bottom: var(--spacing-lg);
 }
-
 .primary-card {
   border-top: 4px solid var(--el-color-primary);
 }
-
 .success-card {
   border-top: 4px solid var(--el-color-success);
 }
-
 .info-card {
   border-top: 4px solid var(--el-color-info);
 }
-
 .warning-card {
   border-top: 4px solid var(--el-color-warning);
 }
-
 .danger-card {
   border-top: 4px solid var(--el-color-danger);
 }
-
 .stat-content {
   flex-grow: 1;
   padding: 10px 0;
 }
-
 .stat-title {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 15px;
   color: var(--el-text-color-primary);
 }
-
 .stat-info {
   display: flex;
   justify-content: space-between;
 }
-
 .stat-main {
   text-align: left;
 }
-
 .stat-secondary {
   text-align: right;
 }
-
 .stat-secondary-value {
   font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
   color: var(--el-text-color-primary);
 }
-
 .stat-secondary-label {
   font-size: 14px;
   color: var(--el-text-color-secondary);
 }
-
 .card-footer {
   padding-top: 10px;
   border-top: 1px solid var(--el-border-color-lighter);
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .card-header-with-search {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header-with-search span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .search-input {
   max-width: 200px;
 }
-
 .chart-container {
   width: 100%;
   height: 300px;
   position: relative;
 }
-
 /* 响应式调整 */
 @media (max-width: 768px) {
   .search-input {
@@ -1145,7 +906,6 @@ watch(salesTrendType, () => {
     font-size: 18px;
   }
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1153,7 +913,6 @@ watch(salesTrendType, () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

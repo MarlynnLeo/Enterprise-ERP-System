@@ -214,9 +214,43 @@ export function useAgingReport(options = {}) {
       ElMessage.warning('没有可导出的数据');
       return;
     }
-    
-    // 这里可以集成导出逻辑
-    ElMessage.info('导出功能开发中...');
+
+    const headers = [
+      reportType === 'ap' ? '供应商' : '客户',
+      '实体类型',
+      '总金额',
+      '30天以内',
+      '31-60天',
+      '61-90天',
+      '90天以上',
+      '未逾期金额'
+    ];
+    const rows = safeTableData.value.map((row) => [
+      row[entityNameField.value] || '',
+      row[entityTypeField.value] || '',
+      row.totalAmount ?? row.total_amount ?? 0,
+      row.within30Days ?? row.within_30_days ?? 0,
+      row.days31to60 ?? row.days_31_to_60 ?? 0,
+      row.days61to90 ?? row.days_61_to_90 ?? 0,
+      row.over90Days ?? row.over_90_days ?? 0,
+      row.currentAmount ?? row.current_amount ?? 0
+    ]);
+
+    const escapeCsvValue = (value) => {
+      const text = String(value ?? '');
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map(escapeCsvValue).join(','))
+      .join('\n');
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${reportTitle.value}-${searchForm.reportDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success('导出成功');
   };
 
   /**
@@ -276,4 +310,3 @@ export function useAgingReport(options = {}) {
     resetSearch
   };
 }
-

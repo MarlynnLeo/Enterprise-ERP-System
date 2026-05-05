@@ -351,7 +351,7 @@ class AdvancedReportsService {
    * @param {Object} changes 比率变化
    * @returns {Object} 分析结论
    */
-  static generateRatioAnalysis(ratios, changes) {
+  static generateRatioAnalysis(ratios) {
     const analysis = {
       liquidity: {
         status: 'normal',

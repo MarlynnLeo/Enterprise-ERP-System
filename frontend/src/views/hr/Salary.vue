@@ -114,7 +114,7 @@ const handleConfirm = async (row) => {
     await hrApi.confirmSalary(row.id)
     ElMessage.success('账单已确认')
     row.status = 'approved'
-  } catch (error) {
+  } catch {
     ElMessage.error('确认失败')
   }
 }
@@ -154,7 +154,7 @@ const handleExport = async () => {
     a.click()
     URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
-  } catch (error) {
+  } catch {
     ElMessage.error('导出失败')
   } finally {
     exportLoading.value = false

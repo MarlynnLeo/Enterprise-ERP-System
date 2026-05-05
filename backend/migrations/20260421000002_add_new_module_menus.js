@@ -158,8 +158,6 @@ exports.up = async function(knex) {
       );
     }
   }
-
-  console.log(`[Migration] 已插入 ${insertedIds.length} 个新菜单并分配给 admin 角色`);
 };
 
 exports.down = async function(knex) {

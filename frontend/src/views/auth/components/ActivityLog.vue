@@ -64,8 +64,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { 
-  Clock, Download, More, User, Setting, Edit, 
-  CircleCheck, InfoFilled 
+  Clock, Download, More 
 } from '@element-plus/icons-vue'
 
 const props = defineProps({

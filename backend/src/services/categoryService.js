@@ -138,8 +138,8 @@ const categoryService = {
 
       // 处理父级分类变化导致的层级变化
       let level = existing[0].level;
-      if (data.parent_id !== undefined && data.parent_id != existing[0].parent_id) {
-        if (data.parent_id == 0) {
+      if (data.parent_id !== undefined && String(data.parent_id ?? '') !== String(existing[0].parent_id ?? '')) {
+        if (data.parent_id === 0 || data.parent_id === '0') {
           level = 1;
         } else {
           const [parentRows] = await pool.query('SELECT level FROM categories WHERE id = ?', [
@@ -217,7 +217,7 @@ const categoryService = {
   },
 
   // ========== 统一命名别名 - 保持向后兼容 ==========
-  getAll(page = 1, pageSize = 10, filters = {}) {
+  getAll(_page = 1, _pageSize = 10, filters = {}) {
     // 分类不分页，忽略page和pageSize参数
     return this.getAllCategories(filters);
   },

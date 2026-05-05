@@ -519,7 +519,6 @@
 
   const goBack = () => router.back()
   const handleAdd = () => emit('add')
-  const handleFilter = () => emit('filter')
   const handleItemClick = (item) => {
     if (props.config.detailRoute) {
       const route = props.config.detailRoute.replace(':id', item[props.config.fields.id])

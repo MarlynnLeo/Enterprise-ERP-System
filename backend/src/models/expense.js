@@ -9,6 +9,7 @@ const logger = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
+const crypto = require('crypto');
 
 /**
  * 费用管理模块数据库操作
@@ -56,21 +57,21 @@ const expenseModel = {
       {
         code: 'CERT_ISO',
         name: 'ISO认证',
-        parent_id: 1,
+        parent_code: 'CERT',
         sort_order: 1,
         description: 'ISO体系认证费用',
       },
       {
         code: 'CERT_PROD',
         name: '产品认证',
-        parent_id: 1,
+        parent_code: 'CERT',
         sort_order: 2,
         description: '产品认证费用',
       },
       {
         code: 'CERT_SYS',
         name: '体系认证',
-        parent_id: 1,
+        parent_code: 'CERT',
         sort_order: 3,
         description: '管理体系认证费用',
       },
@@ -86,21 +87,21 @@ const expenseModel = {
       {
         code: 'MOLD_DEV',
         name: '模具开发',
-        parent_id: 5,
+        parent_code: 'MOLD',
         sort_order: 1,
         description: '新模具开发费用',
       },
       {
         code: 'MOLD_REPAIR',
         name: '模具维修',
-        parent_id: 5,
+        parent_code: 'MOLD',
         sort_order: 2,
         description: '模具维修保养费用',
       },
       {
         code: 'MOLD_DEPREC',
         name: '模具折旧',
-        parent_id: 5,
+        parent_code: 'MOLD',
         sort_order: 3,
         description: '模具折旧费用',
       },
@@ -116,21 +117,21 @@ const expenseModel = {
       {
         code: 'EQUIP_PURCH',
         name: '设备采购',
-        parent_id: 9,
+        parent_code: 'EQUIP',
         sort_order: 1,
         description: '小型设备采购费用',
       },
       {
         code: 'EQUIP_REPAIR',
         name: '设备维修',
-        parent_id: 9,
+        parent_code: 'EQUIP',
         sort_order: 2,
         description: '设备维修保养费用',
       },
       {
         code: 'EQUIP_RENT',
         name: '设备租赁',
-        parent_id: 9,
+        parent_code: 'EQUIP',
         sort_order: 3,
         description: '设备租赁费用',
       },
@@ -146,21 +147,21 @@ const expenseModel = {
       {
         code: 'OFFICE_SUPPLY',
         name: '办公用品',
-        parent_id: 13,
+        parent_code: 'OFFICE',
         sort_order: 1,
         description: '办公用品采购',
       },
       {
         code: 'OFFICE_COMM',
         name: '通讯费',
-        parent_id: 13,
+        parent_code: 'OFFICE',
         sort_order: 2,
         description: '电话网络等通讯费用',
       },
       {
         code: 'OFFICE_UTIL',
         name: '水电费',
-        parent_id: 13,
+        parent_code: 'OFFICE',
         sort_order: 3,
         description: '水电燃气费用',
       },
@@ -176,21 +177,21 @@ const expenseModel = {
       {
         code: 'TRAVEL_TRANS',
         name: '交通费',
-        parent_id: 17,
+        parent_code: 'TRAVEL',
         sort_order: 1,
         description: '机票火车票等',
       },
       {
         code: 'TRAVEL_HOTEL',
         name: '住宿费',
-        parent_id: 17,
+        parent_code: 'TRAVEL',
         sort_order: 2,
         description: '酒店住宿费用',
       },
       {
         code: 'TRAVEL_MEAL',
         name: '餐饮补贴',
-        parent_id: 17,
+        parent_code: 'TRAVEL',
         sort_order: 3,
         description: '出差餐饮补贴',
       },
@@ -206,31 +207,41 @@ const expenseModel = {
       {
         code: 'OTHER_TRAIN',
         name: '培训费',
-        parent_id: 21,
+        parent_code: 'OTHER',
         sort_order: 1,
         description: '员工培训费用',
       },
       {
         code: 'OTHER_CONSULT',
         name: '咨询费',
-        parent_id: 21,
+        parent_code: 'OTHER',
         sort_order: 2,
         description: '咨询服务费用',
       },
       {
         code: 'OTHER_MISC',
         name: '其他',
-        parent_id: 21,
+        parent_code: 'OTHER',
         sort_order: 3,
         description: '其他杂项费用',
       },
     ];
 
+    const categoryIdByCode = new Map();
     for (const cat of defaultCategories) {
+      const parentId = cat.parent_code ? categoryIdByCode.get(cat.parent_code) : null;
+      if (cat.parent_code && !parentId) {
+        throw new Error(`预设费用类型父级不存在: ${cat.parent_code}`);
+      }
       await connection.query(
         'INSERT INTO expense_categories (code, name, parent_id, sort_order, description) VALUES (?, ?, ?, ?, ?)',
-        [cat.code, cat.name, cat.parent_id, cat.sort_order, cat.description]
+        [cat.code, cat.name, parentId, cat.sort_order, cat.description]
       );
+      const [[created]] = await connection.query(
+        'SELECT id FROM expense_categories WHERE code = ? ORDER BY id DESC LIMIT 1',
+        [cat.code]
+      );
+      categoryIdByCode.set(cat.code, created.id);
     }
     logger.info('预设费用类型插入成功');
   },
@@ -717,7 +728,7 @@ const expenseModel = {
 
       // 3. 生成交易流水号
       const txDateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const txNumber = `TX-${txDateStr}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+      const txNumber = `TX-${txDateStr}-${String(crypto.randomInt(1000, 10000))}`;
 
       // 4. 创建银行交易记录
       await connection.execute(

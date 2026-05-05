@@ -5,8 +5,7 @@
 
 const { logger } = require('../../utils/logger');
 const InventoryService = require('../InventoryService');
-const db = require('../../config/db');
-const pool = db.pool;
+
 
 class QualityIntegrationService {
   /**

@@ -710,7 +710,7 @@
     } catch (err) {
       console.error('获取摄像头失败:', err)
       const errMsg = (err && (err.message || String(err))) || '无法访问摄像头'
-      showToast('摄像头启动失败，请使用手动输入')
+      showToast(`${errMsg}，请使用手动输入`)
     }
   }
 
@@ -827,14 +827,8 @@
     try {
       // Html5Qrcode 的 applyVideoConstraints 方法可以用来控制手电筒
       // 但取决于浏览器支持。这里尝试使用 torch 约束
-      const track = html5QrCode.value.getRunningTrackCameraCapabilities()[0] // 获取视频轨道
-      // 注意：Html5Qrcode 库本身可能没有直接暴露 getRunningTrack... 方法，需查看其文档或源码
-      // 如果没有直接方法，通常是一个更底层的操作。
-      // Html5QrcodePro 才有直接的 API。开源版可能需要 hack。
-
-      // 尝试目前通用的方法：
-      // 由于 html5-qrcode 封装较深，我们暂时只能通过重新应用约束或使用 applyVideoConstraints
-      // 文档显示 applyVideoConstraints 是支持的
+       // 获取视频轨道
+      // 使用 html5-qrcode 暴露的 applyVideoConstraints 尝试应用 torch 约束
 
       flashlightOn.value = !flashlightOn.value
       await html5QrCode.value.applyVideoConstraints({

@@ -202,14 +202,7 @@ const handleGoBack = () => {
 // 反馈问题
 const handleFeedback = async () => {
   try {
-    const errorReport = {
-      title: errorTitle.value,
-      message: errorMessage.value,
-      details: errorDetails.value,
-      userAgent: navigator.userAgent,
-      url: window.location.href,
-      timestamp: Date.now()
-    };
+    
     
     // 显示反馈对话框
     await showDialog({

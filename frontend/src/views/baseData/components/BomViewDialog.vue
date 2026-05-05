@@ -129,14 +129,20 @@ const isPdf = (url) => {
   return url.toLowerCase().endsWith('.pdf')
 }
 
+const buildAttachmentUrl = (url) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  const path = url.startsWith('/') ? url : `/${url}`
+  const fullUrl = `${baseUrl}${path}`
+  return /^https?:\/\//i.test(fullUrl) ? fullUrl : `${window.location.origin}${fullUrl}`
+}
+
 // 在线预览
 const previewAttachment = (url) => {
   if (!url) return
   
-  let fullUrl = url.startsWith('http') ? url : (import.meta.env.VITE_API_URL || '') + (url.startsWith('/') ? url : '/' + url)
-  if (!fullUrl.startsWith('http')) {
-     fullUrl = window.location.origin + fullUrl
-  }
+  const fullUrl = buildAttachmentUrl(url)
 
   if (isImage(url)) {
     previewList.value = [fullUrl]
@@ -152,10 +158,7 @@ const previewAttachment = (url) => {
 const downloadAttachment = async (url) => {
   if (!url) return
   
-  let fullUrl = url.startsWith('http') ? url : (import.meta.env.VITE_API_URL || '') + (url.startsWith('/') ? url : '/' + url)
-  if (!fullUrl.startsWith('http')) {
-     fullUrl = window.location.origin + fullUrl
-  }
+  const fullUrl = buildAttachmentUrl(url)
 
   // 根本解决：采用二进制下载文件，防止跨域、路由Fallback或强制变成_uid_xxxx.htm
   try {
@@ -170,7 +173,7 @@ const downloadAttachment = async (url) => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(downloadUrl)
-  } catch (error) {
+  } catch {
     ElMessage.error('无法直接下载预览文件，尝试新窗口打开')
     window.open(fullUrl, '_blank')
   }

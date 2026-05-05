@@ -2,13 +2,14 @@
  * gaugeController.js
  * @description 量具台账与校准管理控制器
  * @date 2026-03-03
- * 
+ *
  * 职责范围：量具 CRUD、校准记录 CRUD、到期提醒查询
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
+const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 
 const gaugeController = {
     // ==================== 量具台账 ====================
@@ -265,7 +266,7 @@ const gaugeController = {
 
             // 自动生成校准编号
             if (!data.calibration_no) {
-                data.calibration_no = `CAL-${Date.now()}`;
+                data.calibration_no = await CodeGeneratorService.nextCode('quality_calibration');
             }
 
             // 计算下次到期日期

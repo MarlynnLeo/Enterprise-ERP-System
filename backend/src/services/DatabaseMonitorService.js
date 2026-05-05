@@ -55,15 +55,15 @@ class DatabaseMonitorService {
     };
   }
 
-  static getPoolHealth(poolName) {
+  static getPoolHealth() {
     return this.getPoolsHealth();
   }
 
-  static getPoolStats(poolName) {
+  static getPoolStats() {
     return this.getPoolsStats();
   }
 
-  static resetPoolMetrics(poolName) {
+  static resetPoolMetrics() {
     return { success: true, message: '指标不支持重置' };
   }
 

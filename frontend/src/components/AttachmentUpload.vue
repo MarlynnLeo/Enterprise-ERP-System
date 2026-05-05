@@ -87,7 +87,8 @@ const fileList = ref([]);
 const attachments = ref([...props.modelValue]);
 
 const uploadUrl = computed(() => {
-  return `${import.meta.env.VITE_API_URL}/api/upload/file`;
+  const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  return `${baseUrl}/api/upload/file`;
 });
 
 const uploadHeaders = computed(() => {
@@ -265,4 +266,3 @@ watch(() => props.modelValue, (newVal) => {
   margin-top: 8px;
 }
 </style>
-

@@ -1,7 +1,7 @@
 /**
  * 逾期发票检查服务
  * 定期检查AR和AP逾期发票并发送提醒
- * 
+ *
  * 修复：
  * - 使用正确的 notifications 表字段（link, link_params, priority, source_type, source_id）
  * - 增加去重机制：同一张发票同一天不重复通知

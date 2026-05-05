@@ -9,6 +9,8 @@ const router = express.Router();
 const dingtalkService = require('../../services/integrations/dingtalkService');
 const expenseModel = require('../../models/expense');
 const { logger } = require('../../utils/logger');
+const { authenticateToken } = require('../../middleware/auth');
+const { requirePermission } = require('../../middleware/requirePermission');
 
 /**
  * 钉钉事件订阅回调
@@ -90,17 +92,13 @@ async function handleApprovalStatusChange(callbackData) {
 
       // 根据审批结果更新费用状态
       let newStatus;
-      let action;
 
       if (type === 'terminate') {
         newStatus = 'cancelled';
-        action = 'terminate';
       } else if (result === 'agree') {
         newStatus = 'approved';
-        action = 'approve';
       } else if (result === 'refuse') {
         newStatus = 'rejected';
-        action = 'reject';
       }
 
       if (newStatus) {
@@ -124,101 +122,54 @@ async function handleApprovalStatusChange(callbackData) {
  * 手动同步审批状态
  * POST /api/dingtalk/sync/:instanceId
  */
-router.post('/sync/:instanceId', async (req, res) => {
-  try {
-    const { instanceId } = req.params;
+router.post(
+  '/sync/:instanceId',
+  authenticateToken,
+  requirePermission('finance:expenses:update'),
+  async (req, res) => {
+    try {
+      const { instanceId } = req.params;
 
-    // 查询钉钉审批详情
-    const detail = await dingtalkService.getApprovalDetail(instanceId);
+      // 查询钉钉审批详情
+      const detail = await dingtalkService.getApprovalDetail(instanceId);
 
-    // 查找对应的费用记录
-    const expense = await expenseModel.getExpenseByDingtalkInstanceId(instanceId);
+      // 查找对应的费用记录
+      const expense = await expenseModel.getExpenseByDingtalkInstanceId(instanceId);
 
-    if (!expense) {
-      return res.status(404).json({ success: false, message: '未找到对应的费用记录' });
+      if (!expense) {
+        return res.status(404).json({ success: false, message: '未找到对应的费用记录' });
+      }
+
+      // 更新状态
+      let newStatus = expense.status;
+      if (detail.status === 'COMPLETED') {
+        newStatus = detail.result === 'agree' ? 'approved' : 'rejected';
+      } else if (detail.status === 'TERMINATED') {
+        newStatus = 'cancelled';
+      }
+
+      await expenseModel.updateExpenseFromDingtalk(expense.id, {
+        status: newStatus,
+        dingtalk_status: detail.status,
+        dingtalk_result: detail.result,
+      });
+
+      res.json({
+        success: true,
+        message: '同步成功',
+        data: {
+          expenseId: expense.id,
+          dingtalkStatus: detail.status,
+          dingtalkResult: detail.result,
+          newStatus,
+        },
+      });
+    } catch (error) {
+      logger.error('[Dingtalk] 手动同步失败:', error);
+      res.status(500).json({ success: false, message: error.message });
     }
-
-    // 更新状态
-    let newStatus = expense.status;
-    if (detail.status === 'COMPLETED') {
-      newStatus = detail.result === 'agree' ? 'approved' : 'rejected';
-    } else if (detail.status === 'TERMINATED') {
-      newStatus = 'cancelled';
-    }
-
-    await expenseModel.updateExpenseFromDingtalk(expense.id, {
-      status: newStatus,
-      dingtalk_status: detail.status,
-      dingtalk_result: detail.result,
-    });
-
-    res.json({
-      success: true,
-      message: '同步成功',
-      data: {
-        expenseId: expense.id,
-        dingtalkStatus: detail.status,
-        dingtalkResult: detail.result,
-        newStatus,
-      },
-    });
-  } catch (error) {
-    logger.error('[Dingtalk] 手动同步失败:', error);
-    res.status(500).json({ success: false, message: error.message });
   }
-});
-
-/**
- * 测试钉钉连接
- * GET /api/dingtalk/test
- */
-router.get('/test', async (req, res) => {
-  try {
-    const token = await dingtalkService.getAccessToken();
-    res.json({
-      success: true,
-      message: '钉钉连接正常',
-      data: { tokenLength: token.length },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: `钉钉连接失败: ${error.message}`,
-    });
-  }
-});
-
-/**
- * 调试：获取最近审批的原始数据
- * GET /api/dingtalk/debug
- */
-router.get('/debug', async (req, res) => {
-  try {
-    // 获取最近1天的审批列表
-    const now = Date.now();
-    const startTime = now - 24 * 60 * 60 * 1000;
-    const instanceIds = await dingtalkService.fetchApprovalList({ startTime, endTime: now });
-
-    if (instanceIds.length === 0) {
-      return res.json({ success: true, message: '没有找到审批', data: [] });
-    }
-
-    // 获取第一条审批的详情
-    const detail = await dingtalkService.getApprovalDetail(instanceIds[0]);
-
-    res.json({
-      success: true,
-      instanceCount: instanceIds.length,
-      firstInstanceId: instanceIds[0],
-      detail,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-});
+);
 
 /**
  * 从钉钉拉取审批到ERP
@@ -227,26 +178,31 @@ router.get('/debug', async (req, res) => {
  * 请求体:
  * - days: 查询最近多少天的审批 (默认7天)
  */
-router.post('/import', async (req, res) => {
-  try {
-    const { days = 7 } = req.body;
+router.post(
+  '/import',
+  authenticateToken,
+  requirePermission('finance:expenses:update'),
+  async (req, res) => {
+    try {
+      const { days = 7 } = req.body;
 
-    const now = Date.now();
-    const startTime = now - days * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const startTime = now - days * 24 * 60 * 60 * 1000;
 
-    logger.info(`[Dingtalk] 开始从钉钉导入审批，最近 ${days} 天`);
+      logger.info(`[Dingtalk] 开始从钉钉导入审批，最近 ${days} 天`);
 
-    const result = await dingtalkService.syncFromDingtalk({ startTime, endTime: now });
+      const result = await dingtalkService.syncFromDingtalk({ startTime, endTime: now });
 
-    res.json({
-      success: true,
-      message: `导入完成: 新增${result.imported}, 更新${result.updated}, 跳过${result.skipped}`,
-      data: result,
-    });
-  } catch (error) {
-    logger.error('[Dingtalk] 从钉钉导入失败:', error);
-    res.status(500).json({ success: false, message: error.message });
+      res.json({
+        success: true,
+        message: `导入完成: 新增${result.imported}, 更新${result.updated}, 跳过${result.skipped}`,
+        data: result,
+      });
+    } catch (error) {
+      logger.error('[Dingtalk] 从钉钉导入失败:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
   }
-});
+);
 
 module.exports = router;

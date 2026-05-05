@@ -1,5 +1,5 @@
 import { api } from '../services/axiosInstance';
-import { parsePaginatedData, parseListData } from '../utils/responseParser';
+import {  parseListData } from '../utils/responseParser';
 
 export const inventoryApi = {
     // 库存查询

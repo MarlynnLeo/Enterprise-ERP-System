@@ -32,7 +32,7 @@ class CashTransactionService {
 
       return result;
     } catch (error) {
-      throw new Error(`获取现金交易列表失败: ${error.message}`);
+      throw new Error(`获取现金交易列表失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -50,7 +50,7 @@ class CashTransactionService {
         netAmount: parseFloat(stats.netAmount),
       };
     } catch (error) {
-      throw new Error(`获取现金交易统计失败: ${error.message}`);
+      throw new Error(`获取现金交易统计失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -69,7 +69,7 @@ class CashTransactionService {
 
       return result;
     } catch (error) {
-      throw new Error(`创建现金交易失败: ${error.message}`);
+      throw new Error(`创建现金交易失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -85,7 +85,7 @@ class CashTransactionService {
 
       return result;
     } catch (error) {
-      throw new Error(`更新现金交易失败: ${error.message}`);
+      throw new Error(`更新现金交易失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -98,7 +98,7 @@ class CashTransactionService {
 
       return result;
     } catch (error) {
-      throw new Error(`删除现金交易失败: ${error.message}`);
+      throw new Error(`删除现金交易失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -120,7 +120,7 @@ class CashTransactionService {
         typeName: this.getTypeName(transaction.type),
       };
     } catch (error) {
-      throw new Error(`获取现金交易失败: ${error.message}`);
+      throw new Error(`获取现金交易失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -188,15 +188,19 @@ class CashTransactionService {
         count: result.data.length,
       };
     } catch (error) {
-      throw new Error(`导出现金交易失败: ${error.message}`);
+      throw new Error(`导出现金交易失败: ${error.message}`, { cause: error });
     }
   }
 
   /**
    * 批量导入现金交易
    */
-  async importCashTransactions(fileBuffer, userId = 1) {
+  async importCashTransactions(fileBuffer, userId) {
     try {
+      if (!userId) {
+        throw new Error('导入现金交易必须提供当前登录用户ID');
+      }
+
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(fileBuffer);
 
@@ -235,7 +239,7 @@ class CashTransactionService {
 
       return result;
     } catch (error) {
-      throw new Error(`导入现金交易失败: ${error.message}`);
+      throw new Error(`导入现金交易失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -253,7 +257,7 @@ class CashTransactionService {
         typeName: this.getTypeName(stat.transaction_type),
       }));
     } catch (error) {
-      throw new Error(`获取分类统计失败: ${error.message}`);
+      throw new Error(`获取分类统计失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -291,7 +295,7 @@ class CashTransactionService {
     try {
       this.validateTransactionData(data);
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

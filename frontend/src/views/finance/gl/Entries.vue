@@ -336,6 +336,7 @@ import { storeToRefs } from 'pinia';
 
 // 项目工具和API
 import { api } from '@/services/api';
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 
 // Props定义
@@ -398,8 +399,12 @@ const handlePrint = () => {
   
   const printContent = printAreaRef.value.innerHTML;
   const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    ElMessage.error('无法创建打印窗口，请检查浏览器是否阻止了弹出窗口');
+    return;
+  }
   
-  printWindow.document.write(`
+  writeSafeHtmlDocument(printWindow, `
     <!DOCTYPE html>
     <html>
     <head>
@@ -480,8 +485,6 @@ const handlePrint = () => {
     </body>
     </html>
   `);
-  
-  printWindow.document.close();
   printWindow.focus();
   
   setTimeout(() => {

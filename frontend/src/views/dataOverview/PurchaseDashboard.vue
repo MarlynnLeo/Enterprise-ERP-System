@@ -18,7 +18,6 @@
         </div>
       </div>
     </el-card>
-
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
@@ -113,7 +112,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 图表区域 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :md="12" class="mb-20">
@@ -132,7 +130,6 @@
           </div>
         </el-card>
       </el-col>
-
       <el-col :xs="24" :md="12" class="mb-20">
         <el-card shadow="hover">
           <template #header>
@@ -146,7 +143,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 待处理采购事项 -->
     <el-row class="mt-20">
       <el-col :span="24">
@@ -226,40 +222,28 @@
     </el-row>
   </div>
 </template>
-
 <script setup>
-
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 import { ref, computed, onMounted, watch } from 'vue'
-
 import { useRouter } from 'vue-router';
 import Chart from 'chart.js/auto';
-
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { purchaseApi } from '@/services/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 // 权限计算属性
 import { handleDashboardError, getDefaultStatistics, generateMonthLabels } from '@/utils/dashboardUtils'
-
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig'
-
-
 const router = useRouter();
-
 // 图表引用
 const purchaseTrend = ref(null);
 const categoryDistribution = ref(null);
-
 const chartRefs = {
   purchaseTrend,
   categoryDistribution
 };
-
 // 图表配置
 const timeRange = ref('6');
-
 // 使用仪表盘组合式函数
 const {
   loading,
@@ -270,22 +254,17 @@ const {
   autoRefresh: true,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
-
 // 使用图表管理组合式函数
 const {
   chartInstances,
-  chartsReady,
   initAllCharts,
   updateChart,
-  destroyAllCharts
 } = useCharts(chartRefs);
-
 // 待处理采购事项数据
 const pendingItems = ref([]);
 const search = ref('');
 const currentPage = ref(1);
 const pageSize = ref(10);
-
 // 加载采购数据
 async function loadPurchaseData() {
   try {
@@ -293,15 +272,13 @@ async function loadPurchaseData() {
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
     const queryParams = {
       startDate: currentMonthStart.toISOString().split('T')[0],
       endDate: currentMonthEnd.toISOString().split('T')[0],
       status: 'completed'
     };
-
     // 并行获取多个数据源
-    const [dashboardStats, completedRequisitions, pendingRequisitions, orders, receipts, returns] = await Promise.allSettled([
+    const [dashboardStats, completedRequisitions, pendingRequisitions, orders, _receipts, _returns] = await Promise.allSettled([
       purchaseApi.getDashboardStatistics ? purchaseApi.getDashboardStatistics() : purchaseApi.getStatistics(),
       // 获取当月已完成的采购申请
       purchaseApi.getRequisitions({
@@ -314,16 +291,12 @@ async function loadPurchaseData() {
       purchaseApi.getReceipts ? purchaseApi.getReceipts({ status: 'pending', limit: 20 }) : Promise.resolve({ data: [] }),
       purchaseApi.getReturns ? purchaseApi.getReturns({ status: 'pending', limit: 20 }) : Promise.resolve({ data: [] })
     ]);
-
     // 处理统计数据
     let stats = getDefaultStatistics('purchase');
-
     // 计算当月已完成的采购申请数量 - axios拦截器已解包
     let completedThisMonth = 0;
-
     if (completedRequisitions.status === 'fulfilled' && completedRequisitions.value) {
       const responseData = completedRequisitions.value.data || completedRequisitions.value;
-
       // 处理不同的响应数据结构
       let reqData = [];
       if (Array.isArray(responseData)) {
@@ -335,12 +308,10 @@ async function loadPurchaseData() {
       } else if (responseData.data && Array.isArray(responseData.data)) {
         reqData = responseData.data;
       }
-
       completedThisMonth = reqData.length;
     } else {
       completedThisMonth = 0;
     }
-
     // 处理仪表盘统计数据 - axios拦截器已解包
     if (dashboardStats.status === 'fulfilled' && dashboardStats.value) {
       const data = dashboardStats.value.data || dashboardStats.value;
@@ -375,15 +346,12 @@ async function loadPurchaseData() {
         completed: completedThisMonth
       };
     }
-
     // 处理待处理事项数据
     const pendingItemsList = [];
-
     // 添加待处理申请单
     if (pendingRequisitions.status === 'fulfilled' && pendingRequisitions.value) {
       // 使用统一解析器处理响应数据
       const reqData = parseListData(pendingRequisitions.value, { enableLog: false });
-
       reqData.forEach(item => {
         pendingItemsList.push({
           id: item.id,
@@ -396,12 +364,10 @@ async function loadPurchaseData() {
         });
       });
     }
-
     // 添加待处理订单
     if (orders.status === 'fulfilled' && orders.value) {
       // 使用统一解析器处理响应数据
       const orderData = parseListData(orders.value, { enableLog: false });
-
       orderData.forEach(item => {
         pendingItemsList.push({
           id: item.id,
@@ -414,24 +380,19 @@ async function loadPurchaseData() {
         });
       });
     }
-
     pendingItems.value = pendingItemsList;
-
     return stats;
   } catch (error) {
     console.error('获取采购数据失败:', error);
     throw error;
   }
 }
-
 // 筛选后的待处理事项
 const filteredPendingItems = computed(() => {
   const startIndex = (currentPage.value - 1) * pageSize.value;
   const endIndex = startIndex + pageSize.value;
-
   // 确保pendingItems是数组
   let items = Array.isArray(pendingItems.value) ? pendingItems.value : [];
-
   if (search.value) {
     const searchValue = search.value.toLowerCase();
     items = items.filter(item =>
@@ -441,20 +402,16 @@ const filteredPendingItems = computed(() => {
       (getTypeText(item.type) && getTypeText(item.type).toLowerCase().includes(searchValue))
     );
   }
-
   return items.slice(startIndex, endIndex);
 });
-
 // 分页处理
 function handleSizeChange(size) {
   pageSize.value = size;
   currentPage.value = 1;
 }
-
 function handleCurrentChange(page) {
   currentPage.value = page;
 }
-
 // 获取类型文本
 function getTypeText(type) {
   const typeMap = {
@@ -465,7 +422,6 @@ function getTypeText(type) {
   };
   return typeMap[type] || type;
 }
-
 // 获取类型颜色
 function getTypeColor(type) {
   const colorMap = {
@@ -476,9 +432,8 @@ function getTypeColor(type) {
   };
   return colorMap[type] || 'info';
 }
-
 // 获取状态颜色
-function getStatusColor(status) {
+function _getStatusColor(status) {
   const statusMap = {
     '草稿': 'info',
     '待审批': 'warning',
@@ -494,16 +449,13 @@ function getStatusColor(status) {
   };
   return statusMap[status] || 'info';
 }
-
 import { getPurchaseStatusText, getPurchaseStatusColor } from '@/constants/systemConstants'
-
 // 根据类型和状态获取状态文本
-function getStatusText(status, type) {
+function getStatusText(status, _type) {
   // 统一使用采购状态映射
   return getPurchaseStatusText(status)
 }
 // 删除多余的旧代码，现在统一使用systemConstants
-
 // 查看采购事项详情
 function viewPurchaseItem(item) {
   const routeMap = {
@@ -519,17 +471,13 @@ function viewPurchaseItem(item) {
     query: { id: item.id }
   });
 }
-
 // 初始化采购趋势图表 - 使用真实数据
 function initPurchaseTrendChart() {
   if (!chartRefs.purchaseTrend?.value) return null;
-
   const ctx = chartRefs.purchaseTrend.value.getContext('2d');
-
   // 从统计数据获取趋势数据，如果没有则使用默认月份标签
   const trendData = statistics.trendData || [];
   let labels, requisitionData, orderData;
-
   if (trendData.length > 0) {
     labels = trendData.map(item => {
       const date = new Date(item.month + '-01');
@@ -549,11 +497,9 @@ function initPurchaseTrendChart() {
     requisitionData = new Array(labels.length).fill(null);
     orderData = new Array(labels.length).fill(null);
   }
-
   const config = createLineChartConfig({
     yAxisTitle: '数量'
   });
-
   return new Chart(ctx, {
     type: 'line',
     data: {
@@ -580,17 +526,13 @@ function initPurchaseTrendChart() {
     options: config
   });
 }
-
 // 初始化分类分布图表 - 使用真实数据
 function initCategoryChart() {
   if (!chartRefs.categoryDistribution?.value) return null;
-
   const ctx = chartRefs.categoryDistribution.value.getContext('2d');
-
   // 从统计数据获取分类分布
   const categoryData = statistics.categoryDistribution || [];
   let labels, purchaseData;
-
   if (categoryData.length > 0) {
     labels = categoryData.map(item => item.categoryName || item.category_name || '未分类');
     purchaseData = categoryData.map(item => {
@@ -601,9 +543,7 @@ function initCategoryChart() {
     labels = ['暂无数据'];
     purchaseData = [];
   }
-
   const config = createPieChartConfig();
-
   return new Chart(ctx, {
     type: 'doughnut',
     data: {
@@ -620,17 +560,11 @@ function initCategoryChart() {
     options: config
   });
 }
-
-
-
-
-
 // 生命周期钩子
 onMounted(async () => {
   try {
     // 先加载数据，获取真实数据后再初始化图表
     await loadData();
-
     // 初始化图表，使用已加载的真实数据
     await initAllCharts({
       purchaseTrend: initPurchaseTrendChart,
@@ -640,12 +574,6 @@ onMounted(async () => {
     handleDashboardError(error, '采购仪表盘初始化失败');
   }
 });
-
-
-
-
-
-
 // 监听时间范围变化，更新图表
 watch(timeRange, () => {
   if (chartInstances.purchaseTrend) {
@@ -653,139 +581,108 @@ watch(timeRange, () => {
   }
 });
 </script>
-
 <style scoped>
 .purchase-dashboard {
   padding: 10px;
 }
-
 .header-card {
   margin-bottom: var(--spacing-lg);
 }
-
 .header-card h2 {
   margin: 0;
   font-size: 22px;
   color: var(--el-text-color-primary);
 }
-
 .last-updated {
   margin-left: 10px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
-
 .mt-20 {
   margin-top: var(--spacing-lg);
 }
-
 .mb-20 {
   margin-bottom: var(--spacing-lg);
 }
-
-
 .primary-card {
   border-top: 4px solid var(--el-color-primary);
 }
-
 .success-card {
   border-top: 4px solid var(--el-color-success);
 }
-
 .info-card {
   border-top: 4px solid var(--el-color-info);
 }
-
 .warning-card {
   border-top: 4px solid var(--el-color-warning);
 }
-
 .danger-card {
   border-top: 4px solid var(--el-color-danger);
 }
-
 .stat-content {
   flex-grow: 1;
   padding: 10px 0;
 }
-
 .stat-title {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 15px;
   color: var(--el-text-color-primary);
 }
-
 .stat-info {
   display: flex;
   justify-content: space-between;
 }
-
 .stat-main {
   text-align: left;
 }
-
-
 .stat-secondary {
   text-align: right;
 }
-
 .stat-secondary-value {
   font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
   color: var(--el-text-color-primary);
 }
-
 .stat-secondary-label {
   font-size: 14px;
   color: var(--el-text-color-secondary);
 }
-
 .card-footer {
   padding-top: 10px;
   border-top: 1px solid var(--el-border-color-lighter);
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .card-header-with-search {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header-with-search span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .search-input {
   max-width: 200px;
 }
-
 .chart-container {
   width: 100%;
   height: 300px;
   position: relative;
 }
-
-
-
 .text-muted {
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
-
 /* 响应式调整 */
 @media (max-width: 768px) {
   .search-input {
@@ -800,8 +697,6 @@ watch(timeRange, () => {
     font-size: 18px;
   }
 }
-
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -809,7 +704,6 @@ watch(timeRange, () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

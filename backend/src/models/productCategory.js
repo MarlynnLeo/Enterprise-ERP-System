@@ -51,7 +51,7 @@ const productCategoryModel = {
       `;
 
 
-      whereConditions = '';
+      let whereConditions = '';
       const queryParams = [];
 
       if (filters.name) {
@@ -338,7 +338,7 @@ const productCategoryModel = {
   async getStatistics() {
     try {
 
-      query = `
+      const query = `
         SELECT
           COUNT(*) as total,
           SUM(CASE WHEN parent_id = 0 THEN 1 ELSE 0 END) as parentCategories,
@@ -361,7 +361,7 @@ const productCategoryModel = {
       }
 
 
-      data = Array.isArray(rows) && rows.length > 0 ? rows[0] : {};
+      const data = Array.isArray(rows) && rows.length > 0 ? rows[0] : {};
 
       return {
         total: parseInt(data.total) || 0,
@@ -378,4 +378,3 @@ const productCategoryModel = {
 };
 
 module.exports = productCategoryModel;
-

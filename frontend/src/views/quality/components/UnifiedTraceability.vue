@@ -40,10 +40,10 @@
           </el-form-item>
         </el-form>
 
-        <!-- 快速测试 -->
+        <!-- 最近批次 -->
         <div class="test-cases" style="margin-top: 10px;">
           <div style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
+            <span style="color: var(--color-text-regular); font-size: 12px;">最近批次: </span>
             <el-button
               size="small"
               type="success"
@@ -55,15 +55,15 @@
             </el-button>
           </div>
           <el-button
-            v-for="testCase in testCases"
-            :key="testCase.id"
+            v-for="batch in latestBatches"
+            :key="batch.id"
             size="small"
             type="primary"
             plain
-            @click="loadTestCase(testCase)"
+            @click="loadLatestBatch(batch)"
             style="margin-right: 8px; margin-bottom: 4px;"
           >
-            {{ testCase.label }}
+            {{ batch.label }}
           </el-button>
         </div>
       </div>
@@ -291,8 +291,7 @@ const loading = ref(false)
 const traceabilityData = ref(null)
 const hasData = computed(() => !!traceabilityData.value)
 
-// 测试案例
-const testCases = ref([])
+const latestBatches = ref([])
 
 // 查询追溯
 const handleSearch = async () => {
@@ -323,11 +322,9 @@ const handleSearch = async () => {
       ElMessage.success(response._message || '追溯查询成功')
     } else {
       traceabilityData.value = null
-      console.warn('API 并没有指示成功或返回了空数据', response);
       ElMessage.error(response._message || '未找到该批次的追溯信息，请检查是否存在或已被消耗。')
     }
   } catch (error) {
-    console.error('追溯查询失败:', error)
     traceabilityData.value = null
     ElMessage.error('查询失败: ' + (error.response?._message || error.response?.data?.message || error.message))
     traceabilityData.value = null
@@ -437,11 +434,11 @@ const parseTraceabilityData = (data) => {
     const batchInfo = data.batch_info || data || {}
     
     // 整合出入库流水与成品组装追踪（Timeline展示）
-    let combinedSteps = [];
+    const combinedSteps = [];
     
     if (data.transaction_history && data.transaction_history.length > 0) {
-       combinedSteps.push(...data.transaction_history.map(t => ({
-          id: t.id || Math.random().toString(),
+       combinedSteps.push(...data.transaction_history.map((t, index) => ({
+          id: t.id || globalThis.crypto?.randomUUID?.() || `transaction_${t.reference_no || index}`,
           step_name: t.transaction_type === 'inbound' || t.transaction_type === 'purchase_inbound' ? '采购入库' : 
                      (t.transaction_type === 'production_inbound' ? '生产入库' : 
                      (t.transaction_type === 'outbound' || t.transaction_type === 'sales_outbound' ? '出库发料/销售' : '库存流转')),
@@ -457,8 +454,8 @@ const parseTraceabilityData = (data) => {
     }
     
     if (data.steps && data.steps.length > 0) {
-       combinedSteps.push(...data.steps.map(s => ({
-          id: Math.random().toString(),
+       combinedSteps.push(...data.steps.map((s, index) => ({
+          id: s.id || globalThis.crypto?.randomUUID?.() || `trace_step_${s.reference_no || index}`,
           step_name: s.step_type === 'SALES_OUT' ? '成品销售发货' : '装配为成品',
           status: 'completed',
           reference_no: s.reference_no,
@@ -529,10 +526,9 @@ const resetSearch = () => {
   traceabilityData.value = null
 }
 
-// 加载测试案例
-const loadTestCase = (testCase) => {
-  searchForm.value.materialCode = testCase.materialCode
-  searchForm.value.batchNumber = testCase.batchNumber
+const loadLatestBatch = (batch) => {
+  searchForm.value.materialCode = batch.materialCode
+  searchForm.value.batchNumber = batch.batchNumber
   handleSearch()
 }
 
@@ -542,7 +538,7 @@ const loadLatestBatches = async () => {
     const response = await fetch('/api/batch-traceability/latest-batches?limit=5')
     const result = await response.json()
     if (result.success && result.data) {
-      testCases.value = result.data.map((batch, index) => ({
+      latestBatches.value = result.data.map((batch, index) => ({
         id: index + 1,
         label: `${batch.material_code} - ${batch.batch_number}`,
         materialCode: batch.material_code,
@@ -550,8 +546,8 @@ const loadLatestBatches = async () => {
       }))
       ElMessage.success('已加载最新批次')
     }
-  } catch (error) {
-    console.error('获取最新批次失败:', error)
+  } catch {
+    latestBatches.value = []
     ElMessage.error('获取最新批次失败')
   }
 }
@@ -577,8 +573,7 @@ const exportReport = async () => {
     window.URL.revokeObjectURL(url)
 
     ElMessage.success('报告导出成功')
-  } catch (error) {
-    console.error('导出报告失败:', error)
+  } catch {
     ElMessage.error('导出报告失败')
   }
 }

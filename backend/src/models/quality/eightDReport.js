@@ -1,6 +1,7 @@
 const db = require('../../config/db');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 const { softDelete } = require('../../utils/softDelete');
+const { randomUUID } = require('crypto');
 
 const EightDReport = {
   // 获取列表（支持分页和搜索条件）
@@ -8,7 +9,7 @@ const EightDReport = {
     const { page = 1, pageSize = 10, keyword, status, priority, startDate, endDate } = params;
     // ✅ 安全修复: 使用安全分页工具
     const { limit: safeLimit, offset: safeOffset } = parsePagination(page, pageSize);
-    
+
     let sql = `SELECT * FROM eight_d_reports WHERE deleted_at IS NULL `;
     let countSql = `SELECT COUNT(*) as total FROM eight_d_reports WHERE deleted_at IS NULL `;
     const queryParams = [];
@@ -40,30 +41,26 @@ const EightDReport = {
 
     sql = appendPaginationSQL(sql + ` ORDER BY created_at DESC`, safeLimit, safeOffset);
 
-    try {
-      const dbPool = db.pool || db;
-      const [rows] = await dbPool.query(sql, queryParams);
-      const [countRows] = await dbPool.query(countSql, queryParams);
-      
-      return {
-        list: rows,
-        total: countRows[0].total
-      };
-    } catch (error) {
-      throw error;
-    }
+    const dbPool = db.pool || db;
+    const [rows] = await dbPool.query(sql, queryParams);
+    const [countRows] = await dbPool.query(countSql, queryParams);
+
+    return {
+      list: rows,
+      total: countRows[0].total
+    };
   },
 
   // 获取详情
   async findById(id) {
-    let sql = `SELECT * FROM eight_d_reports WHERE id = ?`;
+    const sql = `SELECT * FROM eight_d_reports WHERE id = ?`;
     const dbPool = db.pool || db;
     const [rows] = await dbPool.query(sql, [id]);
-    
+
     if (rows.length === 0) return null;
-    
+
     const record = rows[0];
-    
+
     // 解析 JSON 字段
     try {
       if (typeof record.d1_team_members === 'string') record.d1_team_members = JSON.parse(record.d1_team_members || '[]');
@@ -71,17 +68,17 @@ const EightDReport = {
       if (typeof record.d4_contributing_factors === 'string') record.d4_contributing_factors = JSON.parse(record.d4_contributing_factors || '[]');
       if (typeof record.d5_corrective_actions === 'string') record.d5_corrective_actions = JSON.parse(record.d5_corrective_actions || '[]');
       if (typeof record.d7_preventive_actions === 'string') record.d7_preventive_actions = JSON.parse(record.d7_preventive_actions || '[]');
-    } catch (e) {
+    } catch {
       // JSON解析失败则保留原样
     }
-    
+
     return record;
   },
 
   // 创建报告
   async create(data, userId) {
-    const id = uuidv4();
-    
+    const id = randomUUID();
+
     // 生成报告编号 8D-YYYYMMDD-XXXX
     const dateStr = new Date().toISOString().slice(0, 10).replace(/(|-)/g, '');
     const dbPool = db.pool || db;
@@ -102,51 +99,51 @@ const EightDReport = {
       material_code: data.material_code || null,
       material_name: data.material_name || null,
       status: 'draft',
-      
+
       d1_team_leader: data.d1_team_leader || null,
       d1_team_members: data.d1_team_members ? JSON.stringify(data.d1_team_members) : '[]',
       d1_completed_at: data.d1_completed_at || null,
-      
+
       d2_problem_description: data.d2_problem_description || null,
       d2_occurrence_date: data.d2_occurrence_date || null,
       d2_quantity_affected: data.d2_quantity_affected || 0,
       d2_defect_type: data.d2_defect_type || null,
       d2_responsible_person: data.d2_responsible_person || null,
       d2_completed_at: data.d2_completed_at || null,
-      
+
       d3_containment_actions: data.d3_containment_actions ? JSON.stringify(data.d3_containment_actions) : '[]',
       d3_effective_date: data.d3_effective_date || null,
       d3_responsible_person: data.d3_responsible_person || null,
       d3_completed_at: data.d3_completed_at || null,
-      
+
       d4_root_cause: data.d4_root_cause || null,
       d4_analysis_method: data.d4_analysis_method || null,
       d4_contributing_factors: data.d4_contributing_factors ? JSON.stringify(data.d4_contributing_factors) : '[]',
       d4_responsible_person: data.d4_responsible_person || null,
       d4_completed_at: data.d4_completed_at || null,
-      
+
       d5_corrective_actions: data.d5_corrective_actions ? JSON.stringify(data.d5_corrective_actions) : '[]',
       d5_responsible_person: data.d5_responsible_person || null,
       d5_target_date: data.d5_target_date || null,
       d5_completed_at: data.d5_completed_at || null,
-      
+
       d6_implementation_results: data.d6_implementation_results || null,
       d6_verification_method: data.d6_verification_method || null,
       d6_verification_result: data.d6_verification_result || 'pending',
       d6_responsible_person: data.d6_responsible_person || null,
       d6_completed_at: data.d6_completed_at || null,
-      
+
       d7_preventive_actions: data.d7_preventive_actions ? JSON.stringify(data.d7_preventive_actions) : '[]',
       d7_standardization: data.d7_standardization || null,
       d7_responsible_person: data.d7_responsible_person || null,
       d7_completed_at: data.d7_completed_at || null,
-      
+
       d8_summary: data.d8_summary || null,
       d8_lessons_learned: data.d8_lessons_learned || null,
       d8_team_recognition: data.d8_team_recognition || null,
       d8_responsible_person: data.d8_responsible_person || null,
       d8_completed_at: data.d8_completed_at || null,
-      
+
       created_by: userId,
       created_at: new Date(),
       updated_at: new Date()
@@ -155,9 +152,9 @@ const EightDReport = {
     const keys = Object.keys(insertData);
     const values = Object.values(insertData);
     const placeholders = keys.map(() => '?').join(', ');
-    
+
     await dbPool.query(`INSERT INTO eight_d_reports (${keys.join(', ')}) VALUES (${placeholders})`, values);
-    
+
     return { id, report_no };
   },
 
@@ -183,7 +180,7 @@ const EightDReport = {
     Object.keys(data).forEach(key => {
       if (allowedFields.includes(key) && data[key] !== undefined) {
         updateFields.push(`${key} = ?`);
-        
+
         // 处理数组需要转JSON字符串的情况
         if (['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions'].includes(key) && Array.isArray(data[key])) {
           values.push(JSON.stringify(data[key]));
@@ -202,7 +199,7 @@ const EightDReport = {
     const sql = `UPDATE eight_d_reports SET ${updateFields.join(', ')} WHERE id = ?`;
     const dbPool = db.pool || db;
     await dbPool.query(sql, values);
-    
+
     return true;
   },
 
@@ -219,11 +216,11 @@ const EightDReport = {
   // 获取统计
   async getStatistics() {
     const dbPool = db.pool || db;
-    
+
     const [totalRows] = await dbPool.query(`SELECT COUNT(*) as count FROM eight_d_reports WHERE deleted_at IS NULL`);
     const [statusRows] = await dbPool.query(`SELECT status, COUNT(*) as count FROM eight_d_reports WHERE deleted_at IS NULL GROUP BY status`);
     const [priorityRows] = await dbPool.query(`SELECT priority, COUNT(*) as count FROM eight_d_reports WHERE deleted_at IS NULL GROUP BY priority`);
-    
+
     const stats = {
       total: totalRows[0].count,
       draft_count: 0,
@@ -233,15 +230,15 @@ const EightDReport = {
       closed_count: 0,
       critical_count: 0
     };
-    
+
     statusRows.forEach(row => {
       stats[`${row.status}_count`] = row.count;
     });
-    
+
     priorityRows.forEach(row => {
       if (row.priority === 'critical') stats.critical_count = row.count;
     });
-    
+
     return stats;
   }
 };

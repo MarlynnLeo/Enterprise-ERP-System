@@ -179,7 +179,7 @@
 
 <script setup>
   import { ref, reactive, computed, onMounted } from 'vue'
-  import { useRouter, useRoute } from 'vue-router'
+  import { useRoute } from 'vue-router'
   import {
     NavBar,
     CellGroup,
@@ -192,7 +192,6 @@
   } from 'vant'
   import { qualityApi } from '@/services/api'
 
-  const router = useRouter()
   const route = useRoute()
   const inspection = ref(null)
   const actionLoading = ref(false)
@@ -280,13 +279,6 @@
     return `${dv.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
   }
 
-  // 生成默认检验项目
-  const getDefaultItems = () => [
-    { item_name: '外观检查', standard: '无明显缺陷', type: 'visual', is_critical: true, result: '', remarks: '' },
-    { item_name: '数量检查', standard: '与订单一致', type: 'quantity', is_critical: true, result: '', remarks: '' },
-    { item_name: '包装检查', standard: '完好无损', type: 'visual', is_critical: false, result: '', remarks: '' }
-  ]
-
   // 加载详情
   const loadDetail = async () => {
     try {
@@ -303,8 +295,8 @@
             const itemsRes = await qualityApi.getInspectionItems(data.id)
             const itemsData = itemsRes?.data?.data || itemsRes?.data || itemsRes
             itemsList = Array.isArray(itemsData) ? itemsData : (itemsData?.items || [])
-          } catch (e) {
-            console.log('无检验项目数据，使用默认项')
+          } catch (error) {
+            console.warn('检验项目加载失败:', error)
           }
         }
 
@@ -315,8 +307,8 @@
             remarks: item.remarks || ''
           }))
         } else if (data.status === 'in_progress' || data.status === 'pending') {
-          // 无检验项目，使用默认
-          inspectItems.value = getDefaultItems()
+          inspectItems.value = []
+          showToast('当前检验单未配置检验项目')
         }
 
         // 初始化表单
@@ -334,10 +326,10 @@
     if (route.query.data) {
       try {
         inspection.value = JSON.parse(route.query.data)
-        inspectItems.value = getDefaultItems()
+        inspectItems.value = []
         inspectForm.qualified_quantity = String(inspection.value.quantity || '')
         inspectForm.unqualified_quantity = '0'
-      } catch (e) {
+      } catch {
         showToast('数据加载失败')
       }
     } else {
@@ -348,13 +340,13 @@
         const items = data.items || data.list || data.inspections || []
         if (items.length > 0) {
           inspection.value = items[0]
-          inspectItems.value = getDefaultItems()
+          inspectItems.value = Array.isArray(items[0].items) ? items[0].items : []
           inspectForm.qualified_quantity = String(items[0].quantity || '')
           inspectForm.unqualified_quantity = '0'
         } else {
           showToast('未找到检验记录')
         }
-      } catch (error) {
+      } catch {
         showToast('加载失败')
       }
     }
@@ -367,9 +359,8 @@
       await qualityApi.startInspection(inspection.value.id)
       showToast('检验已开始')
       inspection.value.status = 'in_progress'
-      // 初始化检验项目
       if (inspectItems.value.length === 0) {
-        inspectItems.value = getDefaultItems()
+        showToast('当前检验单未配置检验项目，请先维护检验模板')
       }
       // 初始化合格数量为到货数量
       inspectForm.qualified_quantity = String(inspection.value.quantity || '')
@@ -385,6 +376,11 @@
 
   // 提交检验
   const handleSubmit = async () => {
+    if (inspectItems.value.length === 0) {
+      showToast('当前检验单没有检验项目，不能提交')
+      return
+    }
+
     // 验证：检验项目是否全部判定
     const unjudgedItems = inspectItems.value.filter(item => !item.result)
     if (unjudgedItems.length > 0) {

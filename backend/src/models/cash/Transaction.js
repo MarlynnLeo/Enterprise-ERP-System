@@ -10,6 +10,14 @@ const db = require('../../config/db');
 const financeModel = require('../finance');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 
+function requirePositiveInteger(value, fieldName) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0 || String(value).trim() !== String(parsed)) {
+    throw new Error(`${fieldName} must be a positive integer`);
+  }
+  return parsed;
+}
+
 class BankTransactionModel {
   /**
    * 创建银行交易
@@ -20,6 +28,12 @@ class BankTransactionModel {
       await connection.beginTransaction();
 
       // 插入银行交易
+      const bankAccountId = requirePositiveInteger(
+        transactionData.bank_account_id,
+        'bank_account_id'
+      );
+      const createdBy = requirePositiveInteger(transactionData.created_by, 'created_by');
+
       const [result] = await connection.execute(
         `INSERT INTO bank_transactions 
         (transaction_number, bank_account_id, transaction_date, transaction_type, 
@@ -28,7 +42,7 @@ class BankTransactionModel {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           transactionData.transaction_number,
-          transactionData.bank_account_id,
+          bankAccountId,
           transactionData.transaction_date,
           transactionData.transaction_type,
           transactionData.amount,
@@ -39,7 +53,7 @@ class BankTransactionModel {
           transactionData.related_party || null,
           transactionData.category || null,
           transactionData.payment_method || null,
-          transactionData.created_by || 1,
+          createdBy,
         ]
       );
 
@@ -48,10 +62,10 @@ class BankTransactionModel {
       // 检查银行账户是否存在
       const [bankAccounts] = await connection.execute(
         'SELECT id, bank_name, account_name FROM bank_accounts WHERE id = ?',
-        [transactionData.bank_account_id]
+        [bankAccountId]
       );
       if (bankAccounts.length === 0) {
-        throw new Error(`银行账户ID ${transactionData.bank_account_id} 不存在`);
+        throw new Error(`银行账户ID ${bankAccountId} 不存在`);
       }
       const bankAccount = bankAccounts[0];
 
@@ -78,13 +92,13 @@ class BankTransactionModel {
 
       await connection.execute(updateBalanceSql, [
         transactionData.amount,
-        transactionData.bank_account_id,
+        bankAccountId,
       ]);
 
       // 获取更新后的最新余额返回
       const [updatedAccount] = await connection.execute(
         'SELECT current_balance FROM bank_accounts WHERE id = ?',
-        [transactionData.bank_account_id]
+        [bankAccountId]
       );
       const newBalance = parseFloat(updatedAccount[0].current_balance);
 
@@ -372,9 +386,17 @@ class BankTransactionModel {
       await connection.beginTransaction();
 
       // 1. 获取旧交易信息
+      const transactionId = requirePositiveInteger(id, 'id');
+      const targetBankAccountId = transactionData.bank_account_id
+        ? requirePositiveInteger(transactionData.bank_account_id, 'bank_account_id')
+        : null;
+      const updatedBy = transactionData.updated_by
+        ? requirePositiveInteger(transactionData.updated_by, 'updated_by')
+        : null;
+
       const [oldTransactions] = await connection.execute(
         'SELECT bank_account_id, transaction_type, amount FROM bank_transactions WHERE id = ?',
-        [id]
+        [transactionId]
       );
 
       if (oldTransactions.length === 0) {
@@ -382,6 +404,15 @@ class BankTransactionModel {
       }
 
       const oldTx = oldTransactions[0];
+      const bankAccountId = targetBankAccountId || oldTx.bank_account_id;
+
+      const [bankAccounts] = await connection.execute(
+        'SELECT id FROM bank_accounts WHERE id = ?',
+        [bankAccountId]
+      );
+      if (bankAccounts.length === 0) {
+        throw new Error(`bank_account_id ${bankAccountId} does not exist`);
+      }
 
       // 2. 回滚旧金额对余额的影响
       let rollbackSql = '';
@@ -409,19 +440,29 @@ class BankTransactionModel {
       // 3. 更新交易记录
       await connection.execute(
         `UPDATE bank_transactions SET 
+                bank_account_id = ?,
                 transaction_date = ?, 
                 transaction_type = ?, 
                 amount = ?, 
                 description = ?, 
-                reference_number = ?
+                reference_number = ?,
+                related_party = ?,
+                category = ?,
+                payment_method = ?,
+                updated_by = ?
                 WHERE id = ?`,
         [
+          bankAccountId,
           transactionData.transaction_date,
           transactionData.transaction_type,
           transactionData.amount,
           transactionData.description,
           transactionData.reference_number || null,
-          id,
+          transactionData.related_party || null,
+          transactionData.category || null,
+          transactionData.payment_method || null,
+          updatedBy,
+          transactionId,
         ]
       );
 
@@ -441,12 +482,18 @@ class BankTransactionModel {
       }
 
       if (applySql) {
-        await connection.execute(applySql, [transactionData.amount, oldTx.bank_account_id]);
+        await connection.execute(applySql, [transactionData.amount, bankAccountId]);
       }
 
+      const [updatedAccount] = await connection.execute(
+        'SELECT current_balance FROM bank_accounts WHERE id = ?',
+        [bankAccountId]
+      );
+      const newBalance = parseFloat(updatedAccount[0]?.current_balance || 0);
+
       await connection.commit();
-      logger.info(`银行交易更新成功，余额已重新计算: ID=${id}`);
-      return true;
+      logger.info(`银行交易更新成功，余额已重新计算: ID=${transactionId}`);
+      return { transactionId, newBalance };
     } catch (error) {
       await connection.rollback();
       logger.error('更新银行交易失败:', error);
@@ -519,7 +566,7 @@ class BankTransactionModel {
    * @param {number} id 交易ID
    * @param {number} userId 提交人ID
    */
-  static async submitForAudit(id, userId) {
+  static async submitForAudit(id) {
     try {
       // status 及审核相关字段由 migrations/20260312000010 管理
 

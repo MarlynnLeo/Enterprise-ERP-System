@@ -11,6 +11,7 @@
 <script setup>
   import { computed } from 'vue'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
+  import { equipmentApi } from '@/services/api'
 
   const pageConfig = computed(() => ({
     title: '保养计划',
@@ -18,21 +19,22 @@
     
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '待执行', value: 'pending' },
-      { label: '执行中', value: 'processing' },
+      { label: '计划中', value: 'planned' },
+      { label: '执行中', value: 'in_progress' },
       { label: '已完成', value: 'completed' }
     ],
 
     fields: {
       id: 'id',
       title: 'equipmentName',
-      subtitle: 'planNo',
+      subtitle: 'maintenance_type',
       icon: 'setting-o',
       status: 'status',
 
       details: [
-        { label: '计划时间', field: 'planDate', type: 'date' },
-        { label: '维保等级', field: 'level' }
+        { label: '保养日期', field: 'maintenance_date', type: 'date' },
+        { label: '保养人', field: 'maintenance_person' },
+        { label: '下次保养', field: 'next_maintenance_date', type: 'date' }
       ],
 
       tags: [
@@ -41,6 +43,8 @@
           type: 'status',
           map: {
             pending: { text: '待执行', color: 'default' },
+            planned: { text: '计划中', color: 'default' },
+            in_progress: { text: '执行中', color: 'warning' },
             processing: { text: '执行中', color: 'warning' },
             completed: { text: '已完成', color: 'success' }
           }
@@ -54,14 +58,6 @@
   }))
 
   const loadMaintenance = async (params) => {
-    return {
-      data: {
-        list: [
-          { id: 1, equipmentName: '全自动点胶机', planNo: 'MT-260418001', planDate: '2026-04-20', level: '月度保养', status: 'pending' },
-          { id: 2, equipmentName: '三号冲床', planNo: 'MT-260411002', planDate: '2026-04-10', level: '季度保养', status: 'completed' }
-        ],
-        total: 2
-      }
-    }
+    return await equipmentApi.getMaintenanceRecords(params)
   }
 </script>

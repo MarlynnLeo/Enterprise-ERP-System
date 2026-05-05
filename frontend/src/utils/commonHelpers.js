@@ -18,7 +18,7 @@ const getFinanceStore = () => {
   if (!financeStore) {
     try {
       financeStore = useFinanceStore();
-    } catch (e) {
+    } catch {
       // Pinia might not be ready
     }
   }
@@ -593,7 +593,8 @@ export const CommonUtils = {
    * @returns {string} 唯一ID
    */
   generateId(prefix = 'id') {
-    return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const suffix = globalThis.crypto?.randomUUID?.() || `${Date.now()}_${performance.now()}`;
+    return `${prefix}_${suffix}`;
   }
 };
 
@@ -701,7 +702,7 @@ let ElMessage = null;
 try {
   const elementPlus = require('element-plus');
   ElMessage = elementPlus.ElMessage;
-} catch (e) {
+} catch {
   // Element Plus 未加载时的降级处理
 }
 

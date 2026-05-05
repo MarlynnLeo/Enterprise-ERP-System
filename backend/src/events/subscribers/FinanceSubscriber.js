@@ -8,6 +8,7 @@
 const EventBus = require('../EventBus');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
 const { logger } = require('../../utils/logger');
+const DLQService = require('../../services/business/DLQService');
 
 class FinanceSubscriber {
     constructor() {
@@ -53,6 +54,11 @@ class FinanceSubscriber {
         }
     }
 
+    async recordFailure(taskName, payload, error, logMessage) {
+        logger.warn(`${logMessage}: ${error.message}`);
+        await DLQService.recordSideEffectFailure(taskName, payload, error);
+    }
+
     /**
      * 处理采购入库完成通知
      * 对接财务凭证：自动生成应付发票、进项发票
@@ -90,7 +96,12 @@ class FinanceSubscriber {
                         logger.info(`✅ [FinanceSubscriber] 应付发票自动生成成功 - 入库单: ${receiptNo}`);
                     }
                 } catch (invoiceError) {
-                    logger.warn(`⚠️ [FinanceSubscriber] 应付发票自动生成失败: ${invoiceError.message}`);
+                    await this.recordFailure(
+                        'Finance:GenerateAPInvoiceFromPurchaseReceipt',
+                        { receiptId, receiptNo },
+                        invoiceError,
+                        '⚠️ [FinanceSubscriber] 应付发票自动生成失败'
+                    );
                 }
 
                 // 2. 生成进项发票（幂等检查）
@@ -109,11 +120,21 @@ class FinanceSubscriber {
                         logger.info(`✅ [FinanceSubscriber] 进项发票自动生成成功 - 入库单: ${receiptNo}`);
                     }
                 } catch (taxError) {
-                    logger.warn(`⚠️ [FinanceSubscriber] 进项发票自动生成失败: ${taxError.message}`);
+                    await this.recordFailure(
+                        'Finance:GenerateInputTaxInvoiceFromPurchaseReceipt',
+                        { receiptId, receiptNo },
+                        taxError,
+                        '⚠️ [FinanceSubscriber] 进项发票自动生成失败'
+                    );
                 }
             }
         } catch (criticalError) {
             logger.error(`❌ [FinanceSubscriber] 致命错误！导致入库单 ${receiptId} 财务处理中断:`, criticalError);
+            await DLQService.recordSideEffectFailure(
+                'Finance:PurchaseReceiptCompleted',
+                { receiptId, currentUserId },
+                criticalError
+            );
         }
     }
 
@@ -144,7 +165,12 @@ class FinanceSubscriber {
                         logger.info(`✅ [FinanceSubscriber] 应收发票自动生成成功 - 订单: ${salesOrder.order_no}`);
                     }
                 } catch (invoiceError) {
-                    logger.warn(`⚠️ [FinanceSubscriber] 应收发票自动生成失败（不影响主业务）: ${invoiceError.message}`);
+                    await this.recordFailure(
+                        'Finance:GenerateARInvoiceFromSalesOrder',
+                        { salesOrderId: salesOrder.id, orderNo: salesOrder.order_no, outboundNo },
+                        invoiceError,
+                        '⚠️ [FinanceSubscriber] 应收发票自动生成失败'
+                    );
                 }
             }
 
@@ -164,7 +190,12 @@ class FinanceSubscriber {
                     logger.info(`✅ [FinanceSubscriber] 销售成本分录自动生成成功 - 出库单: ${outboundNo}`);
                 }
             } catch (costError) {
-                logger.warn(`⚠️ [FinanceSubscriber] 销售成本分录自动生成失败（不影响主业务）: ${costError.message}`);
+                await this.recordFailure(
+                    'Finance:GenerateCostEntryFromSalesOutbound',
+                    { outboundId: outboundData.id, outboundNo },
+                    costError,
+                    '⚠️ [FinanceSubscriber] 销售成本分录自动生成失败'
+                );
             }
 
             // 3. 生成销项发票（幂等检查）
@@ -183,7 +214,12 @@ class FinanceSubscriber {
                     logger.info(`✅ [FinanceSubscriber] 销项发票自动生成成功 - 出库单: ${outboundNo}`);
                 }
             } catch (taxError) {
-                logger.warn(`⚠️ [FinanceSubscriber] 销项发票自动生成失败（不影响主业务）: ${taxError.message}`);
+                await this.recordFailure(
+                    'Finance:GenerateOutputTaxInvoiceFromSalesOutbound',
+                    { outboundId: outboundData.id, outboundNo },
+                    taxError,
+                    '⚠️ [FinanceSubscriber] 销项发票自动生成失败'
+                );
             }
 
             logger.info(`[FinanceSubscriber] 🎉 出库单 ${outboundNo} 相关的财务流转已全部按序完成！`);
@@ -191,6 +227,11 @@ class FinanceSubscriber {
         } catch (criticalError) {
             // 顶层防御，确保订阅者的崩溃绝对不抛给上层发布者
             logger.error(`❌ [FinanceSubscriber] 致命错误！导致部分出库 ${outboundNo} 财务处理中断:`, criticalError);
+            await DLQService.recordSideEffectFailure(
+                'Finance:SalesOutboundCompleted',
+                { outboundNo, outboundData, salesOrderId: salesOrder?.id, currentUserId },
+                criticalError
+            );
         }
     }
 
@@ -200,7 +241,7 @@ class FinanceSubscriber {
      */
     async handleProductionTaskCompleted(payload) {
         const { taskId, taskCode, isFullComplete } = payload;
-        
+
         logger.info(`[FinanceSubscriber] 收到生产完工广播，由于 SSOT 解耦架构限制，开始后台成本核算 - 任务ID: ${taskId}, 任务号: ${taskCode}`);
 
         try {
@@ -213,7 +254,12 @@ class FinanceSubscriber {
             }
         } catch (costError) {
             // 在独立的订阅者上下文中进行捕获，不再污染请求核心链路
-            logger.warn(`⚠️ [FinanceSubscriber] 成本核算因主数据缺失挂起，未影响生产流转: ${costError.message}`);
+            await this.recordFailure(
+                'Finance:CalculateActualCostFromProductionTask',
+                { taskId, taskCode, isFullComplete },
+                costError,
+                '⚠️ [FinanceSubscriber] 成本核算因主数据缺失挂起'
+            );
         }
     }
 }

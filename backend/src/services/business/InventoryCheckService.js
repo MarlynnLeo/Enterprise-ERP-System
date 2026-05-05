@@ -72,7 +72,7 @@ class InventoryCheckService {
       return results;
     } catch (error) {
       logger.error('库存检查失败:', error);
-      throw new Error('库存检查失败: ' + error.message);
+      throw new Error('库存检查失败: ' + error.message, { cause: error });
     } finally {
       if (!connection && useConnection) {
         useConnection.release();

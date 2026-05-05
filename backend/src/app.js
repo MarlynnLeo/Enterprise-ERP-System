@@ -7,6 +7,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const { createCorsOptions } = require('./config/cors');
 // body-parser 已弃用，使用 Express 内置的 json()/urlencoded()
 const helmet = require('helmet');
 const compression = require('compression'); // API响应压缩
@@ -73,7 +74,8 @@ const {
   handleUncaughtException,
   handleUnhandledRejection,
 } = require('./middleware/unifiedErrorHandler');
-const logger = require('./utils/logger'); // console.log 已全部替换，现在启用
+const logger = require('./utils/logger');
+const DLQService = require('./services/business/DLQService');
 
 // 导入 CSRF 保护中间件
 const {
@@ -95,92 +97,7 @@ const prometheusMiddleware = require('./middleware/prometheusMiddleware');
 handleUncaughtException();
 handleUnhandledRejection();
 
-// 配置CORS - 更安全的配置
-const corsOptions = {
-  origin: function (origin, callback) {
-    const isProd = process.env.NODE_ENV === 'production';
-
-    // 获取允许的源列表
-    const raw = process.env.ALLOWED_ORIGINS || '';
-    const allowedOrigins = raw
-      ? raw
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-      : [];
-
-    // 开发环境默认允许的本地地址
-    const devOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3100',
-      'http://localhost:3101',
-      'http://localhost:3102',
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3100',
-      'http://127.0.0.1:3101',
-      'http://127.0.0.1:3102',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174',
-      // HTTPS（移动端 Vite 使用 basicSsl 插件）
-      'https://localhost:3100',
-      'https://localhost:3101',
-      'https://localhost:3102',
-      'https://127.0.0.1:3100',
-      'https://127.0.0.1:3101',
-      'https://127.0.0.1:3102',
-    ];
-
-    // 开发环境：允许所有局域网IP
-    if (!isProd) {
-      if (!origin) return callback(null, true); // 同源请求
-
-      // 允许 localhost 和 127.0.0.1
-      if (devOrigins.includes(origin) || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      // 允许局域网IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-      const ipPattern = /^(http|https):\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/;
-      if (ipPattern.test(origin)) {
-        return callback(null, true);
-      }
-
-      logger.warn(`开发环境拒绝未授权的CORS请求: ${origin}`);
-      return callback(new Error(`开发环境未授权的来源: ${origin}`));
-    }
-
-    // 生产环境：严格检查
-    if (allowedOrigins.length === 0) {
-      logger.error('生产环境未配置 ALLOWED_ORIGINS 环境变量');
-      return callback(new Error('CORS配置错误'));
-    }
-
-    // 允许没有origin的请求（如移动应用、服务器到服务器、curl测试）
-    // ✅ 安全增强：生产环境下记录这类请求以便安全审计
-    if (!origin) {
-      if (process.env.NODE_ENV === 'production') {
-        // [A-1 修复] origin 回调中无 req 变量，仅记录无 Origin 事实
-        logger.info('CORS: 允许无 Origin 请求 (可能是服务端调用或健康检查)');
-      }
-      return callback(null, true);
-    }
-
-    // 精确匹配白名单
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    logger.warn(`生产环境拒绝未授权的CORS请求: ${origin}`);
-    callback(new Error(`Not allowed by CORS: ${origin}`));
-  },
-  credentials: true, // 允许携带Cookie
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
-  exposedHeaders: ['X-CSRF-Token', 'X-Request-ID'],
-  maxAge: 86400, // 24小时
-};
+const corsOptions = createCorsOptions();
 
 // ==================== 安全中间件配置 ====================
 
@@ -230,16 +147,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 5. 速率限制 - 使用统一配置
-const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
-
-// 应用全局速率限制
 if (process.env.ENABLE_RATE_LIMIT !== 'false') {
-  app.use('/api/', apiLimiter);
-}
+  const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
 
-// 6. 登录限制已在路由注册处处理，或此处单独处理
-// 注意：如果在路由注册前 app.use('/api/auth/login', authLimiter) 会生效
-app.use('/api/auth/login', authLimiter);
+  app.use('/api/', apiLimiter);
+  // 6. 登录限制已在路由注册处处理，或此处单独处理
+  // 注意：如果在路由注册前 app.use('/api/auth/login', authLimiter) 会生效
+  app.use('/api/auth/login', authLimiter);
+}
 
 // 7. 输入验证和清理中间件（在处理请求体之后）
 const { validateAndSanitizeInput, detectSQLInjection } = require('./middleware/inputValidation');
@@ -277,6 +192,8 @@ const path = require('path');
 // ✅ 修复: 定义 uploadsAuth / metricsAuth（此前未定义导致 ReferenceError 崩溃）
 const { authenticateToken: uploadsAuth } = require('./middleware/authEnhanced');
 const metricsAuth = uploadsAuth; // metrics 端点复用同一认证中间件
+const { requirePermission: requireMetricsPermission } = require('./middleware/requirePermission');
+const metricsPermission = requireMetricsPermission('system:monitor');
 
 // 公开可访问的上传目录（头像等登录前需要加载的资源）
 const PUBLIC_UPLOAD_DIRS = ['/avatars', '/public', '/logos'];
@@ -312,8 +229,8 @@ app.get('/metrics', (req, res, next) => {
   if (isInternalIp) {
     return next();
   }
-  // 非内网IP需要认证
-  return metricsAuth(req, res, next);
+  // 非内网IP需要认证并具备监控权限
+  return metricsAuth(req, res, () => metricsPermission(req, res, next));
 }, async (_, res) => {
   try {
     res.set('Content-Type', prometheusService.getContentType());
@@ -492,38 +409,49 @@ app.use(csrfErrorHandler); // CSRF错误处理必须在其他错误处理之前
 app.use(notFoundHandler);
 app.use(unifiedErrorHandler);
 
-// ✅ 初始化缓存管理器（支持 Redis 和内存缓存自动切换）
-const cacheManager = require('./services/cache/CacheManager');
-setTimeout(async () => {
-  try {
-    await cacheManager.initialize();
-  } catch (error) {
-    logger.warn('⚠️ 缓存管理器初始化失败（不影响启动）:', error.message);
-  }
-}, 1000);
+const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
 
-// ✅ 启动并挂载各领域事件订阅者 (Domain Event Subscribers)
-require('./events/subscribers/FinanceSubscriber');
+if (!isTestRuntime) {
+  // ✅ 初始化缓存管理器（支持 Redis 和内存缓存自动切换）
+  const cacheManager = require('./services/cache/CacheManager');
+  const cacheInitTimer = setTimeout(async () => {
+    try {
+      await cacheManager.initialize();
+    } catch (error) {
+      await DLQService.recordSideEffectFailure(
+        'CacheManager:initialize',
+        { runtime: process.env.NODE_ENV || 'development' },
+        error
+      );
+    }
+  }, 1000);
+  cacheInitTimer.unref?.();
 
-// 启动财务自动化定时任务
-const ScheduledTaskService = require('./services/business/ScheduledTaskService');
-setTimeout(() => {
-  try {
-    ScheduledTaskService.startAllTasks();
-  } catch (error) {
-    logger.warn('⚠️ 财务自动化定时任务启动失败:', error.message);
-  }
-}, 5000);
+  // ✅ 启动并挂载各领域事件订阅者 (Domain Event Subscribers)
+  require('./events/subscribers/FinanceSubscriber');
 
-// 启动逾期检查调度器
-const { initScheduler } = require('./services/scheduler');
-setTimeout(() => {
-  try {
-    initScheduler();
-    logger.info('✅ 逾期检查调度器已启动');
-  } catch (error) {
-    logger.error('逾期检查调度器启动失败:', error);
-  }
-}, 6000);
+  // 启动财务自动化定时任务
+  const ScheduledTaskService = require('./services/business/ScheduledTaskService');
+  const scheduledTaskTimer = setTimeout(() => {
+    try {
+      ScheduledTaskService.startAllTasks();
+    } catch (error) {
+      logger.warn('⚠️ 财务自动化定时任务启动失败:', error.message);
+    }
+  }, 5000);
+  scheduledTaskTimer.unref?.();
+
+  // 启动逾期检查调度器
+  const { initScheduler } = require('./services/scheduler');
+  const overdueSchedulerTimer = setTimeout(() => {
+    try {
+      initScheduler();
+      logger.info('✅ 逾期检查调度器已启动');
+    } catch (error) {
+      logger.error('逾期检查调度器启动失败:', error);
+    }
+  }, 6000);
+  overdueSchedulerTimer.unref?.();
+}
 
 module.exports = app;

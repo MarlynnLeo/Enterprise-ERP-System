@@ -117,7 +117,6 @@
         </template>
       </el-table-column>
     </el-table>
-
     <!-- 分页 -->
     <div class="pagination-container">
       <el-pagination
@@ -133,12 +132,10 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { View, Edit, Delete, Check, Close, RefreshRight } from '@element-plus/icons-vue'
 import { DateFormatter } from '@/utils/commonHelpers'
-
-const props = defineProps({
+const _props = defineProps({
   tableData: {
     type: Array,
     default: () => []
@@ -172,7 +169,6 @@ const props = defineProps({
     default: true
   }
 })
-
 const emit = defineEmits([
   'selection-change',
   'view',
@@ -186,50 +182,39 @@ const emit = defineEmits([
   'size-change',
   'current-change'
 ])
-
 const handleSelectionChange = (selection) => {
   emit('selection-change', selection)
 }
-
 const handleView = (row) => {
   emit('view', row)
 }
-
 const handleEdit = (row) => {
   emit('edit', row)
 }
-
 const handleUpgrade = (row) => {
   emit('upgrade', row)
 }
-
 const handleDelete = (row) => {
   emit('delete', row)
 }
-
 const handleApprove = (row) => {
   emit('approve', row)
 }
-
 const handleUnapprove = (row) => {
   emit('unapprove', row)
 }
-
 const handleSizeChange = (val) => {
   emit('update:pageSize', val)
   emit('size-change', val)
 }
-
 const handleCurrentChange = (val) => {
   emit('update:currentPage', val)
   emit('current-change', val)
 }
-
 // 判断是否为历史版本（status=2）
 const isHistoryVersion = (row) => {
   return Number(row.status) === 2
 }
-
 // 辅助函数 - 正确处理approved字段的类型（可能是字符串"0"/"1"或数字0/1）
 const isApproved = (row) => {
   // 优先使用approved字段，如果不存在则使用approved_by判断
@@ -239,16 +224,13 @@ const isApproved = (row) => {
   // 兜底：如果approved_by不为null则视为已审核
   return row.approved_by !== null && row.approved_by !== undefined
 }
-
 const getStatusType = (approved) => {
   return approved ? 'success' : 'warning'
 }
-
 const formatStatus = (approved) => {
   return approved ? '已审核' : '未审核'
 }
 </script>
-
 <style scoped>
 .pagination-container {
   margin-top: 15px;

@@ -7,6 +7,7 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const { logger } = require('../utils/logger');
 const { pool } = require('../config/db');
+const { createCorsOptions } = require('../config/cors');
 
 let io = null;
 // userId -> Set<socketId> 的映射，支持多端登录
@@ -18,10 +19,7 @@ const onlineUsers = new Map();
  */
 function initSocket(httpServer) {
   io = new Server(httpServer, {
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST'],
-    },
+    cors: createCorsOptions({ methods: ['GET', 'POST'] }),
     path: '/socket.io',
     transports: ['websocket', 'polling'],
   });
@@ -37,7 +35,7 @@ function initSocket(httpServer) {
       socket.userId = decoded.userId || decoded.id;
       socket.userName = decoded.username || decoded.name;
       next();
-    } catch (err) {
+    } catch {
       return next(new Error('令牌无效或已过期'));
     }
   });

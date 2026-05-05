@@ -393,12 +393,7 @@ const inventoryYearEndLoading = ref(false)
 const inventoryFreezeLoading = ref(false)
 const executionHistory = ref([])
 const productionTasks = ref([])
-const accountingPeriods = ref([
-  { id: 1, name: '2025年第1期间' },
-  { id: 2, name: '2025年第2期间' },
-  { id: 3, name: '2025年第3期间' },
-  { id: 4, name: '2025年第4期间' }
-])
+const accountingPeriods = ref([])
 
 // 年度结存相关数据
 const financeYearStatus = ref({})
@@ -442,6 +437,23 @@ const refreshTaskStatus = async () => {
   } catch (error) {
     console.error('获取任务状态失败:', error)
     ElMessage.error('获取任务状态失败')
+  }
+}
+
+// 加载会计期间
+const loadAccountingPeriods = async () => {
+  try {
+    const response = await api.get('/finance/periods')
+    const responseData = response?.data || response
+    const periods = responseData?.periods || responseData?.list || (Array.isArray(responseData) ? responseData : [])
+    accountingPeriods.value = periods.map(period => ({
+      id: period.id,
+      name: period.name || period.period_name || period.period || `${period.year || ''}年第${period.period_number || period.month || ''}期间`
+    }))
+  } catch (error) {
+    console.error('加载会计期间失败:', error)
+    ElMessage.error('加载会计期间失败')
+    accountingPeriods.value = []
   }
 }
 
@@ -849,6 +861,7 @@ const refreshHistory = async () => {
 
 // 组件挂载时获取初始数据
 onMounted(() => {
+  loadAccountingPeriods()
   refreshTaskStatus()
   refreshHistory()
 })

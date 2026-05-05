@@ -2,38 +2,6 @@
  * 追溯系统配置文件
  */
 
-// 开发环境检测
-export const isDevelopment = import.meta.env.MODE === 'development'
-
-// 测试用例配置
-export const testCases = [
-  {
-    code: '100521031',
-    label: '测试成品 (100521031)',
-    type: 'product_code'
-  },
-  {
-    code: '105201006',
-    label: '脚踏开关 (105201006)',
-    type: 'product_code'
-  },
-  {
-    code: 'TC202501010001',
-    label: '测试链路 (TC202501010001)',
-    type: 'chain_no'
-  },
-  {
-    code: 'SO20250101001',
-    label: '测试订单 (SO20250101001)',
-    type: 'sales_order'
-  },
-  {
-    code: 'BATCH-105201006-20250101',
-    label: '测试批次 (BATCH-105201006-20250101)',
-    type: 'batch_number'
-  }
-]
-
 // 搜索策略配置
 export const searchStrategies = [
   {

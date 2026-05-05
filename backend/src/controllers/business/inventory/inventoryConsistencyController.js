@@ -10,22 +10,11 @@ const { logger } = require('../../../utils/logger');
 
 const InventoryService = require('../../../services/InventoryService');
 // const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
-const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
-const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
-const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
-const {
-  getInventoryTransactionTypeText,
-  getTransferStatusText,
-  getSalesStatusText,
-  generateStatusCaseSQL,
-  INVENTORY_TRANSACTION_TYPES,
-  INVENTORY_TRANSACTION_GROUPS,
-} = require('../../../constants/systemConstants');
 
 // 引入库存一致性校验服务
 const InventoryConsistencyService = require('../../../services/business/InventoryConsistencyService');
@@ -35,21 +24,14 @@ const InventoryConsistencyService = require('../../../services/business/Inventor
 // 引入重构后的入库处理服务
 
 // 引入状态映射工具和状态常量
-const STATUS = {
-  OUTBOUND: businessConfig.status.outbound,
-  INBOUND: businessConfig.status.inbound,
-  PRODUCTION_TASK: businessConfig.status.productionTask,
-  PRODUCTION_PLAN: businessConfig.status.productionPlan,
-  APPROVAL: businessConfig.status.approval,
-  TRANSFER: businessConfig.status.transfer,
-};
+
 
 /**
  * 获取物料的批次号（FIFO原则）
  * @param {object} connection - 数据库连接
  * @param {number} materialId - 物料ID
  * @param {number} locationId - 库位ID（可选）
- * @param {string} defaultBatchNo - 默认批次号（如果查询失败）
+ * @param {string} fallbackBatchNo - 调用方显式传入的候选批次号
  * @returns {Promise<string>} 批次号
  */
 
@@ -286,7 +268,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
       const requiredQty = item.quantity * task.quantity;
       const issuedQty = issuedMap[item.material_id] || 0;
 
-      // 允许微小误差? 暂时严格 >=
+      // 领料数量必须覆盖 BOM 需求数量
       if (issuedQty < requiredQty) {
         allIssued = false;
         break;
@@ -316,7 +298,6 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     logger.error(`检查生产任务 ${taskId} 发料状态失败:`, error);
   }
 };
-
 
 
 /**
@@ -387,7 +368,7 @@ async function smartOutboundStock(
       return;
     }
 
-    // 4. 库存不足，进行混合出库：剩余部分尝试用子物料替代或由末尾逻辑强行作负库存兜底
+    // 4. 库存不足，进行混合出库：剩余部分尝试用子物料替代，禁止生成负库存兜底流水
     // 3.2 查找是否有子物料可以替代剩余数量
 
     // 获取生产计划的产品信息
@@ -470,41 +451,16 @@ async function smartOutboundStock(
     );
 
     if (childMaterials.length === 0) {
-      // 没有子物料时，继续记录出库流水（允许负库存），不报错
-      logger.warn(
-        `物料 ${materialId} 没有子物料，直接记录剩余数量 ${remainingQuantity} 的出库流水（可能产生负库存）`
-      );
-
-      await InventoryService.updateStock(
-        {
-          materialId,
-          locationId,
-          transactionType: 'production_outbound',
-          quantity: -remainingQuantity,
-          unitId: materialUnitId,
-          referenceNo: remark.split(': ')[1] || remark,
-          referenceType: 'production_task',
-          operator,
-          remark: `${remark} (库存不足，无子物料替代)`,
-          issue_reason: extraData.issueReason || null,
-          is_excess: extraData.isExcess || 0,
-          allowNegativeStock: true, // 明确允许兜底出库
-          unitCost: materialUnitCost,
-        },
-        connection
-      );
-
-      return; // 完成出库，直接返回
+      throw new Error(`物料 ${materialId} 库存不足，剩余 ${remainingQuantity}，且没有可替代子物料`);
     }
 
     // 4. 使用子物料进行剩余数量的替代出库
-    // let totalOutboundQuantity = 0;
-    const insufficientMaterials = [];
-    const successfulOutbounds = [];
 
     // 批量预取所有子物料信息（消除循环内 getMaterialInfo + cost_price 双重 N+1 查询）
     const childMaterialIds = childMaterials.map(cm => cm.material_id);
     const childMaterialInfoMap = await InventoryService.getBatchMaterialInfo(childMaterialIds, connection);
+    const childIssuePlan = [];
+    const insufficientMaterials = [];
 
     for (const childMaterial of childMaterials) {
       const childStockQuantity = parseFloat(childMaterial.stock_quantity) || 0;
@@ -521,72 +477,61 @@ async function smartOutboundStock(
           required: childOutboundQuantity,
           available: childStockQuantity,
         });
-        continue; // 跳过库存不足的子物料，继续检查其他子物料
+        continue;
       }
 
-      try {
-        // 从批量预取结果获取子物料属性（含 costPrice）
-        const childMatInfo = childMaterialInfoMap.get(childMaterial.material_id);
-        const childLocationId = childMatInfo.locationId || locationId;
-        const childUnitId = childMatInfo.unitId || null;
-        const childUnitCost = childMatInfo.costPrice || 0;
-
-        await InventoryService.updateStock(
-          {
-            materialId: childMaterial.material_id,
-            locationId: childLocationId,
-            transactionType: 'production_outbound', // 🔥 修改为 production_outbound
-            quantity: -parseFloat(childOutboundQuantity),
-            unitId: childUnitId, // 从物料表获取正确的 unit_id
-            referenceNo: remark.split(': ')[1] || remark, // 提取出库单号
-            referenceType: 'production_task', // 🔥 修改为 production_task
-            operator,
-            remark: `${remark} (替代物料 ${materialId})`,
-            issue_reason: extraData.issueReason || null,
-            is_excess: extraData.isExcess || 0,
-            allowNegativeStock: true, // 智能查子料默认允许一定程度透支
-            unitCost: childUnitCost,
-          },
-          connection
-        );
-
-        // totalOutboundQuantity += childOutboundQuantity;
-        successfulOutbounds.push({
-          code: childMaterial.code,
-          name: childMaterial.name,
-          quantity: childOutboundQuantity,
-        });
-      } catch (outboundError) {
-        logger.error(`出库子物料 ${childMaterial.code} 失败:`, outboundError);
+      const childMatInfo = childMaterialInfoMap.get(childMaterial.material_id);
+      if (!childMatInfo?.locationId) {
         insufficientMaterials.push({
           code: childMaterial.code,
           name: childMaterial.name,
           required: childOutboundQuantity,
-          error: outboundError.message,
+          available: childStockQuantity,
+          error: '未配置默认仓库',
         });
+        continue;
       }
+
+      childIssuePlan.push({
+        materialId: childMaterial.material_id,
+        locationId: childMatInfo.locationId,
+        quantity: childOutboundQuantity,
+        unitId: childMatInfo.unitId || null,
+        unitCost: childMatInfo.costPrice || 0,
+        code: childMaterial.code,
+        name: childMaterial.name,
+      });
     }
 
-    // 检查是否有成功的出库
-    if (successfulOutbounds.length > 0) {
-      // 部分成功的情况
-      if (insufficientMaterials.length > 0) {
-        logger.warn('部分物料库存不足，但已完成部分出库');
-      }
-    } else {
-      // 所有子物料都库存不足
-      const errorMessage = `所有子物料库存不足: ${insufficientMaterials.map((m) => `${m.code}(需要${m.required},库存${m.available})`).join(', ')}`;
+    if (insufficientMaterials.length > 0 || childIssuePlan.length !== childMaterials.length) {
+      const errorMessage = `替代子物料库存或配置不完整: ${insufficientMaterials.map((m) => `${m.code}(需要${m.required},库存${m.available ?? 0}${m.error ? `,${m.error}` : ''})`).join(', ')}`;
       throw new Error(errorMessage);
+    }
+
+    for (const childIssue of childIssuePlan) {
+      await InventoryService.updateStock(
+        {
+          materialId: childIssue.materialId,
+          locationId: childIssue.locationId,
+          transactionType: 'production_outbound',
+          quantity: -parseFloat(childIssue.quantity),
+          unitId: childIssue.unitId,
+          referenceNo: remark.split(': ')[1] || remark,
+          referenceType: 'production_task',
+          operator,
+          remark: `${remark} (替代物料 ${materialId})`,
+          issue_reason: extraData.issueReason || null,
+          is_excess: extraData.isExcess || 0,
+          unitCost: childIssue.unitCost,
+        },
+        connection
+      );
     }
   } catch (error) {
     logger.error('智能出库失败:', error);
     throw error;
   }
 }
-
-
-
-
 
 
 module.exports = {
@@ -596,4 +541,5 @@ module.exports = {
   fixNegativeStock,
   _syncProductionStatus,
   checkAndUpdateTaskStatus,
+  smartOutboundStock,
 };

@@ -18,6 +18,7 @@ import {
   StatusMapper
 } from '@/utils/commonHelpers'
 import { parsePaginatedData } from '@/utils/responseParser'
+import { purchaseApi, supplierApi } from '@/services/api'
 
 // 使用 StatusMapper 的 getStatusDisplay 方法
 const getStatusDisplay = (status) => {
@@ -36,9 +37,7 @@ const getStatusDisplay = (status) => {
 export const usePurchaseOrder = (options = {}) => {
   const {
     autoLoad = true,
-    pageSize = 10,
-    enableSearch = true,
-    enablePagination = true
+    pageSize = 10
   } = options;
 
   // 响应式数据

@@ -9,7 +9,7 @@ export const APP_INFO = {
   version: '1.0.0',
   description: '制造执行系统移动端应用',
   author: 'MES Team',
-  homepage: 'https://mes.example.com'
+  homepage: import.meta.env.VITE_APP_HOMEPAGE || ''
 }
 
 // API配置 — 被 services/api.js 引用

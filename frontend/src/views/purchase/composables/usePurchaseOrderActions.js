@@ -11,6 +11,7 @@ import { getPurchaseStatusText, getPurchaseStatusColor } from '@/constants/syste
 import { usePurchaseInspection } from '@/composables/usePurchaseInspection'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
+import { decodeHtmlEntities, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const { createInspectionForOrder, showInspectionResult } = usePurchaseInspection()
@@ -234,7 +235,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       else if (templateResponse.data?.content) template = templateResponse.data
       else template = templateResponse.data
       if (!template || !template.content) { console.error('模板数据:', templateResponse.data); throw new Error('打印模板内容为空') }
-      let companyInfo = { company_name: '', company_phone: '', company_fax: '', company_address: '' }
+      const companyInfo = { company_name: '', company_phone: '', company_fax: '', company_address: '' }
       try {
         const settingsRes = await api.get('/system/settings')
         if (settingsRes.data) {
@@ -244,7 +245,9 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
           companyInfo.company_fax = settings.find(s => s.key === 'company_fax' || s.setting_key === 'company_fax')?.value || settings.find(s => s.key === 'company_fax' || s.setting_key === 'company_fax')?.setting_value || ''
           companyInfo.company_address = settings.find(s => s.key === 'company_address' || s.setting_key === 'company_address')?.value || settings.find(s => s.key === 'company_address' || s.setting_key === 'company_address')?.setting_value || ''
         }
-      } catch (error) { console.error('获取系统设置失败:', error) }
+      } catch {
+        ElMessage.warning('系统设置读取失败，已使用默认公司信息')
+      }
       const printData = {
         ...companyInfo, order_number: viewData.order_number || viewData.order_no || '', order_no: viewData.order_number || viewData.order_no || '',
         order_date: formatDate(viewData.order_date), expected_delivery_date: formatDate(viewData.expected_delivery_date), delivery_date: formatDate(viewData.expected_delivery_date),
@@ -255,7 +258,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         print_time: new Date().toLocaleString('zh-CN'), items: viewData.items || []
       }
       let printContent = template.content
-      if (printContent.includes('&lt;') || printContent.includes('&gt;')) { const textarea = document.createElement('textarea'); textarea.innerHTML = printContent; printContent = textarea.value }
+      if (printContent.includes('&lt;') || printContent.includes('&gt;')) printContent = decodeHtmlEntities(printContent)
       Object.keys(printData).forEach(key => { if (key !== 'items') { const regex = new RegExp(`{{${key}}}`, 'g'); printContent = printContent.replace(regex, printData[key] || '') } })
       let itemsLoopMatch = printContent.match(/{{#items}}([\s\S]*?){{\/items}}/)
       if (!itemsLoopMatch) itemsLoopMatch = printContent.match(/{{#each\s+items}}([\s\S]*?){{\/each}}/)
@@ -286,7 +289,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       }
       const printWindow = window.open('', '_blank')
       if (!printWindow) { ElMessage.error('打印窗口被阻止，请允许弹出窗口'); return }
-      printWindow.document.open(); printWindow.document.write(printContent); printWindow.document.close()
+      writeSafeHtmlDocument(printWindow, printContent)
       printWindow.onload = function () { setTimeout(() => { printWindow.focus() }, 500) }
     } catch (error) { console.error('打印失败:', error); ElMessage.error('打印失败: ' + (error.message || '未知错误')) }
   }

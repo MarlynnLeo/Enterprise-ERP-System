@@ -18,7 +18,6 @@
         <div class="report-title">来料检验报告</div>
         <div class="report-no">No. {{ inspection?.inspectionNo || inspection?.inspection_no }}</div>
       </div>
-
       <div class="report-info">
         <div class="report-info-item">
           <span class="report-info-label">物料名称:</span>
@@ -38,7 +37,7 @@
         </div>
         <div class="report-info-item">
           <span class="report-info-label">批次号:</span>
-          <span>{{ inspection?.batchNo || inspection?.batch_no || '默认批次号' }}</span>
+          <span>{{ inspection?.batchNo || inspection?.batch_no || '-' }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">检验数量:</span>
@@ -59,7 +58,6 @@
           </span>
         </div>
       </div>
-
       <div class="report-standards">
         <h3>检验项目</h3>
         <el-table :data="inspection?.items" border>
@@ -82,7 +80,6 @@
           <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
         </el-table>
       </div>
-
       <div class="report-result">
         <div class="report-conclusion">
           <h3>检验结论</h3>
@@ -92,7 +89,6 @@
           <p v-if="inspection?.note">备注: {{ inspection?.note }}</p>
         </div>
       </div>
-
       <div class="report-signature">
         <div class="signature-item">
           <p>检验员: {{ inspection?.inspector || inspection?.inspector_name }}</p>
@@ -104,7 +100,6 @@
         </div>
       </div>
     </div>
-
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">关闭</el-button>
@@ -113,50 +108,39 @@
     </template>
   </el-dialog>
 </template>
-
 <script setup>
 import { ref, computed } from 'vue'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage } from 'element-plus'
-import { qualityApi } from '@/services/api'
 import api from '@/services/api'
 import { getQualityInspectionTypeText } from '@/constants/systemConstants'
 import printService from '@/services/printService'
-import dayjs from 'dayjs'
-
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 const props = defineProps({
   visible: Boolean,
   inspection: { type: Object, default: null }
 })
-
 const emit = defineEmits(['update:visible'])
-
 const dialogVisible = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
 })
-
 const reportRef = ref(null)
-
 // 辅助函数
-
 const getStatusText = (status) => {
   const map = { pending: '待检验', inspecting: '检验中', passed: '合格', failed: '不合格', partial: '部分合格', critical: '关键项不合格', review: '待复检' }
   return map[status] || status || '-'
 }
-
 const getStatusType = (status) => {
   const map = { pending: 'info', inspecting: 'warning', passed: 'success', failed: 'danger', partial: 'warning', critical: 'danger', review: 'warning' }
   return map[status] || 'info'
 }
-
 // 打印报告
 const handlePrint = () => {
   if (!props.inspection) {
     ElMessage.error('报告数据加载失败，请重试')
     return
   }
-
   const insp = props.inspection
   const printData = {
     inspection_no: insp.inspectionNo || insp.inspection_no || '',
@@ -165,7 +149,7 @@ const handlePrint = () => {
     product_code: insp.product_code || '',
     supplier_name: insp.supplierName || insp.supplier_name || '',
     reference_no: insp.purchaseOrderNo || insp.reference_no || '',
-    batch_no: insp.batchNo || insp.batch_no || '默认批次号',
+    batch_no: insp.batchNo || insp.batch_no || '',
     quantity: insp.quantity || insp.total_quantity || 0,
     unit: insp.unit || '',
     inspection_date: formatDate(insp.inspectionDate || insp.actual_date),
@@ -179,7 +163,6 @@ const handlePrint = () => {
       result_is_passed: item.result === 'passed'
     }))
   }
-
   // 尝试使用打印模板
   printService.getDefaultTemplate('quality', 'incoming_inspection')
     .then(response => {
@@ -187,7 +170,6 @@ const handlePrint = () => {
       if (response.data?.content) template = response.data
       else if (response?.content) template = response
       else if (response.data?.data?.content) template = response.data.data
-
       if (template?.content) {
         try {
           const printContent = printService.generatePrintContent(template, printData)
@@ -208,14 +190,12 @@ const handlePrint = () => {
       printWithLegacy()
     })
 }
-
 // Legacy 打印方法
 const printWithLegacy = async () => {
   if (!reportRef.value) {
     ElMessage.error('报告内容加载失败，请重试')
     return
   }
-
   try {
     let templateContent = ''
     try {
@@ -228,26 +208,21 @@ const printWithLegacy = async () => {
     } catch (templateError) {
       console.error('获取打印模板失败:', templateError)
     }
-
     if (!templateContent) {
       ElMessage.warning('未找到来料检验打印模板，请在系统管理-打印管理中配置 incoming_inspection 类型模板')
       return
     }
-
     const printContent = reportRef.value.innerHTML
     templateContent = templateContent.replace(/{{content}}/g, printContent)
     templateContent = templateContent.replace(/{{inspection_no}}/g, props.inspection?.inspectionNo || '-')
     templateContent = templateContent.replace(/{{print_date}}/g, new Date().toLocaleDateString())
     templateContent = templateContent.replace(/{{print_time}}/g, new Date().toLocaleTimeString())
-
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
       ElMessage.error('无法创建打印窗口，请检查是否允许弹出窗口')
       return
     }
-
-    printWindow.document.write(templateContent)
-    printWindow.document.close()
+    writeSafeHtmlDocument(printWindow, templateContent)
     printWindow.onload = () => {
       setTimeout(() => {
         try { printWindow.focus(); printWindow.print() }
@@ -260,7 +235,6 @@ const printWithLegacy = async () => {
   }
 }
 </script>
-
 <style scoped>
 .inspection-report { padding: 20px; border: 1px solid var(--color-border-lighter); border-radius: var(--radius-sm); background-color: #fcfcfc; }
 .report-header { text-align: center; margin-bottom: var(--spacing-lg); }

@@ -13,9 +13,9 @@ const { UnifiedAppError } = require('./unifiedErrorHandler');
 // SQL 注入检测模式（严格）— 用于普通字段
 const SQL_INJECTION_PATTERNS = [
   /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)/i,
-  /(\';|--)/, // 单引号、分号、双横线注释
+  /(';|--)/, // 单引号、分号、双横线注释
   /(\/\*|\*\/)/, // SQL块注释标记
-  /(\bOR\b|\bAND\b).*(\=|\<|\>)/i,
+  /(\bOR\b|\bAND\b).*(=|<|>)/i,
   /(UNION.*SELECT|SELECT.*FROM|INSERT.*INTO|UPDATE.*SET|DELETE.*FROM)/i,
 ];
 

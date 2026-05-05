@@ -1,7 +1,7 @@
 <!--
 /**
  * ReturnDetail.vue - 销售退货详情
- * @description 销售退货详情页面 - 替代GenericListView占位
+ * @description 销售退货详情页面
  * @date 2026-04-14
  * @version 1.0.0
  */
@@ -66,13 +66,12 @@
 
 <script setup>
   import { ref, onMounted } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
+  import { useRoute } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
   import { salesApi } from '@/services/api'
   import { SALES_RETURN_STATUS, getDictText, getDictClass } from '@/constants/dict'
 
   const route = useRoute()
-  const router = useRouter()
   const detail = ref(null)
   const actionLoading = ref(false)
 
@@ -85,8 +84,7 @@
     try {
       const response = await salesApi.getSalesReturn(route.params.id)
       detail.value = response.data?.data || response.data || response
-    } catch (error) {
-      console.error('加载退货详情失败:', error)
+    } catch {
       showToast('加载详情失败')
     }
   }
@@ -96,7 +94,7 @@
     try {
       await showConfirmDialog({ title: '审批确认', message: '确定审批通过此退货申请？' })
       actionLoading.value = true
-      await salesApi.updateSalesReturn(detail.value.id, { status: 'approved' })
+      await salesApi.updateSalesReturnStatus(detail.value.id, 'approved')
       showToast('审批通过')
       await loadDetail()
     } catch (e) {
@@ -111,7 +109,7 @@
     try {
       await showConfirmDialog({ title: '拒绝确认', message: '确定拒绝此退货申请？' })
       actionLoading.value = true
-      await salesApi.updateSalesReturn(detail.value.id, { status: 'rejected' })
+      await salesApi.updateSalesReturnStatus(detail.value.id, 'rejected')
       showToast('已拒绝')
       await loadDetail()
     } catch (e) {
@@ -126,7 +124,7 @@
     try {
       await showConfirmDialog({ title: '完成确认', message: '确定完成此退货？退货商品将入库。' })
       actionLoading.value = true
-      await salesApi.updateSalesReturn(detail.value.id, { status: 'completed' })
+      await salesApi.updateSalesReturnStatus(detail.value.id, 'completed')
       showToast('退货完成')
       await loadDetail()
     } catch (e) {

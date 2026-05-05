@@ -51,7 +51,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 单位详情 — 暂不跳转
   }
 </script>

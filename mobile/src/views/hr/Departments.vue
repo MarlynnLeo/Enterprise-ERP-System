@@ -11,6 +11,7 @@
 <script setup>
   import { computed } from 'vue'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
+  import { systemApi } from '@/services/api'
 
   const pageConfig = computed(() => ({
     title: '部门管理',
@@ -23,9 +24,9 @@
       icon: 'cluster-o',
       
       details: [
-        { label: '上级部门', field: 'parentName' },
-        { label: '负责人', field: 'manager' },
-        { label: '部门人数', field: 'empCount', suffix: '人' }
+        { label: '负责人', field: 'manager_name' },
+        { label: '部门人数', field: 'user_count', suffix: '人' },
+        { label: '联系电话', field: 'phone' }
       ]
     },
 
@@ -34,16 +35,11 @@
     ]
   }))
 
-  const loadDepartments = async (params) => {
-    return {
-      data: {
-        list: [
-          { id: 1, name: '总经办', code: 'DEPT-GM', parentName: '-', manager: '王总', empCount: 5 },
-          { id: 2, name: '生产部', code: 'DEPT-PROD', parentName: '总经办', manager: '陈经理', empCount: 85 },
-          { id: 3, name: '质量部', code: 'DEPT-QC', parentName: '总经办', manager: '赵工', empCount: 12 }
-        ],
-        total: 3
-      }
-    }
+  const loadDepartments = async (params = {}) => {
+    return systemApi.getDepartments({
+      name: params.search,
+      page: params.page,
+      pageSize: params.pageSize
+    })
   }
 </script>

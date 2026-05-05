@@ -132,7 +132,7 @@ const fetchAttendance = async () => {
   try {
     const res = await hrApi.getAttendance(period.value)
     tableData.value = res.data.data || res.data
-  } catch (error) {
+  } catch {
     ElMessage.error('获取考勤失败')
   } finally {
     loading.value = false
@@ -189,7 +189,7 @@ const fetchRules = async () => {
       ...r,
       _editValue: typeof r.rule_value === 'string' ? JSON.parse(r.rule_value) : r.rule_value
     }))
-  } catch (e) {
+  } catch {
     ElMessage.error('获取规则失败')
   } finally {
     rulesLoading.value = false
@@ -237,7 +237,7 @@ const saveAllRules = async () => {
     }
     ElMessage.success('所有规则保存成功')
     rulesDialogVisible.value = false
-  } catch (e) {
+  } catch {
     ElMessage.error('保存规则失败')
   } finally {
     rulesSaving.value = false

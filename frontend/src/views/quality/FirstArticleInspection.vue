@@ -31,7 +31,6 @@
         <div class="stat-label">有条件放行</div>
       </el-card>
     </div>
-
     <el-card class="box-card">
       <template #header>
         <div class="card-header">
@@ -69,7 +68,6 @@
           </el-col>
         </el-row>
       </div>
-
       <!-- 首检单列表 -->
       <el-table :data="inspectionList" border style="width: 100%; margin-top: 16px;" v-loading="loading">
         <el-table-column prop="inspection_no" label="检验单号" min-width="140" />
@@ -106,7 +104,6 @@
             <el-button v-permission="'quality:inspections:view'" v-if="row.first_article_result === 'passed'" size="small" type="success" @click="handlePrint(row)">打印</el-button>
           </template>
         </el-table-column>
-
       </el-table>
       
       <!-- 分页 -->
@@ -114,7 +111,6 @@
         <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" background layout="total, sizes, prev, pager, next, jumper" :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
       </div>
     </el-card>
-
     <!-- 新建首检单弹窗 -->
     <CreateDialog v-model:visible="showCreateDialog" @success="handleCreateSuccess" />
     
@@ -128,21 +124,18 @@
     <RulesDialog v-model:visible="showRulesDialog" />
   </div>
 </template>
-
 <script setup>
-import { ref, reactive, onMounted, defineAsyncComponent, computed } from 'vue'
+import { ref, reactive, onMounted, defineAsyncComponent } from 'vue'
 import { Search, Refresh, Plus, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { qualityApi } from '@/api/quality'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 import {
-  FIRST_ARTICLE_RESULT,
   getFirstArticleResultText,
   getFirstArticleResultColor
 } from '@/constants/systemConstants'
-
 // 状态选项
 const statusOptions = [
   { label: '待检验', value: 'pending' },
@@ -151,16 +144,13 @@ const statusOptions = [
   { label: '有条件放行', value: 'conditional' },
   { label: '复检', value: 'review' }
 ]
-
 const getResultText = (status) => getFirstArticleResultText(status) || status
 const getResultType = (status) => getFirstArticleResultColor(status)
-
 // 异步加载子组件
 const CreateDialog = defineAsyncComponent(() => import('./components/FirstArticleCreateDialog.vue'))
 const InspectDialog = defineAsyncComponent(() => import('./components/FirstArticleInspectDialog.vue'))
 const ViewDialog = defineAsyncComponent(() => import('./components/FirstArticleViewDialog.vue'))
 const RulesDialog = defineAsyncComponent(() => import('./components/FirstArticleRulesDialog.vue'))
-
 // 状态
 const loading = ref(false)
 const inspectionList = ref([])
@@ -168,19 +158,16 @@ const stats = reactive({ total: 0, pending: 0, passed: 0, failed: 0, conditional
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
-
 // 搜索条件
 const searchKeyword = ref('')
 const statusFilter = ref('')
 const dateRange = ref(null)
-
 // 弹窗控制
 const showCreateDialog = ref(false)
 const showInspectDialog = ref(false)
 const showViewDialog = ref(false)
 const showRulesDialog = ref(false)
 const currentInspection = ref(null)
-
 // 获取首检列表
 const fetchList = async () => {
   loading.value = true
@@ -204,7 +191,6 @@ const fetchList = async () => {
     loading.value = false
   }
 }
-
 // 获取统计
 const fetchStats = async () => {
   try {
@@ -215,13 +201,11 @@ const fetchStats = async () => {
     console.error('获取首检统计失败:', error)
   }
 }
-
 // 搜索
 const handleSearch = () => {
   currentPage.value = 1
   fetchList()
 }
-
 // 重置
 const handleReset = () => {
   searchKeyword.value = ''
@@ -229,23 +213,19 @@ const handleReset = () => {
   dateRange.value = null
   handleSearch()
 }
-
 // 分页
 const handleSizeChange = (val) => { pageSize.value = val; fetchList() }
 const handleCurrentChange = (val) => { currentPage.value = val; fetchList() }
-
 // 查看
 const handleView = (row) => {
   currentInspection.value = row
   showViewDialog.value = true
 }
-
 // 检验
 const handleInspect = (row) => {
   currentInspection.value = row
   showInspectDialog.value = true
 }
-
 // 重检（对不合格的首检单重新检验）
 const handleReinspect = (row) => {
   // 重检使用相同的检验弹窗，但标记为重检
@@ -253,7 +233,6 @@ const handleReinspect = (row) => {
   showInspectDialog.value = true
   ElMessage.info('请对不合格项目进行重新检验')
 }
-
 // 打印
 const handlePrint = async (row) => {
   try {
@@ -408,44 +387,36 @@ const handlePrint = async (row) => {
       ElMessage.error('无法打开打印窗口,请检查浏览器弹窗设置')
       return
     }
-
-    printWindow.document.write(renderedContent)
-    printWindow.document.close()
-
+    writeSafeHtmlDocument(printWindow, renderedContent)
     // 等待内容加载后打印
     printWindow.onload = () => {
       printWindow.print()
       printWindow.close()
     }
-
     ElMessage.success('打印预览已打开')
   } catch (error) {
     console.error('打印失败:', error)
     ElMessage.error('打印失败')
   }
 }
-
 // 创建成功回调
 const handleCreateSuccess = () => {
   showCreateDialog.value = false
   fetchList()
   fetchStats()
 }
-
 // 检验成功回调
 const handleInspectSuccess = () => {
   showInspectDialog.value = false
   fetchList()
   fetchStats()
 }
-
 // 初始化加载
 onMounted(() => {
   fetchList()
   fetchStats()
 })
 </script>
-
 <style scoped>
 .inspection-container {
   padding: 20px;
@@ -482,4 +453,3 @@ onMounted(() => {
   margin-top: 8px;
 }
 </style>
-

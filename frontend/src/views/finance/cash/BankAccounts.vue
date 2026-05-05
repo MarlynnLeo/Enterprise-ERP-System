@@ -318,7 +318,7 @@
 import { parsePaginatedData, parseDataObject } from '@/utils/responseParser'
 import { formatCurrency } from '@/utils/format'
 
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
@@ -373,7 +373,7 @@ const getTransactionTagType = (type) => {
 };
 
 // 获取金额的样式类
-const getAmountClass = (type, amount) => {
+const getAmountClass = (type) => {
   if (['存款', '转入', '利息'].includes(type)) {
     return 'positive-value';
   } else if (['取款', '转出', '费用'].includes(type)) {

@@ -345,7 +345,7 @@ const fetchStats = async () => {
     if (statsData) {
       Object.assign(stats, statsData);
     }
-  } catch (error) {
+  } catch {
     // ignore
   }
 };
@@ -380,7 +380,7 @@ const handleEdit = async (row) => {
     const detail = await bomApi.getBom(row.id);
     currentEditBom.value = parseDataObject(detail);
     dialogVisible.value = true;
-  } catch (error) {
+  } catch {
     ElMessage.error('获取详情失败');
   }
 };
@@ -427,7 +427,7 @@ const handleView = async (row) => {
     
     currentViewBom.value = detail;
     viewDialogVisible.value = true;
-  } catch (error) {
+  } catch {
     ElMessage.error('获取详情失败');
   }
 };

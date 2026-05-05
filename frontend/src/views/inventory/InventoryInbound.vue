@@ -190,7 +190,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 新建/编辑入库单对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -250,7 +249,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <!-- 生产退料时显示关联任务选择 -->
         <el-row :gutter="20" v-if="form.inbound_type === 'production_return'">
           <el-col :span="16">
@@ -273,7 +271,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="操作人" prop="operator">
@@ -291,9 +288,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-divider>{{ form.inbound_type === 'production_return' ? '退料明细' : '入库明细' }}</el-divider>
-
         <el-table
           :data="form.items"
           border
@@ -338,11 +333,8 @@
               </el-autocomplete>
             </template>
           </el-table-column>
-
           <el-table-column label="物料名称" prop="material_name" width="140" show-overflow-tooltip />
-
           <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
-
           <el-table-column label="数量" width="120">
             <template #default="{ row, $index }">
               <el-input
@@ -355,9 +347,7 @@
               />
             </template>
           </el-table-column>
-
           <el-table-column label="单位" prop="unit_name" width="70" />
-
           <el-table-column label="批次号" width="150">
             <template #default="{ row }">
               <el-input
@@ -367,7 +357,6 @@
               />
             </template>
           </el-table-column>
-
           <el-table-column label="备注" width="150">
             <template #default="{ row }">
               <el-input 
@@ -378,7 +367,6 @@
                 clearable />
             </template>
           </el-table-column>
-
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ $index }">
               <el-button
@@ -392,14 +380,12 @@
             </template>
           </el-table-column>
         </el-table>
-
         <div class="add-material" style="margin-top: 10px;">
           <el-button type="primary" @click="handleAddItem">
             <el-icon><Plus /></el-icon>添加物料
           </el-button>
         </div>
       </el-form>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
@@ -407,7 +393,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 查看入库单对话框 -->
     <el-dialog
       v-model="viewDialogVisible"
@@ -427,9 +412,7 @@
         <el-descriptions-item label="操作人">{{ currentInbound.operator_name || currentInbound.operator || '未知' }}</el-descriptions-item>
         <el-descriptions-item label="备注">{{ currentInbound.remark }}</el-descriptions-item>
       </el-descriptions>
-
       <el-divider>入库明细</el-divider>
-
       <el-table :data="currentInbound.items" border style="width: 100%">
         <el-table-column prop="material_code" label="物料编码" width="120" />
         <el-table-column prop="material_name" label="物料名称" min-width="150" />
@@ -444,7 +427,6 @@
         <el-button type="primary" @click="handlePrintInbound" :loading="printLoading">打印</el-button>
       </template>
     </el-dialog>
-
     <!-- 物料选择对话框 -->
     <el-dialog
       v-model="materialDialogVisible"
@@ -462,7 +444,6 @@
           <el-button type="primary" @click="handleMaterialSearch">搜索</el-button>
         </el-form-item>
       </el-form>
-
       <el-table
         :data="materialTableData"
         style="width: 100%"
@@ -482,7 +463,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <div class="pagination-container">
         <el-pagination
           v-model:current-page="materialCurrentPage"
@@ -494,7 +474,6 @@
           @current-change="handleMaterialCurrentChange"
         />
       </div>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="materialDialogVisible = false">取消</el-button>
@@ -502,7 +481,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 生产任务选择对话框 -->
     <el-dialog
       v-model="productionTaskDialogVisible"
@@ -521,7 +499,6 @@
           <el-button type="primary" @click="searchProductionTasks">查询</el-button>
         </el-form-item>
       </el-form>
-
       <el-table
         :data="productionTasks"
         v-loading="taskLoading"
@@ -545,7 +522,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 选中任务后显示领料记录 -->
       <template v-if="selectedTask">
         <el-divider>任务 {{ selectedTask.code }} 的领料记录</el-divider>
@@ -601,7 +577,6 @@
           </el-table-column>
         </el-table>
       </template>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="productionTaskDialogVisible = false">取消</el-button>
@@ -611,7 +586,6 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
@@ -623,12 +597,9 @@ import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/c
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 import printService, { parseTemplateResponse } from '@/services/printService'
-
 const route = useRoute()
-
 // 权限store
 const authStore = useAuthStore()
-
 // 权限计算属性
 const canCreate = computed(() => authStore.hasPermission && authStore.hasPermission('inventory:inbound:create'));
 // 搜索表单
@@ -637,18 +608,15 @@ const searchForm = reactive({
   locationId: '',
   dateRange: []
 })
-
 // 表格数据
 const tableData = ref([])
 const loading = ref(false)
-
 // 添加响应式分页对象
 const pagination = reactive({
   currentPage: 1,
   pageSize: 10,
   total: 0
 })
-
 // 对话框相关
 const dialogVisible = ref(false)
 const dialogType = ref('create')
@@ -669,7 +637,6 @@ const form = reactive({
   reference_id: null,
   reference_no: null
 })
-
 // 入库类型选项
 const inboundTypeOptions = [
   { value: 'other', label: '其他入库' },
@@ -680,7 +647,6 @@ const inboundTypeOptions = [
   { value: 'outsourced', label: '委外入库' },
   { value: 'sales_return', label: '销售退货入库' }
 ]
-
 // 生产退料相关
 const productionTaskDialogVisible = ref(false)
 const productionTasks = ref([])
@@ -689,7 +655,6 @@ const taskLoading = ref(false)
 const selectedTask = ref(null)
 const taskMaterialRecords = ref([])
 const taskMaterialLoading = ref(false)
-
 // 当前查看的入库单
 const currentInbound = reactive({
   inbound_no: '',
@@ -700,12 +665,10 @@ const currentInbound = reactive({
   remark: '',
   items: []
 })
-
 // 基础数据
 const locations = ref([])
-const materials = ref([])
+const _materials = ref([])
 const units = ref([])
-
 // 物料选择对话框相关
 const materialDialogVisible = ref(false)
 const materialSearchForm = reactive({
@@ -718,7 +681,6 @@ const materialCurrentPage = ref(1)
 const materialPageSize = ref(10)
 const materialTotal = ref(0)
 const selectedMaterials = ref([])
-
 // 表单验证规则
 const rules = {
   inbound_date: [
@@ -731,7 +693,6 @@ const rules = {
     { required: true, message: '请输入操作人', trigger: 'blur' }
   ]
 }
-
 // 入库单统计数据
 const inboundStats = reactive({
   total: 0,
@@ -740,17 +701,14 @@ const inboundStats = reactive({
   completedCount: 0,
   cancelledCount: 0
 });
-
 // 获取状态类型
 const getStatusType = (status) => {
   return getInboundOutboundStatusColor(status);
 };
-
 // 获取状态文本
 const getStatusText = (status) => {
   return getInboundOutboundStatusText(status);
 };
-
 // 获取入库类型文本
 const getInboundTypeText = (type) => {
   const map = {
@@ -764,7 +722,6 @@ const getInboundTypeText = (type) => {
   }
   return map[type] || type || '其他入库'
 }
-
 // 获取入库类型标签样式
 const getInboundTypeTagType = (type) => {
   const map = {
@@ -778,13 +735,11 @@ const getInboundTypeTagType = (type) => {
   }
   return map[type] || 'info'
 }
-
 // 加载仓库列表
 const loadLocations = async () => {
   try {
     const response = await baseDataApi.getLocations();
     locations.value = parseListData(response, { enableLog: false });
-
     if (locations.value.length === 0) {
       ElMessage.warning('未找到可用的仓库，请先在基础数据中添加仓库');
     }
@@ -794,7 +749,6 @@ const loadLocations = async () => {
     locations.value = [];
   }
 };
-
 // 加载物料列表
 const loadMaterials = async () => {
   try {
@@ -807,10 +761,8 @@ const loadMaterials = async () => {
     }
     const response = await baseDataApi.getMaterials(params)
     const { list, total } = parsePaginatedData(response)
-
     materialTableData.value = list
     materialTotal.value = total
-
   } catch (error) {
     console.error('加载物料数据失败:', error)
     ElMessage.error('加载物料数据失败')
@@ -818,7 +770,6 @@ const loadMaterials = async () => {
     materialLoading.value = false
   }
 }
-
 // 加载单位数据
 const loadUnits = async () => {
   try {
@@ -831,7 +782,6 @@ const loadUnits = async () => {
     return [];
   }
 };
-
 // 加载入库单列表
 const loadInbounds = async () => {
   loading.value = true;
@@ -844,10 +794,8 @@ const loadInbounds = async () => {
       startDate: searchForm.dateRange && searchForm.dateRange[0] ? searchForm.dateRange[0] : '',
       endDate: searchForm.dateRange && searchForm.dateRange[1] ? searchForm.dateRange[1] : ''
     };
-
     const response = await inventoryApi.getInboundList(params);
     const { list, total } = parsePaginatedData(response);
-
     tableData.value = list;
     pagination.total = Math.max(total, 1);
     updateStats();
@@ -860,13 +808,11 @@ const loadInbounds = async () => {
     loading.value = false;
   }
 };
-
 // 搜索处理
 const handleSearch = () => {
   pagination.currentPage = 1;
   loadInbounds();
 };
-
 // 新建入库单
 const handleCreate = () => {
   dialogType.value = 'create'
@@ -877,7 +823,6 @@ const handleCreate = () => {
   form.reference_id = null
   form.reference_no = null
   selectedTask.value = null
-
   // 设置当前用户为操作人（使用真实姓名）
   if (authStore.user && (authStore.user.real_name || authStore.user.name)) {
     form.operator = authStore.user.real_name || authStore.user.name
@@ -896,8 +841,6 @@ const handleCreate = () => {
   form.items = []
   dialogVisible.value = true
 }
-
-
 // ========== 打印功能 ==========
 const printLoading = ref(false)
 const handlePrintInbound = async () => {
@@ -936,7 +879,6 @@ const handlePrintInbound = async () => {
     printLoading.value = false
   }
 }
-
 // 查看入库单
 const handleView = async (id) => {
   viewDialogVisible.value = true
@@ -953,15 +895,12 @@ const handleView = async (id) => {
     viewLoading.value = false
   }
 }
-
 // 更新入库单状态
 const handleUpdateStatus = async (id, newStatus) => {
   try {
     // 确保使用正确的参数格式
     await inventoryApi.updateInboundStatus(id, { newStatus });
-
     // 追溯记录已改为由底层的 batch_relationships 统一管理，由于旧版单独的质量追溯API已在架构重构中全面废弃，此处不再重复发起 /api/quality/traceability/purchase 请求。
-
     ElMessage.success('状态更新成功');
     // 刷新数据
     handleSearch();
@@ -970,25 +909,21 @@ const handleUpdateStatus = async (id, newStatus) => {
     ElMessage.error(error.response?.data?.message || '状态更新失败');
   }
 }
-
 // 组件引用管理
 const materialSelectRefs = ref({})
 const quantityInputRefs = ref({})
-
 // 设置物料选择框引用
 const setMaterialSelectRef = (el, index) => {
   if (el) {
     materialSelectRefs.value[index] = el
   }
 }
-
 // 设置数量输入框引用
 const setQuantityInputRef = (el, index) => {
   if (el) {
     quantityInputRefs.value[index] = el
   }
 }
-
 // 添加物料项
 const handleAddItem = () => {
   form.items.push({
@@ -1002,7 +937,6 @@ const handleAddItem = () => {
     batch_number: '',
     remark: ''
   })
-
   // 聚焦到新添加行的物料输入框
   nextTick(() => {
     const newIndex = form.items.length - 1
@@ -1012,12 +946,10 @@ const handleAddItem = () => {
     }
   })
 }
-
 // 删除物料项
 const handleRemoveItem = (index) => {
   form.items.splice(index, 1)
 }
-
 // 获取物料建议列表
 const fetchMaterialSuggestions = async (queryString, callback) => {
   // 如果查询字符串为空,返回空数组
@@ -1025,14 +957,12 @@ const fetchMaterialSuggestions = async (queryString, callback) => {
     callback([])
     return
   }
-
   try {
     // 使用统一的搜索函数
     const searchResults = await searchMaterials(baseDataApi, queryString.trim(), {
       pageSize: 500,
       includeAll: true
     })
-
     // 映射搜索结果为自动完成需要的格式
     const suggestions = searchResults.map(item => ({
       value: item.code || '无编码', // value 用于显示在输入框中
@@ -1044,14 +974,12 @@ const fetchMaterialSuggestions = async (queryString, callback) => {
       unit_id: item.unit_id,
       stock_quantity: item.stock_quantity || 0
     }))
-
     callback(suggestions)
-  } catch (error) {
+  } catch {
     ElMessage.error('搜索物料失败')
     callback([])
   }
 }
-
 // 处理物料选择
 const handleMaterialSelect = (item, index) => {
   const materialId = Number(item.id)
@@ -1060,14 +988,12 @@ const handleMaterialSelect = (item, index) => {
     ElMessage.error('物料ID无效，请重新选择')
     return
   }
-
   form.items[index].material_id = materialId
   form.items[index].material_code = item.code
   form.items[index].material_name = item.name
   form.items[index].specification = item.specs
   form.items[index].unit_name = item.unit_name
   form.items[index].unit_id = item.unit_id
-
   // 选择物料后，自动聚焦到数量输入框
   nextTick(() => {
     const quantityInput = quantityInputRefs.value[index]
@@ -1076,7 +1002,6 @@ const handleMaterialSelect = (item, index) => {
     }
   })
 }
-
 // 处理物料输入框回车
 const handleMaterialEnter = (index) => {
   // 如果已选择物料，跳转到数量输入框
@@ -1087,7 +1012,6 @@ const handleMaterialEnter = (index) => {
     }
   }
 }
-
 // 处理物料清除
 const handleMaterialClear = (index) => {
   form.items[index].material_id = ''
@@ -1097,7 +1021,6 @@ const handleMaterialClear = (index) => {
   form.items[index].unit_name = ''
   form.items[index].unit_id = ''
 }
-
 // 处理数量输入框回车
 const handleQuantityEnter = (index) => {
   // 如果是最后一行，添加新行
@@ -1111,12 +1034,10 @@ const handleQuantityEnter = (index) => {
     }
   }
 }
-
 // 仓库选择变化
 const handleLocationChange = () => {
   form.items = []
 }
-
 // 入库类型变化
 const handleInboundTypeChange = () => {
   // 清空关联信息和明细
@@ -1127,7 +1048,6 @@ const handleInboundTypeChange = () => {
   selectedTask.value = null
   taskMaterialRecords.value = []
 }
-
 // 计算对话框标题
 const getDialogTitle = computed(() => {
   if (dialogType.value === 'create') {
@@ -1138,7 +1058,6 @@ const getDialogTitle = computed(() => {
   }
   return '编辑入库单'
 })
-
 // 打开生产任务选择对话框
 const openTaskSelectDialog = async () => {
   productionTaskDialogVisible.value = true
@@ -1147,7 +1066,6 @@ const openTaskSelectDialog = async () => {
   taskMaterialRecords.value = []
   await searchProductionTasks()
 }
-
 // 搜索生产任务
 const searchProductionTasks = async () => {
   try {
@@ -1167,18 +1085,15 @@ const searchProductionTasks = async () => {
     taskLoading.value = false
   }
 }
-
 // 点击任务行
 const handleTaskRowClick = (row) => {
   selectTask(row)
 }
-
 // 选择任务
 const selectTask = async (task) => {
   selectedTask.value = task
   await loadTaskMaterialRecords(task.id)
 }
-
 // 加载任务领料记录
 const loadTaskMaterialRecords = async (taskId) => {
   try {
@@ -1196,38 +1111,31 @@ const loadTaskMaterialRecords = async (taskId) => {
     taskMaterialLoading.value = false
   }
 }
-
 // 检查是否可选择退料
 const checkReturnSelectable = (row) => {
   return row.max_returnable_quantity > 0
 }
-
 // 处理退料物料选择
 const selectedReturnMaterials = ref([])
 const handleReturnMaterialSelection = (selection) => {
   selectedReturnMaterials.value = selection
 }
-
 // 确认任务选择
 const confirmTaskSelection = () => {
   if (!selectedTask.value) {
     ElMessage.warning('请先选择一个生产任务')
     return
   }
-
   // 获取选中的退料物料
   const returnItems = taskMaterialRecords.value.filter(r => r.return_quantity > 0 && r.max_returnable_quantity > 0)
-
   if (returnItems.length === 0) {
     ElMessage.warning('请至少选择一个物料并设置退料数量')
     return
   }
-
   // 设置关联信息
   form.reference_type = 'production_task'
   form.reference_id = selectedTask.value.id
   form.reference_no = selectedTask.value.code
-
   // 自动设置表单仓库：优先使用有默认仓库的物料，否则使用仓库列表第一个
   const locationsWithDefault = returnItems.map(i => i.default_location_id).filter(Boolean)
   if (locationsWithDefault.length > 0) {
@@ -1235,7 +1143,6 @@ const confirmTaskSelection = () => {
   } else if (locations.value.length > 0) {
     form.location_id = locations.value[0].id
   }
-
   // 构建退料明细（使用物料的默认仓库，没有则使用表单仓库）
   form.items = returnItems.map(item => ({
     material_id: item.material_id,
@@ -1249,11 +1156,9 @@ const confirmTaskSelection = () => {
     location_id: item.default_location_id || form.location_id,
     remark: `生产退料 - 任务${selectedTask.value.code}`
   }))
-
   productionTaskDialogVisible.value = false
   ElMessage.success(`已选择${returnItems.length}个物料进行退料`)
 }
-
 // 获取任务状态类型
 const getTaskStatusType = (status) => {
   const map = {
@@ -1267,7 +1172,6 @@ const getTaskStatusType = (status) => {
   }
   return map[status] || 'info'
 }
-
 // 获取任务状态文字
 const getTaskStatusText = (status) => {
   const map = {
@@ -1281,7 +1185,6 @@ const getTaskStatusText = (status) => {
   }
   return map[status] || status
 }
-
 // 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
@@ -1325,29 +1228,14 @@ const handleSubmit = async () => {
     };
     
     // 根据对话框类型决定是创建还是更新
-    let response
     if (dialogType.value === 'create') {
-      response = await inventoryApi.createInbound(submitData)
+      await inventoryApi.createInbound(submitData)
       ElMessage.success('入库单创建成功')
     } else {
-      response = await inventoryApi.updateInbound(form.id, submitData)
+      await inventoryApi.updateInbound(form.id, submitData)
       ElMessage.success('入库单更新成功')
     }
-
-    // 拦截器已解包，response.data 就是业务数据
-    // 创建成功后，记录追溯信息
-    if (response.data?.id) {
-      // 构建完整的入库数据
-      const inboundData = {
-        ...response.data,
-        ...form,
-        id: response.data.id,
-        inbound_no: response.data.inbound_no || '',
-      };
-      
-      // 记录追溯信息
-      await recordTraceability(inboundData);
-    }
+    // 追溯关系由后端入库流程统一写入 batch_relationships，前端不再重复发起旧追溯接口。
     
     dialogVisible.value = false
     handleSearch()
@@ -1358,29 +1246,24 @@ const handleSubmit = async () => {
     submitLoading.value = false
   }
 }
-
 // 分页处理
 const handleSizeChange = (val) => {
   pagination.pageSize = val;
   loadInbounds();
 };
-
 const handleCurrentChange = (val) => {
   pagination.currentPage = val;
   loadInbounds();
 };
-
 // 物料搜索
 const handleMaterialSearch = () => {
   materialCurrentPage.value = 1
   loadMaterials()
 }
-
 // 物料选择变化
 const handleMaterialSelectionChange = (selection) => {
   selectedMaterials.value = selection
 }
-
 // 确认选择物料
 const handleMaterialConfirm = async () => {
   if (selectedMaterials.value.length === 0) {
@@ -1455,19 +1338,16 @@ const handleMaterialConfirm = async () => {
   materialDialogVisible.value = false;
   selectedMaterials.value = [];
 }
-
 // 分页大小变化
 const handleMaterialSizeChange = (val) => {
   materialPageSize.value = val
   loadMaterials()
 }
-
 // 页码变化
 const handleMaterialCurrentChange = (val) => {
   materialCurrentPage.value = val
   loadMaterials()
 }
-
 // 直接添加单个物料
 const handleAddSingleMaterial = async (material) => {
   try {
@@ -1511,7 +1391,6 @@ const handleAddSingleMaterial = async (material) => {
     ElMessage.error('添加物料失败');
   }
 }
-
 // 重置搜索
 const resetSearch = () => {
   searchForm.inboundNo = '';
@@ -1520,7 +1399,6 @@ const resetSearch = () => {
   pagination.currentPage = 1;
   loadInbounds();
 };
-
 // 更新统计数据 - 从服务端获取真实统计
 const updateStats = async () => {
   try {
@@ -1530,7 +1408,6 @@ const updateStats = async () => {
       pageSize: 9999  // 获取所有数据来统计
     });
     const { list, total } = parsePaginatedData(response);
-
     // 使用真实总数
     inboundStats.total = total;
     inboundStats.draftCount = list.filter(item => item.status === 'draft').length;
@@ -1543,43 +1420,35 @@ const updateStats = async () => {
     inboundStats.total = pagination.total;
   }
 };
-
 onMounted(async () => {
   // 确保分页参数有默认值
   pagination.currentPage = 1;
   pagination.pageSize = 10;
   pagination.total = 10; // 确保分页组件显示
-
   await loadLocations();
   loadMaterials();
   loadUnits();
   loadInbounds();
-
   // 检查是否从生产工序页面跳转过来（退料操作）
   if (route.query.action === 'return' && route.query.taskId) {
     await handleReturnFromProduction(route.query.taskId, route.query.taskCode)
   }
 });
-
 // 处理从生产工序页面跳转过来的退料
 const handleReturnFromProduction = async (taskId, taskCode) => {
   // 打开新建对话框
   handleCreate()
-
   // 设置为生产退料类型
   form.inbound_type = 'production_return'
   form.reference_type = 'production_task'
   form.reference_id = parseInt(taskId)
   form.reference_no = taskCode
-
   // 加载任务领料记录
   await loadTaskMaterialRecords(taskId)
-
   // 如果有领料记录，自动添加到明细
   if (taskMaterialRecords.value.length > 0) {
     // 默认选择所有可退的物料（使用物料的默认仓库）
     const returnItems = taskMaterialRecords.value.filter(r => r.max_returnable_quantity > 0)
-
     // 自动设置表单仓库：优先使用有默认仓库的物料，否则使用仓库列表第一个
     const locationsWithDefault = returnItems.map(i => i.default_location_id).filter(Boolean)
     if (locationsWithDefault.length > 0) {
@@ -1589,7 +1458,6 @@ const handleReturnFromProduction = async (taskId, taskCode) => {
       // 没有任何物料有默认仓库，使用仓库列表第一个
       form.location_id = locations.value[0].id
     }
-
     form.items = returnItems.map(item => ({
       material_id: item.material_id,
       material_code: item.material_code,
@@ -1602,66 +1470,54 @@ const handleReturnFromProduction = async (taskId, taskCode) => {
       location_id: item.default_location_id || form.location_id,
       remark: `生产退料 - 任务${taskCode}`
     }))
-
     // 设置选中的任务
     selectedTask.value = {
       id: taskId,
       code: taskCode
     }
-
     ElMessage.success(`已自动加载任务 ${taskCode} 的可退物料`)
   } else {
     ElMessage.warning('该任务暂无可退的领料记录')
   }
 }
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 /* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
-
 .table-toolbar {
   margin-bottom: 10px;
 }
-
 .material-info {
   margin-top: 4px;
   color: var(--color-text-regular);
   font-size: 12px;
 }
-
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1669,7 +1525,6 @@ const handleReturnFromProduction = async (taskId, taskCode) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

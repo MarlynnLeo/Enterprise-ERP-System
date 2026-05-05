@@ -10,17 +10,19 @@
 
 <script setup>
   import { computed } from 'vue'
+  import dayjs from 'dayjs'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
+  import { hrApi } from '@/services/api'
+  import { filterByKeyword, getResponseList, toPagedResponse } from '@/utils/listResponse'
 
   const pageConfig = computed(() => ({
-    title: '加班审批',
+    title: '加班记录',
     searchPlaceholder: '搜索员工姓名或部门',
 
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '待审批', value: 'pending' },
-      { label: '已通过', value: 'approved' },
-      { label: '已驳回', value: 'rejected' }
+      { label: '草稿', value: 'draft' },
+      { label: '已确认', value: 'confirmed' }
     ],
 
     fields: {
@@ -31,10 +33,9 @@
       status: 'status',
 
       details: [
-        { label: '开始时间', field: 'startTime', type: 'datetime' },
-        { label: '结束时间', field: 'endTime', type: 'datetime' },
-        { label: '时长', field: 'duration', suffix: '小时' },
-        { label: '加班事由', field: 'reason' }
+        { label: '期间', field: 'period' },
+        { label: '加班时长', field: 'overtimeHours', suffix: '小时' },
+        { label: '部门', field: 'department' }
       ],
 
       tags: [
@@ -42,9 +43,8 @@
           field: 'status',
           type: 'status',
           map: {
-            pending: { text: '待审批', color: 'warning' },
-            approved: { text: '已通过', color: 'success' },
-            rejected: { text: '已驳回', color: 'danger' }
+            draft: { text: '草稿', color: 'warning' },
+            confirmed: { text: '已确认', color: 'success' }
           }
         }
       ]
@@ -55,15 +55,19 @@
     ]
   }))
 
-  const loadOvertime = async (params) => {
-    return {
-      data: {
-        list: [
-          { id: 1, empName: '张技术', department: '工程部', startTime: '2026-04-18 18:30', endTime: '2026-04-18 21:30', duration: 3, reason: '项目攻坚抢版', status: 'pending' },
-          { id: 2, empName: '刘操作员', department: '生产部', startTime: '2026-04-17 18:00', endTime: '2026-04-17 20:00', duration: 2, reason: '赶进度加工订单', status: 'approved' }
-        ],
-        total: 2
-      }
-    }
+  const loadOvertime = async (params = {}) => {
+    const response = await hrApi.getAttendance({ period: dayjs().format('YYYY-MM') })
+    const records = getResponseList(response)
+      .map((row) => ({
+        id: row.id,
+        empName: row.name || row.employee_name || '',
+        department: row.department_name || '',
+        period: row.period || '',
+        overtimeHours: Number(row.overtime_hours ?? 0),
+        status: row.status || 'confirmed'
+      }))
+      .filter((row) => row.overtimeHours > 0)
+
+    return toPagedResponse(filterByKeyword(records, params.search, ['empName', 'period', 'department']))
   }
 </script>

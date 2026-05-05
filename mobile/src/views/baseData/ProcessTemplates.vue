@@ -1,7 +1,7 @@
 <!--
 /**
  * ProcessTemplates.vue - 工序模板列表
- * @description 工序模板管理页面 - 替代GenericListView占位
+ * @description 工序模板管理页面
  * @date 2026-04-14
  * @version 1.0.0
  */
@@ -57,7 +57,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 模板详情
   }
 </script>

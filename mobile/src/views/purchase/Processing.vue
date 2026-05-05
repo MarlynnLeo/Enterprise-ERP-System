@@ -61,7 +61,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 外委加工详情
   }
 </script>

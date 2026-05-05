@@ -1,6 +1,6 @@
 /**
  * salesDao.js
- * @description 销售与客户模块数据访问对象 (DAO) 
+ * @description 销售与客户模块数据访问对象 (DAO)
  * 专职处理原混杂在 db.js 中的业务数据 CRUD 逻辑
  */
 const { pool } = require('../config/db');
@@ -223,7 +223,7 @@ class SalesDao {
       const taxRate = order.tax_rate !== undefined ? order.tax_rate : 0.13;
       const subtotal = order.subtotal || totalAmount / (1 + taxRate);
       const taxAmount = order.tax_amount || (totalAmount - subtotal);
-      
+
       await connection.execute(
         'UPDATE sales_orders SET customer_id = ?, contract_code = ?, total_amount = ?, tax_rate = ?, tax_amount = ?, subtotal = ?, payment_terms = ?, delivery_date = ?, status = ?, remarks = ?, updated_at = NOW() WHERE id = ?',
         [order.customer_id, order.contract_code || '', totalAmount, taxRate, taxAmount, subtotal, order.payment_terms || null, order.delivery_date || null, order.status || 'pending', remarks, id]

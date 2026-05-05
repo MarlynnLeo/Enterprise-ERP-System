@@ -2,7 +2,7 @@
  * processInspectionController.js
  * @description 过程检验规则与打卡控制器 — 从 qualityController.js 拆分
  * @date 2026-03-03
- * 
+ *
  * 职责范围：过程检验规则 CRUD、巡检打卡 CRUD
  */
 
@@ -10,6 +10,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 const processInspectionController = {
     // ==================== 过程检验规则配置 ====================
@@ -142,7 +143,7 @@ const processInspectionController = {
         try {
             const { id } = req.params;
             const { inspector_id, inspector_name, remark } = req.body;
-            const userId = req.user?.id || 1;
+            const userId = getAuthenticatedUserId(req);
             const userName = await getCurrentUserName(req);
             const actualInspectorId = inspector_id || userId;
 
@@ -249,7 +250,7 @@ const processInspectionController = {
      */
     async getProcessInspectionPunchToday(req, res) {
         try {
-            const userId = req.user?.id || 1;
+            const userId = getAuthenticatedUserId(req);
 
             const result = await db.query(
                 `
@@ -345,7 +346,7 @@ const processInspectionController = {
     async createProcessInspectionPunch(req, res) {
         try {
             const { production_line_id, production_line_name, process_id, process_name, remark } = req.body;
-            const userId = req.user?.id || 1;
+            const userId = getAuthenticatedUserId(req);
             const userName = await getCurrentUserName(req);
 
             const result = await db.query(

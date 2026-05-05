@@ -332,7 +332,12 @@ const ecn = {
 
       // 审批状态(approved/rejected)只能由工作流回调变更，前端禁止直接传
       if (['approved', 'rejected'].includes(status)) {
-        return ResponseHandler.error(res, '审批通过/拒绝只能通过工作流完成，请先提交审批(pending_approval)', 400);
+        return ResponseHandler.error(
+          res,
+          '审批通过/拒绝只能通过工作流完成，请先提交审批(pending_approval)',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 状态流转合法性校验（前端可操作的状态转换）
@@ -344,10 +349,15 @@ const ecn = {
         rejected: ['draft'],
       };
       const [[current]] = await pool.query('SELECT status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
-      if (!current) return ResponseHandler.error(res, 'ECN不存在', 404);
+      if (!current) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
       const allowed = allowedTransitions[current.status] || [];
       if (!allowed.includes(status)) {
-        return ResponseHandler.error(res, `不允许从 [${current.status}] 转换到 [${status}]`, 400);
+        return ResponseHandler.error(
+          res,
+          `不允许从 [${current.status}] 转换到 [${status}]`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       // 提交审批时发起工作流
@@ -388,8 +398,10 @@ const ecn = {
       try {
         // 仅草稿状态允许编辑
         const [[current]] = await conn.query('SELECT status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
-        if (!current) { conn.release(); return ResponseHandler.error(res, 'ECN不存在', 404); }
-        if (current.status !== 'draft') { conn.release(); return ResponseHandler.error(res, '仅草稿状态允许编辑', 400); }
+        if (!current) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
+        if (current.status !== 'draft') {
+          return ResponseHandler.error(res, '仅草稿状态允许编辑', 'VALIDATION_ERROR', 400);
+        }
 
         await conn.beginTransaction();
         await conn.query(
@@ -418,9 +430,14 @@ const ecn = {
     try {
       // 仅草稿/已拒绝/已取消状态允许删除
       const [[current]] = await pool.query('SELECT status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
-      if (!current) return ResponseHandler.error(res, 'ECN不存在', 404);
+      if (!current) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
       if (!['draft', 'rejected', 'cancelled'].includes(current.status)) {
-        return ResponseHandler.error(res, `当前状态[${current.status}]不允许删除`, 400);
+        return ResponseHandler.error(
+          res,
+          `当前状态[${current.status}]不允许删除`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
       await softDelete(pool, 'ecn_orders', 'id', req.params.id);
       ResponseHandler.success(res, null, '已删除');
@@ -429,7 +446,7 @@ const ecn = {
 };
 
 /** 应用ECN变更明细到BOM（独立函数，避免this绑定丢失） */
-async function applyEcnChanges(ecnId, userId) {
+async function applyEcnChanges(ecnId) {
   const { logger } = require('../../utils/logger');
   const [items] = await pool.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [ecnId]);
   if (!items.length) return;

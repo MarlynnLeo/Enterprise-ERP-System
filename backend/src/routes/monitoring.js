@@ -6,6 +6,8 @@
  */
 
 const express = require('express');
+const fs = require('fs/promises');
+const path = require('path');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
@@ -15,6 +17,72 @@ const {
   resetPerformanceStats,
 } = require('../middleware/performanceMonitor');
 const { logger } = require('../utils/logger');
+
+const LOG_DIR = path.resolve(__dirname, '../../logs');
+const LOG_LEVELS = ['error', 'warn', 'info', 'debug'];
+const MAX_LOG_READ_BYTES = 1024 * 1024;
+
+function clampLogLimit(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 100;
+  return Math.min(Math.max(parsed, 1), 1000);
+}
+
+function normalizeLogDate(value) {
+  if (!value) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+  return value;
+}
+
+function getLogFilePath(level, date) {
+  const filePath = path.resolve(LOG_DIR, `${level}-${date}.log`);
+  if (!filePath.startsWith(`${LOG_DIR}${path.sep}`)) {
+    throw new Error('Invalid log path');
+  }
+  return filePath;
+}
+
+async function readRecentLogEntries(level, date, limit) {
+  const filePath = getLogFilePath(level, date);
+  let handle;
+
+  try {
+    const stats = await fs.stat(filePath);
+    const start = Math.max(0, stats.size - MAX_LOG_READ_BYTES);
+    const length = stats.size - start;
+    const buffer = Buffer.alloc(length);
+
+    handle = await fs.open(filePath, 'r');
+    await handle.read(buffer, 0, length, start);
+
+    const lines = buffer.toString('utf8').split(/\r?\n/).filter(Boolean);
+    const completeLines = start > 0 ? lines.slice(1) : lines;
+
+    return completeLines
+      .slice(-limit)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return { timestamp: null, level: level.toUpperCase(), message: line };
+        }
+      })
+      .reverse();
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  } finally {
+    if (handle) {
+      await handle.close();
+    }
+  }
+}
 
 /**
  * @swagger
@@ -241,13 +309,41 @@ router.post(
  */
 router.get('/logs', authenticateToken, requirePermission('system:monitor'), async (req, res) => {
   try {
-    const { level = 'info', limit = 100 } = req.query;
+    const date = normalizeLogDate(req.query.date);
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: '日志日期格式必须为 YYYY-MM-DD',
+      });
+    }
 
-    // 这里原本返回了一条写死的假日志
-    // 企业级系统中，实时监控流应当对接收集网关或采取文件动态流解析，暂不支持直接模拟返回
-    return res.status(501).json({
-      success: false,
-      message: '日志流式读取组件正处于架构升级中，当前版本暂未提供文件日志下发能力'
+    const requestedLevel = String(req.query.level || 'all').toLowerCase();
+    const levels = requestedLevel === 'all' ? LOG_LEVELS : [requestedLevel];
+    if (levels.some((level) => !LOG_LEVELS.includes(level))) {
+      return res.status(400).json({
+        success: false,
+        message: '无效的日志级别',
+      });
+    }
+
+    const limit = clampLogLimit(req.query.limit);
+    const entriesByLevel = await Promise.all(
+      levels.map((level) => readRecentLogEntries(level, date, limit))
+    );
+
+    const logs = entriesByLevel
+      .flat()
+      .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
+      .slice(0, limit);
+
+    return res.json({
+      success: true,
+      data: logs,
+      meta: {
+        date,
+        level: requestedLevel,
+        limit,
+      },
     });
   } catch (error) {
     logger.error('Failed to get logs:', error);

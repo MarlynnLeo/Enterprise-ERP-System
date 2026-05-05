@@ -16,6 +16,9 @@ pnpm-debug.log*
 dist/
 build/
 backend/logs/
+backend/uploads/
+uploads/
 frontend/dist/
 frontend/node_modules/
 backend/node_modules/
+coverage/

@@ -253,7 +253,7 @@ const todoCompletionRate = computed(() => {
   return Math.round((props.completedTodos / props.totalTodos) * 100)
 })
 
-// 模拟活跃度计算
+// 活跃度计算
 const monthlyActivity = computed(() => {
   const baseScore = 60
   const loginScore = Math.min(props.loginCount * 2, 20)

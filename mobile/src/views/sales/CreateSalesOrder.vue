@@ -19,7 +19,7 @@
         <!-- 基本信息 -->
         <div class="form-section">
           <div class="section-title">基本信息</div>
-          <Field v-model="form.order_no" name="order_no" label="订单编号" placeholder="系统自动生成" readonly right-icon="refresh" @click-right-icon="generateOrderNo" />
+          <Field v-model="form.order_no" name="order_no" label="订单编号" placeholder="系统自动生成" readonly />
           <Field v-model="selectedCustomerName" name="customer" label="选择客户" placeholder="请选择客户" readonly is-link @click="showCustomerPicker = true" :rules="[{ required: true, message: '请选择客户' }]" />
           <Field v-model="form.order_date" name="order_date" label="订单日期" placeholder="请选择订单日期" type="date" :rules="[{ required: true, message: '请选择订单日期' }]" />
           <Field v-model="form.delivery_date" name="delivery_date" label="交货日期" placeholder="请选择交货日期" type="date" :rules="[{ required: true, message: '请选择交货日期' }]" />
@@ -183,12 +183,6 @@
   const editingIndex = ref(-1)
   const totalAmount = computed(() => orderItems.value.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0))
 
-  const generateOrderNo = () => {
-    const d = new Date()
-    const s = `${d.getFullYear().toString().slice(-2)}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`
-    form.order_no = `SO${s}${Math.random().toString(36).substr(2,4).toUpperCase()}`
-  }
-
   const formatAmount = (v) => v ? parseFloat(v).toFixed(2) : '0.00'
 
   // 客户操作
@@ -280,7 +274,6 @@
   }
 
   onMounted(async () => {
-    generateOrderNo()
     form.order_date = new Date().toISOString().split('T')[0]
     await Promise.all([searchCustomers(), searchMaterials()])
   })

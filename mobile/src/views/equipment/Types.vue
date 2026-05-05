@@ -11,6 +11,8 @@
 <script setup>
   import { computed } from 'vue'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
+  import { equipmentApi } from '@/services/api'
+  import { filterByKeyword, getResponseList, toPagedResponse } from '@/utils/listResponse'
 
   const pageConfig = computed(() => ({
     title: '设备类别',
@@ -23,7 +25,8 @@
       icon: 'cluster-o',
       
       details: [
-        { label: '描述', field: 'description' }
+        { label: '设备数量', field: 'count', suffix: '台' },
+        { label: '厂商', field: 'manufacturer' }
       ]
     },
 
@@ -32,16 +35,26 @@
     ]
   }))
 
-  const loadTypes = async (params) => {
-    return {
-      data: {
-        list: [
-          { id: 1, name: '生产设备', code: 'T-PRD', description: '一线车间生产用设备' },
-          { id: 2, name: '测试设备', code: 'T-TST', description: '质检实验室设备' },
-          { id: 3, name: '辅助设备', code: 'T-AUX', description: '叉车、空压机等外围设备' }
-        ],
-        total: 3
+  const loadTypes = async (params = {}) => {
+    const response = await equipmentApi.getList({ page: 1, pageSize: 100, search: params.search })
+    const groups = new Map()
+
+    getResponseList(response).forEach((equipment) => {
+      const name = equipment.model || equipment.type || '未分类'
+      const key = name || '未分类'
+      const current = groups.get(key) || {
+        id: key,
+        name: key,
+        code: equipment.model || equipment.type || '',
+        manufacturer: equipment.manufacturer || '',
+        count: 0
       }
-    }
+      current.count += 1
+      if (!current.manufacturer && equipment.manufacturer) current.manufacturer = equipment.manufacturer
+      groups.set(key, current)
+    })
+
+    const list = filterByKeyword(Array.from(groups.values()), params.search, ['name', 'code', 'manufacturer'])
+    return toPagedResponse(list)
   }
 </script>

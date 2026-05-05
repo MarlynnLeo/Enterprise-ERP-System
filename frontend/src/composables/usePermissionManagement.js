@@ -37,7 +37,7 @@ export function usePermissionData() {
       }
 
       // 拦截器已解包，response.data 就是业务数据
-      let permissionData = response.data;
+      const permissionData = response.data;
 
       // 处理权限数据
       if (Array.isArray(permissionData)) {
@@ -177,7 +177,7 @@ export function usePermissionTree() {
         permissionTreeRef.value.store.nodesMap ? 
         Object.keys(permissionTreeRef.value.store.nodesMap) : []
       );
-    } catch (error) {
+    } catch {
       // 静默处理错误
     }
   };

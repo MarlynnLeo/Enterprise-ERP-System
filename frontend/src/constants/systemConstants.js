@@ -45,7 +45,7 @@ const createDictionaryGroup = (groupCode) => {
         for (const key in state) delete state[key];
         Object.assign(state, store.getMap(groupCode));
       }
-    } catch(e) {
+    } catch {
       // Pinia 可能尚未初始化
     }
   });
@@ -65,7 +65,7 @@ const createDictionaryColors = (groupCode) => {
         const types = store.groups[groupCode] || [];
         types.forEach(t => { state[t.code] = t.tag_type; });
       }
-    } catch(e) {}
+    } catch {}
   });
   return state;
 };
@@ -143,7 +143,7 @@ const createOptions = (groupCode, filterKeys = null) => {
         }
         state.push(...opts);
       }
-    } catch(e) {}
+    } catch {}
   });
   return state;
 };
@@ -238,7 +238,7 @@ const getText = (group, code) => {
     }
     
     return startCase(code);
-  } catch(e) { 
+  } catch { 
     return startCase(code); 
   } 
 };
@@ -276,7 +276,7 @@ const getColor = (group, code) => {
   try { 
     // 2. 尝试从 Pinia 后端字典获取颜色
     const storeObj = useDictionaryStore();
-    const isLoaded = storeObj.isLoaded;
+    
     const groups = storeObj.groups;
     const groupData = groups[group] || [];
     
@@ -290,7 +290,7 @@ const getColor = (group, code) => {
     if (FALLBACK_DICTIONARY[group] && FALLBACK_DICTIONARY[group][code]) {
       return FALLBACK_DICTIONARY[group][code].color || 'info';
     }
-  } catch(e) {} 
+  } catch {} 
   
   // 4. 终极智能语义匹配，保证全系统所有“已完成”等无论出于哪个界面的哪个模块，必定为统一样式
   const lowerCode = String(code).toLowerCase().trim();

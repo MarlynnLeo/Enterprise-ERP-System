@@ -224,16 +224,7 @@ api.interceptors.response.use(
 export const inventoryApi = {
   // 看板
   getDashboard(params) {
-    return api.get('/inventory/dashboard', { params }).catch(() => {
-      return {
-        data: {
-          list: [
-            { id: 1, name: '总库存金额', code: '¥1,250,540' },
-            { id: 2, name: '低库存告警', code: '12 项' }
-          ]
-        }
-      }
-    })
+    return api.get('/inventory/dashboard', { params })
   },
   // 库存查询
   getInventoryStock(params) {
@@ -458,6 +449,10 @@ export const productionApi = {
     return api.get('/production/dashboard/pending-tasks')
   },
 
+  getProductionReportDetail(params) {
+    return api.get('/production/reports/detail', { params })
+  },
+
   // 生产计划
   getProductionPlans(params) {
     return api.get('/production/plans', { params })
@@ -665,6 +660,10 @@ export const salesApi = {
 
   updateSalesReturn(id, data) {
     return api.put(`/sales/returns/${id}`, data)
+  },
+
+  updateSalesReturnStatus(id, status) {
+    return api.put(`/sales/returns/${id}/status`, { status })
   },
 
   deleteSalesReturn(id) {
@@ -1527,6 +1526,15 @@ export const equipmentApi = {
   },
   getStats() {
     return api.get('/equipment/stats')
+  },
+  getMaintenanceRecords(params) {
+    return api.get('/equipment/maintenance', { params })
+  },
+  getFailureRecords(params) {
+    return api.get('/equipment/failures', { params })
+  },
+  getInspectionRecords(params) {
+    return api.get('/equipment/inspections', { params })
   },
   getById(id) {
     return api.get(`/equipment/${id}`)

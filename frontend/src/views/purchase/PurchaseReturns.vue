@@ -313,7 +313,6 @@
                   :step="1"
                   controls-position="right"
                   size="small"
-
                 ></el-input-number>
               </template>
             </el-table-column>
@@ -326,7 +325,6 @@
                   :step="0.01"
                   controls-position="right"
                   size="small"
-
                 ></el-input-number>
               </template>
             </el-table-column>
@@ -382,12 +380,10 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
-
 import { ref, reactive, computed, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { Plus, Search, Refresh } from '@element-plus/icons-vue';
 import { useSnackbar } from '@/composables/useSnackbar';
 import { useAuthStore } from '@/stores/auth';
@@ -395,47 +391,15 @@ import { purchaseApi } from '@/services/api';
 import { baseDataApi } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import {
-  PURCHASE_RETURN_STATUS_OPTIONS,
   getPurchaseReturnStatusText,
   getPurchaseReturnStatusColor
 } from '@/constants/systemConstants';
-
 const { showSnackbar } = useSnackbar();
 const authStore = useAuthStore();
-
-// 表格列定义
-const headers = [
-  { text: '退货单号', value: 'returnNumber', sortable: true },
-  { text: '退货日期', value: 'returnDate', sortable: true },
-  { text: '关联收货单', value: 'receiptNumber', sortable: true },
-  { text: '供应商', value: 'supplierName', sortable: true },
-  { text: '经办人', value: 'handler', sortable: true },
-  { text: '出库仓库', value: 'warehouseName', sortable: true },
-  { text: '状态', value: 'status', sortable: true },
-  { text: '操作', value: 'actions', sortable: false, align: 'center' }
-];
-
-const itemHeaders = [
-  { text: '物料名称', value: 'materialName' },
-  { text: '规格', value: 'specification' },
-  { text: '单位', value: 'unitName' },
-  { text: '收货数量', value: 'receivedQuantity', align: 'center' },
-  { text: '退货数量', value: 'returnQuantity', align: 'center' },
-  { text: '退货原因', value: 'reason' }
-];
-
-const viewItemHeaders = [
-  { text: '物料名称', value: 'materialName' },
-  { text: '规格', value: 'specification' },
-  { text: '单位', value: 'unitName' },
-  { text: '收货数量', value: 'receivedQuantity', align: 'center' },
-  { text: '退货数量', value: 'returnQuantity', align: 'center' },
-  { text: '退货原因', value: 'returnReason' }
-];
-
-// 状态选项（使用统一常量）
-const statusOptions = PURCHASE_RETURN_STATUS_OPTIONS.map(opt => ({ text: opt.label, value: opt.value }));
-
+// 表格列定义;
+;
+;
+// 状态选项（使用统一常量）;
 // 退货原因选项
 const returnReasons = [
   '质量问题',
@@ -445,17 +409,14 @@ const returnReasons = [
   '交期延迟',
   '其他原因'
 ];
-
 // 退货单数据
 const returnList = ref([]);
 const loading = ref(false);
 const pagination = ref({ current: 1, size: 10, total: 0 });
-
 // 供应商、收货单和仓库
 const suppliers = ref([]);
 const receipts = ref([]);
 const warehouses = ref([]);
-
 // 搜索表单
 const searchForm = reactive({
   returnNo: '',
@@ -463,7 +424,6 @@ const searchForm = reactive({
   dateRange: [],
   status: ''
 });
-
 // 新建/编辑退货单对话框
 const returnDialog = reactive({
   show: false,
@@ -482,14 +442,12 @@ const returnDialog = reactive({
     items: []
   }
 });
-
 // 查看退货单详情对话框
 const viewDialog = reactive({
   show: false,
   loading: false,
   return: {}
 });
-
 // 状态更新对话框
 const statusDialog = reactive({
   visible: false,
@@ -499,12 +457,10 @@ const statusDialog = reactive({
   returnId: null,
   newStatus: ''
 });
-
 // 计算是否有需要退货的物料
 const hasReturnItems = computed(() => {
   return returnDialog.form.items.some(item => item.returnQuantity > 0);
 });
-
 // 退货单统计数据
 const returnStats = ref({
   total: 0,
@@ -513,25 +469,18 @@ const returnStats = ref({
   completedCount: 0,
   totalAmount: 0
 });
-
 // 提交状态
-const submitLoading = ref(false);
-const detailLoading = ref(false);
-const updateStatusLoading = ref(false);
-
+const submitLoading = ref(false);;;
 // 表单验证规则
 const returnRules = {
   receiptId: [{ required: true, message: '请选择关联收货单', trigger: 'change' }],
   returnDate: [{ required: true, message: '请选择退货日期', trigger: 'change' }]
 };
-
-
 // 加载退货单统计数据
 const loadReturnStats = async () => {
   try {
     const response = await purchaseApi.getReturnStats();
     const data = response.data;
-
     // 映射后端字段到前端期望的字段
     returnStats.value = {
       total: data.totalCount || data.total_count || 0,
@@ -552,7 +501,6 @@ const loadReturnStats = async () => {
     };
   }
 };
-
 // 生命周期钩子
 onMounted(async () => {
   await Promise.all([
@@ -563,7 +511,6 @@ onMounted(async () => {
     loadReturnStats()
   ]);
 });
-
 // 方法：加载退货单列表
 async function loadReturns() {
   loading.value = true;
@@ -581,9 +528,8 @@ async function loadReturns() {
     const response = await purchaseApi.getReturns(params);
     const paginated = parsePaginatedData(response);
     
-    let returnsData = paginated.list || [];
-    let paginationData = { total: paginated.total };
-
+    const returnsData = paginated.list || [];
+    const paginationData = { total: paginated.total };
     // 映射后端字段名到前端字段名
     returnList.value = returnsData.map(item => ({
       id: item.id,
@@ -602,7 +548,6 @@ async function loadReturns() {
       // 保留原始数据以备后用
       ...item
     }));
-
     pagination.value.total = parseInt(paginationData.total) || 0;
   } catch (error) {
     console.error('加载退货单失败:', error);
@@ -615,7 +560,6 @@ async function loadReturns() {
   
   await loadReturnStats();
 }
-
 // 方法：加载供应商列表
 async function loadSuppliers() {
   try {
@@ -635,7 +579,6 @@ async function loadSuppliers() {
     suppliers.value = [];
   }
 }
-
 // 方法：加载已完成的收货单
 async function loadCompletedReceipts() {
   try {
@@ -643,10 +586,8 @@ async function loadCompletedReceipts() {
       status: 'completed',
       limit: 100
     });
-
     // 使用统一解析器
     const receiptsData = parseListData(response, { enableLog: false });
-
     // 确保所有属性都有有效值并映射到组件需要的格式
     receipts.value = receiptsData
       .filter(item => item && item.id)
@@ -661,19 +602,16 @@ async function loadCompletedReceipts() {
         status: item.status || '',
         items: Array.isArray(item.items) ? item.items : []
       }));
-
     } catch (error) {
     console.error('加载收货单失败:', error);
     showSnackbar('加载收货单失败', 'error');
     receipts.value = []; // 出错时设置为空数组
   }
 }
-
 // 方法：加载仓库列表
 async function loadWarehouses() {
   try {
     const response = await baseDataApi.getWarehouses();
-
     // 拦截器已解包，response.data 就是业务数据
     if (Array.isArray(response.data)) {
       warehouses.value = response.data;
@@ -684,14 +622,12 @@ async function loadWarehouses() {
     } else {
       warehouses.value = [];
     }
-
     } catch (error) {
     console.error('加载仓库失败:', error);
     showSnackbar('加载仓库失败', 'error');
     warehouses.value = [];
   }
 }
-
 // 方法：重置搜索条件
 function resetSearch() {
   searchForm.returnNo = '';
@@ -701,17 +637,14 @@ function resetSearch() {
   pagination.value.current = 1;
   loadReturns();
 }
-
 // 方法：获取状态颜色类型
 function getStatusType(status) {
   return getPurchaseReturnStatusColor(status);
 }
-
 // 方法：获取状态文本（使用统一常量）
 function getStatusText(status) {
   return getPurchaseReturnStatusText(status);
 }
-
 // 方法：格式化日期
 function formatDate(date) {
   if (!date) return '';
@@ -723,11 +656,9 @@ function formatDate(date) {
     return date;
   }
 }
-
 // 方法：打开创建退货单对话框
 function showAddDialog() {
   returnDialog.isEdit = false;
-
   returnDialog.form = {
     id: null,
     receiptId: null,
@@ -740,12 +671,10 @@ function showAddDialog() {
   };
   returnDialog.show = true;
 }
-
 // 方法：关闭退货单对话框
 function closeReturnDialog() {
   returnDialog.show = false;
 }
-
 // 方法：查看退货单详情
 async function viewReturn(returnItem) {
   viewDialog.show = true;
@@ -754,7 +683,6 @@ async function viewReturn(returnItem) {
     // 调用API获取完整的退货单详情（包括退货物料）
     const response = await purchaseApi.getReturn(returnItem.id);
     const returnData = response.data || response;
-
     // 设置详情数据
     viewDialog.return = {
       ...returnData,
@@ -787,7 +715,6 @@ async function viewReturn(returnItem) {
     viewDialog.loading = false;
   }
 }
-
 // 方法：编辑退货单
 async function editReturn(returnItem) {
   returnDialog.isEdit = true;
@@ -797,7 +724,6 @@ async function editReturn(returnItem) {
     // 获取完整的退货单详情
     const response = await purchaseApi.getReturn(returnItem.id);
     const returnData = response.data || response;
-
     returnDialog.form = {
       id: returnData.id,
       receiptId: returnData.receipt_id,  // 使用数据库字段名
@@ -820,7 +746,6 @@ async function editReturn(returnItem) {
         returnReason: item.return_reason || ''
       }))
     };
-
     // 如果有收货单ID，触发收货单变更以加载相关数据
     if (returnDialog.form.receiptId) {
       await handleReceiptChange(returnDialog.form.receiptId);
@@ -833,7 +758,6 @@ async function editReturn(returnItem) {
     returnDialog.loading = false;
   }
 }
-
 // 方法：处理收货单选择变更
 async function handleReceiptChange(receiptId) {
   if (!receiptId) {
@@ -842,7 +766,6 @@ async function handleReceiptChange(receiptId) {
     returnDialog.form.warehouseName = '';
     return;
   }
-
   try {
     // 获取收货单详情以获取物料信息
     const response = await purchaseApi.getReceipt(receiptId);
@@ -853,7 +776,6 @@ async function handleReceiptChange(receiptId) {
     } else {
       receiptData = response || {};
     }
-
     // 确保物料项格式正确
     let items = [];
     if (Array.isArray(receiptData.items)) {
@@ -861,17 +783,14 @@ async function handleReceiptChange(receiptId) {
     } else {
       items = [];
     }
-
     // 在编辑模式下，保留已有的退货数量和原因
     const existingItems = returnDialog.isEdit ? returnDialog.form.items : [];
-
     // 清空现有物料并添加收货单中的物料
     returnDialog.form.items = items.map(item => {
       // 在编辑模式下，查找是否已有该物料的退货信息
       const existingItem = existingItems.find(existing =>
         existing.materialId === item.material_id
       );
-
       return {
         materialId: item.material_id,
         materialCode: item.material_code || '',
@@ -885,15 +804,13 @@ async function handleReceiptChange(receiptId) {
         returnReason: existingItem ? existingItem.returnReason : ''
       };
     });
-
     // ✅ 自动设置仓库信息(从收货单获取)
     returnDialog.form.warehouseId = receiptData.warehouse_id;
     returnDialog.form.warehouseName = receiptData.warehouse_name || '';
-  } catch (error) {
+  } catch {
     showSnackbar('获取收货单详情失败', 'error');
   }
 }
-
 // 方法：提交退货单
 async function submitReturn() {
   // 检查是否有退货物料
@@ -901,7 +818,6 @@ async function submitReturn() {
     showSnackbar('请至少选择一种物料进行退货', 'warning');
     return;
   }
-
   // 验证退货数量
   for (const item of returnDialog.form.items) {
     if (item.returnQuantity < 0 || item.returnQuantity > item.receivedQuantity) {
@@ -914,7 +830,6 @@ async function submitReturn() {
       return;
     }
   }
-
   try {
     submitLoading.value = true;
     
@@ -933,12 +848,10 @@ async function submitReturn() {
         price: Number(item.price),
         returnReason: item.returnReason
       }));
-
     // 计算总金额
     const totalAmount = returnItems.reduce((sum, item) => {
       return sum + (item.returnQuantity * item.price);
     }, 0);
-
     // ✅ 准备提交数据 - 使用operator字段而不是handler
     const returnData = {
       id: returnDialog.form.id,
@@ -951,7 +864,6 @@ async function submitReturn() {
       totalAmount,
       items: returnItems
     };
-
     if (returnDialog.isEdit) {
       await purchaseApi.updateReturn(returnDialog.form.id, returnData);
       showSnackbar('退货单更新成功', 'success');
@@ -959,7 +871,6 @@ async function submitReturn() {
       await purchaseApi.createReturn(returnData);
       showSnackbar('退货单创建成功', 'success');
     }
-
     returnDialog.show = false;
     loadReturns();
   } catch (error) {
@@ -968,7 +879,6 @@ async function submitReturn() {
     submitLoading.value = false;
   }
 }
-
 // 处理下拉菜单命令
 const handleCommand = (command, row) => {
   switch (command) {
@@ -986,34 +896,9 @@ const handleCommand = (command, row) => {
       break;
   }
 };
-
-// 显示状态更新对话框
-const showStatusDialog = (id, newStatus, title, description) => {
-  statusDialog.returnId = id;
-  statusDialog.newStatus = newStatus;
-  statusDialog.title = title;
-  statusDialog.description = description;
-  statusDialog.visible = true;
-};
-
+// 显示状态更新对话框;
 // 确认删除
-// 确认删除（保留给可能未使用 popconfirm 的地方使用，如果有的话）
-const confirmDelete = (row) => {
-  ElMessageBox.confirm(
-    `确定要删除退货单 ${row.returnNumber} 吗？`,
-    '确认删除',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    }
-  ).then(async () => {
-    await handleDelete(row);
-  }).catch(() => {
-    // 用户取消删除
-  });
-};
-
+// 确认删除（保留给可能未使用 popconfirm 的地方使用，如果有的话）;
 // 执行删除逻辑
 const handleDelete = async (row) => {
     try {
@@ -1025,17 +910,14 @@ const handleDelete = async (row) => {
       ElMessage.error('删除失败: ' + (error.response?.data?.error || error.message));
     }
 }
-
 // 直接更新状态（绕过对话框）
 const directUpdateStatus = async (id, newStatus) => {
   try {
     statusDialog.loading = true;
-
     await purchaseApi.updateReturnStatus(
       id,
       { newStatus: newStatus }
     );
-
     ElMessage.success('状态更新成功');
     loadReturns();
   } catch (error) {
@@ -1045,84 +927,69 @@ const directUpdateStatus = async (id, newStatus) => {
     statusDialog.loading = false;
   }
 };
-
 // 更新状态 (保留给对话框使用，虽然目前可能不再使用)
 const updateStatus = async () => {
     // 复用逻辑
   await directUpdateStatus(statusDialog.returnId, statusDialog.newStatus);
   statusDialog.visible = false;
 };
-
 // 方法：搜索退货单
 function searchReturns() {
   pagination.value.current = 1;
   loadReturns();
 }
-
 // 方法：处理页面大小变化
 function handleSizeChange(size) {
   pagination.value.size = size;
   loadReturns();
 }
-
 // 方法：处理页码变化
 function handleCurrentChange(current) {
   pagination.value.current = current;
   loadReturns();
 }
-
 // 方法：打印退货单
 function printReturn() {
   // 实现打印功能
   window.print();
 }
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 .mt-4 {
   margin-top: var(--spacing-base);
 }
-
 .mb-2 {
   margin-bottom: 8px;
 }
-
 .font-weight-bold {
   font-weight: bold;
 }
-
 /* 操作按钮样式 - 与库存出库页面保持一致 */
 .el-table .el-button + .el-button {
   margin-left: 8px;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1130,7 +997,6 @@ function printReturn() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

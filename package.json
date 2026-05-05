@@ -1,12 +1,17 @@
 {
   "scripts": {
-    "lint": "eslint backend/src --max-warnings 50",
-    "lint:fix": "eslint backend/src --fix",
+    "lint": "npm run lint:backend && npm run lint:frontend && npm run lint:mobile",
+    "lint:backend": "eslint backend/src",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:mobile": "cd mobile && npm run lint",
+    "lint:fix": "npm run lint:fix:backend && npm run lint:fix:frontend && npm run lint:fix:mobile",
+    "lint:fix:backend": "eslint backend/src --fix",
+    "lint:fix:frontend": "cd frontend && npm run lint:fix",
+    "lint:fix:mobile": "cd mobile && npm run lint:fix",
+    "build:frontend": "cd frontend && npm run build",
+    "build:mobile": "cd mobile && npm run build",
     "format": "prettier --write \"backend/src/**/*.js\"",
     "format:check": "prettier --check \"backend/src/**/*.js\""
-  },
-  "dependencies": {
-    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

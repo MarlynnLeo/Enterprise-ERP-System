@@ -1,4 +1,4 @@
-name: ERP CI/CD Pipeline
+name: ERP CI
 
 on:
   push:
@@ -7,9 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  # 后端检查
-  backend-lint-test:
-    name: 后端 Lint & Test
+  backend:
+    name: Backend Lint And Test
     runs-on: ubuntu-latest
 
     services:
@@ -20,32 +19,32 @@ jobs:
           MYSQL_DATABASE: mes_test
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 设置 Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: 安装后端依赖
+      - name: Install backend dependencies
         working-directory: backend
         run: npm ci
 
-      - name: 代码格式检查
+      - name: Lint backend
         working-directory: backend
-        run: npm run format:check || echo "格式检查完成（存在格式问题）"
+        run: npm run lint
 
-      - name: ESLint 代码检查
-        working-directory: backend
-        run: npm run lint || echo "Lint检查完成（存在lint问题）"
-
-      - name: 运行单元测试
+      - name: Run backend tests
         working-directory: backend
         env:
           DB_HOST: 127.0.0.1
@@ -56,50 +55,97 @@ jobs:
           JWT_SECRET: test-jwt-secret-ci
           JWT_REFRESH_SECRET: test-jwt-refresh-secret-ci
           NODE_ENV: test
-        run: npm test -- --passWithNoTests
+          DISABLE_CRON: 'true'
+          ENABLE_RATE_LIMIT: 'false'
+        run: npm test
 
-  # 前端检查
-  frontend-build:
-    name: 前端 Build 验证
+  frontend:
+    name: Frontend Lint And Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 设置 Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: 安装前端依赖
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: 构建前端
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build frontend
         working-directory: frontend
         run: npm run build
 
-  # 安全检查
-  security-audit:
-    name: 依赖安全审计
+  mobile:
+    name: Mobile Lint And Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 设置 Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Lint mobile
+        working-directory: mobile
+        run: npm run lint
+
+      - name: Build mobile
+        working-directory: mobile
+        run: npm run build
+
+  security-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: 后端依赖安全审计
+      - name: Install backend dependencies
         working-directory: backend
-        run: npm audit --audit-level=high || echo "发现高危漏洞，请及时修复"
+        run: npm ci
 
-      - name: 前端依赖安全审计
+      - name: Audit backend dependencies
+        working-directory: backend
+        run: npm audit --audit-level=high
+
+      - name: Install frontend dependencies
         working-directory: frontend
-        run: npm audit --audit-level=high || echo "发现高危漏洞，请及时修复"
+        run: npm ci
+
+      - name: Audit frontend dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Audit mobile dependencies
+        working-directory: mobile
+        run: npm audit --audit-level=high

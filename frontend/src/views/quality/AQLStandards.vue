@@ -192,7 +192,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search } from '@element-plus/icons-vue';
 import request from '@/utils/request';
-import dayjs from 'dayjs';
+import 'dayjs';
 
 // ---- State ----
 const loading = ref(false);

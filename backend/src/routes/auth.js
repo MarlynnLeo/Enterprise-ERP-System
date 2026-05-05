@@ -7,10 +7,6 @@
 
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
-const path = require('path');
-const crypto = require('crypto');
-const fs = require('fs');
 const {
   login,
   logout,
@@ -29,32 +25,7 @@ const {
   resetUserTheme,
 } = require('../controllers/auth/themeController');
 const { authenticateToken, authenticateRefreshToken } = require('../middleware/auth');
-
-// 配置multer — 头像保存到磁盘
-const avatarDir = path.join(process.cwd(), 'uploads', 'avatars');
-if (!fs.existsSync(avatarDir)) {
-  fs.mkdirSync(avatarDir, { recursive: true });
-}
-const avatarStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, avatarDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.png';
-    const safeName = `${crypto.randomBytes(16).toString('hex')}${ext}`;
-    cb(null, safeName);
-  },
-});
-const ALLOWED_AVATAR_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const upload = multer({
-  storage: avatarStorage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
-  fileFilter: (_req, file, cb) => {
-    if (ALLOWED_AVATAR_MIMES.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('不支持的图片格式，仅允许 JPEG/PNG/GIF/WebP'));
-    }
-  },
-});
+const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
 // 登录路由
 router.post('/login', login);
@@ -78,7 +49,7 @@ router.get('/permissions', authenticateToken, getUserPermissions);
 router.get('/menus', authenticateToken, getUserMenus);
 
 // 上传用户头像
-router.put('/users/avatar', authenticateToken, upload.single('avatar'), uploadAvatar);
+router.put('/users/avatar', authenticateToken, FileUploadMiddlewares.avatar, uploadAvatar);
 
 // 修改密码
 router.put('/change-password', authenticateToken, changePassword);

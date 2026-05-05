@@ -6,6 +6,7 @@
 const arModel = require('../../../models/ar');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
+const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 
 /**
  * 批量收款
@@ -19,8 +20,7 @@ const batchReceipts = async (req, res) => {
       return ResponseHandler.error(res, '请提供收款明细', 'VALIDATION_ERROR', 400);
     }
 
-    // 生成批次收款单号
-    const batchNumber = `BATCH-RC-${Date.now()}`;
+    const batchNumber = await CodeGeneratorService.nextCode('ar_receipt_batch');
     const results = [];
     const errors = [];
 
@@ -42,8 +42,7 @@ const batchReceipts = async (req, res) => {
           throw new Error(`收款金额 ${item.amount} 超过发票余额 ${invoice.balance_amount || invoice.balance || 0}`);
         }
 
-        // 生成单个收款单号
-        const receiptNumber = `${batchNumber}-${i + 1}`;
+        const receiptNumber = await CodeGeneratorService.nextCode('ar_receipt');
 
         const receiptData = {
           receipt_number: receiptNumber,

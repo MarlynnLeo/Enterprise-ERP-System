@@ -74,12 +74,10 @@
     </div>
   </el-card>
 </template>
-
 <script setup>
 import { Edit, Clock, Timer } from '@element-plus/icons-vue'
 import { computed } from 'vue'
 import { getLottieAnimation } from '../../../assets/lottie'
-
 const props = defineProps({
   name: String,
   role: String,
@@ -97,24 +95,18 @@ const props = defineProps({
   totalOnline: String,
   lastLogin: String
 })
-
 const lottieData = computed(() => getLottieAnimation(props.avatarFrame))
-
 const emit = defineEmits(['update:avatar', 'avatar-error'])
-
 const handleChange = (file) => {
   emit('update:avatar', file)
 }
-
-const beforeUpload = (file) => {
+const beforeUpload = (_file) => {
   return false // 阻止自动上传
 }
-
 const handleError = () => {
   emit('avatar-error')
 }
 </script>
-
 <style scoped>
 .user-info-card {
   text-align: center;
@@ -122,14 +114,12 @@ const handleError = () => {
   overflow: visible;
   height: 100%;
 }
-
 .user-header {
   display: flex;
   flex-direction: column;
   align-items: center;
   margin-bottom: 25px;
 }
-
 .avatar-wrapper {
   position: relative;
   margin-bottom: 15px;
@@ -139,7 +129,6 @@ const handleError = () => {
   align-items: center;
   justify-content: center;
 }
-
 .user-avatar {
   border: 4px solid var(--el-bg-color);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
@@ -147,21 +136,18 @@ const handleError = () => {
   font-size: 32px;
   color: var(--el-text-color-secondary);
 }
-
 .avatar-uploader {
   position: absolute;
   bottom: 0;
   right: 0;
   z-index: 10;
 }
-
 .user-name {
   margin: 10px 0 5px;
   font-size: 22px;
   font-weight: 700;
   color: var(--el-text-color-primary);
 }
-
 .user-role {
   font-size: 14px;
   color: var(--el-color-primary);
@@ -170,14 +156,12 @@ const handleError = () => {
   border-radius: 20px;
   font-weight: 500;
 }
-
 .user-stats {
   display: flex;
   flex-direction: column;
   gap: 15px;
   margin: 25px 0;
 }
-
 .stat-item {
   display: flex;
   align-items: center;
@@ -187,12 +171,10 @@ const handleError = () => {
   border-radius: 12px;
   transition: all 0.3s ease;
 }
-
 .stat-item:hover {
   transform: translateX(5px);
   background: var(--el-fill-color);
 }
-
 .stat-icon-wrapper {
   width: 40px;
   height: 40px;
@@ -201,44 +183,36 @@ const handleError = () => {
   align-items: center;
   justify-content: center;
 }
-
 .stat-icon {
   font-size: 20px;
   color: var(--color-on-primary, #fff);
 }
-
 .stat-icon-1 {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
 }
-
 .stat-icon-2 {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
   box-shadow: 0 4px 10px rgba(240, 147, 251, 0.3);
 }
-
 .stat-icon-3 {
   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   box-shadow: 0 4px 10px rgba(79, 172, 254, 0.3);
 }
-
 .stat-content {
   flex: 1;
   text-align: left;
 }
-
 .stat-value {
   font-size: 20px;
   font-weight: 700;
   color: var(--el-text-color-primary);
   line-height: 1.2;
 }
-
 .stat-label {
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
-
 .online-time-display {
   margin: 20px 0;
   padding: 15px;
@@ -247,7 +221,6 @@ const handleError = () => {
   box-shadow: 0 8px 16px rgba(64, 158, 255, 0.2);
   color: var(--color-on-primary, #fff);
 }
-
 .time-item {
   display: flex;
   align-items: center;
@@ -255,11 +228,9 @@ const handleError = () => {
   padding: 8px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 .time-item:last-child {
   border-bottom: none;
 }
-
 .time-label {
   flex: 1;
   text-align: left;
@@ -267,13 +238,11 @@ const handleError = () => {
   font-size: 13px;
   opacity: 0.9;
 }
-
 .time-value {
   font-weight: 700;
   font-family: monospace;
   font-size: 15px;
 }
-
 .last-login {
   display: flex;
   align-items: center;

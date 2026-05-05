@@ -31,7 +31,7 @@
         </span>
       </el-form-item>
       <el-form-item label="批次号" prop="batch_no">
-        <el-input v-model="form.batch_no" placeholder="自动生成或手动输入" />
+        <el-input v-model="form.batch_no" placeholder="留空时由后端按生产任务生成" />
       </el-form-item>
       <el-form-item label="计划日期" prop="planned_date">
         <el-date-picker v-model="form.planned_date" type="date" placeholder="选择日期" style="width: 100%" />
@@ -122,7 +122,7 @@ const handleTaskChange = async (taskId) => {
     } catch {
       form.value.first_article_qty = task.quantity < DEFAULT_FULL_INSPECTION_THRESHOLD ? task.quantity : DEFAULT_QTY
     }
-    form.value.batch_no = `BATCH${Date.now()}`
+    form.value.batch_no = ''
   }
 }
 
@@ -138,7 +138,7 @@ const handleSubmit = async () => {
       product_code: selectedTask.value.product_code,
       product_name: selectedTask.value.product_name,
       production_quantity: selectedTask.value.quantity,
-      batch_no: form.value.batch_no,
+      batch_no: form.value.batch_no || undefined,
       planned_date: form.value.planned_date,
       inspector_name: form.value.inspector_name,
       note: form.value.note

@@ -18,7 +18,6 @@
         </div>
       </div>
     </el-card>
-
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
@@ -113,7 +112,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 图表区域 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :md="12" class="mb-20">
@@ -128,7 +126,6 @@
           </div>
         </el-card>
       </el-col>
-
       <el-col :xs="24" :md="12" class="mb-20">
         <el-card shadow="hover">
           <template #header>
@@ -142,7 +139,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 低库存预警 -->
     <el-row class="mt-20">
       <el-col :span="24">
@@ -213,9 +209,7 @@
     </el-row>
   </div>
 </template>
-
 <script setup>
-
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router';
 import Chart from 'chart.js/auto';
@@ -225,18 +219,14 @@ import { inventoryApi } from '@/services/api'
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import { formatCurrency, formatQuantity, getDefaultStatistics, generateMonthLabels } from '@/utils/dashboardUtils'
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig'
-
 const router = useRouter();
-
 // 图表引用
 const stockTrend = ref(null);
 const categoryDistribution = ref(null);
-
 const chartRefs = {
   stockTrend,
   categoryDistribution
 };
-
 // 使用仪表盘组合式函数
 const {
   loading,
@@ -247,25 +237,17 @@ const {
   autoRefresh: true,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
-
 // 使用图表管理组合式函数
 const {
-  chartInstances,
-  chartsReady,
   initAllCharts,
-  updateChart,
-  destroyAllCharts
 } = useCharts(chartRefs);
-
 // 预警物料数据
 const alertItems = ref([]);
 const search = ref('');
 const currentPage = ref(1);
 const pageSize = ref(10);
-
 // 存储后端全量报表数据
 const dashboardData = ref(null);
-
 // 加载库存数据
 async function loadInventoryData() {
   try {
@@ -288,15 +270,12 @@ async function loadInventoryData() {
     throw error;
   }
 }
-
 // 筛选后的预警物料
 const filteredAlertItems = computed(() => {
   const startIndex = (currentPage.value - 1) * pageSize.value;
   const endIndex = startIndex + pageSize.value;
-
   // 确保alertItems是数组
   let items = Array.isArray(alertItems.value) ? alertItems.value : [];
-
   if (search.value) {
     const searchValue = search.value.toLowerCase();
     items = items.filter(item =>
@@ -306,25 +285,20 @@ const filteredAlertItems = computed(() => {
       (item.location && item.location.toLowerCase().includes(searchValue))
     );
   }
-
   return items.slice(startIndex, endIndex);
 });
-
 // 分页处理
 function handleSizeChange(size) {
   pageSize.value = size;
   currentPage.value = 1;
 }
-
 function handleCurrentChange(page) {
   currentPage.value = page;
 }
-
 // 查看物料详情
 function viewMaterial(item) {
   router.push(`/basedata/materials?search=${item.code}`);
 }
-
 // 获取状态标签类型
 function getStatusTagType(item) {
   if (item.status === '零库存' || item.type === 'critical' || item.quantity === 0) {
@@ -336,7 +310,6 @@ function getStatusTagType(item) {
   }
   return 'info';
 }
-
 // 获取状态文本
 function getStatusText(item) {
   if (item.status) {
@@ -352,7 +325,6 @@ function getStatusText(item) {
   }
   return '正常';
 }
-
 // 获取月度趋势数据 (从 dashboardData 中取)
 async function getMonthlyTrendData() {
   const monthlyData = {
@@ -379,7 +351,6 @@ async function getMonthlyTrendData() {
   }
   return monthlyData;
 }
-
 // 获取物料分类分布数据 (从 dashboardData 中取)
 async function getCategoryDistribution() {
   try {
@@ -390,13 +361,11 @@ async function getCategoryDistribution() {
   } catch (error) {
     console.error('处理分类分布数据失败:', error);
   }
-  // 返回默认数据
   return {
-    labels: ['未分类'],
-    values: [1]
+    labels: [],
+    values: []
   };
 }
-
 // 生命周期钩子
 onMounted(async () => {
   try {
@@ -413,18 +382,15 @@ onMounted(async () => {
     console.error('初始化库存仪表盘失败:', error);
     ElMessage.error('获取库存数据失败，请检查网络连接');
     
-    // 出错时使用默认数据
+    // 出错时清空展示数据，避免展示伪造库存
     statistics.value = getDefaultStatistics('inventory');
     alertItems.value = [];
   }
 });
-
 // 初始化库存趋势图表
 async function initStockTrendChart() {
   if (!chartRefs.stockTrend?.value) return null;
-
   const ctx = chartRefs.stockTrend.value.getContext('2d');
-
   try {
     // 获取过去12个月的月份标签
     const labels = generateMonthLabels(12);
@@ -439,7 +405,6 @@ async function initStockTrendChart() {
         return `${label}: ${value}`;
       }
     });
-
     return new Chart(ctx, {
       type: 'line',
       data: {
@@ -466,9 +431,8 @@ async function initStockTrendChart() {
       options: config
     });
   } catch (error) {
-    console.warn('获取库存趋势数据失败，使用默认数据:', error);
+    console.warn('获取库存趋势数据失败，图表将保持为空:', error);
     
-    // 如果获取失败，使用默认数据
     const labels = generateMonthLabels(12);
     const inboundData = Array(12).fill(0);
     const outboundData = Array(12).fill(0);
@@ -480,7 +444,6 @@ async function initStockTrendChart() {
         return `${label}: ${value}`;
       }
     });
-
     return new Chart(ctx, {
       type: 'line',
       data: {
@@ -511,9 +474,7 @@ async function initStockTrendChart() {
 // 初始化分类分布图表
 async function initCategoryChart() {
   if (!chartRefs.categoryDistribution?.value) return null;
-
   const ctx = chartRefs.categoryDistribution.value.getContext('2d');
-
   try {
     // 获取物料分类统计数据
     const categoryData = await getCategoryDistribution();
@@ -527,7 +488,6 @@ async function initCategoryChart() {
         return `${label}: ${percentage}%`;
       }
     });
-
     return new Chart(ctx, {
       type: 'doughnut',
       data: {
@@ -544,11 +504,10 @@ async function initCategoryChart() {
       options: config
     });
   } catch (error) {
-    console.warn('获取分类分布数据失败，使用默认数据:', error);
+    console.warn('获取分类分布数据失败，图表将保持为空:', error);
     
-    // 如果获取失败，使用默认数据
-    const labels = ['原材料', '半成品', '成品', '辅料', '包装材料', '备品备件'];
-    const inventoryData = [0, 0, 0, 0, 0, 0];
+    const labels = [];
+    const inventoryData = [];
     
     const config = createPieChartConfig({
       tooltipFormatter: (context) => {
@@ -559,7 +518,6 @@ async function initCategoryChart() {
         return `${label}: ${percentage}%`;
       }
     });
-
     return new Chart(ctx, {
       type: 'doughnut',
       data: {
@@ -577,142 +535,113 @@ async function initCategoryChart() {
     });
   }
 }
-
 </script>
-
 <style scoped>
 .inventory-dashboard {
   padding: 10px;
 }
-
 .header-card {
   margin-bottom: var(--spacing-lg);
 }
-
 .header-card h2 {
   margin: 0;
   font-size: 22px;
   color: var(--el-text-color-primary);
 }
-
 .last-updated {
   margin-left: 10px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
-
 .mt-20 {
   margin-top: var(--spacing-lg);
 }
-
 .mb-20 {
   margin-bottom: var(--spacing-lg);
 }
-
 .primary-card {
   border-top: 4px solid var(--el-color-primary);
 }
-
 .success-card {
   border-top: 4px solid var(--el-color-success);
 }
-
 .info-card {
   border-top: 4px solid var(--el-color-info);
 }
-
 .warning-card {
   border-top: 4px solid var(--el-color-warning);
 }
-
 .danger-card {
   border-top: 4px solid var(--el-color-danger);
 }
-
 .stat-content {
   flex-grow: 1;
   padding: 10px 0;
 }
-
 .stat-title {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 15px;
   color: var(--el-text-color-primary);
 }
-
 .stat-info {
   display: flex;
   justify-content: space-between;
 }
-
 .stat-main {
   text-align: left;
 }
-
 .stat-secondary {
   text-align: right;
 }
-
 .stat-secondary-value {
   font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
   color: var(--el-text-color-primary);
 }
-
 .stat-secondary-label {
   font-size: 14px;
   color: var(--el-text-color-secondary);
 }
-
 .card-footer {
   padding-top: 10px;
   border-top: 1px solid var(--el-border-color-lighter);
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .card-header-with-search {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header-with-search span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .search-input {
   max-width: 200px;
 }
-
 .chart-container {
   width: 100%;
   height: 300px;
   position: relative;
 }
-
 .text-danger {
   color: var(--el-color-danger);
   font-weight: bold;
 }
-
 .text-warning {
   color: var(--el-color-warning);
   font-weight: bold;
 }
-
 /* 响应式调整 */
 @media (max-width: 768px) {
   .search-input {
@@ -727,7 +656,6 @@ async function initCategoryChart() {
     font-size: 18px;
   }
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -735,7 +663,6 @@ async function initCategoryChart() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

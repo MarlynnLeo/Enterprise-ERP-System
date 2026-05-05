@@ -1,7 +1,7 @@
 <!--
 /**
  * Assets.vue - 固定资产
- * @description 固定资产管理页面 - 替代GenericListView占位
+ * @description 固定资产管理页面
  * @date 2026-04-14
  * @version 1.0.0
  */

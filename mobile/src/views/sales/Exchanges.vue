@@ -1,7 +1,7 @@
 <!--
 /**
  * Exchanges.vue - 销售换货列表
- * @description 销售换货管理页面 - 替代GenericListView占位
+ * @description 销售换货管理页面
  * @date 2026-04-14
  * @version 1.0.0
  */
@@ -18,11 +18,9 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { salesApi } from '@/services/api'
 
-  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '销售换货',
@@ -60,7 +58,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 换货详情暂无单独页面
   }
 </script>

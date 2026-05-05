@@ -221,7 +221,7 @@
 <script setup>
 import { parsePaginatedData } from '@/utils/responseParser';
 
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor, Warning, Bell, Tools, Refresh, Search, ArrowDown

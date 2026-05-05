@@ -361,10 +361,6 @@
         bomData = bomResponse.data
       }
 
-      // 开发环境下显示调试信息
-      if (import.meta.env.DEV) {
-      }
-
       if (!bomData || !bomData.id) {
         showToast('该产品没有配置BOM，无法计算物料需求')
         materialRequirements.value = []

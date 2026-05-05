@@ -245,6 +245,15 @@ router.get('/info', systemController.getSystemInfo);
 // ✅ 新增: 系统日志端点
 router.get('/logs', requirePermission('system:logs'), systemController.getSystemLogs);
 
+// 异步副作用失败任务（死信队列）运维入口
+router.get('/failed-jobs', requirePermission('system:monitor'), systemController.getFailedJobs);
+router.put(
+  '/failed-jobs/:id/resolve',
+  validateIdParam,
+  requirePermission('system:admin'),
+  systemController.resolveFailedJob
+);
+
 // ✅ 新增: 数据库备份端点
 router.post('/backup', requirePermission('system:backup:create'), systemController.createBackup);
 

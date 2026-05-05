@@ -7,24 +7,15 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { getMaterialBatchNumber } = require('./helpers');
 
 const db = require('../../../config/db');
 // const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
-const businessConfig = require('../../../config/businessConfig');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
-const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
-const {
-  getInventoryTransactionTypeText,
-  getTransferStatusText,
-  getSalesStatusText,
-  generateStatusCaseSQL,
-  INVENTORY_TRANSACTION_TYPES,
-  INVENTORY_TRANSACTION_GROUPS,
-} = require('../../../constants/systemConstants');
 
 // 引入库存一致性校验服务
 
@@ -33,70 +24,10 @@ const {
 // 引入重构后的入库处理服务
 
 // 引入状态映射工具和状态常量
-const STATUS = {
-  OUTBOUND: businessConfig.status.outbound,
-  INBOUND: businessConfig.status.inbound,
-  PRODUCTION_TASK: businessConfig.status.productionTask,
-  PRODUCTION_PLAN: businessConfig.status.productionPlan,
-  APPROVAL: businessConfig.status.approval,
-  TRANSFER: businessConfig.status.transfer,
-};
 
-/**
- * 获取物料的批次号（FIFO原则）
- * @param {object} connection - 数据库连接
- * @param {number} materialId - 物料ID
- * @param {number} locationId - 库位ID（可选）
- * @param {string} defaultBatchNo - 默认批次号（如果查询失败）
- * @returns {Promise<string>} 批次号
- */
-
-const getMaterialBatchNumber = async (
-  connection,
-  materialId,
-  locationId = null,
-  defaultBatchNo = 'default'
-) => {
-  try {
-    // ✅ 单表架构：从 v_batch_stock 视图查询
-    let query = `
-      SELECT batch_number
-      FROM v_batch_stock
-      WHERE material_id = ?
-        AND current_quantity > 0
-    `;
-    const params = [materialId];
-
-    if (locationId) {
-      query += ' AND location_id = ?';
-      params.push(locationId);
-    }
-
-    query += ' ORDER BY receipt_date ASC LIMIT 1'; // FIFO: 先进先出
-
-    const [stockBatchRecords] = await connection.execute(query, params);
-
-    if (stockBatchRecords.length > 0 && stockBatchRecords[0].batch_number) {
-      return stockBatchRecords[0].batch_number;
-    }
-
-    return defaultBatchNo;
-  } catch (error) {
-    logger.error('获取物料批次号失败:', error);
-    return defaultBatchNo;
-  }
-};
 
 // ========== 出入库类型常量（全局唯一定义，消除重复） ==========
-const OUTBOUND_TYPES = [
-  'outbound', 'outsourced_outbound', 'production_outbound',
-  'sales_outbound', 'sale', 'manual_out', 'transfer_out', 'adjustment_out',
-];
-const INBOUND_TYPES = [
-  'inbound', 'outsourced_inbound', 'purchase_inbound', 'production_inbound',
-  'production_return', 'sales_return', 'manual_in', 'transfer_in',
-  'adjustment_in', 'inventory_init',
-];
+
 
 // 添加一个辅助函数来处理inventory_ledger插入
 
@@ -354,7 +285,7 @@ const getBatchInventoryDetail = async (req, res) => {
 
     // ✅ 单表架构：从 inventory_ledger 聚合查询批次库存
     // 修复：移除对 location_id 的强制聚合，使得同批次跨库位可以合并展示，并过滤掉数量<=0的无意义批次及错误的无批次负结存
-    let query = `
+    const query = `
       SELECT
         vbs.material_id,
         m.code as material_code,

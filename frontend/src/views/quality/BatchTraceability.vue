@@ -42,7 +42,7 @@
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="handleSearch" :loading="loading">
-              <el-icon><Search /></el-icon> 查询追溯
+              <el-icon><SearchIcon /></el-icon> 查询追溯
             </el-button>
             <el-button @click="resetSearch">
               <el-icon><Refresh /></el-icon> 重置
@@ -50,19 +50,28 @@
           </el-form-item>
         </el-form>
 
-        <!-- 快速测试按钮 -->
+        <!-- 最近批次 -->
         <div class="test-cases" style="margin-top: 10px;">
-          <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
+          <span style="color: var(--color-text-regular); font-size: 12px;">最近批次: </span>
           <el-button
-            v-for="testCase in testCases"
-            :key="testCase.code"
+            size="small"
+            type="success"
+            plain
+            @click="loadLatestBatches"
+            style="margin-right: 8px; margin-bottom: 4px;"
+          >
+            <el-icon><Refresh /></el-icon> 刷新最近批次
+          </el-button>
+          <el-button
+            v-for="batch in latestBatches"
+            :key="`${batch.code}-${batch.batch}`"
             size="small"
             type="primary"
             plain
-            @click="loadTestCase(testCase)"
+            @click="loadLatestBatch(batch)"
             style="margin-right: 8px; margin-bottom: 4px;"
           >
-            {{ testCase.label }}
+            {{ batch.label }}
           </el-button>
         </div>
       </div>
@@ -167,7 +176,7 @@
         <div class="card-header">
           <span>FIFO出库预览</span>
           <el-button type="primary" size="small" @click="showFIFODialog = true">
-            <el-icon><View /></el-icon> 查看预览
+            <el-icon><ViewIcon /></el-icon> 查看预览
           </el-button>
         </div>
       </template>
@@ -233,18 +242,18 @@
 <script>
 import { formatDate } from '@/utils/helpers/dateUtils'
 
-import { ref, reactive } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Download, View, ArrowDown } from '@element-plus/icons-vue'
+import { Search as SearchIcon, Refresh, Download, View as ViewIcon, ArrowDown } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 export default {
   name: 'BatchTraceability',
   components: {
-    Search,
+    SearchIcon,
     Refresh,
     Download,
-    View,
+    ViewIcon,
     ArrowDown
   },
   setup() {
@@ -270,12 +279,7 @@ export default {
     const transactionHistory = ref([])
     const fifoPreview = ref(null)
     
-    // 测试用例
-    const testCases = ref([
-      { code: 'SCR001', batch: 'SCR001240101001', label: '螺丝测试' },
-      { code: 'PIN001', batch: 'PIN001240101001', label: '脚钉测试' },
-      { code: 'PROD001', batch: 'PROD001240101001', label: '成品测试' }
-    ])
+    const latestBatches = ref([])
     
     // 方法
     const handleSearch = async () => {
@@ -319,7 +323,6 @@ export default {
         ElMessage.success('查询成功')
 
       } catch (error) {
-        console.error('查询失败:', error)
         ElMessage.error(error.response?.data?.message || '查询失败')
       } finally {
         loading.value = false
@@ -337,9 +340,26 @@ export default {
       hasData.value = false
     }
 
-    const loadTestCase = (testCase) => {
-      searchForm.materialCode = testCase.code
-      searchForm.batchNumber = testCase.batch
+    const loadLatestBatches = async () => {
+      try {
+        const response = await axios.get('/api/batch-traceability/latest-batches')
+        const list = response.data?.list || response.data || []
+        latestBatches.value = list
+          .filter((item) => item.material_code && item.batch_number)
+          .slice(0, 8)
+          .map((item) => ({
+            code: item.material_code,
+            batch: item.batch_number,
+            label: `${item.material_code} / ${item.batch_number}`
+          }))
+      } catch {
+        latestBatches.value = []
+      }
+    }
+
+    const loadLatestBatch = (batch) => {
+      searchForm.materialCode = batch.code
+      searchForm.batchNumber = batch.batch
       handleSearch()
     }
 
@@ -366,7 +386,6 @@ export default {
         }
 
       } catch (error) {
-        console.error('获取FIFO预览失败:', error)
         ElMessage.error(error.response?.data?.message || '获取FIFO预览失败')
       } finally {
         fifoLoading.value = false
@@ -414,7 +433,6 @@ export default {
         
         ElMessage.success('导出成功')
       } catch (error) {
-        console.error('导出失败:', error)
         ElMessage.error(error.response?.data?.message || '导出失败')
       }
     }
@@ -488,6 +506,8 @@ export default {
       return texts[type] || type
     }
     
+    onMounted(loadLatestBatches)
+
     return {
       loading,
       hasData,
@@ -499,10 +519,11 @@ export default {
       traceabilityChain,
       transactionHistory,
       fifoPreview,
-      testCases,
+      latestBatches,
       handleSearch,
       resetSearch,
-      loadTestCase,
+      loadLatestBatches,
+      loadLatestBatch,
       getFIFOPreview,
       handleCloseFIFODialog,
       refreshData,

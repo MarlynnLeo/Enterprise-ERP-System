@@ -227,14 +227,6 @@ const supplierService = {
             continue;
           }
 
-          // 为空的联系人和联系电话提供默认值
-          if (!supplier.contact_person) {
-            supplier.contact_person = '待完善';
-          }
-          if (!supplier.contact_phone) {
-            supplier.contact_phone = '待完善';
-          }
-
           // 检查供应商编码是否已存在
           const [existingSuppliers] = await connection.query(
             'SELECT id FROM suppliers WHERE code = ? AND deleted_at IS NULL',
@@ -245,8 +237,8 @@ const supplierService = {
             // 更新
             const updateData = {
               name: supplier.name,
-              contact_person: supplier.contact_person,
-              contact_phone: supplier.contact_phone,
+              contact_person: supplier.contact_person || null,
+              contact_phone: supplier.contact_phone || null,
               email: supplier.email || '',
               address: supplier.address || '',
               status: supplier.status !== undefined ? Number(supplier.status) : 1,

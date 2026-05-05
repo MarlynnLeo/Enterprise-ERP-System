@@ -133,38 +133,6 @@ const DATABASE_CONFIG = {
       : false,
 };
 
-// CORS 配置
-// @deprecated — 此配置未被任何模块消费，实际CORS配置在 app.js 中内联定义
-// TODO: 下个版本移除此常量，将 app.js 中的 CORS 配置迁移至此处统一管理
-const CORS_CONFIG = {
-  origin: function (origin, callback) {
-    // 从环境变量获取允许的源，如果未设置则根据环境使用默认值
-    let allowedOrigins;
-    if (process.env.ALLOWED_ORIGINS) {
-      allowedOrigins = process.env.ALLOWED_ORIGINS.split(',');
-    } else if (process.env.NODE_ENV === 'production') {
-      // 生产环境必须明确设置 ALLOWED_ORIGINS
-      allowedOrigins = [];
-    } else {
-      // 开发环境使用默认值
-      allowedOrigins = ['http://localhost:3000', 'http://localhost:3100', 'http://localhost:8080'];
-    }
-
-    // 允许没有 origin 的请求（如移动应用）
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
-};
-
 // 内容安全策略
 const CSP_CONFIG = {
   directives: {
@@ -210,7 +178,7 @@ const INPUT_VALIDATION = {
   maxObjectDepth: 10,
 
   // 禁止的字符
-  // eslint-disable-next-line no-script-url
+
   forbiddenChars: ['<script', '</script>', 'javascript:', 'vbscript:', 'onload=', 'onerror='],
 };
 
@@ -240,7 +208,6 @@ module.exports = {
   RATE_LIMIT_CONFIG,
   FILE_UPLOAD_CONFIG,
   DATABASE_CONFIG,
-  CORS_CONFIG,
   CSP_CONFIG,
   SECURITY_HEADERS,
   INPUT_VALIDATION,

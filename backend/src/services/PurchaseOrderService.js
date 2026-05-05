@@ -6,8 +6,7 @@
  */
 
 const { logger } = require('../utils/logger');
-const db = require('../config/db');
-const pool = db.pool;
+
 
 class PurchaseOrderService {
   /**

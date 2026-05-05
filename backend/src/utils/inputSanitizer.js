@@ -169,7 +169,8 @@ class InputSanitizer {
     }
 
     // 移除危险字符
-    let sanitized = filename.replace(/[<>:"/\\|?*\x00-\x1f]/g, '');
+    // eslint-disable-next-line no-control-regex -- filenames must reject ASCII control characters.
+    let sanitized = filename.replace(new RegExp('[<>:"/\\\\|?*\\x00-\\x1f]', 'g'), '');
 
     // 移除开头的点号（隐藏文件）
     sanitized = sanitized.replace(/^\.+/, '');
@@ -215,7 +216,7 @@ class InputSanitizer {
 
       // 递归清理对象
       return this.sanitizeObject(parsed);
-    } catch (error) {
+    } catch {
       return null;
     }
   }

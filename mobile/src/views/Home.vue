@@ -154,13 +154,10 @@
     CurrencyDollarIcon,
     ShoppingCartIcon,
     ArchiveBoxIcon,
-    Squares2X2Icon,
     ShieldCheckIcon,
     UserGroupIcon,
-    BuildingOfficeIcon,
     BanknotesIcon,
     Cog6ToothIcon,
-    CpuChipIcon,
     ClipboardDocumentListIcon,
     CircleStackIcon
   } from '@heroicons/vue/24/outline'
@@ -219,7 +216,6 @@
 
   const navigateTo = (path) => router.push(path)
   const handleNotification = () => router.push('/notifications')
-  const handleScan = () => router.push('/scan')
 
   const loadHomeStats = async () => {
     try {
@@ -241,7 +237,7 @@
         const d = results[2].value.data
         dashboardStats.value[2].value = String(d?.pending_orders || 0)
       }
-    } catch (e) {
+    } catch {
       /* 静默 */
     }
   }

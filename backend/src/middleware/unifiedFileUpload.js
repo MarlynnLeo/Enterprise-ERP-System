@@ -6,6 +6,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
+const crypto = require('crypto');
 const { ErrorFactory } = require('./unifiedErrorHandler');
 
 // 文件类型配置
@@ -16,14 +17,21 @@ const FILE_TYPES = {
     maxSize: 5 * 1024 * 1024, // 5MB
   },
   DOCUMENT: {
-    extensions: ['.pdf', '.doc', '.docx', '.txt'],
+    extensions: ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.txt'],
     mimeTypes: [
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'text/plain',
     ],
     maxSize: 10 * 1024 * 1024, // 10MB
+  },
+  AVATAR: {
+    extensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    mimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    maxSize: 2 * 1024 * 1024, // 2MB
   },
   EXCEL: {
     extensions: ['.xlsx', '.xls', '.csv'],
@@ -60,6 +68,10 @@ class FileUploadConfig {
     this.generateThumbnails = options.generateThumbnails || false;
     this.allowMultiple = options.allowMultiple || false;
     this.maxFiles = options.maxFiles || 5;
+    this.fieldName = options.fieldName || (this.allowMultiple ? 'files' : 'file');
+    this.urlPrefix =
+      options.urlPrefix ||
+      `/${this.destination.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')}`;
   }
 
   getAllowedExtensions() {
@@ -130,7 +142,8 @@ class FileValidator {
 
   static hasUnsafeCharacters(filename) {
     // 检查危险字符和路径遍历
-    const unsafePattern = /[<>:"|?*\x00-\x1f]|\.\.|\//;
+    // eslint-disable-next-line no-control-regex -- filenames must reject ASCII control characters.
+    const unsafePattern = new RegExp('[<>:"|?*\\x00-\\x1f]|\\.\\.|/|\\\\');
     return unsafePattern.test(filename);
   }
 
@@ -146,7 +159,7 @@ class FileValidator {
 // 文件名生成器
 class FilenameGenerator {
   static generate(originalname, preserveOriginal = false) {
-    const ext = path.extname(originalname);
+    const ext = path.extname(originalname).toLowerCase();
     const basename = path.basename(originalname, ext);
 
     if (preserveOriginal) {
@@ -156,7 +169,7 @@ class FilenameGenerator {
     } else {
       // 生成唯一文件名
       const timestamp = Date.now();
-      const random = Math.random().toString(36).substring(2, 8);
+      const random = crypto.randomBytes(4).toString('hex');
       return `file_${timestamp}_${random}${ext}`;
     }
   }
@@ -223,8 +236,8 @@ function createFileUploadMiddleware(options = {}) {
   // 返回中间件函数
   return (req, res, next) => {
     const uploadHandler = config.allowMultiple
-      ? upload.array('files', config.maxFiles)
-      : upload.single('file');
+      ? upload.array(config.fieldName, config.maxFiles)
+      : upload.single(config.fieldName);
 
     uploadHandler(req, res, (err) => {
       if (err) {
@@ -260,7 +273,7 @@ function createFileUploadMiddleware(options = {}) {
           size: req.file.size,
           mimetype: req.file.mimetype,
           path: req.file.path,
-          url: config.storage === STORAGE_STRATEGIES.DISK ? `/uploads/${req.file.filename}` : null,
+          url: config.storage === STORAGE_STRATEGIES.DISK ? `${config.urlPrefix}/${req.file.filename}` : null,
         };
       }
 
@@ -271,7 +284,7 @@ function createFileUploadMiddleware(options = {}) {
           size: file.size,
           mimetype: file.mimetype,
           path: file.path,
-          url: config.storage === STORAGE_STRATEGIES.DISK ? `/uploads/${file.filename}` : null,
+          url: config.storage === STORAGE_STRATEGIES.DISK ? `${config.urlPrefix}/${file.filename}` : null,
         }));
       }
 
@@ -312,6 +325,52 @@ const FileUploadMiddlewares = {
     maxFiles: 5,
     storage: STORAGE_STRATEGIES.DISK,
     destination: 'uploads/multiple',
+  }),
+
+  // ERP通用附件上传
+  attachment: createFileUploadMiddleware({
+    allowedTypes: ['IMAGE', 'DOCUMENT', 'EXCEL', 'ARCHIVE'],
+    maxSize: 50 * 1024 * 1024,
+    storage: STORAGE_STRATEGIES.DISK,
+    destination: 'uploads',
+  }),
+
+  // 通用附件单文件上传
+  attachmentFile: createFileUploadMiddleware({
+    allowedTypes: ['IMAGE', 'DOCUMENT', 'EXCEL', 'ARCHIVE'],
+    maxSize: 10 * 1024 * 1024,
+    storage: STORAGE_STRATEGIES.DISK,
+    destination: 'uploads/attachments',
+    fieldName: 'file',
+  }),
+
+  // 通用附件多文件上传
+  attachmentFiles: createFileUploadMiddleware({
+    allowedTypes: ['IMAGE', 'DOCUMENT', 'EXCEL', 'ARCHIVE'],
+    maxSize: 10 * 1024 * 1024,
+    storage: STORAGE_STRATEGIES.DISK,
+    destination: 'uploads/attachments',
+    fieldName: 'files',
+    allowMultiple: true,
+    maxFiles: 5,
+  }),
+
+  // 用户头像上传
+  avatar: createFileUploadMiddleware({
+    allowedTypes: ['AVATAR'],
+    maxSize: 2 * 1024 * 1024,
+    storage: STORAGE_STRATEGIES.DISK,
+    destination: 'uploads/avatars',
+    fieldName: 'avatar',
+  }),
+
+  // 打印Logo上传
+  logo: createFileUploadMiddleware({
+    allowedTypes: ['IMAGE'],
+    maxSize: 5 * 1024 * 1024,
+    storage: STORAGE_STRATEGIES.DISK,
+    destination: 'uploads/logos',
+    fieldName: 'logo',
   }),
 };
 

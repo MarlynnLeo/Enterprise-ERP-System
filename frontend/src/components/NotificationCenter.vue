@@ -210,7 +210,7 @@ const loadNotifications = async () => {
     const res = await notificationApi.getNotifications(params)
     const responseData = parseResponseData(res)
     notifications.value = responseData.list || []
-  } catch (error) {
+  } catch {
     // 静默失败，避免干扰用户
   } finally {
     loading.value = false
@@ -222,7 +222,7 @@ const loadUnreadCount = async () => {
     const res = await notificationApi.getUnreadCount()
     const responseData = parseResponseData(res)
     unreadCount.value = responseData.count || 0
-  } catch (error) {
+  } catch {
     // 静默失败，避免干扰用户
   }
 }
@@ -244,7 +244,7 @@ const handleNotificationClick = async (notification) => {
         params = typeof notification.link_params === 'string'
           ? JSON.parse(notification.link_params)
           : notification.link_params
-      } catch (e) {
+      } catch {
         // 解析失败时使用空对象
       }
     }
@@ -262,7 +262,7 @@ const handleMarkRead = async (id) => {
     await notificationApi.markAsRead(id)
     await loadNotifications()
     await loadUnreadCount()
-  } catch (error) {
+  } catch {
     ElMessage.error('标记失败')
   }
 }
@@ -273,7 +273,7 @@ const handleMarkAllRead = async () => {
     await loadNotifications()
     await loadUnreadCount()
     ElMessage.success('全部已标记为已读')
-  } catch (error) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }
@@ -284,7 +284,7 @@ const handleDelete = async (id) => {
     await loadNotifications()
     await loadUnreadCount()
     ElMessage.success('删除成功')
-  } catch (error) {
+  } catch {
     ElMessage.error('删除失败')
   }
 }

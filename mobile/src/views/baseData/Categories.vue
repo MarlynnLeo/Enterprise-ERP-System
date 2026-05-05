@@ -52,7 +52,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 分类详情 — 暂不跳转
   }
 </script>

@@ -16,7 +16,6 @@
         </div>
       </div>
     </div>
-
     <!-- 设置对话框 -->
     <el-dialog v-model="showSettings" title="看板设置" width="600px" :close-on-click-modal="false">
       <div class="settings-content">
@@ -28,7 +27,6 @@
             </el-checkbox>
           </div>
         </el-checkbox-group>
-
         <h4 style="margin-top: 20px;">调整显示顺序（拖拽排序）</h4>
         <div class="card-order-list">
           <div
@@ -48,7 +46,6 @@
             </div>
           </div>
         </div>
-
         <h4 style="margin-top: 20px;">最近生产计划显示条数</h4>
         <div class="limit-setting">
           <el-slider
@@ -61,7 +58,6 @@
             input-size="small"
           />
         </div>
-
         <h4 style="margin-top: 20px;">自动滚动设置</h4>
         <div class="scroll-setting">
           <div class="scroll-row">
@@ -76,7 +72,6 @@
               :max="10"
               :step="0.5"
               :format-tooltip="(val) => val + '秒'"
-
             />
             <span class="speed-value">{{ tempScrollSpeed }}秒</span>
           </div>
@@ -92,13 +87,11 @@
         <el-button type="primary" @click="saveSettings">保存设置</el-button>
       </template>
     </el-dialog>
-
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-container">
       <el-icon class="is-loading" :size="50"><Loading /></el-icon>
       <p>加载中...</p>
     </div>
-
     <!-- 主要内容 -->
     <div v-else class="board-content">
       <!-- 根据配置动态渲染各模块 -->
@@ -115,7 +108,6 @@
               <div class="stat-sub">已完成 {{ boardData.todayStats?.completedPlans || 0 }}</div>
             </div>
           </div>
-
           <div class="stat-card">
             <div class="stat-icon" style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);">
               <el-icon :size="32"><List /></el-icon>
@@ -126,7 +118,6 @@
               <div class="stat-sub">已完成 {{ boardData.todayStats?.completedTasks || 0 }}</div>
             </div>
           </div>
-
           <div class="stat-card">
             <div class="stat-icon" style="background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%);">
               <el-icon :size="32"><Setting /></el-icon>
@@ -137,7 +128,6 @@
               <div class="stat-sub">{{ boardData.processStats?.completed || 0 }}/{{ boardData.processStats?.total || 0 }}</div>
             </div>
           </div>
-
           <div class="stat-card">
             <div class="stat-icon" style="background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);">
               <el-icon :size="32"><CircleCheck /></el-icon>
@@ -149,7 +139,6 @@
             </div>
           </div>
         </div>
-
         <!-- 生产流程步骤 -->
         <div v-if="cardKey === 'flowSection' && cardConfig.includes('flowSection')" class="flow-section">
         <h2 class="section-title">
@@ -183,7 +172,6 @@
           </div>
         </div>
         </div>
-
         <!-- 完成率统计 -->
         <div v-if="cardKey === 'completionSection' && cardConfig.includes('completionSection')" class="completion-section">
           <div class="completion-card">
@@ -203,7 +191,6 @@
               {{ boardData.flowStats?.plans?.completed || 0 }} / {{ boardData.flowStats?.totalPlans || 0 }}
             </div>
           </div>
-
           <div class="completion-card">
             <h3 class="card-title">任务完成率</h3>
             <el-progress
@@ -221,7 +208,6 @@
               {{ boardData.flowStats?.tasks?.completed || 0 }} / {{ boardData.flowStats?.totalTasks || 0 }}
             </div>
           </div>
-
           <div class="completion-card">
             <h3 class="card-title">入库完成率</h3>
             <el-progress
@@ -240,7 +226,6 @@
             </div>
           </div>
         </div>
-
         <!-- 最近的生产计划 -->
         <div v-if="cardKey === 'recentPlans' && cardConfig.includes('recentPlans')" class="recent-plans-section">
           <h2 class="section-title">
@@ -297,7 +282,6 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -307,16 +291,13 @@ import {
 } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { PRODUCTION_FLOW_STEPS } from '@/constants/systemConstants'
-
 // 数据
 const loading = ref(true)
 const boardData = ref({})
 const updateTime = ref('')
 let refreshTimer = null
-
 // ========== 看板配置相关 ==========
 const STORAGE_KEY = 'production_board_config'
-
 // 所有可用的卡片选项
 const allCardOptions = [
   { key: 'statsCards', label: '今日统计卡片' },
@@ -324,7 +305,6 @@ const allCardOptions = [
   { key: 'completionSection', label: '完成率统计' },
   { key: 'recentPlans', label: '最近生产计划' }
 ]
-
 // 默认配置
 const defaultCardConfig = ['statsCards', 'flowSection', 'completionSection', 'recentPlans']
 const defaultCardOrder = ['statsCards', 'flowSection', 'completionSection', 'recentPlans']
@@ -332,7 +312,6 @@ const defaultRecentPlansLimit = 12
 const defaultAutoScroll = false
 const defaultScrollSpeed = 3
 const defaultVisibleRows = 6
-
 // 当前配置（从 localStorage 加载）
 const cardConfig = ref([...defaultCardConfig])
 const cardOrder = ref([...defaultCardOrder])
@@ -340,7 +319,6 @@ const recentPlansLimit = ref(defaultRecentPlansLimit)
 const autoScroll = ref(defaultAutoScroll)
 const scrollSpeed = ref(defaultScrollSpeed)
 const visibleRows = ref(defaultVisibleRows)
-
 // 设置对话框相关
 const showSettings = ref(false)
 const tempCardConfig = ref([])
@@ -350,13 +328,11 @@ const tempAutoScroll = ref(defaultAutoScroll)
 const tempScrollSpeed = ref(defaultScrollSpeed)
 const tempVisibleRows = ref(defaultVisibleRows)
 let dragIndex = null
-
 // 滚动相关
 const tableRef = ref(null)
 let scrollTimer = null
 let isPaused = false
 let currentScrollTop = 0
-
 // 加载配置
 const loadConfig = () => {
   try {
@@ -374,9 +350,8 @@ const loadConfig = () => {
     console.error('加载看板配置失败:', e)
   }
 }
-
-// 打开设置时初始化临时配置
-const openSettings = () => {
+// 打开设置时初始化编辑副本
+const _openSettings = () => {
   tempCardConfig.value = [...cardConfig.value]
   tempCardOrder.value = [...cardOrder.value]
   tempAutoScroll.value = autoScroll.value
@@ -384,25 +359,21 @@ const openSettings = () => {
   tempVisibleRows.value = visibleRows.value
   showSettings.value = true
 }
-
 // 获取卡片标签
 const getCardLabel = (key) => {
   const option = allCardOptions.find(opt => opt.key === key)
   return option ? option.label : key
 }
-
 // 拖拽排序
 const handleDragStart = (index) => {
   dragIndex = index
 }
-
 const handleDrop = (targetIndex) => {
   if (dragIndex === null || dragIndex === targetIndex) return
   const item = tempCardOrder.value.splice(dragIndex, 1)[0]
   tempCardOrder.value.splice(targetIndex, 0, item)
   dragIndex = null
 }
-
 // 按钮移动
 const moveCard = (index, direction) => {
   const newIndex = index + direction
@@ -411,7 +382,6 @@ const moveCard = (index, direction) => {
   tempCardOrder.value[index] = tempCardOrder.value[newIndex]
   tempCardOrder.value[newIndex] = temp
 }
-
 // 保存设置
 const saveSettings = () => {
   cardConfig.value = [...tempCardConfig.value]
@@ -420,7 +390,6 @@ const saveSettings = () => {
   autoScroll.value = tempAutoScroll.value
   scrollSpeed.value = tempScrollSpeed.value
   visibleRows.value = tempVisibleRows.value
-
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       cards: cardConfig.value,
@@ -442,10 +411,8 @@ const saveSettings = () => {
     console.error('保存看板配置失败:', e)
     ElMessage.error('保存失败')
   }
-
   showSettings.value = false
 }
-
 // 恢复默认设置
 const resetSettings = () => {
   tempCardConfig.value = [...defaultCardConfig]
@@ -456,10 +423,8 @@ const resetSettings = () => {
   tempVisibleRows.value = defaultVisibleRows
   ElMessage.info('已恢复默认设置，请点击保存生效')
 }
-
 // 生产流程步骤定义（使用统一常量）
 const flowSteps = PRODUCTION_FLOW_STEPS
-
 // 获取看板数据
 const fetchBoardData = async () => {
   try {
@@ -467,7 +432,6 @@ const fetchBoardData = async () => {
     const response = await axios.get('/public/production-board', {
       params: { limit: recentPlansLimit.value }
     })
-
     // 原生axios，response.data是完整响应 { success, message, data, timestamp }
     // 真正的业务数据在 response.data.data 中
     if (response.data && response.data.success && response.data.data) {
@@ -480,14 +444,12 @@ const fetchBoardData = async () => {
     loading.value = false
   }
 }
-
 // 获取步骤数量
 const getStepCount = (status) => {
   const plans = boardData.value.flowStats?.plans[status] || 0
   const tasks = boardData.value.flowStats?.tasks[status] || 0
   return plans + tasks
 }
-
 // 获取状态类型
 const getStatusType = (status) => {
   const typeMap = {
@@ -503,7 +465,6 @@ const getStatusType = (status) => {
   }
   return typeMap[status] || 'info'
 }
-
 // 获取状态文本
 const getStatusText = (status) => {
   const textMap = {
@@ -519,7 +480,6 @@ const getStatusText = (status) => {
   }
   return textMap[status] || status
 }
-
 // 获取进度条颜色
 const getProgressColor = (percentage) => {
   if (percentage >= 100) return '#67c23a'
@@ -527,35 +487,26 @@ const getProgressColor = (percentage) => {
   if (percentage >= 50) return '#e6a23c'
   return '#f56c6c'
 }
-
 // ========== 自动滚动相关 ==========
 const startAutoScroll = () => {
   if (!autoScroll.value || !tableRef.value) return
-
   // 等待 DOM 更新
   nextTick(() => {
     const tableEl = tableRef.value?.$el
     if (!tableEl) return
-
     // el-table 的滚动容器
     const scrollWrapper = tableEl.querySelector('.el-scrollbar__wrap')
     if (!scrollWrapper) return
-
     const rowHeight = 48 // 每行高度
-
     scrollTimer = setInterval(() => {
       if (isPaused) return
-
       const scrollHeight = scrollWrapper.scrollHeight
       const clientHeight = scrollWrapper.clientHeight
-
       if (scrollHeight <= clientHeight) return // 内容不够滚动
-
       currentScrollTop += rowHeight
       if (currentScrollTop >= scrollHeight - clientHeight) {
         currentScrollTop = 0 // 回到顶部
       }
-
       scrollWrapper.scrollTo({
         top: currentScrollTop,
         behavior: 'smooth'
@@ -563,7 +514,6 @@ const startAutoScroll = () => {
     }, scrollSpeed.value * 1000)
   })
 }
-
 const stopAutoScroll = () => {
   if (scrollTimer) {
     clearInterval(scrollTimer)
@@ -571,15 +521,12 @@ const stopAutoScroll = () => {
   }
   currentScrollTop = 0
 }
-
 const pauseScroll = () => {
   isPaused = true
 }
-
 const resumeScroll = () => {
   isPaused = false
 }
-
 // 监听数据变化，重新启动滚动
 watch(() => boardData.value.recentPlans, () => {
   if (autoScroll.value) {
@@ -587,7 +534,6 @@ watch(() => boardData.value.recentPlans, () => {
     setTimeout(() => startAutoScroll(), 500) // 延迟启动，确保表格渲染完成
   }
 })
-
 // 生命周期
 onMounted(() => {
   loadConfig() // 加载配置
@@ -605,7 +551,6 @@ onMounted(() => {
     nextTick(() => startAutoScroll())
   }
 })
-
 onUnmounted(() => {
   if (refreshTimer) {
     clearInterval(refreshTimer)
@@ -613,14 +558,12 @@ onUnmounted(() => {
   stopAutoScroll()
 })
 </script>
-
 <style scoped>
 .production-board {
   min-height: 100vh;
   background: linear-gradient(135deg, #1a2a3a 0%, #2c3e50 50%, #34495e 100%);
   padding: 20px;
 }
-
 .board-header {
   background: white;
   border-radius: 12px;
@@ -628,13 +571,11 @@ onUnmounted(() => {
   margin-bottom: 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .board-title {
   font-size: 28px;
   font-weight: bold;
@@ -644,18 +585,15 @@ onUnmounted(() => {
   gap: 12px;
   margin: 0;
 }
-
 .title-icon {
   font-size: 32px;
   color: #2980b9;
 }
-
 .header-actions {
   display: flex;
   align-items: center;
   gap: 16px;
 }
-
 .update-time {
   display: flex;
   align-items: center;
@@ -663,14 +601,12 @@ onUnmounted(() => {
   color: var(--color-text-regular);
   font-size: 14px;
 }
-
 /* 设置对话框样式 */
 .settings-content h4 {
   margin: 0 0 12px 0;
   color: var(--color-text-primary);
   font-size: 15px;
 }
-
 .card-checkbox-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -679,13 +615,11 @@ onUnmounted(() => {
   background: var(--color-bg-hover);
   border-radius: 8px;
 }
-
 .card-order-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-
 .card-order-item {
   display: flex;
   align-items: center;
@@ -696,75 +630,61 @@ onUnmounted(() => {
   cursor: grab;
   transition: all 0.2s;
 }
-
 .card-order-item:hover {
   background: #e6f7ff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-
 .card-order-item:active {
   cursor: grabbing;
 }
-
 .card-order-item .el-icon {
   color: var(--color-text-secondary);
 }
-
 .card-order-item span {
   flex: 1;
   font-size: 14px;
 }
-
 .order-actions {
   display: flex;
   gap: 4px;
 }
-
 .limit-setting {
   padding: 12px 16px;
   background: var(--color-bg-hover);
   border-radius: 8px;
 }
-
 .limit-setting :deep(.el-slider) {
   padding-right: 100px;
 }
-
 .limit-setting :deep(.el-input-number) {
   width: 80px;
 }
-
 .scroll-setting {
   padding: 12px 16px;
   background: var(--color-bg-hover);
   border-radius: 8px;
 }
-
 .scroll-row {
   display: flex;
   align-items: center;
   gap: 16px;
   margin-bottom: 12px;
 }
-
 .scroll-row:last-child {
   margin-bottom: 0;
 }
-
 .scroll-row > span:first-child {
   width: 140px;
   flex-shrink: 0;
   font-size: 14px;
   color: var(--color-text-regular);
 }
-
 .speed-value {
   min-width: 40px;
   font-size: 14px;
   color: var(--color-primary);
   font-weight: 500;
 }
-
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -774,20 +694,17 @@ onUnmounted(() => {
   color: var(--color-on-primary, #fff);
   font-size: 18px;
 }
-
 .board-content {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
-
 /* 统计卡片 */
 .stats-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 20px;
 }
-
 .stat-card {
   background: white;
   border-radius: 12px;
@@ -798,12 +715,10 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s, box-shadow 0.3s;
 }
-
 .stat-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
-
 .stat-icon {
   width: 64px;
   height: 64px;
@@ -813,17 +728,14 @@ onUnmounted(() => {
   justify-content: center;
   color: var(--color-on-primary, #fff);
 }
-
 .stat-info {
   flex: 1;
 }
-
 .stat-label {
   font-size: 14px;
   color: var(--color-text-regular);
   margin-bottom: 8px;
 }
-
 .stat-value {
   font-size: 32px;
   font-weight: bold;
@@ -831,12 +743,10 @@ onUnmounted(() => {
   line-height: 1;
   margin-bottom: 4px;
 }
-
 .stat-sub {
   font-size: 12px;
   color: var(--color-text-secondary);
 }
-
 /* 流程步骤 */
 .flow-section {
   background: white;
@@ -844,7 +754,6 @@ onUnmounted(() => {
   padding: 24px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
-
 .section-title {
   font-size: 20px;
   font-weight: bold;
@@ -854,7 +763,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
 }
-
 .flow-steps {
   display: flex;
   align-items: center;
@@ -862,14 +770,12 @@ onUnmounted(() => {
   padding: 20px 0;
   gap: 12px;
 }
-
 .flow-step {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 12px;
 }
-
 .step-number {
   width: 32px;
   height: 32px;
@@ -882,64 +788,53 @@ onUnmounted(() => {
   font-weight: bold;
   font-size: 14px;
 }
-
 .flow-step.has-data .step-number {
   background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
   color: var(--color-on-primary, #fff);
 }
-
 .step-content {
   background: #f5f5f5;
   border-radius: 8px;
   padding: 12px 16px;
   min-width: 120px;
 }
-
 .flow-step.has-data .step-content {
   background: linear-gradient(135deg, #e8f4fc 0%, #d4edfc 100%);
   border: 2px solid #2980b9;
 }
-
 .step-name {
   font-weight: bold;
   color: var(--color-text-primary);
   margin-bottom: 8px;
   font-size: 14px;
 }
-
 .step-stats {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-
 .step-stat {
   font-size: 12px;
   color: var(--color-text-regular);
 }
-
 .step-stat .stat-label {
   color: var(--color-text-secondary);
 }
-
 .step-stat .stat-value {
   font-weight: bold;
   color: #2980b9;
   margin-left: 4px;
 }
-
 .step-arrow {
   color: var(--color-text-secondary);
   font-size: 20px;
 }
-
 /* 完成率统计 */
 .completion-section {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 20px;
 }
-
 .completion-card {
   background: white;
   border-radius: 12px;
@@ -947,25 +842,21 @@ onUnmounted(() => {
   text-align: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
-
 .card-title {
   font-size: 16px;
   font-weight: bold;
   color: var(--color-text-primary);
   margin: 0 0 20px 0;
 }
-
 .percentage-value {
   font-size: 24px;
   font-weight: bold;
 }
-
 .completion-detail {
   margin-top: 12px;
   font-size: 14px;
   color: var(--color-text-regular);
 }
-
 /* 最近计划 */
 .recent-plans-section {
   background: white;
@@ -973,7 +864,6 @@ onUnmounted(() => {
   padding: 24px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
-
 .scroll-indicator {
   display: inline-flex;
   align-items: center;
@@ -983,48 +873,38 @@ onUnmounted(() => {
   color: var(--color-primary);
   font-weight: normal;
 }
-
 .table-scroll-container {
   overflow-y: auto;
   scroll-behavior: smooth;
 }
-
 /* 响应式 */
 @media (max-width: 768px) {
   .board-header {
     padding: 16px;
   }
-
   .header-content {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
-
   .board-title {
     font-size: 20px;
   }
-
   .stats-cards {
     grid-template-columns: 1fr;
   }
-
   .flow-steps {
     flex-direction: column;
     align-items: stretch;
   }
-
   .flow-step {
     flex-direction: column;
   }
-
   .step-arrow {
     transform: rotate(90deg);
   }
-
   .completion-section {
     grid-template-columns: 1fr;
   }
 }
 </style>
-

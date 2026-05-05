@@ -89,8 +89,11 @@ class HealthController {
       const startTime = Date.now();
       const config = getBasicConfig();
 
-      // 使用统一的连接池而不是每次创建临时连接
-      const [rows] = await pool.execute('SELECT 1 as test');
+      const [rows] = await pool.query('SELECT 1 AS ok');
+      if (!rows?.[0]?.ok) {
+        throw new Error('数据库探活查询未返回预期结果');
+      }
+
       const responseTime = Date.now() - startTime;
 
       return {
@@ -137,19 +140,11 @@ class HealthController {
    * Redis连接检查
    */
   static async checkRedis() {
-    try {
-      // 这里可以添加Redis连接检查
-      // 如果没有Redis，返回跳过状态
-      return {
-        status: 'skipped',
-        message: 'Redis检查已跳过',
-      };
-    } catch (error) {
-      return {
-        status: 'error',
-        error: error.message,
-      };
-    }
+    // 这里可以添加Redis连接检查；当前项目未配置时返回跳过状态。
+    return {
+      status: 'skipped',
+      message: 'Redis检查已跳过',
+    };
   }
 
   /**
@@ -194,23 +189,11 @@ class HealthController {
    * 磁盘空间检查
    */
   static async checkDisk() {
-    try {
-      const fs = require('fs');
-      const path = require('path');
-
-      const stats = fs.statSync(path.resolve('./'));
-
-      return {
-        status: 'healthy',
-        message: '磁盘检查已简化',
-        workingDirectory: process.cwd(),
-      };
-    } catch (error) {
-      return {
-        status: 'error',
-        error: error.message,
-      };
-    }
+    return {
+      status: 'healthy',
+      message: '磁盘检查已简化',
+      workingDirectory: process.cwd(),
+    };
   }
 
   /**

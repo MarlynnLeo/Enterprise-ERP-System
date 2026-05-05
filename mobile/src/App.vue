@@ -36,15 +36,14 @@
 
 <script setup>
   import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
-  import { Tabbar, TabbarItem, Icon } from 'vant'
+  import { useRoute } from 'vue-router'
+  import { Tabbar, TabbarItem } from 'vant'
   import { useAuthStore } from './stores/auth'
   import { useKeyboardScroll } from './composables/useKeyboardScroll'
 
   import ErrorBoundary from './components/ErrorBoundary.vue'
 
   const route = useRoute()
-  const router = useRouter()
   const authStore = useAuthStore()
   const errorBoundaryRef = ref(null)
 
@@ -70,10 +69,6 @@
   // 局部定时器（避免污染 window 全局命名空间）
   let fullscreenRefreshTimer = null
   let visibilityChangeTimer = null
-
-
-  // iOS 检测
-  const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
 
   // 检查是否是从主屏幕启动（standalone 模式）
   const checkStandaloneMode = () => {

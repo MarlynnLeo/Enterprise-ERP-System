@@ -85,7 +85,7 @@ class InventoryService {
       return quantity;
     } catch (error) {
       logger.error(`获取库存失败 [materialId=${materialId}, locationId=${locationId}]:`, error);
-      throw new Error(`获取库存失败: ${error.message}`);
+      throw new Error(`获取库存失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -137,7 +137,7 @@ class InventoryService {
         };
       });
     } catch (error) {
-      throw new Error(`批量获取库存失败: ${error.message}`);
+      throw new Error(`批量获取库存失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -210,13 +210,12 @@ class InventoryService {
       );
     }
 
-    // ✅ 入库时强制要求批次号：若调用方未传，则按业务规则自动生成，确保台账中永远没有空批次
+    // 入库批次必须来自上游业务单据或显式录入，禁止在库存服务层生成不可追溯的兜底批次。
     const isInboundOperation = parseFloat(quantity) > 0;
     if (isInboundOperation && !batchNumber) {
-      // 生成规则：{入库类型前缀}-{单据号}-{物料ID}
-      const typePrefix = (transactionType || 'in').toUpperCase().replace(/_/g, '-');
-      batchNumber = `${typePrefix}-${referenceNo}-${materialId}`;
-      logger.warn(`[批次号自动生成] 入库操作未提供批次号，已自动生成: ${batchNumber}，来源: transactionType=${transactionType}, referenceNo=${referenceNo}`);
+      throw new Error(
+        `入库必须提供可追溯批次号: materialId=${materialId}, referenceNo=${referenceNo}, transactionType=${transactionType}`
+      );
     }
 
     const startTime = Date.now();
@@ -258,7 +257,7 @@ class InventoryService {
       await this._validateMaterialAndLocation(materialId, locationId, connection);
 
       // 6.5 记录交易单价 (不再反写物料主数据的 cost_price，遵照标准成本法)
-      let actualUnitCost = unitCost !== null ? parseFloat(unitCost) : 0;
+      const actualUnitCost = unitCost !== null ? parseFloat(unitCost) : 0;
 
       // FIFO批次处理：如果是扣减库存且没有提供批次号，则自动按FIFO拆分批次
       let finalBatchNumbers = [];
@@ -281,13 +280,13 @@ class InventoryService {
         for (const batch of batchRecords) {
           if (remainingQuantity <= 0) break;
           const deductQty = Math.min(parseFloat(batch.batch_quantity), remainingQuantity);
-          
+
           if (tempBatchMap.has(batch.batch_number)) {
             tempBatchMap.set(batch.batch_number, tempBatchMap.get(batch.batch_number) + deductQty);
           } else {
             tempBatchMap.set(batch.batch_number, deductQty);
           }
-          
+
           remainingQuantity -= deductQty;
         }
 
@@ -299,38 +298,18 @@ class InventoryService {
           });
         }
 
-        // ✅ 根本修复：FIFO 批次库存不足时，不再写入 null 批次
-        // 而是将余量追加到最后一个有库存记录的批次（允许该批次透支）
-        // 这样台账中永远不会出现空批次记录，保证批次追溯的完整性
         if (remainingQuantity > 0) {
-          if (finalBatchNumbers.length > 0) {
-            // 将余量追加到 FIFO 中最后分配的批次
-            finalBatchNumbers[finalBatchNumbers.length - 1].quantity += remainingQuantity;
-            logger.warn(
-              `[FIFO警告] 物料${materialId}@仓库${locationId} 批次库存不足，` +
-              `余量${remainingQuantity}已追加至批次 ${finalBatchNumbers[finalBatchNumbers.length - 1].batchNumber}（允许透支）。` +
-              `请检查库存数据是否存在未登记的入库记录。`
-            );
-          } else {
-            // 连一个有效批次都没有（库存全部都是空批次历史遗留）
-            // 此时生成一个兜底批次号，避免写入空批次
-            const fallbackBatch = `FIFO-FALLBACK-${referenceNo}-${materialId}`;
-            finalBatchNumbers.push({ batchNumber: fallbackBatch, quantity: remainingQuantity });
-            logger.error(
-              `[FIFO严重警告] 物料${materialId}@仓库${locationId} 没有任何有效批次可供 FIFO 分配，` +
-              `已使用兜底批次号 ${fallbackBatch}。这通常意味着存在历史空批次库存，请检查数据。`
-            );
-          }
+          throw new Error(
+            `FIFO批次库存不足: materialId=${materialId}, locationId=${locationId}, referenceNo=${referenceNo}, missing=${remainingQuantity}`
+          );
         }
       } else {
         // 如果是入库，或者出库但明确指定了批次号
         // ✅ 根本修复：防止因上游遗漏或特殊情况传入 batchNumber = null 导致出现 [无批次] 负库存
-        let safeBatchNumber = batchNumber;
+        const safeBatchNumber = batchNumber;
         if (!safeBatchNumber && changeQuantity < 0) {
-          safeBatchNumber = `OUT-DEFAULT-${referenceNo}-${materialId}`;
-          logger.error(
-            `[批次遗漏警告] 物料${materialId}@仓库${locationId} 出库时未通过 FIFO 分配且未指定批次号，` +
-            `这会导致账本出现 [无批次] 的负库存！已强制分配兜底批次号 ${safeBatchNumber}。`
+          throw new Error(
+            `出库必须提供批次号或可通过FIFO分配批次: materialId=${materialId}, locationId=${locationId}, referenceNo=${referenceNo}`
           );
         }
         finalBatchNumbers = [{ batchNumber: safeBatchNumber, quantity: Math.abs(changeQuantity) }];
@@ -343,7 +322,7 @@ class InventoryService {
         // 还原当前批次的实际变动量（正负号）
         const batchChangeQty = changeQuantity < 0 ? -batchInfo.quantity : batchInfo.quantity;
         const currentAfter = currentBefore + batchChangeQty;
-        
+
         // 计算流水账总金额
         const currentTotalValue = (actualUnitCost || 0) * Math.abs(batchChangeQty);
 
@@ -400,7 +379,12 @@ class InventoryService {
           const InventoryAlertService = require('./business/InventoryAlertService');
           await InventoryAlertService.checkStockAfterChange(materialId, afterQuantity);
         } catch (alertError) {
-          logger.warn('库存预警检查失败（不影响主流程）:', alertError.message);
+          const DLQService = require('./business/DLQService');
+          await DLQService.recordSideEffectFailure(
+            'InventoryAlert:checkStockAfterChange',
+            { materialId, locationId, afterQuantity },
+            alertError
+          );
         }
 
         // ✅ 新增：如果是增加库存（入库/退库等），触发待发货销售订单的自动库存满足检查
@@ -410,7 +394,12 @@ class InventoryService {
             // 使用异步独立新连接验证
             await SalesOrderStatusService.checkAndReleasePendingOrders();
           } catch (salesOrderError) {
-            logger.warn('流转待发货销售订单状态检查失败（不影响主流程）:', salesOrderError.message);
+            const DLQService = require('./business/DLQService');
+            await DLQService.recordSideEffectFailure(
+              'SalesOrderStatus:checkAndReleasePendingOrders',
+              { materialId, locationId, afterQuantity },
+              salesOrderError
+            );
           }
         }
       });
@@ -483,82 +472,78 @@ class InventoryService {
       throw new Error('transferStock必须在数据库事务中调用');
     }
 
-    try {
-      // 1. 从源库位按 FIFO 扣减库存（未指定批次时由 updateStock 自动拆批）
-      const sourceResult = await this.updateStock(
-        {
-          materialId,
-          locationId: fromLocationId,
-          quantity: -Math.abs(quantity), // 确保是负数
-          transactionType: 'transfer_out',
-          referenceNo,
-          referenceType,
-          operator,
-          remark: `${remark} (转出)`,
-          unitId,
-          batchNumber, // 如果调用方指定了批次则直接使用
-        },
-        connection
-      );
+    // 1. 从源库位按 FIFO 扣减库存（未指定批次时由 updateStock 自动拆批）
+    const sourceResult = await this.updateStock(
+      {
+        materialId,
+        locationId: fromLocationId,
+        quantity: -Math.abs(quantity), // 确保是负数
+        transactionType: 'transfer_out',
+        referenceNo,
+        referenceType,
+        operator,
+        remark: `${remark} (转出)`,
+        unitId,
+        batchNumber, // 如果调用方指定了批次则直接使用
+      },
+      connection
+    );
 
-      // 2. 查询刚才 transfer_out 写入的台账，取回被 FIFO 拆分的各批次
-      //    用于向目标库位写入完全对应的批次，保证批次追溯双向一致
-      const [outLedger] = await connection.execute(
-        `SELECT batch_number, ABS(quantity) as qty
-         FROM inventory_ledger
-         WHERE material_id = ? AND location_id = ? 
-           AND reference_no = ? AND transaction_type = 'transfer_out'
-           AND batch_number IS NOT NULL AND batch_number != ''
-         ORDER BY id ASC`,
-        [materialId, fromLocationId, referenceNo]
-      );
+    // 2. 查询刚才 transfer_out 写入的台账，取回被 FIFO 拆分的各批次
+    //    用于向目标库位写入完全对应的批次，保证批次追溯双向一致
+    const [outLedger] = await connection.execute(
+      `SELECT batch_number, ABS(quantity) as qty
+       FROM inventory_ledger
+       WHERE material_id = ? AND location_id = ? 
+         AND reference_no = ? AND transaction_type = 'transfer_out'
+         AND batch_number IS NOT NULL AND batch_number != ''
+       ORDER BY id ASC`,
+      [materialId, fromLocationId, referenceNo]
+    );
 
-      if (outLedger.length > 0) {
-        // 按 FIFO 批次逐一写入目标库位，完整继承批次信息
-        for (const row of outLedger) {
-          await this.updateStock(
-            {
-              materialId,
-              locationId: toLocationId,
-              quantity: row.qty, // 正数
-              transactionType: 'transfer_in',
-              referenceNo,
-              referenceType,
-              operator,
-              remark: `${remark} (转入)`,
-              unitId,
-              batchNumber: row.batch_number, // ✅ 继承原批次
-            },
-            connection
-          );
-        }
-      } else {
-        // 兜底：批次信息查不到（如手动调整的旧数据），整体一笔写入
-        // updateStock 会自动生成批次号，不会产生空批次
+    if (outLedger.length > 0) {
+      // 按 FIFO 批次逐一写入目标库位，完整继承批次信息
+      for (const row of outLedger) {
         await this.updateStock(
           {
             materialId,
             locationId: toLocationId,
-            quantity: Math.abs(quantity),
+            quantity: row.qty, // 正数
             transactionType: 'transfer_in',
             referenceNo,
             referenceType,
             operator,
             remark: `${remark} (转入)`,
             unitId,
-            batchNumber,
+            batchNumber: row.batch_number, // ✅ 继承原批次
           },
           connection
         );
       }
-
-      return {
-        success: true,
-        sourceResult,
-      };
-    } catch (error) {
-      throw error;
+    } else {
+      // 兜底：批次信息查不到（如手动调整的旧数据），整体一笔写入
+      // updateStock 会自动生成批次号，不会产生空批次
+      await this.updateStock(
+        {
+          materialId,
+          locationId: toLocationId,
+          quantity: Math.abs(quantity),
+          transactionType: 'transfer_in',
+          referenceNo,
+          referenceType,
+          operator,
+          remark: `${remark} (转入)`,
+          unitId,
+          batchNumber,
+        },
+        connection
+      );
     }
+
+    return {
+      success: true,
+      sourceResult,
+    };
   }
 
 
@@ -695,7 +680,7 @@ class InventoryService {
       return insufficientItems;
     } catch (error) {
       logger.error('检查库存充足性失败:', error);
-      throw new Error(`检查库存充足性失败: ${error.message}`);
+      throw new Error(`检查库存充足性失败: ${error.message}`, { cause: error });
     }
   }
 
@@ -793,7 +778,7 @@ class InventoryService {
    *
    * 统一入口：在创建出入库单、批次操作等场景下，
    * 需要同时获取物料的默认单位和仓库时使用此方法。
-   * 避免各处重复写 SELECT + 校验 + throw 的补丁代码。
+   * 避免各处重复写 SELECT + 校验 + throw。
    *
    * @param {number} materialId - 物料ID
    * @param {Object} connection - 数据库连接（可选）

@@ -488,7 +488,7 @@ const loadCommunications = async () => {
     const responseData = parseResponseData(res)
     communicationList.value = responseData.list || []
     total.value = Number(responseData.total) || 0
-  } catch (error) {
+  } catch {
     ElMessage.error('加载失败')
   } finally {
     loading.value = false
@@ -576,7 +576,7 @@ const handleView = async (item) => {
     }
 
     dialogVisible.value = true
-  } catch (error) {
+  } catch {
     ElMessage.error('加载详情失败')
   }
 }
@@ -613,7 +613,7 @@ const handleToggleLike = async () => {
 
     // 刷新列表
     loadCommunications()
-  } catch (error) {
+  } catch {
     ElMessage.error('操作失败')
   } finally {
     interactionLoading.value = false
@@ -640,7 +640,7 @@ const handleToggleFavorite = async () => {
 
     // 刷新列表
     loadCommunications()
-  } catch (error) {
+  } catch {
     ElMessage.error('操作失败')
   } finally {
     interactionLoading.value = false
@@ -657,7 +657,7 @@ const handleDelete = (item) => {
       await technicalCommunicationApi.deleteCommunication(item.id)
       ElMessage.success('删除成功')
       loadCommunications()
-    } catch (error) {
+    } catch {
       ElMessage.error('删除失败')
     }
   }).catch(() => {})
@@ -704,7 +704,7 @@ const handleSubmit = async () => {
 
       dialogVisible.value = false
       loadCommunications()
-    } catch (error) {
+    } catch {
       ElMessage.error('操作失败')
     } finally {
       submitting.value = false
@@ -728,7 +728,7 @@ const handleAddComment = async () => {
     const res = await technicalCommunicationApi.getCommunicationDetail(viewData.value.id)
     const responseData = parseResponseData(res)
     comments.value = responseData.comments || []
-  } catch (error) {
+  } catch {
     ElMessage.error('评论失败')
   }
 }
@@ -825,7 +825,7 @@ onMounted(async () => {
           comments.value = responseData.comments || []
           dialogVisible.value = true
         }
-      } catch (error) {
+      } catch {
         ElMessage.error('加载通讯详情失败')
       }
     }

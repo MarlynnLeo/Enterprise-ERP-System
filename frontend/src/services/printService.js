@@ -5,9 +5,15 @@
  * @version 1.0.0
  */
 
-import axios from 'axios'
+import 'axios'
 import { api } from './api'
 import Handlebars from 'handlebars'
+import {
+  decodeHtmlEntities as decodeEntities,
+  escapeHtml,
+  sanitizePrintHtml,
+  writeSafeHtmlDocument,
+} from '@/utils/htmlSecurity'
 
 /**
  * 解码 HTML 实体（如果模板内容被转义了）
@@ -15,20 +21,7 @@ import Handlebars from 'handlebars'
  * @returns {string} - 解码后的文本
  */
 export function decodeHtmlEntities(text) {
-  if (!text) return text;
-  if (typeof document !== 'undefined') {
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = text;
-    return textarea.value;
-  }
-  // 降级处理
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, '/')
-    .replace(/&amp;/g, '&');
+  return decodeEntities(text);
 }
 
 /**
@@ -179,13 +172,11 @@ const printService = {
   generatePrintContent(template, data) {
     // 验证模板对象
     if (!template) {
-      console.error('打印模板为空');
       throw new Error('打印模板为空');
     }
 
     // 验证模板内容
     if (!template.content) {
-      console.error('打印模板内容为空，模板对象:', template);
       throw new Error('打印模板内容为空，请先配置打印模板');
     }
 
@@ -200,7 +191,7 @@ const printService = {
       const compiledTemplate = Handlebars.compile(templateContent);
 
       // 使用数据渲染模板
-      let content = compiledTemplate(data);
+      const content = compiledTemplate(data);
 
       // 构建打印样式
       const style = `
@@ -230,7 +221,7 @@ const printService = {
         </style>
       `;
 
-      return `<!DOCTYPE html>
+      return sanitizePrintHtml(`<!DOCTYPE html>
         <html>
           <head>
             <meta charset="utf-8">
@@ -241,16 +232,13 @@ const printService = {
             ${content}
           </body>
         </html>
-      `;
-    } catch (error) {
-      console.error('生成打印内容出错:', error);
-
+      `);
+    } catch {
       // 如果Handlebars不可用或出错，回退到简单的变量替换
       let content = template.content;
 
       // 验证内容是否存在
       if (!content) {
-        console.error('模板内容为空，无法生成打印内容');
         throw new Error('模板内容为空，无法生成打印内容');
       }
 
@@ -265,7 +253,7 @@ const printService = {
           // 只替换简单变量，不处理复杂的模板标签
           if (typeof data[key] !== 'object' && key !== 'items') {
             const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-            content = content.replace(regex, data[key] || '');
+            content = content.replace(regex, escapeHtml(data[key] || ''));
           }
         });
       }
@@ -298,7 +286,7 @@ const printService = {
         </style>
       `;
 
-      return `<!DOCTYPE html>
+      return sanitizePrintHtml(`<!DOCTYPE html>
         <html>
           <head>
             <meta charset="utf-8">
@@ -309,7 +297,7 @@ const printService = {
             ${content}
           </body>
         </html>
-      `;
+      `);
     }
   },
 
@@ -320,8 +308,7 @@ const printService = {
   printDocument(html) {
     // 创建打印窗口
     const printWindow = window.open('', '_blank')
-    printWindow.document.write(html)
-    printWindow.document.close()
+    writeSafeHtmlDocument(printWindow, html)
     
     // 等待资源加载完成后打印
     printWindow.onload = function() {
@@ -340,9 +327,7 @@ const printService = {
    */
   previewDocument(html) {
     const previewWindow = window.open('', '_blank')
-    previewWindow.document.write(html)
-    previewWindow.document.close()
-    return previewWindow
+    return writeSafeHtmlDocument(previewWindow, html)
   }
 }
 

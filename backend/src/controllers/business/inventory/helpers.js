@@ -22,10 +22,9 @@ const STATUS = {
  * @param {object} connection - 数据库连接
  * @param {number} materialId - 物料ID
  * @param {number} locationId - 库位ID（可选）
- * @param {string} defaultBatchNo - 默认批次号（如果查询失败）
  * @returns {Promise<string>} 批次号
  */
-const getMaterialBatchNumber = async (connection, materialId, locationId = null, defaultBatchNo = 'default') => {
+const getMaterialBatchNumber = async (connection, materialId, locationId = null) => {
   try {
     // ✅ 单表架构：从 v_batch_stock 视图查询
     let query = `
@@ -49,10 +48,10 @@ const getMaterialBatchNumber = async (connection, materialId, locationId = null,
       return stockBatchRecords[0].batch_number;
     }
 
-    return defaultBatchNo;
+    throw new Error(`物料 ${materialId} 在当前库位没有可用批次库存`);
   } catch (error) {
     logger.error('获取物料批次号失败:', error);
-    return defaultBatchNo;
+    throw error;
   }
 };
 

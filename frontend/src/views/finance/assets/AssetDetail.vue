@@ -263,7 +263,7 @@ const loadAssetData = async () => {
     const data = response.data;
     Object.assign(assetInfo, data);
     assetCode.value = data.assetCode;
-  } catch (error) {
+  } catch {
     ElMessage.error('获取资产详情失败');
   } finally {
     loading.value = false;

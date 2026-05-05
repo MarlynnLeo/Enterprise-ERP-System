@@ -308,7 +308,7 @@ const systemModel = {
               COUNT(DISTINCT eu.id) as user_count
        FROM departments d
        LEFT JOIN users u ON d.manager_id = u.id
-       LEFT JOIN users eu ON d.id = eu.department_id AND eu.employee_status = 'active'
+       LEFT JOIN users eu ON d.id = eu.department_id AND eu.status = 1
        WHERE ${whereClause}
        GROUP BY d.id
        ORDER BY d.id ASC`,
@@ -761,7 +761,7 @@ const systemModel = {
       // --- 防死锁/防环路核心检查 ---
       const parentId = menuData.parent_id ? parseInt(menuData.parent_id, 10) : null;
       const targetId = parseInt(id, 10);
-      
+
       if (parentId !== null) {
         // 1. 绝对不能将自己设为自己的父节点
         if (parentId === targetId) {
@@ -772,7 +772,7 @@ const systemModel = {
         let currentParent = parentId;
         const maxDepth = 20; // 设置最大遍历深度以防止意外的隐藏死循环击穿
         let depth = 0;
-        
+
         while (currentParent !== null && currentParent !== 0 && depth < maxDepth) {
           if (currentParent === targetId) {
              throw new Error('操作非法：不能将菜单挂载到它的子级菜单下，这会引发系统死循环');
@@ -818,7 +818,7 @@ const systemModel = {
           id,
         ]
       );
-      
+
       await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {

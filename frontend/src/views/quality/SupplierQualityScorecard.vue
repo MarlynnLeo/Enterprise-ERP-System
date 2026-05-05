@@ -188,7 +188,7 @@ const fetchScores = async () => {
     const d = res.data || res;
     tableData.value = d.list || [];
     total.value = d.total || 0;
-  } catch (e) { ElMessage.error('获取数据失败'); }
+  } catch { ElMessage.error('获取数据失败'); }
   finally { loading.value = false; }
 };
 
@@ -201,7 +201,7 @@ const handleCalculate = async () => {
     const d = res.data || res;
     ElMessage.success(d.message || `已计算 ${d.updated} 个供应商得分`);
     fetchScores();
-  } catch (e) { ElMessage.error('计算失败'); }
+  } catch { ElMessage.error('计算失败'); }
   finally { calculating.value = false; }
 };
 
@@ -211,7 +211,7 @@ const fetchRanking = async () => {
     const res = await qualityApi.getSupplierRanking({ period: selectedPeriod.value });
     rankingData.value = (res.data || res) || [];
     rankingVisible.value = true;
-  } catch (e) { ElMessage.error('获取排名失败'); }
+  } catch { ElMessage.error('获取排名失败'); }
 };
 
 const handleRowClick = async (row) => {
@@ -220,7 +220,7 @@ const handleRowClick = async (row) => {
     trendData.value = (res.data || res) || [];
     trendSupplierName.value = row.supplier_name;
     trendVisible.value = true;
-  } catch (e) { ElMessage.error('获取趋势失败'); }
+  } catch { ElMessage.error('获取趋势失败'); }
 };
 
 onMounted(fetchScores);

@@ -28,12 +28,10 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { computed } from 'vue'
 import { User } from '@element-plus/icons-vue'
-
-const props = defineProps({
+const _props = defineProps({
   userName: {
     type: String,
     default: ''
@@ -43,7 +41,6 @@ const props = defineProps({
     default: 1
   }
 })
-
 // 每日一句
 const motivations = [
   "每一天都是新的开始，保持热爱，奔赴山海。",
@@ -55,13 +52,11 @@ const motivations = [
   "保持专注，保持激情，创造无限可能。",
   "今天也要元气满满哦！"
 ]
-
 const motivation = computed(() => {
   const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24)
   return motivations[dayOfYear % motivations.length]
 })
 </script>
-
 <style scoped>
 .profile-header-card {
   position: relative;
@@ -76,14 +71,12 @@ const motivation = computed(() => {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   border: 1px solid var(--el-border-color-lighter);
 }
-
 .header-left {
   display: flex;
   align-items: center;
   gap: 16px;
   z-index: 2;
 }
-
 .header-icon {
   font-size: 32px;
   color: var(--el-color-primary);
@@ -92,12 +85,10 @@ const motivation = computed(() => {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
 }
-
 .header-text {
   display: flex;
   flex-direction: column;
 }
-
 .page-title {
   margin: 0;
   font-size: 24px;
@@ -105,17 +96,14 @@ const motivation = computed(() => {
   color: var(--el-text-color-primary);
   line-height: 1.2;
 }
-
 .page-subtitle {
   margin: 4px 0 0;
   font-size: 14px;
   color: var(--el-text-color-secondary);
 }
-
 .header-right {
   z-index: 2;
 }
-
 .motivation-section {
   display: flex;
   align-items: center;
@@ -127,18 +115,15 @@ const motivation = computed(() => {
   border: 1px solid rgba(255, 255, 255, 0.8);
   transition: all 0.3s ease;
 }
-
 /* 深色模式适配 */
 html.dark .motivation-section {
   background: rgba(0, 0, 0, 0.2);
   border-color: rgba(255, 255, 255, 0.1);
 }
-
 .motivation-section:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
-
 .motivation-icon-wrapper {
   position: relative;
   width: 40px;
@@ -147,12 +132,10 @@ html.dark .motivation-section {
   align-items: center;
   justify-content: center;
 }
-
 .motivation-icon {
   font-size: 24px;
   z-index: 2;
 }
-
 .icon-glow {
   position: absolute;
   width: 100%;
@@ -160,23 +143,19 @@ html.dark .motivation-section {
   background: radial-gradient(circle, rgba(255, 215, 0, 0.4) 0%, transparent 70%);
   animation: pulse 2s infinite;
 }
-
 .motivation-text {
   display: flex;
   flex-direction: column;
 }
-
 .motivation-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
-
 .highlight-name {
   color: var(--el-color-primary);
   font-size: 16px;
 }
-
 .highlight-days {
   color: var(--el-color-warning);
   font-size: 18px;
@@ -184,13 +163,11 @@ html.dark .motivation-section {
   margin: 0 4px;
   font-family: 'DIN Alternate', sans-serif;
 }
-
 .motivation-desc {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-top: 2px;
 }
-
 .header-decoration {
   position: absolute;
   top: 0;
@@ -201,13 +178,11 @@ html.dark .motivation-section {
   z-index: 1;
   pointer-events: none;
 }
-
 .decoration-circle {
   position: absolute;
   border-radius: 50%;
   opacity: 0.1;
 }
-
 .circle-1 {
   width: 200px;
   height: 200px;
@@ -215,7 +190,6 @@ html.dark .motivation-section {
   top: -50px;
   right: -50px;
 }
-
 .circle-2 {
   width: 100px;
   height: 100px;
@@ -223,7 +197,6 @@ html.dark .motivation-section {
   bottom: 20px;
   right: 200px;
 }
-
 .circle-3 {
   width: 50px;
   height: 50px;
@@ -231,13 +204,11 @@ html.dark .motivation-section {
   top: 40px;
   right: 300px;
 }
-
 @keyframes pulse {
   0% { transform: scale(1); opacity: 0.6; }
   50% { transform: scale(1.2); opacity: 0.3; }
   100% { transform: scale(1); opacity: 0.6; }
 }
-
 @media (max-width: 768px) {
   .profile-header-card {
     flex-direction: column;

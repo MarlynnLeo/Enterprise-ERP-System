@@ -14,6 +14,8 @@ const apModel = require('../../../models/ap');
 const { financeConfig } = require('../../../config/financeConfig');
 const db = require('../../../config/db');
 const BankAccountModel = require('../../../models/cash/Account');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 // responseFormatter已合并到ResponseHandler
 
 /**
@@ -500,7 +502,7 @@ const apController = {
 
       // 构建完整的付款数据结构
       const completePaymentData = {
-        payment_number: paymentData.paymentNumber || `PAY-${Date.now()}`,
+        payment_number: paymentData.paymentNumber || await CodeGeneratorService.nextCode('ap_payment'),
         supplier_id: invoice.supplierId,
         supplier_name: invoice.supplierName,
         payment_date: paymentData.paymentDate || new Date().toISOString().split('T')[0],
@@ -607,8 +609,7 @@ const apController = {
         return ResponseHandler.error(res, '请填写作废原因', 'VALIDATION_ERROR', 400);
       }
 
-      // 获取当前用户ID
-      const userId = req.user?.id || 1;
+      const userId = getAuthenticatedUserId(req);
 
       // 调用模型方法作废付款记录
       await apModel.voidPayment(paymentId, {

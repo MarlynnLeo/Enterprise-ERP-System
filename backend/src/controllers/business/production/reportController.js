@@ -640,7 +640,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
 
       let procProgress = procQuantity > 0 ? Math.round((totalProcReported / procQuantity) * 100) : (totalProcReported > 0 ? 100 : 0);
       if (procProgress > 100) procProgress = 100;
-      let procStatus = procProgress >= 100 ? PROC_STATUS.COMPLETED : (totalProcReported > 0 ? PROC_STATUS.IN_PROGRESS : PROC_STATUS.PENDING);
+      const procStatus = procProgress >= 100 ? PROC_STATUS.COMPLETED : (totalProcReported > 0 ? PROC_STATUS.IN_PROGRESS : PROC_STATUS.PENDING);
 
       await connection.query('UPDATE production_processes SET progress = ?, status = ? WHERE id = ?', [procProgress, procStatus, process_id]);
     }

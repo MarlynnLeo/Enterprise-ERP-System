@@ -13,11 +13,13 @@ class PrometheusService {
     this.register = new client.Registry();
 
     // 添加默认指标（CPU、内存等）
-    client.collectDefaultMetrics({
-      register: this.register,
-      prefix: 'erp_',
-      gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5],
-    });
+    if (process.env.NODE_ENV !== 'test') {
+      client.collectDefaultMetrics({
+        register: this.register,
+        prefix: 'erp_',
+        gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5],
+      });
+    }
 
     // 自定义指标
     this.initCustomMetrics();

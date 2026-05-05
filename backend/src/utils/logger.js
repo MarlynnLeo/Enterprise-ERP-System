@@ -91,8 +91,7 @@ const consoleOutput = (level, message) => {
   const reset = '\x1b[0m';
   const color = colors[level] || colors.INFO;
 
-  // 直接使用 console.log 避免递归调用
-  console.log(`${color}${message}${reset}`);
+  process.stdout.write(`${color}${message}${reset}\n`);
 };
 
 // 日志记录函数
@@ -171,7 +170,8 @@ const cleanupOldLogs = () => {
 };
 
 // 定期清理日志（每天执行一次）
-setInterval(cleanupOldLogs, 24 * 60 * 60 * 1000);
+const logCleanupTimer = setInterval(cleanupOldLogs, 24 * 60 * 60 * 1000);
+logCleanupTimer.unref?.();
 
 module.exports = logger;
 module.exports.logger = logger;

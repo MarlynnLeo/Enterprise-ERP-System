@@ -116,6 +116,12 @@ const summary = reactive({
   netValue: 0,
   inUseCount: 0
 })
+const reportSnapshot = reactive({
+  statusStats: [],
+  categoryStats: [],
+  trendStats: [],
+  forecast: []
+})
 
 const inUseRatio = computed(() => {
   if (!summary.totalAssets) return '0.00'
@@ -152,6 +158,9 @@ const loadData = async () => {
     // 2. 获取看板图表数据
     const dashRes = await api.get('/finance/assets/dashboard/stats')
     const dashData = parseDataObject(dashRes, { enableLog: false })
+    reportSnapshot.statusStats = dashData.statusStats || []
+    reportSnapshot.categoryStats = dashData.categoryStats || []
+    reportSnapshot.trendStats = dashData.trendStats || []
     
     renderStatusChart(dashData.statusStats)
     renderCategoryChart(dashData.categoryStats)
@@ -175,8 +184,9 @@ const loadForecast = async () => {
       params: { months: forecastMonths.value }
     })
     const forecastData = parseDataObject(res, { enableLog: false })
+    reportSnapshot.forecast = Array.isArray(forecastData) ? forecastData : []
     renderForecastChart(forecastData)
-  } catch (err) {
+  } catch {
     ElMessage.error('加载预测数据失败')
   } finally {
     forecastLoading.value = false
@@ -330,7 +340,41 @@ const renderForecastChart = (data = []) => {
 }
 
 const exportReports = () => {
-  ElMessage.info('导出报告功能开发中')
+  const rows = [
+    ['资产总数', summary.totalAssets],
+    ['资产原值', summary.totalValue],
+    ['资产净值', summary.netValue],
+    ['在用资产', summary.inUseCount],
+    [],
+    ['状态分布'],
+    ['状态', '数量'],
+    ...reportSnapshot.statusStats.map(item => [item.status, item.count]),
+    [],
+    ['类别分布'],
+    ['类别', '数量', '金额'],
+    ...reportSnapshot.categoryStats.map(item => [item.category, item.count, item.amount]),
+    [],
+    ['折旧趋势'],
+    ['期间', '折旧额'],
+    ...reportSnapshot.trendStats.map(item => [item.period || item.month, item.amount]),
+    [],
+    ['折旧预测'],
+    ['月份', '预计折旧额'],
+    ...reportSnapshot.forecast.map(item => [item.month, item.amount])
+  ]
+  const escapeCsvValue = (value) => {
+    const text = String(value ?? '')
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  }
+  const csv = rows.map(row => row.map(escapeCsvValue).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `固定资产报表-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('导出成功')
 }
 
 const handleResize = () => {

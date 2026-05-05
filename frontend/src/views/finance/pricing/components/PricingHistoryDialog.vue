@@ -44,7 +44,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import dayjs from 'dayjs';
+import 'dayjs';
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils';
 
 const props = defineProps({

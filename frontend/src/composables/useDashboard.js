@@ -2,7 +2,7 @@
  * 仪表盘通用组合式函数
  */
 
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { 
   handleDashboardError, 
@@ -74,7 +74,7 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
     try {
       await loadData(false);
       ElMessage.success('数据刷新成功');
-    } catch (err) {
+    } catch {
       // 错误已在loadData中处理
     } finally {
       isRefreshing.value = false;
@@ -134,7 +134,7 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
       
       // 监听页面可见性变化
       document.addEventListener('visibilitychange', handleVisibilityChange);
-    } catch (err) {
+    } catch {
       // 错误已在loadData中处理
     }
   });

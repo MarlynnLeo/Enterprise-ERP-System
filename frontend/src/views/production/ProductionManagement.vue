@@ -358,7 +358,7 @@
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Search, Download, Plus, List, Refresh, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
@@ -410,7 +410,6 @@ const currentPlan = ref(null)
 
 // 表单验证规则
 const rules = {
-  code: [{ required: true, message: '请输入计划编号', trigger: 'blur' }],
   name: [{ required: true, message: '请输入计划名称', trigger: 'blur' }],
   planDate: [{ required: true, message: '请选择计划日期', trigger: 'change' }],
   productId: [{ required: true, message: '请选择产品', trigger: 'change' }],
@@ -535,7 +534,7 @@ const fetchPlanList = async () => {
     
     // 计算统计数据
     calculateStats();
-  } catch (error) {
+  } catch {
     ElMessage.error('获取生产计划列表失败')
   }
   loading.value = false
@@ -698,20 +697,17 @@ const handleExport = async () => {
     link.click()
     document.body.removeChild(link)
     ElMessage.success('导出成功')
-  } catch (error) {
+  } catch {
     ElMessage.error('导出失败')
   }
 }
 
 const showCreateModal = async () => {
   modalTitle.value = '新建生产计划'
-  // 生成随机计划编号 (SC+日期+3位随机数)
   const now = dayjs()
-  const dateStr = now.format('YYMMDD')
-  const randomNum = Math.floor(Math.random() * 900) + 100
   
   formData.value = {
-    code: `SC${dateStr}${randomNum}`,
+    code: '',
     name: '',
     planDate: now.toDate(),
     productId: undefined,
@@ -760,7 +756,7 @@ const handleProductChange = async () => {
       formData.value.bomId = null
       materialList.value = []
     }
-  } catch (error) {
+  } catch {
     ElMessage.error('获取产品BOM失败')
     formData.value.bomId = null
     materialList.value = []

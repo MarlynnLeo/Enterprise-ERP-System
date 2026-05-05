@@ -183,16 +183,8 @@ const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
 const handleExecute = async () => {
     submitting.value = true
     try {
-        // 注意：这里使用 updateSalesOutbound 还是专门的状态更新API取决于后端接口
-        // 假设更新状态逻辑包含在 updateSalesOutbound 中，或者有一个专门的状态更新接口
-        // 根据 api.js，并没有专门的 updateSalesOutboundStatus，可能集成在 updateSalesOutbound 中
-        // 但为了保险起见，这里先尝试更新整个对象的状态，实际开发中需确认后端接口逻辑
-        // 暂且使用 updateSalesOutbound 更新状态为 completed
-
-        // 如果后端支持，最好是单独的状态更新接口
-        // 这里模拟更新状态
-        outboundOrder.value.status = 'completed';
-        await salesApi.updateSalesOutbound(id, outboundOrder.value)
+        const payload = { ...outboundOrder.value, status: 'completed' }
+        await salesApi.updateSalesOutbound(id, payload)
 
         showToast({ type: 'success', message: '出库成功' })
         fetchDetail() // 刷新详情

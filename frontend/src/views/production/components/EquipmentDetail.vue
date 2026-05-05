@@ -53,7 +53,6 @@
           </el-descriptions>
         </el-card>
       </el-col>
-
       <!-- 健康状态 -->
       <el-col :span="12">
         <el-card title="健康状态">
@@ -108,7 +107,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 当前参数数据 -->
     <el-card title="当前参数数据" style="margin-top: 20px;">
       <template #header>
@@ -146,7 +144,6 @@
         </el-table-column>
       </el-table>
     </el-card>
-
     <!-- 活跃报警 -->
     <el-card title="活跃报警" style="margin-top: 20px;" v-if="equipment.activeAlarms && equipment.activeAlarms.length > 0">
       <template #header>
@@ -183,15 +180,12 @@
     </el-card>
   </div>
 </template>
-
 <script setup>
-
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { equipmentMonitoringAPI } from '@/api/modules/business/equipmentMonitoring'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
-
 // Props
 const props = defineProps({
   equipmentId: {
@@ -199,16 +193,13 @@ const props = defineProps({
     required: true
   }
 })
-
 // Emits
-const emit = defineEmits(['close'])
-
+const _emit = defineEmits(['close'])
 // 响应式数据
 const loading = ref(false)
 const refreshing = ref(false)
 const equipment = ref({})
 const healthData = ref({})
-
 // 方法
 const fetchEquipmentDetail = async () => {
   try {
@@ -221,7 +212,6 @@ const fetchEquipmentDetail = async () => {
     loading.value = false
   }
 }
-
 const fetchHealthData = async () => {
   try {
     const response = await equipmentMonitoringAPI.getEquipmentHealth(props.equipmentId)
@@ -230,7 +220,6 @@ const fetchHealthData = async () => {
     console.error('获取健康数据失败:', error)
   }
 }
-
 const refreshCurrentData = async () => {
   try {
     refreshing.value = true
@@ -240,7 +229,6 @@ const refreshCurrentData = async () => {
     refreshing.value = false
   }
 }
-
 const acknowledgeAlarm = async (alarmId) => {
   try {
     const { value: note } = await ElMessageBox.prompt(
@@ -251,7 +239,6 @@ const acknowledgeAlarm = async (alarmId) => {
         inputType: 'textarea'
       }
     )
-
     await equipmentMonitoringAPI.acknowledgeAlarm(alarmId, note || '')
     ElMessage.success('报警确认成功')
     await refreshCurrentData()
@@ -261,7 +248,6 @@ const acknowledgeAlarm = async (alarmId) => {
     }
   }
 }
-
 const resolveAlarm = async (alarm) => {
   try {
     const { value: resolutionNote } = await ElMessageBox.prompt(
@@ -278,7 +264,6 @@ const resolveAlarm = async (alarm) => {
         }
       }
     )
-
     await equipmentMonitoringAPI.resolveAlarm(alarm.id, resolutionNote)
     ElMessage.success('报警解决成功')
     await refreshCurrentData()
@@ -288,7 +273,6 @@ const resolveAlarm = async (alarm) => {
     }
   }
 }
-
 // 工具方法
 const getStatusText = (status) => {
   const statusMap = {
@@ -300,7 +284,6 @@ const getStatusText = (status) => {
   }
   return statusMap[status] || status
 }
-
 const getStatusTagType = (status) => {
   const typeMap = {
     online: 'success',
@@ -311,7 +294,6 @@ const getStatusTagType = (status) => {
   }
   return typeMap[status] || ''
 }
-
 const getEquipmentTypeText = (type) => {
   const typeMap = {
     production: '生产设备',
@@ -322,7 +304,6 @@ const getEquipmentTypeText = (type) => {
   }
   return typeMap[type] || type
 }
-
 const getEquipmentTypeTagType = (type) => {
   const typeMap = {
     production: 'success',
@@ -333,13 +314,11 @@ const getEquipmentTypeTagType = (type) => {
   }
   return typeMap[type] || ''
 }
-
 const getHealthColor = (score) => {
   if (score >= 80) return '#67c23a'
   if (score >= 60) return '#e6a23c'
   return '#f56c6c'
 }
-
 const getHealthStatusText = (status) => {
   const statusMap = {
     healthy: '健康',
@@ -348,7 +327,6 @@ const getHealthStatusText = (status) => {
   }
   return statusMap[status] || status
 }
-
 const getHealthStatusTagType = (status) => {
   const typeMap = {
     healthy: 'success',
@@ -357,7 +335,6 @@ const getHealthStatusTagType = (status) => {
   }
   return typeMap[status] || ''
 }
-
 const getDataStatusText = (status) => {
   const statusMap = {
     normal: '正常',
@@ -367,7 +344,6 @@ const getDataStatusText = (status) => {
   }
   return statusMap[status] || status
 }
-
 const getDataStatusTagType = (status) => {
   const typeMap = {
     normal: 'success',
@@ -377,7 +353,6 @@ const getDataStatusTagType = (status) => {
   }
   return typeMap[status] || ''
 }
-
 const getAlarmLevelText = (level) => {
   const levelMap = {
     info: '信息',
@@ -387,7 +362,6 @@ const getAlarmLevelText = (level) => {
   }
   return levelMap[level] || level
 }
-
 const getAlarmLevelTagType = (level) => {
   const typeMap = {
     info: 'info',
@@ -397,7 +371,6 @@ const getAlarmLevelTagType = (level) => {
   }
   return typeMap[level] || ''
 }
-
 // 生命周期
 onMounted(async () => {
   await Promise.all([
@@ -406,83 +379,68 @@ onMounted(async () => {
   ])
 })
 </script>
-
 <style scoped>
 .equipment-detail {
   padding: 20px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .health-status {
   display: flex;
   align-items: center;
   gap: var(--spacing-lg);
 }
-
 .health-score {
   flex-shrink: 0;
 }
-
 .percentage-value {
   display: block;
   font-size: 16px;
   font-weight: bold;
 }
-
 .percentage-label {
   display: block;
   font-size: 12px;
   color: var(--color-text-secondary);
 }
-
 .health-info {
   flex: 1;
 }
-
 .health-status-item {
   margin-bottom: 8px;
   display: flex;
   align-items: center;
 }
-
 .health-status-item .label {
   width: 80px;
   color: var(--color-text-regular);
   font-size: 14px;
 }
-
 .health-status-item .value {
   color: var(--color-text-primary);
   font-size: 14px;
 }
-
 .health-issues {
   margin-top: 10px;
 }
-
 .health-issues .label {
   display: block;
   margin-bottom: 5px;
   color: var(--color-text-regular);
   font-size: 14px;
 }
-
 .issues-list {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
-
 .no-data {
   color: var(--color-text-placeholder);
   font-style: italic;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -490,7 +448,6 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

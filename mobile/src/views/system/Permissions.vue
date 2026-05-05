@@ -59,7 +59,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 权限详情
   }
 </script>

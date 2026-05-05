@@ -20,9 +20,7 @@ const commonController = {
       let data = [];
 
       switch (type) {
-        case 'production_group':
-          // 生产组实际上是部门表中的数据
-          // 以后可能会根据部门类型过滤，这里暂时返回所有部门或者特定类型的部门
+        case 'production_group': {
           const [groups] = await pool.query(
             'SELECT id, name, code FROM departments WHERE status = 1'
           );
@@ -34,12 +32,21 @@ const commonController = {
             label: g.name,
           }));
           break;
+        }
 
-        case 'material_category':
-          // 这是一个示例，如果有其他硬编码的字典，可以在这里添加
-          // 如果 material_category 有专门的表，应该去查表
-          // 目前 baseDataApi.getCategories() 已经在前端使用了专门的接口，这里仅作备用
+        case 'material_category': {
+          const [categories] = await pool.query(
+            'SELECT id, name, code FROM categories WHERE deleted_at IS NULL AND status = 1 ORDER BY sort ASC, id ASC'
+          );
+          data = categories.map((category) => ({
+            id: category.id,
+            name: category.name,
+            code: category.code,
+            value: category.id,
+            label: category.name,
+          }));
           break;
+        }
 
         default:
           return ResponseHandler.error(res, `未知的枚举类型: ${type}`, 'BAD_REQUEST', 400);

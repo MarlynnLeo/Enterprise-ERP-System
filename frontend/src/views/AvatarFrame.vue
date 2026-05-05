@@ -11,7 +11,6 @@
         <el-tag type="success" effect="dark">{{ getFrameName(currentFrame) }}</el-tag>
       </div>
     </div>
-
     <!-- 实时预览区 -->
     <div class="preview-section-main">
       <el-card class="preview-card-main" shadow="hover">
@@ -66,7 +65,6 @@
         </div>
       </el-card>
     </div>
-
     <!-- 特效画廊 -->
     <el-card class="frame-gallery" shadow="hover">
       <template #header>
@@ -77,7 +75,6 @@
           </div>
         </div>
       </template>
-
       <div class="frames-grid">
         <div
           v-for="frame in frames"
@@ -99,7 +96,6 @@
               </component>
             </div>
           </div>
-
           <div class="frame-info">
             <h3>{{ frame.name }}</h3>
             <p class="frame-desc">{{ frame.description }}</p>
@@ -109,7 +105,6 @@
               </el-tag>
             </div>
           </div>
-
           <div class="frame-actions">
             <el-button
               v-if="currentFrame === frame.id"
@@ -132,7 +127,6 @@
               选择
             </el-button>
           </div>
-
           <div v-if="currentFrame === frame.id" class="active-badge">
             <el-icon><StarFilled /></el-icon>
           </div>
@@ -141,25 +135,20 @@
     </el-card>
   </div>
 </template>
-
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, Select, StarFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
-
 const userStore = useAuthStore()
-
 // 当前选中的特效
 const currentFrame = ref('frame1')
 const selectedPreviewFrame = ref('frame1')
-
 // 用户头像
 const userAvatar = computed(() => {
   return userStore.user?.avatar || ''
 })
-
 // 10种不同的特效框架
 const frames = ref([
   {
@@ -223,25 +212,21 @@ const frames = ref([
     tags: ['简约', '清新', '自然']
   }
 ])
-
 // 获取特效名称
 const getFrameName = (frameId) => {
   const frame = frames.value.find(f => f.id === frameId)
   return frame ? frame.name : '未知特效'
 }
-
 // 获取特效描述
 const getFrameDescription = (frameId) => {
   const frame = frames.value.find(f => f.id === frameId)
   return frame ? frame.description : '暂无描述'
 }
-
 // 获取特效标签
 const getFrameTags = (frameId) => {
   const frame = frames.value.find(f => f.id === frameId)
   return frame ? frame.tags : []
 }
-
 // 获取标签类型
 const getTagType = (tag) => {
   const tagTypes = {
@@ -278,35 +263,28 @@ const getTagType = (tag) => {
   }
   return tagTypes[tag] || 'info'
 }
-
 // 选择特效（仅预览）
 const selectFrame = (frameId) => {
   selectedPreviewFrame.value = frameId
 }
-
 // 应用特效（保存）
 const applyFrame = async (frameId) => {
   try {
     // 调用API保存用户选择
-    const response = await api.post('/auth/profile/avatar-frame', {
+    const _response = await api.post('/auth/profile/avatar-frame', {
       frameId
     })
-
     currentFrame.value = frameId
     selectedPreviewFrame.value = frameId
-
     // 更新本地存储
     localStorage.setItem('userAvatarFrame', frameId)
-
     // 刷新用户数据以获取最新的avatar_frame
     await userStore.fetchUserProfile(false)
-
     ElMessage.success('头像特效已更新！')
-  } catch (error) {
+  } catch {
     ElMessage.error('保存失败，请重试')
   }
 }
-
 // 加载用户当前的特效
 onMounted(async () => {
   try {
@@ -334,7 +312,6 @@ onMounted(async () => {
   }
 })
 </script>
-
 <style scoped>
 .avatar-frame-page {
   padding: 20px;
@@ -344,7 +321,6 @@ onMounted(async () => {
   min-height: 100vh;
   border-radius: var(--radius-md);
 }
-
 /* 页面头部 */
 .page-header-section {
   display: flex;
@@ -357,25 +333,21 @@ onMounted(async () => {
   color: var(--color-on-primary, #fff);
   box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
 }
-
 .header-content {
   flex: 1;
 }
-
 .page-title {
   font-size: 36px;
   margin: 0 0 8px 0;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
-
 .page-subtitle {
   font-size: 16px;
   opacity: 0.9;
   margin: 0;
   font-weight: 300;
 }
-
 .current-frame-badge {
   display: flex;
   align-items: center;
@@ -385,24 +357,20 @@ onMounted(async () => {
   border-radius: var(--radius-md);
   backdrop-filter: blur(10px);
 }
-
 .badge-label {
   font-size: 14px;
   font-weight: 500;
 }
-
 /* 实时预览区 */
 .preview-section-main {
   margin-bottom: 30px;
 }
-
 .preview-card-main {
   background: white;
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
-
 .preview-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -410,18 +378,15 @@ onMounted(async () => {
   padding: 40px;
   align-items: center;
 }
-
 .preview-left {
   text-align: center;
 }
-
 .preview-left h3 {
   font-size: 20px;
   font-weight: 600;
   margin: 0 0 20px 0;
   color: var(--el-text-color-primary);
 }
-
 .large-preview {
   display: flex;
   justify-content: center;
@@ -431,7 +396,6 @@ onMounted(async () => {
   border-radius: var(--radius-lg);
   border: 2px dashed rgba(102, 126, 234, 0.2);
 }
-
 .preview-container {
   position: relative;
   width: 220px;
@@ -440,74 +404,63 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
 }
-
 .preview-right {
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
-
 .preview-info-box {
   padding: 20px;
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
   border-radius: var(--radius-lg);
   border-left: 4px solid #667eea;
 }
-
 .preview-info-box h4 {
   font-size: 22px;
   font-weight: 600;
   margin: 0 0 12px 0;
   color: var(--el-text-color-primary);
 }
-
 .preview-desc {
   font-size: 14px;
   color: var(--el-text-color-secondary);
   line-height: 1.6;
   margin: 0 0 16px 0;
 }
-
 .preview-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: var(--spacing-lg);
 }
-
 .apply-btn {
   width: 100%;
   height: 40px;
   font-size: 16px;
   font-weight: 500;
 }
-
 /* 特效画廊 */
 .frame-gallery {
   background: white;
   border-radius: var(--radius-lg);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
-
 .gallery-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--spacing-lg);
 }
-
 .gallery-header h2 {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
-
 .gallery-stats {
   display: flex;
   gap: var(--spacing-lg);
 }
-
 .stat-item {
   font-size: 14px;
   color: var(--el-text-color-secondary);
@@ -515,13 +468,11 @@ onMounted(async () => {
   background: var(--el-fill-color-light);
   border-radius: var(--radius-base);
 }
-
 .frames-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--spacing-lg);
 }
-
 .frame-item {
   position: relative;
   border: 2px solid var(--el-border-color);
@@ -532,7 +483,6 @@ onMounted(async () => {
   background: var(--el-bg-color);
   overflow: hidden;
 }
-
 .frame-item::before {
   content: '';
   position: absolute;
@@ -544,28 +494,23 @@ onMounted(async () => {
   transition: left 0.5s ease;
   z-index: 1;
 }
-
 .frame-item:hover::before {
   left: 100%;
 }
-
 .frame-item:hover {
   border-color: var(--el-color-primary);
   box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
   transform: translateY(-4px);
 }
-
 .frame-item.active {
   border-color: var(--el-color-success);
   background: linear-gradient(135deg, rgba(103, 194, 58, 0.08) 0%, rgba(103, 194, 58, 0.03) 100%);
   box-shadow: 0 4px 12px rgba(103, 194, 58, 0.15);
 }
-
 .frame-item.selected {
   border-color: var(--el-color-primary);
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(102, 126, 234, 0.03) 100%);
 }
-
 .frame-preview {
   display: flex;
   justify-content: center;
@@ -578,7 +523,6 @@ onMounted(async () => {
   position: relative;
   z-index: 2;
 }
-
 .avatar-container {
   position: relative;
   width: 120px;
@@ -587,7 +531,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
 }
-
 .effect-wrapper {
   position: relative;
   width: 100%;
@@ -596,50 +539,42 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
 }
-
 .preview-avatar {
   position: relative;
   z-index: 10;
 }
-
 .frame-info {
   margin-bottom: 15px;
   position: relative;
   z-index: 2;
 }
-
 .frame-info h3 {
   margin: 0 0 8px 0;
   font-size: 18px;
   font-weight: 600;
   color: var(--el-text-color-primary);
 }
-
 .frame-desc {
   margin: 0 0 12px 0;
   font-size: 13px;
   color: var(--el-text-color-secondary);
   line-height: 1.5;
 }
-
 .frame-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 15px;
 }
-
 .frame-actions {
   display: flex;
   justify-content: center;
   position: relative;
   z-index: 2;
 }
-
 .action-btn {
   width: 100%;
 }
-
 .active-badge {
   position: absolute;
   top: 10px;
@@ -657,7 +592,6 @@ onMounted(async () => {
   z-index: 3;
   animation: badgePulse 2s ease-in-out infinite;
 }
-
 @keyframes badgePulse {
   0%, 100% {
     transform: scale(1);
@@ -668,7 +602,6 @@ onMounted(async () => {
     box-shadow: 0 6px 16px rgba(103, 194, 58, 0.6);
   }
 }
-
 .effect-wrapper-large {
   position: relative;
   width: 100%;
@@ -677,58 +610,47 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
 }
-
 .large-preview-avatar {
   position: relative;
   z-index: 10;
 }
-
 /* 响应式设计 */
 @media (max-width: 1024px) {
   .preview-content {
     grid-template-columns: 1fr;
     gap: 30px;
   }
-
   .page-header-section {
     flex-direction: column;
     text-align: center;
     gap: var(--spacing-lg);
   }
-
   .current-frame-badge {
     justify-content: center;
   }
 }
-
 @media (max-width: 768px) {
   .avatar-frame-page {
     padding: 12px;
   }
-
   .page-header-section {
     padding: 20px;
   }
-
   .page-title {
     font-size: 28px;
   }
-
   .frames-grid {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: var(--spacing-base);
   }
-
   .preview-content {
     padding: 20px;
   }
 }
-
 /* ========== 特效1: 梦幻法术圈 (原始特效) ========== */
 .effect-frame1 {
   position: relative;
 }
-
 .effect-frame1::before {
   content: '';
   position: absolute;
@@ -745,7 +667,6 @@ onMounted(async () => {
   animation: rotate360 4s linear infinite;
   box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
 }
-
 .effect-frame1::after {
   content: '';
   position: absolute;
@@ -765,12 +686,10 @@ onMounted(async () => {
   animation: rotate360 3s linear infinite reverse;
   filter: blur(5px);
 }
-
 @keyframes rotate360 {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
-
 /* 大尺寸版本 */
 .effect-wrapper-large.effect-frame1::before {
   width: 180px;
@@ -778,12 +697,10 @@ onMounted(async () => {
   border-width: 4px;
   box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
 }
-
 .effect-wrapper-large.effect-frame1::after {
   width: 160px;
   height: 160px;
 }
-
 /* ========== 特效2: 霓虹脉冲 ========== */
 .effect-frame2::before {
   content: '';
@@ -801,7 +718,6 @@ onMounted(async () => {
     inset 0 0 15px rgba(0, 255, 255, 0.3);
   animation: neonPulse 2s ease-in-out infinite;
 }
-
 @keyframes neonPulse {
   0%, 100% {
     box-shadow:
@@ -818,18 +734,15 @@ onMounted(async () => {
     border-color: rgba(0, 255, 255, 0.8);
   }
 }
-
 .effect-wrapper-large.effect-frame2::before {
   width: 160px;
   height: 160px;
   border-width: 3px;
 }
-
 /* ========== 特效3: 星空粒子 ========== */
 .effect-frame3 {
   position: relative;
 }
-
 .effect-frame3::before,
 .effect-frame3::after {
   content: '✨';
@@ -837,19 +750,16 @@ onMounted(async () => {
   font-size: 16px;
   animation: starFloat 3s ease-in-out infinite;
 }
-
 .effect-frame3::before {
   top: 10%;
   left: 10%;
   animation-delay: 0s;
 }
-
 .effect-frame3::after {
   bottom: 10%;
   right: 10%;
   animation-delay: 1.5s;
 }
-
 @keyframes starFloat {
   0%, 100% {
     transform: translateY(0px) scale(1);
@@ -860,7 +770,6 @@ onMounted(async () => {
     opacity: 1;
   }
 }
-
 /* ========== 特效4: 火焰光环 ========== */
 .effect-frame4::before {
   content: '';
@@ -882,23 +791,19 @@ onMounted(async () => {
   filter: blur(8px);
   box-shadow: 0 0 25px rgba(255, 100, 0, 0.5);
 }
-
 @keyframes flameRotate {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
-
 .effect-wrapper-large.effect-frame4::before {
   width: 160px;
   height: 160px;
   box-shadow: 0 0 35px rgba(255, 100, 0, 0.6);
 }
-
 /* ========== 特效5: 冰霜水晶 ========== */
 .effect-frame5 {
   position: relative;
 }
-
 .effect-frame5::before {
   content: '';
   position: absolute;
@@ -915,7 +820,6 @@ onMounted(async () => {
   animation: crystalSpin 4s linear infinite;
   box-shadow: 0 0 20px rgba(100, 200, 255, 0.4);
 }
-
 .effect-frame5::after {
   content: '❄️';
   position: absolute;
@@ -925,24 +829,20 @@ onMounted(async () => {
   animation: snowFlake 3s ease-in-out infinite;
   filter: drop-shadow(0 0 4px rgba(100, 200, 255, 0.6));
 }
-
 @keyframes crystalSpin {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
-
 @keyframes snowFlake {
   0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.8; }
   50% { transform: rotate(180deg) scale(1.2); opacity: 1; }
 }
-
 .effect-wrapper-large.effect-frame5::before {
   width: 180px;
   height: 180px;
   border-width: 4px;
   box-shadow: 0 0 30px rgba(100, 200, 255, 0.5);
 }
-
 /* ========== 特效6: 黄金荣耀 ========== */
 .effect-frame6::before {
   content: '';
@@ -962,7 +862,6 @@ onMounted(async () => {
   border: 2px solid rgba(255, 215, 0, 0.3);
   animation: goldenGlow 2s ease-in-out infinite;
 }
-
 @keyframes goldenGlow {
   0%, 100% {
     box-shadow: 0 0 20px rgba(255, 215, 0, 0.6), inset 0 0 10px rgba(255, 215, 0, 0.2);
@@ -975,18 +874,15 @@ onMounted(async () => {
     border-color: rgba(255, 215, 0, 0.6);
   }
 }
-
 .effect-wrapper-large.effect-frame6::before {
   width: 160px;
   height: 160px;
   border-width: 3px;
 }
-
 /* ========== 特效7: 雷电风暴 ========== */
 .effect-frame7 {
   position: relative;
 }
-
 .effect-frame7::before {
   content: '⚡';
   position: absolute;
@@ -997,7 +893,6 @@ onMounted(async () => {
   animation: lightning 1.5s ease-in-out infinite;
   filter: drop-shadow(0 0 6px rgba(100, 150, 255, 0.8));
 }
-
 .effect-frame7::after {
   content: '';
   position: absolute;
@@ -1011,12 +906,10 @@ onMounted(async () => {
   box-shadow: 0 0 15px rgba(100, 150, 255, 0.5);
   animation: electricPulse 1.5s ease-in-out infinite;
 }
-
 @keyframes lightning {
   0%, 90%, 100% { opacity: 0; transform: translateX(-50%) scale(0.8); }
   95% { opacity: 1; transform: translateX(-50%) scale(1); }
 }
-
 @keyframes electricPulse {
   0%, 100% {
     transform: translate(-50%, -50%) scale(1);
@@ -1029,14 +922,12 @@ onMounted(async () => {
     box-shadow: 0 0 30px rgba(100, 150, 255, 0.8);
   }
 }
-
 .effect-wrapper-large.effect-frame7::after {
   width: 160px;
   height: 160px;
   border-width: 3px;
   box-shadow: 0 0 25px rgba(100, 150, 255, 0.6);
 }
-
 /* ========== 特效8: 彩虹光谱 ========== */
 .effect-frame8::before {
   content: '';
@@ -1056,19 +947,16 @@ onMounted(async () => {
   filter: blur(6px);
   box-shadow: 0 0 20px rgba(255, 100, 200, 0.3);
 }
-
 @keyframes rainbowSpin {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
-
 .effect-wrapper-large.effect-frame8::before {
   width: 160px;
   height: 160px;
   opacity: 0.5;
   box-shadow: 0 0 30px rgba(255, 100, 200, 0.4);
 }
-
 /* ========== 特效9: 暗影之力 ========== */
 .effect-frame9::before {
   content: '';
@@ -1088,7 +976,6 @@ onMounted(async () => {
   border: 2px solid rgba(138, 43, 226, 0.3);
   animation: shadowPulse 3s ease-in-out infinite;
 }
-
 @keyframes shadowPulse {
   0%, 100% {
     box-shadow: 0 0 20px rgba(75, 0, 130, 0.8), inset 0 0 10px rgba(138, 43, 226, 0.2);
@@ -1099,13 +986,11 @@ onMounted(async () => {
     border-color: rgba(138, 43, 226, 0.6);
   }
 }
-
 .effect-wrapper-large.effect-frame9::before {
   width: 160px;
   height: 160px;
   border-width: 3px;
 }
-
 /* ========== 特效10: 简约清新 ========== */
 .effect-frame10::before {
   content: '';
@@ -1120,7 +1005,6 @@ onMounted(async () => {
   box-shadow: 0 0 12px rgba(64, 158, 255, 0.2);
   animation: breathe 3s ease-in-out infinite;
 }
-
 @keyframes breathe {
   0%, 100% {
     transform: translate(-50%, -50%) scale(1);
@@ -1135,11 +1019,9 @@ onMounted(async () => {
     box-shadow: 0 0 20px rgba(64, 158, 255, 0.4);
   }
 }
-
 .effect-wrapper-large.effect-frame10::before {
   width: 160px;
   height: 160px;
   border-width: 3px;
 }
 </style>
-

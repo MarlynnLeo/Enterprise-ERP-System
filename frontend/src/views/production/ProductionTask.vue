@@ -678,14 +678,15 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from '@/services/api'
 import { productionApi } from '@/services/api'
 import dayjs from 'dayjs'
-import { Plus, Refresh, Search, Clock, SetUp, Top, Bottom, WarningFilled } from '@element-plus/icons-vue'
+import { Plus, Refresh, Search, Clock, SetUp, WarningFilled } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/utils/helpers/quantity'
 import { parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
+import { decodeHtmlEntities, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 // 获取当前登录用户
 // ✅ 键盘导航：Enter 跳转下一字段
@@ -1413,7 +1414,7 @@ const fetchProductProcessTemplates = async (productId) => {
 }
 
 // 处理工序模板选择变化
-const handleProcessTemplateChange = (templateId) => {
+const handleProcessTemplateChange = () => {
   // 工序模板选择变化时的处理逻辑
   // 当前仅用于记录选择，实际业务逻辑可在此扩展
 }
@@ -1624,9 +1625,7 @@ const printTaskDetail = async () => {
 
     // 解码 HTML 实体（如果模板内容被转义了）
     if (htmlContent.includes('&lt;') || htmlContent.includes('&gt;')) {
-      const textarea = document.createElement('textarea');
-      textarea.innerHTML = htmlContent;
-      htmlContent = textarea.value;
+      htmlContent = decodeHtmlEntities(htmlContent);
     }
 
     for (const [key, value] of Object.entries(printData)) {
@@ -1636,11 +1635,9 @@ const printTaskDetail = async () => {
     
     // 打开新窗口并打印
     const printWindow = window.open('', '_blank');
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    writeSafeHtmlDocument(printWindow, htmlContent);
     
   } catch (error) {
-    console.error('打印失败:', error);
     ElMessage.error('打印失败: ' + (error.response?.data?.message || error.message));
   }
 }
@@ -1688,7 +1685,7 @@ const fetchProductionGroupByProduct = async (productId) => {
       formData.value.manager = '';
       ElMessage.warning('该物料未设置生产组，请先在物料管理中设置');
     }
-  } catch (error) {
+  } catch {
     productionUsers.value = [];
     formData.value.manager = '';
   }
@@ -1741,7 +1738,7 @@ onMounted(async () => {
     await fetchPlanList();
     await fetchTaskList();
     await fetchProductionUsers(); // 添加获取生产部用户
-  } catch (error) {
+  } catch {
     ElMessage.error('加载数据失败，请刷新页面重试');
   } finally {
     loading.value = false;

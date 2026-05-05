@@ -20,16 +20,8 @@ const inventoryConsistencyController = require('../controllers/business/inventor
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
 const { getUserIdentifierFromRequest } = require('../utils/userUtils');
-const multer = require('multer');
+const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 const inventoryDashboardController = require('../controllers/business/inventory/inventoryDashboardController');
-
-// 配置multer用于文件上传
-const uploadToMemory = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-  },
-});
 
 // 库存列表
 router.get(
@@ -50,7 +42,7 @@ router.post(
   '/stock/import',
   authenticateToken,
   requirePermission('inventory:stock:adjust'),
-  uploadToMemory.single('file'),
+  FileUploadMiddlewares.excel,
   inventoryStockController.importStock
 );
 router.post(
@@ -268,12 +260,6 @@ router.post(
   requirePermission('inventory:stock:view'),
   inventoryStockController.checkStockSufficiency
 );
-
-// 注意: 以下测试端点仅供开发调试使用，生产环境应删除
-// 所有测试端点已加上认证和管理员权限保护
-router.get('/test-simple', authenticateToken, requirePermission('system:settings:update'), (req, res) => {
-  res.json({ message: '测试端点工作正常', timestamp: new Date().toISOString() });
-});
 
 // 库存流水
 router.get(

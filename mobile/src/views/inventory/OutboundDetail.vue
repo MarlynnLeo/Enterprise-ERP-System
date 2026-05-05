@@ -152,7 +152,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showToast, showConfirmDialog, showDialog } from 'vant'
+import { showToast, showConfirmDialog } from 'vant'
 import { inventoryApi } from '@/services/api'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
@@ -347,7 +347,7 @@ const handleRevoke = async () => {
                     await inventoryApi.cancelOutbound(id, true)
                     showToast({ type: 'success', message: '强制撤销成功' })
                     fetchDetail()
-                } catch (e) {
+                } catch {
                     // 用户取消
                 }
             } else {

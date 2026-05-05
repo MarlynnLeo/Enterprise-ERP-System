@@ -37,27 +37,27 @@ export function useWeather() {
           city: data.city || '乐清',
           temperature: data.temperature || '--',
           feelsLike: data.feelsLike || '--',
-          description: data.description || '多云',
+          description: data.description || '未知',
           weatherCode: data.weatherCode || 'cloudy',
           windSpeed: data.windSpeed || '--',
           humidity: data.humidity || '--',
-          updateTime: data.updateTime || new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+          updateTime: data.updateTime || ''
         }
 
       } else {
         throw new Error('天气数据格式错误')
       }
     } catch (error) {
-      // 使用默认数据，不显示错误提示（避免干扰用户）
+      console.warn('天气数据加载失败:', error)
       weather.value = {
         city: '乐清',
-        temperature: '18',
-        feelsLike: '17',
-        description: '多云',
+        temperature: '--',
+        feelsLike: '--',
+        description: '天气暂不可用',
         weatherCode: 'cloudy',
-        windSpeed: '12',
-        humidity: '68',
-        updateTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        windSpeed: '--',
+        humidity: '--',
+        updateTime: ''
       }
     } finally {
       weatherLoading.value = false

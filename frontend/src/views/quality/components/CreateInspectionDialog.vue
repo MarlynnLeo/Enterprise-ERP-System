@@ -150,7 +150,10 @@ const rules = {
 }
 
 // 批次号生成
-const generateBatchNumber = (supplierCode = '', supplierId = null) => {
+const generateBatchNumber = async (supplierCode = '', supplierId = null) => {
+  if (!supplierCode) {
+    throw new Error('供应商编码不能为空，请先维护供应商编码或手工录入批次号')
+  }
   return generateBatchNumberHelper(supplierCode, supplierId, qualityApi)
 }
 
@@ -199,12 +202,18 @@ const handlePurchaseOrderChange = async (value) => {
           const supplier = supplierResponse.data
           form.supplierCode = supplier.code || supplier.supplier_code || ''
         }
-      } catch (error) { /* 忽略 */ }
+      } catch { /* 忽略 */ }
     }
 
     // 生成批次号
-    if (form.supplierCode || form.supplierId) {
-      form.batchNo = await generateBatchNumber(form.supplierCode, form.supplierId)
+    if (form.supplierCode) {
+      try {
+        form.batchNo = await generateBatchNumber(form.supplierCode, form.supplierId)
+      } catch (error) {
+        ElMessage.error(error.message)
+      }
+    } else {
+      ElMessage.warning('供应商编码缺失，请维护供应商编码或手工录入批次号')
     }
 
     // 获取该采购单的物料列表
@@ -272,9 +281,13 @@ const handleMaterialChange = async (value) => {
       }
     }
 
-    // 如果还没有批次号，生成一个
-    if (!form.batchNo && (form.supplierCode || form.supplierId)) {
-      form.batchNo = await generateBatchNumber(form.supplierCode, form.supplierId)
+    // 如果还没有批次号，按供应商编码生成
+    if (!form.batchNo && form.supplierCode) {
+      try {
+        form.batchNo = await generateBatchNumber(form.supplierCode, form.supplierId)
+      } catch (error) {
+        ElMessage.error(error.message)
+      }
     }
   } else {
     form.materialName = ''

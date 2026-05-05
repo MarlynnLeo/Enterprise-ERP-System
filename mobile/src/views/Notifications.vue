@@ -173,11 +173,8 @@
           
           <div class="setting-section">
             <div class="section-title">免打扰设置</div>
-            <Cell title="免打扰时间" is-link @click="setQuietHours">
-              <template #value>
-                {{ settings.quietHours.start }} - {{ settings.quietHours.end }}
-              </template>
-            </Cell>
+            <Field v-model="settings.quietHours.start" label="开始时间" placeholder="HH:mm" />
+            <Field v-model="settings.quietHours.end" label="结束时间" placeholder="HH:mm" />
             <Cell title="周末免打扰" is-link>
               <template #right-icon>
                 <Switch v-model="settings.weekendQuiet" />
@@ -203,9 +200,9 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { 
   NavBar, Icon, Badge, Checkbox, Button, PullRefresh, List, Empty,
-  Popup, Cell, Switch, showToast, showConfirmDialog 
+  Popup, Cell, Field, Switch, showToast, showConfirmDialog 
 } from 'vant';
-import { systemApi } from '@/services/api';
+import { productionApi, systemApi } from '@/services/api';
 
 const router = useRouter();
 
@@ -417,7 +414,16 @@ const handleAction = async (message, action) => {
         router.push(`/production/tasks/${message.meta?.任务编号}`);
         break;
       case 'complete':
-        showToast('任务完成功能开发中');
+        {
+          const taskId = message.related_id || message.meta?.任务ID || message.meta?.taskId;
+          if (taskId) {
+            await productionApi.updateProductionTaskStatus(taskId, 'completed');
+            message.read = true;
+            showToast('任务已完成');
+          } else {
+            router.push('/production/tasks');
+          }
+        }
         break;
       case 'approve':
         const approveResult = await showConfirmDialog({
@@ -443,7 +449,7 @@ const handleAction = async (message, action) => {
         router.push('/purchase/orders/create');
         break;
     }
-  } catch (error) {
+  } catch {
     // 用户取消
   }
 };
@@ -462,7 +468,7 @@ const markAsRead = async () => {
     selectAll.value = false;
     updateFilterCounts();
     showToast('已标记为已读');
-  } catch (error) {
+  } catch {
     showToast('标记失败，请重试');
   }
 };
@@ -492,10 +498,6 @@ const deleteMessages = async () => {
 
 const showSettings = () => {
   showSettingsDialog.value = true;
-};
-
-const setQuietHours = () => {
-  showToast('免打扰时间设置功能开发中');
 };
 
 const saveSettings = () => {

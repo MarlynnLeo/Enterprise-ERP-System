@@ -25,7 +25,7 @@
   import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { baseDataApi } from '@/services/api'
-  import { showToast } from 'vant'
+  
 
   const router = useRouter()
 

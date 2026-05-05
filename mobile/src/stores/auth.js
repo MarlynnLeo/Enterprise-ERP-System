@@ -28,7 +28,7 @@ const safeGetJSON = (key, defaultValue = null, storage = sessionStorage) => {
       return defaultValue
     }
     return JSON.parse(value)
-  } catch (e) {
+  } catch {
     return defaultValue
   }
 }
@@ -190,7 +190,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       // 调用后端登出接口
       await api.post('/auth/logout')
-    } catch (error) {
+    } catch {
       // 即使后端登出失败，也要清除本地数据
     } finally {
       clearAuthData()
@@ -212,7 +212,7 @@ export const useAuthStore = defineStore('auth', () => {
         return true
       }
       return false
-    } catch (error) {
+    } catch {
       return false
     }
   }
@@ -359,7 +359,7 @@ export const useAuthStore = defineStore('auth', () => {
         return true
       }
       return false
-    } catch (error) {
+    } catch {
       // Token 刷新失败，清除认证信息
       clearAuthData()
       return false

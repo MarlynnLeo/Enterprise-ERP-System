@@ -93,7 +93,7 @@
 
         <el-table :data="formData.details" border>
           <el-table-column label="会计科目" width="200">
-            <template #default="{ row, $index }">
+            <template #default="{ row }">
               <el-select v-model="row.account_id" placeholder="请选择" filterable>
                 <el-option
                   v-for="account in accounts"

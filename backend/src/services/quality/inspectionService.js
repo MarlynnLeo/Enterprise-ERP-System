@@ -41,7 +41,7 @@ const updatePurchaseOrderAfterInspection = async (
                 ]
             );
 
-            // 更新采购订单状态 (如果有现成的 Service 更好，这里临时调用简化版)
+            // 在当前事务内同步采购订单明细的检验数量
             logger.info(`Updated purchase order items for order ${inspection.source_no} via transaction`);
         }
     } catch (error) {
@@ -56,7 +56,7 @@ class InspectionService {
      * 更新检验单状态，并在同一个事务中处理追溯链路与关联单据的更新
      */
     async updateInspectionStatusAndTrace(id, {
-        status, result, remarks, batch_number,
+        status, result, remarks,
         qualified_quantity, unqualified_quantity,
         is_aql, aql_standard_id, aql_level, accept_limit, reject_limit
     }) {
@@ -112,7 +112,7 @@ class InspectionService {
             updateValues.push(id);
             await connection.query(`UPDATE quality_inspections SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
 
-            let traceErrorMsg = null;
+            const traceErrorMsg = null;
 
             // 如果检验结束且有了结论 (AQL判定、手动判定通过或不通过)
             if (finalStatus === STATUS.QUALITY.PASSED || finalStatus === STATUS.QUALITY.COMPLETED || finalStatus === STATUS.QUALITY.FAILED) {
@@ -135,6 +135,7 @@ class InspectionService {
                         await NonconformingProductService.autoCreateFromInspection(ncpInspection);
                     } catch (ncpError) {
                         logger.error('Failed to auto-create NCP:', ncpError);
+                        throw ncpError;
                     }
                 }
             }

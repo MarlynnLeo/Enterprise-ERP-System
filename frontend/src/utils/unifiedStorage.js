@@ -35,7 +35,7 @@ class UnifiedStorage {
   checkSupport() {
     try {
       return 'localStorage' in window && 'sessionStorage' in window;
-    } catch (e) {
+    } catch {
       return false;
     }
   }

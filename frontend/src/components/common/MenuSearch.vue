@@ -90,12 +90,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { 
-  Search, Menu, ArrowRight, Right,
-  Odometer, DataAnalysis, DataLine, Tickets, Warning,
-  Collection, Goods, List, Avatar, ShoppingBag, Files, Coin, Location, SetUp,
-  Box, Plus, Minus, Edit, CircleCheck, Connection,
-  Document, Wallet, RefreshLeft, DocumentCopy, Briefcase, Sort,
-  CreditCard, Printer, User, OfficeBuilding, Lock, Tools
+  Search, Menu, ArrowRight, Right
 } from '@element-plus/icons-vue'
 
 const router = useRouter()

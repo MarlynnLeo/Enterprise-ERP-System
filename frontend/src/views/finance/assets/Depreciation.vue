@@ -220,22 +220,17 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 import { formatCurrency } from '@/utils/format'
-
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '../../../services/api';
-
 // 数据加载状态
 const loading = ref(false);
 const savingDepreciation = ref(false);
-
 // 对话框状态
 const confirmDialogVisible = ref(false);
-
 // 数据列表
 const assetsList = ref([]);
 const filteredAssetsList = ref([]);
@@ -246,7 +241,6 @@ const depreciationSubmitted = ref(false);
 const selectedAssets = ref([]);
 const depTableRef = ref(null);
 const pendingSubmitAssets = ref([]);
-
 // 搜索表单
 const searchForm = reactive({
   // 默认设置为上个月而不是当前月，避免使用未来日期
@@ -258,7 +252,6 @@ const searchForm = reactive({
   categoryId: '',
   department: ''
 });
-
 // 折旧汇总数据
 const depreciationSummary = reactive({
   assetsCount: 0,
@@ -267,28 +260,20 @@ const depreciationSummary = reactive({
   totalDepreciationAmount: 0,
   totalNetValueAfter: 0
 });
-
 // 计算属性
-const hasDepreciation = computed(() => assetsList.value.length > 0);
-const depreciatingAssetsCount = computed(() => 
-  assetsList.value.filter(asset => asset.depreciationAmount > 0).length
-);
+const hasDepreciation = computed(() => assetsList.value.length > 0);;
 const pendingSubmitTotal = computed(() => 
   pendingSubmitAssets.value.reduce((sum, a) => sum + a.depreciationAmount, 0)
 );
-
 import { getAssetStatusText, getAssetStatusColor } from '@/constants/systemConstants'
-
 // 获取状态类型
 const getStatusType = (status) => {
   return getAssetStatusColor(status);
 };
-
 // 获取状态文本
 const getStatusText = (status) => {
   return getAssetStatusText(status);
 };
-
 // 获取折旧方法文本
 const getDepreciationMethodText = (method) => {
   const methodMap = {
@@ -299,8 +284,6 @@ const getDepreciationMethodText = (method) => {
   };
   return methodMap[method] || method;
 };
-
-
 // 计算折旧
 const calculateDepreciation = async () => {
   // 验证表单
@@ -317,7 +300,7 @@ const calculateDepreciation = async () => {
   }
   
   // 验证计提年月是否在合理范围内
-  const [year, month] = searchForm.depreciationDate.split('-').map(Number);
+  const [year, _month] = searchForm.depreciationDate.split('-').map(Number);
   const currentYear = new Date().getFullYear();
   if (year < 2000 || year > currentYear + 10) {
     ElMessage.warning(`计提年月超出合理范围，年份应在2000至${currentYear + 10}之间`);
@@ -331,7 +314,6 @@ const calculateDepreciation = async () => {
   
   try {
     ElMessage.info('正在获取资产数据并计算折旧...');
-
     // 获取在用资产列表
     const response = await api.get('/finance/assets', {
       params: {
@@ -341,10 +323,8 @@ const calculateDepreciation = async () => {
         pageSize: 1000 // 获取足够多的资产
       }
     });
-
     // 使用统一响应解析器
     const assets = parseListData(response, { enableLog: false });
-
     if (assets.length === 0) {
       ElMessage.warning('没有找到符合条件的资产');
       loading.value = false;
@@ -612,7 +592,6 @@ const calculateDepreciation = async () => {
     loading.value = false;
   }
 };
-
 // 过滤资产列表
 const filterAssets = () => {
   if (onlyShowDepreciatingAssets.value) {
@@ -621,7 +600,6 @@ const filterAssets = () => {
     filteredAssetsList.value = assetsList.value;
   }
 };
-
 // 计算汇总数据
 const calculateSummary = () => {
   depreciationSummary.assetsCount = assetsList.value.length;
@@ -630,12 +608,10 @@ const calculateSummary = () => {
   depreciationSummary.totalDepreciationAmount = assetsList.value.reduce((sum, asset) => sum + asset.depreciationAmount, 0);
   depreciationSummary.totalNetValueAfter = assetsList.value.reduce((sum, asset) => sum + asset.netValueAfter, 0);
 };
-
 // 处理表格选择变化
 const handleSelectionChange = (selection) => {
   selectedAssets.value = selection.filter(a => a.depreciationAmount > 0 && !a.submitted);
 };
-
 // 批量确认折旧计提
 const confirmBatchDepreciation = () => {
   if (selectedAssets.value.length === 0) {
@@ -645,7 +621,6 @@ const confirmBatchDepreciation = () => {
   pendingSubmitAssets.value = [...selectedAssets.value];
   confirmDialogVisible.value = true;
 };
-
 // 单个资产计提
 const submitSingleDepreciation = async (row) => {
   try {
@@ -680,7 +655,6 @@ const submitSingleDepreciation = async (row) => {
     row.submitting = false;
   }
 };
-
 // 提交折旧计提（批量）
 const submitDepreciation = async () => {
   savingDepreciation.value = true;
@@ -722,7 +696,6 @@ const submitDepreciation = async () => {
     savingDepreciation.value = false;
   }
 };
-
 // 导出数据
 const exportData = () => {
   if (!hasDepreciation.value) {
@@ -734,7 +707,6 @@ const exportData = () => {
   const baseURL = import.meta.env.VITE_API_URL || '';
   window.open(`${baseURL}/api/finance/assets/depreciation/export?depreciationDate=${searchForm.depreciationDate}&categoryId=${searchForm.categoryId || ''}&department=${searchForm.department || ''}`);
 };
-
 // 表格合计行
 const getSummaries = (param) => {
   const { columns } = param;
@@ -763,7 +735,6 @@ const getSummaries = (param) => {
   
   return sums;
 };
-
 // 加载资产类别选项
 const loadCategoryOptions = async () => {
   try {
@@ -775,7 +746,6 @@ const loadCategoryOptions = async () => {
     categoryOptions.value = [];
   }
 };
-
 // 加载部门选项
 const loadDepartmentOptions = async () => {
   try {
@@ -787,7 +757,6 @@ const loadDepartmentOptions = async () => {
     departmentOptions.value = [];
   }
 };
-
 // 页面加载时执行
 onMounted(() => {
   loadCategoryOptions();
@@ -795,66 +764,54 @@ onMounted(() => {
   // 不自动计算折旧，等用户主动点击按钮
 });
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .action-buttons {
   display: flex;
   gap: 10px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .empty-container {
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 40px 0;
 }
-
 .zero-value {
   color: var(--color-text-secondary);
 }
-
 .text-muted {
   color: var(--color-text-secondary);
   font-style: italic;
 }
-
 .asset-details {
   padding: 5px 20px;
   background-color: var(--color-bg-section);
 }
-
 .confirm-content {
   padding: 10px 0;
 }
-
 .warning-message {
   margin-top: 15px;
   padding: 10px;
@@ -863,10 +820,6 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   font-weight: bold;
 }
-
-
-
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -874,7 +827,6 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

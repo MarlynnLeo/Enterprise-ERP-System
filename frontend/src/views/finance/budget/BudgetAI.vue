@@ -5,7 +5,7 @@
       <div class="header-content">
         <div class="header-left">
           <h2 class="page-title">AI 预算智能分析</h2>
-          <span class="header-desc">基于本地 Ollama 大模型 (gemma4:26b) · 智能预算编制 · 异常检测 · 优化建议</span>
+          <span class="header-desc">基于已配置的本地 Ollama 大模型 · 智能预算编制 · 异常检测 · 优化建议</span>
         </div>
         <div class="header-right">
           <div class="token-stats" v-if="usageStats.call_count > 0">
@@ -524,7 +524,7 @@ const AiThinking = (props) => {
     // 文字区域
     h('div', { class: 'ai-thinking-info' }, [
       h('div', { class: 'ai-thinking-title' }, props.text || 'AI 正在分析中...'),
-      h('div', { class: 'ai-thinking-sub' }, '正在调用本地 Ollama gemma4:26b 大模型，请稍候...'),
+      h('div', { class: 'ai-thinking-sub' }, '正在调用已配置的本地 Ollama 大模型，请稍候...'),
       // 进度条
       h('div', { class: 'ai-progress-bar' }, [
         h('div', { class: 'ai-progress-fill' }),
@@ -581,7 +581,7 @@ const fetchUsageStats = async () => {
   try {
     const res = await api.get('/finance/budgets/ai/usage-stats')
     usageStats.value = res.data || { call_count: 0, total_tokens: 0 }
-  } catch (e) { /* 静默 */ }
+  } catch { /* 静默 */ }
 }
 
 // ==================== 图表渲染 ====================

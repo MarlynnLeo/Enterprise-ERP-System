@@ -616,7 +616,11 @@ const exportToExcel = () => {
 
 // 打印报表
 const printReport = () => {
-  ElMessage.info('打印功能待实现');
+  if (!tableData.value.length) {
+    ElMessage.warning('没有可打印的数据');
+    return;
+  }
+  window.print();
 };
 
 // 初始化

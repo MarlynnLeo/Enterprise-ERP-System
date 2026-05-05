@@ -63,7 +63,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { qualityApi } from '@/api/quality'
-import dayjs from 'dayjs'
+import 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 const props = defineProps({ visible: Boolean, inspection: Object })

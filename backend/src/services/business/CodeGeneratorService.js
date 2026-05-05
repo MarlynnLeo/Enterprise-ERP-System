@@ -5,7 +5,7 @@
  */
 
 const { pool } = require('../../config/db');
-const { logger } = require('../../utils/logger');
+
 const dayjs = require('dayjs');
 
 class CodeGeneratorService {
@@ -175,7 +175,7 @@ class CodeGeneratorService {
 
   // ==================== 内部方法 ====================
 
-  _getPeriodKey(resetCycle, dateFormat) {
+  _getPeriodKey(resetCycle) {
     const now = dayjs();
     switch (resetCycle) {
       case 'daily':   return now.format('YYYYMMDD');

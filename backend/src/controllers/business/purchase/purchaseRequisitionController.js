@@ -143,7 +143,7 @@ const getRequisitions = async (req, res) => {
         row.real_name = row.user_real_name;
       }
 
-      // 移除临时字段
+      // 移除查询辅助字段
       delete row.user_real_name;
 
       // 计算物料数量和总金额
@@ -722,7 +722,8 @@ const updateRequisitionStatus = async (req, res) => {
       SET status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
-    const [result] = await connection.execute(updateQuery, [finalStatus, id]);
+    await connection.execute(updateQuery, [finalStatus, id]);
+
 
     // 如果状态变更为已批准，自动生成采购订单
     let generatedOrders = [];
@@ -731,8 +732,8 @@ const updateRequisitionStatus = async (req, res) => {
         const { generateOrdersFromRequisition } = require('../../../services/business/RequisitionAutoOrderService');
         generatedOrders = await generateOrdersFromRequisition(id, connection);
       } catch (autoGenerateError) {
-        // 自动生成采购订单失败不应该阻止状态更新
         logger.error('自动生成采购订单失败:', autoGenerateError);
+        throw autoGenerateError;
       }
     }
 
@@ -807,82 +808,10 @@ const getRequisitionById = async (id) => {
 };
 
 // 自动生成采购订单的函数
-const autoGeneratePurchaseOrder = async (connection, requisitionId) => {
-  try {
-    // 1. 获取采购申请的基本信息
-    const [requisitionRows] = await connection.execute(
-      `
-      SELECT * FROM purchase_requisitions WHERE id = ?
-    `,
-      [requisitionId]
-    );
 
-    if (requisitionRows.length === 0) {
-      throw new Error('采购申请不存在');
-    }
-
-    const requisition = requisitionRows[0];
-
-    // 2. 获取采购申请的物料项目
-    const [itemRows] = await connection.execute(
-      `
-      SELECT
-        ri.*,
-        m.code as material_code,
-        m.name as material_name,
-        m.specs as specification,
-        u.name as unit_name
-      FROM purchase_requisition_items ri
-      LEFT JOIN materials m ON ri.material_id = m.id
-      LEFT JOIN units u ON ri.unit_id = u.id
-      WHERE ri.requisition_id = ?
-    `,
-      [requisitionId]
-    );
-
-    if (itemRows.length === 0) {
-      throw new Error('采购申请没有物料项目');
-    }
-
-    // 3. 按供应商分组物料（获取每个物料的最近采购信息）
-    const supplierGroups = {};
-
-    for (const item of itemRows) {
-      // 获取物料的最近采购信息
-      const recentPurchase = await getRecentPurchaseInfo(connection, item.material_id);
-
-      if (!recentPurchase) {
-        continue;
-      }
-
-      const supplierId = recentPurchase.supplier_id;
-
-      if (!supplierGroups[supplierId]) {
-        supplierGroups[supplierId] = {
-          supplier: recentPurchase.supplier,
-          items: [],
-        };
-      }
-
-      supplierGroups[supplierId].items.push({
-        ...item,
-        price: recentPurchase.unit_price,
-        total: item.quantity * recentPurchase.unit_price,
-      });
-    }
-
-    // 4. 为每个供应商生成采购订单
-    for (const [supplierId, group] of Object.entries(supplierGroups)) {
-      await createPurchaseOrderForSupplier(connection, requisition, group, supplierId);
-    }
-  } catch (error) {
-    logger.error('自动生成采购订单失败:', error);
-    throw error;
-  }
-};
 
 // 获取物料的最近采购信息
-const getRecentPurchaseInfo = async (connection, materialId) => {
+const _getRecentPurchaseInfo = async (connection, materialId) => {
   try {
     // 首先尝试获取有价格的最近采购记录
     const [rows] = await connection.execute(
@@ -920,29 +849,6 @@ const getRecentPurchaseInfo = async (connection, materialId) => {
       };
     }
 
-    // 如果没有有价格的采购记录，使用默认供应商
-    const [defaultSupplier] = await connection.execute(`
-      SELECT id, name, contact_person, contact_phone
-      FROM suppliers
-      WHERE status = 1 AND deleted_at IS NULL
-      ORDER BY id
-      LIMIT 1
-    `);
-
-    if (defaultSupplier.length > 0) {
-      return {
-        supplier_id: defaultSupplier[0].id,
-        supplier: {
-          id: defaultSupplier[0].id,
-          name: defaultSupplier[0].name,
-          contact_person: defaultSupplier[0].contact_person,
-          contact_phone: defaultSupplier[0].contact_phone,
-        },
-        unit_price: 0, // 默认价格为0，需要后续手动填写
-        order_date: new Date(),
-      };
-    }
-
     return null;
   } catch (error) {
     logger.error('获取最近采购信息失败:', error);
@@ -951,7 +857,7 @@ const getRecentPurchaseInfo = async (connection, materialId) => {
 };
 
 // 为特定供应商创建采购订单
-const createPurchaseOrderForSupplier = async (connection, requisition, group, supplierId) => {
+const _createPurchaseOrderForSupplier = async (connection, requisition, group, supplierId) => {
   try {
     // 生成订单号（传入连接确保事务一致性）
     const orderNo = await purchaseModel.generateOrderNo(connection);

@@ -17,7 +17,6 @@
         <el-button v-if="canCreate" type="primary" :icon="Plus" @click="showCreateDialog">新增工序模板</el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -29,7 +28,6 @@
             filterable
             remote
             :remote-method="remoteSearchProduct"
-
             @change="handleSearch"
           >
             <el-option
@@ -56,7 +54,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -183,7 +180,6 @@
         />
       </div>
     </el-card>
-
     <!-- 创建/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -201,7 +197,6 @@
           <el-descriptions-item label="描述" :span="2">{{ form.description || '-' }}</el-descriptions-item>
         </el-descriptions>
       </template>
-
       <el-form
         v-else
         ref="formRef"
@@ -327,7 +322,6 @@
                       上传指导书
                     </el-button>
                   </el-upload>
-
                   <!-- 已上传文件列表 -->
                   <div v-if="row.instructionDocs && row.instructionDocs.length > 0" style="display: flex; gap: 4px; flex-wrap: wrap;">
                     <el-tag
@@ -346,16 +340,12 @@
                 </div>
               </template>
             </el-table-column>
-
             <el-table-column label="备注" min-width="150">
               <template #default="{ row }">
                 <span v-if="dialogType === 'view'">{{ row.remark || '-' }}</span>
                 <el-input v-else v-model="row.remark" placeholder="请输入备注" />
               </template>
             </el-table-column>
-
-
-
             <el-table-column label="操作" width="80" v-if="dialogType !== 'view'">
               <template #default="{ $index }">
                 <el-button type="danger" size="small" @click="removeProcess($index)">
@@ -372,25 +362,21 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 物料选择对话框 -->
     <ProcessTemplateMaterialDialog
       v-model="materialDialogVisible"
       @confirm="handleMaterialConfirm"
     />
-
     <!-- 文件预览对话框 -->
     <ProcessTemplatePreviewDialog
+      v-if="previewDialogVisible"
       v-model="previewDialogVisible"
       :doc="currentPreviewDoc"
     />
   </div>
 </template>
-
 <script setup>
-
-
-import { ref, reactive, onMounted, computed } from 'vue'
+import { defineAsyncComponent, ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, Search, Refresh, Delete, Upload, View, Edit, Switch
@@ -399,62 +385,46 @@ import { api } from '@/services/axiosInstance'
 import { baseDataApi } from '@/api/baseData'
 import { loadMaterials, mapMaterialData, searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
-import dayjs from 'dayjs'
+import 'dayjs'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useAuthStore } from '@/stores/auth'
-
 // 权限store
 const authStore = useAuthStore()
-
 // 权限计算属性
 const canCreate = computed(() => authStore.hasPermission('basedata:process-templates:create'));
 const canUpdate = computed(() => authStore.hasPermission('basedata:process-templates:update'));
 const canDelete = computed(() => authStore.hasPermission('basedata:process-templates:delete'));
-
-// 导入Office文件预览组件
-import VueOfficeDocx from '@vue-office/docx'
-import VueOfficeExcel from '@vue-office/excel'
-import VueOfficePdf from '@vue-office/pdf'
-import '@vue-office/docx/lib/index.css'
-import '@vue-office/excel/lib/index.css'
-
 // 子组件
-import ProcessTemplatePreviewDialog from './components/ProcessTemplatePreviewDialog.vue'
 import ProcessTemplateMaterialDialog from './components/ProcessTemplateMaterialDialog.vue'
 
+const ProcessTemplatePreviewDialog = defineAsyncComponent(() => import('./components/ProcessTemplatePreviewDialog.vue'))
 // 数据加载状态
 const loading = ref(false)
-
 // 分页相关
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
-
 // 搜索表单
 const searchForm = reactive({
   productId: '',
   name: ''
 })
-
 // 产品列表
 const productList = ref([])
 const productOptions = ref([])
-
 // 工序模板列表
 const templateList = ref([])
-
 // 物料相关
 const materialDialogVisible = ref(false)
 const currentProcessRow = ref(null)
-
+const materialList = ref([])
+const filteredMaterials = ref([])
 // 部门相关
 const departmentList = ref([])
-
 // 对话框控制
 const dialogVisible = ref(false)
 const dialogType = ref('create') // create 或 edit
 const formRef = ref(null)
-
 // 表单数据
 const form = reactive({
   id: null,
@@ -465,13 +435,11 @@ const form = reactive({
   status: 1,
   processes: []
 })
-
 // 表单验证规则
 const formRules = {
   name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
   product_id: [{ required: true, message: '请选择关联产品', trigger: 'change' }]
 }
-
 // 获取部门列表
 const fetchDepartmentList = async () => {
   try {
@@ -485,14 +453,12 @@ const fetchDepartmentList = async () => {
     departmentList.value = []
   }
 }
-
 // 初始化
 onMounted(async () => {
   await fetchProductList()
   await fetchTemplateList()
   await fetchDepartmentList()
 })
-
 // 获取产品列表
 const fetchProductList = async () => {
   try {
@@ -500,10 +466,8 @@ const fetchProductList = async () => {
     const materials = await loadMaterials(baseDataApi, {
       pageSize: 20
     })
-
     // 映射产品数据
     productList.value = mapMaterialData(materials)
-
     // 初始化产品选项
     productOptions.value = productList.value
   } catch (error) {
@@ -513,7 +477,6 @@ const fetchProductList = async () => {
     productOptions.value = []
   }
 }
-
 // 远程搜索产品
 const remoteSearchProduct = async (query) => {
   if (!query) {
@@ -521,14 +484,12 @@ const remoteSearchProduct = async (query) => {
     productOptions.value = productList.value
     return
   }
-
   try {
     // 使用统一的搜索函数进行远程搜索
     const searchResults = await searchMaterials(baseDataApi, query, {
       pageSize: 500, // 增加搜索结果限制,支持大量产品
       includeAll: true
     })
-
     // 映射搜索结果
     productOptions.value = mapMaterialData(searchResults)
   } catch (error) {
@@ -537,7 +498,6 @@ const remoteSearchProduct = async (query) => {
     productOptions.value = []
   }
 }
-
 // 获取工序模板列表
 const fetchTemplateList = async () => {
   loading.value = true
@@ -561,19 +521,16 @@ const fetchTemplateList = async () => {
     loading.value = false
   }
 }
-
 // 计算总工时
 const calculateTotalHours = (processes) => {
   if (!processes || !processes.length) return 0
   return processes.reduce((sum, process) => sum + Number(process.standard_hours || 0), 0).toFixed(1)
 }
-
 // 搜索
 const handleSearch = async () => {
   currentPage.value = 1
   await fetchTemplateList()
 }
-
 // 重置搜索
 const handleReset = async () => {
   Object.keys(searchForm).forEach(key => {
@@ -582,7 +539,6 @@ const handleReset = async () => {
   currentPage.value = 1
   await fetchTemplateList()
 }
-
 // 导出工序模板
 const handleExport = async () => {
   try {
@@ -602,19 +558,16 @@ const handleExport = async () => {
     ElMessage.error('导出失败')
   }
 }
-
 // 分页大小变化
 const handleSizeChange = async (size) => {
   pageSize.value = size
   await fetchTemplateList()
 }
-
 // 当前页变化
 const handleCurrentChange = async (page) => {
   currentPage.value = page
   await fetchTemplateList()
 }
-
 // 显示创建对话框
 const showCreateDialog = () => {
   dialogType.value = 'create'
@@ -636,7 +589,6 @@ const showCreateDialog = () => {
   }]
   dialogVisible.value = true
 }
-
 // 添加工序
 const addProcess = () => {
   const order_num = form.processes.length > 0
@@ -653,12 +605,10 @@ const addProcess = () => {
     instructionDocs: []
   })
 }
-
 // 移除工序
 const removeProcess = (index) => {
   form.processes.splice(index, 1)
 }
-
 // 编辑工序模板
 const handleEdit = async (row) => {
   dialogType.value = 'edit'
@@ -695,7 +645,6 @@ const handleEdit = async (row) => {
         materials: [],
         instructionDocs: []
       }]
-
   // 确保每个工序都有instructionDocs字段
   form.processes.forEach(process => {
     if (!process.hasOwnProperty('instructionDocs')) {
@@ -706,10 +655,8 @@ const handleEdit = async (row) => {
       process.instructionDocs = []
     }
   })
-
   dialogVisible.value = true
 }
-
 // 查看工序模板详情
 const handleView = (row) => {
   dialogType.value = 'view'
@@ -736,15 +683,12 @@ const handleView = (row) => {
   form.processes = sourceProcesses && sourceProcesses.length
     ? JSON.parse(JSON.stringify(sourceProcesses))
     : []
-
   dialogVisible.value = true
 }
-
 // 切换状态
 const handleToggleStatus = async (row) => {
   const newStatus = String(row.status) === '1' ? 0 : 1
   const action = newStatus === 1 ? '启用' : '禁用'
-
   try {
     await api.put(`/baseData/process-templates/${row.id}/status`, { status: newStatus })
     ElMessage.success(`${action}成功`)
@@ -754,7 +698,6 @@ const handleToggleStatus = async (row) => {
     ElMessage.error(error.response?.data?.message || `${action}工序模板失败`)
   }
 }
-
 // 删除工序模板
 const handleDelete = async (row) => {
   try {
@@ -766,7 +709,6 @@ const handleDelete = async (row) => {
     ElMessage.error('删除失败')
   }
 }
-
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return
@@ -831,18 +773,15 @@ const submitForm = async () => {
     loading.value = false
   }
 }
-
 // 获取物料列表
-const fetchMaterialList = async () => {
+const _fetchMaterialList = async () => {
   try {
     const response = await baseDataApi.getMaterials({
       page: 1,
       pageSize: 1000
     })
-
     // 使用统一工具解析列表数据
     const materialsData = parseListData(response, { enableLog: false })
-
     materialList.value = materialsData.map(item => ({
       id: item.id,
       code: item.code || '无编码',
@@ -856,17 +795,14 @@ const fetchMaterialList = async () => {
     ElMessage.error('获取物料列表失败')
   }
 }
-
 // 物料确认回调（来自子组件）
 const handleMaterialConfirm = (materials) => {
   if (currentProcessRow.value) {
     currentProcessRow.value.materials = materials
   }
 }
-
 // 文件预览相关
 const currentPreviewDoc = ref(null)
-
 const viewInstructionDoc = (doc) => {
   if (doc && doc.url) {
     currentPreviewDoc.value = doc
@@ -875,12 +811,10 @@ const viewInstructionDoc = (doc) => {
     ElMessage.warning('文件URL无效')
   }
 }
-
 // ==================== 作业指导书上传相关 ====================
-
 // 上传前验证
-const beforeUploadInstruction = (file, row) => {
-  const allowedTypes = [
+const beforeUploadInstruction = (file, _row) => {
+  const _allowedTypes = [
     'application/msword', // .doc
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
     'application/vnd.ms-excel', // .xls
@@ -889,52 +823,41 @@ const beforeUploadInstruction = (file, row) => {
     'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
     'application/pdf' // .pdf
   ]
-
   const allowedExtensions = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf']
   const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
-
   if (!allowedExtensions.includes(fileExtension)) {
     ElMessage.error('只支持上传 Office 文件（Word、Excel、PowerPoint）和 PDF 文件！')
     return false
   }
-
   const isLt10M = file.size / 1024 / 1024 < 10
   if (!isLt10M) {
     ElMessage.error('文件大小不能超过 10MB！')
     return false
   }
-
   return true
 }
-
 // 处理文件上传
 const handleUploadInstruction = async (options, row) => {
   const { file } = options
-
   try {
     loading.value = true
-
     // 创建FormData
     const formData = new FormData()
     formData.append('file', file)
-
     // 上传文件 - uploadApi 已配置响应拦截器自动解包
     const response = await baseDataApi.uploadFile(formData)
-
     // response.data 已被拦截器解包为 { fileUrl, filename }
     if (response.data?.fileUrl) {
       // 确保instructionDocs是数组
       if (!row.instructionDocs) {
         row.instructionDocs = []
       }
-
       // 添加文件信息到数组
       row.instructionDocs.push({
         name: file.name,
         url: response.data.fileUrl,
         uploadTime: new Date().toISOString()
       })
-
       ElMessage.success('作业指导书上传成功')
     } else {
       throw new Error('上传失败，未返回有效的文件URL')
@@ -946,10 +869,8 @@ const handleUploadInstruction = async (options, row) => {
     loading.value = false
   }
 }
-
 // 文件预览对话框可见性
 const previewDialogVisible = ref(false)
-
 // 删除作业指导书
 const removeInstructionDoc = (row, index) => {
   ElMessageBox.confirm(
@@ -967,73 +888,52 @@ const removeInstructionDoc = (row, index) => {
     // 用户取消删除
   })
 }
-
-
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
-
-
-
-
-
-
-
 .process-table-container {
   margin-top: 10px;
 }
-
 .process-table-header {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 10px;
 }
-
 .material-selection {
   padding: 10px 0;
 }
-
 .search-bar {
   margin-bottom: var(--spacing-base);
 }
-
 .material-list {
   border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
 }
-
 /* 操作列样式 - 与库存出库页面保持一致 */
 .el-table .el-button + .el-button {
   margin-left: 8px;
 }
-
 .doc-tag {
   margin: 2px;
   max-width: 150px;
@@ -1041,8 +941,6 @@ const removeInstructionDoc = (row, index) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1050,12 +948,10 @@ const removeInstructionDoc = (row, index) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 专业的“查看模式”样式覆盖：剥离输入框外观，直接作为平文本展示 */
 .view-mode :deep(.el-input__wrapper),
 .view-mode :deep(.el-textarea__inner) {
@@ -1064,7 +960,6 @@ const removeInstructionDoc = (row, index) => {
   cursor: default !important;
   padding: 0 !important;
 }
-
 .view-mode :deep(.el-input.is-disabled .el-input__inner),
 .view-mode :deep(.el-textarea.is-disabled .el-textarea__inner),
 .view-mode :deep(.el-input__inner),
@@ -1074,12 +969,10 @@ const removeInstructionDoc = (row, index) => {
   cursor: default !important;
   -webkit-text-fill-color: var(--color-text-primary) !important;
 }
-
 .view-mode :deep(.el-input__inner::placeholder),
 .view-mode :deep(.el-textarea__inner::placeholder) {
   color: transparent !important; /* 隐藏请输入占位符 */
 }
-
 /* 隐藏下拉框箭头、清除按钮等图标 */
 .view-mode :deep(.el-input__suffix),
 .view-mode :deep(.el-input__prefix) {

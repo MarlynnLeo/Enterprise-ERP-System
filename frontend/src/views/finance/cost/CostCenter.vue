@@ -14,7 +14,6 @@
         </div>
       </div>
     </el-card>
-
     <!-- 标签页 -->
     <el-card class="data-card">
       <el-tabs v-model="activeTab">
@@ -55,9 +54,6 @@
             </el-table-column>
           </el-table>
         </el-tab-pane>
-
-
-
         <!-- 成本归集报表 -->
         <el-tab-pane label="成本归集报表" name="report">
           <div class="report-toolbar">
@@ -93,7 +89,6 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
-
     <!-- 成本中心编辑对话框 -->
     <el-dialog v-model="centerDialogVisible" :title="isEdit ? '编辑成本中心' : '新增成本中心'" width="500px">
       <el-form :model="centerForm" :rules="centerRules" ref="centerFormRef" label-width="100px">
@@ -130,23 +125,18 @@
         <el-button v-permission="'finance:cost:update'" type="primary" @click="saveCenter" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
-
-
   </div>
 </template>
-
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, OfficeBuilding } from '@element-plus/icons-vue';
 import api from '@/services/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
-
 const activeTab = ref('centers');
 const loading = ref(false);
 const reportLoading = ref(false);
 const saving = ref(false);
-
 // 成本中心数据
 const costCenters = ref([]);
 const centerOptions = ref([]);
@@ -168,13 +158,9 @@ const centerRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
   type: [{ required: true, message: '请选择类型', trigger: 'change' }]
 };
-
-
-
 // 成本报表数据
 const costReport = ref([]);
 const reportDateRange = ref([]);
-
 // 加载成本中心列表
 const loadCostCenters = async () => {
   loading.value = true;
@@ -188,7 +174,6 @@ const loadCostCenters = async () => {
     loading.value = false;
   }
 };
-
 // 加载成本中心选项
 const loadCenterOptions = async () => {
   try {
@@ -198,9 +183,6 @@ const loadCenterOptions = async () => {
     console.error('加载成本中心选项失败:', error);
   }
 };
-
-
-
 // 加载成本报表
 const loadCostReport = async () => {
   reportLoading.value = true;
@@ -219,21 +201,18 @@ const loadCostReport = async () => {
     reportLoading.value = false;
   }
 };
-
 // 显示新增成本中心对话框
 const showCreateDialog = () => {
   isEdit.value = false;
   Object.assign(centerForm, { id: null, code: '', name: '', type: 'production', parent_id: null, manager: '', description: '', is_active: true });
   centerDialogVisible.value = true;
 };
-
 // 编辑成本中心
 const editCenter = (row) => {
   isEdit.value = true;
   Object.assign(centerForm, { ...row, is_active: !!row.is_active });
   centerDialogVisible.value = true;
 };
-
 // 保存成本中心
 const saveCenter = async () => {
   try {
@@ -256,7 +235,6 @@ const saveCenter = async () => {
     saving.value = false;
   }
 };
-
 // 删除成本中心
 const deleteCenter = async (row) => {
   try {
@@ -270,24 +248,20 @@ const deleteCenter = async (row) => {
     }
   }
 };
-
 // 查看成本报表
-const viewReport = (row) => {
+const viewReport = (_row) => {
   activeTab.value = 'report';
   loadCostReport();
 };
-
 // 工具函数
 const getTypeName = (type) => ({ production: '生产', service: '服务', administration: '管理' }[type] || type);
 const getTypeColor = (type) => ({ production: 'success', service: 'primary', administration: 'warning' }[type] || 'info');
-
 // 初始化
 onMounted(() => {
   loadCostCenters();
   loadCenterOptions();
 });
 </script>
-
 <style scoped>
 .cost-center-container { padding: 20px; }
 .header-card { margin-bottom: 20px; }

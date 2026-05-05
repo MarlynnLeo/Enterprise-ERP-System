@@ -88,7 +88,7 @@
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted } from 'vue'
+  import { ref, reactive } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     NavBar,
@@ -101,7 +101,6 @@
     showToast
   } from 'vant'
   import { productionApi } from '@/services/api'
-  import dayjs from 'dayjs'
 
   const router = useRouter()
   const submitting = ref(false)
@@ -112,7 +111,7 @@
   const endDate = ref([])
 
   const formData = reactive({
-    task_code: `SCT${dayjs().format('YYMMDD')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+    task_code: '',
     product_name: '',
     product_id: null,
     quantity: '',

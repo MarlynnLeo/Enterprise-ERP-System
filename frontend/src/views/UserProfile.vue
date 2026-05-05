@@ -12,7 +12,6 @@
     <el-card v-if="isLoading" class="glass-card loading-card" shadow="hover">
       <el-skeleton :rows="5" animated />
     </el-card>
-
     <template v-else>
       <!-- 头部组件 -->
       <ProfileHeader 
@@ -34,7 +33,6 @@
           <span>{{ tab.label }}</span>
         </el-button>
       </div>
-
       <!-- 主要内容区 -->
       <el-row :gutter="20">
         <!-- 左侧：用户信息卡片 -->
@@ -53,7 +51,6 @@
             @avatar-error="handleAvatarError"
           />
         </el-col>
-
         <!-- 右侧：内容区 -->
         <el-col :xs="24" :sm="24" :md="16" :lg="17" :xl="18">
           <!-- 基本信息与密码 -->
@@ -66,11 +63,9 @@
             @start-editing="isEditing = true"
             @cancel-editing="cancelEditing"
             @save-profile="saveProfile"
+            @update:user-form="updateUserForm"
             @change-password="changePassword"
           />
-
-
-
           <!-- 外观设置 -->
           <div v-show="activeTab === 'appearance'">
             <el-card class="glass-card appearance-card" shadow="hover">
@@ -155,7 +150,6 @@
               </el-form>
             </el-card>
           </div>
-
           <!-- 近期活动 -->
           <div v-show="activeTab === 'activities'">
             <ActivityLog 
@@ -164,7 +158,6 @@
               @export="exportActivities"
             />
           </div>
-
           <!-- 数据统计 -->
           <div v-show="activeTab === 'stats'">
             <UserMetrics 
@@ -175,7 +168,6 @@
               :tasks-completed="userStats.tasksCompleted"
             />
           </div>
-
           <!-- 头像特效 -->
           <div v-show="activeTab === 'avatar'">
             <AvatarSelector 
@@ -191,38 +183,34 @@
     </template>
   </div>
 </template>
-
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import {
-  User, Lock, List, Brush, Clock, TrendCharts, StarFilled,
+   Brush,
   Sunny, Moon, Monitor, Reading, Check, RefreshRight
 } from '@element-plus/icons-vue'
-import { todoApi, userApi } from '../services/api'
-import api from '../services/api'
-
+import {  userApi } from '../services/api'
+import '../services/api'
 // 引入拆分的组件
 import ProfileHeader from './auth/components/ProfileHeader.vue'
 import ProfileStats from './auth/components/ProfileStats.vue'
 import ProfileEdit from './auth/components/ProfileEdit.vue'
-
 import ActivityLog from './auth/components/ActivityLog.vue'
 import UserMetrics from './auth/components/UserMetrics.vue'
 import AvatarSelector from './auth/components/AvatarSelector.vue'
-
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
-
+const router = useRouter()
 // 状态
 const isLoading = ref(true)
 const isEditing = ref(false)
 const activeTab = ref('basic')
 const currentAvatarFrame = ref('lottie-golden')
-
 // 表单数据
 const userForm = reactive({
   name: '',
@@ -234,56 +222,48 @@ const userForm = reactive({
   bio: '',
   created_at: null
 })
-
 const appearanceForm = reactive({
   theme: themeStore.appearance.theme,
   primaryColor: themeStore.appearance.primaryColor,
   fontSize: themeStore.appearance.fontSize
 })
-
 // 数据
-
 const userActivities = ref([])
 const userStats = reactive({
   loginCount: 0,
   daysActive: 0,
   tasksCompleted: 0,
+  projectsParticipated: 0,
+  praiseCount: 0,
   lastLogin: new Date(),
   todayOnlineTime: 0,
   totalOnlineTime: 0
 })
-
 // 计算属性
 const statsData = computed(() => {
   return [
-    { icon: 'User', label: '项目参与', value: '12' },
+    { icon: 'User', label: '项目参与', value: userStats.projectsParticipated },
     { icon: 'TrendCharts', label: '任务完成', value: userStats.tasksCompleted },
-    { icon: 'StarFilled', label: '获赞统计', value: '328' }
+    { icon: 'StarFilled', label: '获赞统计', value: userStats.praiseCount }
   ]
 })
-
 const daysFromRegistration = computed(() => {
   if (!userForm.created_at) return 1
   const created = new Date(userForm.created_at)
   const now = new Date()
   return Math.floor((now - created) / (1000 * 60 * 60 * 24)) || 1
 })
-
-
 const efficiencyScore = ref(85)
 const averageResponseTime = ref('2.3小时')
-
 // 选项
 const tabs = [
   { id: 'basic', label: '基本信息', icon: 'User' },
   { id: 'password', label: '密码修改', icon: 'Lock' },
-
   { id: 'appearance', label: '外观设置', icon: 'Brush' },
   { id: 'activities', label: '近期活动', icon: 'Clock' },
   { id: 'stats', label: '数据统计', icon: 'TrendCharts' },
   { id: 'avatar', label: '头像特效', icon: 'StarFilled' }
 ]
-
 const locationOptions = [
   {
     value: 'beijing', label: '北京',
@@ -300,7 +280,6 @@ const locationOptions = [
     ]
   }
 ]
-
 import frameGolden from '../assets/lottie/frame-golden.json'
 import frameCyber from '../assets/lottie/frame-cyber.json'
 import frameNature from '../assets/lottie/frame-nature.json'
@@ -308,7 +287,6 @@ import frameHexagon from '../assets/lottie/frame-hexagon.json'
 import frameDiamond from '../assets/lottie/frame-diamond.json'
 import frameStar from '../assets/lottie/frame-star.json'
 import frameRipple from '../assets/lottie/frame-ripple.json'
-
 // 头像特效配置
 const avatarFrames = ref([
   // 顶级全屏动态矢量动画
@@ -321,26 +299,18 @@ const avatarFrames = ref([
   { id: 'lottie-ripple', name: '灵动涟漪', description: '静水流深扩散波纹，唯美治愈', tags: ['自然', '唯美'], animationData: frameRipple },
   { id: 'none', name: '无特效', description: '朴实无华的默认基本盘', tags: ['简约'] }
 ])
-
 // 初始化
 onMounted(async () => {
   try {
     isLoading.value = true
     await loadUserProfile()
-
     await loadActivities()
     await loadUserStats()
-    
-    // 初始化模拟数据
-    userStats.todayOnlineTime = 3600 * 2.5
-    userStats.totalOnlineTime = 3600 * 128
-    userForm.created_at = new Date(Date.now() - 1000 * 60 * 60 * 24 * 45) // 45天前
     currentAvatarFrame.value = authStore.user?.avatar_frame || 'lottie-golden'
   } finally {
     isLoading.value = false
   }
 })
-
 // API 方法
 const loadUserProfile = async () => {
   try {
@@ -349,46 +319,62 @@ const loadUserProfile = async () => {
       Object.assign(userForm, {
         name: user.real_name || user.username,
         email: user.email,
-        phone: user.phone || '13800138000',
+        phone: user.phone || '',
         role: user.role_name || user.roleNames || user.role || '未分配角色',
         avatar: user.avatar,
-        location: ['beijing', 'haidian'],
-        bio: user.bio || '这家伙很懒，什么都没写~'
+        location: user.location || [],
+        bio: user.bio || '',
+        created_at: user.created_at || user.createdAt || null
       })
     }
   } catch (error) {
     console.error('Failed to load profile', error)
   }
 }
-
-
-
 const loadActivities = async () => {
-  // 模拟活动数据
-  userActivities.value = [
-    { timestamp: '2026-01-20 09:30', content: '登录系统', category: 'login' },
-    { timestamp: '2026-01-20 10:15', content: '更新了个人资料', category: 'profile' },
-    { timestamp: '2026-01-19 14:20', content: '完成了任务 #1024', category: 'task' },
-    { timestamp: '2026-01-19 16:45', content: '系统安全警告', category: 'system' }
-  ]
+  try {
+    const response = await userApi.getActivities({ page: 1, limit: 20 })
+    const data = response.data?.data || response.data || response
+    userActivities.value = data.activities || data.items || data.list || []
+  } catch (error) {
+    console.error('Failed to load activities', error)
+    userActivities.value = []
+  }
 }
-
 const loadUserStats = async () => {
-  userStats.loginCount = 120
-  userStats.daysActive = 15
-  userStats.tasksCompleted = 45
-}
+  try {
+    const response = await userApi.getStatistics()
+    const data = response.data?.data || response.data || response
+    const loginStats = data.loginStats || {}
+    const todoStats = data.todoStats || {}
+    const activityStats = data.activityStats || {}
 
+    userStats.loginCount = loginStats.totalLogins || 0
+    userStats.daysActive = loginStats.daysActive || 0
+    userStats.tasksCompleted = todoStats.completedTodos || 0
+    userStats.todayOnlineTime = loginStats.todayOnlineTime || 0
+    userStats.totalOnlineTime = loginStats.totalOnlineTime || 0
+    userStats.lastLogin = loginStats.lastLogin || null
+    userStats.projectsParticipated = activityStats.projectsParticipated || 0
+    userStats.praiseCount = activityStats.praiseCount || 0
+    efficiencyScore.value = activityStats.efficiencyScore || 0
+    averageResponseTime.value = activityStats.averageResponseTime || ''
+  } catch (error) {
+    console.error('Failed to load user stats', error)
+  }
+}
 const loadMoreActivities = async () => {
-  // 模拟加载更多
-  const more = [
-    { timestamp: '2026-01-18 09:00', content: '查看了报表', category: 'system' },
-    { timestamp: '2026-01-17 18:30', content: '退出了系统', category: 'login' }
-  ]
-  userActivities.value.push(...more)
-  ElMessage.success('已加载更多活动记录')
+  try {
+    const nextPage = Math.floor(userActivities.value.length / 20) + 1
+    const response = await userApi.getActivities({ page: nextPage, limit: 20 })
+    const data = response.data?.data || response.data || response
+    const more = data.activities || data.items || data.list || []
+    userActivities.value.push(...more)
+  } catch (error) {
+    console.error('Failed to load more activities', error)
+    ElMessage.error('加载更多活动记录失败')
+  }
 }
-
 const exportActivities = () => {
   const data = JSON.stringify(userActivities.value, null, 2)
   const blob = new Blob([data], { type: 'application/json' })
@@ -399,13 +385,15 @@ const exportActivities = () => {
   a.click()
   URL.revokeObjectURL(url)
 }
-
 // 业务逻辑
+const updateUserForm = (nextUserForm) => {
+  Object.assign(userForm, nextUserForm)
+}
+
 const cancelEditing = () => {
   isEditing.value = false
   loadUserProfile() // 恢复原数据
 }
-
 const saveProfile = async () => {
   try {
     // 调用后端API保存资料
@@ -436,7 +424,6 @@ const saveProfile = async () => {
     ElMessage.error('保存失败: ' + (error.response?.data?.message || error.message || '未知错误'))
   }
 }
-
 const changePassword = async (data, callback) => {
   try {
     await userApi.changePassword(data)
@@ -449,32 +436,25 @@ const changePassword = async (data, callback) => {
     callback && callback()
   }
 }
-
-
-
 const saveAppearance = () => {
   themeStore.setTheme(appearanceForm.theme)
   themeStore.setPrimaryColor(appearanceForm.primaryColor)
   // 字体大小设置暂略
   ElMessage.success('外观设置已保存')
 }
-
 const resetAppearance = () => {
   appearanceForm.theme = 'light'
   appearanceForm.primaryColor = '#409EFF'
   appearanceForm.fontSize = 14
   saveAppearance()
 }
-
-const handleAvatarChange = (file) => {
+const handleAvatarChange = () => {
   // 处理头像上传
   ElMessage.success('头像上传成功')
 }
-
 const handleAvatarError = () => {
   ElMessage.warning('头像加载失败，使用默认头像')
 }
-
 const handleFrameChange = async (frameId) => {
   currentAvatarFrame.value = frameId
   try {
@@ -489,18 +469,14 @@ const handleFrameChange = async (frameId) => {
     ElMessage.error('特效保存失败: ' + (error.message || '未知错误'))
   }
 }
-
 // 工具函数
 const formatOnlineTime = (seconds) => {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   return `${h}小时${m}分钟`
 }
-
 // formatDate 已统一引用公共实现
-
 </script>
-
 <style scoped>
 .user-profile {
   padding: 20px;
@@ -509,19 +485,16 @@ const formatOnlineTime = (seconds) => {
   min-height: calc(100vh - 84px);
   animation: fadeIn 0.5s ease-out;
 }
-
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 .nav-buttons {
   display: flex;
   gap: 12px;
   margin-bottom: 24px;
   width: 100%;
 }
-
 .nav-btn {
   flex: 1;
   border-radius: 12px;
@@ -532,23 +505,19 @@ const formatOnlineTime = (seconds) => {
   justify-content: center;
   font-size: 15px;
 }
-
 .nav-btn:hover {
   transform: translateY(-2px);
 }
-
 .glass-card {
   border-radius: 16px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   margin-bottom: 20px;
 }
-
 /* 外观设置样式 */
 .appearance-section {
   margin-bottom: 20px;
 }
-
 .section-title {
   display: flex;
   align-items: center;
@@ -558,24 +527,20 @@ const formatOnlineTime = (seconds) => {
   color: var(--el-text-color-primary);
   margin-bottom: 20px;
 }
-
 .color-picker-wrapper {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-
 .color-preview {
   width: 40px;
   height: 40px;
   border-radius: 8px;
   border: 1px solid var(--el-border-color);
 }
-
 .font-size-wrapper {
   padding: 0 10px;
 }
-
 .font-preview {
   margin-top: 20px;
   padding: 15px;
@@ -583,7 +548,6 @@ const formatOnlineTime = (seconds) => {
   border-radius: 8px;
   text-align: center;
 }
-
 /* 响应式 */
 @media (max-width: 768px) {
   .user-profile {

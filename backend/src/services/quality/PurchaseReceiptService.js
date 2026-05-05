@@ -17,7 +17,7 @@ const businessConfig = require('../../config/businessConfig');
 class PurchaseReceiptService {
   /**
    * 免检来料自动创建采购入库单
-   * 模拟前端"检验合格 → 创建入库单"的逻辑，在后端直接用SQL完成
+   * 执行"检验合格 → 创建入库单"的后端流程
    *
    * @param {object} inspectionResult - createInspection 返回的结果（含 id, inspection_no, reference_id, material_id 等）
    * @param {object} originalInspection - 原始请求体

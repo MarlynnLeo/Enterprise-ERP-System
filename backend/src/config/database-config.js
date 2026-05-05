@@ -4,6 +4,7 @@
  */
 
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 // 验证必需的环境变量
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
@@ -31,7 +32,7 @@ const POOL_CONFIG = {
   queueLimit: 0,
 
   // 连接保活防断联配置
-  connectTimeout: 20000, 
+  connectTimeout: 20000,
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000, // 10秒后开始 TCP 保活探测
 
@@ -69,13 +70,13 @@ const SEQUELIZE_CONFIG = {
   host: DATABASE_CONFIG.host,
   port: DATABASE_CONFIG.port,
   dialect: 'mysql',
-  logging: process.env.ENABLE_SQL_LOG === 'true' ? console.log : false,
+  logging: process.env.ENABLE_SQL_LOG === 'true' ? (sql) => logger.debug('SQL query', { sql }) : false,
 
   // 连接池配置
   pool: {
     max: parseInt(process.env.SEQUELIZE_POOL_MAX) || 50, // 与 mysql2 合计 100，不超 MySQL 151 上限
     min: 0,
-    acquire: 30000, 
+    acquire: 30000,
     idle: 30000,    // 30秒空闲即释放
     evict: 10000,   // 10秒扫描一次死连接
     handleDisconnects: true,
@@ -100,7 +101,7 @@ const SEQUELIZE_CONFIG = {
       /SequelizeConnectionTimedOutError/,
     ],
   },
-  
+
   define: {
     timestamps: true,
     underscored: true,
@@ -110,7 +111,7 @@ const SEQUELIZE_CONFIG = {
 
   dialectOptions: {
     decimalNumbers: true,
-    connectTimeout: 20000, 
+    connectTimeout: 20000,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
   },
@@ -165,4 +166,3 @@ module.exports = {
     };
   },
 };
-

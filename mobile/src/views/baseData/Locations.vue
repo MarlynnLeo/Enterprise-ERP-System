@@ -1,7 +1,7 @@
 <!--
 /**
  * Locations.vue - 库位管理列表
- * @description 库位管理页面 - 替代GenericListView占位
+ * @description 库位管理页面
  * @date 2026-04-14
  * @version 1.0.0
  */
@@ -52,7 +52,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 库位详情
   }
 </script>

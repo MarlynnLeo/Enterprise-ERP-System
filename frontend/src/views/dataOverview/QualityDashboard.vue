@@ -339,7 +339,7 @@ onMounted(async () => {
   } catch (error) {
     console.error('加载仪表盘数据失败:', error);
     ElMessage.error('加载仪表盘数据失败');
-    initCharts(); // 出错时使用默认数据
+    initCharts(); // 出错时保持空图表，避免展示伪造数据
   } finally {
     loading.value = false;
   }
@@ -384,9 +384,9 @@ async function loadDashboardData() {
 
   } catch (error) {
     console.error('获取质量统计数据失败:', error);
-    ElMessage.warning('部分质量数据加载失败，显示默认数据');
+    ElMessage.warning('部分质量数据加载失败，请稍后重试');
 
-    // 出错时使用默认数据
+    // 出错时只清空展示数据，避免伪造统计结果
     statistics.incoming = { total: 0, passRate: '0%' };
     statistics.process = { total: 0, passRate: '0%' };
     statistics.final = { total: 0, passRate: '0%' };
@@ -424,9 +424,9 @@ async function initPassRateChart() {
       }
 
       // 获取真实的趋势数据，初始化为 null 避免绘制假连线
-      let incomingData = Array(monthCount).fill(null);
-      let processData = Array(monthCount).fill(null);
-      let finalData = Array(monthCount).fill(null);
+      const incomingData = Array(monthCount).fill(null);
+      const processData = Array(monthCount).fill(null);
+      const finalData = Array(monthCount).fill(null);
 
       try {
         const trendsResponse = await qualityApi.getQualityTrends({ months: monthCount });
@@ -460,11 +460,7 @@ async function initPassRateChart() {
           });
         }
       } catch (error) {
-        console.warn('获取趋势数据失败，使用默认数据:', error);
-        // 使用模拟数据作为后备
-        incomingData = Array(monthCount).fill(0).map(() => 95 + Math.random() * 4);
-        processData = Array(monthCount).fill(0).map(() => 93 + Math.random() * 5);
-        finalData = Array(monthCount).fill(0).map(() => 97 + Math.random() * 3);
+        console.warn('获取趋势数据失败，图表将显示为空数据:', error);
       }
       
       const config = createLineChartConfig({
@@ -472,7 +468,7 @@ async function initPassRateChart() {
         tooltipFormatter: function(context) {
           let label = context.dataset.label || '';
           if (label) { label += ': '; }
-          label += context.raw.toFixed(2) + '%';
+          label += context.raw == null ? '-' : `${Number(context.raw).toFixed(2)}%`;
           return label;
         }
       });
@@ -532,9 +528,8 @@ async function initDefectTypeChart() {
     if (defectTypeChart.value) {
       const ctx = defectTypeChart.value.getContext('2d');
 
-      // 默认不良原因分类数据
-      let defectTypes = ['外观缺陷', '尺寸偏差', '功能异常', '组装不良', '材料问题', '其他'];
-      let defectCounts = [12, 8, 5, 4, 2, 1];
+      let defectTypes = [];
+      let defectCounts = [];
 
       // 获取真实的不良原因分类数据
       try {
@@ -547,7 +542,7 @@ async function initDefectTypeChart() {
           }
         }
       } catch (error) {
-        console.warn('获取不良原因分类数据失败，使用默认数据:', error);
+        console.warn('获取不良原因分类数据失败，图表将保持为空:', error);
       }
       
       // 颜色配置重置为新版科幻组合
@@ -565,7 +560,7 @@ async function initDefectTypeChart() {
           const label = context.label || '';
           const value = context.raw || 0;
           const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
-          const percentage = Math.round((value / total) * 100);
+          const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
           return `${label}: ${value}个 (${percentage}%)`;
         }
       });

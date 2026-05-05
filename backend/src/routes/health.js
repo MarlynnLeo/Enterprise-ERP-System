@@ -7,6 +7,10 @@ const router = express.Router();
 const healthCheckService = require('../services/HealthCheckService');
 const DatabaseMonitorService = require('../services/DatabaseMonitorService');
 const { cacheMiddleware } = require('../services/cacheService');
+const { authenticateToken } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/requirePermission');
+
+const monitorAccess = [authenticateToken, requirePermission('system:monitor')];
 
 /**
  * 简单健康检查 - 用于负载均衡器
@@ -21,7 +25,7 @@ router.get('/ping', (req, res) => {
 /**
  * 基础健康检查
  */
-router.get('/health', async (req, res) => {
+router.get('/health', monitorAccess, async (req, res) => {
   try {
     const healthStatus = await healthCheckService.checkAll();
 
@@ -42,7 +46,7 @@ router.get('/health', async (req, res) => {
 /**
  * 详细健康报告
  */
-router.get('/health/detailed', async (req, res) => {
+router.get('/health/detailed', monitorAccess, async (req, res) => {
   try {
     const healthReport = await healthCheckService.generateHealthReport();
 
@@ -63,7 +67,7 @@ router.get('/health/detailed', async (req, res) => {
 /**
  * 系统信息
  */
-router.get('/info', cacheMiddleware(60), (req, res) => {
+router.get('/info', monitorAccess, cacheMiddleware(60), (req, res) => {
   try {
     const systemInfo = healthCheckService.getSystemInfo();
     const appInfo = healthCheckService.getAppInfo();
@@ -84,7 +88,7 @@ router.get('/info', cacheMiddleware(60), (req, res) => {
 /**
  * 数据库健康检查
  */
-router.get('/health/database', async (req, res) => {
+router.get('/health/database', monitorAccess, async (req, res) => {
   try {
     const dbHealth = await healthCheckService.checkDatabase();
 
@@ -110,7 +114,7 @@ router.get('/health/database', async (req, res) => {
 /**
  * 缓存健康检查
  */
-router.get('/health/cache', async (req, res) => {
+router.get('/health/cache', monitorAccess, async (req, res) => {
   try {
     const cacheHealth = await healthCheckService.checkCache();
 
@@ -135,7 +139,7 @@ router.get('/health/cache', async (req, res) => {
 /**
  * 内存使用情况
  */
-router.get('/health/memory', async (req, res) => {
+router.get('/health/memory', monitorAccess, async (req, res) => {
   try {
     const memoryHealth = await healthCheckService.checkMemory();
 
@@ -212,7 +216,7 @@ router.get('/live', (req, res) => {
 /**
  * 性能指标
  */
-router.get('/metrics', async (req, res) => {
+router.get('/metrics', monitorAccess, async (req, res) => {
   try {
     const memoryUsage = process.memoryUsage();
     const cpuUsage = process.cpuUsage();
@@ -247,7 +251,7 @@ router.get('/metrics', async (req, res) => {
 /**
  * 连接池健康检查
  */
-router.get('/pools', async (req, res) => {
+router.get('/pools', monitorAccess, async (req, res) => {
   try {
     const poolsHealth = await DatabaseMonitorService.getPoolsHealth();
 
@@ -272,7 +276,7 @@ router.get('/pools', async (req, res) => {
 /**
  * 连接池统计信息
  */
-router.get('/pools/stats', async (req, res) => {
+router.get('/pools/stats', monitorAccess, async (req, res) => {
   try {
     const stats = DatabaseMonitorService.getPoolsStats();
     res.json(stats);
@@ -288,7 +292,7 @@ router.get('/pools/stats', async (req, res) => {
 /**
  * 特定连接池健康检查
  */
-router.get('/pools/:poolName', async (req, res) => {
+router.get('/pools/:poolName', monitorAccess, async (req, res) => {
   try {
     const { poolName } = req.params;
     const health = DatabaseMonitorService.getPoolHealth(poolName);
@@ -309,7 +313,7 @@ router.get('/pools/:poolName', async (req, res) => {
 /**
  * 特定连接池统计信息
  */
-router.get('/pools/:poolName/stats', async (req, res) => {
+router.get('/pools/:poolName/stats', monitorAccess, async (req, res) => {
   try {
     const { poolName } = req.params;
     const stats = DatabaseMonitorService.getPoolStats(poolName);
@@ -326,7 +330,7 @@ router.get('/pools/:poolName/stats', async (req, res) => {
 /**
  * 重置连接池指标
  */
-router.post('/pools/:poolName/reset', async (req, res) => {
+router.post('/pools/:poolName/reset', monitorAccess, async (req, res) => {
   try {
     const { poolName } = req.params;
     const result = DatabaseMonitorService.resetPoolMetrics(poolName);
@@ -343,7 +347,7 @@ router.post('/pools/:poolName/reset', async (req, res) => {
 /**
  * 数据库监控报告
  */
-router.get('/database/report', async (req, res) => {
+router.get('/database/report', monitorAccess, async (req, res) => {
   try {
     const report = await DatabaseMonitorService.generateMonitorReport();
     res.json(report);

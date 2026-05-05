@@ -211,7 +211,8 @@ class FinanceConfig {
           let cleanValue = settings[0].value;
           if (typeof cleanValue === 'string') {
             // 移除所有控制字符（包括换行符和制表符，因为JSON字符串中不应该有这些）
-            cleanValue = cleanValue.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+            // eslint-disable-next-line no-control-regex -- intentionally strips unsafe control characters from persisted JSON.
+            cleanValue = cleanValue.replace(new RegExp('[\\x00-\\x1F\\x7F-\\x9F]', 'g'), '');
             // 移除可能的BOM标记
             cleanValue = cleanValue.replace(/^\uFEFF/, '');
             // 移除字符串前后的空白字符
@@ -323,7 +324,7 @@ class FinanceConfig {
     const result = { ...target };
 
     for (const key in source) {
-      if (source.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
         if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
           result[key] = this.deepMerge(target[key] || {}, source[key]);
         } else {

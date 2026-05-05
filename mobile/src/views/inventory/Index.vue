@@ -170,8 +170,7 @@
       if (low > 0) stockModules.value[0].badge = low
     } catch (error) {
       console.error('加载库存统计失败:', error)
-      // 使用示例数据
-      statistics.value = { totalSKU: 256, lowStock: 12, inboundToday: 8, outboundToday: 5 }
+      statistics.value = { totalSKU: 0, lowStock: 0, inboundToday: 0, outboundToday: 0 }
     }
   }
 

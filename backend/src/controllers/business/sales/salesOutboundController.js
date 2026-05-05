@@ -12,16 +12,15 @@ const { softDelete } = require('../../../utils/softDelete');
 const SalesOrderStatusService = require('../../../services/business/SalesOrderStatusService');
 const DBManager = require('../../../utils/dbManager');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
-// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
-const { STATUS, getConnection, getConnectionWithTransaction, generateSalesOutboundNo, generateTransactionNo } = require('./salesShared');
-
-// 添加新的控制器方法
+const { STATUS, getConnection, generateSalesOutboundNo } = require('./salesShared');
 
 exports.getSalesOutbound = async (req, res) => {
   try {
     const { page = 1, pageSize = 50, search, startDate, endDate, status } = req.query;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { maxPageSize: 200, defaultPageSize: 50 });
 
     const connection = await db.pool.getConnection();
 
@@ -62,19 +61,18 @@ exports.getSalesOutbound = async (req, res) => {
       const [countResult] = await connection.query(countQuery, queryParams);
       const total = parseInt(countResult[0].total) || 0;
 
-      // 查询数据
-      // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const actualPageSize = parseInt(pageSize);
-      const actualOffset = parseInt(offset);
-      const query = `
+      const query = appendPaginationSQL(
+        `
         SELECT so.*, o.order_no, o.contract_code, o.customer_id, c.name as customer_name
         FROM sales_outbound so
         LEFT JOIN sales_orders o ON so.order_id = o.id
         LEFT JOIN customers c ON o.customer_id = c.id
         WHERE 1=1 ${whereClause}
         ORDER BY so.created_at DESC
-        LIMIT ${actualPageSize} OFFSET ${actualOffset}
-      `;
+      `,
+        pagination.limit,
+        pagination.offset
+      );
 
       const [results] = await connection.query(query, queryParams);
 
@@ -135,6 +133,7 @@ exports.getSalesOutbound = async (req, res) => {
       // 格式化状态统计数据
       const statusStats = {
         total: total,
+        draftCount: 0,
         pendingCount: 0,
         processingCount: 0,
         completedCount: 0,
@@ -142,10 +141,12 @@ exports.getSalesOutbound = async (req, res) => {
       };
 
       statusCounts.forEach((item) => {
-        if (item.status === STATUS.EXCHANGE.PENDING) statusStats.pendingCount = item.count;
-        if (item.status === STATUS.EXCHANGE.PROCESSING) statusStats.processingCount = item.count;
-        if (item.status === STATUS.EXCHANGE.COMPLETED) statusStats.completedCount = item.count;
-        if (item.status === STATUS.EXCHANGE.CANCELLED) statusStats.cancelledCount = item.count;
+        const count = Number(item.count) || 0;
+        if (item.status === 'draft') statusStats.draftCount = count;
+        if (item.status === 'pending' || item.status === 'confirmed') statusStats.pendingCount += count;
+        if (item.status === 'processing') statusStats.processingCount = count;
+        if (item.status === STATUS.OUTBOUND.COMPLETED) statusStats.completedCount = count;
+        if (item.status === STATUS.OUTBOUND.CANCELLED) statusStats.cancelledCount = count;
       });
 
       ResponseHandler.success(
@@ -153,8 +154,8 @@ exports.getSalesOutbound = async (req, res) => {
         {
           list: results,
           total,
-          page: parseInt(page),
-          pageSize: parseInt(pageSize),
+          page: pagination.page,
+          pageSize: pagination.pageSize,
           statusStats,
         },
         '获取销售出库单成功'
@@ -193,10 +194,7 @@ exports.getSalesOutboundById = async (req, res) => {
 
     const outbound = results[0];
 
-    // 查询销售出库单明细
-    try {
-
-      // 查询明细数据
+    // 查询明细数据
       const itemsQuery = `
         SELECT soi.id, soi.outbound_id, soi.product_id, soi.quantity
         FROM sales_outbound_items soi
@@ -237,7 +235,7 @@ exports.getSalesOutboundById = async (req, res) => {
         }
 
         // 查询该订单下各物料的历史已退数量（排除已拒绝和已取消的退货单）
-        let returnedMap = new Map();
+        const returnedMap = new Map();
         if (outbound.order_id) {
           const [returnedRows] = await connection.query(
             `SELECT sri.product_id, SUM(sri.quantity) AS total_returned
@@ -303,7 +301,7 @@ exports.getSalesOutboundById = async (req, res) => {
             // 尝试直接JSON解析
             try {
               relatedOrderIds = JSON.parse(rawValue);
-            } catch (jsonError) {
+            } catch {
               // 如果JSON解析失败，尝试解析逗号分隔的ID列表
               logger.info('JSON解析失败，尝试解析逗号分隔的ID:', rawValue);
               relatedOrderIds = rawValue
@@ -318,7 +316,7 @@ exports.getSalesOutboundById = async (req, res) => {
             const stringValue = rawValue.toString('utf8');
             try {
               relatedOrderIds = JSON.parse(stringValue);
-            } catch (jsonError) {
+            } catch {
               relatedOrderIds = stringValue
                 .split(',')
                 .map((id) => parseInt(id.trim()))
@@ -329,7 +327,7 @@ exports.getSalesOutboundById = async (req, res) => {
             const stringValue = String(rawValue);
             try {
               relatedOrderIds = JSON.parse(stringValue);
-            } catch (jsonError) {
+            } catch {
               relatedOrderIds = stringValue
                 .split(',')
                 .map((id) => parseInt(id.trim()))
@@ -379,10 +377,7 @@ exports.getSalesOutboundById = async (req, res) => {
         ];
       }
 
-      res.json(outbound);
-    } catch (error) {
-      throw error;
-    }
+    res.json(outbound);
   } catch (error) {
     logger.error('获取销售出库单详情失败:', error);
     ResponseHandler.error(res, '获取销售出库单详情失败', 'SERVER_ERROR', 500, error);
@@ -392,7 +387,6 @@ exports.getSalesOutboundById = async (req, res) => {
     }
   }
 };
-
 
 
 exports.createSalesOutbound = async (req, res) => {
@@ -421,7 +415,7 @@ exports.createSalesOutbound = async (req, res) => {
     } else if (Array.isArray(rawRelatedOrders)) {
       related_orders = rawRelatedOrders;
     }
-    const created_by = req.user?.userId || req.user?.id || 1;
+    const created_by = getAuthenticatedUserId(req);
 
     logger.info(
       '销售出库单创建请求:',
@@ -580,6 +574,7 @@ exports.createSalesOutbound = async (req, res) => {
           // 查找无效的物料ID
           const invalidMaterialIds = materialIds.filter((id) => !validMaterialIds.includes(id));
           if (invalidMaterialIds.length > 0) {
+            logger.warn('忽略不存在的销售出库物料ID:', invalidMaterialIds);
           }
 
           // 过滤出有效的物料项
@@ -589,10 +584,10 @@ exports.createSalesOutbound = async (req, res) => {
           });
 
           if (validItems.length === 0) {
+            logger.warn('销售出库单没有有效物料明细，跳过明细写入');
           } else {
             // 插入出库单明细
-            try {
-              const detailQuery = `
+            const detailQuery = `
                 INSERT INTO sales_outbound_items (
                   outbound_id, product_id, quantity, price, amount, source_order_id, source_order_no
                 ) VALUES ?
@@ -601,7 +596,7 @@ exports.createSalesOutbound = async (req, res) => {
               const detailValues = [];
 
               // 预加载订单明细的单价映射（防止前端不传价格导致 price=0）
-              let orderPriceMap = {};
+              const orderPriceMap = {};
               const sourceOrderId = items[0]?.source_order_id || items[0]?.order_id || order_id;
               if (sourceOrderId) {
                 const [orderItems] = await connection.query(
@@ -613,7 +608,7 @@ exports.createSalesOutbound = async (req, res) => {
 
               for (const item of validItems) {
                 const materialId = item.material_id || item.product_id;
-                const material = materialCheck.find((m) => m.id === materialId);
+
                 // 从前端传入 → 订单明细单价 → 物料基础价格（三级回退）
                 let unitPrice = parseFloat(item.unit_price || item.price || 0);
                 if (unitPrice === 0) {
@@ -638,18 +633,18 @@ exports.createSalesOutbound = async (req, res) => {
                   await connection.query(detailQuery, [detailValues]);
                 } catch (insertError) {
                   logger.error('插入明细数据失败:', insertError);
-                  throw new Error('插入明细数据失败: ' + insertError.message);
+                  throw new Error('插入明细数据失败: ' + insertError.message, {
+                    cause: insertError,
+                  });
                 }
               }
-            } catch (error) {
-              throw error;
-            }
           }
         } catch (error) {
           logger.error('验证物料ID或插入明细时出错:', error);
-          throw new Error(`验证物料ID或插入明细时出错: ${error.message}`);
+          throw new Error(`验证物料ID或插入明细时出错: ${error.message}`, {
+            cause: error,
+          });
         }
-      } else {
       }
     }
 
@@ -799,7 +794,7 @@ exports.updateSalesOutbound = async (req, res) => {
               // 尝试直接JSON解析
               try {
                 finalRelatedOrders = JSON.parse(rawValue);
-              } catch (jsonError) {
+              } catch {
                 // 如果JSON解析失败，尝试解析逗号分隔的ID列表
                 logger.info('JSON解析失败，尝试解析逗号分隔的ID:', rawValue);
                 finalRelatedOrders = rawValue
@@ -814,7 +809,7 @@ exports.updateSalesOutbound = async (req, res) => {
               const stringValue = rawValue.toString('utf8');
               try {
                 finalRelatedOrders = JSON.parse(stringValue);
-              } catch (jsonError) {
+              } catch {
                 finalRelatedOrders = stringValue
                   .split(',')
                   .map((id) => parseInt(id.trim()))
@@ -825,7 +820,7 @@ exports.updateSalesOutbound = async (req, res) => {
               const stringValue = String(rawValue);
               try {
                 finalRelatedOrders = JSON.parse(stringValue);
-              } catch (jsonError) {
+              } catch {
                 finalRelatedOrders = stringValue
                   .split(',')
                   .map((id) => parseInt(id.trim()))
@@ -892,13 +887,13 @@ exports.updateSalesOutbound = async (req, res) => {
         });
 
         if (validItems.length === 0) {
+          logger.warn('销售出库单更新没有有效物料明细，跳过明细写入');
         } else {
-          try {
-            // 删除原有明细
-            await connection.query('DELETE FROM sales_outbound_items WHERE outbound_id = ?', [id]);
+          // 删除原有明细
+          await connection.query('DELETE FROM sales_outbound_items WHERE outbound_id = ?', [id]);
 
-            // 插入新明细
-            const detailQuery = `
+          // 插入新明细
+          const detailQuery = `
               INSERT INTO sales_outbound_items (
                 outbound_id, product_id, quantity, price, amount
               ) VALUES ?
@@ -908,26 +903,24 @@ exports.updateSalesOutbound = async (req, res) => {
 
             for (const item of validItems) {
               const materialId = item.material_id || item.product_id;
-              const material = materialCheck.find((m) => m.id === materialId);
+
               const unitPrice = parseFloat(item.unit_price || item.price || 0);
               const amount = parseFloat(item.quantity || 0) * unitPrice;
 
               detailValues.push([id, materialId, item.quantity, unitPrice, amount]);
             }
 
-            if (detailValues.length > 0) {
-              await connection.query(detailQuery, [detailValues]);
-            }
-          } catch (error) {
-            throw error;
+          if (detailValues.length > 0) {
+            await connection.query(detailQuery, [detailValues]);
           }
         }
-      } else {
       }
     } else {
       // 确保原有明细存在
       if (currentItems.length === 0) {
+        logger.warn(`销售出库单 ${id} 没有提交明细，且当前也没有历史明细`);
       } else {
+        logger.info(`销售出库单 ${id} 未提交明细，保留 ${currentItems.length} 条历史明细`);
       }
     }
 
@@ -1343,5 +1336,3 @@ exports.getMaterialSalesHistory = async (req, res) => {
     }
   }
 };
-
-

@@ -242,7 +242,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 详情对话框 -->
     <el-dialog
       title="付款记录详情"
@@ -268,7 +267,6 @@
         </template>
       </el-descriptions>
     </el-dialog>
-
     <!-- 作废对话框 -->
     <el-dialog
       title="作废付款记录"
@@ -317,7 +315,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 打印预览对话框 -->
     <PrintDialog
       v-model="printDialogVisible"
@@ -328,47 +325,36 @@
     />
   </div>
 </template>
-
 <script setup>
 import { NumberFormatter } from '@/utils/commonHelpers'
 import { formatCurrency } from '@/utils/format'
-
 import PrintDialog from '@/components/common/PrintDialog.vue';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
-
-import { ref, reactive, computed, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ref, reactive, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/auth'
-
 // 权限store
 const authStore = useAuthStore()
-
 // 权限计算属性
-
 // 高级搜索展开状态
 const showAdvancedSearch = ref(false);
-
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
-
 // 分页相关
 const total = ref(0);
 const pageSize = ref(10);
 const currentPage = ref(1);
-
 // 表单相关
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增付款记录');
 const paymentFormRef = ref(null);
-
 // 数据列表
 const paymentList = ref([]);
 const invoiceOptions = ref([]);
 const bankAccountOptions = ref([]);
-
 // 搜索表单
 const searchForm = reactive({
   paymentNumber: '',
@@ -377,11 +363,9 @@ const searchForm = reactive({
   paymentMethod: '',
   status: '' // 添加状态筛选
 });
-
 // 详情对话框
 const detailDialogVisible = ref(false);
 const detailData = ref({});
-
 // 作废对话框
 const voidDialogVisible = ref(false);
 const voidLoading = ref(false);
@@ -392,7 +376,6 @@ const voidForm = reactive({
   amount: '',
   voidReason: ''
 });
-
 // 作废表单验证规则
 const voidRules = {
   voidReason: [
@@ -400,7 +383,6 @@ const voidRules = {
     { min: 10, message: '作废原因至少需要10个字符', trigger: 'blur' }
   ]
 };
-
 // 付款表单
 const paymentForm = reactive({
   id: null,
@@ -420,7 +402,6 @@ const paymentForm = reactive({
   bankAccountId: null,
   referenceNumber: ''
 });
-
 // 表单验证规则
 const paymentRules = {
   paymentNumber: [
@@ -439,7 +420,6 @@ const paymentRules = {
     { required: true, message: '请选择付款方式', trigger: 'change' }
   ]
 };
-
 // 获取付款方式文本
 const getPaymentMethodText = (method) => {
   const methodMap = {
@@ -451,7 +431,6 @@ const getPaymentMethodText = (method) => {
   };
   return methodMap[method] || method;
 };
-
 // 加载付款记录列表
 const loadPayments = async () => {
   loading.value = true;
@@ -466,14 +445,11 @@ const loadPayments = async () => {
       paymentMethod: searchForm.paymentMethod,
       status: searchForm.status // 添加状态筛选
     };
-
     const response = await api.get('/finance/ap/payments', { params });
-
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
     paymentList.value = list;
     total.value = totalCount;
-
     // 如果付款记录缺少发票信息，尝试获取
     for (const payment of paymentList.value) {
       if (payment.invoiceId && !payment.invoiceNumber) {
@@ -497,7 +473,6 @@ const loadPayments = async () => {
     loading.value = false;
   }
 };
-
 // 加载未付清的发票选项
 const loadInvoiceOptions = async () => {
   try {
@@ -510,7 +485,6 @@ const loadInvoiceOptions = async () => {
     invoiceOptions.value = [];
   }
 };
-
 // 加载银行账户选项
 const loadBankAccountOptions = async () => {
   try {
@@ -522,7 +496,6 @@ const loadBankAccountOptions = async () => {
     ElMessage.error('加载银行账户列表失败');
   }
 };
-
 // 处理发票选择变化
 const handleInvoiceChange = async () => {
   if (!paymentForm.invoiceId) {
@@ -553,13 +526,11 @@ const handleInvoiceChange = async () => {
     ElMessage.error('获取发票详情失败');
   }
 };
-
 // 搜索付款记录
 const searchPayments = () => {
   currentPage.value = 1;
   loadPayments();
 };
-
 // 重置搜索条件
 const resetSearch = () => {
   searchForm.paymentNumber = '';
@@ -569,7 +540,6 @@ const resetSearch = () => {
   searchForm.status = ''; // 重置状态筛选
   searchPayments();
 };
-
 // 获取状态类型（用于tag颜色）
 const getStatusType = (status) => {
   const typeMap = {
@@ -578,7 +548,6 @@ const getStatusType = (status) => {
   };
   return typeMap[status] || 'info';
 };
-
 // 获取状态文本
 const getStatusText = (status) => {
   const textMap = {
@@ -587,7 +556,6 @@ const getStatusText = (status) => {
   };
   return textMap[status] || status;
 };
-
 // 查看详情
 const handleViewDetail = async (row) => {
   try {
@@ -599,7 +567,6 @@ const handleViewDetail = async (row) => {
     ElMessage.error('获取付款记录详情失败');
   }
 };
-
 // 作废付款记录
 const handleVoid = (row) => {
   // 重置作废表单
@@ -615,7 +582,6 @@ const handleVoid = (row) => {
   
   voidDialogVisible.value = true;
 };
-
 // 确认作废
 const confirmVoid = async () => {
   if (!voidFormRef.value) return;
@@ -640,7 +606,6 @@ const confirmVoid = async () => {
     }
   });
 };
-
 // 新增付款记录
 const showAddDialog = () => {
   dialogTitle.value = '新增付款记录';
@@ -649,67 +614,24 @@ const showAddDialog = () => {
   loadBankAccountOptions();
   dialogVisible.value = true;
 };
-
-// 编辑付款记录
-const handleEdit = async (row) => {
-  dialogTitle.value = '编辑付款记录';
-  
-  try {
-    const response = await api.get(`/finance/ap/payments/${row.id}`);
-    const payment = response.data;
-    
-    resetPaymentForm();
-    await loadInvoiceOptions();
-    await loadBankAccountOptions();
-    
-    // 填充表单数据
-    paymentForm.id = payment.id;
-    paymentForm.paymentNumber = payment.paymentNumber;
-    paymentForm.invoiceId = payment.invoiceId;
-    paymentForm.paymentDate = payment.paymentDate;
-    paymentForm.amount = payment.amount;
-    paymentForm.paymentMethod = payment.paymentMethod;
-    paymentForm.notes = payment.notes;
-    
-    // 加载发票信息
-    await handleInvoiceChange();
-    
-    dialogVisible.value = true;
-  } catch (error) {
-    console.error('获取付款记录详情失败:', error);
-    ElMessage.error('获取付款记录详情失败');
-  }
-};
-
-// 删除付款记录
-const handleDelete = (row) => {
-  ElMessageBox.confirm('确认要删除该付款记录吗？此操作将影响关联发票的付款状态。', '警告', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await api.delete(`/finance/ap/payments/${row.id}`);
-      ElMessage.success('删除成功');
-      loadPayments();
-    } catch (error) {
-      console.error('删除付款记录失败:', error);
-      ElMessage.error('删除付款记录失败');
-    }
-  }).catch(() => {});
-};
-
+// 编辑付款记录;
+// 删除付款记录;
 // 打印相关状态
 const printDialogVisible = ref(false);
 const printData = ref({});
-
 // 打印付款记录
 const handlePrint = async (row) => {
   try {
     // 获取完整的付款详情以确保数据准确（如关联发票号）
     const response = await api.get(`/finance/ap/payments/${row.id}`);
     const payment = response.data;
-
+    const operatorName =
+      authStore.realName ||
+      authStore.user?.real_name ||
+      authStore.user?.realName ||
+      authStore.user?.name ||
+      authStore.user?.username ||
+      '-';
     // 准备打印数据
     printData.value = {
       payment_number: payment.paymentNumber,
@@ -723,25 +645,15 @@ const handlePrint = async (row) => {
       amount_upper: NumberFormatter.digitUppercase(payment.amount), // 使用工具类转换金额大写
       invoice_number: payment.invoiceNumber || '-',
       notes: payment.notes || '',
-      operator: '管理员', // 暂时硬编码或从 authStore 获取当前用户名
+      operator: operatorName,
       print_time: new Date().toLocaleString()
     };
-    
-    // 如果后端没有返回 bankAccountName（因为列表接口可能不包含），尝试从 options 查找或再次获取
-    // 这里简单处理，假设详情接口返回了，或者如果没返回就不显示
-    
-    // 尝试添加当前操作员名称
-    if (authStore.user && authStore.user.name) {
-      printData.value.operator = authStore.user.name;
-    }
-
     printDialogVisible.value = true;
   } catch (error) {
     console.error('准备打印数据失败:', error);
     ElMessage.error('准备打印数据失败');
   }
 };
-
 // 保存付款记录
 const savePayment = async () => {
   if (!paymentFormRef.value) return;
@@ -784,7 +696,6 @@ const savePayment = async () => {
     }
   });
 };
-
 // 重置付款表单
 const resetPaymentForm = () => {
   paymentForm.id = null;
@@ -809,70 +720,53 @@ const resetPaymentForm = () => {
     paymentFormRef.value.resetFields();
   }
 };
-
 // 分页相关方法
 const handleSizeChange = (size) => {
   pageSize.value = size;
   loadPayments();
 };
-
 const handleCurrentChange = (page) => {
   currentPage.value = page;
   loadPayments();
 };
-
 // 页面加载时执行
 onMounted(() => {
   loadPayments();
 });
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form-container {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
 }
-
 .search-form-inputs {
   display: flex;
   flex-wrap: wrap;
   flex: 1;
 }
-
 .search-form-buttons {
   display: flex;
   align-items: flex-end;
 }
-
-
-
-
-
-
-
 .tip-text {
   font-size: 12px;
   color: var(--color-text-secondary);
@@ -880,30 +774,19 @@ onMounted(() => {
   line-height: 1.2;
   padding-left: 5px;
 }
-
-
-
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
-
-
-
-
 @media (max-width: 768px) {
   .search-form-container {
     flex-direction: column;
   }
-
   .search-form-buttons {
     align-self: flex-end;
   }
 }
-
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -911,12 +794,10 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .form-tip {
   font-size: 12px;
   color: var(--color-text-secondary);

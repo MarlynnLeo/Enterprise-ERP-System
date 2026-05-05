@@ -356,7 +356,7 @@ const loadCostCenterOptions = async () => {
   try {
     const res = await api.get('/finance/cost-centers/options');
     costCenterOptions.value = res.data?.data || res.data || [];
-  } catch (e) {
+  } catch {
     costCenterOptions.value = [];
   }
 };
@@ -420,7 +420,7 @@ const loadEfficiencyData = async () => {
     effSummary.efficiency_rate = actTotal > 0 ? (stdTotal / actTotal * 100) : 100;
   } catch (error) {
     console.error('加载效率差异失败:', error);
-    // 使用模拟数据
+    // 接口失败时保持空数据，避免展示虚构业务指标
     efficiencyList.value = [];
     Object.assign(effSummary, { standard_hours: 0, actual_hours: 0, efficiency_variance: 0, efficiency_rate: 100 });
   } finally {

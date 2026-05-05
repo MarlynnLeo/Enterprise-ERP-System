@@ -7,6 +7,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 import { ElMessage } from 'element-plus'
 
 // 导入路由模块
@@ -115,7 +116,7 @@ const router = createRouter({
         hrRoute
       ]
     },
-    // ✅ 审计修复(A-7): 404 兜底路由改为显示 404 页面，而非静默重定向到首页
+    // 404 兜底路由显示独立错误页，保留用户当前错误路径语义
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
@@ -154,12 +155,10 @@ router.beforeEach(async (to, from, next) => {
     // 使用全局变量避免每次路由切换都创建新的 import Promise
     if (!window.__themeLoaded) {
       window.__themeLoaded = true
-      import('../stores/theme').then(({ useThemeStore }) => {
-        const themeStore = useThemeStore()
-        if (!themeStore.isLoaded) {
-          themeStore.loadThemeFromServer().catch(() => {})
-        }
-      }).catch(() => {})
+      const themeStore = useThemeStore()
+      if (!themeStore.isLoaded) {
+        themeStore.loadThemeFromServer().catch(() => {})
+      }
     }
   }
 

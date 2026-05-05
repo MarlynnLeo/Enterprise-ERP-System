@@ -13,6 +13,6 @@ module.exports = {
   // BOM版本追踪（需要数据库迁移后启用）
   ENABLE_BOM_TRACKING: false,
 
-  // 调试模式
+  // 诊断模式
   DEBUG_MODE: process.env.DEBUG_MODE === 'true' || false,
 };

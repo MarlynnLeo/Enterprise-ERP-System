@@ -17,7 +17,6 @@
         <el-button type="primary" :icon="Plus" @click="handleAddProcessing">新建加工单</el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -45,7 +44,6 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             value-format="YYYY-MM-DD"
-
           />
         </el-form-item>
         <el-form-item>
@@ -58,7 +56,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -82,7 +79,6 @@
         <div class="stat-label">已取消</div>
       </el-card>
     </div>
-
     <!-- 外委加工单列表 -->
     <el-card class="data-card">
       <el-table
@@ -161,7 +157,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -179,7 +174,6 @@
         ></el-pagination>
       </div>
     </el-card>
-
     <!-- 创建入库单对话框 (将在后续实现) -->
     <ReceiptDialog
       v-model:visible="receiptDialogVisible"
@@ -188,7 +182,6 @@
       :receipt-id="selectedReceiptId"
       @success="fetchProcessingList"
     />
-
     <!-- 外委加工单对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -280,7 +273,6 @@
             />
           </el-form-item>
         </el-card>
-
         <!-- 发料物料 -->
         <el-card class="box-card">
           <template #header>
@@ -342,7 +334,6 @@
             </el-table-column>
           </el-table>
         </el-card>
-
         <!-- 加工成品 -->
         <el-card class="box-card">
           <template #header>
@@ -432,7 +423,6 @@
         </el-card>
       </el-form>
       </div>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleCloseProcessingDialog">取消</el-button>
@@ -442,7 +432,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 物料选择对话框 -->
     <el-dialog
       title="选择物料"
@@ -454,14 +443,12 @@
           v-model="materialSearchKeyword"
           placeholder="输入关键字搜索物料"
           clearable
-
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
       </div>
-
       <el-table
         :data="filteredMaterials"
         border
@@ -486,7 +473,6 @@
         </el-table-column>
       </el-table>
     </el-dialog>
-
     <!-- 成品选择对话框 -->
     <el-dialog
       title="选择成品"
@@ -498,14 +484,12 @@
           v-model="productSearchKeyword"
           placeholder="输入关键字搜索成品"
           clearable
-
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
       </div>
-
       <el-table
         :data="filteredProducts"
         border
@@ -532,10 +516,8 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, baseDataApi } from '@/services/api';
@@ -547,23 +529,18 @@ import {
   getOutsourcedStatusText,
   getOutsourcedStatusColor
 } from '@/constants/systemConstants';
-
 // 状态选项（使用统一常量）
 const statusOptions = OUTSOURCED_STATUS_OPTIONS;
-
 // 获取状态类型（使用统一常量）
 const getStatusType = (status) => {
   return getOutsourcedStatusColor(status);
 };
-
 // 获取状态标签（使用统一常量）
 const getStatusLabel = (status) => {
   return getOutsourcedStatusText(status);
 };
-
 // 格式化日期
 // formatDate 已统一引用公共实现;
-
 // 搜索表单
 const searchForm = reactive({
   keyword: '',
@@ -571,18 +548,15 @@ const searchForm = reactive({
   status: '',
   dateRange: []
 });
-
 // 外委加工列表数据
 const processingList = ref([]);
 const loading = ref(false);
-
 // 分页数据
 const pagination = reactive({
   page: 1,
   pageSize: 10,
   total: 0
 });
-
 // 统计数据
 const processingStats = reactive({
   total: 0,
@@ -591,7 +565,6 @@ const processingStats = reactive({
   completedCount: 0,
   cancelledCount: 0
 });
-
 // 对话框相关状态
 const processingDialogVisible = ref(false);
 const processingDialogLoading = ref(false);
@@ -604,7 +577,6 @@ const selectedReceiptId = ref(null);
 const viewOnly = ref(false);
 const processing = ref(false);
 const processingFormRef = ref(null);
-
 // 对话框表单数据
 const processingForm = reactive({
   processing_date: new Date().toISOString().split('T')[0],
@@ -617,14 +589,12 @@ const processingForm = reactive({
   materials: [],
   products: []
 });
-
 // 对话框表单验证规则
 const processingRules = {
   processing_date: [{ required: true, message: '请选择加工日期', trigger: 'change' }],
   supplier_id: [{ required: true, message: '请选择加工厂', trigger: 'change' }],
   expected_delivery_date: [{ required: true, message: '请选择预计交期', trigger: 'change' }]
 };
-
 // 供应商数据
 const supplierOptions = ref([]);
 const suppliersLoaded = ref(false); // 添加加载状态标记
@@ -633,11 +603,9 @@ const loadSuppliers = async (forceReload = false) => {
   if (suppliersLoaded.value && !forceReload) {
     return;
   }
-
   try {
     const response = await baseDataApi.getSuppliers({ status: 1 }); // 只获取启用的供应商
     const suppliers = parseListData(response, { enableLog: false });
-
     if (suppliers.length > 0) {
       supplierOptions.value = suppliers.map(supplier => ({
         id: supplier.id,
@@ -654,13 +622,11 @@ const loadSuppliers = async (forceReload = false) => {
     ElMessage.error('获取供应商列表失败: ' + (error.response?.data?.message || error.message));
   }
 };
-
 // 物料相关数据和方法
 const materialDialogVisible = ref(false);
 const materialSearchKeyword = ref('');
 const allMaterials = ref([]);
 const materialsData = ref([]);
-
 const loadMaterials = async () => {
   try {
     const response = await api.get('/baseData/materials');
@@ -672,13 +638,11 @@ const loadMaterials = async () => {
     ElMessage.error('获取物料列表失败');
   }
 };
-
 // 成品相关数据和方法
 const productDialogVisible = ref(false);
 const productSearchKeyword = ref('');
 const allProducts = ref([]);
 const productsData = ref([]);
-
 const loadProducts = async () => {
   try {
     const response = await api.get('/baseData/materials');
@@ -690,7 +654,6 @@ const loadProducts = async () => {
     ElMessage.error('获取物料列表失败');
   }
 };
-
 // 计算过滤后的物料列表
 const filteredMaterials = computed(() => {
   const keyword = materialSearchKeyword.value.toLowerCase();
@@ -702,7 +665,6 @@ const filteredMaterials = computed(() => {
     item.specification?.toLowerCase().includes(keyword)
   );
 });
-
 // 计算过滤后的成品列表
 const filteredProducts = computed(() => {
   const keyword = productSearchKeyword.value.toLowerCase();
@@ -714,7 +676,6 @@ const filteredProducts = computed(() => {
     item.specification?.toLowerCase().includes(keyword)
   );
 });
-
 // 计算对话框标题
 const dialogTitle = computed(() => {
   if (processingDialogMode.value === 'create') {
@@ -725,7 +686,6 @@ const dialogTitle = computed(() => {
     return '查看外委加工单';
   }
 });
-
 // 重置处理表单
 const resetProcessingForm = () => {
   processingForm.processing_date = new Date().toISOString().split('T')[0];
@@ -743,13 +703,11 @@ const resetProcessingForm = () => {
     processingFormRef.value?.resetFields();
   });
 };
-
 // 关闭对话框
 const handleCloseProcessingDialog = () => {
   processingDialogVisible.value = false;
   resetProcessingForm();
 };
-
 // 处理供应商变更
 const handleSupplierChange = () => {
   // 确保ID类型匹配（转换为数字进行比较）
@@ -766,17 +724,14 @@ const handleSupplierChange = () => {
     console.warn('未找到匹配的供应商');
   }
 };
-
 // 加载加工单详情
 const loadProcessingDetail = async () => {
   if (!selectedProcessingId.value) return;
-
   processingDialogLoading.value = true;
   try {
     const response = await api.get(`/purchase/outsourced-processings/${selectedProcessingId.value}`);
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
-
     // 填充表单数据
     processingForm.processing_date = data.processing_date;
     processingForm.supplier_id = data.supplier_id;
@@ -787,7 +742,6 @@ const loadProcessingDetail = async () => {
     processingForm.remarks = data.remarks;
     processingForm.materials = data.materials || [];
     processingForm.products = data.products || [];
-
   } catch (error) {
     console.error('获取加工单详情失败:', error);
     ElMessage.error('获取加工单详情失败');
@@ -795,13 +749,11 @@ const loadProcessingDetail = async () => {
     processingDialogLoading.value = false;
   }
 };
-
 // 处理物料相关方法
 const handleAddMaterial = () => {
   materialDialogVisible.value = true;
   materialSearchKeyword.value = '';
 };
-
 const handleSelectMaterial = (row) => {
   // 检查是否已存在相同物料
   const existingIndex = processingForm.materials.findIndex(
@@ -828,17 +780,14 @@ const handleSelectMaterial = (row) => {
   
   materialDialogVisible.value = false;
 };
-
 const handleRemoveMaterial = (index) => {
   processingForm.materials.splice(index, 1);
 };
-
 // 处理成品相关方法
 const handleAddProduct = () => {
   productDialogVisible.value = true;
   productSearchKeyword.value = '';
 };
-
 const handleSelectProduct = (row) => {
   // 检查是否已存在相同成品
   const existingIndex = processingForm.products.findIndex(
@@ -867,11 +816,9 @@ const handleSelectProduct = (row) => {
   
   productDialogVisible.value = false;
 };
-
 const handleRemoveProduct = (index) => {
   processingForm.products.splice(index, 1);
 };
-
 const calculateRowTotal = (row) => {
   if (row.quantity && row.unit_price) {
     row.total_price = parseFloat(row.quantity) * parseFloat(row.unit_price);
@@ -879,18 +826,15 @@ const calculateRowTotal = (row) => {
     row.total_price = 0;
   }
 };
-
 const calculateTotal = () => {
   return processingForm.products.reduce(
     (sum, product) => sum + parseFloat(product.total_price || 0),
     0
   );
 };
-
 const formatPrice = (price) => {
   return `¥ ${parseFloat(price || 0).toFixed(2)}`;
 };
-
 // 提交加工单
 const handleProcessingSubmit = async () => {
   if (processing.value) return;
@@ -910,7 +854,6 @@ const handleProcessingSubmit = async () => {
       ElMessage.error('请至少添加一种加工成品');
       return;
     }
-
     // 检查并确保所有必要字段都有值
     const checkAndFix = (fieldName, defaultValue) => {
       if (processingForm[fieldName] === undefined) {
@@ -928,7 +871,7 @@ const handleProcessingSubmit = async () => {
     checkAndFix('remarks', '');
     
     // 检查物料和成品
-    processingForm.materials.forEach((material, index) => {
+    processingForm.materials.forEach((material) => {
       if (material.remark === undefined) material.remark = '';
     });
     
@@ -943,13 +886,11 @@ const handleProcessingSubmit = async () => {
     processing.value = true;
     
     try {
-      let response;
-      
       if (processingDialogMode.value === 'create') {
-        response = await api.post('/purchase/outsourced-processings', processingForm);
+        await api.post('/purchase/outsourced-processings', processingForm);
         ElMessage.success('创建外委加工单成功');
       } else if (processingDialogMode.value === 'edit') {
-        response = await api.put(`/purchase/outsourced-processings/${selectedProcessingId.value}`, processingForm);
+        await api.put(`/purchase/outsourced-processings/${selectedProcessingId.value}`, processingForm);
         ElMessage.success('更新外委加工单成功');
       }
       
@@ -964,7 +905,6 @@ const handleProcessingSubmit = async () => {
     }
   });
 };
-
 // 获取外委加工列表
 const fetchProcessingList = async () => {
   loading.value = true;
@@ -976,17 +916,13 @@ const fetchProcessingList = async () => {
       supplier_name: searchForm.supplierName,
       status: searchForm.status
     };
-
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
       params.start_date = searchForm.dateRange[0];
       params.end_date = searchForm.dateRange[1];
     }
-
     const response = await api.get('/purchase/outsourced-processings', { params });
-
     // 拦截器已解包，response.data 就是业务数据
     processingList.value = response.data?.list || response.data || [];
-
     // 确保分页总数正确设置为数字类型
     if (response.data?.total !== undefined) {
       pagination.total = Number(response.data.total) || 0;
@@ -997,7 +933,6 @@ const fetchProcessingList = async () => {
       // 没有数据时设置为0
       pagination.total = 0;
     }
-
     // 更新统计数据
     updateStats();
   } catch (error) {
@@ -1007,7 +942,6 @@ const fetchProcessingList = async () => {
     loading.value = false;
   }
 };
-
 // 更新统计数据
 const updateStats = () => {
   // 实际应用中这应该通过API获取或从列表数据计算
@@ -1017,13 +951,11 @@ const updateStats = () => {
   processingStats.completedCount = processingList.value.filter(item => item.status === 'completed').length;
   processingStats.cancelledCount = processingList.value.filter(item => item.status === 'cancelled').length;
 };
-
 // 搜索处理
 const handleSearch = () => {
   pagination.page = 1;
   fetchProcessingList();
 };
-
 // 重置搜索
 const resetSearch = () => {
   Object.keys(searchForm).forEach(key => {
@@ -1036,38 +968,16 @@ const resetSearch = () => {
   pagination.page = 1;
   fetchProcessingList();
 };
-
 // 分页处理
 const handleSizeChange = (val) => {
   pagination.pageSize = val;
   fetchProcessingList();
 };
-
 const handleCurrentChange = (val) => {
   pagination.page = val;
   fetchProcessingList();
 };
-
-// 处理下拉菜单命令
-const handleCommand = async (command, row) => {
-  switch (command) {
-    case 'confirm':
-      await updateProcessingStatus(row, 'confirmed');
-      break;
-    case 'cancel':
-      await updateProcessingStatus(row, 'cancelled');
-      break;
-    case 'delete':
-      handleDeleteProcessing(row);
-      break;
-    case 'createReceipt':
-      handleCreateReceipt(row);
-      break;
-    default:
-      break;
-  }
-};
-
+// 处理下拉菜单命令;
 // 更新外委加工单状态
 const updateProcessingStatus = async (row, status) => {
   try {
@@ -1091,14 +1001,12 @@ const updateProcessingStatus = async (row, status) => {
     ElMessage.error('状态更新失败: ' + (error.response?.data?.message || error.message));
   }
 };
-
 // 创建入库单
-const handleCreateReceipt = (row) => {
+const _handleCreateReceipt = (row) => {
   selectedProcessingId.value = row.id;
   receiptDialogMode.value = 'create';
   receiptDialogVisible.value = true;
 };
-
 // 创建入库单并自动完成加工单
 const handleCreateAndComplete = async (row) => {
   selectedProcessingId.value = row.id;
@@ -1119,29 +1027,24 @@ const handleCreateAndComplete = async (row) => {
   // 通过一次性事件监听器监听入库单创建成功
   window.addEventListener('receipt-created', onSuccess, { once: true });
 };
-
 // 查看外委加工单
 const handleViewProcessing = (row) => {
   selectedProcessingId.value = row.id;
   processingDialogMode.value = 'view';
   viewOnly.value = true;
   processingDialogVisible.value = true;
-
   // 只加载加工单详情，供应商数据已在页面加载时缓存
   loadProcessingDetail();
 };
-
 // 编辑外委加工单
 const handleEditProcessing = (row) => {
   selectedProcessingId.value = row.id;
   processingDialogMode.value = 'edit';
   viewOnly.value = false;
   processingDialogVisible.value = true;
-
   // 只加载加工单详情，供应商数据已在页面加载时缓存
   loadProcessingDetail();
 };
-
 // 删除外委加工单
 const handleDeleteProcessing = (row) => {
   ElMessageBox.confirm(
@@ -1167,7 +1070,6 @@ const handleDeleteProcessing = (row) => {
       ElMessage.info('已取消删除');
     });
 };
-
 // 加工单对话框相关方法
 const handleAddProcessing = () => {
   processingDialogMode.value = 'create';
@@ -1175,13 +1077,11 @@ const handleAddProcessing = () => {
   resetProcessingForm();
   processingDialogVisible.value = true;
   selectedProcessingId.value = null;
-
   // 确保供应商数据已加载，加载物料数据
   loadSuppliers(); // 这里保留，因为可能需要最新的供应商数据
   loadMaterials();
   loadProducts();
 };
-
 // 监听对话框可见性变化
 watch(processingDialogVisible, (visible) => {
   if (visible) {
@@ -1191,7 +1091,6 @@ watch(processingDialogVisible, (visible) => {
     }
   }
 });
-
 // 页面加载时获取数据
 onMounted(() => {
   fetchProcessingList();
@@ -1201,82 +1100,66 @@ onMounted(() => {
   loadProducts();
 });
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 /* 统计卡片 */
-
 /* 操作按钮样式 - 与库存出库页面保持一致 */
 .el-table .el-button + .el-button {
   margin-left: 8px;
 }
-
 /* 处理对话框相关样式 */
-
 .box-card {
   margin-bottom: var(--spacing-lg);
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .dialog-search {
   margin-bottom: 15px;
 }
-
 .total-section {
   margin-top: 15px;
   text-align: right;
   padding-right: 20px;
 }
-
 .total-label {
   font-size: 14px;
   font-weight: bold;
 }
-
 .total-value {
   font-size: 18px;
   color: var(--color-danger);
   font-weight: bold;
   margin-left: 10px;
 }
-
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
 @media (max-width: 768px) {
   .statistics-row {
     flex-direction: column;
@@ -1287,7 +1170,6 @@ onMounted(() => {
     width: 100%;
   }
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1295,7 +1177,6 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

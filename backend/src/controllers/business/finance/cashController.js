@@ -16,6 +16,7 @@ const ReconciliationModel = require('../../../models/cash/Reconciliation');
 const CashReportsModel = require('../../../models/cash/Reports');
 const CashTransactionModel = require('../../../models/cash/CashTransaction');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 /**
  * 现金管理控制器
@@ -129,8 +130,9 @@ const cashController = {
         amount: parseFloat(req.body.amount),
         transaction_type: req.body.transaction_type,
         description: req.body.description,
-        account_id: parseInt(req.body.account_id),
+        bank_account_id: parseInt(req.body.bank_account_id || req.body.account_id),
         reference_no: req.body.reference_no,
+        created_by: getAuthenticatedUserId(req),
       };
 
       const insertId = await BankTransactionModel.createBankTransaction(transaction);
@@ -302,6 +304,7 @@ const cashController = {
         status: req.body.status || 'draft',
         notes: req.body.notes,
         items: req.body.items || [],
+        created_by: getAuthenticatedUserId(req),
       };
 
       const insertId = await ReconciliationModel.createReconciliation(reconciliation);
@@ -822,7 +825,7 @@ const cashController = {
         related_party: req.body.related_party || null,
         category: req.body.category || null,
         payment_method: req.body.payment_method || null,
-        created_by: await getCurrentUserName(req),
+        created_by: getAuthenticatedUserId(req),
       };
 
       // 检查必要字段
@@ -904,17 +907,6 @@ const cashController = {
         return ResponseHandler.error(res, '交易记录不存在', 'NOT_FOUND', 404);
       }
 
-      // 由于银行交易涉及复杂的余额计算和账户更新，
-      // 这里采用先删除再创建的方式实现更新
-      // 这并不是最佳实践，但对于简单系统来说是最直接的解决方案
-
-      // 1. 备份原交易数据
-
-      const originalAccountId = existingTransaction.bank_account_id;
-      const originalAmount = existingTransaction.amount;
-      const originalType = existingTransaction.transaction_type;
-
-      // 2. 构建新交易数据
       const transactionData = {
         bank_account_id: parseInt(req.body.bank_account_id),
         transaction_date: req.body.transaction_date,
@@ -926,18 +918,12 @@ const cashController = {
         is_reconciled: req.body.is_reconciled !== undefined ? req.body.is_reconciled : false,
         reconciliation_date: req.body.reconciliation_date || null,
         related_party: req.body.related_party || null,
-        created_by: await getCurrentUserName(req),
+        category: req.body.category || null,
+        payment_method: req.body.payment_method || null,
+        updated_by: getAuthenticatedUserId(req),
       };
 
-      // 3. 删除原交易（使用控制器内部方法）
-      await cash.deleteBankTransaction(id, {
-        originalAccountId,
-        originalAmount,
-        originalType,
-      });
-
-      // 4. 创建新交易
-      const result = await cash.createBankTransaction(transactionData);
+      const result = await cash.updateBankTransaction(id, transactionData);
 
       return ResponseHandler.success(
         res,
@@ -972,7 +958,7 @@ const cashController = {
       }
 
       // 删除交易并恢复余额
-      const result = await cash.deleteBankTransaction(id);
+      await cash.deleteBankTransaction(id);
 
       return ResponseHandler.success(res, { id }, '银行交易删除成功');
     } catch (error) {
@@ -1000,7 +986,7 @@ const cashController = {
         transaction_date: req.body.transaction_date,
         description: req.body.description,
         reference_number: req.body.reference_number,
-        created_by: await getCurrentUserName(req),
+        created_by: getAuthenticatedUserId(req),
       };
 
       const result = await cash.transferFunds(transferData);
@@ -1348,9 +1334,12 @@ const cashController = {
         return ResponseHandler.error(res, '缺少银行交易ID', 'BAD_REQUEST', 400);
       }
 
-      // 当前系统未实现交易匹配功能，返回空数组
-      // 如需此功能，请创建 transaction_matches 表并实现匹配逻辑
-      return ResponseHandler.success(res, [], '获取已匹配交易成功（功能待实现）');
+      return ResponseHandler.error(
+        res,
+        '交易匹配功能尚未启用，请先完成 transaction_matches 表和匹配规则配置',
+        'NOT_IMPLEMENTED',
+        501
+      );
     } catch (error) {
       logger.error('获取已匹配交易失败:', error);
       ResponseHandler.error(res, '获取已匹配交易失败', 'SERVER_ERROR', 500, error);
@@ -1372,9 +1361,12 @@ const cashController = {
         return ResponseHandler.error(res, '缺少必要参数', 'BAD_REQUEST', 400);
       }
 
-      // 当前系统未实现交易匹配功能，返回空数组
-      // 如需此功能，请创建 transaction_matches 表并实现匹配逻辑
-      return ResponseHandler.success(res, [], '获取可能匹配交易成功（功能待实现）');
+      return ResponseHandler.error(
+        res,
+        '交易匹配功能尚未启用，请先完成 transaction_matches 表和匹配规则配置',
+        'NOT_IMPLEMENTED',
+        501
+      );
     } catch (error) {
       logger.error('获取可能匹配交易失败:', error);
       ResponseHandler.error(res, '获取可能匹配交易失败', 'SERVER_ERROR', 500, error);
@@ -1395,7 +1387,12 @@ const cashController = {
 
       // 当前系统未实现交易匹配功能
       // 如需此功能，请创建 transaction_matches 表并实现匹配逻辑
-      return ResponseHandler.error(res, '交易匹配功能待实现', 'NOT_IMPLEMENTED', 501);
+      return ResponseHandler.error(
+        res,
+        '交易匹配功能尚未启用，请先完成 transaction_matches 表和匹配规则配置',
+        'NOT_IMPLEMENTED',
+        501
+      );
     } catch (error) {
       logger.error('确认交易匹配失败:', error);
       ResponseHandler.error(res, '确认交易匹配失败', 'SERVER_ERROR', 500, error);
@@ -1641,6 +1638,7 @@ const cashController = {
             is_reconciled: false,
             reconciliation_date: null,
             gl_entry: null,
+            created_by: getAuthenticatedUserId(req),
           };
 
           // 创建交易记录
@@ -1687,9 +1685,12 @@ const cashController = {
    */
   importBankStatement: async (req, res) => {
     try {
-      // 银行对账单导入功能待实现
-      // 需要对接银行提供的标准对账单文件格式（如 MT940、CSV 等）
-      return ResponseHandler.error(res, '银行对账单导入功能待实现，请使用手动录入方式', 'NOT_IMPLEMENTED', 501);
+      return ResponseHandler.error(
+        res,
+        '银行对账单导入尚未启用，请使用手动录入方式',
+        'NOT_IMPLEMENTED',
+        501
+      );
     } catch (error) {
       ResponseHandler.error(res, '导入银行对账单失败', 'SERVER_ERROR', 500, error);
     }
@@ -1740,7 +1741,7 @@ const cashController = {
         '获取现金交易列表成功'
       );
     } catch (error) {
-      return ResponseHandler.error(res, '获取现金交易列表失败', 500, error);
+      return ResponseHandler.error(res, '获取现金交易列表失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -1762,7 +1763,7 @@ const cashController = {
 
       return ResponseHandler.success(res, transaction, '获取现金交易详情成功');
     } catch (error) {
-      return ResponseHandler.error(res, '获取现金交易详情失败', 500, error);
+      return ResponseHandler.error(res, '获取现金交易详情失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -1784,7 +1785,7 @@ const cashController = {
         counterparty: req.body.counterparty,
         description: req.body.description,
         reference_number: req.body.referenceNumber || req.body.reference_number,
-        created_by: await getCurrentUserName(req),
+        created_by: getAuthenticatedUserId(req),
       };
 
       const result = await CashTransactionModel.createCashTransaction(transactionData);
@@ -1800,7 +1801,7 @@ const cashController = {
         201
       );
     } catch (error) {
-      return ResponseHandler.error(res, '创建现金交易失败', 500, error);
+      return ResponseHandler.error(res, '创建现金交易失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -1816,7 +1817,7 @@ const cashController = {
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
       }
 
       const transactionData = {
@@ -1837,7 +1838,7 @@ const cashController = {
         return ResponseHandler.notFound(res, '现金交易记录不存在');
       }
     } catch (error) {
-      return ResponseHandler.error(res, '更新现金交易失败', 500, error);
+      return ResponseHandler.error(res, '更新现金交易失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -1848,7 +1849,7 @@ const cashController = {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
       }
 
       const deleted = await CashTransactionModel.deleteCashTransaction(id);
@@ -1859,7 +1860,7 @@ const cashController = {
         return ResponseHandler.notFound(res, '现金交易记录不存在');
       }
     } catch (error) {
-      return ResponseHandler.error(res, '删除现金交易失败', 500, error);
+      return ResponseHandler.error(res, '删除现金交易失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -1881,7 +1882,7 @@ const cashController = {
 
       return ResponseHandler.success(res, stats, '获取现金交易统计成功');
     } catch (error) {
-      return ResponseHandler.error(res, '获取现金交易统计失败', 500, error);
+      return ResponseHandler.error(res, '获取现金交易统计失败', 'SERVER_ERROR', 500, error);
     }
   },
 
@@ -1924,8 +1925,10 @@ const cashController = {
         return ResponseHandler.error(res, '请选择要导入的文件', 'BAD_REQUEST', 400);
       }
 
-      // 使用服务层导入功能
-      const result = await cashTransactionService.importCashTransactions(req.file.buffer);
+      const result = await cashTransactionService.importCashTransactions(
+        req.file.buffer,
+        getAuthenticatedUserId(req)
+      );
 
       return ResponseHandler.success(res, result, `成功导入 ${result.successCount} 条现金交易记录`);
     } catch (error) {
@@ -1944,7 +1947,7 @@ const cashController = {
         return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
       }
 
-      const userId = (req.body && req.body.userId) || 1;
+      const userId = getAuthenticatedUserId(req);
       const success = await CashTransactionModel.submitForAudit(id, userId);
 
       if (success) {
@@ -1968,7 +1971,7 @@ const cashController = {
         return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
       }
 
-      const userId = (req.body && req.body.userId) || 1;
+      const userId = getAuthenticatedUserId(req);
       const success = await CashTransactionModel.approveTransaction(id, userId);
 
       if (success) {
@@ -1992,7 +1995,7 @@ const cashController = {
         return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
       }
 
-      const userId = (req.body && req.body.userId) || 1;
+      const userId = getAuthenticatedUserId(req);
       const reason = (req.body && req.body.reason) || '';
       const success = await CashTransactionModel.rejectTransaction(id, userId, reason);
 

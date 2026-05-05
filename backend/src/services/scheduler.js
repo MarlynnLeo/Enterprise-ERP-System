@@ -39,7 +39,7 @@ function startOverdueCheckTask() {
 }
 
 /**
- * 手动触发逾期检查（用于测试或立即执行）
+ * 手动触发逾期检查（用于运维即时执行）
  */
 async function triggerOverdueCheck() {
   logger.info('[定时任务] 手动触发逾期检查');

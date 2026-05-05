@@ -8,6 +8,34 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
+const defaultPort = process.env.PORT || 8080;
+const isProduction = process.env.NODE_ENV === 'production';
+const normalizeApiBaseUrl = (url) => {
+  const normalized = String(url || '').replace(/\/+$/, '');
+  return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+};
+const swaggerApiBaseUrl = normalizeApiBaseUrl(
+  process.env.SWAGGER_API_BASE_URL ||
+  process.env.API_BASE_URL ||
+  (isProduction ? '/api' : `http://localhost:${defaultPort}/api`)
+);
+const swaggerProductionApiBaseUrl = process.env.SWAGGER_PRODUCTION_API_BASE_URL
+  ? normalizeApiBaseUrl(process.env.SWAGGER_PRODUCTION_API_BASE_URL)
+  : '';
+const swaggerServers = [
+  {
+    url: swaggerApiBaseUrl,
+    description: isProduction ? '当前环境' : '开发环境',
+  },
+];
+
+if (swaggerProductionApiBaseUrl) {
+  swaggerServers.push({
+    url: swaggerProductionApiBaseUrl,
+    description: '生产环境',
+  });
+}
+
 // Swagger 配置选项
 const options = {
   definition: {
@@ -25,16 +53,7 @@ const options = {
         url: 'https://opensource.org/licenses/MIT',
       },
     },
-    servers: [
-      {
-        url: 'http://localhost:8080/api',
-        description: '开发环境',
-      },
-      {
-        url: 'https://api.erp-system.com/api',
-        description: '生产环境',
-      },
-    ],
+    servers: swaggerServers,
     components: {
       securitySchemes: {
         bearerAuth: {

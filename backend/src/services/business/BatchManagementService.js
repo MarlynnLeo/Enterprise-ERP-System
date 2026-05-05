@@ -37,13 +37,11 @@ class BatchManagementService {
         expiry_date,
         warehouse_id,
         warehouse_name,
-        location,
         unit_cost,
         purchase_order_id,
         purchase_order_no,
         receipt_id,
         receipt_no,
-        inspection_id,
         created_by,
       } = batchData;
 
@@ -76,9 +74,9 @@ class BatchManagementService {
           warehouseName: warehouse_name,
           unitCost: unit_cost, // ✅ 新增：透传单价供成本核算
           purchaseOrderId: purchase_order_id, // ✅ 原生批次追踪属性透传
-          purchaseOrderNo: purchase_order_no, 
-          receiptId: receipt_id, 
-          receiptNo: receipt_no 
+          purchaseOrderNo: purchase_order_no,
+          receiptId: receipt_id,
+          receiptNo: receipt_no
         },
         connection
       );
@@ -119,7 +117,6 @@ class BatchManagementService {
     const [rows] = await connection.execute('SELECT id FROM units WHERE name = ? AND deleted_at IS NULL', [unitName]);
     return rows.length > 0 ? rows[0].id : null;
   }
-
 
 
   /**
@@ -247,13 +244,7 @@ class BatchManagementService {
 
       const {
         material_id,
-        material_code,
         required_quantity,
-        reference_type,
-        reference_id,
-        reference_no,
-        operator,
-        remarks,
       } = outboundData;
 
       // 在进入 FIFO 视图前，强制对该物料的台账加悲观锁，防止并发分配相同的老批次库存
@@ -275,22 +266,6 @@ class BatchManagementService {
       // 2. 逐批次执行出库
       for (const batch of fifoResult.allocated_batches) {
         // ✅ 使用 InventoryService 更新库存 (Single Table Truth)
-        const updateResult = await InventoryService.updateStock(
-          {
-            materialId: material_id,
-            locationId: batch.location_id, // 废除兜底 1 仓的设定
-            quantity: -batch.allocated_quantity, // 负数出库
-            transactionType: 'outbound',
-            referenceNo: reference_no,
-            referenceType: reference_type,
-            operator: operator,
-            remark: `FIFO自动分配: ${remarks || ''}`,
-            unitId: null,
-            batchNumber: batch.batch_number,
-          },
-          connection
-        );
-
 
 
         outboundRecords.push({
@@ -425,10 +400,9 @@ class BatchManagementService {
             reference_id,
             reference_no,
             operator,
-            remarks || '批次预留',
+            remarks || '????',
           ]
         );
-
 
 
         reserveRecords.push({

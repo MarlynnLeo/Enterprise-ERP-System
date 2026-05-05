@@ -2,6 +2,7 @@ const { getConnection } = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 /**
  * 获取产品BOM物料的价格调整列表(当前生效的)
@@ -104,7 +105,7 @@ exports.saveAdjustment = async (req, res) => {
         adjusted_price,
         adjustment_reason,
         newVersion,
-        req.user ? req.user.id : null,
+        getAuthenticatedUserId(req),
       ]
     );
 

@@ -185,7 +185,7 @@ class NonconformingProductService {
       // Extract detailed defect information from inspection items if available
       let defectDetails = [];
       if (inspection.items && Array.isArray(inspection.items)) {
-        const failedItems = inspection.items.filter(item => 
+        const failedItems = inspection.items.filter(item =>
           item.result === 'failed' || item.result === 'NG' || item.result === '不合格'
         );
         if (failedItems.length > 0) {
@@ -244,15 +244,19 @@ class NonconformingProductService {
           }
         } catch (autoError) {
           logger.error('Auto disposition failed:', autoError);
-          // 不影响NCP创建
+          const DLQService = require('./DLQService');
+          await DLQService.recordSideEffectFailure(
+            'NonconformingProduct:autoDisposition',
+            { ncpId: result.id, inspectionId: inspection.id },
+            autoError
+          );
         }
       }
 
       return result;
     } catch (error) {
       logger.error('Failed to auto-create NCP:', error);
-      // Don't throw error, just log it
-      return null;
+      throw error;
     }
   }
 
@@ -336,8 +340,7 @@ class NonconformingProductService {
       return matchedRule;
     } catch (error) {
       logger.error('Failed to auto disposition:', error);
-      // Don't throw error, just log it
-      return null;
+      throw error;
     }
   }
 
@@ -346,7 +349,7 @@ class NonconformingProductService {
    */
   static async processDisposition(ncpId, dispositionData) {
     try {
-      const db = require('../../config/db');
+
       const ncp = await NonconformingProduct.getById(ncpId);
       if (!ncp) {
         throw new Error('NCP not found');
@@ -430,7 +433,7 @@ class NonconformingProductService {
         }
       } catch (autoError) {
         logger.error(`自动处理流程失败 (${ncp.disposition}):`, autoError);
-        // 不影响NCP完成,只记录错误
+        throw autoError;
       }
 
       await connection.commit();
@@ -470,7 +473,7 @@ class NonconformingProductService {
 
       // 查询检验单信息以获取采购订单和供应商信息
       let inspection = { reference_id: null, reference_no: null, supplier_id: ncp.supplier_id || null, supplier_name: ncp.supplier_name || null };
-      
+
       if (ncp.inspection_id) {
         const [inspectionRows] = await connection.query(
           `SELECT qi.*, po.supplier_id, s.name as supplier_name
@@ -633,13 +636,13 @@ class NonconformingProductService {
       const returnNo = `${prefix}${String(sequence).padStart(3, '0')}`;
 
       // 查询检验单信息以获取供应商和仓库信息
-      let inspection = { 
-        supplier_id: ncp.supplier_id || null, 
+      let inspection = {
+        supplier_id: ncp.supplier_id || null,
         supplier_name: ncp.supplier_name || '未知供应商',
         reference_id: null,
         order_no: null
       };
-      
+
       if (ncp.inspection_id) {
         const [inspectionRows] = await connection.query(
           `SELECT qi.*, 
@@ -663,8 +666,6 @@ class NonconformingProductService {
           inspection.supplier_name = inspection.supplier_name || ncp.supplier_name || '未知供应商';
           // 正确映射原始单据属性
           inspection.reference_id = inspection.purchase_order_id; // purchase_order_id 的兼容映射
-          inspection.receipt_id = inspection.receipt_id;
-          inspection.receipt_no = inspection.receipt_no;
         } else {
           logger.warn(`检验单ID ${ncp.inspection_id} 不存在, 尝试降级处理退货`);
         }
@@ -684,7 +685,7 @@ class NonconformingProductService {
               WHERE batch_number = ?
               LIMIT 1
             `, [ncp.batch_no]);
-            
+
             if (originRows.length > 0) {
               const origin = originRows[0];
               inspection.supplier_id = origin.supplier_id || ncp.supplier_id;
@@ -693,7 +694,7 @@ class NonconformingProductService {
               inspection.order_no = origin.order_no;
               inspection.receipt_id = origin.receipt_id;
               inspection.receipt_no = origin.receipt_no;
-              
+
               logger.info(`✅ [血缘追溯建单] 根据批次 ${ncp.batch_no} 成功反查到原始入库单: ${origin.receipt_no}, 采购单: ${origin.order_no}`);
             } else {
               logger.warn(`⚠️ 无法根据批次 ${ncp.batch_no} 的库存流水找到最初的采购入库单`);
@@ -707,7 +708,7 @@ class NonconformingProductService {
       // 🔥 修复：优先从 NCP 关联的入库单获取不良品实际存放的库位（如隔离区），
       // 而不是从物料基础表获取默认仓库（零部件库）
       let returnWarehouseId = null;
-      
+
       // 方式1: 通过检验单 → 入库单链路查询实际入库库位
       if (ncp.inspection_id) {
         const [inboundLocationRows] = await connection.query(
@@ -850,8 +851,12 @@ class NonconformingProductService {
         );
         logger.info(`📧 退货通知已发送给采购部门，退货单: ${returnNo}`);
       } catch (notifyError) {
-        // 通知失败不影响主流程
-        logger.error('发送退货通知失败:', notifyError);
+        const DLQService = require('./DLQService');
+        await DLQService.recordSideEffectFailure(
+          'NonconformingProduct:purchaseReturnNotification',
+          { ncpId: ncp.id, returnNo, returnId },
+          notifyError
+        );
       }
 
       return { returnNo, returnId };

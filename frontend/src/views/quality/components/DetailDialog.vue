@@ -38,7 +38,6 @@
           <el-descriptions-item label="检验员">{{ inspection.inspector || inspection.inspector_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ inspection.note || '-' }}</el-descriptions-item>
         </el-descriptions>
-
         <!-- 检验项目 -->
         <template v-if="inspection.items && inspection.items.length > 0">
           <el-divider content-position="left">检验项目</el-divider>
@@ -80,28 +79,21 @@
     </template>
   </el-dialog>
 </template>
-
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { getQualityStatusText, getQualityStatusColor } from '@/constants/systemConstants'
-import { qualityApi } from '@/services/api'
 import { fetchInspectionDetailWithItems, extractMaterialNameSimple, extractMaterialSpecsSimple, extractSupplierNameSimple } from '@/utils/inspectionHelpers'
-
 const props = defineProps({
   visible: Boolean,
   row: { type: Object, default: null }
 })
-
 const emit = defineEmits(['update:visible', 'inspect'])
-
 const dialogVisible = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
 })
-
 const loading = ref(false)
 const inspection = ref(null)
-
 // 监听弹窗打开时加载数据
 watch(() => props.visible, async (val) => {
   if (val && props.row) {
@@ -122,13 +114,11 @@ watch(() => props.visible, async (val) => {
     }
   }
 })
-
 const handleGoInspect = () => {
   dialogVisible.value = false
   emit('inspect', inspection.value)
 }
 </script>
-
 <style scoped>
 :deep(.el-descriptions__content) {
   max-width: 300px;

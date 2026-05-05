@@ -350,8 +350,7 @@ const pageSize = ref(10);
 
 // 导入相关
 const importDialogVisible = ref(false);
-const importMethod = ref('template');
-const importForm = reactive({});
+const importMethod = ref('template');;
 const importing = ref(false);
 const importResult = ref(null);
 const uploadRef = ref(null);
@@ -380,7 +379,7 @@ const handleExport = async () => {
     link.click();
     document.body.removeChild(link);
     ElMessage.success('导出成功');
-  } catch (error) {
+  } catch {
     ElMessage.error('导出失败');
   }
 };

@@ -220,7 +220,7 @@ const openConversation = async (conv) => {
     messages.value = res.data?.list || []
     // 清零前端未读计数
     conv.unread_count = 0
-  } catch (e) {
+  } catch {
     showToast('加载消息失败')
   } finally {
     loadingMessages.value = false
@@ -306,7 +306,7 @@ const startChatWith = async (user) => {
         })
       }
     }
-  } catch (e) {
+  } catch {
     showToast('创建会话失败')
   }
 }

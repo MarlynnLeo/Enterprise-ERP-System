@@ -454,28 +454,7 @@ class CostAccountingService {
       const totalActualCost = materialCost.totalCost + laborCost.totalCost + overheadCost.totalCost;
 
       // 保存实际成本记录
-      const [costResult] = await connection.execute(
-        `INSERT INTO actual_costs (
-          production_order_id, product_id, quantity,
-          material_cost, labor_cost, overhead_cost, total_cost,
-          calculated_at, calculated_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'system')
-        ON DUPLICATE KEY UPDATE
-          material_cost = VALUES(material_cost),
-          labor_cost = VALUES(labor_cost),
-          overhead_cost = VALUES(overhead_cost),
-          total_cost = VALUES(total_cost),
-          calculated_at = NOW()`,
-        [
-          productionOrderId,
-          order.product_id,
-          order.quantity,
-          materialCost.totalCost,
-          laborCost.totalCost,
-          overheadCost.totalCost,
-          totalActualCost,
-        ]
-      );
+
 
       // ===== 回写成本到 production_tasks 表 =====
       await connection.execute(
@@ -500,14 +479,14 @@ class CostAccountingService {
           const standardLaborCost = stdCostResult.laborCost || 0;
           const standardOverheadCost = stdCostResult.overheadCost || 0;
           const standardTotalCost = stdCostResult.totalCost || 0;
-          
+
           const materialVariance = standardMaterialCost - materialCost.totalCost;
           const laborVariance = standardLaborCost - laborCost.totalCost;
           const overheadVariance = standardOverheadCost - overheadCost.totalCost;
           const totalVariance = standardTotalCost - totalActualCost;
           const varianceRate = standardTotalCost > 0 ? (totalVariance / standardTotalCost) * 100 : 0;
           const isFavorable = totalVariance >= 0 ? 1 : 0;
-          
+
           await connection.execute(
             `INSERT INTO cost_variance_records (
               task_id, product_id, quantity, 
@@ -1172,9 +1151,7 @@ class CostAccountingService {
    */
   static async getMaterialUnitCost(
     connection,
-    materialId,
-    method = this.COSTING_METHOD.WEIGHTED_AVERAGE,
-    asOfDate = new Date()
+    materialId
   ) {
     // 注意：由于系统的库存台账 inventory_ledger 仅记录数量不记录金额，
     // 且 inventory_transactions 表不存在，FIFO/LIFO/加权平均无法使用。
@@ -1194,7 +1171,7 @@ class CostAccountingService {
    * @param {string} asOfDate 截止日期
    * @returns {number} FIFO单位成本
    */
-  static async calculateFIFOCost(connection, materialId, asOfDate) {
+  static async calculateFIFOCost(connection, materialId) {
     // @deprecated inventory_transactions 表不存在，降级为标准成本
     logger.warn('[CostAccounting] calculateFIFOCost 已降级为标准成本');
     return await this.getStandardMaterialCost(connection, materialId);
@@ -1207,7 +1184,7 @@ class CostAccountingService {
    * @param {string} asOfDate 截止日期
    * @returns {number} LIFO单位成本
    */
-  static async calculateLIFOCost(connection, materialId, asOfDate) {
+  static async calculateLIFOCost(connection, materialId) {
     // @deprecated inventory_transactions 表不存在，降级为标准成本
     logger.warn('[CostAccounting] calculateLIFOCost 已降级为标准成本');
     return await this.getStandardMaterialCost(connection, materialId);
@@ -1220,7 +1197,7 @@ class CostAccountingService {
    * @param {string} asOfDate 截止日期
    * @returns {number} 加权平均单位成本
    */
-  static async calculateWeightedAverageCost(connection, materialId, asOfDate) {
+  static async calculateWeightedAverageCost(connection, materialId) {
     // @deprecated inventory_transactions 表不存在，降级为标准成本
     logger.warn('[CostAccounting] calculateWeightedAverageCost 已降级为标准成本');
     return await this.getStandardMaterialCost(connection, materialId);
@@ -1390,7 +1367,7 @@ class CostAccountingService {
    */
   static async recalculateMaterialCost(connection, materialId, method) {
     // 获取库存交易记录（按时间排序，处理字段名兼容性）
-    let transactions = [];
+    let transactions;
     try {
       const [result] = await connection.execute(
         `SELECT * FROM inventory_ledger
@@ -1486,7 +1463,7 @@ class CostAccountingService {
               newAmount,
               transaction.id,
             ]);
-          } catch (amountError) {
+          } catch {
             // 如果amount字段也不存在，记录警告但不抛出错误
           }
         } else {

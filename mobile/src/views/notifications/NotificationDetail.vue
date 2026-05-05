@@ -123,7 +123,7 @@
       await systemApi.markNotificationRead(route.params.id)
       notification.value.is_read = true
       showToast('已标记为已读')
-    } catch (error) {
+    } catch {
       showToast('操作失败')
     }
   }
@@ -133,14 +133,25 @@
       await systemApi.deleteNotification(route.params.id)
       showToast('已删除')
       router.back()
-    } catch (error) {
+    } catch {
       showToast('删除失败')
     }
   }
 
   const navigateToRelated = () => {
-    // 根据关联类型跳转到对应详情页
-    showToast('功能开发中')
+    const id = notification.value?.related_id
+    const routeMap = {
+      order: id ? `/sales/orders/${id}` : '/sales/orders',
+      task: id ? `/production/tasks/${id}` : '/production/tasks',
+      inspection: id ? `/quality/incoming/${id}` : '/quality/incoming',
+      approval: '/notifications'
+    }
+    const target = routeMap[notification.value?.related_type]
+    if (target) {
+      router.push(target)
+    } else {
+      showToast('未配置关联页面')
+    }
   }
 
   onMounted(() => {

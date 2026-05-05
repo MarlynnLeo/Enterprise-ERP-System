@@ -7,8 +7,14 @@
 
 const logger = require('../utils/logger');
 const db = require('../config/db');
-const { getUserIdByIdentifier } = require('../utils/userUtils');
-const { accountingConfig } = require('../config/accountingConfig');
+
+function requirePositiveInteger(value, fieldName) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0 || String(value).trim() !== String(parsed)) {
+    throw new Error(`${fieldName} must be a positive integer`);
+  }
+  return parsed;
+}
 
 /**
  * 财务模块数据库操作
@@ -21,7 +27,6 @@ const financeModel = {
     // 表结构由 migrations/20260312000003 管理
     return true;
   },
-
 
 
   // ===== 总账科目相关方法 =====
@@ -225,6 +230,7 @@ const financeModel = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      const setBy = requirePositiveInteger(balanceData.setBy, 'setBy');
 
       // 更新科目期初余额
       await connection.execute(
@@ -252,7 +258,7 @@ const financeModel = {
           balanceData.debit || 0,
           balanceData.credit || 0,
           balanceData.balanceDate || new Date().toISOString().split('T')[0],
-          balanceData.setBy || 1,
+          setBy,
           balanceData.notes || '设置期初余额',
         ]
       );
@@ -578,8 +584,6 @@ const financeModel = {
       };
 
       return result;
-    } catch (error) {
-      throw error;
     } finally {
       if (connection) {
         connection.release();
@@ -1069,7 +1073,6 @@ const financeModel = {
   // ===== 期末结转相关方法 =====
   // 注意：期末结转的实际执行由 PeriodEndService.closePeriod() 负责
   // 以下仅保留结转历史查询方法
-
 
 
   /**

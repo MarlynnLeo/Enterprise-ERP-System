@@ -3,7 +3,7 @@
  * @description 用户身份解析工具 - 从 JWT Token 中的 user.id 查询数据库获取真实姓名
  * @date 2026-04-09
  * @version 1.0.0
- * 
+ *
  * 背景：JWT 安全策略只存储 { id, username }，不含 real_name。
  * 所有需要写入"操作人姓名"的场景，统一通过此工具解析。
  */
@@ -44,7 +44,7 @@ async function getCurrentUserName(req) {
     nameCache.set(userId, { name: realName, timestamp: Date.now() });
 
     return realName;
-  } catch (e) {
+  } catch {
     // 查询失败时兜底
     return req.user.username || 'system';
   }

@@ -18,7 +18,6 @@
         </div>
       </div>
     </el-card>
-
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
@@ -43,7 +42,6 @@
           </div>
         </el-card>
       </el-col>
-
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card success-card" shadow="hover">
           <div class="stat-content">
@@ -66,7 +64,6 @@
           </div>
         </el-card>
       </el-col>
-
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card info-card" shadow="hover">
           <div class="stat-content">
@@ -89,7 +86,6 @@
           </div>
         </el-card>
       </el-col>
-
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card warning-card" shadow="hover">
           <div class="stat-content">
@@ -113,7 +109,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 图表区域 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :md="12" class="mb-20">
@@ -138,7 +133,6 @@
           </div>
         </el-card>
       </el-col>
-
       <el-col :xs="24" :md="12" class="mb-20">
         <el-card shadow="hover">
           <template #header>
@@ -152,7 +146,6 @@
         </el-card>
       </el-col>
     </el-row>
-
     <!-- 待处理生产任务 -->
     <el-row class="mt-20">
       <el-col :span="24">
@@ -234,10 +227,7 @@
     </el-row>
   </div>
 </template>
-
 <script setup>
-
-
 import { ref, computed, onMounted, watch } from 'vue';
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
 import Chart from 'chart.js/auto';
@@ -256,21 +246,17 @@ import {
   createLineChartConfig,
   chartColors
 } from '@/utils/chartConfig';
-
 // 图表引用
 const productionTrend = ref(null);
 const processCompletion = ref(null);
-
 const chartRefs = {
   productionTrend,
   processCompletion
 };
-
 // 生产趋势类型（数量/计划）选择
 const productionTrendType = ref('quantity');
 // 生产时间范围（年度/月度）选择
 const productionTimeRange = ref('year');
-
 // 使用仪表盘组合式函数
 const {
   loading,
@@ -281,27 +267,21 @@ const {
   autoRefresh: true,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
-
 // 使用图表管理组合式函数
 const {
   initAllCharts,
-  updateChart
 } = useCharts(chartRefs);
-
 // 待处理生产任务数据
 const pendingPlans = ref([]);
 const search = ref('');
 const currentPage = ref(1);
 const pageSize = ref(10);
-
 // 筛选后的待处理任务
 const filteredPendingTasks = computed(() => {
   const startIndex = (currentPage.value - 1) * pageSize.value;
   const endIndex = startIndex + pageSize.value;
-
   // 确保pendingPlans是数组
   let tasks = Array.isArray(pendingPlans.value) ? pendingPlans.value : [];
-
   if (search.value) {
     const searchValue = search.value.toLowerCase();
     tasks = tasks.filter(task =>
@@ -311,26 +291,21 @@ const filteredPendingTasks = computed(() => {
       (task.status && task.status.toLowerCase().includes(searchValue))
     );
   }
-
   return tasks.slice(startIndex, endIndex);
 });
-
 // 分页处理
 function handleSizeChange(size) {
   pageSize.value = size;
   currentPage.value = 1;
 }
-
 function handleCurrentChange(page) {
   currentPage.value = page;
 }
-
 // 格式化日期
 function formatDate(date) {
   if (!date) return '-';
   return formatDateUtil(date, 'YYYY-MM-DD');
 }
-
 // 获取状态类型
 function getStatusType(status) {
   const statusMap = {
@@ -344,7 +319,6 @@ function getStatusType(status) {
   };
   return statusMap[status] || 'info';
 }
-
 // 获取状态文本
 function getStatusText(status) {
   const statusTextMap = {
@@ -362,7 +336,6 @@ function getStatusText(status) {
   };
   return statusTextMap[status] || '未知状态';
 }
-
 // 加载生产数据
 async function loadProductionData() {
   try {
@@ -372,7 +345,6 @@ async function loadProductionData() {
       productionApi.getProcessCompletionRates(),
       fetchPendingPlans()
     ]);
-
     // 处理统计数据 - axios拦截器已解包
     let stats = getDefaultStatistics('production');
     if (dashboardStats.status === 'fulfilled' && dashboardStats.value) {
@@ -396,7 +368,6 @@ async function loadProductionData() {
         }
       };
     }
-
     if (completionStats.status === 'fulfilled' && completionStats.value) {
       const completionDataList = completionStats.value.data || completionStats.value || [];
       stats.processCompletion = Array.isArray(completionDataList) ? completionDataList.map(item => ({
@@ -404,32 +375,25 @@ async function loadProductionData() {
         rate: item.completionRate || item.completion_rate || '0%'
       })) : [];
     }
-
     return stats;
   } catch (error) {
     console.error('获取生产数据失败:', error);
     throw error;
   }
 }
-
 // 初始化生产趋势图表
 function initProductionTrendChart() {
   if (!chartRefs.productionTrend?.value) return null;
-
   const ctx = chartRefs.productionTrend.value.getContext('2d');
-
   // 根据时间范围生成标签
   const labels = productionTimeRange.value === 'year'
     ? generateMonthLabels(12)
     : generateDayLabels();
-
   const planData = new Array(labels.length).fill(null);
   const completedData = new Array(labels.length).fill(null);
-
   const config = createLineChartConfig({
     yAxisTitle: '数量'
   });
-
   return new Chart(ctx, {
     type: 'line',
     data: {
@@ -448,30 +412,24 @@ function initProductionTrendChart() {
     options: config
   });
 }
-
 // 生成当月日期标签
 function generateDayLabels() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-
   const labels = [];
   for (let i = 1; i <= daysInMonth; i++) {
     labels.push(`${i}日`);
   }
   return labels;
 }
-
 // 初始化工序完成率图表
 function initProcessChart() {
   if (!chartRefs.processCompletion?.value) return null;
-
   const ctx = chartRefs.processCompletion.value.getContext('2d');
-
   const labels = ['下料', '加工', '装配', '检验', '包装'];
   const completionData = new Array(5).fill(null);
-
   // 如果有统计数据，使用真实数据
   if (statistics?.processCompletion && Array.isArray(statistics.processCompletion) && statistics.processCompletion.length > 0) {
     labels.length = 0;
@@ -484,12 +442,10 @@ function initProcessChart() {
       completionData.push(rateNum);
     });
   }
-
   const config = createBarChartConfig({
     yAxisTitle: '完成率(%)',
     yAxisMax: 100
   });
-
   return new Chart(ctx, {
     type: 'bar',
     data: {
@@ -507,9 +463,6 @@ function initProcessChart() {
     options: config
   });
 }
-
-
-
 // 重新创建生产趋势图表
 let productionTrendChart = null;
 function recreateProductionTrendChart() {
@@ -519,11 +472,8 @@ function recreateProductionTrendChart() {
       productionTrendChart.destroy();
       productionTrendChart = null;
     }
-
     if (!chartRefs.productionTrend?.value) return;
-
     const ctx = chartRefs.productionTrend.value.getContext('2d');
-
     // 根据时间范围生成标签和数据
     let labels, data;
     if (productionTimeRange.value === 'year') {
@@ -535,11 +485,9 @@ function recreateProductionTrendChart() {
       labels = generateDayLabels();
       data = new Array(labels.length).fill(null);
     }
-
     const config = createLineChartConfig({
       yAxisTitle: '数量'
     });
-
     productionTrendChart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -557,42 +505,34 @@ function recreateProductionTrendChart() {
       },
       options: config
     });
-
     // 重新加载数据
     loadAndUpdateProductionTrends();
   } catch (error) {
     console.error('[生产趋势图表] 重新创建失败:', error);
   }
 }
-
 // 监听生产趋势类型变化
 watch(productionTrendType, () => {
   recreateProductionTrendChart();
 });
-
 // 监听生产时间范围变化
 watch(productionTimeRange, () => {
   recreateProductionTrendChart();
 });
-
 // 根据加载完成的统计数据，更新工序完成率图表
 function updateProcessCompletionChart() {
   try {
     const chartCanvas = chartRefs.processCompletion?.value;
     if (!chartCanvas) return;
-
     const chartInstance = Chart.getChart(chartCanvas);
     if (!chartInstance) return;
-
     const completionData = statistics.processCompletion;
     if (!Array.isArray(completionData) || completionData.length === 0) return;
-
     const labels = completionData.map(item => item.name || item.processName || '未知工序');
     const data = completionData.map(item => {
       const rateStr = item.rate || item.completionRate || '0%';
       return parseFloat(String(rateStr).replace('%', '')) || 0;
     });
-
     chartInstance.data.labels = labels;
     chartInstance.data.datasets[0].data = data;
     chartInstance.update();
@@ -600,7 +540,6 @@ function updateProcessCompletionChart() {
     console.error('[工序完成率图表] 更新失败:', error);
   }
 }
-
 // 生命周期钩子
 onMounted(async () => {
   try {
@@ -609,26 +548,19 @@ onMounted(async () => {
       productionTrend: initProductionTrendChart,
       processCompletion: initProcessChart
     });
-
     // 保存图表实例
     productionTrendChart = chartRefs.productionTrend.value ?
       Chart.getChart(chartRefs.productionTrend.value) : null;
-
     // 加载数据（统计卡片等）
     await loadData();
-
     // 数据加载完成后，更新工序完成率图表（因为 initProcessChart 在数据到达前就已创建空图表）
     updateProcessCompletionChart();
-
     // 加载并更新月度生产趋势
     await loadAndUpdateProductionTrends();
   } catch (error) {
     handleDashboardError(error, '生产仪表盘初始化失败');
   }
 });
-
-
-
 // 获取待处理生产任务
 async function fetchPendingPlans() {
   try {
@@ -639,7 +571,6 @@ async function fetchPendingPlans() {
       pageSize: 100
     };
     const response = await productionApi.getProductionTasks(params);
-
     // 拦截器已解包，response.data 就是业务数据
     const responseData = response.data;
     const plansList = responseData?.items || responseData?.list || (Array.isArray(responseData) ? responseData : []);
@@ -656,7 +587,6 @@ async function fetchPendingPlans() {
       manager: item.operator || item.manager || '-',
       status: item.status
     }));
-
   } catch (error) {
     console.error('获取待处理生产任务失败:', error);
     console.error('错误详情:', error.response || error.message);
@@ -666,31 +596,25 @@ async function fetchPendingPlans() {
     loading.value = false;
   }
 }
-
 // 从后端加载趋势数据并更新图表
 async function loadAndUpdateProductionTrends() {
   try {
     let labels, data;
-
     if (productionTimeRange.value === 'year') {
       // 年度：获取12个月的数据
       const resp = await productionApi.getDashboardTrends();
       const responseData = resp?.data || {};
-
       labels = Array.isArray(responseData.months) && responseData.months.length
         ? responseData.months
         : generateMonthLabels(12);
-
       const planned = Array.isArray(responseData.plannedData) ? responseData.plannedData : new Array(labels.length).fill(null);
       const completed = Array.isArray(responseData.completedData) ? responseData.completedData : new Array(labels.length).fill(null);
-
       // 根据选择的类型显示数据
       data = productionTrendType.value === 'quantity' ? completed : planned;
     } else {
       // 月度：获取当月每天的数据
       const resp = await productionApi.getDashboardTrends({ granularity: 'day' });
       const responseData = resp?.data || {};
-
       // 后端返回的是完整日期格式，需要转换为日期标签
       if (Array.isArray(responseData.days) && responseData.days.length) {
         labels = responseData.days.map(dateStr => {
@@ -700,13 +624,10 @@ async function loadAndUpdateProductionTrends() {
       } else {
         labels = generateDayLabels();
       }
-
       const planned = Array.isArray(responseData.plannedData) ? responseData.plannedData : new Array(labels.length).fill(null);
       const completed = Array.isArray(responseData.completedData) ? responseData.completedData : new Array(labels.length).fill(null);
-
       data = productionTrendType.value === 'quantity' ? completed : planned;
     }
-
     // 更新图表
     if (productionTrendChart) {
       productionTrendChart.data.labels = labels;
@@ -714,166 +635,129 @@ async function loadAndUpdateProductionTrends() {
       productionTrendChart.data.datasets[0].data = data;
       productionTrendChart.update();
     }
-  } catch (error) {
+  } catch {
     // 加载生产趋势失败
   }
 }
-
 </script>
-
 <style scoped>
 .production-dashboard {
   padding: 10px;
 }
-
 .header-card {
   margin-bottom: var(--spacing-lg);
 }
-
 .header-card h2 {
   margin: 0;
   font-size: 22px;
   color: var(--el-text-color-primary);
 }
-
 .last-updated {
   margin-left: 10px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
-
 .mt-20 {
   margin-top: var(--spacing-lg);
 }
-
 .mb-20 {
   margin-bottom: var(--spacing-lg);
 }
-
-
 .primary-card {
   border-top: 4px solid var(--el-color-primary);
 }
-
 .success-card {
   border-top: 4px solid var(--el-color-success);
 }
-
 .info-card {
   border-top: 4px solid var(--el-color-info);
 }
-
 .warning-card {
   border-top: 4px solid var(--el-color-warning);
 }
-
 .danger-card {
   border-top: 4px solid var(--el-color-danger);
 }
-
 .stat-content {
   flex-grow: 1;
   padding: 10px 0;
 }
-
 .stat-title {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 15px;
   color: var(--el-text-color-primary);
 }
-
 .stat-info {
   display: flex;
   justify-content: space-between;
 }
-
 .stat-main {
   text-align: left;
 }
-
-
 .stat-secondary {
   text-align: right;
 }
-
 .stat-secondary-value {
   font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
   color: var(--el-text-color-primary);
 }
-
 .stat-secondary-label {
   font-size: 14px;
   color: var(--el-text-color-secondary);
 }
-
 .card-footer {
   padding-top: 10px;
   border-top: 1px solid var(--el-border-color-lighter);
 }
-
 .chart-container {
   width: 100%;
   height: 300px;
   position: relative;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .card-header-with-search {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .card-header-with-search span {
   font-size: 16px;
   font-weight: bold;
 }
-
 .search-input {
   max-width: 200px;
 }
-
-
-
 .text-danger {
   color: var(--el-color-danger);
   font-weight: bold;
 }
-
 .text-warning {
   color: var(--el-color-warning);
   font-weight: bold;
 }
-
 /* 响应式调整 */
 @media (max-width: 768px) {
   .search-input {
     max-width: 120px;
   }
-
   .stat-value {
     font-size: 22px;
   }
-
   .stat-secondary-value {
     font-size: 18px;
   }
 }
-
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -881,7 +765,6 @@ async function loadAndUpdateProductionTrends() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -11,7 +11,6 @@
   <div v-if="!isComponentReady" class="loading-container" v-loading="true" element-loading-text="正在初始化组件...">
     <div style="height: 200px; width: 100%;"></div>
   </div>
-
   <div class="inventory-transaction-container" v-else>
     <el-card class="header-card">
       <div class="header-content">
@@ -24,7 +23,6 @@
         </el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card" v-if="searchForm">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -37,7 +35,6 @@
             end-placeholder="结束日期"
             :shortcuts="dateShortcuts"
             value-format="YYYY-MM-DD"
-
           />
         </el-form-item>
         <el-form-item label="物料编码">
@@ -268,13 +265,11 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 import { inventoryApi } from '@/api/inventory';
 import { formatCurrency, formatNumber } from '@/utils/format'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
-
 import { ref, onMounted, onUnmounted, nextTick, reactive, computed } from 'vue'
 import { debounce } from 'lodash-es'
 import { ElMessage } from 'element-plus'
@@ -296,19 +291,16 @@ echarts.use([
   TitleComponent,
   CanvasRenderer
 ])
-
 // 页面数据
 const loading = ref(false)
 const transactionList = ref([])
 const activeTab = ref('list')
-
 // 分页数据 - 使用 reactive 确保响应性
 const pagination = reactive({
   currentPage: 1,
   pageSize: 10,
   total: 0
 })
-
 // 统计信息
 const statistics = ref({
   totalTransactions: 0,
@@ -320,11 +312,9 @@ const statistics = ref({
   totalQuantity: 0,
   uniqueOperators: 0
 })
-
 // 当前选中的交易详情
 const detailDialogVisible = ref(false)
 const currentTransaction = ref({})
-
 // 图表引用
 const typeChartRef = ref(null)
 const amountChartRef = ref(null)
@@ -332,10 +322,8 @@ const trendChartRef = ref(null)
 let typeChart = null
 let amountChart = null
 let trendChart = null
-
 // 基础数据
 const locationOptions = ref([])
-
 // 日期快捷选项
 const dateShortcuts = [
   {
@@ -366,7 +354,6 @@ const dateShortcuts = [
     }
   }
 ]
-
 // 搜索表单
 const searchForm = ref({
   dateRange: [
@@ -377,7 +364,6 @@ const searchForm = ref({
   transactionType: '',
   locationId: ''
 })
-
 // 计算属性：检查组件是否已完全初始化
 const isComponentReady = computed(() => {
   return !!(
@@ -388,7 +374,6 @@ const isComponentReady = computed(() => {
     locationOptions.value !== undefined
   )
 })
-
 // Tab 切换处理
 const handleTabChange = (tab) => {
   if (tab.props.name === 'stats') {
@@ -397,7 +382,6 @@ const handleTabChange = (tab) => {
     })
   }
 }
-
 // 搜索处理
 const handleSearch = () => {
   // 前端数据验证
@@ -405,16 +389,13 @@ const handleSearch = () => {
     ElMessage.error('物料名称不能超过100个字符')
     return
   }
-
   if (searchForm.value.dateRange && searchForm.value.dateRange.length === 2) {
     const startDate = new Date(searchForm.value.dateRange[0])
     const endDate = new Date(searchForm.value.dateRange[1])
-
     if (startDate > endDate) {
       ElMessage.error('开始日期不能大于结束日期')
       return
     }
-
     // 限制查询时间范围不超过1年
     const oneYearMs = 365 * 24 * 60 * 60 * 1000
     if (endDate - startDate > oneYearMs) {
@@ -422,24 +403,20 @@ const handleSearch = () => {
       return
     }
   }
-
   if (pagination) {
     pagination.currentPage = 1
   }
   debouncedFetchTransactionList()
 }
-
 // 获取交易列表
 const fetchTransactionList = async () => {
   try {
     loading.value = true
-
     // 安全检查：确保 pagination 对象存在
     if (!pagination) {
       console.error('分页对象未初始化')
       return
     }
-
     const params = {
       page: pagination.currentPage || 1,
       pageSize: pagination.pageSize || 10,
@@ -449,12 +426,9 @@ const fetchTransactionList = async () => {
       transactionType: searchForm.value.transactionType || '',
       locationId: searchForm.value.locationId || ''
     }
-
     const response = await inventoryApi.getTransactions(params)
-
     // 拦截器已解包，response.data 就是业务数据
     const responseData = response.data
-
     // 处理统计数据 - 确保所有字段都有默认值
     statistics.value = {
       totalTransactions: 0,
@@ -467,22 +441,17 @@ const fetchTransactionList = async () => {
       uniqueOperators: 0,
       ...(responseData.statistics || {})
     }
-
     // 处理交易数据
     transactionList.value = responseData.items || []
-
     // 处理变动前后数量
     calculateBeforeAfterQuantity()
-
     // 设置分页总数
     if (pagination) {
       pagination.total = Number(responseData.total) || 0
     }
-
   } catch (error) {
     console.error('获取库存流水数据失败:', error)
     ElMessage.error('获取库存流水数据失败')
-
     // 确保即使出错也有默认值
     if (pagination) {
       pagination.total = 0
@@ -491,10 +460,8 @@ const fetchTransactionList = async () => {
     loading.value = false
   }
 }
-
 // 性能优化：防抖搜索
 const debouncedFetchTransactionList = debounce(fetchTransactionList, 300)
-
 // 重置搜索
 const handleReset = () => {
   searchForm.value = {
@@ -511,7 +478,6 @@ const handleReset = () => {
   }
   fetchTransactionList()
 }
-
 // 计算变动前后数量
 const calculateBeforeAfterQuantity = () => {
   // 首先检查是否所有记录都已有变动前后数量
@@ -594,7 +560,6 @@ const calculateBeforeAfterQuantity = () => {
     }
   });
 }
-
 // 获取统计数据
 const fetchStatsData = async () => {
   try {
@@ -614,7 +579,6 @@ const fetchStatsData = async () => {
     return null
   }
 }
-
 // 获取基础数据
 const fetchBaseData = async () => {
   try {
@@ -626,7 +590,6 @@ const fetchBaseData = async () => {
     console.error('获取基础数据失败:', error)
   }
 }
-
 // 初始化图表
 const initCharts = async () => {
   const statsData = await fetchStatsData()
@@ -821,14 +784,12 @@ const initCharts = async () => {
     })
   }
 }
-
 // 处理窗口大小变化
 const handleResize = () => {
   if (typeChart) typeChart.resize()
   if (amountChart) amountChart.resize()
   if (trendChart) trendChart.resize()
 }
-
 // 导出报表
 const handleExport = async () => {
   try {
@@ -859,21 +820,17 @@ const handleExport = async () => {
     ElMessage.error('导出报表失败')
   }
 }
-
 // 交易类型颜色（使用统一常量）
 const getTransactionTypeColor = (type) => {
   return getInventoryTransactionTypeColor(type)
 }
-
 // 交易类型文本
 const getTransactionTypeText = (type) => {
   return getInventoryTransactionTypeText(type)
 }
-
 // 数量显示类
 const getQuantityClass = (row) => {
   const type = row.transactionType;
-
   // 入库类型显示绿色（包括撤销出库）
   if (type === 'inbound' || type === 'outsourced_inbound' || type === 'purchase_inbound' ||
       type === 'sales_return' || type === '销售退货' || type === 'purchase_return' || type === '采购退货' ||
@@ -882,7 +839,6 @@ const getQuantityClass = (row) => {
       type === 'outbound_cancel' || type === '撤销出库') {
     return 'increase-text';
   }
-
   // 出库类型显示红色
   if (type === 'outbound' || type === 'outsourced_outbound' ||
       type === 'sales_outbound' || type === '销售出库' ||
@@ -890,20 +846,16 @@ const getQuantityClass = (row) => {
       type === 'adjustment_out' || type === '调整出库') {
     return 'decrease-text';
   }
-
   // 调拨和其他类型，根据数量正负决定显示颜色
   const quantity = parseFloat(row.quantity || 0);
   if (quantity > 0) return 'increase-text';
   if (quantity < 0) return 'decrease-text';
-
   return '';
 }
-
 // 数量显示前缀
 const getQuantityPrefix = (row) => {
   const type = row.transactionType;
   const quantity = parseFloat(row.quantity || 0);
-
   // 入库类型显示"+"（包括撤销出库）
   if (type === 'inbound' || type === 'outsourced_inbound' || type === 'purchase_inbound' ||
       type === 'sales_return' || type === '销售退货' || type === 'purchase_return' || type === '采购退货' ||
@@ -912,21 +864,17 @@ const getQuantityPrefix = (row) => {
       type === 'outbound_cancel' || type === '撤销出库') {
     return quantity >= 0 ? '+' : '';
   }
-
   // 出库类型：如果数量已经是负数，不需要额外的"-"前缀
   if (type === 'outbound' || type === 'outsourced_outbound' || type === 'sales_outbound' ||
       type === '销售出库' || type === 'sales_exchange_out' || type === '销售换出' ||
       type === 'adjustment_out' || type === '调整出库') {
     return quantity >= 0 ? '-' : '';  // 只有当数量为正数时才加"-"前缀
   }
-
   // 调拨和其他类型，根据数量正负决定显示前缀
   if (quantity > 0) return '+';
   if (quantity < 0) return '';  // 负数不需要前缀，因为已经有负号
-
   return '';
 }
-
 // 打开交易详情
 const showTransactionDetail = (row) => {
   // 使用服务器提供的变动前后数量数据
@@ -956,16 +904,12 @@ const showTransactionDetail = (row) => {
   currentTransaction.value = row
   detailDialogVisible.value = true
 }
-
 // 格式化数字
 // formatNumber 已统一引用公共实现
-
 // 格式化货币
 // formatCurrency 已统一引用公共实现
-
 // 格式化日期时间
 // formatDateTime 已统一引用公共实现
-
 // 分页处理
 const handleSizeChange = (val) => {
   if (pagination) {
@@ -973,14 +917,12 @@ const handleSizeChange = (val) => {
     fetchTransactionList()
   }
 }
-
 const handleCurrentChange = (val) => {
   if (pagination) {
     pagination.currentPage = val
     fetchTransactionList()
   }
 }
-
 // 初始化所有响应式数据
 const initializeData = () => {
   // 确保分页参数有默认值
@@ -989,7 +931,6 @@ const initializeData = () => {
     pagination.pageSize = 10
     pagination.total = 0
   }
-
   // 确保统计数据有默认值
   if (statistics.value) {
     statistics.value = {
@@ -1003,7 +944,6 @@ const initializeData = () => {
       uniqueOperators: 0
     }
   }
-
   // 确保搜索表单有默认值
   if (searchForm.value) {
     searchForm.value = {
@@ -1016,7 +956,6 @@ const initializeData = () => {
       locationId: ''
     }
   }
-
   // 确保其他数据有默认值
   transactionList.value = []
   locationOptions.value = []
@@ -1025,24 +964,19 @@ const initializeData = () => {
   loading.value = false
   activeTab.value = 'list'
 }
-
 // 初始化
 onMounted(() => {
   // 初始化所有数据
   initializeData()
-
   fetchBaseData()
   fetchTransactionList()
-
   // 监听窗口大小变化
   window.addEventListener('resize', handleResize)
 })
-
 // 组件销毁时清理
 onUnmounted(() => {
   // 移除窗口大小变化监听器
   window.removeEventListener('resize', handleResize)
-
   // 清理图表实例
   if (typeChart) {
     typeChart.dispose()
@@ -1057,14 +991,12 @@ onUnmounted(() => {
     trendChart = null
   }
 })
-
 // 添加点击行事件
 const handleRowClick = (row) => {
   showTransactionDetail(row)
 }
-
 // 安全性：HTML内容清理函数
-const sanitizeHtml = (html) => {
+const _sanitizeHtml = (html) => {
   if (!html) return ''
   // 简单的HTML清理，移除潜在的XSS攻击代码
   return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
@@ -1073,53 +1005,43 @@ const sanitizeHtml = (html) => {
              .replace(/on\w+\s*=/gi, '')
 }
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 /* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
-
 .chart-container {
   padding: 15px 0;
 }
-
 .chart-row {
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-lg);
   margin-bottom: var(--spacing-lg);
 }
-
 .chart-card {
   flex: 1;
   min-height: 350px;
 }
-
 .chart-title {
   text-align: center;
   margin-top: 0;
@@ -1131,50 +1053,39 @@ const sanitizeHtml = (html) => {
   justify-content: center;
   gap: 8px;
 }
-
 .chart-title .el-icon {
   color: var(--color-primary);
 }
-
 .chart-box {
   height: 300px;
 }
-
 .full-width {
   width: 100%;
 }
-
 .increase-text {
   color: var(--color-success);
   font-weight: 600;
 }
-
 .decrease-text {
   color: var(--color-danger);
   font-weight: 600;
 }
-
 .el-table {
   cursor: pointer;
 }
-
 .el-table .el-button--link {
   padding: 2px 0;
 }
-
 .el-descriptions {
   margin: 20px 0;
 }
-
 .el-descriptions-item__label {
   width: 120px;
   background-color: var(--color-bg-hover);
 }
-
 .el-descriptions-item__content {
   padding: 12px 15px;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1182,7 +1093,6 @@ const sanitizeHtml = (html) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

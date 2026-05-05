@@ -33,7 +33,7 @@
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="handleSearch" :loading="loading">
-              <el-icon><Search /></el-icon> 查询追溯
+              <el-icon><SearchIcon /></el-icon> 查询追溯
             </el-button>
             <el-button @click="resetSearch">
               <el-icon><Refresh /></el-icon> 重置
@@ -41,10 +41,10 @@
           </el-form-item>
         </el-form>
 
-        <!-- 快速测试 -->
+        <!-- 最近批次 -->
         <div class="test-cases" style="margin-top: 10px;">
           <div style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
+            <span style="color: var(--color-text-regular); font-size: 12px;">最近批次: </span>
             <el-button
               size="small"
               type="success"
@@ -56,15 +56,15 @@
             </el-button>
           </div>
           <el-button
-            v-for="testCase in testCases"
-            :key="testCase.id"
+            v-for="batch in latestMaterialBatches"
+            :key="batch.id"
             size="small"
             type="primary"
             plain
-            @click="loadTestCase(testCase)"
+            @click="loadLatestMaterialBatch(batch)"
             style="margin-right: 8px; margin-bottom: 4px;"
           >
-            {{ testCase.label }}
+            {{ batch.label }}
           </el-button>
         </div>
       </div>
@@ -76,7 +76,7 @@
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" @click="searchProductTrace" :loading="loading.product">
-                  <el-icon><Search /></el-icon> 查询追溯
+                  <el-icon><SearchIcon /></el-icon> 查询追溯
                 </el-button>
                 <el-button @click="resetProductForm">
                   <el-icon><Refresh /></el-icon> 重置
@@ -84,19 +84,19 @@
               </el-form-item>
             </el-form>
 
-            <!-- 成品快速测试案例 -->
+            <!-- 成品最近批次 -->
             <div class="test-cases" style="margin-top: 10px;">
-              <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
+              <span style="color: var(--color-text-regular); font-size: 12px;">最近批次: </span>
               <el-button
-                v-for="testCase in productTestCases"
-                :key="testCase.id"
+                v-for="batch in latestProductBatches"
+                :key="batch.id"
                 size="small"
                 type="success"
                 plain
-                @click="loadProductTestCase(testCase)"
+                @click="loadLatestProductBatch(batch)"
                 style="margin-right: 8px; margin-bottom: 4px;"
               >
-                {{ testCase.label }}
+                {{ batch.label }}
               </el-button>
             </div>
           </div>
@@ -126,7 +126,7 @@
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" @click="searchCustomerTrace" :loading="loading.customer">
-                  <el-icon><Search /></el-icon> 查询追溯
+                  <el-icon><SearchIcon /></el-icon> 查询追溯
                 </el-button>
                 <el-button @click="resetCustomerForm">
                   <el-icon><Refresh /></el-icon> 重置
@@ -158,7 +158,7 @@
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" @click="searchMaterialToCustomerTrace" :loading="loading.materialToCustomer">
-                  <el-icon><Search /></el-icon> 查询追溯
+                  <el-icon><SearchIcon /></el-icon> 查询追溯
                 </el-button>
                 <el-button @click="resetMaterialToCustomerForm">
                   <el-icon><Refresh /></el-icon> 重置
@@ -166,19 +166,19 @@
               </el-form-item>
             </el-form>
 
-            <!-- 原材料到客户快速测试案例 -->
+            <!-- 原材料到客户最近批次 -->
             <div class="test-cases" style="margin-top: 10px;">
-              <span style="color: var(--color-text-regular); font-size: 12px;">快速测试: </span>
+              <span style="color: var(--color-text-regular); font-size: 12px;">最近批次: </span>
               <el-button
-                v-for="testCase in materialToCustomerTestCases"
-                :key="testCase.id"
+                v-for="batch in latestMaterialCustomerBatches"
+                :key="batch.id"
                 size="small"
                 type="warning"
                 plain
-                @click="loadMaterialToCustomerTestCase(testCase)"
+                @click="loadLatestMaterialCustomerBatch(batch)"
                 style="margin-right: 8px; margin-bottom: 4px;"
               >
-                {{ testCase.label }}
+                {{ batch.label }}
               </el-button>
             </div>
           </div>
@@ -302,7 +302,7 @@
       <div v-if="activeTab === 'product' && traceabilityData.product">
         <el-card style="margin-top: 20px;">
           <template #header>
-            <h3><el-icon style="vertical-align: middle; margin-right: 4px;"><Search /></el-icon>成品完整追溯链路</h3>
+            <h3><el-icon style="vertical-align: middle; margin-right: 4px;"><SearchIcon /></el-icon>成品完整追溯链路</h3>
           </template>
 
           <!-- 成品批次信息 -->
@@ -548,15 +548,14 @@
 
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Download } from '@element-plus/icons-vue'
+import { Search as SearchIcon, Refresh } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 
 export default {
   name: 'FullChainTraceability',
   components: {
-    Search,
-    Refresh,
-    Download
+    SearchIcon,
+    Refresh
   },
   setup() {
     const activeTab = ref('material')
@@ -591,10 +590,9 @@ export default {
       batchNumber: ''
     })
 
-    // 测试用例数据（从API动态加载，不再硬编码）
-    const testCases = ref([])
-    const productTestCases = ref([])
-    const materialToCustomerTestCases = ref([])
+    const latestMaterialBatches = ref([])
+    const latestProductBatches = ref([])
+    const latestMaterialCustomerBatches = ref([])
 
     // 原材料批次查询
     const handleSearch = async () => {
@@ -659,8 +657,7 @@ export default {
           traceabilityData.value = null
           hasData.value = false
         }
-      } catch (error) {
-        console.error('查询追溯数据失败:', error)
+      } catch {
         ElMessage.error('查询追溯数据失败')
         traceabilityData.value = null
         hasData.value = false
@@ -774,8 +771,7 @@ export default {
           hasData.value = false
           ElMessage.error(result.message || '未找到该批次的追溯信息')
         }
-      } catch (error) {
-        console.error('成品追溯查询失败:', error)
+      } catch {
         ElMessage.error('查询失败')
         traceabilityData.value = null
         hasData.value = false
@@ -806,8 +802,7 @@ export default {
           hasData.value = false
           ElMessage.error(result.message || '查询失败')
         }
-      } catch (error) {
-        console.error('客户追溯查询失败:', error)
+      } catch {
         ElMessage.error('查询失败')
         traceabilityData.value = null
         hasData.value = false
@@ -837,8 +832,7 @@ export default {
           hasData.value = false
           ElMessage.error(result.message || '查询失败')
         }
-      } catch (error) {
-        console.error('原材料到客户追溯查询失败:', error)
+      } catch {
         ElMessage.error('查询失败')
         traceabilityData.value = null
         hasData.value = false
@@ -872,27 +866,26 @@ export default {
         if (result.success) {
           customerList.value = result.data
         }
-      } catch (error) {
-        console.error('获取客户列表失败:', error)
+      } catch {
+        customerList.value = []
       }
     }
 
-    // 加载测试案例
-    const loadTestCase = (testCase) => {
-      searchForm.materialCode = testCase.materialCode
-      searchForm.batchNumber = testCase.batchNumber
+    const loadLatestMaterialBatch = (batch) => {
+      searchForm.materialCode = batch.materialCode
+      searchForm.batchNumber = batch.batchNumber
       handleSearch()
     }
 
-    const loadProductTestCase = (testCase) => {
-      productForm.productCode = testCase.productCode
-      productForm.batchNumber = testCase.batchNumber
+    const loadLatestProductBatch = (batch) => {
+      productForm.productCode = batch.productCode
+      productForm.batchNumber = batch.batchNumber
       searchProductTrace()
     }
 
-    const loadMaterialToCustomerTestCase = (testCase) => {
-      materialToCustomerForm.materialCode = testCase.materialCode
-      materialToCustomerForm.batchNumber = testCase.batchNumber
+    const loadLatestMaterialCustomerBatch = (batch) => {
+      materialToCustomerForm.materialCode = batch.materialCode
+      materialToCustomerForm.batchNumber = batch.batchNumber
       searchMaterialToCustomerTrace()
     }
 
@@ -952,18 +945,17 @@ export default {
             }
           })
 
-          // 更新测试案例（全部从API获取，最多显示14个）
-          testCases.value = latestBatches.slice(0, 14)
+          latestMaterialBatches.value = latestBatches.slice(0, 14)
 
-          // 同时更新原材料到客户的测试案例
-          materialToCustomerTestCases.value = latestBatches.slice(0, 6)
+          latestMaterialCustomerBatches.value = latestBatches.slice(0, 6)
 
           ElMessage.success(`已获取 ${latestBatches.length} 个最新批次号`)
         } else {
           ElMessage.error('获取最新批次失败: ' + result.message)
         }
-      } catch (error) {
-        console.error('获取最新批次失败:', error)
+      } catch {
+        latestMaterialBatches.value = []
+        latestMaterialCustomerBatches.value = []
         ElMessage.error('获取最新批次失败')
       }
     }
@@ -984,14 +976,11 @@ export default {
 
       try {
         // 生成导出数据
+        const batchNo = searchForm.batchNumber || productForm.batchNumber || materialToCustomerForm.batchNumber || 'traceability'
         const exportData = {
-          batchNo: props.batchNo,
+          batchNo,
           exportTime: new Date().toLocaleString(),
-          rawMaterials: rawMaterials.value,
-          productionProcess: productionProcess.value,
-          qualityInspections: qualityInspections.value,
-          finalProducts: finalProducts.value,
-          timeline: timeline.value
+          traceabilityData: traceabilityData.value
         }
 
         // 转换为JSON字符串
@@ -1004,7 +993,7 @@ export default {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `追溯报告_${props.batchNo}_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`
+        a.download = `追溯报告_${batchNo}_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`
         document.body.appendChild(a)
         a.click()
 
@@ -1013,8 +1002,7 @@ export default {
         document.body.removeChild(a)
 
         ElMessage.success('导出成功')
-      } catch (error) {
-        console.error('导出失败:', error)
+      } catch {
         ElMessage.error('导出失败')
       }
     }
@@ -1100,7 +1088,7 @@ export default {
     }
 
     // 过滤追溯步骤（对于老库存导入，显示所有步骤但标记无记录的）
-    const getFilteredSteps = (steps, isLegacyImport) => {
+    const getFilteredSteps = (steps) => {
       if (!steps) return []
       // 返回所有步骤，让用户看到完整的追溯链路
       return steps
@@ -1112,7 +1100,7 @@ export default {
       return earlySteps.includes(stepType)
     }
 
-    // 组件挂载时自动加载测试用例数据
+    // 组件挂载时自动加载最近批次数据
     onMounted(() => {
       loadLatestBatches()
       loadProductBatches()
@@ -1126,16 +1114,15 @@ export default {
 
         if (result.success && result.data) {
           let id = 1
-          productTestCases.value = result.data.slice(0, 10).map(batch => ({
+          latestProductBatches.value = result.data.slice(0, 10).map(batch => ({
             id: id++,
             label: `${batch.product_name || batch.product_code}-${batch.batch_number}`,
             productCode: batch.product_code,
             batchNumber: batch.batch_number
           }))
         }
-      } catch (error) {
-        // 静默处理，不影响主功能
-        console.warn('加载成品批次失败:', error)
+      } catch {
+        latestProductBatches.value = []
       }
     }
 
@@ -1149,9 +1136,9 @@ export default {
       productForm,
       customerForm,
       materialToCustomerForm,
-      testCases,
-      productTestCases,
-      materialToCustomerTestCases,
+      latestMaterialBatches,
+      latestProductBatches,
+      latestMaterialCustomerBatches,
       handleSearch,
       searchProductTrace,
       searchCustomerTrace,
@@ -1161,9 +1148,9 @@ export default {
       resetProductForm,
       resetCustomerForm,
       resetMaterialToCustomerForm,
-      loadTestCase,
-      loadProductTestCase,
-      loadMaterialToCustomerTestCase,
+      loadLatestMaterialBatch,
+      loadLatestProductBatch,
+      loadLatestMaterialCustomerBatch,
       loadLatestBatches,
       refreshData,
       exportReport,

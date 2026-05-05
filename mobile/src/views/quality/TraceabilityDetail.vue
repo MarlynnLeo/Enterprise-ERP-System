@@ -175,13 +175,12 @@
 
 <script setup>
   import { ref, onMounted } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
+  import { useRoute } from 'vue-router'
   import { NavBar, Loading, Empty, Button } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import { qualityApi } from '@/services/api'
 
   const route = useRoute()
-  const router = useRouter()
 
   const loading = ref(false)
   const traceData = ref(null)

@@ -12,22 +12,15 @@ const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 // const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
-const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
-const {
-  getInventoryTransactionTypeText,
-  getTransferStatusText,
-  getSalesStatusText,
-  generateStatusCaseSQL,
-  INVENTORY_TRANSACTION_TYPES,
-  INVENTORY_TRANSACTION_GROUPS,
-} = require('../../../constants/systemConstants');
 
 // 引入库存一致性校验服务
 
@@ -36,21 +29,14 @@ const {
 // 引入重构后的入库处理服务
 
 // 引入状态映射工具和状态常量
-const STATUS = {
-  OUTBOUND: businessConfig.status.outbound,
-  INBOUND: businessConfig.status.inbound,
-  PRODUCTION_TASK: businessConfig.status.productionTask,
-  PRODUCTION_PLAN: businessConfig.status.productionPlan,
-  APPROVAL: businessConfig.status.approval,
-  TRANSFER: businessConfig.status.transfer,
-};
+
 
 /**
  * 获取物料的批次号（FIFO原则）
  * @param {object} connection - 数据库连接
  * @param {number} materialId - 物料ID
  * @param {number} locationId - 库位ID（可选）
- * @param {string} defaultBatchNo - 默认批次号（如果查询失败）
+ * @param {string} fallbackBatchNo - 调用方显式传入的候选批次号
  * @returns {Promise<string>} 批次号
  */
 
@@ -263,7 +249,7 @@ const createCheck = async (req, res) => {
         check_date,
         'draft',
         remark || null,
-        req.user?.id || 1, // 默认用户ID为1
+        getAuthenticatedUserId(req),
       ]
     );
 

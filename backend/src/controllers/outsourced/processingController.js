@@ -82,7 +82,7 @@ const getProcessings = async (req, res) => {
     const pageInt = parseInt(page, 10);
     const offset = (pageInt - 1) * actualPageSize;
 
-    // 不使用参数占位符，而是直接拼接SQL语句中的分页数字
+    // 分页数值已安全整数化，作为 LIMIT/OFFSET 片段拼接
     query += ` ORDER BY id DESC LIMIT ${actualPageSize} OFFSET ${offset}`;
 
     // 使用原始参数数组，不添加分页参数
@@ -162,8 +162,6 @@ const createProcessing = async (req, res) => {
       contact_person,
       contact_phone,
       remarks,
-      location_id,
-      warehouse_name,
       materials,
       products,
     } = req.body;
@@ -310,7 +308,6 @@ const updateProcessing = async (req, res) => {
     if (existingProcessing[0].status !== 'pending') {
       return ResponseHandler.error(res, '只能修改待确认状态的加工单', 'BAD_REQUEST', 400);
     }
-
 
 
     // 计算总金额，确保不会有NaN
@@ -511,19 +508,12 @@ const updateProcessingStatus = async (req, res) => {
       for (const material of materials) {
         // 优先使用加工单指定的仓库，其次使用物料基础资料中配置的默认仓库
         let usedWarehouseId;
-        let usedWarehouseName;
 
         if (existingProcessing[0].location_id) {
           usedWarehouseId = existingProcessing[0].location_id;
-          usedWarehouseName = existingProcessing[0].warehouse_name || '指定仓库';
         } else {
           // 通过统一方法获取物料默认仓库
           usedWarehouseId = await InventoryService.getMaterialLocation(material.material_id, connection);
-          const [locationInfo] = await connection.execute(
-            'SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL',
-            [usedWarehouseId]
-          );
-          usedWarehouseName = locationInfo.length > 0 ? locationInfo[0].name : '物料默认仓库';
         }
 
         try {
@@ -643,7 +633,7 @@ const getReceipts = async (req, res) => {
     const pageInt = parseInt(page, 10);
     const offset = (pageInt - 1) * actualPageSize;
 
-    // 不使用参数占位符，而是直接拼接SQL语句中的分页数字
+    // 分页数值已安全整数化，作为 LIMIT/OFFSET 片段拼接
     query += ` ORDER BY id DESC LIMIT ${actualPageSize} OFFSET ${offset}`;
 
     // 使用原始参数数组，不添加分页参数
@@ -714,7 +704,6 @@ const createReceipt = async (req, res) => {
       supplier_id,
       supplier_name,
       location_id,
-      warehouse_name,
       receipt_date,
       operator,
       remarks,
@@ -741,7 +730,6 @@ const createReceipt = async (req, res) => {
 
     // 生成入库单号
     const receipt_no = await purchaseModel.generateProcessingReceiptNo();
-
 
 
     try {
@@ -831,7 +819,6 @@ const createReceipt = async (req, res) => {
         // 外键约束结构由 Knex 迁移文件 000007/000010 管理
         logger.error('外键约束错误，请检查迁移文件是否已执行:', error.message);
       }
-
 
 
       throw error; // 如果不是特定的外键约束错误，继续抛出错误

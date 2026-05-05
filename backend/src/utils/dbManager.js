@@ -16,7 +16,7 @@ class DBManager {
       return await db.pool.getConnection();
     } catch (error) {
       logger.error('获取数据库连接失败:', error);
-      throw new Error('数据库连接失败');
+    throw new Error('数据库连接失败', { cause: error });
     }
   }
 

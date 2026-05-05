@@ -18,7 +18,6 @@
         <el-button v-permission="'sales:quotations:create'" type="primary" :icon="Plus" @click="showCreateDialog">新增报价单</el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
@@ -50,7 +49,6 @@
               end-placeholder="结束日期"
               @change="handleSearch"
             value-format="YYYY-MM-DD"
-
             />
         </el-form-item>
           
@@ -64,7 +62,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover" @click="resetStatusFilter">
@@ -92,7 +89,6 @@
         <div class="stat-label">转化率</div>
       </el-card>
       </div>
-
     <!-- 报价单表格 -->
     <el-card class="data-card">
       <el-table 
@@ -175,7 +171,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -363,7 +358,6 @@
             </div>
           </div>
         </el-form-item>
-
         <el-form-item label="备注">
           <el-input 
             type="textarea" 
@@ -380,7 +374,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 查看报价单对话框 -->
     <el-dialog
       v-model="viewDialogVisible"
@@ -401,15 +394,12 @@
         <el-descriptions-item label="创建时间">{{ formatDateTime(currentQuotation.created_at) }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ currentQuotation.remarks || '无' }}</el-descriptions-item>
       </el-descriptions>
-
       <el-divider>报价明细</el-divider>
-
       <el-table :data="currentQuotation.items" border style="width: 100%">
         <el-table-column prop="product_name" label="产品名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
         <el-table-column prop="quantity" label="数量" width="100" />
       </el-table>
-
       <!-- 合计行 -->
       <div style="margin-top: 16px; text-align: right; padding: 12px; background-color: var(--color-bg-hover); border: 1px solid var(--color-border-base); border-radius: 4px;">
         <span style="font-size: 16px; font-weight: bold; color: var(--color-text-primary);">
@@ -420,21 +410,18 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
-
 import dayjs from 'dayjs'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesApi } from '@/services/api'
+import { baseDataApi, salesApi } from '@/services/api'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 // 销售报价功能 - 完善版
 // 支持报价单的创建、编辑、查看、删除和转为订单功能
 // 实现了与后端的真实API交互
-
 const router = useRouter()
 const loading = ref(false)
 const quotations = ref([])
@@ -444,7 +431,6 @@ const total = ref(0)
 const searchQuery = ref('')
 const statusFilter = ref('')
 const dateRange = ref([])
-
 // 报价单统计数据
 const quotationStats = ref({
   total: 0,
@@ -453,7 +439,6 @@ const quotationStats = ref({
   converted: 0,
   expired: 0
 })
-
 const monthlyQuotations = ref(0)
 const monthlyAmount = ref(0)
 const conversionRate = ref(0)
@@ -462,7 +447,6 @@ const dialogVisible = ref(false)
 const dialogLoading = ref(false)
 const dialogType = ref('create')
 const quotationFormRef = ref(null)
-
 // 查看对话框控制
 const viewDialogVisible = ref(false)
 const viewDialogLoading = ref(false)
@@ -475,14 +459,11 @@ const currentQuotation = ref({
   created_at: '',
   items: []
 })
-
 // 产品列表
 const products = ref([])
-
 // BOM相关数据
 const selectedProductId = ref('') // 选中的产品ID
 const loadingBom = ref(false) // BOM加载状态
-
 // 表单数据
 const quotationForm = ref({
   customer_id: '',
@@ -498,7 +479,6 @@ const quotationForm = ref({
   ],
   remarks: ''
 })
-
 // 表单验证规则
 const rules = {
   customer_id: [
@@ -508,7 +488,6 @@ const rules = {
     { required: true, message: '请选择有效期', trigger: 'change' }
   ]
 }
-
 // 状态映射
 const quotationStatuses = [
   { value: 'draft', label: '待确认' },
@@ -517,31 +496,24 @@ const quotationStatuses = [
   { value: 'rejected', label: '已拒绝' },
   { value: 'expired', label: '已过期' }
 ]
-
 import { getSalesQuotationStatusText, getSalesQuotationStatusColor } from '@/constants/systemConstants'
-
 // 获取状态类型（使用统一常量）
 const getStatusType = (status) => {
   return getSalesQuotationStatusColor(status)
 }
-
 // 获取状态文本（使用统一常量）
 const getStatusText = (status) => {
   return getSalesQuotationStatusText(status)
 }
-
 // 获取状态显示文本
 const getStatusLabel = (status) => {
   const statusItem = quotationStatuses.find(item => item.value === status)
   return statusItem ? statusItem.label : status
 }
-
 // 格式化日期
 // formatDate 已统一引用公共实现
-
 // 格式化日期时间
 // formatDateTime 已统一引用公共实现
-
 // 计算统计数据
 const calculateQuotationStats = () => {
   const stats = {
@@ -561,13 +533,11 @@ const calculateQuotationStats = () => {
   
   quotationStats.value = stats
 }
-
 // 搜索方法
 const handleSearch = () => {
   currentPage.value = 1
   fetchData()
 }
-
 // 重置搜索方法
 const resetSearch = () => {
   searchQuery.value = ''
@@ -575,19 +545,16 @@ const resetSearch = () => {
   dateRange.value = []
   fetchData()
 }
-
 // 重置状态过滤器
 const resetStatusFilter = () => {
   statusFilter.value = ''
   fetchData()
 }
-
 // 设置状态过滤器
 const setStatusFilter = (status) => {
   statusFilter.value = status
   fetchData()
 }
-
 // 获取报价单数据
 const fetchData = async () => {
   loading.value = true
@@ -602,7 +569,6 @@ const fetchData = async () => {
     }
     params.page = currentPage.value
     params.pageSize = pageSize.value
-
     // 调用API获取数据
     const response = await salesApi.getQuotations(params)
     if (response && response.data) {
@@ -621,7 +587,6 @@ const fetchData = async () => {
     loading.value = false
   }
 }
-
 // 获取报价单统计数据
 const fetchQuotationStats = async () => {
   try {
@@ -637,7 +602,6 @@ const fetchQuotationStats = async () => {
     console.error('获取报价单统计数据失败:', error)
   }
 }
-
 // 获取客户数据
 const fetchCustomers = async () => {
   try {
@@ -650,7 +614,6 @@ const fetchCustomers = async () => {
     ElMessage.error('获取客户数据失败')
   }
 }
-
 // 获取产品列表
 const fetchProducts = async () => {
   try {
@@ -666,12 +629,10 @@ const fetchProducts = async () => {
     products.value = []
   }
 }
-
 // 根据产品ID获取产品信息
 const getProductById = (productId) => {
   return products.value.find(p => p.id === productId)
 }
-
 // 产品选择变更处理
 const handleProductChange = (index) => {
   const item = quotationForm.value.items[index]
@@ -684,14 +645,12 @@ const handleProductChange = (index) => {
     }
   }
 }
-
 // 在组件挂载时获取数据
 onMounted(() => {
   fetchData()
   fetchCustomers()
   fetchProducts()
 })
-
 // 添加明细项
 const addItem = () => {
   quotationForm.value.items.push({
@@ -702,12 +661,10 @@ const addItem = () => {
     amount: 0
   })
 }
-
 // 移除明细项
 const removeItem = (index) => {
   quotationForm.value.items.splice(index, 1)
 }
-
 // 计算明细项金额
 const calculateItemAmount = (index) => {
   const item = quotationForm.value.items[index]
@@ -717,14 +674,12 @@ const calculateItemAmount = (index) => {
     item.amount = quantity * unitPrice
   }
 }
-
 // 计算总金额
 const calculateTotalAmount = () => {
   return quotationForm.value.items.reduce((sum, item) => {
     return sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0))
   }, 0)
 }
-
 // 显示创建对话框
 const showCreateDialog = () => {
   dialogType.value = 'create'
@@ -745,7 +700,6 @@ const showCreateDialog = () => {
   }
   dialogVisible.value = true
 }
-
 // 提交报价单
 const submitQuotation = async () => {
   if (!quotationFormRef.value) return
@@ -796,7 +750,6 @@ const submitQuotation = async () => {
     }
   })
 }
-
 // 删除报价单
 const handleDelete = async (row) => {
   try {
@@ -808,7 +761,6 @@ const handleDelete = async (row) => {
     ElMessage.error('删除报价单失败')
   }
 }
-
 // 确认报价单
 const handleConfirm = async (row) => {
   ElMessageBox.confirm('确定要确认该报价单吗？', '确认操作', {
@@ -849,12 +801,10 @@ const handleConfirm = async (row) => {
     // 用户取消操作
   })
 }
-
 // 刷新数据
-const refreshData = () => {
+const _refreshData = () => {
   fetchData()
 }
-
 // 查看报价单详情
 const handleView = async (row) => {
   viewDialogVisible.value = true
@@ -883,7 +833,6 @@ const handleView = async (row) => {
     viewDialogLoading.value = false
   }
 }
-
 // 编辑报价单
 const handleEdit = async (row) => {
   dialogType.value = 'edit'
@@ -919,7 +868,6 @@ const handleEdit = async (row) => {
     dialogLoading.value = false
   }
 }
-
 // 转为销售订单
 const handleConvert = (row) => {
   ElMessageBox.confirm('确定将此报价单转为销售订单？', '提示', {
@@ -986,18 +934,15 @@ const handleConvert = (row) => {
     }
   }).catch(() => {})
 }
-
 // 获取客户名称
 const getCustomerName = (customerId) => {
   const customer = customers.value.find(c => c.id === customerId)
   return customer ? customer.name : customerId || '未指定客户'
 }
-
 // 处理产品BOM选择变化
-const handleProductBomChange = (productId) => {
+const handleProductBomChange = (_productId) => {
   // 当产品选择变化时，可以在这里做一些额外处理
 }
-
 // 加载BOM详情
 const loadBomDetails = async () => {
   if (!selectedProductId.value) {
@@ -1014,16 +959,13 @@ const loadBomDetails = async () => {
       product_id: selectedProductId.value,
       status: 1 // 获取状态为活跃的BOM
     })
-
     // 拦截器已解包，response.data 就是业务数据
     if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
       ElMessage.warning('未找到该产品的BOM信息')
       return
     }
-
     // 获取第一个BOM的详情
     const bom = response.data[0]
-
     if (!bom.details || !Array.isArray(bom.details) || bom.details.length === 0) {
       ElMessage.warning('该产品的BOM不包含任何零部件')
       return
@@ -1081,69 +1023,57 @@ const loadBomDetails = async () => {
   }
 }
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 .materials-table-container {
   margin-bottom: var(--spacing-base);
   width: 100%;
   overflow-x: auto;
 }
-
 .add-material {
   margin-top: 10px;
   text-align: right;
 }
-
 /* 覆盖Element Plus的默认样式 */
 :deep(.el-table .el-table__header-wrapper th) {
   background-color: var(--color-bg-hover);
   color: var(--color-text-regular);
   font-weight: bold;
 }
-
 :deep(.el-input-number) {
   width: 100%;
 }
-
 :deep(.el-input-number .el-input__wrapper) {
   padding-left: 8px;
   padding-right: 30px;
 }
-
 /* 注意：对话框基础样式已在全局主题中定义 */
 :deep(.el-dialog__body) {
   max-height: calc(80vh - 120px);  /* 页面特定：限制对话框高度 */
   overflow-y: auto;
   /* padding、header、footer 样式使用全局主题定义 */
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1151,7 +1081,6 @@ const loadBomDetails = async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

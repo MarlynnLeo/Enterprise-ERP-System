@@ -25,8 +25,6 @@ exports.up = async function(knex) {
     ('work_order',                 '工单',          'WO',   'YYYYMMDD', '-', 4, 'daily',   '生产工单'),
     ('bom',                        'BOM版本',       'BOM',  'YYMM',     '-', 3, 'monthly', 'BOM物料清单')
   `);
-
-  console.log('[Migration] 已补充 17 条编码规则');
 };
 
 exports.down = async function(knex) {

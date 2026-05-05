@@ -9,6 +9,7 @@ const logger = require('../utils/logger');
 const db = require('../config/db');
 const financeModel = require('./finance');
 const { getUserIdByIdentifier } = require('../utils/userUtils');
+const crypto = require('crypto');
 
 /**
  * 应收账款模块数据库操作
@@ -164,7 +165,7 @@ const arModel = {
       if (!isExternalTransaction && connection) {
         try {
           connection.release();
-        } catch (releaseError) {
+        } catch {
           // 释放数据库连接失败
         }
       }
@@ -306,7 +307,7 @@ const arModel = {
       try {
         const [countResult] = await connection.execute(countQuery, countParams);
         total = countResult[0]?.total || 0;
-      } catch (countError) {
+      } catch {
         // 如果获取总数失败，使用已获取记录的长度
         total = invoices.length;
       }
@@ -316,7 +317,7 @@ const arModel = {
         try {
           connection.release();
           connection = null;
-        } catch (releaseError) {
+        } catch {
           // 释放连接失败
         }
       }
@@ -330,7 +331,7 @@ const arModel = {
           totalPages: Math.ceil(total / actualPageSize),
         },
       };
-    } catch (error) {
+    } catch {
       // 返回空结果而不是抛出错误，确保前端不会崩溃
       return {
         invoices: [],
@@ -345,7 +346,7 @@ const arModel = {
       if (connection) {
         try {
           connection.release();
-        } catch (releaseError) {
+        } catch {
           // 在finally中释放数据库连接失败
         }
       }
@@ -415,13 +416,13 @@ const arModel = {
       }
 
       return invoice;
-    } catch (error) {
+    } catch {
       return null; // 返回null而不是抛出异常，防止应用崩溃
     } finally {
       if (connection) {
         try {
           connection.release();
-        } catch (releaseError) {
+        } catch {
           // 在finally中释放数据库连接失败
         }
       }
@@ -469,7 +470,6 @@ const arModel = {
     try {
       connection = await db.getConnection();
       await connection.beginTransaction();
-
       // 检查发票是否存在及状态
       const [existing] = await connection.execute(
         'SELECT id, status, paid_amount FROM ar_invoices WHERE id = ?',
@@ -574,13 +574,13 @@ const arModel = {
     } catch (error) {
       logger.error('更新应收账款发票失败:', error);
       if (connection) {
-        try { await connection.rollback(); } catch (e) { /* 忽略 */ }
+        try { await connection.rollback(); } catch { /* 忽略 */ }
         // 静默忽略该错误
       }
       throw error;
     } finally {
       if (connection) {
-        try { connection.release(); } catch (e) { /* 忽略 */ }
+        try { connection.release(); } catch { /* 忽略 */ }
         // 静默忽略该错误
       }
     }
@@ -980,6 +980,10 @@ const arModel = {
     try {
       connection = await db.getConnection();
       await connection.beginTransaction();
+      const voidedBy = Number.parseInt(voidData.voided_by, 10);
+      if (!Number.isInteger(voidedBy) || voidedBy <= 0) {
+        throw new Error('voided_by must be a positive integer');
+      }
 
       // 1. 获取收款记录详情
       const [receipts] = await connection.execute(
@@ -1009,7 +1013,7 @@ const arModel = {
              voided_by = ?, 
              void_reason = ?
          WHERE id = ?`,
-        [voidData.voided_by, voidData.void_reason, receiptId]
+        [voidedBy, voidData.void_reason, receiptId]
       );
 
       // 4. 恢复关联发票的余额和状态
@@ -1097,7 +1101,7 @@ const arModel = {
         } catch (err) {
           logger.error(`[作废收款] 冲销银行交易失败: ${err.message}`);
           // 银行交易冲销失败也要抛出错误，因为这会导致数据不一致
-          throw new Error(`冲销银行交易失败: ${err.message}`);
+          throw new Error(`冲销银行交易失败: ${err.message}`, { cause: err });
         }
       }
 
@@ -1125,7 +1129,7 @@ const arModel = {
             if (periods.length > 0) periodId = periods[0].id;
 
             // 生成冲销凭证编号 (更短，避免超出字段长度限制，使用符合中国财务习惯的“冲”字前缀)
-            const shortStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+            const shortStr = crypto.randomBytes(3).toString('hex').slice(0, 4).toUpperCase();
             const reversalEntryNumber = `冲-AR-${receipt.receipt_number.substring(receipt.receipt_number.length - 8)}-${shortStr}`;
 
             // 创建冲销凭证头
@@ -1138,7 +1142,7 @@ const arModel = {
                 receipt.receipt_number,
                 periodId,
                 `冲销收款凭证 - 原因: ${voidData.void_reason}`,
-                voidData.voided_by || 1,
+                voidedBy,
               ]
             );
 
@@ -1173,7 +1177,7 @@ const arModel = {
         }
       } catch (err) {
         logger.error(`[作废收款] 冲销GL凭证失败: ${err.message}`);
-        throw new Error(`冲销GL凭证失败: ${err.message}`);
+        throw new Error(`冲销GL凭证失败: ${err.message}`, { cause: err });
       }
 
       await connection.commit();
@@ -1306,7 +1310,7 @@ const arModel = {
         connection = await db.getConnection();
       } catch (connError) {
         logger.error('获取数据库连接失败:', connError);
-        return [];
+        throw connError;
       }
 
       // 执行查询
@@ -1327,7 +1331,7 @@ const arModel = {
         payments = paymentResults || [];
       } catch (queryError) {
         logger.error('查询发票支付记录失败:', queryError);
-        return [];
+        throw queryError;
       } finally {
         // 确保连接被释放
         if (connection) {
@@ -1343,7 +1347,7 @@ const arModel = {
       return payments;
     } catch (error) {
       logger.error('获取发票支付记录失败:', error);
-      return []; // 返回空数组而不是抛出异常，防止应用崩溃
+      throw error;
     } finally {
       if (connection) {
         try {
@@ -1367,7 +1371,7 @@ const arModel = {
         connection = await db.getConnection();
       } catch (connError) {
         logger.error('获取数据库连接失败:', connError);
-        return [];
+        throw connError;
       }
 
       // 执行查询
@@ -1387,7 +1391,7 @@ const arModel = {
         items = itemResults || [];
       } catch (queryError) {
         logger.error('查询发票明细项失败:', queryError);
-        return [];
+        throw queryError;
       } finally {
         // 确保连接被释放
         if (connection) {
@@ -1403,7 +1407,7 @@ const arModel = {
       return items;
     } catch (error) {
       logger.error('获取发票明细项失败:', error);
-      return []; // 返回空数组而不是抛出异常，防止应用崩溃
+      throw error;
     } finally {
       if (connection) {
         try {

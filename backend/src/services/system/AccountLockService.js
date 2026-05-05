@@ -29,7 +29,7 @@ async function getClient() {
   try {
     const client = await getRedisClient();
     if (client && client.isOpen) return client;
-  } catch (e) {
+  } catch {
     // 静默降级
   }
   return null;
@@ -153,7 +153,7 @@ class AccountLockService {
   static async clearFailedAttempts(username) {
     const client = await getClient();
     if (client) {
-      try { await client.del(`${KEY_PREFIX}${username}`); } catch (e) { /* 降级 */ }
+      try { await client.del(`${KEY_PREFIX}${username}`); } catch { /* 降级 */ }
     }
     memoryStore.delete(username);
   }
@@ -165,7 +165,7 @@ class AccountLockService {
   static async unlock(username) {
     const client = await getClient();
     if (client) {
-      try { await client.del(`${KEY_PREFIX}${username}`); } catch (e) { /* 降级 */ }
+      try { await client.del(`${KEY_PREFIX}${username}`); } catch { /* 降级 */ }
     }
     memoryStore.delete(username);
     logger.info(`🔓 [手动解锁] 账号 ${username} 已被管理员解锁`);
@@ -236,6 +236,7 @@ class AccountLockService {
 }
 
 // 每10分钟清理内存中的过期记录
-setInterval(() => AccountLockService.cleanup(), 10 * 60 * 1000);
+const accountLockCleanupTimer = setInterval(() => AccountLockService.cleanup(), 10 * 60 * 1000);
+accountLockCleanupTimer.unref?.();
 
 module.exports = AccountLockService;

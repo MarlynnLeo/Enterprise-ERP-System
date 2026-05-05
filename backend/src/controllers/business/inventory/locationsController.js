@@ -10,6 +10,11 @@ const { logger } = require('../../../utils/logger');
 
 const Locations = require('../../../models/locations');
 
+const parseRequiredId = (value) => {
+  const id = parseInt(value, 10);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
+
 const locationsController = {
   // 获取所有仓库
   getWarehouses: async (req, res) => {
@@ -39,7 +44,10 @@ const locationsController = {
   // 获取单个库位
   getById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id, 10) || 1;
+      const id = parseRequiredId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, 'Invalid location id', 'BAD_REQUEST', 400);
+      }
       const location = await Locations.getById(id);
       if (location) {
         res.json(location);
@@ -76,7 +84,10 @@ const locationsController = {
   // 更新库位
   update: async (req, res) => {
     try {
-      const id = parseInt(req.params.id, 10) || 1;
+      const id = parseRequiredId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, 'Invalid location id', 'BAD_REQUEST', 400);
+      }
       const locationData = { ...req.body };
 
       // 移除 created_at 和 updated_at 字段，让数据库自动处理这些字段
@@ -98,7 +109,10 @@ const locationsController = {
   // 删除库位
   delete: async (req, res) => {
     try {
-      const id = parseInt(req.params.id, 10) || 1;
+      const id = parseRequiredId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, 'Invalid location id', 'BAD_REQUEST', 400);
+      }
       const affectedRows = await Locations.delete(id);
       if (affectedRows) {
         res.json({ message: 'Location deleted successfully' });

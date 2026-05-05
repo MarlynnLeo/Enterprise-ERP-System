@@ -41,6 +41,7 @@ class CacheService {
       this.timers.delete(key);
       logger.debug(`[缓存过期] ${key}`);
     }, ttl * 1000);
+    timer.unref?.();
 
     this.timers.set(key, timer);
     logger.debug(`[缓存设置] ${key}, TTL: ${ttl}s`);

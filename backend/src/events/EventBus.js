@@ -16,6 +16,39 @@ class EventBus extends EventEmitter {
         this.setMaxListeners(50);
     }
 
+    on(eventName, listener) {
+        return super.on(eventName, this.wrapListener(eventName, listener));
+    }
+
+    once(eventName, listener) {
+        return super.once(eventName, this.wrapListener(eventName, listener));
+    }
+
+    wrapListener(eventName, listener) {
+        return (...args) => {
+            try {
+                const result = listener(...args);
+                if (result && typeof result.catch === 'function') {
+                    result.catch(error => this.recordListenerFailure(eventName, args, error));
+                }
+                return result;
+            } catch (error) {
+                this.recordListenerFailure(eventName, args, error);
+                return undefined;
+            }
+        };
+    }
+
+    async recordListenerFailure(eventName, args, error) {
+        logger.error(`[EventBus] 事件 ${eventName} 的监听器执行失败:`, error);
+        try {
+            const DLQService = require('../services/business/DLQService');
+            await DLQService.recordFailedJob(`EventBus:${eventName}`, { eventName, args }, error);
+        } catch (dlqError) {
+            logger.error(`[EventBus] 事件 ${eventName} 失败落库也失败:`, dlqError);
+        }
+    }
+
     // 重写 emit，增加自动日志追踪
     emit(eventName, ...args) {
         logger.debug(`[EventBus] 发送事件: ${eventName}`);

@@ -9,6 +9,7 @@
  * 简化的性能监控器
  */
 const { logger } = require('../utils/logger');
+const crypto = require('crypto');
 class SimplePerformanceMonitor {
   /**
    * 构造函数
@@ -35,7 +36,7 @@ class SimplePerformanceMonitor {
       const startTime = Date.now();
 
       // 生成请求ID
-      const requestId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+      const requestId = `${Date.now().toString(36)}${crypto.randomBytes(4).toString('hex')}`;
       req.requestId = requestId;
       res.setHeader('X-Request-ID', requestId);
 
@@ -48,6 +49,7 @@ class SimplePerformanceMonitor {
 
         // 记录慢请求
         if (duration > slowThreshold && enableLogging) {
+          logger.warn(`慢请求: ${req.method} ${req.originalUrl} - ${duration}ms [${requestId}]`);
         }
 
         // 记录错误请求

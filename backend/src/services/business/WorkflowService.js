@@ -144,8 +144,7 @@ class WorkflowService {
     );
 
     if (!template) {
-      // 没有配置审批流，直接返回自动通过
-      return { auto_approved: true, message: '该业务类型未配置审批流程，自动通过' };
+      throw new Error(`业务类型 ${business_type} 未配置启用的审批流程，单据已挂起，请先配置工作流模板`);
     }
 
     // 2. 获取模板节点
@@ -155,7 +154,11 @@ class WorkflowService {
     );
 
     if (templateNodes.length === 0) {
-      return { auto_approved: true, message: '审批流程无节点，自动通过' };
+      throw new Error(`业务类型 ${business_type} 的审批流程没有节点，单据已挂起，请完善工作流模板`);
+    }
+
+    if (!templateNodes.some(node => node.node_type === 'approval')) {
+      throw new Error(`业务类型 ${business_type} 的审批流程缺少审批节点，单据已挂起，请完善工作流模板`);
     }
 
     const conn = await pool.getConnection();
@@ -415,13 +418,7 @@ class WorkflowService {
     const { page = 1, pageSize = 20 } = params;
 
     // 获取用户角色和部门
-    const [[user]] = await pool.query(
-      'SELECT id, department_id FROM users WHERE id = ?', [userId]
-    );
-    const [userRoles] = await pool.query(
-      'SELECT role_id FROM user_roles WHERE user_id = ?', [userId]
-    );
-    const roleIds = userRoles.map(r => r.role_id);
+
 
     // 查找指派给本人的 in_progress 节点
     const where = `WHERE win.status = 'in_progress' AND wi.deleted_at IS NULL AND win.approver_id = ?`;
@@ -506,16 +503,7 @@ class WorkflowService {
         [approverId, nodeId]
       );
     } else {
-      // 找不到审批人时，按角色动态查找管理员
-      const [[admin]] = await conn.query(
-        "SELECT u.id FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON r.id = ur.role_id WHERE r.code = 'admin' AND u.status = 1 LIMIT 1"
-      );
-      const fallbackId = admin?.id || 1;
-      logger.warn(`审批节点 ${nodeId} 无法自动分配审批人(类型:${templateNode.approver_type})，回退到管理员(id=${fallbackId})`);
-      await conn.query(
-        'UPDATE workflow_instance_nodes SET approver_id = ? WHERE id = ?',
-        [fallbackId, nodeId]
-      );
+      throw new Error(`审批节点 ${nodeId} 无法自动分配审批人，请检查流程模板审批人配置`);
     }
   }
   /** 插入模板节点（统一节点写入逻辑，消除 createTemplate/updateTemplate 重复） */
@@ -555,9 +543,13 @@ class WorkflowService {
    */
   async _updateBusinessStatus(conn, action, businessType, businessId, approverId) {
     const cfg = WorkflowService.BUSINESS_STATUS_MAP[businessType];
-    if (!cfg) return;
+    if (!cfg) {
+      throw new Error(`业务类型 ${businessType} 未配置审批状态回调，无法完成闭环更新`);
+    }
     const targetStatus = cfg[action];
-    if (!targetStatus) return;
+    if (!targetStatus) {
+      throw new Error(`业务类型 ${businessType} 未配置 ${action} 状态，无法完成闭环更新`);
+    }
 
     try {
       const params = [targetStatus];
@@ -573,11 +565,13 @@ class WorkflowService {
           const { generateOrdersFromRequisition } = require('./RequisitionAutoOrderService');
           await generateOrdersFromRequisition(businessId, conn);
         } catch (autoErr) {
-          logger.error(`采购申请 ${businessId} 自动生成采购订单失败（不影响审批）:`, autoErr);
+          logger.error(`采购申请 ${businessId} 自动生成采购订单失败，审批回调已回滚:`, autoErr);
+          throw autoErr;
         }
       }
     } catch (e) {
       logger.error(`工作流${action}回调失败 [${businessType}:${businessId}]:`, e);
+      throw e;
     }
   }
 
@@ -597,7 +591,7 @@ class WorkflowService {
   }
 
   /**
-   * 便捷方法：尝试发起审批流，未配置模板时自动通过
+   * 便捷方法：尝试发起审批流。审批配置缺失或启动失败时必须抛错，避免业务单据绕过审批。
    * @returns {{ auto_approved: boolean, instance_id?: number }}
    */
   async tryStartWorkflow(businessType, businessId, businessCode, title, userId) {
@@ -611,7 +605,7 @@ class WorkflowService {
       });
     } catch (e) {
       logger.warn(`审批流发起失败 [${businessType}:${businessId}]: ${e.message}`);
-      return { auto_approved: true, message: `审批流发起失败: ${e.message}` };
+      throw e;
     }
   }
 }

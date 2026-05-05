@@ -16,7 +16,6 @@ const {
   BANK_TRANSACTION_GROUPS,
   BUSINESS_RULES,
   VALIDATION_RULES,
-  LOG_LEVELS,
 } = require('../constants/cashierConstants');
 
 /**
@@ -232,21 +231,6 @@ class ValidationUtils {
  */
 class BusinessUtils {
   /**
-   * 生成交易编号
-   * @param {string} prefix - 前缀
-   * @param {Date} date - 日期
-   * @returns {string} 交易编号
-   */
-  static generateTransactionNumber(prefix = 'TXN', date = new Date()) {
-    const dateStr = DateUtils.formatDate(date).replace(/-/g, '');
-    const timestamp = Date.now().toString().slice(-6);
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, '0');
-    return `${prefix}${dateStr}${timestamp}${random}`;
-  }
-
-  /**
    * 计算统计数据
    * @param {Array} transactions - 交易记录数组
    * @returns {Object} 统计结果
@@ -302,7 +286,7 @@ class BusinessUtils {
             );
             params.push(`%${value}%`, `%${value}%`, `%${value}%`);
             break;
-          default:
+          default: {
             // ✅ 安全修复：添加列名白名单，防止用户传入的 key 成为 SQL 注入向量
             // 只有预定义的数据库列名才允许拼入 SQL 的 WHERE 子句
             const ALLOWED_FILTER_COLUMNS = [
@@ -315,6 +299,7 @@ class BusinessUtils {
               params.push(value);
             }
             // 不在白名单中的 key 会被静默忽略，不会拼入 SQL
+          }
         }
       }
     });
@@ -338,21 +323,8 @@ class LogUtils {
    * @param {Object} data - 相关数据
    * @param {Error} error - 错误对象（可选）
    */
-  static log(level, module, operation, data = {}, error = null) {
-    const timestamp = new Date().toISOString();
-    const logEntry = {
-      timestamp,
-      level,
-      module,
-      operation,
-      data,
-      error: error
-        ? {
-            message: error.message,
-            stack: error.stack,
-          }
-        : null,
-    };
+  static log(level, module, operation, _data = {}, _error = null) {
+
 
     // 静默记录，不输出到控制台
     // 可以在这里添加日志文件写入或远程日志发送逻辑

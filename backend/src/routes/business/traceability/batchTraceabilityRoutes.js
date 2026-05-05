@@ -133,7 +133,7 @@ router.get(
 );
 router.get('/customers', requirePermission('quality:traceability:view'), productSalesTraceabilityController.getCustomerList);
 
-// 获取最新批次列表(用于快速测试)
+// 获取最新批次列表(用于快速查询)
 router.get('/latest-batches', requirePermission('quality:traceability:view'), batchTraceabilityController.getLatestBatches);
 
 module.exports = router;

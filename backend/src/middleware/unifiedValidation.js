@@ -298,7 +298,7 @@ class UnifiedValidator {
     this.sanitizedData[field] = sanitized;
   }
 
-  validateBoolean(field, value, rule) {
+  validateBoolean(field, value) {
     if (typeof value === 'boolean') {
       this.sanitizedData[field] = value;
     } else if (typeof value === 'string') {
@@ -426,11 +426,11 @@ function createValidationMiddleware(schema) {
 
     // 将清理后的数据分别赋值回原位置
     Object.keys(result.data).forEach((key) => {
-      if (req.body.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) {
         req.body[key] = result.data[key];
-      } else if (req.query.hasOwnProperty(key)) {
+      } else if (Object.prototype.hasOwnProperty.call(req.query, key)) {
         req.query[key] = result.data[key];
-      } else if (req.params.hasOwnProperty(key)) {
+      } else if (Object.prototype.hasOwnProperty.call(req.params, key)) {
         req.params[key] = result.data[key];
       }
     });

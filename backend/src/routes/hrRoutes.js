@@ -3,6 +3,7 @@ const router = express.Router();
 const hrController = require('../controllers/business/hr/hrController');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
+const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
 // 提取共用的鉴权中间件
 const hrRead = [authenticateToken, requirePermission('hr')];
@@ -19,10 +20,8 @@ router.get('/attendance', hrRead, hrController.getAttendance);
 router.post('/attendance/batch', authenticateToken, requirePermission('hr:attendance:update'), hrController.batchSaveAttendance);
 router.post('/attendance/sync/dingtalk', authenticateToken, requirePermission('hr:attendance:update'), hrController.syncAttendance);
 
-// 考勤 Excel 导入（multer 内存上传）
-const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-router.post('/attendance/import', authenticateToken, requirePermission('hr:attendance:update'), upload.single('file'), hrController.importAttendanceExcel);
+// 考勤 Excel 导入
+router.post('/attendance/import', authenticateToken, requirePermission('hr:attendance:update'), FileUploadMiddlewares.excel, hrController.importAttendanceExcel);
 
 // 薪酬核算
 router.get('/salary', hrRead, hrController.getSalaryRecords);

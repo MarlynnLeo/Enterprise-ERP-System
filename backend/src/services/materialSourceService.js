@@ -48,7 +48,7 @@ const materialSourceService = {
       const [rows] = await pool.query(query, params);
 
       // 获取总数
-      let countQuery = 'SELECT COUNT(*) as total FROM material_sources WHERE ' + conditions.join(' AND ');
+      const countQuery = 'SELECT COUNT(*) as total FROM material_sources WHERE ' + conditions.join(' AND ');
       const [countResult] = await pool.query(countQuery, params.slice(0, -2));
       const total = countResult[0].total;
 

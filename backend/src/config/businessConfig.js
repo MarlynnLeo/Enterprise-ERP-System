@@ -5,6 +5,12 @@
  * @version 1.0.0
  */
 
+const parseOptionalInteger = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
 module.exports = {
   /**
    * 仓库配置
@@ -22,8 +28,8 @@ module.exports = {
     // 收货区关键词
     receiptKeywords: ['收货', 'receiving', 'inbound'],
 
-    // 默认仓库ID（从环境变量获取，如果未设置则使用1）
-    defaultWarehouseId: parseInt(process.env.DEFAULT_WAREHOUSE_ID) || 1,
+    // 默认仓库ID（可选；未设置时由业务层要求物料配置默认仓库）
+    defaultWarehouseId: parseOptionalInteger(process.env.DEFAULT_WAREHOUSE_ID),
 
     // 仓库类型
     types: {

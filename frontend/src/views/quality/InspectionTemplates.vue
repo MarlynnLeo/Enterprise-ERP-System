@@ -15,7 +15,6 @@
         <el-radio-button value="aql">AQL 抽样规则</el-radio-button>
       </el-radio-group>
     </div>
-
     <!-- 检验模板页面 -->
     <div v-show="viewType === 'templates'">
       <el-card class="box-card">
@@ -81,7 +80,6 @@
           </el-col>
         </el-row>
       </div>
-
       <!-- 模板列表 -->
       <el-table
         :data="templateList"
@@ -197,7 +195,6 @@
         />
       </div>
     </el-card>
-
     <!-- 创建/编辑模板对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -281,7 +278,6 @@
             placeholder="请输入模板描述"
           />
         </el-form-item>
-
         <!-- AQL 抽样设置 -->
         <el-form-item label="AQL抽样">
           <el-switch v-model="form.is_aql" active-text="启用" inactive-text="关闭" />
@@ -439,7 +435,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 查看模板详情对话框 -->
     <el-dialog
       v-model="viewDialogVisible"
@@ -507,7 +502,6 @@
         </div>
       </div>
     </el-dialog>
-
     <!-- 检验标准选择对话框 -->
     <el-dialog
       v-model="standardSelectorVisible"
@@ -551,7 +545,6 @@
           </el-col>
         </el-row>
       </div>
-
       <div class="table-container">
           <el-table
             :data="reusableStandards"
@@ -597,7 +590,6 @@
           </el-table>
       </div>
     </el-dialog>
-
     <!-- 添加检验标准对话框 -->
     <el-dialog
       v-model="addStandardDialogVisible"
@@ -660,20 +652,17 @@
       </template>
     </el-dialog>
     </div>
-
     <!-- AQL抽样页面 -->
     <div v-if="viewType === 'aql'">
       <AQLStandards />
     </div>
   </div>
 </template>
-
 <script setup>
-import { ref, reactive, onMounted, nextTick, computed } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import AQLStandards from './AQLStandards.vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import dayjs from 'dayjs'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { baseDataApi, systemApi, qualityApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
@@ -688,41 +677,33 @@ import {
 import { getInspectionTypeText, getInspectionTypePrefix } from '@/constants/inspection'
 // 权限store
 const authStore = useAuthStore()
-
 // 视图切换
 const viewType = ref('templates')
-
 // 搜索相关
 const searchKeyword = ref('')
 const typeFilter = ref('')
 const statusFilter = ref('')
-
 // 表格数据相关
 const loading = ref(false)
 const templateList = ref([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
-
 // 物料列表数据
 const materialsList = ref([])
 const loadingMaterials = ref(false)
 const materialsMap = ref({}) // 新增：材料ID到代码的映射
-
 // 添加一个控制是否已请求过物料列表的状态变量
 const materialDataRequested = ref(false)
-
 // 用户映射
 const userMap = ref({})
 const userDataRequested = ref(false)
-
 // 对话框相关
 const dialogVisible = ref(false)
 const viewDialogVisible = ref(false)
 const isEdit = ref(false)
 const currentTemplate = ref(null)
 const formRef = ref(null)
-
 // 表单数据
 const form = reactive({
   template_name: '',
@@ -737,10 +718,8 @@ const form = reactive({
   is_aql: false,
   aql_level: null
 })
-
 // AQL等级选项
 const aqlLevelOptions = ref([])
-
 // 表单验证规则
 const rules = {
   template_name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
@@ -783,7 +762,6 @@ const rules = {
     }
   ]
 }
-
 // 检验标准选择相关
 const standardSelectorVisible = ref(false)
 const currentEditingIndex = ref(-1)
@@ -793,7 +771,6 @@ const standardSearch = reactive({
   keyword: '',
   type: ''
 })
-
 // 添加检验标准相关
 const addStandardDialogVisible = ref(false)
 const newStandardForm = reactive({
@@ -806,7 +783,61 @@ const newStandardForm = reactive({
   tolerance_lower: null
 })
 const savingStandard = ref(false)
+const getApiErrorMessage = (error, fallback = '操作失败') => {
+  return error?.response?.data?.message || error?.message || fallback
+}
+const parseMaterialTypes = (value) => {
+  if (Array.isArray(value)) {
+    return value.filter(Boolean)
+  }
+  if (value === null || value === undefined || value === '') {
+    return []
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [parsed].filter(Boolean)
+    } catch {
+      return []
+    }
+  }
+  return [value].filter(Boolean)
+}
+const normalizeTemplateListResponse = (response) => {
+  const payload = response?.data
+  const source = payload?.success === true && payload.data !== undefined ? payload.data : payload
 
+  if (Array.isArray(source)) {
+    return { list: source, total: Number(payload?.total ?? source.length) || 0 }
+  }
+
+  if (source && typeof source === 'object') {
+    const list = source.rows || source.list || source.items || source.data
+    if (Array.isArray(list)) {
+      return {
+        list,
+        total: Number(source.count ?? source.total ?? payload?.total ?? list.length) || 0
+      }
+    }
+  }
+
+  return { list: [], total: 0 }
+}
+const normalizeTemplateRow = (template) => {
+  const materialTypes = parseMaterialTypes(template.material_types)
+  const inspectionItems = Array.isArray(template.InspectionItems) ? template.InspectionItems : []
+  const items = Array.isArray(template.items) ? template.items : []
+  const normalizedTemplate = {
+    ...template,
+    material_types: materialTypes,
+    items_count: template.items_count ?? (inspectionItems.length || items.length || 0)
+  }
+
+  return {
+    ...normalizedTemplate,
+    is_general: isGeneralTemplateUtil(normalizedTemplate)
+  }
+}
 // 初始化
 onMounted(() => {
   // 强制刷新数据
@@ -815,20 +846,16 @@ onMounted(() => {
   fetchUsers() // 加载用户数据
   fetchAqlLevelOptions() // 加载AQL等级选项
 })
-
 // 加载可用的AQL等级列表
 const fetchAqlLevelOptions = async () => {
   try {
     const res = await qualityApi.getAqlLevels()
     const data = res.data || res
     aqlLevelOptions.value = Array.isArray(data) ? data : []
-  } catch (err) {
-    console.error('获取AQL等级列表失败:', err)
-    // 静默降级：提供默认等级
+  } catch {
     aqlLevelOptions.value = ['0.65', '1.0', '1.5', '2.5', '4.0']
   }
 }
-
 // 根据用户ID获取用户真实姓名
 const getUserRealName = (userId) => {
   if (!userId) return '未知用户';
@@ -858,39 +885,25 @@ const getUserRealName = (userId) => {
   
   return userId;
 };
-
 // 获取用户列表
 const fetchUsers = async () => {
   try {
     const response = await systemApi.getUsers()
     const userData = parseListData(response)
-
     // 创建用户ID到信息的映射
     userData.forEach(user => {
       userMap.value[user.id] = user
     })
   } catch (error) {
-    // 优化: 如果是权限不足,静默处理,不影响页面使用
-    if (error.response?.status === 403) {
-      console.warn('无权限获取用户列表,用户信息将无法显示')
-    } else {
-      handleApiError(error, '获取用户列表', { showMessage: false })
+    if (error.response?.status !== 403) {
+      handleApiError(error, '获取用户列表', { showMessage: false, logError: false })
     }
   }
 }
-
 // 获取模板列表
 const fetchData = async () => {
   loading.value = true
   try {
-    debug('开始获取模板列表...', {
-      page: currentPage.value,
-      pageSize: pageSize.value,
-      keyword: searchKeyword.value,
-      inspection_type: typeFilter.value,
-      status: statusFilter.value
-    })
-    
     const response = await qualityApi.getTemplates({
       page: currentPage.value,
       pageSize: pageSize.value,
@@ -898,114 +911,19 @@ const fetchData = async () => {
       inspection_type: typeFilter.value,
       status: statusFilter.value
     })
-    
-    debug('模板列表API响应', response)
-
-    // axios 拦截器已自动解包，response.data 直接是数据对象
-    const responseData = response.data
-    if (responseData) {
-      // 检查不同的数据结构格式并相应处理
-      // 优先检查解包后的格式（rows/count 或 list/total）
-      if (responseData.rows && Array.isArray(responseData.rows)) {
-        // 格式为 { rows: array, count: number } - 解包后的格式
-        debug('检测到格式: { rows: array, count: number }', responseData)
-        templateList.value = responseData.rows
-        total.value = responseData.count || responseData.total || 0
-      } else if (responseData.list && Array.isArray(responseData.list)) {
-        // 格式为 { list: array, total: number } - 解包后的格式
-        debug('检测到格式: { list: array, total: number }', responseData)
-        templateList.value = responseData.list
-        total.value = responseData.total || 0
-      } else if (Array.isArray(responseData)) {
-        // 格式为 array - 直接数组
-        debug('检测到格式: array', responseData)
-        templateList.value = responseData
-        total.value = responseData.length
-      } else if (responseData.success && responseData.data) {
-        // 格式为 { success: true, data: {...}, ... } - 未解包的格式
-        const innerData = responseData.data
-        if (Array.isArray(innerData) && responseData.total !== undefined) {
-          debug('检测到格式: { success: true, data: Array, total: number }', responseData)
-          templateList.value = innerData
-          total.value = responseData.total
-        } else if (innerData.rows && Array.isArray(innerData.rows)) {
-          debug('检测到格式: { success: true, data: { rows: array, count: number } }', responseData)
-          templateList.value = innerData.rows
-          total.value = innerData.count || innerData.total || 0
-        } else if (innerData.list && Array.isArray(innerData.list)) {
-          debug('检测到格式: { success: true, data: { list: array, total: number } }', responseData)
-          templateList.value = innerData.list
-          total.value = innerData.total || 0
-        } else if (Array.isArray(innerData)) {
-          debug('检测到格式: { success: true, data: Array }', responseData)
-          templateList.value = innerData
-          total.value = innerData.length
-        } else {
-          console.error('无法识别的响应数据格式 (success=true, data=object):', innerData)
-          templateList.value = []
-          total.value = 0
-        }
-      } else {
-        console.error('无法识别的响应数据格式:', responseData)
-        templateList.value = []
-        total.value = 0
-      }
-      
-      debug('数据映射后的模板列表', templateList.value)
-      debug('总数', total.value)
-      
-      if (templateList.value.length === 0 && total.value > 0) {
-        console.warn('警告: 总数不为0但模板列表为空，可能存在数据映射问题')
-      }
-      
-      // 处理模板列表中的检验项数量和通用模板标志
-      templateList.value.forEach(template => {
-        // 检查并设置检验项数量
-        if (template.items_count === undefined) {
-          if (template.InspectionItems && Array.isArray(template.InspectionItems)) {
-            template.items_count = template.InspectionItems.length;
-          } else if (template.items && Array.isArray(template.items)) {
-            template.items_count = template.items.length;
-          } else {
-            template.items_count = 0;
-          }
-        }
-        
-        // 确保is_general字段被正确标识
-        if (template.is_general !== true && template.is_general !== false) {
-          // 修复is_general字段
-          template.is_general = template.is_general === 1 || 
-                                template.is_general === '1' || 
-                                template.is_general === 'true' || 
-                                (template.material_type === null && 
-                                 (!template.material_types || template.material_types.length === 0));
-          }
-      });
-    } else {
-      console.error('模板列表API返回格式错误:', response)
-      ElMessage.error('获取模板列表失败')
-      templateList.value = []
-      total.value = 0
-    }
+    const normalized = normalizeTemplateListResponse(response)
+    templateList.value = normalized.list.map(normalizeTemplateRow)
+    total.value = normalized.total
   } catch (error) {
-    console.error('获取模板列表失败:', error)
-    console.error('错误详情:', {
-      message: error.message,
-      response: error.response,
-      status: error.response?.status,
-      data: error.response?.data
-    })
-    ElMessage.error(`获取模板列表失败: ${error.message}`)
+    ElMessage.error(`获取模板列表失败: ${getApiErrorMessage(error)}`)
     templateList.value = []
     total.value = 0
   } finally {
     loading.value = false
   }
 }
-
 // ====== 物料搜索相关 (开始) ======
 let currentSearchId = 0;
-
 // 防抖函数
 const debounce = (func, wait) => {
   let timeout;
@@ -1018,7 +936,6 @@ const debounce = (func, wait) => {
     timeout = setTimeout(later, wait);
   };
 };
-
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
@@ -1058,7 +975,7 @@ const searchProducts = async (query) => {
         };
       });
     }
-  } catch (error) {
+  } catch {
     if (searchId === currentSearchId) {
       materialsList.value = [];
     }
@@ -1068,15 +985,12 @@ const searchProducts = async (query) => {
     }
   }
 };
-
 const debouncedSearchMaterials = debounce(searchProducts, SEARCH_CONFIG.SEARCH_DEBOUNCE_DELAY || 300);
-
 const handleMaterialSelectFocus = () => {
   if (materialsList.value.length === 0) {
     debouncedSearchMaterials('');
   }
 };
-
 const fetchMaterialsList = async (query = '') => {
   if (query === true) {
      debouncedSearchMaterials('');
@@ -1085,28 +999,23 @@ const fetchMaterialsList = async (query = '') => {
   debouncedSearchMaterials(query);
 };
 // ====== 物料搜索相关 (结束) ======
-
 // 根据ID获取物料编码（同步版本，用于表格显示）
 const getMaterialCodeById = (id) => {
   if (!id) return '未指定'
-
   // 从映射中查找物料信息
   const material = materialsMap.value[id]
   if (material) {
     return material.code
   }
-
   // 如果映射中没有，但列表中有
   const materialInList = materialsList.value.find(item => item.value === id)
   if (materialInList) {
     return materialInList.code
   }
-
-  // 如果正在加载物料列表，暂时返回空字符串，避免显示ID
+  // 物料列表加载期间不显示未解析的内部ID
   if (loadingMaterials.value) {
     return ''
   }
-
   // 如果物料数据还没请求过，则请求一次
   if (Object.keys(materialsMap.value).length === 0 && !materialDataRequested.value) {
     materialDataRequested.value = true
@@ -1115,13 +1024,10 @@ const getMaterialCodeById = (id) => {
     }, 100)
     return ''
   }
-
   // 都没找到，尝试异步获取单个物料信息
   fetchSingleMaterial(id)
-
   return ''
 }
-
 // 异步获取单个物料信息
 const fetchSingleMaterial = async (id) => {
   try {
@@ -1137,59 +1043,44 @@ const fetchSingleMaterial = async (id) => {
       // 触发重新渲染
       await nextTick()
     }
-  } catch (error) {
-    console.warn('获取单个物料信息失败:', error)
+  } catch {
+    // 单条物料补全失败不阻断列表渲染
   }
 }
-
 // 根据多个ID获取物料编码
 const getMultipleMaterialCodes = (ids) => {
   if (!ids || ids.length === 0) return '未指定'
-
   // 确保ids是数组
   const materialIds = Array.isArray(ids) ? ids : [ids]
-
   // 获取每个ID对应的物料编码并拼接
   const codes = materialIds.map(id => getMaterialCodeById(id)).filter(code => code !== '')
-
   if (codes.length === 0) return ''
-
   return codes.join('、')
 }
-
 // 获取表格中显示的物料编码（支持新旧格式）
 const getTableMaterialCodes = (row) => {
   // 优先使用后端预加载的详细信息，避免闪烁
   if (row.material_details && Array.isArray(row.material_details) && row.material_details.length > 0) {
     return row.material_details.map(m => m.code).join('、')
   }
-
   // 这里的fallback逻辑保留，以防万一后端没有返回details
   
   // 优先使用新的 material_types 字段
   if (row.material_types) {
-    try {
-      const materialIds = typeof row.material_types === 'string'
-        ? JSON.parse(row.material_types)
-        : row.material_types
+    const materialIds = parseMaterialTypes(row.material_types)
+    if (materialIds.length > 0) {
       return getMultipleMaterialCodes(materialIds)
-    } catch (error) {
-      console.warn('解析 material_types 失败:', error)
     }
   }
-
   // 兼容旧的 material_type 字段
   if (row.material_code) {
     return row.material_code
   }
-
   if (row.material_type) {
     return getMaterialCodeById(row.material_type)
   }
-
   return '未指定'
 }
-
 // 物料选择改变时的处理
 const handleMaterialChange = (values) => {
   // 处理多选值，确保都是数组
@@ -1210,7 +1101,6 @@ const handleMaterialChange = (values) => {
     form.material_name = ''
   }
 }
-
 // 移除已选物料
 const removeMaterial = (materialId) => {
   const index = form.material_types.indexOf(materialId)
@@ -1220,7 +1110,6 @@ const removeMaterial = (materialId) => {
     handleMaterialChange(form.material_types)
   }
 }
-
 // 获取物料显示文本（编码）
 const getMaterialDisplayText = (materialId) => {
   // 优先从 materialsMap 获取
@@ -1237,9 +1126,7 @@ const getMaterialDisplayText = (materialId) => {
   // 都没找到，返回 ID
   return materialId
 }
-
 // 检验类型文本和前缀已从 @/constants/inspection 导入
-
 // 获取检验项类型文本
 const getItemTypeText = (type) => {
   const typeMap = {
@@ -1252,7 +1139,6 @@ const getItemTypeText = (type) => {
   }
   return typeMap[type] || type
 }
-
 // 获取状态类型
 const getStatusType = (status) => {
   const statusMap = {
@@ -1262,7 +1148,6 @@ const getStatusType = (status) => {
   }
   return statusMap[status] || 'info'
 }
-
 // 获取状态文本
 const getStatusText = (status) => {
   const statusMap = {
@@ -1272,11 +1157,9 @@ const getStatusText = (status) => {
   }
   return statusMap[status] || status
 }
-
 // 判断是否是通用模板
 // 使用工具函数判断通用模板（已从 @/utils/inspectionValidation 导入）
 const isGeneralTemplate = isGeneralTemplateUtil
-
 // 获取检验项数量
 const getItemsCount = (row) => {
   // 检查不同的数据结构可能性
@@ -1295,21 +1178,13 @@ const getItemsCount = (row) => {
   // 返回默认值
   return 0;
 }
-
 // 日期格式化
 const formatDate = (date) => formatDateTime(date)
-
-// 打印调试信息
-const debug = (message, data) => {
-  // 调试信息已禁用
-}
-
 // 搜索
 const handleSearch = () => {
   currentPage.value = 1
   fetchData()
 }
-
 // 重置
 const handleRefresh = () => {
   searchKeyword.value = ''
@@ -1318,18 +1193,15 @@ const handleRefresh = () => {
   currentPage.value = 1
   fetchData()
 }
-
 // 分页
 const handleSizeChange = (val) => {
   pageSize.value = val
   fetchData()
 }
-
 const handleCurrentChange = (val) => {
   currentPage.value = val
   fetchData()
 }
-
 // 创建模板
 // 重置表单
 const resetForm = () => {
@@ -1350,21 +1222,18 @@ const resetForm = () => {
     formRef.value.clearValidate()
   }
 }
-
 // 新建模板
 const handleCreate = () => {
   isEdit.value = false
   resetForm()
   dialogVisible.value = true
 }
-
 // 编辑模板
 const handleEdit = async (row) => {
   isEdit.value = true
   try {
     // 先获取完整的模板数据，包含检验项目
     const response = await qualityApi.getTemplate(row.id)
-
     // axios 拦截器已自动解包，response.data 是模板详情数据
     const templateData = response.data
     if (templateData) {
@@ -1372,25 +1241,12 @@ const handleEdit = async (row) => {
       form.id = templateData.id
       form.template_name = templateData.template_name
       form.inspection_type = templateData.inspection_type
-
       // 使用工具函数判断是否为通用模板
       form.is_general = isGeneralTemplate(templateData)
-
       // 处理material_type和material_types，根据通用状态决定
       if (!form.is_general) {
         // 非通用模板，需要设置物料
-        let types = [];
-        if (templateData.material_types) {
-          if (Array.isArray(templateData.material_types)) {
-            types = templateData.material_types;
-          } else if (typeof templateData.material_types === 'string') {
-            try {
-              types = JSON.parse(templateData.material_types);
-            } catch (e) {
-              console.warn('解析 material_types 失败:', e);
-            }
-          }
-        }
+        let types = parseMaterialTypes(templateData.material_types);
         
         // 如果没有 material_types 但有 material_type，则使用 material_type
         if (types.length === 0 && templateData.material_type) {
@@ -1398,8 +1254,7 @@ const handleEdit = async (row) => {
         }
         
         form.material_types = types;
-
-        // 关键修复：确保下拉列表和映射中包含当前选中的物料
+        // 确保下拉列表和映射中包含当前选中的物料
         if (templateData.material_details && Array.isArray(templateData.material_details)) {
           templateData.material_details.forEach(material => {
             // 同时更新 materialsMap（用于显示）
@@ -1424,7 +1279,6 @@ const handleEdit = async (row) => {
             }
           });
         }
-
         // 兼容旧字段
         form.material_type = templateData.material_type || (form.material_types.length > 0 ? form.material_types[0] : null)
         form.material_name = templateData.material_name || ''
@@ -1434,13 +1288,11 @@ const handleEdit = async (row) => {
         form.material_type = null
         form.material_name = ''
       }
-
       form.version = templateData.version
       form.description = templateData.description
       form.status = templateData.status
       form.is_aql = templateData.is_aql === true || templateData.is_aql === 1
       form.aql_level = templateData.aql_level || null
-
       // 确保检验项目数据完整
       form.items = templateData.InspectionItems ?
         templateData.InspectionItems.map(item => ({
@@ -1454,22 +1306,18 @@ const handleEdit = async (row) => {
           id: item.id,
           reuse_item_id: item.id // 设置为复用现有项目ID
         })) : []
-
       dialogVisible.value = true
     } else {
       ElMessage.error('获取模板详情失败')
     }
   } catch (error) {
-    console.error('获取模板详情失败:', error)
-    ElMessage.error(`获取模板详情失败: ${error.message}`)
+    ElMessage.error(`获取模板详情失败: ${getApiErrorMessage(error)}`)
   }
 }
-
 // 查看模板
 const handleView = async (row) => {
   try {
     const response = await qualityApi.getTemplate(row.id)
-
     // axios 拦截器已自动解包，response.data 是模板详情数据
     const templateData = response.data
     if (templateData) {
@@ -1478,17 +1326,14 @@ const handleView = async (row) => {
         ...templateData,
         items: templateData.InspectionItems || [] // 使用InspectionItems作为items
       }
-
       viewDialogVisible.value = true
     } else {
       ElMessage.error('获取模板详情失败')
     }
   } catch (error) {
-    console.error('获取模板详情失败:', error)
-    ElMessage.error(`获取模板详情失败: ${error.message}`)
+    ElMessage.error(`获取模板详情失败: ${getApiErrorMessage(error)}`)
   }
 }
-
 // 添加检验项
 const addItem = () => {
   form.items.push({
@@ -1501,12 +1346,10 @@ const addItem = () => {
     tolerance_lower: null
   })
 }
-
 // 移除检验项
 const removeItem = (index) => {
   form.items.splice(index, 1)
 }
-
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return
@@ -1567,7 +1410,6 @@ const submitForm = async () => {
         const response = isEdit.value 
           ? await qualityApi.updateTemplate(form.id, formData)
           : await qualityApi.createTemplate(formData)
-
         // axios 拦截器已自动解包，检查响应是否存在即表示成功
         if (response.data !== undefined) {
           handleSuccess(isEdit.value ? '模板更新成功' : '模板创建成功')
@@ -1577,20 +1419,18 @@ const submitForm = async () => {
           handleWarning(isEdit.value ? '更新失败' : '创建失败')
         }
       } catch (error) {
-        handleApiError(error, isEdit.value ? '更新模板' : '创建模板')
+        handleApiError(error, isEdit.value ? '更新模板' : '创建模板', { logError: false })
       }
     }
   })
 }
-
 // 处理更多操作
 const handleDropdownCommand = async (command, row) => {
   try {
     if (command === 'activate' || command === 'deactivate') {
       const status = command === 'activate' ? 'active' : 'inactive'
       const response = await qualityApi.updateTemplateStatus(row.id, status)
-
-      // ✅ 修复：后端返回 data: null，应该检查 response.data !== undefined
+      // 后端可能返回 data: null，检查字段是否存在即可
       if (response.data !== undefined) {
         ElMessage.success(`模板${status === 'active' ? '启用' : '停用'}成功`)
         fetchData()
@@ -1599,8 +1439,7 @@ const handleDropdownCommand = async (command, row) => {
       }
     } else if (command === 'copy') {
       const response = await qualityApi.copyTemplate(row.id)
-
-      // ✅ 修复：后端返回 data: null，应该检查 response.data !== undefined
+      // 后端可能返回 data: null，检查字段是否存在即可
       if (response.data !== undefined) {
         ElMessage.success('模板复制成功')
         fetchData()
@@ -1614,8 +1453,7 @@ const handleDropdownCommand = async (command, row) => {
         type: 'warning'
       }).then(async () => {
         const response = await qualityApi.deleteInspectionTemplate(row.id)
-
-        // ✅ 修复：后端返回 data: null，应该检查 response.data !== undefined
+        // 后端可能返回 data: null，检查字段是否存在即可
         if (response.data !== undefined) {
           ElMessage.success('模板删除成功')
           fetchData()
@@ -1625,18 +1463,15 @@ const handleDropdownCommand = async (command, row) => {
       }).catch(() => {})
     }
   } catch (error) {
-    console.error('操作失败:', error)
-    ElMessage.error(`操作失败: ${error.message}`)
+    ElMessage.error(`操作失败: ${getApiErrorMessage(error)}`)
   }
 }
-
 // 打开检验标准选择器
 const openStandardSelector = (index) => {
   currentEditingIndex.value = index
   standardSelectorVisible.value = true
   searchStandards()
 }
-
 // 查询可复用的检验标准
 const searchStandards = async () => {
   loadingStandards.value = true
@@ -1645,9 +1480,7 @@ const searchStandards = async () => {
       keyword: standardSearch.keyword,
       type: standardSearch.type
     }
-
     const response = await qualityApi.getReusableItems(params)
-
     // axios 拦截器已自动解包，response.data 直接是数据
     const responseData = response.data
     if (responseData && Array.isArray(responseData)) {
@@ -1658,24 +1491,20 @@ const searchStandards = async () => {
       reusableStandards.value = responseData.list
     } else {
       reusableStandards.value = []
-      console.warn('获取检验标准数据格式不正确:', responseData)
     }
   } catch (error) {
-    console.error('获取检验标准失败:', error)
-    ElMessage.error(`获取检验标准失败: ${error.message}`)
+    ElMessage.error(`获取检验标准失败: ${getApiErrorMessage(error)}`)
     reusableStandards.value = []
   } finally {
     loadingStandards.value = false
   }
 }
-
 // 重置检验标准搜索
 const resetStandardSearch = () => {
   standardSearch.keyword = ''
   standardSearch.type = ''
   searchStandards()
 }
-
 // 选择检验标准
 const selectStandard = (row) => {
   if (currentEditingIndex.value >= 0 && currentEditingIndex.value < form.items.length) {
@@ -1693,13 +1522,11 @@ const selectStandard = (row) => {
     standardSelectorVisible.value = false
   }
 }
-
 // 添加直接启用模板的方法
 const handleActivate = async (row) => {
   try {
     const response = await qualityApi.updateTemplateStatus(row.id, 'active')
-
-    // ✅ 修复：后端返回 data: null，应该检查 response.data !== undefined
+    // 后端可能返回 data: null，检查字段是否存在即可
     if (response.data !== undefined) {
       ElMessage.success('模板启用成功')
       fetchData()
@@ -1707,11 +1534,9 @@ const handleActivate = async (row) => {
       ElMessage.error('操作失败')
     }
   } catch (error) {
-    console.error('启用模板失败:', error)
-    ElMessage.error(`启用失败: ${error.message}`)
+    ElMessage.error(`启用失败: ${getApiErrorMessage(error)}`)
   }
 }
-
 // 打开添加标准对话框
 const openAddStandardDialog = () => {
   // 重置表单
@@ -1725,7 +1550,6 @@ const openAddStandardDialog = () => {
   
   addStandardDialogVisible.value = true
 }
-
 // 保存新标准
 const saveNewStandard = async () => {
   // 验证表单
@@ -1761,14 +1585,11 @@ const saveNewStandard = async () => {
     
     // 直接创建新的检验项目
     const response = await qualityApi.createReusableItem(submitData)
-
-    // ✅ 修复：后端返回的数据可能是对象或null，应该检查 response.data !== undefined
+    // 后端可能返回 null，先检查字段是否存在
     const newStandard = response.data
-
     if (newStandard !== undefined && newStandard !== null) {
       // 检查是新建还是已存在
       const isExisting = response._message && response._message.includes('已存在')
-
       if (isExisting) {
         // 标准已存在，提示用户并高亮显示
         ElMessage.warning({
@@ -1779,16 +1600,12 @@ const saveNewStandard = async () => {
         // 新建成功
         ElMessage.success('检验标准添加成功')
       }
-
       addStandardDialogVisible.value = false
-
-      // ✅ 修复：清空筛选条件，确保标准能被看到
+      // 清空筛选条件，确保标准能被看到
       standardSearch.keyword = ''
       standardSearch.type = ''
-
       // 刷新检验标准列表
       await searchStandards()
-
       // 如果当前正在编辑检验项，自动选择该标准（无论是新建还是已存在）
       if (currentEditingIndex.value >= 0 && currentEditingIndex.value < form.items.length) {
         form.items[currentEditingIndex.value].item_name = newStandard.item_name
@@ -1804,13 +1621,11 @@ const saveNewStandard = async () => {
       ElMessage.error('添加检验标准失败')
     }
   } catch (error) {
-    console.error('添加检验标准失败:', error)
-    ElMessage.error(`添加检验标准失败: ${error.message}`)
+    ElMessage.error(`添加检验标准失败: ${getApiErrorMessage(error)}`)
   } finally {
     savingStandard.value = false
   }
 }
-
 // 处理通用模板变化
 const handleGeneralChange = (val) => {
   // 确保val是布尔值
@@ -1830,29 +1645,23 @@ const handleGeneralChange = (val) => {
   }
 }
 </script>
-
 <style scoped>
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .header-buttons {
   display: flex;
   gap: 8px;
 }
-
 .search-container {
   margin-bottom: var(--spacing-base);
 }
-
 .search-buttons {
   display: flex;
   gap: 8px;
 }
-
 .items-container {
   border: 1px solid var(--color-border-lighter);
   border-radius: var(--radius-sm);
@@ -1860,62 +1669,51 @@ const handleGeneralChange = (val) => {
   width: 100%;
   box-sizing: border-box;
 }
-
 .table-wrapper {
   width: 100%;
   position: relative;
 }
-
 .table-container {
   width: 100%;
   overflow-x: auto;
   margin-bottom: 10px;
   max-width: 820px;
 }
-
 /* 设置表格中输入框的最大宽度 */
 :deep(.el-table) {
   width: auto !important;
   min-width: 100%;
 }
-
 .items-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
-
 .standard-input-group {
   display: flex;
   align-items: center;
   width: 100%;
 }
-
 .standard-input {
   flex: 1;
   max-width: 140px;
 }
-
 .standard-button {
   flex-shrink: 0;
   margin-left: 4px;
 }
-
 .form-tip {
   color: var(--color-text-secondary);
   font-size: 12px;
   margin-left: 8px;
 }
-
 .template-items {
   margin-top: var(--spacing-lg);
 }
-
 .template-items h3 {
   margin-bottom: var(--spacing-base);
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1923,34 +1721,27 @@ const handleGeneralChange = (val) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 物料选择器样式 */
 .material-select-container {
   width: 100%;
 }
-
 /* 隐藏 el-select 内部的所有 tags，因为我们在下方单独显示 */
 .material-select-container :deep(.el-select__tags) {
   max-width: none !important;
 }
-
 .material-select-container :deep(.el-select__tags-text) {
   display: none;
 }
-
 .material-select-container :deep(.el-tag) {
   display: none !important;
 }
-
 .material-select-container :deep(.el-select__input) {
   margin-left: 11px !important;
 }
-
 .selected-materials-list {
   margin-top: 8px;
   padding: 8px 12px;
@@ -1961,14 +1752,12 @@ const handleGeneralChange = (val) => {
   align-items: center;
   gap: 6px;
 }
-
 .selected-label {
   color: var(--color-text-secondary, #606266);
   font-size: 13px;
   margin-right: 4px;
   flex-shrink: 0;
 }
-
 .selected-materials-list .material-tag {
   margin: 0;
   display: inline-flex !important;

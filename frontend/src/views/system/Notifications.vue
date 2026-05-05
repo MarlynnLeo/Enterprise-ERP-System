@@ -249,7 +249,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Bell, Message, InfoFilled, Document, Check, Warning, Link } from '@element-plus/icons-vue'
@@ -307,7 +307,7 @@ const loadNotifications = async () => {
     const responseData = parseResponseData(res)
     notifications.value = responseData.list || []
     total.value = Number(responseData.total) || 0
-  } catch (error) {
+  } catch {
     ElMessage.error('加载通知失败')
   } finally {
     loading.value = false
@@ -335,7 +335,7 @@ const loadStats = async () => {
     const warningRes = await notificationApi.getNotifications({ type: WARNING_TYPES, pageSize: 1 })
     const warningData = parseResponseData(warningRes)
     warningCount.value = Number(warningData.total) || 0
-  } catch (error) {
+  } catch {
     // 静默失败
   }
 }
@@ -359,7 +359,7 @@ const handleMarkRead = async (id) => {
     await loadNotifications()
     await loadStats()
     ElMessage.success('标记成功')
-  } catch (error) {
+  } catch {
     ElMessage.error('标记失败')
   }
 }
@@ -370,7 +370,7 @@ const handleMarkAllRead = async () => {
     await loadNotifications()
     await loadStats()
     ElMessage.success('全部已标记为已读')
-  } catch (error) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }

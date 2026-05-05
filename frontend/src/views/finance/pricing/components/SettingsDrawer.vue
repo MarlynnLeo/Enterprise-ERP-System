@@ -13,37 +13,40 @@
           <el-form label-width="150px" class="settings-form">
             <el-form-item label="低利润率阈值 (%)">
               <el-input-number 
-                v-model="form.lowMarginThreshold" 
+                :model-value="form.lowMarginThreshold" 
                 :min="0" 
                 :max="100"
                 :step="1"
+                @update:model-value="updateFormField('lowMarginThreshold', $event)"
               />
               <div class="form-tip">低于此阈值的产品将显示警告标记</div>
             </el-form-item>
             <el-form-item label="成本变动阈值 (%)">
               <el-input-number 
-                v-model="form.costVarianceThreshold" 
+                :model-value="form.costVarianceThreshold" 
                 :min="0" 
                 :max="100"
                 :step="1"
+                @update:model-value="updateFormField('costVarianceThreshold', $event)"
               />
               <div class="form-tip">成本变动超过此阈值时显示警告</div>
             </el-form-item>
             <el-form-item label="最低利润率限制 (%)">
               <el-input-number 
-                v-model="form.minProfitMargin" 
+                :model-value="form.minProfitMargin" 
                 :min="-100" 
                 :max="100"
                 :step="1"
+                @update:model-value="updateFormField('minProfitMargin', $event)"
               />
               <div class="form-tip">定价时利润率不能低于此值</div>
             </el-form-item>
             <el-form-item label="允许成本价销售">
-              <el-switch v-model="form.allowCostPrice" />
+              <el-switch :model-value="form.allowCostPrice" @update:model-value="updateFormField('allowCostPrice', $event)" />
               <div class="form-tip">开启后允许0%利润率定价</div>
             </el-form-item>
             <el-form-item label="默认筛选">
-              <el-select v-model="form.defaultFilter" placeholder="无" clearable>
+              <el-select :model-value="form.defaultFilter" placeholder="无" clearable @update:model-value="updateFormField('defaultFilter', $event)">
                 <el-option label="低利润率" value="low_margin" />
                 <el-option label="成本变动" value="cost_variance" />
                 <el-option label="未定价" value="no_pricing" />
@@ -84,10 +87,10 @@
             <el-table-column prop="is_active" label="状态" width="80" align="center">
               <template #default="{ row }">
                 <el-switch 
-                  v-model="row.is_active" 
+                  :model-value="row.is_active" 
                   :active-value="1" 
                   :inactive-value="0"
-                  @change="$emit('toggle-field', row)"
+                  @change="$emit('toggle-field', row, $event)"
                 />
               </template>
             </el-table-column>
@@ -137,6 +140,7 @@ const props = defineProps({
 const emit = defineEmits([
   'update:modelValue', 
   'update:activeTab',
+  'update:form',
   'save', 
   'reset', 
   'add-field', 
@@ -154,6 +158,10 @@ const activeTab = computed({
   get: () => props.activeTab,
   set: (val) => emit('update:activeTab', val)
 });
+
+const updateFormField = (field, value) => {
+  emit('update:form', { ...props.form, [field]: value });
+};
 </script>
 
 <style scoped>

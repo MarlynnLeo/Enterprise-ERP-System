@@ -23,7 +23,7 @@ export function handleDashboardError(error, moduleName, fallbackData = {}, showM
     } else if (error.code === 'NETWORK_ERROR') {
       ElMessage.error('网络连接失败，请检查网络设置');
     } else {
-      ElMessage.warning(`${moduleName}数据加载失败，显示默认数据`);
+      ElMessage.warning(`${moduleName}数据加载失败，请稍后重试`);
     }
   }
   
@@ -146,7 +146,7 @@ export function safeGet(data, path, defaultValue = null) {
     }
     
     return result !== undefined ? result : defaultValue;
-  } catch (error) {
+  } catch {
     return defaultValue;
   }
 }

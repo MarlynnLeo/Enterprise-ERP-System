@@ -259,7 +259,7 @@ class PurchaseDashboardService {
    * @returns {Promise<Object>} 仪表盘完整数据   */
   async getDashboardData() {
     try {
-      // 并行获取所有统计数据      
+      // 并行获取所有统计数据
       const [
         requisitionStats,
         orderStats,

@@ -82,7 +82,7 @@ class NonconformingProduct {
                   AND material_id = ?
                 LIMIT 1
               `, [ncpData.batch_no, ncpData.material_id]);
-              
+
               if (inboundLedgerRows.length > 0) {
                  const receiptNo = inboundLedgerRows[0].reference_no;
                  const [suppRows] = await connection.query(`
@@ -99,7 +99,7 @@ class NonconformingProduct {
                     logger.info(`✅ [血缘追溯] 第2跳(备用): 由台账穿透至源头入库单的责任人 => ${ncpData.supplier_name}`);
                  }
               } else {
-                 logger.warn(`⚠️ [血缘追溯] 未在采购收货侧查获批号来源，可能是非正常强录数据的测试号。`);
+                 logger.warn('[血缘追溯] 未在采购收货侧查获批号来源，已转入人工核验。');
               }
             }
           } else {

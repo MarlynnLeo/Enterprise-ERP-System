@@ -110,9 +110,33 @@
                 </div>
                 
                 <div class="item-content">
-                  <div class="item-title" v-html="highlightKeyword(item.title)"></div>
-                  <div class="item-subtitle" v-if="item.subtitle" v-html="highlightKeyword(item.subtitle)"></div>
-                  <div class="item-description" v-if="item.description" v-html="highlightKeyword(item.description)"></div>
+                  <div class="item-title">
+                    <span
+                      v-for="(segment, segmentIndex) in highlightSegments(item.title)"
+                      :key="`title-${index}-${segmentIndex}`"
+                      :class="{ highlight: segment.highlight }"
+                    >
+                      {{ segment.text }}
+                    </span>
+                  </div>
+                  <div class="item-subtitle" v-if="item.subtitle">
+                    <span
+                      v-for="(segment, segmentIndex) in highlightSegments(item.subtitle)"
+                      :key="`subtitle-${index}-${segmentIndex}`"
+                      :class="{ highlight: segment.highlight }"
+                    >
+                      {{ segment.text }}
+                    </span>
+                  </div>
+                  <div class="item-description" v-if="item.description">
+                    <span
+                      v-for="(segment, segmentIndex) in highlightSegments(item.description)"
+                      :key="`description-${index}-${segmentIndex}`"
+                      :class="{ highlight: segment.highlight }"
+                    >
+                      {{ segment.text }}
+                    </span>
+                  </div>
                 </div>
 
                 <div class="item-meta" v-if="item.meta">
@@ -149,7 +173,15 @@
             @click="selectSuggestion(suggestion)"
           >
             <Icon name="search" size="14" color="var(--text-disabled)" />
-            <span v-html="highlightKeyword(suggestion)"></span>
+            <span>
+              <span
+                v-for="(segment, segmentIndex) in highlightSegments(suggestion)"
+                :key="`suggestion-${index}-${segmentIndex}`"
+                :class="{ highlight: segment.highlight }"
+              >
+                {{ segment.text }}
+              </span>
+            </span>
           </div>
         </div>
       </div>
@@ -285,29 +317,38 @@ const getStatusLabel = (status) => {
   return labelMap[status] || status;
 };
 
-// HTML 转义，防止 XSS
-const escapeHtml = (str) => {
-  if (!str) return str;
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-};
-
 // 转义正则特殊字符
 const escapeRegExp = (str) => {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-// 高亮关键词（已做 XSS 防护）
-const highlightKeyword = (text) => {
-  if (!searchKeyword.value || !text) return escapeHtml(text);
-  const safeText = escapeHtml(String(text));
-  const safeKeyword = escapeHtml(searchKeyword.value);
-  const regex = new RegExp(`(${escapeRegExp(safeKeyword)})`, 'gi');
-  return safeText.replace(regex, '<span class="highlight">$1</span>');
+const highlightSegments = (text) => {
+  if (!text) return [];
+
+  const source = String(text);
+  const keyword = searchKeyword.value;
+  if (!keyword) {
+    return [{ text: source, highlight: false }];
+  }
+
+  const regex = new RegExp(escapeRegExp(keyword), 'gi');
+  const segments = [];
+  let lastIndex = 0;
+
+  source.replace(regex, (match, offset) => {
+    if (offset > lastIndex) {
+      segments.push({ text: source.slice(lastIndex, offset), highlight: false });
+    }
+    segments.push({ text: match, highlight: true });
+    lastIndex = offset + match.length;
+    return match;
+  });
+
+  if (lastIndex < source.length) {
+    segments.push({ text: source.slice(lastIndex), highlight: false });
+  }
+
+  return segments.length ? segments : [{ text: source, highlight: false }];
 };
 
 // 执行搜索（并行调用多个后端 API，聚合结果）
@@ -465,7 +506,7 @@ const viewDetail = (item) => {
   if (route) {
     router.push(route);
   } else {
-    showToast('详情页面开发中');
+    showToast('暂不支持该类型详情');
   }
 };
 
@@ -510,7 +551,7 @@ const getSearchHistory = () => {
   try {
     const history = localStorage.getItem('global_search_history');
     return history ? JSON.parse(history) : [];
-  } catch (error) {
+  } catch {
     return [];
   }
 };
@@ -527,7 +568,7 @@ const clearHistory = async () => {
       searchHistory.value = [];
       showToast('已清空搜索历史');
     }
-  } catch (error) {
+  } catch {
     // 用户取消
   }
 };

@@ -1,7 +1,7 @@
 <!--
 /**
  * SupplierDetail.vue - 供应商详情
- * @description 供应商详情页面 - 替代GenericListView占位
+ * @description 供应商详情页面
  * @date 2026-04-14
  * @version 1.0.0
  */

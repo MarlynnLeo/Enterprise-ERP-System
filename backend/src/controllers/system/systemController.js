@@ -12,6 +12,7 @@ const systemModel = require('../../models/system');
 const { AuditService, AuditAction, AuditModule } = require('../../services/AuditService');
 const { pool } = require('../../config/db');
 const cacheService = require('../../services/cacheService');
+const DLQService = require('../../services/business/DLQService');
 const systemController = {
   // 用户管理
   async getAllUsers(req, res) {
@@ -53,7 +54,7 @@ const systemController = {
       }
 
       // 不返回密码
-      const { password, ...userData } = user;
+      const {  ...userData } = user;
 
       ResponseHandler.success(res, userData, '获取用户信息成功');
     } catch (error) {
@@ -68,7 +69,7 @@ const systemController = {
       const newUser = await systemModel.createUser(userData);
 
       // 不返回密码
-      const { password, ...result } = newUser;
+      const {  ...result } = newUser;
 
       ResponseHandler.success(
         res,
@@ -95,7 +96,6 @@ const systemController = {
       if (String(id) === '1' && String(req.user?.id) !== '1') {
         return res.status(403).json({ code: 403, message: '禁止越权修改超级管理员信息' });
       }
-
 
 
       const updatedUser = await systemModel.updateUser(id, userData);
@@ -249,7 +249,6 @@ const systemController = {
       const departmentData = req.body;
 
 
-
       const result = await systemModel.updateDepartment(id, departmentData);
 
       if (!result) {
@@ -299,13 +298,12 @@ const systemController = {
       const { id } = req.params;
 
 
-
       await systemModel.deleteDepartment(id);
 
       ResponseHandler.success(res, null, '删除部门成功');
     } catch (error) {
       logger.error('删除部门失败:', error);
-      
+
       // 捕获并区分底层阻断异常
       if (error.message && error.message.startsWith('BLOCK_DELETE:')) {
         return res.status(400).json({
@@ -393,7 +391,6 @@ const systemController = {
       }
 
 
-
       const result = await systemModel.updateRole(id, roleData);
 
       ResponseHandler.success(res, result, '更新角色成功');
@@ -473,7 +470,6 @@ const systemController = {
       }
 
 
-
       await systemModel.deleteRole(id);
 
       ResponseHandler.success(res, null, '删除角色成功');
@@ -540,7 +536,6 @@ const systemController = {
       const menuData = req.body;
 
 
-
       const result = await systemModel.updateMenu(id, menuData);
 
       if (!result) {
@@ -560,7 +555,6 @@ const systemController = {
   async deleteMenu(req, res) {
     try {
       const { id } = req.params;
-
 
 
       await systemModel.deleteMenu(id);
@@ -689,8 +683,11 @@ const systemController = {
         });
         logger.info(`[审计日志] 用户 ${req.user.username} 更新了角色 ${role.name} 的权限`);
       } catch (auditError) {
-        logger.warn('记录审计日志失败:', auditError.message);
-        // 审计日志失败不影响主流程
+        await DLQService.recordSideEffectFailure(
+          'AuditLog:rolePermissionUpdate',
+          { roleId: id, operator: req.user?.username },
+          auditError
+        );
       }
 
       // ✅ 使用统一的响应格式
@@ -985,6 +982,36 @@ const systemController = {
     }
   },
 
+  async getFailedJobs(req, res) {
+    try {
+      const { status = 'pending', page = 1, pageSize = 50 } = req.query;
+      const result = await DLQService.listFailedJobs({ status, page, pageSize });
+      return ResponseHandler.paginated(
+        res,
+        result.list,
+        result.total,
+        result.page,
+        result.pageSize,
+        '获取失败任务列表成功'
+      );
+    } catch (error) {
+      logger.error('获取失败任务列表失败:', error);
+      return ResponseHandler.error(res, '获取失败任务列表失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  async resolveFailedJob(req, res) {
+    try {
+      const { id } = req.params;
+      const operator = req.user?.username || req.user?.real_name || 'system';
+      await DLQService.markResolved(id, operator);
+      return ResponseHandler.success(res, { id: Number(id) }, '失败任务已标记为已处理');
+    } catch (error) {
+      logger.error('标记失败任务失败:', error);
+      return ResponseHandler.error(res, '标记失败任务失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
   async createBackup(req, res) {
     try {
       // 执行备份逻辑
@@ -1010,7 +1037,7 @@ const systemController = {
 
   async downloadBackup(req, res) {
     try {
-      const { filename } = req.params;
+
       // 下载备份逻辑
       return ResponseHandler.success(res, {}, '备份下载成功');
     } catch (error) {

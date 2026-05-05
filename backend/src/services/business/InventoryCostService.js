@@ -11,7 +11,6 @@ const financeModel = require('../../models/finance');
 const { getUserIdByIdentifier } = require('../../utils/userUtils');
 const {
   DOCUMENT_TYPE_MAPPING,
-  ACCOUNT_CODES,
   ENTRY_NUMBER_PREFIX,
   ERROR_MESSAGES,
 } = require('../../constants/financeConstants');
@@ -47,7 +46,7 @@ class InventoryCostService {
       // ==========================================
       const oldCostPrice = parseFloat(material.cost_price || material.price || 0);
       let newMac = inboundUnitCost; // 默认 fallback
-      
+
       try {
         // [H-4] 使用 FOR UPDATE 锁防止并发入库时 MAC 计算错误
         // 由于是异步任务或后续调用，台账里可能已经包含了本次插入的 quantity
@@ -56,11 +55,11 @@ class InventoryCostService {
           [transaction.material_id]
         );
         const currentTotalQty = parseFloat(stockRes[0].total_qty) || 0;
-        
+
         // 尝试推算出在本次入库发生前的那一刻，系统里还有多少库存
         // 退回逻辑：oldQty = 当前总数量 - 本次入库数量
-        const oldQty = Math.max(0, currentTotalQty - inboundQty); 
-        
+        const oldQty = Math.max(0, currentTotalQty - inboundQty);
+
         if (oldQty > 0) {
           const oldTotalValue = oldQty * oldCostPrice;
           const newTotalQty = oldQty + inboundQty;
@@ -297,11 +296,9 @@ class InventoryCostService {
    * 获取库存科目ID
    * @private
    */
-  static async getInventoryAccountId(connection, materialId) {
-    // TODO: 根据物料分类获取对应的库存科目
-    // 目前简化处理，统一使用库存商品科目
-
-    // 从配置中获取科目编码
+  static async getInventoryAccountId(connection) {
+    // 当前标准成本流程统一使用配置中心的库存商品科目。
+    // 如果企业按物料分类分账，应在配置层增加分类映射后再扩展这里。
     await accountingConfig.loadFromDatabase(db);
     const accountCode = accountingConfig.getAccountCode('INVENTORY_GOODS');
 

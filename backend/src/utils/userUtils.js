@@ -13,40 +13,39 @@ const { logger } = require('./logger');
  * @returns {Promise<number>} 用户ID
  */
 async function getUserIdByIdentifier(connection, userIdentifier) {
-  // 如果已经是数字，直接返回
-  if (typeof userIdentifier === 'number') {
-    return userIdentifier;
+  if (userIdentifier === null || userIdentifier === undefined || userIdentifier === '') {
+    throw new Error('用户标识不能为空');
   }
 
-  // 如果是字符串数字，转换后返回
-  if (!isNaN(userIdentifier)) {
-    return parseInt(userIdentifier);
+  const numericId = Number.parseInt(userIdentifier, 10);
+  if (Number.isInteger(numericId) && String(userIdentifier).trim() === String(numericId)) {
+    return numericId;
   }
 
-  // 如果是 'system' 或 'admin'，返回默认系统用户ID（假设为1）
-  if (userIdentifier === 'system' || userIdentifier === 'admin') {
-    return 1;
-  }
+  const normalizedIdentifier = String(userIdentifier).trim();
 
-  // 根据用户名或真实姓名查询用户ID
-  // real_name: 真实姓名（如"王晓敏"）
-  // username: 用户名（如"admin"）
   try {
-    const [users] = await connection.execute(
-      'SELECT id FROM users WHERE real_name = ? OR username = ? LIMIT 1',
-      [userIdentifier, userIdentifier]
-    );
+    const params = [normalizedIdentifier, normalizedIdentifier];
+    let sql = 'SELECT id FROM users WHERE real_name = ? OR username = ?';
+
+    if (['system', 'admin'].includes(normalizedIdentifier.toLowerCase())) {
+      sql += ' OR username IN (?, ?)';
+      params.push('system', 'admin');
+    }
+
+    sql += ' ORDER BY CASE WHEN username = ? THEN 0 WHEN real_name = ? THEN 1 ELSE 2 END, id ASC LIMIT 1';
+    params.push(normalizedIdentifier, normalizedIdentifier);
+
+    const [users] = await connection.execute(sql, params);
 
     if (users.length > 0) {
       return users[0].id;
     }
 
-    // 如果找不到用户，记录警告并返回系统用户ID
-    logger.warn(`用户不存在: ${userIdentifier}，使用系统用户ID=1`);
-    return 1;
+    throw new Error(`用户不存在: ${normalizedIdentifier}`);
   } catch (error) {
     logger.error(`查询用户ID失败: ${error.message}`);
-    return 1; // 出错时返回系统用户ID
+    throw error;
   }
 }
 

@@ -15,11 +15,9 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { financeApi } from '@/services/api'
 
-  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '银行交易',
@@ -55,7 +53,7 @@
     return await financeApi.getBankTransactions(params)
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 银行交易暂无独立详情页
   }
 </script>

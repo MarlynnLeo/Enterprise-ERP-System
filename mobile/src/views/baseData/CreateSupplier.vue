@@ -20,7 +20,7 @@
         <div class="form-section">
           <div class="section-title">基本信息</div>
           <Field v-model="form.name" name="name" label="供应商名称" placeholder="请输入供应商名称" :rules="[{ required: true, message: '请输入供应商名称' }]" />
-          <Field v-model="form.code" name="code" label="供应商编码" placeholder="系统自动生成" readonly right-icon="refresh" @click-right-icon="generateCode" />
+          <Field v-model="form.code" name="code" label="供应商编码" placeholder="系统自动生成" readonly />
           <Field v-model="form.short_name" name="short_name" label="供应商简称" placeholder="请输入简称（可选）" />
           <Field v-model="form.rating" name="rating" label="供应商评级" placeholder="请选择评级" readonly is-link @click="showRatingPicker = true" />
         </div>
@@ -66,7 +66,7 @@
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted } from 'vue'
+  import { ref, reactive } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
   import { baseDataApi } from '@/services/api'
@@ -96,12 +96,6 @@
     showRatingPicker.value = false
   }
 
-  const generateCode = () => {
-    const d = new Date()
-    const s = `${d.getFullYear().toString().slice(-2)}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`
-    form.code = `SUP${s}${Math.random().toString(36).substr(2,4).toUpperCase()}`
-  }
-
   const submitForm = async () => {
     try {
       await formRef.value?.validate()
@@ -119,8 +113,6 @@
       submitting.value = false
     }
   }
-
-  onMounted(() => generateCode())
 </script>
 
 <style lang="scss" scoped>

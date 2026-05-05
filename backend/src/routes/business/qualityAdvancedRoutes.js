@@ -2,7 +2,7 @@
  * qualityAdvancedRoutes.js
  * @description 质量管理高级功能路由（量具校准 / SPC / 供应商计分卡）
  * @date 2026-03-03
- * 
+ *
  * 挂载路径建议: /api/quality (与 qualityRoutes 共用前缀)
  */
 

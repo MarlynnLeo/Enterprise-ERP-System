@@ -2,7 +2,7 @@
  * supplierQualityController.js
  * @description 供应商质量计分卡控制器
  * @date 2026-03-03
- * 
+ *
  * 职责范围：供应商质量得分 CRUD、月度自动计算、等级评定、排名查询
  */
 
@@ -82,9 +82,9 @@ const supplierQualityController = {
         try {
             const { supplierId } = req.params;
             const { months = 12 } = req.query;
-            
+
             // 安全转换为整数以避免 SQL 注入，但传给 mysql2 驱动时转为字符串格式
-            const limitStr = parseInt(months, 10).toString();
+            const limit = Math.max(1, Math.min(60, parseInt(months, 10) || 12));
 
             const result = await db.query(
                 `
@@ -93,7 +93,7 @@ const supplierQualityController = {
         LEFT JOIN suppliers s ON sqs.supplier_id = s.id
         WHERE sqs.supplier_id = ?
         ORDER BY sqs.period DESC
-        LIMIT ${actualPageSize}
+        LIMIT ${limit}
       `,
                 [supplierId]
             );

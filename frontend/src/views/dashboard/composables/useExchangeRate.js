@@ -2,9 +2,12 @@
  * useExchangeRate.js
  * @description 汇率与图表数据的组合式函数（从 Dashboard.vue 抽取）
  */
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import * as echarts from 'echarts/core'
 import { ElMessage } from 'element-plus'
+import { exchangeRateApi } from '../../../api/enhanced'
+
+const DASHBOARD_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY']
 
 export function useExchangeRate() {
   // 外汇数据
@@ -60,14 +63,14 @@ export function useExchangeRate() {
   const miniCharts = ref({})
 
   // 处理汇率数据并更新（提取公共逻辑）
-  const processExchangeRateData = (rates, dataSource) => {
+  const processExchangeRateData = (rates, dataSource, mode = 'usdBase') => {
     const prevRates = { ...exchangeRates.value }
 
     // 计算对人民币的汇率
-    const usdToCny = rates.CNY || 0
-    const eurToCny = rates.EUR ? (rates.CNY / rates.EUR) : 0
-    const gbpToCny = rates.GBP ? (rates.CNY / rates.GBP) : 0
-    const jpyToCny = rates.JPY ? (rates.CNY / rates.JPY) : 0
+    const usdToCny = mode === 'direct' ? Number(rates.USD) : rates.CNY || 0
+    const eurToCny = mode === 'direct' ? Number(rates.EUR) : (rates.EUR ? (rates.CNY / rates.EUR) : 0)
+    const gbpToCny = mode === 'direct' ? Number(rates.GBP) : (rates.GBP ? (rates.CNY / rates.GBP) : 0)
+    const jpyToCny = mode === 'direct' ? Number(rates.JPY) : (rates.JPY ? (rates.CNY / rates.JPY) : 0)
 
     // 计算变化
     const usdChange = prevRates.USDCNY !== '--' ? usdToCny - parseFloat(prevRates.USDCNY) : 0
@@ -116,61 +119,34 @@ export function useExchangeRate() {
   const fetchExchangeRates = async () => {
     exchangeRateLoading.value = true
 
-    // API配置列表
-    const apiConfigs = [
-      {
-        url: 'https://open.er-api.com/v6/latest/USD',
-        name: 'Open Exchange Rates',
-        validate: (data) => data && data.result === 'success' && data.rates,
-        getRates: (data) => data.rates
-      },
-      {
-        url: 'https://api.exchangerate-api.com/v4/latest/USD',
-        name: 'ExchangeRate-API (备用)',
-        validate: (data) => data && data.rates,
-        getRates: (data) => data.rates
-      }
-    ]
-
     try {
-      // 尝试所有API
-      for (const config of apiConfigs) {
-        try {
-          const response = await fetch(config.url)
-          const data = await response.json()
+      const entries = await Promise.all(
+        DASHBOARD_CURRENCIES.map(async (currency) => {
+          const response = await exchangeRateApi.getLatest(currency, 'CNY')
+          const rate = Number(response.data?.rate)
+          return [currency, Number.isFinite(rate) && rate > 0 ? rate : null]
+        })
+      )
 
-          if (config.validate(data)) {
-            processExchangeRateData(config.getRates(data), config.name)
-            if (config.name.includes('备用')) {
-              ElMessage.success(`汇率数据已更新（${config.name}）`)
-            }
-            return // 成功获取数据，退出
-          }
-        } catch (error) {
-          console.error(`${config.name} API失败:`, error)
-          continue // 尝试下一个API
+      const maintainedRates = Object.fromEntries(entries.filter(([, rate]) => rate !== null))
+      const missingCurrencies = DASHBOARD_CURRENCIES.filter(currency => !maintainedRates[currency])
+
+      if (missingCurrencies.length > 0) {
+        exchangeRates.value = {
+          ...exchangeRates.value,
+          lastUpdate: new Date(),
+          dataSource: '汇率维护'
         }
+        ElMessage.warning(`请先维护 ${missingCurrencies.join('/')} 对人民币汇率`)
+        return false
       }
 
-      // 所有API都失败，使用近似值
-      console.error('所有汇率API都失败，使用近似值')
-      const currentTime = new Date()
-      exchangeRates.value = {
-        USDCNY: '7.2000',
-        EURCNY: '7.8000',
-        GBPCNY: '9.1000',
-        JPYCNY: '0.048000',
-        USDCNY_change: 0,
-        EURCNY_change: 0,
-        GBPCNY_change: 0,
-        JPYCNY_change: 0,
-        lastUpdate: currentTime,
-        dataSource: '近似值'
-      }
-      ElMessage.warning('汇率数据暂时不可用，显示近似值')
+      processExchangeRateData(maintainedRates, '汇率维护', 'direct')
+      return true
     } catch (error) {
       console.error('获取汇率数据失败:', error)
       ElMessage.error('获取汇率数据失败，请检查网络连接')
+      return false
     } finally {
       exchangeRateLoading.value = false
     }
@@ -420,8 +396,10 @@ export function useExchangeRate() {
   // 刷新汇率
   const refreshExchangeRate = async () => {
     try {
-      await fetchExchangeRates()
-      ElMessage.success('汇率数据已更新')
+      const updated = await fetchExchangeRates()
+      if (updated) {
+        ElMessage.success('汇率数据已更新')
+      }
     } catch (error) {
       console.error('手动刷新汇率失败:', error)
       ElMessage.error('刷新汇率失败，请稍后重试')

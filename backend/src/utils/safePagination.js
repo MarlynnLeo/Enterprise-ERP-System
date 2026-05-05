@@ -2,9 +2,6 @@
  * safePagination.js
  * @description 安全分页工具 — 统一处理 LIMIT/OFFSET 参数，防止 SQL 注入
  * @date 2026-04-17
- *
- * ✅ 安全修复: 替代各处模板字符串拼接 LIMIT/OFFSET 的不安全模式
- * 所有分页参数强制转为安全整数，并提供统一的 SQL 片段生成方法
  */
 
 /**
@@ -22,7 +19,6 @@ function parsePagination(page, pageSize, options = {}) {
   let parsedPage = parseInt(page, 10);
   let parsedPageSize = parseInt(pageSize, 10);
 
-  // 强制范围约束
   if (isNaN(parsedPage) || parsedPage < 1) parsedPage = 1;
   if (isNaN(parsedPageSize) || parsedPageSize < 1) parsedPageSize = defaultPageSize;
   if (parsedPageSize > maxPageSize) parsedPageSize = maxPageSize;

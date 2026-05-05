@@ -1,7 +1,7 @@
 <!--
 /**
  * Quotations.vue - 销售报价单列表
- * @description 销售报价单管理页面 - 替代GenericListView占位
+ * @description 销售报价单管理页面
  * @date 2026-04-14
  * @version 1.0.0
  */
@@ -18,11 +18,9 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { salesApi } from '@/services/api'
 
-  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '报价管理',
@@ -64,7 +62,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 报价详情暂无单独页面
   }
 </script>

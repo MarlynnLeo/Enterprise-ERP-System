@@ -569,6 +569,7 @@ import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useRouter } from 'vue-router'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { debounce } from '@/utils/commonHelpers'
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 // 权限store
 const authStore = useAuthStore()
@@ -963,8 +964,7 @@ const handleBatchPrint = async () => {
 
     // 创建打印窗口
     const printWindow = window.open('', '_blank')
-    printWindow.document.write(templateContent)
-    printWindow.document.close()
+    writeSafeHtmlDocument(printWindow, templateContent)
 
     // 等待内容加载后打印
     printWindow.onload = () => {

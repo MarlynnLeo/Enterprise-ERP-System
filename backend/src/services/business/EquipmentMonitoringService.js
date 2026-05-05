@@ -3,7 +3,7 @@
  */
 
 const BaseService = require('../BaseService');
-const { getConnection } = require('../../config/db');
+
 const cacheService = require('../cacheService'); // ✅ 更新：使用统一的缓存服务
 
 class EquipmentMonitoringService extends BaseService {
@@ -344,7 +344,7 @@ class EquipmentMonitoringService extends BaseService {
   /**
    * 确认报警
    */
-  async acknowledgeAlarm(alarmId, userId, note = '') {
+  async acknowledgeAlarm(alarmId, userId) {
     const connection = await this.getConnection();
 
     try {

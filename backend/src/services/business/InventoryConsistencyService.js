@@ -7,6 +7,7 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const { CodeGenerators } = require('../../utils/codeGenerator');
 
 class InventoryConsistencyService {
   /**
@@ -211,9 +212,7 @@ class InventoryConsistencyService {
         return { success: true, adjustedCount: 0, message: '没有负库存需要调整' };
       }
 
-      // 生成调整单号
-      const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-      const adjustmentNo = `ADJ${dateStr}${Date.now().toString().slice(-4)}`;
+      const adjustmentNo = await CodeGenerators.generateAdjustmentCode(connection);
 
       let adjustedCount = 0;
 

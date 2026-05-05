@@ -11,6 +11,7 @@ const { logger } = require('../../../utils/logger');
 const financeModel = require('../../../models/finance');
 const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 /**
  * 财务总账控制器
@@ -338,7 +339,7 @@ const financeController = {
         credit: parseFloat(credit) || 0,
         balanceDate,
         notes,
-        setBy: await getCurrentUserName(req),
+        setBy: getAuthenticatedUserId(req),
       });
 
       ResponseHandler.success(res, result, '期初余额设置成功');
@@ -643,8 +644,8 @@ const financeController = {
     } catch (error) {
       logger.error('过账会计分录失败:', error);
       // 将模型层的业务错误（如"不能在已关闭的期间过账"）返回给前端
-      const isBusinessError = error.message.includes('不能') || 
-                              error.message.includes('已过账') || 
+      const isBusinessError = error.message.includes('不能') ||
+                              error.message.includes('已过账') ||
                               error.message.includes('不存在') ||
                               error.message.includes('已冲销');
       const statusCode = isBusinessError ? 400 : 500;

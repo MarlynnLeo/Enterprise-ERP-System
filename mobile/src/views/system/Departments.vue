@@ -53,7 +53,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // 部门详情
   }
 </script>

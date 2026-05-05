@@ -1,3 +1,4 @@
+import { devLogger } from '@/utils/devLogger';
 /**
  * 响应数据解析工具
  * @description 统一处理API响应数据的解析逻辑
@@ -54,8 +55,8 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-// 默认关闭调试日志，需要时可在调用处手动启用 enableLog: true
-const isDev = false;
+// 默认关闭解析跟踪，需要时可在调用处手动启用 enableLog: true
+const isDev = import.meta.env.DEV && import.meta.env.VITE_ENABLE_RESPONSE_LOG === 'true';
 
 /**
  * 递归规范化数据中的布尔型字段为整数
@@ -105,37 +106,37 @@ export const parseListData = (response, options = {}) => {
   // 拦截器已解包，response.data 就是业务数据
   // 优先级1: response.data.list (分页格式)
   if (response?.data?.list && Array.isArray(response.data.list)) {
-    enableLog && console.log(`${logPrefix}✅ 数据格式: data.list`);
+    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data.list`);
     result = response.data.list;
   }
   // 优先级2: response.data.items
   else if (response?.data?.items && Array.isArray(response.data.items)) {
-    enableLog && console.log(`${logPrefix}✅ 数据格式: data.items`);
+    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data.items`);
     result = response.data.items;
   }
   // 优先级3: response.data.rows
   else if (response?.data?.rows && Array.isArray(response.data.rows)) {
-    enableLog && console.log(`${logPrefix}✅ 数据格式: data.rows`);
+    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data.rows`);
     result = response.data.rows;
   }
   // 优先级3.5: response.data.data (嵌套 data 格式，如退货接口 { data: [...], pagination: {...} })
   else if (response?.data?.data && Array.isArray(response.data.data)) {
-    enableLog && console.log(`${logPrefix}✅ 数据格式: data.data`);
+    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data.data`);
     result = response.data.data;
   }
   // 优先级4: response.data (数组)
   else if (response?.data && Array.isArray(response.data)) {
-    enableLog && console.log(`${logPrefix}✅ 数据格式: data (Array)`);
+    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data (Array)`);
     result = response.data;
   }
   // 优先级5: response (数组)
   else if (Array.isArray(response)) {
-    enableLog && console.log(`${logPrefix}✅ 数据格式: response (Array)`);
+    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: response (Array)`);
     result = response;
   }
   // 未知格式
   else {
-    enableLog && console.warn(`${logPrefix}⚠️ 数据格式未知:`, response);
+    enableLog && devLogger.warn(`${logPrefix}⚠️ 数据格式未知:`, response);
     return [];
   }
 
@@ -160,17 +161,17 @@ export const parseDataObject = (response, options = {}) => {
 
   // 拦截器已解包，response.data 就是业务数据
   if (response?.data && typeof response.data === 'object') {
-    enableLog && console.log(`${logPrefix}✅ 数据格式: data (直接对象)`);
+    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data (直接对象)`);
     return normalizeBooleanFields(response.data);
   }
 
   // response (直接对象)
   if (response && typeof response === 'object' && !response.data) {
-    enableLog && console.log(`${logPrefix}✅ 数据格式: response (直接对象)`);
+    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: response (直接对象)`);
     return normalizeBooleanFields(response);
   }
 
-  enableLog && console.warn(`${logPrefix}⚠️ 无法解析数据对象`);
+  enableLog && devLogger.warn(`${logPrefix}⚠️ 无法解析数据对象`);
   return null;
 };
 
@@ -185,7 +186,7 @@ export const parseDataObject = (response, options = {}) => {
  * @example
  * const response = await api.create(data);
  * if (isResponseSuccess(response)) {
- *   console.log('创建成功');
+ *   devLogger.debug('创建成功');
  * }
  */
 export const isResponseSuccess = (response) => {
@@ -254,13 +255,13 @@ export const parsePaginatedData = (response, options = {}) => {
     const statistics = data.statistics || null;
     const extra = data.extra || null;
 
-    enableLog && console.log(`${logPrefix}📊 分页信息:`, { total, page, pageSize, totalPages });
+    enableLog && devLogger.debug(`${logPrefix}📊 分页信息:`, { total, page, pageSize, totalPages });
 
     return { list, total, page, pageSize, totalPages, statistics, extra };
   }
 
   // 默认返回空数据
-  enableLog && console.warn(`${logPrefix}⚠️ 无法解析分页数据`);
+  enableLog && devLogger.warn(`${logPrefix}⚠️ 无法解析分页数据`);
   return { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0, statistics: null, extra: null };
 };
 
@@ -300,7 +301,7 @@ export const parseResponse = (response, options = {}) => {
  * const response = await axios.get('/api/data');
  * const result = parseApiResponse(response);
  * if (result.success) {
- *   console.log('数据:', result.data);
+ *   devLogger.debug('数据:', result.data);
  * } else {
  *   console.error('错误:', result.message);
  * }
@@ -335,4 +336,3 @@ export default {
   parseResponse,
   parseApiResponse
 };
-

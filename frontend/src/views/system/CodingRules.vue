@@ -10,7 +10,6 @@
         <el-button type="primary" :icon="Plus" @click="openForm()">新增规则</el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
@@ -29,7 +28,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="filteredData" v-loading="loading" border stripe
@@ -77,7 +75,6 @@
         </el-table-column>
       </el-table>
     </el-card>
-
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="formVis" :title="form.id ? '编辑编码规则' : '新增编码规则'" width="600px" destroy-on-close>
       <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
@@ -146,7 +143,6 @@
         <el-form-item label="启用">
           <el-switch v-model="form.is_active" :active-value="1" :inactive-value="0" />
         </el-form-item>
-
         <!-- 实时预览 -->
         <el-form-item label="编号预览">
           <div class="live-preview">
@@ -159,7 +155,6 @@
         <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
-
     <!-- 序列详情抽屉 -->
     <el-drawer v-model="seqVis" :title="`序列详情 — ${seqType}`" size="450px">
       <div v-if="seqLoading" v-loading="true" style="height:100px" />
@@ -186,14 +181,12 @@
     </el-drawer>
   </div>
 </template>
-
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { codingRuleApi } from '@/api/enhanced'
-import dayjs from 'dayjs'
-
+import 'dayjs'
 const loading = ref(false)
 const saving = ref(false)
 const tableData = ref([])
@@ -202,16 +195,13 @@ const formRef = ref()
 const form = ref({})
 const keyword = ref('')
 const filterCycle = ref('')
-
 const cycleLabel = { none: '不重置', daily: '每日', monthly: '每月', yearly: '每年' }
 const cycleType = { none: 'info', daily: 'primary', monthly: 'warning', yearly: 'success' }
-
 const formRules = {
   business_type: [{ required: true, message: '请输入业务类型', trigger: 'blur' }],
   name: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
   prefix: [{ required: true, message: '请输入前缀', trigger: 'blur' }],
 }
-
 // 筛选后的数据
 const filteredData = computed(() => {
   let list = tableData.value
@@ -228,11 +218,10 @@ const filteredData = computed(() => {
   }
   return list
 })
-
 // 实时预览
 // 将编码规则中的日期格式转为 dayjs 兼容 token（YYMMDD → YYMMDDformat: 需要映射 YY→YY 但 dayjs 用小写 yy）
 const dayjsFormatMap = { YYMMDD: 'YYMMDD', YYMM: 'YYMM', YYYYMMDD: 'YYYYMMDD', YYYYMM: 'YYYYMM', YYYY: 'YYYY' }
-const toDayjsFmt = (fmt) => (dayjsFormatMap[fmt] || fmt).replace(/\bYY(?!YY)/g, 'YY')
+const _toDayjsFmt = (fmt) => (dayjsFormatMap[fmt] || fmt).replace(/\bYY(?!YY)/g, 'YY')
 const livePreview = computed(() => {
   const f = form.value
   if (!f.prefix) return '--'
@@ -252,9 +241,7 @@ const livePreview = computed(() => {
   parts.push('0'.repeat(f.sequence_length || 4).slice(0, -1) + '1')
   return parts.join(sep)
 })
-
 const filterList = () => { /* computed 自动处理 */ }
-
 const fetchList = async () => {
   loading.value = true
   try {
@@ -266,7 +253,6 @@ const fetchList = async () => {
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
 }
-
 const openForm = (row) => {
   form.value = row
     ? { ...row }
@@ -277,7 +263,6 @@ const openForm = (row) => {
       }
   formVis.value = true
 }
-
 const handleSave = async () => {
   if (formRef.value) {
     try { await formRef.value.validate() } catch { return }
@@ -292,7 +277,6 @@ const handleSave = async () => {
   } catch (e) { ElMessage.error(e?.response?.data?.message || e.message || '保存失败') }
   finally { saving.value = false }
 }
-
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm(`确定删除编码规则「${row.name}」(${row.business_type})？\n关联的序列数据也会一并清除！`, '删除确认', {
@@ -303,13 +287,11 @@ const handleDelete = async (row) => {
     fetchList()
   } catch {}
 }
-
 // 序列抽屉
 const seqVis = ref(false)
 const seqLoading = ref(false)
 const seqType = ref('')
 const sequences = ref([])
-
 const openSequences = async (row) => {
   seqType.value = row.business_type
   seqVis.value = true
@@ -320,7 +302,6 @@ const openSequences = async (row) => {
   } catch { sequences.value = [] }
   finally { seqLoading.value = false }
 }
-
 const handleResetSeq = async () => {
   try {
     await codingRuleApi.resetSequence({ business_type: seqType.value })
@@ -329,17 +310,14 @@ const handleResetSeq = async () => {
     fetchList()
   } catch (e) { ElMessage.error(e.message || '重置失败') }
 }
-
 onMounted(fetchList)
 </script>
-
 <style scoped>
 .code-text {
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   color: var(--color-text-regular);
   font-size: 13px;
 }
-
 .rule-pattern {
   display: flex;
   align-items: center;
@@ -354,7 +332,6 @@ onMounted(fetchList)
   font-family: monospace;
   margin: 0 1px;
 }
-
 .preview-code {
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   color: var(--color-primary);
@@ -365,7 +342,6 @@ onMounted(fetchList)
 .preview-code.large {
   font-size: 18px;
 }
-
 .live-preview {
   background: var(--color-bg-hover);
   border: 1px dashed var(--color-border-base);
@@ -373,11 +349,9 @@ onMounted(fetchList)
   padding: var(--spacing-md) var(--spacing-lg);
   text-align: center;
 }
-
 .seq-item {
   margin-bottom: var(--spacing-md);
 }
-
 :deep(.row-disabled) {
   opacity: 0.55;
 }

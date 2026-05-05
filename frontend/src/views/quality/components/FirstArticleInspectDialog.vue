@@ -55,7 +55,7 @@
       <el-divider content-position="left">检验项目</el-divider>
       <el-table :data="form.items" border size="small" style="margin-bottom: 16px">
         <el-table-column prop="item_name" label="检验项目" min-width="120">
-          <template #default="{ row, $index }">
+          <template #default="{ row }">
             <el-input v-model="row.item_name" size="small" placeholder="项目名称" />
           </template>
         </el-table-column>
@@ -104,7 +104,6 @@ import { ref, computed, watch } from 'vue'
 import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { qualityApi } from '@/api/quality'
-import { FIRST_ARTICLE_CONFIG } from '@/constants/systemConstants'
 
 import { useAuthStore } from '@/stores/auth'
 
@@ -121,18 +120,14 @@ const dialogVisible = computed({
 const formRef = ref(null)
 const submitting = ref(false)
 
-// 使用常量定义默认检验项
-const { DEFAULT_INSPECTION_ITEMS } = FIRST_ARTICLE_CONFIG
-const createDefaultItems = () => DEFAULT_INSPECTION_ITEMS.map(item => ({ ...item, actual_value: '', result: 'passed' }))
-
 const form = ref({
   qualified_quantity: 0,
   unqualified_quantity: 0,
-  first_article_result: 'passed',
+  first_article_result: '',
   production_can_continue: false,
   inspector_name: '',
   note: '',
-  items: createDefaultItems()
+  items: []
 })
 
 const rules = {
@@ -142,8 +137,17 @@ const rules = {
 
 watch(() => props.inspection, (val) => {
   if (val) {
-    form.value.qualified_quantity = val.quantity || 0
-    form.value.unqualified_quantity = 0
+    form.value.qualified_quantity = val.qualified_quantity || 0
+    form.value.unqualified_quantity = val.unqualified_quantity || 0
+    form.value.first_article_result = val.first_article_result || ''
+    form.value.items = Array.isArray(val.items) ? val.items.map(item => ({
+      ...item,
+      actual_value: item.actual_value || '',
+      result: item.result || ''
+    })) : []
+    if (form.value.items.length === 0) {
+      ElMessage.warning('当前首检单未配置检验项目，请维护首检模板或手工添加检验项')
+    }
     // 自动获取当前登录用户作为检验员
     form.value.inspector_name = val.inspector_name || authStore.user?.real_name || authStore.user?.username || ''
   }
@@ -154,13 +158,14 @@ const calcUnqualified = () => {
   form.value.unqualified_quantity = Math.max(0, total - form.value.qualified_quantity)
 }
 
-const addItem = () => form.value.items.push({ item_name: '', standard_value: '', actual_value: '', result: 'passed' })
+const addItem = () => form.value.items.push({ item_name: '', standard_value: '', actual_value: '', result: '' })
 const removeItem = (index) => { form.value.items.splice(index, 1); autoCalcResult() }
 
 // 根据检验项目结果自动计算首检总结果
 const autoCalcResult = () => {
   const items = form.value.items
   if (items.length === 0) return
+  if (items.some(item => !item.result)) return
   
   // 检查是否有不合格项
   const hasFailedItem = items.some(item => item.result === 'failed')
@@ -182,6 +187,14 @@ const autoCalcResult = () => {
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
+  if (!form.value.items.length) {
+    ElMessage.warning('请先添加或维护首检检验项目')
+    return
+  }
+  if (form.value.items.some(item => !item.item_name || !item.result)) {
+    ElMessage.warning('请完整填写检验项目和判定结果')
+    return
+  }
   submitting.value = true
   try {
     await qualityApi.updateFirstArticleResult(props.inspection.id, form.value)

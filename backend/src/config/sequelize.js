@@ -32,7 +32,7 @@ const sequelize = new Sequelize(config.database, config.username, config.passwor
   timezone: config.timezone,
 });
 
-// 测试连接并初始化 - 简化稳定版本
+// 验证连接并初始化
 const initSequelize = async (retryCount = 0, maxRetries = 3) => {
   try {
     // 尝试连接数据库
@@ -46,7 +46,7 @@ const initSequelize = async (retryCount = 0, maxRetries = 3) => {
     }
 
     return true;
-  } catch (error) {
+  } catch {
     // Error logged
     if (retryCount < maxRetries) {
       const delay = Math.pow(2, retryCount) * 2000; // 指数退避：2s, 4s, 8s
@@ -82,7 +82,7 @@ const setupConnectionEventListeners = () => {
 
     // 优化断开连接的监听 - 减少日志噪音
     sequelize.addHook('beforeDisconnect', (_connection) => {
-      // 只在开发环境且启用详细调试时显示
+      // 只在开发环境且启用详细日志时显示
       if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEBUG_LOG === 'true') {
         // 断开连接前的操作
       }
@@ -104,7 +104,7 @@ const closeSequelize = async () => {
   try {
     await sequelize.close();
     logger.info('🔒 数据库连接已关闭');
-  } catch (error) {
+  } catch {
     // Error logged
   }
 };

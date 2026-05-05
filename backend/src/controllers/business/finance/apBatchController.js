@@ -6,6 +6,7 @@
 const apModel = require('../../../models/ap');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
+const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 
 /**
  * 批量付款
@@ -19,8 +20,7 @@ const batchPayments = async (req, res) => {
       return ResponseHandler.error(res, '请提供付款明细', 'VALIDATION_ERROR', 400);
     }
 
-    // 生成批次付款单号
-    const batchNumber = `BATCH-PAY-${Date.now()}`;
+    const batchNumber = await CodeGeneratorService.nextCode('ap_payment_batch');
     const results = [];
     const errors = [];
 
@@ -42,8 +42,7 @@ const batchPayments = async (req, res) => {
           throw new Error(`付款金额 ${item.amount} 超过发票余额 ${invoice.balance || invoice.balance_amount || 0}`);
         }
 
-        // 生成单个付款单号
-        const paymentNumber = `${batchNumber}-${i + 1}`;
+        const paymentNumber = await CodeGeneratorService.nextCode('ap_payment');
 
         const paymentData = {
           payment_number: paymentNumber,

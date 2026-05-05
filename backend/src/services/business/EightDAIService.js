@@ -1,22 +1,23 @@
 /**
  * 8D报告 AI 智能分析服务（专业深度优化版）
- * @description 基于本地 Ollama gemma4:26b 大模型，针对浙江开控电气有限公司(KACON)的成品质量问题
+ * @description 基于环境变量配置的本地 Ollama 大模型，针对浙江开控电气有限公司(KACON)的成品质量问题
  *              生成符合 IATF 16949 标准的专业级8D报告
- * 
+ *
  * 核心优化：
  * 1. D1 团队基于公司真实部门结构（品质部/技术部/生产部/采购部等）
  * 2. D2 问题描述自动融入当日日期，符合5W2H专业格式
  * 3. D6 实施结果留空（尚未验证），仅生成验证方法和验证计划
  * 4. 提示词深度优化，贴合电气/工控产品制造场景
- * 
+ *
  * @module services/business/EightDAIService
  */
 
 const { logger } = require('../../utils/logger');
+const { assertOllamaConfigured, getOllamaConfig } = require('../../config/aiConfig');
+const crypto = require('crypto');
 
 // 本地 Ollama AI 配置（OpenAI 兼容 API）
-const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://192.168.1.251:11434/v1/chat/completions';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:26b';
+const getAIConfig = () => assertOllamaConfigured('8D AI service');
 
 // 速率限制
 const RATE_LIMIT = {
@@ -27,24 +28,7 @@ const RATE_LIMIT = {
 };
 
 // ===================== 公司背景常量 =====================
-const COMPANY_CONTEXT = {
-    name: '浙江开控电气有限公司',
-    brand: 'KACON',
-    industry: '工业电气控制元件制造',
-    products: '脚踏开关、按钮开关、行程开关、工业控制元器件',
-    // 真实部门结构
-    departments: {
-        quality: '品质部',
-        engineering: '技术部',
-        production: '生产部',
-        purchasing: '采购部',
-        warehouse: '仓储部',
-        finance: '财务部',
-        management: '总经办',
-    },
-    // 生产车间/工序
-    workshops: ['脚踏组A', '脚踏组B', '行程组', '新产品组', '按钮开关组'],
-};
+
 
 class EightDAIService {
 
@@ -87,15 +71,16 @@ class EightDAIService {
      * @returns {Promise<{content: string, usage: Object}>}
      */
     static async callAI(systemPrompt, userPrompt) {
+        const { apiUrl, model, timeoutMs } = getAIConfig();
         let fetchFn;
         try {
             fetchFn = (await import('node-fetch')).default;
-        } catch (e) {
+        } catch {
             fetchFn = globalThis.fetch;
         }
 
         const requestBody = JSON.stringify({
-            model: OLLAMA_MODEL,
+            model,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
@@ -109,9 +94,9 @@ class EightDAIService {
                 await this._throttle();
 
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 300000); // 本地模型5分钟超时
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-                const response = await fetchFn(OLLAMA_API_URL, {
+                const response = await fetchFn(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -125,7 +110,7 @@ class EightDAIService {
                 if (response.status === 429) {
                     if (attempt < RATE_LIMIT.maxRetries) {
                         const delay = Math.min(
-                            RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + Math.random() * 1000,
+                            RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
                             RATE_LIMIT.maxDelayMs
                         );
                         logger.warn(`[8D-AI] 速率限制(429)，第${attempt + 1}次重试，等待${Math.round(delay)}ms`);
@@ -148,7 +133,7 @@ class EightDAIService {
                     total_tokens: data.usage?.total_tokens || 0,
                 };
 
-                logger.info(`[8D-AI] 调用成功 | 模型:${OLLAMA_MODEL} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
+                logger.info(`[8D-AI] 调用成功 | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
 
                 if (!content) throw new Error('AI返回内容为空');
                 return { content, usage };
@@ -176,7 +161,7 @@ class EightDAIService {
             // 尝试匹配最外层大括号
             const braceMatch = text.match(/\{[\s\S]*\}/);
             if (braceMatch) return JSON.parse(braceMatch[0]);
-            throw new Error('无法从AI回复中提取JSON');
+            throw new Error('无法从AI回复中提取JSON', { cause: e });
         }
     }
 
@@ -293,26 +278,26 @@ ${contextInfo}
                     title: result.title || `成品质量问题纠正预防措施报告-${today}`,
                     // D1 - 团队（基于公司真实部门）
                     d1_team_leader: result.d1_team_leader || '',
-                    d1_team_members: Array.isArray(result.d1_team_members) 
-                        ? result.d1_team_members 
+                    d1_team_members: Array.isArray(result.d1_team_members)
+                        ? result.d1_team_members
                         : [],
                     // D2 - 问题描述（日期使用当天）
                     d2_problem_description: result.d2_problem_description || problemDescription,
                     d2_defect_type: result.d2_defect_type || defectType || '',
                     d2_occurrence_date: today, // 强制使用当天日期
                     // D3 - 遏制措施
-                    d3_containment_actions: Array.isArray(result.d3_containment_actions) 
-                        ? result.d3_containment_actions 
+                    d3_containment_actions: Array.isArray(result.d3_containment_actions)
+                        ? result.d3_containment_actions
                         : [],
                     // D4 - 根因分析
                     d4_root_cause: result.d4_root_cause || '',
                     d4_analysis_method: result.d4_analysis_method || '5why',
-                    d4_contributing_factors: Array.isArray(result.d4_contributing_factors) 
-                        ? result.d4_contributing_factors 
+                    d4_contributing_factors: Array.isArray(result.d4_contributing_factors)
+                        ? result.d4_contributing_factors
                         : [],
                     // D5 - 纠正措施
-                    d5_corrective_actions: Array.isArray(result.d5_corrective_actions) 
-                        ? result.d5_corrective_actions 
+                    d5_corrective_actions: Array.isArray(result.d5_corrective_actions)
+                        ? result.d5_corrective_actions
                         : [],
                     d5_target_date_days: result.d5_target_date_days || 14,
                     // D6 - 验证方法（仅方法，不含结果——因为尚未实施）
@@ -320,8 +305,8 @@ ${contextInfo}
                     d6_implementation_results: '', // 显式留空——待纠正措施实施后填写
                     d6_verification_result: 'pending', // 显式标记为待验证
                     // D7 - 预防措施
-                    d7_preventive_actions: Array.isArray(result.d7_preventive_actions) 
-                        ? result.d7_preventive_actions 
+                    d7_preventive_actions: Array.isArray(result.d7_preventive_actions)
+                        ? result.d7_preventive_actions
                         : [],
                     d7_standardization: result.d7_standardization || '',
                     // D8 - 总结
@@ -329,7 +314,7 @@ ${contextInfo}
                     d8_lessons_learned: result.d8_lessons_learned || '',
                 },
                 usage,
-                model: OLLAMA_MODEL,
+                model: getOllamaConfig().model || null,
             };
         } catch (error) {
             logger.error('[8D-AI] 生成8D报告失败:', error.message);

@@ -84,7 +84,7 @@ export const handleApiError = (error, context = '操作', options = {}) => {
     duration = 3000
   } = options
   
-  // 控制台记录完整错误信息（开发调试用）
+  // 控制台记录完整错误信息（开发排障用）
   if (logError) {
     console.error(`${context}失败:`, error)
     if (error.response) {

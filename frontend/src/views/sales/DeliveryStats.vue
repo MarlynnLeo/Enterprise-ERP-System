@@ -17,7 +17,6 @@
         </div>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
@@ -27,22 +26,18 @@
             placeholder="订单号/客户/产品/合同"
             @keyup.enter="handleSearch"
             clearable
-
           />
         </el-form-item>
-
         <el-form-item label="发货状态">
           <el-select 
             v-model="searchForm.status" 
             placeholder="全部状态" 
             clearable 
             @change="handleSearch" 
-
           >
             <el-option v-for="item in $dict.getOptions('delivery_status')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-
         <el-form-item label="日期范围">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -51,10 +46,8 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             @change="handleSearch"
-
           />
         </el-form-item>
-
         <el-form-item>
           <el-button type="primary" @click="handleSearch">
             <el-icon><Search /></el-icon> 查询
@@ -65,7 +58,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -85,7 +77,6 @@
         <div class="stat-label">未发货</div>
       </el-card>
     </div>
-
     <!-- 数据表格 -->
     <el-card class="data-card" :class="{ 'has-floating-bar': selectedRows.length > 0 }">
       <el-table
@@ -276,7 +267,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -293,7 +283,6 @@
         />
       </div>
     </el-card>
-
     <!-- 发货明细对话框 -->
     <el-dialog
       v-model="detailDialogVisible"
@@ -317,7 +306,6 @@
             <el-descriptions-item label="合同编码">{{ orderDetails.orderInfo.contract_code || '-' }}</el-descriptions-item>
           </el-descriptions>
         </div>
-
         <div class="delivery-details" style="margin-top: 20px;">
           <h4>发货明细</h4>
           <el-table :data="orderDetails.details" border stripe>
@@ -355,7 +343,6 @@
         </div>
       </div>
     </el-dialog>
-
     <!-- 发货对话框 -->
     <el-dialog
       v-model="shippingDialogVisible"
@@ -378,7 +365,6 @@
             请填写发货数量，系统将自动创建销售出库单
           </template>
         </el-alert>
-
         <el-table :data="shippingItems" border max-height="400">
           <el-table-column prop="order_no" label="订单编号" width="120" header-align="center" show-overflow-tooltip />
           <el-table-column prop="material_code" label="产品编码" width="120" header-align="center" show-overflow-tooltip />
@@ -413,7 +399,6 @@
             </template>
           </el-table-column>
         </el-table>
-
         <div style="margin-top: 16px">
           <el-form :model="shippingForm" label-width="100px">
             <el-form-item label="出库日期">
@@ -421,7 +406,6 @@
                 v-model="shippingForm.outbound_date"
                 type="date"
                 placeholder="选择出库日期"
-
                 :disabled-date="disabledDate"
               />
             </el-form-item>
@@ -438,7 +422,6 @@
           </el-form>
         </div>
       </div>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="shippingDialogVisible = false">取消</el-button>
@@ -452,7 +435,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedRows.length > 0" class="floating-batch-bar">
@@ -483,29 +465,24 @@
     </Transition>
   </div>
 </template>
-
 <script setup>
 import { parseListData } from '@/utils/responseParser'
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Van, Select, Close } from '@element-plus/icons-vue'
 import { salesApi } from '@/services/api'
 import { useRoute } from 'vue-router'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 const route = useRoute()
-
 // 常量定义
 const DEFAULT_PAGE_SIZE = 10
-const TABLE_HEIGHT = 'calc(100vh - 280px)' // 与销售出库页面保持一致
-
+const _TABLE_HEIGHT = 'calc(100vh - 280px)' // 与销售出库页面保持一致
 // 数据定义
 const loading = ref(false)
 const tableData = ref([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
-
 // 统计数据
 const deliveryStats = ref({
   total: 0,
@@ -513,21 +490,17 @@ const deliveryStats = ref({
   partial: 0,
   unshipped: 0
 })
-
 // 搜索表单
 const searchForm = reactive({
   search: '',
   status: '',
   dateRange: null
 })
-
 // 发货明细对话框
 const detailDialogVisible = ref(false)
 const orderDetails = ref(null)
-
 // 多选数据
 const selectedRows = ref([])
-
 // 发货对话框
 const shippingDialogVisible = ref(false)
 const isBatchShipping = ref(false)
@@ -537,10 +510,8 @@ const shippingForm = reactive({
   outbound_date: new Date(),
   remark: ''
 })
-
 // 正在处理的订单项集合（用于防止重复提交）
 const processingItems = ref(new Set())
-
 // 获取发货统计数据
 const fetchDeliveryStats = async () => {
   loading.value = true
@@ -553,20 +524,16 @@ const fetchDeliveryStats = async () => {
       sort: 'created_at',
       order: 'desc'
     }
-
     // 处理日期范围
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
       params.startDate = searchForm.dateRange[0]
       params.endDate = searchForm.dateRange[1]
     }
-
     // 如果URL中有orderId参数，添加到请求参数中
     if (route.query.orderId) {
       params.orderId = route.query.orderId
     }
-
     const response = await salesApi.getDeliveryStats(params)
-
     // 使用统一解析器
     tableData.value = parseListData(response, { enableLog: false })
     total.value = Number(response.data?.total) || tableData.value.length
@@ -592,13 +559,11 @@ const fetchDeliveryStats = async () => {
     loading.value = false
   }
 }
-
 // 搜索处理
 const handleSearch = () => {
   currentPage.value = 1
   fetchDeliveryStats()
 }
-
 // 重置搜索
 const handleReset = () => {
   searchForm.search = ''
@@ -607,25 +572,21 @@ const handleReset = () => {
   currentPage.value = 1
   fetchDeliveryStats()
 }
-
 // 分页处理
 const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
   fetchDeliveryStats()
 }
-
 const handlePageChange = (page) => {
   currentPage.value = page
   fetchDeliveryStats()
 }
-
 // 查看订单详情
 const viewOrderDetails = (orderId) => {
   // 跳转到订单详情页面
   window.open(`/sales/orders?orderId=${orderId}`, '_blank')
 }
-
 // 查看发货明细
 const viewDeliveryDetails = async (orderId) => {
   try {
@@ -638,11 +599,8 @@ const viewDeliveryDetails = async (orderId) => {
     ElMessage.error('获取发货明细失败: ' + (error.message || '网络错误'))
   }
 }
-
 // 工具函数
 // formatDate: 使用公共实现
-
-
 const getStatusType = (status) => {
   const statusMap = {
     shipped: 'success',
@@ -651,7 +609,6 @@ const getStatusType = (status) => {
   }
   return statusMap[status] || 'info'
 }
-
 const getStatusText = (status) => {
   const statusMap = {
     shipped: '已发货',
@@ -660,13 +617,11 @@ const getStatusText = (status) => {
   }
   return statusMap[status] || '未知'
 }
-
 const getProgressColor = (percentage) => {
   if (percentage === 100) return '#67c23a'
   if (percentage >= 50) return '#e6a23c'
   return '#f56c6c'
 }
-
 // 订单状态转换函数
 const getOrderStatusType = (status) => {
   const statusMap = {
@@ -682,7 +637,6 @@ const getOrderStatusType = (status) => {
   }
   return statusMap[status] || 'info'
 }
-
 const getOrderStatusText = (status) => {
   const statusMap = {
     draft: '草稿',
@@ -697,7 +651,6 @@ const getOrderStatusText = (status) => {
   }
   return statusMap[status] || status || '未知'
 }
-
 // 出库状态转换函数
 const getOutboundStatusType = (status, shippedQuantity) => {
   // 如果没有发货数量，显示为未发货状态
@@ -713,7 +666,6 @@ const getOutboundStatusType = (status, shippedQuantity) => {
   }
   return statusMap[status] || 'info'
 }
-
 const getOutboundStatusText = (status, shippedQuantity) => {
   // 如果没有发货数量，显示为未发货
   if (!shippedQuantity || shippedQuantity === 0) {
@@ -728,18 +680,15 @@ const getOutboundStatusText = (status, shippedQuantity) => {
   }
   return statusMap[status] || '已发货'
 }
-
 // 导出功能
 const handleExport = () => {
   if (tableData.value.length === 0) {
     ElMessage.warning('暂无数据可导出')
     return
   }
-
   try {
     // 准备导出数据
     const exportData = selectedRows.value.length > 0 ? selectedRows.value : tableData.value
-
     // 转换为CSV格式
     const headers = ['订单号', '客户名称', '产品名称', '订单数量', '已发货数量', '未发货数量', '发货状态', '发货日期', '备注']
     const csvContent = [
@@ -756,11 +705,9 @@ const handleExport = () => {
         (row.notes || '').replace(/,/g, '，') // 替换逗号避免CSV格式问题
       ].join(','))
     ].join('\n')
-
     // 添加BOM头以支持中文
     const BOM = '\uFEFF'
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
-
     // 创建下载链接
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -768,37 +715,30 @@ const handleExport = () => {
     a.download = `发货统计_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`
     document.body.appendChild(a)
     a.click()
-
     // 清理
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
-
     ElMessage.success(`成功导出${exportData.length}条记录`)
   } catch (error) {
     console.error('导出失败:', error)
     ElMessage.error('导出失败')
   }
 }
-
 // 多选处理
 const handleSelectionChange = (selection) => {
   selectedRows.value = selection
 }
-
 // 表格引用
 const deliveryTableRef = ref(null)
-
 // 清空选择
 const clearSelection = () => {
   selectedRows.value = []
   deliveryTableRef.value?.clearSelection()
 }
-
 // 检查行是否可选择
 const checkSelectable = (row) => {
   return canShip(row)
 }
-
 // 检查是否可以发货
 const canShip = (row) => {
   // 如果有待处理的出库单（草稿状态），禁用按钮
@@ -807,21 +747,17 @@ const canShip = (row) => {
   if (hasPending) {
     return false
   }
-
   // 如果正在处理中，禁用按钮
   const itemKey = `${row.order_id}_${row.material_id}`
   if (processingItems.value.has(itemKey)) {
     return false
   }
-
   // 未发数量大于0，且库存大于0（转换为数字比较）
   const unshippedQty = Number(row.unshipped_quantity) || 0
   const stockQty = Number(row.stock_quantity) || 0
   const canShipResult = unshippedQty > 0 && stockQty > 0
-
   return canShipResult
 }
-
 // 单个发货
 const handleSingleShipping = (row) => {
   // 防止重复打开对话框
@@ -839,7 +775,6 @@ const handleSingleShipping = (row) => {
   shippingForm.remark = ''
   shippingDialogVisible.value = true
 }
-
 // 批量发货
 const handleBatchShipping = () => {
   // 防止重复打开对话框
@@ -862,7 +797,6 @@ const handleBatchShipping = () => {
   shippingForm.remark = ''
   shippingDialogVisible.value = true
 }
-
 // 处理发货数量输入
 const handleShippingQuantityInput = (row) => {
   // 确保输入的是数字
@@ -885,7 +819,6 @@ const handleShippingQuantityInput = (row) => {
     row.shipping_quantity = maxQuantity
   }
 }
-
 // 格式化日期为 YYYY-MM-DD（供数据库使用）
 const formatDateForDB = (date) => {
   if (!date) return null
@@ -895,7 +828,6 @@ const formatDateForDB = (date) => {
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
-
 // 确认发货
 const confirmShipping = async () => {
   // 🔒 第一层防护：防止重复提交（在确认对话框之前检查）
@@ -903,18 +835,15 @@ const confirmShipping = async () => {
     ElMessage.warning('正在处理中，请勿重复操作')
     return
   }
-
   // 验证发货数量
   const validItems = shippingItems.value.filter(item => item.shipping_quantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少输入一个发货数量')
     return
   }
-
   // 🔒 第二层防护：在显示确认对话框前立即设置 loading 状态
   // 这样可以防止用户在对话框显示期间多次点击按钮
   shippingLoading.value = true
-
   try {
     // 确认对话框
     await ElMessageBox.confirm(
@@ -926,7 +855,6 @@ const confirmShipping = async () => {
         type: 'warning'
       }
     )
-
     // 构建出库单数据（批量和单个使用统一结构）
     const orderIds = [...new Set(validItems.map(item => item.order_id))]
     const outboundData = {
@@ -941,19 +869,15 @@ const confirmShipping = async () => {
         quantity: item.shipping_quantity
       }))
     }
-
     // 🔒 第三层防护：后端会进行幂等性检查（基于订单ID和时间窗口）
     // 调用销售出库API创建出库单
     await salesApi.createOutbound(outboundData)
-
     ElMessage.success(isBatchShipping.value ? '批量出库单创建成功' : '出库单创建成功')
-
     // 将订单项标记为正在处理（禁用发货按钮）
     validItems.forEach(item => {
       const itemKey = `${item.order_id}_${item.material_id}`
       processingItems.value.add(itemKey)
     })
-
     shippingDialogVisible.value = false
     selectedRows.value = []
     fetchDeliveryStats() // 刷新列表
@@ -964,15 +888,12 @@ const confirmShipping = async () => {
       shippingLoading.value = false
       return
     }
-
     console.error('创建出库单失败:', error)
-
     // 提取后端返回的错误信息
     const errorMsg = error.response?.data?.error ||
                      error.response?.data?.message ||
                      error.message ||
                      '网络错误'
-
     // 如果是重复提交错误（409状态码），显示警告而不是错误
     if (error.response?.status === 409) {
       ElMessage.warning(errorMsg)
@@ -987,12 +908,10 @@ const confirmShipping = async () => {
     }
   }
 }
-
 // 禁用未来日期
 const disabledDate = (time) => {
   return time.getTime() > Date.now()
 }
-
 // 页面加载时获取数据
 onMounted(() => {
   // 如果URL中有订单号，自动填充到搜索框
@@ -1003,39 +922,32 @@ onMounted(() => {
   fetchDeliveryStats()
 })
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   margin-bottom: 0;
 }
-
 /* 数据卡片底部留白（当有浮动栏时） */
 .data-card.has-floating-bar {
   padding-bottom: 120px;
 }
-
 /* 浮动批量操作栏样式 */
 .floating-batch-bar {
   position: fixed;
@@ -1052,7 +964,6 @@ onMounted(() => {
   z-index: 1000;
   min-width: 500px;
 }
-
 .floating-batch-bar .batch-info {
   display: flex;
   align-items: center;
@@ -1060,72 +971,58 @@ onMounted(() => {
   color: var(--color-on-primary, #fff);
   font-size: 14px;
 }
-
 .floating-batch-bar .batch-info .el-icon {
   font-size: 20px;
 }
-
 .floating-batch-bar .batch-info strong {
   color: #ffd700;
   font-size: 18px;
   margin: 0 2px;
 }
-
 .floating-batch-bar .batch-buttons {
   display: flex;
   gap: 12px;
 }
-
 .floating-batch-bar .batch-buttons .el-button {
   border: 1px solid rgba(255, 255, 255, 0.3);
   transition: all 0.3s ease;
 }
-
 .floating-batch-bar .batch-buttons .el-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
-
 /* 浮动栏进入/离开动画 */
 .slide-up-enter-active,
 .slide-up-leave-active {
   transition: all 0.3s ease;
 }
-
 .slide-up-enter-from {
   transform: translateX(-50%) translateY(100px);
   opacity: 0;
 }
-
 .slide-up-leave-to {
   transform: translateX(-50%) translateY(100px);
   opacity: 0;
 }
-
 .batch-buttons .el-button {
   border: 1px solid rgba(255, 255, 255, 0.3);
   transition: all var(--transition-base);
 }
-
 .batch-buttons .el-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
-
 .text-red {
   color: var(--color-danger);
   font-weight: bold;
 }
-
 .text-green {
   color: var(--color-success);
   font-weight: bold;
 }
-
 .order-info {
   margin-bottom: var(--spacing-lg);
 }
-
 .order-info h4,
 .delivery-details h4 {
   margin: 0 0 16px 0;
@@ -1133,34 +1030,27 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 600;
 }
-
 :deep(.el-progress-bar__outer) {
   border-radius: var(--radius-sm);
 }
-
 :deep(.el-progress-bar__inner) {
   border-radius: var(--radius-sm);
 }
-
 :deep(.el-table .el-table__cell) {
   padding: 8px 0;
 }
-
 :deep(.el-card__body) {
   padding: 20px;
 }
-
 :deep(.el-form--inline .el-form-item) {
   margin-right: 16px;
   margin-bottom: var(--spacing-base);
 }
-
 /* 发货对话框样式 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1168,7 +1058,6 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

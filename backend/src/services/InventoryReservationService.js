@@ -255,7 +255,7 @@ class InventoryReservationService {
    * @param {number} userId - 操作用户ID
    * @returns {Promise<Object>} 消费结果
    */
-  async consumeReservation(orderId, consumedItems, userId) {
+  async consumeReservation(orderId, consumedItems) {
     const connection = await db.pool.getConnection();
 
     try {

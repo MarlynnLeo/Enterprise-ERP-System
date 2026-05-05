@@ -72,7 +72,7 @@
                 :status="getProgressStatus(summary.total_execution_rate)"
                 :width="80"
               >
-                <template #default="{ percentage }">
+                <template #default>
                   <span class="percentage-value">{{ summary.total_execution_rate.toFixed(1) }}%</span>
                 </template>
               </el-progress>

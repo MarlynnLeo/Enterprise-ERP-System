@@ -28,8 +28,6 @@
             label="订单编号"
             placeholder="系统自动生成"
             readonly
-            right-icon="refresh"
-            @click-right-icon="generateOrderNo"
           />
 
           <Field
@@ -325,7 +323,6 @@
     Popup,
     Search,
     Empty,
-    Icon,
     showToast,
     showLoadingToast,
     closeToast,
@@ -398,19 +395,6 @@
       return sum + (parseFloat(item.total_price) || 0)
     }, 0)
   })
-
-  // 生成订单编号
-  const generateOrderNo = async () => {
-    try {
-      const today = new Date()
-      const dateStr = `${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`
-      const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase()
-      orderForm.order_no = `PO${dateStr}${randomStr}`
-    } catch (error) {
-      console.error('生成订单编号失败:', error)
-      showToast('生成订单编号失败')
-    }
-  }
 
   // 获取供应商列表
   const fetchSuppliers = async () => {
@@ -697,7 +681,6 @@
   }
 
   onMounted(() => {
-    generateOrderNo()
     fetchSuppliers()
     fetchMaterials()
 

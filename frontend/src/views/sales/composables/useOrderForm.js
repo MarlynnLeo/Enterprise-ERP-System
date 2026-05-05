@@ -5,7 +5,7 @@
  */
 import { ref, reactive, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesApi, baseDataApi, inventoryApi } from '@/api'
+import { salesApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { searchMaterials } from '@/utils/searchConfig'
 import { checkInventory } from '@/composables/useInventoryCheck'
@@ -237,7 +237,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       }))
       filteredProducts.value = suggestions
       callback(suggestions)
-    } catch (error) {
+    } catch {
       ElMessage.error('搜索物料失败')
       callback([])
     }
@@ -312,7 +312,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         handleMaterialSelect(firstMaterial, index); return
       }
       ElMessage.warning(`未找到包含 "${inputCode}" 的物料`)
-    } catch (error) {
+    } catch {
       if (filteredProducts.value.length > 0) {
         const firstMaterial = filteredProducts.value[0]
         const displayInfo = firstMaterial.specs ? `${firstMaterial.code} (${firstMaterial.specs})` : firstMaterial.code
@@ -324,7 +324,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     }
   }
 
-  const handleQuantityEnter = (index) => {
+  const handleQuantityEnter = () => {
     addMaterial()
     nextTick(() => {
       const newIndex = form.items.length - 1
@@ -372,7 +372,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
               confirmButtonText: '继续保存', cancelButtonText: '取消', type: 'warning',
             })
             shouldGeneratePlans = true
-          } catch (userChoice) { return }
+          } catch { return }
         }
       } else {
         if (insufficientItems.length > 0) {
@@ -385,7 +385,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
             })
             orderStatus = 'in_production'
             shouldGeneratePlans = true
-          } catch (userChoice) { return }
+          } catch { return }
         } else {
           orderStatus = 'ready_to_ship'
         }
@@ -530,8 +530,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       const orderItems = orderDetail.items || row.items || []
       if (Array.isArray(orderItems) && orderItems.length > 0) {
         form.items = orderItems.map(item => {
-          let quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity.replace(/,/g, '') || 0) : Number(item.quantity || 0)
-          let unitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price.replace(/,/g, '') || 0) : Number(item.unit_price || 0)
+          const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity.replace(/,/g, '') || 0) : Number(item.quantity || 0)
+          const unitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price.replace(/,/g, '') || 0) : Number(item.unit_price || 0)
           let amount = typeof item.amount === 'string' ? parseFloat(item.amount.replace(/,/g, '') || 0) : Number(item.amount || 0)
           if (isNaN(amount) || amount === 0) amount = quantity * unitPrice
           return {

@@ -11,7 +11,9 @@ const { validateRequiredFields } = require('../../../utils/validationHelper');
 
 const assetsModel = require('../../../models/assets');
 const db = require('../../../config/db');
+const financeModel = require('../../../models/finance');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 /**
  * 固定资产控制器
@@ -139,7 +141,7 @@ const assetsController = {
             message: `资产编码 ${req.body.assetCode} 已存在`,
           });
         }
-      } catch (checkError) {
+      } catch {
         // 继续执行，不中断流程
       }
 
@@ -416,25 +418,15 @@ const assetsController = {
       const today = new Date();
       const depreciationDate = today.toISOString().slice(0, 10); // YYYY-MM-DD格式
 
-      let currentPeriod = null;
-      let periodId = 1; // 默认使用ID为1的期间
-
-      try {
-        // 尝试获取当前会计期间
-        currentPeriod = await financeModel.getCurrentPeriod();
-        if (currentPeriod) {
-          periodId = currentPeriod.id;
-        } else {
-          logger.warn('未找到当前会计期间');
-        }
-      } catch (periodError) {
-        logger.warn('获取会计期间失败:', periodError);
+      const currentPeriod = await financeModel.getCurrentPeriod();
+      if (!currentPeriod) {
+        return ResponseHandler.error(res, '未找到可用会计期间，请先维护会计期间', 'BAD_REQUEST', 400);
       }
 
       // 准备折旧参数
       const params = {
         assetId: assetId,
-        periodId: periodId,
+        periodId: currentPeriod.id,
         depreciationDate: depreciationDate,
         notes: `资产${assetId}的手动折旧计提`,
       };
@@ -536,7 +528,9 @@ const assetsController = {
       }
 
       // 调用模型方法提交折旧
-      await assetsModel.submitDepreciation(depreciationDate, assets);
+      await assetsModel.submitDepreciation(depreciationDate, assets, {
+        created_by: getAuthenticatedUserId(req),
+      });
 
       return ResponseHandler.success(
         res,
@@ -764,6 +758,7 @@ const assetsController = {
         handler: handler || 'system',
         notes: notes || '',
         asset_code: asset.asset_code,
+        created_by: getAuthenticatedUserId(req),
       };
 
       // 调用模型方法处置资产（传递id作为第一个参数）

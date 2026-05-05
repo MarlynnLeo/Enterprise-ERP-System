@@ -63,7 +63,7 @@ export const purchaseApi = {
             // 使用统一解析器
             const items = parseListData(response, { enableLog: false });
             if (items.length > 0) {
-                // 检查每个订单的状态，如果含有关联申请且状态为pending，则修正为draft
+                // 检查每个订单的状态，标记含有关联申请且待审批的订单
                 const processedItems = items.map(order => {
                     // 确保关联申请字段统一
                     if (order.requisitionId && !order.requisition_id) {
@@ -127,13 +127,6 @@ export const purchaseApi = {
             requisition_number: order.requisition_number,
             requisitionNumber: order.requisition_number
         };
-
-        // 注意: 后端的createOrder函数中有硬编码status='pending'逻辑，无论前端传什么状态都会被覆盖
-        // 见purchaseOrderController.js第185行左右:
-        // await connection.query(insertQuery, [
-        //   orderNo, orderDate, supplierId, supplierName, expectedDeliveryDate, 
-        //   contactPerson, contactPhone, totalAmount || 0, remarks, 'pending'
-        // ]);
 
         const response = await api.post('/purchase/orders', orderData);
         return response;

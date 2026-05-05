@@ -1,33 +1,36 @@
 module.exports = {
-    // 测试环境
+    // Test environment
     testEnvironment: 'node',
 
-    // 测试文件匹配规则
+    // Test file patterns
     testMatch: [
         '**/tests/**/*.test.js',
         '**/tests/**/*.spec.js'
     ],
 
-    // 覆盖率收集
+    // Coverage collection
     collectCoverageFrom: [
         'src/services/**/*.js',
-        '!src/services/business/**', // 暂不覆盖业务子目录
+        '!src/services/business/**',
         '!**/node_modules/**'
     ],
 
-    // 覆盖率输出目录
+    // Coverage output directory
     coverageDirectory: 'coverage',
 
-    // 模块路径映射
+    // Module path resolution
     moduleDirectories: ['node_modules', 'src'],
 
-    // 测试超时时间(毫秒)
+    // Per-test timeout in milliseconds
     testTimeout: 10000,
 
-    // 忽略路径
+    // Ignored test paths
     testPathIgnorePatterns: ['/node_modules/'],
 
-    // 在每个测试文件运行前清除mock
+    // Release database/Redis resources after each test environment finishes.
+    setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.js'],
+
+    // Reset mocks between test files.
     clearMocks: true,
     restoreMocks: true
 };

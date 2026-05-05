@@ -229,7 +229,7 @@ const flattenAccounts = (accounts, result = []) => {
 const loadOptions = async () => {
   try {
     const accRes = await api.get('/finance/accounts/options');
-    // eslint-disable-next-line no-prototype-builtins
+     
     const accounts = accRes.data.hasOwnProperty('data') ? accRes.data.data : accRes.data;
     const processAccounts = (list) => {
       return list.map(item => {

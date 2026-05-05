@@ -6,7 +6,7 @@ class SalaryService {
   /**
    * 薪酬核算引擎 (Salary Calculation Engine)
    * 基于 hr_attendance_rules 表动态加载规则，不硬编码业务参数。
-   * 
+   *
    * @param {string} period 'YYYY-MM'
    */
   static async calculatePeriodSalary(period) {
@@ -61,7 +61,7 @@ class SalaryService {
 
       // 3. 执行单条核算（跳过已确认的工资单）
       const salaryRecords = [];
-      for (let att of attendances) {
+      for (const att of attendances) {
         // 已审批的员工跳过，不重复生成
         if (approvedEmpIds.has(att.employee_id)) continue;
 
@@ -69,7 +69,7 @@ class SalaryService {
         const base = parseFloat(att.base_salary || 0);
         const daysInMonth = parseFloat(att.days_in_month || 21.75);
         const dailyWage = daysInMonth > 0 ? (base / daysInMonth) : 0;
-        const hourlyWage = parseFloat(att.overtime_rate || 20.0); 
+        const hourlyWage = parseFloat(att.overtime_rate || 20.0);
 
         // --- B. 请假扣款（仅扣请假天数，不扣公休天数） ---
         // [修复 L2+L3] vacation_days 是公休天数（周末/法定假日），不应扣工资
@@ -106,8 +106,8 @@ class SalaryService {
 
         // --- F. 汇总（四舍五入到分，防止浮点误差） ---
         const round2 = v => Math.round(v * 100) / 100;
-        const grossSalary = round2(base + overtimePay + positionAllowance + housingAllowance 
-                          + mealAllowance + fullAttendance + personalPerf + teamPerf 
+        const grossSalary = round2(base + overtimePay + positionAllowance + housingAllowance
+                          + mealAllowance + fullAttendance + personalPerf + teamPerf
                           + leaveDeduction + lateFine);
 
         // 五险一金 按基数比例计算
@@ -124,7 +124,7 @@ class SalaryService {
 
         // --- G. 拆分明细 ---
         const splitBase = parseFloat(att.split_base_salary || base / 2);
-        const splitBonus = round2(grossSalary - splitBase - overtimePay - mealAllowance - housingAllowance); 
+        const splitBonus = round2(grossSalary - splitBase - overtimePay - mealAllowance - housingAllowance);
         const splitDetails = JSON.stringify({
           '基本工资.1': splitBase.toFixed(2),
           '加班费': overtimePay.toFixed(2),

@@ -147,7 +147,7 @@
 <script setup>
   import { ref, reactive, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { NavBar, Search, Icon, Empty, PullRefresh, List, showToast } from 'vant'
+  import { NavBar, Search, Icon, Empty, PullRefresh, List } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import { inventoryApi } from '@/services/api'
 

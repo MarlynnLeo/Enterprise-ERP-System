@@ -17,7 +17,7 @@
         <span class="brand-text">KACON</span>
       </div>
       
-      <!-- 纯CSS构建的抽象插画，模拟原图左侧视觉 -->
+      <!-- 纯CSS构建的抽象插画，用于左侧视觉区域 -->
       <div class="illustration-container">
         <!--巨型圆环背景-->
         <div class="float-ring"></div>
@@ -111,7 +111,6 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -119,18 +118,15 @@ import { useAuthStore } from '../../stores/auth'
 import { useDictionaryStore } from '../../stores/dictionary'
 import { ElMessage } from 'element-plus'
 import { unifiedStorage } from '@/utils/unifiedStorage'
-
-const systemName = 'ERP 管理系统'
+const _systemName = 'ERP 管理系统'
 const router = useRouter()
 const authStore = useAuthStore()
 const loginFormRef = ref(null)
 const loading = ref(false)
 const loginError = ref('')
-
 const passwordStrength = ref(0)
 const strengthText = ref('')
 const strengthColor = ref('')
-
 const checkPasswordStrength = () => {
   const password = loginForm.password
   let strength = 0
@@ -155,12 +151,10 @@ const checkPasswordStrength = () => {
   strengthText.value = strengthMap[strength].text
   strengthColor.value = strengthMap[strength].color
 }
-
 const loginForm = reactive({
   username: '',
   password: ''
 })
-
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
@@ -169,11 +163,9 @@ const rules = {
     { required: true, message: '请输入密码', trigger: 'blur' }
   ]
 }
-
 onMounted(() => {
   loadSavedCredentials()
 })
-
 const loadSavedCredentials = () => {
   try {
     const savedUsername = unifiedStorage.get('saved_username', { defaultValue: '' })
@@ -184,7 +176,6 @@ const loadSavedCredentials = () => {
     console.error('读取保存的登录信息失败:', error)
   }
 }
-
 const saveCredentials = () => {
   try {
     // 安全策略：仅保存用户名，绝不在客户端持久化密码
@@ -193,25 +184,20 @@ const saveCredentials = () => {
     console.error('保存登录信息失败:', error)
   }
 }
-
-const clearSavedCredentials = () => {
+const _clearSavedCredentials = () => {
   try {
     unifiedStorage.remove('saved_username')
   } catch (error) {
     console.error('清除保存的登录信息失败:', error)
   }
 }
-
 const handleLogin = async () => {
   if (!loginFormRef.value) return
-
   loginError.value = ''
-
   try {
     const valid = await loginFormRef.value.validate()
     if (valid) {
       loading.value = true
-
       try {
         await authStore.login(loginForm)
         
@@ -221,7 +207,6 @@ const handleLogin = async () => {
         } catch (dictErr) {
           console.warn('登录后获取字典失败:', dictErr)
         }
-
         ElMessage.success({
           message: '登录成功！欢迎回来 🎉',
           type: 'success',
@@ -231,11 +216,9 @@ const handleLogin = async () => {
         router.push('/')
       } catch (error) {
         console.error('Login error:', error)
-
         if (error.response) {
           const status = error.response.status
           const message = error.response.data?.message || error.response.data?.error || ''
-
           switch (status) {
             case 400:
               loginError.value = '请求参数错误'
@@ -272,18 +255,15 @@ const handleLogin = async () => {
     loading.value = false
   }
 }
-
-const handleForgotPassword = () => {
+const _handleForgotPassword = () => {
   ElMessage.info('请联系管理员重置密码')
 }
 </script>
-
 <style scoped>
 /* 全局充置与变量 */
 * {
   box-sizing: border-box;
 }
-
 .login-wrapper {
   display: flex;
   min-height: 100vh;
@@ -291,7 +271,6 @@ const handleForgotPassword = () => {
   overflow: hidden;
   background-color: var(--color-bg-base);
 }
-
 /* ================= 左侧：品牌与插画 ================= */
 .login-left {
   flex: 1;
@@ -302,7 +281,6 @@ const handleForgotPassword = () => {
   justify-content: center;
   overflow: hidden;
 }
-
 .brand {
   position: absolute;
   top: 40px;
@@ -313,25 +291,21 @@ const handleForgotPassword = () => {
   z-index: 10;
   color: var(--color-on-primary, #fff);
 }
-
 .brand-icon {
   width: 36px;
   height: 36px;
 }
-
 .brand-text {
   font-size: 28px;
   font-weight: 800;
   letter-spacing: 1px;
 }
-
 /* 抽象插画效果 */
 .illustration-container {
   position: relative;
   width: 600px;
   height: 500px;
 }
-
 .float-ring {
   position: absolute;
   top: 50%;
@@ -344,7 +318,6 @@ const handleForgotPassword = () => {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
   animation: floatRing 8s ease-in-out infinite;
 }
-
 .float-ring.small {
   width: 150px;
   height: 150px;
@@ -353,13 +326,11 @@ const handleForgotPassword = () => {
   left: 80%;
   animation: floatRing 6s ease-in-out infinite reverse;
 }
-
 .dashboard-panel {
   position: absolute;
   border-radius: 12px;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.15);
 }
-
 .panel-bg {
   width: 380px;
   height: 250px;
@@ -371,13 +342,11 @@ const handleForgotPassword = () => {
   transform: rotate(-5deg);
   animation: floatPanelBg 7s ease-in-out infinite 1s;
 }
-
 .panel-header {
   display: flex;
   gap: 6px;
   margin-bottom: 20px;
 }
-
 .dot {
   width: 10px;
   height: 10px;
@@ -387,14 +356,12 @@ const handleForgotPassword = () => {
 .dot:nth-child(1) { background: #FF5F56; }
 .dot:nth-child(2) { background: #FFBD2E; }
 .dot:nth-child(3) { background: #27C93F; }
-
 .panel-body .line {
   height: 12px;
   background: #F0F0F0;
   border-radius: 6px;
   margin-bottom: 16px;
 }
-
 .chart-area {
   margin-top: 30px;
   height: 80px;
@@ -402,7 +369,6 @@ const handleForgotPassword = () => {
   border-radius: 8px;
   padding: 10px;
 }
-
 .panel-fg {
   width: 200px;
   height: 140px;
@@ -416,27 +382,22 @@ const handleForgotPassword = () => {
   animation: floatPanelFg 7s ease-in-out infinite;
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
-
 .fg-logo {
   width: 60px;
   height: 60px;
 }
-
 @keyframes floatRing {
   0%, 100% { transform: translate(-50%, -50%) translateY(0); }
   50% { transform: translate(-50%, -50%) translateY(-20px); }
 }
-
 @keyframes floatPanelBg {
   0%, 100% { transform: rotate(-5deg) translateY(0); }
   50% { transform: rotate(-5deg) translateY(-20px); }
 }
-
 @keyframes floatPanelFg {
   0%, 100% { transform: rotate(5deg) translateY(0); }
   50% { transform: rotate(5deg) translateY(-20px); }
 }
-
 /* ================= 右侧：表单区 ================= */
 .login-right {
   flex: 1;
@@ -446,18 +407,15 @@ const handleForgotPassword = () => {
   align-items: center;
   justify-content: center;
 }
-
 .login-form-container {
   width: 100%;
   max-width: 480px;
   padding: 0 40px;
 }
-
 .form-header {
   text-align: center;
   margin-bottom: 40px;
 }
-
 .form-brand {
   display: flex;
   align-items: center;
@@ -466,26 +424,22 @@ const handleForgotPassword = () => {
   color: #334155;
   margin-bottom: 10px;
 }
-
 .form-brand-icon {
   width: 40px;
   height: 40px;
   color: #00A896;
 }
-
 .form-brand-text {
   font-size: 32px;
   font-weight: 800;
   letter-spacing: 1px;
 }
-
 .form-slogan {
   color: #00A896;
   font-size: 15px;
   letter-spacing: 1px;
   margin: 0;
 }
-
 .form-box {
   background: var(--color-bg-base);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
@@ -493,7 +447,6 @@ const handleForgotPassword = () => {
   border-radius: 12px;
   padding: 40px;
 }
-
 .form-title {
   color: #00A896;
   font-size: 18px;
@@ -501,11 +454,9 @@ const handleForgotPassword = () => {
   margin-top: 0;
   margin-bottom: 30px;
 }
-
 .login-form {
   width: 100%;
 }
-
 :deep(.brand-input .el-input__wrapper) {
   box-shadow: 0 0 0 1px #e2e8f0 inset !important;
   border-radius: 4px;
@@ -513,20 +464,16 @@ const handleForgotPassword = () => {
   background: var(--color-bg-base);
   transition: all 0.3s;
 }
-
 :deep(.brand-input .el-input__wrapper.is-focus) {
   box-shadow: 0 0 0 1px #00A896 inset !important;
 }
-
 :deep(.brand-input .el-input__inner) {
   height: 48px;
   font-size: 15px;
 }
-
 :deep(.el-form-item) {
   margin-bottom: 24px;
 }
-
 .submit-btn {
   width: 100%;
   height: 50px;
@@ -538,12 +485,10 @@ const handleForgotPassword = () => {
   margin-top: 10px;
   transition: background-color 0.3s;
 }
-
 .submit-btn:hover, .submit-btn:focus {
   background-color: #009686;
   border-color: #009686;
 }
-
 .login-error-text {
   color: var(--color-danger);
   font-size: 13px;
@@ -551,35 +496,29 @@ const handleForgotPassword = () => {
   margin-bottom: 8px;
   padding-left: 2px;
 }
-
 .form-options {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-top: -10px;
 }
-
 :deep(.el-checkbox__input.is-checked .el-checkbox__inner),
 :deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner) {
   background-color: #00A896;
   border-color: #00A896;
 }
-
 :deep(.el-checkbox__input.is-checked + .el-checkbox__label) {
   color: #00A896;
 }
-
 .forgot-link {
   color: #94a3b8;
   font-size: 14px;
   text-decoration: none;
   transition: color 0.3s;
 }
-
 .forgot-link:hover {
   color: #00A896;
 }
-
 /* 响应式调整 */
 @media screen and (max-width: 1024px) {
   .login-left {

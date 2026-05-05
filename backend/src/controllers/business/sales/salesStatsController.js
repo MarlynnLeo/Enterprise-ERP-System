@@ -10,10 +10,7 @@ const { logger } = require('../../../utils/logger');
 
 const { SALES_STATUS_KEYS } = require('../../../constants/systemConstants');
 
-// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
-const { STATUS, getConnection } = require('./salesShared');
-
-// 添加新的控制器方法
+const { getConnection } = require('./salesShared');
 
 exports.getSalesStatistics = async (req, res) => {
   const connection = await getConnection();
@@ -50,12 +47,24 @@ exports.getSalesStatistics = async (req, res) => {
     );
 
     // 3. 获取销售退货统计
-    const [returnStats] = await connection.query(`
+    const [returnStats] = await connection.query(
+      `
       SELECT
-        COUNT(*) as returns_count,
-        COUNT(CASE WHEN status = '${SALES_STATUS_KEYS.COMPLETED}' THEN 1 END) as completed_returns
-      FROM sales_returns
-    `);
+        COUNT(DISTINCT sr.id) as returns_count,
+        COUNT(DISTINCT CASE WHEN sr.status = ? THEN sr.id END) as completed_returns,
+        COALESCE(SUM(
+          CASE WHEN sr.status = ?
+            THEN sri.quantity * COALESCE(soi.unit_price, m.price, 0)
+            ELSE 0
+          END
+        ), 0) as returns_amount
+      FROM sales_returns sr
+      LEFT JOIN sales_return_items sri ON sri.return_id = sr.id
+      LEFT JOIN sales_order_items soi ON soi.order_id = sr.order_id AND soi.material_id = sri.product_id
+      LEFT JOIN materials m ON m.id = sri.product_id
+    `,
+      [SALES_STATUS_KEYS.COMPLETED, SALES_STATUS_KEYS.COMPLETED]
+    );
 
     // 4. 获取应收账款统计
     const [receivableStats] = await connection.query(`
@@ -119,7 +128,7 @@ exports.getSalesStatistics = async (req, res) => {
 
       // 退货统计
       returns_count: parseInt(returns.returns_count || 0),
-      returns_amount: 0, // 退货表中没有金额字段，暂时设为0
+      returns_amount: parseFloat(returns.returns_amount || 0),
 
       // 应收账款统计
       collected_amount: parseFloat(receivables.collected_amount || 0),
@@ -192,4 +201,3 @@ exports.getSalesTrend = async (req, res) => {
 };
 
 // Sales Outbound Controllers
-

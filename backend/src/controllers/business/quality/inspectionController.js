@@ -2,7 +2,7 @@
  * inspectionController.js
  * @description 质量检验控制器 — 从 qualityController.js 拆分
  * @date 2026-03-03
- * 
+ *
  * 职责范围：IQC / IPQC / FQC 列表、详情、CRUD、引用数据、批次号查询、
  *           检验项目获取、检验单状态变更(含追溯)、未关联质检记录
  */

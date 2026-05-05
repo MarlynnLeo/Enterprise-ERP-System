@@ -106,7 +106,7 @@ const Locations = {
       const [rows] = await db.pool.query(query, params);
 
       // 构建计数查询
-      let countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
+      const countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
 
       // 移除分页参数
       const countParams = params.slice(0, -2);
@@ -236,16 +236,8 @@ const Locations = {
       const query = `UPDATE locations SET ${setClause} WHERE id = ?`;
       const [result] = await connection.query(query, values);
 
-      // 如果库位名称发生变化，尝试更新关联表
-      try {
-        if (oldLocation[0] && locationData.name && oldLocation[0].name !== locationData.name) {
-          // 这里我们不再尝试更新materials表中的location_name字段
-          // 因为该字段可能不存在，导致错误
-          logger.info('库位名称已更改，但不再尝试更新关联表');
-        }
-      } catch (err) {
-        logger.warn('尝试更新关联表失败，但不影响主要操作:', err.message);
-        // 不影响主操作，继续提交事务
+      if (oldLocation[0] && locationData.name && oldLocation[0].name !== locationData.name) {
+        logger.info('库位名称已更改，关联数据通过 location_id 保持一致');
       }
 
       await connection.commit();
@@ -271,15 +263,7 @@ const Locations = {
       ]);
 
       if (location[0]) {
-        // 尝试更新关联表中的库位引用
-        try {
-          // 这里我们不再尝试更新materials表中的location_name字段
-          // 因为该字段可能不存在，导致错误
-          logger.info('删除库位操作，但不再尝试更新关联表');
-        } catch (err) {
-          logger.warn('尝试更新关联表失败，但不影响主要操作:', err.message);
-          // 不影响主操作，继续处理
-        }
+        logger.info('删除库位操作，关联数据通过 location_id 和软删除状态保持一致');
       }
 
       // 删除库位

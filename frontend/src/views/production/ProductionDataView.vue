@@ -161,7 +161,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
   DataAnalysis, Refresh, Clock, Finished,
   Document, SetUp, Histogram, TrendCharts
@@ -430,7 +430,7 @@ const refreshAll = async () => {
     await nextTick()
     renderPieChart()
     ElMessage.success('数据已刷新')
-  } catch (e) {
+  } catch {
     ElMessage.error('刷新失败')
   } finally {
     loading.value = false

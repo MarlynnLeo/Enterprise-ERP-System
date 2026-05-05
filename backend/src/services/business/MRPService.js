@@ -354,7 +354,7 @@ class MRPService {
   }
 
   /** 将已确认的建议转化为采购请购单/生产计划 */
-  async convertSuggestions(resultIds, userId) {
+  async convertSuggestions(resultIds) {
     if (!resultIds || resultIds.length === 0) throw new Error('请选择要转化的建议');
 
     const [rows] = await pool.query(

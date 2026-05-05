@@ -31,8 +31,7 @@ class TraceabilityHandler {
           result = await this._handlePurchaseTraceability(data);
           break;
         case 'inspection': // 质量检验
-          // 质检通常关联已存在的追溯记录，或者作为节点更新
-          // 这里暂时只记录日志，实际逻辑可能在业务层
+          // 质检通常关联已存在的追溯记录，节点更新由质检业务层完成
           logger.info('质检追溯处理');
           break;
         case 'production': // 生产任务
@@ -118,7 +117,7 @@ class TraceabilityHandler {
       // 生产环节是追溯的核心
       // 当生产任务完成时，通常会产生新的成品批次
 
-      const { taskId, productCode, productName, batchNumber, productionDate } = data;
+      const {  productCode, productName, batchNumber, productionDate } = data;
 
       if (!productCode || !batchNumber) {
         return { success: false, message: '缺少产品编码或批次号' };
@@ -162,63 +161,15 @@ class TraceabilityHandler {
    */
   static async _handleReturnTraceability(triggerType, data) {
     try {
-      const { material_id, batch_no, quantity, reference_id, inbound_no, operator } = data;
+      const { material_id, batch_no, reference_id, inbound_no } = data;
 
       logger.info(`处理退料追溯 | 类型:${triggerType} | 物料:${material_id} | 批次:${batch_no} | 入库单:${inbound_no}`);
 
-      // 退料的核心追溯逻辑：批次号已在 InboundTransactionService 中溯源
-      // 如果 batch_no 是从原始发料记录中溯源回来的，则追溯链已自动建立
-      // 如果是系统生成的兜底批次号(PWH-)，说明溯源未成功，记录日志
-
-      if (batch_no && batch_no.startsWith('PWH-')) {
-        // 兜底批次号，说明未能溯源到原始发料批次
-        // 再次尝试从台账中查找
-        if (reference_id && material_id) {
-          const connection = await db.pool.getConnection();
-          try {
-            // reference_id 可能是出库单ID或生产任务ID，需要先查出对应的出库单号
-            const [outboundRows] = await connection.execute(
-              `SELECT outbound_no FROM inventory_outbound 
-               WHERE id = ? 
-                  OR production_task_id = ? 
-                  OR (reference_type = 'production_task' AND reference_id = ?)
-               LIMIT 10`,
-              [reference_id, reference_id, reference_id]
-            );
-
-            for (const ob of outboundRows) {
-              const [ledgerRows] = await connection.execute(
-                `SELECT batch_number 
-                 FROM inventory_ledger 
-                 WHERE reference_no = ? 
-                   AND material_id = ? 
-                   AND quantity < 0
-                   AND batch_number IS NOT NULL
-                   AND batch_number != ''
-                 ORDER BY created_at DESC 
-                 LIMIT 1`,
-                [ob.outbound_no, material_id]
-              );
-
-              if (ledgerRows.length > 0) {
-                logger.info(`[退料追溯] 二次溯源成功: 通过出库单 ${ob.outbound_no} 找回原始发料批次 ${ledgerRows[0].batch_number}`);
-                return {
-                  success: true,
-                  message: '退料追溯处理完成（二次溯源成功）',
-                  original_batch: ledgerRows[0].batch_number,
-                  return_batch: batch_no,
-                };
-              }
-            }
-          } finally {
-            connection.release();
-          }
-        }
-
-        logger.warn(`[退料追溯] 物料 ${material_id} 未能溯源到原始发料批次，使用系统生成批次: ${batch_no}`);
-      } else {
-        logger.info(`[退料追溯] 物料 ${material_id} 已成功关联原始发料批次: ${batch_no}`);
+      if (!batch_no) {
+        throw new Error(`退料追溯缺少批次号: materialId=${material_id}, referenceId=${reference_id}`);
       }
+
+      logger.info(`[退料追溯] 物料 ${material_id} 已成功关联原始发料批次: ${batch_no}`);
 
       return {
         success: true,

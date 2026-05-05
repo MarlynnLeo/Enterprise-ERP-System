@@ -5,6 +5,7 @@
 
 const db = require('../config/db');
 const logger = require('../utils/logger');
+const crypto = require('crypto');
 
 const assetInventoryModel = {
     /**
@@ -111,7 +112,7 @@ const assetInventoryModel = {
             }
 
             const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-            const inventoryNo = `INV-${dateStr}-${String(Math.floor(Math.random() * 900) + 100)}`;
+            const inventoryNo = `INV-${dateStr}-${String(crypto.randomInt(100, 1000))}`;
 
             // 创建主单
             const [result] = await connection.query(

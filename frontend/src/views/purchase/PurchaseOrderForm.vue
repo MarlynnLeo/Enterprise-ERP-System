@@ -455,7 +455,7 @@ const searchRequisitions = async () => {
     const res = await purchaseApi.getOrderRequisitions(params);
 
     // 使用统一解析器处理分页数据
-    const { list: requisitions, total } = parsePaginatedData(res, { enableLog: false });
+    const { list: requisitions } = parsePaginatedData(res, { enableLog: false });
 
     // 严格过滤，只显示approved状态
     const filteredRequisitions = requisitions.filter(item => {
@@ -531,10 +531,7 @@ const handleRequisitionSelection = (row) => {
 };
 
 // 打开对话框
-const openMaterialDialog = () => {
-  materialDialogVisible.value = true;
-  searchMaterials();
-};
+
 
 const openRequisitionDialog = () => {
   requisitionDialogVisible.value = true;
@@ -647,17 +644,7 @@ const confirmRequisitionSelection = async () => {
 };
 
 // 移除关联的采购申请
-const removeRequisition = () => {
-  ElMessageBox.confirm('确定要移除关联的采购申请吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(() => {
-    formData.requisition_id = null;
-    formData.requisition_number = '';
-    ElMessage.success('已移除关联的采购申请');
-  }).catch(() => {});
-};
+
 
 // 移除物料项
 const removeItem = (index) => {

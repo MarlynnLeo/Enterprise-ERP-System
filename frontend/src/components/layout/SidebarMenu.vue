@@ -16,7 +16,6 @@
         <!-- 递归渲染子菜单（过滤掉按钮权限） -->
         <sidebar-menu :menus="getVisibleChildren(menu)" />
       </el-sub-menu>
-
       <!-- 没有可显示子菜单的项目作为 menu-item -->
       <el-menu-item
         v-else
@@ -30,20 +29,17 @@
     </template>
   </template>
 </template>
-
 <script setup>
 import { House, DataAnalysis, DataLine, Calendar, Tickets, SetUp, Warning, Goods, Document, List, Box, TakeawayBox, Files, Fold, DocumentCopy, Van, ShoppingBag, Money, Wallet, Timer, ArrowRight, User, Lock, Menu, Collection, Setting, Tools, Connection, Monitor, Histogram, TrendCharts, PieChart, Grid, Share, Management, OfficeBuilding, CreditCard, Coin, PriceTag, DCaret, Link, Postcard, Edit, Search, Delete, Plus, Minus, Check, Close, InfoFilled, WarningFilled, CircleCheck, CircleClose, QuestionFilled, Refresh, Upload, Download, View, Hide, Expand, Operation, Switch, FullScreen, Position, Location, Compass, HomeFilled, Memo, Notebook, Stamp, Trophy, FirstAidKit, Suitcase, HelpFilled, Sunny, Moon, Clock, Promotion, VideoCamera, Microphone, Aim, Ticket, Odometer, Printer, ChatDotRound, Avatar, Briefcase, Sell, ShoppingCart, RefreshLeft } from '@element-plus/icons-vue'
 defineOptions({
   name: 'SidebarMenu' // 递归组件需要名称
 })
-
-const props = defineProps({
+const _props = defineProps({
   menus: {
     type: Array,
     default: () => []
   }
 })
-
 // 图标映射表
 const iconMap = {
   'icon-home': House,
@@ -146,13 +142,11 @@ const iconMap = {
   'icon-exchange': Switch,
   'icon-quotation': Postcard
 }
-
 // 获取图标组件
 const getIconComponent = (iconName) => {
   if (!iconName) return null
   return iconMap[iconName] || iconMap['icon-document'] || Document
 }
-
 // 判断是否有可显示的子菜单（过滤掉 type=2 的按钮权限和没有 path 的项）
 const hasVisibleChildren = (menu) => {
   if (!menu.children || menu.children.length === 0) return false
@@ -161,7 +155,6 @@ const hasVisibleChildren = (menu) => {
     child.type !== 2 && (child.path || hasVisibleChildren(child))
   )
 }
-
 // 获取菜单索引（用于 sub-menu）
 const getMenuIndex = (menu) => {
   // 关键修复：包含子菜单时返回随机或固定id作为index，防止 router = true 触发路由跳转导致白屏
@@ -171,7 +164,6 @@ const getMenuIndex = (menu) => {
   // 优先使用 path，如果没有则用 id
   return menu.path || `menu-${menu.id}`
 }
-
 // 获取可显示的子菜单列表（过滤掉 type=2 的按钮权限）
 const getVisibleChildren = (menu) => {
   if (!menu.children) return []

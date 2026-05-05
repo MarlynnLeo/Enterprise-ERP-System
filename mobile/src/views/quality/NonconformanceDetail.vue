@@ -50,12 +50,11 @@
 
 <script setup>
   import { ref, computed, onMounted } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
+  import { useRoute } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
   import { qualityApi } from '@/services/api'
 
   const route = useRoute()
-  const router = useRouter()
   const record = ref(null)
 
   const statusMap = {
@@ -84,7 +83,7 @@
       const res = await qualityApi.getNonconformanceRecord(route.params.id)
       // ResponseHandler 包裹: { success, data: {...} }
       record.value = res.data?.data || res.data
-    } catch (e) {
+    } catch {
       showToast('加载详情失败')
     }
   }

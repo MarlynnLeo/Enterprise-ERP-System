@@ -13,6 +13,51 @@ const ProductSalesTraceabilityService = require('../../../services/business/Prod
 const db = require('../../../config/db');
 const ExcelJS = require('exceljs');
 
+const toRows = (result) => (Array.isArray(result.rows) ? result.rows : (result.rows ? [result.rows] : []));
+
+const getBatchDetailsData = async (materialCode, batchNumber) => {
+  const batchQuery = `
+    SELECT 
+      il.location_id,
+      il.material_id,
+      il.batch_number,
+      SUM(il.quantity) as current_quantity,
+      SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as original_quantity,
+      MIN(il.created_at) as created_at,
+      m.code as material_code, 
+      m.name as material_name, 
+      u.name as unit, 
+      NULL as supplier_name,
+      'active' as status
+    FROM inventory_ledger il
+    LEFT JOIN materials m ON il.material_id = m.id
+    LEFT JOIN units u ON m.unit_id = u.id
+    WHERE m.code = ? AND il.batch_number = ?
+    GROUP BY il.location_id, il.material_id, il.batch_number, m.code, m.name, u.name
+    LIMIT 1
+  `;
+  const batchRows = toRows(await db.query(batchQuery, [materialCode, batchNumber]));
+
+  if (batchRows.length === 0) {
+    return null;
+  }
+
+  const transactionQuery = `
+    SELECT il.*, l.name as location_name
+    FROM inventory_ledger il
+    LEFT JOIN locations l ON il.location_id = l.id
+    WHERE il.material_id = (SELECT id FROM materials WHERE code = ?)
+      AND il.batch_number = ?
+    ORDER BY il.created_at ASC
+  `;
+  const transactionRows = toRows(await db.query(transactionQuery, [materialCode, batchNumber]));
+
+  return {
+    batch_info: batchRows[0],
+    transaction_history: transactionRows,
+  };
+};
+
 const batchTraceabilityController = {
   /**
    * 统一追溯查询接口 - 自动识别物料类型
@@ -364,54 +409,11 @@ const batchTraceabilityController = {
         return ResponseHandler.error(res, '物料编码和批次号不能为空', 'BAD_REQUEST', 400);
       }
 
-      // 单表架构：查询 traceability 和 inventory_ledger
-      const batchQuery = `
-        SELECT 
-          il.location_id,
-          il.material_id,
-          il.batch_number,
-          SUM(il.quantity) as current_quantity,
-          SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as original_quantity,
-          MIN(il.created_at) as created_at,
-          m.code as material_code, 
-          m.name as material_name, 
-          u.name as unit, 
-          NULL as supplier_name,
-          'active' as status
-        FROM inventory_ledger il
-        LEFT JOIN materials m ON il.material_id = m.id
-        LEFT JOIN units u ON m.unit_id = u.id
-        WHERE m.code = ? AND il.batch_number = ?
-        GROUP BY il.location_id, il.material_id, il.batch_number, m.code, m.name, u.name
-        LIMIT 1
-      `;
-      const batchResult = await db.query(batchQuery, [materialCode, batchNumber]);
-      const safeBatchRows = Array.isArray(batchResult.rows)
-        ? batchResult.rows
-        : (batchResult.rows ? [batchResult.rows] : []);
-
-      if (safeBatchRows.length === 0) {
+      const batchDetails = await getBatchDetailsData(materialCode, batchNumber);
+      if (!batchDetails) {
         return res.status(404).json({ success: false, message: `未找到批次: ${materialCode} - ${batchNumber}` });
       }
-
-      // 查询流转历史
-      const transactionQuery = `
-        SELECT il.*, l.name as location_name
-        FROM inventory_ledger il
-        LEFT JOIN locations l ON il.location_id = l.id
-        WHERE il.material_id = (SELECT id FROM materials WHERE code = ?)
-          AND il.batch_number = ?
-        ORDER BY il.created_at ASC
-      `;
-      const transactionResult = await db.query(transactionQuery, [materialCode, batchNumber]);
-      const safeTransactionRows = Array.isArray(transactionResult.rows)
-        ? transactionResult.rows
-        : (transactionResult.rows ? [transactionResult.rows] : []);
-
-      ResponseHandler.success(res, {
-        batch_info: safeBatchRows[0],
-        transaction_history: safeTransactionRows,
-      }, '操作成功');
+      ResponseHandler.success(res, batchDetails, '操作成功');
     } catch (error) {
       logger.error('获取批次详细信息失败:', error);
       ResponseHandler.error(res, '获取批次详细信息失败', 'SERVER_ERROR', 500, error);
@@ -429,56 +431,14 @@ const batchTraceabilityController = {
         return ResponseHandler.error(res, '物料编码和批次号不能为空', 'BAD_REQUEST', 400);
       }
 
-      // 单表架构：查询 inventory_ledger + traceability
-      const batchQuery = `
-        SELECT 
-          il.location_id,
-          il.material_id,
-          il.batch_number,
-          SUM(il.quantity) as current_quantity,
-          SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as original_quantity,
-          MIN(il.created_at) as created_at,
-          m.code as material_code, 
-          m.name as material_name, 
-          u.name as unit, 
-          NULL as supplier_name,
-          'active' as status
-        FROM inventory_ledger il
-        LEFT JOIN materials m ON il.material_id = m.id
-        LEFT JOIN units u ON m.unit_id = u.id
-        WHERE m.code = ? AND il.batch_number = ?
-        GROUP BY il.location_id, il.material_id, il.batch_number, m.code, m.name, u.name
-        LIMIT 1
-      `;
-      const batchResult = await db.query(batchQuery, [materialCode, batchNumber]);
-      const safeBatchRows = Array.isArray(batchResult.rows)
-        ? batchResult.rows
-        : (batchResult.rows ? [batchResult.rows] : []);
-
-      if (safeBatchRows.length === 0) {
+      const batchDetails = await getBatchDetailsData(materialCode, batchNumber);
+      if (!batchDetails) {
         return res.status(404).json({ success: false, message: `未找到批次: ${materialCode} - ${batchNumber}` });
       }
 
-      // 查询流转历史
-      const transactionQuery = `
-        SELECT il.*, l.name as location_name
-        FROM inventory_ledger il
-        LEFT JOIN locations l ON il.location_id = l.id
-        WHERE il.material_id = (SELECT id FROM materials WHERE code = ?)
-          AND il.batch_number = ?
-        ORDER BY il.created_at ASC
-      `;
-      const transactionResult = await db.query(transactionQuery, [materialCode, batchNumber]);
-      const safeTransactionRows = Array.isArray(transactionResult.rows)
-        ? transactionResult.rows
-        : (transactionResult.rows ? [transactionResult.rows] : []);
-
       res.json({
         success: true,
-        data: {
-          batch_info: safeBatchRows[0],
-          transaction_history: safeTransactionRows,
-        },
+        data: batchDetails,
       });
     } catch (error) {
       logger.error('获取批次详细信息失败:', error);
@@ -888,7 +848,7 @@ const batchTraceabilityController = {
   },
 
   /**
-   * 获取最新批次列表(用于快速测试)
+   * 获取最新批次列表(用于快速查询)
    */
   async getLatestBatches(req, res) {
     try {

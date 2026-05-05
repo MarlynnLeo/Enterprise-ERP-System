@@ -11,6 +11,9 @@ const path = require('path');
 const { createCrudController } = require('../../utils/controllerFactory');
 const { desensitizeData, hasFinancePermission } = require('../../utils/desensitizer');
 const { getCurrentUserName } = require('../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../utils/authContext');
+const { pool: dbPool } = require('../../config/db');
+const DLQService = require('../../services/business/DLQService');
 
 const categoryService = require('../../services/categoryService');
 const unitService = require('../../services/unitService');
@@ -66,11 +69,11 @@ const baseDataController = {
       }
 
       // 安全：只允许从uploads目录下载
-      const uploadsDir = path.resolve(__dirname, '../../uploads');
+      const uploadsDir = path.resolve(process.cwd(), 'uploads');
       const absolutePath = path.resolve(uploadsDir, path.basename(filePath));
 
       // 验证解析后的路径是否仍在uploads目录
-      if (!absolutePath.startsWith(uploadsDir)) {
+      if (!absolutePath.startsWith(uploadsDir + path.sep)) {
         logger.warn('检测到路径穿越尝试:', { filePath, resolvedPath: absolutePath });
         return ResponseHandler.error(res, '文件路径无效', 'BAD_REQUEST', 400);
       }
@@ -218,7 +221,7 @@ const baseDataController = {
       // 🔒 权限过滤敏感价格字段 (AOP脱敏)
       // ✅ hasFinancePermission 已统一走 PermissionService，无需额外手动检查
       const hasPerm = await hasFinancePermission(req.user);
-        
+
       const filteredData = desensitizeData(result.data, hasPerm);
 
       ResponseHandler.paginated(
@@ -241,7 +244,7 @@ const baseDataController = {
       if (material) {
         // 🔒 权限过滤敏感价格字段 (AOP脱敏)
         const hasPerm = await hasFinancePermission(req.user);
-          
+
         const filtered = desensitizeData(material, hasPerm);
 
         ResponseHandler.success(res, filtered, '获取物料详情成功');
@@ -274,7 +277,7 @@ const baseDataController = {
          WHERE m.id IN (${placeholders})`,
         ids
       );
-      
+
       const hasPerm = await hasFinancePermission(req.user);
       const filteredMaterials = desensitizeData(materials, hasPerm);
 
@@ -473,8 +476,7 @@ const baseDataController = {
         { header: '备注', key: 'remark', width: 30 },
       ];
 
-      // 示例数据（包含所有字段）
-      const sampleData = [
+      const templateRows = [
         {
           code: 'M001',
           name: '钢板Q235',
@@ -495,7 +497,7 @@ const baseDataController = {
           min_stock: 50,
           max_stock: 500,
           status: '启用',
-          remark: '示例数据-采购物料',
+          remark: '模板行-采购物料',
         },
         {
           code: 'M002',
@@ -517,11 +519,11 @@ const baseDataController = {
           min_stock: 20,
           max_stock: 200,
           status: '启用',
-          remark: '示例数据-自产物料',
+          remark: '模板行-自产物料',
         },
       ];
 
-      const workbook = ExcelHelper.createTemplate(columns, sampleData, '物料导入模板');
+      const workbook = ExcelHelper.createTemplate(columns, templateRows, '物料导入模板');
 
       res.setHeader(
         'Content-Type',
@@ -555,7 +557,6 @@ const baseDataController = {
       const successList = [];
       const errorList = [];
 
-      // ✅ 批量预加载所有关联数据（消除循环内 N×6 次 SQL）
       const { pool: dbPool } = require('../../config/db');
       const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories WHERE deleted_at IS NULL');
       const categoryByCode = new Map(allCategories.map(c => [c.code, c.id]));
@@ -569,14 +570,16 @@ const baseDataController = {
       const [allSuppliers] = await dbPool.query('SELECT id, code FROM suppliers WHERE deleted_at IS NULL');
       const supplierByCode = new Map(allSuppliers.map(s => [s.code, s.id]));
 
-      const [allGroups] = await dbPool.query('SELECT id, code FROM production_groups');
-      const groupByCode = new Map(allGroups.map(g => [g.code, g.id]));
+      const [allGroups] = await dbPool.query('SELECT id, code, name FROM departments WHERE status = 1');
+      const groupByCode = new Map(allGroups.filter((g) => g.code).map((g) => [g.code, g.id]));
+      const groupByName = new Map(allGroups.map((g) => [g.name, g.id]));
 
-      const [allUsers] = await dbPool.query('SELECT id, username, employee_id FROM users');
+      const [allUsers] = await dbPool.query('SELECT id, username, real_name, name FROM users WHERE status = 1');
       const userByCode = new Map();
       for (const u of allUsers) {
         if (u.username) userByCode.set(u.username, u.id);
-        if (u.employee_id) userByCode.set(u.employee_id, u.id);
+        if (u.real_name) userByCode.set(u.real_name, u.id);
+        if (u.name) userByCode.set(u.name, u.id);
       }
 
       const [allLocations] = await dbPool.query('SELECT id, code FROM locations WHERE deleted_at IS NULL');
@@ -617,7 +620,7 @@ const baseDataController = {
 
           let productionGroupId = null;
           if (row['生产组编码']) {
-            productionGroupId = groupByCode.get(row['生产组编码']);
+            productionGroupId = groupByCode.get(row['生产组编码']) || groupByName.get(row['生产组编码']);
             if (!productionGroupId) throw new Error(`生产组编码"${row['生产组编码']}"不存在`);
           }
 
@@ -721,7 +724,6 @@ const baseDataController = {
       const successList = [];
       const errorList = [];
 
-      // ========== 性能优化：批量预加载所有关联数据==========
       logger.info(`开始导入物料，共${req.body.length} 条数据`);
 
       // 1. 批量加载所有分类（编码和名称映射）
@@ -749,11 +751,13 @@ const baseDataController = {
       const groupByName = new Map(allGroups.map((g) => [g.name, g.id]));
 
 
-      const [allUsers] = await dbPool.query('SELECT id, username, employee_no FROM users');
+      const [allUsers] = await dbPool.query('SELECT id, username, real_name, name FROM users WHERE status = 1');
       const userByUsername = new Map(allUsers.map((u) => [u.username, u.id]));
-      const userByEmployeeNo = new Map(
-        allUsers.filter((u) => u.employee_no).map((u) => [u.employee_no, u.id])
-      );
+      const userByDisplayName = new Map();
+      for (const user of allUsers) {
+        if (user.real_name) userByDisplayName.set(user.real_name, user.id);
+        if (user.name) userByDisplayName.set(user.name, user.id);
+      }
 
 
       const [allLocations] = await dbPool.query('SELECT id, code, name FROM locations WHERE deleted_at IS NULL');
@@ -834,9 +838,9 @@ const baseDataController = {
           let managerId = null;
           if (row.manager_code) {
             managerId =
-              userByUsername.get(row.manager_code) || userByEmployeeNo.get(row.manager_code);
+              userByUsername.get(row.manager_code) || userByDisplayName.get(row.manager_code);
             if (!managerId) {
-              throw new Error(`物料负责人"${row.manager_code}"不存在（请填写用户名或工号）`);
+              throw new Error(`物料负责人"${row.manager_code}"不存在（请填写用户名或姓名）`);
             }
           }
 
@@ -1217,12 +1221,15 @@ const baseDataController = {
   async approveBom(req, res) {
     try {
       const { pool } = require('../../config/db');
-      const bomId = parseInt(req.params.id, 10) || 1;
+      const bomId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(bomId) || bomId <= 0) {
+        return ResponseHandler.error(res, '无效的BOM ID', 'BAD_REQUEST', 400);
+      }
 
       // 审核BOM：同步设置 status=1 + approved_at + approved_by（INT字段，存用户ID）
       await pool.query(
         'UPDATE bom_masters SET status = 1, approved_at = NOW(), approved_by = ? WHERE id = ?',
-        [req.user?.id || 1, bomId]
+        [getAuthenticatedUserId(req), bomId]
       );
 
       // 审核后触发关键后处理（与 createBom/deleteBom 保持一致）
@@ -1236,7 +1243,11 @@ const baseDataController = {
           await BomExplosionService.invalidateCache(bomId);
         }
       } catch (e) {
-        logger.warn('BOM审核后处理失败（不影响审核结果）:', e.message);
+        await DLQService.recordSideEffectFailure(
+          'BOM:approvePostProcess',
+          { bomId },
+          e
+        );
       }
 
       ResponseHandler.success(res, null, 'BOM审核成功');
@@ -1249,7 +1260,10 @@ const baseDataController = {
   async unapproveBom(req, res) {
     try {
       const { pool } = require('../../config/db');
-      const bomId = parseInt(req.params.id, 10) || 1;
+      const bomId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(bomId) || bomId <= 0) {
+        return ResponseHandler.error(res, '无效的BOM ID', 'BAD_REQUEST', 400);
+      }
 
       // 反审前获取产品ID用于后处理
       const [bomInfo] = await pool.query('SELECT product_id FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
@@ -1269,7 +1283,11 @@ const baseDataController = {
           await BomExplosionService.invalidateCache(bomId);
         }
       } catch (e) {
-        logger.warn('BOM反审后处理失败（不影响反审结果）:', e.message);
+        await DLQService.recordSideEffectFailure(
+          'BOM:unapprovePostProcess',
+          { bomId },
+          e
+        );
       }
 
       ResponseHandler.success(res, null, 'BOM反审核成功');
@@ -1896,4 +1914,3 @@ const baseDataController = {
 };
 
 module.exports = baseDataController;
-

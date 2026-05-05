@@ -753,7 +753,7 @@ const parseExcelFile = async (file) => {
 
         // 读取数据为数组格式
         const jsonData = []
-        worksheet.eachRow((row, rowNumber) => {
+        worksheet.eachRow((row) => {
           const rowData = []
           row.eachCell((cell, colNumber) => {
             rowData[colNumber - 1] = cell.value
@@ -770,7 +770,7 @@ const parseExcelFile = async (file) => {
         const headers = jsonData[0]
         const dataRows = jsonData.slice(1)
 
-        const parsedData = dataRows.map((row, index) => {
+        const parsedData = dataRows.map((row) => {
           const rowData = {}
           headers.forEach((header, colIndex) => {
             const value = row[colIndex]
@@ -913,7 +913,7 @@ const downloadTemplate = async () => {
       { header: '描述', key: 'description', width: 30 }
     ]
 
-    // 添加示例数据
+    // 添加导入模板示例行
     worksheet.addRow({
       code: 'EQ001',
       name: '数控机床1号',

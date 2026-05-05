@@ -10,30 +10,32 @@
 
 <script setup>
   import { computed } from 'vue'
+  import dayjs from 'dayjs'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
+  import { hrApi } from '@/services/api'
+  import { filterByKeyword, getResponseList, toPagedResponse } from '@/utils/listResponse'
 
   const pageConfig = computed(() => ({
-    title: '请假审阅',
-    searchPlaceholder: '搜索员工姓名',
+    title: '请假记录',
+    searchPlaceholder: '搜索员工姓名或期间',
 
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '待审批', value: 'pending' },
-      { label: '已通过', value: 'approved' },
-      { label: '已驳回', value: 'rejected' }
+      { label: '草稿', value: 'draft' },
+      { label: '已确认', value: 'confirmed' }
     ],
 
     fields: {
       id: 'id',
       title: 'empName',
-      subtitle: 'leaveType',
+      subtitle: 'period',
       icon: 'notes-o',
       status: 'status',
 
       details: [
-        { label: '开始时间', field: 'startTime', type: 'datetime' },
-        { label: '结束时间', field: 'endTime', type: 'datetime' },
-        { label: '时长', field: 'duration', suffix: '小时' }
+        { label: '部门', field: 'department' },
+        { label: '请假/缺勤', field: 'leaveDays', suffix: '天' },
+        { label: '年假', field: 'vacationDays', suffix: '天' }
       ],
 
       tags: [
@@ -41,9 +43,8 @@
           field: 'status',
           type: 'status',
           map: {
-            pending: { text: '待审批', color: 'warning' },
-            approved: { text: '已通过', color: 'success' },
-            rejected: { text: '已驳回', color: 'danger' }
+            draft: { text: '草稿', color: 'warning' },
+            confirmed: { text: '已确认', color: 'success' }
           }
         }
       ]
@@ -54,15 +55,20 @@
     ]
   }))
 
-  const loadLeave = async (params) => {
-    return {
-      data: {
-        list: [
-          { id: 1, empName: '王五', leaveType: '病假', startTime: '2026-04-19 09:00', endTime: '2026-04-19 18:00', duration: 8, status: 'pending' },
-          { id: 2, empName: '李工程师', leaveType: '年假', startTime: '2026-05-01 09:00', endTime: '2026-05-03 18:00', duration: 24, status: 'approved' }
-        ],
-        total: 2
-      }
-    }
+  const loadLeave = async (params = {}) => {
+    const response = await hrApi.getAttendance({ period: dayjs().format('YYYY-MM') })
+    const records = getResponseList(response)
+      .map((row) => ({
+        id: row.id,
+        empName: row.name || row.employee_name || '',
+        period: row.period || '',
+        department: row.department_name || '',
+        leaveDays: Number(row.leave_days ?? row.total_leave_days ?? 0),
+        vacationDays: Number(row.vacation_days ?? 0),
+        status: row.status || 'confirmed'
+      }))
+      .filter((row) => row.leaveDays > 0 || row.vacationDays > 0)
+
+    return toPagedResponse(filterByKeyword(records, params.search, ['empName', 'period', 'department']))
   }
 </script>

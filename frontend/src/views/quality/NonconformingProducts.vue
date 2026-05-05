@@ -23,14 +23,12 @@
         <div class="stat-label">已关闭</div>
       </el-card>
     </div>
-
     <el-card class="box-card">
       <template #header>
         <div class="card-header">
           <span>不合格品</span>
         </div>
       </template>
-
       <!-- 搜索表单 -->
       <div class="search-container">
         <el-form :inline="true" :model="searchForm" class="search-form">
@@ -95,12 +93,10 @@
               range-separator="至"
               start-placeholder="开始日期"
               end-placeholder="结束日期"
-
             />
           </el-form-item>
         </el-form>
       </div>
-
       <!-- 不合格品列表 -->
       <el-table
         :data="tableData"
@@ -167,7 +163,6 @@
               v-permission="'quality:nonconforming:update'">
               特采审批
             </el-button>
-
             <el-button size="small" type="success" @click="handleComplete(row)" v-if="row.status === 'processing' && row.concession_status !== 'pending'">
               完成处理
             </el-button>
@@ -175,7 +170,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <el-pagination
         v-model:current-page="currentPage"
@@ -188,7 +182,6 @@
         style="margin-top: 20px; text-align: right;"
       />
     </el-card>
-
     <!-- Details Dialog -->
     <el-dialog v-model="detailsDialogVisible" title="不合格品详情" width="800px">
       <el-descriptions :column="2" border v-if="currentNcp">
@@ -222,7 +215,6 @@
         <el-descriptions-item label="当前位置" :span="2">{{ currentNcp.current_location }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
-
     <!-- 特采申请 Dialog -->
     <el-dialog v-model="applyConcessionDialogVisible" title="申请特采 (让步接收)" width="500px">
       <el-form :model="applyConcessionForm" label-width="100px">
@@ -235,7 +227,6 @@
         <el-button v-permission="'quality:nonconforming:create'" type="primary" :loading="submitLoading" @click="submitApplyConcession">提交申请</el-button>
       </template>
     </el-dialog>
-
     <!-- 特采审批 Dialog -->
     <el-dialog v-model="approveConcessionDialogVisible" title="特采审批" width="500px">
         <el-descriptions border :column="1" style="margin-bottom: 20px;">
@@ -254,7 +245,6 @@
           <el-button type="primary" :loading="submitLoading" @click="submitApproveConcession">确认提交</el-button>
         </template>
     </el-dialog>
-
     <!-- Disposition Dialog -->
     <el-dialog v-model="disposeDialogVisible" title="处理决策 - 不合格品处理" width="600px">
       <el-alert
@@ -310,7 +300,6 @@
         <el-button v-permission="'quality:nonconforming:create'" type="primary" @click="submitDisposition">提交处理决策</el-button>
       </template>
     </el-dialog>
-
     <!-- Complete Dialog -->
     <el-dialog v-model="completeDialogVisible" title="完成处理" width="600px">
       <el-form :model="completeForm" label-width="120px">
@@ -331,9 +320,8 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import { Search, Refresh, Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
@@ -341,9 +329,7 @@ import ncpApi from '@/api/nonconformingProductApi'
 import request from '@/utils/request'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 const route = useRoute()
-
 const loading = ref(false)
 const tableData = ref([])
 const total = ref(0)
@@ -352,15 +338,12 @@ const pageSize = ref(10)
 const searchKeyword = ref('')
 const dateRange = ref([])
 const showAdvancedSearch = ref(false)
-
 const searchForm = reactive({
   status: '',
   disposition: '',
   severity: ''
 })
-
 const statistics = ref({})
-
 const detailsDialogVisible = ref(false)
 const disposeDialogVisible = ref(false)
 const completeDialogVisible = ref(false)
@@ -368,10 +351,8 @@ const applyConcessionDialogVisible = ref(false)
 const approveConcessionDialogVisible = ref(false)
 const currentNcp = ref(null)
 const submitLoading = ref(false)
-
 const applyConcessionForm = reactive({ reason: '' })
 const approveConcessionForm = reactive({ status: 'approved' })
-
 const disposeForm = reactive({
   disposition: '',
   disposition_reason: '',
@@ -379,13 +360,11 @@ const disposeForm = reactive({
   responsible_party: 'unknown',
   supplier_id: null
 })
-
 const completeForm = reactive({
   handled_quantity: 0,
   handling_cost: 0,
   note: ''
 })
-
 // Fetch data
 const fetchData = async () => {
   try {
@@ -396,13 +375,11 @@ const fetchData = async () => {
       keyword: searchKeyword.value,
       ...searchForm
     }
-
     // 添加日期范围
     if (dateRange.value && dateRange.value.length === 2) {
       params.start_date = dayjs(dateRange.value[0]).format('YYYY-MM-DD')
       params.end_date = dayjs(dateRange.value[1]).format('YYYY-MM-DD')
     }
-
     const response = await ncpApi.getList(params)
     // 拦截器已解包，response.data 就是业务数据
     const responseData = response?.data
@@ -424,12 +401,10 @@ const fetchData = async () => {
     loading.value = false
   }
 }
-
 // Fetch statistics
 const fetchStatistics = async () => {
   try {
     const response = await ncpApi.getStatistics()
-
     // 响应拦截器返回的是 response.data,即 { success, message, data }
     if (response && response.data) {
       statistics.value = response.data
@@ -441,7 +416,6 @@ const fetchStatistics = async () => {
     console.error('❌ Failed to fetch statistics:', error)
   }
 }
-
 // Handle reset
 const handleReset = () => {
   searchKeyword.value = ''
@@ -452,15 +426,12 @@ const handleReset = () => {
   currentPage.value = 1
   fetchData()
 }
-
 // 格式化日期
 // formatDate 已统一引用公共实现
-
 // Handle create
 const handleCreate = () => {
   ElMessage.info('请从检验单页面创建不合格品记录')
 }
-
 // Handle view
 const handleView = async (row) => {
   try {
@@ -477,7 +448,6 @@ const handleView = async (row) => {
     ElMessage.error('获取详情失败')
   }
 }
-
 // Handle dispose
 const handleDispose = (row) => {
   currentNcp.value = row
@@ -489,24 +459,20 @@ const handleDispose = (row) => {
   disposeForm.supplier_id = row.supplier_id || null
   disposeDialogVisible.value = true
 }
-
 // Submit disposition
 const submitDisposition = async () => {
   if (!disposeForm.disposition || !disposeForm.disposition_reason) {
     ElMessage.warning('请填写处理方式和处理原因')
     return
   }
-
   if (!disposeForm.responsible_party) {
     ElMessage.warning('请选择责任方')
     return
   }
-
   if ((disposeForm.responsible_party === 'supplier' || disposeForm.disposition === 'return' || disposeForm.disposition === 'replacement') && !disposeForm.supplier_id) {
     ElMessage.warning('为了后续采购对账及实物退换货的闭环，必须指定该不良品的归属供应商！')
     return
   }
-
   const payload = { ...disposeForm }
   if (disposeForm.supplier_id) {
     const matchedSupplier = supplierList.value.find(s => s.id === disposeForm.supplier_id)
@@ -514,7 +480,6 @@ const submitDisposition = async () => {
       payload.supplier_name = matchedSupplier.name
     }
   }
-
   try {
     await ncpApi.updateDisposition(currentNcp.value.id, payload)
     ElMessage.success('处理成功')
@@ -525,7 +490,6 @@ const submitDisposition = async () => {
     ElMessage.error('处理失败')
   }
 }
-
 // Handle complete
 const handleComplete = (row) => {
   currentNcp.value = row
@@ -534,7 +498,6 @@ const handleComplete = (row) => {
   completeForm.note = ''
   completeDialogVisible.value = true
 }
-
 // Submit complete
 const submitComplete = async () => {
   try {
@@ -547,14 +510,12 @@ const submitComplete = async () => {
     ElMessage.error('完成处理失败')
   }
 }
-
 // Concession application 
 const handleApplyConcession = (row) => {
   currentNcp.value = row;
   applyConcessionForm.reason = '';
   applyConcessionDialogVisible.value = true;
 };
-
 const submitApplyConcession = async () => {
   if (!applyConcessionForm.reason) {
     ElMessage.warning('请填写申请理由');
@@ -566,19 +527,17 @@ const submitApplyConcession = async () => {
     ElMessage.success('特采申请提交成功');
     applyConcessionDialogVisible.value = false;
     fetchData();
-  } catch(error) {
+  } catch {
     ElMessage.error('申请失败');
   } finally {
     submitLoading.value = false;
   }
 };
-
 const handleApproveConcession = (row) => {
   currentNcp.value = row;
   approveConcessionForm.status = 'approved';
   approveConcessionDialogVisible.value = true;
 };
-
 const submitApproveConcession = async () => {
   submitLoading.value = true;
   try {
@@ -586,13 +545,12 @@ const submitApproveConcession = async () => {
     ElMessage.success('审批完成');
     approveConcessionDialogVisible.value = false;
     fetchData();
-  } catch(error) {
+  } catch {
     ElMessage.error('审批失败');
   } finally {
     submitLoading.value = false;
   }
 };
-
 // Handle delete
 const handleDelete = async (row) => {
   try {
@@ -601,7 +559,6 @@ const handleDelete = async (row) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-
     await ncpApi.deleteNcp(row.id)
     ElMessage.success('删除成功')
     fetchData()
@@ -612,9 +569,8 @@ const handleDelete = async (row) => {
     }
   }
 }
-
 // Helper functions
-const getSeverityType = (severity) => {
+const _getSeverityType = (severity) => {
   const types = {
     minor: 'info',
     major: 'warning',
@@ -622,8 +578,7 @@ const getSeverityType = (severity) => {
   }
   return types[severity] || 'info'
 }
-
-const getSeverityLabel = (severity) => {
+const _getSeverityLabel = (severity) => {
   const labels = {
     minor: '轻微',
     major: '严重',
@@ -631,7 +586,6 @@ const getSeverityLabel = (severity) => {
   }
   return labels[severity] || severity
 }
-
 const getDispositionLabel = (disposition) => {
   const labels = {
     return: '退货',
@@ -643,7 +597,6 @@ const getDispositionLabel = (disposition) => {
   }
   return labels[disposition] || disposition
 }
-
 const getStatusType = (status) => {
   const types = {
     pending: 'warning',
@@ -653,7 +606,6 @@ const getStatusType = (status) => {
   }
   return types[status] || 'info'
 }
-
 const getStatusLabel = (status) => {
   const labels = {
     pending: '待处理',
@@ -663,7 +615,6 @@ const getStatusLabel = (status) => {
   }
   return labels[status] || status
 }
-
 const supplierList = ref([])
 const fetchSuppliers = async () => {
   try {
@@ -673,7 +624,6 @@ const fetchSuppliers = async () => {
     console.error('Failed to fetch suppliers:', error)
   }
 }
-
 onMounted(() => {
   // 如果URL中有inspection_id参数,则自动筛选
   if (route.query.inspection_id) {
@@ -684,7 +634,6 @@ onMounted(() => {
   fetchStatistics()
   fetchSuppliers()
 })
-
 // 根据检验单ID获取不合格品
 const fetchNcpByInspection = async (inspectionId) => {
   try {
@@ -708,87 +657,71 @@ const fetchNcpByInspection = async (inspectionId) => {
   }
 }
 </script>
-
 <style scoped>
 .search-container {
   margin-bottom: var(--spacing-base);
 }
-
 .search-buttons {
   display: flex;
   gap: 8px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 /* 使用全局样式 common-styles.css 中的 .statistics-row 和 .stat-card */
-
 /* 表格样式优化 */
 :deep(.el-table) {
   font-size: 14px;
 }
-
 :deep(.el-table th) {
   background-color: var(--color-bg-hover);
   color: var(--color-text-regular);
   font-weight: 600;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* 分页样式 */
 .el-pagination {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
 }
-
 /* 对话框样式 */
 :deep(.el-dialog__header) {
   background-color: var(--color-bg-hover);
   padding: 16px 20px;
   border-bottom: 1px solid var(--color-border-light);
 }
-
 :deep(.el-dialog__title) {
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text-primary);
 }
-
 :deep(.el-descriptions) {
   margin-top: 10px;
 }
-
 :deep(.el-descriptions__label) {
   font-weight: 600;
   background-color: var(--color-bg-light);
 }
-
 :deep(.el-descriptions__content) {
   max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 /* 表单样式 */
 :deep(.el-form-item__label) {
   font-weight: 500;
 }
-
 /* 按钮组样式 */
 .el-button + .el-button {
   margin-left: 8px;
 }
-
 /* 响应式设计 */
 @media screen and (max-width: 768px) {
   .search-container .el-col {
@@ -796,4 +729,3 @@ const fetchNcpByInspection = async (inspectionId) => {
   }
 }
 </style>
-

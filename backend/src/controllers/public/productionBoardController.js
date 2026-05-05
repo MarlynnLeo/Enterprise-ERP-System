@@ -118,7 +118,7 @@ exports.getProductionBoardData = async (req, res) => {
     };
 
     planStats.forEach((stat) => {
-      if (planStatusMap.hasOwnProperty(stat.status)) {
+      if (Object.prototype.hasOwnProperty.call(planStatusMap, stat.status)) {
         planStatusMap[stat.status] = Number(stat.count);
       }
     });

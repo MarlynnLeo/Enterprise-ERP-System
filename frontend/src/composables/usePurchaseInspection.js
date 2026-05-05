@@ -4,26 +4,21 @@
  * @date 2025-11-12
  * @updated 2025-11-13 - 优化日志输出和数据解析
  */
-
 import { ElMessage } from 'element-plus';
 import { qualityApi, supplierApi } from '@/services/api';
 import { generateBatchNumber } from '@/utils/inspectionHelpers';
 import {
-  INSPECTION_TYPES,
-  TEMPLATE_STATUS,
+  
   getGeneralTemplateQueryParams
 } from '@/constants/inspection';
 import { parseListData, isResponseSuccess } from '@/utils/responseParser';
 import { createLogger } from '@/utils/devLogger';
-
 // 创建日志工具
 const logger = createLogger('🔍 采购检验');
-
 /**
  * 采购检验组合式函数
  */
 export const usePurchaseInspection = () => {
-
   /**
    * 获取物料的检验模板
    * @param {number} materialId - 物料ID
@@ -33,29 +28,24 @@ export const usePurchaseInspection = () => {
     try {
       const response = await qualityApi.getMaterialDefaultTemplate(materialId);
       const respData = response?.data;
-
       // ResponseHandler 格式: { success: true, data: [...] }
       if (respData?.success && respData?.data?.length > 0) {
         return respData.data[0].id;
       }
-
       // 直接数组格式: [...]
       if (Array.isArray(respData) && respData.length > 0) {
         return respData[0].id;
       }
-
       // 直接分页格式: { list: [...], total: 1 }
       if (respData?.list?.length > 0) {
         return respData.list[0].id;
       }
-
       return null;
     } catch (err) {
       logger.warn('获取物料专用模板失败:', err);
       return null;
     }
   };
-
   /**
    * 获取通用检验模板
    * @param {string} inspectionType - 检验类型 ('incoming' | 'process' | 'final')
@@ -65,29 +55,21 @@ export const usePurchaseInspection = () => {
     try {
       // 使用统一配置,避免硬编码
       const queryParams = getGeneralTemplateQueryParams(inspectionType);
-
       logger.log('开始查询通用检验模板...');
       logger.debug('查询参数:', queryParams);
-
       const response = await qualityApi.getTemplates(queryParams);
-
       logger.debug('📦 后端返回数据:', response.data);
-
       // 使用统一的数据解析工具
       if (!isResponseSuccess(response)) {
         logger.warn('❌ 后端返回失败:', response.data);
         return null;
       }
-
       const generalTemplates = parseListData(response, '📋 通用模板');
-
       logger.log(`📊 找到 ${generalTemplates.length} 个通用模板`);
-
       if (generalTemplates.length > 0) {
         logger.log('✅ 使用通用模板:', generalTemplates[0]);
         return generalTemplates[0].id;
       }
-
       logger.warn('❌ 未找到来料通用模板');
       logger.warn('💡 请检查:');
       logger.warn('  1. 数据库中是否有 is_general=TRUE 的来料检验模板');
@@ -100,7 +82,6 @@ export const usePurchaseInspection = () => {
       return null;
     }
   };
-
   /**
    * 获取模板详情
    * @param {number} templateId - 模板ID
@@ -108,26 +89,21 @@ export const usePurchaseInspection = () => {
    */
   const getTemplateDetail = async (templateId) => {
     const templateDetailResponse = await qualityApi.getTemplate(templateId);
-
     // 支持多种响应格式
     const respData = templateDetailResponse?.data;
     if (!respData) {
       throw new Error('获取模板详情失败');
     }
-
     // ResponseHandler 格式: { success: true, data: {...} }
     if (respData.success && respData.data) {
       return respData.data;
     }
-
     // 直接数据格式: { id: ..., template_name: ..., InspectionItems: [...] }
     if (respData.id || respData.template_name || respData.InspectionItems) {
       return respData;
     }
-
     throw new Error('获取模板详情失败');
   };
-
   /**
    * 转换模板数据格式
    * @param {Object} templateDetail - 模板详情
@@ -159,7 +135,6 @@ export const usePurchaseInspection = () => {
       }))
     };
   };
-
   /**
    * 获取检验模板 (统一入口)
    * @param {number} materialId - 物料ID
@@ -168,33 +143,27 @@ export const usePurchaseInspection = () => {
   const getInspectionTemplate = async (materialId) => {
     try {
       logger.log(`开始获取物料 ${materialId} 的检验模板...`);
-
       // 1. 先尝试获取物料专用模板
       let templateId = await getMaterialTemplate(materialId);
       logger.debug(`📋 物料专用模板ID: ${templateId || '无'}`);
-
       // 2. 如果没有专用模板,获取通用模板
       if (!templateId) {
         logger.log('🔄 物料没有专用模板,尝试获取通用模板...');
         templateId = await getGeneralTemplate();
         logger.debug(`📋 通用模板ID: ${templateId || '无'}`);
       }
-
       // 3. 如果还是没有模板,返回null
       if (!templateId) {
         logger.error(`❌ 物料 ${materialId} 没有可用的检验模板`);
         return null;
       }
-
       // 4. 获取模板详情
       logger.debug(`📥 获取模板 ${templateId} 的详情...`);
       const templateDetail = await getTemplateDetail(templateId);
       logger.debug('✅ 模板详情获取成功:', templateDetail);
-
       // 5. 转换数据格式
       const transformedData = transformTemplateData(templateDetail);
       logger.log('✅ 模板数据转换成功,检验项数量:', transformedData.items?.length || 0);
-
       return transformedData;
     } catch (error) {
       logger.error(`❌ 获取物料 ${materialId} 的检验模板失败:`, error);
@@ -202,7 +171,6 @@ export const usePurchaseInspection = () => {
       throw error;
     }
   };
-
   /**
    * 为采购订单创建来料检验单
    * @param {Object} orderData - 订单数据
@@ -210,48 +178,49 @@ export const usePurchaseInspection = () => {
    * @param {string} source - 来源标识 ('receive'|'complete'|'quick')
    * @returns {Object} 创建结果 {successCount, failedCount, skippedCount}
    */
-  const createInspectionForOrder = async (orderData, items = null, source = 'receive') => {
+  const createInspectionForOrder = async (orderData, items = null) => {
     const itemsToProcess = items || orderData.items;
-
     // 如果没有物料项，跳过
     if (!itemsToProcess || itemsToProcess.length === 0) {
       return { successCount: 0, failedCount: 0, skippedCount: 0 };
     }
-
     let successCount = 0;
     let failedCount = 0;
     let skippedCount = 0;
-
     // 遍历每个物料项创建检验单
     for (const item of itemsToProcess) {
       try {
         // 获取检验模板
         const inspectionTemplate = await getInspectionTemplate(item.material_id);
-
         if (!inspectionTemplate) {
           skippedCount++;
           ElMessage.warning(`物料 ${item.material_name || item.name} 没有检验模板，跳过创建`);
           continue;
         }
+        if (!orderData.supplier_id) {
+          skippedCount++;
+          ElMessage.warning(`物料 ${item.material_name || item.name} 缺少供应商信息，跳过创建`);
+          continue;
+        }
 
-        // 获取供应商编码（防止 supplier_id 为空时发出无效请求）
-        let supplierCode = 'DEFAULT';
-        if (orderData.supplier_id) {
-          try {
-            const supplierResponse = await supplierApi.getSupplier(orderData.supplier_id);
-            if (supplierResponse.data && supplierResponse.data.code) {
-              supplierCode = supplierResponse.data.code;
-            }
-          } catch (err) {
-            logger.error('获取供应商编码失败:', err);
+        let supplierCode = '';
+        try {
+          const supplierResponse = await supplierApi.getSupplier(orderData.supplier_id);
+          if (supplierResponse.data && supplierResponse.data.code) {
+            supplierCode = supplierResponse.data.code;
           }
-        } else {
-          logger.warn('订单缺少 supplier_id，使用默认供应商编码');
+        } catch (err) {
+          logger.error('获取供应商编码失败:', err);
+        }
+
+        if (!supplierCode) {
+          skippedCount++;
+          ElMessage.warning(`物料 ${item.material_name || item.name} 无法获取供应商编码，跳过创建`);
+          continue;
         }
 
         // 生成批次号 - 传递正确的参数类型
         const batchNo = await generateBatchNumber(supplierCode, orderData.supplier_id, qualityApi);
-
         // 构造提交数据
         const submitData = {
           inspection_type: 'incoming',
@@ -272,10 +241,8 @@ export const usePurchaseInspection = () => {
           note: `自动创建的来料检验单 - 供应商: ${orderData.supplier_name}`,
           items: inspectionTemplate.items
         };
-
         // 创建检验单
         const response = await qualityApi.createIncomingInspection(submitData);
-
         // 拦截器已解包，如果请求成功则 response.data 就是业务数据
         // 如果业务失败，拦截器会抛出错误
         if (response.data) {
@@ -290,18 +257,15 @@ export const usePurchaseInspection = () => {
         ElMessage.error(`来料检验单创建失败: ${item.material_name || item.name} - ${createErr.message}`);
       }
     }
-
     // 返回创建结果
     return { successCount, failedCount, skippedCount };
   };
-
   /**
    * 显示检验单创建结果消息
    * @param {Object} result - 创建结果 {successCount, failedCount, skippedCount}
    */
   const showInspectionResult = (result) => {
     const { successCount, failedCount, skippedCount } = result;
-
     if (successCount > 0 && failedCount === 0 && skippedCount === 0) {
       ElMessage.success(`所有来料检验单创建成功,共 ${successCount} 个`);
     } else if (successCount > 0) {
@@ -315,13 +279,10 @@ export const usePurchaseInspection = () => {
       ElMessage.error(`来料检验单创建失败,共 ${failedCount} 个`);
     }
   };
-
   return {
     getInspectionTemplate,
     createInspectionForOrder,
     showInspectionResult
   };
 };
-
 export default usePurchaseInspection;
-

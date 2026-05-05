@@ -2,13 +2,14 @@
  * spcController.js
  * @description SPC 统计过程控制控制器
  * @date 2026-03-03
- * 
+ *
  * 职责范围：控制计划 CRUD、数据采集、CPK计算、控制图数据
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
+const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 
 /**
  * 计算 CPK 值
@@ -18,7 +19,7 @@ const db = require('../../../config/db');
  * @returns {object} CPK 相关统计量
  */
 function calculateCpk(values, usl, lsl) {
-    if (!values || values.length < 2 || usl == null || lsl == null) {
+    if (!values || values.length < 2 || usl === null || usl === undefined || lsl === null || lsl === undefined) {
         return { cpk: null, cp: null, mean: null, stddev: null, n: 0 };
     }
 
@@ -164,7 +165,7 @@ const spcController = {
             }
 
             if (!data.plan_no) {
-                data.plan_no = `SPC-${Date.now()}`;
+                data.plan_no = await CodeGeneratorService.nextCode('spc_plan');
             }
 
             const result = await db.query('INSERT INTO spc_control_plans SET ?', [data]);

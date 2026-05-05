@@ -13,12 +13,6 @@ const SalesDao = require('../../../database/salesDao');
 const customerService = require('../../../services/customerService');
 const materialService = require('../../../services/materialService');
 
-// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
-const { STATUS, getConnection } = require('./salesShared');
-
-
-// 添加新的控制器方法
-
 exports.getCustomersList = async (req, res) => {
   try {
     // 获取所有客户，不分页
@@ -348,4 +342,3 @@ exports.getCustomerOrderProducts = async (req, res) => {
  * 获取指定物料的销售出库历史
  * GET /api/sales/outbound/material/:materialId
  */
-

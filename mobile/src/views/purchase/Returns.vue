@@ -1,7 +1,7 @@
 <!--
 /**
  * Returns.vue - 采购退货列表
- * @description 采购退货管理页面 - 替代GenericListView占位
+ * @description 采购退货管理页面
  * @date 2026-04-14
  * @version 1.0.0
  */

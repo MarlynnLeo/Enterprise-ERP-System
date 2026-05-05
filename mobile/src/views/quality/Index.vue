@@ -22,6 +22,7 @@
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
+  import { qualityApi } from '@/services/api'
 
   const router = useRouter()
 
@@ -168,14 +169,32 @@
     router.push(path)
   }
 
+  const toNumber = (value) => Number(value || 0)
+
   // ---- 加载数据 ----
-  onMounted(() => {
-    // TODO: 接入真实 API
-    statistics.value = {
-      totalInspections: 156,
-      passedInspections: 142,
-      failedInspections: 14,
-      passRate: 91.0
+  const loadStatistics = async () => {
+    try {
+      const response = await qualityApi.getStatistics()
+      const data = response.data || {}
+      const groups = [data.incoming || {}, data.process || {}, data.final || {}]
+      const total = groups.reduce((sum, item) => sum + toNumber(item.total), 0)
+      const passed = groups.reduce((sum, item) => sum + toNumber(item.passed), 0)
+      const failed = groups.reduce((sum, item) => sum + toNumber(item.failed), 0)
+
+      statistics.value = {
+        totalInspections: total,
+        passedInspections: passed,
+        failedInspections: failed,
+        passRate: total > 0 ? Math.round((passed / total) * 1000) / 10 : 0
+      }
+
+      inspectionModules.value[0].badge = toNumber(data.incoming?.pending)
+      inspectionModules.value[1].badge = toNumber(data.process?.pending)
+      inspectionModules.value[2].badge = toNumber(data.final?.pending)
+    } catch (error) {
+      console.error('加载质量统计失败:', error)
     }
-  })
+  }
+
+  onMounted(loadStatistics)
 </script>

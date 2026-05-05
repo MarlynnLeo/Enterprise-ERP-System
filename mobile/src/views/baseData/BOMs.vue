@@ -1,7 +1,7 @@
 <!--
 /**
  * BOMs.vue - BOM管理列表
- * @description BOM物料清单管理页面 - 替代GenericListView占位
+ * @description BOM物料清单管理页面
  * @date 2026-04-14
  * @version 1.0.0
  */
@@ -58,7 +58,7 @@
     return response
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = () => {
     // BOM详情
   }
 </script>

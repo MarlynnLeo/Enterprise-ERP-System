@@ -24,25 +24,12 @@ const bomPriceAdjustmentController = require('../controllers/business/finance/bo
 const expenseController = require('../controllers/business/finance/expenseController');
 // budgetController — 已迁移到 business/finance/budgetRoutes.js
 // 注意:原reportsController已被enhancedReportsController替代,使用真实数据
-const multer = require('multer');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
+const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
 // 所有财务路由都必须经过认证
 router.use(authenticateToken);
-
-// 配置文件上传中间件
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 限制10MB
-  fileFilter: function (req, file, cb) {
-    // 只接受Excel文件
-    if (!file.originalname.match(/\.(xlsx|xls|csv)$/)) {
-      return cb(new Error('只允许上传Excel或CSV文件!'), false);
-    }
-    cb(null, true);
-  },
-});
 
 // 系统初始化路由
 router.post('/init', requirePermission('system:settings:update'), financeController.initFinanceTables);
@@ -251,7 +238,7 @@ router.get('/bank-transactions/export', requirePermission('finance:cash:export')
 router.post(
   '/bank-transactions/import',
   requirePermission('finance:cash:create'),
-  upload.single('file'),
+  FileUploadMiddlewares.excel,
   cashController.importBankTransactions
 );
 router.post('/bank-transactions', requirePermission('finance:cash:create'), cashController.createBankTransaction);
@@ -292,7 +279,7 @@ router.get(
 router.post(
   '/cash-transactions/import',
   requirePermission('finance:cash:create'),
-  upload.single('file'),
+  FileUploadMiddlewares.excel,
   importCashTransactionsValidation,
   cashController.importCashTransactions
 );
@@ -360,7 +347,6 @@ router.get('/reports/standard-cash-flow', requirePermission('finance:reports:vie
 
 // 5. 财务报表汇总
 router.get('/reports/summary', requirePermission('finance:reports:view'), enhancedReportsController.getReportsSummary);
-
 
 
 // 税务模块路由 — 已迁移到 business/finance/taxRoutes.js，由 app.js 挂载到 /api/finance/tax

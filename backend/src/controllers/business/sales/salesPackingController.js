@@ -10,9 +10,20 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 
-// ✅ DRY修复：从 salesShared.js 统一导入，不再重复定义
-const { STATUS, getConnection, getConnectionWithTransaction, executeTransaction, formatDateToMySQLDate } = require('./salesShared');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
+
+/**
+ * @deprecated 装箱单表结构由 Knex 迁移管理；保留为空操作用于兼容旧调用。
+ */
+async function ensurePackingListTablesExist() {}
+
+async function generatePackingListNo(connection) {
+  return await CodeGenerators.generatePackingListCode(connection);
+}
+
+async function generatePurchaseRequisitionNo(connection) {
+  return await CodeGenerators.generatePurchaseRequisitionCode(connection);
+}
 
 // 添加新的控制器方法
 
@@ -80,7 +91,6 @@ exports.getPackingLists = async (req, res) => {
       ORDER BY pl.created_at DESC
       LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
       `;
-
 
 
     const [rows] =
@@ -801,10 +811,11 @@ async function generateProductionAndPurchasePlans(
                 `  ✅ 生产计划创建成功: ${planNo} (物料: ${material_name}, 数量: ${shortage}，已计算物料需求)`
               );
             } catch (bomError) {
-              logger.warn(
-                `  ⚠️  生产计划创建成功: ${planNo}，但计算物料需求失败: ${bomError.message} `
-              );
-              // 不影响计划创建，但记录警告
+              await connection.execute('DELETE FROM production_plan_materials WHERE plan_id = ?', [planId]);
+              await connection.execute('DELETE FROM production_plans WHERE id = ?', [planId]);
+              throw new Error(`生产计划 ${planNo} 物料需求计算失败: ${bomError.message}`, {
+                cause: bomError,
+              });
             }
             createdCount++;
           } catch (planError) {

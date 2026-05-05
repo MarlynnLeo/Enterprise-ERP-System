@@ -10,12 +10,12 @@ const { logger } = require('../../utils/logger');
 
 
 const {
-  generateToken,
+
   generateTokens,
   setTokensToCookies,
   clearTokenCookies,
 } = require('../../config/jwtEnhanced');
-const db = require('../../config/db');
+
 const { pool } = require('../../config/db');
 const PasswordSecurity = require('../../utils/passwordSecurity');
 const AccountLockService = require('../../services/system/AccountLockService');
@@ -292,11 +292,22 @@ function validateMagicBytes(filePath, mimetype) {
   const fs = require('fs');
   const buf = Buffer.alloc(12);
   const fd = fs.openSync(filePath, 'r');
-  fs.readSync(fd, buf, 0, 12, 0);
-  fs.closeSync(fd);
+  try {
+    fs.readSync(fd, buf, 0, 12, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
 
   const signatures = MAGIC_BYTES[mimetype];
   if (!signatures) return false;
+
+  if (mimetype === 'image/webp') {
+    return (
+      buf.subarray(0, 4).equals(Buffer.from('RIFF')) &&
+      buf.subarray(8, 12).equals(Buffer.from('WEBP'))
+    );
+  }
+
   return signatures.some((sig) => buf.subarray(0, sig.length).equals(sig));
 }
 
@@ -325,8 +336,9 @@ const uploadAvatar = async (req, res) => {
     if (oldUser[0]?.avatar && oldUser[0].avatar.startsWith('/uploads/avatars/')) {
       const fs = require('fs');
       const path = require('path');
-      const oldPath = path.join(process.cwd(), oldUser[0].avatar);
-      if (fs.existsSync(oldPath)) {
+      const avatarDir = path.resolve(process.cwd(), 'uploads', 'avatars');
+      const oldPath = path.resolve(process.cwd(), `.${oldUser[0].avatar}`);
+      if (oldPath.startsWith(avatarDir + path.sep) && fs.existsSync(oldPath)) {
         fs.unlinkSync(oldPath);
         logger.info('已删除旧头像文件:', oldPath);
       }
@@ -385,7 +397,6 @@ const updateAvatarFrame = async (req, res) => {
     // 验证主题preset - 支持7种主题
 
 
-    // ✅ 审计修复(D-6): 使用正则模式替代50行硬编码 frame ID 列表
     // 支持 frame1~frame999 + lottie-* 主题 + none
     const framePattern = /^(frame\d+|lottie-[a-z]+|none)$/;
     if (!framePattern.test(frameId)) {

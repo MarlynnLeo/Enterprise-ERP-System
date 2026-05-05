@@ -96,7 +96,7 @@ class InspectionTemplateController {
             if (Array.isArray(types)) {
               types.forEach((id) => materialIds.add(id));
             }
-          } catch (e) {
+          } catch {
             // ignore parse error
           }
         }
@@ -207,7 +207,7 @@ class InspectionTemplateController {
           if (Array.isArray(types)) {
             types.forEach((id) => materialIds.add(id));
           }
-        } catch (e) {
+        } catch {
           // ignore parse error
         }
       }

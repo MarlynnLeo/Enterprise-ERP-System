@@ -9,6 +9,7 @@ const expenseModel = require('../../../models/expense');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 const expenseController = {
   // ==================== 初始化 ====================
@@ -226,7 +227,7 @@ const expenseController = {
   async submitExpense(req, res) {
     try {
       const { id } = req.params;
-      const userId = req.user?.id || 1;
+      const userId = getAuthenticatedUserId(req);
       const { useDingtalk = true, dingtalkUserId, deptId } = req.body;
 
       // 1. 获取费用详情
@@ -273,8 +274,13 @@ const expenseController = {
             logger.info(`[Expense] 费用 ${id} 已提交钉钉审批: ${approvalResult.instanceId}`);
           }
         } catch (dingtalkError) {
-          // 钉钉审批失败不影响本地提交
           logger.error('[Expense] 发起钉钉审批失败:', dingtalkError.message);
+          const DLQService = require('../../../services/business/DLQService');
+          await DLQService.recordSideEffectFailure(
+            'DingTalk:expenseApproval',
+            { expenseId: id },
+            dingtalkError
+          );
           dingtalkResult = {
             success: false,
             message: `钉钉审批发起失败: ${dingtalkError.message}`,
@@ -296,7 +302,7 @@ const expenseController = {
     try {
       const { id } = req.params;
       const { action, remark } = req.body; // action: 'approve' | 'reject'
-      const userId = req.user?.id || 1;
+      const userId = getAuthenticatedUserId(req);
 
       if (!['approve', 'reject'].includes(action)) {
         return ResponseHandler.error(res, '无效的审批操作', 'VALIDATION_ERROR', 400);

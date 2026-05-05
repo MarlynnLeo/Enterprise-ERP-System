@@ -1,3 +1,5 @@
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity';
+
 /**
  * purchaseOrderPrintHelper.js
  * @description 采购订单打印辅助函数
@@ -57,7 +59,7 @@ function processOrderItems(items) {
     return [];
   }
 
-  return items.map((item, index) => ({
+  return items.map((item) => ({
     // 序号会由模板的 @index 处理
     material_name: item.material_name || item.product_name || item.name || '',
     material_code: item.material_code || item.code || item.drawing_no || '',
@@ -287,8 +289,7 @@ export function openPrintPreview(html) {
   if (!previewWindow) {
     throw new Error('无法打开打印窗口，请检查浏览器是否阻止弹出窗口');
   }
-  previewWindow.document.write(html);
-  previewWindow.document.close();
+  writeSafeHtmlDocument(previewWindow, html);
   return previewWindow;
 }
 
@@ -302,8 +303,7 @@ export function printDocument(html) {
     throw new Error('无法打开打印窗口，请检查浏览器是否阻止弹出窗口');
   }
   
-  printWindow.document.write(html);
-  printWindow.document.close();
+  writeSafeHtmlDocument(printWindow, html);
   
   printWindow.onload = function() {
     printWindow.print();
@@ -312,4 +312,3 @@ export function printDocument(html) {
     };
   };
 }
-

@@ -10,31 +10,7 @@ const router = express.Router();
 const printController = require('../controllers/common/printController');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
-const multer = require('multer');
-const path = require('path');
-
-// 配置文件上传
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../uploads/logos'));
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 限制5MB
-  fileFilter: function (req, file, cb) {
-    // 只接受图片文件
-    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-      return cb(new Error('只允许上传图片文件!'), false);
-    }
-    cb(null, true);
-  },
-});
+const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
 // 公开的模板获取路由（不需要认证）
 router.get('/templates/public/default', printController.getDefaultTemplateByType);
@@ -58,6 +34,6 @@ router.put('/templates/:id', requirePermission('system:print:update'), printCont
 router.delete('/templates/:id', requirePermission('system:print:delete'), printController.deletePrintTemplate);
 
 // 文件上传路由
-router.post('/upload/logo', requirePermission('system:print:update'), upload.single('logo'), printController.uploadLogo);
+router.post('/upload/logo', requirePermission('system:print:update'), FileUploadMiddlewares.logo, printController.uploadLogo);
 
 module.exports = router;

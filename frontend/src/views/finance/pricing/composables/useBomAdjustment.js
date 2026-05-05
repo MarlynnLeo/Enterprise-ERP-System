@@ -119,7 +119,7 @@ export function useBomAdjustment() {
         try {
             const res = await financeApi.getBomDetails(productId);
             bomPriceData.value = res.data;
-        } catch (error) {
+        } catch {
             ElMessage.error('刷新BOM明细失败');
         } finally {
             bomPriceLoading.value = false;
@@ -199,7 +199,7 @@ export function useBomAdjustment() {
         try {
             const res = await financeApi.getPricingHistory(row.product_id);
             historyData.value = res.data;
-        } catch (error) {
+        } catch {
             ElMessage.error('获取历史记录失败');
         }
     };

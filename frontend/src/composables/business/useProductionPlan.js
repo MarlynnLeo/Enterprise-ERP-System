@@ -5,7 +5,7 @@
 
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { globalProductionOptimizer } from '@/utils/productionOptimizer'
+
 import { productionErrorHandler, withErrorHandling } from '@/utils/errorHandler'
 import logger from '@/utils/logger'
 import productionApi from '@/services/productionApi'

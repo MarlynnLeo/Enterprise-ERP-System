@@ -119,11 +119,11 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { NavBar, Search, Empty, PullRefresh, List, showToast, showConfirmDialog } from 'vant';
+import { NavBar, Search, Empty, PullRefresh, List, showToast } from 'vant';
 import SvgIcon from '@/components/icons/index.vue';
 import { inventoryApi } from '@/services/api';
 import { formatDate } from '@/utils/format';
-import { getInboundStatusText, getInboundStatusColor, getInboundTypeText } from '@/constants/statusConstants';
+import { getInboundStatusText, getInboundTypeText } from '@/constants/statusConstants';
 
 const router = useRouter();
 const searchValue = ref('');
@@ -245,43 +245,9 @@ const viewInboundDetail = (id) => {
   router.push(`/inventory/inbound/${id}`);
 };
 
-// 确认入库
-const confirmInbound = async (inbound) => {
-  try {
-    await showConfirmDialog({
-      title: '确认入库',
-      message: `确定要确认入库单 ${inbound.inbound_no} 吗？`
-    });
-    
-    await inventoryApi.updateInboundStatus(inbound.id, 'confirmed');
-    showToast('入库单已确认');
-    inbound.status = 'confirmed';
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('确认入库失败:', error);
-      showToast('确认入库失败');
-    }
-  }
-};
+// 确认入库;
 
-// 完成入库
-const completeInbound = async (inbound) => {
-  try {
-    await showConfirmDialog({
-      title: '完成入库',
-      message: `确定要完成入库单 ${inbound.inbound_no} 吗？`
-    });
-    
-    await inventoryApi.updateInboundStatus(inbound.id, 'completed');
-    showToast('入库单已完成');
-    inbound.status = 'completed';
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('完成入库失败:', error);
-      showToast('完成入库失败');
-    }
-  }
-};
+// 完成入库;
 
 onMounted(() => {
   loadInboundList();

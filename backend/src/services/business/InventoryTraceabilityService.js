@@ -38,7 +38,6 @@ class InventoryTraceabilityService {
         receipt_date,
         items, // [{ material_id, material_code, material_name, quantity, unit, batch_number, unit_cost }]
         operator,
-        remarks,
       } = receiptData;
 
       const createdBatches = [];

@@ -29,7 +29,7 @@ function validateStatusTransition(currentStatus, newStatus) {
   }
 
   // 检查当前状态是否存在
-  if (!STATUS_TRANSITION_RULES.hasOwnProperty(currentStatus)) {
+  if (!Object.prototype.hasOwnProperty.call(STATUS_TRANSITION_RULES, currentStatus)) {
     return {
       valid: false,
       message: `无效的当前状态: ${currentStatus}`,
@@ -37,7 +37,7 @@ function validateStatusTransition(currentStatus, newStatus) {
   }
 
   // 检查新状态是否存在
-  if (!STATUS_TRANSITION_RULES.hasOwnProperty(newStatus)) {
+  if (!Object.prototype.hasOwnProperty.call(STATUS_TRANSITION_RULES, newStatus)) {
     return {
       valid: false,
       message: `无效的新状态: ${newStatus}`,
@@ -89,7 +89,7 @@ function getAllValidStatuses() {
  * @returns {boolean} 是否有效
  */
 function isValidStatus(status) {
-  return STATUS_TRANSITION_RULES.hasOwnProperty(status);
+  return Object.prototype.hasOwnProperty.call(STATUS_TRANSITION_RULES, status);
 }
 
 /**

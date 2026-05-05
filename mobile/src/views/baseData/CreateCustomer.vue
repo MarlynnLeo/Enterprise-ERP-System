@@ -27,8 +27,6 @@
             label="客户编码"
             placeholder="系统自动生成"
             readonly
-            right-icon="replay"
-            @click-right-icon="generateCode"
           />
           <Field
             v-model="form.name"
@@ -175,7 +173,7 @@
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted } from 'vue'
+  import { ref, reactive } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
   import { baseDataApi } from '@/services/api'
@@ -242,12 +240,6 @@
     showCreditPicker.value = false
   }
 
-  const generateCode = () => {
-    const d = new Date()
-    const s = `${d.getFullYear().toString().slice(-2)}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}`
-    form.code = `CUS${s}${Math.random().toString(36).substr(2,4).toUpperCase()}`
-  }
-
   const submitForm = async () => {
     try {
       await formRef.value?.validate()
@@ -279,8 +271,6 @@
       submitting.value = false
     }
   }
-
-  onMounted(() => generateCode())
 </script>
 
 <style lang="scss" scoped>

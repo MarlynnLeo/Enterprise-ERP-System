@@ -17,7 +17,6 @@
         <el-button v-permission="'inventory:report:export'" type="primary" @click="handleExport">导出报表</el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -42,7 +41,6 @@
             end-placeholder="结束日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-
           />
         </el-form-item>
         <el-form-item v-if="searchForm.reportType === 'period' || searchForm.reportType === 'ledger' || searchForm.reportType === 'turnover'">
@@ -58,7 +56,6 @@
             v-model="searchForm.materialName"
             placeholder="型号编码"
             clearable
-
             @input="handleSearchInput"
             @keyup.enter="handleSearch"
           />
@@ -93,7 +90,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 统计信息 -->
     <div class="statistics-row">
       <!-- 期间库存报表统计 -->
@@ -127,7 +123,6 @@
           <div class="stat-label">平均周转率</div>
         </el-card>
       </template>
-
       <!-- 收发结存明细统计 -->
       <template v-else-if="searchForm.reportType === 'ledger'">
         <el-card class="stat-card" shadow="hover">
@@ -151,7 +146,6 @@
           <div class="stat-label">发出总金额</div>
         </el-card>
       </template>
-
       <!-- 默认统计信息 -->
       <template v-else>
         <el-card class="stat-card" shadow="hover">
@@ -172,7 +166,6 @@
         </el-card>
       </template>
     </div>
-
     <!-- 汇总报表 -->
     <el-card class="data-card" v-if="searchForm.reportType === 'summary'">
       <div class="card-header-with-info">
@@ -226,7 +219,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 期间库存报表 -->
     <el-card class="data-card" v-if="searchForm.reportType === 'period'">
       <h3 class="card-title">
@@ -309,7 +301,6 @@
           </el-table-column>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination">
         <el-pagination
@@ -325,7 +316,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 收发结存明细 -->
     <el-card class="data-card" v-if="searchForm.reportType === 'ledger'">
       <h3 class="card-title">
@@ -392,7 +382,6 @@
         <el-table-column prop="locationName" label="库位" width="125" />
         <el-table-column prop="operator" label="操作员" width="125" />
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination">
         <el-pagination
@@ -408,7 +397,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 库存周转分析报表 -->
     <el-card class="data-card" v-if="searchForm.reportType === 'turnover'">
       <h3 class="card-title">
@@ -473,7 +461,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination">
         <el-pagination
@@ -489,7 +476,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 库龄分析报表 -->
     <el-card class="data-card" v-if="searchForm.reportType === 'aging'">
       <h3 class="card-title">
@@ -544,7 +530,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination">
         <el-pagination
@@ -560,7 +545,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 库存分布报表 -->
     <el-card class="data-card" v-if="searchForm.reportType === 'location'">
       <h3 class="card-title">
@@ -605,7 +589,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 库存价值报表 -->
     <el-card class="data-card" v-if="searchForm.reportType === 'value'">
       <h3 class="card-title">
@@ -659,7 +642,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 低库存预警报表 -->
     <el-card class="data-card" v-if="searchForm.reportType === 'warning'">
       <h3 class="card-title">
@@ -728,13 +710,11 @@
     </el-card>
   </div>
 </template>
-
 <script setup>
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency, formatNumber } from '@/utils/format'
 import { debounce } from '@/utils/commonHelpers'
-
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import ExcelJS from 'exceljs'
@@ -742,14 +722,12 @@ import { api as axios } from '@/services/api'
 // 页面数据
 const loading = ref(false)
 const reportData = ref([])
-
 // 分页数据
 const pagination = reactive({
   currentPage: 1,
   pageSize: 10,
   total: 0
 })
-
 // 统计信息
 const statistics = ref({
   totalItems: 0,
@@ -757,11 +735,9 @@ const statistics = ref({
   totalLocations: 0,
   lowStock: 0
 })
-
 // 基础数据
 const categoryOptions = ref([])
 const locationOptions = ref([])
-
 // 搜索表单
 const searchForm = ref({
   reportType: 'summary',
@@ -772,7 +748,6 @@ const searchForm = ref({
   endDate: '',
   dateRange: []
 })
-
 // 日期快捷按钮
 const setDateRange = (type) => {
   const now = dayjs()
@@ -801,7 +776,6 @@ const setDateRange = (type) => {
   }
   fetchReportData()
 }
-
 // 报表类型变更
 const handleReportTypeChange = () => {
   if (pagination) {
@@ -809,7 +783,6 @@ const handleReportTypeChange = () => {
   }
   fetchReportData()
 }
-
 // 搜索处理
 const handleSearch = () => {
   if (pagination) {
@@ -817,10 +790,8 @@ const handleSearch = () => {
   }
   fetchReportData()
 }
-
 // 防抖搜索
 const debouncedSearch = debounce(handleSearch, 500)
-
 // 搜索输入处理
 const handleSearchInput = (value) => {
   // 如果输入为空或长度大于等于2个字符时触发搜索
@@ -828,7 +799,6 @@ const handleSearchInput = (value) => {
     debouncedSearch()
   }
 }
-
 // 重置搜索
 const handleReset = () => {
   searchForm.value = {
@@ -843,37 +813,30 @@ const handleReset = () => {
   }
   fetchReportData()
 }
-
 // 获取报表数据
 const fetchReportData = async () => {
   try {
     loading.value = true
-
     // 安全检查：确保 pagination 对象存在
     if (!pagination) {
       console.error('分页对象未初始化')
       return
     }
-
     const params = {
       page: pagination.currentPage || 1,
       pageSize: pagination.pageSize || 10,
       reportType: searchForm.value.reportType
     }
-
     // 只添加非空的搜索参数
     if (searchForm.value.materialName && searchForm.value.materialName.trim()) {
       params.materialName = searchForm.value.materialName.trim()
     }
-
     if (searchForm.value.categoryId && searchForm.value.categoryId !== '') {
       params.categoryId = searchForm.value.categoryId
     }
-
     if (searchForm.value.locationId && searchForm.value.locationId !== '') {
       params.locationId = searchForm.value.locationId
     }
-
     // 如果是期间报表、明细报表或周转分析，添加日期参数
     if (['period', 'ledger', 'turnover'].includes(searchForm.value.reportType)) {
       if (searchForm.value.dateRange && searchForm.value.dateRange.length === 2) {
@@ -884,7 +847,6 @@ const fetchReportData = async () => {
         searchForm.value.endDate = params.endDate
       }
     }
-
     // 根据报表类型选择不同的API端点
     let apiUrl = '/inventory/report'
     if (searchForm.value.reportType === 'ledger') {
@@ -893,9 +855,7 @@ const fetchReportData = async () => {
       // 周转分析使用期间报表API，但reportType设为period
       params.reportType = 'period'
     }
-
     const response = await axios.get(apiUrl, { params })
-
     // 拦截器已解包，response.data 就是业务数据
     const responseData = response.data
     
@@ -929,16 +889,13 @@ const fetchReportData = async () => {
     
     // 处理报表数据
     reportData.value = responseData.items || []
-
     // 正确设置分页总数 - 确保转换为数字类型
     if (pagination) {
       pagination.total = Number(responseData.total) || 0
     }
-
   } catch (error) {
     console.error('获取报表数据失败:', error)
     ElMessage.error('获取报表数据失败')
-
     // 确保即使出错也有默认值
     reportData.value = []
     if (pagination) {
@@ -948,7 +905,6 @@ const fetchReportData = async () => {
     loading.value = false
   }
 }
-
 // 获取基础数据
 const fetchBaseData = async () => {
   try {
@@ -965,7 +921,6 @@ const fetchBaseData = async () => {
     console.error('获取基础数据失败:', error)
   }
 }
-
 // 导出报表
 const handleExport = async () => {
   try {
@@ -979,33 +934,27 @@ const handleExport = async () => {
       categoryId: searchForm.value.categoryId || '',
       locationId: searchForm.value.locationId || ''
     }
-
     if (['period', 'ledger', 'turnover'].includes(searchForm.value.reportType)) {
       if (searchForm.value.dateRange && searchForm.value.dateRange.length === 2) {
         params.startDate = searchForm.value.dateRange[0]
         params.endDate = searchForm.value.dateRange[1]
       }
     }
-
     let apiUrl = '/inventory/report'
     if (searchForm.value.reportType === 'ledger') {
       apiUrl = '/inventory/ledger'
     } else if (searchForm.value.reportType === 'turnover') {
       params.reportType = 'period'
     }
-
     const response = await axios.get(apiUrl, { params })
     const allData = response.data?.items || response.data?.data?.items || response.data || []
-
     if (!Array.isArray(allData) || allData.length === 0) {
       ElMessage.warning('暂无可导出的数据')
       return
     }
-
     const workbook = new ExcelJS.Workbook()
     const sheetName = getReportTypeText()
     const worksheet = workbook.addWorksheet(sheetName)
-
     // 通用的表头样式函数
     const applyHeaderStyle = (row) => {
       row.eachCell({ includeEmpty: true }, cell => {
@@ -1015,16 +964,13 @@ const handleExport = async () => {
         cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
       })
     }
-
     const applyDataStyle = (row) => {
       row.eachCell({ includeEmpty: true }, cell => {
         cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
         cell.alignment = { vertical: 'middle' }
       })
     }
-
     const reportType = searchForm.value.reportType
-
     if (reportType === 'summary') {
       worksheet.columns = [
         { header: '物料编码', key: 'materialCode', width: 15 },
@@ -1038,7 +984,6 @@ const handleExport = async () => {
         { header: '安全库存', key: 'safetyStock', width: 12 }
       ]
       applyHeaderStyle(worksheet.getRow(1))
-
       allData.forEach(item => {
         const row = worksheet.addRow({
           materialCode: item.materialCode,
@@ -1060,7 +1005,7 @@ const handleExport = async () => {
     } else if (reportType === 'period' || reportType === 'turnover') {
       const isTurnover = reportType === 'turnover'
       
-      let baseRows = []
+      const _baseRows = []
       if (!isTurnover) {
         worksheet.mergeCells('A1:A2'); worksheet.getCell('A1').value = '物料编码'
         worksheet.mergeCells('B1:B2'); worksheet.getCell('B1').value = '物料名称'
@@ -1091,7 +1036,6 @@ const handleExport = async () => {
         
         applyHeaderStyle(worksheet.getRow(1))
         applyHeaderStyle(worksheet.getRow(2))
-
         allData.forEach(item => {
           const row = worksheet.addRow([
             item.materialCode, item.materialName, item.specification, item.categoryName, item.unitName,
@@ -1121,7 +1065,6 @@ const handleExport = async () => {
           { header: '建议', key: 'c12', width: 25 }
         ]
         applyHeaderStyle(worksheet.getRow(1))
-
         allData.forEach(item => {
           const row = worksheet.addRow([
             item.materialCode, item.materialName, item.specification, item.categoryName, item.unitName,
@@ -1159,7 +1102,6 @@ const handleExport = async () => {
       
       applyHeaderStyle(worksheet.getRow(1))
       applyHeaderStyle(worksheet.getRow(2))
-
       allData.forEach(item => {
         const row = worksheet.addRow([
           formatDate(item.date), item.materialCode, item.materialName,
@@ -1188,7 +1130,6 @@ const handleExport = async () => {
         { header: '状态', key: 'c11', width: 10 }
       ]
       applyHeaderStyle(worksheet.getRow(1))
-
       allData.forEach(item => {
         const row = worksheet.addRow([
           item.materialCode, item.materialName, item.specification, item.categoryName,
@@ -1212,7 +1153,6 @@ const handleExport = async () => {
         { header: '最后移动日期', key: 'c8', width: 20 }
       ]
       applyHeaderStyle(worksheet.getRow(1))
-
       allData.forEach(item => {
         const row = worksheet.addRow([
           item.materialCode, item.materialName, item.specification, item.locationName,
@@ -1231,7 +1171,6 @@ const handleExport = async () => {
         { header: '平均单价', key: 'c6', width: 30 }
       ]
       applyHeaderStyle(worksheet.getRow(1))
-
       allData.forEach(item => {
         const row = worksheet.addRow([
           item.categoryName, item.materialCount, item.totalQuantity || 0,
@@ -1256,7 +1195,6 @@ const handleExport = async () => {
         { header: '最后采购日期', key: 'c10', width: 15 }
       ]
       applyHeaderStyle(worksheet.getRow(1))
-
       allData.forEach(item => {
         const row = worksheet.addRow([
           item.materialCode, item.materialName, item.specification,
@@ -1267,7 +1205,6 @@ const handleExport = async () => {
         ;[4, 5, 6, 9].forEach(i => row.getCell(i).numFmt = '#,##0.00')
       })
     }
-
     // 写入文件并下载
     const buffer = await workbook.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
@@ -1279,14 +1216,12 @@ const handleExport = async () => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-
     ElMessage.success('导出成功')
   } catch (error) {
     console.error('导出报表失败:', error)
     ElMessage.error('导出报表加载失败，请重试或缩小时间范围')
   }
 }
-
 // 获取报表类型文本
 const getReportTypeText = () => {
   const typeMap = {
@@ -1300,22 +1235,17 @@ const getReportTypeText = () => {
   }
   return typeMap[searchForm.value.reportType] || '报表'
 }
-
 // 格式化数字
 // formatNumber 已统一引用公共实现
-
 // 格式化货币
 // formatCurrency 已统一引用公共实现
-
 // 格式化百分比
 const formatPercent = (number) => {
   if (number === undefined || number === null) return '-'
   return `${Number(number).toFixed(2)}%`
 }
-
 // 格式化日期
 // formatDate 已统一引用公共实现
-
 // 预警等级类型
 const getWarningLevelType = (row) => {
   const ratio = row.quantity / row.safetyStock
@@ -1323,7 +1253,6 @@ const getWarningLevelType = (row) => {
   if (ratio <= 0.7) return 'warning'
   return 'info'
 }
-
 // 预警等级文本
 const getWarningLevelText = (row) => {
   const ratio = row.quantity / row.safetyStock
@@ -1331,7 +1260,6 @@ const getWarningLevelText = (row) => {
   if (ratio <= 0.7) return '警告'
   return '关注'
 }
-
 // 库龄天数样式类
 const getAgingDaysClass = (days) => {
   if (days <= 30) return 'aging-normal'
@@ -1340,7 +1268,6 @@ const getAgingDaysClass = (days) => {
   if (days <= 180) return 'aging-warning'
   return 'aging-danger'
 }
-
 // 库龄分段类型
 const getAgingLevelType = (days) => {
   if (days <= 30) return 'success'
@@ -1349,7 +1276,6 @@ const getAgingLevelType = (days) => {
   if (days <= 180) return 'warning'
   return 'danger'
 }
-
 // 库龄分段文本
 const getAgingLevelText = (days) => {
   if (days <= 30) return '0-30天'
@@ -1358,7 +1284,6 @@ const getAgingLevelText = (days) => {
   if (days <= 180) return '91-180天'
   return '180天以上'
 }
-
 // 库龄状态类型
 const getAgingStatusType = (days) => {
   if (days <= 60) return 'success'
@@ -1366,7 +1291,6 @@ const getAgingStatusType = (days) => {
   if (days <= 180) return 'warning'
   return 'danger'
 }
-
 // 库龄状态文本
 const getAgingStatusText = (days) => {
   if (days <= 60) return '正常'
@@ -1374,9 +1298,7 @@ const getAgingStatusText = (days) => {
   if (days <= 180) return '预警'
   return '呆滞'
 }
-
 // Removed unused exportReport
-
 // 分页处理
 const handleSizeChange = (val) => {
   if (pagination) {
@@ -1384,14 +1306,12 @@ const handleSizeChange = (val) => {
     fetchReportData()
   }
 }
-
 const handleCurrentChange = (val) => {
   if (pagination) {
     pagination.currentPage = val
     fetchReportData()
   }
 }
-
 // 期间报表汇总计算
 const getPeriodSummary = (param) => {
   const { columns, data } = param
@@ -1401,7 +1321,6 @@ const getPeriodSummary = (param) => {
       sums[index] = '合计'
       return
     }
-
     const values = data.map(item => Number(item[column.property]))
     if (!values.every(value => isNaN(value))) {
       const sum = values.reduce((prev, curr) => {
@@ -1412,7 +1331,6 @@ const getPeriodSummary = (param) => {
           return prev
         }
       }, 0)
-
       // 根据列类型格式化显示
       if (column.property.includes('Value')) {
         sums[index] = formatCurrency(sum)
@@ -1429,16 +1347,13 @@ const getPeriodSummary = (param) => {
       sums[index] = '-'
     }
   })
-
   return sums
 }
-
 import { getInventoryTransactionTypeText } from '@/constants/systemConstants'
 // 交易类型中文转换
 const getTransactionTypeText = (type) => {
   return getInventoryTransactionTypeText(type)
 }
-
 // 库存周转分析相关函数
 const getTurnoverRateClass = (rate) => {
   if (rate >= 6) return 'excellent-rate'
@@ -1446,28 +1361,24 @@ const getTurnoverRateClass = (rate) => {
   if (rate >= 2) return 'normal-rate'
   return 'poor-rate'
 }
-
 const getTurnoverDaysClass = (days) => {
   if (days <= 60) return 'excellent-days'
   if (days <= 90) return 'good-days'
   if (days <= 180) return 'normal-days'
   return 'poor-days'
 }
-
 const getTurnoverGrade = (rate) => {
   if (rate >= 6) return '优秀'
   if (rate >= 4) return '良好'
   if (rate >= 2) return '一般'
   return '较差'
 }
-
 const getTurnoverGradeType = (rate) => {
   if (rate >= 6) return 'success'
   if (rate >= 4) return 'info'
   if (rate >= 2) return 'warning'
   return 'danger'
 }
-
 const getTurnoverSuggestion = (rate, days) => {
   if (rate >= 6) return '保持现状'
   if (rate >= 4) return '适当优化'
@@ -1475,7 +1386,6 @@ const getTurnoverSuggestion = (rate, days) => {
   if (days > 365) return '考虑清理'
   return '重点关注'
 }
-
 // 初始化
 onMounted(() => {
   // 确保分页参数有默认值
@@ -1484,7 +1394,6 @@ onMounted(() => {
     pagination.pageSize = 10
     pagination.total = 0
   }
-
   // 设置默认日期为当月
   const now = new Date()
   const year = now.getFullYear()
@@ -1492,52 +1401,42 @@ onMounted(() => {
   const firstDay = `${year}-${month}-01`
   const lastDay = new Date(year, now.getMonth() + 1, 0).getDate()
   const lastDayStr = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
-
   searchForm.value.startDate = firstDay
   searchForm.value.endDate = lastDayStr
-
   fetchBaseData()
   fetchReportData()
 })
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
 /* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
-
 .period-info {
   font-size: 14px;
   color: var(--color-text-regular);
   font-weight: normal;
   margin-left: 10px;
 }
-
 .card-title {
   margin-top: 0;
   margin-bottom: 15px;
@@ -1548,7 +1447,6 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
 }
-
 .card-header-with-info {
   display: flex;
   justify-content: space-between;
@@ -1557,167 +1455,133 @@ onMounted(() => {
   padding-bottom: 15px;
   border-bottom: 1px solid var(--color-border-light);
 }
-
 .card-header-with-info .card-title {
   margin: 0;
 }
-
 .data-info {
   display: flex;
   align-items: center;
 }
-
 .value-percent {
   display: flex;
   flex-direction: column;
 }
-
 .danger-text {
   color: var(--color-danger);
 }
-
 /* 周转分析样式 */
 .excellent-rate, .excellent-days {
   color: var(--color-success);
   font-weight: bold;
 }
-
 /* 库龄分析样式 */
 .aging-normal {
   color: var(--color-success);
 }
-
 .aging-warning {
   color: var(--color-warning);
   font-weight: bold;
 }
-
 .aging-danger {
   color: var(--color-danger);
   font-weight: bold;
 }
-
 .good-rate, .good-days {
   color: var(--color-primary);
   font-weight: bold;
 }
-
 .normal-rate, .normal-days {
   color: var(--color-warning);
   font-weight: bold;
 }
-
 .poor-rate, .poor-days {
   color: var(--color-danger);
   font-weight: bold;
 }
-
 .suggestion-text {
   font-size: 12px;
   color: var(--color-text-regular);
 }
-
 /* 响应式设计 */
 @media (max-width: 1200px) {
   .statistics-row {
     gap: 10px;
   }
-
   .stat-card {
     min-width: 120px;
   }
-
   .search-form .el-form-item {
     margin-bottom: 10px;
   }
 }
-
 @media (max-width: 992px) {
   .inventory-report-container {
     padding: 15px;
   }
-
   .page-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 15px;
   }
-
   .header-actions {
     width: 100%;
     justify-content: flex-start;
   }
-
   .statistics-row {
     flex-direction: column;
     gap: 10px;
   }
-
   .stat-card {
     min-width: 100%;
     margin-right: 0;
   }
-
   .search-form {
     flex-direction: column;
   }
-
   .search-form .el-form-item {
     width: 100%;
     margin-bottom: 15px;
   }
-
   .search-form .el-form-item .el-select,
   .search-form .el-form-item .el-input,
   .search-form .el-form-item .el-date-picker {
     width: 100% !important;
   }
-
   .pagination-container {
     justify-content: center;
   }
-
   .pagination-container .el-pagination {
     flex-wrap: wrap;
     justify-content: center;
   }
 }
-
 @media (max-width: 768px) {
   .inventory-report-container {
     padding: 10px;
   }
-
   .page-header h2 {
     font-size: 1.2rem;
   }
-
   .statistics-row {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
-
   .stat-card {
     min-width: auto;
   }
-
   .stat-value {
     font-size: 1.4rem;
   }
-
   .stat-label {
     font-size: 0.8rem;
   }
-
   .data-card .el-table {
     font-size: 12px;
   }
-
   .card-title {
     font-size: 14px;
   }
-
   .period-info {
     font-size: 12px;
     display: block;
@@ -1725,57 +1589,45 @@ onMounted(() => {
     margin-top: 5px;
   }
 }
-
 @media (max-width: 576px) {
   .inventory-report-container {
     padding: 8px;
   }
-
   .statistics-row {
     grid-template-columns: 1fr;
   }
-
   .stat-card {
     padding: 10px;
   }
-
   .stat-value {
     font-size: 1.2rem;
   }
-
   .search-card .el-card__body {
     padding: 15px;
   }
-
   .data-card .el-card__body {
     padding: 15px;
   }
-
   .pagination-container .el-pagination {
     font-size: 12px;
   }
-
   .pagination-container .el-pagination .el-pager li {
     min-width: 28px;
     height: 28px;
     line-height: 28px;
   }
-
   /* 表格响应式优化 */
   .data-card .el-table .el-table__header-wrapper,
   .data-card .el-table .el-table__body-wrapper {
     overflow-x: auto;
   }
-
   .data-card .el-table .cell {
     padding: 4px 6px;
     font-size: 11px;
   }
-
   .data-card .el-table th {
     padding: 8px 0;
   }
-
   .data-card .el-table td {
     padding: 6px 0;
   }

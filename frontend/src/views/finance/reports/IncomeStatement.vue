@@ -254,7 +254,7 @@ const exportExcel = async () => {
 
 // 准备Excel数据
 const prepareExcelData = (data) => {
-  let headerRow = { A: '项目', B: '行次', C: formatDateRange(queryParams.startDate, queryParams.endDate) };
+  const headerRow = { A: '项目', B: '行次', C: formatDateRange(queryParams.startDate, queryParams.endDate) };
   
   if (queryParams.enableCompare) {
     headerRow.D = formatDateRange(queryParams.compareStartDate, queryParams.compareEndDate);
@@ -265,7 +265,7 @@ const prepareExcelData = (data) => {
   const rows = [headerRow];
   
   data.forEach(item => {
-    let row = {
+    const row = {
       A: item.name,
       B: item.rowNum,
       C: formatAmount(item.amount)
@@ -283,7 +283,7 @@ const prepareExcelData = (data) => {
     // 处理子项
     if (item.children && item.children.length) {
       item.children.forEach(child => {
-        let childRow = {
+        const childRow = {
           A: '  ' + child.name,  // 增加缩进
           B: child.rowNum,
           C: formatAmount(child.amount)

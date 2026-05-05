@@ -8,6 +8,7 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
+const crypto = require('crypto');
 
 const processTemplateService = {
     /**
@@ -111,7 +112,7 @@ const processTemplateService = {
 
             const { name, code, description, product_id, details = [] } = data;
             const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-            const templateCode = code || `TPL-${dateStr}-${String(Math.floor(Math.random() * 900) + 100)}`;
+            const templateCode = code || `TPL-${dateStr}-${String(crypto.randomInt(100, 1000))}`;
 
             const [result] = await connection.query(
                 'INSERT INTO process_templates (code, name, description, product_id, status) VALUES (?, ?, ?, ?, 1)',

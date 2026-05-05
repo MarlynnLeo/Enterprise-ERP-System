@@ -215,7 +215,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <!-- 第四行：付款期限 + 发票状态 -->
         <el-row :gutter="20">
           <el-col :span="12">
@@ -485,7 +484,6 @@
             </template>
           </el-table-column>
         </el-table>
-
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -498,42 +496,35 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig';
 import { formatCurrency } from '@/utils/format'
-
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus'
 import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
 import api from '@/services/api';
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
-import request from '@/utils/request' // Import request utility
-
+import '@/utils/request' // Import request utility
+import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 const financeStore = useFinanceStore()
 const { vatRateOptions, defaultVATRate, paymentTermOptions, defaultPaymentTermDays, pagination } = storeToRefs(financeStore)
-
 // 高级搜索展开状态
 const showAdvancedSearch = ref(false);
-
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
 const savePaymentLoading = ref(false);
 const detailsLoading = ref(false);
 const bankAccountsLoading = ref(false);
-
 // 分页相关
 const total = ref(0);
 const pageSize = ref(10);
 const currentPage = ref(1);
-
 const loadingMaterials = ref(false);
 let searchTimeout = null;
 let currentSearchId = 0;
-
 // 表单相关
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增采购发票');
@@ -541,14 +532,12 @@ const invoiceFormRef = ref(null);
 const paymentDialogVisible = ref(false);
 const paymentFormRef = ref(null);
 const detailsDialogVisible = ref(false);
-
 // 数据列表
 const invoiceList = ref([]);
 const supplierOptions = ref([]);
 const materialOptions = ref([]);
 const bankAccounts = ref([]);
 const invoiceDetail = ref({});
-
 // 搜索表单
 const searchForm = reactive({
   invoiceNumber: '',
@@ -557,7 +546,6 @@ const searchForm = reactive({
   dateRange: [],
   status: ''
 });
-
 // 发票表单
 const invoiceForm = reactive({
   id: null,
@@ -571,10 +559,8 @@ const invoiceForm = reactive({
   taxRate: defaultVATRate.value, // 使用动态配置的默认税率
   status: 'draft' // 默认状态为草稿
 });
-
 // 付款期限
 const paymentTerms = ref(defaultPaymentTermDays.value || 30); // 默认付款期限
-
 // 付款表单
 const paymentForm = reactive({
   invoiceId: null,
@@ -590,7 +576,6 @@ const paymentForm = reactive({
   bankAccountId: null,
   notes: ''
 });
-
 // 表单验证规则
 const invoiceRules = {
   invoiceNumber: [
@@ -609,7 +594,6 @@ const invoiceRules = {
     { required: true, message: '请选择到期日期', trigger: 'change' }
   ]
 };
-
 const paymentRules = {
   paymentDate: [
     { required: true, message: '请选择付款日期', trigger: 'change' }
@@ -635,7 +619,6 @@ const paymentRules = {
     }
   ]
 };
-
 // 获取状态类型
 const getStatusType = (invoice) => {
   const statusMap = {
@@ -648,13 +631,11 @@ const getStatusType = (invoice) => {
   };
   return statusMap[invoice.status] || 'info';
 };
-
 // 获取状态文本
 const getStatusText = (invoice) => {
   // 直接使用数据库状态字段
   return invoice.status || '草稿';
 };
-
 // 处理物料选择变化
 const handleMaterialChange = (item) => {
   // 根据选择的物料自动填充描述和单价
@@ -665,30 +646,25 @@ const handleMaterialChange = (item) => {
     calculateItemAmount(item);
   }
 };
-
 // 计算单项金额（整数化精度控制，避免浮点误差）
 const calculateItemAmount = (item) => {
   const quantity = parseFloat(item.quantity) || 0;
   const unitPrice = parseFloat(item.unitPrice) || 0;
   item.amount = Math.round(quantity * unitPrice * 100) / 100;
 };
-
 // 计算小计（整数化累加，避免多行累计误差放大）
 const calculateSubtotal = () => {
   const totalCents = invoiceForm.items.reduce((sum, item) => sum + Math.round((item.amount || 0) * 100), 0);
   return totalCents / 100;
 };
-
 // 计算税额
 const calculateTax = () => {
   return Math.round(calculateSubtotal() * invoiceForm.taxRate * 100) / 100;
 };
-
 // 计算总计
 const calculateTotal = () => {
   return Math.round((calculateSubtotal() + calculateTax()) * 100) / 100;
 };
-
 // 处理开票日期变化
 const handleInvoiceDateChange = (date) => {
   if (date && paymentTerms.value) {
@@ -698,7 +674,6 @@ const handleInvoiceDateChange = (date) => {
     invoiceForm.dueDate = dueDate.toISOString().slice(0, 10);
   }
 };
-
 // 处理付款期限变化
 const handlePaymentTermsChange = (days) => {
   if (invoiceForm.invoiceDate && days !== null) {
@@ -708,20 +683,7 @@ const handlePaymentTermsChange = (days) => {
     invoiceForm.dueDate = dueDate.toISOString().slice(0, 10);
   }
 };
-
-// 自动生成发票编号
-const generateInvoiceNumber = async () => {
-  try {
-    const response = await api.get('/finance/ap/invoices/generate-number');
-    // 拦截器已解包，response.data 就是业务数据
-    invoiceForm.invoiceNumber = response.data.invoiceNumber;
-    ElMessage.success('发票编号生成成功');
-  } catch (error) {
-    console.error('生成发票编号失败:', error);
-    ElMessage.error('生成发票编号失败');
-  }
-};
-
+// 自动生成发票编号;
 // 添加发票明细项
 const addInvoiceItem = () => {
   invoiceForm.items.push({
@@ -732,12 +694,10 @@ const addInvoiceItem = () => {
     amount: 0
   });
 };
-
 // 移除发票明细项
 const removeInvoiceItem = (index) => {
   invoiceForm.items.splice(index, 1);
 };
-
 // 加载发票列表
 const loadInvoices = async () => {
   loading.value = true;
@@ -756,7 +716,7 @@ const loadInvoices = async () => {
     const { list, total: totalCount } = parsePaginatedData(response);
     invoiceList.value = list;
     total.value = totalCount;
-  } catch (error) {
+  } catch {
     ElMessage.error('加载发票列表失败');
     
     // 出错时使用空数据
@@ -766,39 +726,29 @@ const loadInvoices = async () => {
     loading.value = false;
   }
 };
-
 // 加载供应商选项
 const loadSupplierOptions = async () => {
   try {
     const response = await api.get('/baseData/suppliers', { params: { pageSize: 1000 } });
     const suppliers = parseListData(response, { enableLog: false });
-
     if (suppliers.length > 0) {
       supplierOptions.value = suppliers.map(supplier => ({
         id: parseInt(supplier.id),
         name: supplier.name || supplier.supplierName || supplier.supplier_name || '未命名供应商'
       }));
     } else {
-      supplierOptions.value = [
-        { id: 1, name: '供应商A' },
-        { id: 2, name: '供应商B' },
-        { id: 3, name: '供应商C' }
-      ];
+      supplierOptions.value = [];
     }
   } catch (error) {
-    supplierOptions.value = [
-      { id: 1, name: '供应商A' },
-      { id: 2, name: '供应商B' },
-      { id: 3, name: '供应商C' }
-    ];
+    console.error('加载供应商选项失败:', error);
+    ElMessage.error('加载供应商选项失败');
+    supplierOptions.value = [];
   }
 };
-
 // 加载物料选项 (只加载初始展示的选项)
 const loadMaterialOptions = async () => {
   debouncedSearchMaterials('');
 };
-
 // 异步搜索物料
 const debouncedSearchMaterials = (query) => {
   if (searchTimeout) {
@@ -829,13 +779,11 @@ const debouncedSearchMaterials = (query) => {
     }
   }, SEARCH_CONFIG.debounceTime);
 };
-
 // 加载银行账户选项
 const loadBankAccounts = async () => {
   bankAccountsLoading.value = true;
   try {
     const response = await api.get('/finance/baseData/bankAccounts');
-
     // 使用统一解析器
     if (response.data) {
       const data = parseListData(response, { enableLog: false });
@@ -849,19 +797,17 @@ const loadBankAccounts = async () => {
     } else {
       bankAccounts.value = [];
     }
-  } catch (error) {
+  } catch {
     bankAccounts.value = [];
   } finally {
     bankAccountsLoading.value = false;
   }
 };
-
 // 搜索发票
 const searchInvoices = () => {
   currentPage.value = 1;
   loadInvoices();
 };
-
 // 重置搜索条件
 const resetSearch = () => {
   searchForm.invoiceNumber = '';
@@ -870,7 +816,6 @@ const resetSearch = () => {
   searchForm.status = '';
   searchInvoices();
 };
-
 // 新增发票
 const showAddDialog = () => {
   dialogTitle.value = '新增采购发票';
@@ -879,7 +824,6 @@ const showAddDialog = () => {
   addInvoiceItem();
   dialogVisible.value = true;
 };
-
 // 编辑发票
 const handleEdit = async (row) => {
   dialogTitle.value = '编辑采购发票';
@@ -924,11 +868,10 @@ const handleEdit = async (row) => {
     }
     
     dialogVisible.value = true;
-  } catch (error) {
+  } catch {
     ElMessage.error('获取发票详情失败');
   }
 };
-
 // 查看明细
 const handleViewDetails = async (row) => {
   detailsLoading.value = true;
@@ -936,26 +879,22 @@ const handleViewDetails = async (row) => {
     const response = await api.get(`/finance/ap/invoices/${row.id}`);
     // 拦截器已解包，response.data 就是业务数据
     const invoice = response.data;
-
     invoiceDetail.value = invoice;
-
     // 加载相关付款记录
     try {
       const paymentsResponse = await api.get(`/finance/ap/invoices/${row.id}/payments`);
       // 拦截器已解包，response.data 可能是 {data: [...]} 格式，也可能是直接的数组
       invoiceDetail.value.paymentRecords = paymentsResponse.data || paymentsResponse.list || (Array.isArray(paymentsResponse) ? paymentsResponse : []);
-    } catch (error) {
+    } catch {
       invoiceDetail.value.paymentRecords = [];
     }
-
     detailsDialogVisible.value = true;
-  } catch (error) {
+  } catch {
     ElMessage.error('获取发票详情失败');
   } finally {
     detailsLoading.value = false;
   }
 };
-
 // 打印发票详情 - 使用打印模板系统
 const printInvoiceDetail = async () => {
   try {
@@ -1032,8 +971,7 @@ const printInvoiceDetail = async () => {
     
     // 创建打印窗口
     const printWindow = window.open('', '_blank');
-    printWindow.document.write(templateContent);
-    printWindow.document.close();
+    writeSafeHtmlDocument(printWindow, templateContent);
     
     // 等待样式加载完成后打印
     printWindow.onload = function() {
@@ -1044,7 +982,6 @@ const printInvoiceDetail = async () => {
     ElMessage.error('打印失败');
   }
 };
-
 // 记录付款
 const handleRecordPayment = (row) => {
   // 直接使用服务端已计算的余额字段，避免前端浮点减法与DB值不一致
@@ -1069,7 +1006,6 @@ const handleRecordPayment = (row) => {
   
   paymentDialogVisible.value = true;
 };
-
 // 保存发票
 const saveInvoice = async () => {
   if (!invoiceFormRef.value) return;
@@ -1098,14 +1034,13 @@ const saveInvoice = async () => {
           amount: calculateTotal() // 设置总金额
         };
         
-        let response;
         if (invoiceForm.id) {
           // 更新
-          response = await api.put(`/finance/ap/invoices/${invoiceForm.id}`, data);
+          await api.put(`/finance/ap/invoices/${invoiceForm.id}`, data);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          response = await api.post('/finance/ap/invoices', data);
+          await api.post('/finance/ap/invoices', data);
           ElMessage.success('添加成功');
         }
         
@@ -1119,12 +1054,11 @@ const saveInvoice = async () => {
     }
   });
 };
-
 // 保存付款记录
 const savePayment = async () => {
   if (!paymentFormRef.value) return;
   
-  // 如果选择了银行转账但没有选择银行账户，添加临时验证规则
+  // 银行转账必须关联银行账户
   if (paymentForm.paymentMethod === 'bank_transfer' && !paymentForm.bankAccountId) {
     ElMessage.warning('请选择银行账户');
     return;
@@ -1171,7 +1105,6 @@ const savePayment = async () => {
     }
   });
 };
-
 // 重置发票表单
 const resetInvoiceForm = () => {
   invoiceForm.id = null;
@@ -1184,27 +1117,22 @@ const resetInvoiceForm = () => {
   invoiceForm.taxRate = defaultVATRate.value;
   invoiceForm.status = 'draft';
   paymentTerms.value = defaultPaymentTermDays.value || 30;
-
   // 自动计算到期日期
   handlePaymentTermsChange(paymentTerms.value);
-
   // 清除校验
   if (invoiceFormRef.value) {
     invoiceFormRef.value.resetFields();
   }
 };
-
 // 分页相关方法
 const handleSizeChange = (size) => {
   pageSize.value = size;
   loadInvoices();
 };
-
 const handleCurrentChange = (page) => {
   currentPage.value = page;
   loadInvoices();
 };
-
 // 页面加载时执行
 onMounted(() => {
   loadInvoices();
@@ -1214,71 +1142,58 @@ onMounted(() => {
   financeStore.loadSettings(); // 加载税率配置
 });
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .invoice-items {
   margin-bottom: var(--spacing-lg);
 }
-
 .invoice-items h3 {
   margin-bottom: 10px;
 }
-
 .details-table-container {
   min-width: 650px;
 }
-
 .add-item {
   margin-top: 10px;
   display: flex;
   justify-content: center;
 }
-
 .invoice-total {
   margin: 20px 0;
 }
-
 .total-line {
   display: flex;
   justify-content: space-between;
   margin-bottom: 5px;
   padding: 5px 20px;
 }
-
 .total-amount {
   font-weight: bold;
   font-size: 16px;
   border-top: 1px solid var(--color-border-lighter);
   padding-top: 10px;
 }
-
 .detail-title {
   margin-top: var(--spacing-lg);
   margin-bottom: 10px;
 }
-
 .detail-title h3 {
   font-size: 16px;
   font-weight: bold;
@@ -1286,7 +1201,6 @@ onMounted(() => {
   position: relative;
   padding-left: 12px;
 }
-
 .detail-title h3:before {
   content: '';
   position: absolute;
@@ -1298,47 +1212,38 @@ onMounted(() => {
   background-color: var(--color-primary);
   border-radius: 2px;
 }
-
 :deep(.el-descriptions) {
   margin-bottom: var(--spacing-lg);
 }
-
 :deep(.el-descriptions__label) {
   font-weight: bold;
 }
-
 .empty-data {
   text-align: center;
   padding: 30px 0;
   color: var(--color-text-secondary);
 }
-
 /* 发票明细表格样式 */
 .invoice-items .details-table-container {
   width: 100%;
   overflow-x: auto;
 }
-
 .invoice-items .el-table {
   min-width: 550px;
 }
-
 /* 对话框自适应高度 */
 :deep(.el-dialog__body) {
   max-height: 70vh;
   overflow-y: auto;
   padding: 20px 24px;
 }
-
 /* 移除操作列右侧空白 */
 .invoice-items :deep(.el-table__body-wrapper .el-table__cell:last-child) {
   padding-right: 8px;
 }
-
 .invoice-items :deep(.el-table__header-wrapper .el-table__cell:last-child) {
   padding-right: 8px;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1346,7 +1251,6 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

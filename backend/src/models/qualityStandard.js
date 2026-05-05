@@ -222,7 +222,7 @@ class QualityStandard {
    * @returns {Promise<Array>} 目标选项
    */
   static async getTargetOptions(targetType) {
-    let query = '';
+    let query;
 
     switch (targetType) {
       case 'material':

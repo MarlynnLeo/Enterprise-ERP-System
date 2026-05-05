@@ -1,6 +1,6 @@
 /**
  * SSOT 全局配置中心 (Single Source of Truth)
- * 
+ *
  * 初始化阶段全量合并，深度冻结。业务层直接读取，严禁修改与兜底拦截处理。
  */
 const db = require('./db');
@@ -27,7 +27,8 @@ class GlobalConfigManager {
       );
       if (accSettings.length > 0 && accSettings[0].value) {
         try {
-          const cleanValue = accSettings[0].value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+          // eslint-disable-next-line no-control-regex -- intentionally strips unsafe control characters from persisted JSON.
+          const cleanValue = accSettings[0].value.replace(new RegExp('[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]', 'g'), '');
           const dbConfig = JSON.parse(cleanValue);
           accountCodes = { ...accountCodes, ...dbConfig };
         } catch (e) {
@@ -36,21 +37,19 @@ class GlobalConfigManager {
       }
 
       // 2. 读取成本相关的配置 (费率方法等)
-      let costSettings;
-      
       const [cstSettings] = await db.pool.execute(
         `SELECT labor_rate, overhead_rate, costing_method, wage_payment_method, piece_rate,
                 fallback_material_ratio, fallback_labor_ratio, fallback_overhead_ratio
          FROM cost_settings WHERE is_active = 1 LIMIT 1`
       );
-      
+
       if (cstSettings.length === 0) {
          logger.error('❌ 致命错误：系统未提取到有效的成本基础配置 (cost_settings)，拒绝启动以避免核算裸奔。');
          throw new Error('Missing Cost Settings in SSOT Initialization');
       }
-      
+
       const row = cstSettings[0];
-      costSettings = {
+      const costSettings = {
         laborRate: Number(row.labor_rate),
         overheadRate: Number(row.overhead_rate),
         costingMethod: row.costing_method,

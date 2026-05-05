@@ -11,26 +11,24 @@ const { CodeGenerators } = require('../../../utils/codeGenerator');
 
 const db = require('../../../config/db');
 const { softDelete, softDeleteBatch } = require('../../../utils/softDelete');
-const { qualityApi } = require('../../../services/business/QualityService');
+
 const InventoryService = require('../../../services/InventoryService');
 const AsyncTaskService = require('../../../services/business/AsyncTaskService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
-// ✅ 审计修复: 导入 checkAndUpdateTaskStatus 和 _syncProductionStatus
-const { checkAndUpdateTaskStatus, _syncProductionStatus } = require('./inventoryConsistencyController');
+// 导入生产发料状态同步和智能出库能力
+const { checkAndUpdateTaskStatus, _syncProductionStatus, smartOutboundStock } = require('./inventoryConsistencyController');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
-// ✅ 审计修复(D-1): 移除冗余别名 SIMPLE_STOCK_SUBQUERY，全部统一使用 STOCK_SUBQUERY
 
 
 // 引入成本凭证服务（用于生成领料凭证）
-const CostAccountingService = require('../../../services/business/CostAccountingService');
 
 
 // 引入状态映射工具和状态常量
-const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
+
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
   INBOUND: businessConfig.status.inbound,
@@ -44,6 +42,7 @@ const STATUS = {
 const OUTBOUND_STATUS_TEXT = {
   draft: '草稿',
   confirmed: '已确认',
+  partial_completed: '部分完成',
   completed: '已完成',
   cancelled: '已取消',
 };
@@ -54,7 +53,7 @@ const getStatusText = (status) => OUTBOUND_STATUS_TEXT[status] || status || '未
  * @param {object} connection - 数据库连接
  * @param {number} materialId - 物料ID
  * @param {number} locationId - 库位ID（可选）
- * @param {string} defaultBatchNo - 默认批次号（如果查询失败）
+ * @param {string} fallbackBatchNo - 调用方显式传入的候选批次号
  * @returns {Promise<string>} 批次号
  */
 
@@ -164,8 +163,7 @@ const getOutboundList = async (req, res) => {
       LIMIT ? OFFSET ?
     `;
 
-    // ✅ 审计修复(S-5): LIMIT/OFFSET 使用参数化查询防止SQL注入
-    // ✅ 修复: 先保存过滤参数，count 查询不应包含 LIMIT/OFFSET 参数
+    // LIMIT/OFFSET 使用参数化查询；count 查询不包含分页参数
     const filterParams = [...params];
     params.push(parseInt(limit, 10), offset);
     const [outbounds] = await db.pool.query(listQuery, params);
@@ -184,6 +182,39 @@ const getOutboundList = async (req, res) => {
     const [countResult] = await db.pool.query(countQuery, filterParams);
     const total = countResult[0].total;
 
+    const statsQuery = `
+      SELECT o.status, COUNT(DISTINCT o.id) as count
+      FROM inventory_outbound o
+      LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
+      LEFT JOIN materials m ON oi.material_id = m.id
+      LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
+      LEFT JOIN materials p ON pt.product_id = p.id
+      ${whereClause}
+      GROUP BY o.status
+    `;
+    const [statsRows] = await db.pool.query(statsQuery, filterParams);
+    const statistics = {
+      total,
+      draftCount: 0,
+      confirmedCount: 0,
+      partialCompletedCount: 0,
+      completedCount: 0,
+      cancelledCount: 0,
+    };
+    const statusStatsMap = {
+      draft: 'draftCount',
+      confirmed: 'confirmedCount',
+      partial_completed: 'partialCompletedCount',
+      completed: 'completedCount',
+      cancelled: 'cancelledCount',
+    };
+    for (const row of statsRows) {
+      const key = statusStatsMap[row.status];
+      if (key) {
+        statistics[key] = Number(row.count) || 0;
+      }
+    }
+
     // 处理状态显示和日期格式
     const items = outbounds.map((item) => ({
       ...item,
@@ -191,7 +222,19 @@ const getOutboundList = async (req, res) => {
       status_text: getStatusText(item.status),
     }));
 
-    ResponseHandler.paginated(res, items, total, page, limit, '获取出库单列表成功');
+    res.status(200).json({
+      success: true,
+      message: '获取出库单列表成功',
+      data: {
+        list: items,
+        total,
+        page,
+        pageSize: limit,
+        totalPages: Math.ceil(total / limit),
+        statistics,
+      },
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     logger.error('获取出库单列表失败:', error);
     ResponseHandler.error(res, '获取出库单列表失败', 'SERVER_ERROR', 500, error);
@@ -457,7 +500,7 @@ const updateOutbound = async (req, res) => {
       [formattedDate, status, operator, remark, id]
     );
 
-    // ✅ 审计修复(B-1): 统一使用状态常量替代硬编码字符串
+    // 统一使用状态常量替代硬编码字符串
     if (currentStatus !== STATUS.OUTBOUND.COMPLETED && items && items.length > 0) {
       // 删除原有明细
       await connection.execute('DELETE FROM inventory_outbound_items WHERE outbound_id = ?', [id]);
@@ -588,62 +631,40 @@ const updateOutbound = async (req, res) => {
                 throw new Error(`物料 ${item.material_id} 未配置默认仓库，不支持普通出库。请维护物料基础资料，或启用智能全仓发料。`);
               }
 
-              const [stockRecords] = await connection.execute(
-                'SELECT material_id, location_id, SUM(il.quantity) as quantity FROM inventory_ledger il JOIN materials mat ON il.material_id = mat.id WHERE il.material_id = ? AND il.location_id = ? AND (mat.location_id IS NULL OR il.location_id = mat.location_id) GROUP BY material_id, location_id',
-                [item.material_id, locationId]
-              );
+              const outboundTransactionTypeMap = {
+                purchase_return: 'purchase_return',
+                sales_order: 'sales_outbound',
+                sales: 'sales_outbound',
+                transfer: 'transfer',
+              };
 
-              if (stockRecords.length === 0) {
-                await _insertInventoryLedgerLocal(connection, {
-                  material_id: item.material_id,
-                  location_id: locationId,
-                  transaction_type: 'production_outbound',
+              await InventoryService.updateStock(
+                {
+                  materialId: item.material_id,
+                  locationId,
                   quantity: -actualQuantity,
-                  unit_id: item.unit_id,
-                  reference_no: outboundRecord.outbound_no,
-                  reference_type: 'outbound',
+                  transactionType: outboundTransactionTypeMap[referenceType] || 'outbound',
+                  referenceNo: outboundRecord.outbound_no,
+                  referenceType: 'outbound',
                   operator: outboundRecord.operator,
-                  beforeQuantity: 0,
-                  afterQuantity: -actualQuantity,
+                  remark: `出库单号: ${outboundRecord.outbound_no}`,
+                  unitId: item.unit_id,
+                  batchNumber: item.batch_number || item.batchNumber,
                   issue_reason: outboundRecord.issue_reason,
                   is_excess: outboundRecord.is_excess,
-                });
-                continue;
-              }
-
-              const stockRecord = stockRecords[0];
-              const beforeQuantity = parseFloat(stockRecord.quantity);
-              const afterQuantity = beforeQuantity - actualQuantity;
-
-              await connection.execute('UPDATE inventory_ledger SET quantity = ? WHERE id = ?', [
-                afterQuantity,
-                stockRecord.id,
-              ]);
-
-              await _insertInventoryLedgerLocal(connection, {
-                material_id: item.material_id,
-                location_id: stockRecord.location_id,
-                transaction_type: 'production_outbound',
-                quantity: -actualQuantity,
-                unit_id: item.unit_id,
-                reference_no: outboundRecord.outbound_no,
-                reference_type: 'outbound',
-                operator: outboundRecord.operator,
-                beforeQuantity: beforeQuantity,
-                afterQuantity: afterQuantity,
-                issue_reason: outboundRecord.issue_reason,
-                is_excess: outboundRecord.is_excess,
-                batch_number: item.batch_number || item.batchNumber
-              });
+                },
+                connection
+              );
             }
           }
 
           // 创建追溯记录 (复制自 updateOutboundStatus)
         } catch (itemError) {
-          // ✅ 审计修复(B-2): 出库物料扣减失败时不再静默吞噬
-          // 此前仅记录日志并跳过，可能导致库存账实不符
+          // 出库物料扣减失败时立即中断，避免库存账实不符
           logger.error(`处理物料 ${item.material_id} 时出错:`, itemError);
-          throw new Error(`物料 ${item.material_id} 出库处理失败: ${itemError.message}`);
+          throw new Error(`物料 ${item.material_id} 出库处理失败: ${itemError.message}`, {
+            cause: itemError,
+          });
         }
       }
 
@@ -711,8 +732,7 @@ const _createOutbound = async (outboundData) => {
     const productionTaskId =
       outboundData.productionTaskId || outboundData.production_task_id || null;
 
-    // ✅ 审计修复(B-3): referenceId 应赋值为 productionTaskId，而非硬编码 null
-    // 此前 referenceId 始终为 null，导致出库单与生产任务关联断链
+    // referenceId 使用生产任务 ID，保持出库单与生产任务关联
     const referenceId = productionTaskId;
     let referenceType = null;
 
@@ -930,7 +950,7 @@ const _createOutbound = async (outboundData) => {
         const _currentStock = parseFloat(stockResult[0].total_quantity) || 0;
 
         // 获取物料信息用于错误提示 (直接从已加载的缓存中取)
-        const _materialName = matInfo 
+        const _materialName = matInfo
             ? `${matInfo.code || ''} - ${matInfo.name || ''}`
             : `物料ID ${item.materialId}`;
 
@@ -956,7 +976,7 @@ const _createOutbound = async (outboundData) => {
         logger.error('查询库存失败:', stockError);
         // 查询失败时,如果不是草稿状态则报错
         if (status !== 'draft') {
-          throw new Error('查询库存失败,无法创建出库单');
+          throw new Error('查询库存失败,无法创建出库单', { cause: stockError });
         }
       }
 
@@ -1408,7 +1428,7 @@ const cancelOutbound = async (req, res) => {
 
     const { status, reference_id, reference_type, outbound_no } = checkResult[0];
 
-    // ✅ 审计修复: 统一使用状态常量
+    // 统一使用状态常量
     if (status !== STATUS.OUTBOUND.COMPLETED) {
       await connection.rollback();
       return ResponseHandler.error(res, '只能撤销已完成的出库单', 'BAD_REQUEST', 400);
@@ -1505,7 +1525,7 @@ const cancelOutbound = async (req, res) => {
       );
 
       if (taskStats.length > 0) {
-        const { total, completed_count, in_progress_count } = taskStats[0];
+        const {  completed_count, in_progress_count } = taskStats[0];
         const completedNum = Number(completed_count) || 0;
         const inProgressNum = Number(in_progress_count) || 0;
 
@@ -2167,39 +2187,38 @@ const updateOutboundStatus = async (req, res) => {
                 const stockKey = `${item.material_id}_${locationId}`;
                 const currentStock = stockMap.get(stockKey) || 0;
 
-                const beforeQuantity = currentStock > 0 ? currentStock : 0;
-                const afterQuantity = beforeQuantity - actualQuantity;
-
-                // 检查库存是否足够
-                if (afterQuantity < 0) {
-                  logger.warn(
-                    `物料 ${item.material_id} 库存不足，当前库存: ${beforeQuantity}，需要: ${actualQuantity}`
+                if (currentStock < actualQuantity) {
+                  throw new Error(
+                    `物料 ${item.material_id} 库存不足，当前库存: ${currentStock}，需要: ${actualQuantity}`
                   );
                 }
 
-                // 记录库存交易（统一一次写入，不再分库存为零和非零两段重复代码）
-                await _insertInventoryLedgerLocal(connection, {
-                  material_id: item.material_id,
-                  location_id: locationId,
-                  transaction_type: dynamicTransactionType,
-                  quantity: -actualQuantity,
-                  unit_id: item.unit_id,
-                  reference_no: outboundInfo[0].outbound_no,
-                  reference_type: 'outbound',
-                  operator: outboundInfo[0].operator,
-                  beforeQuantity,
-                  afterQuantity,
-                });
+                const stockResult = await InventoryService.updateStock(
+                  {
+                    materialId: item.material_id,
+                    locationId,
+                    transactionType: dynamicTransactionType,
+                    quantity: -actualQuantity,
+                    unitId: item.unit_id,
+                    referenceNo: outboundInfo[0].outbound_no,
+                    referenceType: 'outbound',
+                    operator: outboundInfo[0].operator,
+                    remark: `出库单号: ${outboundInfo[0].outbound_no}`,
+                  },
+                  connection
+                );
 
                 // 更新内存中的库存 Map（后续物料可能引用同一库位）
-                stockMap.set(stockKey, afterQuantity);
+                stockMap.set(stockKey, stockResult.afterQuantity);
               }
             }
 
 
           } catch (itemError) {
             logger.error(`处理物料 ${item.material_id} 时出错:`, itemError);
-            // 不抛出异常，继续处理其他物料项
+            throw new Error(`物料 ${item.material_id} 出库处理失败: ${itemError.message}`, {
+              cause: itemError,
+            });
           }
         }
       }
@@ -2409,8 +2428,12 @@ const updateOutboundStatus = async (req, res) => {
           }
         }
       } catch (asyncError) {
-        // 异步任务提交失败不影响主流程
-        logger.error('[性能优化] 异步任务提交失败:', asyncError);
+        const DLQService = require('../../../services/business/DLQService');
+        await DLQService.recordSideEffectFailure(
+          'InventoryOutbound:asyncSideEffects',
+          { outboundId: id, status: newStatus },
+          asyncError
+        );
       }
     }
 

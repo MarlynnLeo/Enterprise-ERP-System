@@ -49,7 +49,7 @@ fs.readdirSync(__dirname)
       try {
         const model = modelModule(sequelize);
         db[model.name] = model;
-      } catch (error) {
+      } catch {
         // 非标准 Sequelize 模型（如 Class 形式）静默跳过
       }
     }

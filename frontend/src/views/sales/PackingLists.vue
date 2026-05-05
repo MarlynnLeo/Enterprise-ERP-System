@@ -18,7 +18,6 @@
         <el-button v-permission="'sales:packing:create'" type="primary" :icon="Plus" @click="handleAdd">新增装箱单</el-button>
       </div>
     </el-card>
-
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
@@ -31,7 +30,6 @@
             clearable
           ></el-input>
         </el-form-item>
-
         <el-form-item label="状态">
           <el-select  v-model="statusFilter" placeholder="状态" clearable @change="() => handleSearch(true)">
             <el-option
@@ -42,7 +40,6 @@
             />
           </el-select>
         </el-form-item>
-
         <el-form-item label="日期范围">
           <el-date-picker
             v-model="dateRange"
@@ -51,10 +48,8 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             @change="() => handleSearch(true)"
-
           />
         </el-form-item>
-
         <el-form-item>
           <el-button type="primary" @click="() => handleSearch(true)">
             <el-icon><Search /></el-icon> 查询
@@ -80,7 +75,6 @@
         </el-form-item>
       </el-form>
     </el-card>
-
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -108,7 +102,6 @@
         <div class="stat-label">总箱数</div>
       </el-card>
     </div>
-
     <!-- 装箱单表格 -->
     <el-card class="data-card">
       <el-table
@@ -159,7 +152,6 @@
             </div>
           </template>
         </el-table-column>
-
         <el-table-column 
           prop="packing_list_no" 
           :width="getColumnWidth('packing_list_no', 150)" 
@@ -185,7 +177,6 @@
             </el-link>
           </template>
         </el-table-column>
-
         <el-table-column 
           prop="customer_name" 
           :min-width="getColumnWidth('customer_name', 150)"
@@ -204,7 +195,6 @@
             </el-popover>
           </template>
         </el-table-column>
-
         <el-table-column 
           prop="sales_order_no" 
           label="销售订单号" 
@@ -217,7 +207,6 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-
         <el-table-column 
           prop="packing_date" 
           label="装箱日期" 
@@ -228,7 +217,6 @@
             {{ formatDate(scope.row.packing_date) }}
           </template>
         </el-table-column>
-
         <el-table-column
           prop="status"
           label="状态"
@@ -240,7 +228,6 @@
             </el-tag>
           </template>
         </el-table-column>
-
         <el-table-column
           prop="total_boxes"
           label="总箱数"
@@ -248,7 +235,6 @@
           align="center"
           resizable>
         </el-table-column>
-
         <el-table-column
           prop="total_quantity"
           label="总数量"
@@ -256,14 +242,12 @@
           align="center"
           resizable>
         </el-table-column>
-
         <el-table-column
           prop="created_by"
           label="创建人"
           :width="getColumnWidth('created_by', 100)"
           resizable>
         </el-table-column>
-
         <el-table-column
           prop="created_at"
           label="创建时间"
@@ -275,7 +259,6 @@
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-
         <el-table-column
           label="操作"
           :width="getColumnWidth('operations', 260)"
@@ -315,7 +298,6 @@
           </template>
         </el-table-column>
       </el-table>
-
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -333,7 +315,6 @@
         </el-pagination>
       </div>
     </el-card>
-
     <!-- 新增/编辑装箱单对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -358,7 +339,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="销售订单号" prop="sales_order_no">
@@ -382,7 +362,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户名称">
@@ -395,11 +374,9 @@
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-form-item label="备注" prop="remark">
           <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="请输入备注"></el-input>
         </el-form-item>
-
       <!-- 装箱明细 -->
         <el-form-item label="装箱明细">
           <div class="materials-table-container">
@@ -412,7 +389,6 @@
                 </el-button>
               </div>
             </div>
-
             <el-table
               :data="form.details"
               border
@@ -516,7 +492,6 @@
           </div>
         </el-form-item>
       </el-form>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
@@ -524,7 +499,6 @@
         </span>
       </template>
     </el-dialog>
-
     <!-- 查看装箱单详情对话框 -->
     <el-dialog
       v-model="detailsVisible"
@@ -574,12 +548,12 @@
     </el-dialog>
   </div>
 </template>
-
 <script setup>
 // 
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { baseDataApi, salesApi } from '@/services/api'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
@@ -594,18 +568,14 @@ import {
   Delete,
   Position
 } from '@element-plus/icons-vue'
-
 // 
 const authStore = useAuthStore()
-
 // 
 const canUpdate = computed(() => authStore.hasPermission('sales:packinglists:update'))
 const canDelete = computed(() => authStore.hasPermission('sales:packinglists:delete'))
-
 // 
 const SEARCH_DEBOUNCE_DELAY = 300; // 搜索防抖延迟
 const DEFAULT_PAGE_SIZE = 20; // 默认分页大小
-
 // 数据定义
 const loading = ref(false)
 const tableData = ref([])
@@ -620,31 +590,27 @@ const currentPackingList = ref(null)
 const dialogVisible = ref(false)
 const dialogType = ref('add')
 const formRef = ref(null)
-
 // 表格列宽存储键
 const TABLE_COLUMN_WIDTH_KEY = 'packingLists_column_widths'
-
 // 存储列宽
 const saveColumnWidth = (columnName, width) => {
   try {
     const widths = JSON.parse(localStorage.getItem(TABLE_COLUMN_WIDTH_KEY) || '{}')
     widths[columnName] = width
     localStorage.setItem(TABLE_COLUMN_WIDTH_KEY, JSON.stringify(widths))
-  } catch (error) {
+  } catch {
     // 静默处理列宽保存失败
   }
 }
-
 // 获取保存的列宽
 const getColumnWidth = (columnName, defaultWidth) => {
   try {
     const widths = JSON.parse(localStorage.getItem(TABLE_COLUMN_WIDTH_KEY) || '{}')
     return widths[columnName] || defaultWidth
-  } catch (error) {
+  } catch {
     return defaultWidth
   }
 }
-
 // 装箱单状态选项
 const packingStatuses = [
   { label: '草稿', value: 'draft' },
@@ -653,13 +619,11 @@ const packingStatuses = [
   { label: '已完成', value: 'completed' },
   { label: '已取消', value: 'cancelled' }
 ]
-
 // 下拉选项
 const customerOptions = ref([])
 const salesOrderOptions = ref([])
 const productOptions = ref([])
 const unitOptions = ref([])
-
 // 装箱单统计数据
 const packingStats = ref({
   total: 0,
@@ -669,7 +633,6 @@ const packingStats = ref({
   completed: 0,
   totalBoxes: 0
 })
-
 // 表单数据
 const form = reactive({
   id: null,
@@ -685,7 +648,6 @@ const form = reactive({
   remark: '',
   details: []
 })
-
 // 表单验证规则
 const rules = {
   customer_code: [
@@ -698,38 +660,31 @@ const rules = {
     { required: true, message: '请选择装箱日期', trigger: 'change' }
   ]
 }
-
 // 防抖搜索处理
 let searchTimeout = null;
-
 onMounted(async () => {
   try {
     // 只加载装箱单数据，其他数据按需加载
     await fetchData();
-
     // 延迟加载客户数据（用于搜索下拉框）
     setTimeout(() => {
       fetchCustomers();
     }, 200);
-
     // 物料数据只在需要时加载（打开新增/编辑对话框时）
-  } catch (error) {
+  } catch {
     // 静默处理组件挂载错误
   }
 })
-
 onUnmounted(() => {
   // 清理定时器
   if (searchTimeout) {
     clearTimeout(searchTimeout);
     searchTimeout = null;
   }
-
   // 清理数据
   tableData.value = [];
   currentPackingList.value = null;
 })
-
 // 计算统计数据
 const calculatePackingStats = () => {
   const stats = {
@@ -740,7 +695,6 @@ const calculatePackingStats = () => {
     completed: 0,
     totalBoxes: 0
   }
-
   tableData.value.forEach(packingList => {
     const status = packingList.status;
     if (status === 'draft') {
@@ -752,14 +706,11 @@ const calculatePackingStats = () => {
     } else if (status === 'completed') {
       stats.completed++
       }
-
     // 累计总箱数
     stats.totalBoxes += parseInt(packingList.total_boxes) || 0
   })
-
   packingStats.value = stats
 }
-
 // 重置搜索方法
 const resetSearch = () => {
   searchQuery.value = '';
@@ -768,13 +719,11 @@ const resetSearch = () => {
   currentPage.value = 1;
   fetchData();
 };
-
 // 防抖搜索处理
 const handleSearch = (immediate = false) => {
   if (searchTimeout) {
     clearTimeout(searchTimeout);
   }
-
   if (immediate) {
     currentPage.value = 1;
   fetchData();
@@ -785,11 +734,9 @@ const handleSearch = (immediate = false) => {
     }, SEARCH_DEBOUNCE_DELAY);
   }
 };
-
 // 获取装箱单数据
 const fetchData = async () => {
   if (loading.value) return; // 防止重复请求
-
   loading.value = true;
   try {
     const params = {
@@ -800,25 +747,20 @@ const fetchData = async () => {
       sort: 'packing_list_no',
       order: 'desc'
     };
-
     // 添加日期范围参数
     if (dateRange.value && dateRange.value.length === 2) {
       params.startDate = dayjs(dateRange.value[0]).format('YYYY-MM-DD');
       params.endDate = dayjs(dateRange.value[1]).format('YYYY-MM-DD');
     }
-
     const response = await salesApi.getPackingLists(params);
     const { list, total: totalCount } = parsePaginatedData(response);
-
     tableData.value = normalizePackingListsData(list);
     total.value = totalCount;
-
       // 计算统计数据
     calculatePackingStats();
   } catch (error) {
     console.error('获取装箱单数据失败:', error);
     ElMessage.error(`获取装箱单数据失败: ${error.message || '网络错误'}`);
-
     // 错误时设置默认值
     tableData.value = [];
     total.value = 0;
@@ -826,11 +768,9 @@ const fetchData = async () => {
     loading.value = false;
   }
 };
-
 // 数据规范化处理函数
 const normalizePackingListsData = (packingLists) => {
   if (!Array.isArray(packingLists)) return [];
-
   return packingLists.map(packingList => ({
     ...packingList,
     packing_date: packingList.packing_date || packingList.packingDate,
@@ -847,7 +787,6 @@ const normalizePackingListsData = (packingLists) => {
     return packingNoB.localeCompare(packingNoA);
   });
 };
-
 // 获取客户选项
 const fetchCustomers = async () => {
   try {
@@ -861,13 +800,11 @@ const fetchCustomers = async () => {
     customerOptions.value = [];
   }
 };
-
 // 获取销售订单选项
 const fetchSalesOrders = async () => {
   try {
     const response = await salesApi.getOrders({ pageSize: 1000 });
     const dataArray = parseListData(response, { enableLog: false });
-
     // 过滤掉无效的数据
     salesOrderOptions.value = dataArray.filter(item =>
       item && item.id !== undefined && item.id !== null && item.order_no
@@ -877,11 +814,9 @@ const fetchSalesOrders = async () => {
     salesOrderOptions.value = [];
   }
 };
-
 // ====== 物料搜索相关 (开始) ======
 const loadingMaterials = ref(false);
 let currentSearchId = 0;
-
 // 防抖函数
 const debounce = (func, wait) => {
   let timeout;
@@ -894,7 +829,6 @@ const debounce = (func, wait) => {
     timeout = setTimeout(later, wait);
   };
 };
-
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
@@ -919,26 +853,22 @@ const searchProducts = async (query) => {
     if (searchId === currentSearchId) {
       productOptions.value = mapMaterialData(searchResults);
     }
-  } catch (error) {
+  } catch {
     if (searchId === currentSearchId) productOptions.value = [];
   } finally {
     if (searchId === currentSearchId) loadingMaterials.value = false;
   }
 };
-
 const debouncedSearchMaterials = debounce(searchProducts, SEARCH_CONFIG.SEARCH_DEBOUNCE_DELAY || 300);
-
 const handleMaterialSelectFocus = () => {
   if (productOptions.value.length === 0) {
     debouncedSearchMaterials('');
   }
 };
-
 const fetchProducts = async () => {
   debouncedSearchMaterials('');
 };
 // ====== 物料搜索相关 (结束) ======
-
 // 获取单位选项
 const fetchUnits = async () => {
   try {
@@ -952,37 +882,30 @@ const fetchUnits = async () => {
     unitOptions.value = [];
   }
 };
-
-// 生成临时ID
+// 生成前端草稿行ID
 const generateTempId = () => {
-  return 'temp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+  return `temp_${globalThis.crypto?.randomUUID?.() || `${Date.now()}_${performance.now()}`}`;
 };
-
 // 根据VBA逻辑更新编号的核心函数
 const updateNumbers = () => {
   let startNumber = 1; // 初始化起始编号为1
-
   // 遍历所有明细行
   for (let i = 0; i < form.details.length; i++) {
     const detail = form.details[i];
     const cellValue = detail.quantity;
-
     // 检查是否为数字并且大于0
     let n = 0;
     if (cellValue && !isNaN(cellValue) && Number(cellValue) > 0) {
       n = parseInt(cellValue); // 转换为整数
     }
-
     if (n > 0) {
       const endNumber = startNumber + n - 1;
-
       // 如果n=1，只显示单个编号；如果n>1，显示范围
       if (n === 1) {
         detail.item_no = `NO.${startNumber}`;
       } else {
         detail.item_no = `NO.${startNumber}-${endNumber}`;
       }
-
       // 更新起始编号为下一个编号
       startNumber = endNumber + 1;
     } else {
@@ -991,7 +914,6 @@ const updateNumbers = () => {
     }
   }
 };
-
 // 状态相关函数
 const getPackingStatusText = (status) => {
   const statusMap = {
@@ -1003,7 +925,6 @@ const getPackingStatusText = (status) => {
   };
   return statusMap[status] || '未知';
 };
-
 const getPackingStatusColor = (status) => {
   const typeMap = {
     'draft': 'info',
@@ -1014,24 +935,20 @@ const getPackingStatusColor = (status) => {
   };
   return typeMap[status] || 'info';
 };
-
 // 状态判断函数
 const canEditByStatus = (row) => ['draft', 'confirmed'].includes(row.status)
 const canConfirmByStatus = (row) => row.status === 'draft'
 const canDeleteByStatus = (row) => ['draft'].includes(row.status)
-
 // 分页处理
 const handleSizeChange = (val) => {
   pageSize.value = Number(val) || DEFAULT_PAGE_SIZE;
   currentPage.value = 1;
   fetchData();
 };
-
 const handleCurrentChange = (val) => {
   currentPage.value = Number(val) || 1;
   fetchData();
 };
-
 // 表格排序事件处理函数
 const handleSortChange = ({ prop, order }) => {
   // 根据不同列实现排序
@@ -1064,7 +981,6 @@ const handleSortChange = ({ prop, order }) => {
     });
   }
 }
-
 // 新增装箱单
 const handleAdd = async () => {
   dialogType.value = 'add'
@@ -1088,36 +1004,29 @@ const handleAdd = async () => {
       form[key] = ''
     }
   })
-
   // 确保客户数据已加载
   if (customerOptions.value.length === 0) {
     await fetchCustomers();
   }
-
   // 确保销售订单数据已加载
   if (salesOrderOptions.value.length === 0) {
     await fetchSalesOrders();
   }
-
   // 确保产品数据已加载
   if (productOptions.value.length === 0) {
     await fetchProducts();
   }
-
   // 确保单位数据已加载
   if (unitOptions.value.length === 0) {
     await fetchUnits();
   }
-
   dialogVisible.value = true
 }
-
 // 编辑装箱单
 const handleEdit = async (row) => {
   try {
     const response = await salesApi.getPackingList(row.id);
     const packingListData = response.data;
-
     dialogType.value = 'edit';
     
     // 先清空表单，避免数据混淆
@@ -1128,7 +1037,6 @@ const handleEdit = async (row) => {
         form[key] = ''
       }
     })
-
     // 然后将行数据复制到表单中
     Object.assign(form, {
       id: packingListData.id,
@@ -1140,7 +1048,6 @@ const handleEdit = async (row) => {
       remark: packingListData.remark,
       details: []
     });
-
     // 处理明细项
     if (Array.isArray(packingListData.details) && packingListData.details.length > 0) {
       form.details = packingListData.details.map(detail => ({
@@ -1151,7 +1058,6 @@ const handleEdit = async (row) => {
         remark: detail.remark || ''
       }));
     }
-
     // 确保所有选项数据已加载
     if (customerOptions.value.length === 0) {
       await fetchCustomers();
@@ -1165,14 +1071,12 @@ const handleEdit = async (row) => {
     if (unitOptions.value.length === 0) {
       await fetchUnits();
     }
-
     dialogVisible.value = true;
   } catch (error) {
     console.error('获取装箱单详情失败:', error);
     ElMessage.error('获取装箱单详情失败');
   }
 }
-
 // 查看装箱单
 const handleView = async (row) => {
   try {
@@ -1187,13 +1091,11 @@ const handleView = async (row) => {
     ElMessage.error('获取装箱单详情失败: ' + (error.message || '未知错误'))
   }
 }
-
 // 查看销售订单
-const handleViewSalesOrder = (row) => {
+const handleViewSalesOrder = (_row) => {
   // 这里可以跳转到销售订单详情页面
   ElMessage.info('跳转到销售订单详情页面');
 }
-
 // 删除装箱单
 const handleDelete = async (row) => {
   try {
@@ -1206,7 +1108,6 @@ const handleDelete = async (row) => {
         type: 'warning',
       }
     );
-
     await salesApi.deletePackingList(row.id);
     ElMessage.success('删除成功');
     fetchData();
@@ -1217,7 +1118,6 @@ const handleDelete = async (row) => {
     }
   }
 }
-
 // 确认装箱单
 const handleConfirm = async (row) => {
   try {
@@ -1230,10 +1130,8 @@ const handleConfirm = async (row) => {
         type: 'warning'
       }
     );
-
     // 调用API更新装箱单状态
     await salesApi.updatePackingList(row.id, { status: 'confirmed' });
-
     ElMessage.success('装箱单已确认');
     await fetchData(); // 刷新列表
   } catch (error) {
@@ -1243,7 +1141,6 @@ const handleConfirm = async (row) => {
     }
   }
 }
-
 // 添加明细
 const addDetail = () => {
   const newDetail = {
@@ -1261,14 +1158,12 @@ const addDetail = () => {
   // 添加后自动更新编号
   updateNumbers();
 };
-
 // 删除明细
 const removeDetail = (index) => {
   form.details.splice(index, 1);
   // 删除后自动更新编号
   updateNumbers();
 };
-
 // 产品变更处理
 const handleProductChange = (productId, index) => {
   const product = productOptions.value.find(item => item.id === productId);
@@ -1277,7 +1172,6 @@ const handleProductChange = (productId, index) => {
     form.details[index].product_name = product.name;
     form.details[index].product_specs = product.specs || product.specification || '';
     form.details[index].product_id = product.id; // 保存产品ID
-
     // 设置默认单位
     if (product.unit_id) {
       form.details[index].unit_id = product.unit_id;
@@ -1289,7 +1183,6 @@ const handleProductChange = (productId, index) => {
   // 产品变更后自动更新编号
   updateNumbers();
 };
-
 // 单位变更处理
 const handleUnitCodeBlur = (event, index) => {
   const unitCode = event.target.value.trim();
@@ -1305,7 +1198,6 @@ const handleUnitCodeBlur = (event, index) => {
   // 单位变更后自动更新编号
   updateNumbers();
 };
-
 // 单位编号搜索
 const searchUnitByCode = async (index) => {
   const unitCode = form.details[index].unit_code.trim();
@@ -1335,56 +1227,14 @@ const searchUnitByCode = async (index) => {
     ElMessage.error('搜索单位失败');
   }
 };
-
-// 客户变更处理
-const handleCustomerChange = (customerId) => {
-  const selectedCustomer = customerOptions.value.find(c => c.id === customerId);
-  if (selectedCustomer) {
-    // 可以在这里添加客户变更后的逻辑
-    form.customer_code = selectedCustomer.code;
-    form.customer_name = selectedCustomer.name;
-  }
-};
-
-// 销售订单变更处理
-const handleSalesOrderChange = (salesOrderId) => {
-  const selectedSalesOrder = salesOrderOptions.value.find(s => s.id === salesOrderId);
-  if (selectedSalesOrder) {
-    // 可以在这里添加销售订单变更后的逻辑
-    form.sales_order_no = selectedSalesOrder.order_no;
-    form.order_amount = selectedSalesOrder.total_amount || selectedSalesOrder.totalAmount || '0.00';
-  }
-};
-
-// 重置表单
-const resetForm = () => {
-  Object.assign(form, {
-    id: null,
-    packing_list_no: '',
-    customer_code: '',
-    customer_id: '',
-    customer_name: '',
-    sales_order_no: '',
-    sales_order_id: '',
-    order_amount: '',
-    packing_date: new Date().toISOString().split('T')[0],
-    status: 'draft',
-    remark: '',
-    details: []
-  });
-
-  if (formRef.value) {
-    formRef.value.clearValidate();
-  }
-};
-
+// 客户变更处理;
+// 销售订单变更处理;
+// 重置表单;
 // 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return;
-
   try {
     await formRef.value.validate();
-
     const submitData = {
       ...form,
       packing_date: form.packing_date,
@@ -1393,7 +1243,6 @@ const handleSubmit = async () => {
         quantity: Number(detail.quantity) || 0
       }))
     };
-
     if (form.id) {
       await salesApi.updatePackingList(form.id, submitData);
       ElMessage.success('更新成功');
@@ -1401,7 +1250,6 @@ const handleSubmit = async () => {
       await salesApi.createPackingList(submitData);
       ElMessage.success('创建成功');
     }
-
     dialogVisible.value = false;
     fetchData();
   } catch (error) {
@@ -1409,18 +1257,15 @@ const handleSubmit = async () => {
     ElMessage.error('提交失败');
   }
 };
-
 // 导入功能
 const handleImport = () => {
   // 创建文件输入元素
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = '.csv,.xlsx,.xls'
-
   input.onchange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-
     try {
       // 读取文件
       const reader = new FileReader()
@@ -1430,8 +1275,7 @@ const handleImport = () => {
           // 这里可以解析CSV或Excel文件
           // 简单示例:解析CSV
           const lines = content.split('\n')
-          const headers = lines[0].split(',')
-
+          const _headers = lines[0].split(',')
           ElMessage.success(`成功读取文件,共${lines.length - 1}行数据`)
           
           // 实际项目中应该:
@@ -1449,21 +1293,17 @@ const handleImport = () => {
       ElMessage.error('导入失败')
     }
   }
-
   input.click()
 };
-
 // 导出功能
 const handleExport = () => {
-  if (packingLists.value.length === 0) {
+  if (tableData.value.length === 0) {
     ElMessage.warning('暂无数据可导出')
     return
   }
-
   try {
     // 准备导出数据
-    const exportData = packingLists.value
-
+    const exportData = tableData.value
     // 转换为CSV格式
     const headers = ['装箱单号', '客户名称', '发货日期', '总箱数', '总件数', '总重量(kg)', '总体积(m³)', '状态', '备注']
     const csvContent = [
@@ -1480,11 +1320,9 @@ const handleExport = () => {
         (row.notes || '').replace(/,/g, '，') // 替换逗号避免CSV格式问题
       ].join(','))
     ].join('\n')
-
     // 添加BOM头以支持中文
     const BOM = '\uFEFF'
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
-
     // 创建下载链接
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1492,24 +1330,20 @@ const handleExport = () => {
     a.download = `装箱单列表_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`
     document.body.appendChild(a)
     a.click()
-
     // 清理
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
-
     ElMessage.success(`成功导出${exportData.length}条记录`)
   } catch (error) {
     console.error('导出失败:', error)
     ElMessage.error('导出失败')
   }
 }
-
 // 获取状态标签
 const getStatusLabel = (status) => {
   const item = packingStatuses.find(s => s.value === status)
   return item ? item.label : status
 };
-
 // 客户编号搜索
 const searchCustomerByCode = async () => {
   const customerCode = form.customer_code.trim();
@@ -1538,7 +1372,6 @@ const searchCustomerByCode = async () => {
     ElMessage.error('搜索客户失败');
   }
 };
-
 // 客户编号失焦处理
 const handleCustomerCodeBlur = (event) => {
   const customerCode = event.target.value.trim();
@@ -1546,7 +1379,6 @@ const handleCustomerCodeBlur = (event) => {
     searchCustomerByCode();
   }
 };
-
 // 销售订单号搜索
 const searchSalesOrderByNo = async () => {
   const salesOrderNo = form.sales_order_no.trim();
@@ -1575,7 +1407,6 @@ const searchSalesOrderByNo = async () => {
     ElMessage.error('搜索销售订单失败');
   }
 };
-
 // 销售订单号失焦处理
 const handleSalesOrderNoBlur = (event) => {
   const salesOrderNo = event.target.value.trim();
@@ -1584,63 +1415,51 @@ const handleSalesOrderNoBlur = (event) => {
   }
 };
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
 .search-buttons {
   display: flex;
   gap: 8px;
 }
-
 .more-actions {
   display: flex;
   justify-content: flex-start;
 }
-
 .packing-detail {
   padding: 10px;
 }
-
 .packing-details {
   padding: 10px;
 }
-
 .operation-group {
   display: flex;
   gap: 4px;
 }
-
 .operation-group:not(:last-child) {
   border-right: 1px solid var(--color-border-lighter);
   padding-right: 8px;
 }
-
 .materials-table-container {
   margin-bottom: var(--spacing-lg);
   overflow: visible;
 }
-
 /* 移除所有高度限制 */
 .el-table-column,
 .el-table__body,
@@ -1651,42 +1470,34 @@ const handleSalesOrderNoBlur = (event) => {
   height: auto !important;
   overflow: visible !important;
 }
-
 /* 物料选择下拉样式 */
 :deep(.material-select-dropdown) {
   max-height: 400px !important;
 }
-
 :deep(.material-select-dropdown .el-scrollbar__wrap) {
   max-height: 400px !important;
 }
-
 :deep(.el-select-dropdown__list) {
   max-height: none !important;
 }
-
 :deep(.el-select-dropdown__wrap) {
   max-height: 400px !important;
 }
-
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
 /* 隐藏数字输入框的加减按钮 */
 :deep(.el-input__inner[type="number"]) {
   -moz-appearance: textfield;
   appearance: textfield;
 }
-
 :deep(.el-input__inner[type="number"]::-webkit-outer-spin-button),
 :deep(.el-input__inner[type="number"]::-webkit-inner-spin-button) {
   -webkit-appearance: none;
   margin: 0;
 }
-
 /* 编号输入框样式 */
 .item-no-input :deep(.el-input__inner) {
   background-color: var(--color-bg-section);
@@ -1695,18 +1506,15 @@ const handleSalesOrderNoBlur = (event) => {
   font-weight: 500;
   text-align: center;
 }
-
 .item-no-input :deep(.el-input__inner):focus {
   background-color: var(--color-bg-base);
   border-color: var(--color-primary);
 }
-
 /* 数量输入框样式 */
 .el-table :deep(.el-input__inner[type="number"]) {
   text-align: center;
   font-weight: 500;
 }
-
 /* 只读输入框样式 */
 .el-table :deep(.el-input__inner[readonly]) {
   background-color: var(--color-bg-section);
@@ -1714,7 +1522,6 @@ const handleSalesOrderNoBlur = (event) => {
   color: #495057;
   cursor: default;
 }
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1722,7 +1529,6 @@ const handleSalesOrderNoBlur = (event) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

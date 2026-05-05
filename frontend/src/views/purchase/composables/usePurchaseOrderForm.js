@@ -3,7 +3,7 @@
  * @description 采购订单表单逻辑的组合式函数（从 PurchaseOrders.vue 抽取）
  * 包含：表单数据、物料操作、供应商选择、提交逻辑
  */
-import { ref, reactive, nextTick, computed } from 'vue'
+import { ref, reactive, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { purchaseApi, supplierApi, baseDataApi } from '@/services/api'
 import { parseListData } from '@/utils/responseParser'
@@ -171,7 +171,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
           if (res && res.data && res.data.price > 0 && res.data.source === 'supplier_history') {
             item.price = res.data.price; recalculatePrice(item); updatedCount++
           }
-        } catch (error) { console.warn(`重算物料 ${item.material_code} 的单价失败`) }
+        } catch { console.warn(`重算物料 ${item.material_code} 的单价失败`) }
       }
     }
     if (updatedCount > 0) ElMessage.success(`已根据新供应商的历史成交记录，自动刷新了 ${updatedCount} 项物料单价`)
@@ -247,7 +247,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     if (filteredProducts.value.length > 0) handleMaterialSelect(filteredProducts.value[0], index)
   }
 
-  const handleQuantityEnter = (index) => {
+  const handleQuantityEnter = () => {
     addMaterialRow()
     nextTick(() => {
       const newIndex = orderForm.items.length - 1
@@ -433,7 +433,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
             try {
               const priceRes = await purchaseApi.getLatestPrice({ material_id: item.material_id, supplier_id: orderForm.supplier_id || '' })
               if (priceRes && priceRes.data && priceRes.data.price > 0) latestPrice = priceRes.data.price
-            } catch (priceErr) { console.warn(`获取物料 ${item.material_code} 历史报价失败，降级使用物料主数据价格`) }
+            } catch { console.warn(`获取物料 ${item.material_code} 历史报价失败，降级使用物料主数据价格`) }
             if (latestPrice === 0) latestPrice = parseFloat(detail.cost_price) || parseFloat(detail.price) || 0
             return { ...item, latestDetail: detail, latestPrice }
           } catch (e) { console.warn(`获取物料 ${item.material_code} 详情失败，将使用申请单中的数据`, e); return { ...item, latestDetail: null, latestPrice: 0 } }

@@ -37,6 +37,8 @@ module.exports = {
   // 默认审批人配置
   defaultApprover: {
     userId: '', // 默认审批人钉钉UserId
-    deptId: 1, // 默认部门ID
+    deptId: process.env.DINGTALK_DEFAULT_DEPT_ID
+      ? Number.parseInt(process.env.DINGTALK_DEFAULT_DEPT_ID, 10)
+      : null, // 默认部门ID
   },
 };

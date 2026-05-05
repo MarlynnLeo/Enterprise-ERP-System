@@ -319,7 +319,7 @@ const fetchData = async () => {
     stats.inUse = tableData.value.filter(r => r.status === 'in_use').length;
     stats.overdue = tableData.value.filter(r => r.days_until_due != null && r.days_until_due < 0).length;
     stats.dueSoon = tableData.value.filter(r => r.days_until_due != null && r.days_until_due >= 0 && r.days_until_due <= 30).length;
-  } catch (error) {
+  } catch {
     ElMessage.error('获取量具列表失败');
   } finally {
     loading.value = false;

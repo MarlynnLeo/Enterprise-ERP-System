@@ -205,16 +205,12 @@ class DepreciationService {
   /**
    * 双倍余额递减法计算
    */
-  static calculateDoubleDecliningDepreciation(asset, periodMonth) {
+  static calculateDoubleDecliningDepreciation(asset, _periodMonth) {
     const usefulLifeYears = asset.useful_life || 10;
     const rate = 2 / usefulLifeYears;
 
     // 计算已使用月数
-    const startDate = new Date(asset.depreciation_start_date);
-    const currentDate = new Date(periodMonth + '-01');
-    const monthsUsed =
-      (currentDate.getFullYear() - startDate.getFullYear()) * 12 +
-      (currentDate.getMonth() - startDate.getMonth());
+
 
     // 计算当前净值
     const acquisitionCost = parseFloat(asset.acquisition_cost) || 0;
@@ -235,9 +231,10 @@ class DepreciationService {
     const residualValueRate = asset.residual_value_rate || 0.05;
     const depreciableAmount = asset.original_value * (1 - residualValueRate);
 
-    // 计算已使用年数
     const startDate = new Date(asset.depreciation_start_date);
     const currentDate = new Date(periodMonth + '-01');
+
+    // 计算已使用年数
     const yearsUsed = Math.floor(
       (currentDate.getTime() - startDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
     );

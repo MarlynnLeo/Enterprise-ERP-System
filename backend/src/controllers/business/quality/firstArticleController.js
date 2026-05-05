@@ -2,7 +2,7 @@
  * firstArticleController.js
  * @description 首检管理控制器 — 从 qualityController.js 拆分
  * @date 2026-03-03
- * 
+ *
  * 职责范围：首检列表、统计、创建首检单、更新首检结果、首检规则 CRUD
  */
 
@@ -11,6 +11,8 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { BUSINESS_RULES } = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
+const QualityInspection = require('../../../models/qualityInspection');
+const { generateBatchNo } = require('../../../services/business/TaskLifecycleService');
 
 // 首检配置常量
 const FIRST_ARTICLE_CONFIG = BUSINESS_RULES.FIRST_ARTICLE;
@@ -161,7 +163,14 @@ const firstArticleController = {
             const isFullInspection = production_quantity < rule.full_inspection_threshold;
             const firstArticleQty = isFullInspection ? production_quantity : rule.first_article_qty;
 
-            const inspectionNo = `${FIRST_ARTICLE_CONFIG.INSPECTION_NO_PREFIX}${Date.now()}`;
+            const taskResult = await db.query('SELECT code FROM production_tasks WHERE id = ?', [task_id]);
+            const taskCode = taskResult.rows?.[0]?.code;
+            if (!taskCode) {
+                return ResponseHandler.error(res, '生产任务不存在，无法生成首检批次号', 'BAD_REQUEST', 400);
+            }
+
+            const inspectionNo = await QualityInspection.generateInspectionNo(FIRST_ARTICLE_CONFIG.INSPECTION_NO_PREFIX);
+            const effectiveBatchNo = batch_no || await generateBatchNo(taskCode);
 
             const insertData = {
                 inspection_no: inspectionNo,
@@ -170,7 +179,7 @@ const firstArticleController = {
                 product_id,
                 product_code: product_code || '',
                 product_name: product_name || '',
-                batch_no: batch_no || `${FIRST_ARTICLE_CONFIG.BATCH_NO_PREFIX}${Date.now()}`,
+                batch_no: effectiveBatchNo,
                 quantity: firstArticleQty,
                 unit: FIRST_ARTICLE_CONFIG.DEFAULT_UNIT,
                 planned_date: planned_date || new Date(),
