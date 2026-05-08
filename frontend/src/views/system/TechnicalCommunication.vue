@@ -363,7 +363,7 @@
 
       <template #footer v-if="dialogType !== 'view'">
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">
+        <el-button type="primary" v-permission="dialogType === 'create' ? 'system:tech-comm:create' : 'system:tech-comm:edit'" @click="handleSubmit" :loading="submitting">
           {{ dialogType === 'create' ? '发布' : '保存' }}
         </el-button>
       </template>

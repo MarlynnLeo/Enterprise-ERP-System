@@ -9,6 +9,7 @@ const db = require('../../../config/db');
 const pool = db.pool;
 const QualityIntegrationService = require('../../../services/business/QualityIntegrationService');
 const businessConfig = require('../../../config/businessConfig');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -31,7 +32,10 @@ const getScrapRecords = async (req, res) => {
       endDate,
     } = req.query;
 
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 10,
+      maxPageSize: 200,
+    });
 
     const whereConditions = [];
     const queryParams = [];
@@ -78,7 +82,7 @@ const getScrapRecords = async (req, res) => {
     const total = countResult[0].total;
 
     // 查询列表数据
-    const dataQuery = `
+    const dataQuery = appendPaginationSQL(`
       SELECT 
         sr.*,
         ncp.inspection_no,
@@ -87,8 +91,7 @@ const getScrapRecords = async (req, res) => {
       LEFT JOIN nonconforming_products ncp ON sr.ncp_id = ncp.id
       ${whereClause}
       ORDER BY sr.created_at DESC
-      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
-    `;
+    `, pagination.limit, pagination.offset);
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(dataQuery, queryParams);
 
@@ -96,8 +99,8 @@ const getScrapRecords = async (req, res) => {
       data: rows,
       pagination: {
         total,
-        current: parseInt(page),
-        pageSize: parseInt(pageSize),
+        current: pagination.page,
+        pageSize: pagination.pageSize,
       },
     }, '获取报废记录列表成功');
   } catch (error) {
@@ -150,7 +153,7 @@ const updateScrapRecord = async (req, res) => {
     const { scrap_cost, scrap_date } = req.body;
 
     // 检查报废记录是否存在
-    const [checkResult] = await connection.query('SELECT status FROM scrap_records WHERE id = ?', [
+    const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ?', [
       id,
     ]);
 
@@ -195,7 +198,7 @@ const approveScrap = async (req, res) => {
     const { approved, approver } = req.body;
 
     // 检查报废记录是否存在
-    const [checkResult] = await connection.query('SELECT status FROM scrap_records WHERE id = ?', [
+    const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ?', [
       id,
     ]);
 
@@ -219,6 +222,27 @@ const approveScrap = async (req, res) => {
        WHERE id = ?`,
       [newStatus, approver || 'system', approvalDate, id]
     );
+
+    if (!approved && checkResult[0].ncp_id) {
+      await connection.query(
+        `UPDATE nonconforming_products
+         SET status = 'processing',
+             handled_quantity = 0,
+             updated_by = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND status = 'completed' AND deleted_at IS NULL`,
+        [approver || 'system', checkResult[0].ncp_id]
+      );
+      await connection.query(
+        `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
+         VALUES (?, 'dispose', ?, ?)`,
+        [
+          checkResult[0].ncp_id,
+          `报废记录 ${checkResult[0].scrap_no || id} 审批驳回，NCP退回处理中`,
+          approver || 'system',
+        ]
+      );
+    }
 
     await connection.commit();
     return ResponseHandler.success(res, null, approved ? '审批通过' : '审批拒绝');
@@ -257,9 +281,9 @@ const completeScrap = async (req, res) => {
       return ResponseHandler.error(res, '该报废记录已完成', 'BAD_REQUEST', 400);
     }
 
-    if (record.status === STATUS.SCRAP.PENDING) {
+    if (record.status !== STATUS.SCRAP.APPROVED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '待审批的报废记录不能直接完成', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只有审批通过的报废记录才能完成', 'BAD_REQUEST', 400);
     }
 
     // 完成报废
@@ -270,29 +294,18 @@ const completeScrap = async (req, res) => {
       [scrap_cost, id]
     );
 
-    // 自动扣减库存
-    try {
-      await QualityIntegrationService.handleScrapInventory(record, connection);
-    } catch (error) {
-      logger.warn('报废库存扣减失败(继续完成报废):', error.message);
-    }
-
-    // 记录质量成本
-    try {
-      await QualityIntegrationService.recordQualityCost(
-        {
-          costType: 'scrap',
-          referenceNo: record.scrap_no,
-          materialCode: record.material_code,
-          quantity: record.quantity,
-          cost: scrap_cost,
-          operator: record.created_by,
-        },
-        connection
-      );
-    } catch (error) {
-      logger.warn('记录质量成本失败(继续完成报废):', error.message);
-    }
+    await QualityIntegrationService.handleScrapInventory(record, connection);
+    await QualityIntegrationService.recordQualityCost(
+      {
+        costType: 'scrap',
+        referenceNo: record.scrap_no,
+        materialCode: record.material_code,
+        quantity: record.quantity,
+        cost: scrap_cost,
+        operator: record.created_by,
+      },
+      connection
+    );
 
     await connection.commit();
     return ResponseHandler.success(res, null, '报废完成');
@@ -320,6 +333,7 @@ const updateStatus = async (req, res) => {
 
     const validStatuses = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
+      await connection.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
@@ -332,15 +346,20 @@ const updateStatus = async (req, res) => {
 
     const record = records[0];
 
+    if (record.status === STATUS.SCRAP.COMPLETED && status !== STATUS.SCRAP.COMPLETED) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '已完成的报废记录不能变更状态', 'BAD_REQUEST', 400);
+    }
+
     // 🔒 闭环保护：completed 状态必须走正规流程（库存扣减 + 质量成本）
     if (status === 'completed') {
       if (record.status === STATUS.SCRAP.COMPLETED) {
         await connection.rollback();
         return ResponseHandler.error(res, '该报废记录已完成', 'BAD_REQUEST', 400);
       }
-      if (record.status === STATUS.SCRAP.PENDING) {
+      if (record.status !== STATUS.SCRAP.APPROVED) {
         await connection.rollback();
-        return ResponseHandler.error(res, '待审批的报废记录不能直接完成，请先审批', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '只有审批通过的报废记录才能完成，请先审批', 'BAD_REQUEST', 400);
       }
 
       // 更新状态为已完成
@@ -349,29 +368,18 @@ const updateStatus = async (req, res) => {
         [id]
       );
 
-      // 自动扣减库存
-      try {
-        await QualityIntegrationService.handleScrapInventory(record, connection);
-      } catch (invError) {
-        logger.warn('报废库存扣减失败(继续完成报废):', invError.message);
-      }
-
-      // 记录质量成本
-      try {
-        await QualityIntegrationService.recordQualityCost(
-          {
-            costType: 'scrap',
-            referenceNo: record.scrap_no,
-            materialCode: record.material_code,
-            quantity: record.quantity,
-            cost: record.scrap_cost || 0,
-            operator: record.created_by,
-          },
-          connection
-        );
-      } catch (costError) {
-        logger.warn('记录质量成本失败(继续完成报废):', costError.message);
-      }
+      await QualityIntegrationService.handleScrapInventory(record, connection);
+      await QualityIntegrationService.recordQualityCost(
+        {
+          costType: 'scrap',
+          referenceNo: record.scrap_no,
+          materialCode: record.material_code,
+          quantity: record.quantity,
+          cost: record.scrap_cost || 0,
+          operator: record.created_by,
+        },
+        connection
+      );
 
       logger.info(`✅ 报废记录 ${record.scrap_no} 通过 updateStatus 完成，已触发库存扣减和成本记录`);
     } else {
@@ -380,6 +388,23 @@ const updateStatus = async (req, res) => {
         `UPDATE scrap_records SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         [status, id]
       );
+
+      if (['rejected', 'cancelled'].includes(status) && record.ncp_id) {
+        await connection.query(
+          `UPDATE nonconforming_products
+           SET status = 'processing',
+               handled_quantity = 0,
+               updated_by = ?,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND status = 'completed' AND deleted_at IS NULL`,
+          ['system', record.ncp_id]
+        );
+        await connection.query(
+          `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
+           VALUES (?, 'dispose', ?, 'system')`,
+          [record.ncp_id, `报废记录 ${record.scrap_no} 状态变更为 ${status}，NCP退回处理中`]
+        );
+      }
     }
 
     await connection.commit();

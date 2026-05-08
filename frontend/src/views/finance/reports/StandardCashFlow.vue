@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * StandardCashFlow.vue
  * @description 标准现金流量表（间接法）
@@ -15,7 +15,7 @@
           <p class="subtitle">间接法 · 符合企业会计准则</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:cash-flow'">生成报表</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.items?.length">打印报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.items?.length">导出Excel</el-button>
         </div>

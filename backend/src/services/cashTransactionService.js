@@ -5,10 +5,9 @@
  * @version 1.0.0
  */
 
-const cashModel = require('../models/cash');
+const CashTransactionModel = require('../models/cash/CashTransaction');
+const CashReportsModel = require('../models/cash/Reports');
 const ExcelJS = require('exceljs');
-const path = require('path');
-const fs = require('fs').promises;
 
 /**
  * 现金交易服务层
@@ -20,15 +19,17 @@ class CashTransactionService {
    */
   async getCashTransactions(filters) {
     try {
-      const result = await cashModel.getCashTransactions(filters);
+      const result = await CashTransactionModel.getCashTransactions(filters);
+      const transactions = result.transactions || result.data || [];
 
       // 格式化数据
-      result.data = result.data.map((transaction) => ({
+      result.data = transactions.map((transaction) => ({
         ...transaction,
         amount: parseFloat(transaction.amount),
         categoryName: this.getCategoryName(transaction.category),
-        typeName: this.getTypeName(transaction.type),
+        typeName: this.getTypeName(transaction.type || transaction.transaction_type),
       }));
+      result.transactions = result.data;
 
       return result;
     } catch (error) {
@@ -41,7 +42,7 @@ class CashTransactionService {
    */
   async getCashTransactionStats(filters) {
     try {
-      const stats = await cashModel.getCashTransactionStats(filters);
+      const stats = await CashTransactionModel.getCashTransactionStats(filters);
 
       return {
         totalCount: parseInt(stats.totalCount),
@@ -65,7 +66,7 @@ class CashTransactionService {
       // 添加创建者信息
       transactionData.created_by = userId;
 
-      const result = await cashModel.createCashTransaction(transactionData);
+      const result = await CashTransactionModel.createCashTransaction(transactionData);
 
       return result;
     } catch (error) {
@@ -81,7 +82,7 @@ class CashTransactionService {
       // 数据验证
       this.validateTransactionData(transactionData);
 
-      const result = await cashModel.updateCashTransaction(id, transactionData);
+      const result = await CashTransactionModel.updateCashTransaction(id, transactionData);
 
       return result;
     } catch (error) {
@@ -94,7 +95,7 @@ class CashTransactionService {
    */
   async deleteCashTransaction(id) {
     try {
-      const result = await cashModel.deleteCashTransaction(id);
+      const result = await CashTransactionModel.deleteCashTransaction(id);
 
       return result;
     } catch (error) {
@@ -107,7 +108,7 @@ class CashTransactionService {
    */
   async getCashTransactionById(id) {
     try {
-      const transaction = await cashModel.getCashTransactionById(id);
+      const transaction = await CashTransactionModel.getCashTransactionById(id);
 
       if (!transaction) {
         throw new Error('现金交易不存在');
@@ -131,7 +132,8 @@ class CashTransactionService {
     try {
       // 获取所有数据（不分页）
       const exportFilters = { ...filters, page: 1, pageSize: 10000 };
-      const result = await cashModel.getCashTransactions(exportFilters);
+      const result = await CashTransactionModel.getCashTransactions(exportFilters);
+      const transactions = result.transactions || result.data || [];
 
       // 创建Excel工作簿
       const workbook = new ExcelJS.Workbook();
@@ -151,11 +153,11 @@ class CashTransactionService {
       ];
 
       // 添加数据行
-      result.data.forEach((transaction) => {
+      transactions.forEach((transaction) => {
         worksheet.addRow({
           transactionDate: transaction.transactionDate,
           transactionNumber: transaction.transactionNumber,
-          type: this.getTypeName(transaction.type),
+          type: this.getTypeName(transaction.type || transaction.transaction_type),
           category: this.getCategoryName(transaction.category),
           amount: parseFloat(transaction.amount),
           counterparty: transaction.counterparty,
@@ -175,17 +177,12 @@ class CashTransactionService {
 
       // 生成文件
       const fileName = `现金交易记录_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      const filePath = path.join(__dirname, '../temp', fileName);
-
-      // 确保临时目录存在
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-
-      await workbook.xlsx.writeFile(filePath);
+      const buffer = await workbook.xlsx.writeBuffer();
 
       return {
         fileName,
-        filePath,
-        count: result.data.length,
+        buffer,
+        count: transactions.length,
       };
     } catch (error) {
       throw new Error(`导出现金交易失败: ${error.message}`, { cause: error });
@@ -235,7 +232,7 @@ class CashTransactionService {
       }
 
       // 批量创建
-      const result = await cashModel.batchCreateCashTransactions(transactions);
+      const result = await CashTransactionModel.batchCreateCashTransactions(transactions);
 
       return result;
     } catch (error) {
@@ -248,7 +245,7 @@ class CashTransactionService {
    */
   async getCashTransactionCategoryStats(filters) {
     try {
-      const stats = await cashModel.getCashTransactionCategoryStats(filters);
+      const stats = await CashReportsModel.getCashTransactionCategoryStats(filters);
 
       return stats.map((stat) => ({
         ...stat,

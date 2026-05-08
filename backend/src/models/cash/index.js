@@ -112,6 +112,12 @@ module.exports = {
   updateBankAccount: Account.updateBankAccount,
   updateBankAccountStatus: Account.updateBankAccountStatus,
   updateBankAccountBalance: Account.updateBankAccountBalance,
+  getBankTransactionById: Transaction.getBankTransactionById,
+  getBankTransactions: Transaction.getBankTransactions,
+  createBankTransaction: Transaction.createBankTransaction,
+  updateBankTransaction: Transaction.updateBankTransaction,
+  deleteBankTransaction: Transaction.deleteBankTransaction,
+  transferFunds: Transfer.transferFunds,
   // 显式导出CashTransaction的审核方法
   submitForAudit: CashTransaction.submitForAudit,
   approveTransaction: CashTransaction.approveTransaction,

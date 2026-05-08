@@ -24,15 +24,36 @@ const TYPE_LABELS = {
   production_plan: '生产计划',
   production_task: '生产任务',
   quality_inspection: '质检单',
+  nonconforming_product: '不合格品',
+  eight_d_report: '8D报告',
+  rework_task: '返工任务',
+  scrap_record: '报废记录',
+  replacement_order: '换货单',
   finance_voucher: '记账凭证',
+  asset: '固定资产',
+  cip_project: '在建工程',
+  asset_transfer: '资产调拨单',
+  asset_depreciation: '资产折旧明细',
+  asset_disposal: '资产处置单',
+  asset_impairment: '资产减值单',
   ap_invoice: '应付发票',
   ar_invoice: '应收发票',
+  tax_invoice: '税务发票',
+  tax_return: '税务申报',
   ap_payment: '付款单',
   ar_receipt: '收款单',
+  bank_transfer: '资金调拨单',
+  bank_transaction: '银行流水',
+  outsourced_processing: '外委加工单',
+  outsourced_receipt: '外委加工入库单',
   contract: '合同',
   expense: '费用单',
   ecn: '工程变更',
+  bom: 'BOM',
+  material: '物料',
 };
+
+const ALLOWED_LINK_TYPES = new Set(['generate', 'reference', 'related']);
 
 class DocumentLinkService {
 
@@ -40,6 +61,10 @@ class DocumentLinkService {
    * 创建单据关联
    */
   async createLink({ source_type, source_id, source_code, target_type, target_id, target_code, link_type = 'generate', remark, created_by }, conn = null) {
+    if (!ALLOWED_LINK_TYPES.has(link_type)) {
+      throw new Error(`不支持的单据关联类型: ${link_type}`);
+    }
+
     const db = conn || pool;
     await db.query(
       `INSERT IGNORE INTO document_links (source_type, source_id, source_code, target_type, target_id, target_code, link_type, remark, created_by)
@@ -138,6 +163,18 @@ class DocumentLinkService {
    */
   async deleteLink(id) {
     await pool.query('DELETE FROM document_links WHERE id = ?', [id]);
+  }
+
+  /**
+   * 按源/目标组合删除关联，用于未入账单据撤销人工关联。
+   */
+  async deleteLinksByPair({ source_type, source_id, target_type, target_id }, conn = null) {
+    const db = conn || pool;
+    await db.query(
+      `DELETE FROM document_links
+       WHERE source_type = ? AND source_id = ? AND target_type = ? AND target_id = ?`,
+      [source_type, source_id, target_type, target_id]
+    );
   }
 
   /**

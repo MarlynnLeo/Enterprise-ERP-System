@@ -1,114 +1,161 @@
 /**
  * 天气控制器
- * @description 提供天气数据查询服务（使用高德地图API）
- * @author 系统
- * @date 2025-11-29
+ * @description 提供天气数据查询服务（使用 Open-Meteo API）
  */
 
 const axios = require('axios');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
-// 高德地图天气API配置
-const AMAP_CONFIG = {
-  key: process.env.AMAP_API_KEY || '',
-  baseUrl: 'https://restapi.amap.com/v3/weather/weatherInfo',
+const OPEN_METEO_CONFIG = {
+  baseUrl: 'https://api.open-meteo.com/v1/forecast',
   timeout: 5000,
+  timezone: 'Asia/Shanghai',
 };
 
-// 城市adcode映射（高德使用行政区划代码）
-// 查询地址: https://lbs.amap.com/api/webservice/download
-const CITY_ADCODE_MAP = {
-  乐清: '330382',
-  温州: '330300',
-  杭州: '330100',
-  上海: '310000',
-  北京: '110000',
+const DEFAULT_CITY = '乐清';
+
+const CITY_COORDINATE_MAP = {
+  乐清: { name: '乐清', latitude: 28.1137, longitude: 120.9839 },
+  温州: { name: '温州', latitude: 27.9938, longitude: 120.6994 },
+  杭州: { name: '杭州', latitude: 30.2741, longitude: 120.1551 },
+  上海: { name: '上海', latitude: 31.2304, longitude: 121.4737 },
+  北京: { name: '北京', latitude: 39.9042, longitude: 116.4074 },
+};
+
+const WMO_WEATHER_MAP = {
+  0: { description: '晴', weatherCode: 'sunny' },
+  1: { description: '大部晴朗', weatherCode: 'sunny' },
+  2: { description: '局部多云', weatherCode: 'partly-cloudy' },
+  3: { description: '阴', weatherCode: 'cloudy' },
+  45: { description: '雾', weatherCode: 'cloudy' },
+  48: { description: '雾凇', weatherCode: 'cloudy' },
+  51: { description: '小毛毛雨', weatherCode: 'rainy' },
+  53: { description: '中等毛毛雨', weatherCode: 'rainy' },
+  55: { description: '大毛毛雨', weatherCode: 'rainy' },
+  56: { description: '冻毛毛雨', weatherCode: 'rainy' },
+  57: { description: '强冻毛毛雨', weatherCode: 'rainy' },
+  61: { description: '小雨', weatherCode: 'rainy' },
+  63: { description: '中雨', weatherCode: 'rainy' },
+  65: { description: '大雨', weatherCode: 'rainy' },
+  66: { description: '冻雨', weatherCode: 'rainy' },
+  67: { description: '强冻雨', weatherCode: 'rainy' },
+  71: { description: '小雪', weatherCode: 'cloudy' },
+  73: { description: '中雪', weatherCode: 'cloudy' },
+  75: { description: '大雪', weatherCode: 'cloudy' },
+  77: { description: '雪粒', weatherCode: 'cloudy' },
+  80: { description: '小阵雨', weatherCode: 'rainy' },
+  81: { description: '中阵雨', weatherCode: 'rainy' },
+  82: { description: '强阵雨', weatherCode: 'rainy' },
+  85: { description: '小阵雪', weatherCode: 'cloudy' },
+  86: { description: '强阵雪', weatherCode: 'cloudy' },
+  95: { description: '雷暴', weatherCode: 'rainy' },
+  96: { description: '雷暴伴小冰雹', weatherCode: 'rainy' },
+  99: { description: '雷暴伴强冰雹', weatherCode: 'rainy' },
+};
+
+const createUnavailableWeather = (city = DEFAULT_CITY) => ({
+  city,
+  temperature: '--',
+  feelsLike: '--',
+  description: '天气暂不可用',
+  weatherCode: 'cloudy',
+  windSpeed: '--',
+  windDir: '--',
+  humidity: '--',
+  pressure: '-',
+  visibility: '-',
+  updateTime: '',
+  isDefault: true,
+});
+
+const getCityLocation = (city) => CITY_COORDINATE_MAP[city] || CITY_COORDINATE_MAP[DEFAULT_CITY];
+
+const formatNumber = (value) => {
+  if (value === null || value === undefined || value === '') return '--';
+  return Number.isFinite(Number(value)) ? String(Math.round(Number(value))) : String(value);
+};
+
+const formatVisibility = (value) => {
+  if (value === null || value === undefined || value === '') return '-';
+  const visibilityInKm = Number(value) / 1000;
+  return Number.isFinite(visibilityInKm) ? visibilityInKm.toFixed(1) : '-';
+};
+
+const formatUpdateTime = (time) => {
+  if (!time || typeof time !== 'string') return '';
+  const [, clock = time] = time.split('T');
+  return clock.substring(0, 5);
+};
+
+const formatWindDirection = (degrees) => {
+  if (!Number.isFinite(Number(degrees))) return '--';
+
+  const directions = ['北风', '东北风', '东风', '东南风', '南风', '西南风', '西风', '西北风'];
+  const index = Math.round(Number(degrees) / 45) % directions.length;
+  return directions[index];
+};
+
+const mapWeatherCode = (weatherCode) => WMO_WEATHER_MAP[Number(weatherCode)] || {
+  description: '未知',
+  weatherCode: 'cloudy',
 };
 
 /**
  * 获取天气数据
  */
 const getWeather = async (req, res) => {
+  const { city = DEFAULT_CITY } = req.query;
+  const location = getCityLocation(city);
+
   try {
-    const { city = '乐清' } = req.query;
-
-    // 检查API密钥是否配置
-    if (!AMAP_CONFIG.key) {
-      logger.warn('高德地图API密钥未配置，天气服务不可用');
-      return ResponseHandler.error(
-        res,
-        '天气服务未配置，请维护 AMAP_API_KEY',
-        'WEATHER_CONFIG_MISSING',
-        503
-      );
-    }
-
-    // 获取城市adcode
-    const adcode = CITY_ADCODE_MAP[city] || CITY_ADCODE_MAP['乐清'];
-
-    // 调用高德天气API - 实时天气
-    const weatherResponse = await axios.get(AMAP_CONFIG.baseUrl, {
+    const weatherResponse = await axios.get(OPEN_METEO_CONFIG.baseUrl, {
       params: {
-        city: adcode,
-        key: AMAP_CONFIG.key,
-        extensions: 'base', // base返回实况，all返回预报
+        latitude: location.latitude,
+        longitude: location.longitude,
+        current: [
+          'temperature_2m',
+          'relative_humidity_2m',
+          'apparent_temperature',
+          'weather_code',
+          'wind_speed_10m',
+          'wind_direction_10m',
+          'surface_pressure',
+          'visibility',
+        ].join(','),
+        timezone: OPEN_METEO_CONFIG.timezone,
+        wind_speed_unit: 'kmh',
       },
-      timeout: AMAP_CONFIG.timeout,
+      timeout: OPEN_METEO_CONFIG.timeout,
     });
 
-    if (weatherResponse.data.status !== '1') {
-      throw new Error(`高德天气API返回错误: ${weatherResponse.data.info}`);
+    const current = weatherResponse.data?.current;
+    if (!current) {
+      throw new Error('Open-Meteo API 未返回 current 天气数据');
     }
 
-    const live = weatherResponse.data.lives[0];
-
-    // 映射天气描述到天气类型
-    const weatherType = mapWeatherType(live.weather);
-
+    const weatherType = mapWeatherCode(current.weather_code);
     const weatherData = {
-      city: live.city,
-      temperature: live.temperature,
-      feelsLike: live.temperature, // 高德API没有体感温度，用实际温度代替
-      description: live.weather,
-      weatherCode: weatherType,
-      windSpeed: live.windpower,
-      windDir: live.winddirection + '风',
-      humidity: live.humidity,
-      pressure: '-',
-      visibility: '-',
-      updateTime: live.reporttime.split(' ')[1].substring(0, 5),
+      city: location.name,
+      temperature: formatNumber(current.temperature_2m),
+      feelsLike: formatNumber(current.apparent_temperature),
+      description: weatherType.description,
+      weatherCode: weatherType.weatherCode,
+      windSpeed: formatNumber(current.wind_speed_10m),
+      windDir: formatWindDirection(current.wind_direction_10m),
+      humidity: formatNumber(current.relative_humidity_2m),
+      pressure: formatNumber(current.surface_pressure),
+      visibility: formatVisibility(current.visibility),
+      updateTime: formatUpdateTime(current.time),
       isDefault: false,
     };
 
-    logger.debug('天气数据获取成功', { city: live.city, temperature: live.temperature });
+    logger.debug('天气数据获取成功', { city: weatherData.city, temperature: weatherData.temperature });
     return ResponseHandler.success(res, weatherData);
   } catch (error) {
     logger.error('获取天气数据失败:', error);
-    return ResponseHandler.error(
-      res,
-      '天气数据获取失败，请稍后重试',
-      'WEATHER_FETCH_FAILED',
-      502,
-      error
-    );
+    return ResponseHandler.success(res, createUnavailableWeather(location.name), '天气数据暂不可用');
   }
-};
-
-/**
- * 映射高德天气描述到天气类型
- */
-const mapWeatherType = (weather) => {
-  if (!weather) return 'cloudy';
-
-  if (weather.includes('晴')) return 'sunny';
-  if (weather.includes('多云') || weather.includes('少云')) return 'partly-cloudy';
-  if (weather.includes('阴')) return 'cloudy';
-  if (weather.includes('雨')) return 'rainy';
-  if (weather.includes('雪')) return 'cloudy';
-  if (weather.includes('雾') || weather.includes('霾')) return 'cloudy';
-
-  return 'cloudy';
 };
 
 module.exports = {

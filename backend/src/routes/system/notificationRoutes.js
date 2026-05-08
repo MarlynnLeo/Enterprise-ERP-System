@@ -24,7 +24,11 @@ router.put('/:id/read', notificationController.markAsRead);
 router.put('/mark-all-read', notificationController.markAllAsRead);
 
 // 删除通知
-router.delete('/:id', notificationController.deleteNotification);
+router.delete(
+  '/:id',
+  requirePermission('system:notifications:delete'),
+  notificationController.deleteNotification
+);
 
 // 创建通知
 router.post('/', requirePermission('system:notifications:create'), notificationController.createNotification);

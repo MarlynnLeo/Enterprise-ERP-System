@@ -76,9 +76,9 @@
       <el-divider content-position="left">执行分析</el-divider>
 
       <el-button type="primary" @click="handleViewAnalysis"
-        v-permission="'finance:budget:view'">查看执行分析</el-button>
+        v-permission="'finance:budgets:view'">查看执行分析</el-button>
       <el-button type="success" @click="handleViewExecutions"
-        v-permission="'finance:budget:view'">查看执行记录</el-button>
+        v-permission="'finance:budgets:view'">查看执行记录</el-button>
     </el-card>
   </div>
 </template>

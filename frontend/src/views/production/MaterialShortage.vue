@@ -15,6 +15,18 @@ import { parseApiResponse, parsePaginatedData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { Download, Search, Refresh, ShoppingCart, Select, Close, InfoFilled } from '@element-plus/icons-vue'
+
+const props = defineProps({
+  pageTitle: {
+    type: String,
+    default: '生产计划缺料统计'
+  },
+  pageSubtitle: {
+    type: String,
+    default: '统计生产计划物料缺口'
+  }
+})
+
 // 数据定义
 const loading = ref(false)
 const shortageList = ref([])
@@ -139,7 +151,8 @@ const handleExport = async () => {
       { header: '规格型号', key: 'material_specs', width: 20 },
       { header: '单位', key: 'unit', width: 8 },
       { header: '需求数量', key: 'required_quantity', width: 12 },
-      { header: '库存数量', key: 'stock_quantity', width: 12 },
+      { header: '当前库存', key: 'current_stock_quantity', width: 12 },
+      { header: '本次可用', key: 'stock_quantity', width: 12 },
       { header: '缺料数量', key: 'shortage_quantity', width: 12 },
       { header: '采购状态', key: 'purchase_status', width: 10 },
       { header: '计划开始日期', key: 'start_date', width: 12 },
@@ -156,6 +169,7 @@ const handleExport = async () => {
         material_specs: item.material_specs || '',
         unit: item.unit || '',
         required_quantity: formatQuantity(item.required_quantity),
+        current_stock_quantity: formatQuantity(item.current_stock_quantity),
         stock_quantity: formatQuantity(item.stock_quantity),
         shortage_quantity: formatQuantity(item.shortage_quantity),
         purchase_status: item.purchase_status === 'requested' ? '已申请' : '待申请',
@@ -327,8 +341,8 @@ onMounted(() => {
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>生产计划缺料统计</h2>
-          <p class="subtitle">统计生产计划物料缺口</p>
+          <h2>{{ props.pageTitle }}</h2>
+          <p class="subtitle">{{ props.pageSubtitle }}</p>
         </div>
         <el-button type="success" :icon="Download" @click="handleExport" v-permission="'production:plans:export'">导出</el-button>
       </div>
@@ -449,7 +463,13 @@ onMounted(() => {
           </template>
         </el-table-column>
         
-        <el-table-column label="库存数量" width="110" align="right">
+        <el-table-column label="当前库存" width="110" align="right">
+          <template #default="scope">
+            <span class="text-info">{{ formatQuantity(scope.row.current_stock_quantity) }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="本次可用" width="110" align="right">
           <template #default="scope">
             <span class="text-info">{{ formatQuantity(scope.row.stock_quantity) }}</span>
           </template>

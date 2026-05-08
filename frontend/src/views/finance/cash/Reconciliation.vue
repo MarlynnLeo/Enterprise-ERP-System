@@ -15,8 +15,8 @@
           <p class="subtitle">银行账户对账与核销</p>
         </div>
         <div class="action-buttons">
-          <el-button type="primary" @click="startReconciliation">开始对账</el-button>
-          <el-button v-permission="'finance:cash:reconcile'" type="success" @click="importStatement" :disabled="!selectedAccount">导入对账单</el-button>
+          <el-button v-permission="'finance:cash:reconcile'" type="primary" @click="startReconciliation">开始对账</el-button>
+          <el-button v-permission="'finance:cash:reconcile'" type="success" @click="importStatement" :disabled="!selectedAccount || !dateRange">导入对账单</el-button>
         </div>
       </div>
     </el-card>
@@ -101,7 +101,8 @@
       <el-tabs v-model="activeTab" class="reconciliation-tabs">
         <el-tab-pane label="账面未达账项" name="unreconciled">
           <div class="tab-toolbar">
-            <el-button 
+            <el-button
+              v-permission="'finance:cash:reconcile'"
               type="success" 
               size="small" 
               :disabled="selectedUnreconciled.length === 0"
@@ -143,7 +144,7 @@
             <el-table-column prop="referenceNumber" label="参考号" width="110" show-overflow-tooltip></el-table-column>
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="scope">
-                <el-button type="primary" size="small" @click="markAsReconciled(scope.row)">对账</el-button>
+                <el-button v-permission="'finance:cash:reconcile'" type="primary" size="small" @click="markAsReconciled(scope.row)">对账</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -175,7 +176,7 @@
               <template #trigger>
                 <el-button type="primary">选择文件</el-button>
               </template>
-              <el-button style="margin-left: 10px;" type="success" @click="uploadFile" :loading="uploading">上传</el-button>
+              <el-button v-permission="'finance:cash:reconcile'" style="margin-left: 10px;" type="success" @click="uploadFile" :loading="uploading">上传</el-button>
               <template #tip>
                 <div class="el-upload__tip">支持.xlsx, .csv格式，请选择符合模板的银行对账单文件</div>
               </template>
@@ -216,7 +217,8 @@
             </el-table-column>
             <el-table-column label="操作" min-width="180" fixed="right">
               <template #default="scope">
-                <el-button 
+                <el-button
+                  v-permission="'finance:cash:reconcile'"
                   :type="scope.row.status === 'matched' ? 'info' : 'primary'" 
                   size="small" 
                   @click="matchTransaction(scope.row)"
@@ -252,7 +254,7 @@
             <el-table-column prop="reconciliationDate" label="对账日期" width="120"></el-table-column>
             <el-table-column label="操作" min-width="180" fixed="right">
               <template #default="scope">
-                <el-button type="warning" size="small" @click="cancelReconciliation(scope.row)">取消对账</el-button>
+                <el-button v-permission="'finance:cash:reconcile'" type="warning" size="small" @click="cancelReconciliation(scope.row)">取消对账</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -286,10 +288,10 @@
         <div class="bank-transaction-info">
           <h4>银行交易信息</h4>
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="交易日期">{{ selectedBankTransaction.transactionDate }}</el-descriptions-item>
-            <el-descriptions-item label="交易类型">{{ getTransactionTypeText(selectedBankTransaction.type) }}</el-descriptions-item>
-            <el-descriptions-item label="金额">{{ formatCurrency(selectedBankTransaction.amount) }}</el-descriptions-item>
-            <el-descriptions-item label="摘要">{{ selectedBankTransaction.summary }}</el-descriptions-item>
+            <el-descriptions-item label="交易日期">{{ selectedStatementItem.transactionDate }}</el-descriptions-item>
+            <el-descriptions-item label="交易类型">{{ getTransactionTypeText(selectedStatementItem.type) }}</el-descriptions-item>
+            <el-descriptions-item label="金额">{{ formatCurrency(selectedStatementItem.amount) }}</el-descriptions-item>
+            <el-descriptions-item label="摘要">{{ selectedStatementItem.summary }}</el-descriptions-item>
           </el-descriptions>
         </div>
         
@@ -322,7 +324,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="matchDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmMatch" :disabled="selectedTransactions.length === 0">确认匹配</el-button>
+          <el-button v-permission="'finance:cash:reconcile'" type="primary" @click="confirmMatch" :disabled="selectedTransactions.length === 0">确认匹配</el-button>
         </span>
       </template>
     </el-dialog>
@@ -379,7 +381,7 @@ const selectedUnreconciled = ref([]);
 
 // 匹配交易
 const matchDialogVisible = ref(false);
-const selectedBankTransaction = ref({});
+const selectedStatementItem = ref({});
 const matchingTransactions = ref([]);
 const selectedTransactions = ref([]);
 
@@ -494,6 +496,7 @@ const searchReconciliation = async () => {
       params: { 
         ...params, 
         isReconciled: false,
+        status: 'approved',
         page: unreconciledPage.value,
         limit: unreconciledPageSize.value
       }
@@ -601,6 +604,10 @@ const uploadFile = async () => {
     ElMessage.warning('请选择要上传的文件');
     return;
   }
+  if (!selectedAccount.value || !dateRange.value || dateRange.value.length !== 2) {
+    ElMessage.warning('请选择对账账户和对账期间');
+    return;
+  }
   
   uploading.value = true;
   try {
@@ -672,16 +679,16 @@ const cancelReconciliation = async (transaction) => {
   }
 };
 
-// 匹配交易
-const matchTransaction = async (bankTransaction) => {
-  selectedBankTransaction.value = bankTransaction;
+// 匹配银行对账单明细与账面交易
+const matchTransaction = async (statementItem) => {
+  selectedStatementItem.value = statementItem;
   
-  if (bankTransaction.status === 'matched') {
+  if (statementItem.status === 'matched') {
     // 查看已匹配的交易
     try {
       const response = await api.get('/finance/cash/reconciliation/matched-transaction', {
         params: {
-          bankTransactionId: bankTransaction.id
+          statementItemId: statementItem.id
         }
       });
       
@@ -696,7 +703,7 @@ const matchTransaction = async (bankTransaction) => {
     try {
       const response = await api.get('/finance/cash/reconciliation/possible-matches', {
         params: {
-          bankTransactionId: bankTransaction.id,
+          statementItemId: statementItem.id,
           accountId: selectedAccount.value
         }
       });
@@ -723,19 +730,28 @@ const confirmMatch = async () => {
     ElMessage.warning('请选择要匹配的交易');
     return;
   }
+  if (!selectedStatementItem.value?.id) {
+    ElMessage.warning('请选择要匹配的银行对账单明细');
+    return;
+  }
   
   try {
     await api.post('/finance/cash/reconciliation/confirm-match', {
-      bankTransactionId: selectedBankTransaction.value.id,
+      statementItemId: selectedStatementItem.value.id,
       transactionIds: selectedTransactions.value.map(t => t.id),
       accountId: selectedAccount.value
     });
     
     ElMessage.success('交易匹配成功');
     matchDialogVisible.value = false;
+    const matchedItem = importedStatement.value.find(item => item.id === selectedStatementItem.value.id);
+    if (matchedItem) {
+      matchedItem.status = 'matched';
+    }
     
     // 刷新对账数据
-    searchReconciliation();
+    await searchReconciliation();
+    activeTab.value = 'bank_statement';
   } catch (error) {
     console.error('确认匹配失败:', error);
     ElMessage.error('确认匹配失败');

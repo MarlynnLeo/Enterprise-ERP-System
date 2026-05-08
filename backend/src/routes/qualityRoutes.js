@@ -142,8 +142,8 @@ router.get('/target-options/:targetType', authenticateToken, requirePermission('
 /**
  * 不合格品 (NCP) 特采相关路由（未变更）
  */
-router.post('/ncp/:id/concession/apply', authenticateToken, requirePermission('quality:inspections:update'), ncpController.applyConcession);
-router.post('/ncp/:id/concession/approve', authenticateToken, requirePermission('quality:inspections:update'), ncpController.approveConcession);
+router.post('/ncp/:id/concession/apply', authenticateToken, requirePermission('quality:nonconforming:update'), ncpController.applyConcession);
+router.post('/ncp/:id/concession/approve', authenticateToken, requirePermission('quality:nonconforming:update'), ncpController.approveConcession);
 
 // 自动追溯相关的旧接口已移动到 batchTraceabilityRoutes 或废弃
 

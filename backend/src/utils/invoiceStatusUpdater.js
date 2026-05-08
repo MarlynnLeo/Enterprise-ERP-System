@@ -22,7 +22,7 @@ async function updateOverdueARInvoices() {
       WHERE status IN ('已确认', '部分付款')
         AND balance_amount > 0
         AND due_date < CURDATE()
-        AND status != '逾期'
+        AND status != '已逾期'
     `);
 
     if (invoices.length === 0) {
@@ -33,11 +33,11 @@ async function updateOverdueARInvoices() {
     // 更新逾期的应收发票
     const [result] = await connection.execute(`
       UPDATE ar_invoices
-      SET status = '逾期'
+      SET status = '已逾期'
       WHERE status IN ('已确认', '部分付款')
         AND balance_amount > 0
         AND due_date < CURDATE()
-        AND status != '逾期'
+        AND status != '已逾期'
     `);
 
     // 记录状态变更日志
@@ -47,7 +47,7 @@ async function updateOverdueARInvoices() {
         invoiceId: invoice.id,
         invoiceCode: invoice.invoice_number,
         oldStatus: invoice.status,
-        newStatus: '逾期',
+        newStatus: '已逾期',
         changedBy: 'SYSTEM',
         changeReason: '逾期自动更新',
       });
@@ -80,7 +80,7 @@ async function updateOverdueAPInvoices() {
       WHERE status IN ('已确认', '部分付款')
         AND balance_amount > 0
         AND due_date < CURDATE()
-        AND status != '逾期'
+        AND status != '已逾期'
     `);
 
     if (invoices.length === 0) {
@@ -91,11 +91,11 @@ async function updateOverdueAPInvoices() {
     // 更新逾期的应付发票
     const [result] = await connection.execute(`
       UPDATE ap_invoices
-      SET status = '逾期'
+      SET status = '已逾期'
       WHERE status IN ('已确认', '部分付款')
         AND balance_amount > 0
         AND due_date < CURDATE()
-        AND status != '逾期'
+        AND status != '已逾期'
     `);
 
     // 记录状态变更日志
@@ -105,7 +105,7 @@ async function updateOverdueAPInvoices() {
         invoiceId: invoice.id,
         invoiceCode: invoice.invoice_number,
         oldStatus: invoice.status,
-        newStatus: '逾期',
+        newStatus: '已逾期',
         changedBy: 'SYSTEM',
         changeReason: '逾期自动更新',
       });
@@ -160,7 +160,7 @@ async function getOverdueInvoicesStats() {
         COUNT(*) as count,
         SUM(balance_amount) as total_amount
       FROM ar_invoices 
-      WHERE status = '逾期'
+      WHERE status = '已逾期'
         AND balance_amount > 0
     `);
 
@@ -170,7 +170,7 @@ async function getOverdueInvoicesStats() {
         COUNT(*) as count,
         SUM(balance_amount) as total_amount
       FROM ap_invoices 
-      WHERE status = '逾期'
+      WHERE status = '已逾期'
         AND balance_amount > 0
     `);
 

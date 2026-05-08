@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * CashFlow.vue
  * @description 前端界面组件文件
@@ -15,7 +15,7 @@
           <p class="subtitle">查看现金流动情况</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:cash-flow'">生成报表</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.length">打印报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.length">导出Excel</el-button>
         </div>

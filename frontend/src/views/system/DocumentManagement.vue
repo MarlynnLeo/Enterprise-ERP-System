@@ -7,7 +7,7 @@
           <h2>文档管理</h2>
           <p class="subtitle">统一管理合同、图纸、规格书、报告等业务文档</p>
         </div>
-        <el-button type="primary" @click="openForm">上传文档</el-button>
+        <el-button type="primary" v-permission="'system:documents:create'" @click="openForm">上传文档</el-button>
       </div>
     </el-card>
 
@@ -49,9 +49,9 @@
       <el-table-column prop="created_at" label="上传时间" width="160" />
       <el-table-column label="操作" width="140">
         <template #default="{ row }">
-          <el-button link type="primary" @click="handleDownload(row)">下载</el-button>
+          <el-button link type="primary" v-permission="'system:documents:view'" @click="handleDownload(row)">下载</el-button>
           <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
-            <template #reference><el-button link type="danger">删除</el-button></template>
+            <template #reference><el-button link type="danger" v-permission="'system:documents:delete'">删除</el-button></template>
           </el-popconfirm>
         </template>
       </el-table-column>
@@ -80,7 +80,7 @@
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="'system:documents:create'" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>

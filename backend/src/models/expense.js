@@ -9,7 +9,122 @@ const logger = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
-const crypto = require('crypto');
+const DocumentLinkService = require('../services/business/DocumentLinkService');
+
+function toDateString(value) {
+  if (!value) return new Date().toISOString().split('T')[0];
+  if (value instanceof Date) return value.toISOString().split('T')[0];
+  return String(value).slice(0, 10);
+}
+
+function validateBusinessDate(value, fieldName) {
+  const dateString = toDateString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    throw new Error(`${fieldName}格式必须为YYYY-MM-DD`);
+  }
+  const [year, month, day] = dateString.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new Error(`${fieldName}不是有效日期`);
+  }
+  return dateString;
+}
+
+function normalizePositiveAmount(value, fieldName) {
+  const amount = Number.parseFloat(value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`${fieldName}必须大于0`);
+  }
+  return Math.round(amount * 100) / 100;
+}
+
+async function generateExpensePaymentTransactionNumber(connection, paymentDate) {
+  const txDateStr = paymentDate.replace(/-/g, '');
+  const prefix = `TX-${txDateStr}-`;
+  const [rows] = await connection.execute(
+    `SELECT transaction_number
+     FROM bank_transactions
+     WHERE transaction_number LIKE ?
+     ORDER BY transaction_number DESC
+     LIMIT 1
+     FOR UPDATE`,
+    [`${prefix}%`]
+  );
+
+  let nextNumber = 1;
+  if (rows.length > 0) {
+    const lastSegment = String(rows[0].transaction_number).split('-').pop();
+    const parsed = Number.parseInt(lastSegment, 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      nextNumber = parsed + 1;
+    }
+  }
+
+  return `${prefix}${String(nextNumber).padStart(4, '0')}`;
+}
+
+async function getEntryNumberById(connection, entryId) {
+  if (!entryId) return null;
+  const [entries] = await connection.execute(
+    'SELECT entry_number FROM gl_entries WHERE id = ?',
+    [entryId]
+  );
+  return entries[0]?.entry_number || null;
+}
+
+async function linkExpensePaymentDocuments({
+  connection,
+  expense,
+  expenseId,
+  bankTransactionId,
+  bankTransactionNumber,
+  glEntryId,
+  createdBy,
+}) {
+  if (bankTransactionId) {
+    await DocumentLinkService.tryAutoLink(
+      'expense',
+      expenseId,
+      expense.expense_number,
+      'bank_transaction',
+      bankTransactionId,
+      bankTransactionNumber,
+      createdBy || null,
+      connection
+    );
+  }
+
+  if (!glEntryId) return;
+
+  const glEntryNumber = await getEntryNumberById(connection, glEntryId);
+  await DocumentLinkService.tryAutoLink(
+    'expense',
+    expenseId,
+    expense.expense_number,
+    'finance_voucher',
+    glEntryId,
+    glEntryNumber,
+    createdBy || null,
+    connection
+  );
+
+  if (bankTransactionId) {
+    await DocumentLinkService.tryAutoLink(
+      'bank_transaction',
+      bankTransactionId,
+      bankTransactionNumber,
+      'finance_voucher',
+      glEntryId,
+      glEntryNumber,
+      createdBy || null,
+      connection
+    );
+  }
+}
 
 /**
  * 费用管理模块数据库操作
@@ -457,6 +572,8 @@ const expenseModel = {
   async createExpense(data) {
     try {
       const expenseNumber = data.expense_number || (await this.generateExpenseNumber());
+      const amount = normalizePositiveAmount(data.amount, '费用金额');
+      const expenseDate = validateBusinessDate(data.expense_date, '费用日期');
 
       const [result] = await db.pool.execute(
         `INSERT INTO expenses (
@@ -468,13 +585,13 @@ const expenseModel = {
           expenseNumber,
           data.category_id,
           data.title,
-          data.amount,
-          data.expense_date,
+          amount,
+          expenseDate,
           data.payee || null,
           data.invoice_number || null,
           data.description || null,
           data.attachment_path || null,
-          data.status || 'draft',
+          'draft',
           data.created_by,
         ]
       );
@@ -575,7 +692,10 @@ const expenseModel = {
           u.real_name as created_by_name,
           su.real_name as submitted_by_name,
           au.real_name as approved_by_name,
-          ba.account_name as payment_bank_account_name
+          ba.account_name as payment_bank_account_name,
+          bt.transaction_number as payment_transaction_number,
+          bt.gl_entry_id as payment_gl_entry_id,
+          ge.entry_number as payment_voucher_number
         FROM expenses e
         LEFT JOIN expense_categories c ON e.category_id = c.id
         LEFT JOIN expense_categories pc ON c.parent_id = pc.id
@@ -583,6 +703,8 @@ const expenseModel = {
         LEFT JOIN users su ON e.submitted_by = su.id
         LEFT JOIN users au ON e.approved_by = au.id
         LEFT JOIN bank_accounts ba ON e.payment_bank_account_id = ba.id
+        LEFT JOIN bank_transactions bt ON e.payment_transaction_id = bt.id
+        LEFT JOIN gl_entries ge ON bt.gl_entry_id = ge.id
         WHERE e.id = ?`,
         [id]
       );
@@ -621,7 +743,13 @@ const expenseModel = {
       for (const field of allowedFields) {
         if (data[field] !== undefined) {
           fields.push(`${field} = ?`);
-          params.push(data[field]);
+          if (field === 'amount') {
+            params.push(normalizePositiveAmount(data[field], '费用金额'));
+          } else if (field === 'expense_date') {
+            params.push(validateBusinessDate(data[field], '费用日期'));
+          } else {
+            params.push(data[field]);
+          }
         }
       }
 
@@ -697,7 +825,10 @@ const expenseModel = {
       await connection.beginTransaction();
 
       // 1. 验证费用状态
-      const [current] = await connection.execute('SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [current] = await connection.execute(
+        'SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [id]
+      );
       if (!current[0]) {
         throw new Error('费用记录不存在');
       }
@@ -705,21 +836,23 @@ const expenseModel = {
         throw new Error('只有已审批的费用可以付款');
       }
       const expense = current[0];
+      const paymentDate = validateBusinessDate(paymentData.payment_date, '付款日期');
 
       // 2. 验证银行账户
       if (!paymentData.bank_account_id) {
         throw new Error('请选择付款账户');
       }
-      const [bankAccounts] = await connection.execute('SELECT * FROM bank_accounts WHERE id = ?', [
-        paymentData.bank_account_id,
-      ]);
+      const [bankAccounts] = await connection.execute(
+        'SELECT * FROM bank_accounts WHERE id = ? AND is_active = 1 FOR UPDATE',
+        [paymentData.bank_account_id]
+      );
       if (bankAccounts.length === 0) {
-        throw new Error('付款账户不存在');
+        throw new Error('付款账户不存在或已停用');
       }
       const bankAccount = bankAccounts[0];
 
       // 检查余额是否足够
-      const expenseAmount = parseFloat(expense.amount);
+      const expenseAmount = normalizePositiveAmount(expense.amount, '费用金额');
       if (parseFloat(bankAccount.current_balance) < expenseAmount) {
         throw new Error(
           `账户余额不足，当前余额: ${bankAccount.current_balance}, 需付款: ${expense.amount}`
@@ -727,43 +860,47 @@ const expenseModel = {
       }
 
       // 3. 生成交易流水号
-      const txDateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const txNumber = `TX-${txDateStr}-${String(crypto.randomInt(1000, 10000))}`;
+      const txNumber = await generateExpensePaymentTransactionNumber(connection, paymentDate);
 
       // 4. 创建银行交易记录
-      await connection.execute(
+      const [bankTransactionResult] = await connection.execute(
         `INSERT INTO bank_transactions 
                 (transaction_number, bank_account_id, transaction_date, transaction_type, 
-                amount, reference_number, description, is_reconciled, related_party) 
-                VALUES (?, ?, NOW(), ?, ?, ?, ?, ?, ?)`,
+                amount, reference_number, description, is_reconciled, related_party, status, created_by) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           txNumber,
           paymentData.bank_account_id,
+          paymentDate,
           '费用', // 交易类型
           expenseAmount,
           expense.expense_number,
           `费用付款: ${expense.title}`,
           false, // 未对账
           expense.payee || '内部费用',
+          'approved',
+          paymentData.created_by || null,
         ]
       );
+      const bankTransactionId = bankTransactionResult.insertId;
+      let glEntryId = null;
 
       // 5. 更新银行账户余额
       const newBalance = parseFloat(bankAccount.current_balance) - expenseAmount;
-      await connection.execute('UPDATE bank_accounts SET current_balance = ? WHERE id = ?', [
-        newBalance,
-        paymentData.bank_account_id,
-      ]);
+      await connection.execute(
+        'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?',
+        [expenseAmount, paymentData.bank_account_id]
+      );
 
       // 6. 更新费用状态
       await connection.execute(
         `UPDATE expenses SET 
                 status = 'paid', 
-                paid_at = NOW(), 
+                paid_at = ?, 
                 payment_bank_account_id = ?,
                 payment_transaction_id = ?
                 WHERE id = ?`,
-        [paymentData.bank_account_id, txNumber, id]
+        [paymentDate, paymentData.bank_account_id, bankTransactionId, id]
       );
 
       // 7. 生成会计凭证（如果需要）
@@ -798,18 +935,23 @@ const expenseModel = {
         if (debitAccounts.length > 0 && creditAccounts.length > 0) {
           // 获取当前会计期间
           const [periods] = await connection.execute(
-            'SELECT id FROM gl_periods WHERE is_closed = 0 ORDER BY start_date DESC LIMIT 1'
+            `SELECT id FROM gl_periods
+             WHERE start_date <= ? AND end_date >= ? AND is_closed = 0
+             ORDER BY start_date DESC LIMIT 1`,
+            [paymentDate, paymentDate]
           );
 
           if (periods.length > 0) {
             const entryData = {
-              entry_date: new Date().toISOString().split('T')[0],
-              posting_date: new Date().toISOString().split('T')[0],
+              entry_date: paymentDate,
+              posting_date: paymentDate,
               document_type: '费用单',
               document_number: expense.expense_number,
               period_id: periods[0].id,
               description: `费用付款: ${expense.title}`,
-              created_by: 'system',
+              created_by: paymentData.created_by || 'system',
+              status: 'posted',
+              is_posted: 1,
             };
 
             const entryItems = [
@@ -827,19 +969,34 @@ const expenseModel = {
               },
             ];
 
-            await financeModel.createEntry(entryData, entryItems, connection);
+            glEntryId = await financeModel.createEntry(entryData, entryItems, connection);
+            await connection.execute(
+              'UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?',
+              [glEntryId, bankTransactionId]
+            );
             logger.info(`[费用付款] 会计凭证已生成: ${expense.expense_number}`);
           } else {
-            logger.warn(`[费用付款] 没有开放的会计期间，跳过凭证生成: ${expense.expense_number}`);
+            throw new Error(`没有开放的会计期间，无法生成费用付款凭证: ${expense.expense_number}`);
           }
         } else {
-          // 科目缺失时记录明确警告
-          logger.warn(`[费用付款] 会计科目缺失，跳过凭证生成: 借方科目(${debitAccountCode})找到${debitAccounts.length}个, 贷方科目(1002)找到${creditAccounts.length}个`);
+          throw new Error(
+            `会计科目缺失，无法生成费用付款凭证: 借方科目(${debitAccountCode})找到${debitAccounts.length}个, 贷方科目(1002)找到${creditAccounts.length}个`
+          );
         }
       } catch (entryError) {
-        // 凭证生成失败记录错误但不阻止付款（银行已扣款）
-        logger.error(`[费用付款] 会计凭证生成失败: ${entryError.message}，付款已完成但无凭证，请手动补录`);
+        logger.error(`[费用付款] 会计凭证生成失败: ${entryError.message}`);
+        throw new Error(`费用付款凭证生成失败: ${entryError.message}`, { cause: entryError });
       }
+
+      await linkExpensePaymentDocuments({
+        connection,
+        expense,
+        expenseId: id,
+        bankTransactionId,
+        bankTransactionNumber: txNumber,
+        glEntryId,
+        createdBy: paymentData.created_by || null,
+      });
 
       await connection.commit();
       logger.info(
@@ -849,6 +1006,8 @@ const expenseModel = {
       return {
         success: true,
         transactionNumber: txNumber,
+        transactionId: bankTransactionId,
+        glEntryId,
         newBankBalance: newBalance,
       };
     } catch (error) {
@@ -884,12 +1043,21 @@ const expenseModel = {
    */
   async cancelExpense(id) {
     try {
-      const [current] = await db.pool.execute('SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL', [id]);
-      if (!current[0] || current[0].status === 'paid') {
+      const [current] = await db.pool.execute(
+        'SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
+      if (!current[0]) {
+        throw new Error('费用记录不存在');
+      }
+      if (current[0].status === 'paid') {
         throw new Error('已付款的费用无法取消');
       }
+      if (current[0].status === 'cancelled') {
+        return { success: true };
+      }
 
-      await db.pool.execute("UPDATE expenses SET status = 'cancelled' WHERE id = ?", [id]);
+      await db.pool.execute("UPDATE expenses SET status = 'cancelled', updated_at = NOW() WHERE id = ?", [id]);
       return { success: true };
     } catch (error) {
       logger.error('取消费用失败:', error);

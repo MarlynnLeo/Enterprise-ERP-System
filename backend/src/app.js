@@ -61,7 +61,6 @@ const hrRoutes = require('./routes/hrRoutes');
 const chatRoutes = require('./routes/chat');
 const workflowRoutes = require('./routes/business/workflowRoutes');
 const contractRoutes = require('./routes/business/contractRoutes');
-const mrpRoutes = require('./routes/business/mrpRoutes');
 const enhancedModulesRoutes = require('./routes/business/enhancedModulesRoutes');
 
 // 模型导入已移除 — 原 createPurchaseTablesIfNotExist / createFinanceTablesIfNotExist 已为空操作
@@ -342,7 +341,6 @@ app.use('/api/chat', chatRoutes); // 即时通讯
 app.use('/api/dingtalk', require('./routes/integrations/dingtalkRoutes')); // 钉钉集成
 app.use('/api/workflow', workflowRoutes); // 审批工作流
 app.use('/api/contracts', contractRoutes); // 合同管理
-app.use('/api/mrp', mrpRoutes); // MRP物料需求计划
 app.use('/api/enhanced', enhancedModulesRoutes); // 编码规则/单据关联/汇率/绩效/ECN/文档/告警
 
 // ✅ API v1 版本路由别名 — 将所有核心模块同时挂载到 /api/v1/ 下
@@ -430,28 +428,18 @@ if (!isTestRuntime) {
   // ✅ 启动并挂载各领域事件订阅者 (Domain Event Subscribers)
   require('./events/subscribers/FinanceSubscriber');
 
-  // 启动财务自动化定时任务
-  const ScheduledTaskService = require('./services/business/ScheduledTaskService');
-  const scheduledTaskTimer = setTimeout(() => {
-    try {
-      ScheduledTaskService.startAllTasks();
-    } catch (error) {
-      logger.warn('⚠️ 财务自动化定时任务启动失败:', error.message);
-    }
-  }, 5000);
-  scheduledTaskTimer.unref?.();
-
-  // 启动逾期检查调度器
-  const { initScheduler } = require('./services/scheduler');
-  const overdueSchedulerTimer = setTimeout(() => {
-    try {
-      initScheduler();
-      logger.info('✅ 逾期检查调度器已启动');
-    } catch (error) {
-      logger.error('逾期检查调度器启动失败:', error);
-    }
-  }, 6000);
-  overdueSchedulerTimer.unref?.();
+  // 启动财务自动化定时任务（DISABLE_CRON=true 时跳过）
+  if (process.env.DISABLE_CRON !== 'true') {
+    const ScheduledTaskService = require('./services/business/ScheduledTaskService');
+    const scheduledTaskTimer = setTimeout(() => {
+      try {
+        ScheduledTaskService.startAllTasks();
+      } catch (error) {
+        logger.warn('⚠️ 财务自动化定时任务启动失败:', error.message);
+      }
+    }, 5000);
+    scheduledTaskTimer.unref?.();
+  }
 }
 
 module.exports = app;

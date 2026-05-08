@@ -9,8 +9,22 @@ const BudgetControlService = require('../../../services/business/BudgetControlSe
 const BudgetAnalysisService = require('../../../services/business/BudgetAnalysisService');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
-const { getCurrentUserName } = require('../../../utils/userHelper');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const db = require('../../../config/db');
+
+function sendBudgetBusinessError(res, error, fallback) {
+  if (error.statusCode && error.statusCode < 500) {
+    return ResponseHandler.error(
+      res,
+      error.message || fallback,
+      error.code || 'VALIDATION_ERROR',
+      error.statusCode,
+      error
+    );
+  }
+
+  return ResponseHandler.error(res, fallback, 'SERVER_ERROR', 500, error);
+}
 
 const budgetController = {
   /**
@@ -39,7 +53,7 @@ const budgetController = {
         {
           ...budget,
           budget_no: budgetNo,
-          created_by: await getCurrentUserName(req),
+          created_by: getAuthenticatedUserId(req),
         },
         details || []
       );
@@ -52,7 +66,7 @@ const budgetController = {
       );
     } catch (error) {
       logger.error('创建预算失败:', error);
-      return ResponseHandler.error(res, '创建预算失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetBusinessError(res, error, '创建预算失败');
     }
   },
 
@@ -63,11 +77,13 @@ const budgetController = {
     try {
       const { page = 1, pageSize = 20, ...filters } = req.query;
 
-      const offset = (page - 1) * pageSize;
+      const safePage = Math.max(parseInt(page, 10) || 1, 1);
+      const safePageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
+      const offset = (safePage - 1) * safePageSize;
       const budgets = await budgetModel.getBudgets({
         ...filters,
-        limit: parseInt(pageSize),
-        offset: offset,
+        limit: safePageSize,
+        offset,
       });
 
       const total = await budgetModel.getBudgetsCount(filters);
@@ -75,8 +91,8 @@ const budgetController = {
       return ResponseHandler.success(res, {
         list: budgets,
         total: total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: safePage,
+        pageSize: safePageSize,
       });
     } catch (error) {
       logger.error('获取预算列表失败:', error);
@@ -120,51 +136,16 @@ const budgetController = {
         return ResponseHandler.error(res, '预算不存在', 'NOT_FOUND', 404);
       }
 
-      // 只有草稿和已驳回状态允许修改
-      if (!['草稿', '待审批'].includes(existingBudget.status)) {
+      // 只有草稿状态允许修改；驳回会回到草稿状态
+      if (existingBudget.status !== '草稿') {
         return ResponseHandler.error(res, '该状态的预算不允许修改', 'VALIDATION_ERROR', 400);
       }
 
-      // 使用事务同步更新主表和明细
-      const connection = await db.pool.getConnection();
-      try {
-        await connection.beginTransaction();
-
-        // 1. 更新主表
-        await connection.execute(
-          `UPDATE budgets SET budget_name = ?, budget_year = ?, budget_type = ?, department_id = ?,
-           start_date = ?, end_date = ?, total_amount = ?, description = ? WHERE id = ?`,
-          [
-            mainData.budget_name, mainData.budget_year, mainData.budget_type,
-            mainData.department_id || null, mainData.start_date, mainData.end_date,
-            mainData.total_amount || 0, mainData.description || null, id
-          ]
-        );
-
-        // 2. 如果提供了明细，先删旧再插新
-        if (details && Array.isArray(details)) {
-          await connection.execute('DELETE FROM budget_details WHERE budget_id = ?', [id]);
-          for (const detail of details) {
-            await connection.execute(
-              `INSERT INTO budget_details (budget_id, account_id, department_id, budget_amount, warning_threshold, description)
-               VALUES (?, ?, ?, ?, ?, ?)`,
-              [id, detail.account_id, detail.department_id || null, detail.budget_amount,
-                detail.warning_threshold || 80.0, detail.description || null]
-            );
-          }
-        }
-
-        await connection.commit();
-        return ResponseHandler.success(res, null, '更新预算成功');
-      } catch (err) {
-        await connection.rollback();
-        throw err;
-      } finally {
-        connection.release();
-      }
+      await budgetModel.updateBudget(id, mainData, Array.isArray(details) ? details : null);
+      return ResponseHandler.success(res, null, '更新预算成功');
     } catch (error) {
       logger.error('更新预算失败:', error);
-      return ResponseHandler.error(res, '更新预算失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetBusinessError(res, error, '更新预算失败');
     }
   },
 
@@ -195,7 +176,7 @@ const budgetController = {
       }
     } catch (error) {
       logger.error('删除预算失败:', error);
-      return ResponseHandler.error(res, '删除预算失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetBusinessError(res, error, '删除预算失败');
     }
   },
 
@@ -231,7 +212,7 @@ const budgetController = {
       }
     } catch (error) {
       logger.error('提交预算审批失败:', error);
-      return ResponseHandler.error(res, '提交预算审批失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetBusinessError(res, error, '提交预算审批失败');
     }
   },
 
@@ -267,7 +248,7 @@ const budgetController = {
       }
     } catch (error) {
       logger.error('审批预算失败:', error);
-      return ResponseHandler.error(res, '审批预算失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetBusinessError(res, error, '审批预算失败');
     }
   },
 
@@ -297,7 +278,7 @@ const budgetController = {
       }
     } catch (error) {
       logger.error('启动预算执行失败:', error);
-      return ResponseHandler.error(res, '启动预算执行失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetBusinessError(res, error, '启动预算执行失败');
     }
   },
 
@@ -326,7 +307,7 @@ const budgetController = {
       }
     } catch (error) {
       logger.error('关闭预算失败:', error);
-      return ResponseHandler.error(res, '关闭预算失败', 'SERVER_ERROR', 500, error);
+      return sendBudgetBusinessError(res, error, '关闭预算失败');
     }
   },
 
@@ -417,14 +398,15 @@ const budgetController = {
    */
   getDepartmentBudgetComparison: async (req, res) => {
     try {
-      const { budgetYear } = req.query;
+      const budgetYear = req.query.budgetYear || req.query.year;
+      const parsedBudgetYear = parseInt(budgetYear, 10);
 
-      if (!budgetYear) {
+      if (!Number.isInteger(parsedBudgetYear) || parsedBudgetYear < 1900 || parsedBudgetYear > 2100) {
         return ResponseHandler.error(res, '缺少预算年度参数', 'VALIDATION_ERROR', 400);
       }
 
       const comparison = await BudgetAnalysisService.getDepartmentBudgetComparison(
-        parseInt(budgetYear)
+        parsedBudgetYear
       );
 
       return ResponseHandler.success(res, comparison);
@@ -630,7 +612,7 @@ const budgetController = {
         total_amount: Math.round(totalAmount * 100) / 100,
         status: '草稿',
         description: `由AI智能分析自动生成 (${new Date().toLocaleDateString('zh-CN')})`,
-        created_by: await getCurrentUserName(req),
+        created_by: getAuthenticatedUserId(req),
       };
 
       // 构建明细数据

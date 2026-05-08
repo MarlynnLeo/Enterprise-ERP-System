@@ -92,6 +92,7 @@
           <template #default="scope">
             <div class="operation-buttons">
               <el-button
+                v-permission="'finance:accounts:update'"
                 v-if="!scope.row.is_active && canUpdate"
                 type="primary"
                 size="small"
@@ -106,27 +107,14 @@
               >
                 <template #reference>
                   <el-button
+                    v-permission="'finance:accounts:update'"
                     :type="scope.row.is_active ? 'danger' : 'success'"
                     size="small">
                     {{ scope.row.is_active ? '禁用' : '启用' }}
                   </el-button>
                 </template>
               </el-popconfirm>
-              <el-popconfirm
-                v-if="!scope.row.is_active && canDelete"
-                title="确定要删除该会计科目吗？此操作不可逆。"
-                @confirm="handleDelete(scope.row)"
-                confirm-button-type="danger"
-              >
-                <template #reference>
-                  <el-button
-                    type="danger"
-                    size="small">
-                    删除
-                  </el-button>
-                </template>
-              </el-popconfirm>
-              <el-button v-if="canCreate" size="small" @click="addChild(scope.row)">添加子科目</el-button>
+              <el-button v-permission="'finance:accounts:create'" v-if="canCreate" size="small" @click="addChild(scope.row)">添加子科目</el-button>
             </div>
           </template>
         </el-table-column>
@@ -220,7 +208,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveAccount" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="accountForm.id ? 'finance:accounts:update' : 'finance:accounts:create'" type="primary" @click="saveAccount" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -240,9 +228,8 @@ import { useAuthStore } from '@/stores/auth'
 const authStore = useAuthStore()
 
 // 权限计算属性（修复：之前未定义导致 TypeError: Cannot convert object to primitive value）
-const canCreate = computed(() => authStore.hasPermission('finance:gl:accounts:create'));
-const canUpdate = computed(() => authStore.hasPermission('finance:gl:accounts:update'));
-const canDelete = computed(() => authStore.hasPermission('finance:gl:accounts:delete'));
+const canCreate = computed(() => authStore.hasPermission('finance:accounts:create'));
+const canUpdate = computed(() => authStore.hasPermission('finance:accounts:update'));
 
 // 数据加载状态
 const loading = ref(false);
@@ -398,24 +385,6 @@ const addChild = (row) => {
   resetAccountForm();
   accountForm.parent_id = row.id;
   dialogVisible.value = true;
-};
-
-// 删除会计科目
-const handleDelete = (row) => {
-  ElMessageBox.confirm('确认要删除该会计科目吗？此操作不可逆。', '警告', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await api.delete(`/finance/accounts/${row.id}`);
-      ElMessage.success('删除成功');
-      loadAccounts();
-    } catch (error) {
-      console.error('删除会计科目失败:', error);
-      ElMessage.error('删除会计科目失败');
-    }
-  }).catch(() => {});
 };
 
 // 切换会计科目状态

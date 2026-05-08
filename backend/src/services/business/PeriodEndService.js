@@ -15,6 +15,254 @@ const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
  * 处理期末结账、结转等功能
  */
 class PeriodEndService {
+  static roundMoney(value) {
+    return Math.round((parseFloat(value) || 0) * 100) / 100;
+  }
+
+  static isClosed(value) {
+    return value === true || value === 1 || value === '1';
+  }
+
+  static async findPriorOpenPeriod(connection, periodId, period, lock = false) {
+    const [rows] = await connection.execute(
+      `SELECT id, period_name, end_date
+       FROM gl_periods
+       WHERE id <> ?
+         AND fiscal_year <=> ?
+         AND end_date < ?
+         AND is_closed = 0
+       ORDER BY end_date DESC, id DESC
+       LIMIT 1${lock ? ' FOR UPDATE' : ''}`,
+      [periodId, period.fiscal_year, period.start_date]
+    );
+    return rows[0] || null;
+  }
+
+  static async getPeriodEntryIntegrity(connection, periodId, period) {
+    const [unpostedEntries] = await connection.execute(
+      `SELECT COUNT(DISTINCT id) as count
+       FROM gl_entries
+       WHERE COALESCE(is_posted, 0) = 0
+         AND (
+           period_id = ?
+           OR entry_date BETWEEN ? AND ?
+           OR posting_date BETWEEN ? AND ?
+         )`,
+      [periodId, period.start_date, period.end_date, period.start_date, period.end_date]
+    );
+
+    const [postedDateMismatches] = await connection.execute(
+      `SELECT COUNT(*) as count
+       FROM gl_entries
+       WHERE COALESCE(is_posted, 0) = 1
+         AND period_id = ?
+         AND (
+           entry_date NOT BETWEEN ? AND ?
+           OR (
+             posting_date IS NOT NULL
+             AND posting_date NOT BETWEEN ? AND ?
+           )
+         )`,
+      [periodId, period.start_date, period.end_date, period.start_date, period.end_date]
+    );
+
+    const [postedPeriodMismatches] = await connection.execute(
+      `SELECT COUNT(*) as count
+       FROM gl_entries
+       WHERE COALESCE(is_posted, 0) = 1
+         AND entry_date BETWEEN ? AND ?
+         AND (period_id IS NULL OR period_id <> ?)`,
+      [period.start_date, period.end_date, periodId]
+    );
+
+    return {
+      unpostedCount: Number(unpostedEntries[0]?.count || 0),
+      postedDateMismatchCount: Number(postedDateMismatches[0]?.count || 0),
+      postedPeriodMismatchCount: Number(postedPeriodMismatches[0]?.count || 0),
+    };
+  }
+
+  /**
+   * 获取期末关账预览
+   * @param {number} periodId 会计期间ID
+   * @returns {Object} 关账预览
+   */
+  static async getClosingPreview(periodId) {
+    const connection = await db.pool.getConnection();
+    try {
+      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ?', [
+        periodId,
+      ]);
+
+      if (periodInfo.length === 0) {
+        throw new Error('会计期间不存在');
+      }
+
+      const period = periodInfo[0];
+      const priorOpenPeriod = await this.findPriorOpenPeriod(connection, periodId, period);
+      const entryIntegrity = await this.getPeriodEntryIntegrity(connection, periodId, period);
+
+      const [existingClosingEntries] = await connection.execute(
+        `SELECT COUNT(*) as count FROM gl_entries
+         WHERE period_id = ? AND document_type = ?`,
+        [periodId, DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER]
+      );
+
+      const [profitAccounts] = await connection.execute(
+        "SELECT id FROM gl_accounts WHERE account_code = '3103' LIMIT 1"
+      );
+
+      const [closingRows] = await connection.execute(
+        `
+        SELECT
+          a.id,
+          a.account_code,
+          a.account_name,
+          a.account_type,
+          COALESCE(SUM(ei.debit_amount), 0) as total_debit,
+          COALESCE(SUM(ei.credit_amount), 0) as total_credit,
+          CASE
+            WHEN a.account_type IN ('收入', 'revenue') THEN
+              COALESCE(SUM(ei.credit_amount - ei.debit_amount), 0)
+            ELSE
+              COALESCE(SUM(ei.debit_amount - ei.credit_amount), 0)
+          END as closing_amount
+        FROM gl_accounts a
+        JOIN gl_entry_items ei ON a.id = ei.account_id
+        JOIN gl_entries e ON ei.entry_id = e.id
+        WHERE e.period_id = ?
+          AND e.is_posted = true
+          AND a.is_active = true
+          AND a.account_type IN ('收入', '费用', '成本', 'revenue', 'expense', 'cost')
+        GROUP BY a.id, a.account_code, a.account_name, a.account_type
+        HAVING ABS(closing_amount) >= 0.01
+        ORDER BY a.account_code
+      `,
+        [periodId]
+      );
+
+      const closingItems = closingRows.map((row) => {
+        const signedAmount = this.roundMoney(row.closing_amount);
+        const isIncome = ['收入', 'revenue'].includes(row.account_type);
+        return {
+          ...row,
+          total_debit: this.roundMoney(row.total_debit),
+          total_credit: this.roundMoney(row.total_credit),
+          raw_closing_amount: signedAmount,
+          closing_amount: Math.abs(signedAmount),
+          closing_direction: isIncome
+            ? signedAmount >= 0
+              ? '借方'
+              : '贷方'
+            : signedAmount >= 0
+              ? '贷方'
+              : '借方',
+        };
+      });
+
+      const totalIncome = this.roundMoney(
+        closingItems
+          .filter((item) => ['收入', 'revenue'].includes(item.account_type))
+          .reduce((sum, item) => sum + item.raw_closing_amount, 0)
+      );
+      const totalExpense = this.roundMoney(
+        closingItems
+          .filter((item) => !['收入', 'revenue'].includes(item.account_type))
+          .reduce((sum, item) => sum + item.raw_closing_amount, 0)
+      );
+      const netProfit = this.roundMoney(totalIncome - totalExpense);
+
+      const trialBalance = await financeModel.getTrialBalance(periodId);
+      const checks = [
+        {
+          key: 'period_open',
+          name: '会计期间未关闭',
+          passed: !this.isClosed(period.is_closed),
+          message: this.isClosed(period.is_closed) ? '该期间已关闭' : null,
+        },
+        {
+          key: 'unposted_entries',
+          name: '无未过账凭证',
+          passed: entryIntegrity.unpostedCount === 0,
+          message:
+            entryIntegrity.unpostedCount > 0
+              ? `本期还有 ${entryIntegrity.unpostedCount} 张未过账凭证`
+              : null,
+        },
+        {
+          key: 'prior_periods_closed',
+          name: '前序期间已关闭',
+          passed: !priorOpenPeriod,
+          message: priorOpenPeriod
+            ? `前序期间[${priorOpenPeriod.period_name}]尚未关闭，请按期间顺序结账`
+            : null,
+        },
+        {
+          key: 'entry_period_consistency',
+          name: '凭证期间归属一致',
+          passed:
+            entryIntegrity.postedDateMismatchCount === 0 &&
+            entryIntegrity.postedPeriodMismatchCount === 0,
+          message:
+            entryIntegrity.postedDateMismatchCount > 0
+              ? `有 ${entryIntegrity.postedDateMismatchCount} 张已过账凭证的日期不在本期间范围内`
+              : entryIntegrity.postedPeriodMismatchCount > 0
+                ? `有 ${entryIntegrity.postedPeriodMismatchCount} 张已过账凭证日期落在本期间但期间归属不一致`
+                : null,
+        },
+        {
+          key: 'no_existing_closing',
+          name: '未重复生成结转凭证',
+          passed: existingClosingEntries[0].count === 0,
+          message:
+            existingClosingEntries[0].count > 0 ? '本期已存在损益结转凭证，不能重复结账' : null,
+        },
+        {
+          key: 'trial_balance',
+          name: '试算平衡',
+          passed: trialBalance.isBalanced,
+          message: trialBalance.isBalanced ? null : '试算平衡表借贷不平衡',
+        },
+        {
+          key: 'profit_account',
+          name: '本年利润科目配置',
+          passed: profitAccounts.length > 0 || Math.abs(netProfit) < 0.01,
+          message:
+            profitAccounts.length === 0 && Math.abs(netProfit) >= 0.01
+              ? '未配置本年利润科目(3103)'
+              : null,
+        },
+      ];
+
+      const canClose = checks.every((check) => check.passed);
+
+      return {
+        period,
+        canClose,
+        unpostedCount: entryIntegrity.unpostedCount,
+        postedDateMismatchCount: entryIntegrity.postedDateMismatchCount,
+        postedPeriodMismatchCount: entryIntegrity.postedPeriodMismatchCount,
+        hasExistingClosing: existingClosingEntries[0].count > 0,
+        checks,
+        summary: {
+          totalIncome,
+          totalExpense,
+          netProfit,
+        },
+        trialBalance: {
+          isBalanced: trialBalance.isBalanced,
+          summary: trialBalance.summary,
+        },
+        closingItems,
+      };
+    } catch (error) {
+      logger.error('获取期末关账预览失败:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   /**
    * 期末结账
    * @param {Object} periodData 期间数据
@@ -28,7 +276,7 @@ class PeriodEndService {
       const { period_id, closed_by, closing_date } = periodData;
 
       // 检查期间状态
-      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ?', [
+      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ? FOR UPDATE', [
         period_id,
       ]);
 
@@ -42,22 +290,51 @@ class PeriodEndService {
 
       const period = periodInfo[0];
 
-      // 1. 检查未过账分录
-      const [unpostedEntries] = await connection.execute(
-        `SELECT COUNT(*) as count FROM gl_entries 
-         WHERE period_id = ? AND is_posted = false`,
-        [period_id]
-      );
+      const priorOpenPeriod = await this.findPriorOpenPeriod(connection, period_id, period, true);
+      if (priorOpenPeriod) {
+        throw new Error(`前序会计期间[${priorOpenPeriod.period_name}]尚未关闭，请按期间顺序结账`);
+      }
 
-      if (unpostedEntries[0].count > 0) {
-        throw new Error(`期间内还有 ${unpostedEntries[0].count} 条未过账分录，请先过账`);
+      // 1. 检查期间内未过账凭证，以及凭证日期与期间归属一致性
+      const entryIntegrity = await this.getPeriodEntryIntegrity(connection, period_id, period);
+
+      if (entryIntegrity.unpostedCount > 0) {
+        throw new Error(`期间内还有 ${entryIntegrity.unpostedCount} 条未过账分录，请先过账`);
+      }
+
+      if (entryIntegrity.postedDateMismatchCount > 0) {
+        throw new Error(
+          `本期间有 ${entryIntegrity.postedDateMismatchCount} 张已过账凭证的日期不在期间范围内，请先修正凭证日期或期间归属`
+        );
+      }
+
+      if (entryIntegrity.postedPeriodMismatchCount > 0) {
+        throw new Error(
+          `有 ${entryIntegrity.postedPeriodMismatchCount} 张已过账凭证日期落在本期间但期间归属不一致，请先修正凭证期间`
+        );
+      }
+
+      const trialBalance = await financeModel.getTrialBalance(period_id);
+      if (!trialBalance.isBalanced) {
+        throw new Error('试算平衡表借贷不平衡，请先检查凭证或期初余额');
       }
 
       // 2. 执行损益结转
+      const [existingClosingEntries] = await connection.execute(
+        `SELECT id FROM gl_entries
+         WHERE period_id = ? AND document_type = ?
+         LIMIT 1
+         FOR UPDATE`,
+        [period_id, DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER]
+      );
+      if (existingClosingEntries.length > 0) {
+        throw new Error('Profit/loss closing entry already exists for this period');
+      }
+
       const transferResult = await this.transferProfitAndLoss(connection, period_id, period);
 
       // 3. 计算期末余额
-      await this.calculatePeriodEndBalances(connection, period_id);
+      await this.calculatePeriodEndBalances(connection, period_id, period);
 
       // 4. 更新期间状态
       await connection.execute(
@@ -71,7 +348,7 @@ class PeriodEndService {
 
       return {
         periodId: period_id,
-        periodName: period.name,
+        periodName: period.period_name,
         transferResult,
         message: '期末结账完成',
       };
@@ -88,79 +365,13 @@ class PeriodEndService {
    * 自动执行完整的期末结转流程
    * @param {number} periodId 会计期间ID
    */
-  static async executeAutoClosing(periodId) {
-    const connection = await db.pool.getConnection();
-    let periodName = `期间${periodId}`;
-    try {
-      await connection.beginTransaction();
-
-      // 获取期间名称
-      const [periodInfo] = await connection.execute(
-        'SELECT period_name FROM gl_periods WHERE id = ?',
-        [periodId]
-      );
-      periodName = periodInfo[0]?.period_name || `期间${periodId}`;
-
-      // 1. 结转收入类科目
-      await this.closeRevenueAccounts(connection, periodId);
-
-      // 2. 结转费用类科目
-      await this.closeExpenseAccounts(connection, periodId);
-
-      // 3. 结转成本类科目
-      await this.closeCostAccounts(connection, periodId);
-
-      // 4. 计算并结转本年利润
-      await this.closeNetIncomeAccount(connection, periodId);
-
-      // 5. 记录操作日志
-      await connection.execute(
-        `INSERT INTO operation_logs (module, operation, username, request_data, created_at)
-         VALUES (?, ?, ?, ?, NOW())`,
-        [
-          'finance',
-          'period_end',
-          'system',
-          JSON.stringify({ periodId, period: periodName, message: '自动期末结转完成' }),
-        ]
-      );
-
-      await connection.commit();
-
-      return {
-        success: true,
-        message: '自动期末结转完成',
-        periodId,
-      };
-    } catch (error) {
-      await connection.rollback();
-      logger.error('自动期末结转失败:', error);
-
-      // 即使失败也记录日志（使用单独的连接）
-      try {
-        await db.pool.execute(
-          `INSERT INTO operation_logs (module, operation, username, request_data, status, created_at)
-           VALUES (?, ?, ?, ?, ?, NOW())`,
-          [
-            'finance',
-            'period_end',
-            'system',
-            JSON.stringify({
-              periodId,
-              period: periodName,
-              message: error.message || '期末结转失败',
-            }),
-            500,
-          ]
-        );
-      } catch (logError) {
-        logger.error('记录期末结转失败日志失败:', logError);
-      }
-
-      throw error;
-    } finally {
-      connection.release();
-    }
+  static async executeAutoClosing(periodId, options = {}) {
+    // 旧自动化入口统一收敛到正式关账流程，避免绕过未过账校验、余额快照和期间锁定。
+    return await this.closePeriod({
+      period_id: periodId,
+      closed_by: options.closed_by || 'system',
+      closing_date: options.closing_date || new Date().toISOString().slice(0, 10),
+    });
   }
 
   /**
@@ -178,7 +389,7 @@ class PeriodEndService {
        FROM gl_accounts a
        LEFT JOIN gl_entry_items ei ON a.id = ei.account_id
        LEFT JOIN gl_entries e ON ei.entry_id = e.id
-       WHERE a.account_type = '收入' 
+       WHERE a.account_type IN ('收入', 'revenue')
        AND e.period_id = ?
        AND e.is_posted = true
        GROUP BY a.id, a.account_code, a.account_name
@@ -186,14 +397,14 @@ class PeriodEndService {
       [periodId]
     );
 
-    // 获取费用类科目余额
+    // 获取费用/成本类科目余额
     const [expenseAccounts] = await connection.execute(
       `SELECT a.id, a.account_code, a.account_name,
               COALESCE(SUM(ei.debit_amount - ei.credit_amount), 0) as balance
        FROM gl_accounts a
        LEFT JOIN gl_entry_items ei ON a.id = ei.account_id
        LEFT JOIN gl_entries e ON ei.entry_id = e.id
-       WHERE a.account_type = '费用'
+       WHERE a.account_type IN ('费用', '成本', 'expense', 'cost')
        AND e.period_id = ?
        AND e.is_posted = true
        GROUP BY a.id, a.account_code, a.account_name
@@ -228,59 +439,74 @@ class PeriodEndService {
     const profitAccountId = profitAccount[0].id;
 
     // 生成结转分录
-    const entryNumber = await this.generateTransferEntryNumber();
+    const periodName = period.period_name || `期间${periodId}`;
+    const entryNumber = await this.generateTransferEntryNumber(connection);
 
     const entryData = {
       entry_number: entryNumber,
       entry_date: period.end_date,
       posting_date: period.end_date,
-      document_type: DOCUMENT_TYPE_MAPPING.MANUAL_ADJUSTMENT,
-      document_number: `PL-${period.name}`,
+      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
+      document_number: `PL-${periodName}`,
       period_id: periodId,
-      description: `${period.name} 损益结转`,
+      description: `${periodName} 损益结转`,
       created_by: 'system',
+      status: 'posted',
+      is_posted: 1,
     };
 
     const entryItems = [];
+    let profitDebit = 0;
+    let profitCredit = 0;
 
     // 结转收入（借：收入科目，贷：本年利润）
     for (const account of incomeAccounts) {
-      if (parseFloat(account.balance) !== 0) {
+      const balance = parseFloat(account.balance) || 0;
+      if (Math.abs(balance) >= 0.01) {
         entryItems.push({
           account_id: account.id,
-          debit_amount: parseFloat(account.balance),
-          credit_amount: 0,
+          debit_amount: balance > 0 ? balance : 0,
+          credit_amount: balance < 0 ? Math.abs(balance) : 0,
           description: `结转${account.account_name}`,
         });
+        if (balance > 0) {
+          profitCredit += balance;
+        } else {
+          profitDebit += Math.abs(balance);
+        }
       }
     }
 
-    // 结转费用（借：本年利润，贷：费用科目）
+    // 结转费用/成本（借：本年利润，贷：费用/成本科目）
     for (const account of expenseAccounts) {
-      if (parseFloat(account.balance) !== 0) {
+      const balance = parseFloat(account.balance) || 0;
+      if (Math.abs(balance) >= 0.01) {
         entryItems.push({
           account_id: account.id,
-          debit_amount: 0,
-          credit_amount: parseFloat(account.balance),
+          debit_amount: balance < 0 ? Math.abs(balance) : 0,
+          credit_amount: balance > 0 ? balance : 0,
           description: `结转${account.account_name}`,
         });
+        if (balance > 0) {
+          profitDebit += balance;
+        } else {
+          profitCredit += Math.abs(balance);
+        }
       }
     }
 
-    // 本年利润科目分录
-    if (netProfit > 0) {
-      // 盈利：贷记本年利润
+    const profitNet = this.roundMoney(profitCredit - profitDebit);
+    if (profitNet > 0) {
       entryItems.push({
         account_id: profitAccountId,
         debit_amount: 0,
-        credit_amount: netProfit,
+        credit_amount: profitNet,
         description: '本期净利润',
       });
-    } else if (netProfit < 0) {
-      // 亏损：借记本年利润
+    } else if (profitNet < 0) {
       entryItems.push({
         account_id: profitAccountId,
-        debit_amount: Math.abs(netProfit),
+        debit_amount: Math.abs(profitNet),
         credit_amount: 0,
         description: '本期净亏损',
       });
@@ -288,9 +514,6 @@ class PeriodEndService {
 
     // 创建结转分录
     const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-
-    // 期末结转凭证在同一事务中立即过账（期间状态已由 closePeriod 在事务开头校验）
-    await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
 
     return {
       totalIncome,
@@ -306,7 +529,7 @@ class PeriodEndService {
    * @param {Object} connection 数据库连接
    * @param {number} periodId 期间ID
    */
-  static async calculatePeriodEndBalances(connection, periodId) {
+  static async calculatePeriodEndBalances(connection, periodId, period) {
     // 删除旧的期末余额记录
     await connection.execute('DELETE FROM gl_period_balances WHERE period_id = ?', [periodId]);
 
@@ -317,24 +540,36 @@ class PeriodEndService {
       SELECT 
         ? as period_id,
         a.id as account_id,
-        CASE 
-          WHEN a.account_type IN ('资产', '费用') THEN 
-            GREATEST(COALESCE(SUM(ei.debit_amount - ei.credit_amount), 0), 0)
-          ELSE 0
-        END as debit_balance,
-        CASE 
-          WHEN a.account_type IN ('负债', '权益', '收入') THEN 
-            GREATEST(COALESCE(SUM(ei.credit_amount - ei.debit_amount), 0), 0)
-          ELSE 0
-        END as credit_balance
+        GREATEST(
+          COALESCE(a.opening_debit, 0) - COALESCE(a.opening_credit, 0)
+          + COALESCE(SUM(
+            CASE
+              WHEN e.is_posted = true AND e.entry_date <= ? THEN ei.debit_amount - ei.credit_amount
+              ELSE 0
+            END
+          ), 0),
+          0
+        ) as debit_balance,
+        GREATEST(
+          -(
+            COALESCE(a.opening_debit, 0) - COALESCE(a.opening_credit, 0)
+            + COALESCE(SUM(
+              CASE
+                WHEN e.is_posted = true AND e.entry_date <= ? THEN ei.debit_amount - ei.credit_amount
+                ELSE 0
+              END
+            ), 0)
+          ),
+          0
+        ) as credit_balance
       FROM gl_accounts a
       LEFT JOIN gl_entry_items ei ON a.id = ei.account_id
       LEFT JOIN gl_entries e ON ei.entry_id = e.id
-      WHERE e.period_id <= ? AND e.is_posted = true
-      GROUP BY a.id, a.account_type
+      WHERE a.is_active = true
+      GROUP BY a.id, a.opening_debit, a.opening_credit
       HAVING debit_balance != 0 OR credit_balance != 0
     `,
-      [periodId, periodId]
+      [periodId, period.end_date, period.end_date]
     );
   }
 
@@ -351,7 +586,7 @@ class PeriodEndService {
       const { period_id, reopened_by } = periodData;
 
       // 检查期间状态
-      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ?', [
+      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ? FOR UPDATE', [
         period_id,
       ]);
 
@@ -375,12 +610,30 @@ class PeriodEndService {
         throw new Error('存在已关闭的后续期间，不能重新开启此期间');
       }
 
-      // 删除损益结转分录
-      await connection.execute(
-        `DELETE FROM gl_entries 
-         WHERE period_id = ? AND document_type = '损益结转'`,
-        [period_id]
+      const [closingEntries] = await connection.execute(
+        `SELECT id FROM gl_entries
+         WHERE period_id = ? AND document_type = ?
+         FOR UPDATE`,
+        [period_id, DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER]
       );
+
+      if (closingEntries.length > 0) {
+        const entryIds = closingEntries.map((entry) => entry.id);
+        const placeholders = entryIds.map(() => '?').join(',');
+
+        await connection.query(
+          `DELETE FROM document_links
+           WHERE (target_type = 'finance_voucher' AND target_id IN (${placeholders}))
+              OR (source_type = 'finance_voucher' AND source_id IN (${placeholders}))`,
+          [...entryIds, ...entryIds]
+        );
+
+        // 删除损益结转分录，明细由外键级联删除
+        await connection.query(
+          `DELETE FROM gl_entries WHERE id IN (${placeholders})`,
+          entryIds
+        );
+      }
 
       // 删除期末余额
       await connection.execute('DELETE FROM gl_period_balances WHERE period_id = ?', [period_id]);
@@ -389,7 +642,7 @@ class PeriodEndService {
       await connection.execute(
         `UPDATE gl_periods 
          SET is_closed = false, closed_by = NULL, closed_at = NULL, 
-             reopened_by = ?, reopened_at = ?
+             closing_date = NULL, reopened_by = ?, reopened_at = ?
          WHERE id = ?`,
         [reopened_by, new Date(), period_id]
       );
@@ -398,7 +651,7 @@ class PeriodEndService {
 
       return {
         periodId: period_id,
-        periodName: period.name,
+        periodName: period.period_name,
         message: '期间重新开启完成',
       };
     } catch (error) {
@@ -414,17 +667,25 @@ class PeriodEndService {
    * 生成结转分录编号
    * @returns {string} 分录编号
    */
-  static async generateTransferEntryNumber() {
+  static async generateTransferEntryNumber(connection = db.pool) {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const prefix = `PL${dateStr}`;
 
-    // 获取当天的序号
-    const [result] = await db.pool.execute(
-      'SELECT COUNT(*) as count FROM gl_entries WHERE DATE(created_at) = CURDATE() AND document_type = ?',
-      ['损益结转']
+    const [result] = await connection.execute(
+      `SELECT entry_number
+       FROM gl_entries
+       WHERE entry_number LIKE ?
+       ORDER BY entry_number DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [`${prefix}%`]
     );
 
-    const sequence = (result[0].count + 1).toString().padStart(3, '0');
-    return `PL${dateStr}${sequence}`;
+    const lastSequence = result[0]?.entry_number?.startsWith(prefix)
+      ? Number.parseInt(result[0].entry_number.slice(prefix.length), 10) || 0
+      : 0;
+    const sequence = (lastSequence + 1).toString().padStart(3, '0');
+    return `${prefix}${sequence}`;
   }
 
   /**
@@ -454,8 +715,8 @@ class PeriodEndService {
       // 检查是否已有损益结转
       const [transferEntries] = await db.pool.execute(
         `SELECT COUNT(*) as count FROM gl_entries
-         WHERE period_id = ? AND document_type = '损益结转'`,
-        [periodId]
+         WHERE period_id = ? AND document_type = ?`,
+        [periodId, DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER]
       );
 
       // 计算本期损益
@@ -484,7 +745,7 @@ class PeriodEndService {
       return {
         period: {
           id: period.id,
-          name: period.name,
+          name: period.period_name,
           startDate: period.start_date,
           endDate: period.end_date,
           isClosed: period.is_closed,
@@ -555,8 +816,8 @@ class PeriodEndService {
       // 3. 检查是否已经执行过年度结转
       const [existingTransfer] = await connection.execute(
         `SELECT COUNT(*) as count FROM gl_entries
-         WHERE document_type = '年度结转' AND YEAR(entry_date) = ?`,
-        [year]
+         WHERE document_type = ? AND YEAR(entry_date) = ?`,
+        [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year]
       );
 
       if (existingTransfer[0].count > 0) {
@@ -598,7 +859,7 @@ class PeriodEndService {
         entry_number: entryNumber,
         entry_date: `${year}-12-31`,
         posting_date: `${year}-12-31`,
-        document_type: DOCUMENT_TYPE_MAPPING.MANUAL_ADJUSTMENT,
+        document_type: DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER,
         document_number: `YE-${year}`,
         period_id: periodId,
         description: `${year}年度利润结转`,
@@ -645,7 +906,7 @@ class PeriodEndService {
         // 创建并过账分录
         const entryId = await financeModel.createEntry(entryData, entryItems, connection);
         // 年度结转凭证在同一事务中立即过账（年度期间关闭状态已在事务开头校验）
-        await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
+        await connection.execute("UPDATE gl_entries SET is_posted = 1, status = 'posted' WHERE id = ?", [entryId]);
       }
 
       // 7. 记录年度结转日志
@@ -702,8 +963,8 @@ class PeriodEndService {
       // 检查是否已执行年度结转
       const [transfers] = await db.pool.execute(
         `SELECT COUNT(*) as count FROM gl_entries
-         WHERE document_type = '年度结转' AND YEAR(entry_date) = ?`,
-        [year]
+         WHERE document_type = ? AND YEAR(entry_date) = ?`,
+        [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year]
       );
 
       const isTransferred = transfers[0].count > 0;
@@ -762,7 +1023,7 @@ class PeriodEndService {
     // 获取年度结转序号
     const [result] = await db.pool.execute(
       'SELECT COUNT(*) as count FROM gl_entries WHERE document_type = ? AND YEAR(entry_date) = ?',
-      ['年度结转', year]
+      [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year]
     );
 
     const sequence = (result[0].count + 1).toString().padStart(2, '0');
@@ -811,7 +1072,7 @@ class PeriodEndService {
       entry_number: entryNumber,
       entry_date: new Date().toISOString().split('T')[0],
       posting_date: new Date().toISOString().split('T')[0],
-      document_type: DOCUMENT_TYPE_MAPPING.MANUAL_ADJUSTMENT,
+      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
       document_number: `CLOSE-${periodId}`,
       period_id: periodId,
       description: '期末结转收入类科目',
@@ -882,7 +1143,7 @@ class PeriodEndService {
       entry_number: entryNumber,
       entry_date: new Date().toISOString().split('T')[0],
       posting_date: new Date().toISOString().split('T')[0],
-      document_type: DOCUMENT_TYPE_MAPPING.MANUAL_ADJUSTMENT,
+      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
       document_number: `CLOSE-${periodId}`,
       period_id: periodId,
       description: '期末结转费用类科目',
@@ -953,7 +1214,7 @@ class PeriodEndService {
       entry_number: entryNumber,
       entry_date: new Date().toISOString().split('T')[0],
       posting_date: new Date().toISOString().split('T')[0],
-      document_type: DOCUMENT_TYPE_MAPPING.MANUAL_ADJUSTMENT,
+      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
       document_number: `CLOSE-${periodId}`,
       period_id: periodId,
       description: '期末结转成本类科目',
@@ -1020,7 +1281,7 @@ class PeriodEndService {
       entry_number: entryNumber,
       entry_date: new Date().toISOString().split('T')[0],
       posting_date: new Date().toISOString().split('T')[0],
-      document_type: DOCUMENT_TYPE_MAPPING.MANUAL_ADJUSTMENT,
+      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
       document_number: `CLOSE-${periodId}`,
       period_id: periodId,
       description: '结转本年利润',

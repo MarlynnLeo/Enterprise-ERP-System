@@ -11,6 +11,7 @@ const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const db = require('../../../config/db');
 const pool = db.pool;
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 // ==================== 检验统计（原 qualityStatController） ====================
 
@@ -126,10 +127,12 @@ const getDefectItems = async (req, res) => {
             ${where}`, params
     );
 
-    const ps = parseInt(pageSize);
-    const offset = (parseInt(page) - 1) * ps;
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 10,
+      maxPageSize: 200,
+    });
     const [rows] = await pool.query(
-      `SELECT DISTINCT qi.id, qi.inspection_no as inspectionNo, qi.inspection_type as inspectionType,
+      appendPaginationSQL(`SELECT DISTINCT qi.id, qi.inspection_no as inspectionNo, qi.inspection_type as inspectionType,
               qi.product_name as materialName, qi.product_code as materialCode,
               DATE_FORMAT(qi.created_at, '%Y-%m-%d') as inspectionDate,
               qi.quantity as defectQty,
@@ -140,10 +143,10 @@ const getDefectItems = async (req, res) => {
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
             ${where}
             GROUP BY qi.id ORDER BY qi.created_at DESC
-            LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}`, params
+            `, pagination.limit, pagination.offset), params
     );
 
-    ResponseHandler.paginated(res, rows, countResult[0].total || 0, parseInt(page), ps);
+    ResponseHandler.paginated(res, rows, countResult[0].total || 0, pagination.page, pagination.pageSize);
   } catch (error) {
     logger.error('获取不合格项目列表失败:', error);
     ResponseHandler.error(res, '获取不合格项目列表失败', 'SERVER_ERROR', 500, error);
@@ -195,15 +198,15 @@ const getDispositionStatistics = async (req, res) => {
     let dateCondition = '', subQueryDateCondition = '', queryParams = [];
 
     if (startDate && endDate) {
-      dateCondition = 'WHERE ncp.created_at BETWEEN ? AND ?';
-      subQueryDateCondition = 'WHERE created_at BETWEEN ? AND ?';
+      dateCondition = 'WHERE ncp.deleted_at IS NULL AND ncp.created_at BETWEEN ? AND ?';
+      subQueryDateCondition = 'WHERE deleted_at IS NULL AND created_at BETWEEN ? AND ?';
       queryParams = [startDate, `${endDate} 23:59:59`];
     }
 
     const [rows] = await pool.query(
       `SELECT ncp.disposition, COUNT(*) as count, SUM(ncp.quantity) as total_quantity,
-              ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM nonconforming_products ${subQueryDateCondition}), 2) as percentage
-            FROM nonconforming_products ncp ${dateCondition}
+              ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM nonconforming_products ${subQueryDateCondition || 'WHERE deleted_at IS NULL'}), 0), 2) as percentage
+            FROM nonconforming_products ncp ${dateCondition || 'WHERE ncp.deleted_at IS NULL'}
             GROUP BY ncp.disposition ORDER BY count DESC`,
       dateCondition ? [...queryParams, ...queryParams] : []
     );
@@ -226,7 +229,7 @@ const getTrendAnalysis = async (req, res) => {
 
     let dateCondition = '', queryParams = [];
     if (startDate && endDate) {
-      dateCondition = 'WHERE created_at BETWEEN ? AND ?';
+      dateCondition = 'WHERE deleted_at IS NULL AND created_at BETWEEN ? AND ?';
       queryParams = [startDate, `${endDate} 23:59:59`];
     }
 
@@ -238,7 +241,7 @@ const getTrendAnalysis = async (req, res) => {
               SUM(CASE WHEN disposition = 'rework' THEN 1 ELSE 0 END) as rework_count,
               SUM(CASE WHEN disposition = 'scrap' THEN 1 ELSE 0 END) as scrap_count,
               SUM(CASE WHEN disposition = 'use_as_is' THEN 1 ELSE 0 END) as use_as_is_count
-            FROM nonconforming_products ${dateCondition}
+            FROM nonconforming_products ${dateCondition || 'WHERE deleted_at IS NULL'}
             GROUP BY period ORDER BY period ASC`,
       [dateFormat, ...queryParams]
     );
@@ -271,7 +274,7 @@ const getSupplierQualityAnalysis = async (req, res) => {
               SUM(CASE WHEN ncp.disposition = 'replacement' THEN 1 ELSE 0 END) as replacement_count,
               SUM(CASE WHEN ncp.disposition = 'scrap' THEN 1 ELSE 0 END) as scrap_count
             FROM nonconforming_products ncp
-            WHERE ncp.supplier_name IS NOT NULL ${dateCondition}
+            WHERE ncp.deleted_at IS NULL AND ncp.supplier_name IS NOT NULL ${dateCondition}
             GROUP BY ncp.supplier_name ORDER BY ncp_count DESC LIMIT 20`,
       queryParams
     );
@@ -300,7 +303,7 @@ const getMaterialDefectAnalysis = async (req, res) => {
       `SELECT material_code, material_name, COUNT(*) as ncp_count,
               SUM(quantity) as total_defect_quantity,
               GROUP_CONCAT(DISTINCT defect_type) as defect_types
-            FROM nonconforming_products ${dateCondition}
+            FROM nonconforming_products ${dateCondition || 'WHERE deleted_at IS NULL'}
             GROUP BY material_code, material_name ORDER BY ncp_count DESC LIMIT 20`,
       queryParams
     );
@@ -357,13 +360,13 @@ const getOverview = async (req, res) => {
     let dateCondition = '', queryParams = [];
 
     if (startDate && endDate) {
-      dateCondition = 'WHERE created_at BETWEEN ? AND ?';
+      dateCondition = 'WHERE deleted_at IS NULL AND created_at BETWEEN ? AND ?';
       queryParams = [startDate, `${endDate} 23:59:59`];
     }
 
     const [ncpResult] = await pool.query(
       `SELECT COUNT(*) as total_ncp, SUM(quantity) as total_defect_quantity
-            FROM nonconforming_products ${dateCondition}`, queryParams
+            FROM nonconforming_products ${dateCondition || 'WHERE deleted_at IS NULL'}`, queryParams
     );
 
     const [dispositionResult] = await pool.query(
@@ -374,7 +377,7 @@ const getOverview = async (req, res) => {
               SUM(CASE WHEN disposition = 'scrap' THEN 1 ELSE 0 END) as scrap_count,
               SUM(CASE WHEN disposition = 'use_as_is' THEN 1 ELSE 0 END) as use_as_is_count,
               SUM(CASE WHEN disposition = 'pending' THEN 1 ELSE 0 END) as pending_count
-            FROM nonconforming_products ${dateCondition}`, queryParams
+            FROM nonconforming_products ${dateCondition || 'WHERE deleted_at IS NULL'}`, queryParams
     );
 
     return ResponseHandler.success(res, { ...ncpResult[0], ...dispositionResult[0] }, '获取综合统计概览成功');

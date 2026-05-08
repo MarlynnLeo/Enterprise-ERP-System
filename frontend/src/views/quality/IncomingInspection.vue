@@ -271,8 +271,8 @@ const authStore = useAuthStore()
 const searchKeyword = ref('')
 
 // 权限控制
-const canCreate = computed(() => authStore.hasPermission('quality:incoming:create') || authStore.isAdmin)
-const canInspect = computed(() => authStore.hasPermission('quality:incoming:inspect') || authStore.isAdmin)
+const canCreate = computed(() => authStore.hasPermission('quality:inspections:create') || authStore.isAdmin)
+const canInspect = computed(() => authStore.hasPermission('quality:inspections:update') || authStore.isAdmin)
 const statusFilter = ref('')
 const dateRange = ref([])
 

@@ -22,22 +22,51 @@
             <el-icon class="section-icon" color="#409EFF"><Refresh /></el-icon>
             <span>定时任务状态</span>
           </div>
-          <el-button type="primary" link @click="refreshTaskStatus">
-            <el-icon><Refresh /></el-icon>
-            刷新
-          </el-button>
+          <div class="task-toolbar">
+            <el-button
+              v-permission="'finance:automation:execute'"
+              type="success"
+              plain
+              @click="startScheduledTasks"
+              :loading="taskActionLoading"
+            >
+              <el-icon><VideoPlay /></el-icon>
+              启动全部
+            </el-button>
+            <el-button
+              v-permission="'finance:automation:execute'"
+              type="warning"
+              plain
+              @click="stopScheduledTasks"
+              :loading="taskActionLoading"
+              :disabled="!hasRunningScheduledTask"
+            >
+              <el-icon><SwitchButton /></el-icon>
+              停止全部
+            </el-button>
+            <el-button type="primary" link @click="refreshTaskStatus">
+              <el-icon><Refresh /></el-icon>
+              刷新
+            </el-button>
+          </div>
         </div>
       </template>
       <div class="status-grid">
         <div class="status-card">
           <div class="status-card-header">
-            <el-icon class="status-icon" :color="taskStatus.monthlyDepreciation?.running ? '#67C23A' : '#909399'">
+            <el-icon
+              class="status-icon"
+              :color="taskStatus.monthlyDepreciation?.running ? '#67C23A' : '#909399'"
+            >
               <Money />
             </el-icon>
             <span class="status-name">月度折旧计提</span>
           </div>
           <div class="status-card-body">
-            <el-tag :type="taskStatus.monthlyDepreciation?.running ? 'success' : 'info'" size="small">
+            <el-tag
+              :type="taskStatus.monthlyDepreciation?.running ? 'success' : 'info'"
+              size="small"
+            >
               {{ taskStatus.monthlyDepreciation?.running ? '运行中' : '已停止' }}
             </el-tag>
             <span class="status-schedule">每月1日 02:00</span>
@@ -45,7 +74,10 @@
         </div>
         <div class="status-card">
           <div class="status-card-header">
-            <el-icon class="status-icon" :color="taskStatus.periodEndReminder?.running ? '#67C23A' : '#909399'">
+            <el-icon
+              class="status-icon"
+              :color="taskStatus.periodEndReminder?.running ? '#67C23A' : '#909399'"
+            >
               <Document />
             </el-icon>
             <span class="status-name">期末结转提醒</span>
@@ -82,7 +114,7 @@
             </div>
             <div class="task-card-body">
               <el-form :model="depreciationForm" inline>
-                <el-form-item label="月份" style="margin-bottom: 0;">
+                <el-form-item label="月份" style="margin-bottom: 0">
                   <el-date-picker
                     v-model="depreciationForm.month"
                     type="month"
@@ -90,16 +122,15 @@
                     format="YYYY-MM"
                     value-format="YYYY-MM"
                     size="default"
-
                   />
                 </el-form-item>
-                <el-form-item style="margin-bottom: 0;">
+                <el-form-item style="margin-bottom: 0">
                   <el-button
                     type="primary"
                     @click="executeDepreciation"
                     :loading="depreciationLoading"
                     :disabled="!depreciationForm.month"
-                    v-permission="'finance:automation:manage'"
+                    v-permission="'finance:automation:execute'"
                   >
                     执行
                   </el-button>
@@ -113,39 +144,12 @@
             <div class="task-card-header">
               <el-icon class="task-icon" color="#67C23A"><Document /></el-icon>
               <div class="task-info">
-                <h4>期末结转</h4>
-                <p>结转损益类科目到本年利润</p>
+                <h4>期末关账</h4>
+                <p>统一执行预检查、损益结转与期间锁定</p>
               </div>
             </div>
             <div class="task-card-body">
-              <el-form :model="periodEndForm" inline>
-                <el-form-item label="期间" style="margin-bottom: 0;">
-                  <el-select
-                    v-model="periodEndForm.periodId"
-                    placeholder="选择期间"
-                    size="default"
-
-                  >
-                    <el-option
-                      v-for="period in accountingPeriods"
-                      :key="period.id"
-                      :label="period.name"
-                      :value="period.id"
-                    />
-                  </el-select>
-                </el-form-item>
-                <el-form-item style="margin-bottom: 0;">
-                  <el-button
-                    type="primary"
-                    @click="executePeriodEnd"
-                    :loading="periodEndLoading"
-                    :disabled="!periodEndForm.periodId"
-                    v-permission="'finance:automation:manage'"
-                  >
-                    执行
-                  </el-button>
-                </el-form-item>
-              </el-form>
+              <el-button type="primary" @click="goToPeriodClosing"> 前往关账中心 </el-button>
             </div>
           </div>
         </el-col>
@@ -179,7 +183,7 @@
                   <el-select
                     v-model="yearEndForm.year"
                     placeholder="选择年度"
-                    style="width: 100%;"
+                    style="width: 100%"
                     @change="loadYearEndStatus"
                   >
                     <el-option
@@ -193,14 +197,20 @@
                 <div v-if="financeYearStatus.year" class="status-info-box">
                   <div class="status-row">
                     <span class="status-label">期间关闭：</span>
-                    <el-tag :type="financeYearStatus.allPeriodsClosed ? 'success' : 'warning'" size="small">
+                    <el-tag
+                      :type="financeYearStatus.allPeriodsClosed ? 'success' : 'warning'"
+                      size="small"
+                    >
                       {{ financeYearStatus.closedCount }}/{{ financeYearStatus.totalCount }}
                     </el-tag>
                   </div>
                   <div class="status-row">
                     <span class="status-label">本年利润：</span>
-                    <span :class="financeYearStatus.netProfit >= 0 ? 'text-success' : 'text-danger'">
-                      {{ financeYearStatus.netProfit >= 0 ? '+' : '' }}{{ (financeYearStatus.netProfit || 0).toFixed(2) }}
+                    <span
+                      :class="financeYearStatus.netProfit >= 0 ? 'text-success' : 'text-danger'"
+                    >
+                      {{ financeYearStatus.netProfit >= 0 ? '+' : ''
+                      }}{{ (financeYearStatus.netProfit || 0).toFixed(2) }}
                     </span>
                   </div>
                   <div class="status-row" v-if="financeYearStatus.isTransferred">
@@ -208,11 +218,16 @@
                   </div>
                 </div>
                 <el-button
+                  v-permission="'finance:periodEnd:execute'"
                   type="primary"
-                  style="width: 100%;"
+                  style="width: 100%"
                   @click="executeFinanceYearEnd"
                   :loading="financeYearEndLoading"
-                  :disabled="!yearEndForm.year || financeYearStatus.isTransferred || !financeYearStatus.allPeriodsClosed"
+                  :disabled="
+                    !yearEndForm.year ||
+                    financeYearStatus.isTransferred ||
+                    !financeYearStatus.allPeriodsClosed
+                  "
                 >
                   <el-icon><VideoPlay /></el-icon>
                   执行年度结转
@@ -237,7 +252,7 @@
                   <el-select
                     v-model="inventoryYearEndForm.year"
                     placeholder="选择年度"
-                    style="width: 100%;"
+                    style="width: 100%"
                     @change="loadInventoryYearEndStatus"
                   >
                     <el-option
@@ -251,7 +266,9 @@
                 <div v-if="inventoryYearStatus.year" class="status-info-box">
                   <div class="status-row">
                     <span class="status-label">结存记录：</span>
-                    <el-tag type="info" size="small">{{ inventoryYearStatus.totalRecords || 0 }} 条</el-tag>
+                    <el-tag type="info" size="small"
+                      >{{ inventoryYearStatus.totalRecords || 0 }} 条</el-tag
+                    >
                   </div>
                   <div class="status-row">
                     <span class="status-label">期末金额：</span>
@@ -265,6 +282,7 @@
                 </div>
                 <div class="button-group">
                   <el-button
+                    v-permission="'inventory:stock:adjust'"
                     type="primary"
                     @click="executeInventoryYearEnd"
                     :loading="inventoryYearEndLoading"
@@ -274,10 +292,15 @@
                     执行结存
                   </el-button>
                   <el-button
+                    v-permission="'inventory:stock:adjust'"
                     type="warning"
                     @click="freezeInventoryYearEnd"
                     :loading="inventoryFreezeLoading"
-                    :disabled="!inventoryYearEndForm.year || !inventoryYearStatus.hasRecords || inventoryYearStatus.isFrozen"
+                    :disabled="
+                      !inventoryYearEndForm.year ||
+                      !inventoryYearStatus.hasRecords ||
+                      inventoryYearStatus.isFrozen
+                    "
                   >
                     <el-icon><Lock /></el-icon>
                     冻结
@@ -306,7 +329,7 @@
           type="info"
           :closable="false"
           show-icon
-          style="margin-bottom: 16px;"
+          style="margin-bottom: 16px"
         />
         <el-form :model="productionForm" inline>
           <el-form-item label="生产任务">
@@ -314,7 +337,6 @@
               v-model="productionForm.taskId"
               placeholder="选择已完成的生产任务"
               filterable
-
               @focus="loadProductionTasks"
             >
               <el-option
@@ -331,7 +353,7 @@
               @click="executeProductionCost"
               :loading="productionLoading"
               :disabled="!productionForm.taskId"
-              v-permission="'finance:automation:manage'"
+              v-permission="'finance:automation:execute'"
             >
               生成成本分录
             </el-button>
@@ -379,179 +401,165 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Money, Document, VideoPlay, Calendar, Box, Lock } from '@element-plus/icons-vue'
-import { financeApi, api } from '@/services/api'
+import { ref, reactive, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  Refresh,
+  Money,
+  Document,
+  VideoPlay,
+  Calendar,
+  Box,
+  Lock,
+  SwitchButton,
+} from '@element-plus/icons-vue';
+import { financeApi, api } from '@/services/api';
+const router = useRouter();
 // 响应式数据
-const taskStatus = ref({})
-const depreciationLoading = ref(false)
-const periodEndLoading = ref(false)
-const productionLoading = ref(false)
-const financeYearEndLoading = ref(false)
-const inventoryYearEndLoading = ref(false)
-const inventoryFreezeLoading = ref(false)
-const executionHistory = ref([])
-const productionTasks = ref([])
-const accountingPeriods = ref([])
+const taskStatus = ref({});
+const depreciationLoading = ref(false);
+const productionLoading = ref(false);
+const taskActionLoading = ref(false);
+const financeYearEndLoading = ref(false);
+const inventoryYearEndLoading = ref(false);
+const inventoryFreezeLoading = ref(false);
+const executionHistory = ref([]);
+const productionTasks = ref([]);
 
 // 年度结存相关数据
-const financeYearStatus = ref({})
-const inventoryYearStatus = ref({})
+const financeYearStatus = ref({});
+const inventoryYearStatus = ref({});
 
 // 可选年度列表
 const availableYears = computed(() => {
-  const currentYear = new Date().getFullYear()
-  return [currentYear - 2, currentYear - 1, currentYear, currentYear + 1]
-})
+  const currentYear = new Date().getFullYear();
+  return [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+});
+
+const hasRunningScheduledTask = computed(() => {
+  return Object.values(taskStatus.value || {}).some((status) => status?.running);
+});
 
 // 表单数据
 const depreciationForm = reactive({
-  month: ''
-})
-
-const periodEndForm = reactive({
-  periodId: null
-})
+  month: '',
+});
 
 const productionForm = reactive({
-  taskId: null
-})
+  taskId: null,
+});
 
 const yearEndForm = reactive({
-  year: null
-})
+  year: null,
+});
 
 const inventoryYearEndForm = reactive({
-  year: null
-})
+  year: null,
+});
 
 // 获取定时任务状态
 const refreshTaskStatus = async () => {
   try {
-    const response = await financeApi.automation.getTaskStatus()
+    const response = await financeApi.automation.getTaskStatus();
     // 拦截器已解包，response.data 就是业务数据
     if (response?.data) {
-      taskStatus.value = response.data
+      taskStatus.value = response.data;
     }
   } catch (error) {
-    console.error('获取任务状态失败:', error)
-    ElMessage.error('获取任务状态失败')
+    console.error('获取任务状态失败:', error);
+    ElMessage.error('获取任务状态失败');
   }
-}
+};
 
-// 加载会计期间
-const loadAccountingPeriods = async () => {
+const startScheduledTasks = async () => {
+  taskActionLoading.value = true;
   try {
-    const response = await api.get('/finance/periods')
-    const responseData = response?.data || response
-    const periods = responseData?.periods || responseData?.list || (Array.isArray(responseData) ? responseData : [])
-    accountingPeriods.value = periods.map(period => ({
-      id: period.id,
-      name: period.name || period.period_name || period.period || `${period.year || ''}年第${period.period_number || period.month || ''}期间`
-    }))
+    await financeApi.automation.startScheduledTasks();
+    ElMessage.success('定时任务已启动');
+    await refreshTaskStatus();
   } catch (error) {
-    console.error('加载会计期间失败:', error)
-    ElMessage.error('加载会计期间失败')
-    accountingPeriods.value = []
+    console.error('启动定时任务失败:', error);
+    ElMessage.error(error.message || '启动定时任务失败');
+  } finally {
+    taskActionLoading.value = false;
   }
-}
+};
+
+const stopScheduledTasks = async () => {
+  try {
+    await ElMessageBox.confirm('确定要停止所有财务自动化定时任务吗？', '停止确认', {
+      confirmButtonText: '停止',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+
+    taskActionLoading.value = true;
+    await financeApi.automation.stopScheduledTasks();
+    ElMessage.success('定时任务已停止');
+    await refreshTaskStatus();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('停止定时任务失败:', error);
+      ElMessage.error(error.message || '停止定时任务失败');
+    }
+  } finally {
+    taskActionLoading.value = false;
+  }
+};
+
+const goToPeriodClosing = () => {
+  router.push('/finance/gl/period-closing');
+};
 
 // 执行手动折旧计提
 const executeDepreciation = async () => {
   if (!depreciationForm.month) {
-    ElMessage.warning('请选择折旧月份')
-    return
+    ElMessage.warning('请选择折旧月份');
+    return;
   }
 
   try {
-    await ElMessageBox.confirm(
-      `确定要执行 ${depreciationForm.month} 的折旧计提吗？`,
-      '确认执行',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
+    await ElMessageBox.confirm(`确定要执行 ${depreciationForm.month} 的折旧计提吗？`, '确认执行', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
 
-    depreciationLoading.value = true
+    depreciationLoading.value = true;
 
-    const response = await financeApi.automation.executeDepreciation(depreciationForm.month)
+    const response = await financeApi.automation.executeDepreciation(depreciationForm.month);
 
     // 拦截器已解包，response.data 就是业务数据
     if (response?.data) {
-      const result = response.data
-      ElMessage.success(`折旧计提执行成功！共计提 ${result.assetCount || 0} 项资产，总金额: ${(result.totalDepreciation || 0).toFixed(2)} 元`)
+      const result = response.data;
+      ElMessage.success(
+        `折旧计提执行成功！共计提 ${result.assetCount || 0} 项资产，总金额: ${(result.totalDepreciation || 0).toFixed(2)} 元`
+      );
 
       // 添加到执行历史
-      addToHistory('depreciation', depreciationForm.month, 'success',
-        `共计提 ${result.assetCount || 0} 项资产，总金额: ${(result.totalDepreciation || 0).toFixed(2)} 元`)
+      addToHistory(
+        'depreciation',
+        depreciationForm.month,
+        'success',
+        `共计提 ${result.assetCount || 0} 项资产，总金额: ${(result.totalDepreciation || 0).toFixed(2)} 元`
+      );
 
       // 清空表单
-      depreciationForm.month = ''
+      depreciationForm.month = '';
     } else {
-      ElMessage.error('折旧计提执行失败')
+      ElMessage.error('折旧计提执行失败');
     }
-    
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('折旧计提执行失败:', error)
-      ElMessage.error('折旧计提执行失败')
-      addToHistory('depreciation', depreciationForm.month, 'failed', error.message || '执行失败')
+      console.error('折旧计提执行失败:', error);
+      ElMessage.error('折旧计提执行失败');
+      addToHistory('depreciation', depreciationForm.month, 'failed', error.message || '执行失败');
     }
   } finally {
-    depreciationLoading.value = false
+    depreciationLoading.value = false;
   }
-}
-
-// 执行手动期末结转
-const executePeriodEnd = async () => {
-  if (!periodEndForm.periodId) {
-    ElMessage.warning('请选择会计期间')
-    return
-  }
-
-  try {
-    const periodName = accountingPeriods.value.find(p => p.id === periodEndForm.periodId)?.name
-    
-    await ElMessageBox.confirm(
-      `确定要执行 ${periodName} 的期末结转吗？`,
-      '确认执行',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-
-    periodEndLoading.value = true
-
-    const response = await financeApi.automation.executePeriodEnd(periodEndForm.periodId)
-
-    // 拦截器已解包，response.data 就是业务数据
-    if (response?.data) {
-      ElMessage.success('期末结转执行成功！')
-
-      // 添加到执行历史
-      addToHistory('periodEnd', periodName, 'success', '期末结转完成')
-
-      // 清空表单
-      periodEndForm.periodId = null
-    } else {
-      ElMessage.error('期末结转执行失败')
-    }
-    
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('期末结转执行失败:', error)
-      ElMessage.error('期末结转执行失败')
-      addToHistory('periodEnd', periodEndForm.periodId, 'failed', error.message || '执行失败')
-    }
-  } finally {
-    periodEndLoading.value = false
-  }
-}
+};
 
 // 加载生产任务列表
 const loadProductionTasks = async () => {
@@ -561,81 +569,83 @@ const loadProductionTasks = async () => {
       params: {
         status: 'completed',
         pageSize: 50,
-        page: 1
-      }
-    })
+        page: 1,
+      },
+    });
 
     // 拦截器已解包，response.data 就是业务数据 { items: [...], total, ... }
-    const responseData = response?.data
+    const responseData = response?.data;
     // 后端返回 items 数组
-    const taskList = responseData?.items || responseData?.list || (Array.isArray(responseData) ? responseData : [])
+    const taskList =
+      responseData?.items ||
+      responseData?.list ||
+      (Array.isArray(responseData) ? responseData : []);
 
     if (Array.isArray(taskList) && taskList.length > 0) {
-      productionTasks.value = taskList.map(task => ({
+      productionTasks.value = taskList.map((task) => ({
         id: task.id,
         code: task.code || task.task_code,
         product_name: task.product_name || task.productName,
         quantity: task.quantity || task.planned_quantity,
-        status: task.status
-      }))
+        status: task.status,
+      }));
     } else {
-      productionTasks.value = []
-      ElMessage.info('暂无已完成的生产任务')
+      productionTasks.value = [];
+      ElMessage.info('暂无已完成的生产任务');
     }
   } catch (error) {
-    console.error('加载生产任务失败:', error)
-    ElMessage.warning('加载生产任务失败，可能没有已完成的任务')
-    productionTasks.value = []
+    console.error('加载生产任务失败:', error);
+    ElMessage.warning('加载生产任务失败，可能没有已完成的任务');
+    productionTasks.value = [];
   }
-}
+};
 
 // 执行生产成本分录生成
 const executeProductionCost = async () => {
   try {
-    const selectedTask = productionTasks.value.find(task => task.id === productionForm.taskId)
+    const selectedTask = productionTasks.value.find((task) => task.id === productionForm.taskId);
     if (!selectedTask) {
-      ElMessage.error('请选择有效的生产任务')
-      return
+      ElMessage.error('请选择有效的生产任务');
+      return;
     }
 
-    await ElMessageBox.confirm(
-      `确认为生产任务 ${selectedTask.code} 生成成本分录吗？`,
-      '确认执行',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
+    await ElMessageBox.confirm(`确认为生产任务 ${selectedTask.code} 生成成本分录吗？`, '确认执行', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
 
-    productionLoading.value = true
+    productionLoading.value = true;
 
-    const response = await financeApi.automation.executeProductionCost(productionForm.taskId)
+    const response = await financeApi.automation.executeProductionCost(productionForm.taskId);
 
     // 拦截器已解包，response.data 就是业务数据
     if (response?.data) {
-      ElMessage.success('生产成本分录生成成功！')
+      ElMessage.success('生产成本分录生成成功！');
 
       // 添加到执行历史
-      addToHistory('production', selectedTask.code, 'success',
-        `成本分录生成成功，总成本: ${response.data.totalCost || 0}元`)
+      addToHistory(
+        'production',
+        selectedTask.code,
+        'success',
+        `成本分录生成成功，总成本: ${response.data.totalCost || 0}元`
+      );
 
       // 清空表单
-      productionForm.taskId = null
+      productionForm.taskId = null;
     } else {
-      ElMessage.error('生产成本分录生成失败')
+      ElMessage.error('生产成本分录生成失败');
     }
-
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('生产成本分录生成失败:', error)
-      ElMessage.error('生产成本分录生成失败')
-      addToHistory('production', productionForm.taskId, 'failed', error.message || '执行失败')
+      console.error('生产成本分录生成失败:', error);
+      ElMessage.error('生产成本分录生成失败');
+      addToHistory('production', productionForm.taskId, 'failed', error.message || '执行失败');
     }
   } finally {
-    productionLoading.value = false
+    productionLoading.value = false;
   }
-}
+};
 
 // 添加到执行历史
 const addToHistory = (type, period, status, result) => {
@@ -645,61 +655,63 @@ const addToHistory = (type, period, status, result) => {
     status,
     result,
     executedAt: new Date().toLocaleString(),
-    executedBy: '当前用户'
-  })
-}
+    executedBy: '当前用户',
+  });
+};
 
 // 获取任务类型名称
 const getTaskTypeName = (type) => {
   const typeMap = {
-    'depreciation': '折旧计提',
-    'periodEnd': '期末结转',
-    'production': '生产成本',
-    'financeYearEnd': '财务年度结转',
-    'inventoryYearEnd': '仓库年度结存',
-    'inventoryYearFreeze': '仓库结存冻结'
-  }
-  return typeMap[type] || '未知类型'
-}
+    depreciation: '折旧计提',
+    periodEnd: '期末结转',
+    production: '生产成本',
+    financeYearEnd: '财务年度结转',
+    inventoryYearEnd: '仓库年度结存',
+    inventoryYearFreeze: '仓库结存冻结',
+  };
+  return typeMap[type] || '未知类型';
+};
 
 // 获取任务类型颜色
 const getTaskTypeColor = (type) => {
   const colorMap = {
-    'depreciation': 'primary',
-    'periodEnd': 'success',
-    'production': 'warning',
-    'financeYearEnd': 'danger',
-    'inventoryYearEnd': 'info',
-    'inventoryYearFreeze': 'warning'
-  }
-  return colorMap[type] || 'info'
-}
+    depreciation: 'primary',
+    periodEnd: 'success',
+    production: 'warning',
+    financeYearEnd: 'danger',
+    inventoryYearEnd: 'info',
+    inventoryYearFreeze: 'warning',
+  };
+  return colorMap[type] || 'info';
+};
 
 // ==================== 年度结存相关方法 ====================
 
 // 加载财务年度结转状态
 const loadYearEndStatus = async () => {
   if (!yearEndForm.year) {
-    financeYearStatus.value = {}
-    return
+    financeYearStatus.value = {};
+    return;
   }
 
   try {
-    const response = await api.get(`/finance-enhancement/period/year-end-status/${yearEndForm.year}`)
+    const response = await api.get(
+      `/finance-enhancement/period/year-end-status/${yearEndForm.year}`
+    );
     if (response?.data) {
-      financeYearStatus.value = response.data
+      financeYearStatus.value = response.data;
     }
   } catch (error) {
-    console.error('获取年度结转状态失败:', error)
-    financeYearStatus.value = {}
+    console.error('获取年度结转状态失败:', error);
+    financeYearStatus.value = {};
   }
-}
+};
 
 // 执行财务年度结转
 const executeFinanceYearEnd = async () => {
   if (!yearEndForm.year) {
-    ElMessage.warning('请选择会计年度')
-    return
+    ElMessage.warning('请选择会计年度');
+    return;
   }
 
   try {
@@ -709,58 +721,62 @@ const executeFinanceYearEnd = async () => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning'
+        type: 'warning',
       }
-    )
+    );
 
-    financeYearEndLoading.value = true
+    financeYearEndLoading.value = true;
 
     const response = await api.post('/finance-enhancement/period/year-end-transfer', {
-      year: yearEndForm.year
-    })
+      year: yearEndForm.year,
+    });
 
     if (response?.data) {
-      ElMessage.success(response.data.message || '年度结转执行成功！')
-      addToHistory('financeYearEnd', `${yearEndForm.year}年度`, 'success', response.data.message)
-      await loadYearEndStatus()
+      ElMessage.success(response.data.message || '年度结转执行成功！');
+      addToHistory('financeYearEnd', `${yearEndForm.year}年度`, 'success', response.data.message);
+      await loadYearEndStatus();
     } else {
-      ElMessage.error('年度结转执行失败')
+      ElMessage.error('年度结转执行失败');
     }
-
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('年度结转执行失败:', error)
-      ElMessage.error(error.response?.data?.message || '年度结转执行失败')
-      addToHistory('financeYearEnd', `${yearEndForm.year}年度`, 'failed', error.message || '执行失败')
+      console.error('年度结转执行失败:', error);
+      ElMessage.error(error.response?.data?.message || '年度结转执行失败');
+      addToHistory(
+        'financeYearEnd',
+        `${yearEndForm.year}年度`,
+        'failed',
+        error.message || '执行失败'
+      );
     }
   } finally {
-    financeYearEndLoading.value = false
+    financeYearEndLoading.value = false;
   }
-}
+};
 
 // 加载仓库年度结存状态
 const loadInventoryYearEndStatus = async () => {
   if (!inventoryYearEndForm.year) {
-    inventoryYearStatus.value = {}
-    return
+    inventoryYearStatus.value = {};
+    return;
   }
 
   try {
-    const response = await api.get(`/inventory/year-end/status/${inventoryYearEndForm.year}`)
+    const response = await api.get(`/inventory/year-end/status/${inventoryYearEndForm.year}`);
     if (response?.data) {
-      inventoryYearStatus.value = response.data
+      inventoryYearStatus.value = response.data;
     }
   } catch (error) {
-    console.error('获取仓库年度结存状态失败:', error)
-    inventoryYearStatus.value = {}
+    console.error('获取仓库年度结存状态失败:', error);
+    inventoryYearStatus.value = {};
   }
-}
+};
 
 // 执行仓库年度结存
 const executeInventoryYearEnd = async () => {
   if (!inventoryYearEndForm.year) {
-    ElMessage.warning('请选择会计年度')
-    return
+    ElMessage.warning('请选择会计年度');
+    return;
   }
 
   try {
@@ -770,40 +786,49 @@ const executeInventoryYearEnd = async () => {
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        type: 'warning'
+        type: 'warning',
       }
-    )
+    );
 
-    inventoryYearEndLoading.value = true
+    inventoryYearEndLoading.value = true;
 
     const response = await api.post('/inventory/year-end/execute', {
-      year: inventoryYearEndForm.year
-    })
+      year: inventoryYearEndForm.year,
+    });
 
     if (response?.data) {
-      ElMessage.success(response.data.message || '库存结存执行成功！')
-      addToHistory('inventoryYearEnd', `${inventoryYearEndForm.year}年度`, 'success', response.data.message)
-      await loadInventoryYearEndStatus()
+      ElMessage.success(response.data.message || '库存结存执行成功！');
+      addToHistory(
+        'inventoryYearEnd',
+        `${inventoryYearEndForm.year}年度`,
+        'success',
+        response.data.message
+      );
+      await loadInventoryYearEndStatus();
     } else {
-      ElMessage.error('库存结存执行失败')
+      ElMessage.error('库存结存执行失败');
     }
-
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('库存结存执行失败:', error)
-      ElMessage.error(error.response?.data?.message || '库存结存执行失败')
-      addToHistory('inventoryYearEnd', `${inventoryYearEndForm.year}年度`, 'failed', error.message || '执行失败')
+      console.error('库存结存执行失败:', error);
+      ElMessage.error(error.response?.data?.message || '库存结存执行失败');
+      addToHistory(
+        'inventoryYearEnd',
+        `${inventoryYearEndForm.year}年度`,
+        'failed',
+        error.message || '执行失败'
+      );
     }
   } finally {
-    inventoryYearEndLoading.value = false
+    inventoryYearEndLoading.value = false;
   }
-}
+};
 
 // 冻结仓库年度结存
 const freezeInventoryYearEnd = async () => {
   if (!inventoryYearEndForm.year) {
-    ElMessage.warning('请选择会计年度')
-    return
+    ElMessage.warning('请选择会计年度');
+    return;
   }
 
   try {
@@ -813,58 +838,61 @@ const freezeInventoryYearEnd = async () => {
       {
         confirmButtonText: '确定冻结',
         cancelButtonText: '取消',
-        type: 'warning'
+        type: 'warning',
       }
-    )
+    );
 
-    inventoryFreezeLoading.value = true
+    inventoryFreezeLoading.value = true;
 
     const response = await api.post('/inventory/year-end/freeze', {
-      year: inventoryYearEndForm.year
-    })
+      year: inventoryYearEndForm.year,
+    });
 
     if (response?.data) {
-      ElMessage.success(response.data.message || '结存冻结成功！')
-      addToHistory('inventoryYearFreeze', `${inventoryYearEndForm.year}年度`, 'success', '结存已冻结')
-      await loadInventoryYearEndStatus()
+      ElMessage.success(response.data.message || '结存冻结成功！');
+      addToHistory(
+        'inventoryYearFreeze',
+        `${inventoryYearEndForm.year}年度`,
+        'success',
+        '结存已冻结'
+      );
+      await loadInventoryYearEndStatus();
     } else {
-      ElMessage.error('结存冻结失败')
+      ElMessage.error('结存冻结失败');
     }
-
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('结存冻结失败:', error)
-      ElMessage.error(error.response?.data?.message || '结存冻结失败')
+      console.error('结存冻结失败:', error);
+      ElMessage.error(error.response?.data?.message || '结存冻结失败');
     }
   } finally {
-    inventoryFreezeLoading.value = false
+    inventoryFreezeLoading.value = false;
   }
-}
+};
 
 // 刷新执行历史
 const refreshHistory = async () => {
   try {
     const response = await api.get('/finance-enhancement/automation/history', {
-      params: { page: 1, pageSize: 50 }
-    })
+      params: { page: 1, pageSize: 50 },
+    });
     if (response?.data?.items) {
-      executionHistory.value = response.data.items.map(item => ({
+      executionHistory.value = response.data.items.map((item) => ({
         ...item,
-        executedAt: item.executedAt ? new Date(item.executedAt).toLocaleString() : ''
-      }))
+        executedAt: item.executedAt ? new Date(item.executedAt).toLocaleString() : '',
+      }));
     }
   } catch (error) {
-    console.error('获取执行历史失败:', error)
+    console.error('获取执行历史失败:', error);
     // 如果获取失败，保持现有数据不变
   }
-}
+};
 
 // 组件挂载时获取初始数据
 onMounted(() => {
-  loadAccountingPeriods()
-  refreshTaskStatus()
-  refreshHistory()
-})
+  refreshTaskStatus();
+  refreshHistory();
+});
 </script>
 
 <style scoped>
@@ -912,6 +940,14 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.task-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .section-title {

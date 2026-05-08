@@ -16,14 +16,11 @@ const connectionError = ref(null)
 export function getSocket() {
   if (socket && socket.connected) return socket
 
-  const token = sessionStorage.getItem('token')
-  if (!token) return null
-
   // 通过 Vite proxy 或生产环境同域连接
   const baseUrl = import.meta.env.VITE_SOCKET_URL || window.location.origin
 
   socket = io(baseUrl, {
-    auth: { token },
+    withCredentials: true,
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 5,

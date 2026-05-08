@@ -126,6 +126,32 @@ class TechnicalCommunicationController {
     );
   }
 
+  async getRecipientUserIds(communicationId) {
+    const [rows] = await db.pool.query(
+      'SELECT DISTINCT user_id FROM technical_communication_recipients WHERE communication_id = ?',
+      [communicationId]
+    );
+    return rows.map((row) => row.user_id);
+  }
+
+  async sendPublishNotifications(communicationId, title, summary, category, visibility) {
+    if (visibility === 'private') {
+      const recipientIds = await this.getRecipientUserIds(communicationId);
+      if (recipientIds.length > 0) {
+        await this.sendNotificationToRecipients(
+          communicationId,
+          title,
+          summary,
+          category,
+          recipientIds
+        );
+      }
+      return;
+    }
+
+    await this.sendNotificationToAllUsers(communicationId, title, summary, category);
+  }
+
   /**
    * 获取即时通讯列表
    */
@@ -324,19 +350,7 @@ class TechnicalCommunicationController {
 
       // 如果是发布状态，发送通知
       if (status === 'published') {
-        if (visibility === 'private' && recipients.length > 0) {
-          // 私有通讯，只通知抄送人员
-          await this.sendNotificationToRecipients(
-            communicationId,
-            title,
-            summary,
-            category,
-            recipients
-          );
-        } else {
-          // 公开通讯，通知所有用户
-          await this.sendNotificationToAllUsers(communicationId, title, summary, category);
-        }
+        await this.sendPublishNotifications(communicationId, title, summary, category, visibility);
       }
 
       ResponseHandler.success(res, { id: communicationId }, '创建成功');
@@ -481,24 +495,13 @@ class TechnicalCommunicationController {
 
       // 如果从非发布状态改为发布状态，发送通知
       if (oldData.length > 0 && oldData[0].status !== 'published' && status === 'published') {
-        if (finalVisibility === 'private' && recipients.length > 0) {
-          // 私有通讯，只通知抄送人员
-          await this.sendNotificationToRecipients(
-            id,
-            title || oldData[0].title,
-            summary || oldData[0].summary,
-            category || oldData[0].category,
-            recipients
-          );
-        } else {
-          // 公开通讯，通知所有用户
-          await this.sendNotificationToAllUsers(
-            id,
-            title || oldData[0].title,
-            summary || oldData[0].summary,
-            category || oldData[0].category
-          );
-        }
+        await this.sendPublishNotifications(
+          id,
+          title || oldData[0].title,
+          summary || oldData[0].summary,
+          category || oldData[0].category,
+          finalVisibility
+        );
       }
 
       ResponseHandler.success(res, null, '更新成功');

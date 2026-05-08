@@ -15,10 +15,10 @@
           <p class="subtitle">管理银行收支记录</p>
         </div>
         <div class="action-buttons">
-          <el-button v-permission="'finance:transactions:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
-          <el-button v-permission="'finance:transactions:export'" type="success" @click="exportTransactions">导出数据</el-button>
-          <el-button v-permission="'finance:transactions:import'" type="warning" @click="showImportDialog">导入数据</el-button>
-          <el-button v-permission="'finance:transactions:print'" type="primary" plain @click="printBankStatement">打印</el-button>
+          <el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
+          <el-button v-permission="'finance:cash:export'" type="success" @click="exportTransactions">导出数据</el-button>
+          <el-button v-permission="'finance:cash:create'" type="warning" @click="showImportDialog">导入数据</el-button>
+          <el-button v-permission="'finance:cash:view'" type="primary" plain @click="printBankStatement">打印</el-button>
         </div>
       </div>
     </el-card>
@@ -172,21 +172,24 @@
                 @click="handleView(scope.row)"
               >查看</el-button>
               <!-- 编辑按钮：仅草稿状态显示 -->
-              <el-button 
-                v-if="scope.row.status === 'draft' || !scope.row.status"
+              <el-button
+                v-permission="'finance:cash:update'"
+                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
                 type="warning"
                 size="small"
                 @click="handleEdit(scope.row)"
               >编辑</el-button>
               <!-- 提交按钮：仅草稿状态且未对账显示 -->
               <el-button
-                v-if="(scope.row.status === 'draft' || !scope.row.status) && !scope.row.isReconciled"
+                v-permission="'finance:cash:update'"
+                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
                 type="success"
                 size="small"
                 @click="submitForAudit(scope.row)"
               >提交</el-button>
               <!-- 审核按钮：待审核或已复核状态显示 -->
-              <el-button 
+              <el-button
+                v-permission="'finance:cash:approve'"
                 v-if="scope.row.status === 'pending' || scope.row.status === 'reviewed'"
                 type="info"
                 size="small"
@@ -194,13 +197,13 @@
               >审核</el-button>
               <!-- 删除按钮：仅草稿状态且未对账显示 -->
               <el-popconfirm
-                v-if="(scope.row.status === 'draft' || !scope.row.status) && !scope.row.isReconciled"
+                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
                 title="确定要删除该交易记录吗？此操作不可恢复！"
                 @confirm="handleDelete(scope.row)"
                 confirm-button-type="danger"
               >
                 <template #reference>
-                  <el-button v-permission="'finance:transactions:delete'" type="danger" size="small">删除</el-button>
+                  <el-button v-permission="'finance:cash:delete'" type="danger" size="small">删除</el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -350,7 +353,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveTransaction" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="transactionForm.id ? 'finance:cash:update' : 'finance:cash:create'" type="primary" @click="saveTransaction" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -424,6 +427,7 @@
           <el-button type="info" @click="downloadTemplate">下载模板</el-button>
           <el-button @click="importDialogVisible = false">取消</el-button>
           <el-button
+            v-permission="'finance:cash:create'"
             type="success"
             @click="handleImport"
             :loading="importLoading"
@@ -950,40 +954,19 @@ const saveTransaction = async () => {
         
         // 对于编辑操作，保留原交易编号
         if (transactionForm.id) {
-          // 对于更新操作，我们需要保留原始的交易编号
           try {
-            
-            ElMessage.success('更新成功');
+            const response = await api.put(`/finance/bank-transactions/${transactionForm.id}`, data);
+            const responseData = parseDataObject(response, { enableLog: false });
+            if (responseData && responseData.newBalance !== undefined) {
+              ElMessage.success('更新成功，待审核通过后入账');
+            } else {
+              ElMessage.success('更新成功');
+            }
             dialogVisible.value = false;
             loadTransactions();
           } catch (updateError) {
             console.error('更新交易失败:', updateError);
-            
-            // 如果是404错误（API不存在），提供更友好的错误提示
-            if (updateError.response && updateError.response.status === 404) {
-              ElMessage.error({
-                message: '更新交易失败：后台API尚未实现，请联系开发人员',
-                duration: 5000
-              });
-              // 提示用户可以删除并重新创建
-              ElMessageBox.confirm(
-                '更新交易API尚未实现。您可以删除此交易并创建新交易来替代它。要继续吗？',
-                '操作提示',
-                {
-                  confirmButtonText: '删除并重新创建',
-                  cancelButtonText: '取消',
-                  type: 'warning'
-                }
-              ).then(() => {
-                // 用户确认，执行删除后创建新交易
-                handleDeleteAndRecreate(transactionForm);
-              }).catch(() => {
-                // 用户取消，不做任何操作
-              });
-            } else {
-              // 其他错误
-              ElMessage.error(`更新交易失败: ${updateError.response?.data?.message || updateError.message}`);
-            }
+            ElMessage.error(`更新交易失败: ${updateError.response?.data?.message || updateError.message}`);
           }
         } else {
           // 新增交易
@@ -996,15 +979,24 @@ const saveTransaction = async () => {
               data.transaction_date = formattedDate.split('T')[0];
             }
             
-            const response = await api.post('/finance/bank-transactions', {
-              ...data,
-              transaction_number: transactionNumber
-            });
+            const response = transactionForm.type === 'transfer'
+              ? await api.post('/finance/bank-transactions/transfer', {
+                transaction_number: transactionNumber,
+                from_account_id: transactionForm.accountId,
+                to_account_id: transactionForm.targetAccountId,
+                transaction_date: data.transaction_date,
+                amount: data.amount,
+                description: enhancedDescription.trim(),
+                reference_number: transactionForm.referenceNumber || ''
+              })
+              : await api.post('/finance/bank-transactions', {
+                ...data,
+                transaction_number: transactionNumber
+              });
             // 显示成功信息，包括新的余额
             const responseData = parseDataObject(response, { enableLog: false });
             if (responseData && responseData.newBalance !== undefined) {
-              const accountName = accountOptions.value.find(acc => acc.id === transactionForm.accountId)?.accountName || '';
-              ElMessage.success(`添加成功！${accountName}账户新余额: ${formatCurrency(responseData.newBalance)}`);
+              ElMessage.success('添加成功，待审核通过后入账');
             } else {
               ElMessage.success('添加成功');
             }
@@ -1024,61 +1016,6 @@ const saveTransaction = async () => {
       }
     }
   });
-};
-// 删除并重新创建交易
-const handleDeleteAndRecreate = async (transaction) => {
-  try {
-    // 删除交易
-    await api.delete(`/finance/bank-transactions/${transaction.id}`);
-    
-    // 生成新交易编号
-    const now = new Date();
-    const transactionNumber = `TX${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-    
-    // 获取分类和支付方式的显示文本
-    const categoryText = getCategoryDisplayText(transaction.category);
-    const paymentMethodText = getPaymentMethodDisplayText(transaction.paymentMethod);
-    
-    // 在描述中包含分类和支付方式信息
-    let enhancedDescription = transaction.description || '';
-    if (categoryText && !enhancedDescription.includes(categoryText)) {
-      enhancedDescription = `${categoryText} - ${enhancedDescription}`;
-    }
-    if (paymentMethodText && !enhancedDescription.includes(paymentMethodText)) {
-      enhancedDescription = `${enhancedDescription} (${paymentMethodText})`;
-    }
-    
-    // 确保日期格式正确 (YYYY-MM-DD)
-    let formattedDate = transaction.transactionDate;
-    if (typeof formattedDate === 'object' && formattedDate instanceof Date) {
-      formattedDate = formattedDate.toISOString().split('T')[0];
-    } else if (typeof formattedDate === 'string' && formattedDate.includes('T')) {
-      formattedDate = formattedDate.split('T')[0];
-    }
-    
-    // 创建新交易
-    const _response = await api.post('/finance/bank-transactions', {
-      bank_account_id: transaction.accountId,
-      transaction_date: formattedDate,
-      transaction_type: mapTransactionType(transaction.type),
-      amount: parseFloat(transaction.amount),
-      description: enhancedDescription.trim(),
-      reference_number: transaction.referenceNumber || '',
-      related_party: transaction.counterparty || '',
-      transaction_number: transactionNumber,
-      is_reconciled: false,
-      reconciliation_date: null,
-      category: transaction.category,
-      payment_method: transaction.paymentMethod
-    });
-    
-    ElMessage.success('交易已重新创建');
-    dialogVisible.value = false;
-    loadTransactions();
-  } catch (error) {
-    console.error('删除并重新创建交易失败:', error);
-    ElMessage.error(`操作失败: ${error.response?.data?.message || error.message}`);
-  }
 };
 // 映射交易类型到后端支持的类型
 const mapTransactionType = (type) => {
@@ -1201,13 +1138,18 @@ const handleAudit = (row) => {
         instance.confirmButtonLoading = true;
         instance.cancelButtonLoading = true;
         
-        await api.post(`/finance/bank-transactions/${row.id}/audit`, {
+        const response = await api.post(`/finance/bank-transactions/${row.id}/audit`, {
           status,
           remark,
           auditorId: authStore.user?.id || 0
         });
-        
-        ElMessage.success(status === 'rejected' ? '已驳回' : '审核通过');
+
+        const responseData = parseDataObject(response, { enableLog: false });
+        if (status === 'approved' && responseData?.newBalance !== undefined) {
+          ElMessage.success(`审核通过，账户余额: ${formatCurrency(responseData.newBalance)}`);
+        } else {
+          ElMessage.success(status === 'rejected' ? '已驳回' : '审核通过');
+        }
         loadTransactions();
         done();
       } catch (error) {

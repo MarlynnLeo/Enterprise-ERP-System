@@ -76,6 +76,18 @@ exports.up = async function (knex) {
     });
   }
 
+  // 确保 type 列能容纳 'outsourced'（已有表可能用了不兼容的 ENUM）
+  if (hasMaterialSources) {
+    const [cols] = await knex.raw(
+      `SELECT COLUMN_TYPE FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name = 'material_sources' AND column_name = 'type'`
+    );
+    const colType = cols[0]?.COLUMN_TYPE || '';
+    if (colType.startsWith('enum') && !colType.includes('outsourced')) {
+      await knex.raw(`ALTER TABLE material_sources MODIFY COLUMN \`type\` ENUM('internal','external','outsourced') NOT NULL DEFAULT 'external'`);
+    }
+  }
+
   await knex.raw(`
     INSERT INTO material_sources (name, code, type, sort, status, description)
     VALUES

@@ -9,6 +9,7 @@ const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
+const DocumentLinkService = require('../../../services/business/DocumentLinkService');
 
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 
@@ -716,6 +717,7 @@ async function generateProductionAndPurchasePlans(
   userInfo
 ) {
   try {
+    userInfo = userInfo || {};
     // 首先查询销售订单号和合同编码
     let salesOrderNo = salesOrderId; // 默认使用ID
     let contractCode = ''; // 合同编码
@@ -817,9 +819,20 @@ async function generateProductionAndPurchasePlans(
                 cause: bomError,
               });
             }
+            await DocumentLinkService.tryAutoLink(
+              'sales_order',
+              salesOrderId,
+              salesOrderNo,
+              'production_plan',
+              planId,
+              planNo,
+              userInfo.id || userInfo.userId || null,
+              connection
+            );
             createdCount++;
           } catch (planError) {
             logger.error(`  ❌ 生产计划创建失败(物料: ${material_name}): `, planError.message);
+            throw planError;
           }
         }
 
@@ -941,10 +954,21 @@ async function generateProductionAndPurchasePlans(
             logger.info(`  ✅ 添加物料: ${material_name} (数量: ${shortage})`);
           }
 
+          await DocumentLinkService.tryAutoLink(
+            'sales_order',
+            salesOrderId,
+            salesOrderNo,
+            'purchase_requisition',
+            requisitionId,
+            reqNo,
+            userInfo.id || userInfo.userId || null,
+            connection
+          );
           logger.info(`✅ 采购申请创建成功: ${reqNo} (包含${filteredMaterials.length}个物料)`);
         }
       } catch (reqError) {
         logger.error('❌ 采购申请创建失败:', reqError.message);
+        throw reqError;
       }
     }
 

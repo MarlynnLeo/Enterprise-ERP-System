@@ -8,7 +8,7 @@
         </div>
         <div class="action-buttons">
           <el-button type="primary" @click="refreshData">刷新数据</el-button>
-          <el-button type="warning" @click="showWIPDialog = true">
+          <el-button v-permission="'finance:automation:execute'" type="warning" @click="showWIPDialog = true">
             <el-icon><Setting /></el-icon> 月末成本结转
           </el-button>
         </div>
@@ -209,7 +209,7 @@
                 <h4>一键月末结转</h4>
                 <p>自动执行：WIP计算 → WIP凭证 → 差异分摊</p>
               </div>
-              <el-button type="primary" @click="executeCostClosing" :loading="closingLoading" v-permission="'finance:cost:settings'">
+              <el-button type="primary" @click="executeCostClosing" :loading="closingLoading" v-permission="'finance:automation:execute'">
                 执行结转
               </el-button>
             </div>

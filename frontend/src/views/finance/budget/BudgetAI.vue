@@ -93,7 +93,7 @@
             <template #header>
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <span><el-icon style="vertical-align: middle;"><List /></el-icon> 科目预算建议明细</span>
-                <el-button type="success" size="small" @click="createBudgetFromAI" :loading="loading.createBudget" :disabled="!selectedRecs.length">
+                <el-button v-permission="'finance:budgets:create'" type="success" size="small" @click="createBudgetFromAI" :loading="loading.createBudget" :disabled="!selectedRecs.length">
                   <el-icon><Promotion /></el-icon> 一键生成预算 ({{ selectedRecs.length }}项)
                 </el-button>
               </div>

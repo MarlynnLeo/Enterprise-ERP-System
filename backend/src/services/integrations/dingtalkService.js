@@ -717,7 +717,8 @@ const dingtalkService = new DingtalkService();
 const shouldStartPollingSync =
   process.env.NODE_ENV !== 'test' &&
   !process.env.JEST_WORKER_ID &&
-  process.env.DISABLE_CRON !== 'true';
+  process.env.DISABLE_CRON !== 'true' &&
+  dingtalkConfig.appKey; // 未配置钉钉 AppKey 时不注册无效 cron
 
 if (shouldStartPollingSync) {
   const dingtalkPollingTimer = setTimeout(() => {

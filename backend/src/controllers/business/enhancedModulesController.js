@@ -10,6 +10,7 @@ const { pool } = require('../../config/db');
 const { softDelete } = require('../../utils/softDelete');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { parsePagination } = require('../../utils/safePagination');
 
 // ==================== 编码规则 ====================
 const codingRules = {
@@ -75,7 +76,8 @@ const docLinks = {
 const exchangeRates = {
   async getList(req, res) {
     try {
-      const { from_currency, to_currency, page = 1, pageSize = 50 } = req.query;
+      const { from_currency, to_currency } = req.query;
+      const pagination = parsePagination(req.query.page, req.query.pageSize, { defaultPageSize: 50, maxPageSize: 200 });
       let where = 'WHERE deleted_at IS NULL';
       const vals = [];
       if (from_currency) { where += ' AND from_currency = ?'; vals.push(from_currency); }
@@ -83,19 +85,23 @@ const exchangeRates = {
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM exchange_rates ${where}`, vals);
       const [rows] = await pool.query(
         `SELECT * FROM exchange_rates ${where} ORDER BY effective_date DESC, from_currency LIMIT ? OFFSET ?`,
-        [...vals, Number(pageSize), (page - 1) * pageSize]
+        [...vals, pagination.limit, pagination.offset]
       );
-      ResponseHandler.success(res, { list: rows, total });
+      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
     try {
       const { from_currency, to_currency, rate, effective_date } = req.body;
+      const parsedRate = Number(rate);
+      if (!from_currency || !effective_date || !Number.isFinite(parsedRate) || parsedRate <= 0) {
+        return ResponseHandler.error(res, 'from_currency, effective_date and positive rate are required', 'BAD_REQUEST', 400);
+      }
       const userId = req.user?.userId || req.user?.id;
       await pool.query(
         `INSERT INTO exchange_rates (from_currency, to_currency, rate, effective_date, source, created_by)
          VALUES (?, ?, ?, ?, 'manual', ?) ON DUPLICATE KEY UPDATE rate = ?, source = 'manual'`,
-        [from_currency, to_currency || 'CNY', rate, effective_date, userId, rate]
+        [String(from_currency).toUpperCase(), String(to_currency || 'CNY').toUpperCase(), parsedRate, effective_date, userId, parsedRate]
       );
       ResponseHandler.success(res, null, '汇率已保存');
     } catch (e) { ResponseHandler.error(res, e.message); }
@@ -109,10 +115,13 @@ const exchangeRates = {
   async getLatestRate(req, res) {
     try {
       const { from, to } = req.query;
+      if (!from) {
+        return ResponseHandler.error(res, 'from currency is required', 'BAD_REQUEST', 400);
+      }
       const [[row]] = await pool.query(
         `SELECT * FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND effective_date <= CURDATE() AND deleted_at IS NULL
          ORDER BY effective_date DESC LIMIT 1`,
-        [from, to || 'CNY']
+        [String(from).toUpperCase(), String(to || 'CNY').toUpperCase()]
       );
       ResponseHandler.success(res, row || null);
     } catch (e) { ResponseHandler.error(res, e.message); }
@@ -269,6 +278,110 @@ const performance = {
 };
 
 // ==================== ECN 变更管理 ====================
+const ECN_BOM_CHANGE_TYPES = new Set(['bom_add', 'bom_remove', 'bom_modify']);
+const ECN_ALLOWED_CHANGE_TYPES = new Set([
+  'bom_add',
+  'bom_remove',
+  'bom_modify',
+  'material_modify',
+]);
+const ECN_BOM_FIELDS = new Set(['quantity', 'remark', 'unit_id', 'level', 'parent_id']);
+const ECN_MATERIAL_FIELDS = new Set(['name', 'specs', 'specification', 'unit_id', 'safety_stock', 'min_stock', 'max_stock', 'price']);
+
+function isBlank(value) {
+  return value === undefined || value === null || String(value).trim() === '';
+}
+
+function normalizeEcnItem(item = {}) {
+  const fieldName = item.field_name === 'specification' ? 'specs' : item.field_name;
+  return {
+    ...item,
+    field_name: fieldName || null,
+    bom_id: item.bom_id || null,
+    material_id: item.material_id || null,
+  };
+}
+
+function validateEcnPayload(data = {}, { requireItems = false } = {}) {
+  if (isBlank(data.title)) return 'ECN标题不能为空';
+  if (isBlank(data.reason)) return '变更原因不能为空';
+  const items = Array.isArray(data.items) ? data.items.map(normalizeEcnItem) : [];
+  if (requireItems && items.length === 0) return '提交审批前至少需要维护一条变更明细';
+
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i];
+    const row = i + 1;
+    if (!ECN_ALLOWED_CHANGE_TYPES.has(item.change_type)) return `第${row}行变更类型不支持`;
+    if (ECN_BOM_CHANGE_TYPES.has(item.change_type) && !item.bom_id) return `第${row}行BOM不能为空`;
+    if (['bom_add', 'bom_remove', 'bom_modify', 'material_modify'].includes(item.change_type) && !item.material_id) {
+      return `第${row}行物料不能为空`;
+    }
+    if (item.change_type === 'bom_modify') {
+      if (!ECN_BOM_FIELDS.has(item.field_name)) return `第${row}行BOM变更字段不支持`;
+      if (isBlank(item.new_value)) return `第${row}行变更后不能为空`;
+    }
+    if (item.change_type === 'material_modify') {
+      if (!ECN_MATERIAL_FIELDS.has(item.field_name)) return `第${row}行物料变更字段不支持`;
+      if (isBlank(item.new_value)) return `第${row}行变更后不能为空`;
+    }
+    if (item.change_type === 'bom_add' && isBlank(item.new_value)) {
+      item.new_value = 1;
+    }
+  }
+
+  return null;
+}
+
+function sameValue(left, right) {
+  if (isBlank(left)) return true;
+  return String(left).trim() === String(right ?? '').trim();
+}
+
+async function syncEcnDocumentLinks(conn, ecnId, ecnCode, items, userId) {
+  await conn.query(
+    "DELETE FROM document_links WHERE source_type = 'ecn' AND source_id = ? AND target_type IN ('bom','material')",
+    [ecnId]
+  );
+
+  const seen = new Set();
+  for (const item of items.map(normalizeEcnItem)) {
+    if (item.bom_id) {
+      const key = `bom:${item.bom_id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        await DocumentLinkService.createLink({
+          source_type: 'ecn',
+          source_id: ecnId,
+          source_code: ecnCode,
+          target_type: 'bom',
+          target_id: item.bom_id,
+          target_code: `BOM#${item.bom_id}`,
+          link_type: 'related',
+          remark: 'ECN影响BOM',
+          created_by: userId,
+        }, conn);
+      }
+    }
+    if (item.material_id) {
+      const key = `material:${item.material_id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        await DocumentLinkService.createLink({
+          source_type: 'ecn',
+          source_id: ecnId,
+          source_code: ecnCode,
+          target_type: 'material',
+          target_id: item.material_id,
+          target_code: item.material_code || String(item.material_id),
+          link_type: 'related',
+          remark: 'ECN影响物料',
+          created_by: userId,
+        }, conn);
+      }
+    }
+  }
+}
+
 const ecn = {
   async getList(req, res) {
     try {
@@ -299,6 +412,9 @@ const ecn = {
   async create(req, res) {
     try {
       const d = req.body;
+      const validationError = validateEcnPayload(d);
+      if (validationError) return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
+      const items = Array.isArray(d.items) ? d.items.map(normalizeEcnItem) : [];
       const userId = req.user?.userId || req.user?.id;
       const code = d.code || await CodeGeneratorService.nextCode('ecn');
       const conn = await pool.getConnection();
@@ -310,8 +426,8 @@ const ecn = {
           [code, d.title, d.type || 'ecn', d.priority || 'medium', 'draft', d.reason, d.description, d.impact_analysis, d.effective_date, d.disposition || 'use_existing', userId, d.department_id]
         );
         const ecnId = r.insertId;
-        if (d.items) {
-          for (const item of d.items) {
+        if (items.length) {
+          for (const item of items) {
             await conn.query(
               `INSERT INTO ecn_order_items (ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark)
                VALUES (?,?,?,?,?,?,?,?,?,?)`,
@@ -319,6 +435,7 @@ const ecn = {
             );
           }
         }
+        await syncEcnDocumentLinks(conn, ecnId, code, items, userId);
         await conn.commit();
         ResponseHandler.success(res, { id: ecnId, code }, '创建成功');
       } catch (err) { await conn.rollback(); throw err; }
@@ -348,7 +465,7 @@ const ecn = {
         implementing: ['completed', 'cancelled'],
         rejected: ['draft'],
       };
-      const [[current]] = await pool.query('SELECT status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      const [[current]] = await pool.query('SELECT * FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
       if (!current) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
       const allowed = allowedTransitions[current.status] || [];
       if (!allowed.includes(status)) {
@@ -363,41 +480,58 @@ const ecn = {
       // 提交审批时发起工作流
       let finalStatus = status;
       if (status === 'pending_approval') {
+        const [items] = await pool.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [req.params.id]);
+        const validationError = validateEcnPayload({ ...current, items }, { requireItems: true });
+        if (validationError) return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
+
         const WorkflowService = require('../../services/business/WorkflowService');
-        const [[ecn]] = await pool.query('SELECT code, title FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
         const wfResult = await WorkflowService.tryStartWorkflow(
-          'ecn', req.params.id, ecn?.code, `ECN ${ecn?.code} ${ecn?.title} 审批`, userId
+          'ecn', req.params.id, current.code, `ECN ${current.code} ${current.title} 审批`, userId
         );
         if (wfResult.auto_approved) { finalStatus = 'approved'; }
       }
 
-      let extra = '';
-      const vals = [finalStatus];
-      if (finalStatus === 'approved') {
-        // 从WorkflowService映射表统一获取ECN审批通过的附加SQL，避免重复维护
-        const WorkflowSvc = require('../../services/business/WorkflowService');
-        const ecnCfg = WorkflowSvc.BUSINESS_STATUS_MAP?.ecn;
-        extra = ecnCfg?.extra || ', approved_by = ?, approved_at = NOW()';
-        if (extra.includes('approved_by')) vals.push(userId);
-      }
-      if (finalStatus === 'completed') { extra += ', completed_at = NOW()'; }
-      vals.push(req.params.id);
-      await pool.query(`UPDATE ecn_orders SET status = ?${extra} WHERE id = ? AND deleted_at IS NULL`, vals);
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        let extra = '';
+        const vals = [finalStatus];
+        if (finalStatus === 'approved') {
+          // 从WorkflowService映射表统一获取ECN审批通过的附加SQL，避免重复维护
+          const WorkflowSvc = require('../../services/business/WorkflowService');
+          const ecnCfg = WorkflowSvc.BUSINESS_STATUS_MAP?.ecn;
+          extra = ecnCfg?.extra || ', approved_by = ?, approved_at = NOW()';
+          if (extra.includes('approved_by')) vals.push(userId);
+        }
+        if (finalStatus === 'completed') { extra += ', completed_at = NOW()'; }
 
-      // ECN 进入实施阶段时自动应用BOM变更
-      if (finalStatus === 'implementing') {
-        await applyEcnChanges(req.params.id, userId);
+        if (finalStatus === 'implementing') {
+          await applyEcnChanges(req.params.id, userId, conn);
+        }
+
+        vals.push(req.params.id);
+        await conn.query(`UPDATE ecn_orders SET status = ?${extra} WHERE id = ? AND deleted_at IS NULL`, vals);
+        await conn.commit();
+      } catch (err) {
+        await conn.rollback();
+        throw err;
+      } finally {
+        conn.release();
       }
+
       ResponseHandler.success(res, null, '状态已更新');
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async update(req, res) {
     try {
       const d = req.body;
+      const validationError = validateEcnPayload(d);
+      if (validationError) return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
+      const items = Array.isArray(d.items) ? d.items.map(normalizeEcnItem) : [];
       const conn = await pool.getConnection();
       try {
         // 仅草稿状态允许编辑
-        const [[current]] = await conn.query('SELECT status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+        const [[current]] = await conn.query('SELECT code, status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
         if (!current) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
         if (current.status !== 'draft') {
           return ResponseHandler.error(res, '仅草稿状态允许编辑', 'VALIDATION_ERROR', 400);
@@ -411,8 +545,8 @@ const ecn = {
         );
         // 重建变更明细（先删后插）
         await conn.query('DELETE FROM ecn_order_items WHERE ecn_id = ?', [req.params.id]);
-        if (d.items && d.items.length) {
-          for (const item of d.items) {
+        if (items.length) {
+          for (const item of items) {
             await conn.query(
               `INSERT INTO ecn_order_items (ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark)
                VALUES (?,?,?,?,?,?,?,?,?,?)`,
@@ -420,6 +554,7 @@ const ecn = {
             );
           }
         }
+        await syncEcnDocumentLinks(conn, req.params.id, current.code, items, req.user?.userId || req.user?.id);
         await conn.commit();
         ResponseHandler.success(res, null, '更新成功');
       } catch (err) { await conn.rollback(); throw err; }
@@ -439,94 +574,112 @@ const ecn = {
           400
         );
       }
+      await pool.query("DELETE FROM document_links WHERE source_type = 'ecn' AND source_id = ?", [req.params.id]);
       await softDelete(pool, 'ecn_orders', 'id', req.params.id);
       ResponseHandler.success(res, null, '已删除');
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
 };
 
-/** 应用ECN变更明细到BOM（独立函数，避免this绑定丢失） */
-async function applyEcnChanges(ecnId) {
-  const { logger } = require('../../utils/logger');
-  const [items] = await pool.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [ecnId]);
-  if (!items.length) return;
+/** 应用ECN变更明细到BOM/物料。必须在调用方事务内执行，失败即抛错回滚状态。 */
+async function applyEcnChanges(ecnId, userId, conn) {
+  const [[order]] = await conn.query('SELECT code, title, reason FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [ecnId]);
+  if (!order) throw new Error('ECN不存在');
 
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    for (const item of items) {
-      switch (item.change_type) {
-        case 'bom_add': {
-          if (item.bom_id && item.material_id) {
-            await conn.query(
-              `INSERT IGNORE INTO bom_details (bom_id, material_id, quantity, remark)
-               VALUES (?, ?, ?, ?)`,
-              [item.bom_id, item.material_id, item.new_value || 1, `ECN#${ecnId}新增`]
-            );
-            logger.info(`ECN#${ecnId}: BOM ${item.bom_id} 新增物料 ${item.material_code}`);
-          }
-          break;
-        }
-        case 'bom_remove': {
-          if (item.bom_id && item.material_id) {
-            await conn.query(
-              'DELETE FROM bom_details WHERE bom_id = ? AND material_id = ?',
-              [item.bom_id, item.material_id]
-            );
-            logger.info(`ECN#${ecnId}: BOM ${item.bom_id} 移除物料 ${item.material_code}`);
-          }
-          break;
-        }
-        case 'bom_modify': {
-          if (item.bom_id && item.material_id && item.field_name) {
-            const allowedFields = ['quantity', 'remark', 'unit_id', 'level', 'parent_id'];
-            if (allowedFields.includes(item.field_name)) {
-              await conn.query(
-                `UPDATE bom_details SET ${item.field_name} = ? WHERE bom_id = ? AND material_id = ?`,
-                [item.new_value, item.bom_id, item.material_id]
-              );
-              logger.info(`ECN#${ecnId}: BOM ${item.bom_id} 物料 ${item.material_code} ${item.field_name}: ${item.old_value} → ${item.new_value}`);
-            }
-          }
-          break;
-        }
-        case 'material_modify': {
-          if (item.material_id && item.field_name) {
-            const allowedFields = ['name', 'specification', 'unit_id', 'safety_stock', 'min_stock', 'max_stock', 'price'];
-            if (allowedFields.includes(item.field_name)) {
-              await conn.query(
-                `UPDATE materials SET ${item.field_name} = ? WHERE id = ?`,
-                [item.new_value, item.material_id]
-              );
-              logger.info(`ECN#${ecnId}: 物料 ${item.material_code} ${item.field_name}: ${item.old_value} → ${item.new_value}`);
-            }
-          }
-          break;
-        }
-        default:
-          break;
-      }
+  const [rawItems] = await conn.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [ecnId]);
+  const items = rawItems.map(normalizeEcnItem);
+  const validationError = validateEcnPayload({ ...order, items }, { requireItems: true });
+  if (validationError) throw new Error(validationError);
+
+  const changedBomIds = new Set();
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const row = index + 1;
+
+    if (['process_modify', 'drawing_modify'].includes(item.change_type)) {
+      throw new Error(`第${row}行${item.change_type}暂未配置自动落地规则，不能直接实施`);
     }
-    // 更新BOM版本号（版本号为 VARCHAR 格式如 "V1.3"，需字符串递增）
-    const bomIds = [...new Set(items.filter(i => i.bom_id).map(i => i.bom_id))];
-    for (const bomId of bomIds) {
-      const [[bom]] = await conn.query('SELECT version FROM bom_masters WHERE id = ?', [bomId]);
-      if (bom) {
-        const ver = bom.version || 'V1.0';
-        const match = ver.match(/^(.*?)(\d+)$/);
-        const newVer = match ? `${match[1]}${parseInt(match[2], 10) + 1}` : `${ver}.1`;
-        await conn.query('UPDATE bom_masters SET version = ?, updated_at = NOW() WHERE id = ?', [newVer, bomId]);
-        logger.info(`ECN#${ecnId}: BOM ${bomId} 版本 ${ver} → ${newVer}`);
-      }
+
+    const [[material]] = await conn.query(
+      'SELECT id, code, name, unit_id, specs, safety_stock, min_stock, max_stock, price FROM materials WHERE id = ? AND deleted_at IS NULL',
+      [item.material_id]
+    );
+    if (!material) throw new Error(`第${row}行物料不存在或已删除`);
+
+    if (ECN_BOM_CHANGE_TYPES.has(item.change_type)) {
+      const [[bom]] = await conn.query('SELECT id, version FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [item.bom_id]);
+      if (!bom) throw new Error(`第${row}行BOM不存在或已删除`);
+      changedBomIds.add(item.bom_id);
     }
-    await conn.commit();
-    logger.info(`ECN#${ecnId}: 已自动应用 ${items.length} 条变更明细`);
-  } catch (err) {
-    await conn.rollback();
-    logger.error(`ECN#${ecnId} 应用BOM变更失败:`, err);
-  } finally {
-    conn.release();
+
+    if (item.change_type === 'bom_add') {
+      const [[existing]] = await conn.query(
+        'SELECT id FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1',
+        [item.bom_id, item.material_id]
+      );
+      if (existing) throw new Error(`第${row}行BOM中已存在该物料，不能重复新增`);
+      const quantity = Number(item.new_value || 1);
+      if (!Number.isFinite(quantity) || quantity <= 0) throw new Error(`第${row}行新增数量必须大于0`);
+      await conn.query(
+        `INSERT INTO bom_details (bom_id, material_id, quantity, unit_id, remark, level, parent_id)
+         VALUES (?, ?, ?, ?, ?, 1, 0)`,
+        [item.bom_id, item.material_id, quantity, material.unit_id || null, item.remark || `ECN#${ecnId}新增`]
+      );
+      logger.info(`ECN#${ecnId}: BOM ${item.bom_id} 新增物料 ${item.material_code || material.code}`);
+    }
+
+    if (item.change_type === 'bom_remove') {
+      const [[detail]] = await conn.query(
+        'SELECT id FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1',
+        [item.bom_id, item.material_id]
+      );
+      if (!detail) throw new Error(`第${row}行BOM中不存在该物料，不能移除`);
+      await conn.query('DELETE FROM bom_details WHERE id = ?', [detail.id]);
+      logger.info(`ECN#${ecnId}: BOM ${item.bom_id} 移除物料 ${item.material_code || material.code}`);
+    }
+
+    if (item.change_type === 'bom_modify') {
+      const [[detail]] = await conn.query(
+        `SELECT id, quantity, remark, unit_id, level, parent_id
+         FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1`,
+        [item.bom_id, item.material_id]
+      );
+      if (!detail) throw new Error(`第${row}行BOM中不存在该物料，不能修改`);
+      if (!sameValue(item.old_value, detail[item.field_name])) {
+        throw new Error(`第${row}行变更前值与当前BOM不一致，请刷新后重填`);
+      }
+      await conn.query(
+        `UPDATE bom_details SET ${item.field_name} = ? WHERE id = ?`,
+        [item.new_value, detail.id]
+      );
+      logger.info(`ECN#${ecnId}: BOM ${item.bom_id} 物料 ${item.material_code || material.code} ${item.field_name}: ${item.old_value} -> ${item.new_value}`);
+    }
+
+    if (item.change_type === 'material_modify') {
+      const fieldName = item.field_name === 'specification' ? 'specs' : item.field_name;
+      if (!ECN_MATERIAL_FIELDS.has(fieldName)) throw new Error(`第${row}行物料字段不支持`);
+      if (!sameValue(item.old_value, material[fieldName])) {
+        throw new Error(`第${row}行变更前值与当前物料不一致，请刷新后重填`);
+      }
+      await conn.query(
+        `UPDATE materials SET ${fieldName} = ?, updated_at = NOW() WHERE id = ?`,
+        [item.new_value, item.material_id]
+      );
+      logger.info(`ECN#${ecnId}: 物料 ${item.material_code || material.code} ${fieldName}: ${item.old_value} -> ${item.new_value}`);
+    }
   }
+
+  for (const bomId of changedBomIds) {
+    const [[bom]] = await conn.query('SELECT version FROM bom_masters WHERE id = ?', [bomId]);
+    const ver = bom?.version || 'V1.0';
+    const match = ver.match(/^(.*?)(\d+)$/);
+    const newVer = match ? `${match[1]}${parseInt(match[2], 10) + 1}` : `${ver}.1`;
+    await conn.query('UPDATE bom_masters SET version = ?, updated_at = NOW() WHERE id = ?', [newVer, bomId]);
+    logger.info(`ECN#${ecnId}: BOM ${bomId} 版本 ${ver} -> ${newVer}`);
+  }
+
+  await syncEcnDocumentLinks(conn, ecnId, order.code, items, userId);
+  logger.info(`ECN#${ecnId}: 已应用 ${items.length} 条变更明细`);
 }
 
 // ==================== 文档管理 ====================
@@ -534,6 +687,7 @@ const documents = {
   async getList(req, res) {
     try {
       const { keyword, category, business_type, business_id, page = 1, pageSize = 20 } = req.query;
+      const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
       let where = 'WHERE d.deleted_at IS NULL';
       const vals = [];
       if (keyword) { where += ' AND (d.name LIKE ? OR d.code LIKE ?)'; vals.push(`%${keyword}%`, `%${keyword}%`); }
@@ -544,14 +698,17 @@ const documents = {
       const [rows] = await pool.query(
         `SELECT d.*, u.real_name AS created_by_name FROM documents d LEFT JOIN users u ON u.id = d.created_by
          ${where} ORDER BY d.created_at DESC LIMIT ? OFFSET ?`,
-        [...vals, Number(pageSize), (page - 1) * pageSize]
+        [...vals, pagination.limit, pagination.offset]
       );
-      ResponseHandler.success(res, { list: rows, total });
+      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
     try {
       const d = req.body;
+      if (!d.name) {
+        return ResponseHandler.validationError(res, '文档名称不能为空');
+      }
       const userId = req.user?.userId || req.user?.id;
       const code = d.code || await CodeGeneratorService.nextCode('document');
       const [r] = await pool.query(
@@ -566,21 +723,27 @@ const documents = {
   async update(req, res) {
     try {
       const d = req.body;
-      await pool.query(
+      const [result] = await pool.query(
         'UPDATE documents SET name=?, category=?, version=?, description=?, tags=?, is_public=? WHERE id=? AND deleted_at IS NULL',
         [d.name, d.category, d.version, d.description, d.tags ? JSON.stringify(d.tags) : null, d.is_public || 0, req.params.id]
       );
+      if (result.affectedRows === 0) return ResponseHandler.notFound(res, '文档不存在');
       ResponseHandler.success(res, null, '更新成功');
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async delete(req, res) {
-    try { await softDelete(pool, 'documents', 'id', req.params.id); ResponseHandler.success(res, null, '已删除'); }
+    try {
+      const affected = await softDelete(pool, 'documents', 'id', req.params.id);
+      if (!affected) return ResponseHandler.notFound(res, '文档不存在');
+      ResponseHandler.success(res, null, '已删除');
+    }
     catch (e) { ResponseHandler.error(res, e.message); }
   },
   async download(req, res) {
     try {
+      const [[doc]] = await pool.query('SELECT file_url, file_name FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      if (!doc) return ResponseHandler.notFound(res, '文档不存在');
       await pool.query('UPDATE documents SET download_count = download_count + 1 WHERE id = ?', [req.params.id]);
-      const [[doc]] = await pool.query('SELECT file_url, file_name FROM documents WHERE id = ?', [req.params.id]);
       ResponseHandler.success(res, doc);
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
@@ -597,11 +760,12 @@ const alerts = {
   async update(req, res) {
     try {
       const d = req.body;
-      await pool.query(
+      const [result] = await pool.query(
         'UPDATE business_alerts SET name=?, condition_params=?, severity=?, notify_roles=?, notify_users=?, is_active=?, check_interval_minutes=? WHERE id=?',
         [d.name, d.condition_params ? JSON.stringify(d.condition_params) : null, d.severity, d.notify_roles ? JSON.stringify(d.notify_roles) : null,
          d.notify_users ? JSON.stringify(d.notify_users) : null, d.is_active ?? 1, d.check_interval_minutes || 60, req.params.id]
       );
+      if (result.affectedRows === 0) return ResponseHandler.notFound(res, '业务告警不存在');
       ResponseHandler.success(res, null, '更新成功');
     } catch (e) { ResponseHandler.error(res, e.message); }
   },

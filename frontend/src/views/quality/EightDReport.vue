@@ -27,7 +27,7 @@
       <template #header>
         <div class="card-header">
           <span>8D问题解决报告</span>
-          <el-button type="primary" @click="handleCreate">
+          <el-button v-permission="'quality:8d:create'" type="primary" @click="handleCreate">
             <el-icon><Plus /></el-icon>新增8D报告
           </el-button>
         </div>
@@ -103,16 +103,19 @@
         <el-table-column prop="created_at" label="创建时间" width="100">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
-            <el-button size="small" type="primary" @click="handleEdit(row)" v-if="row.status !== 'closed' && row.status !== 'completed'"
-              v-permission="'quality:8d'">编辑</el-button>
+            <el-button v-permission="'quality:8d:view'" size="small" @click="handleView(row)">查看</el-button>
+            <el-button v-permission="'quality:8d:view'" size="small" @click="_viewLogs(row)">日志</el-button>
+            <el-button v-permission="'quality:8d:view'" size="small" @click="_printCustomerReport(row)">打印</el-button>
+            <el-button size="small" type="primary" @click="handleEdit(row)" v-if="canEditReport(row)"
+              v-permission="'quality:8d:update'">编辑</el-button>
             <!-- 根据当前阶段显示不同的流程按钮 -->
-            <el-button size="small" type="warning" @click="handleSubmitReview(row)" v-if="row.status === 'in_progress' && row.current_phase === 'd1_d3'">提交初审</el-button>
-            <el-button size="small" type="warning" @click="handleSubmitPhase2(row)" v-if="row.status === 'in_progress' && row.current_phase === 'd4_d7'">提交结案</el-button>
-            <el-button size="small" type="success" @click="handleReview(row)" v-if="row.status === 'review'">审核</el-button>
-            <el-button size="small" type="success" @click="handleComplete(row)" v-if="row.current_phase === 'd8' && row.status === 'in_progress'">完成</el-button>
+            <el-button v-permission="'quality:8d:update'" size="small" type="warning" @click="handleSubmitReview(row)" v-if="['draft', 'in_progress'].includes(row.status) && ['draft', 'd1_d3'].includes(row.current_phase)">提交初审</el-button>
+            <el-button v-permission="'quality:8d:update'" size="small" type="warning" @click="handleSubmitPhase2(row)" v-if="row.status === 'in_progress' && row.current_phase === 'd4_d7'">提交结案</el-button>
+            <el-button v-permission="'quality:8d:update'" size="small" type="success" @click="handleReview(row)" v-if="row.status === 'review'">审核</el-button>
+            <el-button v-permission="'quality:8d:update'" size="small" type="success" @click="handleComplete(row)" v-if="row.current_phase === 'd8' && row.status === 'in_progress'">完成</el-button>
+            <el-button v-permission="'quality:8d:update'" size="small" type="info" @click="handleClose(row)" v-if="row.status === 'completed'">归档</el-button>
             <el-button v-permission="'quality:8d:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
           </template>
         </el-table-column>
@@ -401,13 +404,13 @@
       <template #footer>
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
           <div>
-            <el-button type="success" plain @click="openAiDialog" v-if="!isEdit">
+            <el-button v-permission="'quality:8d:create'" type="success" plain @click="openAiDialog" v-if="!isEdit">
               <el-icon class="el-icon--left"><MagicStick /></el-icon>AI辅助生成
             </el-button>
           </div>
           <div>
             <el-button @click="formDialogVisible = false">取消</el-button>
-            <el-button v-permission="'quality:8d:update'" type="primary" @click="submitForm" :loading="submitLoading">{{ isEdit ? '保存' : '创建' }}</el-button>
+            <el-button v-permission="isEdit ? 'quality:8d:update' : 'quality:8d:create'" type="primary" @click="submitForm" :loading="submitLoading">{{ isEdit ? '保存' : '创建' }}</el-button>
           </div>
         </div>
       </template>
@@ -542,7 +545,7 @@
       </el-form>
       <template #footer>
         <el-button @click="reviewDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitReview" :loading="submitLoading">提交</el-button>
+        <el-button v-permission="'quality:8d:update'" type="primary" @click="submitReview" :loading="submitLoading">提交</el-button>
       </template>
     </el-dialog>
     <!-- AI生成对话框 -->
@@ -564,7 +567,7 @@
       </el-form>
       <template #footer>
         <el-button @click="aiDialogVisible = false" :disabled="aiLoading">取消</el-button>
-        <el-button type="primary" @click="submitAiGenerate" :loading="aiLoading">开始生成</el-button>
+        <el-button v-permission="'quality:8d:create'" type="primary" @click="submitAiGenerate" :loading="aiLoading">开始生成</el-button>
       </template>
     </el-dialog>
   
@@ -591,7 +594,7 @@
           <tbody>
             <tr>
               <th width="20%">D1 团队组建</th>
-              <td>组长: {{ currentPrintRow?.d1_team_leader }} | 成员: {{ typeof currentPrintRow?.d1_team_members==='string' ? JSON.parse(currentPrintRow?.d1_team_members||'[]').join(', ') : '' }}</td>
+              <td>组长: {{ currentPrintRow?.d1_team_leader }} | 成员: {{ formatList(currentPrintRow?.d1_team_members) }}</td>
             </tr>
             <tr>
               <th>D2 问题描述</th>
@@ -600,7 +603,7 @@
             <tr>
               <th>D3 临时遏制措施</th>
               <td>
-                 <p>{{ typeof currentPrintRow?.d3_containment_actions==='string' ? JSON.parse(currentPrintRow?.d3_containment_actions||'[]').join(', ') : '' }}</p>
+                 <p>{{ formatList(currentPrintRow?.d3_containment_actions) }}</p>
                  <div v-if="currentPrintRow?.d3_attachments && currentPrintRow.d3_attachments !== '[]'">
                     <p>附图：已归档至服务器</p>
                  </div>
@@ -612,7 +615,7 @@
             </tr>
             <tr>
               <th>D5 永久纠正措施</th>
-              <td>{{ typeof currentPrintRow?.d5_corrective_actions==='string' ? JSON.parse(currentPrintRow?.d5_corrective_actions||'[]').join(', ') : '' }}</td>
+              <td>{{ formatList(currentPrintRow?.d5_corrective_actions) }}</td>
             </tr>
             <tr>
               <th>D6 实施与效果验证</th>
@@ -640,7 +643,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, MagicStick, Download } from '@element-plus/icons-vue'
+import { Plus, Search, Refresh, MagicStick, Download, List } from '@element-plus/icons-vue'
 import html2pdf from 'html2pdf.js'
 import { eightDReportApi } from '@/api/quality'
 import nonconformingProductApi from '@/api/nonconformingProductApi'
@@ -769,8 +772,12 @@ const formData = reactive({
   current_phase: 'draft',
   ncp_id: '',
   ncp_no: '',
+  inspection_id: '',
+  inspection_no: '',
+  material_id: '',
   material_code: '',
   material_name: '',
+  supplier_id: '',
   supplier_name: '',
   // 角色字段
   initiated_by: '',
@@ -835,8 +842,10 @@ const fetchUsers = async () => {
 const fetchNcpList = async (query = '') => {
   try {
     loadingNcp.value = true
-    const res = await nonconformingProductApi.getList({ page: 1, pageSize: 50, keyword: query, status: 'processing' })
-    ncpList.value = res.data?.data?.list || res.data?.list || []
+    const res = await nonconformingProductApi.getList({ page: 1, pageSize: 100, keyword: query })
+    const data = res.data?.data || res.data || {}
+    const rows = data.items || data.list || data.records || []
+    ncpList.value = rows.filter(item => ['pending', 'processing'].includes(item.status))
   } catch (error) {
     console.warn('获取NCP列表失败', error)
   } finally {
@@ -847,21 +856,31 @@ const handleNcpSelect = (val) => {
   if (!val) {
     formData.ncp_id = ''
     formData.ncp_no = ''
+    formData.inspection_id = ''
+    formData.inspection_no = ''
+    formData.material_id = ''
     formData.material_code = ''
     formData.material_name = ''
+    formData.supplier_id = ''
     formData.supplier_name = ''
     formData.d2_problem_description = ''
     formData.d2_quantity_affected = 0
+    formData.d2_defect_type = ''
     return
   }
   const selectedNcp = ncpList.value.find(item => item.id === val)
   if (selectedNcp) {
     formData.ncp_no = selectedNcp.ncp_no || ''
+    formData.inspection_id = selectedNcp.inspection_id || ''
+    formData.inspection_no = selectedNcp.inspection_no || ''
+    formData.material_id = selectedNcp.material_id || ''
     formData.material_code = selectedNcp.material_code || ''
     formData.material_name = selectedNcp.material_name || ''
+    formData.supplier_id = selectedNcp.supplier_id || ''
     formData.supplier_name = selectedNcp.supplier_name || ''
     if (!formData.d2_problem_description) formData.d2_problem_description = selectedNcp.defect_description || ''
-    if (!formData.d2_quantity_affected) formData.d2_quantity_affected = selectedNcp.defect_quantity || 0
+    if (!formData.d2_quantity_affected) formData.d2_quantity_affected = selectedNcp.defect_quantity || selectedNcp.quantity || 0
+    if (!formData.d2_defect_type) formData.d2_defect_type = selectedNcp.defect_type || ''
   }
 }
 const fetchData = async () => {
@@ -1011,6 +1030,18 @@ const _getFullUrl = (url) => {
   const path = url.startsWith('/') ? url : `/${url}`;
   return `${baseUrl}${path}`;
 }
+const formatList = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean).join(', ')
+  if (typeof value !== 'string') return value || ''
+  const text = value.trim()
+  if (!text || text === '[]') return ''
+  try {
+    const parsed = JSON.parse(text)
+    return Array.isArray(parsed) ? parsed.filter(Boolean).join(', ') : text
+  } catch {
+    return text
+  }
+}
 // ===================== CRUD 操作 =====================
 const handleCreate = () => {
   isEdit.value = false
@@ -1048,11 +1079,6 @@ const handleEdit = async (row) => {
     try { formData.d3_attachments = typeof data.d3_attachments === 'string' ? JSON.parse(data.d3_attachments) : (data.d3_attachments || []) } catch { formData.d3_attachments = [] }
     try { formData.d5_attachments = typeof data.d5_attachments === 'string' ? JSON.parse(data.d5_attachments) : (data.d5_attachments || []) } catch { formData.d5_attachments = [] }
     try { formData.d6_attachments = typeof data.d6_attachments === 'string' ? JSON.parse(data.d6_attachments) : (data.d6_attachments || []) } catch { formData.d6_attachments = [] }
-    // 草稿自动转进行中
-    if (data.status === 'draft') {
-      formData.status = 'in_progress'
-      formData.current_phase = 'd1_d3'
-    }
     formDialogVisible.value = true
   } catch {
     ElMessage.error('获取报告详情失败')
@@ -1084,6 +1110,8 @@ const submitForm = async () => {
     delete submitData.d4_contributing_factors_str
     delete submitData.d5_corrective_actions_str
     delete submitData.d7_preventive_actions_str
+    delete submitData.status
+    delete submitData.current_phase
     // 自动标记步骤完成时间
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
     if (submitData.d1_team_leader && !submitData.d1_completed_at) submitData.d1_completed_at = now
@@ -1162,6 +1190,20 @@ const handleComplete = async (row) => {
     }
   }
 }
+const handleClose = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定归档关闭此8D报告吗？归档后将不可再编辑。', '归档报告', { type: 'warning' })
+    await eightDReportApi.closeReport(row.id)
+    ElMessage.success('8D报告已归档')
+    fetchData()
+    fetchStatistics()
+  } catch (error) {
+    if (error !== 'cancel') {
+      const msg = error?.response?.data?.message || '归档报告失败'
+      ElMessage.error(msg)
+    }
+  }
+}
 const handleReview = (row) => {
   currentRow.value = row
   reviewForm.approved = true
@@ -1207,6 +1249,7 @@ const isOverdue = (row) => {
   if (['completed', 'closed'].includes(row.status)) return false
   return dayjs().isAfter(dayjs(row.target_close_date))
 }
+const canEditReport = (row) => ['draft', 'in_progress'].includes(row?.status)
 const getPriorityType = (p) => ({ low: 'info', medium: '', high: 'warning', critical: 'danger' }[p] || 'info')
 const getPriorityLabel = (p) => ({ low: '低', medium: '中', high: '高', critical: '紧急' }[p] || p)
 const getStatusType = (s) => ({ draft: 'info', in_progress: 'warning', review: '', completed: 'success', closed: 'info' }[s] || 'info')

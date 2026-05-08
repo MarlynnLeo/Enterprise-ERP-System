@@ -186,7 +186,7 @@
             </el-table-column>
             <el-table-column label="操作" width="180">
               <template #default="scope">
-                <el-button size="small" @click="openReasonDialog(scope.row)" v-permission="'finance:cost:settings'">编辑</el-button>
+                <el-button size="small" @click="openReasonDialog(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" size="small" type="danger" plain @click="handleDeleteReason(scope.row)">删除</el-button>
               </template>
             </el-table-column>
@@ -211,7 +211,12 @@
           </el-form>
           <template #footer>
             <el-button @click="reasonDialogVisible = false">取消</el-button>
-            <el-button v-permission="'finance:cost:update'" type="primary" @click="saveReason" :loading="savingReason">保存</el-button>
+            <el-button
+              v-permission="editingReasonId ? 'finance:cost:update' : 'finance:cost:create'"
+              type="primary"
+              @click="saveReason"
+              :loading="savingReason"
+            >保存</el-button>
           </template>
         </el-dialog>
       </el-tab-pane>
@@ -251,7 +256,7 @@
             <div class="card-header">
               <span>物料标准成本管理（期初冻结）</span>
               <div>
-                <el-button type="primary" size="small" @click="openFreezeDialog" v-permission="'finance:cost:settings'">批量冻结</el-button>
+                <el-button type="primary" size="small" @click="openFreezeDialog" v-permission="'finance:cost:execute'">批量冻结</el-button>
                 <el-button size="small" @click="fetchMaterialStandardCosts">刷新</el-button>
               </div>
             </div>
@@ -304,7 +309,7 @@
             </el-table-column>
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="scope">
-                <el-button size="small" link type="primary" @click="openEditStdCostDialog(scope.row)">调整</el-button>
+                <el-button v-permission="'finance:cost:update'" size="small" link type="primary" @click="openEditStdCostDialog(scope.row)">调整</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -337,7 +342,7 @@
           </el-form>
           <template #footer>
             <el-button @click="freezeDialogVisible = false">取消</el-button>
-            <el-button type="primary" @click="handleFreeze" :loading="freezing">确认冻结</el-button>
+            <el-button v-permission="'finance:cost:execute'" type="primary" @click="handleFreeze" :loading="freezing">确认冻结</el-button>
           </template>
         </el-dialog>
 
@@ -417,7 +422,7 @@
             </el-table-column>
             <el-table-column label="操作" width="160" fixed="right">
               <template #default="scope">
-                <el-button size="small" link type="primary" @click="openAllocationRuleDialog(scope.row)" v-permission="'finance:cost:settings'">编辑</el-button>
+                <el-button size="small" link type="primary" @click="openAllocationRuleDialog(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" size="small" link type="danger" @click="handleDeleteAllocationRule(scope.row)">删除</el-button>
               </template>
             </el-table-column>
@@ -479,7 +484,12 @@
           </el-form>
           <template #footer>
             <el-button @click="allocationRuleDialogVisible = false">取消</el-button>
-            <el-button v-permission="'finance:cost:update'" type="primary" @click="saveAllocationRule" :loading="savingAllocationRule">保存</el-button>
+            <el-button
+              v-permission="editingAllocationRuleId ? 'finance:cost:update' : 'finance:cost:create'"
+              type="primary"
+              @click="saveAllocationRule"
+              :loading="savingAllocationRule"
+            >保存</el-button>
           </template>
         </el-dialog>
       </el-tab-pane>
@@ -642,7 +652,11 @@ const saveReason = async () => {
   savingReason.value = true;
   try {
     const payload = { ...reasonForm.value, id: editingReasonId.value };
-    await api.post('/finance-enhancement/cost/supplement-reasons', payload);
+    if (editingReasonId.value) {
+      await api.put(`/finance-enhancement/cost/supplement-reasons/${editingReasonId.value}`, payload);
+    } else {
+      await api.post('/finance-enhancement/cost/supplement-reasons', payload);
+    }
     ElMessage.success('保存成功');
     reasonDialogVisible.value = false;
     fetchSupplementReasons();

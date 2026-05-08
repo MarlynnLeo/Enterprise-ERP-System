@@ -7,7 +7,6 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
-const { accountingConfig } = require('../../../config/accountingConfig');
 
 
 const apModel = require('../../../models/ap');
@@ -16,6 +15,30 @@ const db = require('../../../config/db');
 const BankAccountModel = require('../../../models/cash/Account');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+const {
+  INVOICE_STATUS,
+  BANK_BACKED_PAYMENT_METHODS,
+} = require('../../../constants/financeConstants');
+
+const isPaymentBusinessError = (error) =>
+  /不存在|已经|状态|无法|不能|期间|科目|余额|原因|positive integer|作废|冲销/.test(
+    error.message || ''
+  );
+
+const normalizeInvoiceItems = (items = []) => {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items.map((item) => ({
+    id: item.id,
+    material_id: item.material_id ?? item.materialId ?? null,
+    description: item.description ?? item.materialName ?? item.material_name ?? null,
+    quantity: parseFloat(item.quantity) || 0,
+    unit_price: parseFloat(item.unit_price ?? item.unitPrice) || 0,
+    amount: parseFloat(item.amount) || 0,
+  }));
+};
 // responseFormatter已合并到ResponseHandler
 
 /**
@@ -192,13 +215,14 @@ const apController = {
       // 准备数据以匹配数据库字段
       const formattedData = {
         invoice_number: invoiceData.invoiceNumber,
+        supplier_invoice_number: invoiceData.supplierInvoiceNumber || null,
         supplier_id: invoiceData.supplierId,
         invoice_date: invoiceData.invoiceDate,
         due_date: invoiceData.dueDate,
         total_amount: amount,
         notes: invoiceData.notes,
         status: '草稿', // 设置默认状态为草稿
-        items: invoiceData.items, // 传递明细项
+        items: normalizeInvoiceItems(invoiceData.items),
       };
 
       // 调用模型方法创建发票
@@ -228,23 +252,34 @@ const apController = {
         return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
       }
 
-      // 状态白名单校验（与 AR 对齐）
-      const validStatuses = ['草稿', '已确认', '部分付款', '已付款', '已逾期', '已取消'];
-      if (!validStatuses.includes(status)) {
+      const manualStatuses = [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.CANCELLED];
+      if (!manualStatuses.includes(status)) {
         return ResponseHandler.error(
           res,
-          `无效的状态值，有效状态: ${validStatuses.join(', ')}`,
+          '只能手工确认或取消草稿发票；部分付款、已付款、已逾期状态由付款和逾期检查自动维护',
           'VALIDATION_ERROR',
           400
         );
       }
 
-      await apModel.updateInvoiceStatus(invoiceId, status);
+      const updated = await apModel.updateInvoiceStatus(invoiceId, status, {
+        updated_by: getAuthenticatedUserId(req),
+      });
+
+      if (!updated) {
+        return ResponseHandler.error(res, '发票不存在或状态更新失败', 'NOT_FOUND', 404);
+      }
 
       return ResponseHandler.success(res, { id: invoiceId, status }, '发票状态更新成功');
     } catch (error) {
       logger.error('更新应付账款发票状态失败:', error);
-      return ResponseHandler.error(res, '更新应付账款发票状态失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '更新应付账款发票状态失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   },
 
@@ -262,9 +297,40 @@ const apController = {
         return ResponseHandler.error(res, '未找到指定的发票', 'NOT_FOUND', 404);
       }
 
-      // 检查发票状态，已付款或已取消不允许修改
-      if (['已付款', '已取消'].includes(existingInvoice.status)) {
-        return ResponseHandler.error(res, `${existingInvoice.status}的发票不允许修改`, 'VALIDATION_ERROR', 400);
+      if (existingInvoice.status !== INVOICE_STATUS.DRAFT) {
+        const financialFields = [
+          'amount',
+          'total_amount',
+          'invoiceNumber',
+          'invoice_number',
+          'supplierId',
+          'supplier_id',
+          'invoiceDate',
+          'invoice_date',
+          'dueDate',
+          'due_date',
+          'items',
+        ];
+        const hasFinancialField = financialFields.some(field => invoiceData[field] !== undefined);
+        if (hasFinancialField) {
+          return ResponseHandler.error(
+            res,
+            `${existingInvoice.status}的发票已进入财务闭环，只能修改备注/供应商发票号`,
+            'VALIDATION_ERROR',
+            400
+          );
+        }
+
+        const success = await apModel.updateInvoice({
+          id: invoiceId,
+          supplier_invoice_number: invoiceData.supplierInvoiceNumber,
+          notes: invoiceData.notes,
+        });
+
+        if (success) {
+          return ResponseHandler.success(res, { id: invoiceId }, '发票非财务信息更新成功');
+        }
+        return ResponseHandler.error(res, '发票更新失败', 'SERVER_ERROR', 500);
       }
 
       // 验证并转换金额
@@ -283,7 +349,7 @@ const apController = {
         due_date: invoiceData.dueDate,
         total_amount: amount,
         notes: invoiceData.notes,
-        items: invoiceData.items, // 传递明细项
+        items: normalizeInvoiceItems(invoiceData.items),
       };
 
       // 调用模型方法更新发票
@@ -296,7 +362,13 @@ const apController = {
       }
     } catch (error) {
       logger.error('更新应付账款发票失败:', error);
-      return ResponseHandler.error(res, '更新应付账款发票失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '更新应付账款发票失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   },
 
@@ -449,11 +521,10 @@ const apController = {
         );
       }
 
-      // 检查发票是否已全额支付
-      if (invoice.status === '已付款') {
+      if (![INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.PARTIAL_PAID, INVOICE_STATUS.OVERDUE].includes(invoice.status)) {
         return ResponseHandler.error(
           res,
-          `发票ID ${paymentData.invoiceId} 已全额支付，无需再付款`,
+          `发票当前状态为"${invoice.status}"，必须先确认后才能付款`,
           'VALIDATION_ERROR',
           400
         );
@@ -461,6 +532,15 @@ const apController = {
 
       // 检查付款金额是否超过未付余额 (精度修复: 分/整数比对)
       const payAmountCents = Math.round(parseFloat(paymentData.amount || 0) * 100);
+      if (payAmountCents <= 0) {
+        return ResponseHandler.error(
+          res,
+          '付款金额必须大于0',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
       const invoiceBalanceCents = Math.round(parseFloat(invoice.balance || invoice.balance_amount || 0) * 100);
       if (payAmountCents > invoiceBalanceCents) {
         return ResponseHandler.error(
@@ -469,19 +549,6 @@ const apController = {
           'VALIDATION_ERROR',
           400
         );
-      }
-
-      // 检查银行账户是否被冻结
-      if (paymentData.bankAccountId) {
-        const bankAccount = await BankAccountModel.getBankAccountById(paymentData.bankAccountId);
-        if (bankAccount && !bankAccount.is_active) {
-          return ResponseHandler.error(
-            res,
-            `银行账户 "${bankAccount.account_name}" 已被冻结，无法用于付款`,
-            'VALIDATION_ERROR',
-            400
-          );
-        }
       }
 
       // 转换支付方式为数据库接受的值
@@ -498,6 +565,30 @@ const apController = {
         };
 
         paymentMethod = methodMap[paymentData.paymentMethod] || '银行转账';
+      }
+
+      if (BANK_BACKED_PAYMENT_METHODS.has(paymentMethod) && !paymentData.bankAccountId) {
+        return ResponseHandler.error(
+          res,
+          `${paymentMethod}必须选择付款账户`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      if (paymentData.bankAccountId) {
+        const bankAccount = await BankAccountModel.getBankAccountById(paymentData.bankAccountId);
+        if (!bankAccount) {
+          return ResponseHandler.error(res, '付款账户不存在', 'VALIDATION_ERROR', 400);
+        }
+        if (!bankAccount.is_active) {
+          return ResponseHandler.error(
+            res,
+            `银行账户 "${bankAccount.account_name}" 已被冻结，无法用于付款`,
+            'VALIDATION_ERROR',
+            400
+          );
+        }
       }
 
       // 构建完整的付款数据结构
@@ -522,52 +613,7 @@ const apController = {
         },
       ];
 
-
-      // 获取当前会计期间并校验会计科目
-      await financeConfig.loadFromDatabase(db);
-      const periodId = await financeConfig.getCurrentPeriodId(db);
-
-      if (!periodId) {
-        throw new Error('无法获取当前会计期间，请先创建会计期间');
-      }
-
-      // 校验应付账款科目
-      const payableCode = accountingConfig.getAccountCode('ACCOUNTS_PAYABLE') || '2202';
-      const [payableAccountCheck] = await db.pool.execute(
-        'SELECT id FROM gl_accounts WHERE account_code = ?',
-        [payableCode]
-      );
-      if (!payableAccountCheck.length) {
-        throw new Error(`应付账款科目 ${payableCode} 不存在，请先在科目表中创建`);
-      }
-      const payableAccountId = payableAccountCheck[0].id;
-
-      // 校验银行/现金科目
-      const cashOrBankCode = completePaymentData.payment_method === '现金'
-        ? accountingConfig.getAccountCode('CASH') || '1001'
-        : accountingConfig.getAccountCode('BANK_DEPOSIT') || '1002';
-      const [bankAccountCheck] = await db.pool.execute(
-        'SELECT id FROM gl_accounts WHERE account_code = ?',
-        [cashOrBankCode]
-      );
-      if (!bankAccountCheck.length) {
-        throw new Error(`银行/现金科目 ${cashOrBankCode} 不存在，请先在科目表中创建`);
-      }
-      const bankAccountId = bankAccountCheck[0].id;
-
-      // 创建会计凭证数据
-      const glEntry = {
-        entry_number: `AP-${completePaymentData.payment_number}`,
-        period_id: periodId,
-        created_by: financeConfig.get('system.defaultCreator', 'system'),
-        payable_account_id: payableAccountId,
-        bank_account_id: bankAccountId,
-      };
-
-      // 添加会计凭证数据到付款数据中
-      completePaymentData.gl_entry = glEntry;
-
-      // 调用模型方法创建付款记录（会自动创建会计凭证）
+      // 调用模型方法创建付款记录；模型在同一事务中维护发票、资金流水和会计凭证
       const paymentId = await apModel.createPayment(completePaymentData, paymentItems);
 
       ResponseHandler.success(
@@ -581,7 +627,6 @@ const apController = {
             amount: paymentData.amount,
             paymentDate: completePaymentData.payment_date,
             paymentNumber: completePaymentData.payment_number,
-            glEntryNumber: glEntry.entry_number,
           },
         },
         '创建成功',
@@ -589,7 +634,13 @@ const apController = {
       );
     } catch (error) {
       logger.error('创建付款记录失败:', error);
-      return ResponseHandler.error(res, '创建付款记录失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '创建付款记录失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   },
 
@@ -620,11 +671,12 @@ const apController = {
       return ResponseHandler.success(res, null, '付款记录已成功作废');
     } catch (error) {
       logger.error('作废付款记录失败:', error);
+      const businessError = isPaymentBusinessError(error);
       return ResponseHandler.error(
         res,
         error.message || '作废付款记录失败',
-        'SERVER_ERROR',
-        500,
+        businessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        businessError ? 400 : 500,
         error
       );
     }

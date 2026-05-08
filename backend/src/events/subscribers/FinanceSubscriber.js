@@ -25,31 +25,69 @@ class FinanceSubscriber {
         EventBus.on('PRODUCTION_TASK_COMPLETED', this.handleProductionTaskCompleted.bind(this));
     }
 
-    /**
-     * 幂等性检查：检查指定源单据是否已生成过对应的财务记录
-     * @param {string} table - 目标表名 (ar_invoices / ap_invoices / gl_entries / tax_invoices)
-     * @param {string} sourceType - 源单据类型
-     * @param {number|string} sourceId - 源单据ID
-     * @param {string} [extraField] - 额外检查字段名 (如 document_number)
-     * @param {string} [extraValue] - 额外检查字段值
-     * @returns {Promise<boolean>} true = 已存在，应跳过
-     */
-    async checkDuplicate(table, sourceType, sourceId, extraField = null, extraValue = null) {
+    assertAllowedIdentifier(value, allowedValues, label) {
+        if (!allowedValues.includes(value)) {
+            throw new Error(`不允许的${label}: ${value}`);
+        }
+        return value;
+    }
+
+    async existsBySource(table, sourceType, sourceId) {
         const db = require('../../config/db');
+        const safeTable = this.assertAllowedIdentifier(
+            table,
+            ['ar_invoices', 'ap_invoices'],
+            '财务幂等表'
+        );
+
         try {
-            let query, params;
-            if (extraField && extraValue) {
-                query = `SELECT id FROM ${table} WHERE ${extraField} = ? LIMIT 1`;
-                params = [extraValue];
-            } else {
-                query = `SELECT id FROM ${table} WHERE source_type = ? AND source_id = ? LIMIT 1`;
-                params = [sourceType, sourceId];
-            }
-            const [rows] = await db.pool.execute(query, params);
+            const [rows] = await db.pool.execute(
+                `SELECT id FROM ${safeTable} WHERE source_type = ? AND source_id = ? LIMIT 1`,
+                [sourceType, sourceId]
+            );
             return rows.length > 0;
         } catch (error) {
-            // 表不存在或字段不存在时不阻塞主流程
-            logger.warn(`[FinanceSubscriber] 幂等性检查异常 (${table}): ${error.message}`);
+            logger.warn(`[FinanceSubscriber] 来源幂等检查异常 (${safeTable}): ${error.message}`);
+            return false;
+        }
+    }
+
+    async glEntryExistsByDocument(documentNumber, documentType) {
+        const db = require('../../config/db');
+        try {
+            const [rows] = await db.pool.execute(
+                `SELECT id
+                 FROM gl_entries
+                 WHERE document_type = ?
+                   AND document_number = ?
+                   AND COALESCE(is_reversed, 0) = 0
+                 LIMIT 1`,
+                [documentType, documentNumber]
+            );
+            return rows.length > 0;
+        } catch (error) {
+            logger.warn(`[FinanceSubscriber] 总账幂等检查异常 (${documentNumber}): ${error.message}`);
+            return false;
+        }
+    }
+
+    async taxInvoiceExistsByRelatedDocument(documentType, documentId) {
+        const db = require('../../config/db');
+        try {
+            const [rows] = await db.pool.execute(
+                `SELECT id
+                 FROM tax_invoices
+                 WHERE related_document_type = ?
+                   AND related_document_id = ?
+                   AND status <> '已作废'
+                 LIMIT 1`,
+                [documentType, documentId]
+            );
+            return rows.length > 0;
+        } catch (error) {
+            logger.warn(
+                `[FinanceSubscriber] 税票幂等检查异常 (${documentType}:${documentId}): ${error.message}`
+            );
             return false;
         }
     }
@@ -85,7 +123,11 @@ class FinanceSubscriber {
 
                 // 1. 生成应付发票（幂等检查）
                 try {
-                    const apExists = await this.checkDuplicate('ap_invoices', 'purchase_receipt', receiptId);
+                    const apExists = await this.existsBySource(
+                        'ap_invoices',
+                        'purchase_receipt',
+                        receiptId
+                    );
                     if (apExists) {
                         logger.info(`⏭️ [FinanceSubscriber] 入库单 ${receiptNo} 已生成过应付发票，跳过`);
                     } else {
@@ -106,9 +148,9 @@ class FinanceSubscriber {
 
                 // 2. 生成进项发票（幂等检查）
                 try {
-                    const taxExists = await this.checkDuplicate(
-                        'tax_invoices', null, null,
-                        'related_document_id', receiptId
+                    const taxExists = await this.taxInvoiceExistsByRelatedDocument(
+                        '采购入库单',
+                        receiptId
                     );
                     if (taxExists) {
                         logger.info(`⏭️ [FinanceSubscriber] 入库单 ${receiptNo} 已生成过进项发票，跳过`);
@@ -154,7 +196,11 @@ class FinanceSubscriber {
             // 1. 生成应收发票（幂等检查）
             if (salesOrder) {
                 try {
-                    const arExists = await this.checkDuplicate('ar_invoices', 'sales_order', salesOrder.id);
+                    const arExists = await this.existsBySource(
+                        'ar_invoices',
+                        'sales_order',
+                        salesOrder.id
+                    );
                     if (arExists) {
                         logger.info(`⏭️ [FinanceSubscriber] 订单 ${salesOrder.order_no} 已生成过应收发票，跳过`);
                     } else {
@@ -176,10 +222,7 @@ class FinanceSubscriber {
 
             // 2. 结转销售成本（幂等检查：检查 gl_entries 是否已有此出库单的成本分录）
             try {
-                const costExists = await this.checkDuplicate(
-                    'gl_entries', 'sales_outbound', outboundData.id,
-                    'document_number', outboundNo
-                );
+                const costExists = await this.glEntryExistsByDocument(outboundNo, 'sales_outbound');
                 if (costExists) {
                     logger.info(`⏭️ [FinanceSubscriber] 出库单 ${outboundNo} 已生成过成本分录，跳过`);
                 } else {
@@ -200,9 +243,9 @@ class FinanceSubscriber {
 
             // 3. 生成销项发票（幂等检查）
             try {
-                const taxExists = await this.checkDuplicate(
-                    'tax_invoices', null, null,
-                    'related_document_id', outboundData.id
+                const taxExists = await this.taxInvoiceExistsByRelatedDocument(
+                    '销售出库单',
+                    outboundData.id
                 );
                 if (taxExists) {
                     logger.info(`⏭️ [FinanceSubscriber] 出库单 ${outboundNo} 已生成过销项发票，跳过`);

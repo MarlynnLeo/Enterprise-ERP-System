@@ -325,6 +325,126 @@ const createCheck = async (req, res) => {
 
 // 更新库存盘点单
 
+const addCheckItem = async (req, res) => {
+  const connection = await db.pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const { id } = req.params;
+    const { material_id, remark } = req.body;
+    const materialId = Number(material_id);
+
+    if (!materialId) {
+      await connection.rollback();
+      return ResponseHandler.error(res, 'material_id is required', 'BAD_REQUEST', 400);
+    }
+
+    const [checkRows] = await connection.execute(
+      'SELECT id, status, location_id FROM inventory_checks WHERE id = ? FOR UPDATE',
+      [id]
+    );
+
+    if (checkRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, 'Inventory check not found', 'NOT_FOUND', 404);
+    }
+
+    const check = checkRows[0];
+    if (!['draft', 'in_progress'].includes(check.status)) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        'Only draft or in-progress inventory checks can add items',
+        'BAD_REQUEST',
+        400
+      );
+    }
+
+    const [materialRows] = await connection.execute(
+      `SELECT m.id, m.code, m.name, m.specs, m.unit_id, u.name as unit_name
+       FROM materials m
+       LEFT JOIN units u ON m.unit_id = u.id
+       WHERE m.id = ?`,
+      [materialId]
+    );
+
+    if (materialRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, 'Material not found', 'NOT_FOUND', 404);
+    }
+
+    const [existingRows] = await connection.execute(
+      'SELECT id FROM inventory_check_items WHERE check_id = ? AND material_id = ? LIMIT 1',
+      [id, materialId]
+    );
+
+    if (existingRows.length > 0) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        'Material already exists in this inventory check',
+        'DUPLICATE_ITEM',
+        409
+      );
+    }
+
+    const [stockRows] = await connection.execute(
+      `SELECT COALESCE(SUM(quantity), 0) as quantity
+       FROM inventory_ledger
+       WHERE material_id = ? AND location_id = ?`,
+      [materialId, check.location_id]
+    );
+    const systemQuantity = parseFloat(stockRows[0]?.quantity || 0);
+    const material = materialRows[0];
+
+    const [insertResult] = await connection.execute(
+      `INSERT INTO inventory_check_items
+        (check_id, material_id, system_quantity, actual_quantity, unit_id, difference, remark)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, materialId, systemQuantity, systemQuantity, material.unit_id || null, 0, remark || null]
+    );
+
+    await connection.commit();
+
+    ResponseHandler.success(
+      res,
+      {
+        id: insertResult.insertId,
+        check_id: Number(id),
+        material_id: materialId,
+        material_code: material.code,
+        material_name: material.name,
+        material_specs: material.specs,
+        specs: material.specs,
+        system_quantity: systemQuantity,
+        actual_quantity: systemQuantity,
+        difference: 0,
+        book_qty: systemQuantity,
+        actual_qty: systemQuantity,
+        unit_id: material.unit_id,
+        unit_name: material.unit_name,
+        remark: remark || null,
+      },
+      'Inventory check item added successfully',
+      201
+    );
+  } catch (error) {
+    await connection.rollback();
+    if (error.code === 'ER_DUP_ENTRY') {
+      return ResponseHandler.error(
+        res,
+        'Material already exists in this inventory check',
+        'DUPLICATE_ITEM',
+        409
+      );
+    }
+    logger.error('Add inventory check item failed:', error);
+    ResponseHandler.error(res, 'Add inventory check item failed', 'SERVER_ERROR', 500, error);
+  } finally {
+    connection.release();
+  }
+};
+
 const updateCheck = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
@@ -708,6 +828,7 @@ module.exports = {
   getCheckList,
   getCheckDetail,
   createCheck,
+  addCheckItem,
   updateCheck,
   deleteCheck,
   submitCheckResult,

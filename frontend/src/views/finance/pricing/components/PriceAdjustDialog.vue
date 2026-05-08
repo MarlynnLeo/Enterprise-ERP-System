@@ -43,7 +43,7 @@
     </el-form>
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" @click="handleSave" :loading="submitting">保存</el-button>
+      <el-button v-permission="'finance:pricing:update'" type="primary" @click="handleSave" :loading="submitting">保存</el-button>
     </template>
   </el-dialog>
 </template>

@@ -44,7 +44,7 @@
       <template #header>
         <div class="card-header">
           <span>量具台账</span>
-          <el-button type="primary" @click="handleAdd">
+          <el-button v-permission="'quality:settings:create'" type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>新增量具
           </el-button>
         </div>
@@ -77,7 +77,7 @@
       </div>
 
       <!-- 表格 -->
-      <el-table v-loading="loading" :data="tableData" border style="width: 100%; margin-top: 20px" @row-click="handleRowClick">
+      <el-table v-loading="loading" :data="tableData" border style="width: 100%; margin-top: 20px">
         <el-table-column prop="gauge_no" label="量具编号" width="130" />
         <el-table-column prop="gauge_name" label="量具名称" width="150" show-overflow-tooltip />
         <el-table-column prop="gauge_type" label="类型" width="100" />
@@ -107,9 +107,9 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="200">
           <template #default="scope">
-            <el-button size="small" type="primary" link @click.stop="handleCalibrate(scope.row)">校准</el-button>
+            <el-button v-permission="'quality:settings:create'" size="small" type="primary" link @click.stop="handleCalibrate(scope.row)">校准</el-button>
             <el-button size="small" type="warning" link @click.stop="handleEdit(scope.row)"
-              v-permission="'quality:settings'">编辑</el-button>
+              v-permission="'quality:settings:update'">编辑</el-button>
             <el-button v-permission="'quality:settings:delete'" size="small" type="danger" link @click.stop="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
@@ -207,7 +207,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">确认</el-button>
+        <el-button v-permission="isEdit ? 'quality:settings:update' : 'quality:settings:create'" type="primary" @click="handleSubmit" :loading="submitting">确认</el-button>
       </template>
     </el-dialog>
 
@@ -328,7 +328,6 @@ const fetchData = async () => {
 
 const handleAdd = () => { isEdit.value = false; resetForm(); dialogVisible.value = true; };
 const handleEdit = (row) => { isEdit.value = true; form.value = { ...row }; dialogVisible.value = true; };
-const handleRowClick = (row) => { handleEdit(row); };
 
 const handleDelete = (row) => {
   ElMessageBox.confirm(`确定要删除量具 ${row.gauge_no} 吗？`, '警告', { type: 'warning' })

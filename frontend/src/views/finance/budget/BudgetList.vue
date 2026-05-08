@@ -81,24 +81,24 @@
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleView(row)">查看</el-button>
             <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="row.status === '草稿'"
-              v-permission="'finance:budget:edit'">编辑</el-button>
+              v-permission="'finance:budgets:update'">编辑</el-button>
             <el-popconfirm
               title="确定要提交审批吗？"
               @confirm="handleSubmit(row)"
               v-if="row.status === '草稿'"
             >
               <template #reference>
-                <el-button link type="primary" size="small">提交审批</el-button>
+                <el-button v-permission="'finance:budgets:update'" link type="primary" size="small">提交审批</el-button>
               </template>
             </el-popconfirm>
-            <el-button link type="success" size="small" @click="handleApprove(row)" v-if="row.status === '待审批'">审批</el-button>
+            <el-button v-permission="'finance:budgets:approve'" link type="success" size="small" @click="handleApprove(row)" v-if="row.status === '待审批'">审批</el-button>
             <el-popconfirm
               title="确定要启动预算执行吗？"
               @confirm="handleStart(row)"
               v-if="row.status === '已审批'"
             >
               <template #reference>
-                <el-button link type="warning" size="small">启动执行</el-button>
+                <el-button v-permission="'finance:budgets:update'" link type="warning" size="small">启动执行</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -107,7 +107,7 @@
               v-if="row.status === '执行中'"
             >
               <template #reference>
-                <el-button link type="info" size="small">关闭</el-button>
+                <el-button v-permission="'finance:budgets:update'" link type="info" size="small">关闭</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -207,99 +207,88 @@ const handleView = (row) => {
 const handleEdit = (row) => {
   router.push(`/finance/budget/edit/${row.id}`);
 };
+const getErrorMessage = (error, fallback) => {
+  return error.response?.data?.message || error.response?.data?.error || fallback;
+};
+
 // 提交审批
-const handleSubmit = async (_row) => {
+const handleSubmit = async (row) => {
   try {
-    await ElMessageBox.confirm('确定要提交审批吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-    
+    await api.post(`/finance/budgets/${row.id}/submit`);
     ElMessage.success('提交成功');
     fetchData();
   } catch (error) {
     if (error !== 'cancel') {
       console.error('提交审批失败:', error);
-      ElMessage.error(error.response?.data?.error || '提交审批失败');
+      ElMessage.error(getErrorMessage(error, '提交审批失败'));
     }
   }
 };
 // 审批
-const handleApprove = async (_row) => {
+const handleApprove = async (row) => {
   try {
-    
-    
+    await ElMessageBox.confirm('请选择预算审批结果', '预算审批', {
+      confirmButtonText: '通过',
+      cancelButtonText: '驳回',
+      distinguishCancelAndClose: true,
+      type: 'warning'
+    });
+    await api.post(`/finance/budgets/${row.id}/approve`, { approved: true });
     ElMessage.success('审批通过');
     fetchData();
   } catch (error) {
     if (error === 'cancel') {
       // 驳回
       try {
-        
+        await api.post(`/finance/budgets/${row.id}/approve`, { approved: false });
         ElMessage.success('已驳回');
         fetchData();
       } catch (err) {
         console.error('审批失败:', err);
-        ElMessage.error(err.response?.data?.error || '审批失败');
+        ElMessage.error(getErrorMessage(err, '审批失败'));
       }
     } else if (error !== 'close') {
       console.error('审批失败:', error);
-      ElMessage.error(error.response?.data?.error || '审批失败');
+      ElMessage.error(getErrorMessage(error, '审批失败'));
     }
   }
 };
 // 启动执行
-const handleStart = async (_row) => {
+const handleStart = async (row) => {
   try {
-    await ElMessageBox.confirm('确定要启动预算执行吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-    
+    await api.post(`/finance/budgets/${row.id}/start`);
     ElMessage.success('启动成功');
     fetchData();
   } catch (error) {
     if (error !== 'cancel') {
       console.error('启动失败:', error);
-      ElMessage.error(error.response?.data?.error || '启动失败');
+      ElMessage.error(getErrorMessage(error, '启动失败'));
     }
   }
 };
 // 关闭
-const handleClose = async (_row) => {
+const handleClose = async (row) => {
   try {
-    await ElMessageBox.confirm('确定要关闭预算吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-    
+    await api.post(`/finance/budgets/${row.id}/close`);
     ElMessage.success('关闭成功');
     fetchData();
   } catch (error) {
     if (error !== 'cancel') {
       console.error('关闭失败:', error);
-      ElMessage.error(error.response?.data?.error || '关闭失败');
+      ElMessage.error(getErrorMessage(error, '关闭失败'));
     }
   }
 };
 // 删除
-const handleDelete = async (_row) => {
+const handleDelete = async (row) => {
   try {
-    await ElMessageBox.confirm('确定要删除该预算吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-    
+    await api.delete(`/finance/budgets/${row.id}`);
     ElMessage.success('删除成功');
     fetchData();
   } catch (error) {
     if (error !== 'cancel') {
       console.error('删除失败:', error);
-      ElMessage.error(error.response?.data?.error || '删除失败');
+      ElMessage.error(getErrorMessage(error, '删除失败'));
     }
   }
 };

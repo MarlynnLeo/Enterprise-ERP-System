@@ -105,6 +105,8 @@ class InventoryCostService {
         period_id: periodId,
         description: `库存入库 - ${material.name} (${material.code})`,
         created_by: userId,
+        status: 'posted',
+        is_posted: 1,
       };
 
       // 8. 准备分录明细
@@ -202,6 +204,8 @@ class InventoryCostService {
         period_id: periodId,
         description: `库存出库 - ${material.name} (${material.code})`,
         created_by: userId,
+        status: 'posted',
+        is_posted: 1,
       };
 
       // 8. 准备分录明细

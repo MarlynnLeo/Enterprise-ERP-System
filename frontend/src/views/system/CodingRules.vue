@@ -7,7 +7,7 @@
           <h2>编码规则管理</h2>
           <p class="subtitle">配置各业务单据的自动编号规则，支持前缀、日期、流水号组合</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="openForm()">新增规则</el-button>
+        <el-button type="primary" :icon="Plus" v-permission="'system:settings:edit'" @click="openForm()">新增规则</el-button>
       </div>
     </el-card>
     <!-- 搜索区域 -->
@@ -68,9 +68,9 @@
         <el-table-column prop="description" label="说明" min-width="140" show-overflow-tooltip />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openForm(row)">编辑</el-button>
-            <el-button link type="warning" @click="openSequences(row)">序列</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button link type="primary" v-permission="'system:settings:edit'" @click="openForm(row)">编辑</el-button>
+            <el-button link type="warning" v-permission="'system:settings:view'" @click="openSequences(row)">序列</el-button>
+            <el-button link type="danger" v-permission="'system:settings:edit'" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -152,7 +152,7 @@
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="'system:settings:edit'" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
     <!-- 序列详情抽屉 -->
@@ -173,7 +173,7 @@
           <el-popconfirm title="确定重置该业务类型的所有序列？此操作不可撤销！" confirm-button-text="确认重置"
             cancel-button-text="取消" @confirm="handleResetSeq">
             <template #reference>
-              <el-button type="danger" size="small">重置全部序列</el-button>
+              <el-button type="danger" size="small" v-permission="'system:settings:edit'">重置全部序列</el-button>
             </template>
           </el-popconfirm>
         </div>

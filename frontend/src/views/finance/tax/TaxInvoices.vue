@@ -180,35 +180,41 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="view" :icon="View">查看详情</el-dropdown-item>
-                  <el-dropdown-item 
+                  <el-dropdown-item
+                    v-permission="'finance:tax:update'"
                     v-if="row.status === '未认证'" 
                     command="certify" 
                     :icon="Check"
                   >认证发票</el-dropdown-item>
-                  <el-dropdown-item 
+                  <el-dropdown-item
+                    v-permission="'finance:tax:update'"
                     v-if="row.status === '已认证' && row.invoice_type === '进项'" 
                     command="deduct" 
                     :icon="Discount"
                   >抵扣发票</el-dropdown-item>
-                  <el-dropdown-item 
+                  <el-dropdown-item
+                    v-permission="'finance:tax:update'"
                     v-if="row.status === '未认证'" 
                     command="void" 
                     :icon="Delete"
                     divided
                   >作废发票</el-dropdown-item>
-                  <el-dropdown-item 
-                    v-if="row.status !== '已作废'" 
+                  <el-dropdown-item
+                    v-permission="'finance:tax:update'"
+                    v-if="row.status === '未认证' && !row.gl_entry_id" 
                     command="editNumber" 
                     :icon="EditPen"
                     divided
                   >编辑发票号</el-dropdown-item>
-                  <el-dropdown-item 
-                    v-if="!row.linked_document_number" 
+                  <el-dropdown-item
+                    v-permission="'finance:tax:update'"
+                    v-if="canChangeDocumentLink(row) && !row.linked_document_number"
                     command="link" 
                     :icon="Link"
                   >关联AP/AR单据</el-dropdown-item>
-                  <el-dropdown-item 
-                    v-if="row.linked_document_number" 
+                  <el-dropdown-item
+                    v-permission="'finance:tax:update'"
+                    v-if="canChangeDocumentLink(row) && row.linked_document_number"
                     command="unlink" 
                     :icon="Unlink"
                   >取消关联</el-dropdown-item>
@@ -391,7 +397,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitCreate" :loading="submitting">确认</el-button>
+        <el-button v-permission="'finance:tax:create'" type="primary" @click="submitCreate" :loading="submitting">确认</el-button>
       </template>
     </el-dialog>
 
@@ -447,7 +453,7 @@
       </el-form>
       <template #footer>
         <el-button @click="linkDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitLink" :loading="linkSubmitting" :disabled="!linkForm.selected_id">确认关联</el-button>
+        <el-button v-permission="'finance:tax:update'" type="primary" @click="submitLink" :loading="linkSubmitting" :disabled="!linkForm.selected_id">确认关联</el-button>
       </template>
     </el-dialog>
 
@@ -472,7 +478,7 @@
       </el-form>
       <template #footer>
         <el-button @click="editNumberDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitEditInvoiceNumber" :loading="editNumberSubmitting">确认</el-button>
+        <el-button v-permission="'finance:tax:update'" type="primary" @click="submitEditInvoiceNumber" :loading="editNumberSubmitting">确认</el-button>
       </template>
     </el-dialog>
   </div>
@@ -586,6 +592,10 @@ const getDocTypeTagType = (type) => {
     '销售出库单': 'warning'
   };
   return typeMap[type] || 'info';
+};
+
+const canChangeDocumentLink = (row) => {
+  return row.status === '未认证' && !row.gl_entry_id;
 };
 
 // 加载数据

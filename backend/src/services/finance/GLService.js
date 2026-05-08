@@ -9,6 +9,53 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const crypto = require('crypto');
 
+function toDateString(value) {
+  if (!value) return '';
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return String(value).slice(0, 10);
+}
+
+function normalizeDateInput(value, fieldName) {
+  const dateString = toDateString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    throw new Error(`${fieldName} must be YYYY-MM-DD`);
+  }
+
+  const [year, month, day] = dateString.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new Error(`${fieldName} is not a valid date`);
+  }
+
+  return dateString;
+}
+
+function isClosedFlag(value) {
+  return value === true || value === 1 || value === '1';
+}
+
+function isDateWithinPeriod(date, period) {
+  const startDate = toDateString(period.start_date);
+  const endDate = toDateString(period.end_date);
+  return date >= startDate && date <= endDate;
+}
+
+function shouldPostEntry(entryData) {
+  return entryData.status === 'posted'
+    || entryData.is_posted === true
+    || entryData.is_posted === 1
+    || entryData.is_posted === '1';
+}
+
 /**
  * 总账服务类
  */
@@ -131,6 +178,26 @@ class GLService {
       throw new Error('分录明细不能为空');
     }
 
+    const defaultDate = new Date().toISOString().split('T')[0];
+    const entryDate = normalizeDateInput(entryData.entry_date || defaultDate, 'entry_date');
+    const postingDate = normalizeDateInput(
+      entryData.posting_date || entryData.entry_date || defaultDate,
+      'posting_date'
+    );
+
+    const lengthLimits = [
+      ['entry_number', entryData.entry_number, 50],
+      ['document_type', entryData.document_type, 50],
+      ['document_number', entryData.document_number, 50],
+      ['voucher_word', entryData.voucher_word, 10],
+    ];
+
+    for (const [fieldName, value, maxLength] of lengthLimits) {
+      if (value !== null && value !== undefined && String(value).length > maxLength) {
+        throw new Error(`${fieldName}长度不能超过${maxLength}个字符`);
+      }
+    }
+
     const conn = connection || (await db.pool.getConnection());
     const shouldManageTransaction = !connection;
 
@@ -139,12 +206,38 @@ class GLService {
         await conn.beginTransaction();
       }
 
-      // 2. 借贷平衡校验 (精确到分)
-      const totalDebit = items.reduce(
+      // 2. 分录明细校验与借贷平衡校验 (精确到分)
+      const normalizedItems = items.map((item, index) => {
+        const accountId = Number.parseInt(item.account_id, 10);
+        if (!Number.isInteger(accountId) || accountId <= 0) {
+          throw new Error(`第${index + 1}行分录科目不能为空`);
+        }
+
+        const debitCents = Math.round((parseFloat(item.debit_amount) || 0) * 100);
+        const creditCents = Math.round((parseFloat(item.credit_amount) || 0) * 100);
+        if (debitCents < 0 || creditCents < 0) {
+          throw new Error(`第${index + 1}行借贷金额不能为负数`);
+        }
+        if (debitCents > 0 && creditCents > 0) {
+          throw new Error(`第${index + 1}行不能同时填写借方和贷方金额`);
+        }
+        if (debitCents === 0 && creditCents === 0) {
+          throw new Error(`第${index + 1}行借方和贷方金额不能同时为0`);
+        }
+
+        return {
+          ...item,
+          account_id: accountId,
+          debit_amount: debitCents / 100,
+          credit_amount: creditCents / 100,
+        };
+      });
+
+      const totalDebit = normalizedItems.reduce(
         (sum, item) => sum + Math.round((parseFloat(item.debit_amount) || 0) * 100),
         0
       );
-      const totalCredit = items.reduce(
+      const totalCredit = normalizedItems.reduce(
         (sum, item) => sum + Math.round((parseFloat(item.credit_amount) || 0) * 100),
         0
       );
@@ -157,20 +250,70 @@ class GLService {
         throw new Error(`借贷不平衡: 借方 ${debit.toFixed(2)}, 贷方 ${credit.toFixed(2)}`);
       }
 
+      const accountIds = [...new Set(normalizedItems.map((item) => item.account_id))];
+
       // 3. 期间状态校验 (不允许在已关闭期间创建分录)
-      if (entryData.period_id) {
+      let resolvedPeriodId = entryData.period_id || null;
+      if (resolvedPeriodId) {
         const [periods] = await conn.execute(
-          'SELECT is_closed, period_name FROM gl_periods WHERE id = ?',
-          [entryData.period_id]
+          `SELECT id, is_closed, period_name, start_date, end_date
+           FROM gl_periods
+           WHERE id = ?
+           FOR UPDATE`,
+          [resolvedPeriodId]
         );
-        if (periods.length > 0 && periods[0].is_closed === 1) {
+        if (periods.length === 0) {
+          throw new Error('Accounting period not found');
+        }
+        if (!isDateWithinPeriod(entryDate, periods[0]) || !isDateWithinPeriod(postingDate, periods[0])) {
+          throw new Error(
+            `entry_date ${entryDate} or posting_date ${postingDate} is outside accounting period ${periods[0].period_name}`
+          );
+        }
+        if (isClosedFlag(periods[0].is_closed)) {
           throw new Error(`不能在已关闭的会计期间 [${periods[0].period_name}] 创建分录`);
         }
       }
 
       // 4. 处理创建人 (标准化为用户ID)
+      if (!resolvedPeriodId && shouldPostEntry(entryData)) {
+        const [periods] = await conn.execute(
+          `SELECT id, is_closed, period_name, start_date, end_date
+           FROM gl_periods
+           WHERE ? BETWEEN start_date AND end_date
+             AND ? BETWEEN start_date AND end_date
+           ORDER BY start_date DESC
+           LIMIT 1
+           FOR UPDATE`,
+          [entryDate, postingDate]
+        );
+
+        if (periods.length === 0) {
+          throw new Error(
+            `Posted entry date ${entryDate} and posting date ${postingDate} must belong to an open accounting period`
+          );
+        }
+
+        if (isClosedFlag(periods[0].is_closed)) {
+          throw new Error(`不能在已关闭的会计期间 [${periods[0].period_name}] 创建分录`);
+        }
+
+        resolvedPeriodId = periods[0].id;
+      }
+
       const { getUserIdByIdentifier } = require('../../utils/userUtils');
       const createdById = await getUserIdByIdentifier(conn, entryData.created_by || 'system');
+
+      const accountPlaceholders = accountIds.map(() => '?').join(',');
+      const [activeAccounts] = await conn.query(
+        `SELECT id FROM gl_accounts WHERE id IN (${accountPlaceholders}) AND is_active = 1`,
+        accountIds
+      );
+      const activeAccountIds = new Set(activeAccounts.map((account) => Number(account.id)));
+      const missingAccountIds = accountIds.filter((accountId) => !activeAccountIds.has(accountId));
+      if (missingAccountIds.length > 0) {
+        throw new Error(`会计科目不存在或未启用: ${missingAccountIds.join(', ')}`);
+      }
 
       // 5. 自动生成凭证字号 (核心并发控制逻辑)
       // 默认凭证字统一为 "记"
@@ -183,13 +326,27 @@ class GLService {
         const [maxVoucher] = await conn.execute(
           `SELECT MAX(voucher_number) as max_num FROM gl_entries 
                      WHERE period_id = ? AND voucher_word = ? FOR UPDATE`,
-          [entryData.period_id || 0, voucherWord]
+          [resolvedPeriodId || 0, voucherWord]
         );
         voucherNumber = (maxVoucher[0].max_num || 0) + 1;
       }
 
-      // 6. 生成技术主键编号 (内部使用)
-      const entryNumber = await this.generateEntryNumber(conn);
+      // 6. 生成或采用业务指定的凭证编号
+      const entryNumber = entryData.entry_number
+        ? String(entryData.entry_number).trim()
+        : await this.generateEntryNumber(conn);
+      if (!entryNumber) {
+        throw new Error('entry_number不能为空');
+      }
+      if (entryData.entry_number) {
+        const [existingEntries] = await conn.execute(
+          'SELECT id FROM gl_entries WHERE entry_number = ? LIMIT 1 FOR UPDATE',
+          [entryNumber]
+        );
+        if (existingEntries.length > 0) {
+          throw new Error(`凭证编号已存在: ${entryNumber}`);
+        }
+      }
 
       // 7. 插入分录头
       const [result] = await conn.execute(
@@ -200,9 +357,9 @@ class GLService {
             `,
         [
           entryNumber,
-          entryData.entry_date || new Date().toISOString().split('T')[0],
-          entryData.posting_date || entryData.entry_date || new Date().toISOString().split('T')[0],
-          entryData.period_id,
+          entryDate,
+          postingDate,
+          resolvedPeriodId,
           entryData.document_type || null,
           entryData.document_number || null,
           entryData.description || null,
@@ -218,7 +375,7 @@ class GLService {
       const entryId = result.insertId;
 
       // 8. 批量插入分录明细（1次SQL替代N次）
-      const itemValues = items.map((item, index) => [
+      const itemValues = normalizedItems.map((item, index) => [
         entryId,
         index + 1,
         item.account_id,

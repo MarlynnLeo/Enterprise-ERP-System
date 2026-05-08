@@ -64,7 +64,9 @@ class FinanceAutomationController {
         return ResponseHandler.error(res, '期间ID不能为空', 'BAD_REQUEST', 400);
       }
 
-      const result = await PeriodEndService.executeAutoClosing(parseInt(periodId));
+      const result = await PeriodEndService.executeAutoClosing(parseInt(periodId), {
+        closed_by: req.user?.id || 'system',
+      });
 
       ResponseHandler.success(res, result, '期末自动结转完成');
     } catch (error) {

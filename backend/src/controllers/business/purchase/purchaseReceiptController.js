@@ -1068,10 +1068,16 @@ const updateReceiptStatus = async (req, res) => {
 
           // 1. 创建批次库存记录（仅处理有批次号的物料）
           try {
-            // 只处理有批次号的物料
-            const batchItems = receiptItems
-              .filter((item) => item.batch_number && item.batch_number.trim() !== '')
-              .map((item) => ({
+            const missingBatchItems = receiptItems.filter(
+              (item) => !item.batch_number || item.batch_number.trim() === ''
+            );
+            if (missingBatchItems.length > 0) {
+              throw new Error(
+                `采购收货单 ${receipt.receipt_no} 有 ${missingBatchItems.length} 条明细缺少批次号，不能完成入库`
+              );
+            }
+
+            const batchItems = receiptItems.map((item) => ({
                 material_id: item.material_id,
                 material_code: item.material_code,
                 material_name: item.material_name,
@@ -1114,7 +1120,7 @@ const updateReceiptStatus = async (req, res) => {
             }
           } catch (batchError) {
             logger.error('创建批次库存失败:', batchError);
-            // 不阻塞流程
+            throw batchError;
           }
 
           // 注：物料主数据反写和追溯链路服务已在架构重构中剥离

@@ -108,11 +108,16 @@ export function normalizePaginationData(response) {
     pageSize: 10
   };
   
-  if (!response || !response.data) {
+  if (!response) {
     return result;
   }
   
-  const data = response.data;
+  const data = response.data !== undefined ? response.data : response;
+  if (!data) {
+    return result;
+  }
+
+  const pagination = data?.pagination || {};
   
   // 处理数据列表
   if (Array.isArray(data)) {
@@ -120,22 +125,24 @@ export function normalizePaginationData(response) {
     result.total = data.length;
   } else if (data.items && Array.isArray(data.items)) {
     result.items = data.items;
-    result.total = ensureInteger(data.total, data.items.length);
+    result.total = ensureInteger(data.total ?? pagination.total, data.items.length);
   } else if (data.list && Array.isArray(data.list)) {
     result.items = data.list;
-    result.total = ensureInteger(data.total, data.list.length);
+    result.total = ensureInteger(data.total ?? pagination.total, data.list.length);
   } else if (data.data && Array.isArray(data.data)) {
     result.items = data.data;
-    result.total = ensureInteger(data.total, data.data.length);
+    result.total = ensureInteger(data.total ?? pagination.total, data.data.length);
   }
   
   // 处理分页信息
-  if (data.page !== undefined) {
-    result.page = ensureInteger(data.page, 1);
+  const page = data.page ?? data.current ?? pagination.page ?? pagination.current;
+  if (page !== undefined) {
+    result.page = ensureInteger(page, 1);
   }
   
-  if (data.pageSize !== undefined) {
-    result.pageSize = ensureInteger(data.pageSize, 10);
+  const pageSize = data.pageSize ?? data.limit ?? data.size ?? pagination.pageSize ?? pagination.limit;
+  if (pageSize !== undefined) {
+    result.pageSize = ensureInteger(pageSize, 10);
   }
   
   return result;

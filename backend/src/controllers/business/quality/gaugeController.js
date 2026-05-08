@@ -10,6 +10,49 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+
+const GAUGE_FIELDS = [
+    'gauge_no', 'gauge_name', 'gauge_type', 'model', 'manufacturer', 'serial_number',
+    'measurement_range', 'accuracy', 'resolution', 'location', 'custodian', 'status',
+    'purchase_date', 'last_calibration_date', 'next_calibration_date', 'calibration_cycle_days', 'note',
+];
+
+const CALIBRATION_FIELDS = [
+    'gauge_id', 'calibration_no', 'calibration_type', 'calibration_date', 'next_due_date',
+    'calibrated_by', 'result', 'certificate_no', 'standard_used', 'temperature', 'humidity',
+    'deviation', 'uncertainty', 'note', 'attachment_url',
+];
+
+function pickFields(data, allowedFields) {
+    return allowedFields.reduce((record, field) => {
+        if (data[field] !== undefined) record[field] = data[field];
+        return record;
+    }, {});
+}
+
+async function insertRecord(table, data, allowedFields) {
+    const record = pickFields(data, allowedFields);
+    const columns = Object.keys(record);
+    if (columns.length === 0) throw new Error('No fields to insert');
+
+    const placeholders = columns.map(() => '?').join(', ');
+    const values = columns.map(field => record[field]);
+    return await db.query(
+        `INSERT INTO ${table} (${columns.map(field => `\`${field}\``).join(', ')}) VALUES (${placeholders})`,
+        values
+    );
+}
+
+async function updateRecord(table, data, id, allowedFields) {
+    const record = pickFields(data, allowedFields);
+    const columns = Object.keys(record);
+    if (columns.length === 0) throw new Error('No fields to update');
+
+    const assignments = columns.map(field => `\`${field}\` = ?`).join(', ');
+    const values = columns.map(field => record[field]);
+    await db.query(`UPDATE ${table} SET ${assignments} WHERE id = ?`, [...values, id]);
+}
 
 const gaugeController = {
     // ==================== 量具台账 ====================
@@ -20,7 +63,10 @@ const gaugeController = {
     async getGauges(req, res) {
         try {
             const { page = 1, pageSize = 20, keyword, status, overdue } = req.query;
-            const offset = (parseInt(page) - 1) * parseInt(pageSize);
+            const pagination = parsePagination(page, pageSize, {
+                defaultPageSize: 20,
+                maxPageSize: 200,
+            });
 
             let whereClause = 'WHERE 1=1';
             const params = [];
@@ -46,24 +92,22 @@ const gaugeController = {
             );
             const total = (countResult.rows && countResult.rows[0]?.total) || 0;
 
-            const actualPageSize = parseInt(pageSize);
             const result = await db.query(
-                `
+                appendPaginationSQL(`
         SELECT g.*,
           DATEDIFF(g.next_calibration_date, CURDATE()) as days_until_due
         FROM gauges g
         ${whereClause}
         ORDER BY g.next_calibration_date ASC, g.created_at DESC
-        LIMIT ${actualPageSize} OFFSET ${offset}
-      `,
+      `, pagination.limit, pagination.offset),
                 params
             );
 
             ResponseHandler.success(res, {
                 list: result.rows || [],
                 total: parseInt(total),
-                page: parseInt(page),
-                pageSize: actualPageSize,
+                page: pagination.page,
+                pageSize: pagination.pageSize,
             }, '获取量具列表成功');
         } catch (error) {
             logger.error('获取量具列表失败:', error);
@@ -123,7 +167,7 @@ const gaugeController = {
                 data.next_calibration_date = lastCal.toISOString().split('T')[0];
             }
 
-            const result = await db.query('INSERT INTO gauges SET ?', [data]);
+            const result = await insertRecord('gauges', data, GAUGE_FIELDS);
 
             ResponseHandler.success(res, { id: result.insertId }, '量具创建成功', 201);
         } catch (error) {
@@ -153,7 +197,7 @@ const gaugeController = {
             }
 
             delete data.id; // 防止覆盖主键
-            await db.query('UPDATE gauges SET ? WHERE id = ?', [data, id]);
+            await updateRecord('gauges', data, id, GAUGE_FIELDS);
 
             ResponseHandler.success(res, { id }, '量具更新成功');
         } catch (error) {
@@ -191,7 +235,10 @@ const gaugeController = {
     async getCalibrationRecords(req, res) {
         try {
             const { page = 1, pageSize = 20, gauge_id, result: calResult, startDate, endDate } = req.query;
-            const offset = (parseInt(page) - 1) * parseInt(pageSize);
+            const pagination = parsePagination(page, pageSize, {
+                defaultPageSize: 20,
+                maxPageSize: 200,
+            });
 
             let whereClause = 'WHERE 1=1';
             const params = [];
@@ -222,24 +269,22 @@ const gaugeController = {
             );
             const total = (countResult.rows && countResult.rows[0]?.total) || 0;
 
-            const actualPageSize = parseInt(pageSize);
             const listResult = await db.query(
-                `
+                appendPaginationSQL(`
         SELECT cr.*, g.gauge_no, g.gauge_name, g.model
         FROM gauge_calibration_records cr
         LEFT JOIN gauges g ON cr.gauge_id = g.id
         ${whereClause}
         ORDER BY cr.calibration_date DESC
-        LIMIT ${actualPageSize} OFFSET ${offset}
-      `,
+      `, pagination.limit, pagination.offset),
                 params
             );
 
             ResponseHandler.success(res, {
                 list: listResult.rows || [],
                 total: parseInt(total),
-                page: parseInt(page),
-                pageSize: actualPageSize,
+                page: pagination.page,
+                pageSize: pagination.pageSize,
             }, '获取校准记录成功');
         } catch (error) {
             logger.error('获取校准记录失败:', error);
@@ -277,7 +322,7 @@ const gaugeController = {
                 data.next_due_date = calDate.toISOString().split('T')[0];
             }
 
-            const result = await db.query('INSERT INTO gauge_calibration_records SET ?', [data]);
+            const result = await insertRecord('gauge_calibration_records', data, CALIBRATION_FIELDS);
 
             // 同步更新量具的校准日期信息
             await db.query(
@@ -302,6 +347,7 @@ const gaugeController = {
     async getDueGauges(req, res) {
         try {
             const { days = 30 } = req.query;
+            const dueDays = Math.max(1, Math.min(parseInt(days, 10) || 30, 365));
 
             const result = await db.query(
                 `
@@ -312,7 +358,7 @@ const gaugeController = {
           AND g.next_calibration_date <= DATE_ADD(CURDATE(), INTERVAL ? DAY)
         ORDER BY g.next_calibration_date ASC
       `,
-                [parseInt(days)]
+                [dueDays]
             );
 
             ResponseHandler.success(res, result.rows || [], '获取到期量具成功');

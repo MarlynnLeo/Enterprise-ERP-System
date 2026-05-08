@@ -15,6 +15,23 @@ const { requirePermission } = require('../../../middleware/requirePermission');
 // 所有路由需要认证
 router.use(authenticateToken);
 
+const VALID_COST_CENTER_TYPES = new Set(['production', 'service', 'administration']);
+
+function validateCostCenterPayload(data, options = {}) {
+  const { requireCode = false, requireName = false } = options;
+  const code = typeof data.code === 'string' ? data.code.trim() : data.code;
+  const name = typeof data.name === 'string' ? data.name.trim() : data.name;
+
+  if (requireCode && !code) return '编码不能为空';
+  if (requireName && !name) return '名称不能为空';
+  if (code && code.length > 20) return '编码长度不能超过20个字符';
+  if (name && name.length > 100) return '名称长度不能超过100个字符';
+  if (data.type && !VALID_COST_CENTER_TYPES.has(data.type)) return '成本中心类型无效';
+  if (data.parent_id !== undefined && data.parent_id !== null && Number.isNaN(Number(data.parent_id))) return '上级中心无效';
+  if (data.department_id !== undefined && data.department_id !== null && Number.isNaN(Number(data.department_id))) return '关联部门无效';
+  return null;
+}
+
 // ==================== 成本中心 ====================
 
 /**
@@ -123,22 +140,27 @@ router.get('/:id', requirePermission('finance:cost:view'), async (req, res) => {
  */
 router.post('/', requirePermission('finance:cost:create'), async (req, res) => {
   try {
-    const { code, name, type, parent_id, department_id, manager, description } = req.body;
+    const validationMessage = validateCostCenterPayload(req.body, {
+      requireCode: true,
+      requireName: true,
+    });
 
-    if (!code || !name) {
-      return ResponseHandler.error(res, '编码和名称不能为空', 'VALIDATION_ERROR', 400);
+    if (validationMessage) {
+      return ResponseHandler.error(res, validationMessage, 'VALIDATION_ERROR', 400);
     }
 
+    const { code, name, type, parent_id, department_id, manager, description, is_active } = req.body;
     const data = await CostCenterService.create({
-      code,
-      name,
+      code: code.trim(),
+      name: name.trim(),
       type,
       parent_id,
       department_id,
       manager,
       description,
+      is_active,
     });
-    ResponseHandler.success(res, data, 201);
+    ResponseHandler.success(res, data, '创建成功', 201);
   } catch (error) {
     logger.error('[API] 创建成本中心失败:', error);
     if (error.code === 'ER_DUP_ENTRY') {
@@ -154,6 +176,11 @@ router.post('/', requirePermission('finance:cost:create'), async (req, res) => {
  */
 router.put('/:id', requirePermission('finance:cost:update'), async (req, res) => {
   try {
+    const validationMessage = validateCostCenterPayload(req.body);
+    if (validationMessage) {
+      return ResponseHandler.error(res, validationMessage, 'VALIDATION_ERROR', 400);
+    }
+
     const result = await CostCenterService.update(req.params.id, req.body);
     ResponseHandler.success(res, result);
   } catch (error) {
@@ -182,4 +209,3 @@ router.delete('/:id', requirePermission('finance:cost:delete'), async (req, res)
 // 前端入口: CostSettings.vue → "制费分摊规则" 标签页
 
 module.exports = router;
-

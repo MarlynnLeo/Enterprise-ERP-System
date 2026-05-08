@@ -7,6 +7,7 @@
 const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { softDelete } = require('../../utils/softDelete');
+const PermissionService = require('../PermissionService');
 
 class WorkflowService {
 
@@ -385,6 +386,38 @@ class WorkflowService {
     );
     instance.nodes = nodes;
     return instance;
+  }
+
+  async canAccessInstance(instanceId, userId) {
+    if (!userId) return false;
+
+    const permissions = await PermissionService.getUserPermissions(userId);
+    if (
+      permissions.includes('*') ||
+      permissions.includes('system:workflow:*') ||
+      permissions.includes('system:workflow:view')
+    ) {
+      return true;
+    }
+
+    const [[row]] = await pool.query(
+      `SELECT 1 AS allowed
+       FROM workflow_instances wi
+       WHERE wi.id = ?
+         AND wi.deleted_at IS NULL
+         AND (
+           wi.initiator_id = ?
+           OR EXISTS (
+             SELECT 1
+             FROM workflow_instance_nodes win
+             WHERE win.instance_id = wi.id AND win.approver_id = ?
+           )
+         )
+       LIMIT 1`,
+      [instanceId, userId, userId]
+    );
+
+    return Boolean(row);
   }
 
   /** 查询我发起的审批 */

@@ -11,6 +11,7 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const purchaseModel = require('../../models/purchase');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
+const DocumentLinkService = require('../../services/business/DocumentLinkService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
 
 // 状态常量
@@ -22,6 +23,13 @@ const STATUS = {
     COMPLETED: 'completed',
     CANCELLED: 'cancelled',
   },
+};
+
+const PROCESSING_STATUS_TRANSITIONS = {
+  pending: new Set(['confirmed', 'cancelled']),
+  confirmed: new Set(['completed', 'cancelled']),
+  completed: new Set(),
+  cancelled: new Set(),
 };
 
 /**
@@ -302,10 +310,12 @@ const updateProcessing = async (req, res) => {
     );
 
     if (existingProcessing.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '外委加工单不存在', 'NOT_FOUND', 404);
     }
 
     if (existingProcessing[0].status !== 'pending') {
+      await connection.rollback();
       return ResponseHandler.error(res, '只能修改待确认状态的加工单', 'BAD_REQUEST', 400);
     }
 
@@ -427,10 +437,12 @@ const deleteProcessing = async (req, res) => {
     );
 
     if (existingProcessing.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '外委加工单不存在', 'NOT_FOUND', 404);
     }
 
     if (existingProcessing[0].status !== 'pending') {
+      await connection.rollback();
       return ResponseHandler.error(res, '只能删除待确认状态的加工单', 'BAD_REQUEST', 400);
     }
 
@@ -474,6 +486,7 @@ const updateProcessingStatus = async (req, res) => {
     const warnings = [];
 
     if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+      await connection.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
@@ -484,7 +497,24 @@ const updateProcessingStatus = async (req, res) => {
     );
 
     if (existingProcessing.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '外委加工单不存在', 'NOT_FOUND', 404);
+    }
+
+    const currentStatus = existingProcessing[0].status;
+    if (currentStatus === status) {
+      await connection.rollback();
+      return ResponseHandler.success(res, null, '外委加工单状态未变化');
+    }
+
+    if (!PROCESSING_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        `外委加工单不能从 ${currentStatus} 变更为 ${status}`,
+        'BAD_REQUEST',
+        400
+      );
     }
 
     // 更新加工单状态
@@ -545,14 +575,19 @@ const updateProcessingStatus = async (req, res) => {
       try {
         const glResult = await FinanceIntegrationService.generateOutsourcedIssueEntry(
           existingProcessing[0],
-          materials
+          materials,
+          connection
         );
+        if (!glResult.success) {
+          throw new Error(glResult.message || glResult.error || '外委发料分录生成失败');
+        }
         if (glResult.success) {
           logger.info(`外委发料分录生成成功: ${existingProcessing[0].processing_no}`);
         }
       } catch (glError) {
         logger.error('外委发料分录生成失败:', glError.message);
         warnings.push('外委发料分录生成异常');
+        throw glError;
       }
     }
 
@@ -719,6 +754,7 @@ const createReceipt = async (req, res) => {
     );
 
     if (existingWarehouse.length === 0) {
+      await connection.rollback();
       return res.status(400).json({
         success: false,
         message: `仓库ID ${location_id} 不存在，请确保选择了有效的仓库`,
@@ -786,18 +822,16 @@ const createReceipt = async (req, res) => {
         }
       }
 
-      // ✅ 自动生成外委入库会计分录
-      try {
-        const glResult = await FinanceIntegrationService.generateOutsourcedReceiptEntry(
-          { ...req.body, receipt_no, processing_id },
-          items
-        );
-        if (glResult.success) {
-          logger.info(`外委入库分录生成成功: ${receipt_no}`);
-        }
-      } catch (glError) {
-        logger.error('外委入库分录生成失败:', glError.message);
-      }
+      await DocumentLinkService.tryAutoLink(
+        'outsourced_processing',
+        processing_id,
+        processing_no,
+        'outsourced_receipt',
+        receipt_id,
+        receipt_no,
+        req.user?.id || null,
+        connection
+      );
 
       await connection.commit();
 
@@ -865,10 +899,12 @@ const updateReceipt = async (req, res) => {
     );
 
     if (existingReceipt.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '外委加工入库单不存在', 'NOT_FOUND', 404);
     }
 
     if (existingReceipt[0].status !== 'pending') {
+      await connection.rollback();
       return ResponseHandler.error(res, '只能修改待确认状态的入库单', 'BAD_REQUEST', 400);
     }
 
@@ -939,6 +975,7 @@ const updateReceiptStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+      await connection.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
@@ -949,7 +986,24 @@ const updateReceiptStatus = async (req, res) => {
     );
 
     if (existingReceipt.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '外委加工入库单不存在', 'NOT_FOUND', 404);
+    }
+
+    const currentStatus = existingReceipt[0].status;
+    if (currentStatus === status) {
+      await connection.rollback();
+      return ResponseHandler.success(res, null, '外委加工入库单状态未变化');
+    }
+
+    if (!PROCESSING_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        `外委加工入库单不能从 ${currentStatus} 变更为 ${status}`,
+        'BAD_REQUEST',
+        400
+      );
     }
 
     // 更新入库单状态
@@ -966,12 +1020,19 @@ const updateReceiptStatus = async (req, res) => {
         [id]
       );
 
+      if (items.length === 0) {
+        throw new Error('外委加工入库单没有明细，不能确认入库');
+      }
+
       // 更新库存
       for (const item of items) {
         try {
           const material_id = item.product_id;
           const location_id = existingReceipt[0].location_id;
           const actualQuantity = parseFloat(item.actual_quantity);
+          if (!Number.isFinite(actualQuantity) || actualQuantity <= 0) {
+            throw new Error(`物料 ${item.product_name || item.product_id} 入库数量必须大于0`);
+          }
 
           // 使用统一的 InventoryService 更新库存
           const InventoryService = require('../../services/InventoryService');
@@ -997,6 +1058,16 @@ const updateReceiptStatus = async (req, res) => {
           throw error;
         }
       }
+
+      const glResult = await FinanceIntegrationService.generateOutsourcedReceiptEntry(
+        { ...existingReceipt[0], id: Number(id) },
+        items,
+        connection
+      );
+      if (!glResult.success) {
+        throw new Error(glResult.message || glResult.error || '外委入库分录生成失败');
+      }
+      logger.info(`外委入库分录生成成功: ${existingReceipt[0].receipt_no}`);
 
       // 如果所有产品已入库，则将对应的加工单状态更新为已完成
       if (existingReceipt[0].processing_id) {

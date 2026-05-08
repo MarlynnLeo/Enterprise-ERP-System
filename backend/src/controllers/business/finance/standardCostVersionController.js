@@ -4,6 +4,23 @@ const { logger } = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 
+function parsePositiveInteger(value, fallback, max = 1000) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
+
+function assertMaxLength(fieldName, value, maxLength) {
+  if (value !== null && value !== undefined && String(value).length > maxLength) {
+    throw new Error(`${fieldName}长度不能超过${maxLength}个字符`);
+  }
+}
+
+function isBusinessError(error) {
+  const messages = ['不存在', '状态', '不能', '仅', '只有', '长度不能超过', '已存在'];
+  return messages.some((message) => error.message?.includes(message));
+}
+
 const standardCostVersionController = {
   /**
    * 获取版本列表
@@ -11,7 +28,9 @@ const standardCostVersionController = {
   getVersions: async (req, res) => {
     try {
       const { page = 1, pageSize = 20, status } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(pageSize);
+      const pageNumber = parsePositiveInteger(page, 1);
+      const pageSizeNumber = parsePositiveInteger(pageSize, 20, 100);
+      const offset = (pageNumber - 1) * pageSizeNumber;
 
       let whereClause = '1=1';
       const params = [];
@@ -29,15 +48,15 @@ const standardCostVersionController = {
         `SELECT * FROM standard_cost_versions 
          WHERE ${whereClause} 
          ORDER BY created_at DESC 
-         LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}`,
+         LIMIT ${pageSizeNumber} OFFSET ${offset}`,
         params
       );
 
       ResponseHandler.success(res, {
         list,
         total: countResult[0].total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize)
+        page: pageNumber,
+        pageSize: pageSizeNumber
       });
     } catch (error) {
       logger.error('获取成本版本列表失败:', error);
@@ -59,6 +78,9 @@ const standardCostVersionController = {
       }
 
       version_no = version_no || await CodeGeneratorService.nextCode('cost_version');
+      assertMaxLength('version_no', version_no, 50);
+      assertMaxLength('version_name', version_name, 100);
+      assertMaxLength('remark', remark, 255);
 
       const [existing] = await db.pool.execute(
         'SELECT id FROM standard_cost_versions WHERE version_no = ?',
@@ -68,17 +90,22 @@ const standardCostVersionController = {
         return ResponseHandler.error(res, '该版本号已存在', 'VALIDATION_ERROR', 400);
       }
 
-      await db.pool.execute(
+      const [result] = await db.pool.execute(
         `INSERT INTO standard_cost_versions 
          (version_no, version_name, status, effective_date, expiry_date, remark, created_by)
          VALUES (?, ?, 'draft', ?, ?, ?, ?)`,
         [version_no, version_name, effective_date, expiry_date || null, remark || '', created_by]
       );
 
-      ResponseHandler.success(res, { message: '版本创建成功' });
+      ResponseHandler.success(res, { id: result.insertId, version_no, message: '版本创建成功' });
     } catch (error) {
       logger.error('创建版本失败:', error);
-      ResponseHandler.error(res, '创建版本失败', 'SERVER_ERROR', 500);
+      ResponseHandler.error(
+        res,
+        error.message || '创建版本失败',
+        isBusinessError(error) ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isBusinessError(error) ? 400 : 500
+      );
     }
   },
 
@@ -115,6 +142,14 @@ const standardCostVersionController = {
       if (version.length === 0) throw new Error('版本不存在');
       if (version[0].status !== 'pending') throw new Error('版本不在待审批状态');
 
+      const [[costCount]] = await connection.execute(
+        'SELECT COUNT(*) as count FROM standard_costs WHERE version_id = ?',
+        [id]
+      );
+      if (costCount.count === 0) {
+        throw new Error('版本未生成标准成本数据，不能审批生效');
+      }
+
       // 归档当前处于 active 的版本及其底层明细
       await connection.execute(`UPDATE standard_cost_versions SET status = 'archived' WHERE status = 'active'`);
       await connection.execute(`UPDATE standard_costs SET status = 'archived', is_active = 0 WHERE status = 'active'`);
@@ -137,7 +172,12 @@ const standardCostVersionController = {
     } catch (error) {
       await connection.rollback();
       logger.error('审批版本失败:', error);
-      ResponseHandler.error(res, error.message || '审批失败', 'SERVER_ERROR', 500);
+      ResponseHandler.error(
+        res,
+        error.message || '审批失败',
+        isBusinessError(error) ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isBusinessError(error) ? 400 : 500
+      );
     } finally {
       connection.release();
     }
@@ -258,7 +298,12 @@ const standardCostVersionController = {
     } catch (error) {
       await connection.rollback();
       logger.error('智能提取卷算失败:', error);
-      ResponseHandler.error(res, error.message || '系统智能取价卷算失败', 'SERVER_ERROR', 500);
+      ResponseHandler.error(
+        res,
+        error.message || '系统智能取价卷算失败',
+        isBusinessError(error) ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isBusinessError(error) ? 400 : 500
+      );
     } finally {
       connection.release();
     }

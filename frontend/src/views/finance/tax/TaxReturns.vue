@@ -121,6 +121,7 @@
               type="success" 
               size="small" 
               @click="handleSubmit(row)"
+              v-permission="'finance:tax:update'"
               :icon="Check"
             
               >提交申报</el-button>
@@ -131,6 +132,7 @@
               type="warning" 
               size="small" 
               @click="handlePay(row)"
+              v-permission="'finance:tax:pay'"
               :icon="Money"
             >缴纳税款</el-button>
             
@@ -142,7 +144,7 @@
               @click="handleDelete(row)"
               :icon="Delete"
             
-              v-permission="'finance:tax:returns'">删除</el-button>
+              v-permission="'finance:tax:delete'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -266,7 +268,40 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitCreate" :loading="createLoading">确认创建</el-button>
+        <el-button v-permission="'finance:tax:create'" type="primary" @click="submitCreate" :loading="createLoading">确认创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 缴纳税款对话框 -->
+    <el-dialog title="缴纳税款" v-model="payDialogVisible" width="520px" destroy-on-close>
+      <el-form :model="payForm" label-width="110px">
+        <el-form-item label="申报期间">
+          <span>{{ currentPayRow?.return_period || '-' }}</span>
+        </el-form-item>
+        <el-form-item label="申报类型">
+          <span>{{ currentPayRow?.return_type || '-' }}</span>
+        </el-form-item>
+        <el-form-item label="缴纳金额">
+          <strong>{{ formatAmount(payAmount) }}</strong>
+        </el-form-item>
+        <el-form-item v-if="payAmount > 0" label="付款账户" required>
+          <el-select v-model="payForm.bank_account_id" placeholder="请选择银行账户" filterable style="width: 100%">
+            <el-option
+              v-for="account in bankAccounts"
+              :key="account.id"
+              :label="`${account.account_name}（余额 ${formatAmount(account.current_balance)}）`"
+              :value="account.id"
+              :disabled="Number(account.current_balance || 0) < Number(payAmount || 0)"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="缴纳日期" required>
+          <el-date-picker v-model="payForm.payment_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="payDialogVisible = false">取消</el-button>
+        <el-button v-permission="'finance:tax:pay'" type="primary" @click="confirmPay" :loading="payLoading">确认缴纳</el-button>
       </template>
     </el-dialog>
 
@@ -384,6 +419,24 @@ const createRules = {
 // 查看详情相关
 const viewDialogVisible = ref(false);
 const viewData = reactive({});
+
+// 缴税相关
+const payDialogVisible = ref(false);
+const payLoading = ref(false);
+const currentPayRow = ref(null);
+const bankAccounts = ref([]);
+const payForm = reactive({
+  bank_account_id: null,
+  payment_date: ''
+});
+const payAmount = computed(() => {
+  if (!currentPayRow.value) return 0;
+  return Number(
+    currentPayRow.value.return_type === '增值税'
+      ? currentPayRow.value.tax_payable
+      : currentPayRow.value.income_tax_payable
+  ) || 0;
+});
 
 // 表格高度
 const tableHeight = computed(() => window.innerHeight - 320);
@@ -575,13 +628,46 @@ const handleSubmit = async (row) => {
   }
 };
 
+const loadBankAccounts = async () => {
+  const response = await api.get('/finance/bank-accounts');
+  const data = response.data;
+  bankAccounts.value = Array.isArray(data) ? data : (data?.list || data?.data || []);
+};
+
 // 缴纳税款
 const handlePay = async (row) => {
-  const taxAmount = row.return_type === '增值税' ? row.tax_payable : row.income_tax_payable;
+  try {
+    currentPayRow.value = row;
+    payForm.payment_date = new Date().toISOString().split('T')[0];
+    payForm.bank_account_id = null;
+
+    if (bankAccounts.value.length === 0) {
+      await loadBankAccounts();
+    }
+
+    const availableAccount = bankAccounts.value.find(account => Number(account.current_balance || 0) >= payAmount.value);
+    payForm.bank_account_id = availableAccount?.id || null;
+    payDialogVisible.value = true;
+  } catch (error) {
+    console.error('打开缴税窗口失败:', error);
+    ElMessage.error(error.message || '打开缴税窗口失败');
+  }
+};
+
+const confirmPay = async () => {
+  if (!currentPayRow.value) return;
+  if (payAmount.value > 0 && !payForm.bank_account_id) {
+    ElMessage.warning('请选择付款账户');
+    return;
+  }
+  if (!payForm.payment_date) {
+    ElMessage.warning('请选择缴纳日期');
+    return;
+  }
 
   try {
     await ElMessageBox.confirm(
-      `确认缴纳 ${row.return_period} 的${row.return_type} ${formatAmount(taxAmount)} 元吗？缴纳后将自动生成会计分录。`,
+      `确认缴纳 ${currentPayRow.value.return_period} 的${currentPayRow.value.return_type} ${formatAmount(payAmount.value)} 元吗？`,
       '确认缴纳',
       {
         confirmButtonText: '确认',
@@ -590,17 +676,22 @@ const handlePay = async (row) => {
       }
     );
 
-    await api.post(`/finance/tax/returns/${row.id}/pay`, {
-      payment_date: new Date().toISOString().split('T')[0]
+    payLoading.value = true;
+    const response = await api.post(`/finance/tax/returns/${currentPayRow.value.id}/pay`, {
+      payment_date: payForm.payment_date,
+      bank_account_id: payForm.bank_account_id
     });
 
-    ElMessage.success('税款缴纳成功，会计分录已自动生成');
-    loadData();
+    ElMessage.success(response?._message || '税款缴纳成功');
+    payDialogVisible.value = false;
+    await Promise.all([loadData(), loadBankAccounts()]);
   } catch (error) {
     if (error !== 'cancel') {
       console.error('缴纳税款失败:', error);
       ElMessage.error(error.message || '缴纳失败');
     }
+  } finally {
+    payLoading.value = false;
   }
 };
 

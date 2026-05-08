@@ -355,6 +355,7 @@ router.get('/check/statistics', authenticateToken, requirePermission('inventory:
 router.get('/check', authenticateToken, requirePermission('inventory:check:view'), inventoryCheckController.getCheckList);
 router.get('/check/:id', authenticateToken, requirePermission('inventory:check:view'), inventoryCheckController.getCheckDetail);
 router.post('/check', authenticateToken, requirePermission('inventory:check:create'), inventoryCheckController.createCheck);
+router.post('/check/:id/items', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.addCheckItem);
 router.put('/check/:id', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.updateCheck);
 router.put('/check/:id/status', authenticateToken, requirePermission('inventory:check:update'), inventoryCheckController.updateCheckStatus);
 router.delete('/check/:id', authenticateToken, requirePermission('inventory:check:delete'), inventoryCheckController.deleteCheck);

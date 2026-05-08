@@ -8,6 +8,20 @@
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
 
+function appendTransactionTypeFilter(whereParts, params, alias, transactionType) {
+  if (!transactionType) return;
+  const qualifiedColumn = alias ? `${alias}.transaction_type` : 'transaction_type';
+  if (Array.isArray(transactionType)) {
+    const normalizedTypes = transactionType.filter(Boolean);
+    if (normalizedTypes.length === 0) return;
+    whereParts.value += ` AND ${qualifiedColumn} IN (${normalizedTypes.map(() => '?').join(',')})`;
+    params.push(...normalizedTypes);
+    return;
+  }
+  whereParts.value += ` AND ${qualifiedColumn} = ?`;
+  params.push(transactionType);
+}
+
 class CashReportsModel {
   /**
    * 现金流预测
@@ -153,10 +167,9 @@ class CashReportsModel {
         params.push(filters.accountId);
       }
 
-      if (filters.transactionType) {
-        whereClause += ' AND t.transaction_type = ?';
-        params.push(filters.transactionType);
-      }
+      const whereParts = { value: whereClause };
+      appendTransactionTypeFilter(whereParts, params, 't', filters.transactionType);
+      whereClause = whereParts.value;
 
       // 查询交易笔数
       const [countResult] = await db.pool.execute(

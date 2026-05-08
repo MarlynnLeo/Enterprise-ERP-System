@@ -79,7 +79,7 @@ export default {
             component: () => import('../../views/baseData/ProcessTemplates.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'basedata:process-templates'
+                permission: 'basedata:processtemplates'
             }
         },
         {
@@ -88,7 +88,7 @@ export default {
             component: () => import('../../views/baseData/ProductCategories.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'basedata:product-categories'
+                permission: 'basedata:productcategories'
             }
         },
         {
@@ -97,7 +97,7 @@ export default {
             component: () => import('../../views/baseData/ECNManagement.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'basedata:bom'
+                permission: 'basedata:boms'
             }
         }
     ]

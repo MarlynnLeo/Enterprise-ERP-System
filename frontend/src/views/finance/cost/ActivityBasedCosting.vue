@@ -8,7 +8,7 @@
           <p class="subtitle">作业定义管理 / 成本动因配置 / ABC成本分配</p>
         </div>
         <div class="actions">
-          <el-button type="primary" @click="showAddDialog">
+          <el-button v-permission="'finance:cost:create'" type="primary" @click="showAddDialog">
             <el-icon><Plus /></el-icon> 新增作业
           </el-button>
         </div>
@@ -48,7 +48,7 @@
             </el-table-column>
             <el-table-column label="操作" width="160" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" size="small" @click="editActivity(row)" v-permission="'finance:cost:settings'">编辑</el-button>
+                <el-button type="primary" size="small" @click="editActivity(row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteActivity(row)">删除</el-button>
               </template>
             </el-table-column>
@@ -124,7 +124,11 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm">确定</el-button>
+        <el-button
+          v-permission="isEdit ? 'finance:cost:update' : 'finance:cost:create'"
+          type="primary"
+          @click="submitForm"
+        >确定</el-button>
       </template>
     </el-dialog>
   </div>

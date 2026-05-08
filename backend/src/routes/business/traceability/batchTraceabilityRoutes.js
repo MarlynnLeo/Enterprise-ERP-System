@@ -66,6 +66,8 @@ router.get(
   batchTraceabilityController.getBatchDetails
 );
 
+router.get('/batch/aging-report', requirePermission('quality:traceability:view'), batchTraceabilityController.getBatchAgingReport);
+
 // 新增：支持路径参数的批次查询路由
 router.get('/batch/:materialCode/:batchNumber', requirePermission('quality:traceability:view'), batchTraceabilityController.getBatchDetailsByPath);
 
@@ -86,8 +88,6 @@ router.post(
   requirePermission('quality:traceability:view'),
   batchTraceabilityController.checkInventoryAvailability
 );
-router.get('/batch/aging-report', requirePermission('quality:traceability:view'), batchTraceabilityController.getBatchAgingReport);
-
 // 出库处理相关路由
 router.post('/outbound/production', requirePermission('quality:traceability:create'), batchTraceabilityController.processProductionOutbound);
 router.post('/outbound/sales', requirePermission('quality:traceability:create'), batchTraceabilityController.processSalesOutbound);

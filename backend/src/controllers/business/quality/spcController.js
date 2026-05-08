@@ -10,6 +10,43 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+
+const CONTROL_PLAN_FIELDS = [
+    'plan_no', 'plan_name', 'product_id', 'product_code', 'product_name', 'process_id',
+    'process_name', 'characteristic', 'usl', 'lsl', 'target_value', 'subgroup_size',
+    'chart_type', 'is_active', 'note',
+];
+
+function pickFields(data, allowedFields) {
+    return allowedFields.reduce((record, field) => {
+        if (data[field] !== undefined) record[field] = data[field];
+        return record;
+    }, {});
+}
+
+async function insertRecord(table, data, allowedFields) {
+    const record = pickFields(data, allowedFields);
+    const columns = Object.keys(record);
+    if (columns.length === 0) throw new Error('No fields to insert');
+
+    const placeholders = columns.map(() => '?').join(', ');
+    const values = columns.map(field => record[field]);
+    return await db.query(
+        `INSERT INTO ${table} (${columns.map(field => `\`${field}\``).join(', ')}) VALUES (${placeholders})`,
+        values
+    );
+}
+
+async function updateRecord(table, data, id, allowedFields) {
+    const record = pickFields(data, allowedFields);
+    const columns = Object.keys(record);
+    if (columns.length === 0) throw new Error('No fields to update');
+
+    const assignments = columns.map(field => `\`${field}\` = ?`).join(', ');
+    const values = columns.map(field => record[field]);
+    await db.query(`UPDATE ${table} SET ${assignments} WHERE id = ?`, [...values, id]);
+}
 
 /**
  * 计算 CPK 值
@@ -108,7 +145,10 @@ const spcController = {
     async getControlPlans(req, res) {
         try {
             const { page = 1, pageSize = 20, keyword, is_active } = req.query;
-            const offset = (parseInt(page) - 1) * parseInt(pageSize);
+            const pagination = parsePagination(page, pageSize, {
+                defaultPageSize: 20,
+                maxPageSize: 200,
+            });
 
             let whereClause = 'WHERE 1=1';
             const params = [];
@@ -128,24 +168,22 @@ const spcController = {
             );
             const total = (countResult.rows && countResult.rows[0]?.total) || 0;
 
-            const actualPageSize = parseInt(pageSize);
             const result = await db.query(
-                `
+                appendPaginationSQL(`
         SELECT sp.*,
           (SELECT COUNT(*) FROM spc_data_points WHERE plan_id = sp.id) as data_count
         FROM spc_control_plans sp
         ${whereClause}
         ORDER BY sp.created_at DESC
-        LIMIT ${actualPageSize} OFFSET ${offset}
-      `,
+      `, pagination.limit, pagination.offset),
                 params
             );
 
             ResponseHandler.success(res, {
                 list: result.rows || [],
                 total: parseInt(total),
-                page: parseInt(page),
-                pageSize: actualPageSize,
+                page: pagination.page,
+                pageSize: pagination.pageSize,
             }, '获取控制计划列表成功');
         } catch (error) {
             logger.error('获取控制计划列表失败:', error);
@@ -168,7 +206,7 @@ const spcController = {
                 data.plan_no = await CodeGeneratorService.nextCode('spc_plan');
             }
 
-            const result = await db.query('INSERT INTO spc_control_plans SET ?', [data]);
+            const result = await insertRecord('spc_control_plans', data, CONTROL_PLAN_FIELDS);
 
             ResponseHandler.success(res, { id: result.insertId }, '控制计划创建成功', 201);
         } catch (error) {
@@ -186,7 +224,7 @@ const spcController = {
             const data = req.body;
 
             delete data.id;
-            await db.query('UPDATE spc_control_plans SET ? WHERE id = ?', [data, id]);
+            await updateRecord('spc_control_plans', data, id, CONTROL_PLAN_FIELDS);
 
             ResponseHandler.success(res, { id }, '控制计划更新成功');
         } catch (error) {

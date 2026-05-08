@@ -73,7 +73,7 @@ const productCategoryModel = {
         SELECT COUNT(*) as total
         FROM categories pc
         LEFT JOIN categories parent ON pc.parent_id = parent.id
-        WHERE 1=1
+        WHERE pc.deleted_at IS NULL
       ` + whereConditions;
       const countResult = await pool.query(countQuery, queryParams);
 
@@ -145,7 +145,7 @@ const productCategoryModel = {
       const query = `
         SELECT id, parent_id, name, code, level, sort, status, created_at, updated_at
         FROM categories
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
       `;
       const result = await pool.query(query, [id]);
 
@@ -311,7 +311,7 @@ const productCategoryModel = {
       const query = `
         SELECT id, parent_id, name, code, level
         FROM categories
-        WHERE status = 1
+        WHERE status = 1 AND deleted_at IS NULL
         ORDER BY sort ASC, id ASC
       `;
       const result = await pool.query(query, []);
@@ -346,6 +346,7 @@ const productCategoryModel = {
           SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
           SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as inactive
         FROM categories
+        WHERE deleted_at IS NULL
       `;
 
       const result = await pool.query(query, []);

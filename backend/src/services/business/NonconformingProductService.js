@@ -1,11 +1,42 @@
 const NonconformingProduct = require('../../models/nonconformingProduct');
 const { logger } = require('../../utils/logger');
 const businessConfig = require('../../config/businessConfig');
+const QualityIntegrationService = require('./QualityIntegrationService');
 
-// 从统一配置获取状态常量
+// Centralized NCP statuses from business config.
 const STATUS = {
   NCP: businessConfig.status.ncp,
 };
+
+const VALID_DISPOSITIONS = ['return', 'replacement', 'rework', 'scrap', 'use_as_is'];
+const SUPPLIER_REQUIRED_DISPOSITIONS = ['return', 'replacement'];
+
+function normalizeNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function validateDispositionPayload(dispositionData = {}) {
+  const disposition = dispositionData.disposition;
+  if (!VALID_DISPOSITIONS.includes(disposition)) {
+    throw new Error('Invalid NCP disposition');
+  }
+
+  if (!dispositionData.disposition_reason || !String(dispositionData.disposition_reason).trim()) {
+    throw new Error('Disposition reason is required');
+  }
+
+  if (!dispositionData.responsible_party) {
+    throw new Error('Responsible party is required');
+  }
+
+  const requiresSupplier =
+    dispositionData.responsible_party === 'supplier' ||
+    SUPPLIER_REQUIRED_DISPOSITIONS.includes(disposition);
+  if (requiresSupplier && !dispositionData.supplier_id) {
+    throw new Error('Supplier is required for supplier-related NCP disposition');
+  }
+}
 
 /**
  * 不合格品自动处理规则配置
@@ -121,7 +152,7 @@ class NonconformingProductService {
       if (inspection.id) {
         const db = require('../../config/db');
         const [existing] = await db.pool.query(
-          'SELECT id, ncp_no FROM nonconforming_products WHERE inspection_id = ?',
+          'SELECT id, ncp_no FROM nonconforming_products WHERE inspection_id = ? AND deleted_at IS NULL',
           [inspection.id]
         );
         if (existing.length > 0) {
@@ -349,7 +380,6 @@ class NonconformingProductService {
    */
   static async processDisposition(ncpId, dispositionData) {
     try {
-
       const ncp = await NonconformingProduct.getById(ncpId);
       if (!ncp) {
         throw new Error('NCP not found');
@@ -359,7 +389,12 @@ class NonconformingProductService {
         throw new Error('NCP already completed or closed');
       }
 
-      await NonconformingProduct.updateDisposition(ncpId, dispositionData);
+      validateDispositionPayload(dispositionData);
+      await NonconformingProduct.updateDisposition(ncpId, {
+        ...dispositionData,
+        disposition_reason: String(dispositionData.disposition_reason).trim(),
+        disposition_by: dispositionData.disposition_by || dispositionData.updated_by || 'system',
+      });
 
       logger.info(`Processed disposition for NCP ${ncp.ncp_no}: ${dispositionData.disposition}`);
       return true;
@@ -378,23 +413,40 @@ class NonconformingProductService {
     let connection;
 
     try {
-      const ncp = await NonconformingProduct.getById(ncpId);
-      if (!ncp) {
-        throw new Error('NCP not found');
-      }
-
       connection = await db.pool.getConnection();
       await connection.beginTransaction();
 
+      const [rows] = await connection.query(
+        'SELECT * FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [ncpId]
+      );
+      if (rows.length === 0) {
+        throw new Error('NCP not found');
+      }
+
+      const ncp = rows[0];
+      if (ncp.status === STATUS.NCP.COMPLETED || ncp.status === STATUS.NCP.CLOSED) {
+        throw new Error('NCP already completed or closed');
+      }
+      if (!VALID_DISPOSITIONS.includes(ncp.disposition)) {
+        throw new Error('NCP disposition must be decided before completion');
+      }
+
+      const ncpQuantity = normalizeNumber(ncp.quantity, 0);
+      const handledQuantity = normalizeNumber(completionData.handled_quantity, ncpQuantity);
+      if (handledQuantity <= 0 || handledQuantity > ncpQuantity) {
+        throw new Error('Handled quantity must be greater than 0 and not exceed NCP quantity');
+      }
+
       const updateData = {
-        handled_quantity: completionData.handled_quantity || ncp.quantity,
-        handling_cost: completionData.handling_cost || 0,
-        status: 'completed',
+        handled_quantity: handledQuantity,
+        handling_cost: normalizeNumber(completionData.handling_cost, 0),
+        status: STATUS.NCP.PROCESSING,
         note: completionData.note || ncp.note,
-        updated_by: completionData.updated_by,
+        updated_by: completionData.updated_by || 'system',
       };
 
-      await NonconformingProduct.update(ncpId, updateData);
+      await NonconformingProduct.update(ncpId, updateData, connection);
 
       logger.info(`✅ Completed handling for NCP ${ncp.ncp_no}, disposition: ${ncp.disposition}`);
 
@@ -402,6 +454,8 @@ class NonconformingProductService {
       // 将最新的 handling_cost 注入到 ncp 快照中，以便后续处理函数使用
       ncp.handling_cost = updateData.handling_cost;
       try {
+        await QualityIntegrationService.linkQualityInspectionToNcp(ncp, connection);
+
         switch (ncp.disposition) {
           case 'use_as_is':
             // 让步接收 - 自动创建入库单(入库到物料默认仓库)
@@ -435,6 +489,18 @@ class NonconformingProductService {
         logger.error(`自动处理流程失败 (${ncp.disposition}):`, autoError);
         throw autoError;
       }
+
+      await NonconformingProduct.update(
+        ncpId,
+        {
+          handled_quantity: handledQuantity,
+          handling_cost: updateData.handling_cost,
+          status: STATUS.NCP.COMPLETED,
+          note: updateData.note,
+          updated_by: updateData.updated_by,
+        },
+        connection
+      );
 
       await connection.commit();
       return true;
@@ -485,6 +551,8 @@ class NonconformingProductService {
         );
         if (inspectionRows.length > 0) {
           inspection = inspectionRows[0];
+          inspection.supplier_id = inspection.supplier_id || ncp.supplier_id;
+          inspection.supplier_name = inspection.supplier_name || ncp.supplier_name || '未知供应商';
         } else {
           logger.warn(`检验单ID ${ncp.inspection_id} 不存在, 尝试降级处理`);
         }
@@ -582,6 +650,29 @@ class NonconformingProductService {
          VALUES (?, 'auto_receipt', ?, 'system')`,
         [ncp.id, `自动创建让步接受入库单 ${receiptNo} (仓库: ${warehouseName})`]
       );
+
+      await QualityIntegrationService.linkNcpToDocument(
+        ncp,
+        'purchase_receipt',
+        receiptId,
+        receiptNo,
+        connection
+      );
+      if (ncp.inspection_id) {
+        await QualityIntegrationService.linkDocumentToDocument(
+          {
+            type: 'quality_inspection',
+            id: ncp.inspection_id,
+            code: ncp.inspection_no,
+          },
+          {
+            type: 'purchase_receipt',
+            id: receiptId,
+            code: receiptNo,
+          },
+          connection
+        );
+      }
 
       return { receiptNo, receiptId };
     } catch (error) {
@@ -839,6 +930,29 @@ class NonconformingProductService {
         [ncp.id, `自动创建采购退货单 ${returnNo}`]
       );
 
+      await QualityIntegrationService.linkNcpToDocument(
+        ncp,
+        'purchase_return',
+        returnId,
+        returnNo,
+        connection
+      );
+      if (inspection.receipt_id) {
+        await QualityIntegrationService.linkDocumentToDocument(
+          {
+            type: 'purchase_receipt',
+            id: inspection.receipt_id,
+            code: inspection.receipt_no,
+          },
+          {
+            type: 'purchase_return',
+            id: returnId,
+            code: returnNo,
+          },
+          connection
+        );
+      }
+
       // 发送通知给采购部门
       try {
         await connection.query(
@@ -893,7 +1007,7 @@ class NonconformingProductService {
       // 注：scrap_records 表应在数据库迁移脚本中创建，不在事务中动态建表
 
       // 创建报废记录
-      await connection.query(
+      const [scrapResult] = await connection.query(
         `INSERT INTO scrap_records (
           scrap_no, ncp_id, ncp_no, material_id, material_code, material_name,
           quantity, scrap_reason, scrap_date, scrap_cost, status, created_by
@@ -913,6 +1027,7 @@ class NonconformingProductService {
           'system',
         ]
       );
+      const scrapId = scrapResult.insertId;
 
       logger.info(`✅ 已创建报废记录: ${scrapNo}, 数量: ${quantity}`);
 
@@ -923,7 +1038,15 @@ class NonconformingProductService {
         [ncp.id, `自动创建报废记录 ${scrapNo}`]
       );
 
-      return { scrapNo };
+      await QualityIntegrationService.linkNcpToDocument(
+        ncp,
+        'scrap_record',
+        scrapId,
+        scrapNo,
+        connection
+      );
+
+      return { scrapNo, scrapId };
     } catch (error) {
       logger.error('处理报废失败:', error);
       throw error;
@@ -944,7 +1067,7 @@ class NonconformingProductService {
       // 注：rework_tasks 表应在数据库迁移脚本中创建，不在事务中动态建表
 
       // 创建返工任务
-      await connection.query(
+      const [reworkResult] = await connection.query(
         `INSERT INTO rework_tasks (
           rework_no, ncp_id, ncp_no, material_id, material_code, material_name,
           quantity, rework_reason, rework_instructions, planned_date, status, created_by
@@ -964,6 +1087,7 @@ class NonconformingProductService {
           'system',
         ]
       );
+      const reworkId = reworkResult.insertId;
 
       logger.info(`✅ 已创建返工任务: ${reworkNo}, 数量: ${quantity}`);
 
@@ -974,7 +1098,15 @@ class NonconformingProductService {
         [ncp.id, `自动创建返工任务 ${reworkNo}`]
       );
 
-      return { reworkNo };
+      await QualityIntegrationService.linkNcpToDocument(
+        ncp,
+        'rework_task',
+        reworkId,
+        reworkNo,
+        connection
+      );
+
+      return { reworkNo, reworkId };
     } catch (error) {
       logger.error('处理返工失败:', error);
       throw error;
@@ -1048,7 +1180,7 @@ class NonconformingProductService {
       const expectedDate = new Date();
       expectedDate.setDate(expectedDate.getDate() + 7); // 预计7天后到货
 
-      await connection.query(
+      const [replacementResult] = await connection.query(
         `INSERT INTO replacement_orders (
           replacement_no, ncp_id, ncp_no, return_no, purchase_order_no,
           supplier_id, supplier_name, material_id, material_code, material_name,
@@ -1072,6 +1204,7 @@ class NonconformingProductService {
           'system',
         ]
       );
+      const replacementId = replacementResult.insertId;
 
       logger.info(
         `✅ 已创建换货单: ${replacementNo}, 退货单: ${returnResult.returnNo}, 数量: ${quantity}`
@@ -1084,7 +1217,31 @@ class NonconformingProductService {
         [ncp.id, `自动创建换货单 ${replacementNo},退货单 ${returnResult.returnNo}`]
       );
 
+      await QualityIntegrationService.linkNcpToDocument(
+        ncp,
+        'replacement_order',
+        replacementId,
+        replacementNo,
+        connection
+      );
+      if (returnResult.returnId) {
+        await QualityIntegrationService.linkDocumentToDocument(
+          {
+            type: 'purchase_return',
+            id: returnResult.returnId,
+            code: returnResult.returnNo,
+          },
+          {
+            type: 'replacement_order',
+            id: replacementId,
+            code: replacementNo,
+          },
+          connection
+        );
+      }
+
       return {
+        replacementId,
         replacementNo,
         returnNo: returnResult.returnNo,
         expectedDate: expectedDate.toISOString().slice(0, 10),
@@ -1170,15 +1327,22 @@ class NonconformingProductService {
       if (ncp.status === STATUS.NCP.COMPLETED || ncp.status === STATUS.NCP.CLOSED) {
         throw new Error('该单据已完结，无法申请特采');
       }
+      if (ncp.concession_status === 'pending') {
+        throw new Error('该单据已有待审特采申请');
+      }
+      if (!reason || !String(reason).trim()) {
+        throw new Error('Concession reason is required');
+      }
 
       const db = require('../../config/db');
       await db.pool.query(
         `UPDATE nonconforming_products 
          SET concession_status = 'pending', 
              concession_reason = ?,
-             disposition = 'use_as_is'
-         WHERE id = ?`,
-        [reason, ncpId]
+             disposition = 'use_as_is',
+             status = 'processing'
+         WHERE id = ? AND deleted_at IS NULL`,
+        [String(reason).trim(), ncpId]
       );
 
       // 记录操作日志
@@ -1203,12 +1367,24 @@ class NonconformingProductService {
     const db = require('../../config/db');
     let connection;
     try {
-      const ncp = await NonconformingProduct.getById(ncpId);
-      if (!ncp) throw new Error('NCP not found');
-      if (ncp.concession_status !== 'pending') throw new Error('该单据非特采待审状态');
+      if (!['approved', 'rejected'].includes(status)) {
+        throw new Error('Invalid concession approval status');
+      }
 
       connection = await db.pool.getConnection();
       await connection.beginTransaction();
+
+      const [rows] = await connection.query(
+        'SELECT * FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [ncpId]
+      );
+      if (rows.length === 0) throw new Error('NCP not found');
+
+      const ncp = rows[0];
+      if (ncp.status === STATUS.NCP.COMPLETED || ncp.status === STATUS.NCP.CLOSED) {
+        throw new Error('NCP already completed or closed');
+      }
+      if (ncp.concession_status !== 'pending') throw new Error('该单据非特采待审状态');
 
       const approvalDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
@@ -1234,6 +1410,18 @@ class NonconformingProductService {
           `UPDATE nonconforming_products 
            SET status = 'completed', handled_quantity = quantity, 
                disposition = 'use_as_is', updated_by = ? 
+           WHERE id = ?`,
+          [approverName, ncpId]
+        );
+      } else {
+        await connection.query(
+          `UPDATE nonconforming_products
+           SET status = 'pending',
+               disposition = 'pending',
+               disposition_reason = NULL,
+               disposition_by = NULL,
+               disposition_date = NULL,
+               updated_by = ?
            WHERE id = ?`,
           [approverName, ncpId]
         );

@@ -6,6 +6,12 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 
+function parseLimit(value, fallback = 20) {
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, 100);
+}
+
 class ProfitabilityService {
   /**
    * 获取产品盈利分析
@@ -15,8 +21,9 @@ class ProfitabilityService {
   async getProductProfitability(params = {}) {
     const { startDate, endDate, limit = 20 } = params;
 
-    let dateCondition;
+    let dateCondition = '';
     const queryParams = [];
+    const safeLimit = parseLimit(limit);
 
     if (startDate && endDate) {
       dateCondition = 'AND so.created_at BETWEEN ? AND ?';
@@ -47,11 +54,11 @@ class ProfitabilityService {
         WHERE is_active = 1 
         GROUP BY product_id
       ) psc ON m.id = psc.product_id
-      ${dateCondition}
+      WHERE 1=1 ${dateCondition}
       GROUP BY m.id, m.code, m.name, psc.unit_cost
       HAVING total_quantity > 0
       ORDER BY gross_profit DESC
-      LIMIT ${parseInt(limit)}
+      LIMIT ${safeLimit}
     `;
 
     try {
@@ -71,8 +78,9 @@ class ProfitabilityService {
   async getCustomerProfitability(params = {}) {
     const { startDate, endDate, limit = 20 } = params;
 
-    let dateCondition;
+    let dateCondition = '';
     const queryParams = [];
+    const safeLimit = parseLimit(limit);
 
     if (startDate && endDate) {
       dateCondition = 'AND so.created_at BETWEEN ? AND ?';
@@ -114,7 +122,7 @@ class ProfitabilityService {
       GROUP BY c.id, c.code, c.name
       HAVING total_revenue > 0
       ORDER BY gross_profit DESC
-      LIMIT ${parseInt(limit)}
+      LIMIT ${safeLimit}
     `;
 
     try {
@@ -198,7 +206,7 @@ class ProfitabilityService {
   async getProfitSummary(params = {}) {
     const { startDate, endDate } = params;
 
-    let dateCondition;
+    let dateCondition = '';
     const queryParams = [];
 
     if (startDate && endDate) {

@@ -15,9 +15,9 @@
           <p class="subtitle">分析供应商账款账龄</p>
         </div>
         <div class="action-buttons">
-          <el-button type="primary" @click="generateReport" :loading="loading" v-permission="'finance:ap:aging'">生成报表</el-button>
-          <el-button v-permission="'finance:ar:view'" type="success" @click="exportToExcel" :disabled="!hasData">导出Excel</el-button>
-          <el-button v-permission="'finance:ar:view'" type="info" @click="printReport" :disabled="!hasData">打印报表</el-button>
+          <el-button type="primary" @click="generateReport" :loading="loading" v-permission="'finance:reports:view'">生成报表</el-button>
+          <el-button v-permission="'finance:reports:view'" type="success" @click="exportToExcel" :disabled="!hasData">导出Excel</el-button>
+          <el-button v-permission="'finance:reports:view'" type="info" @click="printReport" :disabled="!hasData">打印报表</el-button>
         </div>
       </div>
     </el-card>
@@ -224,6 +224,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import * as echarts from 'echarts';
+import ExcelJS from 'exceljs';
 // 权限计算属性
 const loading = ref(false);
 const tableData = ref([]);
@@ -608,10 +609,61 @@ const showDetails = async (supplier) => {
 };
 
 // 导出到Excel
-const exportToExcel = () => {
-  // 使用环境变量配置的API基础URL，默认为相对路径
-  const baseURL = import.meta.env.VITE_API_URL || '';
-  window.open(`${baseURL}/api/finance/ap/aging/export?reportDate=${searchForm.reportDate}&supplierType=${searchForm.supplierType}&supplierName=${searchForm.supplierName}`);
+const exportToExcel = async () => {
+  const data = safeTableData.value;
+  if (!Array.isArray(data) || data.length === 0) {
+    ElMessage.warning('没有数据可以导出');
+    return;
+  }
+
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('应付账款账龄分析');
+    worksheet.columns = [
+      { header: '供应商名称', key: 'supplierName', width: 22 },
+      { header: '供应商类型', key: 'supplierType', width: 14 },
+      { header: '应付总额', key: 'totalAmount', width: 16 },
+      { header: '30天内', key: 'within30Days', width: 14 },
+      { header: '31-60天', key: 'days31to60', width: 14 },
+      { header: '61-90天', key: 'days61to90', width: 14 },
+      { header: '90天以上', key: 'over90Days', width: 14 }
+    ];
+
+    data.forEach(item => {
+      worksheet.addRow({
+        supplierName: item.supplierName,
+        supplierType: getSupplierTypeText(item.supplierType),
+        totalAmount: item.totalAmount || 0,
+        within30Days: item.within30Days || 0,
+        days31to60: item.days31to60 || 0,
+        days61to90: item.days61to90 || 0,
+        over90Days: item.over90Days || 0
+      });
+    });
+
+    worksheet.addRow({
+      supplierName: '合计',
+      totalAmount: summaryData.totalAmount,
+      within30Days: summaryData.within30Days,
+      days31to60: summaryData.days31to60,
+      days61to90: summaryData.days61to90,
+      over90Days: summaryData.over90Days
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `应付账款账龄分析_${searchForm.reportDate}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('导出Excel失败:', error);
+    ElMessage.error('导出Excel失败');
+  }
 };
 
 // 打印报表

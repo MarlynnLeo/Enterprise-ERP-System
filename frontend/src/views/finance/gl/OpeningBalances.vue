@@ -23,7 +23,7 @@
             value-format="YYYY-MM-DD"
             style="width: 150px; margin-right: 10px;"
           />
-          <el-button type="primary" @click="handleBatchSave" :loading="saving">
+          <el-button v-permission="'finance:accounts:update'" type="primary" @click="handleBatchSave" :loading="saving">
             <el-icon><Check /></el-icon> 批量保存
           </el-button>
         </div>

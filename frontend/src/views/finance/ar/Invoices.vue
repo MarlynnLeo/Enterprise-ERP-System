@@ -50,7 +50,7 @@
             <el-option label="已确认" value="已确认"></el-option>
             <el-option label="部分付款" value="部分付款"></el-option>
             <el-option label="已付款" value="已付款"></el-option>
-            <el-option label="逾期" value="逾期"></el-option>
+            <el-option label="已逾期" value="已逾期"></el-option>
             <el-option label="已取消" value="已取消"></el-option>
           </el-select>
         </el-form-item>
@@ -105,22 +105,38 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" min-width="240" fixed="right">
+          <el-table-column label="操作" min-width="340" fixed="right">
             <template #default="scope">
-              <el-button 
-                v-if="scope.row.balance_amount > 0"
-                type="primary" 
-                size="small" 
+              <el-button
+                v-if="scope.row.status === '草稿'"
+                type="primary"
+                size="small"
                 @click="handleEdit(scope.row)"
                 v-permission="'finance:ar:update'">
                 编辑
               </el-button>
-              <el-button 
-                v-if="(scope.row.status === '已确认' || scope.row.status === '部分付款') && scope.row.balance_amount > 0"
-                type="success" 
-                size="small" 
+              <el-button
+                v-if="scope.row.status === '草稿'"
+                type="success"
+                size="small"
+                @click="handleStatusChange(scope.row, '已确认')"
+                v-permission="'finance:ar:update'">
+                确认
+              </el-button>
+              <el-button
+                v-if="scope.row.status === '草稿'"
+                type="warning"
+                size="small"
+                @click="handleStatusChange(scope.row, '已取消')"
+                v-permission="'finance:ar:update'">
+                取消
+              </el-button>
+              <el-button
+                v-if="['已确认', '部分付款', '已逾期'].includes(scope.row.status) && scope.row.balance_amount > 0"
+                type="success"
+                size="small"
                 @click="handleRecordPayment(scope.row)"
-                v-permission="'finance:ar:receipts'">
+                v-permission="'finance:ar:receive'">
                 收款
               </el-button>
               <el-button type="info" size="small" @click="handleViewDetails(scope.row)">查看</el-button>
@@ -306,7 +322,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveInvoice" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="invoiceForm.id ? 'finance:ar:update' : 'finance:ar:create'" type="primary" @click="saveInvoice" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -378,7 +394,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="paymentDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="savePayment" :loading="savePaymentLoading">确认</el-button>
+          <el-button v-permission="'finance:ar:receive'" type="primary" @click="savePayment" :loading="savePaymentLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -445,7 +461,7 @@
 import { formatCurrency } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue';
 import { api } from '@/services/api';
 import { useFinanceStore } from '@/stores/finance'
@@ -473,7 +489,7 @@ const paymentFormRef = ref(null);
 const bankAccounts = ref([]);
 // 是否显示银行账户字段
 const showBankAccountField = computed(() => {
-  return ['bank_transfer', 'credit_card'].includes(paymentForm.paymentMethod);
+  return ['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod);
 });
 const detailsDialogVisible = ref(false);
 const invoiceDetails = reactive({
@@ -556,8 +572,13 @@ const paymentRules = {
   ],
   bankAccountId: [
     {
-      required: computed(() => showBankAccountField.value),
-      message: '请选择银行账户',
+      validator: (rule, value, callback) => {
+        if (showBankAccountField.value && !value) {
+          callback(new Error('请选择收款账户'));
+        } else {
+          callback();
+        }
+      },
       trigger: 'change'
     }
   ]
@@ -569,7 +590,7 @@ const getStatusType = (invoice) => {
     '已确认': 'primary',
     '部分付款': 'warning',
     '已付款': 'success',
-    '逾期': 'danger',
+    '已逾期': 'danger',
     '已取消': 'info'
   };
   return statusMap[invoice.status] || 'info';
@@ -631,8 +652,8 @@ const loadInvoices = async () => {
     const params = {
       page: currentPage.value,
       limit: pageSize.value,
-      invoice_number: searchForm.invoiceNumber,
-      customer_name: searchForm.customerName,
+        invoiceNumber: searchForm.invoiceNumber,
+        customerName: searchForm.customerName,
       startDate: searchForm.dateRange?.[0] || '',
       endDate: searchForm.dateRange?.[1] || '',
       status: searchForm.status
@@ -762,6 +783,22 @@ const showAddDialog = () => {
   // 添加默认一个明细项
   addInvoiceItem();
   dialogVisible.value = true;
+};
+const handleStatusChange = async (row, status) => {
+  const actionText = status === '已确认' ? '确认' : '取消';
+  try {
+    await ElMessageBox.confirm(
+      `确定要${actionText}发票 ${row.invoice_number} 吗？`,
+      `${actionText}发票`,
+      { type: status === '已确认' ? 'success' : 'warning' }
+    );
+    await api.put(`/finance/ar/invoices/${row.id}/status`, { status });
+    ElMessage.success(`发票已${status === '已确认' ? '确认' : '取消'}`);
+    loadInvoices();
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return;
+    ElMessage.error(error.response?.data?.message || error.message || '状态更新失败');
+  }
 };
 // 编辑发票
 const handleEdit = async (row) => {
@@ -1013,7 +1050,7 @@ const savePayment = async () => {
         };
         
         // 发送请求
-       ;
+        await api.post('/finance/ar/receipts', _data);
         
         ElMessage.success('收款记录已保存');
         

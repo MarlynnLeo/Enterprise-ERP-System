@@ -38,6 +38,7 @@
             <el-option label="已确认" value="confirmed" />
             <el-option label="部分" value="partial_completed" />
             <el-option label="已完成" value="completed" />
+            <el-option label="已冲销" value="reversed" />
             <el-option label="已取消" value="cancelled" />
           </el-select>
         </el-form-item>
@@ -81,6 +82,10 @@
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ outboundStats.completedCount || 0 }}</div>
         <div class="stat-label">已完成</div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-value">{{ outboundStats.reversedCount || 0 }}</div>
+        <div class="stat-label">已冲销</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
         <div class="stat-value">{{ outboundStats.cancelledCount || 0 }}</div>
@@ -189,10 +194,10 @@
               完成
             </el-button>
 
-            <!-- 已完成状态显示撤销按钮 -->
-            <el-button v-if="scope.row.status === 'completed'" size="small" type="danger"
+            <!-- 已出库状态显示撤销重发按钮 -->
+            <el-button v-if="scope.row.status === 'completed' || scope.row.status === 'partial_completed'" size="small" type="danger"
               @click="handleCancelOutbound(scope.row)">
-              撤销
+              撤销重发
             </el-button>
 
             <!-- 非草稿状态显示打印按钮 -->
@@ -684,6 +689,7 @@ export default {
       confirmedCount: 0,
       partialCompletedCount: 0,
       completedCount: 0,
+      reversedCount: 0,
       cancelledCount: 0
     })
 
@@ -697,16 +703,19 @@ export default {
     // formatDate 已统一引用公共实现
 
     const getStatusType = (status) => {
+      if (status === 'reversed') return 'info'
       return getInboundOutboundStatusColor(status)
     }
 
     const getStatusText = (status) => {
+      if (status === 'reversed') return '已冲销'
       return getInboundOutboundStatusText(status)
     }
 
     // 倒计时核心计算（单一职责，消除重复日期计算）
     const _calcCountdown = (outboundDate, status) => {
       if (status === 'completed') return { diffDays: null, terminal: 'completed' }
+      if (status === 'reversed') return { diffDays: null, terminal: 'reversed' }
       if (status === 'cancelled') return { diffDays: null, terminal: 'cancelled' }
       if (!outboundDate) return { diffDays: null, terminal: 'unset' }
 
@@ -721,6 +730,7 @@ export default {
     const getCountdownText = (outboundDate, status) => {
       const { diffDays, terminal } = _calcCountdown(outboundDate, status)
       if (terminal === 'completed') return '已完成'
+      if (terminal === 'reversed') return '已冲销'
       if (terminal === 'cancelled') return '已取消'
       if (terminal === 'unset') return '未设置'
       if (diffDays < 0) return `逾${Math.abs(diffDays)}天`
@@ -733,7 +743,7 @@ export default {
     const getCountdownType = (outboundDate, status) => {
       const { diffDays, terminal } = _calcCountdown(outboundDate, status)
       if (terminal === 'completed') return 'success'
-      if (terminal === 'cancelled' || terminal === 'unset') return 'info'
+      if (terminal === 'reversed' || terminal === 'cancelled' || terminal === 'unset') return 'info'
       if (diffDays < 0) return 'danger'
       if (diffDays <= 3) return 'warning'
       return 'success'
@@ -1194,49 +1204,57 @@ export default {
       }).catch(() => { })
     }
 
-    // 撤销出库 - 回退已完成的出库单
+    // 撤销重发 - 冲回库存并按最新BOM生成新的草稿出库单
+    const executeCancelOutbound = async (row, force = false) => {
+      try {
+        const res = await api.post(`/inventory/outbound/${row.id}/cancel`, { force })
+        const data = res.data?.data || res.data || {}
+        const reissueNo = data.reissueOutbound?.outbound_no
+        const financeErrors = data.financeReversal?.errors || []
+
+        ElMessage.success(reissueNo ? `撤销重发成功，新出库单：${reissueNo}` : '撤销成功，库存已冲回')
+        if (financeErrors.length > 0) {
+          ElMessage.warning('库存已冲回，但财务凭证冲销失败，请到总账凭证人工复核')
+        }
+        fetchOutboundList()
+      } catch (error) {
+        console.error('撤销失败:', error)
+        const errorData = error.response?.data
+
+        // 处理需要确认的情况（生产中状态）
+        if (errorData?.code === 'NEED_CONFIRM' && errorData?.data?.needConfirm) {
+          ElMessageBox.confirm(
+            `${errorData.message}\n\n确定要强制撤销重发吗？这可能会导致生产进度与库存数据需要人工复核。`,
+            '需要确认',
+            {
+              confirmButtonText: '强制撤销重发',
+              cancelButtonText: '取消',
+              type: 'error'
+            }
+          ).then(() => {
+            executeCancelOutbound(row, true)
+          }).catch(() => { })
+        } else {
+          ElMessage.error(errorData?.message || '撤销失败')
+        }
+      }
+    }
+
     const handleCancelOutbound = async (row, force = false) => {
       const confirmMsg = force
-        ? `⚠️ 强制撤销警告：出库单 ${row.outbound_no} 关联的生产任务正在进行中，部分物料可能已被消耗。确定要强制撤销吗？`
-        : `确定要撤销出库单 ${row.outbound_no} 吗？撤销后库存将回退，出库单将变为草稿状态。`
+        ? `强制撤销重发警告：出库单 ${row.outbound_no} 关联的生产任务正在进行中，部分物料可能已被消耗。确定要强制撤销重发吗？`
+        : `确定要撤销重发出库单 ${row.outbound_no} 吗？系统会冲回原库存流水，将原单标记为已冲销，并按最新BOM生成新的草稿出库单。`
 
       ElMessageBox.confirm(
         confirmMsg,
-        force ? '强制撤销确认' : '撤销确认',
+        force ? '强制撤销重发确认' : '撤销重发确认',
         {
-          confirmButtonText: force ? '强制撤销' : '确定撤销',
+          confirmButtonText: force ? '强制撤销重发' : '确定撤销重发',
           cancelButtonText: '取消',
           type: force ? 'error' : 'warning',
           dangerouslyUseHTMLString: false
         }
-      ).then(async () => {
-        try {
-          await api.post(`/inventory/outbound/${row.id}/cancel`, { force })
-          ElMessage.success('撤销成功，库存已回退')
-          fetchOutboundList()
-        } catch (error) {
-          console.error('撤销失败:', error)
-          const errorData = error.response?.data
-
-          // 处理需要确认的情况（生产中状态）
-          if (errorData?.code === 'NEED_CONFIRM' && errorData?.data?.needConfirm) {
-            ElMessageBox.confirm(
-              `${errorData.message}\n\n确定要强制撤销吗？这可能会导致库存数据不一致。`,
-              '需要确认',
-              {
-                confirmButtonText: '强制撤销',
-                cancelButtonText: '取消',
-                type: 'error'
-              }
-            ).then(() => {
-              // 用户确认后，使用强制撤销
-              handleCancelOutbound(row, true)
-            }).catch(() => { })
-          } else {
-            ElMessage.error(errorData?.message || '撤销失败')
-          }
-        }
-      }).catch(() => { })
+      ).then(() => executeCancelOutbound(row, force)).catch(() => { })
     }
 
     // 组件引用管理
@@ -1632,6 +1650,7 @@ export default {
         outboundStats.confirmedCount = statistics.confirmedCount || 0
         outboundStats.partialCompletedCount = statistics.partialCompletedCount || 0
         outboundStats.completedCount = statistics.completedCount || 0
+        outboundStats.reversedCount = statistics.reversedCount || 0
         outboundStats.cancelledCount = statistics.cancelledCount || 0
         return
       }
@@ -1641,6 +1660,7 @@ export default {
       outboundStats.confirmedCount = list.filter(item => item.status === 'confirmed').length
       outboundStats.partialCompletedCount = list.filter(item => item.status === 'partial_completed').length
       outboundStats.completedCount = list.filter(item => item.status === 'completed').length
+      outboundStats.reversedCount = list.filter(item => item.status === 'reversed').length
       outboundStats.cancelledCount = list.filter(item => item.status === 'cancelled').length
     }
 

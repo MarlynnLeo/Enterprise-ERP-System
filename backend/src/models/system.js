@@ -8,6 +8,7 @@
 const { pool } = require('../config/db');
 const logger = require('../utils/logger');
 const PasswordSecurity = require('../utils/passwordSecurity');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 // 系统管理模块模型
 
@@ -25,10 +26,206 @@ function _normalizeDept(dept) {
   };
 }
 
+function normalizeBinaryStatus(value, fieldName = 'status') {
+  if (value === true || value === 1 || value === '1') return 1;
+  if (value === false || value === 0 || value === '0') return 0;
+  throw new Error(`${fieldName} must be 0 or 1`);
+}
+
+function normalizeNullableId(value) {
+  if (value === undefined || value === null || value === '' || Number(value) === 0) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error('id must be a positive integer');
+  }
+  return parsed;
+}
+
+function normalizeIdList(value, fieldName) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(`${fieldName} must be an array`);
+  }
+  return [...new Set(value.map((id) => {
+    const parsed = Number(id);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(`${fieldName} contains invalid id`);
+    }
+    return parsed;
+  }))];
+}
+
+function normalizeMenuData(menuData = {}) {
+  return {
+    parent_id: normalizeNullableId(menuData.parent_id ?? menuData.parentId),
+    name: String(menuData.name || '').trim(),
+    path: menuData.path || null,
+    component: menuData.component || null,
+    redirect: menuData.redirect || null,
+    icon: menuData.icon || null,
+    permission: menuData.permission ? String(menuData.permission).trim() : null,
+    type: menuData.type !== undefined ? Number(menuData.type) : 1,
+    visible: menuData.visible !== undefined ? normalizeBinaryStatus(menuData.visible, 'visible') : 1,
+    status: menuData.status !== undefined ? normalizeBinaryStatus(menuData.status) : 1,
+    sort_order: Number(menuData.sort_order ?? menuData.sort ?? 0) || 0,
+  };
+}
+
+async function assertDepartmentIsValid(connection, departmentData, id = null) {
+  const name = String(departmentData.name || '').trim();
+  const code = String(departmentData.code || '').trim();
+  const parentId = normalizeNullableId(departmentData.parent_id);
+  const targetId = id ? Number(id) : null;
+
+  if (!name) throw new Error('department name is required');
+  if (!code) throw new Error('department code is required');
+  if (targetId && parentId === targetId) {
+    throw new Error('部门不能挂到自身下级');
+  }
+
+  if (parentId) {
+    const [[parent]] = await connection.execute('SELECT id, parent_id FROM departments WHERE id = ?', [parentId]);
+    if (!parent) throw new Error('上级部门不存在');
+
+    let currentParent = parent.parent_id;
+    let depth = 0;
+    while (targetId && currentParent && depth < 50) {
+      if (Number(currentParent) === targetId) {
+        throw new Error('部门不能挂到自己的下级部门下面');
+      }
+      const [[nextParent]] = await connection.execute(
+        'SELECT parent_id FROM departments WHERE id = ?',
+        [currentParent]
+      );
+      currentParent = nextParent?.parent_id;
+      depth++;
+    }
+  }
+
+  const idClause = targetId ? ' AND id <> ?' : '';
+  const idParams = targetId ? [targetId] : [];
+  const [sameCode] = await connection.execute(
+    `SELECT id FROM departments WHERE code = ?${idClause} LIMIT 1`,
+    [code, ...idParams]
+  );
+  if (sameCode.length > 0) {
+    throw new Error('部门编码已存在');
+  }
+
+  const parentNameParams = parentId === null
+    ? [name, ...idParams]
+    : [name, parentId, ...idParams];
+  const parentNameWhere = parentId === null ? 'parent_id IS NULL' : 'parent_id = ?';
+  const [sameName] = await connection.execute(
+    `SELECT id FROM departments WHERE name = ? AND ${parentNameWhere}${idClause} LIMIT 1`,
+    parentNameParams
+  );
+  if (sameName.length > 0) {
+    throw new Error('同一上级部门下部门名称已存在');
+  }
+
+  return {
+    ...departmentData,
+    name,
+    code,
+    parent_id: parentId,
+    status: departmentData.status !== undefined ? normalizeBinaryStatus(departmentData.status) : 1,
+  };
+}
+
+async function assertRoleIsValid(connection, roleData, id = null) {
+  const name = String(roleData.name || '').trim();
+  const code = String(roleData.code || '').trim();
+  const targetId = id ? Number(id) : null;
+
+  if (!name) throw new Error('role name is required');
+  if (!code) throw new Error('role code is required');
+
+  const idClause = targetId ? ' AND id <> ?' : '';
+  const idParams = targetId ? [targetId] : [];
+  const [sameName] = await connection.execute(
+    `SELECT id FROM roles WHERE name = ?${idClause} LIMIT 1`,
+    [name, ...idParams]
+  );
+  if (sameName.length > 0) {
+    throw new Error('角色名称已存在');
+  }
+
+  const [sameCode] = await connection.execute(
+    `SELECT id FROM roles WHERE code = ?${idClause} LIMIT 1`,
+    [code, ...idParams]
+  );
+  if (sameCode.length > 0) {
+    throw new Error('角色编码已存在');
+  }
+
+  return {
+    ...roleData,
+    name,
+    code,
+    status: roleData.status !== undefined ? normalizeBinaryStatus(roleData.status) : 1,
+  };
+}
+
+async function assertMenuIsValid(connection, menuData, id = null) {
+  const data = normalizeMenuData(menuData);
+  const targetId = id ? Number(id) : null;
+
+  if (!data.name) throw new Error('menu name is required');
+  if (![0, 1, 2].includes(data.type)) throw new Error('menu type must be 0, 1 or 2');
+  if (data.parent_id) {
+    const [[parent]] = await connection.execute('SELECT id, parent_id FROM menus WHERE id = ?', [data.parent_id]);
+    if (!parent) throw new Error('上级菜单不存在');
+    if (targetId && data.parent_id === targetId) {
+      throw new Error('菜单不能挂到自身下面');
+    }
+
+    let currentParent = parent.parent_id;
+    let depth = 0;
+    while (targetId && currentParent && depth < 50) {
+      if (Number(currentParent) === targetId) {
+        throw new Error('菜单不能挂到自己的子菜单下面');
+      }
+      const [[nextParent]] = await connection.execute(
+        'SELECT parent_id FROM menus WHERE id = ?',
+        [currentParent]
+      );
+      currentParent = nextParent?.parent_id;
+      depth++;
+    }
+  }
+
+  const idClause = targetId ? ' AND id <> ?' : '';
+  const idParams = targetId ? [targetId] : [];
+  if (data.permission) {
+    const [samePermission] = await connection.execute(
+      `SELECT id FROM menus WHERE permission = ?${idClause} LIMIT 1`,
+      [data.permission, ...idParams]
+    );
+    if (samePermission.length > 0) {
+      throw new Error('菜单权限标识已存在');
+    }
+  }
+
+  if (data.path && data.type < 2) {
+    const [samePath] = await connection.execute(
+      `SELECT id FROM menus WHERE path = ?${idClause} LIMIT 1`,
+      [data.path, ...idParams]
+    );
+    if (samePath.length > 0) {
+      throw new Error('菜单路由路径已存在');
+    }
+  }
+
+  return data;
+}
+
 const systemModel = {
   // 用户管理
   async getAllUsers(page = 1, pageSize = 10, filters = {}) {
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 200 });
     let whereClause = '1=1';
     const params = [];
 
@@ -57,15 +254,19 @@ const systemModel = {
     const total = countResult[0].total;
 
     // 获取分页数据，包括关联的部门信息
-    const [rows] = await pool.execute(
-      `SELECT u.*, d.name as departmentName
+    const listSql = appendPaginationSQL(
+      `SELECT u.id, u.username, u.real_name, u.email, u.phone,
+              u.department_id, u.position, u.role, u.avatar, u.bio,
+              u.status, u.created_at, u.updated_at,
+              d.name as departmentName
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
        WHERE ${whereClause}
-       ORDER BY u.id DESC
-       LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`,
-      [...params]
+       ORDER BY u.id DESC`,
+      pagination.limit,
+      pagination.offset
     );
+    const [rows] = await pool.execute(listSql, [...params]);
 
     // ✅ 优化: 使用 IN 查询一次性获取所有用户的角色（避免 N+1 查询）
     if (rows.length > 0) {
@@ -98,8 +299,8 @@ const systemModel = {
     return {
       list: rows,
       total,
-      page,
-      pageSize,
+      page: pagination.page,
+      pageSize: pagination.pageSize,
     };
   },
 
@@ -111,7 +312,12 @@ const systemModel = {
         throw new Error('无效的用户ID');
       }
 
-      const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [userId]);
+      const [rows] = await pool.execute(
+        `SELECT id, username, real_name, email, phone, department_id,
+                position, role, avatar, bio, status, created_at, updated_at
+         FROM users WHERE id = ?`,
+        [userId]
+      );
       if (!rows.length) return null;
 
       const user = rows[0];
@@ -138,10 +344,20 @@ const systemModel = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
+      const username = String(userData.username || '').trim();
+      const password = String(userData.password || '');
+      const roleIds = normalizeIdList(userData.roleIds, 'roleIds');
+
+      if (!username) {
+        throw new Error('username is required');
+      }
+      if (!password) {
+        throw new Error('password is required');
+      }
 
       // 检查用户名是否已存在
       const [existingUsers] = await connection.execute('SELECT * FROM users WHERE username = ?', [
-        userData.username,
+        username,
       ]);
 
       if (existingUsers.length > 0) {
@@ -149,20 +365,20 @@ const systemModel = {
       }
 
       // 验证密码强度
-      const passwordValidation = PasswordSecurity.validatePasswordStrength(userData.password);
+      const passwordValidation = PasswordSecurity.validatePasswordStrength(password);
       if (!passwordValidation.isValid) {
         throw new Error(`密码不符合安全要求: ${passwordValidation.errors.join(', ')}`);
       }
 
       // 密码加密
-      const hashedPassword = await PasswordSecurity.hashPassword(userData.password);
+      const hashedPassword = await PasswordSecurity.hashPassword(password);
 
       // 从roleIds获取第一个角色的code作为role字段的值
       let roleCode = 'user'; // 默认值
-      if (userData.roleIds && userData.roleIds.length > 0) {
+      if (roleIds.length > 0) {
         const [roleResult] = await connection.execute(
           'SELECT code FROM roles WHERE id = ? LIMIT 1',
-          [userData.roleIds[0]]
+          [roleIds[0]]
         );
         if (roleResult.length > 0) {
           roleCode = roleResult[0].code;
@@ -174,7 +390,7 @@ const systemModel = {
         `INSERT INTO users (username, password, real_name, email, department_id, position, role, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [
-          userData.username,
+          username,
           hashedPassword,
           userData.name || userData.real_name, // 支持两种命名方式
           userData.email || null,
@@ -187,8 +403,8 @@ const systemModel = {
       const userId = result.insertId;
 
       // 插入用户角色关联
-      if (userData.roleIds && userData.roleIds.length > 0) {
-        for (const roleId of userData.roleIds) {
+      if (roleIds.length > 0) {
+        for (const roleId of roleIds) {
           await connection.execute(
             'INSERT INTO user_roles (user_id, role_id, created_at) VALUES (?, ?, NOW())',
             [userId, roleId]
@@ -197,7 +413,16 @@ const systemModel = {
       }
 
       await connection.commit();
-      return { id: userId, ...userData };
+      return {
+        id: userId,
+        username,
+        real_name: userData.name || userData.real_name || null,
+        email: userData.email || null,
+        department_id: userData.department_id || null,
+        position: userData.position || null,
+        role: roleCode,
+        roleIds,
+      };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -210,13 +435,23 @@ const systemModel = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
+      const userId = Number(id);
+      if (!Number.isInteger(userId) || userId <= 0) {
+        throw new Error('invalid user id');
+      }
+      const [[existingUser]] = await connection.execute('SELECT id, role FROM users WHERE id = ?', [userId]);
+      if (!existingUser) {
+        throw new Error('NOT_FOUND: user not found');
+      }
+      const roleIds =
+        userData.roleIds !== undefined ? normalizeIdList(userData.roleIds, 'roleIds') : null;
 
       // 从roleIds获取第一个角色的code作为role字段的值
-      let roleCode = 'user'; // 默认值
-      if (userData.roleIds && userData.roleIds.length > 0) {
+      let roleCode = existingUser.role || 'user';
+      if (roleIds && roleIds.length > 0) {
         const [roleResult] = await connection.execute(
           'SELECT code FROM roles WHERE id = ? LIMIT 1',
-          [userData.roleIds[0]]
+          [roleIds[0]]
         );
         if (roleResult.length > 0) {
           roleCode = roleResult[0].code;
@@ -239,26 +474,26 @@ const systemModel = {
           userData.department_id || null,
           userData.position || null,
           roleCode,
-          id,
+          userId,
         ]
       );
 
       // 更新用户角色关联
-      if (userData.roleIds) {
+      if (roleIds) {
         // 先删除现有角色关联
-        await connection.execute('DELETE FROM user_roles WHERE user_id = ?', [id]);
+        await connection.execute('DELETE FROM user_roles WHERE user_id = ?', [userId]);
 
         // 添加新的角色关联
-        for (const roleId of userData.roleIds) {
+        for (const roleId of roleIds) {
           await connection.execute(
             'INSERT INTO user_roles (user_id, role_id, created_at) VALUES (?, ?, NOW())',
-            [id, roleId]
+            [userId, roleId]
           );
         }
       }
 
       await connection.commit();
-      return { id, ...userData };
+      return { id: userId, ...userData, roleIds: roleIds || undefined };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -268,11 +503,19 @@ const systemModel = {
   },
 
   async updateUserStatus(id, status) {
-    const [result] = await pool.execute('UPDATE users SET status = ? WHERE id = ?', [status, id]);
+    const normalizedStatus = normalizeBinaryStatus(status);
+    const [result] = await pool.execute(
+      'UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?',
+      [normalizedStatus, id]
+    );
     return result.affectedRows > 0;
   },
 
   async resetUserPassword(id, password) {
+    const passwordValidation = PasswordSecurity.validatePasswordStrength(String(password || ''));
+    if (!passwordValidation.isValid) {
+      throw new Error(`密码不符合安全要求: ${passwordValidation.errors.join(', ')}`);
+    }
     // ✅ 统一使用 PasswordSecurity 加密，与 createUser 保持一致
     const hashedPassword = await PasswordSecurity.hashPassword(password);
 
@@ -337,62 +580,87 @@ const systemModel = {
   },
 
   async createDepartment(departmentData) {
-    const [result] = await pool.execute(
-      `INSERT INTO departments (
-        name, 
-        parent_id, 
-        code, 
-        manager_id, 
-        phone, 
-        status, 
-        remark, 
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        departmentData.name,
-        departmentData.parent_id || null,
-        departmentData.code || '',
-        departmentData.manager_id || null,
-        departmentData.phone || '',
-        departmentData.status !== undefined ? departmentData.status : 1,
-        departmentData.remark || '',
-      ]
-    );
-    return {
-      id: result.insertId,
-      ...departmentData,
-      created_at: new Date(),
-    };
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const data = await assertDepartmentIsValid(connection, departmentData);
+      const [result] = await connection.execute(
+        `INSERT INTO departments (
+          name, 
+          parent_id, 
+          code, 
+          manager_id, 
+          phone, 
+          status, 
+          remark, 
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          data.name,
+          data.parent_id,
+          data.code,
+          data.manager_id || null,
+          data.phone || '',
+          data.status,
+          data.remark || '',
+        ]
+      );
+      await connection.commit();
+      return {
+        id: result.insertId,
+        ...data,
+        created_at: new Date(),
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async updateDepartment(id, departmentData) {
-    const [result] = await pool.execute(
-      `UPDATE departments SET 
-        name = ?, 
-        parent_id = ?,
-        code = ?,
-        manager_id = ?,
-        phone = ?,
-        status = ?,
-        remark = ?
-      WHERE id = ?`,
-      [
-        departmentData.name,
-        departmentData.parent_id || null,
-        departmentData.code || null,
-        departmentData.manager_id || null,
-        departmentData.phone || null,
-        departmentData.status !== undefined ? departmentData.status : 1,
-        departmentData.remark || null,
-        id,
-      ]
-    );
-    return result.affectedRows > 0;
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [[existing]] = await connection.execute('SELECT id FROM departments WHERE id = ?', [id]);
+      if (!existing) return false;
+      const data = await assertDepartmentIsValid(connection, departmentData, id);
+      const [result] = await connection.execute(
+        `UPDATE departments SET 
+          name = ?, 
+          parent_id = ?,
+          code = ?,
+          manager_id = ?,
+          phone = ?,
+          status = ?,
+          remark = ?
+        WHERE id = ?`,
+        [
+          data.name,
+          data.parent_id,
+          data.code,
+          data.manager_id || null,
+          data.phone || null,
+          data.status,
+          data.remark || null,
+          id,
+        ]
+      );
+      await connection.commit();
+      return result.affectedRows > 0;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async updateDepartmentStatus(id, status) {
+    const normalizedStatus = normalizeBinaryStatus(status);
     const [result] = await pool.execute('UPDATE departments SET status = ? WHERE id = ?', [
-      status,
+      normalizedStatus,
       id,
     ]);
     return result.affectedRows > 0;
@@ -434,7 +702,7 @@ const systemModel = {
 
   // 角色管理
   async getAllRoles(page = 1, pageSize = 10, filters = {}) {
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 200 });
     let whereClause = '1=1';
     const params = [];
 
@@ -459,16 +727,18 @@ const systemModel = {
     const total = countResult[0].total;
 
     // 获取分页数据
-    const [rows] = await pool.execute(
-      `SELECT * FROM roles WHERE ${whereClause} ORDER BY id ASC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`,
-      params
+    const roleSql = appendPaginationSQL(
+      `SELECT * FROM roles WHERE ${whereClause} ORDER BY id ASC`,
+      pagination.limit,
+      pagination.offset
     );
+    const [rows] = await pool.execute(roleSql, params);
 
     return {
       list: rows,
       total,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
     };
   },
 
@@ -496,21 +766,22 @@ const systemModel = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
+      const data = await assertRoleIsValid(connection, roleData);
 
       // 校验角色名称唯一性
       const [existingName] = await connection.execute(
         'SELECT id FROM roles WHERE name = ?',
-        [roleData.name]
+        [data.name]
       );
       if (existingName.length > 0) {
         throw new Error('角色名称已存在，请使用其他名称');
       }
 
       // 校验角色编码唯一性
-      if (roleData.code) {
+      if (data.code) {
         const [existingCode] = await connection.execute(
           'SELECT id FROM roles WHERE code = ?',
-          [roleData.code]
+          [data.code]
         );
         if (existingCode.length > 0) {
           throw new Error('角色编码已存在，请使用其他编码');
@@ -521,14 +792,15 @@ const systemModel = {
       const [result] = await connection.execute(
         `INSERT INTO roles (name, code, description, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, NOW(), NOW())`,
-        [roleData.name, roleData.code, roleData.description, roleData.status]
+        [data.name, data.code, data.description, data.status]
       );
 
       const roleId = result.insertId;
 
       // 插入角色菜单权限关联
-      if (roleData.menuIds && roleData.menuIds.length > 0) {
-        for (const menuId of roleData.menuIds) {
+      const menuIds = normalizeIdList(data.menuIds, 'menuIds');
+      if (menuIds.length > 0) {
+        for (const menuId of menuIds) {
           await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [
             roleId,
             menuId,
@@ -537,7 +809,7 @@ const systemModel = {
       }
 
       await connection.commit();
-      return { id: roleId, ...roleData };
+      return { id: roleId, ...data, menuIds };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -550,9 +822,12 @@ const systemModel = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
+      const [[existing]] = await connection.execute('SELECT id FROM roles WHERE id = ?', [id]);
+      if (!existing) throw new Error('NOT_FOUND: role not found');
+      const data = await assertRoleIsValid(connection, roleData, id);
 
       // 如果有基本信息需要更新
-      if (roleData.name !== undefined) {
+      if (data.name !== undefined) {
         // 更新角色基本信息
         await connection.execute(
           `UPDATE roles SET
@@ -562,18 +837,19 @@ const systemModel = {
             status = ?,
             updated_at = NOW()
            WHERE id = ?`,
-          [roleData.name, roleData.code, roleData.description, roleData.status, id]
+          [data.name, data.code, data.description, data.status, id]
         );
       }
 
       // 更新角色菜单权限关联
-      if (roleData.menuIds !== undefined) {
+      if (data.menuIds !== undefined) {
         // 先删除现有权限关联
         await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [id]);
 
         // 添加新的权限关联
-        if (roleData.menuIds && roleData.menuIds.length > 0) {
-          for (const menuId of roleData.menuIds) {
+        const menuIds = normalizeIdList(data.menuIds, 'menuIds');
+        if (menuIds.length > 0) {
+          for (const menuId of menuIds) {
             await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [
               id,
               menuId,
@@ -583,7 +859,7 @@ const systemModel = {
       }
 
       await connection.commit();
-      return { id, ...roleData };
+      return { id, ...data };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -593,9 +869,10 @@ const systemModel = {
   },
 
   async updateRoleStatus(id, status) {
+    const normalizedStatus = normalizeBinaryStatus(status);
     const [result] = await pool.execute(
       'UPDATE roles SET status = ?, updated_at = NOW() WHERE id = ?',
-      [status, id]
+      [normalizedStatus, id]
     );
     return result.affectedRows > 0;
   },
@@ -687,6 +964,7 @@ const systemModel = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
+      const data = await assertMenuIsValid(connection, menuData);
 
       // 1. 插入菜单记录
       const [result] = await connection.execute(
@@ -694,27 +972,27 @@ const systemModel = {
           parent_id, name, path, component, redirect, icon, permission, type, visible, status, sort_order, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [
-          menuData.parent_id || null,
-          menuData.name || '',
-          menuData.path || null,
-          menuData.component || null,
-          menuData.redirect || null,
-          menuData.icon || null,
-          menuData.permission || null,
-          menuData.type !== undefined ? menuData.type : 1,
-          menuData.visible !== undefined ? menuData.visible : 1,
-          menuData.status !== undefined ? menuData.status : 1,
-          menuData.sort_order || 0,
+          data.parent_id,
+          data.name,
+          data.path,
+          data.component,
+          data.redirect,
+          data.icon,
+          data.permission,
+          data.type,
+          data.visible,
+          data.status,
+          data.sort_order,
         ]
       );
       const menuId = result.insertId;
 
       // 2. 自动继承父菜单的角色权限
-      if (menuData.parent_id) {
+      if (data.parent_id) {
         // 子菜单：获取拥有父菜单权限的所有角色，并为它们添加新菜单权限
         const [parentRoles] = await connection.execute(
           'SELECT role_id FROM role_menus WHERE menu_id = ?',
-          [menuData.parent_id]
+          [data.parent_id]
         );
 
         for (const role of parentRoles) {
@@ -744,7 +1022,7 @@ const systemModel = {
       }
 
       await connection.commit();
-      return { id: menuId, ...menuData };
+      return { id: menuId, ...data };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -757,9 +1035,10 @@ const systemModel = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
+      const data = await assertMenuIsValid(connection, menuData, id);
 
       // --- 防死锁/防环路核心检查 ---
-      const parentId = menuData.parent_id ? parseInt(menuData.parent_id, 10) : null;
+      const parentId = data.parent_id;
       const targetId = parseInt(id, 10);
 
       if (parentId !== null) {
@@ -804,17 +1083,17 @@ const systemModel = {
           updated_at = NOW()
          WHERE id = ?`,
         [
-          menuData.parent_id || null,
-          menuData.name || '',
-          menuData.path || null,
-          menuData.component || null,
-          menuData.redirect || null,
-          menuData.icon || null,
-          menuData.permission || null,
-          menuData.type !== undefined ? menuData.type : 1,
-          menuData.visible !== undefined ? menuData.visible : 1,
-          menuData.status !== undefined ? menuData.status : 1,
-          menuData.sort_order || 0,
+          data.parent_id,
+          data.name,
+          data.path,
+          data.component,
+          data.redirect,
+          data.icon,
+          data.permission,
+          data.type,
+          data.visible,
+          data.status,
+          data.sort_order,
           id,
         ]
       );
@@ -827,6 +1106,15 @@ const systemModel = {
     } finally {
       connection.release();
     }
+  },
+
+  async updateMenuStatus(id, status) {
+    const normalizedStatus = normalizeBinaryStatus(status);
+    const [result] = await pool.execute(
+      'UPDATE menus SET status = ?, updated_at = NOW() WHERE id = ?',
+      [normalizedStatus, id]
+    );
+    return result.affectedRows > 0;
   },
 
   async deleteMenu(id) {

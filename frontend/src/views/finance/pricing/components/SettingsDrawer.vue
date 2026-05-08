@@ -58,7 +58,7 @@
         <!-- 策略字段管理 -->
         <el-tab-pane label="策略字段" name="strategy-fields">
           <div class="strategy-fields-header">
-            <el-button type="primary" @click="$emit('add-field')">
+            <el-button v-permission="'finance:pricing:create'" type="primary" @click="$emit('add-field')">
               <el-icon><Plus /></el-icon> 新增字段
             </el-button>
           </div>
@@ -96,8 +96,8 @@
             </el-table-column>
             <el-table-column label="操作" width="150" fixed="right" align="center">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="$emit('edit-field', row)" v-permission="'finance:pricing'">编辑</el-button>
-                <el-button type="danger" link size="small" @click="$emit('delete-field', row)" v-permission="'finance:pricing'">删除</el-button>
+                <el-button type="primary" link size="small" @click="$emit('edit-field', row)" v-permission="'finance:pricing:update'">编辑</el-button>
+                <el-button type="danger" link size="small" @click="$emit('delete-field', row)" v-permission="'finance:pricing:delete'">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -107,10 +107,10 @@
 
     <template #footer>
       <div class="drawer-footer">
-        <el-button type="info" plain @click="$emit('reset')" v-if="activeTab === 'thresholds'">恢复默认</el-button>
+        <el-button v-permission="'finance:pricing:update'" type="info" plain @click="$emit('reset')" v-if="activeTab === 'thresholds'">恢复默认</el-button>
         <div style="flex: 1"></div>
         <el-button @click="visible = false">取消</el-button>
-        <el-button type="primary" @click="$emit('save')" v-if="activeTab === 'thresholds'">保存设置</el-button>
+        <el-button v-permission="'finance:pricing:update'" type="primary" @click="$emit('save')" v-if="activeTab === 'thresholds'">保存设置</el-button>
       </div>
     </template>
   </el-drawer>

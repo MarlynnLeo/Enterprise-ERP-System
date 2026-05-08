@@ -1078,7 +1078,8 @@ exports.updateSalesOutbound = async (req, res) => {
         outboundData: {
           id: id ?? null,
           outbound_no: currentOutbound.outbound_no ?? null,
-          outbound_date: currentOutbound.delivery_date ?? null,
+          delivery_date: formattedDeliveryDate ?? currentOutbound.delivery_date ?? null,
+          outbound_date: formattedDeliveryDate ?? currentOutbound.delivery_date ?? null,
           customer_id: customerId,
           customer_name: customerName,
           total_amount: currentOutbound.total_amount ?? null,

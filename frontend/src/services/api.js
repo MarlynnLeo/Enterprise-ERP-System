@@ -21,5 +21,4 @@ export * from '../api/equipment';
 export * from '../api/common';
 export * from '../api/workflow';
 export * from '../api/contract';
-export * from '../api/mrp';
 export * from '../api/enhanced';

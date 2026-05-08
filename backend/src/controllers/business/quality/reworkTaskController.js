@@ -9,6 +9,7 @@ const db = require('../../../config/db');
 const pool = db.pool;
 const QualityIntegrationService = require('../../../services/business/QualityIntegrationService');
 const businessConfig = require('../../../config/businessConfig');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -88,9 +89,24 @@ const createReinspectionTask = async (task, connection) => {
       }
     }
 
+    await QualityIntegrationService.linkDocumentToDocument(
+      {
+        type: 'rework_task',
+        id: task.id,
+        code: task.rework_no,
+      },
+      {
+        type: 'quality_inspection',
+        id: newInspectionId,
+        code: newInspectionNo,
+      },
+      connection
+    );
+
     logger.info(`✅ 闭环达成: 已为返工任务 ${task.rework_no} 生成复检质检单 ${newInspectionNo}`);
   } catch(e) {
-    logger.error(`❌ 创建返工复检单失败: ${e.message}`);
+    logger.error(`创建返工复检单失败: ${e.message}`);
+    throw e;
   }
 };
 
@@ -111,7 +127,10 @@ const getReworkTasks = async (req, res) => {
       endDate,
     } = req.query;
 
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 10,
+      maxPageSize: 200,
+    });
 
     const whereConditions = [];
     const queryParams = [];
@@ -163,7 +182,7 @@ const getReworkTasks = async (req, res) => {
     const total = countResult[0].total;
 
     // 查询列表数据
-    const dataQuery = `
+    const dataQuery = appendPaginationSQL(`
       SELECT 
         rt.*,
         ncp.inspection_no,
@@ -172,8 +191,7 @@ const getReworkTasks = async (req, res) => {
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       ${whereClause}
       ORDER BY rt.created_at DESC
-      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
-    `;
+    `, pagination.limit, pagination.offset);
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(dataQuery, queryParams);
 
@@ -181,8 +199,8 @@ const getReworkTasks = async (req, res) => {
       data: rows,
       pagination: {
         total,
-        current: parseInt(page),
-        pageSize: parseInt(pageSize),
+        current: pagination.page,
+        pageSize: pagination.pageSize,
       },
     });
   } catch (error) {
@@ -355,10 +373,15 @@ const completeTask = async (req, res) => {
       return ResponseHandler.error(res, '已取消的返工任务不能完成', 'BAD_REQUEST', 400);
     }
 
+    if (task.status !== STATUS.REWORK.IN_PROGRESS) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '返工任务必须先分配并进入进行中后才能完成', 'BAD_REQUEST', 400);
+    }
+
     // 完成返工任务
     await connection.query(
       `UPDATE rework_tasks
-       SET actual_date = ?, rework_cost = ?, status = 'completed', updated_at = CURRENT_TIMESTAMP
+       SET actual_date = ?, rework_cost = ?, status = 'completed', progress = 100, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [actual_date || new Date().toISOString().slice(0, 10), rework_cost, id]
     );
@@ -409,6 +432,7 @@ const updateStatus = async (req, res) => {
 
     const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
+      await connection.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
     }
 
@@ -439,9 +463,14 @@ const updateStatus = async (req, res) => {
         return ResponseHandler.error(res, '已取消的返工任务不能完成', 'BAD_REQUEST', 400);
       }
 
+      if (task.status !== STATUS.REWORK.IN_PROGRESS) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '返工任务必须先进入进行中后才能完成', 'BAD_REQUEST', 400);
+      }
+
       // 更新状态为已完成
       await connection.query(
-        `UPDATE rework_tasks SET status = ?, actual_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        `UPDATE rework_tasks SET status = ?, progress = 100, actual_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         ['completed', new Date().toISOString().slice(0, 10), id]
       );
 
@@ -534,11 +563,13 @@ const updateProgress = async (req, res) => {
 
     // 验证进度值
     if (progress === undefined || progress === null) {
+      await connection.rollback();
       return ResponseHandler.error(res, '缺少必填字段: progress', 'VALIDATION_ERROR', 400);
     }
 
     const numProgress = parseFloat(progress);
     if (isNaN(numProgress) || numProgress < 0 || numProgress > 100) {
+      await connection.rollback();
       return ResponseHandler.error(res, '进度值必须在0-100之间', 'VALIDATION_ERROR', 400);
     }
 

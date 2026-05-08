@@ -63,7 +63,7 @@ router.post('/settings/reset', requirePermission('finance:settings:update'), fin
 
 // 总账模块路由
 // 1. 会计科目管理
-router.get('/accounts/options', financeController.getAccountOptions);
+router.get('/accounts/options', requirePermission('finance:accounts:view'), financeController.getAccountOptions);
 router.get('/accounts', requirePermission('finance:accounts:view'), financeController.getAllAccounts);
 router.post('/accounts', requirePermission('finance:accounts:create'), financeController.createAccount);
 router.get('/accounts/:id', requirePermission('finance:accounts:view'), financeController.getAccountById);
@@ -89,6 +89,7 @@ router.delete('/entries/:id', requirePermission('finance:entries:update'), finan
 router.get('/periods', requirePermission('finance:periods:view'), financeController.getAllPeriods);
 router.get('/periods/:id', requirePermission('finance:periods:view'), financeController.getPeriodById);
 router.post('/periods', requirePermission('finance:periods:create'), financeController.createPeriod);
+router.put('/periods/:id', requirePermission('finance:periods:update'), financeController.updatePeriod);
 router.patch('/periods/:id/close', requirePermission('finance:periods:update'), financeController.closePeriod);
 router.patch('/periods/:id/reopen', requirePermission('finance:periods:update'), financeController.reopenPeriod);
 
@@ -185,6 +186,7 @@ router.get('/assets/depreciation/export', requirePermission('finance:assets:expo
 // 资产统计
 router.get('/assets/statistics/summary', requirePermission('finance:assets:view'), assetsController.getAssetStatistics); // ⚠️ 已弃用，请使用 /assets/stats
 router.get('/assets/stats', requirePermission('finance:assets:view'), assetsController.getAssetStatistics);
+router.get('/assets/dashboard/stats', requirePermission('finance:assets:view'), assetsController.getDashboardStats);
 
 // 资产看板数据与折旧预测
 router.get('/assets/dashboard/stats', requirePermission('finance:assets:view'), assetsController.getDashboardStats);
@@ -241,6 +243,7 @@ router.post(
   FileUploadMiddlewares.excel,
   cashController.importBankTransactions
 );
+router.post('/bank-transactions/transfer', requirePermission('finance:cash:create'), cashController.transferFunds);
 router.post('/bank-transactions', requirePermission('finance:cash:create'), cashController.createBankTransaction);
 // 参数路由放在最后
 router.get('/bank-transactions/:id', requirePermission('finance:cash:view'), cashController.getBankTransactionById);
@@ -316,13 +319,21 @@ router.put('/cash-transactions/:id/reject', requirePermission('finance:cash:appr
 router.get('/cash/reconciliation/unreconciled', requirePermission('finance:cash:reconcile'), cashController.getUnreconciledTransactions);
 router.get('/cash/reconciliation/reconciled', requirePermission('finance:cash:reconcile'), cashController.getReconciledTransactions);
 router.get('/cash/reconciliation/stats', requirePermission('finance:cash:reconcile'), cashController.getReconciliationStats);
+router.get('/cash/reconciliation/matched-transaction', requirePermission('finance:cash:reconcile'), cashController.getMatchedTransactions);
+router.get('/cash/reconciliation/possible-matches', requirePermission('finance:cash:reconcile'), cashController.getPossibleMatchingTransactions);
 router.post('/cash/reconciliation/mark-reconciled', requirePermission('finance:cash:reconcile'), cashController.markTransactionAsReconciled);
 router.post(
   '/cash/reconciliation/cancel-reconciled',
   requirePermission('finance:cash:reconcile'),
   cashController.cancelTransactionReconciliation
 );
-router.post('/cash/reconciliation/import-statement', requirePermission('finance:cash:reconcile'), cashController.importBankStatement);
+router.post('/cash/reconciliation/confirm-match', requirePermission('finance:cash:reconcile'), cashController.confirmTransactionMatch);
+router.post(
+  '/cash/reconciliation/import-statement',
+  requirePermission('finance:cash:reconcile'),
+  FileUploadMiddlewares.excel,
+  cashController.importBankStatement
+);
 
 // 3. 统计相关路由
 router.get('/statistics/cash-flow', requirePermission('finance:reports:view'), cashController.getCashFlowStatistics);
@@ -372,7 +383,7 @@ router.put('/pricing/settings', requirePermission('finance:pricing:update'), pri
 
 // 产品定价
 router.get('/pricing', requirePermission('finance:pricing:view'), pricingController.getPricingList);
-router.post('/pricing', requirePermission('finance:pricing:create'), pricingController.createPricing); // 创建产品定价
+router.post('/pricing', requirePermission('finance:pricing:update'), pricingController.createPricing); // 创建产品定价
 router.get('/pricing/export', requirePermission('finance:pricing:export'), pricingExportController.exportPricingList); // 导出功能
 router.get('/pricing/calculate-bom/:productId', requirePermission('finance:pricing:view'), pricingController.calculateBomCost); // 必须在 /:productId 之前
 router.get('/pricing/:productId', requirePermission('finance:pricing:view'), pricingController.getPricingDetail); // 获取单个产品定价详情

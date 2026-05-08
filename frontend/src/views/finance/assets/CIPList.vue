@@ -31,7 +31,7 @@
       <template #header>
         <div class="card-header">
           <span>在建工程列表</span>
-          <el-button type="primary" @click="handleCreate">
+          <el-button v-permission="'finance:assets:create'" type="primary" @click="handleCreate">
             <el-icon><Plus /></el-icon> 新建在建工程
           </el-button>
         </div>
@@ -84,8 +84,8 @@
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <template v-if="row.status === '建设中'">
-              <el-button type="primary" link size="small" @click="handleAddCost(row)">归集成本</el-button>
-              <el-button type="success" link size="small" @click="handleTransfer(row)">转固</el-button>
+              <el-button v-permission="'finance:assets:update'" type="primary" link size="small" @click="handleAddCost(row)">归集成本</el-button>
+              <el-button v-permission="'finance:assets:update'" type="success" link size="small" @click="handleTransfer(row)">转固</el-button>
               <el-button type="warning" link size="small" @click="handleEdit(row)"
               v-permission="'finance:assets:update'">编辑</el-button>
               <el-button v-permission="'finance:assets:delete'" type="danger" link size="small" @click="handleDelete(row)"
@@ -161,7 +161,7 @@
       </el-form>
       <template #footer>
         <el-button @click="formDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
+        <el-button v-permission="isEdit ? 'finance:assets:update' : 'finance:assets:create'" type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </template>
     </el-dialog>
 
@@ -180,7 +180,7 @@
       </el-form>
       <template #footer>
         <el-button @click="costDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitCost" :loading="submitting">确认归集</el-button>
+        <el-button v-permission="'finance:assets:update'" type="primary" @click="submitCost" :loading="submitting">确认归集</el-button>
       </template>
     </el-dialog>
 
@@ -228,7 +228,7 @@
       </el-form>
       <template #footer>
         <el-button @click="transferDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitTransfer" :loading="submitting">确认转固</el-button>
+        <el-button v-permission="'finance:assets:update'" type="primary" @click="submitTransfer" :loading="submitting">确认转固</el-button>
       </template>
     </el-dialog>
   </div>

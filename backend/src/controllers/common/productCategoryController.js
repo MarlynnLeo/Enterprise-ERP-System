@@ -19,10 +19,13 @@ const productCategoryController = {
    */
   async getAllProductCategories(req, res) {
     try {
+      const parsedStatus = req.query.status !== undefined && req.query.status !== ''
+        ? parseInt(req.query.status, 10)
+        : undefined;
       const filters = {
         name: req.query.name,
         code: req.query.code,
-        status: req.query.status !== undefined ? parseInt(req.query.status, 10) || 1 : undefined,
+        status: Number.isNaN(parsedStatus) ? undefined : parsedStatus,
       };
 
       // 添加分页参数 - 支持 pageSize 和 limit 两种参数名

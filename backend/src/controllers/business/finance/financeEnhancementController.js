@@ -14,6 +14,26 @@ const CostAccountingService = require('../../../services/business/CostAccounting
 const AdvancedReportsService = require('../../../services/utils/AdvancedReportsService');
 const db = require('../../../config/db');
 
+function getDefaultReportRange(query = {}) {
+  const today = new Date();
+  const defaultStartDate = new Date(today.getFullYear(), today.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+  const defaultEndDate = today.toISOString().slice(0, 10);
+
+  return {
+    ...query,
+    startDate: query.startDate || defaultStartDate,
+    endDate: query.endDate || defaultEndDate,
+  };
+}
+
+function parsePositiveInteger(value, fallback, max = 100) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
+
 /**
  * 财务增强功能控制器
  * 处理财务模块的增强功能API请求
@@ -117,7 +137,7 @@ class FinanceEnhancementController {
    */
   static async generateFinancialRatioAnalysis(req, res) {
     try {
-      const params = req.query;
+      const params = getDefaultReportRange(req.query);
 
       const result = await AdvancedReportsService.generateFinancialRatioAnalysis(params);
 
@@ -133,7 +153,7 @@ class FinanceEnhancementController {
    */
   static async generateTrendAnalysis(req, res) {
     try {
-      const params = req.query;
+      const params = getDefaultReportRange(req.query);
 
       const result = await AdvancedReportsService.generateTrendAnalysis(params);
 
@@ -181,12 +201,12 @@ class FinanceEnhancementController {
   static async getAutomationHistory(req, res) {
     try {
       const { page = 1, pageSize = 20 } = req.query;
-      const pageNum = parseInt(page) || 1;
-      const pageSizeNum = parseInt(pageSize) || 20;
+      const pageNum = parsePositiveInteger(page, 1, 100000);
+      const pageSizeNum = parsePositiveInteger(pageSize, 20, 100);
       const offset = (pageNum - 1) * pageSizeNum;
 
       // 从operation_logs表获取自动化相关的操作记录（使用参数化查询）
-      const [rows] = await db.pool.execute(`
+      const [rows] = await db.pool.query(`
         SELECT
           id,
           module,
@@ -202,8 +222,8 @@ class FinanceEnhancementController {
           'production_cost'
         )
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-      `, [pageSizeNum, offset]);
+        LIMIT ${pageSizeNum} OFFSET ${offset}
+      `);
 
       // 获取总数
       const [countResult] = await db.pool.execute(`
@@ -286,7 +306,7 @@ class FinanceEnhancementController {
    */
   static async getDashboardData(req, res) {
     try {
-      const { startDate, endDate } = req.query;
+      const { startDate, endDate } = getDefaultReportRange(req.query);
 
       // 获取基础财务数据
       const financialData = await AdvancedReportsService.getFinancialData(startDate, endDate);

@@ -194,8 +194,8 @@
           <el-table-column prop="code" label="来源编码" width="150"></el-table-column>
           <el-table-column prop="type" label="来源类型" width="120">
             <template #default="scope">
-              <el-tag :type="scope.row.type === 'internal' ? 'success' : 'warning'">
-                {{ scope.row.type === 'internal' ? '内部' : '外部' }}
+              <el-tag :type="sourceTypeMap[scope.row.type]?.tag || 'info'">
+                {{ sourceTypeMap[scope.row.type]?.label || scope.row.type || '-' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -409,6 +409,7 @@
           <el-radio-group v-model="sourceFormData.type">
             <el-radio value="internal">内部</el-radio>
             <el-radio value="external">外部</el-radio>
+            <el-radio value="outsourced">外协</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="排序" prop="sort">
@@ -494,15 +495,32 @@ import { parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search, Refresh, Edit, Delete, ArrowDown } from '@element-plus/icons-vue';
-import { api } from '@/services/axiosInstance';
 import { useAuthStore } from '@/stores/auth';
 import { baseDataApi } from '@/api/baseData';
 
 // 权限store
 const authStore = useAuthStore()
-const canCreate = computed(() => authStore.hasPermission('basedata:product-categories:create'))
-const canUpdate = computed(() => authStore.hasPermission('basedata:product-categories:update'))
-const canDelete = computed(() => authStore.hasPermission('basedata:product-categories:delete'))
+const canCreate = computed(() =>
+  authStore.hasPermission('basedata:productcategories:create') ||
+  authStore.hasPermission('basedata:materialsources:create') ||
+  authStore.hasPermission('basedata:inspectionmethods:create')
+)
+const canUpdate = computed(() =>
+  authStore.hasPermission('basedata:productcategories:update') ||
+  authStore.hasPermission('basedata:materialsources:update') ||
+  authStore.hasPermission('basedata:inspectionmethods:update')
+)
+const canDelete = computed(() =>
+  authStore.hasPermission('basedata:productcategories:delete') ||
+  authStore.hasPermission('basedata:materialsources:delete') ||
+  authStore.hasPermission('basedata:inspectionmethods:delete')
+)
+
+const sourceTypeMap = {
+  internal: { label: '内部', tag: 'success' },
+  external: { label: '外部', tag: 'warning' },
+  outsourced: { label: '外协', tag: 'info' }
+}
 
 // ==================== 通用工具函数 ====================
 
@@ -707,7 +725,7 @@ const loadData = async () => {
         pageSize: categoryPagination.size
       };
 
-      const response = await api.get('/baseData/product-categories', { params });
+      const response = await baseDataApi.getProductCategories(params);
       const { data, total } = parseResponseData(response);
 
       tableData.value = data;
@@ -719,7 +737,7 @@ const loadData = async () => {
         pageSize: 10000 // 加载所有数据
       };
 
-      const response = await api.get('/baseData/product-categories', { params });
+      const response = await baseDataApi.getProductCategories(params);
       const { data } = parseResponseData(response);
 
       // 将平铺数据转换为树形结构
@@ -786,7 +804,7 @@ const buildTreeFromFlatData = (flatData) => {
 
 const loadCategoryOptions = async () => {
   try {
-    const response = await api.get('/baseData/product-categories/options');
+    const response = await baseDataApi.getProductCategoryOptions();
     // 拦截器已解包，response.data 就是业务数据
     categoryOptions.value = buildTreeOptions(response.data || []);
   } catch (error) {
@@ -854,7 +872,7 @@ const loadAllData = async () => {
 
 const loadStatistics = async () => {
   try {
-    const response = await api.get('/baseData/product-categories/statistics');
+    const response = await baseDataApi.getProductCategoryStats();
     // 拦截器已解包，response.data 就是业务数据
     stats.value = response.data || {};
   } catch (error) {
@@ -870,9 +888,21 @@ const loadStatistics = async () => {
   }
 };
 
+const loadCurrentViewData = () => {
+  if (viewType.value === 'sources') {
+    return loadSourceData();
+  }
+  if (viewType.value === 'inspections') {
+    return loadInspectionData();
+  }
+  return loadData();
+};
+
 const handleSearch = () => {
   categoryPagination.current = 1;
-  loadData();
+  sourcePagination.current = 1;
+  inspectionPagination.current = 1;
+  loadCurrentViewData();
 };
 
 const resetSearch = () => {
@@ -882,7 +912,9 @@ const resetSearch = () => {
     status: undefined
   });
   categoryPagination.current = 1;
-  loadData();
+  sourcePagination.current = 1;
+  inspectionPagination.current = 1;
+  loadCurrentViewData();
 };
 
 const handleAdd = (parentRow = null) => {
@@ -931,7 +963,7 @@ const handleDelete = async (row) => {
       }
     );
     
-    await api.delete(`/baseData/product-categories/${row.id}`);
+    await baseDataApi.deleteProductCategory(row.id);
     ElMessage.success('删除成功');
     // 删除后重新加载所有数据
     loadAllData();
@@ -950,10 +982,10 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     
     if (isEdit.value) {
-      await api.put(`/baseData/product-categories/${currentId.value}`, formData);
+      await baseDataApi.updateProductCategory(currentId.value, formData);
       ElMessage.success('更新成功');
     } else {
-      await api.post('/baseData/product-categories', formData);
+      await baseDataApi.createProductCategory(formData);
       ElMessage.success('创建成功');
     }
     
@@ -988,7 +1020,7 @@ const handleToggleStatus = async (row) => {
       }
     );
 
-    await api.put(`/baseData/product-categories/${row.id}`, {
+    await baseDataApi.updateProductCategory(row.id, {
       ...row,
       status: newStatus
     });
@@ -1115,10 +1147,10 @@ const handleSourceSubmit = async () => {
     sourceSubmitLoading.value = true;
 
     if (sourceIsEdit.value) {
-      await api.put(`/baseData/material-sources/${sourceCurrentId.value}`, sourceFormData);
+      await baseDataApi.updateMaterialSource(sourceCurrentId.value, sourceFormData);
       ElMessage.success('更新物料来源成功');
     } else {
-      await api.post('/baseData/material-sources', sourceFormData);
+      await baseDataApi.createMaterialSource(sourceFormData);
       ElMessage.success('创建物料来源成功');
     }
 
@@ -1141,11 +1173,14 @@ const loadSourceData = async () => {
   try {
     sourceLoading.value = true;
     const params = {
+      name: searchForm.name || undefined,
+      code: searchForm.code || undefined,
+      status: searchForm.status,
       page: sourcePagination.current,
       pageSize: sourcePagination.size
     };
 
-    const response = await api.get('/baseData/material-sources', { params });
+    const response = await baseDataApi.getMaterialSources(params);
     const { data, total } = parseResponseData(response);
     
     sourceTableData.value = data;
@@ -1196,7 +1231,7 @@ const handleDeleteSource = async (row) => {
       }
     );
 
-    await api.delete(`/baseData/material-sources/${row.id}`);
+    await baseDataApi.deleteMaterialSource(row.id);
     ElMessage.success('删除成功');
     loadSourceData();
   } catch (error) {
@@ -1223,7 +1258,7 @@ const handleToggleSourceStatus = async (row) => {
       }
     );
 
-    await api.put(`/baseData/material-sources/${row.id}`, {
+    await baseDataApi.updateMaterialSource(row.id, {
       ...row,
       status: newStatus
     });

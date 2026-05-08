@@ -1,13 +1,16 @@
 const db = require('../config/db');
 const logger = require('../utils/logger');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
+const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
+const { softDelete } = require('../utils/softDelete');
 
 class NonconformingProduct {
   /**
    * 生成不合格品编号
    */
-  static async generateNcpNo() {
-    return await CodeGeneratorService.nextCode('nonconforming_product');
+  static async generateNcpNo(connection = null) {
+    return await CodeGeneratorService.nextCode('nonconforming_product', connection);
   }
 
   /**
@@ -19,7 +22,7 @@ class NonconformingProduct {
       connection = await db.pool.getConnection();
       await connection.beginTransaction();
 
-      const ncpNo = await this.generateNcpNo();
+      const ncpNo = await this.generateNcpNo(connection);
 
       // ✅ 如果物料名称/编码为空但有物料ID，从物料表获取
       let materialName = ncpData.material_name;
@@ -157,6 +160,19 @@ class NonconformingProduct {
         [result.insertId, `Created NCP ${ncpNo}`, ncpData.created_by || 'system']
       );
 
+      if (ncpData.inspection_id) {
+        await DocumentLinkService.tryAutoLink(
+          'quality_inspection',
+          ncpData.inspection_id,
+          ncpData.inspection_no,
+          'nonconforming_product',
+          result.insertId,
+          ncpNo,
+          null,
+          connection
+        );
+      }
+
       await connection.commit();
 
       logger.info(`Created nonconforming product: ${ncpNo}`);
@@ -187,7 +203,11 @@ class NonconformingProduct {
       endDate,
     } = params;
 
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 10,
+      maxPageSize: 200,
+    });
+
     let query = `
       SELECT
         ncp.*,
@@ -197,7 +217,7 @@ class NonconformingProduct {
       FROM nonconforming_products ncp
       LEFT JOIN materials m ON ncp.material_id = m.id
       LEFT JOIN quality_inspections qi ON ncp.inspection_id = qi.id
-      WHERE 1=1
+      WHERE ncp.deleted_at IS NULL
     `;
     const queryParams = [];
 
@@ -244,8 +264,11 @@ class NonconformingProduct {
       queryParams.push(endDate);
     }
 
-    // 直接拼接LIMIT（参数已验证）
-    query += ` ORDER BY ncp.created_at DESC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`;
+    query = appendPaginationSQL(
+      `${query} ORDER BY ncp.created_at DESC`,
+      pagination.limit,
+      pagination.offset
+    );
 
     const [rows] = await db.pool.query(query, queryParams);
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
@@ -253,9 +276,9 @@ class NonconformingProduct {
     return {
       items: rows,
       total: totalCount,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
-      totalPages: Math.ceil(totalCount / pageSize),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalPages: Math.ceil(totalCount / pagination.pageSize),
     };
   }
 
@@ -268,7 +291,7 @@ class NonconformingProduct {
         ROUND((ncp.quantity / NULLIF(qi.quantity, 0)) * 100, 2) as unqualified_rate
       FROM nonconforming_products ncp
       LEFT JOIN quality_inspections qi ON ncp.inspection_id = qi.id
-      WHERE ncp.id = ?
+      WHERE ncp.id = ? AND ncp.deleted_at IS NULL
     `;
     const [rows] = await db.pool.query(query, [id]);
     return rows.length > 0 ? rows[0] : null;
@@ -279,7 +302,7 @@ class NonconformingProduct {
    */
   static async getByInspectionId(inspectionId) {
     const query =
-      'SELECT * FROM nonconforming_products WHERE inspection_id = ? ORDER BY created_at DESC';
+      'SELECT * FROM nonconforming_products WHERE inspection_id = ? AND deleted_at IS NULL ORDER BY created_at DESC';
     const [rows] = await db.pool.query(query, [inspectionId]);
     return rows;
   }
@@ -287,11 +310,14 @@ class NonconformingProduct {
   /**
    * Update NCP
    */
-  static async update(id, updateData) {
+  static async update(id, updateData, externalConnection = null) {
     let connection;
+    const useOwnConnection = !externalConnection;
     try {
-      connection = await db.pool.getConnection();
-      await connection.beginTransaction();
+      connection = externalConnection || await db.pool.getConnection();
+      if (useOwnConnection) {
+        await connection.beginTransaction();
+      }
 
       const fields = [];
       const values = [];
@@ -327,18 +353,20 @@ class NonconformingProduct {
       }
 
       values.push(id);
-      const query = `UPDATE nonconforming_products SET ${fields.join(', ')} WHERE id = ?`;
+      const query = `UPDATE nonconforming_products SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`;
       await connection.query(query, values);
 
-      await connection.commit();
+      if (useOwnConnection) {
+        await connection.commit();
+      }
       logger.info(`Updated nonconforming product: ${id}`);
       return true;
     } catch (error) {
-      if (connection) await connection.rollback();
+      if (connection && useOwnConnection) await connection.rollback();
       logger.error('Failed to update nonconforming product:', error);
       throw error;
     } finally {
-      if (connection) connection.release();
+      if (connection && useOwnConnection) connection.release();
     }
   }
 
@@ -358,7 +386,7 @@ class NonconformingProduct {
             responsible_party = COALESCE(?, responsible_party),
             supplier_id = COALESCE(?, supplier_id),
             supplier_name = COALESCE(?, supplier_name)
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
       `;
 
       await connection.query(query, [
@@ -414,9 +442,59 @@ class NonconformingProduct {
    * Delete NCP
    */
   static async delete(id) {
-    const query = 'DELETE FROM nonconforming_products WHERE id = ?';
-    const [result] = await db.pool.query(query, [id]);
-    return result.affectedRows > 0;
+    let connection;
+    try {
+      connection = await db.pool.getConnection();
+      await connection.beginTransaction();
+
+      const [rows] = await connection.query(
+        'SELECT id, ncp_no, status FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
+      if (rows.length === 0) {
+        await connection.rollback();
+        return false;
+      }
+
+      const ncp = rows[0];
+      if (ncp.status !== 'pending') {
+        throw new Error('Only pending NCP records can be deleted');
+      }
+
+      const [links] = await connection.query(
+        `SELECT
+           (SELECT COUNT(*) FROM rework_tasks WHERE ncp_id = ?) AS rework_count,
+           (SELECT COUNT(*) FROM scrap_records WHERE ncp_id = ?) AS scrap_count,
+           (SELECT COUNT(*) FROM replacement_orders WHERE ncp_id = ?) AS replacement_count,
+           (SELECT COUNT(*) FROM eight_d_reports WHERE ncp_id = ? AND deleted_at IS NULL) AS eight_d_count`,
+        [id, id, id, id]
+      );
+      const link = links[0] || {};
+      const linkedCount =
+        Number(link.rework_count || 0) +
+        Number(link.scrap_count || 0) +
+        Number(link.replacement_count || 0) +
+        Number(link.eight_d_count || 0);
+      if (linkedCount > 0) {
+        throw new Error('NCP has downstream documents and cannot be deleted');
+      }
+
+      await connection.query(
+        `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
+         VALUES (?, 'delete', ?, 'system')`,
+        [id, `Deleted NCP ${ncp.ncp_no}`]
+      );
+      await softDelete(connection, 'nonconforming_products', 'id', id);
+
+      await connection.commit();
+      return true;
+    } catch (error) {
+      if (connection) await connection.rollback();
+      logger.error('Failed to delete nonconforming product:', error);
+      throw error;
+    } finally {
+      if (connection) connection.release();
+    }
   }
 
   /**
@@ -437,7 +515,7 @@ class NonconformingProduct {
         SUM(quantity) as total_quantity,
         SUM(handling_cost) as total_cost
       FROM nonconforming_products
-      WHERE 1=1
+      WHERE deleted_at IS NULL
     `;
     const queryParams = [];
 

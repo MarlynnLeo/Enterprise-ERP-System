@@ -3,13 +3,22 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { parsePagination } = require('../../../utils/safePagination');
+
+function parseRequiredAmount(value, fieldName) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+  return parsed;
+}
 
 // 获取产品定价列表
 exports.getPricingList = async (req, res) => {
   let connection;
   try {
-    const { page = 1, pageSize = 20, search, filterType } = req.query;
-    const offset = (page - 1) * pageSize;
+    const { search, filterType } = req.query;
+    const pagination = parsePagination(req.query.page, req.query.pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
     connection = await getConnection();
 
@@ -51,7 +60,7 @@ exports.getPricingList = async (req, res) => {
       ORDER BY 
         CASE WHEN pp.id IS NOT NULL THEN 0 ELSE 1 END ASC,
         m.code ASC
-      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     // 统计总数
@@ -150,8 +159,8 @@ exports.getPricingList = async (req, res) => {
     ResponseHandler.success(res, {
       list: finalRows,
       total: applyFilterLater ? finalRows.length : parseInt(countResult[0].total),
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
     });
   } catch (error) {
     logger.error('获取产品定价列表失败:', error);
@@ -379,19 +388,17 @@ async function calculateProductCost(connection, productId) {
   // 优化：增加生效日期检查
   const [frozenCost] = await connection.query(
     `
-        SELECT unit_cost, effective_date 
+        SELECT SUM(standard_price) AS standard_price, MAX(effective_date) AS effective_date
         FROM standard_costs 
-        WHERE product_id = ? AND is_active = 1 
+        WHERE (product_id = ? OR material_id = ?) AND is_active = 1 
         AND effective_date <= CURDATE()
-        ORDER BY effective_date DESC 
-        LIMIT 1
     `,
-    [productId]
+    [productId, productId]
   );
 
-  if (frozenCost.length > 0 && parseFloat(frozenCost[0].unit_cost) > 0) {
+  if (frozenCost.length > 0 && parseFloat(frozenCost[0].standard_price) > 0) {
     return {
-      cost: parseFloat(frozenCost[0].unit_cost),
+      cost: parseFloat(frozenCost[0].standard_price),
       costType: 'frozen_standard',
       hasBom: true,
       source: '冻结标准成本',
@@ -504,9 +511,23 @@ exports.createPricing = async (req, res) => {
       return ResponseHandler.error(res, '产品ID不能为空', 'BAD_REQUEST', 400);
     }
 
+    let costPrice;
+    let suggestedPrice;
+    let profitMargin;
+    try {
+      costPrice = parseRequiredAmount(cost_price, 'cost_price');
+      suggestedPrice = parseRequiredAmount(suggested_price, 'suggested_price');
+      profitMargin = Number(profit_margin);
+      if (!Number.isFinite(profitMargin)) {
+        throw new Error('profit_margin must be a number');
+      }
+    } catch (validationError) {
+      return ResponseHandler.error(res, validationError.message, 'BAD_REQUEST', 400);
+    }
+
     // 价格验证
     try {
-      const validation = validatePricing(cost_price, suggested_price, profit_margin);
+      const validation = validatePricing(costPrice, suggestedPrice, profitMargin);
       if (validation.warning) {
         logger.warn(validation.warning);
       }
@@ -516,6 +537,12 @@ exports.createPricing = async (req, res) => {
 
     connection = await getConnection();
     await connection.beginTransaction();
+
+    const [products] = await connection.query('SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL', [product_id]);
+    if (products.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '产品不存在', 'NOT_FOUND', 404);
+    }
 
     // 1. 将旧的定价标记为inactive
     await connection.query(
@@ -537,9 +564,9 @@ exports.createPricing = async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         product_id,
-        cost_price,
-        suggested_price,
-        profit_margin,
+        costPrice,
+        suggestedPrice,
+        profitMargin,
         newVersion,
         1,
         effective_date || new Date(),
@@ -561,7 +588,7 @@ exports.createPricing = async (req, res) => {
 
     // 5. 同步更新物料基础表中的价格
     await connection.query('UPDATE materials SET price = ? WHERE id = ?', [
-      suggested_price,
+      suggestedPrice,
       product_id,
     ]);
 
@@ -576,9 +603,9 @@ exports.createPricing = async (req, res) => {
       String(product_id),
       null,
       {
-        cost_price,
-        suggested_price,
-        profit_margin,
+        cost_price: costPrice,
+        suggested_price: suggestedPrice,
+        profit_margin: profitMargin,
         effective_date,
         strategies_count: strategies ? strategies.length : 0,
       }

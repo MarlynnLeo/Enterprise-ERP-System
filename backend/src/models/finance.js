@@ -16,6 +16,104 @@ function requirePositiveInteger(value, fieldName) {
   return parsed;
 }
 
+function toDateString(value) {
+  if (!value) return '';
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return String(value).slice(0, 10);
+}
+
+function normalizeDateInput(value, fieldName) {
+  const dateString = toDateString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    throw new Error(`${fieldName}格式必须为YYYY-MM-DD`);
+  }
+
+  const [year, month, day] = dateString.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new Error(`${fieldName}不是有效日期`);
+  }
+
+  return dateString;
+}
+
+function isClosedFlag(value) {
+  return value === true || value === 1 || value === '1';
+}
+
+function parseOptionalBoolean(value, fieldName) {
+  if (value === undefined || value === null || value === '') return null;
+  if (value === true || value === 1 || value === '1' || value === 'true') return 1;
+  if (value === false || value === 0 || value === '0' || value === 'false') return 0;
+  throw new Error(`${fieldName} must be true or false`);
+}
+
+function isDateWithinPeriod(date, period) {
+  const startDate = toDateString(period.start_date);
+  const endDate = toDateString(period.end_date);
+  return date >= startDate && date <= endDate;
+}
+
+async function resolveOpenPeriodForDates(connection, periodId, entryDate, postingDate) {
+  if (periodId) {
+    const resolvedPeriodId = requirePositiveInteger(periodId, '会计期间');
+    const [periods] = await connection.execute(
+      `SELECT id, is_closed, period_name, start_date, end_date
+       FROM gl_periods
+       WHERE id = ?
+       FOR UPDATE`,
+      [resolvedPeriodId]
+    );
+
+    if (periods.length === 0) {
+      throw new Error('会计期间不存在');
+    }
+
+    const period = periods[0];
+    if (!isDateWithinPeriod(entryDate, period) || !isDateWithinPeriod(postingDate, period)) {
+      throw new Error(
+        `冲销日期 ${entryDate} 或过账日期 ${postingDate} 不在会计期间[${period.period_name} ${toDateString(period.start_date)} 至 ${toDateString(period.end_date)}]内`
+      );
+    }
+
+    if (isClosedFlag(period.is_closed)) {
+      throw new Error(`不能在已关闭的会计期间[${period.period_name}]冲销凭证`);
+    }
+
+    return period;
+  }
+
+  const [periods] = await connection.execute(
+    `SELECT id, is_closed, period_name, start_date, end_date
+     FROM gl_periods
+     WHERE ? BETWEEN start_date AND end_date
+       AND ? BETWEEN start_date AND end_date
+     ORDER BY start_date DESC
+     LIMIT 1
+     FOR UPDATE`,
+    [entryDate, postingDate]
+  );
+
+  if (periods.length === 0) {
+    throw new Error(`冲销日期 ${entryDate} 和过账日期 ${postingDate} 未匹配到同一个会计期间`);
+  }
+
+  if (isClosedFlag(periods[0].is_closed)) {
+    throw new Error(`不能在已关闭的会计期间[${periods[0].period_name}]冲销凭证`);
+  }
+
+  return periods[0];
+}
+
 /**
  * 财务模块数据库操作
  */
@@ -352,7 +450,25 @@ const financeModel = {
   getEntryById: async (id) => {
     try {
       // 获取分录头
-      const [entries] = await db.pool.execute('SELECT * FROM gl_entries WHERE id = ?', [id]);
+      const [entries] = await db.pool.execute(
+        `SELECT
+          e.*,
+          EXISTS(
+            SELECT 1
+            FROM gl_entries source_entry
+            WHERE source_entry.reversal_entry_id = e.id
+          ) AS is_reversal_entry,
+          (
+            SELECT source_entry.id
+            FROM gl_entries source_entry
+            WHERE source_entry.reversal_entry_id = e.id
+            LIMIT 1
+          ) AS reversal_of_entry_id
+         FROM gl_entries e
+         WHERE e.id = ?
+         LIMIT 1`,
+        [id]
+      );
       if (entries.length === 0) return null;
 
       const entry = entries[0];
@@ -390,6 +506,17 @@ const financeModel = {
           p.fiscal_year,
           u.real_name as creator_name,
           u.username as creator_username,
+          EXISTS(
+            SELECT 1
+            FROM gl_entries source_entry
+            WHERE source_entry.reversal_entry_id = e.id
+          ) AS is_reversal_entry,
+          (
+            SELECT source_entry.id
+            FROM gl_entries source_entry
+            WHERE source_entry.reversal_entry_id = e.id
+            LIMIT 1
+          ) AS reversal_of_entry_id,
           (SELECT SUM(debit_amount) FROM gl_entry_items WHERE entry_id = e.id) as total_debit,
           (SELECT SUM(credit_amount) FROM gl_entry_items WHERE entry_id = e.id) as total_credit
         FROM gl_entries e
@@ -707,7 +834,7 @@ const financeModel = {
       }
 
       const [result] = await connection.execute(
-        'UPDATE gl_entries SET is_posted = 1 WHERE id = ?',
+        "UPDATE gl_entries SET is_posted = 1, status = 'posted' WHERE id = ?",
         [id]
       );
 
@@ -737,89 +864,103 @@ const financeModel = {
       }
 
       const originalEntry = entries[0];
+
+      if (!originalEntry.is_posted) {
+        throw new Error('未过账的凭证不能冲销，请直接删除或修改草稿凭证');
+      }
+
+      if (originalEntry.is_reversed) {
+        throw new Error('凭证已冲销，不能重复冲销');
+      }
+
+      const [sourceEntries] = await connection.execute(
+        `SELECT id, entry_number
+         FROM gl_entries
+         WHERE reversal_entry_id = ?
+         LIMIT 1
+         FOR UPDATE`,
+        [id]
+      );
+      if (sourceEntries.length > 0) {
+        throw new Error('冲销凭证不能再次冲销，请查看原凭证或按审批流程做红字更正');
+      }
+
+      const entryDate = normalizeDateInput(reversalData.entry_date, '冲销日期');
+      const postingDate = normalizeDateInput(
+        reversalData.posting_date || reversalData.entry_date,
+        '过账日期'
+      );
+      const reversalPeriod = await resolveOpenPeriodForDates(
+        connection,
+        reversalData.period_id,
+        entryDate,
+        postingDate
+      );
+
       const [items] = await connection.execute('SELECT * FROM gl_entry_items WHERE entry_id = ?', [
         id,
       ]);
 
+      if (items.length === 0) {
+        throw new Error('原凭证没有明细，不能冲销');
+      }
+
       // 使用原始凭证的凭证字，如果没有则默认为 "记"
       const voucherWord = originalEntry.voucher_word || '记';
 
-      // 获取该期间+凭证字的下一个可用凭证号 (使用 FOR UPDATE 锁防止并发冲突)
-      const [maxVoucher] = await connection.execute(
-        `SELECT MAX(voucher_number) as max_num FROM gl_entries 
-         WHERE period_id = ? AND voucher_word = ? FOR UPDATE`,
-        [reversalData.period_id, voucherWord]
-      );
-      const voucherNumber = (maxVoucher[0].max_num || 0) + 1;
+      const originalDocumentNumber = originalEntry.document_number || originalEntry.entry_number;
+      const documentBase = `R-${originalDocumentNumber}`;
+      let reversalDocumentNumber = documentBase.slice(0, 50);
 
-      // 自动生成唯一的冲销分录编号（格式: R-{凭证字}-{序号}）
-      // 从数据库查询该前缀的最大编号，避免唯一键冲突
-      const reversalPrefix = `R-${voucherWord}-`;
-      const [maxReversal] = await connection.execute(
-        `SELECT entry_number FROM gl_entries 
-         WHERE entry_number LIKE ? 
-         ORDER BY CAST(SUBSTRING(entry_number, ?) AS UNSIGNED) DESC 
-         LIMIT 1 FOR UPDATE`,
-        [`${reversalPrefix}%`, reversalPrefix.length + 1]
-      );
-      let reversalSeq = 1;
-      if (maxReversal.length > 0) {
-        const lastNum = parseInt(maxReversal[0].entry_number.substring(reversalPrefix.length));
-        if (!isNaN(lastNum)) {
-          reversalSeq = lastNum + 1;
+      for (let suffix = 2; suffix <= 100; suffix++) {
+        const [existingDocuments] = await connection.execute(
+          `SELECT id FROM gl_entries
+           WHERE document_type <=> ?
+             AND document_number = ?
+           LIMIT 1 FOR UPDATE`,
+          [originalEntry.document_type, reversalDocumentNumber]
+        );
+
+        if (existingDocuments.length === 0) {
+          break;
+        }
+
+        const suffixText = `-${suffix}`;
+        reversalDocumentNumber = `${documentBase.slice(0, 50 - suffixText.length)}${suffixText}`;
+
+        if (suffix === 100) {
+          throw new Error('冲销单据号生成失败，请稍后重试');
         }
       }
-      const entryNumber = `${reversalPrefix}${reversalSeq}`;
 
-      // 处理创建人 (标准化为用户ID)
-      const { getUserIdByIdentifier } = require('../utils/userUtils');
-      const createdById = await getUserIdByIdentifier(
-        connection,
-        reversalData.created_by || 'system'
+      const reversalEntryId = await financeModel.createEntry(
+        {
+          entry_date: entryDate,
+          posting_date: postingDate,
+          document_type: originalEntry.document_type,
+          document_number: reversalDocumentNumber,
+          period_id: reversalPeriod.id,
+          description: `冲销分录 ${originalEntry.entry_number}: ${reversalData.description || ''}`,
+          created_by: reversalData.created_by || 'system',
+          voucher_word: voucherWord,
+          status: 'posted',
+          is_posted: 1,
+        },
+        items.map((item) => ({
+          account_id: item.account_id,
+          debit_amount: item.credit_amount,
+          credit_amount: item.debit_amount,
+          currency_code: item.currency_code || 'CNY',
+          exchange_rate: item.exchange_rate || 1,
+          cost_center_id: item.cost_center_id,
+          description: `冲销明细: ${item.description || ''}`,
+        })),
+        connection
       );
-
-      // 创建冲销分录头 (包含 voucher_word 和 voucher_number)
-      const [entryResult] = await connection.execute(
-        `INSERT INTO gl_entries 
-         (entry_number, entry_date, posting_date, document_type, document_number, period_id, is_posted, description, created_by, voucher_word, voucher_number) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          entryNumber,
-          reversalData.entry_date,
-          reversalData.posting_date,
-          originalEntry.document_type,
-          originalEntry.document_number,
-          reversalData.period_id,
-          false,
-          `冲销分录 ${originalEntry.entry_number}: ${reversalData.description || ''}`,
-          createdById,
-          voucherWord,
-          voucherNumber,
-        ]
-      );
-
-      const reversalEntryId = entryResult.insertId;
-
-      // 创建冲销分录明细（借贷方向相反）
-      for (const item of items) {
-        await connection.execute(
-          'INSERT INTO gl_entry_items (entry_id, account_id, debit_amount, credit_amount, currency_code, exchange_rate, cost_center_id, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [
-            reversalEntryId,
-            item.account_id,
-            item.credit_amount, // 借贷方向相反
-            item.debit_amount, // 借贷方向相反
-            item.currency_code,
-            item.exchange_rate,
-            item.cost_center_id,
-            `冲销明细: ${item.description || ''}`,
-          ]
-        );
-      }
 
       // 更新原始分录为已冲销
       await connection.execute(
-        'UPDATE gl_entries SET is_reversed = true, reversal_entry_id = ? WHERE id = ?',
+        "UPDATE gl_entries SET is_reversed = true, reversal_entry_id = ?, status = 'reversed' WHERE id = ?",
         [reversalEntryId, id]
       );
 
@@ -854,12 +995,50 @@ const financeModel = {
   /**
    * 获取所有会计期间
    */
-  getAllPeriods: async () => {
+  getAllPeriods: async (filters = {}) => {
     try {
-      const [periods] = await db.pool.execute(
-        'SELECT *, is_closed FROM gl_periods ORDER BY fiscal_year DESC, start_date DESC'
+      const where = [];
+      const params = [];
+
+      if (filters.fiscalYear !== undefined && filters.fiscalYear !== null && filters.fiscalYear !== '') {
+        const fiscalYear = Number.parseInt(filters.fiscalYear, 10);
+        if (!Number.isInteger(fiscalYear)) {
+          throw new Error('fiscalYear must be an integer');
+        }
+        where.push('fiscal_year = ?');
+        params.push(fiscalYear);
+      }
+
+      const isClosed = parseOptionalBoolean(filters.isClosed, 'isClosed');
+      if (isClosed !== null) {
+        where.push('is_closed = ?');
+        params.push(isClosed);
+      }
+
+      const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+      const [countRows] = await db.pool.execute(
+        `SELECT COUNT(*) AS total FROM gl_periods ${whereClause}`,
+        params
       );
-      return periods;
+
+      const page = Number.parseInt(filters.page, 10);
+      const limit = Number.parseInt(filters.limit || filters.pageSize, 10);
+      const shouldPaginate = Number.isInteger(page) && page > 0 && Number.isInteger(limit) && limit > 0;
+      const safeLimit = shouldPaginate ? Math.min(limit, 500) : null;
+      const offset = shouldPaginate ? (page - 1) * safeLimit : null;
+
+      let query = `SELECT *, is_closed FROM gl_periods ${whereClause} ORDER BY fiscal_year DESC, start_date DESC`;
+      if (shouldPaginate) {
+        query += ` LIMIT ${safeLimit} OFFSET ${offset}`;
+      }
+
+      const [periods] = await db.pool.query(query, params);
+      return {
+        periods,
+        total: Number(countRows[0]?.total || 0),
+        page: shouldPaginate ? page : 1,
+        pageSize: shouldPaginate ? safeLimit : periods.length,
+      };
     } catch (error) {
       logger.error('获取会计期间失败:', error);
       throw error;
@@ -886,13 +1065,24 @@ const financeModel = {
    */
   createPeriod: async (periodData) => {
     try {
+      const [overlaps] = await db.pool.execute(
+        `SELECT id FROM gl_periods
+         WHERE start_date <= ? AND end_date >= ?
+         LIMIT 1`,
+        [periodData.end_date, periodData.start_date]
+      );
+
+      if (overlaps.length > 0) {
+        throw new Error('Accounting period date range overlaps an existing period');
+      }
+
       const [result] = await db.pool.execute(
         'INSERT INTO gl_periods (period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year) VALUES (?, ?, ?, ?, ?, ?)',
         [
           periodData.period_name,
           periodData.start_date,
           periodData.end_date,
-          periodData.is_closed ? 1 : 0,
+          0,
           periodData.is_adjusting !== undefined ? periodData.is_adjusting : false,
           periodData.fiscal_year,
         ]
@@ -907,13 +1097,76 @@ const financeModel = {
   /**
    * 关闭会计期间
    */
-  closePeriod: async (id) => {
+  /**
+   * Update an open accounting period.
+   */
+  updatePeriod: async (id, periodData) => {
+    const connection = await db.pool.getConnection();
     try {
-      const [result] = await db.pool.execute(
-        'UPDATE gl_periods SET is_closed = 1, closed_at = NOW() WHERE id = ?',
+      await connection.beginTransaction();
+
+      const [periods] = await connection.execute(
+        'SELECT id, is_closed FROM gl_periods WHERE id = ? FOR UPDATE',
         [id]
       );
+
+      if (periods.length === 0) {
+        throw new Error('Accounting period not found');
+      }
+
+      if (periods[0].is_closed) {
+        throw new Error('Closed accounting periods cannot be edited');
+      }
+
+      const [overlaps] = await connection.execute(
+        `SELECT id FROM gl_periods
+         WHERE id <> ? AND start_date <= ? AND end_date >= ?
+         LIMIT 1`,
+        [id, periodData.end_date, periodData.start_date]
+      );
+
+      if (overlaps.length > 0) {
+        throw new Error('Accounting period date range overlaps an existing period');
+      }
+
+      const [result] = await connection.execute(
+        `UPDATE gl_periods SET
+          period_name = ?,
+          start_date = ?,
+          end_date = ?,
+          is_adjusting = ?,
+          fiscal_year = ?
+         WHERE id = ?`,
+        [
+          periodData.period_name,
+          periodData.start_date,
+          periodData.end_date,
+          periodData.is_adjusting ? 1 : 0,
+          periodData.fiscal_year,
+          id,
+        ]
+      );
+
+      await connection.commit();
       return result.affectedRows > 0;
+    } catch (error) {
+      await connection.rollback();
+      logger.error('Update accounting period failed:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  },
+
+  closePeriod: async (id) => {
+    try {
+      const PeriodEndService = require('../services/business/PeriodEndService');
+      const result = await PeriodEndService.closePeriod({
+        period_id: Number.parseInt(id, 10),
+        closed_by: 'system',
+        closing_date: new Date().toISOString().slice(0, 10),
+      });
+      return Boolean(result?.periodId);
     } catch (error) {
       logger.error('关闭会计期间失败:', error);
       throw error;
@@ -925,11 +1178,12 @@ const financeModel = {
    */
   reopenPeriod: async (id) => {
     try {
-      const [result] = await db.pool.execute(
-        'UPDATE gl_periods SET is_closed = 0, closed_at = NULL WHERE id = ?',
-        [id]
-      );
-      return result.affectedRows > 0;
+      const PeriodEndService = require('../services/business/PeriodEndService');
+      const result = await PeriodEndService.reopenPeriod({
+        period_id: Number.parseInt(id, 10),
+        reopened_by: 'system',
+      });
+      return Boolean(result?.periodId);
     } catch (error) {
       logger.error('重新开启会计期间失败:', error);
       throw error;

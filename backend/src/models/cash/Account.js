@@ -21,9 +21,9 @@ class BankAccountModel {
       const [result] = await db.pool.execute(
         `INSERT INTO bank_accounts
         (account_number, account_name, bank_name, branch_name,
-         currency_code, current_balance, account_type, is_active,
-         contact_person, contact_phone, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         currency_code, current_balance, opening_balance, account_type, is_active,
+         contact_person, contact_phone, notes, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           accountData.account_number,
           accountData.account_name,
@@ -31,11 +31,13 @@ class BankAccountModel {
           accountData.branch_name || null,
           accountData.currency_code || 'CNY',
           accountData.current_balance || 0,
+          accountData.opening_balance ?? accountData.current_balance ?? 0,
           accountData.account_type || '活期',
           accountData.is_active !== undefined ? accountData.is_active : true,
           accountData.contact_person || null,
           accountData.contact_phone || null,
           accountData.notes || null,
+          accountData.created_by || null,
         ]
       );
 
@@ -122,6 +124,7 @@ class BankAccountModel {
     try {
       const [result] = await db.pool.execute(
         `UPDATE bank_accounts SET
+         account_number = ?,
          account_name = ?,
          bank_name = ?,
          branch_name = ?,
@@ -130,9 +133,11 @@ class BankAccountModel {
          is_active = ?,
          contact_person = ?,
          contact_phone = ?,
-         notes = ?
+         notes = ?,
+         updated_by = ?
          WHERE id = ?`,
         [
+          accountData.account_number,
           accountData.account_name,
           accountData.bank_name,
           accountData.branch_name || null,
@@ -142,6 +147,7 @@ class BankAccountModel {
           accountData.contact_person || null,
           accountData.contact_phone || null,
           accountData.notes || null,
+          accountData.updated_by || null,
           id,
         ]
       );

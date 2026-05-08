@@ -7,7 +7,7 @@
 <template>
   <el-dialog v-model="dialogVisible" title="过程检验规则配置" width="900px" destroy-on-close>
     <div style="margin-bottom: 16px;">
-      <el-button type="primary" @click="showAddRule = true"><el-icon><Plus /></el-icon>添加规则</el-button>
+      <el-button v-permission="'quality:settings:create'" type="primary" @click="showAddRule = true"><el-icon><Plus /></el-icon>添加规则</el-button>
       <el-alert type="info" :closable="false" style="margin-top: 10px;">
         <template #title>
           <span>默认规则：每 <b>{{ DEFAULT_INTERVAL }}分钟</b> 检验一次，抽检比例 <b>{{ DEFAULT_SAMPLE_RATE }}%</b>，巡检打卡间隔 <b>{{ DEFAULT_PUNCH_INTERVAL }}分钟</b>。可针对特定工序/产品配置个性化规则。</span>
@@ -38,9 +38,9 @@
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="handleEdit(row)"
-            v-permission="'quality:process'">编辑</el-button>
+            v-permission="'quality:settings:update'">编辑</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)"
-            v-permission="'quality:process'">删除</el-button>
+            v-permission="'quality:settings:delete'">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -93,7 +93,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showAddRule = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSaveRule">保存</el-button>
+        <el-button v-permission="editingRule ? 'quality:settings:update' : 'quality:settings:create'" type="primary" :loading="submitting" @click="handleSaveRule">保存</el-button>
       </template>
     </el-dialog>
 

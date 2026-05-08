@@ -25,7 +25,7 @@ exports.up = async function(knex) {
   if (productionId) {
     newMenus.push({
       parent_id: productionId,
-      name: 'MRP需求计划',
+      name: '生产需求',
       path: '/production/mrp',
       icon: 'icon-data-analysis',
       permission: 'production:plans',
@@ -54,7 +54,7 @@ exports.up = async function(knex) {
       name: '工程变更(ECN)',
       path: '/basedata/ecn',
       icon: 'icon-edit',
-      permission: 'basedata:bom',
+      permission: 'basedata:boms',
       type: 1,
       sort_order: 100
     });
@@ -138,6 +138,10 @@ exports.up = async function(knex) {
       );
       insertedIds.push(result.insertId);
     } else {
+      await knex.raw(
+        'UPDATE menus SET parent_id = ?, name = ?, icon = ?, permission = ?, type = ?, status = 1, sort_order = ?, updated_at = NOW() WHERE id = ?',
+        [menu.parent_id, menu.name, menu.icon, menu.permission, menu.type, menu.sort_order, existing[0].id]
+      );
       insertedIds.push(existing[0].id);
     }
   }

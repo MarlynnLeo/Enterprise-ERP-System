@@ -26,7 +26,7 @@
             </el-select>
             <el-button type="primary" @click="loadVarianceData">查询</el-button>
             <el-button @click="resetSearch">重置</el-button>
-            <el-button type="success" @click="exportVariance" :loading="exporting">
+            <el-button v-permission="'finance:cost:export'" type="success" @click="exportVariance" :loading="exporting">
               <el-icon><Download /></el-icon> 导出
             </el-button>
           </div>

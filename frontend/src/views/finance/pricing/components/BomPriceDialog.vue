@@ -36,7 +36,7 @@
           <el-table-column label="操作" width="130" align="center" fixed="right">
             <template #default="{ row }">
               <div class="bom-actions">
-                <el-button type="primary" link size="small" @click="$emit('adjust', row)">
+                <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
                   {{ row.has_adjustment ? '重新调整' : '调整' }}
                 </el-button>
                 <el-button 

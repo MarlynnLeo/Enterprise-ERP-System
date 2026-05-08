@@ -86,18 +86,20 @@
               size="small"
               @click="handleEdit(scope.row)"
             
-              v-permission="'finance:gl:periods'">编辑</el-button>
+              v-permission="'finance:periods:update'">编辑</el-button>
             <el-button
               v-if="!scope.row.isClosed"
               type="warning"
               size="small"
               @click="handleClose(scope.row)"
+              v-permission="'finance:periods:update'"
             >关闭期间</el-button>
             <el-button
               v-if="scope.row.isClosed"
               type="success"
               size="small"
               @click="handleReopen(scope.row)"
+              v-permission="'finance:periods:update'"
             >重新开启</el-button>
           </template>
         </el-table-column>
@@ -161,7 +163,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="savePeriod" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="periodForm.id ? 'finance:periods:update' : 'finance:periods:create'" type="primary" @click="savePeriod" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -259,6 +261,10 @@ const periodRules = {
   ]
 };
 
+const getErrorMessage = (error, fallback) => {
+  return error?.response?.data?.message || error?.message || fallback;
+};
+
 // 加载会计期间列表
 const loadPeriods = async () => {
   loading.value = true;
@@ -283,7 +289,7 @@ const loadPeriods = async () => {
         isClosed: period.is_closed,
         isAdjusting: period.is_adjusting
       }));
-      total.value = response.data.periods.length;
+      total.value = response.data.total ?? response.data.periods.length;
     } else if (Array.isArray(response.data)) {
       // 如果直接返回数组
       periodList.value = response.data.map(period => ({
@@ -303,7 +309,7 @@ const loadPeriods = async () => {
     }
   } catch (error) {
     console.error('加载会计期间失败:', error);
-    ElMessage.error('加载会计期间失败');
+    ElMessage.error(getErrorMessage(error, '加载会计期间失败'));
     periodList.value = [];
     total.value = 0;
   } finally {
@@ -343,7 +349,7 @@ const handleEdit = (row) => {
   // 关闭会计期间
 const handleClose = (row) => {
   ElMessageBox.confirm(
-    '关闭会计期间将阻止在该期间内创建新的会计凭证。确认要关闭此期间吗？', 
+    '关闭会计期间会执行未过账检查、损益结转、期末余额快照，并阻止该期间继续创建或过账凭证。确认要关闭此期间吗？',
     '警告', 
     {
       confirmButtonText: '确认',
@@ -352,12 +358,12 @@ const handleClose = (row) => {
     }
   ).then(async () => {
     try {
-      await api.patch(`/finance/periods/${row.id}/close`);
-      ElMessage.success('会计期间已关闭');
+      const response = await api.patch(`/finance/periods/${row.id}/close`);
+      ElMessage.success(response.data?.message || response._message || '会计期间已关闭');
       loadPeriods();
     } catch (error) {
       console.error('关闭会计期间失败:', error);
-      ElMessage.error('关闭会计期间失败');
+      ElMessage.error(getErrorMessage(error, '关闭会计期间失败'));
     }
   }).catch(() => {});
 };
@@ -365,7 +371,7 @@ const handleClose = (row) => {
   // 重新开启会计期间
 const handleReopen = (row) => {
   ElMessageBox.confirm(
-    '重新开启会计期间将允许在该期间内创建新的会计凭证。确认要重新开启此期间吗？', 
+    '重新开启会计期间会先检查后续期间是否已关闭，然后清理本期损益结转凭证和期末余额快照。确认要重新开启此期间吗？',
     '警告', 
     {
       confirmButtonText: '确认',
@@ -374,12 +380,12 @@ const handleReopen = (row) => {
     }
   ).then(async () => {
     try {
-      await api.patch(`/finance/periods/${row.id}/reopen`);
-      ElMessage.success('会计期间已重新开启');
+      const response = await api.patch(`/finance/periods/${row.id}/reopen`);
+      ElMessage.success(response.data?.message || response._message || '会计期间已重新开启');
       loadPeriods();
     } catch (error) {
       console.error('重新开启会计期间失败:', error);
-      ElMessage.error('重新开启会计期间失败');
+      ElMessage.error(getErrorMessage(error, '重新开启会计期间失败'));
     }
   }).catch(() => {});
 };
@@ -397,7 +403,6 @@ const savePeriod = async () => {
           period_name: periodForm.periodName,
           start_date: periodForm.startDate,
           end_date: periodForm.endDate,
-          is_closed: periodForm.isClosed,
           is_adjusting: periodForm.isAdjusting,
           fiscal_year: periodForm.fiscalYear
         };
@@ -415,7 +420,7 @@ const savePeriod = async () => {
         loadPeriods();
       } catch (error) {
         console.error('保存会计期间失败:', error);
-        ElMessage.error('保存会计期间失败');
+        ElMessage.error(getErrorMessage(error, '保存会计期间失败'));
       } finally {
         saveLoading.value = false;
       }

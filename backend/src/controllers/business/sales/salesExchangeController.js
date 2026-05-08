@@ -976,7 +976,30 @@ async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
 
     if (insufficientItems.length === 0) {
       logger.info('✅ 所有物料库存充足，无需生成生产计划或采购申请');
-      return 'ready_to_ship';
+      const connection = await db.pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [orderRows] = await connection.execute(
+          'SELECT order_no, created_by FROM sales_orders WHERE id = ? FOR UPDATE',
+          [salesOrderId]
+        );
+        const order = orderRows[0] || {};
+        const reservationResult = await InventoryReservationService.reserveInventoryForOrder(
+          salesOrderId,
+          order.order_no || String(salesOrderId),
+          items,
+          userInfo.id || userInfo.userId || order.created_by || null,
+          connection
+        );
+        await connection.commit();
+        return reservationResult.fullSuccess ? 'ready_to_ship' : 'shortage';
+      } catch (reservationError) {
+        await connection.rollback();
+        logger.error('库存充足但预留失败:', reservationError);
+        return 'shortage';
+      } finally {
+        connection.release();
+      }
     }
 
     logger.info(`⚠️  发现 ${insufficientItems.length} 个物料库存不足，准备生成计划`);
@@ -1006,8 +1029,7 @@ async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
     }
   } catch (error) {
     logger.error('自动生成后续单据失败:', error);
-    // 不抛出错误，避免影响销售订单创建
-    return 'ready_to_ship'; // 出错时返回默认状态
+    return 'shortage';
   }
 }
 

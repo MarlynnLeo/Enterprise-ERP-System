@@ -23,7 +23,7 @@ const routes = [
     path: '/',
     name: 'Home',
     component: () => import('@/views/Home.vue'),
-    meta: { title: '首页', allowGuest: true }
+    meta: { title: '首页' }
   },
   {
     path: '/about',
@@ -1093,6 +1093,61 @@ const routes = [
   }
 ]
 
+const ROUTE_PERMISSION_RULES = [
+  { pattern: /^\/production\/plans\/create$/, permission: 'production:plans:create' },
+  { pattern: /^\/production\/plans(\/:id)?$/, permission: 'production:plans:view' },
+  { pattern: /^\/production\/tasks(\/.*)?$/, permission: 'production:tasks:view' },
+  { pattern: /^\/production\/tasks\/create$/, permission: 'production:tasks:create' },
+  { pattern: /^\/baseData\/materials\/create$/, permission: 'basedata:materials:create' },
+  { pattern: /^\/baseData\/materials\/:id\/edit$/, permission: 'basedata:materials:update' },
+  { pattern: /^\/baseData\/materials(\/:id)?$/, permission: 'basedata:materials:view' },
+  { pattern: /^\/baseData\/boms(\/.*)?$/, permission: 'basedata:boms:view' },
+  { pattern: /^\/baseData\/customers\/create$/, permission: 'basedata:customers:create' },
+  { pattern: /^\/baseData\/customers(\/:id)?$/, permission: 'basedata:customers:view' },
+  { pattern: /^\/baseData\/suppliers\/create$/, permission: 'basedata:suppliers:create' },
+  { pattern: /^\/baseData\/suppliers(\/:id)?$/, permission: 'basedata:suppliers:view' },
+  { pattern: /^\/baseData\/categories(\/.*)?$/, permission: 'basedata:categories:view' },
+  { pattern: /^\/baseData\/units(\/.*)?$/, permission: 'basedata:units:view' },
+  { pattern: /^\/baseData\/locations(\/.*)?$/, permission: 'basedata:locations:view' },
+  { pattern: /^\/inventory\/stock$/, permission: 'inventory:stock:view' },
+  { pattern: /^\/inventory\/inbound\/create$/, permission: 'inventory:inbound:create' },
+  { pattern: /^\/inventory\/inbound(\/:id)?$/, permission: 'inventory:inbound:view' },
+  { pattern: /^\/inventory\/outbound\/create$/, permission: 'inventory:outbound:create' },
+  { pattern: /^\/inventory\/outbound(\/:id)?$/, permission: 'inventory:outbound:view' },
+  { pattern: /^\/inventory\/transfer\/create$/, permission: 'inventory:transfer:create' },
+  { pattern: /^\/inventory\/transfer(\/:id)?$/, permission: 'inventory:transfer:view' },
+  { pattern: /^\/inventory\/check\/new$/, permission: 'inventory:check:create' },
+  { pattern: /^\/inventory\/check\/:id\/edit$/, permission: 'inventory:check:update' },
+  { pattern: /^\/inventory\/check(\/:id)?$/, permission: 'inventory:check:view' },
+  { pattern: /^\/inventory\/(report|transaction)$/, permission: 'inventory:stock:view' },
+  { pattern: /^\/purchase\/orders\/(create|new)$/, permission: 'purchase:orders:create' },
+  { pattern: /^\/purchase\/orders(\/:id)?$/, permission: 'purchase:orders:view' },
+  { pattern: /^\/purchase\/receipts\/create$/, permission: 'purchase:receipts:create' },
+  { pattern: /^\/purchase\/receipts(\/:id)?$/, permission: 'purchase:receipts:view' },
+  { pattern: /^\/sales\/orders\/create$/, permission: 'sales:orders:create' },
+  { pattern: /^\/sales\/orders(\/:id)?$/, permission: 'sales:orders:view' },
+  { pattern: /^\/finance\/assets(\/.*)?$/, permission: 'finance:assets:view' },
+  { pattern: /^\/finance\/.*reports?/, permission: 'finance:reports:view' },
+  { pattern: /^\/quality\/.*$/, permission: 'quality:reports:view' },
+  { pattern: /^\/equipment\/.*$/, permission: 'production:equipment:view' },
+  { pattern: /^\/hr\/employees.*$/, permission: 'hr:employees:view' },
+  { pattern: /^\/system\/users\/create$/, permission: 'system:users:create' },
+  { pattern: /^\/system\/users(\/:id)?$/, permission: 'system:users:view' }
+]
+
+const applyEnterpriseRoutePermissions = (routeList) => {
+  routeList.forEach((route) => {
+    if (route.meta?.permission) {
+      const matchedRule = ROUTE_PERMISSION_RULES.find((rule) => rule.pattern.test(route.path))
+      if (matchedRule) {
+        route.meta.permission = matchedRule.permission
+      }
+    }
+  })
+}
+
+applyEnterpriseRoutePermissions(routes)
+
 const router = createRouter({
   history: createWebHistory(),
   routes,
@@ -1118,17 +1173,21 @@ router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - ERP移动版` : 'ERP移动版'
 
   // 检查是否需要登录
-  const token = sessionStorage.getItem('token')
-  if (!token && !to.meta.allowGuest) {
+  const authStore = useAuthStore()
+  let isAuthenticated = authStore.isAuthenticated
+
+  if (!isAuthenticated && !to.meta.allowGuest) {
+    isAuthenticated = await authStore.fetchUserProfile()
+  }
+
+  if (!isAuthenticated && !to.meta.allowGuest) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
     return
   }
 
   // ==================== 权限检查 ====================
-  if (to.meta.permission && token) {
+  if (to.meta.permission && isAuthenticated) {
     // 延迟导入 authStore，避免循环依赖
-    const authStore = useAuthStore()
-
     // 首次导航时自动加载权限数据
     if (!authStore.permissionsLoaded) {
       try {

@@ -36,7 +36,7 @@
         <div class="card-header">
           <span>首检管理</span>
           <div>
-            <el-button type="primary" @click="showRulesDialog = true">
+            <el-button v-permission="'quality:settings:view'" type="primary" @click="showRulesDialog = true">
               <el-icon><Setting /></el-icon>首检规则
             </el-button>
           </div>
@@ -99,8 +99,8 @@
         <el-table-column label="操作" fixed="right" min-width="180">
           <template #default="{ row }">
             <el-button size="small" @click="handleView(row)">查看</el-button>
-            <el-button v-if="row.first_article_result === 'pending'" size="small" type="primary" @click="handleInspect(row)">检验</el-button>
-            <el-button v-if="row.first_article_result === 'failed'" size="small" type="warning" @click="handleReinspect(row)">重检</el-button>
+            <el-button v-permission="'quality:inspections:update'" v-if="row.first_article_result === 'pending'" size="small" type="primary" @click="handleInspect(row)">检验</el-button>
+            <el-button v-permission="'quality:inspections:update'" v-if="row.first_article_result === 'failed'" size="small" type="warning" @click="handleReinspect(row)">重检</el-button>
             <el-button v-permission="'quality:inspections:view'" v-if="row.first_article_result === 'passed'" size="small" type="success" @click="handlePrint(row)">打印</el-button>
           </template>
         </el-table-column>

@@ -15,6 +15,34 @@ import { ref, computed } from 'vue'
 import { api, fastApi } from '../services/api'
 import { tokenManager, permissionManager } from '../utils/unifiedStorage'
 
+const permissionAliasMap = {
+  'basedata:bom': 'basedata:boms',
+  'basedata:process-templates': 'basedata:processtemplates',
+  'basedata:product-categories': 'basedata:productcategories',
+  'basedata:material-sources': 'basedata:materialsources',
+  'basedata:inspection-methods': 'basedata:inspectionmethods',
+  'quality:incoming': 'quality:inspections',
+  'quality:process': 'quality:inspections',
+  'quality:final': 'quality:inspections',
+  'quality:first-article': 'quality:inspections'
+}
+
+const expandPermissionCandidates = (permission) => {
+  if (!permission) return []
+
+  const candidates = new Set([permission])
+  Object.entries(permissionAliasMap).forEach(([legacyPrefix, canonicalPrefix]) => {
+    if (permission === legacyPrefix || permission.startsWith(`${legacyPrefix}:`)) {
+      candidates.add(permission.replace(legacyPrefix, canonicalPrefix))
+    }
+    if (permission === canonicalPrefix || permission.startsWith(`${canonicalPrefix}:`)) {
+      candidates.add(permission.replace(canonicalPrefix, legacyPrefix))
+    }
+  })
+
+  return [...candidates]
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(tokenManager.getToken() || '')
   const user = ref(tokenManager.getUser() || null)
@@ -27,6 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
   const permissionsLoading = ref(false) // 权限是否正在加载
 
   const isAuthenticated = computed(() => !!token.value && tokenManager.isTokenValid())
+  const isAdmin = computed(() => permissions.value.includes('*'))
 
   // 设置请求头中的token
   const setAuthHeader = () => {
@@ -227,8 +256,10 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     }
 
+    const candidates = expandPermissionCandidates(permission)
+
     // 精确匹配
-    if (permissions.value.includes(permission)) {
+    if (candidates.some(item => permissions.value.includes(item))) {
       return true
     }
 
@@ -236,10 +267,21 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.some(p => {
       if (p.endsWith(':*')) {
         const prefix = p.slice(0, -2)
-        return permission.startsWith(prefix + ':')
+        return candidates.some(item => item.startsWith(prefix + ':'))
       }
       return false
     })
+  }
+
+  const hasChildPermission = (permission) => {
+    if (permissions.value.includes('*')) {
+      return true
+    }
+
+    const candidates = expandPermissionCandidates(permission)
+    return permissions.value.some(p =>
+      candidates.some(candidate => p.startsWith(`${candidate}:`))
+    )
   }
   
   // 获取用户真实姓名的计算属性
@@ -255,6 +297,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissionsLoaded,
     permissionsLoading,
     isAuthenticated,
+    isAdmin,
     login,
     logout,
     updateUser,
@@ -262,6 +305,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchUserPermissions,
     refreshPermissions,
     hasPermission,
+    hasChildPermission,
     setAuthHeader,
     realName
   }

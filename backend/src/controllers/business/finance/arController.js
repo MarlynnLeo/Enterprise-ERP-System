@@ -9,11 +9,20 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const { financeConfig } = require('../../../config/financeConfig');
-const { accountingConfig } = require('../../../config/accountingConfig');
 const arModel = require('../../../models/ar');
 const BankAccountModel = require('../../../models/cash/Account');
 const db = require('../../../config/db');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+const {
+  INVOICE_STATUS,
+  BANK_BACKED_PAYMENT_METHODS,
+} = require('../../../constants/financeConstants');
+
+const isReceiptBusinessError = (error) =>
+  /不存在|已经|状态|无法|不能|期间|科目|余额|原因|positive integer|作废|冲销/.test(
+    error.message || ''
+  );
 
 /**
  * 应收账款控制器
@@ -66,8 +75,13 @@ const arController = {
 
       // 简化过滤条件处理
       const filters = {};
-      if (req.query.invoiceNumber) filters.invoice_number = req.query.invoiceNumber;
+      if (req.query.invoiceNumber || req.query.invoice_number) {
+        filters.invoice_number = req.query.invoiceNumber || req.query.invoice_number;
+      }
       if (req.query.customerId) filters.customer_id = req.query.customerId;
+      if (req.query.customerName || req.query.customer_name) {
+        filters.customer_name = req.query.customerName || req.query.customer_name;
+      }
       if (req.query.startDate) filters.start_date = req.query.startDate;
       if (req.query.endDate) filters.end_date = req.query.endDate;
       if (req.query.status) filters.status = req.query.status;
@@ -139,13 +153,17 @@ const arController = {
   createInvoice: async (req, res) => {
     try {
       const invoiceData = req.body;
+      const invoiceNumber = invoiceData.invoiceNumber || invoiceData.invoice_number;
+      const customerId = invoiceData.customerId || invoiceData.customer_id;
+      const invoiceDate = invoiceData.invoiceDate || invoiceData.invoice_date;
+      const dueDate = invoiceData.dueDate || invoiceData.due_date;
 
       // 验证必填字段
       if (
-        !invoiceData.invoiceNumber ||
-        !invoiceData.customerId ||
-        !invoiceData.invoiceDate ||
-        !invoiceData.dueDate
+        !invoiceNumber ||
+        !customerId ||
+        !invoiceDate ||
+        !dueDate
       ) {
         return ResponseHandler.error(res, '缺少必要的发票信息', 'VALIDATION_ERROR', 400);
       }
@@ -158,16 +176,18 @@ const arController = {
 
       // 准备数据模型所需的格式
       const modelData = {
-        invoice_number: invoiceData.invoiceNumber,
-        customer_id: invoiceData.customerId,
-        invoice_date: invoiceData.invoiceDate,
-        due_date: invoiceData.dueDate,
+        invoice_number: invoiceNumber,
+        customer_id: customerId,
+        invoice_date: invoiceDate,
+        due_date: dueDate,
         total_amount: amount,
-        currency_code: invoiceData.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        status: invoiceData.status || '草稿',
+        currency_code:
+          invoiceData.currency ||
+          invoiceData.currency_code ||
+          financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        status: INVOICE_STATUS.DRAFT,
         notes: invoiceData.notes || '',
-        // 如果有会计分录信息，也需要处理
-        gl_entry: invoiceData.glEntry || null,
+        items: Array.isArray(invoiceData.items) ? invoiceData.items : [],
       };
 
       // 调用模型方法创建发票
@@ -205,28 +225,20 @@ const arController = {
         return ResponseHandler.error(res, '缺少状态信息', 'VALIDATION_ERROR', 400);
       }
 
-      // 从配置获取有效状态列表
-      await financeConfig.loadFromDatabase(db);
-      const validStatuses = financeConfig.get('status.invoiceStatuses', [
-        '草稿',
-        '已确认',
-        '部分付款',
-        '已付款',
-        '已逾期',
-        '已取消',
-      ]);
-
-      if (!validStatuses.includes(status)) {
+      const manualStatuses = [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.CANCELLED];
+      if (!manualStatuses.includes(status)) {
         return ResponseHandler.error(
           res,
-          `无效的状态值，有效状态: ${validStatuses.join(', ')}`,
+          '只能手工确认或取消草稿发票；部分付款、已付款、已逾期状态由收款和逾期检查自动维护',
           'VALIDATION_ERROR',
           400
         );
       }
 
       // 调用模型方法更新状态
-      const success = await arModel.updateInvoiceStatus(id, status);
+      const success = await arModel.updateInvoiceStatus(id, status, {
+        updated_by: getAuthenticatedUserId(req),
+      });
 
       if (!success) {
         return ResponseHandler.error(res, '发票不存在或状态更新失败', 'NOT_FOUND', 404);
@@ -236,7 +248,13 @@ const arController = {
       return ResponseHandler.success(res, { id, status }, '发票状态更新成功');
     } catch (error) {
       logger.error('更新应收账款发票状态失败:', error);
-      return ResponseHandler.error(res, '更新应收账款发票状态失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '更新应收账款发票状态失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   },
 
@@ -294,9 +312,41 @@ const arController = {
         return ResponseHandler.error(res, '未找到指定的发票', 'NOT_FOUND', 404);
       }
 
-      // 检查发票状态，已付款或已取消不允许修改
-      if (['已付款', '已取消'].includes(existingInvoice.status)) {
-        return ResponseHandler.error(res, `${existingInvoice.status}的发票不允许修改`, 'VALIDATION_ERROR', 400);
+      if (existingInvoice.status !== INVOICE_STATUS.DRAFT) {
+        const financialFields = [
+          'amount',
+          'total_amount',
+          'invoiceNumber',
+          'invoice_number',
+          'customerId',
+          'customer_id',
+          'invoiceDate',
+          'invoice_date',
+          'dueDate',
+          'due_date',
+          'items',
+        ];
+        const hasFinancialField = financialFields.some(field => invoiceData[field] !== undefined);
+        if (hasFinancialField) {
+          return ResponseHandler.error(
+            res,
+            `${existingInvoice.status}的发票已进入财务闭环，只能修改备注/客户发票号`,
+            'VALIDATION_ERROR',
+            400
+          );
+        }
+
+        const success = await arModel.updateInvoice({
+          id: invoiceId,
+          customer_invoice_number:
+            invoiceData.customerInvoiceNumber || invoiceData.customer_invoice_number,
+          notes: invoiceData.notes,
+        });
+
+        if (success) {
+          return ResponseHandler.success(res, { id: invoiceId }, '发票非财务信息更新成功');
+        }
+        return ResponseHandler.error(res, '发票更新失败', 'SERVER_ERROR', 500);
       }
 
       // 验证并转换金额
@@ -423,6 +473,15 @@ const arController = {
         return ResponseHandler.error(res, '应收发票不存在', 'NOT_FOUND', 404);
       }
 
+      if (![INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.PARTIAL_PAID, INVOICE_STATUS.OVERDUE].includes(invoice.status)) {
+        return ResponseHandler.error(
+          res,
+          `发票当前状态为"${invoice.status}"，必须先确认后才能收款`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
       // 检查发票是否还有未收余额
       const balanceAmount = parseFloat(invoice.balance_amount || 0);
       if (balanceAmount <= 0) {
@@ -446,23 +505,6 @@ const arController = {
         );
       }
 
-      // 准备收款数据 — 使用日期+序号机制生成安全编号
-      await financeConfig.loadFromDatabase(db);
-      const rcPrefix = financeConfig.get('invoice.receiptNumberPrefix', 'RC');
-      const nowDate = new Date();
-      const rcYear = nowDate.getFullYear();
-      const rcMonth = String(nowDate.getMonth() + 1).padStart(2, '0');
-      const rcDay = String(nowDate.getDate()).padStart(2, '0');
-      const dateStr = `${rcYear}${rcMonth}${rcDay}`;
-      // 使用 MAX 提取当日最大序号，避免并发重复
-      const [maxResult] = await db.pool.execute(
-        `SELECT MAX(CAST(SUBSTRING_INDEX(receipt_number, '-', -1) AS UNSIGNED)) as maxSerial
-         FROM ar_receipts WHERE receipt_number LIKE ?`,
-        [`${rcPrefix}-${dateStr}-%`]
-      );
-      const nextSerial = (maxResult[0].maxSerial || 0) + 1;
-      const receiptNumber = `${rcPrefix}-${dateStr}-${String(nextSerial).padStart(4, '0')}`;
-
       // 支付方式映射：前端英文值 -> 数据库中文ENUM值
       const paymentMethodMap = {
         cash: '现金',
@@ -479,10 +521,22 @@ const arController = {
         paymentMethod = paymentMethodMap[paymentMethod];
       }
 
+      if (BANK_BACKED_PAYMENT_METHODS.has(paymentMethod) && !receiptData.bankAccountId) {
+        return ResponseHandler.error(
+          res,
+          `${paymentMethod}必须选择收款账户`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
       // 检查银行账户是否被冻结
       if (receiptData.bankAccountId) {
         const bankAccount = await BankAccountModel.getBankAccountById(receiptData.bankAccountId);
-        if (bankAccount && !bankAccount.is_active) {
+        if (!bankAccount) {
+          return ResponseHandler.error(res, '收款账户不存在', 'VALIDATION_ERROR', 400);
+        }
+        if (!bankAccount.is_active) {
           return ResponseHandler.error(
             res,
             `银行账户 "${bankAccount.account_name}" 已被冻结，无法用于收款`,
@@ -491,6 +545,8 @@ const arController = {
           );
         }
       }
+
+      const receiptNumber = await CodeGeneratorService.nextCode('ar_receipt');
 
       const modelData = {
         receipt_number: receiptNumber,
@@ -513,65 +569,7 @@ const arController = {
         },
       ];
 
-      // ========== 构建会计凭证数据 ==========
-
-      // 校验会计科目是否存在
-      let receivableAccountId, bankAccountId;
-      try {
-        const [receivableAccountCheck] = await db.pool.execute(
-          'SELECT id FROM gl_accounts WHERE account_code = ?',
-          [accountingConfig.getAccountCode('ACCOUNTS_RECEIVABLE') || '1122'] // 应收账款科目
-        );
-
-        const [bankAccountCheck] = await db.pool.execute(
-          'SELECT id FROM gl_accounts WHERE account_code = ?',
-          [
-            paymentMethod === '现金'
-              ? accountingConfig.getAccountCode('CASH') || '1001'
-              : accountingConfig.getAccountCode('BANK_DEPOSIT') || '1002',
-          ]
-        );
-
-        if (!receivableAccountCheck.length) {
-          logger.error(
-            `应收账款科目${accountingConfig.getAccountCode('ACCOUNTS_RECEIVABLE') || '1122'}不存在`
-          );
-          throw new Error('应收账款科目不存在');
-        }
-
-        if (!bankAccountCheck.length) {
-          logger.error('银行/现金科目不存在');
-          throw new Error('银行/现金科目不存在');
-        }
-
-        receivableAccountId = receivableAccountCheck[0].id;
-        bankAccountId = bankAccountCheck[0].id;
-      } catch (error) {
-        logger.error('会计科目验证失败:', error);
-        throw error;
-      }
-
-      // 获取当前会计期间ID
-      await financeConfig.loadFromDatabase(db);
-      const periodId = await financeConfig.getCurrentPeriodId(db);
-
-      if (!periodId) {
-        throw new Error('无法获取当前会计期间，请先创建会计期间');
-      }
-
-      // 创建会计凭证数据
-      const glEntry = {
-        entry_number: `AR-${receiptNumber}`,
-        period_id: periodId,
-        created_by: financeConfig.get('system.defaultCreator', 'system'),
-        receivable_account_id: receivableAccountId,
-        bank_account_id: bankAccountId,
-      };
-
-      // 添加会计凭证数据到收款数据中
-      modelData.gl_entry = glEntry;
-
-      // 调用模型方法创建收款记录（会自动创建会计凭证）
+      // 调用模型方法创建收款记录；模型在同一事务中维护发票、资金流水和会计凭证
       const receiptId = await arModel.createReceipt(modelData, receiptItems);
 
       return ResponseHandler.success(
@@ -585,7 +583,6 @@ const arController = {
             customer: invoice.customer_name,
             amount: receiptData.amount,
             receiptDate: modelData.receipt_date,
-            glEntryNumber: glEntry.entry_number,
           },
         },
         '收款记录创建成功',
@@ -593,7 +590,13 @@ const arController = {
       );
     } catch (error) {
       logger.error('创建收款记录失败:', error);
-      return ResponseHandler.error(res, '创建收款记录失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '创建收款记录失败',
+        'VALIDATION_ERROR',
+        400,
+        error
+      );
     }
   },
 
@@ -624,11 +627,12 @@ const arController = {
       return ResponseHandler.success(res, null, '收款记录已成功作废');
     } catch (error) {
       logger.error('作废收款记录失败:', error);
+      const businessError = isReceiptBusinessError(error);
       return ResponseHandler.error(
         res,
         error.message || '作废收款记录失败',
-        'SERVER_ERROR',
-        500,
+        businessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        businessError ? 400 : 500,
         error
       );
     }
@@ -1049,28 +1053,10 @@ const arController = {
    */
   generateReceiptNumber: async (req, res) => {
     try {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const dateStr = `${year}${month}${day}`;
-
-      // 确保配置已加载
-      await financeConfig.loadFromDatabase(db);
-      const prefix = financeConfig.get('invoice.receiptNumberPrefix', 'RC');
-
-      // 使用 MAX 提取当日最大序号，避免删除记录后编号冲突
-      const [result] = await db.pool.execute(
-        `SELECT MAX(CAST(SUBSTRING_INDEX(receipt_number, '-', -1) AS UNSIGNED)) as maxSerial
-         FROM ar_receipts WHERE receipt_number LIKE ?`,
-        [`${prefix}-${dateStr}-%`]
-      );
-
-      const nextSerial = (result[0].maxSerial || 0) + 1;
-      const serialNumber = String(nextSerial).padStart(4, '0');
-
-      // 生成收款编号: PREFIX-YYYYMMDD-序号
-      const receiptNumber = `${prefix}-${dateStr}-${serialNumber}`;
+      const receiptNumber = await CodeGeneratorService.previewCode('ar_receipt');
+      if (!receiptNumber) {
+        return ResponseHandler.error(res, '收款编号规则未配置', 'CONFIG_ERROR', 500);
+      }
 
       return ResponseHandler.success(res, { receiptNumber }, '生成收款编号成功');
     } catch (error) {
@@ -1090,7 +1076,7 @@ const arController = {
         SELECT id, invoice_number, customer_id, invoice_date, due_date,
                total_amount, paid_amount, balance_amount, status
         FROM ar_invoices
-        WHERE balance_amount > 0 AND status != '已取消'
+        WHERE balance_amount > 0 AND status IN ('已确认', '部分付款', '已逾期')
       `;
 
       const params = [];

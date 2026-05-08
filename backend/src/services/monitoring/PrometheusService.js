@@ -24,7 +24,7 @@ class PrometheusService {
     // 自定义指标
     this.initCustomMetrics();
 
-    logger.info('✅ Prometheus 监控服务已初始化');
+    logger.debug('Prometheus 监控服务已初始化');
   }
 
   /**

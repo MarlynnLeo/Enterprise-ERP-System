@@ -11,9 +11,17 @@ const { validateRequiredFields } = require('../../../utils/validationHelper');
 
 const assetsModel = require('../../../models/assets');
 const db = require('../../../config/db');
-const financeModel = require('../../../models/finance');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+
+const DISPOSED_ASSET_STATUSES = new Set(['报废', '已处置', '已出售', '已转让', '已捐赠', 'disposed', 'sold', 'transferred', 'donated']);
+
+function calculateAssetNetBookValue(asset) {
+  const acquisitionCost = Number(asset.acquisition_cost || asset.originalValue) || 0;
+  const accumulatedDepreciation = Number(asset.accumulated_depreciation) || 0;
+  const impairmentAmount = Number(asset.impairment_amount) || 0;
+  return Math.round(Math.max(0, acquisitionCost - accumulatedDepreciation - impairmentAmount) * 100) / 100;
+}
 
 /**
  * 固定资产控制器
@@ -82,7 +90,7 @@ const assetsController = {
         categoryId: asset.category_id,
         purchaseDate: asset.acquisition_date,
         originalValue: parseFloat(asset.acquisition_cost),
-        netValue: parseFloat(asset.current_value - asset.accumulated_depreciation),
+        netValue: calculateAssetNetBookValue(asset),
         location: asset.location_id || '',
         department: asset.department_name || '',
         responsible: asset.custodian || '',
@@ -364,9 +372,7 @@ const assetsController = {
         categoryId: updatedAsset.category_id,
         purchaseDate: updatedAsset.acquisition_date,
         originalValue: parseFloat(updatedAsset.acquisition_cost || 0),
-        netValue: parseFloat(
-          (updatedAsset.current_value || 0) - (updatedAsset.accumulated_depreciation || 0)
-        ),
+        netValue: calculateAssetNetBookValue(updatedAsset),
         location: updatedAsset.location_id || '',
         department: updatedAsset.department_name || '',
         responsible: updatedAsset.custodian || '',
@@ -418,15 +424,16 @@ const assetsController = {
       const today = new Date();
       const depreciationDate = today.toISOString().slice(0, 10); // YYYY-MM-DD格式
 
-      const currentPeriod = await financeModel.getCurrentPeriod();
-      if (!currentPeriod) {
-        return ResponseHandler.error(res, '未找到可用会计期间，请先维护会计期间', 'BAD_REQUEST', 400);
+      const GLService = require('../../../services/finance/GLService');
+      const periodId = await GLService.getPeriodIdByDate(depreciationDate);
+      if (!periodId) {
+        return ResponseHandler.error(res, '未找到折旧日期对应的开放会计期间，请先维护会计期间', 'BAD_REQUEST', 400);
       }
 
       // 准备折旧参数
       const params = {
         assetId: assetId,
-        periodId: currentPeriod.id,
+        periodId,
         depreciationDate: depreciationDate,
         notes: `资产${assetId}的手动折旧计提`,
       };
@@ -528,7 +535,7 @@ const assetsController = {
       }
 
       // 调用模型方法提交折旧
-      await assetsModel.submitDepreciation(depreciationDate, assets, {
+      const result = await assetsModel.submitDepreciation(depreciationDate, assets, {
         created_by: getAuthenticatedUserId(req),
       });
 
@@ -536,14 +543,27 @@ const assetsController = {
         res,
         {
           depreciationDate,
-          assetsCount: assets.length,
-          totalDepreciationAmount: assets.reduce((sum, asset) => sum + asset.depreciationAmount, 0),
+          requestedAssetsCount: assets.length,
+          processedAssets: result.processedAssets,
+          skippedAssets: result.skippedAssets || [],
+          totalDepreciationAmount: result.totalAmount,
+          records: result.records,
+          entry: result.entry,
         },
         '折旧提交成功'
       );
     } catch (error) {
       logger.error('提交折旧失败:', error);
-      ResponseHandler.error(res, '提交折旧失败', 'SERVER_ERROR', 500, error);
+      const isBusinessError = /不正确|不一致|没有可计提|未找到|不存在|已计提|状态/.test(
+        error.message || ''
+      );
+      ResponseHandler.error(
+        res,
+        error.message || '提交折旧失败',
+        isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isBusinessError ? 400 : 500,
+        error
+      );
     }
   },
 
@@ -674,6 +694,38 @@ const assetsController = {
         return ResponseHandler.error(res, '资产不存在', 'NOT_FOUND', 404);
       }
 
+      if (action === 'reject') {
+        if (DISPOSED_ASSET_STATUSES.has(String(asset.status || '').trim())) {
+          return ResponseHandler.error(res, '已处置资产不能反审核', 'BAD_REQUEST', 400);
+        }
+
+        const [usageRows] = await db.pool.query(
+          `SELECT
+             (SELECT COUNT(*) FROM fixed_asset_depreciation_details WHERE asset_id = ?) AS depreciation_detail_count,
+             (SELECT COUNT(*) FROM asset_depreciation WHERE asset_id = ?) AS depreciation_count,
+             (SELECT COUNT(*) FROM asset_impairments WHERE asset_id = ?) AS impairment_count,
+             (SELECT COUNT(*) FROM asset_transfers WHERE asset_id = ?) AS transfer_count,
+             (SELECT COUNT(*) FROM document_links WHERE source_type = 'asset' AND source_id = ? AND target_type = 'finance_voucher') AS voucher_link_count`,
+          [assetId, assetId, assetId, assetId, assetId]
+        );
+        const usage = usageRows[0] || {};
+        const hasFinancialUsage =
+          Number(usage.depreciation_detail_count || 0) > 0 ||
+          Number(usage.depreciation_count || 0) > 0 ||
+          Number(usage.impairment_count || 0) > 0 ||
+          Number(usage.transfer_count || 0) > 0 ||
+          Number(usage.voucher_link_count || 0) > 0;
+
+        if (hasFinancialUsage) {
+          return ResponseHandler.error(
+            res,
+            '资产已发生折旧、减值、调拨或凭证关联，不能反审核',
+            'BAD_REQUEST',
+            400
+          );
+        }
+      }
+
       const auditStatus = action === 'approve' ? 'approved' : 'draft';
       const auditedBy = action === 'approve' ? (await getCurrentUserName(req)) : null;
       const auditedAt = action === 'approve' ? new Date() : null;
@@ -712,7 +764,7 @@ const assetsController = {
   disposeAsset: async (req, res) => {
     try {
       const assetId = req.params.id;
-      const { disposalDate, disposalAmount, disposalReason, disposalMethod, handler, notes } =
+      const { disposalDate, disposalAmount, disposalReason, disposalMethod, bankAccountId, handler, notes } =
         req.body;
 
       // 验证必填字段
@@ -737,6 +789,19 @@ const assetsController = {
         ]);
       }
 
+      const parsedDisposalAmount = parseFloat(disposalAmount || 0);
+      if (!Number.isFinite(parsedDisposalAmount) || parsedDisposalAmount < 0) {
+        return ResponseHandler.validationError(res, '无效的处置金额', [
+          { field: 'disposalAmount', message: '处置金额不能为负数' },
+        ]);
+      }
+
+      if (parsedDisposalAmount > 0 && !bankAccountId) {
+        return ResponseHandler.validationError(res, '参数验证失败', [
+          { field: 'bankAccountId', message: '有处置收款时必须选择收款银行账户' },
+        ]);
+      }
+
       // 获取资产信息
       const asset = await assetsModel.getAssetById(assetId);
       if (!asset) {
@@ -744,17 +809,20 @@ const assetsController = {
       }
 
       // 检查资产状态
-      const disposedStatuses = ['已处置', '报废', '已出售', '已转让', '已捐赠'];
-      if (disposedStatuses.includes(asset.status)) {
+      if (DISPOSED_ASSET_STATUSES.has(String(asset.status || '').trim())) {
         return res.status(400).json({ error: '该资产已经处置，不能重复处置' });
+      }
+      if (asset.audit_status !== 'approved') {
+        return ResponseHandler.error(res, '资产必须先审核通过，才能进行处置', 'BAD_REQUEST', 400);
       }
 
       // 准备处置数据
       const disposalData = {
         disposal_date: disposalDate,
-        disposal_amount: parseFloat(disposalAmount || 0),
+        disposal_amount: parsedDisposalAmount,
         disposal_reason: disposalReason,
         disposal_method: disposalMethod || '报废',
+        bank_account_id: bankAccountId ? parseInt(bankAccountId, 10) : null,
         handler: handler || 'system',
         notes: notes || '',
         asset_code: asset.asset_code,
@@ -762,11 +830,11 @@ const assetsController = {
       };
 
       // 调用模型方法处置资产（传递id作为第一个参数）
-      await assetsModel.disposeAsset(assetId, disposalData);
+      const result = await assetsModel.disposeAsset(assetId, disposalData);
 
       // 计算处置损益
-      const netBookValue = parseFloat(asset.net_book_value || asset.current_value || 0);
-      const disposalGainLoss = parseFloat(disposalAmount || 0) - netBookValue;
+      const netBookValue = calculateAssetNetBookValue(asset);
+      const disposalGainLoss = parsedDisposalAmount - netBookValue;
 
       ResponseHandler.success(
         res,
@@ -775,15 +843,27 @@ const assetsController = {
           assetCode: asset.asset_code,
           assetName: asset.asset_name,
           disposalDate: disposalDate,
-          disposalAmount: parseFloat(disposalAmount || 0),
+          disposalAmount: parsedDisposalAmount,
           netBookValue: netBookValue,
           disposalGainLoss: disposalGainLoss,
+          documentNumber: result.documentNumber,
+          entries: result.entries || [],
+          bankTransactionId: result.bankTransactionId || null,
           message: '资产处置成功',
         },
         '资产处置成功'
       );
     } catch (error) {
       logger.error('处置资产失败:', error);
+      if (
+        error.message &&
+        (error.message.includes('资产处置失败') ||
+          error.message.includes('必须先审核') ||
+          error.message.includes('已处置') ||
+          error.message.includes('银行账户'))
+      ) {
+        return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+      }
       ResponseHandler.error(res, '处置资产失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -809,8 +889,11 @@ const assetsController = {
       }
 
       // 检查资产状态是否允许调拨
-      if (asset.asset_type === '报废' || asset.asset_type === '已处置') {
-        return ResponseHandler.error(res, '已报废或已处置的资产不能进行调拨', 'BAD_REQUEST', 400);
+      if (DISPOSED_ASSET_STATUSES.has(String(asset.status || '').trim())) {
+        return ResponseHandler.error(res, '已处置的资产不能进行调拨', 'BAD_REQUEST', 400);
+      }
+      if (asset.audit_status !== 'approved') {
+        return ResponseHandler.error(res, '资产必须先审核通过，才能进行调拨', 'BAD_REQUEST', 400);
       }
 
       // 获取调拨参数
@@ -839,6 +922,7 @@ const assetsController = {
         transferDate,
         transferReason: transferReason || '',
         notes: notes || '',
+        created_by: getAuthenticatedUserId(req),
       };
 
       // 执行调拨并获取结果
@@ -860,6 +944,14 @@ const assetsController = {
       );
     } catch (error) {
       logger.error('转移资产失败:', error);
+      if (
+        error.message &&
+        (error.message.includes('资产调拨失败') ||
+          error.message.includes('必须先审核') ||
+          error.message.includes('已处置'))
+      ) {
+        return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+      }
       ResponseHandler.error(res, '转移资产失败', 'SERVER_ERROR', 500, error);
     }
   },
@@ -874,7 +966,7 @@ const assetsController = {
         SELECT 
           COUNT(*) as total,
           SUM(acquisition_cost) as totalValue,
-          SUM(current_value - accumulated_depreciation) as netValue
+          SUM(GREATEST(COALESCE(acquisition_cost, 0) - COALESCE(accumulated_depreciation, 0) - COALESCE(impairment_amount, 0), 0)) as netValue
         FROM fixed_assets
       `);
 
@@ -910,7 +1002,7 @@ const assetsController = {
         } else if (item.status === '维修') {
           stats.underRepairCount = item.count;
           stats.underRepairValue = item.value;
-        } else if (item.status === '报废' || item.status === '已处置') {
+        } else if (DISPOSED_ASSET_STATUSES.has(String(item.status || '').trim())) {
           stats.disposedCount = (stats.disposedCount || 0) + item.count;
           stats.disposedValue = (stats.disposedValue || 0) + item.value;
         }
@@ -1155,13 +1247,18 @@ const assetsController = {
         impairment_amount,
         impairment_date,
         reason,
-        handled_by: await getCurrentUserName(req)
+        handled_by: await getCurrentUserName(req),
+        created_by: getAuthenticatedUserId(req),
       };
 
       const id = await assetsModel.createImpairment(assetId, impairmentData);
       return ResponseHandler.success(res, { id }, '计提减值准备成功', 201);
     } catch (error) {
-      if (error.message.includes('不能大于资产当前净值')) {
+      if (
+        error.message.includes('不能大于资产当前净值') ||
+        error.message.includes('资产减值失败') ||
+        error.message.includes('必须大于0')
+      ) {
         return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
       }
       logger.error('计提减值准备失败:', error);
@@ -1190,13 +1287,18 @@ const assetsController = {
         return ResponseHandler.validationError(res, '参数验证失败', validationError.fields);
       }
 
-      const userId = req.user ? req.user.username : 'system';
+      const userId = getAuthenticatedUserId(req);
       const result = await assetsModel.splitAsset(assetId, splitData, userId);
 
       return ResponseHandler.success(res, result, '资产拆分成功');
     } catch (error) {
       logger.error('资产拆分失败:', error);
-      if (error.message && (error.message.includes('不能拆分') || error.message.includes('拆分金额'))) {
+      if (
+        error.message &&
+        (error.message.includes('资产拆分失败') ||
+          error.message.includes('不能拆分') ||
+          error.message.includes('拆分金额'))
+      ) {
         return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
       }
       ResponseHandler.error(res, '资产拆分失败', 'SERVER_ERROR', 500, error);

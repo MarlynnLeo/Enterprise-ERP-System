@@ -3,6 +3,8 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
 
+const VALID_FIELD_TYPES = new Set(['amount', 'percentage']);
+
 /**
  * 获取定价策略字段列表
  */
@@ -81,7 +83,15 @@ exports.createStrategyField = async (req, res) => {
       );
     }
 
+    if (field_type && !VALID_FIELD_TYPES.has(field_type)) {
+      return ResponseHandler.error(res, '字段类型只能是 amount 或 percentage', 'BAD_REQUEST', 400);
+    }
+
     connection = await getConnection();
+
+    if (field_type && !VALID_FIELD_TYPES.has(field_type)) {
+      return ResponseHandler.error(res, '字段类型只能是 amount 或 percentage', 'BAD_REQUEST', 400);
+    }
 
     // 检查字段名是否重复
     const [existing] = await connection.query(

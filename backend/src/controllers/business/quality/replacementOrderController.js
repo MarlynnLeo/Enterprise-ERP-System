@@ -8,6 +8,8 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const db = require('../../../config/db');
 const pool = db.pool;
 const businessConfig = require('../../../config/businessConfig');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const QualityIntegrationService = require('../../../services/business/QualityIntegrationService');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -31,7 +33,10 @@ const getReplacementOrders = async (req, res) => {
       endDate,
     } = req.query;
 
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 10,
+      maxPageSize: 200,
+    });
 
     const whereConditions = [];
     const queryParams = [];
@@ -83,10 +88,7 @@ const getReplacementOrders = async (req, res) => {
     const total = countResult[0].total;
 
     // 查询列表数据
-    // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const actualPageSize = parseInt(pageSize);
-    const actualOffset = parseInt(offset);
-    const dataQuery = `
+    const dataQuery = appendPaginationSQL(`
       SELECT
         ro.*,
         ncp.inspection_no,
@@ -95,16 +97,15 @@ const getReplacementOrders = async (req, res) => {
       LEFT JOIN nonconforming_products ncp ON ro.ncp_id = ncp.id
       ${whereClause}
       ORDER BY ro.created_at DESC
-      LIMIT ${actualPageSize} OFFSET ${actualOffset}
-    `;
+    `, pagination.limit, pagination.offset);
     const [rows] = await pool.query(dataQuery, queryParams);
 
     return ResponseHandler.success(res, {
       data: rows,
       pagination: {
         total,
-        current: parseInt(page),
-        pageSize: parseInt(pageSize),
+        current: pagination.page,
+        pageSize: pagination.pageSize,
       },
     }, '获取换货单列表成功');
   } catch (error) {
@@ -127,10 +128,10 @@ const getReplacementOrderById = async (req, res) => {
         ncp.inspection_id,
         ncp.defect_description,
         ncp.quantity as defect_quantity,
-        sr.status as return_status
+        pr.status as return_status
       FROM replacement_orders ro
       LEFT JOIN nonconforming_products ncp ON ro.ncp_id = ncp.id
-      LEFT JOIN supplier_returns sr ON ro.return_no = sr.return_no
+      LEFT JOIN purchase_returns pr ON ro.return_no = pr.return_no
       WHERE ro.id = ?
     `;
 
@@ -207,8 +208,14 @@ const confirmReceipt = async (req, res) => {
     const { id } = req.params;
     const { received_quantity, actual_date, note } = req.body;
 
+    const receiveQty = parseFloat(received_quantity);
+    if (!Number.isFinite(receiveQty) || receiveQty <= 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '收货数量必须大于0', 'BAD_REQUEST', 400);
+    }
+
     // 获取换货单信息
-    const [orders] = await connection.query('SELECT * FROM replacement_orders WHERE id = ?', [id]);
+    const [orders] = await connection.query('SELECT * FROM replacement_orders WHERE id = ? FOR UPDATE', [id]);
 
     if (orders.length === 0) {
       await connection.rollback();
@@ -226,7 +233,7 @@ const confirmReceipt = async (req, res) => {
     }
 
     // 计算新的已收货数量
-    const newReceivedQty = parseFloat(order.received_quantity || 0) + parseFloat(received_quantity);
+    const newReceivedQty = parseFloat(order.received_quantity || 0) + receiveQty;
     const totalQty = parseFloat(order.quantity);
 
     if (newReceivedQty > totalQty) {
@@ -240,6 +247,17 @@ const confirmReceipt = async (req, res) => {
       newStatus = 'completed';
     }
 
+    const receipt = await QualityIntegrationService.createReplacementReceipt(
+      {
+        replacementOrder: order,
+        receivedQuantity: receiveQty,
+        actualDate: actual_date,
+        note,
+        user: req.user,
+      },
+      connection
+    );
+
     // 更新换货单
     await connection.query(
       `UPDATE replacement_orders
@@ -249,9 +267,11 @@ const confirmReceipt = async (req, res) => {
     );
 
     await connection.commit();
+    QualityIntegrationService.emitPurchaseReceiptCompleted(receipt.receipt_id, req.user?.id);
     return ResponseHandler.success(res, {
       received_quantity: newReceivedQty,
       status: newStatus,
+      receipt,
     }, '收货确认成功');
   } catch (error) {
     await connection.rollback();
@@ -275,7 +295,29 @@ const updateStatus = async (req, res) => {
 
     const validStatuses = ['pending', 'partial', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
+      await connection.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+    }
+
+    const [existing] = await connection.query('SELECT * FROM replacement_orders WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '换货单不存在', 'NOT_FOUND', 404);
+    }
+
+    const order = existing[0];
+    const receivedQty = parseFloat(order.received_quantity || 0);
+    if (order.status === STATUS.REPLACEMENT.COMPLETED) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '已完成的换货单不能变更状态', 'BAD_REQUEST', 400);
+    }
+    if (['partial', 'completed'].includes(status)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '部分收货和完成状态必须通过收货确认流程产生', 'BAD_REQUEST', 400);
+    }
+    if (['pending', 'cancelled'].includes(status) && receivedQty > 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '已有收货记录的换货单不能退回待收货或取消', 'BAD_REQUEST', 400);
     }
 
     await connection.query(

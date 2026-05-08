@@ -6,6 +6,7 @@ const financeModel = require('../../models/finance');
 const taxModel = require('../../models/tax');
 const { financeConfig } = require('../../config/financeConfig');
 const { getUserIdByIdentifier } = require('../../utils/userUtils');
+const DocumentLinkService = require('../business/DocumentLinkService');
 const logger = require('../../utils/logger');
 
 class FinanceIntegrationService {
@@ -107,6 +108,80 @@ class FinanceIntegrationService {
     return await CodeGeneratorService.nextCode(businessType, connection);
   }
 
+  static async findExistingInvoiceBySource(connection, tableName, sourceType, sourceId) {
+    if (!sourceId) return null;
+    const allowedTables = {
+      ar_invoices: 'invoice_number',
+      ap_invoices: 'invoice_number',
+    };
+    const invoiceNumberColumn = allowedTables[tableName];
+    if (!invoiceNumberColumn) {
+      throw new Error(`不支持的发票幂等表: ${tableName}`);
+    }
+
+    const [rows] = await connection.execute(
+      `SELECT id, ${invoiceNumberColumn} AS invoice_number, total_amount
+       FROM ${tableName}
+       WHERE source_type = ?
+         AND source_id = ?
+         AND status <> '已取消'
+       LIMIT 1
+       FOR UPDATE`,
+      [sourceType, sourceId]
+    );
+    return rows[0] || null;
+  }
+
+  static async findExistingTaxInvoice(connection, relatedDocumentType, relatedDocumentId) {
+    if (!relatedDocumentId) return null;
+    const [rows] = await connection.execute(
+      `SELECT id, invoice_number, total_amount
+       FROM tax_invoices
+       WHERE related_document_type = ?
+         AND related_document_id = ?
+         AND status <> '已作废'
+       LIMIT 1
+       FOR UPDATE`,
+      [relatedDocumentType, relatedDocumentId]
+    );
+    return rows[0] || null;
+  }
+
+  static async findExistingActiveGlEntry(connection, documentType, documentNumber) {
+    if (!documentNumber) return null;
+    const [rows] = await connection.execute(
+      `SELECT id, entry_number
+       FROM gl_entries
+       WHERE document_type = ?
+         AND document_number = ?
+         AND COALESCE(is_reversed, 0) = 0
+       LIMIT 1
+       FOR UPDATE`,
+      [documentType, documentNumber]
+    );
+    return rows[0] || null;
+  }
+
+  static async getMaterialCostById(connection, materialIds) {
+    const ids = [...new Set(
+      (materialIds || [])
+        .map((id) => Number.parseInt(id, 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )];
+    if (ids.length === 0) return new Map();
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await connection.query(
+      `SELECT id, COALESCE(NULLIF(cost_price, 0), NULLIF(price, 0), 0) AS unit_cost
+       FROM materials
+       WHERE id IN (${placeholders})
+       FOR UPDATE`,
+      ids
+    );
+
+    return new Map(rows.map((row) => [Number(row.id), Number.parseFloat(row.unit_cost || 0)]));
+  }
+
   // ==================== 销售模块集成 ====================
 
   /**
@@ -119,6 +194,33 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+
+      const existingInvoice = await this.findExistingInvoiceBySource(
+        connection,
+        'ar_invoices',
+        'sales_order',
+        salesOrder.id
+      );
+      if (existingInvoice) {
+        await DocumentLinkService.tryAutoLink(
+          'sales_order',
+          salesOrder.id,
+          salesOrder.order_no,
+          'ar_invoice',
+          existingInvoice.id,
+          existingInvoice.invoice_number,
+          null,
+          connection
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          invoiceId: existingInvoice.id,
+          invoiceNumber: existingInvoice.invoice_number,
+          amount: existingInvoice.total_amount,
+          message: '应收发票已存在',
+        };
+      }
 
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
@@ -189,6 +291,16 @@ class FinanceIntegrationService {
 
       invoiceData.items = invoiceItems;
       const invoiceId = await arModel.createInvoice(invoiceData, connection);
+      await DocumentLinkService.tryAutoLink(
+        'sales_order',
+        salesOrder.id,
+        salesOrder.order_no,
+        'ar_invoice',
+        invoiceId,
+        invoiceNumber,
+        createdBy,
+        connection
+      );
       await connection.commit();
       return { invoiceId, invoiceNumber, amount: totalAmount };
     } catch (error) {
@@ -209,6 +321,34 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+
+      const existingInvoice = await this.findExistingInvoiceBySource(
+        connection,
+        'ar_invoices',
+        'sales_return',
+        salesReturn.id
+      );
+      if (existingInvoice) {
+        await DocumentLinkService.tryAutoLink(
+          'sales_return',
+          salesReturn.id,
+          salesReturn.return_no,
+          'ar_invoice',
+          existingInvoice.id,
+          existingInvoice.invoice_number,
+          salesReturn.created_by || null,
+          connection
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          invoiceId: existingInvoice.id,
+          invoiceNumber: existingInvoice.invoice_number,
+          amount: existingInvoice.total_amount,
+          message: '销售红字发票已存在',
+        };
+      }
+
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
       const receivableAccountId = accountIds.ACCOUNTS_RECEIVABLE;
@@ -293,6 +433,16 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await arModel.createInvoice(invoiceData, connection);
+      await DocumentLinkService.tryAutoLink(
+        'sales_return',
+        salesReturn.id,
+        salesReturn.return_no,
+        'ar_invoice',
+        invoiceId,
+        invoiceNumber,
+        salesReturn.created_by || 0,
+        connection
+      );
       await connection.commit();
       return { invoiceId, invoiceNumber, amount: creditNoteAmount };
     } catch (error) {
@@ -315,6 +465,34 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+
+      const existingInvoice = await this.findExistingInvoiceBySource(
+        connection,
+        'ap_invoices',
+        'purchase_receipt',
+        purchaseReceipt.id
+      );
+      if (existingInvoice) {
+        await DocumentLinkService.tryAutoLink(
+          'purchase_receipt',
+          purchaseReceipt.id,
+          purchaseReceipt.receipt_no,
+          'ap_invoice',
+          existingInvoice.id,
+          existingInvoice.invoice_number,
+          userId || null,
+          connection
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          invoiceId: existingInvoice.id,
+          invoiceNumber: existingInvoice.invoice_number,
+          amount: existingInvoice.total_amount,
+          message: '应付发票已存在',
+        };
+      }
+
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['ACCOUNTS_PAYABLE', 'GR_IR']);
       const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
@@ -370,6 +548,16 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await apModel.createInvoice(invoiceData, connection);
+      await DocumentLinkService.tryAutoLink(
+        'purchase_receipt',
+        purchaseReceipt.id,
+        purchaseReceipt.receipt_no,
+        'ap_invoice',
+        invoiceId,
+        invoiceNumber,
+        createdBy,
+        connection
+      );
       await connection.commit();
       return { invoiceId, invoiceNumber, amount: totalAmount };
     } catch (error) {
@@ -391,6 +579,34 @@ class FinanceIntegrationService {
     const connection = externalConn || await db.pool.getConnection();
     try {
       if (!isExternalConn) await connection.beginTransaction();
+
+      const existingInvoice = await this.findExistingInvoiceBySource(
+        connection,
+        'ap_invoices',
+        'purchase_return',
+        purchaseReturn.id
+      );
+      if (existingInvoice) {
+        await DocumentLinkService.tryAutoLink(
+          'purchase_return',
+          purchaseReturn.id,
+          purchaseReturn.return_no,
+          'ap_invoice',
+          existingInvoice.id,
+          existingInvoice.invoice_number,
+          purchaseReturn.created_by || null,
+          connection
+        );
+        if (!isExternalConn) await connection.commit();
+        return {
+          skipped: true,
+          invoiceId: existingInvoice.id,
+          invoiceNumber: existingInvoice.invoice_number,
+          amount: existingInvoice.total_amount,
+          message: '采购红字发票已存在',
+        };
+      }
+
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['ACCOUNTS_PAYABLE', 'GR_IR']);
       const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
@@ -454,6 +670,16 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await apModel.createInvoice(invoiceData, connection);
+      await DocumentLinkService.tryAutoLink(
+        'purchase_return',
+        purchaseReturn.id,
+        purchaseReturn.return_no,
+        'ap_invoice',
+        invoiceId,
+        invoiceNumber,
+        purchaseReturn.created_by || 0,
+        connection
+      );
       if (!isExternalConn) await connection.commit();
       return { invoiceId, invoiceNumber, amount: creditNoteAmount };
     } catch (error) {
@@ -477,6 +703,30 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
+      const existingEntry = await this.findExistingActiveGlEntry(
+        connection,
+        'sales_outbound',
+        salesOutbound.outbound_no
+      );
+      if (existingEntry) {
+        await DocumentLinkService.tryAutoLink(
+          'sales_outbound',
+          salesOutbound.id,
+          salesOutbound.outbound_no,
+          'finance_voucher',
+          existingEntry.id,
+          existingEntry.entry_number,
+          salesOutbound.created_by || null,
+          connection
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          entryId: existingEntry.id,
+          entryNumber: existingEntry.entry_number,
+          message: '销售成本凭证已存在',
+        };
+      }
 
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['COST_OF_GOODS_SOLD', 'INVENTORY']);
@@ -503,12 +753,17 @@ class FinanceIntegrationService {
         return { skipped: true, message: '成本为0' };
       }
 
-      const currentPeriod = await this.getCurrentPeriod(connection, salesOutbound.delivery_date || new Date().toISOString().split('T')[0]);
+      const outboundDate = salesOutbound.delivery_date
+        || salesOutbound.outbound_date
+        || salesOutbound.transaction_date
+        || new Date().toISOString().split('T')[0];
+      const currentPeriod = await this.getCurrentPeriod(connection, outboundDate);
       const createdBy = await getUserIdByIdentifier(connection, salesOutbound.created_by || 'system');
 
       const entryData = {
         period_id: currentPeriod.id || null,
-        entry_date: salesOutbound.delivery_date || new Date().toISOString().split('T')[0],
+        entry_date: outboundDate,
+        posting_date: outboundDate,
         document_type: 'sales_outbound',
         document_number: salesOutbound.outbound_no || null,
         description: `销售成本结转 - 销售出库单 ${salesOutbound.outbound_no}`,
@@ -523,9 +778,19 @@ class FinanceIntegrationService {
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
       const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
       const entryNumber = entries.length > 0 ? entries[0].entry_number : null;
+      await DocumentLinkService.tryAutoLink(
+        'sales_outbound',
+        salesOutbound.id,
+        salesOutbound.outbound_no,
+        'finance_voucher',
+        entryId,
+        entryNumber,
+        createdBy,
+        connection
+      );
 
       // 自动凭证在同一事务中立即标记过账（期间状态已由 getCurrentPeriod 在事务开头校验，无需走 postEntry 校验）
-      await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
+      await connection.execute("UPDATE gl_entries SET is_posted = 1, status = 'posted' WHERE id = ?", [entryId]);
       await connection.commit();
 
       return { entryId, entryNumber, amount: totalCost };
@@ -547,6 +812,31 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
+      const existingInvoice = await this.findExistingTaxInvoice(
+        connection,
+        '销售出库单',
+        salesOutbound.id
+      );
+      if (existingInvoice) {
+        await DocumentLinkService.tryAutoLink(
+          'sales_outbound',
+          salesOutbound.id,
+          salesOutbound.outbound_no,
+          'tax_invoice',
+          existingInvoice.id,
+          existingInvoice.invoice_number,
+          userId || salesOutbound.created_by || null,
+          connection
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          invoiceId: existingInvoice.id,
+          invoiceNumber: existingInvoice.invoice_number,
+          totalAmount: existingInvoice.total_amount,
+          message: '销项税票已存在',
+        };
+      }
 
       const invoiceNumber = `待补录-${salesOutbound.outbound_no}`;
 
@@ -592,6 +882,16 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
+      await DocumentLinkService.tryAutoLink(
+        'sales_outbound',
+        salesOutbound.id,
+        salesOutbound.outbound_no,
+        'tax_invoice',
+        invoiceId,
+        invoiceNumber,
+        userId || salesOutbound.created_by || 0,
+        connection
+      );
       await connection.commit();
       return { invoiceId, invoiceNumber, totalAmount: totalAmount.toFixed(2) };
     } catch (error) {
@@ -610,6 +910,31 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
+      const existingInvoice = await this.findExistingTaxInvoice(
+        connection,
+        '采购入库单',
+        purchaseReceipt.id
+      );
+      if (existingInvoice) {
+        await DocumentLinkService.tryAutoLink(
+          'purchase_receipt',
+          purchaseReceipt.id,
+          purchaseReceipt.receipt_no,
+          'tax_invoice',
+          existingInvoice.id,
+          existingInvoice.invoice_number,
+          userId || purchaseReceipt.created_by || null,
+          connection
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          invoiceId: existingInvoice.id,
+          invoiceNumber: existingInvoice.invoice_number,
+          totalAmount: existingInvoice.total_amount,
+          message: '进项税票已存在',
+        };
+      }
 
       const invoiceNumber = `待补录-${purchaseReceipt.receipt_no}`;
 
@@ -654,6 +979,16 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
+      await DocumentLinkService.tryAutoLink(
+        'purchase_receipt',
+        purchaseReceipt.id,
+        purchaseReceipt.receipt_no,
+        'tax_invoice',
+        invoiceId,
+        invoiceNumber,
+        userId || purchaseReceipt.created_by || 0,
+        connection
+      );
       await connection.commit();
       return { invoiceId, invoiceNumber, totalAmount: totalAmount.toFixed(2) };
     } catch (error) {
@@ -740,10 +1075,22 @@ class FinanceIntegrationService {
       ];
 
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
+      const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
+      const entryNumber = entries.length > 0 ? entries[0].entry_number : null;
+      await DocumentLinkService.tryAutoLink(
+        'sales_exchange',
+        salesExchange.id,
+        exchangeNo,
+        'finance_voucher',
+        entryId,
+        entryNumber,
+        createdBy,
+        connection
+      );
 
       // 标记为已过账
       // 自动凭证在同一事务中立即标记过账（期间状态已由 getCurrentPeriod 在事务开头校验，无需走 postEntry 校验）
-      await connection.execute('UPDATE gl_entries SET is_posted = 1 WHERE id = ?', [entryId]);
+      await connection.execute("UPDATE gl_entries SET is_posted = 1, status = 'posted' WHERE id = ?", [entryId]);
 
       await connection.commit();
       logger.info(`✅ 换货差价分录生成成功 - ${exchangeNo}: ${differenceAmount > 0 ? '补差价' : '退差价'} ¥${absDiff}`);
@@ -768,10 +1115,41 @@ class FinanceIntegrationService {
    * @param {Array} materials - 物料明细（含 material_id, material_name, quantity, unit_price 等）
    * @returns {Object} { success, entryId } 或 { skipped, message }
    */
-  static async generateOutsourcedIssueEntry(processing, materials) {
-    const connection = await db.pool.getConnection();
+  static async generateOutsourcedIssueEntry(processing, materials, externalConnection = null) {
+    const connection = externalConnection || await db.pool.getConnection();
+    const shouldManageTransaction = !externalConnection;
     try {
-      await connection.beginTransaction();
+      if (shouldManageTransaction) {
+        await connection.beginTransaction();
+      }
+
+      const existingEntry = await this.findExistingActiveGlEntry(
+        connection,
+        'outsourced_issue',
+        processing.processing_no
+      );
+      if (existingEntry) {
+        await DocumentLinkService.tryAutoLink(
+          'outsourced_processing',
+          processing.id,
+          processing.processing_no,
+          'finance_voucher',
+          existingEntry.id,
+          existingEntry.entry_number,
+          processing.created_by || null,
+          connection
+        );
+        if (shouldManageTransaction) {
+          await connection.commit();
+        }
+        return {
+          success: true,
+          skipped: true,
+          entryId: existingEntry.id,
+          entryNumber: existingEntry.entry_number,
+          message: '外委发料凭证已存在',
+        };
+      }
 
       // 批量解析科目ID（1次查询）
       const accountIds = await this.resolveAccountIds(['OUTSOURCED_MATERIALS', 'RAW_MATERIALS']);
@@ -779,15 +1157,25 @@ class FinanceIntegrationService {
       const rawMaterialAccountId = accountIds.RAW_MATERIALS;
 
 
+      const materialCostById = await this.getMaterialCostById(
+        connection,
+        (materials || []).map((item) => item.material_id)
+      );
+
       // 计算发料总金额（精度修复：整数运算）
-      const totalAmount = materials.reduce((sum, item) => {
+      const totalAmount = (materials || []).reduce((sum, item) => {
+        const unitCost = parseFloat(item.unit_price || item.price || 0)
+          || materialCostById.get(Number(item.material_id))
+          || 0;
         return sum + Math.round(
-          parseFloat(item.quantity || 0) * parseFloat(item.unit_price || item.price || 0) * 100
+          parseFloat(item.quantity || 0) * unitCost * 100
         );
       }, 0) / 100;
 
       if (totalAmount <= 0) {
-        await connection.rollback();
+        if (shouldManageTransaction) {
+          await connection.rollback();
+        }
         return { success: false, skipped: true, message: '发料金额为0' };
       }
 
@@ -804,6 +1192,8 @@ class FinanceIntegrationService {
         document_type: 'outsourced_issue',
         document_number: processing.processing_no,
         description: `外委发料 - 加工单: ${processing.processing_no}`,
+        status: 'posted',
+        is_posted: 1,
         created_by: createdBy,
       };
 
@@ -823,16 +1213,37 @@ class FinanceIntegrationService {
       ];
 
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-      await connection.commit();
+      const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
+      const entryNumber = entries[0]?.entry_number || null;
+      await DocumentLinkService.tryAutoLink(
+        'outsourced_processing',
+        processing.id,
+        processing.processing_no,
+        'finance_voucher',
+        entryId,
+        entryNumber,
+        createdBy,
+        connection
+      );
+      if (shouldManageTransaction) {
+        await connection.commit();
+      }
 
       logger.info(`✅ 外委发料分录生成成功 - 加工单: ${processing.processing_no}, 金额: ${totalAmount}`);
-      return { success: true, entryId, amount: totalAmount };
+      return { success: true, entryId, entryNumber, amount: totalAmount };
     } catch (error) {
-      await connection.rollback();
+      if (shouldManageTransaction) {
+        await connection.rollback();
+      }
       logger.error(`外委发料分录生成失败 - ${processing.processing_no}:`, error.message);
+      if (!shouldManageTransaction) {
+        throw error;
+      }
       return { success: false, error: error.message };
     } finally {
-      connection.release();
+      if (shouldManageTransaction) {
+        connection.release();
+      }
     }
   }
 
@@ -846,10 +1257,13 @@ class FinanceIntegrationService {
    * @param {Array} items - 入库明细（含 product_id, actual_quantity, unit_price, total_price 等）
    * @returns {Object} { success, entryId } 或 { skipped, message }
    */
-  static async generateOutsourcedReceiptEntry(receipt, items) {
-    const connection = await db.pool.getConnection();
+  static async generateOutsourcedReceiptEntry(receipt, items, externalConnection = null) {
+    const connection = externalConnection || await db.pool.getConnection();
+    const shouldManageTransaction = !externalConnection;
     try {
-      await connection.beginTransaction();
+      if (shouldManageTransaction) {
+        await connection.beginTransaction();
+      }
 
       // 批量解析科目ID（1次查询）
       const accountIds = await this.resolveAccountIds([
@@ -860,6 +1274,39 @@ class FinanceIntegrationService {
       const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
 
       const receiptNo = receipt.receipt_no || `OPR-${receipt.processing_id}`;
+      const receiptId = receipt.id || receipt.receipt_id || null;
+      const createdBy = await getUserIdByIdentifier(
+        connection,
+        receipt.operator || receipt.created_by || 'system'
+      );
+
+      const existingEntry = await this.findExistingActiveGlEntry(
+        connection,
+        'outsourced_receipt',
+        receiptNo
+      );
+      if (existingEntry) {
+        await DocumentLinkService.tryAutoLink(
+          'outsourced_receipt',
+          receiptId,
+          receiptNo,
+          'finance_voucher',
+          existingEntry.id,
+          existingEntry.entry_number,
+          createdBy,
+          connection
+        );
+        if (shouldManageTransaction) {
+          await connection.commit();
+        }
+        return {
+          success: true,
+          skipped: true,
+          entryId: existingEntry.id,
+          entryNumber: existingEntry.entry_number,
+          message: '外委入库凭证已存在',
+        };
+      }
 
 
       // 计算入库总加工费（精度修复：整数运算）
@@ -885,7 +1332,9 @@ class FinanceIntegrationService {
       const totalInventoryValue = materialCost + totalProcessingFee;
 
       if (totalInventoryValue <= 0) {
-        await connection.rollback();
+        if (shouldManageTransaction) {
+          await connection.rollback();
+        }
         return { success: false, skipped: true, message: '入库价值为0' };
       }
 
@@ -901,7 +1350,9 @@ class FinanceIntegrationService {
         document_type: 'outsourced_receipt',
         document_number: receiptNo,
         description: `外委收货入库 - 入库单: ${receiptNo}`,
-        created_by: receipt.operator || 0,
+        status: 'posted',
+        is_posted: 1,
+        created_by: createdBy,
       };
 
       const entryItems = [
@@ -935,16 +1386,37 @@ class FinanceIntegrationService {
       }
 
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-      await connection.commit();
+      const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
+      const entryNumber = entries[0]?.entry_number || null;
+      await DocumentLinkService.tryAutoLink(
+        'outsourced_receipt',
+        receiptId,
+        receiptNo,
+        'finance_voucher',
+        entryId,
+        entryNumber,
+        createdBy,
+        connection
+      );
+      if (shouldManageTransaction) {
+        await connection.commit();
+      }
 
       logger.info(`✅ 外委入库分录生成成功 - 入库单: ${receiptNo}, 物料成本: ${materialCost}, 加工费: ${totalProcessingFee}`);
-      return { success: true, entryId, materialCost, processingFee: totalProcessingFee, totalValue: totalInventoryValue };
+      return { success: true, entryId, entryNumber, materialCost, processingFee: totalProcessingFee, totalValue: totalInventoryValue };
     } catch (error) {
-      await connection.rollback();
+      if (shouldManageTransaction) {
+        await connection.rollback();
+      }
       logger.error(`外委入库分录生成失败 - ${receipt.receipt_no}:`, error.message);
+      if (!shouldManageTransaction) {
+        throw error;
+      }
       return { success: false, error: error.message };
     } finally {
-      connection.release();
+      if (shouldManageTransaction) {
+        connection.release();
+      }
     }
   }
 }

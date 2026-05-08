@@ -11,9 +11,7 @@ import api from '../services/api'
 
 // 存储键名
 const STORAGE_KEYS = {
-  TOKEN: 'token',
   USER: 'user',
-  REFRESH_TOKEN: 'refreshToken',
   IS_LOGGED_IN: 'isLoggedIn',
   PERMISSIONS: 'user_permissions'
 }
@@ -68,10 +66,11 @@ export const useAuthStore = defineStore('auth', () => {
   // ==================== 状态 ====================
   // accessToken + user 存 sessionStorage（标签关闭即清除，更安全）
   // refreshToken 存 localStorage（支持静默续签）
-  const storedToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || ''
-  const token = ref(isTokenValid(storedToken) ? storedToken : '')
+  sessionStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+  const token = ref('')
   const user = ref(safeGetJSON(STORAGE_KEYS.USER, null, sessionStorage))
-  const refreshToken = ref(localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN) || '')
+  const refreshToken = ref('')
 
   // 权限状态 — 与网页端 authStore 保持一致
   const permissions = ref(safeGetJSON(STORAGE_KEYS.PERMISSIONS, []))
@@ -79,7 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
   const permissionsLoading = ref(false)
 
   // ==================== 计算属性 ====================
-  const isAuthenticated = computed(() => !!token.value && !!user.value && isTokenValid(token.value))
+  const isAuthenticated = computed(() => !!user.value || isTokenValid(token.value))
   const userId = computed(() => user.value?.id)
   const username = computed(() => user.value?.username)
   const realName = computed(() => user.value?.real_name || user.value?.username)
@@ -90,31 +89,21 @@ export const useAuthStore = defineStore('auth', () => {
    * 设置认证头
    */
   const setAuthHeader = () => {
-    if (token.value) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-    } else {
-      delete api.defaults.headers.common['Authorization']
-    }
+    delete api.defaults.headers.common['Authorization']
   }
 
   /**
    * 保存认证信息（accessToken/user → sessionStorage，refreshToken → localStorage）
    */
   const saveAuthData = (authData) => {
-    const { token: accessToken, accessToken: at, refreshToken: rt, user: userData } = authData
+    const { user: userData } = authData
 
     // 优先使用 accessToken，其次使用 token
-    const finalToken = at || accessToken
+    token.value = ''
 
-    if (finalToken) {
-      token.value = finalToken
-      sessionStorage.setItem(STORAGE_KEYS.TOKEN, finalToken)
-    }
-
-    if (rt) {
-      refreshToken.value = rt
-      localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, rt)
-    }
+    refreshToken.value = ''
+    sessionStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
 
     if (userData) {
       user.value = userData
@@ -136,10 +125,10 @@ export const useAuthStore = defineStore('auth', () => {
     permissionsLoaded.value = false
     permissionsLoading.value = false
 
-    sessionStorage.removeItem(STORAGE_KEYS.TOKEN)
+    sessionStorage.removeItem('token')
     sessionStorage.removeItem(STORAGE_KEYS.USER)
     sessionStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
-    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
 
     setAuthHeader()
@@ -160,7 +149,7 @@ export const useAuthStore = defineStore('auth', () => {
       // response.data 就是 { token, accessToken, refreshToken, user }
       const authData = response.data
 
-      if (!authData || (!authData.token && !authData.accessToken) || !authData.user) {
+      if (!authData || !authData.user) {
         throw new Error('登录响应数据格式错误')
       }
 
@@ -354,9 +343,9 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await api.post('/auth/refresh')
       const authData = response.data
 
-      if (authData && (authData.accessToken || authData.token)) {
+      if (authData) {
         saveAuthData(authData)
-        return true
+        return !!user.value
       }
       return false
     } catch {

@@ -19,6 +19,13 @@
 
 const { logger } = require('./logger');
 
+function normalizeExecResult(execResult) {
+  const result = Array.isArray(execResult) ? execResult[0] : execResult;
+  return {
+    affectedRows: Number(result?.affectedRows || 0),
+  };
+}
+
 /**
  * 软删除单条记录
  * @param {object} conn - 数据库连接（pool 或 connection）
@@ -30,7 +37,7 @@ const { logger } = require('./logger');
 async function softDelete(conn, table, pkField, pkValue) {
   const exec = conn.execute || conn.query;
   const sql = `UPDATE \`${table}\` SET deleted_at = NOW() WHERE \`${pkField}\` = ? AND deleted_at IS NULL`;
-  const [result] = await exec.call(conn, sql, [pkValue]);
+  const result = normalizeExecResult(await exec.call(conn, sql, [pkValue]));
   logger.debug(`[softDelete] ${table}.${pkField}=${pkValue} → affected=${result.affectedRows}`);
   return result.affectedRows;
 }
@@ -48,7 +55,7 @@ async function softDeleteBatch(conn, table, pkField, pkValues) {
   const exec = conn.execute || conn.query;
   const placeholders = pkValues.map(() => '?').join(', ');
   const sql = `UPDATE \`${table}\` SET deleted_at = NOW() WHERE \`${pkField}\` IN (${placeholders}) AND deleted_at IS NULL`;
-  const [result] = await exec.call(conn, sql, pkValues);
+  const result = normalizeExecResult(await exec.call(conn, sql, pkValues));
   logger.debug(`[softDelete] ${table}.${pkField} IN (${pkValues.length} ids) → affected=${result.affectedRows}`);
   return result.affectedRows;
 }

@@ -9,7 +9,6 @@ const express = require('express');
 const router = express.Router();
 const weatherController = require('../controllers/weather/weatherController');
 const { authenticateToken } = require('../middleware/auth');
-const { cacheMiddleware } = require('../services/cacheService');
 
 /**
  * 获取天气数据
@@ -20,7 +19,6 @@ const { cacheMiddleware } = require('../services/cacheService');
 router.get(
   '/current',
   authenticateToken,
-  cacheMiddleware(300), // 缓存5分钟
   weatherController.getWeather
 );
 

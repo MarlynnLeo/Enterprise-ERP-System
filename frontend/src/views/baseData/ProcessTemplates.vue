@@ -362,11 +362,6 @@
         </span>
       </template>
     </el-dialog>
-    <!-- 物料选择对话框 -->
-    <ProcessTemplateMaterialDialog
-      v-model="materialDialogVisible"
-      @confirm="handleMaterialConfirm"
-    />
     <!-- 文件预览对话框 -->
     <ProcessTemplatePreviewDialog
       v-if="previewDialogVisible"
@@ -385,17 +380,14 @@ import { api } from '@/services/axiosInstance'
 import { baseDataApi } from '@/api/baseData'
 import { loadMaterials, mapMaterialData, searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
-import 'dayjs'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useAuthStore } from '@/stores/auth'
 // 权限store
 const authStore = useAuthStore()
 // 权限计算属性
-const canCreate = computed(() => authStore.hasPermission('basedata:process-templates:create'));
-const canUpdate = computed(() => authStore.hasPermission('basedata:process-templates:update'));
-const canDelete = computed(() => authStore.hasPermission('basedata:process-templates:delete'));
-// 子组件
-import ProcessTemplateMaterialDialog from './components/ProcessTemplateMaterialDialog.vue'
+const canCreate = computed(() => authStore.hasPermission('basedata:processtemplates:create'));
+const canUpdate = computed(() => authStore.hasPermission('basedata:processtemplates:update'));
+const canDelete = computed(() => authStore.hasPermission('basedata:processtemplates:delete'));
 
 const ProcessTemplatePreviewDialog = defineAsyncComponent(() => import('./components/ProcessTemplatePreviewDialog.vue'))
 // 数据加载状态
@@ -414,11 +406,6 @@ const productList = ref([])
 const productOptions = ref([])
 // 工序模板列表
 const templateList = ref([])
-// 物料相关
-const materialDialogVisible = ref(false)
-const currentProcessRow = ref(null)
-const materialList = ref([])
-const filteredMaterials = ref([])
 // 部门相关
 const departmentList = ref([])
 // 对话框控制
@@ -508,7 +495,7 @@ const fetchTemplateList = async () => {
       ...searchForm
     }
     
-    const response = await api.get('/baseData/process-templates', { params })
+    const response = await baseDataApi.getProcessTemplates(params)
     // 使用统一解析器
     if (response.data) {
       templateList.value = parseListData(response, { enableLog: false })
@@ -542,9 +529,7 @@ const handleReset = async () => {
 // 导出工序模板
 const handleExport = async () => {
   try {
-    const response = await api.post('/baseData/process-templates/export', searchForm, {
-      responseType: 'blob'
-    })
+    const response = await baseDataApi.exportProcessTemplates(searchForm)
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
@@ -690,7 +675,7 @@ const handleToggleStatus = async (row) => {
   const newStatus = String(row.status) === '1' ? 0 : 1
   const action = newStatus === 1 ? '启用' : '禁用'
   try {
-    await api.put(`/baseData/process-templates/${row.id}/status`, { status: newStatus })
+    await baseDataApi.updateProcessTemplateStatus(row.id, newStatus)
     ElMessage.success(`${action}成功`)
     await fetchTemplateList()
   } catch (error) {
@@ -701,7 +686,7 @@ const handleToggleStatus = async (row) => {
 // 删除工序模板
 const handleDelete = async (row) => {
   try {
-    await api.delete(`/baseData/process-templates/${row.id}`)
+    await baseDataApi.deleteProcessTemplate(row.id)
     ElMessage.success('工序模板已删除')
     await fetchTemplateList()
   } catch (error) {
@@ -757,10 +742,10 @@ const submitForm = async () => {
     
     loading.value = true
     if (dialogType.value === 'create') {
-      await api.post('/baseData/process-templates', submitData)
+      await baseDataApi.createProcessTemplate(submitData)
       ElMessage.success('工序模板创建成功')
     } else {
-      await api.put(`/baseData/process-templates/${form.id}`, submitData)
+      await baseDataApi.updateProcessTemplate(form.id, submitData)
       ElMessage.success('工序模板更新成功')
     }
     
@@ -771,34 +756,6 @@ const submitForm = async () => {
     ElMessage.error('保存失败')
   } finally {
     loading.value = false
-  }
-}
-// 获取物料列表
-const _fetchMaterialList = async () => {
-  try {
-    const response = await baseDataApi.getMaterials({
-      page: 1,
-      pageSize: 1000
-    })
-    // 使用统一工具解析列表数据
-    const materialsData = parseListData(response, { enableLog: false })
-    materialList.value = materialsData.map(item => ({
-      id: item.id,
-      code: item.code || '无编码',
-      name: item.name,
-      specs: item.specs || item.specification || '',
-      unit_name: item.unit_name || ''
-    }))
-    filteredMaterials.value = [...materialList.value]
-  } catch (error) {
-    console.error('获取物料列表失败:', error)
-    ElMessage.error('获取物料列表失败')
-  }
-}
-// 物料确认回调（来自子组件）
-const handleMaterialConfirm = (materials) => {
-  if (currentProcessRow.value) {
-    currentProcessRow.value.materials = materials
   }
 }
 // 文件预览相关

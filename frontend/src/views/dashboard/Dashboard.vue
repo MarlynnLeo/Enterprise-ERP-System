@@ -87,27 +87,27 @@
                 <div class="weather-main-compact">
                   <div class="temp-large">{{ weather.temperature }}°C</div>
                   <div class="weather-icon-compact">
-                    <el-icon v-if="weather.weatherCode === 'sunny'" style="font-size: 28px; color: #ffd54f;">
+                    <el-icon v-if="weather.weatherCode === 'sunny'" class="weather-icon weather-icon-sunny">
                       <Sunny />
                     </el-icon>
-                    <el-icon v-else-if="weather.weatherCode === 'partly-cloudy'" style="font-size: 28px; color: #fff9c4;">
+                    <el-icon v-else-if="weather.weatherCode === 'partly-cloudy'" class="weather-icon weather-icon-partly-cloudy">
                       <PartlyCloudy />
                     </el-icon>
-                    <el-icon v-else-if="weather.weatherCode === 'cloudy'" style="font-size: 28px; color: #e0e0e0;">
+                    <el-icon v-else-if="weather.weatherCode === 'cloudy'" class="weather-icon weather-icon-cloudy">
                       <Cloudy />
                     </el-icon>
-                    <el-icon v-else-if="weather.weatherCode === 'rainy'" style="font-size: 28px; color: #90caf9;">
+                    <el-icon v-else-if="weather.weatherCode === 'rainy'" class="weather-icon weather-icon-rainy">
                       <Cloudy />
                     </el-icon>
-                    <el-icon v-else style="font-size: 28px; color: #e0e0e0;">
+                    <el-icon v-else class="weather-icon weather-icon-cloudy">
                       <Cloudy />
                     </el-icon>
                   </div>
                 </div>
                 <div class="weather-desc-compact">{{ weather.description }}</div>
                 <div class="weather-details-compact">
-                  <span><el-icon style="font-size: 12px;"><WindPower /></el-icon> {{ weather.windSpeed }}km/h</span>
-                  <span><el-icon style="font-size: 12px;"><Cold /></el-icon> {{ weather.humidity }}%</span>
+                  <span><el-icon class="weather-detail-icon"><WindPower /></el-icon> {{ weather.windSpeed }}km/h</span>
+                  <span><el-icon class="weather-detail-icon"><Drizzling /></el-icon> {{ weather.humidity }}%</span>
                 </div>
               </div>
             </div>
@@ -133,7 +133,6 @@
             <div class="list-content">
               <el-table
                 :data="activeTodoTab === 'pending' ? pendingTasks : completedTasks"
-                style="width: 100%"
                 :show-header="true"
                 height="300"
                 :empty-text="activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项'"
@@ -148,7 +147,7 @@
                 <el-table-column
                   prop="date"
                   :label="activeTodoTab === 'pending' ? $t('common.deadline') : $t('common.updateTime')"
-                  width="90"
+                  width="112"
                 />
                 <el-table-column :label="$t('common.status')" width="80">
                   <template #default="{ row }">
@@ -157,7 +156,7 @@
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column :label="$t('common.action')" min-width="80" align="center">
+                <el-table-column :label="$t('common.action')" width="68" align="center">
                   <template #default="{ row }">
                     <el-button
                       :type="activeTodoTab === 'pending' ? 'primary' : 'info'"
@@ -205,14 +204,12 @@
                         <template v-if="onlineTimeRanking[config.dataIndex]">
                           <div class="crown-icon" :class="{ champion: config.isChampion }"><el-icon><Trophy /></el-icon></div>
                           <!-- 头像+特效容器：固定尺寸的相对定位盒子 -->
-                          <div :style="{
-                            position: 'relative',
-                            width: config.iconSize + 'px',
-                            height: config.iconSize + 'px',
-                            margin: '10px auto 8px'
-                          }">
+                          <div
+                            class="ranking-avatar-box"
+                            :style="{ '--avatar-size': `${config.iconSize}px` }"
+                          >
                             <!-- 特效层：绝对铺满 + flex 居中 -->
-                            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2;">
+                            <div class="ranking-effect-layer">
                               <Vue3Lottie 
                                 v-if="onlineTimeRanking[config.dataIndex].avatarFrame && getLottieAnimation(onlineTimeRanking[config.dataIndex].avatarFrame)"
                                 :animationData="getLottieAnimation(onlineTimeRanking[config.dataIndex].avatarFrame)" 
@@ -221,20 +218,12 @@
                               />
                             </div>
                             <!-- 头像层：绝对铺满 + flex 居中（与特效层完全对称） -->
-                            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 1;">
-                              <div :style="{
-                                width: config.iconSize + 'px',
-                                height: config.iconSize + 'px',
-                                borderRadius: '50%',
-                                overflow: 'hidden',
-                                border: config.isChampion ? '3px solid #fff' : '2px solid #fff',
-                                boxShadow: config.isChampion ? '0 4px 12px rgba(255, 215, 0, 0.3)' : '0 3px 8px rgba(0, 0, 0, 0.15)',
-                                flexShrink: '0'
-                              }">
+                            <div class="ranking-avatar-layer">
+                              <div class="ranking-avatar-frame" :class="{ champion: config.isChampion }">
                                 <img
                                   :src="onlineTimeRanking[config.dataIndex].avatar || '/default-avatar.webp'"
                                   alt="头像"
-                                  style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                                  class="ranking-avatar-img"
                                   @error="e => e.target.src = '/default-avatar.webp'"
                                 />
                               </div>
@@ -245,34 +234,24 @@
                           <div class="time-value">{{ onlineTimeRanking[config.dataIndex].displayTime }}</div>
                         </template>
                         <template v-else>
-                          <div class="crown-icon" :class="{ champion: config.isChampion }" style="opacity: 0.2;"><el-icon><Trophy /></el-icon></div>
+                          <div class="crown-icon muted" :class="{ champion: config.isChampion }"><el-icon><Trophy /></el-icon></div>
                           <!-- 暂无数据头像容器 -->
-                          <div :style="{
-                            position: 'relative',
-                            width: config.iconSize + 'px',
-                            height: config.iconSize + 'px',
-                            margin: '10px auto 8px'
-                          }">
-                            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 1;">
-                              <div :style="{
-                                width: config.iconSize + 'px',
-                                height: config.iconSize + 'px',
-                                borderRadius: '50%',
-                                overflow: 'hidden',
-                                border: '2px solid #f0f0f0',
-                                background: '#fafafa',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: '0'
-                              }">
-                                <el-icon :style="`font-size: ${config.isChampion ? 30 : 24}px; color: var(--color-border-base);`"><UserFilled /></el-icon>
+                          <div
+                            class="ranking-avatar-box"
+                            :style="{
+                              '--avatar-size': `${config.iconSize}px`,
+                              '--empty-icon-size': `${config.isChampion ? 30 : 24}px`
+                            }"
+                          >
+                            <div class="ranking-avatar-layer">
+                              <div class="ranking-avatar-frame empty">
+                                <el-icon class="ranking-empty-icon"><UserFilled /></el-icon>
                               </div>
                             </div>
                           </div>
-                          <div class="rank-badge" style="opacity: 0.5;">{{ config.badgeText }}</div>
-                          <div class="user-name" style="opacity: 0.4; color: var(--color-text-secondary);">暂无数据</div>
-                          <div class="time-value" style="opacity: 0.4; color: var(--color-text-secondary);">--</div>
+                          <div class="rank-badge muted">{{ config.badgeText }}</div>
+                          <div class="user-name muted">暂无数据</div>
+                          <div class="time-value muted">--</div>
                         </template>
                       </div>
                       <div class="back">
@@ -317,9 +296,9 @@
                     size="small"
                     @click="refreshAllPrices"
                     :loading="exchangeRateLoading || metalPricesLoading"
-                    style="margin-left: auto; color: var(--color-primary);"
+                    class="price-refresh-button"
                   >
-                    <i class="el-icon-refresh"></i>
+                    <el-icon><Refresh /></el-icon>
                   </el-button>
                 </el-tooltip>
               </div>
@@ -365,7 +344,7 @@
                 </div>
                 <!-- 主要汇率走势图 -->
                 <div class="exchange-rate-chart">
-                  <div ref="exchangeRateChartRef" style="width: 100%; height: 160px;"></div>
+                  <div ref="exchangeRateChartRef" class="exchange-rate-chart-canvas"></div>
                 </div>
                 <div class="last-update" v-if="exchangeRates.lastUpdate">
                   最后更新: {{ formatTime(exchangeRates.lastUpdate) }}
@@ -376,7 +355,7 @@
               </div>
               <!-- 滚动提示 -->
               <div class="scroll-indicator" v-show="showScrollIndicator" @click="scrollToBottom">
-                <i class="el-icon-arrow-down"></i>
+                <el-icon><ArrowDown /></el-icon>
                 <span>向下滚动查看更多</span>
               </div>
             </div>
@@ -395,7 +374,6 @@
             <div class="table-wrapper">
               <el-table
                 :data="warningList"
-                style="width: 100%;"
                 row-class-name="warning-row"
                 :empty-text="'暂无生产计划'"
                 class="dashboard-table production-table"
@@ -466,7 +444,6 @@
 </template>
 <script setup>
 import { ref, onMounted, computed, onActivated, watch, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { getLottieAnimation } from '../../assets/lottie'
 // 权限store
@@ -489,14 +466,21 @@ import {
   Bell,
   Warning,
   Avatar,
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
   Document,
+  DocumentRemove,
+  Drizzling,
+  Location,
   LocationFilled,
   Sunny,
   Cloudy,
   PartlyCloudy,
-  ChatLineSquare
+  ChatLineSquare,
+  Refresh,
+  Trophy,
+  WindPower
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 // 注册ECharts组件
@@ -517,7 +501,6 @@ import { useMetalPrices } from './composables/useMetalPrices'
 import { useTodos } from './composables/useTodos'
 import { useOnlineRanking } from './composables/useOnlineRanking'
 import { useProductionPlans } from './composables/useProductionPlans'
-const _router = useRouter()
 // ========== 解构组合式函数 ==========
 const { weather, fetchWeatherData } = useWeather()
 const {
@@ -737,22 +720,25 @@ const refreshAllPrices = async () => {
     ElMessage.error('刷新数据失败，请稍后重试')
   }
 }
+// 刷新仪表盘核心数据，并同步顶部统计
+const refreshDashboardData = async (forceProfile = false) => {
+  const [, , planCount] = await Promise.all([
+    loadUserProfile(forceProfile),
+    loadUserTodos(),
+    loadProductionPlans(),
+    fetchOnlineTimeRanking()
+  ])
+
+  updateTaskStats()
+  updateWarningStats(planCount || 0)
+}
 // ========== 生命周期钩子 ==========
 // 组件挂载时加载数据
 onMounted(async () => {
   // 初始化加载状态
   isLoadingStats.value = true
   // === 第一阶段：核心业务数据并行加载 ===
-  const [, , planCount] = await Promise.all([
-    loadUserProfile(true),
-    loadUserTodos(),
-    loadProductionPlans(),
-    fetchOnlineTimeRanking()
-  ])
-  
-  // 核心数据加载完成后更新统计
-  updateTaskStats()
-  updateWarningStats(planCount || 0)
+  await refreshDashboardData(true)
   isLoadingStats.value = false
   // 初始化汇率图表（依赖 DOM）
   await nextTick()
@@ -767,10 +753,7 @@ onMounted(async () => {
   })
   // 设置定时刷新
   userDataTimer = setInterval(() => {
-    loadUserProfile()
-    loadUserTodos()
-    loadProductionPlans()
-    fetchOnlineTimeRanking()
+    refreshDashboardData()
   }, refreshInterval)
   // 汇率数据定时刷新（每2分钟）
   exchangeRateTimer = setInterval(() => {
@@ -794,8 +777,7 @@ onUnmounted(() => {
 })
 // 当页面被激活（如从其他页面返回）时重新加载用户数据
 onActivated(() => {
-  loadUserProfile(true)
-  loadUserTodos() // 同时刷新待办事项
+  refreshDashboardData(true)
   // 智能刷新金属价格数据（如果超过30分钟没有更新）
   const now = new Date()
   const lastUpdate = metalPrices.value.lastUpdate
@@ -1012,33 +994,6 @@ watch(() => currentDate.value, (newValue) => {
   color: var(--color-text-regular);
   font-size: 14px;
 }
-/* 个人信息样式 - 统一卡片风格 */
-.personal-info-card {
-  background: var(--color-bg-base);
-  border-radius: 10px;
-  padding: 15px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
-  margin-bottom: var(--spacing-lg);
-  height: 90px;
-  border: 1px solid var(--color-border-lighter);
-  display: flex;
-  align-items: center;
-  transition: all var(--transition-base) ease;
-}
-.personal-info-card:hover {
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
-  border-color: var(--color-border-light);
-  transform: translateY(-2px);
-}
-.profile-section {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  height: 60px; /* 固定内容区域高度 */
-}
-.profile-section.loading-state {
-  justify-content: center;
-}
 /* 整合的个人信息与天气卡片 - 统一卡片风格 */
 .combined-info-card {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -1193,6 +1148,21 @@ watch(() => currentDate.value, (newValue) => {
   display: flex;
   align-items: center;
 }
+.weather-icon {
+  font-size: 28px;
+}
+.weather-icon-sunny {
+  color: #ffd54f;
+}
+.weather-icon-partly-cloudy {
+  color: #fff9c4;
+}
+.weather-icon-cloudy {
+  color: #e0e0e0;
+}
+.weather-icon-rainy {
+  color: #90caf9;
+}
 .weather-desc-compact {
   font-size: 12px;
   opacity: 0.9;
@@ -1204,6 +1174,9 @@ watch(() => currentDate.value, (newValue) => {
   gap: 12px;
   font-size: 11px;
   opacity: 0.85;
+}
+.weather-detail-icon {
+  font-size: 12px;
 }
 /* 头像容器和光环特效 */
 .avatar-container {
@@ -1429,6 +1402,7 @@ watch(() => currentDate.value, (newValue) => {
 /* 表格样式优化 */
 .dashboard-table {
   border-radius: 0;
+  width: 100%;
 }
 .dashboard-table :deep(.el-table__empty-block) {
   min-height: 200px;
@@ -1488,10 +1462,10 @@ watch(() => currentDate.value, (newValue) => {
   color: var(--color-success);
 }
 .action-btn {
-  padding: 2px 6px;
+  padding: 2px 4px;
   font-size: 12px;
   height: 22px;
-  min-width: 48px;
+  min-width: 40px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
@@ -1560,6 +1534,7 @@ watch(() => currentDate.value, (newValue) => {
 .chart-body {
   flex: 1;
   padding: 15px;
+  position: relative;
 }
 /* 日历样式（特殊配置） */
 .calendar-container,
@@ -1761,7 +1736,6 @@ watch(() => currentDate.value, (newValue) => {
     justify-content: center;
   }
 }
-/* 加载状态样式已整合到 .profile-section.loading-state */
 /* 金属价格卡片样式 - 一行两张布局 */
 .metal-price-cards {
   display: grid;
@@ -1952,11 +1926,13 @@ watch(() => currentDate.value, (newValue) => {
 }
 .last-update {
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-secondary);
   margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--color-border-lighter);
+  padding: 8px;
+  background: var(--color-bg-section);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-primary);
 }
 /* 我发起表格特定样式 */
 .list-container :deep(.el-table__body) {
@@ -2042,6 +2018,10 @@ watch(() => currentDate.value, (newValue) => {
   align-items: center;
   margin-bottom: 8px;
 }
+.price-refresh-button {
+  margin-left: auto;
+  color: var(--color-primary);
+}
 .currency-pair {
   font-size: 14px;
   font-weight: 600;
@@ -2071,6 +2051,10 @@ watch(() => currentDate.value, (newValue) => {
   margin-bottom: 12px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
+.exchange-rate-chart-canvas {
+  width: 100%;
+  height: 160px;
+}
 .rate-change {
   font-size: 11px;
   font-weight: 600;
@@ -2094,16 +2078,6 @@ watch(() => currentDate.value, (newValue) => {
   color: var(--color-on-primary, #fff);
   background: rgba(158, 158, 158, 0.3);
   border-color: rgba(158, 158, 158, 0.5);
-}
-.last-update {
-  text-align: center;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin-top: 10px;
-  padding: 8px;
-  background: var(--color-bg-section);
-  border-radius: var(--radius-md);
-  border-left: 3px solid var(--color-primary);
 }
 /* 滚动指示器样式 */
 .scroll-indicator {
@@ -2146,10 +2120,6 @@ watch(() => currentDate.value, (newValue) => {
     transform: translateX(-50%) translateY(-3px);
   }
 }
-/* 确保chart-body有相对定位 */
-.chart-body {
-  position: relative;
-}
 /* 数据源样式 */
 .data-source {
   font-size: 11px;
@@ -2169,23 +2139,29 @@ watch(() => currentDate.value, (newValue) => {
   align-items: center;
   gap: 10px;
   padding: 20px 0 10px;
+  animation: fadeInUp 0.5s ease-out;
 }
 .podium-item {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 8px 10px;
+  padding: 0;
   border-radius: var(--radius-lg);
   position: relative;
-  transition: all var(--transition-base) ease;
+  z-index: 1;
+  perspective: 1200px;
+  transition: z-index 0s 0.3s;
   cursor: pointer;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
   animation: fadeInUp 0.6s ease-out;
 }
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -2216,80 +2192,65 @@ watch(() => currentDate.value, (newValue) => {
   font-size: 20px;
   margin-bottom: 8px;
 }
+.crown-icon.muted {
+  opacity: 0.2;
+}
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
 }
-/* 头像容器 */
-/* 头像包裹层 - 相对定位容器，供 Lottie 绝对定位叠加 */
-.avatar-wrapper {
+/* 头像特效已移至全局 avatar-effects.css */
+.ranking-avatar-box {
   position: relative;
-  width: 70px;
-  height: 70px;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
   margin: 10px auto 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
-.rank-1 .avatar-wrapper {
-  width: 80px;
-  height: 80px;
-}
-/* 旧版特效容器（兼容无数据时的占位） */
-.effect-wrapper {
-  position: relative;
-  width: 70px;
-  height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.rank-1 .effect-wrapper {
-  width: 80px;
-  height: 80px;
-}
-/* Lottie 特效覆盖层 - 绝对铺满父级后 flex 居中 */
-.lottie-overlay {
+.ranking-effect-layer,
+.ranking-avatar-layer {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.ranking-effect-layer {
   pointer-events: none;
   z-index: 2;
 }
-/* 头像层 - 与特效层完全对称的绝对铺满 + flex 居中 */
-.avatar-layer {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.ranking-avatar-layer {
   z-index: 1;
 }
-/* 头像容器 - 纯视觉容器，不参与定位计算 */
-.avatar-container {
-  width: 50px;
-  height: 50px;
+.ranking-avatar-frame {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
   border-radius: 50%;
   overflow: hidden;
   border: 2px solid #fff;
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
 }
-.rank-1 .avatar-container {
-  width: 60px;
-  height: 60px;
+.ranking-avatar-frame.champion {
   border-width: 3px;
   box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
 }
-.user-avatar {
+.ranking-avatar-frame.empty {
+  border-color: #f0f0f0;
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ranking-avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-/* 头像特效已移至全局 avatar-effects.css */
+.ranking-empty-icon {
+  font-size: var(--empty-icon-size, 24px);
+  color: var(--color-border-base);
+}
 /* 排名徽章 */
 .rank-badge {
   font-size: 16px;
@@ -2297,17 +2258,13 @@ watch(() => currentDate.value, (newValue) => {
   margin-bottom: 4px;
   letter-spacing: 0.5px;
 }
-/* 3D弹出卡片特效 */
-.podium-item {
-  perspective: 1200px;
-  cursor: pointer;
-  padding: 0; 
-  background: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  position: relative;
-  z-index: 1;
-  transition: z-index 0s 0.3s;
+.rank-badge.muted {
+  opacity: 0.5;
+}
+.user-name.muted,
+.time-value.muted {
+  opacity: 0.4;
+  color: var(--color-text-secondary);
 }
 .podium-item.flipped {
   z-index: 100;
@@ -2473,21 +2430,12 @@ watch(() => currentDate.value, (newValue) => {
   color: var(--color-text-regular);
   text-align: center;
 }
-/* 第一名特殊样式 - 领奖台最高位 */
-.podium-item.rank-1 {
-  background: linear-gradient(135deg, #fff9e6 0%, #fffbf0 100%);
-  box-shadow: 0 8px 24px rgba(255, 193, 7, 0.25);
-  border: 2px solid #ffe58f;
-}
 .rank-1 .rank-badge {
   color: #ff9800;
   text-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
 }
 /* 第二名特殊样式 - 领奖台较低 */
 .podium-item.rank-2 {
-  background: linear-gradient(135deg, #fff3f3 0%, #fff8f8 100%);
-  box-shadow: 0 6px 18px rgba(255, 152, 152, 0.2);
-  border: 2px solid #ffd4d4;
   margin-top: 20px;
 }
 .rank-2 .rank-badge {
@@ -2496,9 +2444,6 @@ watch(() => currentDate.value, (newValue) => {
 }
 /* 第三名特殊样式 - 领奖台最低 */
 .podium-item.rank-3 {
-  background: linear-gradient(135deg, #fff8ed 0%, #fffbf5 100%);
-  box-shadow: 0 6px 18px rgba(255, 193, 122, 0.2);
-  border: 2px solid #ffe4c4;
   margin-top: 30px;
 }
 .rank-3 .rank-badge {
@@ -2604,20 +2549,6 @@ watch(() => currentDate.value, (newValue) => {
   height: 12px;
   border-radius: var(--radius-base);
 }
-/* 排行榜内容淡入动画 */
-.ranking-podium {
-  animation: fadeInUp 0.5s ease-out;
-}
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 /* 分节标题样式 */
 .section-title {
   font-size: 13px;
@@ -2632,16 +2563,5 @@ watch(() => currentDate.value, (newValue) => {
   height: 1px;
   background: linear-gradient(90deg, rgba(64, 158, 255, 0.2) 0%, rgba(64, 158, 255, 0) 100%);
   margin: 20px 0;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:deep(.el-table__cell) {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 </style>

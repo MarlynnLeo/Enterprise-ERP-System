@@ -37,7 +37,7 @@
         <div class="card-header">
           <span>过程检验管理</span>
           <div class="header-actions">
-            <el-button type="primary" @click="showRulesDialog = true">
+            <el-button v-permission="'quality:settings:view'" type="primary" @click="showRulesDialog = true">
               <el-icon><Setting /></el-icon>检验规则
             </el-button>
           </div>
@@ -162,7 +162,7 @@
               type="primary"
               @click="handleDropdownCommand('rework', scope.row)"
             
-              v-permission="'quality:process'">
+              v-permission="'quality:inspections:update'">
               返工
             </el-button>
             <el-button
@@ -272,7 +272,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitForm">确认</el-button>
+          <el-button v-permission="'quality:inspections:create'" type="primary" @click="submitForm">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -349,8 +349,8 @@ const RulesDialog = defineAsyncComponent(() => import('./components/ProcessInspe
 const authStore = useAuthStore()
 
 // 权限计算
-const canCreate = computed(() => authStore.hasPermission('quality:process:create') || authStore.isAdmin)
-const canInspect = computed(() => authStore.hasPermission('quality:process:inspect') || authStore.isAdmin)
+const canCreate = computed(() => authStore.hasPermission('quality:inspections:create') || authStore.isAdmin)
+const canInspect = computed(() => authStore.hasPermission('quality:inspections:update') || authStore.isAdmin)
 
 // 搜索相关
 const searchKeyword = ref('')

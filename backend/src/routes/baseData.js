@@ -13,6 +13,76 @@ const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
+const perms = {
+  processTemplates: {
+    view: ['basedata:processtemplates:view', 'basedata:process-templates:view'],
+    create: ['basedata:processtemplates:create', 'basedata:process-templates:create'],
+    update: ['basedata:processtemplates:update', 'basedata:process-templates:update'],
+    delete: ['basedata:processtemplates:delete', 'basedata:process-templates:delete'],
+    export: ['basedata:processtemplates:export', 'basedata:process-templates:export'],
+  },
+  productCategories: {
+    view: ['basedata:productcategories:view', 'basedata:product-categories:view', 'basedata:materials:view'],
+    create: ['basedata:productcategories:create', 'basedata:product-categories:create'],
+    update: ['basedata:productcategories:update', 'basedata:product-categories:update'],
+    delete: ['basedata:productcategories:delete', 'basedata:product-categories:delete'],
+  },
+  materialSources: {
+    view: [
+      'basedata:materialsources:view',
+      'basedata:material-sources:view',
+      'basedata:productcategories:view',
+      'basedata:product-categories:view',
+      'basedata:materials:view',
+    ],
+    create: [
+      'basedata:materialsources:create',
+      'basedata:material-sources:create',
+      'basedata:productcategories:create',
+      'basedata:product-categories:create',
+    ],
+    update: [
+      'basedata:materialsources:update',
+      'basedata:material-sources:update',
+      'basedata:productcategories:update',
+      'basedata:product-categories:update',
+    ],
+    delete: [
+      'basedata:materialsources:delete',
+      'basedata:material-sources:delete',
+      'basedata:productcategories:delete',
+      'basedata:product-categories:delete',
+    ],
+  },
+  inspectionMethods: {
+    view: [
+      'basedata:inspectionmethods:view',
+      'basedata:inspection-methods:view',
+      'basedata:productcategories:view',
+      'basedata:product-categories:view',
+      'basedata:materials:view',
+    ],
+    create: [
+      'basedata:inspectionmethods:create',
+      'basedata:inspection-methods:create',
+      'basedata:productcategories:create',
+      'basedata:product-categories:create',
+    ],
+    update: [
+      'basedata:inspectionmethods:update',
+      'basedata:inspection-methods:update',
+      'basedata:productcategories:update',
+      'basedata:product-categories:update',
+    ],
+    delete: [
+      'basedata:inspectionmethods:delete',
+      'basedata:inspection-methods:delete',
+      'basedata:productcategories:delete',
+      'basedata:product-categories:delete',
+    ],
+  },
+};
+
 // 文件上传路由
 router.post('/upload', authenticateToken, FileUploadMiddlewares.attachment, baseDataController.uploadFile);
 
@@ -20,8 +90,8 @@ router.post('/upload', authenticateToken, FileUploadMiddlewares.attachment, base
 router.get('/download-file', authenticateToken, baseDataController.downloadFile);
 
 // 物料管理路由
-router.get('/materials', authenticateToken, baseDataController.getAllMaterials);
-router.get('/materials/options', authenticateToken, baseDataController.getMaterialOptions);
+router.get('/materials', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getAllMaterials);
+router.get('/materials/options', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getMaterialOptions);
 router.get('/materials/stats', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getMaterialStats); // 注册统计路由
 router.get('/materials/next-code', authenticateToken, requirePermission('basedata:materials:create'), baseDataController.getNextMaterialCode);
 // 添加物料导入模板下载路由（必须在:id路由之前）
@@ -157,8 +227,8 @@ router.put('/customers/:id', authenticateToken, requirePermission('basedata:cust
 router.delete('/customers/:id', authenticateToken, requirePermission('basedata:customers:delete'), baseDataController.deleteCustomer);
 
 // 供应商管理路由
-router.get('/suppliers', authenticateToken, baseDataController.getAllSuppliers);
-router.get('/suppliers/options', authenticateToken, baseDataController.getSupplierOptions);
+router.get('/suppliers', authenticateToken, requirePermission(['basedata:suppliers:view', 'basedata:materials:view']), baseDataController.getAllSuppliers);
+router.get('/suppliers/options', authenticateToken, requirePermission(['basedata:suppliers:view', 'basedata:materials:view']), baseDataController.getSupplierOptions);
 // 添加供应商导入模板下载路由（必须在:id路由之前）
 router.get('/suppliers/template', authenticateToken, requirePermission('basedata:suppliers:import'), baseDataController.downloadSupplierTemplate);
 // 添加导入供应商的路由（使用内存存储）
@@ -187,14 +257,14 @@ router.post(
   baseDataController.importCategories
 );
 router.post('/categories/import-json', authenticateToken, requirePermission('basedata:categories:import'), baseDataController.importCategoriesJson);
-router.get('/categories', authenticateToken, baseDataController.getAllCategories);
+router.get('/categories', authenticateToken, requirePermission(['basedata:categories:view', 'basedata:materials:view']), baseDataController.getAllCategories);
 router.get('/categories/:id', authenticateToken, requirePermission('basedata:categories:view'), baseDataController.getCategoryById);
 router.post('/categories', authenticateToken, requirePermission('basedata:categories:create'), baseDataController.createCategory);
 router.put('/categories/:id', authenticateToken, requirePermission('basedata:categories:update'), baseDataController.updateCategory);
 router.delete('/categories/:id', authenticateToken, requirePermission('basedata:categories:delete'), baseDataController.deleteCategory);
 
 // 产品单位管理路由
-router.get('/units', authenticateToken, baseDataController.getAllUnits);
+router.get('/units', authenticateToken, requirePermission(['basedata:units:view', 'basedata:materials:view']), baseDataController.getAllUnits);
 router.post('/units/export', authenticateToken, requirePermission('basedata:units:export'), baseDataController.exportUnits);
 router.get('/units/:id', authenticateToken, requirePermission('basedata:units:view'), baseDataController.getUnitById);
 router.post('/units', authenticateToken, requirePermission('basedata:units:create'), baseDataController.createUnit);
@@ -202,7 +272,7 @@ router.put('/units/:id', authenticateToken, requirePermission('basedata:units:up
 router.delete('/units/:id', authenticateToken, requirePermission('basedata:units:delete'), baseDataController.deleteUnit);
 
 // 库位管理路由
-router.get('/locations', authenticateToken, baseDataController.getAllLocations);
+router.get('/locations', authenticateToken, requirePermission(['basedata:locations:view', 'basedata:materials:view']), baseDataController.getAllLocations);
 router.post('/locations/export', authenticateToken, requirePermission('basedata:locations:export'), baseDataController.exportLocations);
 router.get('/locations/:id', authenticateToken, requirePermission('basedata:locations:view'), baseDataController.getLocationById);
 router.post('/locations', authenticateToken, requirePermission('basedata:locations:create'), baseDataController.createLocation);
@@ -213,28 +283,28 @@ router.delete('/locations/:id', authenticateToken, requirePermission('basedata:l
 router.get('/warehouses', authenticateToken, baseDataController.getWarehouses);
 
 // 工序模板管理路由
-router.get('/process-templates', authenticateToken, requirePermission('basedata:processtemplates:view'), baseDataController.getAllProcessTemplates);
+router.get('/process-templates', authenticateToken, requirePermission(perms.processTemplates.view), baseDataController.getAllProcessTemplates);
 // 工序模板导出（必须在:id路由之前）
-router.post('/process-templates/export', authenticateToken, requirePermission('basedata:processtemplates:export'), baseDataController.exportProcessTemplates);
-router.get('/process-templates/:id', authenticateToken, requirePermission('basedata:processtemplates:view'), baseDataController.getProcessTemplateById);
-router.post('/process-templates', authenticateToken, requirePermission('basedata:processtemplates:create'), baseDataController.createProcessTemplate);
-router.put('/process-templates/:id', authenticateToken, requirePermission('basedata:processtemplates:update'), baseDataController.updateProcessTemplate);
+router.post('/process-templates/export', authenticateToken, requirePermission(perms.processTemplates.export), baseDataController.exportProcessTemplates);
+router.get('/process-templates/:id', authenticateToken, requirePermission(perms.processTemplates.view), baseDataController.getProcessTemplateById);
+router.post('/process-templates', authenticateToken, requirePermission(perms.processTemplates.create), baseDataController.createProcessTemplate);
+router.put('/process-templates/:id', authenticateToken, requirePermission(perms.processTemplates.update), baseDataController.updateProcessTemplate);
 router.put(
   '/process-templates/:id/status',
   authenticateToken,
-  requirePermission('basedata:processtemplates:update'),
+  requirePermission(perms.processTemplates.update),
   baseDataController.updateProcessTemplateStatus
 );
 router.delete(
   '/process-templates/:id',
   authenticateToken,
-  requirePermission('basedata:processtemplates:delete'),
+  requirePermission(perms.processTemplates.delete),
   baseDataController.deleteProcessTemplate
 );
 router.get(
   '/products/:id/process-template',
   authenticateToken,
-  requirePermission('basedata:processtemplates:view'),
+  requirePermission(perms.processTemplates.view),
   baseDataController.getProcessTemplateByProductId
 );
 
@@ -242,62 +312,64 @@ router.get(
 router.get(
   '/product-categories',
   authenticateToken,
+  requirePermission(perms.productCategories.view),
   productCategoryController.getAllProductCategories
 );
 router.get(
   '/product-categories/options',
   authenticateToken,
+  requirePermission(perms.productCategories.view),
   productCategoryController.getProductCategoryOptions
 );
 router.get(
   '/product-categories/statistics',
   authenticateToken,
-  requirePermission('basedata:productcategories:view'),
+  requirePermission(perms.productCategories.view),
   productCategoryController.getStatistics
 );
 router.get(
   '/product-categories/:id',
   authenticateToken,
-  requirePermission('basedata:productcategories:view'),
+  requirePermission(perms.productCategories.view),
   productCategoryController.getProductCategoryById
 );
 router.post(
   '/product-categories',
   authenticateToken,
-  requirePermission('basedata:productcategories:create'),
+  requirePermission(perms.productCategories.create),
   productCategoryController.createProductCategory
 );
 router.put(
   '/product-categories/:id',
   authenticateToken,
-  requirePermission('basedata:productcategories:update'),
+  requirePermission(perms.productCategories.update),
   productCategoryController.updateProductCategory
 );
 router.delete(
   '/product-categories/:id',
   authenticateToken,
-  requirePermission('basedata:productcategories:delete'),
+  requirePermission(perms.productCategories.delete),
   productCategoryController.deleteProductCategory
 );
 
 // 物料来源管理路由
-router.get('/material-sources', authenticateToken, baseDataController.getAllMaterialSources);
+router.get('/material-sources', authenticateToken, requirePermission(perms.materialSources.view), baseDataController.getAllMaterialSources);
 router.get(
   '/material-sources/statistics',
   authenticateToken,
-  requirePermission('basedata:materialsources:view'),
+  requirePermission(perms.materialSources.view),
   baseDataController.getMaterialSourceStatistics
 );
-router.get('/material-sources/:id', authenticateToken, requirePermission('basedata:materialsources:view'), baseDataController.getMaterialSourceById);
-router.post('/material-sources', authenticateToken, requirePermission('basedata:materialsources:create'), baseDataController.createMaterialSource);
-router.put('/material-sources/:id', authenticateToken, requirePermission('basedata:materialsources:update'), baseDataController.updateMaterialSource);
-router.delete('/material-sources/:id', authenticateToken, requirePermission('basedata:materialsources:delete'), baseDataController.deleteMaterialSource);
+router.get('/material-sources/:id', authenticateToken, requirePermission(perms.materialSources.view), baseDataController.getMaterialSourceById);
+router.post('/material-sources', authenticateToken, requirePermission(perms.materialSources.create), baseDataController.createMaterialSource);
+router.put('/material-sources/:id', authenticateToken, requirePermission(perms.materialSources.update), baseDataController.updateMaterialSource);
+router.delete('/material-sources/:id', authenticateToken, requirePermission(perms.materialSources.delete), baseDataController.deleteMaterialSource);
 
 // 检验方式管理路由
-router.get('/inspection-methods', authenticateToken, baseDataController.getAllInspectionMethods);
-router.get('/inspection-methods/:id', authenticateToken, requirePermission('basedata:materialsources:view'), baseDataController.getInspectionMethodById);
-router.post('/inspection-methods', authenticateToken, requirePermission('basedata:materialsources:create'), baseDataController.createInspectionMethod);
-router.put('/inspection-methods/:id', authenticateToken, requirePermission('basedata:materialsources:update'), baseDataController.updateInspectionMethod);
-router.delete('/inspection-methods/:id', authenticateToken, requirePermission('basedata:materialsources:delete'), baseDataController.deleteInspectionMethod);
+router.get('/inspection-methods', authenticateToken, requirePermission(perms.inspectionMethods.view), baseDataController.getAllInspectionMethods);
+router.get('/inspection-methods/:id', authenticateToken, requirePermission(perms.inspectionMethods.view), baseDataController.getInspectionMethodById);
+router.post('/inspection-methods', authenticateToken, requirePermission(perms.inspectionMethods.create), baseDataController.createInspectionMethod);
+router.put('/inspection-methods/:id', authenticateToken, requirePermission(perms.inspectionMethods.update), baseDataController.updateInspectionMethod);
+router.delete('/inspection-methods/:id', authenticateToken, requirePermission(perms.inspectionMethods.delete), baseDataController.deleteInspectionMethod);
 
 module.exports = router;

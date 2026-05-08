@@ -32,7 +32,7 @@
         <el-form-item>
           <el-button type="primary" @click="loadData">查询</el-button>
           <el-button @click="resetFilters">重置</el-button>
-          <el-button type="success" @click="exportLedger" :loading="exporting">
+          <el-button v-permission="'finance:cost:export'" type="success" @click="exportLedger" :loading="exporting">
             <el-icon><Download /></el-icon> 导出Excel
           </el-button>
         </el-form-item>

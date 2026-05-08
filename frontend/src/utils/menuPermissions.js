@@ -75,7 +75,7 @@ export const menuPermissions = [
     component: 'production/ProductionReport',
     icon: 'icon-data-analysis',
     type: 1,
-    permission: 'production:report',
+    permission: 'production:reports',
     sort: 4,
     status: 1
   },
@@ -87,7 +87,7 @@ export const menuPermissions = [
     component: 'production/MaterialShortage',
     icon: 'icon-warning',
     type: 1,
-    permission: 'production:shortage',
+    permission: 'production:plans',
     sort: 5,
     status: 1
   },
@@ -99,14 +99,14 @@ export const menuPermissions = [
     component: 'production/EquipmentMonitoring',
     icon: 'icon-monitor',
     type: 1,
-    permission: 'production:equipment-monitoring',
+    permission: 'production:equipment',
     sort: 6,
     status: 1
   },
   {
     id: 27,
     parentId: 2,
-    name: 'MRP需求计划',
+    name: '生产需求',
     path: '/production/mrp',
     component: 'production/MRPPlanning',
     icon: 'icon-data-analysis',
@@ -404,7 +404,7 @@ export const menuPermissions = [
     component: '',
     icon: '',
     type: 2,
-    permission: 'production:report:view',
+    permission: 'production:reports:view',
     sort: 1,
     status: 1
   },
@@ -416,7 +416,7 @@ export const menuPermissions = [
     component: '',
     icon: '',
     type: 2,
-    permission: 'production:report:create',
+    permission: 'production:reports:create',
     sort: 2,
     status: 1
   },
@@ -428,7 +428,7 @@ export const menuPermissions = [
     component: '',
     icon: '',
     type: 2,
-    permission: 'production:report:update',
+    permission: 'production:reports:update',
     sort: 3,
     status: 1
   },
@@ -538,7 +538,7 @@ export const menuPermissions = [
     component: 'baseData/ProcessTemplates',
     icon: 'icon-set-up',
     type: 1,
-    permission: 'basedata:process-templates',
+    permission: 'basedata:processtemplates',
     sort: 8,
     status: 1
   },
@@ -550,7 +550,7 @@ export const menuPermissions = [
     component: 'baseData/ProductCategories',
     icon: 'icon-category',
     type: 1,
-    permission: 'basedata:product-categories',
+    permission: 'basedata:productcategories',
     sort: 9,
     status: 1
   },
@@ -562,7 +562,7 @@ export const menuPermissions = [
     component: 'baseData/ECNManagement',
     icon: 'icon-edit',
     type: 1,
-    permission: 'basedata:bom',
+    permission: 'basedata:boms',
     sort: 10,
     status: 1
   },
@@ -895,8 +895,20 @@ export const menuPermissions = [
     component: 'finance/gl/Accounts',
     icon: 'icon-account',
     type: 1,
-    permission: 'finance:gl:accounts',
+    permission: 'finance:accounts:view',
     sort: 1,
+    status: 1
+  },
+  {
+    id: 7111,
+    parentId: 7,
+    name: '期初余额',
+    path: '/finance/gl/opening-balances',
+    component: 'finance/gl/OpeningBalances',
+    icon: 'icon-document',
+    type: 1,
+    permission: 'finance:accounts:view',
+    sort: 2,
     status: 1
   },
   {
@@ -907,8 +919,8 @@ export const menuPermissions = [
     component: '',
     icon: 'icon-document',
     type: 0, // 目录
-    permission: 'finance:gl:entries',
-    sort: 2,
+    permission: 'finance:entries:view',
+    sort: 3,
     status: 1
   },
   // 凭证子菜单
@@ -920,7 +932,7 @@ export const menuPermissions = [
     component: 'finance/gl/Entries',
     icon: 'icon-list',
     type: 1,
-    permission: 'finance:gl:entries',
+    permission: 'finance:entries:view',
     sort: 1,
     status: 1
   },
@@ -932,7 +944,7 @@ export const menuPermissions = [
     component: 'finance/gl/entries/ReceiptEntry',
     icon: 'icon-download',
     type: 1,
-    permission: 'finance:gl:entries',
+    permission: 'finance:entries:view',
     sort: 2,
     status: 1
   },
@@ -944,8 +956,8 @@ export const menuPermissions = [
     component: 'finance/gl/entries/PaymentEntry',
     icon: 'icon-upload',
     type: 1,
-    permission: 'finance:gl:entries',
-    sort: 3,
+    permission: 'finance:entries:view',
+    sort: 4,
     status: 1
   },
   {
@@ -956,7 +968,7 @@ export const menuPermissions = [
     component: 'finance/gl/entries/TransferEntry',
     icon: 'icon-right',
     type: 1,
-    permission: 'finance:gl:entries',
+    permission: 'finance:entries:view',
     sort: 4,
     status: 1
   },
@@ -968,7 +980,7 @@ export const menuPermissions = [
     component: 'finance/gl/entries/GeneralEntry',
     icon: 'icon-edit-outline',
     type: 1,
-    permission: 'finance:gl:entries',
+    permission: 'finance:entries:view',
     sort: 5,
     status: 1
   },
@@ -980,7 +992,7 @@ export const menuPermissions = [
     component: 'finance/gl/Periods',
     icon: 'icon-calendar',
     type: 1,
-    permission: 'finance:gl:periods',
+    permission: 'finance:periods:view',
     sort: 3,
     status: 1
   },
@@ -992,7 +1004,7 @@ export const menuPermissions = [
     component: 'finance/gl/TrialBalance',
     icon: 'icon-data-analysis',
     type: 1,
-    permission: 'finance:gl:view',
+    permission: 'finance:reports:view',
     sort: 31,
     status: 1
   },
@@ -1004,7 +1016,7 @@ export const menuPermissions = [
     component: 'finance/gl/PeriodClosing',
     icon: 'icon-check',
     type: 1,
-    permission: 'finance:gl:closing',
+    permission: 'finance:closing:view',
     sort: 32,
     status: 1
   },
@@ -1017,7 +1029,7 @@ export const menuPermissions = [
     component: 'finance/ar/Invoices',
     icon: 'icon-tickets',
     type: 1,
-    permission: 'finance:ar:invoices',
+    permission: 'finance:ar:view',
     sort: 4,
     status: 1
   },
@@ -1029,7 +1041,7 @@ export const menuPermissions = [
     component: 'finance/ar/Receipts',
     icon: 'icon-money',
     type: 1,
-    permission: 'finance:ar:receipts',
+    permission: 'finance:ar:view',
     sort: 5,
     status: 1
   },
@@ -1041,7 +1053,7 @@ export const menuPermissions = [
     component: 'finance/ar/Aging',
     icon: 'icon-data-analysis',
     type: 1,
-    permission: 'finance:ar:aging',
+    permission: 'finance:reports:view',
     sort: 6,
     status: 1
   },
@@ -1054,7 +1066,7 @@ export const menuPermissions = [
     component: 'finance/ap/Invoices',
     icon: 'icon-document',
     type: 1,
-    permission: 'finance:ap:invoices',
+    permission: 'finance:ap:view',
     sort: 7,
     status: 1
   },
@@ -1066,7 +1078,7 @@ export const menuPermissions = [
     component: 'finance/ap/Payments',
     icon: 'icon-money',
     type: 1,
-    permission: 'finance:ap:payments',
+    permission: 'finance:ap:view',
     sort: 8,
     status: 1
   },
@@ -1078,7 +1090,7 @@ export const menuPermissions = [
     component: 'finance/ap/Aging',
     icon: 'icon-data-analysis',
     type: 1,
-    permission: 'finance:ap:aging',
+    permission: 'finance:reports:view',
     sort: 9,
     status: 1
   },
@@ -1091,7 +1103,7 @@ export const menuPermissions = [
     component: 'finance/assets/AssetsList',
     icon: 'icon-goods',
     type: 1,
-    permission: 'finance:assets:list',
+    permission: 'finance:assets:view',
     sort: 10,
     status: 1
   },
@@ -1103,7 +1115,7 @@ export const menuPermissions = [
     component: 'finance/assets/AssetCategoryList',
     icon: 'icon-folder',
     type: 1,
-    permission: 'finance:assets:categories',
+    permission: 'finance:assets:view',
     sort: 11,
     status: 1
   },
@@ -1115,7 +1127,7 @@ export const menuPermissions = [
     component: 'finance/pricing/ProductPricing',
     icon: 'icon-money',
     type: 1,
-    permission: 'finance:pricing',
+    permission: 'finance:pricing:view',
     sort: 14,
     status: 1
   },
@@ -1127,8 +1139,44 @@ export const menuPermissions = [
     component: 'finance/assets/Depreciation',
     icon: 'icon-calendar',
     type: 1,
-    permission: 'finance:assets:depreciation',
+    permission: 'finance:assets:view',
     sort: 12,
+    status: 1
+  },
+  {
+    id: 7131,
+    parentId: 7,
+    name: '在建工程',
+    path: '/finance/assets/cip',
+    component: 'finance/assets/CIPList',
+    icon: 'icon-office-building',
+    type: 1,
+    permission: 'finance:assets:view',
+    sort: 13,
+    status: 1
+  },
+  {
+    id: 7132,
+    parentId: 7,
+    name: '资产盘点',
+    path: '/finance/assets/inventory',
+    component: 'finance/assets/AssetInventory',
+    icon: 'icon-check',
+    type: 1,
+    permission: 'finance:assets:view',
+    sort: 14,
+    status: 1
+  },
+  {
+    id: 7133,
+    parentId: 7,
+    name: '资产看板',
+    path: '/finance/assets/reports',
+    component: 'finance/assets/AssetReports',
+    icon: 'icon-data-board',
+    type: 1,
+    permission: 'finance:assets:view',
+    sort: 15,
     status: 1
   },
   // 出纳管理
@@ -1140,7 +1188,7 @@ export const menuPermissions = [
     component: '',
     icon: 'icon-wallet',
     type: 0,
-    permission: 'finance:cashier',
+    permission: 'finance:cash:view',
     sort: 13,
     status: 1
   },
@@ -1152,7 +1200,7 @@ export const menuPermissions = [
     component: 'finance/cash/BankAccounts',
     icon: 'icon-wallet',
     type: 1,
-    permission: 'finance:cash:accounts',
+    permission: 'finance:cash:view',
     sort: 1,
     status: 1
   },
@@ -1164,7 +1212,7 @@ export const menuPermissions = [
     component: 'finance/cash/Transactions',
     icon: 'icon-right',
     type: 1,
-    permission: 'finance:cash:bank-transactions',
+    permission: 'finance:cash:view',
     sort: 2,
     status: 1
   },
@@ -1176,7 +1224,7 @@ export const menuPermissions = [
     component: 'finance/cash/CashTransactions',
     icon: 'icon-money',
     type: 1,
-    permission: 'finance:cash:cash-transactions',
+    permission: 'finance:cash:view',
     sort: 3,
     status: 1
   },
@@ -1188,7 +1236,7 @@ export const menuPermissions = [
     component: 'finance/cash/Reconciliation',
     icon: 'icon-check',
     type: 1,
-    permission: 'finance:cash:reconciliation',
+    permission: 'finance:cash:reconcile',
     sort: 4,
     status: 1
   },
@@ -1200,7 +1248,7 @@ export const menuPermissions = [
     component: 'finance/reports/CashFlow',
     icon: 'icon-document',
     type: 1,
-    permission: 'finance:reports:cash-flow',
+    permission: 'finance:reports:view',
     sort: 5,
     status: 1
   },
@@ -1213,7 +1261,7 @@ export const menuPermissions = [
     component: 'finance/reports/BalanceSheet',
     icon: 'icon-document',
     type: 1,
-    permission: 'finance:reports:balance-sheet',
+    permission: 'finance:reports:view',
     sort: 14,
     status: 1
   },
@@ -1225,7 +1273,7 @@ export const menuPermissions = [
     component: 'finance/reports/IncomeStatement',
     icon: 'icon-data-analysis',
     type: 1,
-    permission: 'finance:reports:income-statement',
+    permission: 'finance:reports:view',
     sort: 15,
     status: 1
   },
@@ -1237,7 +1285,7 @@ export const menuPermissions = [
     component: 'finance/reports/StandardCashFlow',
     icon: 'icon-data-line',
     type: 1,
-    permission: 'finance:reports:cash-flow',
+    permission: 'finance:reports:view',
     sort: 16,
     status: 1
   },
@@ -1250,19 +1298,43 @@ export const menuPermissions = [
     component: 'finance/automation/FinanceAutomation',
     icon: 'icon-robot',
     type: 1,
-    permission: 'finance:automation:manage',
+    permission: 'finance:automation:view',
     sort: 16,
     status: 1
   },
   {
+    id: 71901,
+    parentId: 719,
+    name: '执行',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'finance:automation:execute',
+    sort: 1,
+    status: 1
+  },
+  {
     id: 7191,
+    parentId: 7,
+    name: '财务设置',
+    path: '/finance/settings',
+    component: 'finance/settings/FinanceSettings',
+    icon: 'icon-setting',
+    type: 1,
+    permission: 'finance:settings:view',
+    sort: 160,
+    status: 1
+  },
+  {
+    id: 7192,
     parentId: 7,
     name: '汇率维护',
     path: '/finance/settings/exchange-rates',
     component: 'finance/settings/ExchangeRates',
     icon: 'icon-coin',
     type: 1,
-    permission: 'finance:settings',
+    permission: 'finance:settings:view',
     sort: 161,
     status: 1
   },
@@ -1275,7 +1347,7 @@ export const menuPermissions = [
     component: '',
     icon: 'icon-document',
     type: 0,
-    permission: 'finance:tax',
+    permission: 'finance:tax:view',
     sort: 17,
     status: 1
   },
@@ -1287,7 +1359,7 @@ export const menuPermissions = [
     component: 'finance/tax/TaxInvoices',
     icon: 'icon-tickets',
     type: 1,
-    permission: 'finance:tax:invoices',
+    permission: 'finance:tax:view',
     sort: 1,
     status: 1
   },
@@ -1299,7 +1371,7 @@ export const menuPermissions = [
     component: 'finance/tax/TaxReturns',
     icon: 'icon-document',
     type: 1,
-    permission: 'finance:tax:returns',
+    permission: 'finance:tax:view',
     sort: 2,
     status: 1
   },
@@ -1307,11 +1379,11 @@ export const menuPermissions = [
     id: 733,
     parentId: 730,
     name: '税务科目配置',
-    path: '/finance/tax/config',
+    path: '/finance/tax/account-config',
     component: 'finance/tax/TaxAccountConfig',
     icon: 'icon-setting',
     type: 1,
-    permission: 'finance:tax:config',
+    permission: 'finance:tax:view',
     sort: 3,
     status: 1
   },
@@ -1324,7 +1396,7 @@ export const menuPermissions = [
     component: '',
     icon: 'icon-data-analysis',
     type: 0,
-    permission: 'finance:budget',
+    permission: 'finance:budgets:view',
     sort: 18,
     status: 1
   },
@@ -1336,7 +1408,7 @@ export const menuPermissions = [
     component: 'finance/budget/BudgetList',
     icon: 'icon-document',
     type: 1,
-    permission: 'finance:budget:list',
+    permission: 'finance:budgets:view',
     sort: 1,
     status: 1
   },
@@ -1348,7 +1420,7 @@ export const menuPermissions = [
     component: 'finance/budget/BudgetEdit',
     icon: 'icon-edit',
     type: 1,
-    permission: 'finance:budget:edit',
+    permission: 'finance:budgets:create',
     sort: 2,
     status: 1
   },
@@ -1360,7 +1432,7 @@ export const menuPermissions = [
     component: 'finance/budget/BudgetExecution',
     icon: 'icon-data-analysis',
     type: 1,
-    permission: 'finance:budget:execution',
+    permission: 'finance:budgets:view',
     sort: 3,
     status: 1
   },
@@ -1372,7 +1444,7 @@ export const menuPermissions = [
     component: 'finance/budget/BudgetAI',
     icon: 'icon-cpu',
     type: 1,
-    permission: 'finance:budget:analysis',
+    permission: 'finance:budgets:view',
     sort: 4,
     status: 1
   },
@@ -1386,7 +1458,7 @@ export const menuPermissions = [
     component: '',
     icon: 'icon-data-line',
     type: 0,
-    permission: 'finance:cost',
+    permission: 'finance:cost:view',
     sort: 19,
     status: 1
   },
@@ -1410,8 +1482,20 @@ export const menuPermissions = [
     component: 'finance/cost/StandardCost',
     icon: 'icon-document',
     type: 1,
-    permission: 'finance:cost:standard',
+    permission: 'finance:cost:view',
     sort: 3,
+    status: 1
+  },
+  {
+    id: 7521,
+    parentId: 750,
+    name: '标准成本版本',
+    path: '/finance/cost/versions',
+    component: 'finance/cost/CostVersionManage',
+    icon: 'icon-files',
+    type: 1,
+    permission: 'finance:cost:view',
+    sort: 2,
     status: 1
   },
   {
@@ -1422,7 +1506,7 @@ export const menuPermissions = [
     component: 'finance/cost/ActualCost',
     icon: 'icon-money',
     type: 1,
-    permission: 'finance:cost:actual',
+    permission: 'finance:cost:view',
     sort: 4,
     status: 1
   },
@@ -1434,7 +1518,7 @@ export const menuPermissions = [
     component: 'finance/cost/CostVariance',
     icon: 'icon-data-analysis',
     type: 1,
-    permission: 'finance:cost:variance',
+    permission: 'finance:cost:view',
     sort: 5,
     status: 1
   },
@@ -1446,7 +1530,7 @@ export const menuPermissions = [
     component: 'finance/cost/CostSettings',
     icon: 'icon-setting',
     type: 1,
-    permission: 'finance:cost:settings',
+    permission: 'finance:cost:view',
     sort: 6,
     status: 1
   },
@@ -1458,7 +1542,7 @@ export const menuPermissions = [
     component: 'finance/cost/CostCenter',
     icon: 'icon-office-building',
     type: 1,
-    permission: 'finance:cost:settings',
+    permission: 'finance:cost:view',
     sort: 7,
     status: 1
   },
@@ -1496,6 +1580,32 @@ export const menuPermissions = [
     type: 1,
     permission: 'finance:cost:view',
     sort: 10,
+    status: 1
+  },
+
+  // 费用管理
+  {
+    id: 760,
+    parentId: 7,
+    name: '费用列表',
+    path: '/finance/expenses',
+    component: 'finance/expenses/Expenses',
+    icon: 'icon-money',
+    type: 1,
+    permission: 'finance:expenses:view',
+    sort: 20,
+    status: 1
+  },
+  {
+    id: 761,
+    parentId: 7,
+    name: '费用类型',
+    path: '/finance/expenses/categories',
+    component: 'finance/expenses/ExpenseCategories',
+    icon: 'icon-folder',
+    type: 1,
+    permission: 'finance:expenses:view',
+    sort: 21,
     status: 1
   },
 
@@ -1712,7 +1822,7 @@ export const menuPermissions = [
     parentId: 9,
     name: '打印设置',
     path: '/system/print',
-    component: 'system/PrintSettings',
+    component: 'system/Print',
     icon: 'icon-printer',
     type: 1,
     permission: 'system:print',
@@ -2043,4 +2153,4 @@ export function generateMenuSQL() {
   return sql;
 }
 
-export default menuPermissions; 
+export default menuPermissions;

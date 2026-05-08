@@ -25,7 +25,7 @@ export default {
             component: () => import('../../views/finance/gl/Accounts.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:accounts'
+                permission: 'finance:accounts:view'
             }
         },
         {
@@ -34,7 +34,7 @@ export default {
             component: () => import('../../views/finance/gl/Entries.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:entries'
+                permission: 'finance:entries:view'
             }
         },
         {
@@ -43,7 +43,7 @@ export default {
             component: () => import('../../views/finance/gl/OpeningBalances.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:accounts'
+                permission: 'finance:accounts:view'
             }
         },
         {
@@ -52,7 +52,7 @@ export default {
             component: () => import('../../views/finance/gl/TrialBalance.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:view'
+                permission: 'finance:reports:view'
             }
         },
         {
@@ -61,7 +61,7 @@ export default {
             component: () => import('../../views/finance/gl/PeriodClosing.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:closing'
+                permission: 'finance:closing:view'
             }
         },
         {
@@ -70,7 +70,7 @@ export default {
             component: () => import('../../views/finance/gl/Periods.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:periods'
+                permission: 'finance:periods:view'
             }
         },
         // 专用凭证路由
@@ -80,7 +80,7 @@ export default {
             component: () => import('../../views/finance/gl/entries/ReceiptEntry.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:entries',
+                permission: 'finance:entries:create',
                 title: '收款凭证',
                 voucherType: '收款凭证'
             }
@@ -91,7 +91,7 @@ export default {
             component: () => import('../../views/finance/gl/entries/PaymentEntry.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:entries',
+                permission: 'finance:entries:create',
                 title: '付款凭证',
                 voucherType: '付款凭证'
             }
@@ -102,7 +102,7 @@ export default {
             component: () => import('../../views/finance/gl/entries/TransferEntry.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:entries',
+                permission: 'finance:entries:create',
                 title: '转账凭证',
                 voucherType: '转账凭证'
             }
@@ -113,7 +113,7 @@ export default {
             component: () => import('../../views/finance/gl/entries/EntryForm.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:entries'
+                permission: 'finance:entries:create'
             }
         },
         {
@@ -122,7 +122,7 @@ export default {
             component: () => import('../../views/finance/gl/entries/GeneralEntry.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:gl:entries',
+                permission: 'finance:entries:create',
                 title: '记账凭证',
                 voucherType: '记账凭证'
             }
@@ -134,7 +134,7 @@ export default {
             component: () => import('../../views/finance/ar/Invoices.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:ar:invoices'
+                permission: 'finance:ar:view'
             }
         },
         {
@@ -143,7 +143,7 @@ export default {
             component: () => import('../../views/finance/ar/Receipts.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:ar:receipts'
+                permission: 'finance:ar:view'
             }
         },
         {
@@ -152,7 +152,7 @@ export default {
             component: () => import('../../views/finance/ar/Aging.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:ar:aging'
+                permission: 'finance:reports:view'
             }
         },
         // 应付账款模块路由
@@ -162,7 +162,7 @@ export default {
             component: () => import('../../views/finance/ap/Invoices.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:ap:invoices'
+                permission: 'finance:ap:view'
             }
         },
         {
@@ -171,7 +171,7 @@ export default {
             component: () => import('../../views/finance/ap/Payments.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:ap:payments'
+                permission: 'finance:ap:view'
             }
         },
         {
@@ -180,7 +180,7 @@ export default {
             component: () => import('../../views/finance/ap/Aging.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:ap:aging'
+                permission: 'finance:reports:view'
             }
         },
         // 固定资产模块路由
@@ -190,7 +190,7 @@ export default {
             component: () => import('../../views/finance/assets/AssetsList.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:assets:list'
+                permission: 'finance:assets:view'
             }
         },
         {
@@ -208,7 +208,7 @@ export default {
             component: () => import('../../views/finance/assets/AssetCategoryList.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:assets:categories'
+                permission: 'finance:assets:view'
             }
         },
         {
@@ -217,7 +217,7 @@ export default {
             component: () => import('../../views/finance/assets/Depreciation.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:assets:depreciation'
+                permission: 'finance:assets:view'
             }
         },
         {
@@ -254,7 +254,7 @@ export default {
             component: () => import('../../views/finance/cash/BankAccounts.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cash:accounts'
+                permission: 'finance:cash:view'
             }
         },
         {
@@ -263,7 +263,7 @@ export default {
             component: () => import('../../views/finance/cash/Transactions.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cash:bank-transactions'
+                permission: 'finance:cash:view'
             }
         },
         {
@@ -272,7 +272,7 @@ export default {
             component: () => import('../../views/finance/cash/CashTransactions.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cash:cash-transactions'
+                permission: 'finance:cash:view'
             }
         },
         {
@@ -281,7 +281,7 @@ export default {
             component: () => import('../../views/finance/cash/Reconciliation.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cash:reconciliation'
+                permission: 'finance:cash:reconcile'
             }
         },
         // 财务报表模块路由
@@ -291,7 +291,7 @@ export default {
             component: () => import('../../views/finance/reports/BalanceSheet.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:reports:balance-sheet'
+                permission: 'finance:reports:view'
             }
         },
         {
@@ -300,7 +300,7 @@ export default {
             component: () => import('../../views/finance/reports/IncomeStatement.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:reports:income-statement'
+                permission: 'finance:reports:view'
             }
         },
         {
@@ -309,7 +309,7 @@ export default {
             component: () => import('../../views/finance/reports/CashFlow.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:reports:cash-flow'
+                permission: 'finance:reports:view'
             }
         },
         {
@@ -318,7 +318,7 @@ export default {
             component: () => import('../../views/finance/reports/StandardCashFlow.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:reports:cash-flow'
+                permission: 'finance:reports:view'
             }
         },
         // 财务自动化模块路由
@@ -328,7 +328,7 @@ export default {
             component: () => import('../../views/finance/automation/FinanceAutomation.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:automation:manage'
+                permission: 'finance:automation:view'
             }
         },
         // 税务管理模块路由
@@ -338,7 +338,7 @@ export default {
             component: () => import('../../views/finance/tax/TaxInvoices.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:tax:invoices'
+                permission: 'finance:tax:view'
             }
         },
         {
@@ -347,7 +347,7 @@ export default {
             component: () => import('../../views/finance/tax/TaxReturns.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:tax:returns'
+                permission: 'finance:tax:view'
             }
         },
         {
@@ -356,7 +356,7 @@ export default {
             component: () => import('../../views/finance/tax/TaxAccountConfig.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:tax:config'
+                permission: 'finance:tax:view'
             }
         },
         // 预算管理模块路由
@@ -366,7 +366,7 @@ export default {
             component: () => import('../../views/finance/budget/BudgetList.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:budget:list'
+                permission: 'finance:budgets:view'
             }
         },
         {
@@ -375,7 +375,7 @@ export default {
             component: () => import('../../views/finance/budget/BudgetEdit.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:budget:create'
+                permission: 'finance:budgets:create'
             }
         },
         {
@@ -384,7 +384,7 @@ export default {
             component: () => import('../../views/finance/budget/BudgetEdit.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:budget:edit'
+                permission: 'finance:budgets:update'
             }
         },
         {
@@ -393,7 +393,7 @@ export default {
             component: () => import('../../views/finance/budget/BudgetDetail.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:budget:view'
+                permission: 'finance:budgets:view'
             }
         },
         {
@@ -402,7 +402,7 @@ export default {
             component: () => import('../../views/finance/budget/BudgetAnalysis.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:budget:analysis'
+                permission: 'finance:budgets:view'
             }
         },
         {
@@ -411,7 +411,7 @@ export default {
             component: () => import('../../views/finance/budget/BudgetExecution.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:budget:execution'
+                permission: 'finance:budgets:view'
             }
         },
         {
@@ -420,7 +420,7 @@ export default {
             component: () => import('../../views/finance/budget/BudgetExecution.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:budget:execution'
+                permission: 'finance:budgets:view'
             }
         },
         {
@@ -429,7 +429,7 @@ export default {
             component: () => import('../../views/finance/budget/BudgetAI.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:budget:analysis'
+                permission: 'finance:budgets:view'
             }
         },
         // 成本核算模块路由
@@ -448,7 +448,7 @@ export default {
             component: () => import('../../views/finance/cost/StandardCost.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cost:standard'
+                permission: 'finance:cost:view'
             }
         },
         {
@@ -458,7 +458,7 @@ export default {
             meta: {
                 title: '标准成本版本管理',
                 requiresAuth: true,
-                permission: 'finance:cost:standard'
+                permission: 'finance:cost:view'
             }
         },
         {
@@ -467,7 +467,7 @@ export default {
             component: () => import('../../views/finance/cost/ActualCost.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cost:actual'
+                permission: 'finance:cost:view'
             }
         },
         {
@@ -476,7 +476,7 @@ export default {
             component: () => import('../../views/finance/cost/CostVariance.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cost:variance'
+                permission: 'finance:cost:view'
             }
         },
         {
@@ -485,7 +485,7 @@ export default {
             component: () => import('../../views/finance/cost/CostSettings.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cost:settings'
+                permission: 'finance:cost:view'
             }
         },
         {
@@ -494,7 +494,7 @@ export default {
             component: () => import('../../views/finance/cost/CostCenter.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:cost:settings'
+                permission: 'finance:cost:view'
             }
         },
         {
@@ -530,7 +530,7 @@ export default {
             component: () => import('../../views/finance/pricing/ProductPricing.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:pricing'
+                permission: 'finance:pricing:view'
             }
         },
         // 费用管理模块路由
@@ -540,7 +540,7 @@ export default {
             component: () => import('../../views/finance/expenses/Expenses.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:expenses'
+                permission: 'finance:expenses:view'
             }
         },
         {
@@ -549,7 +549,7 @@ export default {
             component: () => import('../../views/finance/expenses/ExpenseCategories.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:expenses:categories'
+                permission: 'finance:expenses:view'
             }
         },
         {
@@ -558,7 +558,7 @@ export default {
             component: () => import('../../views/finance/settings/FinanceSettings.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:settings'
+                permission: 'finance:settings:view'
             }
         },
         {
@@ -567,7 +567,7 @@ export default {
             component: () => import('../../views/finance/settings/ExchangeRates.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:settings'
+                permission: 'finance:settings:view'
             }
         }
     ]

@@ -9,6 +9,27 @@ const logger = require('../../utils/logger');
 const db = require('../../config/db');
 const CodeGeneratorService = require('../../services/business/CodeGeneratorService');
 
+const EDITABLE_CASH_STATUSES = new Set(['draft', 'rejected']);
+const AUDITABLE_CASH_STATUSES = new Set(['pending', 'reviewed']);
+
+function normalizeStatus(status) {
+  return status || 'draft';
+}
+
+function ensureEditableCashTransaction(transaction) {
+  const currentStatus = normalizeStatus(transaction.status);
+  if (!EDITABLE_CASH_STATUSES.has(currentStatus)) {
+    throw new Error(`Cash transaction status ${currentStatus} cannot be edited or deleted`);
+  }
+}
+
+function ensureAuditableCashTransaction(transaction) {
+  const currentStatus = normalizeStatus(transaction.status);
+  if (!AUDITABLE_CASH_STATUSES.has(currentStatus)) {
+    throw new Error(`Cash transaction status ${currentStatus} cannot be audited`);
+  }
+}
+
 class CashTransactionModel {
   /**
    * 创建现金交易
@@ -64,14 +85,48 @@ class CashTransactionModel {
    */
   static async getCashTransactions(filters = {}) {
     try {
-      // 计算偏移量
-      const page = parseInt(filters.page) || 1;
-      const pageSize = parseInt(filters.pageSize) || 10;
+      const page = Math.max(parseInt(filters.page, 10) || 1, 1);
+      const pageSize = Math.min(Math.max(parseInt(filters.pageSize, 10) || 10, 1), 100);
       const offset = (page - 1) * pageSize;
 
-      // 先简化查询，不使用筛选条件
-      const countQuery = 'SELECT COUNT(*) as total FROM cash_transactions';
-      const [countResult] = await db.pool.execute(countQuery);
+      let whereClause = 'WHERE 1=1';
+      const params = [];
+
+      if (filters.type) {
+        whereClause += ' AND transaction_type = ?';
+        params.push(filters.type);
+      }
+
+      if (filters.category) {
+        whereClause += ' AND category = ?';
+        params.push(filters.category);
+      }
+
+      if (filters.startDate) {
+        whereClause += ' AND transaction_date >= ?';
+        params.push(filters.startDate);
+      }
+
+      if (filters.endDate) {
+        whereClause += ' AND transaction_date <= ?';
+        params.push(filters.endDate);
+      }
+
+      if (filters.search) {
+        whereClause += ` AND (
+          transaction_number LIKE ?
+          OR counterparty LIKE ?
+          OR description LIKE ?
+          OR reference_number LIKE ?
+        )`;
+        const keyword = `%${filters.search}%`;
+        params.push(keyword, keyword, keyword, keyword);
+      }
+
+      const [countResult] = await db.pool.execute(
+        `SELECT COUNT(*) as total FROM cash_transactions ${whereClause}`,
+        params
+      );
       const total = parseInt(countResult[0].total) || 0;
 
       // 查询数据
@@ -91,12 +146,12 @@ class CashTransactionModel {
           created_at as createdAt,
           updated_at as updatedAt
         FROM cash_transactions
+        ${whereClause}
         ORDER BY transaction_date DESC, created_at DESC
         LIMIT ${pageSize} OFFSET ${offset}
       `;
 
-      // 使用 query 而不是 execute，避免 LIMIT/OFFSET 参数化问题
-      const [rows] = await db.pool.query(dataQuery);
+      const [rows] = await db.pool.execute(dataQuery, params);
 
       return {
         transactions: rows,
@@ -176,6 +231,7 @@ class CashTransactionModel {
           description,
           reference_number as referenceNumber,
           transaction_number as transactionNumber,
+          status,
           created_by as createdBy,
           created_at as createdAt,
           updated_at as updatedAt
@@ -198,10 +254,21 @@ class CashTransactionModel {
     try {
       await connection.beginTransaction();
 
+      const [current] = await connection.execute(
+        'SELECT id, status FROM cash_transactions WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (current.length === 0) {
+        throw new Error('现金交易不存在');
+      }
+      ensureEditableCashTransaction(current[0]);
+
       const [result] = await connection.execute(
         `UPDATE cash_transactions
          SET transaction_type = ?, transaction_date = ?, amount = ?, category = ?,
-             counterparty = ?, description = ?, reference_number = ?, updated_at = NOW()
+             counterparty = ?, description = ?, reference_number = ?,
+             status = CASE WHEN status = 'rejected' THEN 'draft' ELSE status END,
+             updated_at = NOW()
          WHERE id = ?`,
         [
           transactionData.transaction_type,
@@ -239,6 +306,15 @@ class CashTransactionModel {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+
+      const [current] = await connection.execute(
+        'SELECT id, status FROM cash_transactions WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (current.length === 0) {
+        throw new Error('现金交易不存在');
+      }
+      ensureEditableCashTransaction(current[0]);
 
       const [result] = await connection.execute('DELETE FROM cash_transactions WHERE id = ?', [id]);
 
@@ -333,8 +409,8 @@ class CashTransactionModel {
         throw new Error('现金交易不存在');
       }
 
-      const currentStatus = current[0].status || 'draft';
-      if (['pending', 'approved'].includes(currentStatus)) {
+      const currentStatus = normalizeStatus(current[0].status);
+      if (!EDITABLE_CASH_STATUSES.has(currentStatus)) {
         throw new Error(`交易当前状态为 ${currentStatus}，无法重复提交审核`);
       }
 
@@ -342,7 +418,7 @@ class CashTransactionModel {
       const [result] = await db.pool.execute(
         `UPDATE cash_transactions
                  SET status = 'pending', updated_at = NOW()
-                 WHERE id = ?`,
+                 WHERE id = ? AND (status IS NULL OR status IN ('draft', 'rejected'))`,
         [id]
       );
 
@@ -368,11 +444,15 @@ class CashTransactionModel {
       const [result] = await db.pool.execute(
         `UPDATE cash_transactions
          SET status = 'approved', updated_at = NOW()
-         WHERE id = ?`,
+         WHERE id = ? AND status IN ('pending', 'reviewed')`,
         [id]
       );
 
       if (result.affectedRows === 0) {
+        const [current] = await db.pool.execute('SELECT status FROM cash_transactions WHERE id = ?', [id]);
+        if (current.length > 0) {
+          ensureAuditableCashTransaction(current[0]);
+        }
         throw new Error('现金交易不存在');
       }
 
@@ -395,11 +475,15 @@ class CashTransactionModel {
       const [result] = await db.pool.execute(
         `UPDATE cash_transactions
          SET status = 'rejected', updated_at = NOW()
-         WHERE id = ?`,
+         WHERE id = ? AND status IN ('pending', 'reviewed')`,
         [id]
       );
 
       if (result.affectedRows === 0) {
+        const [current] = await db.pool.execute('SELECT status FROM cash_transactions WHERE id = ?', [id]);
+        if (current.length > 0) {
+          ensureAuditableCashTransaction(current[0]);
+        }
         throw new Error('现金交易不存在');
       }
 

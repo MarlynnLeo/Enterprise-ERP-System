@@ -13,6 +13,52 @@ const { AuditService, AuditAction, AuditModule } = require('../../services/Audit
 const { pool } = require('../../config/db');
 const cacheService = require('../../services/cacheService');
 const DLQService = require('../../services/business/DLQService');
+const BackupService = require('../../services/system/BackupService');
+
+function omitUserSecrets(user) {
+  if (!user || typeof user !== 'object') return user;
+  const safeUser = { ...user };
+  delete safeUser.password;
+  delete safeUser.password_hash;
+  delete safeUser.token;
+  delete safeUser.refresh_token;
+  delete safeUser.reset_token;
+  return safeUser;
+}
+
+function normalizeBinaryStatus(status) {
+  if (status === true || status === 1 || status === '1') return 1;
+  if (status === false || status === 0 || status === '0') return 0;
+  throw new Error('status must be 0 or 1');
+}
+
+function sendBusinessError(res, error, fallbackMessage = '操作失败') {
+  const message = error?.message || fallbackMessage;
+  if (message.startsWith('NOT_FOUND:')) {
+    return ResponseHandler.error(res, message.replace('NOT_FOUND:', '').trim(), 'NOT_FOUND', 404);
+  }
+  if (
+    error?.code === 'ER_DUP_ENTRY' ||
+    message.includes('已存在') ||
+    message.toLowerCase().includes('duplicate')
+  ) {
+    return ResponseHandler.error(res, message, 'CONFLICT', 409, error);
+  }
+  if (
+    message.includes('不能') ||
+    message.includes('不允许') ||
+    message.includes('不存在') ||
+    message.includes('必须') ||
+    message.includes('无效') ||
+    message.includes('required') ||
+    message.includes('invalid') ||
+    message.includes('must be')
+  ) {
+    return ResponseHandler.error(res, message, 'VALIDATION_ERROR', 400, error);
+  }
+  return ResponseHandler.error(res, fallbackMessage, 'SERVER_ERROR', 500, error);
+}
+
 const systemController = {
   // 用户管理
   async getAllUsers(req, res) {
@@ -53,8 +99,7 @@ const systemController = {
         });
       }
 
-      // 不返回密码
-      const {  ...userData } = user;
+      const userData = omitUserSecrets(user);
 
       ResponseHandler.success(res, userData, '获取用户信息成功');
     } catch (error) {
@@ -68,8 +113,7 @@ const systemController = {
       const userData = req.body;
       const newUser = await systemModel.createUser(userData);
 
-      // 不返回密码
-      const {  ...result } = newUser;
+      const result = omitUserSecrets(newUser);
 
       ResponseHandler.success(
         res,
@@ -83,7 +127,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('创建用户失败:', error);
-      ResponseHandler.error(res, '创建用户失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '创建用户失败');
     }
   },
 
@@ -100,10 +144,10 @@ const systemController = {
 
       const updatedUser = await systemModel.updateUser(id, userData);
 
-      ResponseHandler.success(res, updatedUser, '更新用户成功');
+      ResponseHandler.success(res, omitUserSecrets(updatedUser), '更新用户成功');
     } catch (error) {
       logger.error('更新用户失败:', error);
-      ResponseHandler.error(res, '更新用户失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '更新用户失败');
     }
   },
 
@@ -129,7 +173,8 @@ const systemController = {
         });
       }
 
-      const result = await systemModel.updateUserStatus(id, status);
+      const normalizedStatus = normalizeBinaryStatus(status);
+      const result = await systemModel.updateUserStatus(id, normalizedStatus);
 
       if (!result) {
         return res.status(404).json({
@@ -147,10 +192,10 @@ const systemController = {
         logger.warn('清除缓存失败:', cacheError.message);
       }
 
-      ResponseHandler.success(res, null, `用户状态已${status === 1 ? '启用' : '禁用'}`);
+      ResponseHandler.success(res, null, `用户状态已${normalizedStatus === 1 ? '启用' : '禁用'}`);
     } catch (error) {
       logger.error('更新用户状态失败:', error);
-      ResponseHandler.error(res, '更新用户状态失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '更新用户状态失败');
     }
   },
 
@@ -183,7 +228,7 @@ const systemController = {
       ResponseHandler.success(res, null, '密码重置成功');
     } catch (error) {
       logger.error('重置密码失败:', error);
-      ResponseHandler.error(res, '重置密码失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '重置密码失败');
     }
   },
 
@@ -239,7 +284,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('创建部门失败:', error);
-      ResponseHandler.error(res, '创建部门失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '创建部门失败');
     }
   },
 
@@ -261,7 +306,7 @@ const systemController = {
       ResponseHandler.success(res, null, '更新部门成功');
     } catch (error) {
       logger.error('更新部门失败:', error);
-      ResponseHandler.error(res, '更新部门失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '更新部门失败');
     }
   },
 
@@ -277,7 +322,8 @@ const systemController = {
         });
       }
 
-      const result = await systemModel.updateDepartmentStatus(id, status);
+      const normalizedStatus = normalizeBinaryStatus(status);
+      const result = await systemModel.updateDepartmentStatus(id, normalizedStatus);
 
       if (!result) {
         return res.status(404).json({
@@ -286,10 +332,10 @@ const systemController = {
         });
       }
 
-      ResponseHandler.success(res, null, `部门状态已${status === 1 ? '启用' : '禁用'}`);
+      ResponseHandler.success(res, null, `部门状态已${normalizedStatus === 1 ? '启用' : '禁用'}`);
     } catch (error) {
       logger.error('更新部门状态失败:', error);
-      ResponseHandler.error(res, '更新部门状态失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '更新部门状态失败');
     }
   },
 
@@ -312,7 +358,7 @@ const systemController = {
         });
       }
 
-      ResponseHandler.error(res, '删除部门失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '删除部门失败');
     }
   },
 
@@ -376,7 +422,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('创建角色失败:', error);
-      ResponseHandler.error(res, '创建角色失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '创建角色失败');
     }
   },
 
@@ -396,7 +442,7 @@ const systemController = {
       ResponseHandler.success(res, result, '更新角色成功');
     } catch (error) {
       logger.error('更新角色失败:', error);
-      ResponseHandler.error(res, '更新角色失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '更新角色失败');
     }
   },
 
@@ -417,7 +463,8 @@ const systemController = {
         });
       }
 
-      const result = await systemModel.updateRoleStatus(id, status);
+      const normalizedStatus = normalizeBinaryStatus(status);
+      const result = await systemModel.updateRoleStatus(id, normalizedStatus);
 
       if (!result) {
         return res.status(404).json({
@@ -436,7 +483,7 @@ const systemController = {
           entityType: 'role',
           entityId: String(id),
           oldValue: null,
-          newValue: { status },
+          newValue: { status: normalizedStatus },
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
         });
@@ -453,10 +500,10 @@ const systemController = {
         logger.warn('清除缓存失败:', cacheError.message);
       }
 
-      ResponseHandler.success(res, null, `角色状态已${status === 1 ? '启用' : '禁用'}`);
+      ResponseHandler.success(res, null, `角色状态已${normalizedStatus === 1 ? '启用' : '禁用'}`);
     } catch (error) {
       logger.error('更新角色状态失败:', error);
-      ResponseHandler.error(res, '更新角色状态失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '更新角色状态失败');
     }
   },
 
@@ -475,7 +522,7 @@ const systemController = {
       ResponseHandler.success(res, null, '删除角色成功');
     } catch (error) {
       logger.error('删除角色失败:', error);
-      ResponseHandler.error(res, '删除角色失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '删除角色失败');
     }
   },
 
@@ -526,7 +573,7 @@ const systemController = {
       );
     } catch (error) {
       logger.error('创建菜单失败:', error);
-      ResponseHandler.error(res, '创建菜单失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '创建菜单失败');
     }
   },
 
@@ -548,7 +595,36 @@ const systemController = {
       ResponseHandler.success(res, null, '更新菜单成功');
     } catch (error) {
       logger.error('更新菜单失败:', error);
-      ResponseHandler.error(res, '更新菜单失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '更新菜单失败');
+    }
+  },
+
+  async updateMenuStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (status === undefined) {
+        return res.status(400).json({
+          code: 400,
+          message: '缺少状态参数',
+        });
+      }
+
+      const normalizedStatus = normalizeBinaryStatus(status);
+      const result = await systemModel.updateMenuStatus(id, normalizedStatus);
+
+      if (!result) {
+        return res.status(404).json({
+          code: 404,
+          message: '菜单不存在',
+        });
+      }
+
+      ResponseHandler.success(res, null, `菜单状态已${normalizedStatus === 1 ? '显示' : '隐藏'}`);
+    } catch (error) {
+      logger.error('更新菜单状态失败:', error);
+      return sendBusinessError(res, error, '更新菜单状态失败');
     }
   },
 
@@ -562,7 +638,7 @@ const systemController = {
       ResponseHandler.success(res, null, '删除菜单成功');
     } catch (error) {
       logger.error('删除菜单失败:', error);
-      ResponseHandler.error(res, '删除菜单失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '删除菜单失败');
     }
   },
 
@@ -1014,35 +1090,32 @@ const systemController = {
 
   async createBackup(req, res) {
     try {
-      // 执行备份逻辑
-      const backupFile = `backup_${Date.now()}.sql`;
-      return ResponseHandler.success(res, { file: backupFile }, '数据库备份成功');
+      const backup = await BackupService.createBackup(req.user?.id);
+      return ResponseHandler.success(res, backup, '数据库备份成功');
     } catch (error) {
       logger.error('数据库备份失败:', error);
-      return ResponseHandler.error(res, '数据库备份失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '数据库备份失败');
     }
   },
 
   async getBackups(req, res) {
     try {
-      const [backups] = await pool.execute(
-        'SELECT * FROM system_backups ORDER BY created_at DESC LIMIT 50'
-      );
+      const backups = await BackupService.listBackups();
       return ResponseHandler.success(res, backups, '获取备份列表成功');
     } catch (error) {
       logger.error('获取备份列表失败:', error);
-      return ResponseHandler.error(res, '获取备份列表失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '获取备份列表失败');
     }
   },
 
   async downloadBackup(req, res) {
     try {
-
-      // 下载备份逻辑
-      return ResponseHandler.success(res, {}, '备份下载成功');
+      const { filename } = req.params;
+      const backup = await BackupService.getBackupFile(filename);
+      res.download(backup.file_path, backup.filename);
     } catch (error) {
       logger.error('备份下载失败:', error);
-      return ResponseHandler.error(res, '备份下载失败', 'SERVER_ERROR', 500, error);
+      return sendBusinessError(res, error, '备份下载失败');
     }
   },
 };

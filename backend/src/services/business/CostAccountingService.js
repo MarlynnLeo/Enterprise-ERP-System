@@ -586,7 +586,9 @@ class CostAccountingService {
               document_number: order.code,
               transaction_id: productionOrderId,
               created_by: 'system',
-              voucher_word: '转'
+              voucher_word: '转',
+              status: 'posted',
+              is_posted: 1,
           };
 
           // --- 凭证 1: 生产领料 (借: 生产成本 / 贷: 原材料) ---
@@ -641,7 +643,7 @@ class CostAccountingService {
         }
       } else {
         logger.warn(`未配置GL标准化科目映射 (4001 或 1405 缺失)，跳过生成凭证: Order ${productionOrderId}`);
-        // 可以选择在这里抛出异常，强制要求配置
+        throw new Error(`未配置生产成本总账科目映射，不能完成成本结转: Order ${productionOrderId}`);
       }
 
       if (!isExternalConn) await connection.commit();
@@ -1810,14 +1812,15 @@ class CostAccountingService {
 
       const [wipTasks] = await connection.execute(
         `
-        SELECT pt.id, pt.code, pt.product_id, pt.quantity, pt.created_at,
+        SELECT pt.id, pt.code, pt.product_id, pt.quantity, pt.quantity AS planned_quantity,
+               pt.cost_center_id, pt.created_at,
                m.name as product_name, m.code as product_code
         FROM production_tasks pt
         LEFT JOIN materials m ON pt.product_id = m.id
         WHERE pt.created_at <= ? 
-        AND pt.status IN ('planned', 'in_progress', 'paused')
+          AND (pt.status NOT IN ('completed', 'cancelled') OR pt.actual_end_date > ?)
       `,
-        [`${endDateStr} 23:59:59`]
+        [`${endDateStr} 23:59:59`, endDateStr]
       );
 
       let totalWIPCost = 0;
@@ -1850,9 +1853,9 @@ class CostAccountingService {
         const [allLaborData] = await connection.execute(
           `SELECT task_id, COALESCE(SUM(work_hours), 0) as total_hours
            FROM production_reports
-           WHERE task_id IN (${taskPh}) AND report_date <= ?
+           WHERE task_id IN (${taskPh}) AND report_time <= ?
            GROUP BY task_id`,
-          [...taskIds, endDateStr]
+          [...taskIds, `${endDateStr} 23:59:59`]
         );
         const laborMap = new Map(allLaborData.map(r => [r.task_id, parseFloat(r.total_hours) || 0]));
 
@@ -2237,6 +2240,8 @@ class CostAccountingService {
         transaction_type: '生产领料', // 业务类型：生产领料
         transaction_id: taskId, // 关联的生产任务ID
         created_by: 'system',
+        status: 'posted',
+        is_posted: 1,
       };
 
       const entryId = await GLService.createEntry(entryData, entryItems, conn);
@@ -2398,6 +2403,8 @@ class CostAccountingService {
         transaction_type: '生产人工', // 业务类型：人工成本
         transaction_id: taskId, // 关联的生产任务ID
         created_by: 'system',
+        status: 'posted',
+        is_posted: 1,
       };
 
       const entryId = await GLService.createEntry(entryData, entryItems, conn);
@@ -2557,6 +2564,8 @@ class CostAccountingService {
         transaction_type: '生产完工', // 业务类型：生产完工
         transaction_id: taskId, // 关联的生产任务ID
         created_by: 'system',
+        status: 'posted',
+        is_posted: 1,
       };
 
       const entryId = await GLService.createEntry(entryData, entryItems, conn);
@@ -2909,6 +2918,8 @@ class CostAccountingService {
         transaction_type: '期末WIP结转', // 业务类型：在制品结转
         transaction_id: periodId, // 关联的会计期间ID
         created_by: 'system', // 系统自动计算
+        status: 'posted',
+        is_posted: 1,
       };
 
       const entryId = await GLService.createEntry(entryData, entryItems, connection);
@@ -3163,6 +3174,8 @@ class CostAccountingService {
         transaction_type: 'SALES_COST', // 业务类型：销售成本
         transaction_id: salesId, // 关联的销售ID
         created_by: 'system',
+        status: 'posted',
+        is_posted: 1,
       };
 
       const entryId = await GLService.createEntry(entryData, entryItems, conn);

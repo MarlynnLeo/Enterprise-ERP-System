@@ -18,7 +18,7 @@
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleEdit(row)"
-              v-permission="'finance:tax:config'">编辑</el-button>
+              v-permission="'finance:tax:update'">编辑</el-button>
             <el-button v-permission="'finance:tax:delete'" link type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -71,7 +71,7 @@
 
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
+        <el-button v-permission="formData.id ? 'finance:tax:update' : 'finance:tax:create'" type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -244,4 +244,3 @@ onMounted(() => {
   align-items: center;
 }
 </style>
-

@@ -6,6 +6,7 @@
 const db = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 
 class NotificationController {
   /**
@@ -16,9 +17,7 @@ class NotificationController {
       const userId = req.user.id;
       const { page = 1, pageSize = 20, type, isRead, priority } = req.query;
 
-      const actualPage = parseInt(page) || 1;
-      const actualPageSize = parseInt(pageSize) || 20;
-      const offset = (actualPage - 1) * actualPageSize;
+      const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
       const whereConditions = ['user_id = ?'];
       const params = [userId];
 
@@ -52,19 +51,20 @@ class NotificationController {
       );
 
       // 获取通知列表
-      const notificationsResult = await db.query(
+      const notificationsSql = appendPaginationSQL(
         `SELECT * FROM notifications
          WHERE ${whereClause}
-         ORDER BY priority DESC, created_at DESC
-         LIMIT ${actualPageSize} OFFSET ${offset}`,
-        params
+         ORDER BY priority DESC, created_at DESC`,
+        pagination.limit,
+        pagination.offset
       );
+      const notificationsResult = await db.query(notificationsSql, params);
 
       ResponseHandler.success(res, {
         list: notificationsResult.rows,
         total: countResult.rows[0].total,
-        page: actualPage,
-        pageSize: actualPageSize,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       });
     } catch (error) {
       logger.error('获取通知列表失败:', error);
@@ -99,10 +99,13 @@ class NotificationController {
       const { id } = req.params;
       const userId = req.user.id;
 
-      await db.query(
+      const result = await db.query(
         'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE id = ? AND user_id = ?',
         [id, userId]
       );
+      if (result.affectedRows === 0) {
+        return ResponseHandler.notFound(res, '通知不存在');
+      }
 
       ResponseHandler.success(res, null, '标记成功');
     } catch (error) {
@@ -117,15 +120,16 @@ class NotificationController {
   async markAllAsRead(req, res) {
     try {
       const userId = req.user.id;
-      const { ids } = req.body;
+      const { ids } = req.body || {};
+      const targetIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
 
-      if (ids && ids.length > 0) {
+      if (targetIds.length > 0) {
         // 标记指定的通知
-        const placeholders = ids.map(() => '?').join(',');
+        const placeholders = targetIds.map(() => '?').join(',');
         await db.query(
           `UPDATE notifications SET is_read = 1, read_at = NOW()
            WHERE id IN (${placeholders}) AND user_id = ?`,
-          [...ids, userId]
+          [...targetIds, userId]
         );
       } else {
         // 标记所有未读通知
@@ -150,7 +154,10 @@ class NotificationController {
       const { id } = req.params;
       const userId = req.user.id;
 
-      await db.query('DELETE FROM notifications WHERE id = ? AND user_id = ?', [id, userId]);
+      const result = await db.query('DELETE FROM notifications WHERE id = ? AND user_id = ?', [id, userId]);
+      if (result.affectedRows === 0) {
+        return ResponseHandler.notFound(res, '通知不存在');
+      }
 
       ResponseHandler.success(res, null, '删除成功');
     } catch (error) {

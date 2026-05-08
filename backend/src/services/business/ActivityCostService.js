@@ -132,7 +132,7 @@ class ActivityCostService {
     }
 
     // ✅ 软删除替代硬删除
-    await softDelete(db, 'cost_activities', 'id', id);
+    await softDelete(db.pool, 'cost_activities', 'id', id);
     return { success: true };
   }
 

@@ -8,7 +8,7 @@
           <p class="subtitle">管理企业成本中心及成本归集</p>
         </div>
         <div class="action-section">
-          <el-button type="primary" @click="showCreateDialog">
+          <el-button v-permission="'finance:cost:create'" type="primary" @click="showCreateDialog">
             <el-icon><Plus /></el-icon> 新增成本中心
           </el-button>
         </div>
@@ -47,7 +47,7 @@
             </el-table-column>
             <el-table-column label="操作" min-width="200" fixed="right">
               <template #default="scope">
-                <el-button type="primary" size="small" @click="editCenter(scope.row)" v-permission="'finance:cost:settings'">编辑</el-button>
+                <el-button type="primary" size="small" @click="editCenter(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button type="info" size="small" @click="viewReport(scope.row)">成本报表</el-button>
                 <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteCenter(scope.row)" :disabled="scope.row.task_count > 0">删除</el-button>
               </template>
@@ -93,10 +93,10 @@
     <el-dialog v-model="centerDialogVisible" :title="isEdit ? '编辑成本中心' : '新增成本中心'" width="500px">
       <el-form :model="centerForm" :rules="centerRules" ref="centerFormRef" label-width="100px">
         <el-form-item label="编码" prop="code">
-          <el-input v-model="centerForm.code" :disabled="isEdit" placeholder="如: CC-PRD-01"></el-input>
+          <el-input v-model="centerForm.code" :disabled="isEdit" placeholder="如: CC-PRD-01" maxlength="20" show-word-limit></el-input>
         </el-form-item>
         <el-form-item label="名称" prop="name">
-          <el-input v-model="centerForm.name" placeholder="成本中心名称"></el-input>
+          <el-input v-model="centerForm.name" placeholder="成本中心名称" maxlength="100" show-word-limit></el-input>
         </el-form-item>
         <el-form-item label="类型" prop="type">
           <el-select v-model="centerForm.type" style="width: 100%;">
@@ -111,7 +111,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="负责人">
-          <el-input v-model="centerForm.manager" placeholder="负责人姓名"></el-input>
+          <el-input v-model="centerForm.manager" placeholder="负责人姓名" maxlength="50" show-word-limit></el-input>
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="centerForm.description" type="textarea" :rows="3" placeholder="成本中心描述"></el-input>
@@ -122,7 +122,7 @@
       </el-form>
       <template #footer>
         <el-button @click="centerDialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:cost:update'" type="primary" @click="saveCenter" :loading="saving">保存</el-button>
+        <el-button v-permission="isEdit ? 'finance:cost:update' : 'finance:cost:create'" type="primary" @click="saveCenter" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -154,8 +154,14 @@ const centerForm = reactive({
   is_active: true
 });
 const centerRules = {
-  code: [{ required: true, message: '请输入编码', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
+  code: [
+    { required: true, message: '请输入编码', trigger: 'blur' },
+    { max: 20, message: '编码长度不能超过20个字符', trigger: 'blur' }
+  ],
+  name: [
+    { required: true, message: '请输入名称', trigger: 'blur' },
+    { max: 100, message: '名称长度不能超过100个字符', trigger: 'blur' }
+  ],
   type: [{ required: true, message: '请选择类型', trigger: 'change' }]
 };
 // 成本报表数据

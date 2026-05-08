@@ -6,6 +6,81 @@
 
 const db = require('../config/db');
 const { logger } = require('../utils/logger');
+const financeModel = require('./finance');
+const DocumentLinkService = require('../services/business/DocumentLinkService');
+
+function mapAssetType(value) {
+    const typeMap = {
+        machine: '机器设备',
+        electronic: '电子设备',
+        furniture: '办公家具',
+        building: '房屋建筑',
+        vehicle: '车辆',
+        other: '其他',
+        机器设备: '机器设备',
+        电子设备: '电子设备',
+        办公家具: '办公家具',
+        房屋建筑: '房屋建筑',
+        车辆: '车辆',
+        其他: '其他',
+    };
+    return typeMap[value] || '其他';
+}
+
+function mapDepreciationMethod(value) {
+    const methodMap = {
+        straight_line: '直线法',
+        double_declining: '双倍余额递减法',
+        sum_of_years: '年数总和法',
+        units_of_production: '工作量法',
+        no_depreciation: '不计提',
+        直线法: '直线法',
+        双倍余额递减法: '双倍余额递减法',
+        年数总和法: '年数总和法',
+        工作量法: '工作量法',
+        不计提: '不计提',
+    };
+    return methodMap[value] || '直线法';
+}
+
+async function getOpenAccountingPeriodId(connection, accountingDate) {
+    const [periods] = await connection.execute(
+        `SELECT id FROM gl_periods
+         WHERE is_closed = 0
+           AND start_date <= ?
+           AND end_date >= ?
+         ORDER BY start_date DESC
+         LIMIT 1`,
+        [accountingDate, accountingDate]
+    );
+
+    if (periods.length === 0) {
+        throw new Error(`未找到日期 ${accountingDate} 对应的开放会计期间`);
+    }
+
+    return periods[0].id;
+}
+
+async function getRequiredAccountId(connection, accountCode, accountName) {
+    const [rows] = await connection.execute(
+        'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = 1 LIMIT 1',
+        [accountCode]
+    );
+
+    if (rows.length === 0) {
+        throw new Error(`在建工程转固缺少${accountName}科目(${accountCode})`);
+    }
+
+    return rows[0].id;
+}
+
+async function getEntryNumberById(connection, entryId) {
+    const [entries] = await connection.execute(
+        'SELECT entry_number FROM gl_entries WHERE id = ?',
+        [entryId]
+    );
+    return entries[0]?.entry_number || null;
+}
 
 
 const cipModel = {
@@ -153,7 +228,7 @@ const cipModel = {
     /**
      * 将在建工程转为固定资产
      */
-    transferToFixedAsset: async (id, assetData, userId) => {
+    transferToFixedAsset: async (id, assetData, operator = {}) => {
         const connection = await db.pool.getConnection();
         try {
             await connection.beginTransaction();
@@ -175,31 +250,36 @@ const cipModel = {
 
             assetData.acquisition_cost = assetCost;
             assetData.current_value = assetCost;
+            const acquisitionDate = assetData.acquisition_date || new Date().toISOString().slice(0, 10);
+            const usefulLifeMonths = Math.max(1, Number.parseInt(assetData.useful_life, 10) || 5) * 12;
+            const assetType = mapAssetType(assetData.asset_type);
+            const depreciationMethod = mapDepreciationMethod(assetData.depreciation_method);
+            const operatorName = operator.operatorName || String(operator.userId || operator || 'system');
+            const createdBy = operator.userId || operator;
 
             // 2. 插入新固定资产 (复用 assetsModel 的构建逻辑，或者直接执行 INSERT)
             // 为保持独立性，自己执行INSERT
             const [assetResult] = await connection.query(
                 `INSERT INTO fixed_assets 
          (asset_code, asset_name, category_id, asset_type, acquisition_date, acquisition_cost, 
-          salvage_value, current_value, useful_life, depreciation_method, status, 
-          location_id, department_id, custodian, supplier_id, invoice_no, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_use', ?, ?, ?, ?, ?, ?)`,
+          salvage_value, current_value, net_value, useful_life, depreciation_method, status, 
+          location_id, department_id, custodian, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在用', ?, ?, ?, ?)`,
                 [
                     assetData.asset_code,
                     assetData.asset_name,
                     assetData.category_id || null,
-                    assetData.asset_type || null,
-                    assetData.acquisition_date || new Date(),
+                    assetType,
+                    acquisitionDate,
                     assetCost,
                     assetData.salvage_value || 0,
                     assetCost,
-                    assetData.useful_life || 5, // 默认5年
-                    assetData.depreciation_method || 'straight_line',
+                    assetCost,
+                    usefulLifeMonths,
+                    depreciationMethod,
                     assetData.location_id || null, // 文本
                     assetData.department_id || null,
                     assetData.custodian || null,
-                    assetData.supplier_id || null,
-                    assetData.invoice_no || null,
                     `由在建工程 [${project.project_code}] ${project.project_name} 结转生成。${assetData.notes || ''}`
                 ]
             );
@@ -210,13 +290,78 @@ const cipModel = {
             await connection.query(
                 `INSERT INTO asset_change_logs 
          (asset_id, change_type, change_date, changed_by, field_name, old_value, new_value, remarks)
-         VALUES (?, '在建工程转固', ?, ?, 'status', null, 'in_use', ?)`,
+         VALUES (?, '在建工程转固', ?, ?, 'status', null, '在用', ?)`,
                 [
                     newAssetId,
-                    assetData.acquisition_date || new Date(),
-                    userId || 'system',
+                    acquisitionDate,
+                    operatorName,
                     `从在建工程 ${project.project_name} 结转而来，结转金额: ${assetCost}`
                 ]
+            );
+
+            const fixedAssetAccountId = await getRequiredAccountId(connection, '1601', '固定资产');
+            const cipAccountId = await getRequiredAccountId(connection, '1604', '在建工程');
+            const periodId = await getOpenAccountingPeriodId(connection, acquisitionDate);
+
+            const entryId = await financeModel.createEntry(
+                {
+                    entry_date: acquisitionDate,
+                    posting_date: acquisitionDate,
+                    document_type: '转固单',
+                    document_number: `CIP-${project.project_code}`.slice(0, 50),
+                    period_id: periodId,
+                    description: `在建工程转固: ${project.project_name} -> ${assetData.asset_name}`,
+                    created_by: createdBy,
+                    status: 'posted',
+                    is_posted: 1,
+                },
+                [
+                    {
+                        account_id: fixedAssetAccountId,
+                        debit_amount: assetCost,
+                        credit_amount: 0,
+                        description: `固定资产转入 - ${assetData.asset_name}`,
+                    },
+                    {
+                        account_id: cipAccountId,
+                        debit_amount: 0,
+                        credit_amount: assetCost,
+                        description: `在建工程转出 - ${project.project_name}`,
+                    },
+                ],
+                connection
+            );
+            const entryNumber = await getEntryNumberById(connection, entryId);
+
+            await DocumentLinkService.tryAutoLink(
+                'cip_project',
+                project.id,
+                project.project_code,
+                'asset',
+                newAssetId,
+                assetData.asset_code,
+                createdBy,
+                connection
+            );
+            await DocumentLinkService.tryAutoLink(
+                'cip_project',
+                project.id,
+                project.project_code,
+                'finance_voucher',
+                entryId,
+                entryNumber,
+                createdBy,
+                connection
+            );
+            await DocumentLinkService.tryAutoLink(
+                'asset',
+                newAssetId,
+                assetData.asset_code,
+                'finance_voucher',
+                entryId,
+                entryNumber,
+                createdBy,
+                connection
             );
 
             // 4. 更新在建工程状态

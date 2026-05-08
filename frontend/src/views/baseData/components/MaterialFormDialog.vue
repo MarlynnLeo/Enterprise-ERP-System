@@ -109,7 +109,7 @@
                 :label="item.name"
                 :value="item.id">
                 <span style="float: left">{{ item.name }}</span>
-                <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.type === 'internal' ? '内部' : '外部' }}</span>
+                <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ getSourceTypeLabel(item.type) }}</span>
               </el-option>
             </el-select>
           </el-form-item>
@@ -343,6 +343,15 @@ const supplierLoading = ref(false)
 const filteredSupplierOptions = ref([]) // 本地或远程搜索结果
 
 const isEdit = computed(() => !!props.editData)
+
+const getSourceTypeLabel = (type) => {
+  const labels = {
+    internal: '内部',
+    external: '外部',
+    outsourced: '外协'
+  }
+  return labels[type] || type || '-'
+}
 
 const form = reactive({
   id: '',

@@ -2,6 +2,8 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const assetInventoryModel = require('../../../models/assetInventory');
 
+const INVENTORY_ITEM_STATUS = new Set(['盘点相符', '盘亏', '盘盈', '未盘点']);
+
 const inventoryController = {
     /**
      * 获取盘点单列表
@@ -91,6 +93,10 @@ const inventoryController = {
             const { actual_quantity, status, notes } = req.body;
             if (actual_quantity === undefined || !status) {
                 return ResponseHandler.error(res, '实盘数量和盘点状态为必填项', 'BAD_REQUEST', 400);
+            }
+
+            if (!INVENTORY_ITEM_STATUS.has(status)) {
+                return ResponseHandler.error(res, '无效的盘点状态', 'BAD_REQUEST', 400);
             }
 
             await assetInventoryModel.updateInventoryItem(itemId, {

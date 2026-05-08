@@ -8,10 +8,23 @@ const jwt = require('jsonwebtoken');
 const { logger } = require('../utils/logger');
 const { pool } = require('../config/db');
 const { createCorsOptions } = require('../config/cors');
+const { verifyAccessToken } = require('../config/jwtEnhanced');
 
 let io = null;
 // userId -> Set<socketId> 的映射，支持多端登录
 const onlineUsers = new Map();
+
+function getCookieValue(cookieHeader, name) {
+  if (!cookieHeader) return null;
+  const cookies = cookieHeader.split(';');
+  for (const cookie of cookies) {
+    const [rawKey, ...valueParts] = cookie.trim().split('=');
+    if (rawKey === name) {
+      return decodeURIComponent(valueParts.join('='));
+    }
+  }
+  return null;
+}
 
 /**
  * 初始化 Socket.IO
@@ -26,12 +39,17 @@ function initSocket(httpServer) {
 
   // JWT 鉴权中间件
   io.use((socket, next) => {
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    const token =
+      socket.handshake.auth?.token ||
+      socket.handshake.query?.token ||
+      getCookieValue(socket.handshake.headers?.cookie, 'accessToken');
     if (!token) {
       return next(new Error('未提供认证令牌'));
     }
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = token === socket.handshake.auth?.token || token === socket.handshake.query?.token
+        ? jwt.verify(token, process.env.JWT_SECRET)
+        : verifyAccessToken(token);
       socket.userId = decoded.userId || decoded.id;
       socket.userName = decoded.username || decoded.name;
       next();

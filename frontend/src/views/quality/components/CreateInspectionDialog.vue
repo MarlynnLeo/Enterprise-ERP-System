@@ -91,7 +91,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">确认</el-button>
+        <el-button v-permission="'quality:inspections:create'" type="primary" @click="submitForm" :loading="submitting">确认</el-button>
       </span>
     </template>
   </el-dialog>

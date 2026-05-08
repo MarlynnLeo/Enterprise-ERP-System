@@ -723,6 +723,127 @@ ${JSON.stringify(executionData, null, 2)}
         return { nodes, links };
     }
 
+    static _toNumber(value) {
+        const number = parseFloat(value);
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    static _roundMoney(value) {
+        return Math.round(this._toNumber(value) * 100) / 100;
+    }
+
+    static _roundRate(value) {
+        return Math.round(this._toNumber(value) * 100) / 100;
+    }
+
+    static _percentChange(previous, current) {
+        const oldValue = this._toNumber(previous);
+        const newValue = this._toNumber(current);
+        if (oldValue === 0 && newValue === 0) return 0;
+        if (oldValue === 0) return 100;
+        return this._roundRate(((newValue - oldValue) / Math.abs(oldValue)) * 100);
+    }
+
+    static _buildYearComparisonSummary(comparisonData) {
+        const summary = comparisonData.reduce(
+            (acc, row) => {
+                acc.year1_total_budget += this._toNumber(row.y1_budget);
+                acc.year1_total_used += this._toNumber(row.y1_used);
+                acc.year2_total_budget += this._toNumber(row.y2_budget);
+                acc.year2_total_used += this._toNumber(row.y2_used);
+                return acc;
+            },
+            {
+                year1_total_budget: 0,
+                year1_total_used: 0,
+                year2_total_budget: 0,
+                year2_total_used: 0,
+                total_accounts: comparisonData.length,
+            }
+        );
+
+        summary.year1_total_budget = this._roundMoney(summary.year1_total_budget);
+        summary.year1_total_used = this._roundMoney(summary.year1_total_used);
+        summary.year2_total_budget = this._roundMoney(summary.year2_total_budget);
+        summary.year2_total_used = this._roundMoney(summary.year2_total_used);
+        summary.budget_change_rate = this._percentChange(
+            summary.year1_total_budget,
+            summary.year2_total_budget
+        );
+        summary.used_change_rate = this._percentChange(
+            summary.year1_total_used,
+            summary.year2_total_used
+        );
+        summary.year1_execution_rate = summary.year1_total_budget > 0
+            ? this._roundRate((summary.year1_total_used / summary.year1_total_budget) * 100)
+            : 0;
+        summary.year2_execution_rate = summary.year2_total_budget > 0
+            ? this._roundRate((summary.year2_total_used / summary.year2_total_budget) * 100)
+            : 0;
+
+        return summary;
+    }
+
+    static _buildYearComparisonFallback(year1, year2, comparisonData, reason, usage = null) {
+        const summary = this._buildYearComparisonSummary(comparisonData);
+        const changedRows = comparisonData
+            .map((row) => {
+                const budgetDelta = this._roundMoney(this._toNumber(row.y2_budget) - this._toNumber(row.y1_budget));
+                const usedDelta = this._roundMoney(this._toNumber(row.y2_used) - this._toNumber(row.y1_used));
+                const rateDelta = this._roundRate(this._toNumber(row.y2_rate) - this._toNumber(row.y1_rate));
+                return {
+                    account_code: row.code,
+                    account_name: row.name,
+                    budgetDelta,
+                    usedDelta,
+                    rateDelta,
+                };
+            })
+            .sort((a, b) => Math.abs(b.budgetDelta) + Math.abs(b.usedDelta) - Math.abs(a.budgetDelta) - Math.abs(a.usedDelta))
+            .slice(0, 8);
+
+        const keyChanges = changedRows.map((row) => {
+            let changeType = '基本稳定';
+            const dominantDelta = Math.abs(row.budgetDelta) >= Math.abs(row.usedDelta)
+                ? row.budgetDelta
+                : row.usedDelta;
+            if (dominantDelta > 0) changeType = '增长';
+            if (dominantDelta < 0) changeType = '下降';
+            if (Math.abs(row.rateDelta) >= 20) changeType = '执行率波动';
+
+            return {
+                account_code: row.account_code,
+                account_name: row.account_name,
+                change_type: changeType,
+                description: `预算变动 ${row.budgetDelta}，实际执行变动 ${row.usedDelta}，执行率变动 ${row.rateDelta} 个百分点。`,
+            };
+        });
+
+        const budgetDirection = summary.budget_change_rate >= 0 ? '增长' : '下降';
+        const usedDirection = summary.used_change_rate >= 0 ? '增长' : '下降';
+
+        return {
+            year1,
+            year2,
+            ai_model: getAIModel(),
+            overall_comparison: `AI分析暂不可用，已根据系统预算数据生成本地年度对比。预算总额${budgetDirection}${Math.abs(summary.budget_change_rate)}%，实际执行${usedDirection}${Math.abs(summary.used_change_rate)}%。`,
+            key_changes: keyChanges,
+            trend_insights: [
+                `年度预算执行率从 ${summary.year1_execution_rate}% 变为 ${summary.year2_execution_rate}%。`,
+                `本地分析覆盖 ${summary.total_accounts} 个预算科目，优先展示金额或执行率变化较大的项目。`,
+            ],
+            recommendations: [
+                '对金额变化较大的科目复核预算编制依据和实际业务驱动因素。',
+                '对执行率明显偏离的科目补充原因说明，并在下一轮预算编制中调整口径。',
+            ],
+            comparison_data: comparisonData,
+            summary,
+            usage,
+            fallback: true,
+            fallback_reason: reason || 'AI响应无法解析为标准JSON',
+        };
+    }
+
     /**
      * 年度对比分析
      */
@@ -804,8 +925,26 @@ ${JSON.stringify(comparisonData, null, 2)}
 4. 整体趋势研判`;
 
             logger.info(`[AI年度对比] 开始对比${year1}年和${year2}年...`);
-            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
-            const result = this.extractJSON(aiResponse);
+            let result;
+            let usage = null;
+            try {
+                const aiResult = await this.callOllamaAI(systemPrompt, userPrompt);
+                usage = aiResult.usage;
+                result = this.extractJSON(aiResult.content);
+            } catch (aiError) {
+                logger.warn('AI年度对比分析降级为本地数据分析:', aiError.message);
+                const response = this._buildYearComparisonFallback(
+                    year1,
+                    year2,
+                    comparisonData,
+                    aiError.message,
+                    usage
+                );
+                this._setCache(cacheKey, response);
+                return response;
+            }
+
+            const summary = this._buildYearComparisonSummary(comparisonData);
 
             const response = {
                 year1, year2,
@@ -815,13 +954,7 @@ ${JSON.stringify(comparisonData, null, 2)}
                 trend_insights: result.trend_insights || [],
                 recommendations: result.recommendations || [],
                 comparison_data: comparisonData, // 图表用原始数据
-                summary: {
-                    year1_total_budget: comparisonData.reduce((s, d) => s + (d.y1_budget || 0), 0),
-                    year1_total_used: comparisonData.reduce((s, d) => s + (d.y1_used || 0), 0),
-                    year2_total_budget: comparisonData.reduce((s, d) => s + (d.y2_budget || 0), 0),
-                    year2_total_used: comparisonData.reduce((s, d) => s + (d.y2_used || 0), 0),
-                    total_accounts: comparisonData.length,
-                },
+                summary,
                 usage,
             };
 

@@ -1,3 +1,21 @@
+const withCleanupTimeout = async (operation, timeoutMs = 5000) => {
+  let timeoutId;
+
+  try {
+    await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise((resolve) => {
+        timeoutId = setTimeout(resolve, timeoutMs);
+        timeoutId.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 afterAll(async () => {
   try {
     const cacheService = require('../src/services/cacheService');
@@ -8,7 +26,7 @@ afterAll(async () => {
 
   try {
     const poolFactory = require('../src/database/ConnectionPoolFactory');
-    await poolFactory.closeAll();
+    await withCleanupTimeout(() => poolFactory.closeAll());
   } catch {
     // Ignore teardown errors so failed cleanup does not mask test assertions.
   }
@@ -17,7 +35,7 @@ afterAll(async () => {
     const sequelizePath = require.resolve('../src/config/sequelize');
     if (require.cache[sequelizePath]) {
       const sequelize = require('../src/config/sequelize');
-      await sequelize.close();
+      await withCleanupTimeout(() => sequelize.close());
     }
   } catch {
     // Sequelize may not have been initialized in every test environment.
@@ -25,8 +43,8 @@ afterAll(async () => {
 
   try {
     const { closeRedis } = require('../src/config/redisClient');
-    await closeRedis();
+    await withCleanupTimeout(() => closeRedis());
   } catch {
     // Redis may be disabled in tests.
   }
-});
+}, 30000);

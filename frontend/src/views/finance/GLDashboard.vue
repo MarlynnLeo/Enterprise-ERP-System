@@ -53,7 +53,7 @@
       
       <!-- 账簿查询卡片 -->
       <el-col :xs="24" :sm="12" :md="8" :lg="6">
-        <el-card class="module-card" shadow="hover" @click="navigateTo('/finance/gl/ledger')">
+        <el-card class="module-card" shadow="hover" @click="navigateTo('/finance/gl/trial-balance')">
           <div class="card-content">
             <el-icon class="card-icon"><Search /></el-icon>
             <div class="card-title">账簿查询</div>
@@ -64,7 +64,7 @@
       
       <!-- 财务报表卡片 -->
       <el-col :xs="24" :sm="12" :md="8" :lg="6">
-        <el-card class="module-card" shadow="hover" @click="navigateTo('/finance/gl/reports')">
+        <el-card class="module-card" shadow="hover" @click="navigateTo('/finance/reports/balance-sheet')">
           <div class="card-content">
             <el-icon class="card-icon"><PieChart /></el-icon>
             <div class="card-title">财务报表</div>
@@ -111,16 +111,16 @@
           <el-card class="stat-card">
             <template #header>
               <div class="stat-header">
-                <span>本月收入</span>
+                <span>总负债</span>
                 <el-icon><TrendCharts /></el-icon>
               </div>
             </template>
-            <div class="stat-value">{{ formatCurrency(statistics.monthlyRevenue) }}</div>
+            <div class="stat-value">{{ formatCurrency(statistics.totalLiabilities) }}</div>
             <div class="stat-footer">
-              <span :class="statistics.revenueChangeRate >= 0 ? 'positive-change' : 'negative-change'">
-                {{ statistics.revenueChangeRate >= 0 ? '+' : '' }}{{ statistics.revenueChangeRate }}%
+              <span :class="statistics.debtToAssetRatio <= 70 ? 'positive-change' : 'negative-change'">
+                {{ statistics.debtToAssetRatio }}%
               </span>
-              <span class="stat-period">较上月</span>
+              <span class="stat-period">资产负债率</span>
             </div>
           </el-card>
         </el-col>
@@ -129,16 +129,16 @@
           <el-card class="stat-card">
             <template #header>
               <div class="stat-header">
-                <span>本月利润</span>
+                <span>所有者权益</span>
                 <el-icon><DataLine /></el-icon>
               </div>
             </template>
-            <div class="stat-value">{{ formatCurrency(statistics.monthlyProfit) }}</div>
+            <div class="stat-value">{{ formatCurrency(statistics.totalEquity) }}</div>
             <div class="stat-footer">
-              <span :class="statistics.profitChangeRate >= 0 ? 'positive-change' : 'negative-change'">
-                {{ statistics.profitChangeRate >= 0 ? '+' : '' }}{{ statistics.profitChangeRate }}%
+              <span :class="statistics.equityRatio >= 30 ? 'positive-change' : 'negative-change'">
+                {{ statistics.equityRatio }}%
               </span>
-              <span class="stat-period">较上月</span>
+              <span class="stat-period">权益比率</span>
             </div>
           </el-card>
         </el-col>
@@ -194,10 +194,10 @@ const loading = ref(false);
 const statistics = reactive({
   totalAssets: 0,
   assetsChangeRate: 0,
-  monthlyRevenue: 0,
-  revenueChangeRate: 0,
-  monthlyProfit: 0,
-  profitChangeRate: 0,
+  totalLiabilities: 0,
+  debtToAssetRatio: 0,
+  totalEquity: 0,
+  equityRatio: 0,
 });
 
 // 最近凭证
@@ -222,10 +222,10 @@ const loadStatistics = async () => {
       const metrics = data.keyMetrics || data;
       statistics.totalAssets = parseFloat(metrics.totalAssets || 0);
       statistics.assetsChangeRate = parseFloat(metrics.equityRatio || 0);
-      statistics.monthlyRevenue = parseFloat(metrics.totalEquity || data.monthlyRevenue || 0);
-      statistics.revenueChangeRate = parseFloat(metrics.debtToAssetRatio || 0);
-      statistics.monthlyProfit = parseFloat(metrics.totalLiabilities || data.monthlyProfit || 0);
-      statistics.profitChangeRate = parseFloat(data.profitChangeRate || 0);
+      statistics.totalLiabilities = parseFloat(metrics.totalLiabilities || 0);
+      statistics.debtToAssetRatio = parseFloat(metrics.debtToAssetRatio || 0);
+      statistics.totalEquity = parseFloat(metrics.totalEquity || 0);
+      statistics.equityRatio = parseFloat(metrics.equityRatio || 0);
     }
   } catch (error) {
     console.warn('加载财务统计数据失败，使用默认值:', error);
@@ -300,7 +300,10 @@ const loadRecentEntries = async () => {
 
 // 查看凭证详情
 const viewEntry = (entry) => {
-  router.push(`/finance/gl/entries/${entry.id}`);
+  router.push({
+    path: '/finance/gl/entries',
+    query: { entryId: entry.id },
+  });
 };
 
 // 货币格式化

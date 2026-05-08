@@ -11,7 +11,7 @@
           </el-tag>
         </div>
         <div class="action-section">
-          <el-button type="danger" @click="openImpairmentDialog" v-if="assetInfo.status === 'in_use' || assetInfo.status === 'idle'">计提减值</el-button>
+          <el-button v-permission="'finance:assets:update'" type="danger" @click="openImpairmentDialog" v-if="assetInfo.status === 'in_use' || assetInfo.status === 'idle'">计提减值</el-button>
         </div>
       </div>
     </el-card>
@@ -150,7 +150,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="impairmentDialogVisible = false">取消</el-button>
-          <el-button type="danger" @click="submitImpairment" :loading="submitLoading">确认计提</el-button>
+          <el-button v-permission="'finance:assets:update'" type="danger" @click="submitImpairment" :loading="submitLoading">确认计提</el-button>
         </div>
       </template>
     </el-dialog>

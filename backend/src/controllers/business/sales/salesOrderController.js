@@ -412,7 +412,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // 检查订单是否存在
-    const [checkResult] = await connection.execute('SELECT status FROM sales_orders WHERE id = ?', [
+    const [checkResult] = await connection.execute('SELECT status, order_no, created_by FROM sales_orders WHERE id = ?', [
       id,
     ]);
 
@@ -667,13 +667,28 @@ exports.updateOrderStatus = async (req, res) => {
             }
           } catch (planError) {
             logger.error('自动生成生产计划/采购申请失败:', planError);
-            // 不阻止状态更新，但记录错误
+            finalStatus = STATUS.SALES_ORDER.SHORTAGE;
           }
         } else {
           // 库存充足，可以直接发货
-          if (newStatus === STATUS.SALES_ORDER.CONFIRMED) {
-            finalStatus = STATUS.SALES_ORDER.READY_TO_SHIP;
-            logger.info(`🔄 状态调整为: ${finalStatus} (库存充足)`);
+          if ([STATUS.SALES_ORDER.CONFIRMED, STATUS.SALES_ORDER.READY_TO_SHIP].includes(newStatus)) {
+            const reservationResult = await InventoryReservationService.reserveInventoryForOrder(
+              id,
+              checkResult[0].order_no,
+              orderItems,
+              getAuthenticatedUserId(req) || checkResult[0].created_by,
+              connection
+            );
+            if (reservationResult.fullSuccess) {
+              finalStatus = STATUS.SALES_ORDER.READY_TO_SHIP;
+              logger.info(`🔄 状态调整为: ${finalStatus} (库存已完整预留)`);
+            } else {
+              finalStatus = STATUS.SALES_ORDER.SHORTAGE;
+              logger.warn('库存充足但预留未完成，订单保持缺货', {
+                orderId: id,
+                insufficientItems: reservationResult.insufficientItems,
+              });
+            }
           }
         }
 
@@ -687,6 +702,17 @@ exports.updateOrderStatus = async (req, res) => {
       'UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ?',
       [newStatus, id]
     );
+    if (newStatus === STATUS.SALES_ORDER.READY_TO_SHIP) {
+      await connection.execute(
+        `UPDATE sales_orders
+         SET is_locked = TRUE,
+             locked_at = COALESCE(locked_at, NOW()),
+             locked_by = COALESCE(locked_by, ?),
+             lock_reason = COALESCE(lock_reason, ?)
+         WHERE id = ?`,
+        [getAuthenticatedUserId(req) || checkResult[0].created_by, 'Auto reserved by fulfillment flow', id]
+      );
+    }
 
     // 获取更新后的订单
     const [updatedOrder] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [

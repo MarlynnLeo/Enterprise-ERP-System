@@ -13,7 +13,7 @@
             <el-radio-button value="initiated">我发起的</el-radio-button>
             <el-radio-button value="pending">待我审批</el-radio-button>
           </el-radio-group>
-          <el-button v-if="activeTab === 'templates'" type="primary" @click="openTemplateForm()">新建模板</el-button>
+          <el-button v-if="activeTab === 'templates'" v-permission="'system:workflow:create'" type="primary" @click="openTemplateForm()">新建模板</el-button>
         </div>
       </div>
     </el-card>
@@ -36,9 +36,9 @@
         <el-table-column label="操作" width="210" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewTemplate(row)">详情</el-button>
-            <el-button link type="primary" @click="openTemplateForm(row)">编辑</el-button>
+            <el-button link type="primary" v-permission="'system:workflow:edit'" @click="openTemplateForm(row)">编辑</el-button>
             <el-popconfirm title="确定删除？" @confirm="delTemplate(row.id)">
-              <template #reference><el-button link type="danger">删除</el-button></template>
+              <template #reference><el-button link type="danger" v-permission="'system:workflow:delete'">删除</el-button></template>
             </el-popconfirm>
           </template>
         </el-table-column>
@@ -64,8 +64,8 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="viewInstance(row)">详情</el-button>
             <template v-if="activeTab === 'pending'">
-              <el-button type="success" size="small" @click="openApproval(row, 'approve')">通过</el-button>
-              <el-button type="danger" size="small" @click="openApproval(row, 'reject')">拒绝</el-button>
+              <el-button type="success" size="small" v-permission="'system:workflow:use'" @click="openApproval(row, 'approve')">通过</el-button>
+              <el-button type="danger" size="small" v-permission="'system:workflow:use'" @click="openApproval(row, 'reject')">拒绝</el-button>
             </template>
           </template>
         </el-table-column>
@@ -119,7 +119,7 @@
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">取消</el-button>
-        <el-button type="primary" @click="saveTemplate" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="form.id ? 'system:workflow:edit' : 'system:workflow:create'" @click="saveTemplate" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
 

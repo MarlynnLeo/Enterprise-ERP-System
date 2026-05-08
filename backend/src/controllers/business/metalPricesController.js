@@ -480,6 +480,10 @@ const initScheduledUpdate = () => {
     return;
   }
 
+  if (process.env.DISABLE_CRON === 'true') {
+    return;
+  }
+
   const cron = require('node-cron');
 
   cron.schedule(MARKET_PRICE_CONFIG.refreshCron, async () => {

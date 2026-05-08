@@ -150,55 +150,30 @@ exports.getBomByProductId = async (req, res) => {
  */
 exports.getMaterialShortageSummary = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 20;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 20, 1), 100);
     const offset = (page - 1) * pageSize;
     const material = req.query.material || ''; // 合并的物料搜索（物料编码、名称、规格）
     const purchaseStatus = req.query.purchaseStatus || ''; // 采购状态筛选
 
-    // 构建搜索条件
     const searchConditions = [];
     const searchParams = [];
-
-    // 只使用 material 参数（合并的物料搜索），忽略其他搜索参数
     if (material) {
       searchConditions.push('(m.code LIKE ? OR m.name LIKE ? OR m.specs LIKE ?)');
       searchParams.push(`%${material}%`, `%${material}%`, `%${material}%`);
     }
 
-    // 只有当有搜索条件时才添加 WHERE 子句
     const searchWhereClause =
       searchConditions.length > 0 ? `AND ${searchConditions.join(' AND ')}` : '';
 
-    // 根据采购状态添加筛选条件
-    let purchaseStatusWhereClause = '';
-    if (purchaseStatus === 'requested') {
-      // 只显示已申请的
-      purchaseStatusWhereClause = `
-        AND EXISTS (
-          SELECT 1 
-          FROM purchase_requisitions pr
-          INNER JOIN purchase_requisition_items pri ON pr.id = pri.requisition_id
-          WHERE pri.material_id = m.id
-            AND pr.remarks LIKE CONCAT('%', pp.code, '%')
-            AND pr.status != 'cancelled'
-            AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-        )
-      `;
-    } else if (purchaseStatus === PURCHASE_PENDING) {
-      // 只显示待申请的
-      purchaseStatusWhereClause = `
-        AND NOT EXISTS (
-          SELECT 1 
-          FROM purchase_requisitions pr
-          INNER JOIN purchase_requisition_items pri ON pr.id = pri.requisition_id
-          WHERE pri.material_id = m.id
-            AND pr.remarks LIKE CONCAT('%', pp.code, '%')
-            AND pr.status != 'cancelled'
-            AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-        )
-      `;
-    }
+    const activeStatuses = [
+      PRODUCTION_STATUS_KEYS.DRAFT,
+      PRODUCTION_STATUS_KEYS.ALLOCATED,
+      PRODUCTION_STATUS_KEYS.PREPARING,
+      PRODUCTION_STATUS_KEYS.MATERIAL_ISSUING,
+      PRODUCTION_STATUS_KEYS.MATERIAL_ISSUED,
+      PRODUCTION_STATUS_KEYS.IN_PROGRESS,
+    ];
 
     const query = `
       SELECT
@@ -221,8 +196,7 @@ exports.getMaterialShortageSummary = async (req, res) => {
         m.specs as material_specs,
         u.name as material_unit,
         ppm.required_quantity,
-        ppm.stock_quantity,
-        (ppm.required_quantity - ppm.stock_quantity) as shortage_quantity,
+        COALESCE(inv.stock_quantity, 0) as current_stock_quantity,
         CASE 
           WHEN EXISTS (
             SELECT 1 
@@ -236,96 +210,92 @@ exports.getMaterialShortageSummary = async (req, res) => {
           ELSE 'pending'
         END as purchase_status
       FROM production_plans pp
-      LEFT JOIN production_plan_materials ppm ON pp.id = ppm.plan_id
-      LEFT JOIN materials m ON ppm.material_id = m.id
+      INNER JOIN production_plan_materials ppm ON pp.id = ppm.plan_id
+      INNER JOIN materials m ON ppm.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       LEFT JOIN materials product ON pp.product_id = product.id
       LEFT JOIN units product_unit ON product.unit_id = product_unit.id
-      WHERE pp.status IN ('${PRODUCTION_STATUS_KEYS.DRAFT}', '${PRODUCTION_STATUS_KEYS.PREPARING}', '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}', '${PRODUCTION_STATUS_KEYS.MATERIAL_ISSUING}', '${PRODUCTION_STATUS_KEYS.MATERIAL_ISSUED}')
-        AND ppm.stock_quantity < ppm.required_quantity
+      LEFT JOIN (
+        SELECT il.material_id, SUM(il.quantity) as stock_quantity
+        FROM inventory_ledger il
+        JOIN materials mat ON il.material_id = mat.id
+        WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+        GROUP BY il.material_id
+      ) inv ON inv.material_id = ppm.material_id
+      WHERE pp.status IN (?)
+        AND pp.deleted_at IS NULL
         AND ppm.material_id IS NOT NULL
+        AND ppm.required_quantity > 0
         ${searchWhereClause}
-        ${purchaseStatusWhereClause}
-      ORDER BY pp.start_date ASC, pp.created_at DESC, shortage_quantity DESC
-      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+      ORDER BY m.id ASC, pp.start_date ASC, pp.created_at ASC, pp.id ASC
     `;
 
-    // 统计查询
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM production_plans pp
-      LEFT JOIN production_plan_materials ppm ON pp.id = ppm.plan_id
-      LEFT JOIN materials m ON ppm.material_id = m.id
-      LEFT JOIN materials product ON pp.product_id = product.id
-      WHERE pp.status IN ('${PRODUCTION_STATUS_KEYS.DRAFT}', '${PRODUCTION_STATUS_KEYS.PREPARING}', '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}', '${PRODUCTION_STATUS_KEYS.MATERIAL_ISSUING}', '${PRODUCTION_STATUS_KEYS.MATERIAL_ISSUED}')
-        AND ppm.stock_quantity < ppm.required_quantity
-        AND ppm.material_id IS NOT NULL
-        ${searchWhereClause}
-        ${purchaseStatusWhereClause}
-    `;
+    const [rows] = await pool.query(query, [activeStatuses, ...searchParams]);
+    const stockCursor = new Map();
+    const calculatedRows = [];
 
-    // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const [shortages] = await pool.query(query, searchParams);
-    const [countResult] = await pool.query(countQuery, searchParams);
-    const total = countResult[0].total;
+    for (const item of rows) {
+      const materialId = item.material_id;
+      if (!stockCursor.has(materialId)) {
+        stockCursor.set(materialId, parseFloat(item.current_stock_quantity) || 0);
+      }
 
-    // 扁平化数据结构 - 每行一个物料（包含计划和产品信息）
-    const result = shortages.map((item) => ({
-      // 计划信息
-      plan_id: item.plan_id,
-      plan_code: item.plan_code,
-      plan_name: item.plan_name,
-      plan_status: item.plan_status,
-      start_date: item.start_date,
-      end_date: item.end_date,
-      plan_quantity: parseFloat(item.plan_quantity) || 0,
+      const requiredQuantity = parseFloat(item.required_quantity) || 0;
+      const remainingStock = stockCursor.get(materialId) || 0;
+      const allocatedStock = Math.min(requiredQuantity, Math.max(remainingStock, 0));
+      const shortageQuantity = Math.max(requiredQuantity - allocatedStock, 0);
 
-      // 产品信息
-      product_id: item.product_id,
-      product_code: item.product_code,
-      product_name: item.product_name,
-      product_specs: item.product_specs,
-      product_unit: item.product_unit,
+      stockCursor.set(materialId, remainingStock - allocatedStock);
+      if (shortageQuantity <= 0) continue;
 
-      // 物料信息（直接在顶层，不嵌套）
-      material_id: item.material_id,
-      material_code: item.material_code,
-      material_name: item.material_name,
-      material_specs: item.material_specs,
-      unit: item.material_unit, // 注意：前端使用 'unit' 而不是 'material_unit'
+      const row = {
+        plan_id: item.plan_id,
+        plan_code: item.plan_code,
+        plan_name: item.plan_name,
+        contract_code: item.contract_code,
+        plan_status: item.plan_status,
+        start_date: item.start_date,
+        end_date: item.end_date,
+        plan_quantity: parseFloat(item.plan_quantity) || 0,
 
-      // 数量信息
-      required_quantity: parseFloat(item.required_quantity) || 0,
-      stock_quantity: parseFloat(item.stock_quantity) || 0,
-      shortage_quantity: parseFloat(item.shortage_quantity) || 0,
+        product_id: item.product_id,
+        product_code: item.product_code,
+        product_name: item.product_name,
+        product_specs: item.product_specs,
+        product_unit: item.product_unit,
 
-      // 采购状态（从查询结果中获取，而不是硬编码）
-      purchase_status: item.purchase_status || PURCHASE_PENDING,
-    }));
+        material_id: materialId,
+        material_code: item.material_code,
+        material_name: item.material_name,
+        material_specs: item.material_specs,
+        unit: item.material_unit,
 
-    // 计算统计数据（基于筛选条件）
-    const statsQuery = `
-      SELECT 
-        COUNT(DISTINCT pp.id) as affected_plans,
-        COUNT(DISTINCT ppm.material_id) as shortage_materials,
-        SUM(ppm.required_quantity - ppm.stock_quantity) as total_shortage
-      FROM production_plans pp
-      LEFT JOIN production_plan_materials ppm ON pp.id = ppm.plan_id
-      LEFT JOIN materials m ON ppm.material_id = m.id
-      LEFT JOIN materials product ON pp.product_id = product.id
-      WHERE pp.status IN ('draft', 'preparing', 'in_progress', 'material_issuing', 'material_issued')
-        AND ppm.stock_quantity < ppm.required_quantity
-        AND ppm.material_id IS NOT NULL
-        ${searchWhereClause}
-        ${purchaseStatusWhereClause}
-    `;
+        required_quantity: requiredQuantity,
+        stock_quantity: allocatedStock,
+        current_stock_quantity: parseFloat(item.current_stock_quantity) || 0,
+        shortage_quantity: shortageQuantity,
 
-    const [stats] = await pool.query(statsQuery, searchParams);
+        purchase_status: item.purchase_status || PURCHASE_PENDING,
+      };
+
+      if (purchaseStatus && row.purchase_status !== purchaseStatus) continue;
+      calculatedRows.push(row);
+    }
+
+    calculatedRows.sort((a, b) => {
+      const dateA = a.start_date ? new Date(a.start_date).getTime() : Number.MAX_SAFE_INTEGER;
+      const dateB = b.start_date ? new Date(b.start_date).getTime() : Number.MAX_SAFE_INTEGER;
+      if (dateA !== dateB) return dateA - dateB;
+      return b.shortage_quantity - a.shortage_quantity;
+    });
+
+    const total = calculatedRows.length;
+    const result = calculatedRows.slice(offset, offset + pageSize);
 
     const statistics = {
-      affectedPlans: stats[0].affected_plans || 0,
-      shortageMaterials: stats[0].shortage_materials || 0,
-      totalShortage: parseFloat(stats[0].total_shortage || 0),
+      affectedPlans: new Set(calculatedRows.map((item) => item.plan_id)).size,
+      shortageMaterials: new Set(calculatedRows.map((item) => item.material_id)).size,
+      totalShortage: calculatedRows.reduce((sum, item) => sum + item.shortage_quantity, 0),
     };
 
     ResponseHandler.success(res, {

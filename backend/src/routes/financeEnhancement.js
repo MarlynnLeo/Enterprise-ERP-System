@@ -109,6 +109,11 @@ router.get('/cost/standard-list', requirePermission('finance:cost:view'), costCo
  * @access Private
  */
 router.get('/cost/standard/:productId', requirePermission('finance:cost:view'), costController.getStandardCost);
+router.post(
+  '/cost/standard/:productId/calculate',
+  requirePermission('finance:cost:execute'),
+  costController.calculateAndSaveStandardCost
+);
 
 /**
  * @route GET /api/finance-enhancement/cost/settings
@@ -137,6 +142,11 @@ router.get('/cost/supplement-reasons', requirePermission('finance:cost:view'), c
  * @access Private
  */
 router.post('/cost/supplement-reasons', requirePermission('finance:cost:create'), costController.saveSupplementReason);
+router.put(
+  '/cost/supplement-reasons/:id',
+  requirePermission('finance:cost:update'),
+  costController.saveSupplementReason
+);
 
 /**
  * @route DELETE /api/finance-enhancement/cost/supplement-reasons/:id

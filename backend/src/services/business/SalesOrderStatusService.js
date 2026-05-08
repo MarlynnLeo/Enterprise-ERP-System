@@ -8,6 +8,7 @@
 const { logger } = require('../../utils/logger');
 const { getConnection } = require('../../config/db');
 const { SALES_STATUS_KEYS } = require('../../constants/systemConstants');
+const InventoryReservationService = require('../InventoryReservationService');
 
 class SalesOrderStatusService {
   /**
@@ -457,8 +458,12 @@ class SalesOrderStatusService {
     const shouldRelease = !connection;
 
     try {
+      if (shouldRelease) {
+        await client.beginTransaction();
+      }
+
       // 查找所有等待发货的销售订单（包含在生产和在采购）
-      const salesOrderQuery = 'SELECT id, status FROM sales_orders WHERE status IN ("in_procurement", "in_production")';
+      const salesOrderQuery = 'SELECT id, order_no, status, created_by FROM sales_orders WHERE status IN ("in_procurement", "in_production")';
       const [salesOrders] = await client.query(salesOrderQuery);
 
       if (salesOrders && salesOrders.length > 0) {
@@ -503,17 +508,49 @@ class SalesOrderStatusService {
             }
 
             if (allItemsInStock) {
-              // 自动推进为待发货
-              const updateOrderQuery = 'UPDATE sales_orders SET status = "ready_to_ship", updated_at = NOW() WHERE id = ?';
-              await client.query(updateOrderQuery, [order.id]);
-              logger.info(`📦 销售订单 ${order.id} 库存已全部备齐，自动流转至 ready_to_ship 状态`);
+              const reservationResult = await InventoryReservationService.reserveInventoryForOrder(
+                order.id,
+                order.order_no,
+                orderItems,
+                order.created_by,
+                client
+              );
+
+              if (reservationResult.fullSuccess) {
+                const updateOrderQuery = `
+                  UPDATE sales_orders
+                  SET status = "ready_to_ship",
+                      is_locked = TRUE,
+                      locked_at = COALESCE(locked_at, NOW()),
+                      locked_by = COALESCE(locked_by, ?),
+                      lock_reason = COALESCE(lock_reason, ?),
+                      updated_at = NOW()
+                  WHERE id = ?
+                `;
+                await client.query(updateOrderQuery, [
+                  order.created_by || null,
+                  'Auto reserved by fulfillment flow',
+                  order.id,
+                ]);
+                logger.info(`📦 销售订单 ${order.id} 库存已预留，自动流转至 ready_to_ship 状态`);
+              } else {
+                logger.info(`销售订单 ${order.id} 库存未完整预留，暂不流转 ready_to_ship`, {
+                  insufficientItems: reservationResult.insufficientItems,
+                });
+              }
             }
           } catch (orderError) {
             logger.error(`检查销售订单 ${order.id} 时出错:`, orderError);
           }
         }
       }
+      if (shouldRelease) {
+        await client.commit();
+      }
     } catch (error) {
+      if (shouldRelease) {
+        await client.rollback();
+      }
       logger.error('检查并流转采购/生产销售订单时发生错误:', error);
     } finally {
       if (shouldRelease && client) {

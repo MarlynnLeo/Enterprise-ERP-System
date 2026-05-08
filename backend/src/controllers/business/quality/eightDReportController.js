@@ -14,9 +14,57 @@ const { softDelete } = require('../../../utils/softDelete');
 const pool = db.pool;
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const EightDAIService = require('../../../services/business/EightDAIService');
+const { EightDNcpLinkService } = require('../../../services/business/EightDNcpLinkService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
 // ===================== 辅助工具 =====================
+
+const JSON_FIELDS = [
+    'd1_team_members',
+    'd3_containment_actions',
+    'd4_contributing_factors',
+    'd5_corrective_actions',
+    'd7_preventive_actions',
+    'd7_standardization',
+    'd3_attachments',
+    'd5_attachments',
+    'd6_attachments',
+];
+
+const parseJsonFields = (record) => {
+    if (!record) return record;
+
+    for (const field of JSON_FIELDS) {
+        if (record[field] && typeof record[field] === 'string') {
+            try { record[field] = JSON.parse(record[field]); } catch { /* 保留原始值 */ }
+        }
+    }
+
+    return record;
+};
+
+const serializeJsonFields = (data) => {
+    for (const field of JSON_FIELDS) {
+        if (data[field] && typeof data[field] !== 'string') {
+            data[field] = JSON.stringify(data[field]);
+        }
+    }
+};
+
+const hasListValue = (value) => {
+    if (Array.isArray(value)) return value.some(item => String(item || '').trim());
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed || trimmed === '[]') return false;
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) return parsed.some(item => String(item || '').trim());
+        } catch {
+            return true;
+        }
+    }
+    return Boolean(value);
+};
 
 /**
  * 生成8D报告编号
@@ -66,19 +114,23 @@ const validatePhaseGate = (report, targetPhase) => {
         // 进入D1-D3阶段或更高，D1-D3必填
         if (!report.d1_team_leader) missing.push('D1-团队组长');
         if (!report.d2_problem_description) missing.push('D2-问题描述');
+        if (!hasListValue(report.d3_containment_actions)) missing.push('D3-临时遏制措施');
         if (!report.title) missing.push('报告标题');
     }
 
     if (targetPhase === 'd4_d7' || targetPhase === 'd8') {
-        // 进入D4-D7阶段或更高，D4必填
+        // 进入D4-D7阶段或更高，D4-D7必填
         if (!report.d4_root_cause) missing.push('D4-根本原因');
+        if (!hasListValue(report.d5_corrective_actions)) missing.push('D5-纠正措施');
+        if (!report.d6_implementation_results) missing.push('D6-实施结果');
+        if (!report.d6_verification_method) missing.push('D6-验证方法');
+        if (!report.d6_verification_result || report.d6_verification_result === 'pending') missing.push('D6-验证结果');
+        if (!hasListValue(report.d7_preventive_actions)) missing.push('D7-预防措施');
     }
 
     if (targetPhase === 'd8' || targetPhase === 'completed') {
-        // 进入D8/完成阶段，D5-D6验证结果必填
-        if (!report.d6_verification_result || report.d6_verification_result === 'pending') {
-            missing.push('D6-验证结果');
-        }
+        // 进入D8/完成阶段，D8总结必填
+        if (!report.d8_summary) missing.push('D8-总结');
     }
 
     return { pass: missing.length === 0, missing };
@@ -97,7 +149,7 @@ const getReports = async (req, res) => {
             startDate, endDate, ncp_no, current_phase
         } = req.query;
 
-        let sql = 'SELECT * FROM eight_d_reports WHERE 1=1';
+        let sql = 'SELECT * FROM eight_d_reports WHERE deleted_at IS NULL';
         const params = [];
 
         if (status) {
@@ -159,21 +211,13 @@ const getReports = async (req, res) => {
 const getReportById = async (req, res) => {
     try {
         const { id } = req.params;
-        const [rows] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ?', [id]);
+        const [rows] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
 
         if (rows.length === 0) {
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
         }
 
-        const report = rows[0];
-        // 解析JSON字段
-        const jsonFields = ['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions', 'd7_standardization', 'd3_attachments', 'd5_attachments', 'd6_attachments'];
-        for (const field of jsonFields) {
-            if (report[field] && typeof report[field] === 'string') {
-                try { report[field] = JSON.parse(report[field]); } catch { /* 保留原始值 */ }
-              // 静默忽略该错误
-            }
-        }
+        const report = parseJsonFields(rows[0]);
 
         return ResponseHandler.success(res, report);
     } catch (error) {
@@ -203,26 +247,21 @@ const getReportLogs = async (req, res) => {
  * 创建8D报告（完整字段版）
  */
 const createReport = async (req, res) => {
-    const conn = await pool.getConnection();
+    let conn;
     try {
-        await conn.beginTransaction();
-
         const data = req.body;
-        const reportNo = await generateReportNo();
-        const createdBy = await getCurrentUserName(req);
-
-        // 必填校验
         if (!data.title) {
             return ResponseHandler.error(res, '报告标题不能为空', 'BAD_REQUEST', 400);
         }
 
-        // JSON字段序列化
-        const jsonFields = ['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions', 'd7_standardization', 'd3_attachments', 'd5_attachments', 'd6_attachments'];
-        for (const field of jsonFields) {
-            if (data[field] && Array.isArray(data[field])) {
-                data[field] = JSON.stringify(data[field]);
-            }
-        }
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const reportNo = await generateReportNo();
+        const createdBy = await getCurrentUserName(req);
+        const linkedNcp = await EightDNcpLinkService.prepareCreate(conn, data);
+
+        serializeJsonFields(data);
 
         // 统一处理ISO日期字符串
         for (const key in data) {
@@ -324,6 +363,7 @@ const createReport = async (req, res) => {
         }
 
         await insertAuditLog(conn, result.insertId, 'create', null, 'draft', '新建8D报告', createdBy);
+        await EightDNcpLinkService.markCreated(conn, linkedNcp, reportNo, createdBy, result.insertId);
 
         await conn.commit();
 
@@ -332,11 +372,14 @@ const createReport = async (req, res) => {
             report_no: reportNo
         }, '8D报告创建成功');
     } catch (error) {
-        await conn.rollback();
+        if (conn) await conn.rollback();
+        if (error.isEightDNcpLinkError) {
+            return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
+        }
         logger.error('创建8D报告失败:', error);
         return ResponseHandler.error(res, '创建8D报告失败', 'OPERATION_ERROR', 500, error);
     } finally {
-        conn.release();
+        if (conn) conn.release();
     }
 };
 
@@ -344,32 +387,33 @@ const createReport = async (req, res) => {
  * 更新8D报告（分步骤更新 + 阶段门控）
  */
 const updateReport = async (req, res) => {
-    const conn = await pool.getConnection();
+    let conn;
     try {
-        await conn.beginTransaction();
-
         const { id } = req.params;
         const data = req.body;
 
+        if (data.status !== undefined || data.current_phase !== undefined) {
+            return ResponseHandler.error(res, '流程状态请通过提交/审核/完成接口变更', 'BAD_REQUEST', 400);
+        }
+
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
         // 检查报告是否存在
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ?', [id]);
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
         if (existing.length === 0) {
-            conn.release();
+            await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
         }
 
-        if (existing[0].status === 'closed') {
-            conn.release();
-            return ResponseHandler.error(res, '已关闭的报告不可修改', 'BAD_REQUEST', 400);
+        if (!['draft', 'in_progress'].includes(existing[0].status)) {
+            await conn.rollback();
+            return ResponseHandler.error(res, `当前状态"${existing[0].status}"不允许编辑`, 'BAD_REQUEST', 400);
         }
 
-        // JSON字段序列化
-        const jsonFields = ['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions', 'd7_standardization', 'd3_attachments', 'd5_attachments', 'd6_attachments'];
-        for (const field of jsonFields) {
-            if (data[field] && typeof data[field] !== 'string') {
-                data[field] = JSON.stringify(data[field]);
-            }
-        }
+        const ncpLink = await EightDNcpLinkService.prepareUpdate(conn, existing[0], data, id);
+
+        serializeJsonFields(data);
 
         // 统一处理ISO日期字符串
         for (const key in data) {
@@ -380,7 +424,9 @@ const updateReport = async (req, res) => {
 
         // 构建动态更新SQL — 白名单字段
         const allowedFields = [
-            'title', 'priority', 'status', 'current_phase',
+            'title', 'priority',
+            'ncp_id', 'ncp_no', 'inspection_id', 'inspection_no',
+            'material_id', 'material_code', 'material_name', 'supplier_id', 'supplier_name',
             'initiated_by', 'initiated_at', 'owner', 'owner_department', 'customer_contact',
             'target_close_date', 'd3_deadline',
             'd1_team_leader', 'd1_team_members', 'd1_completed_at',
@@ -405,7 +451,7 @@ const updateReport = async (req, res) => {
         }
 
         if (updates.length === 0) {
-            conn.release();
+            await conn.rollback();
             return ResponseHandler.error(res, '没有可更新的字段', 'BAD_REQUEST', 400);
         }
 
@@ -419,15 +465,27 @@ const updateReport = async (req, res) => {
         const newPhase = data.current_phase || currentPhase;
         const userName = await getCurrentUserName(req);
         await insertAuditLog(conn, id, 'update', currentPhase, newPhase, '更新了报告内容', userName);
+        if (ncpLink.changed) {
+            await EightDNcpLinkService.markAssociationChanged(
+                conn,
+                ncpLink.linkedNcp,
+                existing[0].report_no || id,
+                userName,
+                Number(id)
+            );
+        }
 
         await conn.commit();
         return ResponseHandler.success(res, null, '8D报告更新成功');
     } catch (error) {
-        await conn.rollback();
+        if (conn) await conn.rollback();
+        if (error.isEightDNcpLinkError) {
+            return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
+        }
         logger.error('更新8D报告失败:', error);
         return ResponseHandler.error(res, '更新8D报告失败', 'OPERATION_ERROR', 500, error);
     } finally {
-        conn.release();
+        if (conn) conn.release();
     }
 };
 
@@ -438,7 +496,7 @@ const submitReview = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ?', [id]);
+        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
         if (existing.length === 0) {
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
         }
@@ -450,14 +508,11 @@ const submitReview = async (req, res) => {
             return ResponseHandler.error(res, `当前状态"${report.status}"不允许提交审核`, 'BAD_REQUEST', 400);
         }
 
-        // 解析JSON字段用于门控校验
-        const jsonFields = ['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions', 'd7_standardization', 'd3_attachments', 'd5_attachments', 'd6_attachments'];
-        for (const field of jsonFields) {
-            if (report[field] && typeof report[field] === 'string') {
-                try { report[field] = JSON.parse(report[field]); } catch { /* 忽略 */ }
-              // 静默忽略该错误
-            }
+        if (!['draft', 'd1_d3'].includes(report.current_phase)) {
+            return ResponseHandler.error(res, '当前阶段不能提交D1-D3初审', 'BAD_REQUEST', 400);
         }
+
+        parseJsonFields(report);
 
         // 阶段门控校验
         const gate = validatePhaseGate(report, 'd1_d3');
@@ -489,7 +544,7 @@ const reviewReport = async (req, res) => {
         const { approved, comments } = req.body;
         const reviewer = await getCurrentUserName(req);
 
-        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ?', [id]);
+        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
         if (existing.length === 0) {
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
         }
@@ -569,7 +624,7 @@ const submitPhase2Review = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ?', [id]);
+        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
         if (existing.length === 0) {
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
         }
@@ -580,14 +635,11 @@ const submitPhase2Review = async (req, res) => {
             return ResponseHandler.error(res, '当前阶段不是D4-D7，不能提交结案审核', 'BAD_REQUEST', 400);
         }
 
-        // 解析JSON字段用于门控校验
-        const jsonFields = ['d1_team_members', 'd3_containment_actions', 'd4_contributing_factors', 'd5_corrective_actions', 'd7_preventive_actions', 'd3_attachments', 'd5_attachments', 'd6_attachments'];
-        for (const field of jsonFields) {
-            if (report[field] && typeof report[field] === 'string') {
-                try { report[field] = JSON.parse(report[field]); } catch { /* 忽略 */ }
-              // 静默忽略该错误
-            }
+        if (report.status !== 'in_progress') {
+            return ResponseHandler.error(res, `当前状态"${report.status}"不允许提交结案审核`, 'BAD_REQUEST', 400);
         }
+
+        parseJsonFields(report);
 
         const gate = validatePhaseGate(report, 'd4_d7');
         if (!gate.pass) {
@@ -598,6 +650,9 @@ const submitPhase2Review = async (req, res) => {
             'UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?',
             ['review', 'd4_d7', id]
         );
+
+        const userName = await getCurrentUserName(req);
+        await insertAuditLog(pool, id, 'submit_phase2_review', report.current_phase, 'd4_d7', '提交了结案审核', userName);
 
         return ResponseHandler.success(res, null, '已提交结案审核');
     } catch (error) {
@@ -610,36 +665,59 @@ const submitPhase2Review = async (req, res) => {
  * 完成8D报告（D8总结后关闭）
  */
 const completeReport = async (req, res) => {
+    let conn;
     try {
         const { id } = req.params;
 
-        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ?', [id]);
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
         if (existing.length === 0) {
+            await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
         }
 
         const report = existing[0];
 
         if (report.current_phase !== 'd8') {
+            await conn.rollback();
             return ResponseHandler.error(res, '当前阶段不是D8，不能完成报告', 'BAD_REQUEST', 400);
         }
 
         if (!report.d8_summary) {
+            await conn.rollback();
             return ResponseHandler.error(res, '请先填写D8总结内容', 'BAD_REQUEST', 400);
         }
 
-        await pool.query(
+        parseJsonFields(report);
+        const gate = validatePhaseGate(report, 'completed');
+        if (!gate.pass) {
+            await conn.rollback();
+            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'BAD_REQUEST', 400);
+        }
+
+        await conn.query(
             'UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?',
             ['completed', 'completed', id]
         );
 
         const userName = await getCurrentUserName(req);
-        await insertAuditLog(pool, id, 'complete', report.current_phase, 'completed', '标记报告为完成', userName);
+        await insertAuditLog(conn, id, 'complete', report.current_phase, 'completed', '标记报告为完成', userName);
+        await EightDNcpLinkService.markCompleted(conn, report, userName);
+
+        await conn.commit();
 
         return ResponseHandler.success(res, null, '报告已完成，等待最终验证与关闭');
     } catch (error) {
+        if (conn) await conn.rollback();
+        if (error.isEightDNcpLinkError) {
+            return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
+        }
         logger.error('完成8D报告失败:', error);
         return ResponseHandler.error(res, '完成报告失败', 'OPERATION_ERROR', 500, error);
+    } finally {
+        if (conn) conn.release();
     }
 };
 
@@ -647,23 +725,44 @@ const completeReport = async (req, res) => {
  * 关闭8D报告（归档）
  */
 const closeReport = async (req, res) => {
+    let conn;
     try {
         const { id } = req.params;
 
-        const [existing] = await pool.query('SELECT id, status FROM eight_d_reports WHERE id = ?', [id]);
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
         if (existing.length === 0) {
+            await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
         }
 
-        if (existing[0].status !== 'completed') {
+        const report = existing[0];
+
+        if (report.status !== 'completed') {
+            await conn.rollback();
             return ResponseHandler.error(res, '只有已完成的报告才能关闭归档', 'BAD_REQUEST', 400);
         }
 
-        await pool.query('UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?', ['closed', 'closed', id]);
+        const userName = await getCurrentUserName(req);
+        await EightDNcpLinkService.closeLinkedNcp(conn, report, userName);
+
+        await conn.query('UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?', ['closed', 'closed', id]);
+        await insertAuditLog(conn, id, 'close', 'completed', 'closed', '归档关闭8D报告', userName);
+
+        await conn.commit();
+
         return ResponseHandler.success(res, null, '8D报告已归档关闭');
     } catch (error) {
+        if (conn) await conn.rollback();
+        if (error.isEightDNcpLinkError) {
+            return ResponseHandler.error(res, error.message, error.errorCode, error.statusCode);
+        }
         logger.error('关闭8D报告失败:', error);
         return ResponseHandler.error(res, '关闭8D报告失败', 'OPERATION_ERROR', 500, error);
+    } finally {
+        if (conn) conn.release();
     }
 };
 
@@ -674,7 +773,7 @@ const deleteReport = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const [existing] = await pool.query('SELECT id, status FROM eight_d_reports WHERE id = ?', [id]);
+        const [existing] = await pool.query('SELECT id, status FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
         if (existing.length === 0) {
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
         }
@@ -709,6 +808,7 @@ const getStatistics = async (req, res) => {
                 SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) as high_count,
                 SUM(CASE WHEN target_close_date IS NOT NULL AND target_close_date < CURDATE() AND status NOT IN ('completed', 'closed') THEN 1 ELSE 0 END) as overdue_count
             FROM eight_d_reports
+            WHERE deleted_at IS NULL
         `);
 
         return ResponseHandler.success(res, stats[0]);

@@ -97,17 +97,16 @@ const router = createRouter({
             requiresAuth: true,
             title: '个人中心'
           },
-          beforeEnter: async (to, from, next) => {
+          beforeEnter: async () => {
             const authStore = useAuthStore()
             try {
               if (!authStore.user) {
                 await authStore.fetchUserProfile()
               }
-              next()
             } catch (error) {
               console.error('加载用户信息失败:', error)
               ElMessage.error('加载用户信息失败，请重新登录')
-              next('/login')
+              return '/login'
             }
           }
         },
@@ -127,14 +126,13 @@ const router = createRouter({
 })
 
 // 路由守卫 - 验证登录状态和权限
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   // 处理旧的 dataOverview 驼峰式路径，重定向到小写路径
   if (to.path.includes('/dataOverview')) {
     const newPath = to.path.replace('/dataOverview', '/dataoverview')
-    next({ path: newPath, replace: true })
-    return
+    return { path: newPath, replace: true }
   }
 
   // 设置页面标题
@@ -146,8 +144,7 @@ router.beforeEach(async (to, from, next) => {
 
   // 检查用户是否登录
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
-    return
+    return '/login'
   }
 
   // 如果用户已登录且主题未加载，异步加载主题设置（只触发一次）
@@ -187,8 +184,7 @@ router.beforeEach(async (to, from, next) => {
       }
       // 父级菜单向上兼容：如果用户拥有该模块下任何子权限，也允许进入
       // 例如 meta.permission='finance' 且用户有 'finance:entries:view' → 允许
-      const permissions = authStore.permissions || []
-      return permissions.some(p => p.startsWith(requiredPermission + ':'))
+      return authStore.hasChildPermission(requiredPermission)
     }
 
     let hasPermission = checkRoutePermission()
@@ -205,12 +201,9 @@ router.beforeEach(async (to, from, next) => {
 
     if (!hasPermission) {
       ElMessage.error('您没有权限访问此页面')
-      next('/dashboard')
-      return
+      return '/dashboard'
     }
   }
-
-  next()
 })
 
 export default router

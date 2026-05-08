@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node --expose-gc src/index.js",
     "start:prod": "NODE_ENV=production node --expose-gc src/index.js",
-    "dev": "nodemon --expose-gc src/index.js",
+    "dev": "nodemon --watch src --watch migrations --watch knexfile.js --ignore logs/** --ignore uploads/** --ignore coverage/** --expose-gc src/index.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -39,7 +39,7 @@
     "dotenv": "^16.5.0",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
-    "express-rate-limit": "^8.2.1",
+    "express-rate-limit": "^7.5.1",
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",

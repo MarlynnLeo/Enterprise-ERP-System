@@ -24,7 +24,6 @@ export {
   equipmentApi,
   workflowApi,
   contractApi,
-  mrpApi,
   codingRuleApi,
   docLinkApi,
   exchangeRateApi,

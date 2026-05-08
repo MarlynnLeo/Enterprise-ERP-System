@@ -26,6 +26,8 @@ const DOCUMENT_TYPES = {
   COLLECTION: '收款单', // 收款单
   TRANSFER: '转账单', // 转账单
   ADJUSTMENT: '调整单', // 调整单
+  PROFIT_LOSS_TRANSFER: '损益结转', // 期末损益结转
+  YEAR_END_TRANSFER: '年度结转', // 年度利润结转
 };
 
 // 单据类型业务映射
@@ -47,6 +49,7 @@ const DOCUMENT_TYPE_MAPPING = {
   ASSET_ACQUISITION: DOCUMENT_TYPES.PAYMENT, // 资产购置 -> 付款单
   ASSET_DISPOSAL: DOCUMENT_TYPES.COLLECTION, // 资产处置 -> 收款单
   ASSET_DEPRECIATION: DOCUMENT_TYPES.ADJUSTMENT, // 资产折旧 -> 调整单
+  ASSET_IMPAIRMENT: DOCUMENT_TYPES.ADJUSTMENT, // 资产减值 -> 调整单
 
   // 银行相关
   BANK_DEPOSIT: DOCUMENT_TYPES.RECEIPT, // 银行存款 -> 收据
@@ -59,7 +62,39 @@ const DOCUMENT_TYPE_MAPPING = {
 
   // 其他
   MANUAL_ADJUSTMENT: DOCUMENT_TYPES.ADJUSTMENT, // 手工调整 -> 调整单
+  PROFIT_LOSS_TRANSFER: DOCUMENT_TYPES.PROFIT_LOSS_TRANSFER, // 损益结转
+  YEAR_END_TRANSFER: DOCUMENT_TYPES.YEAR_END_TRANSFER, // 年度结转
 };
+
+// ==================== 发票状态 ====================
+const INVOICE_STATUS = {
+  DRAFT: '草稿',
+  CONFIRMED: '已确认',
+  PARTIAL_PAID: '部分付款',
+  PAID: '已付款',
+  OVERDUE: '已逾期',
+  CANCELLED: '已取消',
+};
+
+const MANUAL_INVOICE_STATUS_TRANSITIONS = {
+  [INVOICE_STATUS.DRAFT]: [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.CANCELLED],
+};
+
+// 会产生银行流水和银行账户余额变化的结算方式。
+// 前端可能传英文枚举，数据库中也存在中文枚举，这里统一兼容。
+const BANK_BACKED_PAYMENT_METHODS = new Set([
+  '银行转账',
+  'bank_transfer',
+  '电子支付',
+  'credit_card',
+  '信用卡',
+  '支票',
+  'check',
+  '支付宝',
+  'alipay',
+  '微信',
+  'wechat',
+]);
 
 // ==================== 会计科目类型 ====================
 const ACCOUNT_TYPES = {
@@ -130,6 +165,9 @@ const ERROR_MESSAGES = {
 module.exports = {
   DOCUMENT_TYPES,
   DOCUMENT_TYPE_MAPPING,
+  INVOICE_STATUS,
+  MANUAL_INVOICE_STATUS_TRANSITIONS,
+  BANK_BACKED_PAYMENT_METHODS,
   ACCOUNT_TYPES,
   ACCOUNT_CODES,
   ENTRY_NUMBER_PREFIX,

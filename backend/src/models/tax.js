@@ -56,20 +56,20 @@ const taxModel = {
         [
           invoice_type,
           invoice_number,
-          invoice_code,
+          invoice_code ?? null,
           invoice_date,
-          supplier_id,
-          customer_id,
-          supplier_or_customer_name,
-          supplier_tax_number,
+          supplier_id ?? null,
+          customer_id ?? null,
+          supplier_or_customer_name ?? null,
+          supplier_tax_number ?? null,
           amount_excluding_tax,
           tax_rate,
           tax_amount,
           total_amount,
           status,
-          related_document_type,
-          related_document_id,
-          remark,
+          related_document_type ?? null,
+          related_document_id ?? null,
+          remark ?? null,
           created_by,
         ]
       );
@@ -92,6 +92,7 @@ const taxModel = {
       const {
         invoice_type,
         status,
+        invoice_number,
         start_date,
         end_date,
         supplier_id,
@@ -149,6 +150,11 @@ const taxModel = {
         params.push(status);
       }
 
+      if (invoice_number) {
+        query += ' AND ti.invoice_number LIKE ?';
+        params.push(`%${invoice_number}%`);
+      }
+
       if (start_date) {
         query += ' AND ti.invoice_date >= ?';
         params.push(start_date);
@@ -170,8 +176,8 @@ const taxModel = {
       }
 
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const limitNum = parseInt(limit);
-      const offsetNum = parseInt(offset);
+      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+      const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
       query += ` ORDER BY ti.invoice_date DESC, ti.id DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
       const [invoices] = await db.pool.execute(query, params);
@@ -362,7 +368,7 @@ const taxModel = {
           income_tax_rate,
           income_tax_payable,
           status,
-          remark,
+          remark ?? null,
           created_by,
         ]
       );
@@ -411,8 +417,8 @@ const taxModel = {
       }
 
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const limitNum = parseInt(limit);
-      const offsetNum = parseInt(offset);
+      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+      const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
       query += ` ORDER BY tr.return_period DESC, tr.id DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
       const [returns] = await db.pool.execute(query, params);
@@ -632,7 +638,8 @@ const taxModel = {
    * @param {number} documentId - AP/AR 发票ID
    * @returns {Promise<boolean>}
    */
-  linkToDocument: async (taxInvoiceId, documentType, documentId) => {
+  linkToDocument: async (taxInvoiceId, documentType, documentId, connection = null) => {
+    const conn = connection || db.pool;
     try {
       // 校验单据类型
       if (!['ap_invoice', 'ar_invoice'].includes(documentType)) {
@@ -641,12 +648,12 @@ const taxModel = {
 
       // 校验目标单据是否存在
       const table = documentType === 'ap_invoice' ? 'ap_invoices' : 'ar_invoices';
-      const [docs] = await db.pool.execute(`SELECT id FROM ${table} WHERE id = ?`, [documentId]);
+      const [docs] = await conn.execute(`SELECT id FROM ${table} WHERE id = ?`, [documentId]);
       if (docs.length === 0) {
         throw new Error('关联的单据不存在');
       }
 
-      const [result] = await db.pool.execute(
+      const [result] = await conn.execute(
         'UPDATE tax_invoices SET related_document_type = ?, related_document_id = ? WHERE id = ?',
         [documentType, documentId, taxInvoiceId]
       );
@@ -660,13 +667,38 @@ const taxModel = {
   },
 
   /**
+   * 获取可关联单据的编号和金额摘要。
+   */
+  getDocumentSummary: async (documentType, documentId) => {
+    if (!['ap_invoice', 'ar_invoice'].includes(documentType)) {
+      throw new Error('无效的单据类型，仅支持 ap_invoice 或 ar_invoice');
+    }
+
+    const sql = documentType === 'ap_invoice'
+      ? `SELECT ai.id, ai.invoice_number AS document_number, ai.total_amount, ai.status,
+                s.name AS party_name
+         FROM ap_invoices ai
+         LEFT JOIN suppliers s ON ai.supplier_id = s.id
+         WHERE ai.id = ?`
+      : `SELECT ai.id, ai.invoice_number AS document_number, ai.total_amount, ai.status,
+                c.name AS party_name
+         FROM ar_invoices ai
+         LEFT JOIN customers c ON ai.customer_id = c.id
+         WHERE ai.id = ?`;
+
+    const [docs] = await db.pool.execute(sql, [documentId]);
+    return docs[0] || null;
+  },
+
+  /**
    * 取消税务发票的单据关联
    * @param {number} taxInvoiceId
    * @returns {Promise<boolean>}
    */
-  unlinkDocument: async (taxInvoiceId) => {
+  unlinkDocument: async (taxInvoiceId, connection = null) => {
+    const conn = connection || db.pool;
     try {
-      const [result] = await db.pool.execute(
+      const [result] = await conn.execute(
         'UPDATE tax_invoices SET related_document_type = NULL, related_document_id = NULL WHERE id = ?',
         [taxInvoiceId]
       );
@@ -691,27 +723,29 @@ const taxModel = {
 
       if (type === 'ap') {
         query = `
-          SELECT id, invoice_number, supplier_name, total_amount, status, invoice_date
-          FROM ap_invoices
+          SELECT ai.id, ai.invoice_number, s.name AS supplier_name, ai.total_amount, ai.status, ai.invoice_date
+          FROM ap_invoices ai
+          LEFT JOIN suppliers s ON ai.supplier_id = s.id
           WHERE 1=1
         `;
         if (keyword) {
-          query += ' AND (invoice_number LIKE ? OR supplier_name LIKE ?)';
+          query += ' AND (ai.invoice_number LIKE ? OR s.name LIKE ?)';
           params.push(`%${keyword}%`, `%${keyword}%`);
         }
       } else {
         query = `
-          SELECT id, invoice_number, customer_name, total_amount, status, invoice_date
-          FROM ar_invoices
+          SELECT ai.id, ai.invoice_number, c.name AS customer_name, ai.total_amount, ai.status, ai.invoice_date
+          FROM ar_invoices ai
+          LEFT JOIN customers c ON ai.customer_id = c.id
           WHERE 1=1
         `;
         if (keyword) {
-          query += ' AND (invoice_number LIKE ? OR customer_name LIKE ?)';
+          query += ' AND (ai.invoice_number LIKE ? OR c.name LIKE ?)';
           params.push(`%${keyword}%`, `%${keyword}%`);
         }
       }
 
-      query += ' ORDER BY invoice_date DESC LIMIT 50';
+      query += ' ORDER BY ai.invoice_date DESC LIMIT 50';
 
       const [docs] = await db.pool.execute(query, params);
       return docs;

@@ -7,7 +7,7 @@
           <p class="subtitle">管理财务模块的全局参数、税务规则及业务字典</p>
         </div>
         <div class="header-actions">
-          <el-button type="warning" plain @click="handleReset" :loading="resetting">重置为默认</el-button>
+          <el-button v-permission="'finance:settings:update'" type="warning" plain @click="handleReset" :loading="resetting">重置为默认</el-button>
           <el-button v-permission="'finance:settings:update'" type="primary" @click="handleSave" :loading="saving">保存设置</el-button>
         </div>
       </div>

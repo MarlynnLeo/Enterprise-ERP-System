@@ -23,6 +23,10 @@ class ScheduledTaskService {
    * 启动所有定时任务
    */
   static startAllTasks() {
+    if (this.tasks.size > 0) {
+      this.stopAllTasks();
+    }
+
     // 每月1日自动计提折旧
     this.scheduleMonthlyDepreciation();
 
@@ -40,14 +44,23 @@ class ScheduledTaskService {
 
     // 每30分钟执行业务告警检查（基于 business_alerts 配置表）
     this.scheduleBusinessAlertCheck();
+
+    logger.info(`✅ 财务/库存/告警定时任务已全部启动 (共 ${this.tasks.size} 个)`);
   }
 
   /**
    * 停止所有定时任务
    */
   static stopAllTasks() {
-    this.tasks.forEach((task) => {
-      task.stop();
+    this.tasks.forEach((task, name) => {
+      try {
+        task.stop();
+        if (typeof task.destroy === 'function') {
+          task.destroy();
+        }
+      } catch (error) {
+        logger.warn(`停止定时任务失败: ${name}`, error);
+      }
     });
 
     this.tasks.clear();
@@ -177,7 +190,6 @@ class ScheduledTaskService {
 
     task.start();
     this.tasks.set('inventoryConsistencyCheck', task);
-    logger.info('库存数据一致性检查定时任务已启动 (每天凌晨3点执行)');
   }
 
   /**
@@ -217,7 +229,6 @@ class ScheduledTaskService {
 
     task.start();
     this.tasks.set('lowStockAlertCheck', task);
-    logger.info('低库存预警检查定时任务已启动 (每天上午9点执行)');
   }
 
   /**
@@ -254,7 +265,6 @@ class ScheduledTaskService {
 
     task.start();
     this.tasks.set('batchExpiryCheck', task);
-    logger.info('批次过期预警检查定时任务已启动 (每周一上午9点执行)');
   }
 
   /**
@@ -275,7 +285,6 @@ class ScheduledTaskService {
     );
     task.start();
     this.tasks.set('businessAlertCheck', task);
-    logger.info('业务告警定时检查已启动 (每30分钟执行)');
   }
 
   /**
@@ -352,7 +361,8 @@ class ScheduledTaskService {
             const days = params.days || 30;
             const [[{ cnt }]] = await pool.query(
               `SELECT COUNT(*) AS cnt FROM ar_invoices
-               WHERE status IN ('pending','partial_paid')
+               WHERE status IN ('已确认', '部分付款', '已逾期')
+               AND balance_amount > 0
                AND due_date < DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
               [days]
             );
@@ -363,7 +373,8 @@ class ScheduledTaskService {
             const days = params.days_before || 7;
             const [[{ cnt }]] = await pool.query(
               `SELECT COUNT(*) AS cnt FROM ap_invoices
-               WHERE status IN ('pending','partial_paid')
+               WHERE status IN ('已确认', '部分付款', '已逾期')
+               AND balance_amount > 0
                AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)`,
               [days]
             );
@@ -578,10 +589,18 @@ class ScheduledTaskService {
     const status = {};
 
     this.tasks.forEach((task, name) => {
+      const state = typeof task.getStatus === 'function'
+        ? task.getStatus()
+        : task.running
+          ? 'running'
+          : 'unknown';
+
       status[name] = {
-        running: task.running || false,
-        scheduled: task.scheduled || false,
-        destroyed: task.destroyed || false,
+        state,
+        running: state === 'running',
+        scheduled: state === 'idle' || state === 'running',
+        stopped: state === 'stopped',
+        destroyed: state === 'destroyed',
       };
     });
 

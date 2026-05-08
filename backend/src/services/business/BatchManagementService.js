@@ -46,10 +46,10 @@ class BatchManagementService {
       } = batchData;
 
       // 写入 inventory_ledger 台账
-      // 根据入库单号前缀判断交易类型：GR=采购入库，PR=生产入库，其他=通用入库
+      // 优先使用业务上下文判断交易类型，避免依赖单号前缀造成 RCV/GR 等编码规则差异断链。
       const refNo = receipt_no || `BATCH-${batch_number}`;
       let txType = 'inbound';
-      if (refNo.startsWith('GR')) {
+      if (receipt_id || receipt_no || purchase_order_id || purchase_order_no) {
         txType = 'purchase_inbound';
       } else if (refNo.startsWith('PR')) {
         txType = 'production_inbound';

@@ -6,7 +6,7 @@
           <span>{{ isEdit ? '编辑预算' : '新增预算' }}</span>
           <div>
             <el-button @click="handleCancel">取消</el-button>
-            <el-button v-permission="'finance:budgets:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
+            <el-button v-permission="isEdit ? 'finance:budgets:update' : 'finance:budgets:create'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
           </div>
         </div>
       </template>
@@ -89,7 +89,7 @@
 
         <el-divider content-position="left">预算明细</el-divider>
 
-        <el-button v-permission="'finance:budgets:create'" type="primary" @click="handleAddDetail" style="margin-bottom: 10px">添加明细</el-button>
+        <el-button v-permission="isEdit ? 'finance:budgets:update' : 'finance:budgets:create'" type="primary" @click="handleAddDetail" style="margin-bottom: 10px">添加明细</el-button>
 
         <el-table :data="formData.details" border>
           <el-table-column label="会计科目" width="200">
@@ -146,7 +146,7 @@
           </el-table-column>
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ $index }">
-              <el-button v-permission="'finance:budgets:delete'" link type="danger" size="small" @click="handleDeleteDetail($index)">删除</el-button>
+              <el-button v-permission="isEdit ? 'finance:budgets:update' : 'finance:budgets:create'" link type="danger" size="small" @click="handleDeleteDetail($index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -212,7 +212,7 @@ const totalAmount = computed(() => {
 // 获取部门列表
 const fetchDepartments = async () => {
   try {
-    const response = await api.get('/system/departments');
+    const response = await api.get('/system/departments/list');
     departments.value = response.data || [];
   } catch (error) {
     console.error('获取部门列表失败:', error);
@@ -307,7 +307,6 @@ const handleSave = async () => {
         start_date: formData.start_date,
         end_date: formData.end_date,
         total_amount: formData.total_amount,
-        status: formData.status,
         description: formData.description
       },
       details: formData.details

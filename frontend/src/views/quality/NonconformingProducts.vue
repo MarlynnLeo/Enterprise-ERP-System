@@ -54,7 +54,7 @@
               {{ showAdvancedSearch ? '收起筛选' : '高级搜索' }}
               <el-icon style="margin-left: 4px;"><ArrowUp v-if="showAdvancedSearch" /><ArrowDown v-else /></el-icon>
             </el-button>
-            <el-button type="primary" @click="handleCreate">
+            <el-button v-permission="'quality:nonconforming:create'" type="primary" @click="handleCreate">
               <el-icon><Plus /></el-icon>新增
             </el-button>
           </el-form-item>
@@ -142,7 +142,7 @@
         <el-table-column label="操作" min-width="270" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handleView(row)">查看</el-button>
-            <el-button size="small" type="primary" @click="handleDispose(row)" v-if="row.status === 'pending'">
+            <el-button v-permission="'quality:nonconforming:update'" size="small" type="primary" @click="handleDispose(row)" v-if="row.status === 'pending'">
               处理决策
             </el-button>
             <!-- 特采申请按钮: 处理方式为让步接收/特采，但尚未进入待审状态 -->
@@ -163,10 +163,10 @@
               v-permission="'quality:nonconforming:update'">
               特采审批
             </el-button>
-            <el-button size="small" type="success" @click="handleComplete(row)" v-if="row.status === 'processing' && row.concession_status !== 'pending'">
+            <el-button v-permission="'quality:nonconforming:update'" size="small" type="success" @click="handleComplete(row)" v-if="row.status === 'processing' && row.concession_status !== 'pending'">
               完成处理
             </el-button>
-            <el-button v-permission="'quality:nonconforming:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status !== 'completed'">删除</el-button>
+            <el-button v-permission="'quality:nonconforming:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status === 'pending'">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -224,7 +224,7 @@
       </el-form>
       <template #footer>
         <el-button @click="applyConcessionDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:nonconforming:create'" type="primary" :loading="submitLoading" @click="submitApplyConcession">提交申请</el-button>
+        <el-button v-permission="'quality:nonconforming:update'" type="primary" :loading="submitLoading" @click="submitApplyConcession">提交申请</el-button>
       </template>
     </el-dialog>
     <!-- 特采审批 Dialog -->
@@ -242,7 +242,7 @@
         </el-form>
         <template #footer>
           <el-button @click="approveConcessionDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="submitApproveConcession">确认提交</el-button>
+          <el-button v-permission="'quality:nonconforming:update'" type="primary" :loading="submitLoading" @click="submitApproveConcession">确认提交</el-button>
         </template>
     </el-dialog>
     <!-- Disposition Dialog -->
@@ -297,7 +297,7 @@
       </el-form>
       <template #footer>
         <el-button @click="disposeDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:nonconforming:create'" type="primary" @click="submitDisposition">提交处理决策</el-button>
+        <el-button v-permission="'quality:nonconforming:update'" type="primary" @click="submitDisposition">提交处理决策</el-button>
       </template>
     </el-dialog>
     <!-- Complete Dialog -->
@@ -315,7 +315,7 @@
       </el-form>
       <template #footer>
         <el-button @click="completeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitComplete">确定</el-button>
+        <el-button v-permission="'quality:nonconforming:update'" type="primary" @click="submitComplete">确定</el-button>
       </template>
     </el-dialog>
   </div>

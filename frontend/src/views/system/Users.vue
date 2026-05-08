@@ -218,7 +218,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">{{ isViewMode ? '关闭' : '取消' }}</el-button>
-          <el-button v-if="!isViewMode" type="primary" @click="saveUser" :loading="saveLoading">确认</el-button>
+          <el-button v-if="!isViewMode" v-permission="userForm.id ? 'system:users:update' : 'system:users:create'" type="primary" @click="saveUser" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>

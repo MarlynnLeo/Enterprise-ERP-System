@@ -17,14 +17,17 @@ export const systemApi = {
     getMenu: (id) => api.get(`/system/menus/${id}`),
     createMenu: (data) => api.post('/system/menus', data),
     updateMenu: (id, data) => api.put(`/system/menus/${id}`, data),
+    updateMenuStatus: (id, data) => api.put(`/system/menus/${id}/status`, data),
     deleteMenu: (id) => api.delete(`/system/menus/${id}`),
     getMenusDirect: () => api.get('/system/menus/direct'),
 
     // 部门管理
     getDepartments: (params) => api.get('/system/departments', { params }),
+    getDepartmentsList: () => api.get('/system/departments/list'),
     getDepartment: (id) => api.get(`/system/departments/${id}`),
     createDepartment: (data) => api.post('/system/departments', data),
     updateDepartment: (id, data) => api.put(`/system/departments/${id}`, data),
+    updateDepartmentStatus: (id, data) => api.put(`/system/departments/${id}/status`, data),
     deleteDepartment: (id) => api.delete(`/system/departments/${id}`),
 
     // 用户管理
@@ -33,13 +36,23 @@ export const systemApi = {
     getUser: (id) => api.get(`/system/users/${id}`),
     createUser: (data) => api.post('/system/users', data),
     updateUser: (id, data) => api.put(`/system/users/${id}`, data),
-    deleteUser: (id) => api.delete(`/system/users/${id}`),
     updateUserStatus: (id, data) => api.put(`/system/users/${id}/status`, data),
-    resetUserPassword: (id) => api.post(`/system/users/${id}/reset-password`),
+    resetUserPassword: (id, data) => api.put(`/system/users/${id}/password/reset`, data),
 
     // 系统日志
     getLogs: (params) => api.get('/system/logs', { params }),
-    getLog: (id) => api.get(`/system/logs/${id}`),
+
+    // System settings / operations
+    getSettings: () => api.get('/system/settings'),
+    updateSettings: (data) => api.put('/system/settings', data),
+    getAccountingCodes: () => api.get('/system/accounting/account-codes'),
+    updateAccountingCodes: (data) => api.put('/system/accounting/account-codes', data),
+    getSystemInfo: () => api.get('/system/info'),
+    getFailedJobs: (params) => api.get('/system/failed-jobs', { params }),
+    resolveFailedJob: (id) => api.put(`/system/failed-jobs/${id}/resolve`),
+    createBackup: () => api.post('/system/backup'),
+    getBackups: () => api.get('/system/backups'),
+    downloadBackup: (filename) => api.get(`/system/backups/${encodeURIComponent(filename)}`, { responseType: 'blob' }),
 
     // 业务类型管理
     getBusinessTypeGroups: () => api.get('/system/business-types/groups'),

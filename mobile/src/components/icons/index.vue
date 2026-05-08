@@ -6,7 +6,7 @@
 -->
 <template>
   <span
-    class="material-symbols-rounded"
+    class="material-symbols-sharp"
     :class="className"
     :style="customStyle"
   >
@@ -208,7 +208,7 @@ const customStyle = computed(() => {
 </script>
 
 <style scoped>
-.material-symbols-rounded {
+.material-symbols-sharp {
   display: inline-block;
   line-height: 1;
   text-transform: none;

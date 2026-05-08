@@ -7,7 +7,7 @@
           <h2>汇率维护</h2>
           <p class="subtitle">维护各币种与人民币的汇率，支持外币结算与报表折算</p>
         </div>
-        <el-button type="primary" @click="openForm">新增汇率</el-button>
+        <el-button v-permission="'finance:settings:update'" type="primary" @click="openForm">新增汇率</el-button>
       </div>
     </el-card>
 
@@ -27,7 +27,7 @@
       <el-table-column label="操作" width="80">
         <template #default="{ row }">
           <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
-            <template #reference><el-button link type="danger">删除</el-button></template>
+            <template #reference><el-button v-permission="'finance:settings:update'" link type="danger">删除</el-button></template>
           </el-popconfirm>
         </template>
       </el-table-column>
@@ -51,7 +51,7 @@
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button v-permission="'finance:settings:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>

@@ -96,6 +96,11 @@ export const baseDataApi = {
         const response = await api.get('/baseData/product-categories', { params });
         return normalizeResponse(response);
     },
+    getProductCategory: (id) => api.get(`/baseData/product-categories/${id}`),
+    createProductCategory: (data) => api.post('/baseData/product-categories', data),
+    updateProductCategory: (id, data) => api.put(`/baseData/product-categories/${id}`, data),
+    deleteProductCategory: (id) => api.delete(`/baseData/product-categories/${id}`),
+    getProductCategoryStats: () => api.get('/baseData/product-categories/statistics'),
 
     // 获取产品大类树形选项（用于下拉选择器）
     getProductCategoryOptions: async () => {
@@ -104,10 +109,15 @@ export const baseDataApi = {
     },
 
     // 物料来源管理
-    getMaterialSources: async () => {
-        const response = await api.get('/baseData/material-sources');
+    getMaterialSources: async (params = {}) => {
+        const response = await api.get('/baseData/material-sources', { params });
         return normalizeResponse(response);
     },
+    getMaterialSource: (id) => api.get(`/baseData/material-sources/${id}`),
+    createMaterialSource: (data) => api.post('/baseData/material-sources', data),
+    updateMaterialSource: (id, data) => api.put(`/baseData/material-sources/${id}`, data),
+    deleteMaterialSource: (id) => api.delete(`/baseData/material-sources/${id}`),
+    getMaterialSourceStats: () => api.get('/baseData/material-sources/statistics'),
 
     // 客户管理
     getCustomers: async (params = {}) => {
@@ -197,6 +207,7 @@ export const baseDataApi = {
     updateProcessTemplate: (id, data) => api.put(`/baseData/process-templates/${id}`, data),
     deleteProcessTemplate: (id) => api.delete(`/baseData/process-templates/${id}`),
     updateProcessTemplateStatus: (id, status) => api.put(`/baseData/process-templates/${id}/status`, { status }),
+    exportProcessTemplates: (params) => api.post('/baseData/process-templates/export', params, { responseType: 'blob' }),
     getProcessTemplateByProductId: (productId) => api.get(`/baseData/products/${productId}/process-template`),
 
     // 文件上传下载

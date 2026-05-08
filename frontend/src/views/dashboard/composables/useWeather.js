@@ -1,40 +1,44 @@
 /**
  * useWeather.js
- * @description 天气数据的组合式函数（从 Dashboard.vue 抽取）
+ * @description 天气数据组合式函数
  */
 import { ref } from 'vue'
 import { api } from '../../../services/api'
 
+const DEFAULT_CITY = '乐清'
+
+const createUnavailableWeather = () => ({
+  city: DEFAULT_CITY,
+  temperature: '--',
+  feelsLike: '--',
+  description: '天气暂不可用',
+  weatherCode: 'cloudy',
+  windSpeed: '--',
+  humidity: '--',
+  updateTime: ''
+})
+
 export function useWeather() {
-  // 天气数据
   const weather = ref({
-    city: '乐清',
-    temperature: '--',
-    feelsLike: '--',
+    ...createUnavailableWeather(),
     description: '加载中...',
-    weatherCode: 'sunny',
-    windSpeed: '--',
-    humidity: '--',
-    updateTime: ''
+    weatherCode: 'sunny'
   })
   const weatherLoading = ref(true)
 
-  // 获取天气数据
   const fetchWeatherData = async () => {
     weatherLoading.value = true
 
     try {
-      // 使用后端天气API（集成和风天气）
       const response = await api.get('/weather/current', {
-        params: { city: '乐清' }
+        params: { city: DEFAULT_CITY }
       })
 
-      // axios拦截器已自动解包，兼容多种数据格式
-      const data = response.data?.data || response.data || response
+      const data = response.data || response
 
       if (data && (data.city || data.temperature)) {
         weather.value = {
-          city: data.city || '乐清',
+          city: data.city || DEFAULT_CITY,
           temperature: data.temperature || '--',
           feelsLike: data.feelsLike || '--',
           description: data.description || '未知',
@@ -43,22 +47,14 @@ export function useWeather() {
           humidity: data.humidity || '--',
           updateTime: data.updateTime || ''
         }
-
       } else {
         throw new Error('天气数据格式错误')
       }
     } catch (error) {
-      console.warn('天气数据加载失败:', error)
-      weather.value = {
-        city: '乐清',
-        temperature: '--',
-        feelsLike: '--',
-        description: '天气暂不可用',
-        weatherCode: 'cloudy',
-        windSpeed: '--',
-        humidity: '--',
-        updateTime: ''
-      }
+      const message = error?.response?.data?.message || error?.message || ''
+      console.warn('天气数据加载失败:', message || error)
+
+      weather.value = createUnavailableWeather()
     } finally {
       weatherLoading.value = false
     }

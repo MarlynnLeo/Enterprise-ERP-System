@@ -47,8 +47,6 @@ services:
       - OLLAMA_TIMEOUT=60000
       # 智谱AI
       - ZHIPU_API_KEY=${ZHIPU_API_KEY}
-      # 天气
-      - AMAP_API_KEY=${AMAP_API_KEY}
       # SiliconFlow
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - SILICONFLOW_VLM_MODEL=deepseek-ai/DeepSeek-OCR

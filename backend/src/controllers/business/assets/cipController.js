@@ -8,6 +8,8 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const cipModel = require('../../../models/cip');
 const db = require('../../../config/db');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 const cipController = {
     /**
@@ -145,9 +147,10 @@ const cipController = {
                 return ResponseHandler.error(res, '必须提供固定资产的基本录入信息 (asset_code, asset_name 等)', 'BAD_REQUEST', 400);
             }
 
-            const userId = req.user ? req.user.username : 'system';
-
-            const newAssetId = await cipModel.transferToFixedAsset(id, assetData, userId);
+            const newAssetId = await cipModel.transferToFixedAsset(id, assetData, {
+                userId: getAuthenticatedUserId(req),
+                operatorName: await getCurrentUserName(req),
+            });
 
             return ResponseHandler.success(res, { newAssetId }, '转固成功！在建工程已转为固定资产');
         } catch (error) {

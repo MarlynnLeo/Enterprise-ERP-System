@@ -64,7 +64,7 @@
             <el-option label="已确认" value="已确认"></el-option>
             <el-option label="部分付款" value="部分付款"></el-option>
             <el-option label="已付款" value="已付款"></el-option>
-            <el-option label="逾期" value="逾期"></el-option>
+            <el-option label="已逾期" value="已逾期"></el-option>
             <el-option label="已取消" value="已取消"></el-option>
           </el-select>
         </el-form-item>
@@ -109,21 +109,37 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="230" fixed="right">
+        <el-table-column label="操作" min-width="340" fixed="right">
           <template #default="scope">
-            <el-button 
-              v-if="scope.row.status !== '已付款'"
-              type="primary" 
-              size="small" 
+            <el-button
+              v-if="scope.row.status === '草稿'"
+              type="primary"
+              size="small"
               @click="handleEdit(scope.row)"
               v-permission="'finance:ap:update'">
               编辑
             </el-button>
-            <el-button 
-              v-if="(scope.row.status === '已确认' || scope.row.status === '部分付款') && (scope.row.amount - scope.row.paidAmount) > 0"
-              v-permission="'finance:ap:payments'"
-              type="success" 
-              size="small" 
+            <el-button
+              v-if="scope.row.status === '草稿'"
+              type="success"
+              size="small"
+              @click="handleStatusChange(scope.row, '已确认')"
+              v-permission="'finance:ap:update'">
+              确认
+            </el-button>
+            <el-button
+              v-if="scope.row.status === '草稿'"
+              type="warning"
+              size="small"
+              @click="handleStatusChange(scope.row, '已取消')"
+              v-permission="'finance:ap:update'">
+              取消
+            </el-button>
+            <el-button
+              v-if="['已确认', '部分付款', '已逾期'].includes(scope.row.status) && (scope.row.amount - scope.row.paidAmount) > 0"
+              v-permission="'finance:ap:pay'"
+              type="success"
+              size="small"
               @click="handleRecordPayment(scope.row)">
               付款
             </el-button>
@@ -215,7 +231,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <!-- 第四行：付款期限 + 发票状态 -->
+        <!-- 第四行：付款期限 -->
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="付款期限">
@@ -227,16 +243,6 @@
                   :value="term"
                 ></el-option>
               </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="发票状态">
-              <el-select v-model="invoiceForm.status" placeholder="选择状态" style="width: 100%">
-                <el-option label="草稿" value="draft"></el-option>
-                <el-option label="待审核" value="pending"></el-option>
-                <el-option label="已审核" value="approved"></el-option>
-                <el-option label="已付款" value="paid"></el-option>
-          </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -304,7 +310,7 @@
             </el-table>
           </div>
           <div class="add-item" style="margin-top: 10px;">
-            <el-button v-permission="'finance:ar:create'" type="primary" size="small" @click="addInvoiceItem">添加明细项</el-button>
+            <el-button v-permission="'finance:ap:create'" type="primary" size="small" @click="addInvoiceItem">添加明细项</el-button>
           </div>
         </div>
         
@@ -354,7 +360,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveInvoice" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="invoiceForm.id ? 'finance:ap:update' : 'finance:ap:create'" type="primary" @click="saveInvoice" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -403,7 +409,7 @@
             <el-option label="其他" value="other"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="银行账户" prop="bankAccountId" v-if="paymentForm.paymentMethod === 'bank_transfer'">
+        <el-form-item label="银行账户" prop="bankAccountId" v-if="['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod)">
           <el-select 
             v-model="paymentForm.bankAccountId" 
             placeholder="请选择银行账户" 
@@ -436,7 +442,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="paymentDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="savePayment" :loading="savePaymentLoading">确认</el-button>
+          <el-button v-permission="'finance:ap:pay'" type="primary" @click="savePayment" :loading="savePaymentLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -488,9 +494,12 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailsDialogVisible = false">关闭</el-button>
-          <el-button type="primary" @click="handleRecordPayment(invoiceDetail)" v-if="invoiceDetail.balance > 0"
-              v-permission="'finance:ap:payments'">记录付款</el-button>
-          <el-button v-permission="'finance:ar:view'" type="primary" @click="printInvoiceDetail">打印</el-button>
+          <el-button
+            type="primary"
+            @click="handleRecordPayment(invoiceDetail)"
+            v-if="['已确认', '部分付款', '已逾期'].includes(invoiceDetail.status) && invoiceDetail.balance > 0"
+              v-permission="'finance:ap:pay'">记录付款</el-button>
+          <el-button v-permission="'finance:ap:view'" type="primary" @click="printInvoiceDetail">打印</el-button>
         </span>
       </template>
     </el-dialog>
@@ -501,7 +510,7 @@ import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig';
 import { formatCurrency } from '@/utils/format'
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
 import api from '@/services/api';
 import { useFinanceStore } from '@/stores/finance'
@@ -557,7 +566,7 @@ const invoiceForm = reactive({
   items: [],
   notes: '',
   taxRate: defaultVATRate.value, // 使用动态配置的默认税率
-  status: 'draft' // 默认状态为草稿
+  status: '草稿'
 });
 // 付款期限
 const paymentTerms = ref(defaultPaymentTermDays.value || 30); // 默认付款期限
@@ -610,7 +619,7 @@ const paymentRules = {
       message: '请选择银行账户', 
       trigger: 'change',
       validator: (rule, value, callback) => {
-        if (paymentForm.paymentMethod === 'bank_transfer' && !value) {
+        if (['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) && !value) {
           callback(new Error('请选择银行账户'));
         } else {
           callback();
@@ -626,7 +635,7 @@ const getStatusType = (invoice) => {
     '已确认': 'primary',
     '部分付款': 'warning',
     '已付款': 'success',
-    '逾期': 'danger',
+    '已逾期': 'danger',
     '已取消': 'info'
   };
   return statusMap[invoice.status] || 'info';
@@ -823,6 +832,22 @@ const showAddDialog = () => {
   // 添加默认一个明细项
   addInvoiceItem();
   dialogVisible.value = true;
+};
+const handleStatusChange = async (row, status) => {
+  const actionText = status === '已确认' ? '确认' : '取消';
+  try {
+    await ElMessageBox.confirm(
+      `确定要${actionText}发票 ${row.invoiceNumber} 吗？`,
+      `${actionText}发票`,
+      { type: status === '已确认' ? 'success' : 'warning' }
+    );
+    await api.put(`/finance/ap/invoices/${row.id}/status`, { status });
+    ElMessage.success(`发票已${status === '已确认' ? '确认' : '取消'}`);
+    loadInvoices();
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return;
+    ElMessage.error(error.response?.data?.message || error.message || '状态更新失败');
+  }
 };
 // 编辑发票
 const handleEdit = async (row) => {
@@ -1059,7 +1084,7 @@ const savePayment = async () => {
   if (!paymentFormRef.value) return;
   
   // 银行转账必须关联银行账户
-  if (paymentForm.paymentMethod === 'bank_transfer' && !paymentForm.bankAccountId) {
+  if (['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) && !paymentForm.bankAccountId) {
     ElMessage.warning('请选择银行账户');
     return;
   }
@@ -1115,7 +1140,7 @@ const resetInvoiceForm = () => {
   invoiceForm.items = [];
   invoiceForm.notes = '';
   invoiceForm.taxRate = defaultVATRate.value;
-  invoiceForm.status = 'draft';
+  invoiceForm.status = '草稿';
   paymentTerms.value = defaultPaymentTermDays.value || 30;
   // 自动计算到期日期
   handlePaymentTermsChange(paymentTerms.value);

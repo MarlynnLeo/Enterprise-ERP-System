@@ -62,7 +62,7 @@
           <!-- 编辑模式下显示操作列 -->
           <el-table-column v-if="mode === 'edit'" label="操作" width="130" align="center" fixed="right">
             <template #default="{ row }">
-              <el-button type="primary" link size="small" @click="$emit('adjust', row)">
+              <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
                 {{ row.has_adjustment ? '重新调整' : '调整' }}
               </el-button>
               <el-button v-if="row.has_adjustment" type="info" link size="small" @click="$emit('history', row)">

@@ -15,10 +15,10 @@
           <p class="subtitle">管理现金收支记录</p>
         </div>
         <div class="action-buttons">
-          <el-button v-permission="'finance:cashtransactions:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
-          <el-button v-permission="'finance:cashtransactions:export'" type="success" @click="exportTransactions">导出数据</el-button>
-          <el-button v-permission="'finance:cashtransactions:import'" type="warning" @click="showImportDialog">导入数据</el-button>
-          <el-button v-permission="'finance:cashtransactions:print'" type="primary" plain @click="printCashStatement">打印</el-button>
+          <el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
+          <el-button v-permission="'finance:cash:export'" type="success" @click="exportTransactions">导出数据</el-button>
+          <el-button v-permission="'finance:cash:create'" type="warning" @click="showImportDialog">导入数据</el-button>
+          <el-button v-permission="'finance:cash:view'" type="primary" plain @click="printCashStatement">打印</el-button>
         </div>
       </div>
     </el-card>
@@ -137,8 +137,9 @@
               >查看</el-button>
 
               <!-- 编辑按钮：仅草稿状态显示 -->
-              <el-button 
-                v-if="scope.row.status === 'draft' || !scope.row.status"
+              <el-button
+                v-permission="'finance:cash:update'"
+                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft')"
                 type="warning"
                 size="small"
                 @click="editTransaction(scope.row)"
@@ -146,14 +147,16 @@
 
               <!-- 提交按钮：仅草稿状态显示 -->
               <el-button
-                v-if="scope.row.status === 'draft' || !scope.row.status"
+                v-permission="'finance:cash:update'"
+                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft')"
                 type="success"
                 size="small"
                 @click="submitForAudit(scope.row)"
               >提交</el-button>
 
               <!-- 审核按钮：待审核或已复核状态显示 -->
-              <el-button 
+              <el-button
+                v-permission="'finance:cash:approve'"
                 v-if="scope.row.status === 'pending' || scope.row.status === 'reviewed'"
                 type="info"
                 size="small"
@@ -162,13 +165,13 @@
 
               <!-- 删除按钮：仅草稿状态显示 -->
               <el-popconfirm
-                v-if="scope.row.status === 'draft' || !scope.row.status"
+                v-if="['draft', 'rejected'].includes(scope.row.status || 'draft')"
                 title="确定要删除该交易记录吗？此操作不可恢复！"
                 @confirm="deleteTransaction(scope.row)"
                 confirm-button-type="danger"
               >
                 <template #reference>
-                  <el-button v-permission="'finance:cashtransactions:delete'" type="danger" size="small">删除</el-button>
+                  <el-button v-permission="'finance:cash:delete'" type="danger" size="small">删除</el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -279,7 +282,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveTransaction" :loading="saveLoading">
+          <el-button v-permission="transactionForm.id ? 'finance:cash:update' : 'finance:cash:create'" type="primary" @click="saveTransaction" :loading="saveLoading">
             确定
           </el-button>
         </span>
@@ -317,7 +320,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="importDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="importTransactions" :loading="importLoading">
+          <el-button v-permission="'finance:cash:create'" type="primary" @click="importTransactions" :loading="importLoading">
             导入
           </el-button>
         </span>

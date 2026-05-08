@@ -7,6 +7,120 @@
 const db = require('../config/db');
 const { logger } = require('../utils/logger');
 
+const BUDGET_STATUS = {
+  DRAFT: '草稿',
+  PENDING: '待审批',
+  APPROVED: '已审批',
+  RUNNING: '执行中',
+  CLOSED: '已关闭',
+};
+
+const BUDGET_STATUS_TRANSITIONS = {
+  [BUDGET_STATUS.DRAFT]: [BUDGET_STATUS.PENDING],
+  [BUDGET_STATUS.PENDING]: [BUDGET_STATUS.APPROVED, BUDGET_STATUS.DRAFT],
+  [BUDGET_STATUS.APPROVED]: [BUDGET_STATUS.RUNNING],
+  [BUDGET_STATUS.RUNNING]: [BUDGET_STATUS.CLOSED],
+};
+
+function createBudgetError(message, code = 'VALIDATION_ERROR', statusCode = 400) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
+}
+
+function assertBudgetTransition(currentStatus, nextStatus) {
+  if (currentStatus === nextStatus) return;
+
+  const allowedTargets = BUDGET_STATUS_TRANSITIONS[currentStatus] || [];
+  if (!allowedTargets.includes(nextStatus)) {
+    throw createBudgetError(`不允许从"${currentStatus}"变更为"${nextStatus}"`);
+  }
+}
+
+function validateBusinessDate(value, fieldName) {
+  const dateString = value ? String(value).slice(0, 10) : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    throw createBudgetError(`${fieldName}格式必须为YYYY-MM-DD`);
+  }
+
+  const [year, month, day] = dateString.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw createBudgetError(`${fieldName}不是有效日期`);
+  }
+
+  return dateString;
+}
+
+function validateBudgetDateRange(startDate, endDate) {
+  const normalizedStartDate = validateBusinessDate(startDate, '预算开始日期');
+  const normalizedEndDate = validateBusinessDate(endDate, '预算结束日期');
+  if (normalizedStartDate > normalizedEndDate) {
+    throw createBudgetError('预算开始日期不能晚于结束日期');
+  }
+  return { startDate: normalizedStartDate, endDate: normalizedEndDate };
+}
+
+function normalizeBudgetDetails(details = []) {
+  if (!Array.isArray(details)) return [];
+
+  return details.map((detail, index) => {
+    const accountId = Number.parseInt(detail.account_id, 10);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      throw createBudgetError(`第${index + 1}行预算明细未选择有效会计科目`);
+    }
+
+    const budgetAmount = Number.parseFloat(detail.budget_amount);
+    if (!Number.isFinite(budgetAmount) || budgetAmount <= 0) {
+      throw createBudgetError(`第${index + 1}行预算金额必须大于0`);
+    }
+
+    const warningThreshold = Number.parseFloat(detail.warning_threshold ?? 80);
+    if (!Number.isFinite(warningThreshold) || warningThreshold < 0 || warningThreshold > 100) {
+      throw createBudgetError(`第${index + 1}行预警阈值必须在0到100之间`);
+    }
+
+    return {
+      account_id: accountId,
+      department_id: detail.department_id || null,
+      budget_amount: Math.round(budgetAmount * 100) / 100,
+      warning_threshold: Math.round(warningThreshold * 100) / 100,
+      description: detail.description || null,
+    };
+  });
+}
+
+function getBudgetTotalAmount(totalAmount, normalizedDetails) {
+  if (normalizedDetails.length > 0) {
+    return Math.round(
+      normalizedDetails.reduce((sum, detail) => sum + detail.budget_amount, 0) * 100
+    ) / 100;
+  }
+
+  const parsedTotal = Number.parseFloat(totalAmount);
+  if (!Number.isFinite(parsedTotal) || parsedTotal < 0) {
+    throw createBudgetError('预算总额不能为负数');
+  }
+  return Math.round(parsedTotal * 100) / 100;
+}
+
+function parseLimit(value, defaultValue = 20) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) return defaultValue;
+  return Math.min(parsed, 200);
+}
+
+function parseOffset(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) return 0;
+  return parsed;
+}
+
 const budgetModel = {
   // ==================== 预算主表操作 ====================
 
@@ -33,10 +147,12 @@ const budgetModel = {
         start_date,
         end_date,
         total_amount,
-        status = '草稿',
         description,
         created_by,
       } = budgetData;
+      const { startDate, endDate } = validateBudgetDateRange(start_date, end_date);
+      const normalizedDetails = normalizeBudgetDetails(details);
+      const resolvedTotalAmount = getBudgetTotalAmount(total_amount, normalizedDetails);
 
       // 插入预算主表
       const [result] = await conn.execute(
@@ -50,22 +166,22 @@ const budgetModel = {
           budget_no,
           budget_name,
           budget_year,
-          budget_type,
-          department_id,
-          start_date,
-          end_date,
-          total_amount,
-          status,
-          description,
-          created_by,
+          budget_type || '年度预算',
+          department_id ?? null,
+          startDate,
+          endDate,
+          resolvedTotalAmount,
+          BUDGET_STATUS.DRAFT,
+          description || null,
+          created_by ?? null,
         ]
       );
 
       const budgetId = result.insertId;
 
       // 插入预算明细
-      if (details && details.length > 0) {
-        for (const detail of details) {
+      if (normalizedDetails.length > 0) {
+        for (const detail of normalizedDetails) {
           await conn.execute(
             `
             INSERT INTO budget_details (
@@ -76,10 +192,10 @@ const budgetModel = {
             [
               budgetId,
               detail.account_id,
-              detail.department_id || null,
+              detail.department_id,
               detail.budget_amount,
-              detail.warning_threshold || 80.0,
-              detail.description || null,
+              detail.warning_threshold,
+              detail.description,
             ]
           );
         }
@@ -156,8 +272,8 @@ const budgetModel = {
 
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       if (filters.limit) {
-        const limitNum = parseInt(filters.limit);
-        const offsetNum = parseInt(filters.offset || 0);
+        const limitNum = parseLimit(filters.limit);
+        const offsetNum = parseOffset(filters.offset);
         query += ` LIMIT ${limitNum} OFFSET ${offsetNum}`;
       }
 
@@ -305,8 +421,24 @@ const budgetModel = {
    * @param {Object} budgetData - 预算数据
    * @returns {Promise<boolean>} 是否成功
    */
-  updateBudget: async (id, budgetData) => {
+  updateBudget: async (id, budgetData, details = null) => {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
+
+      const [budgets] = await connection.execute(
+        'SELECT id, status FROM budgets WHERE id = ? FOR UPDATE',
+        [id]
+      );
+
+      if (budgets.length === 0) {
+        throw createBudgetError('预算不存在', 'NOT_FOUND', 404);
+      }
+
+      if (budgets[0].status !== BUDGET_STATUS.DRAFT) {
+        throw createBudgetError('只有草稿状态的预算允许修改');
+      }
+
       const {
         budget_name,
         budget_year,
@@ -315,15 +447,20 @@ const budgetModel = {
         start_date,
         end_date,
         total_amount,
-        status,
         description,
       } = budgetData;
+      const { startDate, endDate } = validateBudgetDateRange(start_date, end_date);
+      const normalizedDetails = Array.isArray(details) ? normalizeBudgetDetails(details) : null;
+      const resolvedTotalAmount = getBudgetTotalAmount(
+        total_amount,
+        normalizedDetails || []
+      );
 
-      const [result] = await db.pool.execute(
+      const [result] = await connection.execute(
         `
         UPDATE budgets
         SET budget_name = ?, budget_year = ?, budget_type = ?, department_id = ?,
-            start_date = ?, end_date = ?, total_amount = ?, status = ?, description = ?
+            start_date = ?, end_date = ?, total_amount = ?, description = ?
         WHERE id = ?
       `,
         [
@@ -331,20 +468,42 @@ const budgetModel = {
           budget_year,
           budget_type,
           department_id,
-          start_date,
-          end_date,
-          total_amount,
-          status,
+          startDate,
+          endDate,
+          resolvedTotalAmount,
           description,
           id,
         ]
       );
 
+      if (Array.isArray(normalizedDetails)) {
+        await connection.execute('DELETE FROM budget_details WHERE budget_id = ?', [id]);
+        for (const detail of normalizedDetails) {
+          await connection.execute(
+            `INSERT INTO budget_details
+              (budget_id, account_id, department_id, budget_amount, warning_threshold, description)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              detail.account_id,
+              detail.department_id,
+              detail.budget_amount,
+              detail.warning_threshold,
+              detail.description,
+            ]
+          );
+        }
+      }
+
+      await connection.commit();
       logger.info('预算更新成功', { id });
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('更新预算失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -357,6 +516,19 @@ const budgetModel = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+
+      const [budgets] = await connection.execute(
+        'SELECT id, status FROM budgets WHERE id = ? FOR UPDATE',
+        [id]
+      );
+
+      if (budgets.length === 0) {
+        throw createBudgetError('预算不存在', 'NOT_FOUND', 404);
+      }
+
+      if (budgets[0].status !== BUDGET_STATUS.DRAFT) {
+        throw createBudgetError('只有草稿状态的预算允许删除');
+      }
 
       // 级联删除关联数据
       await connection.execute('DELETE FROM budget_warnings WHERE budget_id = ?', [id]);
@@ -384,7 +556,31 @@ const budgetModel = {
    * @returns {Promise<boolean>} 是否成功
    */
   updateBudgetStatus: async (id, status, extraData = {}) => {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
+
+      const [budgets] = await connection.execute(
+        'SELECT id, status FROM budgets WHERE id = ? FOR UPDATE',
+        [id]
+      );
+
+      if (budgets.length === 0) {
+        throw createBudgetError('预算不存在', 'NOT_FOUND', 404);
+      }
+
+      assertBudgetTransition(budgets[0].status, status);
+
+      if (status === BUDGET_STATUS.PENDING) {
+        const [detailCount] = await connection.execute(
+          'SELECT COUNT(*) AS count FROM budget_details WHERE budget_id = ?',
+          [id]
+        );
+        if ((detailCount[0]?.count || 0) === 0) {
+          throw createBudgetError('预算没有明细项，无法提交审批');
+        }
+      }
+
       let query = 'UPDATE budgets SET status = ?';
       const params = [status];
 
@@ -398,16 +594,24 @@ const budgetModel = {
         params.push(extraData.approved_by);
       }
 
+      if (status === BUDGET_STATUS.PENDING) {
+        query += ', approved_by = NULL, approved_at = NULL';
+      }
+
       query += ' WHERE id = ?';
       params.push(id);
 
-      const [result] = await db.pool.execute(query, params);
+      const [result] = await connection.execute(query, params);
 
+      await connection.commit();
       logger.info('预算状态更新成功', { id, status });
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('更新预算状态失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 

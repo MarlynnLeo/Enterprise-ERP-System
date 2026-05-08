@@ -230,7 +230,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">{{ isViewMode ? '关闭' : '取消' }}</el-button>
-          <el-button v-if="!isViewMode" type="primary" @click="saveDepartment" :loading="saveLoading">确认</el-button>
+          <el-button v-if="!isViewMode" v-permission="departmentForm.id ? 'system:departments:update' : 'system:departments:create'" type="primary" @click="saveDepartment" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -409,7 +409,7 @@ const loadUserOptions = async () => {
       usersData = response.data.list;
     }
     // 过滤掉已禁用的用户
-    userOptions.value = usersData.filter(user => String(user.status) === '1' || String(user.status) === '1');
+    userOptions.value = usersData.filter(user => user.status === 1 || String(user.status) === '1');
   } catch (error) {
     console.error('加载可选用用户列表失败:', error);
   }

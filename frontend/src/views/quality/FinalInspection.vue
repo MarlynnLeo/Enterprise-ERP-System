@@ -92,7 +92,7 @@
                 type="primary" 
                 @click="handleCreate"
               
-                v-permission="'quality:final'">
+                v-permission="'quality:inspections:create'">
                 新增
               </el-button>
             </div>
@@ -157,6 +157,7 @@
             </el-button>
             <el-button
               v-if="scope.row.status === 'pending'"
+              v-permission="'quality:inspections:update'"
               size="small"
               type="primary"
               @click="handleInspect(scope.row)"
@@ -165,6 +166,7 @@
             </el-button>
             <el-button
               v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allow_reinspection"
+              v-permission="'quality:inspections:update'"
               size="small"
               type="primary"
               @click="handleDropdownCommand('review', scope.row)"
@@ -298,6 +300,7 @@
           <el-button 
             type="primary" 
             @click="submitForm"
+            v-permission="'quality:inspections:create'"
           >
             确认
           </el-button>
@@ -428,7 +431,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="inspectDialogVisible = false">取消</el-button>
-          <el-button v-permission="'quality:inspections:create'" type="primary" @click="submitInspection" :loading="submitLoading">提交检验</el-button>
+          <el-button v-permission="'quality:inspections:update'" type="primary" @click="submitInspection" :loading="submitLoading">提交检验</el-button>
         </span>
       </template>
     </el-dialog>

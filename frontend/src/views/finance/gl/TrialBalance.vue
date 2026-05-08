@@ -30,7 +30,7 @@
           <el-button type="primary" @click="fetchData">
              <el-icon><Search /></el-icon> 查询
           </el-button>
-          <el-button @click="exportData">
+          <el-button v-permission="'finance:reports:view'" @click="exportData">
              <el-icon><Download /></el-icon> 导出
           </el-button>
         </el-form-item>

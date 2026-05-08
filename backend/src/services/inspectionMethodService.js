@@ -64,7 +64,7 @@ const inspectionMethodService = {
    */
   async getInspectionMethodById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM inspection_methods WHERE id = ?', [id]);
+      const [rows] = await pool.query('SELECT * FROM inspection_methods WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('getInspectionMethodById error:', error);

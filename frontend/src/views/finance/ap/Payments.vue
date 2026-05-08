@@ -137,7 +137,7 @@
     >
       <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
         <el-form-item label="付款编号" prop="paymentNumber">
-          <el-input v-model="paymentForm.paymentNumber" placeholder="请输入付款编号"></el-input>
+          <el-input v-model="paymentForm.paymentNumber" placeholder="系统自动生成" disabled></el-input>
         </el-form-item>
         <el-form-item label="关联发票" prop="invoiceId">
           <el-select 
@@ -213,8 +213,8 @@
           </div>
         </el-form-item>
         
-        <!-- 银行账户选择，当付款方式为银行转账或信用卡时显示 -->
-        <el-form-item label="付款账户" prop="bankAccountId" v-if="['bank_transfer', 'credit_card'].includes(paymentForm.paymentMethod)">
+        <!-- 银行账户选择，当付款方式为银行转账、支票或信用卡时显示 -->
+        <el-form-item label="付款账户" prop="bankAccountId" v-if="['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod)">
           <el-select 
             v-model="paymentForm.bankAccountId" 
             placeholder="选择付款账户" 
@@ -238,7 +238,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="savePayment" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="'finance:ap:pay'" type="primary" @click="savePayment" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -405,7 +405,7 @@ const paymentForm = reactive({
 // 表单验证规则
 const paymentRules = {
   paymentNumber: [
-    { required: true, message: '请输入付款编号', trigger: 'blur' }
+    { required: false, message: '系统自动生成', trigger: 'blur' }
   ],
   invoiceId: [
     { required: true, message: '请选择关联发票', trigger: 'change' }
@@ -418,6 +418,18 @@ const paymentRules = {
   ],
   paymentMethod: [
     { required: true, message: '请选择付款方式', trigger: 'change' }
+  ],
+  bankAccountId: [
+    {
+      validator: (rule, value, callback) => {
+        if (['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) && !value) {
+          callback(new Error('请选择付款账户'));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'change'
+    }
   ]
 };
 // 获取付款方式文本
@@ -676,15 +688,8 @@ const savePayment = async () => {
           referenceNumber: paymentForm.referenceNumber
         };
         
-        if (paymentForm.id) {
-          // 更新
-          await api.put(`/finance/ap/payments/${paymentForm.id}`, data);
-          ElMessage.success('更新成功');
-        } else {
-          // 新增
-          await api.post('/finance/ap/payments', data);
-          ElMessage.success('添加成功');
-        }
+        await api.post('/finance/ap/payments', data);
+        ElMessage.success('添加成功');
         dialogVisible.value = false;
         loadPayments();
       } catch (error) {
@@ -804,4 +809,4 @@ onMounted(() => {
   margin-top: 4px;
   line-height: 1.4;
 }
-</style> 
+</style>

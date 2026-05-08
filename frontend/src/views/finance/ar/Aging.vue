@@ -15,9 +15,9 @@
           <p class="subtitle">分析客户账款账龄</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport" v-permission="'finance:ar:aging'">生成报表</el-button>
-          <el-button v-permission="'finance:ar:view'" @click="exportExcel" :disabled="!hasData">导出Excel</el-button>
-          <el-button v-permission="'finance:ar:view'" @click="printReport" :disabled="!hasData">打印报表</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!hasData">导出Excel</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!hasData">打印报表</el-button>
         </div>
       </div>
     </el-card>

@@ -438,41 +438,10 @@
     try {
       showLoadingToast({ message: '添加中...', forbidClick: true })
 
-      // 先获取盘点单详情，检查是否已包含该物料
-      const detailRes = await inventoryApi.getCheckDetail(checkOrder.id)
-      const checkData = detailRes?.data || {}
-      const existingItems = checkData.items || []
-      const alreadyExists = existingItems.some(i => i.material_id === resultData.value.id)
-
-      if (alreadyExists) {
-        closeToast()
-        showToast({ type: 'fail', message: '该物料已在盘点单中' })
-        return
-      }
-
-      // 获取物料库存数量
-      let bookQty = 0
-      try {
-        const stockRes = await inventoryApi.getMaterialStock(resultData.value.id, checkData.warehouse_id)
-        bookQty = stockRes.data?.quantity ? parseFloat(stockRes.data.quantity) : 0
-      } catch (e) {
-        console.warn('获取物料库存失败，使用默认值0', e)
-      }
-
-      // 添加物料到盘点单
-      const newItem = {
-        material_id: resultData.value.id,
-        material_code: resultData.value.code,
-        material_name: resultData.value.name,
-        specs: resultData.value.specification || '',
-        book_qty: bookQty,
-        actual_qty: bookQty,
-        unit_name: resultData.value.unit || '',
-        remarks: ''
-      }
-
-      existingItems.push(newItem)
-      await inventoryApi.updateCheck(checkOrder.id, { ...checkData, items: existingItems })
+      // Use the backend atomic endpoint to avoid client-side overwrite races.
+      await inventoryApi.addCheckItem(checkOrder.id, {
+        material_id: resultData.value.id
+      })
 
       closeToast()
       showToast({ type: 'success', message: `已添加到 ${checkOrder.check_no}` })

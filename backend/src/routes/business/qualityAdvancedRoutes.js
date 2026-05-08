@@ -29,12 +29,12 @@ router.post('/calibrations', authenticateToken, requirePermission('quality:setti
 
 // ==================== SPC 控制计划 ====================
 router.get('/spc/plans', authenticateToken, requirePermission('quality:reports:view'), spcCtrl.getControlPlans);
-router.post('/spc/plans', authenticateToken, requirePermission('quality:reports:view'), spcCtrl.createControlPlan);
-router.put('/spc/plans/:id', authenticateToken, requirePermission('quality:reports:view'), spcCtrl.updateControlPlan);
-router.delete('/spc/plans/:id', authenticateToken, requirePermission('quality:reports:view'), spcCtrl.deleteControlPlan);
+router.post('/spc/plans', authenticateToken, requirePermission('quality:reports:update'), spcCtrl.createControlPlan);
+router.put('/spc/plans/:id', authenticateToken, requirePermission('quality:reports:update'), spcCtrl.updateControlPlan);
+router.delete('/spc/plans/:id', authenticateToken, requirePermission('quality:reports:update'), spcCtrl.deleteControlPlan);
 
 // ==================== SPC 数据采集 & 分析 ====================
-router.post('/spc/data', authenticateToken, requirePermission('quality:reports:view'), spcCtrl.addDataPoints);
+router.post('/spc/data', authenticateToken, requirePermission('quality:reports:update'), spcCtrl.addDataPoints);
 router.get('/spc/plans/:id/cpk', authenticateToken, requirePermission('quality:reports:view'), spcCtrl.getCpk);
 router.get('/spc/plans/:id/chart', authenticateToken, requirePermission('quality:reports:view'), spcCtrl.getControlChart);
 
@@ -42,6 +42,6 @@ router.get('/spc/plans/:id/chart', authenticateToken, requirePermission('quality
 router.get('/supplier-quality/scores', authenticateToken, requirePermission('quality:reports:view'), supplierQualityCtrl.getScores);
 router.get('/supplier-quality/ranking', authenticateToken, requirePermission('quality:reports:view'), supplierQualityCtrl.getRanking);
 router.get('/supplier-quality/trend/:supplierId', authenticateToken, requirePermission('quality:reports:view'), supplierQualityCtrl.getSupplierTrend);
-router.post('/supplier-quality/calculate', authenticateToken, requirePermission('quality:reports:view'), supplierQualityCtrl.calculateMonthlyScores);
+router.post('/supplier-quality/calculate', authenticateToken, requirePermission('quality:reports:update'), supplierQualityCtrl.calculateMonthlyScores);
 
 module.exports = router;

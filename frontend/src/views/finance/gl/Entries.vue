@@ -183,6 +183,9 @@
             <el-tag :type="scope.row.isReversed ? 'warning' : ''" v-if="scope.row.isReversed">
               已冲销
             </el-tag>
+            <el-tag type="info" v-else-if="scope.row.isReversalEntry">
+              冲销凭证
+            </el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -204,15 +207,16 @@
                 type="success"
                 size="small"
                 @click="postEntry(scope.row)"
+                v-permission="'finance:entries:approve'"
               >过账</el-button>
 
               <!-- 冲销按钮：只在已过账且未冲销时显示 -->
               <el-button
-                v-if="scope.row.isPosted && !scope.row.isReversed"
+                v-if="canReverseEntry(scope.row)"
                 type="warning"
                 size="small"
                 @click="reverseEntry(scope.row)"
-                v-permission="'finance:gl:entries'"
+                v-permission="'finance:entries:update'"
               >冲销</el-button>
 
               <!-- 删除按钮：只在未过账时显示 -->
@@ -316,6 +320,88 @@
       </div>
       </div>
     </el-dialog>
+
+    <!-- 冲销凭证对话框 -->
+    <el-dialog
+      title="冲销凭证"
+      v-model="reverseDialogVisible"
+      width="560px"
+      :close-on-click-modal="false"
+    >
+      <el-descriptions :column="2" border class="reversal-summary" v-if="reversingEntry">
+        <el-descriptions-item label="原凭证">{{ reversingEntry.entryNumber }}</el-descriptions-item>
+        <el-descriptions-item label="原期间">{{ reversingEntry.periodName }}</el-descriptions-item>
+        <el-descriptions-item label="原日期">{{ reversingEntry.entryDate }}</el-descriptions-item>
+        <el-descriptions-item label="原金额">{{ formatCurrency(reversingEntry.totalDebit || 0) }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-form :model="reversalForm" label-width="100px" class="reversal-form">
+        <el-form-item label="冲销日期" required>
+          <el-date-picker
+            v-model="reversalForm.entry_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择冲销日期"
+            style="width: 100%;"
+            @change="handleReversalDateChange"
+          />
+        </el-form-item>
+        <el-form-item label="过账日期" required>
+          <el-date-picker
+            v-model="reversalForm.posting_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择过账日期"
+            style="width: 100%;"
+            @change="handleReversalPostingDateChange"
+          />
+        </el-form-item>
+        <el-form-item label="会计期间" required>
+          <el-select
+            v-model="reversalForm.period_id"
+            placeholder="选择会计期间"
+            style="width: 100%;"
+            @change="handleReversalPeriodChange"
+          >
+            <el-option
+              v-for="period in openPeriods"
+              :key="period.id"
+              :label="formatPeriodLabel(period)"
+              :value="period.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="摘要">
+          <el-input
+            v-model="reversalForm.description"
+            type="textarea"
+            :rows="3"
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+
+      <el-alert
+        v-if="reversalPeriodMismatch"
+        type="error"
+        :closable="false"
+        show-icon
+        title="冲销日期、过账日期必须落在所选开放会计期间内"
+      />
+
+      <template #footer>
+        <el-button @click="reverseDialogVisible = false">取消</el-button>
+        <el-button
+          type="warning"
+          :loading="reverseSubmitting"
+          :disabled="!canSubmitReversal"
+          @click="submitReverseEntry"
+        >
+          确认冲销
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -388,7 +474,17 @@ const statistics = reactive({
 const detailDialogVisible = ref(false);
 const currentEntry = ref({});
 const currentEntryItems = ref([]);
+const openedRouteEntryId = ref('');
 const printAreaRef = ref(null);
+const reverseDialogVisible = ref(false);
+const reverseSubmitting = ref(false);
+const reversingEntry = ref(null);
+const reversalForm = reactive({
+  entry_date: '',
+  posting_date: '',
+  period_id: null,
+  description: ''
+});
 
 // 打印凭证
 const handlePrint = () => {
@@ -505,6 +601,87 @@ const totalCredit = computed(() => {
 // 会计期间列表
 const periods = ref([]);
 
+const toLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getPeriodStart = (period) => (period?.startDate || period?.start_date || '').slice(0, 10);
+const getPeriodEnd = (period) => (period?.endDate || period?.end_date || '').slice(0, 10);
+
+const isClosedPeriod = (period) => {
+  const closed = period?.isClosed ?? period?.is_closed;
+  return closed === true || closed === 1 || closed === '1';
+};
+
+const isDateInPeriod = (date, period) => {
+  const start = getPeriodStart(period);
+  const end = getPeriodEnd(period);
+  return Boolean(date && start && end && date >= start && date <= end);
+};
+
+const openPeriods = computed(() => periods.value.filter(period => !isClosedPeriod(period)));
+
+const selectedReversalPeriod = computed(() => {
+  return periods.value.find(period => String(period.id) === String(reversalForm.period_id)) || null;
+});
+
+const reversalPeriodMismatch = computed(() => {
+  if (!reversalForm.entry_date || !reversalForm.posting_date || !selectedReversalPeriod.value) {
+    return false;
+  }
+  return !isDateInPeriod(reversalForm.entry_date, selectedReversalPeriod.value)
+    || !isDateInPeriod(reversalForm.posting_date, selectedReversalPeriod.value);
+});
+
+const canSubmitReversal = computed(() => {
+  return Boolean(
+    reversingEntry.value
+    && reversalForm.entry_date
+    && reversalForm.posting_date
+    && reversalForm.period_id
+    && !reversalPeriodMismatch.value
+    && !reverseSubmitting.value
+  );
+});
+
+const findOpenPeriodByDate = (date) => {
+  return openPeriods.value.find(period => isDateInPeriod(date, period)) || null;
+};
+
+const formatPeriodLabel = (period) => {
+  const name = period.periodName || period.period_name || `期间 ${period.id}`;
+  return `${name} (${getPeriodStart(period)} 至 ${getPeriodEnd(period)})`;
+};
+
+const getApiErrorMessage = (error, fallback) => {
+  return error?.response?.data?.message || error?.message || fallback;
+};
+
+const toBooleanFlag = (value) => value === true || value === 1 || value === '1';
+
+const isReversedEntry = (entry) => {
+  return toBooleanFlag(entry.is_reversed)
+    || toBooleanFlag(entry.isReversed)
+    || entry.status === 'reversed'
+    || Boolean(entry.reversal_entry_id);
+};
+
+const isReversalEntry = (entry) => {
+  return toBooleanFlag(entry.is_reversal_entry)
+    || toBooleanFlag(entry.isReversalEntry)
+    || Boolean(entry.reversal_of_entry_id)
+    || Boolean(entry.reversalOfEntryId);
+};
+
+const canReverseEntry = (entry) => {
+  return toBooleanFlag(entry.isPosted)
+    && !isReversedEntry(entry)
+    && !isReversalEntry(entry);
+};
+
 // 搜索表单
 const searchForm = reactive({
   entryNumber: '',
@@ -512,6 +689,29 @@ const searchForm = reactive({
   documentType: '',
   periodId: '',
   isPosted: ''
+});
+
+const normalizeEntryRow = (entry) => ({
+  id: entry.id,
+  entryNumber: (entry.voucher_word && entry.voucher_number)
+    ? `${entry.voucher_word}-${entry.voucher_number}`
+    : entry.entry_number,
+  technicalId: entry.entry_number,
+  entryDate: formatDate(entry.entry_date),
+  postingDate: formatDate(entry.posting_date),
+  documentType: entry.document_type,
+  documentNumber: entry.document_number,
+  periodId: entry.period_id,
+  periodName: entry.period_name || `期间 ${entry.period_id}`,
+  fiscalYear: entry.fiscal_year,
+  isPosted: toBooleanFlag(entry.is_posted),
+  isReversed: isReversedEntry(entry),
+  isReversalEntry: isReversalEntry(entry),
+  reversalOfEntryId: entry.reversal_of_entry_id,
+  createdBy: entry.creator_name || entry.creator_username || entry.created_by,
+  description: entry.description || '-',
+  totalDebit: entry.total_debit || 0,
+  totalCredit: entry.total_credit || 0
 });
 
 // 加载凭证列表
@@ -563,28 +763,7 @@ const loadEntries = async () => {
     // 根据后端返回的实际数据结构调整
     if (response.data.entries && Array.isArray(response.data.entries)) {
       // 提取基本数据
-      entriesList.value = response.data.entries.map(entry => ({
-        id: entry.id,
-        // 优先显示标准凭证号: 字-号
-        entryNumber: (entry.voucher_word && entry.voucher_number) 
-          ? `${entry.voucher_word}-${entry.voucher_number}` 
-          : entry.entry_number,
-        technicalId: entry.entry_number, // 保留技术ID供参考
-        entryDate: formatDate(entry.entry_date),
-        postingDate: formatDate(entry.posting_date),
-        documentType: entry.document_type,
-        documentNumber: entry.document_number,
-        periodId: entry.period_id,
-        periodName: entry.period_name || `期间 ${entry.period_id}`, // 使用从后端返回的期间名称
-        fiscalYear: entry.fiscal_year,
-        isPosted: entry.is_posted,
-        isReversed: entry.is_reversed,
-        // 优先使用真实姓名，如果没有则使用用户名，最后使用created_by原值
-        createdBy: entry.creator_name || entry.creator_username || entry.created_by,
-        description: entry.description || '-',
-        totalDebit: entry.total_debit || 0,  // 如果后端返回了借方合计就使用，否则默认为0
-        totalCredit: entry.total_credit || 0 // 如果后端返回了贷方合计就使用，否则默认为0
-      }));
+      entriesList.value = response.data.entries.map(normalizeEntryRow);
       
       // 设置分页信息
       if (response.data.pagination) {
@@ -597,6 +776,7 @@ const loadEntries = async () => {
 
       // 使用后端返回的统计数据（真实总量）
       calculateStatistics(response.data.statistics);
+      await openRouteEntryDetail();
     } else {
       ElMessage.warning('返回的数据格式不正确');
       entriesList.value = [];
@@ -653,6 +833,7 @@ const resetSearch = () => {
   searchForm.entryNumber = '';
   searchForm.dateRange = [];
   searchForm.documentType = '';
+  searchForm.periodId = '';
   searchForm.isPosted = '';
   searchEntries();
 };
@@ -674,6 +855,23 @@ const viewEntry = async (row) => {
   } catch (error) {
     console.error('加载凭证明细失败:', error);
     ElMessage.error('加载凭证明细失败');
+  }
+};
+
+const openRouteEntryDetail = async () => {
+  const entryId = route.query.entryId;
+  if (!entryId || openedRouteEntryId.value === String(entryId)) return;
+
+  try {
+    let entry = entriesList.value.find(item => String(item.id) === String(entryId));
+    if (!entry) {
+      const response = await api.get(`/finance/entries/${entryId}`);
+      entry = normalizeEntryRow(response.data);
+    }
+    openedRouteEntryId.value = String(entryId);
+    await viewEntry(entry);
+  } catch (error) {
+    console.error('打开路由指定凭证失败:', error);
   }
 };
 
@@ -703,36 +901,117 @@ const postEntry = (row) => {
   }).catch(() => {});
 };
 
-// 冲销凭证
-const reverseEntry = (row) => {
-  // 首先准备冲销凭证所需数据
-  const currentDate = new Date().toISOString().split('T')[0];
-  const reversalForm = reactive({
-    entry_number: `R-${row.entryNumber}`, // 冲销凭证编号前缀R
-    entry_date: currentDate,
-    posting_date: currentDate,
-    period_id: row.periodId,
-    description: `冲销凭证：${row.entryNumber}`
-    // 不需要传递 created_by，后端会自动使用当前登录用户的ID
-  });
+const chooseDefaultReversalPeriod = (row) => {
+  const today = toLocalDateString();
+  const todayPeriod = findOpenPeriodByDate(today);
+  if (todayPeriod) {
+    return { period: todayPeriod, date: today };
+  }
 
-  ElMessageBox.confirm('确认要冲销该凭证吗？将会创建一个与之相反的冲销凭证。', '确认冲销', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await api.post(
-        `/finance/entries/${row.id}/reverse`,
-        reversalForm
-      );
-      ElMessage.success('冲销成功');
-      loadEntries();
-    } catch (error) {
-      console.error('冲销凭证失败:', error);
-      ElMessage.error('冲销凭证失败');
+  const originalPeriod = openPeriods.value.find(period => String(period.id) === String(row.periodId));
+  if (originalPeriod) {
+    const originalDate = row.entryDate && isDateInPeriod(row.entryDate, originalPeriod)
+      ? row.entryDate
+      : getPeriodEnd(originalPeriod);
+    return { period: originalPeriod, date: originalDate };
+  }
+
+  const fallbackPeriod = openPeriods.value[0] || null;
+  return {
+    period: fallbackPeriod,
+    date: fallbackPeriod ? getPeriodEnd(fallbackPeriod) : today
+  };
+};
+
+const resetReversalForm = (row) => {
+  const { period, date } = chooseDefaultReversalPeriod(row);
+  reversalForm.entry_date = date;
+  reversalForm.posting_date = date;
+  reversalForm.period_id = period?.id || null;
+  reversalForm.description = `冲销凭证：${row.entryNumber}`;
+};
+
+// 冲销凭证
+const reverseEntry = async (row) => {
+  try {
+    if (!canReverseEntry(row)) {
+      ElMessage.warning(row.isReversalEntry ? '冲销凭证不能再次冲销' : '该凭证当前状态不允许冲销');
+      return;
     }
-  }).catch(() => {});
+    if (periods.value.length === 0) {
+      await loadPeriods();
+    }
+    if (openPeriods.value.length === 0) {
+      ElMessage.error('没有可用的开放会计期间，无法冲销凭证');
+      return;
+    }
+
+    reversingEntry.value = row;
+    resetReversalForm(row);
+    reverseDialogVisible.value = true;
+  } catch (error) {
+    console.error('准备冲销凭证失败:', error);
+    ElMessage.error(getApiErrorMessage(error, '准备冲销凭证失败'));
+  }
+};
+
+const handleReversalDateChange = () => {
+  if (!reversalForm.entry_date) return;
+  reversalForm.posting_date = reversalForm.entry_date;
+  const period = findOpenPeriodByDate(reversalForm.entry_date);
+  if (period) {
+    reversalForm.period_id = period.id;
+  }
+};
+
+const handleReversalPostingDateChange = () => {
+  if (!reversalForm.posting_date) return;
+  const currentPeriod = selectedReversalPeriod.value;
+  if (!currentPeriod || !isDateInPeriod(reversalForm.posting_date, currentPeriod)) {
+    const period = findOpenPeriodByDate(reversalForm.posting_date);
+    if (period && isDateInPeriod(reversalForm.entry_date, period)) {
+      reversalForm.period_id = period.id;
+    }
+  }
+};
+
+const handleReversalPeriodChange = () => {
+  const period = selectedReversalPeriod.value;
+  if (!period) return;
+
+  if (!isDateInPeriod(reversalForm.entry_date, period)) {
+    const originalDate = reversingEntry.value?.entryDate;
+    reversalForm.entry_date = originalDate && isDateInPeriod(originalDate, period)
+      ? originalDate
+      : getPeriodEnd(period);
+  }
+
+  if (!isDateInPeriod(reversalForm.posting_date, period)) {
+    reversalForm.posting_date = reversalForm.entry_date;
+  }
+};
+
+const submitReverseEntry = async () => {
+  if (!canSubmitReversal.value) return;
+
+  reverseSubmitting.value = true;
+  try {
+    await api.post(`/finance/entries/${reversingEntry.value.id}/reverse`, {
+      entry_date: reversalForm.entry_date,
+      posting_date: reversalForm.posting_date,
+      period_id: reversalForm.period_id,
+      description: reversalForm.description
+    });
+    ElMessage.success('冲销成功，反向凭证已过账');
+    reverseDialogVisible.value = false;
+    reversingEntry.value = null;
+    await loadEntries();
+  } catch (error) {
+    console.error('冲销凭证失败:', error);
+    ElMessage.error(getApiErrorMessage(error, '冲销凭证失败'));
+  } finally {
+    reverseSubmitting.value = false;
+  }
 };
 
 // 删除凭证
@@ -992,6 +1271,14 @@ watch(() => [props.fixedType, route.query.type], () => {
   font-size: 18px;
   font-weight: 600;
   color: var(--color-text-primary);
+}
+
+.reversal-summary {
+  margin-bottom: 18px;
+}
+
+.reversal-form {
+  margin-top: 8px;
 }
 
 /* 打印区域样式 */

@@ -92,13 +92,14 @@ exports.exportPricingList = async (req, res) => {
     });
 
     // 设置响应头
+    const fileName = `产品定价表_${new Date().toISOString().split('T')[0]}.xlsx`;
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     );
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename=产品定价表_${new Date().toISOString().split('T')[0]}.xlsx`
+      `attachment; filename="pricing-list.xlsx"; filename*=UTF-8''${encodeURIComponent(fileName)}`
     );
 
     // 写入响应

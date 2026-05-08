@@ -9,6 +9,12 @@ const { pool } = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
+const normalizeStatus = (status) => {
+  if (status === true || status === 1 || status === '1') return 1;
+  if (status === false || status === 0 || status === '0') return 0;
+  throw new Error('状态必须为0或1');
+};
+
 /**
  * 获取所有业务类型
  */
@@ -233,7 +239,7 @@ const updateBusinessType = async (req, res) => {
 
     if (status !== undefined) {
       sql += ', status = ?';
-      params.push(status);
+      params.push(normalizeStatus(status));
     }
 
     sql += ' WHERE id = ?';
@@ -244,6 +250,9 @@ const updateBusinessType = async (req, res) => {
     ResponseHandler.success(res, null, '更新业务类型成功');
   } catch (error) {
     logger.error('更新业务类型失败:', error);
+    if (error.message && error.message.includes('状态必须')) {
+      return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+    }
     ResponseHandler.error(res, '更新业务类型失败', 'SERVER_ERROR', 500, error);
   }
 };

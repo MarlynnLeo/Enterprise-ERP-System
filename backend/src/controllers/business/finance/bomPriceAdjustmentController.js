@@ -4,6 +4,14 @@ const logger = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
+function parseNonNegativeAmount(value, fieldName) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+  return parsed;
+}
+
 /**
  * 获取产品BOM物料的价格调整列表(当前生效的)
  */
@@ -54,8 +62,13 @@ exports.saveAdjustment = async (req, res) => {
       return ResponseHandler.error(res, '产品ID、BOM ID和物料ID不能为空', 'BAD_REQUEST', 400);
     }
 
-    if (adjusted_price === null || adjusted_price === undefined || adjusted_price < 0) {
-      return ResponseHandler.error(res, '调整后价格必须大于等于0', 'BAD_REQUEST', 400);
+    let originalPrice;
+    let adjustedPrice;
+    try {
+      originalPrice = parseNonNegativeAmount(original_price, 'original_price');
+      adjustedPrice = parseNonNegativeAmount(adjusted_price, 'adjusted_price');
+    } catch (validationError) {
+      return ResponseHandler.error(res, validationError.message, 'BAD_REQUEST', 400);
     }
 
     if (!adjustment_reason || adjustment_reason.trim() === '') {
@@ -64,6 +77,23 @@ exports.saveAdjustment = async (req, res) => {
 
     connection = await getConnection();
     await connection.beginTransaction();
+
+    const [bomRows] = await connection.query(
+      `SELECT bd.id
+       FROM bom_masters bm
+       JOIN bom_details bd ON bd.bom_id = bm.id
+       WHERE bm.id = ?
+         AND bm.product_id = ?
+         AND bd.material_id = ?
+         AND bm.deleted_at IS NULL
+       LIMIT 1`,
+      [bom_id, product_id, material_id]
+    );
+
+    if (bomRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, 'BOM物料不属于该产品，不能保存价格调整', 'BAD_REQUEST', 400);
+    }
 
     // 查询当前是否已有生效的调整记录
     const [existing] = await connection.query(
@@ -101,8 +131,8 @@ exports.saveAdjustment = async (req, res) => {
         product_id,
         bom_id,
         material_id,
-        original_price,
-        adjusted_price,
+        originalPrice,
+        adjustedPrice,
         adjustment_reason,
         newVersion,
         getAuthenticatedUserId(req),
@@ -122,8 +152,8 @@ exports.saveAdjustment = async (req, res) => {
       {
         product_id,
         material_id,
-        original_price,
-        adjusted_price,
+        original_price: originalPrice,
+        adjusted_price: adjustedPrice,
         adjustment_reason,
         version: newVersion,
       }

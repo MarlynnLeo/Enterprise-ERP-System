@@ -15,8 +15,8 @@
           <p class="subtitle">计算与记录资产折旧</p>
         </div>
         <div class="action-buttons">
-          <el-button type="primary" @click="calculateDepreciation" :loading="loading" v-permission="'finance:assets:depreciation'">计算折旧</el-button>
-          <el-button type="success" @click="confirmBatchDepreciation" :disabled="!hasDepreciation || savingDepreciation || selectedAssets.length === 0" v-permission="'finance:assets:depreciation'">
+          <el-button type="primary" @click="calculateDepreciation" :loading="loading" v-permission="'finance:assets:execute'">计算折旧</el-button>
+          <el-button type="success" @click="confirmBatchDepreciation" :disabled="!hasDepreciation || savingDepreciation || selectedAssets.length === 0" v-permission="'finance:assets:execute'">
             批量计提{{ selectedAssets.length > 0 ? `(${selectedAssets.length})` : '' }}
             <el-icon v-if="savingDepreciation"><Loading /></el-icon>
           </el-button>
@@ -214,7 +214,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="confirmDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitDepreciation" :loading="savingDepreciation">确认计提</el-button>
+          <el-button v-permission="'finance:assets:execute'" type="primary" @click="submitDepreciation" :loading="savingDepreciation">确认计提</el-button>
         </span>
       </template>
     </el-dialog>

@@ -22,10 +22,10 @@
       <div class="tab-switch-header">
         <el-radio-group v-model="activeTab" size="default">
           <el-radio-button value="templates">打印模板</el-radio-button>
-          <el-radio-button value="company">公司信息</el-radio-button>
+          <el-radio-button v-if="canReadCompanySettings" value="company">公司信息</el-radio-button>
         </el-radio-group>
         <el-button v-permission="'system:print:create'" v-if="activeTab === 'templates'" type="primary" @click="openTemplateDialog()">新增模板</el-button>
-        <el-button v-permission="'system:print:update'" v-if="activeTab === 'company'" type="primary" @click="saveCompanyInfo" :loading="savingCompanyInfo">保存公司信息</el-button>
+        <el-button v-permission="'system:settings:write'" v-if="activeTab === 'company' && canWriteCompanySettings" type="primary" @click="saveCompanyInfo" :loading="savingCompanyInfo">保存公司信息</el-button>
       </div>
     </el-card>
 
@@ -325,7 +325,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="templateDialogVisible = false">取消</el-button>
-          <el-button v-permission="'system:print:update'" type="primary" @click="savePrintTemplate">保存</el-button>
+          <el-button v-permission="currentTemplate.id ? 'system:print:update' : 'system:print:create'" type="primary" @click="savePrintTemplate">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -377,6 +377,13 @@ import {
 import MarginInputs from '../../components/ui/print/MarginInputs.vue'
 import PaperSizeSelect from '../../components/ui/print/PaperSizeSelect.vue'
 import { sanitizeHtml, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+const canReadCompanySettings = computed(() =>
+  authStore.hasPermission('system:settings:read') || authStore.hasPermission('system:settings:write')
+)
+const canWriteCompanySettings = computed(() => authStore.hasPermission('system:settings:write'))
 
 const templateMargins = computed({
   get() {
@@ -459,7 +466,9 @@ const templateTypeOptions = TEMPLATE_TYPE_OPTIONS
 // 生命周期钩子
 onMounted(() => {
   fetchPrintTemplates()
-  fetchCompanyInfo()
+  if (canReadCompanySettings.value) {
+    fetchCompanyInfo()
+  }
   // 注意：不再自动创建默认模板，避免重复创建
   // 如需添加默认模板，请手动点击"新增模板"按钮
 })

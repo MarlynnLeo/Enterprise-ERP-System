@@ -12,6 +12,7 @@ const { logger } = require('../../../utils/logger');
 const QualityInspection = require('../../../models/qualityInspection');
 const db = require('../../../config/db');
 const businessConfig = require('../../../config/businessConfig');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -408,8 +409,10 @@ const inspectionController = {
                 params.push(batchNumber);
             }
 
-            const actualPageSize = parseInt(pageSize);
-            const offset = (parseInt(page) - 1) * actualPageSize;
+            const pagination = parsePagination(page, pageSize, {
+                defaultPageSize: 20,
+                maxPageSize: 200,
+            });
 
             const countQuery = `
         SELECT COUNT(*) as total
@@ -422,7 +425,7 @@ const inspectionController = {
             const total =
                 countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total) : 0;
 
-            const query = `
+            const query = appendPaginationSQL(`
         SELECT
           qi.id, qi.inspection_no, qi.inspection_type, qi.batch_no, qi.material_id,
           m.code AS material_code, m.name AS material_name,
@@ -432,8 +435,7 @@ const inspectionController = {
         LEFT JOIN materials m ON qi.material_id = m.id
         ${whereClause}
         ORDER BY qi.actual_date DESC
-        LIMIT ${actualPageSize} OFFSET ${offset}
-      `;
+      `, pagination.limit, pagination.offset);
 
             const result = await db.query(query, params);
             const inspections = result.rows || [];
@@ -444,9 +446,9 @@ const inspectionController = {
                     inspections,
                     pagination: {
                         total,
-                        page: parseInt(page),
-                        pageSize: parseInt(pageSize),
-                        totalPages: Math.ceil(total / pageSize),
+                        page: pagination.page,
+                        pageSize: pagination.pageSize,
+                        totalPages: Math.ceil(total / pagination.pageSize),
                     },
                 },
             });

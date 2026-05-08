@@ -176,7 +176,7 @@
       </el-form>
       <template #footer>
         <el-button @click="approveDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitApprove">提交审批</el-button>
+        <el-button v-permission="'quality:scrap:update'" type="primary" @click="submitApprove">提交审批</el-button>
       </template>
     </el-dialog>
 
@@ -203,7 +203,7 @@
       </el-form>
       <template #footer>
         <el-button @click="completeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitComplete">确认完成</el-button>
+        <el-button v-permission="'quality:scrap:update'" type="primary" @click="submitComplete">确认完成</el-button>
       </template>
     </el-dialog>
 
@@ -271,6 +271,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/services/api'
+import { normalizePaginationData } from '@/utils/helpers/typeUtils'
 const searchForm = reactive({
   scrapNo: '',
   ncpNo: '',
@@ -334,15 +335,9 @@ const fetchData = async () => {
     }
 
     const response = await api.get('/scrap-records', { params })
-    // 后端 ResponseHandler 返回格式: { success, data, message }
-    const resData = response.data?.data || response.data || {}
-    if (Array.isArray(resData)) {
-      tableData.value = resData
-      pagination.total = resData.length
-    } else {
-      tableData.value = resData.list || (Array.isArray(resData) ? resData : [])
-      pagination.total = Number(resData.total || resData.pagination?.total || 0)
-    }
+    const pageData = normalizePaginationData(response)
+    tableData.value = pageData.items
+    pagination.total = pageData.total
 
     await fetchStatistics()
   } catch (error) {

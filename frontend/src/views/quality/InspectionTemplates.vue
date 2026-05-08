@@ -25,6 +25,7 @@
             <el-button 
               type="primary" 
               @click="handleCreate"
+              v-permission="'quality:templates:create'"
             >
               新建模板
             </el-button>
@@ -156,6 +157,7 @@
               size="small"
               type="danger"
               @click="handleDropdownCommand('deactivate', scope.row)"
+              v-permission="'quality:templates:update'"
             >
               停用
             </el-button>
@@ -163,6 +165,7 @@
               size="small"
               type="primary"
               @click="handleDropdownCommand('copy', scope.row)"
+              v-permission="'quality:templates:create'"
             >
               复制
             </el-button>
@@ -302,7 +305,7 @@
               <el-button 
                 type="primary" 
                 @click="addItem"
-                v-permission="'quality:templates:update'"
+                v-permission="isEdit ? 'quality:templates:update' : 'quality:templates:create'"
               >
                 添加检验项
               </el-button>
@@ -415,7 +418,7 @@
                         size="small" 
                         type="danger" 
                         @click="removeItem(scope.$index)"
-                        v-permission="'quality:templates:update'"
+                        v-permission="isEdit ? 'quality:templates:update' : 'quality:templates:create'"
                       >
                         删除
                       </el-button>
@@ -431,7 +434,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitForm">确认</el-button>
+          <el-button v-permission="isEdit ? 'quality:templates:update' : 'quality:templates:create'" type="primary" @click="submitForm">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -539,7 +542,7 @@
             <el-button @click="resetStandardSearch">
               <el-icon><Refresh /></el-icon>重置
             </el-button>
-            <el-button type="success" @click="openAddStandardDialog">
+            <el-button v-permission="'quality:templates:create'" type="success" @click="openAddStandardDialog">
               <el-icon><Plus /></el-icon>添加标准
             </el-button>
           </el-col>
@@ -648,7 +651,7 @@
       </el-form>
       <template #footer>
         <el-button @click="addStandardDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:templates:update'" type="primary" @click="saveNewStandard" :loading="savingStandard">保存</el-button>
+        <el-button v-permission="'quality:templates:create'" type="primary" @click="saveNewStandard" :loading="savingStandard">保存</el-button>
       </template>
     </el-dialog>
     </div>

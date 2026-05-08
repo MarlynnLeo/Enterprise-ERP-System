@@ -16,10 +16,10 @@
           <p class="subtitle">管理日常费用录入与审批</p>
         </div>
         <div class="action-buttons">
-          <el-button @click="handleSyncDingtalk" :loading="syncing">
+          <el-button v-permission="'finance:expenses:update'" @click="handleSyncDingtalk" :loading="syncing">
             <el-icon><Refresh /></el-icon> 同步钉钉审批
           </el-button>
-          <el-button type="primary" @click="handleAdd">
+          <el-button v-permission="'finance:expenses:create'" type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon> 新增费用
           </el-button>
         </div>
@@ -140,31 +140,41 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleView(row)">查看</el-button>
             <el-button 
               v-if="['draft', 'rejected'].includes(row.status)" 
               type="warning" size="small" link 
               @click="handleEdit(row)"
+              v-permission="'finance:expenses:update'"
             >编辑</el-button>
             <el-button
               v-if="['draft', 'rejected'].includes(row.status)" 
               type="success" size="small" link 
               @click="handleSubmit(row)"
+              v-permission="'finance:expenses:update'"
             >提交</el-button>
             <el-button
               v-if="row.status === 'pending'" 
               type="success" size="small" link 
               @click="handleApprove(row)"
+              v-permission="'finance:expenses:approve'"
             >审批</el-button>
             <el-button 
               v-if="row.status === 'approved'" 
               type="primary" size="small" link 
               @click="handlePay(row)"
+              v-permission="'finance:expenses:pay'"
             >付款</el-button>
+            <el-button
+              v-if="['draft', 'pending', 'approved', 'rejected'].includes(row.status)"
+              type="info" size="small" link
+              @click="handleCancelExpense(row)"
+              v-permission="'finance:expenses:update'"
+            >取消</el-button>
             <el-button v-permission="'finance:expenses:delete'" 
-              v-if="['draft', 'rejected'].includes(row.status)" 
+              v-if="['draft', 'rejected', 'cancelled'].includes(row.status)" 
               type="danger" size="small" link 
               @click="handleDelete(row)"
             >删除</el-button>
@@ -227,7 +237,7 @@
               <el-input-number 
                 v-model="expenseForm.amount" 
                 :precision="2" 
-                :min="0"
+                :min="0.01"
                 :controls="false"
                 placeholder="请输入金额"
                 style="width: 100%"
@@ -281,11 +291,21 @@
             <el-descriptions-item label="审批备注">{{ expenseForm.approval_remark || '-' }}</el-descriptions-item>
           </el-descriptions>
         </template>
+
+        <template v-if="dialogMode === 'view' && expenseForm.status === 'paid'">
+          <el-divider content-position="left">付款信息</el-divider>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="付款日期">{{ formatDate(expenseForm.paid_at) }}</el-descriptions-item>
+            <el-descriptions-item label="付款账户">{{ expenseForm.payment_bank_account_name || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="银行流水">{{ expenseForm.payment_transaction_number || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="总账凭证">{{ expenseForm.payment_voucher_number || '-' }}</el-descriptions-item>
+          </el-descriptions>
+        </template>
       </el-form>
       <template #footer v-if="dialogMode !== 'view'">
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:expenses:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
-        <el-button type="success" @click="handleSaveAndSubmit" :loading="saving">保存并提交</el-button>
+        <el-button v-permission="expenseForm.id ? 'finance:expenses:update' : 'finance:expenses:create'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button v-permission="expenseForm.id ? 'finance:expenses:update' : 'finance:expenses:create'" type="success" @click="handleSaveAndSubmit" :loading="saving">保存并提交</el-button>
       </template>
     </el-dialog>
 
@@ -307,8 +327,8 @@
       </el-form>
       <template #footer>
         <el-button @click="approveDialogVisible = false">取消</el-button>
-        <el-button type="danger" @click="handleApproveAction('reject')" :loading="approving">驳回</el-button>
-        <el-button type="success" @click="handleApproveAction('approve')" :loading="approving">通过</el-button>
+        <el-button v-permission="'finance:expenses:approve'" type="danger" @click="handleApproveAction('reject')" :loading="approving">驳回</el-button>
+        <el-button v-permission="'finance:expenses:approve'" type="success" @click="handleApproveAction('approve')" :loading="approving">通过</el-button>
       </template>
     </el-dialog>
 
@@ -331,10 +351,19 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="付款日期" prop="payment_date">
+          <el-date-picker
+            v-model="payForm.payment_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择付款日期"
+            style="width: 100%"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="payDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handlePayAction" :loading="paying">确认付款</el-button>
+        <el-button v-permission="'finance:expenses:pay'" type="primary" @click="handlePayAction" :loading="paying">确认付款</el-button>
       </template>
     </el-dialog>
   </div>
@@ -388,7 +417,10 @@ const expenseForm = reactive({
 const expenseRules = {
   category_id: [{ required: true, message: '请选择费用类型', trigger: 'change' }],
   title: [{ required: true, message: '请输入费用标题', trigger: 'blur' }],
-  amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
+  amount: [
+    { required: true, message: '请输入金额', trigger: 'blur' },
+    { type: 'number', min: 0.01, message: '金额必须大于0', trigger: 'change' }
+  ],
   expense_date: [{ required: true, message: '请选择费用日期', trigger: 'change' }]
 }
 
@@ -403,10 +435,12 @@ const approveForm = reactive({
 const payDialogVisible = ref(false)
 const payFormRef = ref(null)
 const payForm = reactive({
-  bank_account_id: null
+  bank_account_id: null,
+  payment_date: new Date().toISOString().split('T')[0]
 })
 const payRules = {
-  bank_account_id: [{ required: true, message: '请选择付款账户', trigger: 'change' }]
+  bank_account_id: [{ required: true, message: '请选择付款账户', trigger: 'change' }],
+  payment_date: [{ required: true, message: '请选择付款日期', trigger: 'change' }]
 }
 
 // 格式化函数
@@ -733,6 +767,7 @@ const handleApproveAction = async (action) => {
 const handlePay = (row) => {
   currentExpense.value = row
   payForm.bank_account_id = null
+  payForm.payment_date = new Date().toISOString().split('T')[0]
   payDialogVisible.value = true
 }
 
@@ -742,7 +777,8 @@ const handlePayAction = async () => {
     paying.value = true
 
     const res = await request.post(`/finance/expenses/${currentExpense.value.id}/pay`, {
-      bank_account_id: payForm.bank_account_id
+      bank_account_id: payForm.bank_account_id,
+      payment_date: payForm.payment_date
     })
     if (res.success) {
       ElMessage.success('付款成功')
@@ -756,6 +792,28 @@ const handlePayAction = async () => {
     }
   } finally {
     paying.value = false
+  }
+}
+
+// 取消费用
+const handleCancelExpense = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定要取消该费用记录吗？', '取消确认', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const res = await request.post(`/finance/expenses/${row.id}/cancel`)
+    if (res.success) {
+      ElMessage.success('费用已取消')
+      fetchExpenses()
+      fetchStats()
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('取消失败: ' + (error.message || '未知错误'))
+    }
   }
 }
 

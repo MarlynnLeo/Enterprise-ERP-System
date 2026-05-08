@@ -130,18 +130,18 @@
           <template #default="scope">
             <el-button type="primary" size="small" @click="handleEdit(scope.row)" v-if="!isDisposed(scope.row.status) && scope.row.auditStatus !== 'approved'"
               v-permission="'finance:assets:update'">编辑</el-button>
-            <el-button type="success" size="small" @click="handleAudit(scope.row, 'approve')" v-if="scope.row.auditStatus !== 'approved' && !isDisposed(scope.row.status)">审核</el-button>
-            <el-dropdown v-if="!isDisposed(scope.row.status)" trigger="click" @command="(cmd) => handleMoreCommand(cmd, scope.row)" style="margin-left: 8px;">
+            <el-button v-permission="'finance:assets:update'" type="success" size="small" @click="handleAudit(scope.row, 'approve')" v-if="scope.row.auditStatus !== 'approved' && !isDisposed(scope.row.status)">审核</el-button>
+            <el-dropdown v-if="showAssetMore(scope.row)" trigger="click" @command="(cmd) => handleMoreCommand(cmd, scope.row)" style="margin-left: 8px;">
               <el-button size="small">
                 更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="unaudit" v-if="scope.row.auditStatus === 'approved'">反审核</el-dropdown-item>
-                  <el-dropdown-item command="impairment" v-if="scope.row.status === 'in_use' || scope.row.status === 'idle'">资产减值</el-dropdown-item>
-                  <el-dropdown-item command="transfer">资产调拨</el-dropdown-item>
-                  <el-dropdown-item command="split">资产拆分</el-dropdown-item>
-                  <el-dropdown-item command="dispose" divided>资产处置</el-dropdown-item>
+                  <el-dropdown-item command="unaudit" v-if="canUnauditAsset(scope.row)">反审核</el-dropdown-item>
+                  <el-dropdown-item command="impairment" v-if="canImpairAsset(scope.row)">资产减值</el-dropdown-item>
+                  <el-dropdown-item command="transfer" v-if="canFinanceOperateAsset(scope.row)">资产调拨</el-dropdown-item>
+                  <el-dropdown-item command="split" v-if="canFinanceOperateAsset(scope.row)">资产拆分</el-dropdown-item>
+                  <el-dropdown-item command="dispose" v-if="canFinanceOperateAsset(scope.row)" divided>资产处置</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -177,7 +177,7 @@
         <el-form-item label="资产编号" prop="assetCode">
           <el-input  v-model="assetForm.assetCode" placeholder="请输入资产编号，留空将自动生成" clearable >
             <template #append v-if="!assetForm.id">
-              <el-button @click="generateCode">自动获取</el-button>
+              <el-button v-permission="'finance:assets:create'" @click="generateCode">自动获取</el-button>
             </template>
           </el-input>
         </el-form-item>
@@ -293,7 +293,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveAsset" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="assetForm.id ? 'finance:assets:update' : 'finance:assets:create'" type="primary" @click="saveAsset" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -361,7 +361,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="transferDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitTransfer" :loading="transferLoading">确认</el-button>
+          <el-button v-permission="'finance:assets:update'" type="primary" @click="submitTransfer" :loading="transferLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -393,6 +393,16 @@
         <el-form-item label="处置金额" prop="disposeAmount">
           <el-input-number v-model="disposeForm.disposeAmount" :precision="2" :min="0" style="width: 100%"></el-input-number>
         </el-form-item>
+        <el-form-item v-if="Number(disposeForm.disposeAmount || 0) > 0" label="收款账户" prop="bankAccountId">
+          <el-select v-model="disposeForm.bankAccountId" placeholder="请选择实际收款银行账户" filterable style="width: 100%">
+            <el-option
+              v-for="account in bankAccountOptions"
+              :key="account.id"
+              :label="`${account.accountName || account.account_name}（余额 ${formatCurrency(account.balance ?? account.current_balance ?? 0)}）`"
+              :value="account.id"
+            />
+          </el-select>
+        </el-form-item>
         <div style="margin-bottom: 15px; text-align: right; color: var(--color-text-secondary); font-size: 13px;">
           预计处置损益: <span :class="disposeProfitLoss >= 0 ? 'value-text' : 'danger-text'">{{ disposeProfitLoss >= 0 ? '+' : '' }}{{ formatCurrency(disposeProfitLoss) }}</span>
         </div>
@@ -418,7 +428,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="disposeDialogVisible = false">取消</el-button>
-          <el-button type="danger" @click="submitDispose" :loading="disposeLoading">确认处置</el-button>
+          <el-button v-permission="'finance:assets:update'" type="danger" @click="submitDispose" :loading="disposeLoading">确认处置</el-button>
         </span>
       </template>
     </el-dialog>
@@ -473,7 +483,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="splitDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitSplit" :loading="splitLoading">确认拆分</el-button>
+          <el-button v-permission="'finance:assets:update'" type="primary" @click="submitSplit" :loading="splitLoading">确认拆分</el-button>
         </span>
       </template>
     </el-dialog>
@@ -500,7 +510,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="impairmentDialogVisible = false">取消</el-button>
-          <el-button type="danger" @click="submitImpairment" :loading="submitImpairmentLoading">确认计提</el-button>
+          <el-button v-permission="'finance:assets:update'" type="danger" @click="submitImpairment" :loading="submitImpairmentLoading">确认计提</el-button>
         </div>
       </template>
     </el-dialog>
@@ -572,9 +582,11 @@ const disposeForm = reactive({
   netValue: 0,
   disposeType: 'scrap',
   disposeAmount: 0,
+  bankAccountId: null,
   disposeDate: formatDate(new Date()),
   reason: ''
 });
+const bankAccountOptions = ref([]);
 
 // 处置损益计算
 const disposeProfitLoss = computed(() => {
@@ -585,7 +597,19 @@ const disposeProfitLoss = computed(() => {
 const disposeRules = {
   disposeType: [{ required: true, message: '请选择处置方式', trigger: 'change' }],
   disposeDate: [{ required: true, message: '请选择处置日期', trigger: 'change' }],
-  reason: [{ required: true, message: '请输入处置原因', trigger: 'blur' }]
+  reason: [{ required: true, message: '请输入处置原因', trigger: 'blur' }],
+  bankAccountId: [
+    {
+      validator: (_rule, value, callback) => {
+        if (Number(disposeForm.disposeAmount || 0) > 0 && !value) {
+          callback(new Error('请选择收款银行账户'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'change'
+    }
+  ]
 };
 
 // 拆分对话框
@@ -716,7 +740,25 @@ const getStatusText = (status) => {
 
 // 判断资产是否已处置（任何形式）
 const isDisposed = (status) => {
-  return ['disposed', 'sold', 'transferred', 'donated'].includes(status);
+  return ['disposed', 'sold', 'transferred', 'donated', '报废', '已处置', '已出售', '已转让', '已捐赠'].includes(status);
+};
+
+const isApprovedAsset = (row) => row?.auditStatus === 'approved';
+
+const canFinanceOperateAsset = (row) => {
+  return isApprovedAsset(row) && !isDisposed(row?.status);
+};
+
+const canImpairAsset = (row) => {
+  return canFinanceOperateAsset(row) && ['in_use', 'idle', '在用', '闲置'].includes(row?.status);
+};
+
+const canUnauditAsset = (row) => {
+  return isApprovedAsset(row) && !isDisposed(row?.status);
+};
+
+const showAssetMore = (row) => {
+  return canUnauditAsset(row) || canFinanceOperateAsset(row);
 };
 
 // 加载资产列表
@@ -753,6 +795,7 @@ const loadAssets = async () => {
       asset.location = asset.location || asset.location_id || asset.location_name || '';
       asset.department = asset.department || asset.department_id || asset.department_name || '';
       asset.responsible = asset.responsible || asset.custodian || '';
+      asset.auditStatus = asset.auditStatus || asset.audit_status || 'draft';
     });
 
     assetList.value = list;
@@ -793,6 +836,16 @@ const loadDepartmentOptions = async () => {
     console.error('加载部门列表失败:', error);
     ElMessage.error('加载部门列表失败');
     departmentOptions.value = [];
+  }
+};
+
+const loadBankAccountOptions = async () => {
+  try {
+    const response = await api.get('/finance/bank-accounts');
+    bankAccountOptions.value = parseListData(response, { enableLog: false });
+  } catch (error) {
+    console.error('加载银行账户失败:', error);
+    bankAccountOptions.value = [];
   }
 };
 
@@ -916,6 +969,19 @@ const handleEdit = async (row) => {
 
 // 下拉菜单命令分发
 const handleMoreCommand = (command, row) => {
+  if (['impairment', 'transfer', 'split', 'dispose'].includes(command) && !canFinanceOperateAsset(row)) {
+    ElMessage.warning('资产审核通过后才能执行该操作');
+    return;
+  }
+  if (command === 'impairment' && !canImpairAsset(row)) {
+    ElMessage.warning('只有在用或闲置资产可以计提减值');
+    return;
+  }
+  if (command === 'unaudit' && !canUnauditAsset(row)) {
+    ElMessage.warning('当前资产不能反审核');
+    return;
+  }
+
   switch (command) {
     case 'impairment': handleImpairment(row); break;
     case 'transfer': handleTransfer(row); break;
@@ -944,12 +1010,16 @@ const handleAudit = async (row, action) => {
     loadAssets();
   } catch (error) {
     console.error(`${actionText}失败:`, error);
-    ElMessage.error(`${actionText}失败`);
+    ElMessage.error(error.response?.data?.message || `${actionText}失败`);
   }
 };
 
 // 处理资产调拨
 const handleTransfer = (row) => {
+  if (!canFinanceOperateAsset(row)) {
+    ElMessage.warning('资产审核通过后才能调拨');
+    return;
+  }
   // 填充调拨表单数据
   transferForm.assetId = row.id;
   transferForm.assetCode = row.assetCode;
@@ -982,7 +1052,7 @@ const submitTransfer = async () => {
         loadAssets(); // 重新加载资产列表
       } catch (error) {
         console.error('资产调拨失败:', error);
-        ElMessage.error('资产调拨失败');
+        ElMessage.error(error.response?.data?.message || '资产调拨失败');
       } finally {
         transferLoading.value = false;
       }
@@ -992,6 +1062,10 @@ const submitTransfer = async () => {
 
 // 处理资产拆分
 const handleSplit = (row) => {
+  if (!canFinanceOperateAsset(row)) {
+    ElMessage.warning('资产审核通过后才能拆分');
+    return;
+  }
   splitForm.assetId = row.id;
   splitForm.assetCode = row.assetCode;
   splitForm.assetName = row.assetName;
@@ -1020,7 +1094,7 @@ const submitSplit = async () => {
         loadAssets(); // 重新加载资产列表
       } catch (error) {
         console.error('资产拆分失败:', error);
-        ElMessage.error('资产拆分失败');
+        ElMessage.error(error.response?.data?.message || '资产拆分失败');
       } finally {
         splitLoading.value = false;
       }
@@ -1030,6 +1104,10 @@ const submitSplit = async () => {
 
 // 处理资产减值
 const handleImpairment = (row) => {
+  if (!canImpairAsset(row)) {
+    ElMessage.warning('只有已审核且在用或闲置的资产可以计提减值');
+    return;
+  }
   impairmentForm.assetId = row.id;
   impairmentForm.netValue = row.netValue || 0;
   impairmentForm.impairment_amount = 0;
@@ -1057,7 +1135,7 @@ const submitImpairment = async () => {
         impairmentDialogVisible.value = false;
         loadAssets(); // 重新加载资产列表
       } catch (error) {
-        ElMessage.error(error.message || '减值计提失败');
+        ElMessage.error(error.response?.data?.message || error.message || '减值计提失败');
       } finally {
         submitImpairmentLoading.value = false;
       }
@@ -1067,15 +1145,23 @@ const submitImpairment = async () => {
 
 // 处理资产处置
 const handleDispose = (row) => {
+  if (!canFinanceOperateAsset(row)) {
+    ElMessage.warning('资产审核通过后才能处置');
+    return;
+  }
   disposeForm.assetId = row.id;
   disposeForm.assetCode = row.assetCode;
   disposeForm.assetName = row.assetName;
   disposeForm.netValue = row.netValue || 0;
   disposeForm.disposeType = 'scrap';
   disposeForm.disposeAmount = 0;
+  disposeForm.bankAccountId = null;
   disposeForm.disposeDate = formatDate(new Date());
   disposeForm.reason = '';
 
+  if (bankAccountOptions.value.length === 0) {
+    loadBankAccountOptions();
+  }
   disposeDialogVisible.value = true;
 };
 
@@ -1101,6 +1187,7 @@ const submitDispose = async () => {
     const payload = {
       disposalMethod: disposeMethodMap[disposeForm.disposeType] || '其他',
       disposalAmount: disposeForm.disposeAmount,
+      bankAccountId: disposeForm.bankAccountId,
       disposalDate: disposeForm.disposeDate,
       disposalReason: disposeForm.reason,
     };

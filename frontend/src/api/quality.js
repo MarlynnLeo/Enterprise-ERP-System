@@ -4,7 +4,7 @@ export const qualityApi = {
 
     // 获取来料检验单列表
     getIncomingInspections: (params) => api.get('/quality/inspections/incoming', { params }),
-    getIncomingInspection: (id, params) => api.get(`/quality/inspections/${id}`, params),
+    getIncomingInspection: (id, params) => api.get(`/quality/inspections/${id}`, { params }),
     createIncomingInspection: (data) => api.post('/quality/inspections', data),
     updateIncomingInspection: (id, data) => api.put(`/quality/inspections/${id}`, data),
 

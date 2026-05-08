@@ -6,7 +6,7 @@
           <h2>标准成本版本工作台</h2>
           <p class="subtitle">管理企业多周期的标准成本（审批、发布、智能测算）</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建成本周期版本</el-button>
+        <el-button v-permission="'finance:cost:execute'" type="primary" :icon="Plus" @click="openCreateDialog">新建成本周期版本</el-button>
       </div>
     </el-card>
 
@@ -42,13 +42,13 @@
           <template #default="scope">
             <!-- 仅草稿状态允许操作智取底价和提交审批 -->
             <template v-if="scope.row.status === 'draft'">
-              <el-button size="small" type="warning" @click="handleGenerate(scope.row)" :loading="operatingId === scope.row.id">智能采价</el-button>
-              <el-button size="small" type="primary" @click="handleSubmit(scope.row)" :loading="operatingId === scope.row.id">提审</el-button>
+              <el-button v-permission="'finance:cost:execute'" size="small" type="warning" @click="handleGenerate(scope.row)" :loading="operatingId === scope.row.id">智能采价</el-button>
+              <el-button v-permission="'finance:cost:update'" size="small" type="primary" @click="handleSubmit(scope.row)" :loading="operatingId === scope.row.id">提审</el-button>
             </template>
 
             <!-- 仅审批状态允许执行审批 -->
             <template v-if="scope.row.status === 'pending'">
-               <el-button size="small" type="success" @click="handleApprove(scope.row)" :loading="operatingId === scope.row.id">审核生效</el-button>
+               <el-button v-permission="'finance:cost:execute'" size="small" type="success" @click="handleApprove(scope.row)" :loading="operatingId === scope.row.id">审核生效</el-button>
             </template>
           </template>
         </el-table-column>
@@ -86,7 +86,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveVersion" :loading="saving">确认创建</el-button>
+        <el-button v-permission="'finance:cost:execute'" type="primary" @click="saveVersion" :loading="saving">确认创建</el-button>
       </template>
     </el-dialog>
   </div>

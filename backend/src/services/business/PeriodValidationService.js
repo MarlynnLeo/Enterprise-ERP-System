@@ -7,6 +7,7 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
+const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 
 /**
  * 期间校验服务
@@ -84,8 +85,8 @@ class PeriodValidationService {
     try {
       const [result] = await db.pool.execute(
         `SELECT COUNT(*) as count FROM gl_entries 
-         WHERE document_type = '年度结转' AND YEAR(entry_date) = ?`,
-        [year]
+         WHERE document_type = ? AND YEAR(entry_date) = ?`,
+        [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year]
       );
 
       const isTransferred = result[0].count > 0;

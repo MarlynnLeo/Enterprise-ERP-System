@@ -210,6 +210,13 @@ router.put(
   systemController.updateMenu
 );
 
+router.put(
+  '/menus/:id/status',
+  validateIdParam,
+  requirePermission('system:permissions:manage'),
+  systemController.updateMenuStatus
+);
+
 // ✅ 删除菜单 - 添加权限检查和ID验证
 router.delete(
   '/menus/:id',
@@ -222,7 +229,7 @@ router.delete(
 router.post('/menus/import', requirePermission('system:permissions:manage'), systemController.importMenus);
 
 // ✅ 新增: 系统设置相关端点（来自 systemRoutes.js）
-router.get('/settings', systemController.getSettings);
+router.get('/settings', requirePermission('system:settings:read'), systemController.getSettings);
 
 router.put('/settings', requirePermission('system:settings:write'), systemController.updateSettings);
 
@@ -269,6 +276,11 @@ router.get('/backups/:filename', requirePermission('system:backup:download'), sy
 router.get('/business-types', businessTypeController.getAllBusinessTypes);
 router.get('/business-types/groups', businessTypeController.getBusinessTypeGroups);
 router.get('/business-types/category/:category', businessTypeController.getBusinessTypesByCategory);
+router.put(
+  '/business-types/sort',
+  requirePermission('system:business-types:update'),
+  businessTypeController.updateSortOrder
+);
 router.get('/business-types/:id', validateIdParam, businessTypeController.getBusinessTypeById);
 router.post(
   '/business-types',
@@ -286,11 +298,6 @@ router.delete(
   validateIdParam,
   requirePermission('system:business-types:delete'),
   businessTypeController.deleteBusinessType
-);
-router.put(
-  '/business-types/sort',
-  requirePermission('system:business-types:update'),
-  businessTypeController.updateSortOrder
 );
 
 module.exports = router;

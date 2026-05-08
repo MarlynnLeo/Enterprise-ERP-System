@@ -6,11 +6,14 @@
  * 但 equipment 表缺少该列，导致 SQL 报错。
  */
 
-exports.up = function (knex) {
-  return knex.schema.alterTable('equipment', (table) => {
-    table.datetime('deleted_at').nullable().defaultTo(null);
-    table.index('deleted_at');
-  });
+exports.up = async function (knex) {
+  const hasCol = await knex.schema.hasColumn('equipment', 'deleted_at');
+  if (!hasCol) {
+    await knex.schema.alterTable('equipment', (table) => {
+      table.datetime('deleted_at').nullable().defaultTo(null);
+      table.index('deleted_at');
+    });
+  }
 };
 
 exports.down = function (knex) {

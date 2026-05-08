@@ -103,7 +103,7 @@
                 @confirm="handleStatusChange(row, 1)"
               >
                 <template #reference>
-                  <el-button size="small" type="success"><el-icon><Check /></el-icon> 启用</el-button>
+                  <el-button size="small" type="success" v-permission="'system:business-types:update'"><el-icon><Check /></el-icon> 启用</el-button>
                 </template>
               </el-popconfirm>
 
@@ -114,7 +114,7 @@
                 confirm-button-type="danger"
               >
                 <template #reference>
-                  <el-button size="small" type="warning"><el-icon><Close /></el-icon> 禁用</el-button>
+                  <el-button size="small" type="warning" v-permission="'system:business-types:update'"><el-icon><Close /></el-icon> 禁用</el-button>
                 </template>
               </el-popconfirm>
 
@@ -130,7 +130,7 @@
                 size="small"
                 @click="handleEdit(row)"
               
-              v-permission="'system:business-types'"><el-icon><Edit /></el-icon> 编辑</el-button>
+              v-permission="'system:business-types:update'"><el-icon><Edit /></el-icon> 编辑</el-button>
 
               <el-popconfirm
                 v-if="row.status !== 1 && String(row.status) !== '1'"
@@ -139,7 +139,7 @@
                 confirm-button-type="danger"
               >
                 <template #reference>
-                  <el-button size="small" type="danger"><el-icon><Delete /></el-icon> 删除</el-button>
+                  <el-button size="small" type="danger" v-permission="'system:business-types:delete'"><el-icon><Delete /></el-icon> 删除</el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -249,7 +249,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ dialogType === 'view' ? '关闭' : '取消' }}</el-button>
-        <el-button v-if="dialogType !== 'view'" type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+        <el-button v-if="dialogType !== 'view'" v-permission="dialogType === 'create' ? 'system:business-types:create' : 'system:business-types:update'" type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
       </template>
     </el-dialog>
   </div>

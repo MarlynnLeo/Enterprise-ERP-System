@@ -13,6 +13,28 @@ const { BUSINESS_RULES } = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
 const QualityInspection = require('../../../models/qualityInspection');
 const { generateBatchNo } = require('../../../services/business/TaskLifecycleService');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+
+const INSPECTION_INSERT_FIELDS = [
+    'inspection_no', 'inspection_type', 'task_id', 'product_id', 'product_code', 'product_name',
+    'batch_no', 'quantity', 'unit', 'planned_date', 'status', 'is_first_article',
+    'first_article_qty', 'is_full_inspection', 'first_article_result',
+    'production_can_continue', 'template_id', 'inspector_id', 'inspector_name', 'note',
+];
+
+async function insertInspection(data) {
+    const record = INSPECTION_INSERT_FIELDS.reduce((acc, field) => {
+        if (data[field] !== undefined) acc[field] = data[field];
+        return acc;
+    }, {});
+    const columns = Object.keys(record);
+    const placeholders = columns.map(() => '?').join(', ');
+    const values = columns.map(field => record[field]);
+    return await db.query(
+        `INSERT INTO quality_inspections (${columns.map(field => `\`${field}\``).join(', ')}) VALUES (${placeholders})`,
+        values
+    );
+}
 
 // 首检配置常量
 const FIRST_ARTICLE_CONFIG = BUSINESS_RULES.FIRST_ARTICLE;
@@ -33,8 +55,10 @@ const firstArticleController = {
                 keyword, status, startDate, endDate,
             } = req.query;
 
-            const actualLimit = parseInt(pageSize) || parseInt(limit) || 20;
-            const offset = (parseInt(page) - 1) * actualLimit;
+            const pagination = parsePagination(page, pageSize || limit, {
+                defaultPageSize: 20,
+                maxPageSize: 200,
+            });
 
             let whereClause = "WHERE qi.inspection_type = 'first_article'";
             const params = [];
@@ -65,7 +89,7 @@ const firstArticleController = {
             );
 
             const listResult = await db.query(
-                `
+                appendPaginationSQL(`
         SELECT
           qi.*,
           pt.code as task_code,
@@ -74,8 +98,7 @@ const firstArticleController = {
         LEFT JOIN production_tasks pt ON qi.task_id = pt.id
         ${whereClause}
         ORDER BY qi.created_at DESC
-        LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
-      `,
+      `, pagination.limit, pagination.offset),
                 params
             );
 
@@ -84,8 +107,8 @@ const firstArticleController = {
                 {
                     list: listResult.rows || [],
                     total: parseInt((countResult.rows && countResult.rows[0]?.total) || 0),
-                    page: parseInt(page),
-                    pageSize: actualLimit,
+                    page: pagination.page,
+                    pageSize: pagination.pageSize,
                 },
                 '获取首检列表成功'
             );
@@ -197,7 +220,7 @@ const firstArticleController = {
                     : '抽检首检'),
             };
 
-            const result = await db.query('INSERT INTO quality_inspections SET ?', [insertData]);
+            const result = await insertInspection(insertData);
 
             ResponseHandler.success(
                 res,

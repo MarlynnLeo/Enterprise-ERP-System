@@ -7,7 +7,7 @@
           <h2>标准成本管理</h2>
           <p class="subtitle">设置和查询产品标准成本</p>
         </div>
-        <el-button type="primary" @click="showCalculateDialog">计算标准成本</el-button>
+        <el-button v-permission="'finance:cost:execute'" type="primary" @click="showCalculateDialog">计算标准成本</el-button>
       </div>
     </el-card>
 
@@ -69,9 +69,9 @@
         </el-table-column>
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="scope">
-            <el-button type="info" size="small" @click="openOverheadConfig(scope.row)">配置专费</el-button>
+            <el-button v-permission="'finance:cost:update'" type="info" size="small" @click="openOverheadConfig(scope.row)">配置专费</el-button>
             <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
-            <el-button type="warning" size="small" @click="recalculate(scope.row)">重算</el-button>
+            <el-button v-permission="'finance:cost:execute'" type="warning" size="small" @click="recalculate(scope.row)">重算</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -109,7 +109,7 @@
       </el-form>
       <template #footer>
         <el-button @click="calculateDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="calculateStandardCost" :loading="calculating">计算</el-button>
+        <el-button v-permission="'finance:cost:execute'" type="primary" @click="calculateStandardCost" :loading="calculating">计算</el-button>
       </template>
     </el-dialog>
 
@@ -204,7 +204,7 @@
       
       <div style="margin-bottom: 16px; display:flex; justify-content: space-between;">
         <span style="line-height:32px; font-weight:bold;">已配置专属规则</span>
-        <el-button type="primary" size="small" @click="openAddOverheadForm" v-permission="'finance:cost:standard'">新增专属费率</el-button>
+        <el-button type="primary" size="small" @click="openAddOverheadForm" v-permission="'finance:cost:create'">新增专属费率</el-button>
       </div>
 
       <el-table :data="productOverheads" border v-loading="loadingOverheads" size="small">
@@ -224,7 +224,7 @@
         </el-table-column>
         <el-table-column label="操作" width="90" align="center">
           <template #default="scope">
-            <el-button size="small" link type="danger" @click="deleteProductOverhead(scope.row)" v-permission="'finance:cost:standard'">删除</el-button>
+            <el-button size="small" link type="danger" @click="deleteProductOverhead(scope.row)" v-permission="'finance:cost:delete'">删除</el-button>
           </template>
         </el-table-column>
         <template #empty>
@@ -250,7 +250,7 @@
         </el-form>
         <template #footer>
           <el-button @click="addOverheadFormVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveProductOverhead" :loading="savingOverhead">保存</el-button>
+          <el-button v-permission="'finance:cost:create'" type="primary" @click="saveProductOverhead" :loading="savingOverhead">保存</el-button>
         </template>
       </el-dialog>
     </el-dialog>
@@ -368,6 +368,12 @@ const showCalculateDialog = () => {
   loadProductOptions();
 };
 
+const calculateAndPersistStandardCost = async (productId, quantity = 1) => {
+  return api.post(`/finance-enhancement/cost/standard/${productId}/calculate`, {
+    quantity,
+  });
+};
+
 // 计算标准成本
 const calculateStandardCost = async () => {
   if (!calculateForm.productId) {
@@ -377,8 +383,7 @@ const calculateStandardCost = async () => {
 
   calculating.value = true;
   try {
-   ;
-
+    await calculateAndPersistStandardCost(calculateForm.productId, calculateForm.quantity);
     ElMessage.success('标准成本计算完成');
     calculateDialogVisible.value = false;
     loadStandardCosts();
@@ -438,8 +443,7 @@ const recalculate = async (row) => {
       type: 'warning'
     });
 
-    // 调用API重新计算
-    await api.get(`/finance-enhancement/cost/standard/${row.product_id}`);
+    await calculateAndPersistStandardCost(row.product_id);
     ElMessage.success('重新计算成功');
     loadStandardCosts();
   } catch (error) {
@@ -541,8 +545,8 @@ const saveProductOverhead = async () => {
     addOverheadFormVisible.value = false;
     await loadProductOverheads(currentSelectedProduct.value.product_id);
     
-    // 自动触发重算以立即生效
-    recalculate(currentSelectedProduct.value);
+    await calculateAndPersistStandardCost(currentSelectedProduct.value.product_id);
+    await loadStandardCosts();
   } catch {
     ElMessage.error('保存单品专属费率失败');
   } finally {
@@ -559,7 +563,8 @@ const deleteProductOverhead = async (row) => {
     await api.delete(`/finance-enhancement/cost/overhead-allocation/${row.id}`);
     ElMessage.success('删除成功');
     await loadProductOverheads(currentSelectedProduct.value.product_id);
-    recalculate(currentSelectedProduct.value);
+    await calculateAndPersistStandardCost(currentSelectedProduct.value.product_id);
+    await loadStandardCosts();
   } catch (e) {
     if (e !== 'cancel') {
       ElMessage.error('删除失败');

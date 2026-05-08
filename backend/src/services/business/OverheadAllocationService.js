@@ -35,7 +35,7 @@ class OverheadAllocationService {
                 FROM overhead_allocation_config oac
                 LEFT JOIN cost_centers cc ON oac.cost_center_id = cc.id
                 LEFT JOIN materials m ON oac.product_id = m.id
-                WHERE 1=1
+                WHERE oac.deleted_at IS NULL
             `;
       const params = [];
 

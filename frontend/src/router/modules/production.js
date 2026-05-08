@@ -45,7 +45,7 @@ export default [
         component: () => import('../../views/production/ProductionReport.vue'),
         meta: {
             requiresAuth: true,
-            permission: 'production:report'
+            permission: 'production:reports'
         }
     },
     {
@@ -54,7 +54,7 @@ export default [
         component: () => import('../../views/production/EquipmentMonitoring.vue'),
         meta: {
             requiresAuth: true,
-            permission: 'production:equipment-monitoring'
+            permission: 'production:equipment'
         }
     },
     {
@@ -63,7 +63,7 @@ export default [
         component: () => import('../../views/production/MaterialShortage.vue'),
         meta: {
             requiresAuth: true,
-            permission: 'production:shortage',
+            permission: 'production:plans',
             title: '生产计划缺料统计'
         }
     },
@@ -74,7 +74,7 @@ export default [
         meta: {
             requiresAuth: true,
             permission: 'production:plans',
-            title: 'MRP物料需求计划'
+            title: '生产需求'
         }
     },
     {

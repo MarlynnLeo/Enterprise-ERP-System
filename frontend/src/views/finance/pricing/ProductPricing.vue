@@ -8,7 +8,7 @@
           <p class="subtitle">管理产品BOM成本与销售定价</p>
         </div>
         <div class="action-section">
-          <el-button type="primary" @click="settingsVisible = true">
+          <el-button v-permission="'finance:pricing:update'" type="primary" @click="settingsVisible = true">
             <el-icon><Setting /></el-icon> 定价设置
           </el-button>
         </div>
@@ -42,7 +42,7 @@
           <el-button type="primary" @click="pricing.handleSearch">
             <el-icon><Search /></el-icon> 搜索
           </el-button>
-          <el-button type="success" @click="pricing.handleExport" :loading="pricing.exporting.value">
+          <el-button v-permission="'finance:pricing:export'" type="success" @click="pricing.handleExport" :loading="pricing.exporting.value">
             <el-icon><Download /></el-icon> 导出
           </el-button>
         </el-form-item>
@@ -79,7 +79,7 @@
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="openPricingDrawer(row)">定价</el-button>
+            <el-button v-permission="'finance:pricing:update'" type="primary" size="small" @click="openPricingDrawer(row)">定价</el-button>
             <el-button type="success" size="small" @click="bom.handleViewBom(row, 'preview', pricing.currentProduct)">BOM</el-button>
             <el-button type="info" size="small" @click="bom.handleHistory(row)">历史</el-button>
           </template>
@@ -331,7 +331,7 @@
       </el-form>
       <template #footer>
         <el-button @click="strategy.dialogVisible.value = false">取消</el-button>
-        <el-button v-permission="'finance:pricing:update'" type="primary" @click="handleSaveStrategyField" :loading="strategy.submitting.value">保存</el-button>
+        <el-button v-permission="strategy.form.id ? 'finance:pricing:update' : 'finance:pricing:create'" type="primary" @click="handleSaveStrategyField" :loading="strategy.submitting.value">保存</el-button>
       </template>
     </el-dialog>
   </div>

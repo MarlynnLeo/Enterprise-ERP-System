@@ -8,6 +8,18 @@
 import axios from 'axios'
 import { showToast } from 'vant'
 import { API_CONFIG } from '@/config/app'
+const normalizeApiBaseUrl = () => {
+  if (import.meta.env.DEV) {
+    return '/api'
+  }
+
+  const configuredBase = (API_CONFIG.baseURL || '').trim().replace(/\/+$/, '')
+  if (!configuredBase) {
+    return '/api'
+  }
+
+  return configuredBase.endsWith('/api') ? configuredBase : `${configuredBase}/api`
+}
 
 // ==================== 创建 Axios 实例 ====================
 
@@ -16,23 +28,59 @@ import { API_CONFIG } from '@/config/app'
  * 生产环境：使用完整 URL
  */
 const api = axios.create({
-  baseURL: import.meta.env.DEV ? '/api' : API_CONFIG.baseURL + '/api',
+  baseURL: normalizeApiBaseUrl(),
   timeout: API_CONFIG.timeout || 30000,
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true // 允许发送 Cookie（支持 HttpOnly Cookie 认证）
+  withCredentials: true
 })
 
 // ==================== 请求拦截器 ====================
 
-api.interceptors.request.use(
-  (config) => {
-    // 从 sessionStorage 获取 JWT token（与 auth store 保持一致）
-    const token = sessionStorage.getItem('token')
+const unsafeMethods = new Set(['post', 'put', 'patch', 'delete'])
+let csrfToken = ''
+let csrfTokenPromise = null
 
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
+const clearLegacyTokenStorage = () => {
+  sessionStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+}
+
+const fetchCsrfToken = async () => {
+  if (csrfToken) return csrfToken
+  if (!csrfTokenPromise) {
+    csrfTokenPromise = axios.get('/csrf-token', {
+      baseURL: api.defaults.baseURL,
+      timeout: API_CONFIG.timeout || 30000,
+      withCredentials: true
+    }).then((response) => {
+      const token = response.data?.csrfToken || response.data?.token || ''
+      csrfToken = token
+      return token
+    }).finally(() => {
+      csrfTokenPromise = null
+    })
+  }
+  return csrfTokenPromise
+}
+
+api.interceptors.request.use(
+  async (config) => {
+    clearLegacyTokenStorage()
+    const method = (config.method || 'get').toLowerCase()
+    const url = config.url || ''
+    const isAuthBootstrapRequest =
+      url.includes('/csrf-token') ||
+      url.includes('/auth/login') ||
+      url.includes('/auth/refresh')
+    // 从 sessionStorage 获取 JWT token（与 auth store 保持一致）
+    if (unsafeMethods.has(method) && !config.skipCsrf && !isAuthBootstrapRequest) {
+      const csrf = await fetchCsrfToken()
+      if (csrf) {
+        config.headers = config.headers || {}
+        config.headers['X-CSRF-Token'] = csrf
+      }
     }
 
     return config
@@ -47,12 +95,12 @@ api.interceptors.request.use(
 let isRefreshing = false
 let failedQueue = []
 
-const processQueue = (error, token = null) => {
+const processQueue = (error) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error)
     } else {
-      prom.resolve(token)
+      prom.resolve()
     }
   })
   failedQueue = []
@@ -99,10 +147,7 @@ api.interceptors.response.use(
           return new Promise((resolve, reject) => {
             failedQueue.push({ resolve, reject })
           })
-            .then((token) => {
-              if (token) {
-                originalRequest.headers['Authorization'] = `Bearer ${token}`
-              }
+            .then(() => {
               return api(originalRequest)
             })
             .catch((err) => {
@@ -115,26 +160,17 @@ api.interceptors.response.use(
 
         try {
           // 尝试刷新Token
-          const refreshResponse = await api.post('/auth/refresh')
+          await api.post('/auth/refresh', null, { skipCsrf: true })
           // 响应拦截器已经解包，直接使用 data
-          const accessToken = refreshResponse.data?.accessToken || refreshResponse.data?.token
-
-          if (accessToken) {
-            // 保存新Token
-            sessionStorage.setItem('token', accessToken)
-            api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`
-            originalRequest.headers['Authorization'] = `Bearer ${accessToken}`
-
-            processQueue(null, accessToken)
-            return api(originalRequest)
-          } else {
-            throw new Error('刷新Token失败')
-          }
+          processQueue(null)
+          return api(originalRequest)
         } catch (refreshError) {
           processQueue(refreshError, null)
           // 刷新失败，清除token并跳转登录
           sessionStorage.removeItem('token')
           sessionStorage.removeItem('user')
+          sessionStorage.removeItem('isLoggedIn')
+          localStorage.removeItem('refreshToken')
 
           errorMessage = '登录已过期，请重新登录'
 
@@ -176,6 +212,9 @@ api.interceptors.response.use(
           }
         }
       } else if (status === 403) {
+        if (error.response.data?.code === 'INVALID_CSRF_TOKEN') {
+          csrfToken = ''
+        }
         errorMessage = '没有权限执行此操作'
       } else if (status === 404) {
         errorMessage = '请求的资源不存在'
@@ -351,6 +390,10 @@ export const inventoryApi = {
 
   updateCheck(id, data) {
     return api.put(`/inventory/check/${id}`, data)
+  },
+
+  addCheckItem(id, data) {
+    return api.post(`/inventory/check/${id}/items`, data)
   },
 
   deleteCheck(id) {
@@ -1215,7 +1258,7 @@ export const financeApi = {
   },
 
   calculateDepreciation(data) {
-    return api.get('/finance/assets/depreciation/calculate', data)
+    return api.get('/finance/assets/depreciation/calculate', { params: data })
   },
 
   // 现金银行 — 后端路由: /api/finance/bank-accounts, /api/finance/cash-transactions

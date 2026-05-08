@@ -63,7 +63,7 @@
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="scope">
             <el-button size="small" type="primary" @click="handleEdit(scope.row)"
-              v-permission="'finance:assets:categories'">编辑</el-button>
+              v-permission="'finance:assets:update'">编辑</el-button>
             <el-popconfirm
               title="确定删除此类别吗？"
               @confirm="handleDelete(scope.row.id)"
@@ -137,7 +137,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveCategory" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="categoryForm.id ? 'finance:assets:update' : 'finance:assets:create'" type="primary" @click="saveCategory" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>

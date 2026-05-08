@@ -31,7 +31,6 @@
           <el-select  v-model="searchForm.status" placeholder="选择状态" clearable>
             <el-option label="正常" value="active"></el-option>
             <el-option label="冻结" value="frozen"></el-option>
-            <el-option label="已注销" value="closed"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -77,6 +76,7 @@
         <el-table-column prop="accountNumber" label="账号" min-width="180" show-overflow-tooltip></el-table-column>
         <el-table-column prop="bankName" label="开户银行" min-width="180" show-overflow-tooltip></el-table-column>
         <el-table-column prop="branchName" label="开户网点" min-width="190" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="accountType" label="账户类型" width="100"></el-table-column>
         <el-table-column prop="currency" label="币种" width="80">
           <template #default="scope">
             {{ getCurrencyText(scope.row.currency) }}
@@ -100,8 +100,8 @@
         <el-table-column prop="lastTransactionDate" label="最后交易日期" width="120"></el-table-column>
         <el-table-column label="操作" min-width="220" fixed="right">
           <template #default="scope">
-            <el-button v-if="scope.row.status === 'frozen'" type="primary" size="small" @click="handleEdit(scope.row)"
-              v-permission="'finance:cash:accounts'">编辑</el-button>
+            <el-button type="primary" size="small" @click="handleEdit(scope.row)"
+              v-permission="'finance:cash:update'">编辑</el-button>
             <el-button type="success" size="small" @click="showTransactions(scope.row)">交易明细</el-button>
             <el-button 
               :type="scope.row.status === 'active' ? 'warning' : 'success'"
@@ -192,19 +192,18 @@
               <el-select v-model="accountForm.status" placeholder="请选择状态" style="width: 100%">
                 <el-option label="正常" value="active"></el-option>
                 <el-option label="冻结" value="frozen"></el-option>
-                <el-option label="已注销" value="closed"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
-        
-        <el-form-item label="账户用途" prop="purpose">
-          <el-input
-            v-model="accountForm.purpose"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入账户用途说明"
-          ></el-input>
+      
+        <el-form-item label="账户类型" prop="accountType">
+          <el-select v-model="accountForm.accountType" placeholder="请选择账户类型" style="width: 100%">
+            <el-option label="活期" value="活期"></el-option>
+            <el-option label="定期" value="定期"></el-option>
+            <el-option label="信用卡" value="信用卡"></el-option>
+            <el-option label="其他" value="其他"></el-option>
+          </el-select>
         </el-form-item>
         
         <el-form-item label="备注" prop="notes">
@@ -219,7 +218,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveAccount" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="isNewAccount ? 'finance:cash:create' : 'finance:cash:update'" type="primary" @click="saveAccount" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -256,7 +255,7 @@
           <el-form-item>
             <el-button type="primary" @click="searchTransactions">查询</el-button>
             <el-button v-permission="'finance:cash:export'" type="success" @click="exportTransactions">导出</el-button>
-            <el-button type="warning" @click="goToReconciliation">去对账</el-button>
+            <el-button v-permission="'finance:cash:reconcile'" type="warning" @click="goToReconciliation">去对账</el-button>
             <el-button @click="goToTransactions">交易管理</el-button>
           </el-form-item>
         </el-form>
@@ -340,9 +339,9 @@ const accountFormRef = ref(null);
 
 const accountForm = reactive({
   id: null, accountName: '', accountNumber: '', bankName: '', branchName: '',
-  currency: 'CNY', initialBalance: 0, balance: 0,
+  currency: 'CNY', accountType: '活期', initialBalance: 0, balance: 0,
   openDate: new Date().toISOString().slice(0, 10),
-  status: 'active', purpose: '', notes: '', lastTransactionDate: ''
+  status: 'active', notes: '', lastTransactionDate: ''
 });
 
 const accountRules = {
@@ -350,6 +349,7 @@ const accountRules = {
   accountNumber: [{ required: true, message: '请输入银行账号', trigger: 'blur' }],
   bankName: [{ required: true, message: '请输入开户银行', trigger: 'blur' }],
   currency: [{ required: true, message: '请选择币种', trigger: 'change' }],
+  accountType: [{ required: true, message: '请选择账户类型', trigger: 'change' }],
   openDate: [{ required: true, message: '请选择开户日期', trigger: 'change' }]
 };
 
@@ -398,8 +398,7 @@ const getCurrencyText = (currency) => {
 const getStatusType = (status) => {
   const statusMap = {
     active: 'success',
-    frozen: 'warning',
-    closed: 'info'
+    frozen: 'warning'
   };
   return statusMap[status] || 'info';
 };
@@ -408,8 +407,7 @@ const getStatusType = (status) => {
 const getStatusText = (status) => {
   const statusMap = {
     active: '正常',
-    frozen: '冻结',
-    closed: '已注销'
+    frozen: '冻结'
   };
   return statusMap[status] || status;
 };
@@ -435,12 +433,12 @@ const loadAccounts = async () => {
       accountNumber: account.accountNumber || '',
       bankName: account.bankName || '',
       branchName: account.branchName || '',
+      accountType: account.accountType || account.purpose || '活期',
       currency: account.currency || 'CNY',
       balance: account.balance || 0,
       initialBalance: account.initialBalance || 0,
       openDate: account.openDate || '',
       status: account.status || 'active',
-      purpose: account.purpose || '',
       notes: account.notes || '',
       lastTransactionDate: account.lastTransactionDate || ''
     }));
@@ -552,7 +550,7 @@ const saveAccount = async () => {
           currency_code: accountForm.currency,
           initial_balance: accountForm.initialBalance,
           current_balance: isNewAccount.value ? accountForm.initialBalance : accountForm.balance,
-          account_type: accountForm.purpose || '活期',
+          account_type: accountForm.accountType || '活期',
           is_active: accountForm.status === 'active',
           notes: accountForm.notes
         };
@@ -657,11 +655,11 @@ const resetAccountForm = () => {
   accountForm.bankName = '';
   accountForm.branchName = '';
   accountForm.currency = 'CNY';
+  accountForm.accountType = '活期';
   accountForm.initialBalance = 0;
   accountForm.balance = 0;
   accountForm.openDate = new Date().toISOString().slice(0, 10);
   accountForm.status = 'active';
-  accountForm.purpose = '';
   accountForm.notes = '';
   accountForm.lastTransactionDate = '';
   
@@ -701,7 +699,7 @@ const goToReconciliation = () => {
 const goToTransactions = () => {
   transactionsDialogVisible.value = false;
   router.push({
-    path: '/finance/cash/transactions',
+    path: '/finance/cash/bank-transactions',
     query: { accountId: selectedAccount.value.id }
   });
 };

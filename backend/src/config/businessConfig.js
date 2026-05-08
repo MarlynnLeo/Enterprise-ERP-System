@@ -50,6 +50,7 @@ module.exports = {
       CONFIRMED: 'confirmed',
       PARTIAL_COMPLETED: 'partial_completed',
       COMPLETED: 'completed',
+      REVERSED: 'reversed',
       CANCELLED: 'cancelled',
     },
 

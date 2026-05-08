@@ -8,7 +8,6 @@
 const expenseModel = require('../../../models/expense');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
-const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 const expenseController = {
@@ -188,21 +187,25 @@ const expenseController = {
   async createExpense(req, res) {
     try {
       const { category_id, title, amount, expense_date } = req.body;
+      const parsedAmount = Number.parseFloat(amount);
 
-      if (!category_id || !title || !amount || !expense_date) {
+      if (!category_id || !title || amount === undefined || amount === null || !expense_date) {
         return ResponseHandler.error(res, '费用类型、标题、金额和日期为必填项', 'VALIDATION_ERROR', 400);
+      }
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        return ResponseHandler.error(res, '费用金额必须大于0', 'VALIDATION_ERROR', 400);
       }
 
       const data = {
         ...req.body,
-        created_by: await getCurrentUserName(req),
+        created_by: getAuthenticatedUserId(req),
       };
 
       const result = await expenseModel.createExpense(data);
       ResponseHandler.success(res, result, '费用创建成功');
     } catch (error) {
       logger.error('创建费用记录失败:', error);
-      ResponseHandler.error(res, '创建费用记录失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(res, error.message || '创建费用记录失败', 'VALIDATION_ERROR', 400, error);
     }
   },
 
@@ -323,15 +326,23 @@ const expenseController = {
   async payExpense(req, res) {
     try {
       const { id } = req.params;
-      const { bank_account_id, transaction_id } = req.body;
+      const { bank_account_id, transaction_id, payment_date } = req.body;
 
       if (!bank_account_id) {
         return ResponseHandler.error(res, '请选择付款账户', 'VALIDATION_ERROR', 400);
       }
+      if (!payment_date) {
+        return ResponseHandler.error(res, '请选择付款日期', 'VALIDATION_ERROR', 400);
+      }
 
       // 注意：GL 会计分录已在 expense model 的 payExpense 方法中自动生成（含事务保护），
       // 此处不再重复生成，避免双重记账
-      const result = await expenseModel.payExpense(id, { bank_account_id, transaction_id });
+      const result = await expenseModel.payExpense(id, {
+        bank_account_id,
+        transaction_id,
+        payment_date,
+        created_by: getAuthenticatedUserId(req),
+      });
       ResponseHandler.success(res, result, '付款成功，已自动生成会计凭证');
     } catch (error) {
       logger.error('付款处理失败:', error);

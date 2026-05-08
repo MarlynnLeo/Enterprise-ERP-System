@@ -16,19 +16,6 @@ export function useProductionPlans() {
   // 预警列表数据（生产计划）
   const warningList = ref([])
 
-  // === 全局状态常量映射字典 ===
-  const WARNING_STYLE_MAP = {
-    'draft': 'warning-notice',
-    'preparing': 'warning-notice',
-    'material_issuing': 'warning-document',
-    'material_issued': 'warning-document',
-    'in_progress': 'warning-activity',
-    'inspection': 'warning-course',
-    'warehousing': 'warning-accommodation',
-    'completed': 'warning-completed',
-    'cancelled': 'warning-cancelled'
-  }
-
   const WARNING_TAG_MAP = {
     'draft': 'info',
     'preparing': 'warning',
@@ -54,7 +41,6 @@ export function useProductionPlans() {
     cancelled: '已取消'
   }
 
-  const getWarningTypeClass = (status) => WARNING_STYLE_MAP[status] || 'warning-notice'
   const getWarningTagType = (status) => WARNING_TAG_MAP[status] || 'info'
   const getStatusText = (status) => PLAN_STATUS_TEXT_MAP[status] || status
 
@@ -165,7 +151,6 @@ export function useProductionPlans() {
 
   return {
     warningList,
-    getWarningTypeClass,
     getWarningTagType,
     getStatusText,
     loadProductionPlans,

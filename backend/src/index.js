@@ -88,32 +88,23 @@ async function startServer() {
     // 设置服务器超时
     server.timeout = 120000; // 2分钟
 
-    // 启动定时任务
-    try {
-      // 启动库存数据一致性检查定时任务 - 已禁用自动修复功能
-      // const inventoryChecker = require('./jobs/inventoryConsistencyCheck');
-      // inventoryChecker.start();
-      logger.info('📊 库存数据一致性检查定时任务已禁用');
-    } catch (error) {
-      logger.warn('⚠️ 库存一致性检查定时任务启动失败:', error.message);
-    }
+    // 启动定时任务（DISABLE_CRON=true 时跳过，适用于开发环境快速重启）
+    if (process.env.DISABLE_CRON !== 'true') {
+      try {
+        const { startInvoiceStatusJob } = require('./jobs/invoiceStatusJob');
+        startInvoiceStatusJob();
+      } catch (error) {
+        logger.warn('⚠️ 发票状态定时任务启动失败:', error.message);
+      }
 
-    // 启动发票状态自动更新定时任务
-    try {
-      const { startInvoiceStatusJob } = require('./jobs/invoiceStatusJob');
-      startInvoiceStatusJob();
-      logger.info('💰 发票状态自动更新定时任务已启动 (每日凌晨1点执行)');
-    } catch (error) {
-      logger.warn('⚠️ 发票状态定时任务启动失败:', error.message);
-    }
-
-    // 启动通知清理定时任务
-    try {
-      const { startNotificationCleanupJob } = require('./jobs/notificationCleanupJob');
-      startNotificationCleanupJob();
-      logger.info('🧹 通知清理定时任务已启动 (每日凌晨2:30执行)');
-    } catch (error) {
-      logger.warn('⚠️ 通知清理定时任务启动失败:', error.message);
+      try {
+        const { startNotificationCleanupJob } = require('./jobs/notificationCleanupJob');
+        startNotificationCleanupJob();
+      } catch (error) {
+        logger.warn('⚠️ 通知清理定时任务启动失败:', error.message);
+      }
+    } else {
+      logger.info('⏭️ DISABLE_CRON=true，已跳过所有定时任务注册');
     }
 
     return server;

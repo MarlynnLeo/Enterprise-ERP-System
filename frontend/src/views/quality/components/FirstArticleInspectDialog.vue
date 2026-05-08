@@ -80,10 +80,10 @@
 
         <el-table-column width="60">
           <template #header>
-            <el-button type="primary" size="small" circle @click="addItem"><el-icon><Plus /></el-icon></el-button>
+            <el-button v-permission="'quality:inspections:update'" type="primary" size="small" circle @click="addItem"><el-icon><Plus /></el-icon></el-button>
           </template>
           <template #default="{ $index }">
-            <el-button type="danger" size="small" circle @click="removeItem($index)"><el-icon><Delete /></el-icon></el-button>
+            <el-button v-permission="'quality:inspections:update'" type="danger" size="small" circle @click="removeItem($index)"><el-icon><Delete /></el-icon></el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -94,7 +94,7 @@
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">提交检验结果</el-button>
+      <el-button v-permission="'quality:inspections:update'" type="primary" :loading="submitting" @click="handleSubmit">提交检验结果</el-button>
     </template>
   </el-dialog>
 </template>

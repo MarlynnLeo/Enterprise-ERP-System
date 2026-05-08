@@ -25,6 +25,10 @@ const bomService = {
         whereClause += ' AND bm.version LIKE ?';
         params.push(`%${filters.version}%`);
       }
+      if (filters.keyword) {
+        whereClause += ' AND (bm.version LIKE ? OR m.code LIKE ? OR m.name LIKE ?)';
+        params.push(`%${filters.keyword}%`, `%${filters.keyword}%`, `%${filters.keyword}%`);
+      }
       if (filters.status !== undefined && filters.status !== '') {
         if (filters.status === 'active') {
           whereClause += ' AND bm.status = ?';
@@ -51,6 +55,7 @@ const bomService = {
       const countSql = `
         SELECT COUNT(*) as total
         FROM bom_masters bm
+        LEFT JOIN materials m ON bm.product_id = m.id
         WHERE ${whereClause}
       `;
       const [countResult] = await pool.query(countSql, params);

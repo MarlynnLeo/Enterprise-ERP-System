@@ -84,6 +84,10 @@ module.exports = {
 
   async getInstanceById(req, res) {
     try {
+      const userId = req.user?.userId || req.user?.id;
+      if (!(await WorkflowService.canAccessInstance(req.params.id, userId))) {
+        return ResponseHandler.error(res, '无权访问该审批实例', 403);
+      }
       const data = await WorkflowService.getInstanceById(req.params.id);
       if (!data) return ResponseHandler.notFound(res);
       ResponseHandler.success(res, data);
@@ -109,6 +113,12 @@ module.exports = {
   async getWorkflowByBusiness(req, res) {
     try {
       const data = await WorkflowService.getWorkflowByBusiness(req.query.business_type, req.query.business_id);
+      if (data) {
+        const userId = req.user?.userId || req.user?.id;
+        if (!(await WorkflowService.canAccessInstance(data.id, userId))) {
+          return ResponseHandler.error(res, '无权访问该业务审批状态', 403);
+        }
+      }
       ResponseHandler.success(res, data);
     } catch (e) { logger.error('获取业务审批状态失败:', e); ResponseHandler.error(res, e.message); }
   },

@@ -9,6 +9,7 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 /**
  * 根据总分自动判定等级
@@ -27,7 +28,10 @@ const supplierQualityController = {
     async getScores(req, res) {
         try {
             const { page = 1, pageSize = 20, supplier_id, period, grade } = req.query;
-            const offset = (parseInt(page) - 1) * parseInt(pageSize);
+            const pagination = parsePagination(page, pageSize, {
+                defaultPageSize: 20,
+                maxPageSize: 200,
+            });
 
             let whereClause = 'WHERE 1=1';
             const params = [];
@@ -50,24 +54,22 @@ const supplierQualityController = {
             );
             const total = (countResult.rows && countResult.rows[0]?.total) || 0;
 
-            const actualPageSize = parseInt(pageSize);
             const result = await db.query(
-                `
+                appendPaginationSQL(`
         SELECT sqs.*, s.name as supplier_name, s.code as supplier_code
         FROM supplier_quality_scores sqs
         LEFT JOIN suppliers s ON sqs.supplier_id = s.id
         ${whereClause}
         ORDER BY sqs.period DESC, sqs.total_score DESC
-        LIMIT ${actualPageSize} OFFSET ${offset}
-      `,
+      `, pagination.limit, pagination.offset),
                 params
             );
 
             ResponseHandler.success(res, {
                 list: result.rows || [],
                 total: parseInt(total),
-                page: parseInt(page),
-                pageSize: actualPageSize,
+                page: pagination.page,
+                pageSize: pagination.pageSize,
             }, '获取供应商质量得分列表成功');
         } catch (error) {
             logger.error('获取供应商质量得分失败:', error);

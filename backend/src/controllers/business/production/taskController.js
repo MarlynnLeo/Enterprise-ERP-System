@@ -159,6 +159,7 @@ exports.getProductionTasks = async (req, res) => {
 
     // 使用公共函数构建过滤条件
     const { whereClause, queryParams } = buildFilterConditions(req.query);
+    const filterParams = [...queryParams];
 
     // 主查询
     const query = `
@@ -178,9 +179,8 @@ exports.getProductionTasks = async (req, res) => {
       ORDER BY pt.created_at DESC LIMIT ? OFFSET ?
     `;
 
-    // LIMIT/OFFSET 使用参数化查询
-    queryParams.push(parseInt(pageSize, 10), offset);
-    const [tasks] = await pool.query(query, queryParams);
+    // Keep pagination parameters out of count/statistics queries.
+    const [tasks] = await pool.query(query, [...filterParams, parseInt(pageSize, 10), offset]);
 
     // 如果有任务，一次性获取所有任务的工序数据（优化N+1查询问题）
     if (tasks.length > 0) {
@@ -225,7 +225,7 @@ exports.getProductionTasks = async (req, res) => {
     const countQuery = `SELECT COUNT(*) as total FROM production_tasks pt
       LEFT JOIN materials p ON pt.product_id = p.id
       WHERE pt.deleted_at IS NULL ${whereClause}`;
-    const [totalResult] = await pool.query(countQuery, [...queryParams]);
+    const [totalResult] = await pool.query(countQuery, filterParams);
     const total = totalResult[0].total;
 
     // 统计查询
@@ -242,7 +242,7 @@ exports.getProductionTasks = async (req, res) => {
       LEFT JOIN materials p ON pt.product_id = p.id
       WHERE pt.deleted_at IS NULL ${whereClause}
     `;
-    const [statsResult] = await pool.query(statsQuery, [...queryParams]);
+    const [statsResult] = await pool.query(statsQuery, filterParams);
     const statistics = statsResult[0] || {
       total: 0,
       pending: 0,

@@ -12,19 +12,53 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const financeModel = require('../../models/finance');
+const DocumentLinkService = require('./DocumentLinkService');
 
 class TaxAccountingService {
+  static async linkTaxInvoiceVoucher(invoice, entryInfo, userId, connection) {
+    if (!invoice?.id || !entryInfo?.entryId) return;
+
+    await DocumentLinkService.tryAutoLink(
+      'tax_invoice',
+      invoice.id,
+      invoice.invoice_number,
+      'finance_voucher',
+      entryInfo.entryId,
+      entryInfo.entryNumber,
+      userId,
+      connection
+    );
+  }
+
+  static async linkTaxReturnVoucher(taxReturn, entryInfo, userId, connection) {
+    if (!taxReturn?.id || !entryInfo?.entryId) return;
+
+    await DocumentLinkService.tryAutoLink(
+      'tax_return',
+      taxReturn.id,
+      taxReturn.return_period,
+      'finance_voucher',
+      entryInfo.entryId,
+      entryInfo.entryNumber,
+      userId,
+      connection
+    );
+  }
+
   /**
    * 从销项发票生成会计分录
    * @param {Object} invoice - 销项发票数据
    * @param {number} userId - 操作用户ID
    * @returns {Promise<Object>} 生成的会计分录信息
    */
-  static async generateOutputTaxEntry(invoice, userId) {
-    const connection = await db.pool.getConnection();
+  static async generateOutputTaxEntry(invoice, userId, externalConnection = null) {
+    const connection = externalConnection || await db.pool.getConnection();
+    const shouldManageTransaction = !externalConnection;
 
     try {
-      await connection.beginTransaction();
+      if (shouldManageTransaction) {
+        await connection.beginTransaction();
+      }
 
       // 1. 获取税务科目配置
       const [outputTaxConfig] = await connection.execute(
@@ -54,6 +88,13 @@ class TaxAccountingService {
 
       const revenueAccountId = revenueConfig.length > 0 ? revenueConfig[0].account_id : null;
 
+      if (!arAccountId) {
+        throw new Error('未配置应收账款科目');
+      }
+      if (!revenueAccountId) {
+        throw new Error('未配置主营业务收入科目');
+      }
+
       // 4. 生成分录编号
       const entryNumber = await this.generateEntryNumber('VAT-OUT', connection);
 
@@ -70,6 +111,8 @@ class TaxAccountingService {
         period_id: periodId,
         description: `销项税额 - ${invoice.invoice_number}`,
         created_by: userId,
+        status: 'posted',
+        is_posted: 1,
       };
 
       const entryItems = [
@@ -101,7 +144,11 @@ class TaxAccountingService {
         invoice.id,
       ]);
 
-      await connection.commit();
+      await this.linkTaxInvoiceVoucher(invoice, { entryId, entryNumber }, userId, connection);
+
+      if (shouldManageTransaction) {
+        await connection.commit();
+      }
 
       logger.info('销项税额会计分录生成成功', {
         invoiceId: invoice.id,
@@ -111,11 +158,15 @@ class TaxAccountingService {
 
       return { entryId, entryNumber };
     } catch (error) {
-      await connection.rollback();
+      if (shouldManageTransaction) {
+        await connection.rollback();
+      }
       logger.error('生成销项税额会计分录失败:', error);
       throw error;
     } finally {
-      connection.release();
+      if (shouldManageTransaction) {
+        connection.release();
+      }
     }
   }
 
@@ -125,11 +176,14 @@ class TaxAccountingService {
    * @param {number} userId - 操作用户ID
    * @returns {Promise<Object>} 生成的会计分录信息
    */
-  static async generateInputTaxEntry(invoice, userId) {
-    const connection = await db.pool.getConnection();
+  static async generateInputTaxEntry(invoice, userId, externalConnection = null) {
+    const connection = externalConnection || await db.pool.getConnection();
+    const shouldManageTransaction = !externalConnection;
 
     try {
-      await connection.beginTransaction();
+      if (shouldManageTransaction) {
+        await connection.beginTransaction();
+      }
 
       // 1. 获取税务科目配置
       const [inputTaxConfig] = await connection.execute(
@@ -159,6 +213,13 @@ class TaxAccountingService {
 
       const inventoryAccountId = inventoryConfig.length > 0 ? inventoryConfig[0].account_id : null;
 
+      if (!apAccountId) {
+        throw new Error('未配置应付账款科目');
+      }
+      if (!inventoryAccountId) {
+        throw new Error('未配置原材料/库存商品科目');
+      }
+
       // 4. 生成分录编号
       const entryNumber = await this.generateEntryNumber('VAT-IN', connection);
 
@@ -175,6 +236,8 @@ class TaxAccountingService {
         period_id: periodId,
         description: `进项税额 - ${invoice.invoice_number}`,
         created_by: userId,
+        status: 'posted',
+        is_posted: 1,
       };
 
       const entryItems = [];
@@ -210,7 +273,11 @@ class TaxAccountingService {
         invoice.id,
       ]);
 
-      await connection.commit();
+      await this.linkTaxInvoiceVoucher(invoice, { entryId, entryNumber }, userId, connection);
+
+      if (shouldManageTransaction) {
+        await connection.commit();
+      }
 
       logger.info('进项税额会计分录生成成功', {
         invoiceId: invoice.id,
@@ -220,11 +287,15 @@ class TaxAccountingService {
 
       return { entryId, entryNumber };
     } catch (error) {
-      await connection.rollback();
+      if (shouldManageTransaction) {
+        await connection.rollback();
+      }
       logger.error('生成进项税额会计分录失败:', error);
       throw error;
     } finally {
-      connection.release();
+      if (shouldManageTransaction) {
+        connection.release();
+      }
     }
   }
 
@@ -248,6 +319,7 @@ class TaxAccountingService {
       WHERE entry_number LIKE ?
       ORDER BY entry_number DESC
       LIMIT 1
+      FOR UPDATE
     `,
       [`${prefix}-${year}${month}${day}%`]
     );
@@ -292,11 +364,14 @@ class TaxAccountingService {
    * @param {number} userId - 操作用户ID
    * @returns {Promise<Object>} 生成的会计分录信息
    */
-  static async generateVATReturnEntry(taxReturn, userId) {
-    const connection = await db.pool.getConnection();
+  static async generateVATReturnEntry(taxReturn, userId, externalConnection = null, options = {}) {
+    const connection = externalConnection || await db.pool.getConnection();
+    const shouldManageTransaction = !externalConnection;
 
     try {
-      await connection.beginTransaction();
+      if (shouldManageTransaction) {
+        await connection.beginTransaction();
+      }
 
       // 1. 获取税务科目配置
       const [vatPayableConfig] = await connection.execute(
@@ -316,42 +391,45 @@ class TaxAccountingService {
         ['BANK_DEPOSITS']
       );
 
-      const bankAccountId = bankConfig.length > 0 ? bankConfig[0].account_id : null;
+      if (bankConfig.length === 0) {
+        throw new Error('未配置银行存款科目');
+      }
+
+      const bankAccountId = bankConfig[0].account_id;
 
       // 3. 生成分录编号
       const entryNumber = await this.generateEntryNumber('VAT-PAY', connection);
 
       // 4. 获取当前会计期间
-      const periodId = await this.getCurrentPeriodId(
-        new Date().toISOString().split('T')[0],
-        connection
-      );
-
-      const today = new Date().toISOString().split('T')[0];
+      const accountingDate = options.accountingDate || new Date().toISOString().split('T')[0];
+      const periodId = await this.getCurrentPeriodId(accountingDate, connection);
+      const payableAmount = parseFloat(taxReturn.tax_payable || 0);
 
       // 5. 创建会计分录
       const entryData = {
         entry_number: entryNumber,
-        entry_date: today,
-        posting_date: today,
+        entry_date: accountingDate,
+        posting_date: accountingDate,
         document_type: '转账单',
         document_number: taxReturn.return_period,
         period_id: periodId,
         description: `缴纳增值税 - ${taxReturn.return_period}`,
         created_by: userId,
+        status: 'posted',
+        is_posted: 1,
       };
 
       const entryItems = [
         {
           account_id: vatPayableAccountId,
-          debit_amount: taxReturn.tax_payable,
+          debit_amount: payableAmount,
           credit_amount: 0,
           description: `应交增值税 - ${taxReturn.return_period}`,
         },
         {
           account_id: bankAccountId,
           debit_amount: 0,
-          credit_amount: taxReturn.tax_payable,
+          credit_amount: payableAmount,
           description: '银行存款 - 缴纳增值税',
         },
       ];
@@ -364,7 +442,11 @@ class TaxAccountingService {
         taxReturn.id,
       ]);
 
-      await connection.commit();
+      await this.linkTaxReturnVoucher(taxReturn, { entryId, entryNumber }, userId, connection);
+
+      if (shouldManageTransaction) {
+        await connection.commit();
+      }
 
       logger.info('增值税申报会计分录生成成功', {
         returnId: taxReturn.id,
@@ -374,11 +456,15 @@ class TaxAccountingService {
 
       return { entryId, entryNumber };
     } catch (error) {
-      await connection.rollback();
+      if (shouldManageTransaction) {
+        await connection.rollback();
+      }
       logger.error('生成增值税申报会计分录失败:', error);
       throw error;
     } finally {
-      connection.release();
+      if (shouldManageTransaction) {
+        connection.release();
+      }
     }
   }
 }

@@ -7,7 +7,7 @@
 <template>
   <el-dialog v-model="dialogVisible" title="首检规则配置" width="900px" destroy-on-close>
     <div style="margin-bottom: 16px;">
-      <el-button type="primary" @click="showAddRule = true"><el-icon><Plus /></el-icon>添加规则</el-button>
+      <el-button v-permission="'quality:settings:create'" type="primary" @click="showAddRule = true"><el-icon><Plus /></el-icon>添加规则</el-button>
       <el-alert type="info" :closable="false" style="margin-top: 10px;">
         <template #title>
           <span>默认规则：首检数量 <b>{{ DEFAULT_QTY }}只</b>，生产数量小于 <b>{{ DEFAULT_FULL_INSPECTION_THRESHOLD }}只</b> 时全检。可针对特定产品配置个性化规则。</span>
@@ -35,9 +35,9 @@
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="handleEdit(row)"
-            v-permission="'quality:first-article'">编辑</el-button>
+            v-permission="'quality:settings:update'">编辑</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)"
-            v-permission="'quality:first-article'">删除</el-button>
+            v-permission="'quality:settings:delete'">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -81,7 +81,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showAddRule = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSaveRule">保存</el-button>
+        <el-button v-permission="editingRule ? 'quality:settings:update' : 'quality:settings:create'" type="primary" :loading="submitting" @click="handleSaveRule">保存</el-button>
       </template>
     </el-dialog>
 

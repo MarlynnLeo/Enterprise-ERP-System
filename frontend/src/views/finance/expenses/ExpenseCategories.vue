@@ -16,7 +16,7 @@
           <p class="subtitle">管理费用分类和子类型</p>
         </div>
         <div class="action-buttons">
-          <el-button type="primary" @click="handleAdd(null)">
+          <el-button v-permission="'finance:expenses:create'" type="primary" @click="handleAdd(null)">
             <el-icon><Plus /></el-icon> 新增一级类型
           </el-button>
         </div>
@@ -35,7 +35,7 @@
       >
         <template #empty>
           <el-empty description="暂无费用类型数据">
-            <el-button type="primary" @click="handleInit">初始化预设类型</el-button>
+            <el-button v-permission="'system:settings:update'" type="primary" @click="handleInit">初始化预设类型</el-button>
           </el-empty>
         </template>
         <el-table-column prop="name" label="类型名称" min-width="200">
@@ -59,7 +59,7 @@
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)"
-              v-permission="'finance:expenses:categories'">编辑</el-button>
+              v-permission="'finance:expenses:update'">编辑</el-button>
             <el-button v-permission="'finance:expenses:create'" 
               v-if="!row.parent_id"
               type="success" size="small" link 
@@ -107,7 +107,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:expenses:update'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button v-permission="dialogMode === 'edit' ? 'finance:expenses:update' : 'finance:expenses:create'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>

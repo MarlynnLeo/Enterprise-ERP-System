@@ -235,7 +235,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveReceipt" :loading="saveLoading">确认</el-button>
+          <el-button v-permission="'finance:ar:receive'" type="primary" @click="saveReceipt" :loading="saveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -388,7 +388,7 @@ const bankAccounts = ref([]);
 
 // 是否显示银行账户字段
 const showBankAccountField = computed(() => {
-  return ['bank_transfer', 'credit_card'].includes(receiptForm.paymentMethod);
+  return ['bank_transfer', 'credit_card', 'check'].includes(receiptForm.paymentMethod);
 });
 
 // 搜索表单
@@ -457,6 +457,18 @@ const receiptRules = {
   ],
   paymentMethod: [
     { required: true, message: '请选择收款方式', trigger: 'change' }
+  ],
+  bankAccountId: [
+    {
+      validator: (rule, value, callback) => {
+        if (['bank_transfer', 'credit_card', 'check'].includes(receiptForm.paymentMethod) && !value) {
+          callback(new Error('请选择收款账户'));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'change'
+    }
   ]
 };
 
@@ -514,25 +526,24 @@ const loadBankAccounts = async () => {
 // 加载未付清的发票选项
 const loadInvoiceOptions = async () => {
   try {
-    // 获取所有发票，然后筛选出未付清的
-    const response = await api.get('/finance/ar/invoices', {
-      params: {
-        page: 1,
-        limit: 100, // 获取更多发票以供选择
-        status: 'confirmed' // 只获取已确认的发票
-      }
-    });
+    const response = await api.get('/finance/ar/receipts/unpaid-invoices');
 
     // 使用统一的列表解析工具
     const invoiceList = parseListData(response, { enableLog: false });
-    // 筛选出未付清的发票（余额大于0的发票）
-    invoiceOptions.value = invoiceList.filter(invoice => {
-      const balance = (invoice.amount || 0) - (invoice.paidAmount || 0);
-      return balance > 0;
-    }).map(invoice => ({
-      ...invoice,
-      balance: (invoice.amount || 0) - (invoice.paidAmount || 0)
-    }));
+    invoiceOptions.value = invoiceList.map(invoice => {
+      const amount = parseFloat(invoice.amount ?? invoice.total_amount ?? 0);
+      const paidAmount = parseFloat(invoice.paidAmount ?? invoice.paid_amount ?? 0);
+      const balance = parseFloat(invoice.balance ?? invoice.balance_amount ?? (amount - paidAmount));
+      return {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber || invoice.invoice_number,
+        customerName: invoice.customerName || invoice.customer_name,
+        customerId: invoice.customerId || invoice.customer_id,
+        amount,
+        paidAmount,
+        balance,
+      };
+    });
   } catch (error) {
     console.error('加载发票列表失败:', error);
     ElMessage.error('加载发票列表失败');
@@ -555,13 +566,15 @@ const handleInvoiceChange = async () => {
   try {
     const response = await api.get(`/finance/ar/invoices/${receiptForm.invoiceId}`);
     const invoice = response.data;
-    
-    const balance = invoice.amount - invoice.paidAmount;
-    
-    receiptForm.invoiceNumber = invoice.invoiceNumber;
-    receiptForm.customerName = invoice.customerName;
-    receiptForm.invoiceAmount = formatCurrency(invoice.amount);
-    receiptForm.paidAmount = formatCurrency(invoice.paidAmount);
+
+    const amount = parseFloat(invoice.amount ?? invoice.total_amount ?? 0);
+    const paidAmount = parseFloat(invoice.paidAmount ?? invoice.paid_amount ?? 0);
+    const balance = parseFloat(invoice.balance ?? invoice.balance_amount ?? (amount - paidAmount));
+
+    receiptForm.invoiceNumber = invoice.invoiceNumber || invoice.invoice_number;
+    receiptForm.customerName = invoice.customerName || invoice.customer_name;
+    receiptForm.invoiceAmount = formatCurrency(amount);
+    receiptForm.paidAmount = formatCurrency(paidAmount);
     receiptForm.balance = formatCurrency(balance);
     receiptForm.balanceValue = balance;
     receiptForm.amount = balance; // 默认填充剩余金额
@@ -706,56 +719,6 @@ const showAddDialog = async () => {
   dialogVisible.value = true;
 };
 
-/*
-// 编辑收款记录 - 已移除编辑功能，改用作废+重新创建的方式
-const handleEdit = async (row) => {
-  dialogTitle.value = '编辑收款记录';
-  
-  try {
-    const response = await api.get(`/finance/ar/receipts/${row.id}`);
-    const receipt = response.data;
-    
-    resetReceiptForm();
-    await loadInvoiceOptions();
-    
-    // 填充表单数据
-    receiptForm.id = receipt.id;
-    receiptForm.receiptNumber = receipt.receiptNumber;
-    receiptForm.invoiceId = receipt.invoiceId;
-    receiptForm.receiptDate = receipt.receiptDate;
-    receiptForm.amount = receipt.amount;
-    receiptForm.paymentMethod = receipt.paymentMethod;
-    receiptForm.notes = receipt.notes;
-    
-    // 加载发票信息
-    await handleInvoiceChange();
-    
-    dialogVisible.value = true;
-  } catch (error) {
-    console.error('获取收款记录详情失败:', error);
-    ElMessage.error('获取收款记录详情失败');
-  }
-};
-
-// 删除收款记录 - 已移除删除功能，改用作废的方式
-const handleDelete = (row) => {
-  ElMessageBox.confirm('确认要删除该收款记录吗？此操作将影响关联发票的收款状态。', '警告', {
-    confirmButtonText: '确认',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await api.delete(`/finance/ar/receipts/${row.id}`);
-      ElMessage.success('删除成功');
-      loadReceipts();
-    } catch (error) {
-      console.error('删除收款记录失败:', error);
-      ElMessage.error('删除收款记录失败');
-    }
-  }).catch(() => {});
-};
-*/
-
 // 打印相关
 const printDialogVisible = ref(false);
 const printData = ref({});
@@ -819,15 +782,8 @@ const saveReceipt = async () => {
           notes: receiptForm.notes
         };
         
-        if (receiptForm.id) {
-          // 更新
-          await api.put(`/finance/ar/receipts/${receiptForm.id}`, data);
-          ElMessage.success('更新成功');
-        } else {
-          // 新增
-          await api.post('/finance/ar/receipts', data);
-          ElMessage.success('添加成功');
-        }
+        await api.post('/finance/ar/receipts', data);
+        ElMessage.success('添加成功');
         dialogVisible.value = false;
         loadReceipts();
       } catch (error) {

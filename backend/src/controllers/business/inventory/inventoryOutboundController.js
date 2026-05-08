@@ -44,6 +44,7 @@ const OUTBOUND_STATUS_TEXT = {
   confirmed: '已确认',
   partial_completed: '部分完成',
   completed: '已完成',
+  reversed: '已冲销',
   cancelled: '已取消',
 };
 const getStatusText = (status) => OUTBOUND_STATUS_TEXT[status] || status || '未知';
@@ -199,6 +200,7 @@ const getOutboundList = async (req, res) => {
       confirmedCount: 0,
       partialCompletedCount: 0,
       completedCount: 0,
+      reversedCount: 0,
       cancelledCount: 0,
     };
     const statusStatsMap = {
@@ -206,6 +208,7 @@ const getOutboundList = async (req, res) => {
       confirmed: 'confirmedCount',
       partial_completed: 'partialCompletedCount',
       completed: 'completedCount',
+      reversed: 'reversedCount',
       cancelled: 'cancelledCount',
     };
     for (const row of statsRows) {
@@ -1407,7 +1410,7 @@ const deleteOutbound = async (req, res) => {
 
 // 撤销出库 - 回退已完成的出库单
 
-const cancelOutbound = async (req, res) => {
+const _cancelOutboundLegacy = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -1436,7 +1439,13 @@ const cancelOutbound = async (req, res) => {
 
     // ============ 新增：检查关联的生产任务/计划状态，判断是否允许撤销 ============
     // 不允许撤销的状态（生产已完成或已进入检验阶段）
-    const prohibitedStatuses = ['inspection', 'quality_passed', 'completed', 'warehoused'];
+    const prohibitedStatuses = [
+      'inspection',
+      'quality_passed',
+      'completed',
+      'warehoused',
+      'warehousing',
+    ];
     // 需要警告确认的状态（生产进行中）
     const warningStatuses = ['in_progress'];
 
@@ -1902,6 +1911,209 @@ const fetchBomItemsForOutbound = async (connection, outboundId, referenceType, r
 
 // 更新出库单状态
 
+const parseSourceTaskIds = (sourceTaskIds) => {
+  if (!sourceTaskIds) return [];
+  if (Array.isArray(sourceTaskIds)) return sourceTaskIds.map(Number).filter(Number.isInteger);
+
+  try {
+    const parsed = JSON.parse(sourceTaskIds);
+    return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isInteger) : [];
+  } catch {
+    return [];
+  }
+};
+
+const parseSourceTaskDetails = (sourceTasks) => {
+  if (!sourceTasks) return [];
+  if (Array.isArray(sourceTasks)) return sourceTasks;
+
+  try {
+    const parsed = JSON.parse(sourceTasks);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const fetchBatchBomItemsForOutbound = async (connection, outboundId, taskIds) => {
+  if (!Array.isArray(taskIds) || taskIds.length === 0) {
+    return { success: false, itemCount: 0, error: '批量发料缺少来源生产任务' };
+  }
+
+  try {
+    const placeholders = taskIds.map(() => '?').join(',');
+    const [tasks] = await connection.execute(
+      `SELECT
+         pt.id, pt.code, pt.product_id, pt.quantity,
+         p.code AS product_code, p.name AS product_name,
+         (
+           SELECT bm.id
+           FROM bom_masters bm
+           WHERE bm.product_id = pt.product_id
+             AND bm.approved_by IS NOT NULL
+             AND bm.deleted_at IS NULL
+           ORDER BY bm.id DESC
+           LIMIT 1
+         ) AS bom_id
+       FROM production_tasks pt
+       LEFT JOIN materials p ON pt.product_id = p.id
+       WHERE pt.id IN (${placeholders})`,
+      taskIds
+    );
+
+    if (tasks.length !== taskIds.length) {
+      return { success: false, itemCount: 0, error: '部分来源生产任务不存在' };
+    }
+
+    const materialMap = new Map();
+
+    for (const task of tasks) {
+      if (!task.bom_id) {
+        return {
+          success: false,
+          itemCount: 0,
+          error: `生产任务 ${task.code || task.id} 没有已审核BOM`,
+        };
+      }
+
+      const [bomItems] = await connection.execute(
+        `SELECT bd.material_id, bd.quantity AS bom_quantity, m.unit_id
+         FROM bom_details bd
+         JOIN materials m ON bd.material_id = m.id
+         WHERE bd.bom_id = ? AND bd.level = 1`,
+        [task.bom_id]
+      );
+
+      for (const bomItem of bomItems) {
+        const requiredQuantity = parseFloat(bomItem.bom_quantity) * (parseFloat(task.quantity) || 0);
+        if (requiredQuantity <= 0) continue;
+
+        const existing = materialMap.get(bomItem.material_id) || {
+          material_id: bomItem.material_id,
+          unit_id: bomItem.unit_id,
+          quantity: 0,
+          source_tasks: [],
+        };
+
+        existing.quantity += requiredQuantity;
+        existing.source_tasks.push({
+          task_id: task.id,
+          task_code: task.code,
+          product_code: task.product_code,
+          product_name: task.product_name,
+          quantity: requiredQuantity,
+        });
+        materialMap.set(bomItem.material_id, existing);
+      }
+    }
+
+    const mergedMaterials = Array.from(materialMap.values());
+    if (mergedMaterials.length === 0) {
+      return { success: false, itemCount: 0, error: '最新BOM没有可发料明细' };
+    }
+
+    for (const material of mergedMaterials) {
+      await connection.execute(
+        `INSERT INTO inventory_outbound_items
+          (outbound_id, material_id, quantity, planned_quantity, actual_quantity,
+           shortage_quantity, is_shortage, unit_id, source_tasks, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, NOW(), NOW())`,
+        [
+          outboundId,
+          material.material_id,
+          material.quantity,
+          material.quantity,
+          material.quantity,
+          material.unit_id,
+          JSON.stringify(material.source_tasks),
+        ]
+      );
+    }
+
+    return { success: true, itemCount: mergedMaterials.length };
+  } catch (error) {
+    logger.error('批量发料从最新BOM生成明细失败:', error);
+    return { success: false, itemCount: 0, error: error.message };
+  }
+};
+
+const cleanupOutboundSideEffects = async (connection, outboundId, outboundNo, taskIds) => {
+  await connection.execute(
+    `UPDATE material_shortage_records
+     SET status = 'cancelled',
+         remaining_quantity = 0,
+         remark = CONCAT(COALESCE(remark, ''), ?),
+         updated_at = NOW(),
+         completed_at = COALESCE(completed_at, NOW())
+     WHERE outbound_id = ?
+       AND status IN ('pending', 'partial_supplied')`,
+    [`\nCancelled by outbound reversal ${outboundNo}`, outboundId]
+  );
+
+  if (!Array.isArray(taskIds) || taskIds.length === 0) return;
+
+  const placeholders = taskIds.map(() => '?').join(',');
+  await connection.execute(
+    `DELETE FROM production_processes
+     WHERE task_id IN (${placeholders})
+       AND status = 'pending'
+       AND COALESCE(progress, 0) = 0
+       AND (
+         remarks LIKE '%自动创建%'
+         OR remarks LIKE '%出库单%'
+         OR description LIKE '%默认生产过程%'
+       )`,
+    taskIds
+  );
+};
+
+const reversePostedGLEntriesForOutbound = async (outboundNo, operator) => {
+  try {
+    const [entries] = await db.pool.execute(
+      `SELECT id
+       FROM gl_entries
+       WHERE document_number = ?
+         AND is_posted = 1
+         AND COALESCE(is_reversed, 0) = 0
+         AND NOT EXISTS (
+           SELECT 1 FROM gl_entries reversal
+           WHERE reversal.reversal_entry_id = gl_entries.id
+         )
+       ORDER BY id ASC`,
+      [outboundNo]
+    );
+
+    if (entries.length === 0) {
+      return { reversedCount: 0, errors: [] };
+    }
+
+    const financeModel = require('../../../models/finance');
+    const errors = [];
+    let reversedCount = 0;
+    const today = new Date().toISOString().slice(0, 10);
+
+    for (const entry of entries) {
+      try {
+        await financeModel.reverseEntry(entry.id, {
+          entry_date: today,
+          posting_date: today,
+          description: `Outbound reversal ${outboundNo}`,
+          created_by: operator || 'system',
+        });
+        reversedCount += 1;
+      } catch (error) {
+        errors.push({ entryId: entry.id, message: error.message });
+        logger.error(`出库单 ${outboundNo} 自动冲销会计分录失败:`, error);
+      }
+    }
+
+    return { reversedCount, errors };
+  } catch (error) {
+    logger.error(`查询出库单 ${outboundNo} 会计分录失败:`, error);
+    return { reversedCount: 0, errors: [{ message: error.message }] };
+  }
+};
+
 const updateOutboundStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
@@ -1912,7 +2124,10 @@ const updateOutboundStatus = async (req, res) => {
 
     // 检查出库单是否存在
     const [checkResult] = await connection.execute(
-      'SELECT status, reference_id, reference_type, production_task_id, issue_reason, is_excess FROM inventory_outbound WHERE id = ?',
+      `SELECT status, reference_id, reference_type, production_task_id, source_task_ids,
+              issue_reason, is_excess
+       FROM inventory_outbound
+       WHERE id = ?`,
       [id]
     );
 
@@ -1924,6 +2139,10 @@ const updateOutboundStatus = async (req, res) => {
     let referenceId = checkResult[0].reference_id;
     let referenceType = checkResult[0].reference_type;
     const productionTaskId = checkResult[0].production_task_id;
+    const batchTaskIds =
+      referenceType === 'batch_production_tasks'
+        ? parseSourceTaskIds(checkResult[0].source_task_ids)
+        : [];
 
     // 如果referenceId为空但有productionTaskId，补充设置（兼容旧数据或逻辑缺口）
     if (!referenceId && productionTaskId) {
@@ -1936,8 +2155,9 @@ const updateOutboundStatus = async (req, res) => {
     const validTransitions = {
       draft: ['confirmed', 'cancelled'],
       confirmed: ['completed', 'partial_completed', 'cancelled'],
-      partial_completed: ['completed', 'cancelled'], // 部分完成可以通过补发变成完成
+      partial_completed: ['completed'], // 部分完成已有库存扣减，只允许补发完成或走撤销重发接口
       completed: [],
+      reversed: [],
       cancelled: [],
     };
 
@@ -1977,6 +2197,21 @@ const updateOutboundStatus = async (req, res) => {
           );
           if (!bomResult.success) {
             logger.warn(`出库单 ${id} 确认时从BOM获取物料失败: ${bomResult.error}`);
+          }
+        }
+      }
+
+      if (referenceType === 'batch_production_tasks') {
+        const [itemCheck] = await connection.execute(
+          'SELECT COUNT(*) as count FROM inventory_outbound_items WHERE outbound_id = ?',
+          [id]
+        );
+
+        const itemCount = Number(itemCheck[0].count);
+        if (itemCount === 0) {
+          const bomResult = await fetchBatchBomItemsForOutbound(connection, id, batchTaskIds);
+          if (!bomResult.success) {
+            logger.warn(`批量出库单 ${id} 确认时从最新BOM生成明细失败: ${bomResult.error}`);
           }
         }
       }
@@ -2094,12 +2329,27 @@ const updateOutboundStatus = async (req, res) => {
         }
       }
 
+      if (itemCount === 0 && referenceType === 'batch_production_tasks') {
+        logger.warn(`批量出库单 ${id} 完成时发现没有明细项，尝试从最新BOM获取...`);
+        const bomResult = await fetchBatchBomItemsForOutbound(connection, id, batchTaskIds);
+
+        if (bomResult.success) {
+          itemCount = bomResult.itemCount;
+        } else {
+          await connection.rollback();
+          return ResponseHandler.error(res, bomResult.error, 'BAD_REQUEST', 400);
+        }
+      }
+
       if (itemCount === 0) {
         logger.warn(`出库单 ${id} 没有明细项，跳过库存扣减`);
       } else {
         // 获取出库明细项(包含planned_quantity和actual_quantity，支持部分发料)
         const [items] = await connection.execute(
-          'SELECT material_id, quantity, planned_quantity, actual_quantity, shortage_quantity, unit_id FROM inventory_outbound_items WHERE outbound_id = ?',
+          `SELECT material_id, quantity, planned_quantity, actual_quantity,
+                  shortage_quantity, unit_id, source_tasks
+           FROM inventory_outbound_items
+           WHERE outbound_id = ?`,
           [id]
         );
 
@@ -2114,8 +2364,11 @@ const updateOutboundStatus = async (req, res) => {
         }
 
         // 判断是否是生产出库（包括production_task和production_plan）
+        const isBatchProductionOutbound = referenceType === 'batch_production_tasks';
         const isProductionOutbound =
-          referenceType === 'production_task' || referenceType === 'production_plan';
+          referenceType === 'production_task' ||
+          referenceType === 'production_plan' ||
+          isBatchProductionOutbound;
 
         // ========== 通过 InventoryService 统一获取物料信息和库存 ==========
         const materialIds = items.map(i => i.material_id);
@@ -2169,19 +2422,51 @@ const updateOutboundStatus = async (req, res) => {
             if (actualQuantity > 0) {
               // 如果是生产出库，使用智能出库逻辑
               if (isProductionOutbound) {
-                await smartOutboundStock(
-                  item.material_id,
-                  locationId,
-                  actualQuantity,
-                  outboundInfo[0].operator,
-                  `出库单号: ${outboundInfo[0].outbound_no}`,
-                  referenceId,
-                  connection,
-                  {
-                    issueReason: checkResult[0].issue_reason,
-                    isExcess: checkResult[0].is_excess,
+                if (isBatchProductionOutbound) {
+                  const sourceTasks = parseSourceTaskDetails(item.source_tasks);
+                  const sourceTotal = sourceTasks.reduce(
+                    (sum, source) => sum + (parseFloat(source.quantity) || 0),
+                    0
+                  );
+
+                  if (sourceTasks.length === 0 || sourceTotal <= 0) {
+                    throw new Error(`批量发料明细 ${item.material_id} 缺少来源任务分摊信息`);
                   }
-                );
+
+                  for (const sourceTask of sourceTasks) {
+                    const sourceQuantity = parseFloat(sourceTask.quantity) || 0;
+                    const allocatedQuantity = actualQuantity * (sourceQuantity / sourceTotal);
+                    if (allocatedQuantity <= 0) continue;
+
+                    await smartOutboundStock(
+                      item.material_id,
+                      locationId,
+                      allocatedQuantity,
+                      outboundInfo[0].operator,
+                      `出库单号: ${outboundInfo[0].outbound_no}`,
+                      sourceTask.task_id,
+                      connection,
+                      {
+                        issueReason: checkResult[0].issue_reason,
+                        isExcess: checkResult[0].is_excess,
+                      }
+                    );
+                  }
+                } else {
+                  await smartOutboundStock(
+                    item.material_id,
+                    locationId,
+                    actualQuantity,
+                    outboundInfo[0].operator,
+                    `出库单号: ${outboundInfo[0].outbound_no}`,
+                    referenceId,
+                    connection,
+                    {
+                      issueReason: checkResult[0].issue_reason,
+                      isExcess: checkResult[0].is_excess,
+                    }
+                  );
+                }
               } else {
                 // 非生产类出库 - 从预加载的 stockMap 读取库存
                 const stockKey = `${item.material_id}_${locationId}`;
@@ -2322,6 +2607,36 @@ const updateOutboundStatus = async (req, res) => {
         }
       }
 
+      if (referenceType === 'batch_production_tasks' && batchTaskIds.length > 0) {
+        const finalTaskStatus = hasShortage
+          ? STATUS.PRODUCTION_TASK.MATERIAL_PARTIAL_ISSUED
+          : STATUS.PRODUCTION_TASK.MATERIAL_ISSUED;
+        const placeholders = batchTaskIds.map(() => '?').join(',');
+
+        await connection.execute(
+          `UPDATE production_tasks
+           SET status = ?, updated_at = NOW()
+           WHERE id IN (${placeholders})
+             AND status IN ('pending', 'allocated', 'preparing', 'material_issuing')`,
+          [finalTaskStatus, ...batchTaskIds]
+        );
+
+        if (!hasShortage) {
+          await connection.execute(
+            `UPDATE production_plans pp
+             JOIN production_tasks pt ON pt.plan_id = pp.id
+             SET pp.status = ?, pp.updated_at = NOW()
+             WHERE pt.id IN (${placeholders})
+               AND pp.status = ?`,
+            [
+              STATUS.PRODUCTION_PLAN.MATERIAL_ISSUED,
+              ...batchTaskIds,
+              STATUS.PRODUCTION_PLAN.PREPARING,
+            ]
+          );
+        }
+      }
+
       // ========== 重要：在检查缺料并确定最终状态后，才创建生产过程记录 ==========
       // 使用 ProductionProcessService 统一处理生产过程创建逻辑
       if (referenceId && referenceType === 'production_task') {
@@ -2350,6 +2665,34 @@ const updateOutboundStatus = async (req, res) => {
         } catch (processError) {
           logger.error('创建生产过程记录失败:', processError);
           // 不阻止主流程继续执行
+        }
+      }
+
+      if (referenceType === 'batch_production_tasks' && batchTaskIds.length > 0) {
+        try {
+          const placeholders = batchTaskIds.map(() => '?').join(',');
+          const [taskStatuses] = await connection.execute(
+            `SELECT id, status
+             FROM production_tasks
+             WHERE id IN (${placeholders})`,
+            batchTaskIds
+          );
+          const ProductionProcessService = require('../../../services/business/ProductionProcessService');
+
+          for (const task of taskStatuses) {
+            const processRemarks =
+              task.status === STATUS.PRODUCTION_TASK.MATERIAL_PARTIAL_ISSUED
+                ? '批量出库单部分完成后自动创建（部分发料）'
+                : '批量出库单完成后自动创建';
+            await ProductionProcessService.createProductionProcessIfNeeded(
+              connection,
+              task.id,
+              task.status,
+              processRemarks
+            );
+          }
+        } catch (processError) {
+          logger.error('批量发料创建生产过程记录失败:', processError);
         }
       }
 
@@ -2400,7 +2743,7 @@ const updateOutboundStatus = async (req, res) => {
           [id]
         );
 
-        if (outboundData.length > 0) {
+        if (outboundData.length > 0 && outboundData[0].status === STATUS.OUTBOUND.COMPLETED) {
           const outbound = outboundData[0];
 
           // 异步创建成本分录
@@ -2711,10 +3054,17 @@ const batchOutbound = async (req, res) => {
       `SELECT
         pt.id, pt.code, pt.plan_id, pt.product_id, pt.quantity,
         p.code as product_code, p.name as product_name,
-        bm.id as bom_id
+        (
+          SELECT latest_bm.id
+          FROM bom_masters latest_bm
+          WHERE latest_bm.product_id = pt.product_id
+            AND latest_bm.approved_by IS NOT NULL
+            AND latest_bm.deleted_at IS NULL
+          ORDER BY latest_bm.id DESC
+          LIMIT 1
+        ) as bom_id
       FROM production_tasks pt
       LEFT JOIN materials p ON pt.product_id = p.id
-      LEFT JOIN bom_masters bm ON p.id = bm.product_id AND bm.approved_by IS NOT NULL
       WHERE pt.id IN (${placeholders}) AND pt.status IN ('pending', 'allocated', 'preparing')`,
       task_ids
     );
@@ -2868,11 +3218,14 @@ const batchOutbound = async (req, res) => {
 
       await connection.execute(
         `INSERT INTO inventory_outbound_items
-          (outbound_id, material_id, quantity, unit_id, source_tasks, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+          (outbound_id, material_id, quantity, planned_quantity, actual_quantity,
+           shortage_quantity, is_shortage, unit_id, source_tasks, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, NOW(), NOW())`,
         [
           outboundId,
           material.material_id,
+          material.quantity,
+          material.quantity,
           material.quantity,
           unit_id,
           JSON.stringify(material.source_tasks),
@@ -3170,6 +3523,392 @@ const batchDeleteOutbound = async (req, res) => {
  */
 
 
+const cancelOutboundReissue = async (req, res) => {
+  const connection = await db.pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const { id } = req.params;
+    const { force, createReissue = true } = req.body || {};
+
+    const [rows] = await connection.execute(
+      `SELECT
+         id, status, reference_id, reference_type, outbound_no, outbound_type,
+         production_task_id, source_task_ids, is_batch_outbound, remark
+       FROM inventory_outbound
+       WHERE id = ?`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
+    }
+
+    const outbound = rows[0];
+    const { status, reference_id, reference_type, outbound_no } = outbound;
+    const batchTaskIds =
+      reference_type === 'batch_production_tasks'
+        ? parseSourceTaskIds(outbound.source_task_ids)
+        : [];
+    if (![STATUS.OUTBOUND.COMPLETED, STATUS.OUTBOUND.PARTIAL_COMPLETED].includes(status)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '只能撤销已完成或部分完成的出库单', 'BAD_REQUEST', 400);
+    }
+
+    const prohibitedStatuses = ['inspection', 'quality_passed', 'completed', 'warehoused'];
+    const warningStatuses = ['in_progress'];
+
+    if (reference_id && reference_type === 'production_task') {
+      const [taskCheck] = await connection.execute(
+        'SELECT status, code FROM production_tasks WHERE id = ?',
+        [reference_id]
+      );
+
+      if (taskCheck.length > 0) {
+        const taskStatus = taskCheck[0].status;
+        const taskCode = taskCheck[0].code;
+        if (prohibitedStatuses.includes(taskStatus)) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            `无法撤销：关联的生产任务 ${taskCode} 已进入 ${taskStatus} 状态`,
+            'BAD_REQUEST',
+            400
+          );
+        }
+
+        if (warningStatuses.includes(taskStatus) && !force) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            `警告：关联的生产任务 ${taskCode} 正在生产中。如确需撤销，请使用强制撤销。`,
+            'NEED_CONFIRM',
+            409,
+            { needConfirm: true, taskStatus, taskCode }
+          );
+        }
+      }
+    }
+
+    if (reference_id && reference_type === 'production_plan') {
+      const [planCheck] = await connection.execute(
+        'SELECT status, code FROM production_plans WHERE id = ?',
+        [reference_id]
+      );
+
+      if (planCheck.length > 0) {
+        const planStatus = planCheck[0].status;
+        const planCode = planCheck[0].code;
+        if (prohibitedStatuses.includes(planStatus)) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            `无法撤销：关联的生产计划 ${planCode} 已进入 ${planStatus} 状态`,
+            'BAD_REQUEST',
+            400
+          );
+        }
+
+        if (warningStatuses.includes(planStatus) && !force) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            `警告：关联的生产计划 ${planCode} 正在生产中。如确需撤销，请使用强制撤销。`,
+            'NEED_CONFIRM',
+            409,
+            { needConfirm: true, planStatus, planCode }
+          );
+        }
+      }
+    }
+
+    if (reference_type === 'batch_production_tasks') {
+      if (batchTaskIds.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '批量发料单缺少来源生产任务，无法安全撤销重发', 'BAD_REQUEST', 400);
+      }
+
+      const placeholders = batchTaskIds.map(() => '?').join(',');
+      const [taskRows] = await connection.execute(
+        `SELECT id, status, code
+         FROM production_tasks
+         WHERE id IN (${placeholders})
+         FOR UPDATE`,
+        batchTaskIds
+      );
+
+      if (taskRows.length !== batchTaskIds.length) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '批量发料单的部分来源生产任务不存在', 'BAD_REQUEST', 400);
+      }
+
+      const blockedTask = taskRows.find((task) => prohibitedStatuses.includes(task.status));
+      if (blockedTask) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `无法撤销：批量来源生产任务 ${blockedTask.code} 已进入 ${blockedTask.status} 状态`,
+          'BAD_REQUEST',
+          400
+        );
+      }
+
+      const inProgressTasks = taskRows.filter((task) => warningStatuses.includes(task.status));
+      if (inProgressTasks.length > 0 && !force) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `警告：${inProgressTasks.length} 个批量来源生产任务正在生产中。如确需撤销，请使用强制撤销。`,
+          'NEED_CONFIRM',
+          409,
+          { needConfirm: true, tasks: inProgressTasks }
+        );
+      }
+    }
+
+    const [alreadyReversed] = await connection.execute(
+      `SELECT COUNT(*) AS count
+       FROM inventory_ledger
+       WHERE reference_no = ? AND transaction_type = 'outbound_cancel' AND quantity > 0`,
+      [outbound_no]
+    );
+
+    if (Number(alreadyReversed[0]?.count || 0) > 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '该出库单已有冲销流水，禁止重复撤销', 'BAD_REQUEST', 400);
+    }
+
+    const [ledgerRows] = await connection.execute(
+      `SELECT
+         il.id,
+         il.material_id,
+         COALESCE(il.location_id, m.location_id) AS location_id,
+         COALESCE(il.unit_id, m.unit_id) AS unit_id,
+         il.batch_number,
+         ABS(il.quantity) AS qty,
+         il.reference_no
+       FROM inventory_ledger il
+       LEFT JOIN materials m ON il.material_id = m.id
+       WHERE il.quantity < 0
+         AND (il.reference_no = ? OR il.reference_no LIKE ?)
+       ORDER BY il.id ASC`,
+      [outbound_no, `${outbound_no}-%`]
+    );
+
+    if (ledgerRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '找不到该出库单的实际出库流水，无法安全撤销重发',
+        'BAD_REQUEST',
+        400
+      );
+    }
+
+    const operator = await getCurrentUserName(req);
+    let reversedLedgerCount = 0;
+    let reversedQuantity = 0;
+
+    for (const ledger of ledgerRows) {
+      const qty = parseFloat(ledger.qty) || 0;
+      if (qty <= 0) continue;
+      if (!ledger.location_id) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `台账 ${ledger.id} 缺少库位，无法安全冲回`,
+          'BAD_REQUEST',
+          400
+        );
+      }
+
+      await InventoryService.updateStock(
+        {
+          materialId: ledger.material_id,
+          locationId: ledger.location_id,
+          quantity: qty,
+          transactionType: 'outbound_cancel',
+          referenceNo: outbound_no,
+          referenceType: 'outbound_reversal',
+          operator,
+          remark: `Reverse outbound ${outbound_no}; source ledger ${ledger.id}`,
+          unitId: ledger.unit_id,
+          batchNumber: ledger.batch_number || `REV-${outbound_no}-${ledger.id}`,
+        },
+        connection
+      );
+
+      reversedLedgerCount += 1;
+      reversedQuantity += qty;
+    }
+
+    await connection.execute(
+      `UPDATE inventory_outbound
+       SET status = ?, remark = CONCAT(COALESCE(remark, ''), ?), updated_at = NOW()
+       WHERE id = ?`,
+      [STATUS.OUTBOUND.REVERSED, ` [Reversed by ${operator}]`, id]
+    );
+
+    const affectedTaskIds =
+      reference_type === 'production_task' && reference_id
+        ? [reference_id]
+        : batchTaskIds;
+    await cleanupOutboundSideEffects(connection, id, outbound_no, affectedTaskIds);
+
+    let reissueOutbound = null;
+    const isBatchReissue =
+      reference_type === 'batch_production_tasks' && batchTaskIds.length > 0;
+    const canCreateReissue =
+      createReissue !== false &&
+      ((reference_id &&
+        (reference_type === 'production_task' || reference_type === 'production_plan')) ||
+        isBatchReissue);
+
+    if (canCreateReissue) {
+      const newOutboundNo = await CodeGenerators.generateInventoryOutboundCode(connection);
+      const productionTaskId =
+        reference_type === 'production_task'
+          ? reference_id
+          : outbound.production_task_id || null;
+
+      let insertResult;
+      let bomResult;
+
+      if (isBatchReissue) {
+        [insertResult] = await connection.execute(
+          `INSERT INTO inventory_outbound
+            (outbound_no, outbound_date, status, outbound_type, operator, remark,
+             reference_type, source_task_ids, is_batch_outbound, created_at, updated_at)
+           VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+          [
+            newOutboundNo,
+            STATUS.OUTBOUND.DRAFT,
+            outbound.outbound_type || 'batch_issue',
+            operator,
+            `Reissue generated from reversed batch outbound ${outbound_no}. Verify latest BOM before completing.`,
+            'batch_production_tasks',
+            JSON.stringify(batchTaskIds),
+          ]
+        );
+
+        bomResult = await fetchBatchBomItemsForOutbound(
+          connection,
+          insertResult.insertId,
+          batchTaskIds
+        );
+      } else {
+        [insertResult] = await connection.execute(
+          `INSERT INTO inventory_outbound
+            (outbound_no, outbound_date, status, outbound_type, operator, remark,
+             reference_id, reference_type, production_task_id, created_at, updated_at)
+           VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          [
+            newOutboundNo,
+            STATUS.OUTBOUND.DRAFT,
+            outbound.outbound_type || 'bom_issue',
+            operator,
+            `Reissue generated from reversed outbound ${outbound_no}. Verify latest BOM before completing.`,
+            reference_id,
+            reference_type,
+            productionTaskId,
+          ]
+        );
+
+        bomResult = await fetchBomItemsForOutbound(
+          connection,
+          insertResult.insertId,
+          reference_type,
+          reference_id
+        );
+      }
+
+      if (!bomResult.success) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `已准备冲销，但无法按最新BOM生成新出库单: ${bomResult.error}`,
+          'BAD_REQUEST',
+          400
+        );
+      }
+
+      reissueOutbound = {
+        id: insertResult.insertId,
+        outbound_no: newOutboundNo,
+        itemCount: bomResult.itemCount,
+      };
+    }
+
+    if (affectedTaskIds.length > 0) {
+      const placeholders = affectedTaskIds.map(() => '?').join(',');
+      await connection.execute(
+        `UPDATE production_tasks
+         SET status = ?, updated_at = NOW()
+         WHERE id IN (${placeholders})
+           AND status IN (?, ?)`,
+        [
+          STATUS.PRODUCTION_TASK.PREPARING,
+          ...affectedTaskIds,
+          STATUS.PRODUCTION_TASK.MATERIAL_ISSUED,
+          STATUS.PRODUCTION_TASK.MATERIAL_PARTIAL_ISSUED,
+        ]
+      );
+
+      await connection.execute(
+        `UPDATE production_plans pp
+         JOIN production_tasks pt ON pt.plan_id = pp.id
+         SET pp.status = ?, pp.updated_at = NOW()
+         WHERE pt.id IN (${placeholders})
+           AND pp.status = ?`,
+        [
+          STATUS.PRODUCTION_PLAN.PREPARING,
+          ...affectedTaskIds,
+          STATUS.PRODUCTION_PLAN.MATERIAL_ISSUED,
+        ]
+      );
+    }
+
+    if (reference_id && reference_type === 'production_plan') {
+      const [planCheck] = await connection.execute(
+        'SELECT status FROM production_plans WHERE id = ?',
+        [reference_id]
+      );
+      if (planCheck[0]?.status === STATUS.PRODUCTION_PLAN.MATERIAL_ISSUED) {
+        await connection.execute('UPDATE production_plans SET status = ? WHERE id = ?', [
+          STATUS.PRODUCTION_PLAN.PREPARING,
+          reference_id,
+        ]);
+      }
+    }
+
+    await connection.commit();
+
+    const financeReversal = await reversePostedGLEntriesForOutbound(outbound_no, operator);
+
+    return ResponseHandler.success(
+      res,
+      {
+        id,
+        outbound_no,
+        reversedLedgerCount,
+        reversedQuantity,
+        reissueOutbound,
+        financeReversal,
+      },
+      reissueOutbound
+        ? '撤销重发成功，已按最新BOM生成新的草稿出库单'
+        : '撤销成功，库存已冲回'
+    );
+  } catch (error) {
+    await connection.rollback();
+    logger.error('撤销重发失败:', error);
+    return ResponseHandler.error(res, '撤销重发失败', 'SERVER_ERROR', 500, error);
+  } finally {
+    connection.release();
+  }
+};
+
 module.exports = {
   getOutboundList,
   getOutboundDetail,
@@ -3177,7 +3916,7 @@ module.exports = {
   _createOutbound,
   createOutbound,
   deleteOutbound,
-  cancelOutbound,
+  cancelOutbound: cancelOutboundReissue,
   fetchBomItemsForOutbound,
   updateOutboundStatus,
   supplementOutbound,

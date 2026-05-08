@@ -382,7 +382,6 @@ const financeController = {
         document_number,
         period_id,
         description,
-        created_by,
         items,
         voucher_word, // Extract voucher_word
       } = req.body;
@@ -393,7 +392,7 @@ const financeController = {
       }
 
       // 自动推断 created_by：优先从数据库获取真实姓名
-      const resolvedCreatedBy = created_by || await getCurrentUserName(req);
+      const resolvedCreatedBy = getAuthenticatedUserId(req);
 
       // 自动推断 period_id：优先使用请求体中的值，否则根据 entry_date 自动查找对应的开放会计期间
       let resolvedPeriodId = period_id;
@@ -531,7 +530,25 @@ const financeController = {
       );
     } catch (error) {
       logger.error('创建会计分录失败:', error);
-      ResponseHandler.error(res, '创建会计分录失败', 'SERVER_ERROR', 500, error);
+      const businessMessages = [
+        '不能',
+        '不能为空',
+        '不平衡',
+        '长度不能超过',
+        '不存在',
+        '未找到',
+        'outside accounting period',
+        'Accounting period',
+        'Posted entry date',
+      ];
+      const isBusinessError = businessMessages.some((message) => error.message.includes(message));
+      ResponseHandler.error(
+        res,
+        error.message || '创建会计分录失败',
+        isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isBusinessError ? 400 : 500,
+        error
+      );
     }
   },
 
@@ -644,12 +661,19 @@ const financeController = {
     } catch (error) {
       logger.error('过账会计分录失败:', error);
       // 将模型层的业务错误（如"不能在已关闭的期间过账"）返回给前端
-      const isBusinessError = error.message.includes('不能') ||
-                              error.message.includes('已过账') ||
-                              error.message.includes('不存在') ||
-                              error.message.includes('已冲销');
+      const isBusinessError =
+        error.message.includes('不能') ||
+        error.message.includes('已过账') ||
+        error.message.includes('不存在') ||
+        error.message.includes('已冲销');
       const statusCode = isBusinessError ? 400 : 500;
-      ResponseHandler.error(res, error.message || '过账会计分录失败', 'POST_ERROR', statusCode, error);
+      ResponseHandler.error(
+        res,
+        error.message || '过账会计分录失败',
+        'POST_ERROR',
+        statusCode,
+        error
+      );
     }
   },
 
@@ -661,11 +685,10 @@ const financeController = {
       const { id } = req.params;
       const { entry_date, posting_date, period_id, description } = req.body;
 
-      // 验证必填字段（entry_number 由后端自动生成，无需前端传入）
-      if (!entry_date || !posting_date || !period_id) {
+      if (!entry_date) {
         return ResponseHandler.error(
           res,
-          '冲销日期、过账日期、会计期间为必填项',
+          '冲销日期为必填项',
           'VALIDATION_ERROR',
           400
         );
@@ -683,11 +706,11 @@ const financeController = {
       }
 
       // 使用当前登录用户的真实姓名作为创建人
-      const createdBy = await getCurrentUserName(req);
+      const createdBy = getAuthenticatedUserId(req);
 
       const reversalEntryId = await financeModel.reverseEntry(id, {
         entry_date,
-        posting_date,
+        posting_date: posting_date || entry_date,
         period_id,
         description,
         created_by: createdBy,
@@ -699,11 +722,30 @@ const financeController = {
           message: '会计分录冲销成功',
           reversal_entry_id: reversalEntryId,
         },
-        '冲销成功'
+        '冲销成功，反向凭证已过账'
       );
     } catch (error) {
       logger.error('冲销会计分录失败:', error);
-      ResponseHandler.error(res, '冲销会计分录失败', 'SERVER_ERROR', 500, error);
+      const businessMessages = [
+        '不能',
+        '未过账',
+        '已冲销',
+        '不在会计期间',
+        '未匹配到同一个会计期间',
+        '会计期间不存在',
+        '没有明细',
+        '找不到',
+        '格式必须为',
+        '不是有效日期',
+      ];
+      const isBusinessError = businessMessages.some((message) => error.message.includes(message));
+      ResponseHandler.error(
+        res,
+        error.message || '冲销会计分录失败',
+        isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isBusinessError ? 400 : 500,
+        error
+      );
     }
   },
 
@@ -724,8 +766,15 @@ const financeController = {
     } catch (error) {
       logger.error('删除会计分录失败:', error);
       // 将业务错误信息（如"已过账不能删除"）返回给前端
-      const statusCode = error.message.includes('不能删除') || error.message.includes('不存在') ? 400 : 500;
-      ResponseHandler.error(res, error.message || '删除会计分录失败', 'DELETE_ERROR', statusCode, error);
+      const statusCode =
+        error.message.includes('不能删除') || error.message.includes('不存在') ? 400 : 500;
+      ResponseHandler.error(
+        res,
+        error.message || '删除会计分录失败',
+        'DELETE_ERROR',
+        statusCode,
+        error
+      );
     }
   },
 
@@ -736,11 +785,18 @@ const financeController = {
    */
   getAllPeriods: async (req, res) => {
     try {
-      const periods = await financeModel.getAllPeriods();
-      ResponseHandler.success(res, { periods }, '获取会计期间列表成功');
+      const result = await financeModel.getAllPeriods(req.query || {});
+      ResponseHandler.success(res, result, '获取会计期间列表成功');
     } catch (error) {
       logger.error('获取会计期间失败:', error);
-      ResponseHandler.error(res, '获取会计期间失败', 'SERVER_ERROR', 500, error);
+      const statusCode = /must be/i.test(error.message || '') ? 400 : 500;
+      ResponseHandler.error(
+        res,
+        error.message || '获取会计期间失败',
+        statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        statusCode,
+        error
+      );
     }
   },
 
@@ -768,7 +824,7 @@ const financeController = {
    */
   createPeriod: async (req, res) => {
     try {
-      const { period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year } = req.body;
+      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = req.body;
 
       // 验证必填字段
       if (!period_name || !start_date || !end_date || !fiscal_year) {
@@ -789,7 +845,6 @@ const financeController = {
         period_name,
         start_date,
         end_date,
-        is_closed,
         is_adjusting,
         fiscal_year,
       });
@@ -805,7 +860,14 @@ const financeController = {
       );
     } catch (error) {
       logger.error('创建会计期间失败:', error);
-      ResponseHandler.error(res, '创建会计期间失败', 'SERVER_ERROR', 500, error);
+      const statusCode = /overlaps|must|required|date/i.test(error.message || '') ? 400 : 500;
+      ResponseHandler.error(
+        res,
+        error.message || '创建会计期间失败',
+        statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        statusCode,
+        error
+      );
     }
   },
 
@@ -816,6 +878,60 @@ const financeController = {
    *   2. 损益自动结转（收入/费用/成本 -> 本年利润）
    *   3. 期末余额快照计算
    */
+  updatePeriod: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = req.body;
+
+      if (!period_name || !start_date || !end_date || !fiscal_year) {
+        return ResponseHandler.error(
+          res,
+          'period_name, start_date, end_date and fiscal_year are required',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      if (new Date(start_date) > new Date(end_date)) {
+        return ResponseHandler.error(
+          res,
+          'start_date cannot be after end_date',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      const success = await financeModel.updatePeriod(id, {
+        period_name,
+        start_date,
+        end_date,
+        is_adjusting,
+        fiscal_year,
+      });
+
+      if (!success) {
+        return ResponseHandler.error(
+          res,
+          'Accounting period update failed',
+          'OPERATION_FAILED',
+          400
+        );
+      }
+
+      return ResponseHandler.success(res, { id }, 'Accounting period updated successfully');
+    } catch (error) {
+      logger.error('Update accounting period failed:', error);
+      const statusCode = /not found|cannot|overlaps/i.test(error.message || '') ? 400 : 500;
+      return ResponseHandler.error(
+        res,
+        error.message || 'Update accounting period failed',
+        'PERIOD_UPDATE_ERROR',
+        statusCode,
+        error
+      );
+    }
+  },
+
   closePeriod: async (req, res) => {
     try {
       const { id } = req.params;
@@ -927,7 +1043,8 @@ const financeController = {
         return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
       }
 
-      const result = await financeModel.getClosingPreview(parseInt(id));
+      const PeriodEndService = require('../../../services/business/PeriodEndService');
+      const result = await PeriodEndService.getClosingPreview(parseInt(id));
 
       ResponseHandler.success(res, result, '获取期末结转预览成功');
     } catch (error) {
@@ -963,7 +1080,16 @@ const financeController = {
     } catch (error) {
       logger.error('执行期末结转失败:', error);
       const message = error.message || '执行期末结转失败';
-      ResponseHandler.error(res, message, 'SERVER_ERROR', 500, error);
+      const statusCode = /不存在|已|未|不|不能|must|period|balance|closing/i.test(message)
+        ? 400
+        : 500;
+      ResponseHandler.error(
+        res,
+        message,
+        statusCode === 400 ? 'PERIOD_CLOSE_ERROR' : 'SERVER_ERROR',
+        statusCode,
+        error
+      );
     }
   },
 

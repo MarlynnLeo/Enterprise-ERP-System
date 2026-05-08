@@ -5,7 +5,7 @@
         <div class="card-header">
           <span>资产盘点管理</span>
           <div class="header-actions">
-            <el-button type="primary" :icon="Plus" @click="showAddDialog">新建盘点</el-button>
+            <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新建盘点</el-button>
           </div>
         </div>
       </template>
@@ -92,7 +92,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitCreate" :loading="submitLoading">确认创建</el-button>
+          <el-button v-permission="'finance:assets:create'" type="primary" @click="submitCreate" :loading="submitLoading">确认创建</el-button>
         </span>
       </template>
     </el-dialog>
@@ -167,7 +167,8 @@
           </el-table-column>
           <el-table-column label="操作" width="100" fixed="right" v-if="detailData.status === '进行中'">
             <template #default="scope">
-              <el-button 
+              <el-button
+                v-permission="'finance:assets:update'"
                 type="success" 
                 size="small" 
                 link 
@@ -184,7 +185,8 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailVisible = false">关闭</el-button>
-          <el-button 
+          <el-button
+            v-permission="'finance:assets:update'"
             type="primary" 
             v-if="detailData.status === '进行中'"
             @click="completeInventory" 

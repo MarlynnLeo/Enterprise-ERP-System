@@ -60,7 +60,7 @@
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要启用该角色吗？"
-                  @confirm="handleToggleRoleStatus(scope.row)"
+                  @confirm="handleToggleMenuStatus(scope.row)"
                 >
                   <template #reference>
                     <el-button size="small" type="success" v-permission="'system:permissions:manage'">
@@ -71,7 +71,7 @@
                 <el-popconfirm
                   v-if="String(scope.row.status) === '1'"
                   title="确定要禁用该角色吗？"
-                  @confirm="handleToggleRoleStatus(scope.row)"
+                  @confirm="handleToggleMenuStatus(scope.row)"
                   confirm-button-type="danger"
                 >
                   <template #reference>
@@ -270,7 +270,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="roleDialogVisible = false">{{ roleIsViewMode ? '关闭' : '取消' }}</el-button>
-          <el-button v-if="!roleIsViewMode" type="primary" @click="saveRole" :loading="roleSaveLoading">确认</el-button>
+          <el-button v-if="!roleIsViewMode" v-permission="'system:permissions:manage'" type="primary" @click="saveRole" :loading="roleSaveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -476,7 +476,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="menuDialogVisible = false">{{ menuIsViewMode ? '关闭' : '取消' }}</el-button>
-          <el-button v-if="!menuIsViewMode" type="primary" @click="saveMenu" :loading="menuSaveLoading">确认</el-button>
+          <el-button v-if="!menuIsViewMode" v-permission="'system:permissions:manage'" type="primary" @click="saveMenu" :loading="menuSaveLoading">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -930,6 +930,19 @@ const handleToggleRoleStatus = async (row) => {
   } catch (error) {
     console.error(`${statusText}失败:`, error);
     ElMessage.error(`${statusText}失败`);
+  }
+};
+// 切换菜单显示状态（菜单状态不能复用角色接口）
+const handleToggleMenuStatus = async (row) => {
+  const statusText = String(row.status) === '1' ? '隐藏' : '显示';
+  const newStatus = String(row.status) === '1' ? 0 : 1;
+  try {
+    await systemApi.updateMenuStatus(row.id, { status: newStatus });
+    ElMessage.success(`${statusText}成功`);
+    loadMenus();
+  } catch (error) {
+    console.error(`${statusText}菜单失败:`, error);
+    ElMessage.error(error.response?.data?.message || `${statusText}失败`);
   }
 };
 // 分配权限

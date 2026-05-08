@@ -120,6 +120,7 @@
               size="small" 
               @click="confirmReceipt(row)"
               v-if="row.status === 'pending' || row.status === 'partial'"
+              v-permission="'quality:replacement:update'"
             >
               收货确认
             </el-button>
@@ -188,7 +189,7 @@
       </el-form>
       <template #footer>
         <el-button @click="receiptDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitReceipt">确认收货</el-button>
+        <el-button v-permission="'quality:replacement:update'" type="primary" @click="submitReceipt">确认收货</el-button>
       </template>
     </el-dialog>
 
@@ -255,6 +256,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/services/api'
+import { normalizePaginationData } from '@/utils/helpers/typeUtils'
 // 搜索表单
 const searchForm = reactive({
   replacementNo: '',
@@ -323,16 +325,9 @@ const fetchData = async () => {
     }
 
     const response = await api.get('/replacement-orders', { params })
-    // 后端 ResponseHandler 返回格式: { success, data, message }
-    // data 可能是数组(直接列表)或对象(含list+total的分页结构)
-    const resData = response.data?.data || response.data || {}
-    if (Array.isArray(resData)) {
-      tableData.value = resData
-      pagination.total = resData.length
-    } else {
-      tableData.value = resData.list || (Array.isArray(resData) ? resData : [])
-      pagination.total = Number(resData.total || resData.pagination?.total || 0)
-    }
+    const pageData = normalizePaginationData(response)
+    tableData.value = pageData.items
+    pagination.total = pageData.total
 
     // 获取统计数据
     await fetchStatistics()

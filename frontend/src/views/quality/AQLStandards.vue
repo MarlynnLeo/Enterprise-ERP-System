@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>AQL 抽样标准库</span>
-          <el-button type="primary" @click="handleAdd">
+          <el-button v-permission="'quality:settings:create'" type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>新增标准
           </el-button>
         </div>
@@ -85,8 +85,8 @@
         <el-table-column label="操作" fixed="right" min-width="150">
           <template #default="scope">
             <el-button size="small" type="primary" link @click="handleEdit(scope.row)"
-              v-permission="'quality:settings'">编辑</el-button>
-            <el-button v-permission="'quality:standards:delete'" size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
+              v-permission="'quality:settings:update'">编辑</el-button>
+            <el-button v-permission="'quality:settings:delete'" size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -177,7 +177,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmit" :loading="submitting">
+          <el-button v-permission="isEdit ? 'quality:settings:update' : 'quality:settings:create'" type="primary" @click="handleSubmit" :loading="submitting">
             确认
           </el-button>
         </span>

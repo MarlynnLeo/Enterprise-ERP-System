@@ -114,6 +114,38 @@
               <span v-else>{{ changeTypeMap[row.change_type] || row.change_type }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="BOM" min-width="220">
+            <template #default="{ row }">
+              <el-select
+                v-if="isEditable && ['bom_add','bom_remove','bom_modify'].includes(row.change_type)"
+                v-model="row.bom_id"
+                filterable
+                remote
+                reserve-keyword
+                :remote-method="searchBom"
+                :loading="bomSearching"
+                placeholder="搜索产品/BOM版本"
+                size="small"
+                style="width:100%"
+                @change="(val) => onBomSelect(row, val)"
+                @focus="() => searchBom('')"
+              >
+                <el-option
+                  v-if="row.bom_id && !bomOptions.find(o => o.id === row.bom_id)"
+                  :key="row.bom_id"
+                  :label="row.bom_label || `BOM#${row.bom_id}`"
+                  :value="row.bom_id"
+                />
+                <el-option
+                  v-for="b in bomOptions"
+                  :key="b.id"
+                  :label="b.label"
+                  :value="b.id"
+                />
+              </el-select>
+              <span v-else>{{ row.bom_label || (row.bom_id ? `BOM#${row.bom_id}` : '-') }}</span>
+            </template>
+          </el-table-column>
           <!-- 物料搜索选择器 -->
           <el-table-column label="物料" min-width="220">
             <template #default="{ row }">
@@ -157,7 +189,7 @@
                 </template>
                 <template v-else>
                   <el-option label="名称" value="name" />
-                  <el-option label="规格" value="specification" />
+                  <el-option label="规格" value="specs" />
                   <el-option label="安全库存" value="safety_stock" />
                   <el-option label="单价" value="price" />
                 </template>
@@ -202,6 +234,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { ecnApi } from '@/api/enhanced'
 import { baseDataApi } from '@/api/baseData'
+import { bomApi } from '@/api/bom'
 
 // 状态映射表
 const statusTypeMap = { draft:'info', pending_approval:'warning', approved:'success', implementing:'primary', completed:'success', rejected:'danger', cancelled:'info' }
@@ -221,7 +254,59 @@ const formData = ref({})
 // 物料搜索相关
 const materialSearching = ref(false)
 const materialOptions = ref([])
+const bomSearching = ref(false)
+const bomOptions = ref([])
 let searchTimer = null
+let bomSearchTimer = null
+
+const normalizeList = (response) => {
+  const data = response?.data || response || {}
+  return data.list || data.data || data || []
+}
+
+const searchBom = (query = '') => {
+  if (bomSearchTimer) clearTimeout(bomSearchTimer)
+  bomSearchTimer = setTimeout(async () => {
+    bomSearching.value = true
+    try {
+      const res = await bomApi.getBoms({ keyword: query, page: 1, pageSize: 50 })
+      bomOptions.value = normalizeList(res).map(b => ({
+        id: b.id,
+        code: b.code || `BOM#${b.id}`,
+        version: b.version,
+        product_code: b.product_code,
+        product_name: b.product_name,
+        label: `${b.product_code || ''} ${b.product_name || ''} ${b.version || ''}`.trim() || `BOM#${b.id}`
+      }))
+    } catch {
+      bomOptions.value = []
+    } finally {
+      bomSearching.value = false
+    }
+  }, 250)
+}
+
+const onBomSelect = async (row, bomId) => {
+  const bom = bomOptions.value.find(o => o.id === bomId)
+  if (bom) {
+    row.bom_label = bom.label
+  }
+  row.material_id = null
+  row.material_code = ''
+  row.material_name = ''
+  if (!bomId) return
+  try {
+    const res = await bomApi.getBomDetails(bomId)
+    const details = normalizeList(res)
+    materialOptions.value = details.map(d => ({
+      id: d.material_id,
+      code: d.material_code,
+      name: d.material_name
+    })).filter(m => m.id)
+  } catch {
+    materialOptions.value = []
+  }
+}
 
 // 物料远程搜索
 const searchMaterial = (query) => {
@@ -231,8 +316,7 @@ const searchMaterial = (query) => {
     materialSearching.value = true
     try {
       const res = await baseDataApi.getMaterials({ keyword: query, page: 1, pageSize: 20 })
-      const data = res.data || res
-      materialOptions.value = (data.list || data || []).map(m => ({
+      materialOptions.value = normalizeList(res).map(m => ({
         id: m.id,
         code: m.code,
         name: m.name
@@ -276,6 +360,7 @@ const fetchList = async () => {
 // 新建表单
 const openForm = () => {
   formData.value = { type: 'ecn', priority: 'medium', title: '', reason: '', items: [] }
+  searchBom()
   formVis.value = true
 }
 
@@ -317,7 +402,7 @@ const handleUpdate = async () => {
 // 提交审批
 const submitForApproval = async (row) => {
   try { await ecnApi.updateStatus(row.id, 'pending_approval'); ElMessage.success('已提交审批'); fetchList() }
-  catch { ElMessage.error('提交失败') }
+  catch (e) { ElMessage.error(e.message || '提交失败') }
 }
 
 // 状态流转（开始实施/完成/退回草稿）
@@ -345,10 +430,11 @@ const addItem = () => {
   if (!formData.value.items) formData.value.items = []
   formData.value.items.push({
     change_type: 'bom_modify',
+    bom_id: null,
+    bom_label: '',
     material_id: null,
     material_code: '',
     material_name: '',
-    bom_id: null,
     field_name: '',
     old_value: '',
     new_value: '',

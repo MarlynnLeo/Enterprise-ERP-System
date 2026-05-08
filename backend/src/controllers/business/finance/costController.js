@@ -9,6 +9,40 @@ const db = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
+const { parsePagination } = require('../../../utils/safePagination');
+
+const saveStandardCostSnapshot = async (productId, standardCost = {}) => {
+  const normalizedProductId = parseInt(productId);
+  const connection = await db.pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    await connection.execute('DELETE FROM standard_costs WHERE product_id = ?', [normalizedProductId]);
+
+    const elements = [
+      ['material', standardCost.materialCost],
+      ['labor', standardCost.laborCost],
+      ['overhead', standardCost.overheadCost],
+    ];
+
+    for (const [element, amount] of elements) {
+      const value = parseFloat(amount) || 0;
+      if (value <= 0) continue;
+
+      await connection.execute(
+        'INSERT INTO standard_costs (product_id, cost_element, standard_price, effective_date, is_active, created_at) VALUES (?, ?, ?, CURDATE(), 1, NOW())',
+        [normalizedProductId, element, value]
+      );
+    }
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
 
 const costController = {
   /**
@@ -300,50 +334,32 @@ const costController = {
         parseFloat(quantity)
       );
 
-      // 保存标准成本到数据库
-      try {
-        // result.standardCost 包含 materialCost, laborCost, overheadCost, totalCost, unitCost
-        const sc = result.standardCost || {};
-        const connection = await db.pool.getConnection();
-        try {
-          await connection.beginTransaction();
-          // 删除属于该产品的旧标准成本
-          await connection.execute('DELETE FROM standard_costs WHERE product_id = ?', [productId]);
-
-          if (sc.materialCost > 0) {
-            await connection.execute(
-              'INSERT INTO standard_costs (product_id, cost_element, standard_price, effective_date, is_active, created_at) VALUES (?, ?, ?, CURDATE(), 1, NOW())',
-              [productId, 'material', sc.materialCost]
-            );
-          }
-          if (sc.laborCost > 0) {
-            await connection.execute(
-              'INSERT INTO standard_costs (product_id, cost_element, standard_price, effective_date, is_active, created_at) VALUES (?, ?, ?, CURDATE(), 1, NOW())',
-              [productId, 'labor', sc.laborCost]
-            );
-          }
-          if (sc.overheadCost > 0) {
-            await connection.execute(
-              'INSERT INTO standard_costs (product_id, cost_element, standard_price, effective_date, is_active, created_at) VALUES (?, ?, ?, CURDATE(), 1, NOW())',
-              [productId, 'overhead', sc.overheadCost]
-            );
-          }
-          await connection.commit();
-          logger.info(`标准成本已保存: 产品ID=${productId}, 总成本=${sc.totalCost}`);
-        } catch (saveError) {
-          await connection.rollback();
-          throw saveError;
-        } finally {
-          connection.release();
-        }
-      } catch (saveError) {
-        logger.warn('保存标准成本失败:', saveError.message);
-      }
-
       ResponseHandler.success(res, result);
     } catch (error) {
-      logger.error('获取标准成本失败:', error);
-      ResponseHandler.error(res, error.message || '获取标准成本失败', 'SERVER_ERROR', 500);
+      logger.error('Failed to calculate standard cost:', error);
+      ResponseHandler.error(res, error.message || 'Failed to calculate standard cost', 'SERVER_ERROR', 500);
+    }
+  },
+
+  calculateAndSaveStandardCost: async (req, res) => {
+    try {
+      const { productId } = req.params;
+      const { quantity = 1, multiLevel = false } = req.body || {};
+
+      const result = await CostAccountingService.calculateStandardCost(
+        parseInt(productId),
+        parseFloat(quantity),
+        { multiLevel }
+      );
+
+      const standardCost = result.standardCost || {};
+      await saveStandardCostSnapshot(productId, standardCost);
+
+      logger.info(`Standard cost saved: productId=${productId}, totalCost=${standardCost.totalCost || 0}`);
+      ResponseHandler.success(res, result);
+    } catch (error) {
+      logger.error('Failed to calculate and save standard cost:', error);
+      ResponseHandler.error(res, error.message || 'Failed to calculate and save standard cost', 'SERVER_ERROR', 500);
     }
   },
 
@@ -352,8 +368,11 @@ const costController = {
    */
   getStandardCostList: async (req, res) => {
     try {
-      const { page = 1, pageSize = 20, productName, productCode } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(pageSize);
+      const { productName, productCode } = req.query;
+      const { page, pageSize, offset } = parsePagination(req.query.page, req.query.pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
       let whereClause = 'WHERE psc.is_active = 1';
       const params = [];
@@ -387,7 +406,7 @@ const costController = {
                     ${whereClause}
                     GROUP BY COALESCE(psc.product_id, psc.material_id), p.code, p.name
                     ORDER BY MAX(psc.updated_at) DESC, MAX(psc.id) DESC
-                    LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+                    LIMIT ${pageSize} OFFSET ${offset}
                 `,
           params
         );
@@ -405,8 +424,8 @@ const costController = {
       ResponseHandler.success(res, {
         items: rows,
         total: countResult[0].total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page,
+        pageSize,
       });
     } catch (error) {
       logger.error('获取标准成本列表失败:', error.stack || error.message);
@@ -730,14 +749,16 @@ const costController = {
    */
   getCostSettingsHistory: async (req, res) => {
     try {
-      const { page = 1, pageSize = 20 } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(pageSize);
+      const { page, pageSize } = parsePagination(req.query.page, req.query.pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
       const [rows] = await db.pool.query(`
                 SELECT * FROM cost_settings_history
-                ORDER BY changed_at DESC
-                LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
-            `, [parseInt(pageSize)]);
+                ORDER BY COALESCE(effective_from, created_at) DESC, id DESC
+                LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+            `);
 
       const [countResult] = await db.pool.execute(
         'SELECT COUNT(*) as total FROM cost_settings_history'
@@ -746,8 +767,8 @@ const costController = {
       ResponseHandler.success(res, {
         items: rows,
         total: countResult[0].total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page,
+        pageSize,
       });
     } catch (error) {
       logger.error('获取费率历史失败:', error);
@@ -811,37 +832,7 @@ const costController = {
 
           // 保存到数据库
           const sc = result.standardCost || {};
-          const connection = await db.pool.getConnection();
-          try {
-            await connection.beginTransaction();
-            // 删除属于该产品的旧标准成本
-            await connection.execute('DELETE FROM standard_costs WHERE product_id = ?', [productId]);
-
-            if (sc.materialCost > 0) {
-              await connection.execute(
-                'INSERT INTO standard_costs (product_id, cost_element, standard_price, effective_date, is_active, created_at) VALUES (?, ?, ?, CURDATE(), 1, NOW())',
-                [productId, 'material', sc.materialCost]
-              );
-            }
-            if (sc.laborCost > 0) {
-              await connection.execute(
-                'INSERT INTO standard_costs (product_id, cost_element, standard_price, effective_date, is_active, created_at) VALUES (?, ?, ?, CURDATE(), 1, NOW())',
-                [productId, 'labor', sc.laborCost]
-              );
-            }
-            if (sc.overheadCost > 0) {
-              await connection.execute(
-                'INSERT INTO standard_costs (product_id, cost_element, standard_price, effective_date, is_active, created_at) VALUES (?, ?, ?, CURDATE(), 1, NOW())',
-                [productId, 'overhead', sc.overheadCost]
-              );
-            }
-            await connection.commit();
-          } catch (saveError) {
-            await connection.rollback();
-            throw saveError;
-          } finally {
-            connection.release();
-          }
+          await saveStandardCostSnapshot(productId, sc);
 
           results.push({ productId, success: true, totalCost: sc.totalCost });
         } catch (err) {
@@ -1414,7 +1405,12 @@ const costController = {
    */
   saveSupplementReason: async (req, res) => {
     try {
-      const { id, reason_code, reason_name, is_included_in_cost, is_active } = req.body;
+      const { reason_code, reason_name } = req.body;
+      const isIncludedInCost = req.body.is_included_in_cost !== undefined
+        ? req.body.is_included_in_cost
+        : 1;
+      const isActive = req.body.is_active !== undefined ? req.body.is_active : 1;
+      const id = req.params.id || req.body.id;
       logger.info('Save Supplement Reason Body:', req.body);
 
       if (!reason_code || !reason_name) {
@@ -1427,14 +1423,14 @@ const costController = {
           `UPDATE cost_supplement_configs 
                      SET reason_code = ?, reason_name = ?, is_included_in_cost = ?, is_active = ?
                      WHERE id = ?`,
-          [reason_code, reason_name, is_included_in_cost, is_active, id]
+          [reason_code, reason_name, isIncludedInCost, isActive, id]
         );
       } else {
         // 新增
         await db.pool.execute(
           `INSERT INTO cost_supplement_configs (reason_code, reason_name, is_included_in_cost, is_active)
                      VALUES (?, ?, ?, ?)`,
-          [reason_code, reason_name, is_included_in_cost, is_active || 1]
+          [reason_code, reason_name, isIncludedInCost, isActive]
         );
       }
       return ResponseHandler.success(res, { message: '保存成功' });
@@ -1953,8 +1949,11 @@ const costController = {
    */
   getMaterialStandardCosts: async (req, res) => {
     try {
-      const { page = 1, pageSize = 20, is_active, material_code, material_name } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(pageSize);
+      const { is_active, material_code, material_name } = req.query;
+      const { page, pageSize, offset } = parsePagination(req.query.page, req.query.pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
       let whereClause = '1=1';
       const params = [];
@@ -2003,7 +2002,7 @@ const costController = {
                 LEFT JOIN materials m ON sc.material_id = m.id
                 WHERE ${whereClause} AND sc.material_id IS NOT NULL
                 ORDER BY sc.created_at DESC
-                LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+                LIMIT ${pageSize} OFFSET ${offset}
             `,
         params
       );
@@ -2011,8 +2010,8 @@ const costController = {
       ResponseHandler.success(res, {
         list,
         total: countResult[0].total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page,
+        pageSize,
       });
     } catch (error) {
       logger.error('获取物料标准成本列表失败:', error);

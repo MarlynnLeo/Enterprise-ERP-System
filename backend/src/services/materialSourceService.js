@@ -69,7 +69,7 @@ const materialSourceService = {
    */
   async getMaterialSourceById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM material_sources WHERE id = ?', [id]);
+      const [rows] = await pool.query('SELECT * FROM material_sources WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('getMaterialSourceById error:', error);
@@ -155,8 +155,10 @@ const materialSourceService = {
                     SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
                     SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as inactive,
                     SUM(CASE WHEN type = 'internal' THEN 1 ELSE 0 END) as internal,
-                    SUM(CASE WHEN type = 'external' THEN 1 ELSE 0 END) as external
+                    SUM(CASE WHEN type = 'external' THEN 1 ELSE 0 END) as external,
+                    SUM(CASE WHEN type = 'outsourced' THEN 1 ELSE 0 END) as outsourced
                 FROM material_sources
+                WHERE deleted_at IS NULL
             `);
       return stats[0];
     } catch (error) {

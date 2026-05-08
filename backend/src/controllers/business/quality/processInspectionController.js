@@ -11,6 +11,7 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 const processInspectionController = {
     // ==================== 过程检验规则配置 ====================
@@ -279,7 +280,10 @@ const processInspectionController = {
     async getProcessInspectionPunchList(req, res) {
         try {
             const { page = 1, pageSize = 20, startDate, endDate, inspector_id } = req.query;
-            const offset = (parseInt(page) - 1) * parseInt(pageSize);
+            const pagination = parsePagination(page, pageSize, {
+                defaultPageSize: 20,
+                maxPageSize: 200,
+            });
 
             let whereClause = 'WHERE 1=1';
             const params = [];
@@ -309,9 +313,8 @@ const processInspectionController = {
             const countRows = countResult.rows || countResult;
             const total = countRows[0]?.total || 0;
 
-            const actualPageSize = parseInt(pageSize);
             const result = await db.query(
-                `
+                appendPaginationSQL(`
         SELECT 
           pipr.*,
           qi.inspection_no, qi.product_name, qi.process_name, qi.status
@@ -319,8 +322,7 @@ const processInspectionController = {
         LEFT JOIN quality_inspections qi ON pipr.inspection_id = qi.id
         ${whereClause}
         ORDER BY pipr.punch_time DESC
-        LIMIT ${actualPageSize} OFFSET ${offset}
-      `,
+      `, pagination.limit, pagination.offset),
                 params
             );
 
@@ -329,8 +331,8 @@ const processInspectionController = {
                 {
                     list: result.rows || result || [],
                     total: total,
-                    page: parseInt(page),
-                    pageSize: parseInt(pageSize),
+                    page: pagination.page,
+                    pageSize: pagination.pageSize,
                 },
                 '获取打卡记录成功'
             );

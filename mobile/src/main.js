@@ -56,7 +56,7 @@ import './assets/styles/index.scss'
 import './styles/design-tokens.css'
 
 // Material Symbols 图标字体（本地化加载，避免 CDN 加载失败）
-import 'material-symbols/rounded.css'
+import 'material-symbols/sharp.css'
 
 const app = createApp(App)
 const pinia = createPinia()

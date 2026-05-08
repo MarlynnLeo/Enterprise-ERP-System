@@ -18,6 +18,92 @@ function requirePositiveInteger(value, fieldName) {
   return parsed;
 }
 
+const EDITABLE_BANK_STATUSES = new Set(['draft', 'rejected']);
+const AUDITABLE_BANK_STATUSES = new Set(['pending', 'reviewed']);
+const BANK_INFLOW_TYPES = new Set(['存款', '转入', '利息', '收入', 'income', 'deposit', 'transfer_in', 'interest']);
+const BANK_OUTFLOW_TYPES = new Set(['取款', '转出', '费用', '支出', 'expense', 'withdrawal', 'transfer_out', 'fee']);
+
+function normalizeStatus(status) {
+  return status || 'draft';
+}
+
+function normalizePositiveAmount(value, fieldName) {
+  const amount = Number.parseFloat(value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`${fieldName} must be greater than 0`);
+  }
+  return Math.round(amount * 100) / 100;
+}
+
+function getBankBalanceDelta(transactionType, amount) {
+  if (BANK_INFLOW_TYPES.has(transactionType)) return amount;
+  if (BANK_OUTFLOW_TYPES.has(transactionType)) return -amount;
+  logger.error(`未知的银行交易类型: ${transactionType}`);
+  throw new Error(`不支持的交易类型: ${transactionType}`);
+}
+
+async function applyApprovedTransactionToBalance(connection, transaction) {
+  const amount = normalizePositiveAmount(transaction.amount, 'amount');
+  const delta = getBankBalanceDelta(transaction.transaction_type, amount);
+
+  const [accounts] = await connection.execute(
+    'SELECT id, current_balance FROM bank_accounts WHERE id = ? AND is_active = 1 FOR UPDATE',
+    [transaction.bank_account_id]
+  );
+  if (accounts.length === 0) {
+    throw new Error(`银行账户ID ${transaction.bank_account_id} 不存在或已停用`);
+  }
+
+  const currentBalance = Number.parseFloat(accounts[0].current_balance || 0);
+  if (delta < 0 && currentBalance < Math.abs(delta)) {
+    throw new Error(
+      `账户余额不足，当前余额: ${currentBalance.toFixed(2)}, 交易金额: ${amount.toFixed(2)}`
+    );
+  }
+
+  await connection.execute(
+    'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?',
+    [delta, transaction.bank_account_id]
+  );
+
+  const [updatedAccount] = await connection.execute(
+    'SELECT current_balance FROM bank_accounts WHERE id = ?',
+    [transaction.bank_account_id]
+  );
+  return Number.parseFloat(updatedAccount[0]?.current_balance || 0);
+}
+
+function appendTransactionTypeFilter(whereParts, params, alias, transactionType) {
+  if (!transactionType) return;
+  const qualifiedColumn = alias ? `${alias}.transaction_type` : 'transaction_type';
+  if (Array.isArray(transactionType)) {
+    const normalizedTypes = transactionType.filter(Boolean);
+    if (normalizedTypes.length === 0) return;
+    whereParts.value += ` AND ${qualifiedColumn} IN (${normalizedTypes.map(() => '?').join(',')})`;
+    params.push(...normalizedTypes);
+    return;
+  }
+  whereParts.value += ` AND ${qualifiedColumn} = ?`;
+  params.push(transactionType);
+}
+
+function ensureEditableTransaction(transaction) {
+  const currentStatus = normalizeStatus(transaction.status);
+  if (!EDITABLE_BANK_STATUSES.has(currentStatus)) {
+    throw new Error(`Bank transaction status ${currentStatus} cannot be edited or deleted`);
+  }
+  if (transaction.is_reconciled === true || transaction.is_reconciled === 1 || transaction.is_reconciled === '1') {
+    throw new Error('Reconciled bank transactions cannot be edited or deleted');
+  }
+}
+
+function ensureAuditableTransaction(transaction) {
+  const currentStatus = normalizeStatus(transaction.status);
+  if (!AUDITABLE_BANK_STATUSES.has(currentStatus)) {
+    throw new Error(`Bank transaction status ${currentStatus} cannot be audited`);
+  }
+}
+
 class BankTransactionModel {
   /**
    * 创建银行交易
@@ -33,19 +119,21 @@ class BankTransactionModel {
         'bank_account_id'
       );
       const createdBy = requirePositiveInteger(transactionData.created_by, 'created_by');
+      const amount = normalizePositiveAmount(transactionData.amount, 'amount');
+      const initialStatus = transactionData.status === 'approved' ? 'approved' : 'draft';
 
       const [result] = await connection.execute(
         `INSERT INTO bank_transactions 
         (transaction_number, bank_account_id, transaction_date, transaction_type, 
          amount, reference_number, description, is_reconciled, 
-         reconciliation_date, related_party, category, payment_method, created_by) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         reconciliation_date, related_party, category, payment_method, created_by, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           transactionData.transaction_number,
           bankAccountId,
           transactionData.transaction_date,
           transactionData.transaction_type,
-          transactionData.amount,
+          amount,
           transactionData.reference_number || null,
           transactionData.description || null,
           transactionData.is_reconciled || false,
@@ -54,6 +142,7 @@ class BankTransactionModel {
           transactionData.category || null,
           transactionData.payment_method || null,
           createdBy,
+          initialStatus,
         ]
       );
 
@@ -61,49 +150,28 @@ class BankTransactionModel {
 
       // 检查银行账户是否存在
       const [bankAccounts] = await connection.execute(
-        'SELECT id, bank_name, account_name FROM bank_accounts WHERE id = ?',
+        'SELECT id, bank_name, account_name, current_balance, is_active FROM bank_accounts WHERE id = ? FOR UPDATE',
         [bankAccountId]
       );
       if (bankAccounts.length === 0) {
         throw new Error(`银行账户ID ${bankAccountId} 不存在`);
       }
       const bankAccount = bankAccounts[0];
-
-      // 原子更新银行账户余额
-      let updateBalanceSql = '';
-
-      switch (transactionData.transaction_type) {
-        case '存款':
-        case '转入':
-        case '利息':
-          updateBalanceSql =
-            'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?';
-          break;
-        case '取款':
-        case '转出':
-        case '费用':
-          updateBalanceSql =
-            'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?';
-          break;
-        default:
-          logger.error(`未知的银行交易类型: ${transactionData.transaction_type}`);
-          throw new Error(`不支持的交易类型: ${transactionData.transaction_type}`);
+      if (bankAccount.is_active === 0) {
+        throw new Error(`银行账户 "${bankAccount.account_name}" 已停用`);
       }
 
-      await connection.execute(updateBalanceSql, [
-        transactionData.amount,
-        bankAccountId,
-      ]);
-
-      // 获取更新后的最新余额返回
-      const [updatedAccount] = await connection.execute(
-        'SELECT current_balance FROM bank_accounts WHERE id = ?',
-        [bankAccountId]
-      );
-      const newBalance = parseFloat(updatedAccount[0].current_balance);
+      let newBalance = Number.parseFloat(bankAccount.current_balance || 0);
+      if (initialStatus === 'approved') {
+        newBalance = await applyApprovedTransactionToBalance(connection, {
+          bank_account_id: bankAccountId,
+          transaction_type: transactionData.transaction_type,
+          amount,
+        });
+      }
 
       // 如果提供了会计分录信息，创建相应的会计分录
-      if (transactionData.gl_entry && typeof transactionData.gl_entry === 'object') {
+      if (initialStatus === 'approved' && transactionData.gl_entry && typeof transactionData.gl_entry === 'object') {
         logger.info('处理会计分录数据:', transactionData.gl_entry);
 
         const entryData = {
@@ -128,7 +196,7 @@ class BankTransactionModel {
             entryItems = [
               {
                 account_id: transactionData.gl_entry.bank_account_id,
-                debit_amount: transactionData.amount,
+                debit_amount: amount,
                 credit_amount: 0,
                 description: `银行${transactionData.transaction_type} - ${bankAccount.bank_name} ${bankAccount.account_name}`,
               },
@@ -136,7 +204,7 @@ class BankTransactionModel {
               {
                 account_id: transactionData.gl_entry.contra_account_id,
                 debit_amount: 0,
-                credit_amount: transactionData.amount,
+                credit_amount: amount,
                 description: `银行${transactionData.transaction_type}来源 - ${transactionData.related_party || ''}`,
               },
             ];
@@ -148,7 +216,7 @@ class BankTransactionModel {
             entryItems = [
               {
                 account_id: transactionData.gl_entry.contra_account_id,
-                debit_amount: transactionData.amount,
+                debit_amount: amount,
                 credit_amount: 0,
                 description: `银行${transactionData.transaction_type}目标 - ${transactionData.related_party || ''}`,
               },
@@ -156,7 +224,7 @@ class BankTransactionModel {
               {
                 account_id: transactionData.gl_entry.bank_account_id,
                 debit_amount: 0,
-                credit_amount: transactionData.amount,
+                credit_amount: amount,
                 description: `银行${transactionData.transaction_type} - ${bankAccount.bank_name} ${bankAccount.account_name}`,
               },
             ];
@@ -167,7 +235,7 @@ class BankTransactionModel {
             entryItems = [
               {
                 account_id: transactionData.gl_entry.bank_account_id,
-                debit_amount: transactionData.amount,
+                debit_amount: amount,
                 credit_amount: 0,
                 description: `银行利息 - ${bankAccount.bank_name} ${bankAccount.account_name}`,
               },
@@ -175,7 +243,7 @@ class BankTransactionModel {
               {
                 account_id: transactionData.gl_entry.interest_account_id,
                 debit_amount: 0,
-                credit_amount: transactionData.amount,
+                credit_amount: amount,
                 description: '银行利息收入',
               },
             ];
@@ -186,7 +254,7 @@ class BankTransactionModel {
             entryItems = [
               {
                 account_id: transactionData.gl_entry.expense_account_id,
-                debit_amount: transactionData.amount,
+                debit_amount: amount,
                 credit_amount: 0,
                 description: `银行费用 - ${bankAccount.bank_name} ${bankAccount.account_name}`,
               },
@@ -194,7 +262,7 @@ class BankTransactionModel {
               {
                 account_id: transactionData.gl_entry.bank_account_id,
                 debit_amount: 0,
-                credit_amount: transactionData.amount,
+                credit_amount: amount,
                 description: '银行费用支出',
               },
             ];
@@ -202,18 +270,18 @@ class BankTransactionModel {
 
           default:
             // 自定义或其他类型交易
-            if (parseFloat(transactionData.amount) >= 0) {
+            if (parseFloat(amount) >= 0) {
               entryItems = [
                 {
                   account_id: transactionData.gl_entry.bank_account_id,
-                  debit_amount: Math.abs(transactionData.amount),
+                  debit_amount: Math.abs(amount),
                   credit_amount: 0,
                   description: `银行交易 - ${bankAccount.bank_name} ${bankAccount.account_name}`,
                 },
                 {
                   account_id: transactionData.gl_entry.contra_account_id,
                   debit_amount: 0,
-                  credit_amount: Math.abs(transactionData.amount),
+                  credit_amount: Math.abs(amount),
                   description: `银行交易对方 - ${transactionData.related_party || ''}`,
                 },
               ];
@@ -221,14 +289,14 @@ class BankTransactionModel {
               entryItems = [
                 {
                   account_id: transactionData.gl_entry.contra_account_id,
-                  debit_amount: Math.abs(transactionData.amount),
+                  debit_amount: Math.abs(amount),
                   credit_amount: 0,
                   description: `银行交易对方 - ${transactionData.related_party || ''}`,
                 },
                 {
                   account_id: transactionData.gl_entry.bank_account_id,
                   debit_amount: 0,
-                  credit_amount: Math.abs(transactionData.amount),
+                  credit_amount: Math.abs(amount),
                   description: `银行交易 - ${bankAccount.bank_name} ${bankAccount.account_name}`,
                 },
               ];
@@ -241,6 +309,9 @@ class BankTransactionModel {
           logger.info('会计分录创建成功');
         } catch (entryError) {
           logger.error('创建会计分录失败:', entryError);
+          throw new Error(`Bank transaction GL entry creation failed: ${entryError.message}`, {
+            cause: entryError,
+          });
         }
       }
 
@@ -302,15 +373,15 @@ class BankTransactionModel {
         params.push(`%${filters.transaction_number}%`);
       }
 
-      if (filters.bank_account_id) {
+      const bankAccountId = filters.bank_account_id || filters.accountId;
+      if (bankAccountId) {
         whereClause += ' AND t.bank_account_id = ?';
-        params.push(parseInt(filters.bank_account_id, 10));
+        params.push(parseInt(bankAccountId, 10));
       }
 
-      if (filters.transaction_type) {
-        whereClause += ' AND t.transaction_type = ?';
-        params.push(filters.transaction_type);
-      }
+      const whereParts = { value: whereClause };
+      appendTransactionTypeFilter(whereParts, params, 't', filters.transaction_type);
+      whereClause = whereParts.value;
 
       const startDate = filters.startDate || filters.start_date;
       const endDate = filters.endDate || filters.end_date;
@@ -326,9 +397,26 @@ class BankTransactionModel {
         params.push(endDate);
       }
 
-      if (filters.is_reconciled !== undefined) {
+      const isReconciled =
+        filters.is_reconciled !== undefined ? filters.is_reconciled : filters.isReconciled;
+      if (isReconciled !== undefined) {
         whereClause += ' AND t.is_reconciled = ?';
-        params.push(filters.is_reconciled ? 1 : 0);
+        params.push(isReconciled ? 1 : 0);
+      }
+
+      if (filters.status) {
+        whereClause += ' AND t.status = ?';
+        params.push(filters.status);
+      }
+
+      if (filters.minAmount !== undefined && filters.minAmount !== null && filters.minAmount !== '') {
+        whereClause += ' AND t.amount >= ?';
+        params.push(parseFloat(filters.minAmount));
+      }
+
+      if (filters.maxAmount !== undefined && filters.maxAmount !== null && filters.maxAmount !== '') {
+        whereClause += ' AND t.amount <= ?';
+        params.push(parseFloat(filters.maxAmount));
       }
 
       if (filters.related_party) {
@@ -395,7 +483,7 @@ class BankTransactionModel {
         : null;
 
       const [oldTransactions] = await connection.execute(
-        'SELECT bank_account_id, transaction_type, amount FROM bank_transactions WHERE id = ?',
+        'SELECT bank_account_id, transaction_type, amount, status, is_reconciled FROM bank_transactions WHERE id = ? FOR UPDATE',
         [transactionId]
       );
 
@@ -404,6 +492,7 @@ class BankTransactionModel {
       }
 
       const oldTx = oldTransactions[0];
+      ensureEditableTransaction(oldTx);
       const bankAccountId = targetBankAccountId || oldTx.bank_account_id;
 
       const [bankAccounts] = await connection.execute(
@@ -414,30 +503,7 @@ class BankTransactionModel {
         throw new Error(`bank_account_id ${bankAccountId} does not exist`);
       }
 
-      // 2. 回滚旧金额对余额的影响
-      let rollbackSql = '';
-      switch (oldTx.transaction_type) {
-        case '存款':
-        case '转入':
-        case '利息':
-          // 之前增加了余额，现在减回去
-          rollbackSql =
-            'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?';
-          break;
-        case '取款':
-        case '转出':
-        case '费用':
-          // 之前减少了余额，现在加回去
-          rollbackSql =
-            'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?';
-          break;
-      }
-
-      if (rollbackSql) {
-        await connection.execute(rollbackSql, [oldTx.amount, oldTx.bank_account_id]);
-      }
-
-      // 3. 更新交易记录
+      // 2. 更新交易记录。草稿/驳回流水尚未入账，不调整银行余额。
       await connection.execute(
         `UPDATE bank_transactions SET 
                 bank_account_id = ?,
@@ -449,7 +515,11 @@ class BankTransactionModel {
                 related_party = ?,
                 category = ?,
                 payment_method = ?,
-                updated_by = ?
+                updated_by = ?,
+                status = CASE WHEN status = 'rejected' THEN 'draft' ELSE status END,
+                approved_by = CASE WHEN status = 'rejected' THEN NULL ELSE approved_by END,
+                approved_at = CASE WHEN status = 'rejected' THEN NULL ELSE approved_at END,
+                reject_reason = CASE WHEN status = 'rejected' THEN NULL ELSE reject_reason END
                 WHERE id = ?`,
         [
           bankAccountId,
@@ -466,25 +536,6 @@ class BankTransactionModel {
         ]
       );
 
-      // 4. 应用新金额对余额的影响
-      let applySql = '';
-      switch (transactionData.transaction_type) {
-        case '存款':
-        case '转入':
-        case '利息':
-          applySql = 'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?';
-          break;
-        case '取款':
-        case '转出':
-        case '费用':
-          applySql = 'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?';
-          break;
-      }
-
-      if (applySql) {
-        await connection.execute(applySql, [transactionData.amount, bankAccountId]);
-      }
-
       const [updatedAccount] = await connection.execute(
         'SELECT current_balance FROM bank_accounts WHERE id = ?',
         [bankAccountId]
@@ -492,7 +543,7 @@ class BankTransactionModel {
       const newBalance = parseFloat(updatedAccount[0]?.current_balance || 0);
 
       await connection.commit();
-      logger.info(`银行交易更新成功，余额已重新计算: ID=${transactionId}`);
+      logger.info(`银行交易更新成功: ID=${transactionId}`);
       return { transactionId, newBalance };
     } catch (error) {
       await connection.rollback();
@@ -514,7 +565,7 @@ class BankTransactionModel {
 
       // 1. 获取交易信息用于回滚余额
       const [transactions] = await connection.execute(
-        'SELECT bank_account_id, transaction_type, amount FROM bank_transactions WHERE id = ?',
+        'SELECT bank_account_id, transaction_type, amount, status, is_reconciled FROM bank_transactions WHERE id = ? FOR UPDATE',
         [id]
       );
 
@@ -523,35 +574,13 @@ class BankTransactionModel {
       }
 
       const tx = transactions[0];
+      ensureEditableTransaction(tx);
 
-      // 2. 回滚余额
-      let rollbackSql = '';
-      switch (tx.transaction_type) {
-        case '存款':
-        case '转入':
-        case '利息':
-          // 之前增加了余额，现在减回去
-          rollbackSql =
-            'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?';
-          break;
-        case '取款':
-        case '转出':
-        case '费用':
-          // 之前减少了余额，现在加回去
-          rollbackSql =
-            'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?';
-          break;
-      }
-
-      if (rollbackSql) {
-        await connection.execute(rollbackSql, [tx.amount, tx.bank_account_id]);
-      }
-
-      // 3. 删除交易记录
+      // 2. 删除草稿/驳回交易。此类流水尚未入账，不需要回滚余额。
       const [result] = await connection.execute('DELETE FROM bank_transactions WHERE id = ?', [id]);
 
       await connection.commit();
-      logger.info(`银行交易删除成功，余额已回滚: ID=${id}`);
+      logger.info(`银行交易删除成功: ID=${id}`);
       return result.affectedRows > 0;
     } catch (error) {
       await connection.rollback();
@@ -572,7 +601,7 @@ class BankTransactionModel {
 
 
       // 检查当前状态
-      const [current] = await db.pool.execute('SELECT status FROM bank_transactions WHERE id = ?', [
+      const [current] = await db.pool.execute('SELECT status, is_reconciled FROM bank_transactions WHERE id = ?', [
         id,
       ]);
 
@@ -580,20 +609,31 @@ class BankTransactionModel {
         throw new Error('银行交易不存在');
       }
 
-      const currentStatus = current[0].status || 'draft';
-      if (['pending', 'approved'].includes(currentStatus)) {
+      const currentStatus = normalizeStatus(current[0].status);
+      if (!EDITABLE_BANK_STATUSES.has(currentStatus)) {
         throw new Error(`交易当前状态为 ${currentStatus}，无法重复提交审核`);
       }
 
       // 更新状态为待审核
+      if (current[0].is_reconciled === true || current[0].is_reconciled === 1 || current[0].is_reconciled === '1') {
+        throw new Error('Reconciled bank transactions cannot be submitted for audit');
+      }
+
       const [result] = await db.pool.execute(
         `UPDATE bank_transactions
-                 SET status = 'pending'
-                 WHERE id = ?`,
+                 SET status = 'pending', approved_by = NULL, approved_at = NULL, reject_reason = NULL
+                 WHERE id = ? AND (status IS NULL OR status IN ('draft', 'rejected'))`,
         [id]
       );
 
       if (result.affectedRows === 0) {
+        const [current] = await db.pool.execute(
+          'SELECT status FROM bank_transactions WHERE id = ?',
+          [id]
+        );
+        if (current.length > 0) {
+          ensureAuditableTransaction(current[0]);
+        }
         throw new Error('银行交易不存在');
       }
 
@@ -611,11 +651,33 @@ class BankTransactionModel {
    * @param {number} userId 审核人ID
    */
   static async approveTransaction(id, userId) {
+    const connection = await db.pool.getConnection();
     try {
-      const [result] = await db.pool.execute(
+      await connection.beginTransaction();
+
+      const [transactions] = await connection.execute(
+        `SELECT id, bank_account_id, transaction_type, amount, status, is_reconciled
+         FROM bank_transactions
+         WHERE id = ?
+         FOR UPDATE`,
+        [id]
+      );
+      if (transactions.length === 0) {
+        throw new Error('银行交易不存在');
+      }
+
+      const transaction = transactions[0];
+      ensureAuditableTransaction(transaction);
+      if (transaction.is_reconciled === true || transaction.is_reconciled === 1 || transaction.is_reconciled === '1') {
+        throw new Error('Reconciled bank transactions cannot be approved');
+      }
+
+      const newBalance = await applyApprovedTransactionToBalance(connection, transaction);
+
+      const [result] = await connection.execute(
         `UPDATE bank_transactions
-                 SET status = 'approved', approved_by = ?, approved_at = NOW()
-                 WHERE id = ?`,
+                 SET status = 'approved', approved_by = ?, approved_at = NOW(), reject_reason = NULL
+                 WHERE id = ? AND status IN ('pending', 'reviewed')`,
         [userId, id]
       );
 
@@ -623,11 +685,15 @@ class BankTransactionModel {
         throw new Error('银行交易不存在');
       }
 
+      await connection.commit();
       logger.info(`银行交易 ${id} 审核通过`);
-      return true;
+      return { success: true, newBalance };
     } catch (error) {
+      await connection.rollback();
       logger.error('审核通过失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
@@ -643,7 +709,7 @@ class BankTransactionModel {
         `UPDATE bank_transactions
                  SET status = 'rejected', approved_by = ?, approved_at = NOW(), 
                      reject_reason = ?
-                 WHERE id = ?`,
+                 WHERE id = ? AND status IN ('pending', 'reviewed')`,
         [userId, reason, id]
       );
 

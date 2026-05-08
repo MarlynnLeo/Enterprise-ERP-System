@@ -5,7 +5,7 @@
         <h2>{{ isEdit ? '编辑凭证' : '录入凭证' }}</h2>
         <div>
           <el-button @click="goBack">返回</el-button>
-          <el-button v-permission="'finance:entries:update'" type="primary" @click="saveEntry" :loading="saving">保存</el-button>
+          <el-button v-permission="'finance:entries:create'" type="primary" @click="saveEntry" :loading="saving">保存</el-button>
         </div>
       </div>
     </el-card>
@@ -111,7 +111,7 @@
           </el-table-column>
           <el-table-column label="操作" width="80" align="center">
             <template #default="scope">
-              <el-button type="danger" circle size="small" @click="removeItem(scope.$index)" :disabled="entryForm.items.length <= 2">删</el-button>
+              <el-button v-permission="'finance:entries:create'" type="danger" circle size="small" @click="removeItem(scope.$index)" :disabled="entryForm.items.length <= 2">删</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -258,7 +258,7 @@ const loadOptions = async () => {
     } catch(e) { console.warn('加载用户选项失败:', e.message) }
 
     try {
-      const deptRes = await api.get('/system/departments').catch(()=>({data:[]}));
+      const deptRes = await api.get('/system/departments/list').catch(()=>({data:[]}));
       departmentOptions.value = deptRes?.data?.data || deptRes?.data || [];
     } catch(e) { console.warn('加载部门选项失败:', e.message) }
     
