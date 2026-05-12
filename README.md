@@ -3,6 +3,8 @@
   <p><strong>🔥 Forever Free & Open Source | 永远免费开源的企业级 ERP 系统</strong></p>
   
   <p>
+    <img src="https://img.shields.io/github/actions/workflow/status/MarlynnLeo/Enterprise-ERP-System/ci.yml?branch=main&label=CI&logo=github" alt="CI Status">
+    <img src="https://img.shields.io/badge/version-1.4.0-brightgreen" alt="Version">
     <img src="https://img.shields.io/badge/Node.js-18.x-339933?logo=node.js&logoColor=white" alt="Node.js">
     <img src="https://img.shields.io/badge/Vue.js-3.x-4FC08D?logo=vuedotjs&logoColor=white" alt="Vue">
     <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white" alt="MySQL">
@@ -266,6 +268,12 @@ Enterprise-ERP-System/
 - 🐛 **提 Issue** — 反馈 Bug 或提出功能建议
 - 🔧 **提 PR** — 贡献代码改进
 - ⭐ **Star** — 如果觉得有用，请给个 Star 支持
+
+---
+
+## 📋 更新日志
+
+查看完整版本变更历史：[CHANGELOG.md](CHANGELOG.md)
 
 ---
 
