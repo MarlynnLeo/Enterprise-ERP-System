@@ -13,13 +13,13 @@
       left-arrow
       @click-left="onClickLeft"
     />
-    
+
     <div class="content-container">
       <div v-if="loading" class="loading-container">
         <Loading type="spinner" color="var(--color-primary)" />
         <p class="loading-text">加载中...</p>
       </div>
-      
+
       <template v-else>
         <!-- 基本信息 -->
         <CellGroup inset title="基本信息">
@@ -28,7 +28,7 @@
           <Cell title="盘点类型" :value="getCheckTypeText(checkForm.check_type)" />
           <Cell title="仓库/库区" :value="checkForm.warehouse" />
         </CellGroup>
-        
+
         <!-- 描述 -->
         <CellGroup inset title="描述与备注">
           <Field
@@ -48,7 +48,7 @@
             placeholder="请输入备注信息"
           />
         </CellGroup>
-        
+
         <!-- 物料列表 -->
         <div class="material-list-container">
           <div class="material-list-header">
@@ -57,11 +57,11 @@
               <Button type="primary" size="small" icon="plus" @click="showMaterialPicker = true">添加物料</Button>
             </div>
           </div>
-          
+
           <div v-if="checkForm.items.length === 0" class="empty-tips">
             <Empty description="暂无物料，请添加物料" />
           </div>
-          
+
           <div v-else class="material-list">
             <SwipeCell
               v-for="(item, index) in checkForm.items"
@@ -71,16 +71,16 @@
               <div class="material-card">
                 <div class="material-header">
                   <span class="material-code">{{ item.material_code }}</span>
-                  <span 
-                    class="diff-quantity" 
+                  <span
+                    class="diff-quantity"
                     :class="getDiffClass(item.book_qty, item.actual_qty)"
                   >
                     {{ getDiffText(item.book_qty, item.actual_qty) }}
                   </span>
                 </div>
-                
+
                 <div class="material-name">{{ item.material_name }}</div>
-                
+
                 <div class="material-quantities">
                   <div class="qty-item">
                     <span class="qty-label">账面数量</span>
@@ -100,7 +100,7 @@
                     </span>
                   </div>
                 </div>
-                
+
                 <div class="material-remark">
                   <Field
                     v-model="item.remarks"
@@ -109,7 +109,7 @@
                   />
                 </div>
               </div>
-              
+
               <template #right>
                 <Button
                   square
@@ -122,7 +122,7 @@
             </SwipeCell>
           </div>
         </div>
-        
+
         <!-- 底部操作栏 -->
         <div class="bottom-actions">
           <Button round block type="primary" @click="submitCheckForm" :loading="submitting">
@@ -131,7 +131,7 @@
         </div>
       </template>
     </div>
-    
+
     <!-- 物料选择器 -->
     <Popup
       v-model:show="showMaterialPicker"
@@ -144,7 +144,7 @@
         <div class="picker-header">
           <div class="picker-title">选择物料</div>
         </div>
-        
+
         <div class="picker-search">
           <Search
             v-model="materialSearch"
@@ -152,7 +152,7 @@
             @search="onSearchMaterial"
           />
         </div>
-        
+
         <div class="picker-content">
           <List
             v-model:loading="loadingMaterials"
@@ -178,20 +178,20 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { 
-  NavBar, 
-  Loading, 
-  CellGroup, 
-  Cell, 
-  Field, 
-  Button, 
-  Empty, 
-  SwipeCell, 
+import {
+  NavBar,
+  Loading,
+  CellGroup,
+  Cell,
+  Field,
+  Button,
+  Empty,
+  SwipeCell,
   Stepper,
   Popup,
   Search,
   List,
-  showToast 
+  showToast
 } from 'vant';
 import { inventoryApi } from '@/services/api';
 
@@ -252,7 +252,7 @@ const getDiffText = (bookQty, actualQty) => {
 // 获取差异样式
 const getDiffClass = (bookQty, actualQty) => {
   if (bookQty === undefined || actualQty === undefined) return '';
-  
+
   const diff = actualQty - bookQty;
   if (diff > 0) return 'profit-text';
   if (diff < 0) return 'loss-text';
@@ -275,7 +275,7 @@ const onSearchMaterial = () => {
 // 加载物料列表
 const loadMaterials = async () => {
   if (loadingMaterials.value) return;
-  
+
   loadingMaterials.value = true;
   try {
     const params = {
@@ -283,15 +283,15 @@ const loadMaterials = async () => {
       limit: materialPagination.value.limit,
       search: materialSearch.value || undefined
     };
-    
+
     const response = await inventoryApi.getAllMaterials(params);
-    
+
     if (response.data && Array.isArray(response.data.items)) {
       materialList.value = [...materialList.value, ...response.data.items];
       materialPagination.value.total = response.data.total || 0;
-      
+
       materialListFinished.value = materialList.value.length >= materialPagination.value.total;
-      
+
       if (response.data.items.length > 0) {
         materialPagination.value.page++;
       } else {
@@ -318,26 +318,29 @@ const selectMaterial = async (material) => {
       showToast('该物料已添加');
       return;
     }
-    
+
     // 获取该物料在仓库的库存
     const stockResponse = await inventoryApi.getMaterialStock(material.id, checkForm.value.warehouse_id);
-    
+
     const quantity = stockResponse.data && stockResponse.data.quantity !== undefined
-      ? parseFloat(stockResponse.data.quantity) 
+      ? parseFloat(stockResponse.data.quantity)
       : 0;
-    
+
     // 添加物料
     checkForm.value.items.push({
       material_id: material.id,
       material_code: material.code,
       material_name: material.name,
       specs: material.specs || '',
+      system_quantity: quantity,
+      actual_quantity: quantity,
       book_qty: quantity,
       actual_qty: quantity,
       unit_name: material.unit_name || '',
+      remark: '',
       remarks: ''
     });
-    
+
     showToast('物料已添加');
     showMaterialPicker.value = false;
   } catch (error) {
@@ -350,10 +353,26 @@ const selectMaterial = async (material) => {
 const submitCheckForm = async () => {
   try {
     submitting.value = true;
-    
+
     // 提交表单
-    await inventoryApi.updateCheck(checkForm.value.id, checkForm.value);
-    
+    const submitData = {
+      id: checkForm.value.id,
+      check_date: checkForm.value.check_date,
+      check_type: checkForm.value.check_type,
+      location_id: checkForm.value.warehouse_id,
+      description: checkForm.value.description,
+      remark: checkForm.value.remarks,
+      items: checkForm.value.items.map((item) => ({
+        id: item.id,
+        material_id: item.material_id,
+        system_quantity: Number(item.system_quantity ?? item.book_qty ?? 0),
+        actual_quantity: Number(item.actual_qty ?? item.actual_quantity ?? 0),
+        remark: item.remarks || item.remark || ''
+      }))
+    };
+
+    await inventoryApi.updateCheck(checkForm.value.id, submitData);
+
     showToast('盘点单保存成功');
     router.push(`/inventory/check/${checkForm.value.id}`);
   } catch (error) {
@@ -369,12 +388,12 @@ const loadCheckDetail = async () => {
   try {
     loading.value = true;
     const id = route.params.id;
-    
+
     const response = await inventoryApi.getCheckDetail(id);
-    
+
     if (response && response.data) {
       const checkData = response.data;
-      
+
       // 填充表单数据
       checkForm.value.id = checkData.id;
       checkForm.value.check_no = checkData.check_no;
@@ -384,25 +403,27 @@ const loadCheckDetail = async () => {
       checkForm.value.warehouse = checkData.warehouse;
       checkForm.value.description = checkData.description || '';
       checkForm.value.remarks = checkData.remarks || '';
-      
+
       // 填充物料明细
       if (checkData.items && checkData.items.length > 0) {
-        checkForm.value.items = checkData.items.map(item => ({
+      checkForm.value.items = checkData.items.map(item => ({
           id: item.id,
           material_id: item.material_id,
           material_code: item.material_code,
           material_name: item.material_name,
           specs: item.specs || '',
-          book_qty: parseFloat(item.book_qty) || 0,
-          actual_qty: parseFloat(item.actual_qty) || 0,
+          system_quantity: parseFloat(item.system_quantity ?? item.book_qty) || 0,
+          actual_quantity: parseFloat(item.actual_quantity ?? item.actual_qty) || 0,
+          book_qty: parseFloat(item.system_quantity ?? item.book_qty) || 0,
+          actual_qty: parseFloat(item.actual_quantity ?? item.actual_qty) || 0,
           unit_name: item.unit_name || '',
-          remarks: item.remarks || ''
+          remarks: item.remark || item.remarks || ''
         }));
       }
-      
+
       // 只有草稿状态下可以编辑物料
       editableMaterials.value = checkData.status === 'draft';
-      
+
       if (checkData.status !== 'draft') {
         showToast('非草稿状态下只能编辑实盘数量和备注');
       }
@@ -499,7 +520,7 @@ onMounted(() => {
 
 .qty-item {
   flex: 1;
-  
+
   &:first-child {
     margin-right: 12px;
   }
@@ -564,4 +585,4 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
 }
-</style> 
+</style>

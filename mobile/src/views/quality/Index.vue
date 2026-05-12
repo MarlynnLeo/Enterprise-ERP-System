@@ -23,8 +23,10 @@
   import { useRouter } from 'vue-router'
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
   import { qualityApi } from '@/services/api'
+  import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()
+  const authStore = useAuthStore()
 
   // ---- 统计数据 ----
   const statistics = ref({
@@ -173,6 +175,10 @@
 
   // ---- 加载数据 ----
   const loadStatistics = async () => {
+    if (!authStore.hasPermission('quality:reports:view')) {
+      return
+    }
+
     try {
       const response = await qualityApi.getStatistics()
       const data = response.data || {}

@@ -14,13 +14,13 @@
         <div class="error-icon">
           <Icon name="warning-o" size="64" color="#ff6b6b" />
         </div>
-        
+
         <!-- 错误信息 -->
         <div class="error-info">
           <h3 class="error-title">{{ errorTitle }}</h3>
           <p class="error-message">{{ errorMessage }}</p>
         </div>
-        
+
         <!-- 错误详情（开发模式下显示） -->
         <div v-if="showDetails && errorDetails" class="error-details">
           <div class="details-header" @click="toggleDetails">
@@ -31,39 +31,39 @@
             <pre>{{ errorDetails }}</pre>
           </div>
         </div>
-        
+
         <!-- 操作按钮 -->
         <div class="error-actions">
-          <Button 
-            type="primary" 
-            size="large" 
+          <Button
+            type="primary"
+            size="large"
             @click="handleRetry"
             :loading="retrying"
           >
             重试
           </Button>
-          <Button 
-            type="default" 
-            size="large" 
+          <Button
+            type="default"
+            size="large"
             @click="handleReload"
           >
             刷新页面
           </Button>
-          <Button 
+          <Button
             v-if="canGoBack"
-            type="default" 
-            size="large" 
+            type="default"
+            size="large"
             @click="handleGoBack"
           >
             返回上页
           </Button>
         </div>
-        
+
         <!-- 反馈按钮 -->
         <div class="error-feedback">
-          <Button 
-            type="default" 
-            size="small" 
+          <Button
+            type="default"
+            size="small"
             @click="handleFeedback"
           >
             反馈问题
@@ -71,7 +71,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 正常内容 -->
     <slot v-else />
   </div>
@@ -120,11 +120,11 @@ const errorInfo = ref(null);
 // 捕获错误
 onErrorCaptured((error, instance, info) => {
   console.error('Error captured by boundary:', error, info);
-  
+
   handleError(error, info);
 
   emit('error', { error, instance, info });
-  
+
   // 阻止错误继续传播
   return false;
 });
@@ -133,7 +133,7 @@ onErrorCaptured((error, instance, info) => {
 const handleError = (error, info) => {
   hasError.value = true;
   errorInfo.value = { error, info };
-  
+
   // 设置错误信息
   if (error.name === 'ChunkLoadError') {
     errorTitle.value = '资源加载失败';
@@ -148,7 +148,7 @@ const handleError = (error, info) => {
     errorTitle.value = props.fallbackTitle;
     errorMessage.value = props.fallbackMessage;
   }
-  
+
   // 设置错误详情
   if (props.showDetails) {
     errorDetails.value = `${error.name}: ${error.message}\n\n${error.stack}\n\nComponent Info: ${info}`;
@@ -202,8 +202,8 @@ const handleGoBack = () => {
 // 反馈问题
 const handleFeedback = async () => {
   try {
-    
-    
+
+
     // 显示反馈对话框
     await showDialog({
       title: '问题反馈',
@@ -211,10 +211,10 @@ const handleFeedback = async () => {
       confirmButtonText: '发送',
       cancelButtonText: '取消'
     });
-    
+
     // 这里可以调用API发送错误报告
     showToast('反馈已发送，感谢您的反馈');
-    
+
   } catch (error) {
     if (error !== 'cancel') {
       console.error('Send feedback failed:', error);
@@ -231,8 +231,8 @@ const handleGlobalError = (event) => {
 
 const handleUnhandledRejection = (event) => {
   if (!hasError.value) {
-    const error = event.reason instanceof Error 
-      ? event.reason 
+    const error = event.reason instanceof Error
+      ? event.reason
       : new Error(String(event.reason));
     handleError(error, 'Unhandled promise rejection');
   }
@@ -293,14 +293,14 @@ defineExpose({
 
 .error-info {
   margin-bottom: 24px;
-  
+
   .error-title {
     font-size: 20px;
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 12px;
   }
-  
+
   .error-message {
     font-size: 14px;
     color: var(--text-secondary);
@@ -312,7 +312,7 @@ defineExpose({
 .error-details {
   margin-bottom: 24px;
   text-align: left;
-  
+
   .details-header {
     display: flex;
     align-items: center;
@@ -324,7 +324,7 @@ defineExpose({
     font-size: 14px;
     color: var(--text-secondary);
   }
-  
+
   .details-content {
     margin-top: 8px;
     padding: 12px;
@@ -332,7 +332,7 @@ defineExpose({
     border-radius: 8px;
     max-height: 200px;
     overflow-y: auto;
-    
+
     pre {
       font-size: 12px;
       color: var(--text-secondary);
@@ -348,7 +348,7 @@ defineExpose({
   flex-direction: column;
   gap: 12px;
   margin-bottom: 16px;
-  
+
   .van-button {
     width: 100%;
   }
@@ -366,11 +366,11 @@ defineExpose({
   .error-container {
     padding: 16px;
   }
-  
+
   .error-content {
     padding: 24px 16px;
   }
-  
+
   .error-actions {
     .van-button {
       height: 44px;

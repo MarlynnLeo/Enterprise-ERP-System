@@ -30,17 +30,22 @@
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item" @click="filterByStatus('draft')">
-          <span class="stat-num draft">{{ checkStats.draftCount || 0 }}</span>
+          <span class="stat-num draft">{{ checkStats.draft ?? checkStats.draftCount ?? 0 }}</span>
           <span class="stat-label">草稿</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item" @click="filterByStatus('in_progress')">
-          <span class="stat-num accent">{{ checkStats.pendingCount || 0 }}</span>
+          <span class="stat-num accent">{{ checkStats.inProgressCount ?? checkStats.in_progress ?? 0 }}</span>
           <span class="stat-label">进行中</span>
         </div>
         <div class="stat-divider"></div>
+        <div class="stat-item" @click="filterByStatus('pending')">
+          <span class="stat-num accent">{{ checkStats.pendingCount || 0 }}</span>
+          <span class="stat-label">待审核</span>
+        </div>
+        <div class="stat-divider"></div>
         <div class="stat-item" @click="filterByStatus('completed')">
-          <span class="stat-num success">{{ checkStats.completeCount || 0 }}</span>
+          <span class="stat-num success">{{ checkStats.completedCount ?? checkStats.completeCount ?? 0 }}</span>
           <span class="stat-label">已完成</span>
         </div>
       </div>
@@ -113,6 +118,7 @@
                 <div class="swipe-actions">
                   <Button
                     v-if="item.status === 'draft'"
+                    v-permission="'inventory:check:update'"
                     square
                     type="primary"
                     text="编辑"
@@ -121,6 +127,7 @@
                   />
                   <Button
                     v-if="item.status === 'draft'"
+                    v-permission="'inventory:check:update'"
                     square
                     type="success"
                     text="开始"
@@ -129,11 +136,12 @@
                   />
                   <Button
                     v-if="item.status === 'in_progress'"
+                    v-permission="'inventory:check:update'"
                     square
                     type="success"
                     text="完成"
                     class="swipe-btn"
-                    @click="updateStatus(item, 'completed')"
+                    @click="updateStatus(item, 'pending')"
                   />
                 </div>
               </template>
@@ -175,7 +183,15 @@
   const checkList = ref([])
   const currentStatus = ref('')
 
-  const checkStats = ref({ total: 0, draftCount: 0, pendingCount: 0, completeCount: 0 })
+  const checkStats = ref({
+    total: 0,
+    draft: 0,
+    draftCount: 0,
+    inProgressCount: 0,
+    pendingCount: 0,
+    completedCount: 0,
+    completeCount: 0
+  })
 
   const statusTabs = [
     { label: '全部', value: '', icon: 'apps' },
@@ -184,6 +200,10 @@
     { label: '已完成', value: 'completed', icon: 'badge-check' },
     { label: '已取消', value: 'cancelled', icon: 'shield' }
   ]
+
+  if (!statusTabs.some((tab) => tab.value === 'pending')) {
+    statusTabs.splice(3, 0, { label: '待审核', value: 'pending', icon: 'todo-list' })
+  }
 
   const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
@@ -236,7 +256,7 @@
       const params = {
         page: pagination.page,
         limit: pagination.pageSize,
-        check_no: searchValue.value || undefined,
+        search: searchValue.value || undefined,
         status: currentStatus.value || undefined
       }
       const res = await inventoryApi.getCheckList(params)

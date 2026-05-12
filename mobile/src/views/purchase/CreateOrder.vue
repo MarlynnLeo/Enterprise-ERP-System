@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="create-order-page">
-    <NavBar title="新建采购订单" left-arrow @click-left="onClickLeft">
+    <NavBar :title="pageTitle" left-arrow @click-left="onClickLeft">
       <template #right>
         <Button type="primary" size="small" @click="submitForm" :loading="submitting">
           保存
@@ -314,7 +314,7 @@
 
 <script setup>
   import { ref, reactive, computed, onMounted } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import {
     NavBar,
     Button,
@@ -331,8 +331,11 @@
   import { purchaseApi, baseDataApi } from '@/services/api'
 
   const router = useRouter()
+  const route = useRoute()
   const formRef = ref()
   const itemFormRef = ref()
+  const isEdit = computed(() => !!route.params.id)
+  const pageTitle = computed(() => isEdit.value ? '编辑采购订单' : '新建采购订单')
 
   // 表单数据
   const orderForm = reactive({
@@ -404,7 +407,8 @@
         pageSize: 1000,
         status: 1 // 只获取启用的供应商
       })
-      supplierList.value = response.data?.items || response.data || []
+      const data = response.data || response
+      supplierList.value = data.items || data.list || (Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('获取供应商列表失败:', error)
       showToast('获取供应商列表失败')
@@ -426,7 +430,8 @@
       }
 
       const response = await baseDataApi.getSuppliers(params)
-      supplierList.value = response.data?.items || response.data || []
+      const data = response.data || response
+      supplierList.value = data.items || data.list || (Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('搜索供应商失败:', error)
       showToast('搜索供应商失败')
@@ -615,6 +620,58 @@
     return parseFloat(amount).toFixed(2)
   }
 
+  const normalizeDate = (value) => {
+    if (!value) return ''
+    return String(value).slice(0, 10)
+  }
+
+  const loadOrder = async () => {
+    if (!isEdit.value) return
+    try {
+      const response = await purchaseApi.getOrder(route.params.id)
+      const order = response.data?.data || response.data || response
+      if (!order) return
+
+      Object.assign(orderForm, {
+        order_no: order.order_no || '',
+        supplier_id: order.supplier_id || '',
+        order_date: normalizeDate(order.order_date),
+        expected_delivery_date: normalizeDate(order.expected_delivery_date),
+        contact_person: order.contact_person || '',
+        contact_phone: order.contact_phone || '',
+        remark: order.remark || ''
+      })
+
+      if (order.supplier_id) {
+        selectedSupplier.value =
+          supplierList.value.find((supplier) => String(supplier.id) === String(order.supplier_id)) || {
+            id: order.supplier_id,
+            name: order.supplier_name || '',
+            code: order.supplier_code || ''
+          }
+        tempSelectedSupplier.value = selectedSupplier.value
+      }
+
+      const items = order.items || order.order_items || []
+      orderItems.value = Array.isArray(items)
+        ? items.map((item) => ({
+            material_id: item.material_id,
+            material_name: item.material_name || item.name || '',
+            material_code: item.material_code || item.code || '',
+            specification: item.specification || item.specs || '',
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total_price: item.total_price || (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
+            unit: item.unit || item.unit_name || '件',
+            remark: item.remark || ''
+          }))
+        : []
+    } catch (error) {
+      console.error('加载采购订单失败:', error)
+      showToast(error.response?.data?.message || '加载采购订单失败')
+    }
+  }
+
   // 提交表单
   const submitForm = async () => {
     try {
@@ -659,17 +716,21 @@
         }))
       }
 
-      await purchaseApi.createOrder(formData)
+      if (isEdit.value) {
+        await purchaseApi.updateOrder(route.params.id, formData)
+      } else {
+        await purchaseApi.createOrder(formData)
+      }
 
       closeToast()
-      showToast('采购订单创建成功')
+      showToast(isEdit.value ? '采购订单更新成功' : '采购订单创建成功')
 
       // 返回列表页面
       router.back()
     } catch (error) {
       closeToast()
-      console.error('创建采购订单失败:', error)
-      showToast(error.response?.data?.message || '创建采购订单失败')
+      console.error(isEdit.value ? '更新采购订单失败:' : '创建采购订单失败:', error)
+      showToast(error.response?.data?.message || (isEdit.value ? '更新采购订单失败' : '创建采购订单失败'))
     } finally {
       submitting.value = false
     }
@@ -680,12 +741,14 @@
     router.back()
   }
 
-  onMounted(() => {
-    fetchSuppliers()
-    fetchMaterials()
+  onMounted(async () => {
+    await Promise.all([fetchSuppliers(), fetchMaterials()])
 
     // 设置默认订单日期为今天
-    orderForm.order_date = new Date().toISOString().split('T')[0]
+    if (!isEdit.value) {
+      orderForm.order_date = new Date().toISOString().split('T')[0]
+    }
+    await loadOrder()
   })
 </script>
 

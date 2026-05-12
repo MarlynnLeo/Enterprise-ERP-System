@@ -9,12 +9,12 @@
 <template>
   <div class="global-search-page">
     <NavBar title="全局搜索" left-arrow @click-left="$router.go(-1)" />
-    
+
     <div class="search-container">
       <!-- 搜索框 -->
       <div class="search-header">
-        <Search 
-          v-model="searchKeyword" 
+        <Search
+          v-model="searchKeyword"
           placeholder="搜索物料、客户、订单、任务..."
           show-action
           @search="handleSearch"
@@ -34,8 +34,8 @@
           <Button size="mini" type="default" @click="clearHistory">清空</Button>
         </div>
         <div class="history-tags">
-          <Tag 
-            v-for="(item, index) in searchHistory" 
+          <Tag
+            v-for="(item, index) in searchHistory"
             :key="index"
             size="medium"
             @click="selectHistory(item)"
@@ -49,8 +49,8 @@
       <div class="hot-search" v-if="!searchKeyword">
         <div class="section-title">热门搜索</div>
         <div class="hot-tags">
-          <Tag 
-            v-for="(item, index) in hotSearches" 
+          <Tag
+            v-for="(item, index) in hotSearches"
             :key="index"
             size="medium"
             type="primary"
@@ -70,8 +70,8 @@
 
         <!-- 结果分类标签 -->
         <div class="result-tabs" v-if="totalResults > 0">
-          <div 
-            v-for="category in resultCategories" 
+          <div
+            v-for="category in resultCategories"
             :key="category.key"
             class="result-tab"
             :class="{ active: activeCategory === category.key }"
@@ -91,8 +91,8 @@
               finished-text="没有更多了"
               @load="onLoad"
             >
-              <div 
-                v-for="(item, index) in currentResults" 
+              <div
+                v-for="(item, index) in currentResults"
                 :key="index"
                 class="result-item"
                 @click="viewDetail(item)"
@@ -108,7 +108,7 @@
                     </div>
                   </div>
                 </div>
-                
+
                 <div class="item-content">
                   <div class="item-title">
                     <span
@@ -166,8 +166,8 @@
       <div class="search-suggestions" v-if="searchKeyword && !hasSearched && suggestions.length > 0">
         <div class="section-title">搜索建议</div>
         <div class="suggestion-list">
-          <div 
-            v-for="(suggestion, index) in suggestions" 
+          <div
+            v-for="(suggestion, index) in suggestions"
             :key="index"
             class="suggestion-item"
             @click="selectSuggestion(suggestion)"
@@ -192,9 +192,9 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { 
+import {
   NavBar, Search, Button, Tag, Icon, PullRefresh, List, Empty,
-  showToast, showConfirmDialog 
+  showToast, showConfirmDialog
 } from 'vant';
 import { baseDataApi, salesApi, inventoryApi, productionApi } from '@/services/api';
 
@@ -223,7 +223,7 @@ const searchResults = reactive({
 
 // 热门搜索
 const hotSearches = ref([
-  '304不锈钢', '客户A', '销售订单', '生产任务', 
+  '304不锈钢', '客户A', '销售订单', '生产任务',
   '库位A-01', 'BOM清单', '采购订单', '物料清单'
 ]);
 
@@ -542,7 +542,7 @@ const addToHistory = (keyword) => {
   const filtered = history.filter(item => item !== keyword);
   filtered.unshift(keyword);
   const limited = filtered.slice(0, 10);
-  
+
   localStorage.setItem('global_search_history', JSON.stringify(limited));
   searchHistory.value = limited;
 };
@@ -562,7 +562,7 @@ const clearHistory = async () => {
       title: '确认清空',
       message: '确定要清空搜索历史吗？'
     });
-    
+
     if (result === 'confirm') {
       localStorage.removeItem('global_search_history');
       searchHistory.value = [];

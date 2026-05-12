@@ -302,6 +302,9 @@ export const useAuthStore = defineStore('auth', () => {
    */
   const hasPermission = (perm) => {
     if (!perm) return true
+    if (Array.isArray(perm)) {
+      return perm.some((item) => hasPermission(item))
+    }
 
     // 如果权限未加载且缓存为空，默认拒绝
     if (!permissionsLoaded.value && permissions.value.length === 0) {

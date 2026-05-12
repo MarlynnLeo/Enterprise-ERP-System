@@ -19,7 +19,7 @@
       <h1 class="header-title">生产看板</h1>
       <button class="header-btn" @click="refreshData">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
       </button>
@@ -34,7 +34,7 @@
           <div class="overview-card">
             <div class="card-icon bg-blue">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
             </div>
@@ -48,7 +48,7 @@
           <div class="overview-card">
             <div class="card-icon bg-green">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -62,7 +62,7 @@
           <div class="overview-card">
             <div class="card-icon bg-yellow">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -76,7 +76,7 @@
           <div class="overview-card">
             <div class="card-icon bg-purple">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
             </div>
@@ -164,77 +164,103 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from '@/components/icons/index.vue'
 import { showToast } from 'vant'
+import { productionApi } from '@/services/api'
 
 const router = useRouter()
 
-// 今日统计
 const todayStats = ref({
-  totalTasks: 32,
-  newTasks: 5,
-  completedTasks: 18,
-  completionRate: 56,
-  inProgressTasks: 12,
-  inProgressRate: 38,
-  totalOutput: 2580,
+  totalTasks: 0,
+  newTasks: 0,
+  completedTasks: 0,
+  completionRate: 0,
+  inProgressTasks: 0,
+  inProgressRate: 0,
+  totalOutput: 0,
   outputUnit: '件'
 })
 
-// 生产效率
 const efficiency = ref({
-  equipmentUtilization: 85,
-  personnelUtilization: 78,
-  qualificationRate: 96,
-  onTimeDeliveryRate: 92
+  equipmentUtilization: 0,
+  personnelUtilization: 0,
+  qualificationRate: 0,
+  onTimeDeliveryRate: 0
 })
 
-// 实时任务
-const realtimeTasks = ref([
-  {
-    id: '1',
-    code: 'TASK-2025-001',
-    productName: '产品A',
-    totalQuantity: 1000,
-    completedQuantity: 650,
-    unit: '件',
-    progress: 65,
-    status: 'in_progress'
-  },
-  {
-    id: '2',
-    code: 'TASK-2025-002',
-    productName: '产品B',
-    totalQuantity: 500,
-    completedQuantity: 320,
-    unit: '件',
-    progress: 64,
-    status: 'in_progress'
-  },
-  {
-    id: '3',
-    code: 'TASK-2025-003',
-    productName: '产品C',
-    totalQuantity: 800,
-    completedQuantity: 800,
-    unit: '件',
-    progress: 100,
-    status: 'completed'
-  }
-])
+const realtimeTasks = ref([])
 
-// 方法
+const getResponseData = (response) => response?.data || response || {}
+
+const toTaskCard = (task) => {
+  const totalQuantity = Number(task.planned_quantity || task.quantity || task.totalQuantity || 0)
+  const completedQuantity = Number(task.completed_quantity || task.completedQuantity || 0)
+  const progress = totalQuantity > 0 ? Math.min(Math.round((completedQuantity / totalQuantity) * 100), 100) : 0
+
+  return {
+    id: task.id,
+    code: task.task_code || task.code || task.task_no || '-',
+    productName: task.product_name || task.productName || task.material_name || '-',
+    totalQuantity,
+    completedQuantity,
+    unit: task.unit_name || task.unit || '件',
+    progress,
+    status: task.status || 'pending'
+  }
+}
+
+const loadDashboardData = async () => {
+  const [statsRes, tasksRes] = await Promise.allSettled([
+    productionApi.getDashboardStatistics(),
+    productionApi.getProductionTasks({ page: 1, pageSize: 10, limit: 10 })
+  ])
+
+  if (statsRes.status === 'fulfilled') {
+    const stats = getResponseData(statsRes.value)
+    const totalTasks = Number(stats.totalTasks || stats.total_tasks || 0)
+    const completedTasks = Number(stats.completedTasks || stats.completed_tasks || 0)
+    const inProgressTasks = Number(stats.inProgressTasks || stats.in_progress_tasks || 0)
+
+    todayStats.value = {
+      totalTasks,
+      newTasks: Number(stats.newTasks || stats.new_tasks || stats.pendingTasks || 0),
+      completedTasks,
+      completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      inProgressTasks,
+      inProgressRate: totalTasks > 0 ? Math.round((inProgressTasks / totalTasks) * 100) : 0,
+      totalOutput: Number(stats.totalOutput || stats.total_output || stats.completedQuantity || 0),
+      outputUnit: stats.outputUnit || stats.output_unit || '件'
+    }
+
+    efficiency.value = {
+      equipmentUtilization: Number(stats.equipmentUtilization || stats.equipment_utilization || 0),
+      personnelUtilization: Number(stats.personnelUtilization || stats.personnel_utilization || 0),
+      qualificationRate: Number(stats.qualificationRate || stats.qualification_rate || 0),
+      onTimeDeliveryRate: Number(stats.onTimeDeliveryRate || stats.on_time_delivery_rate || 0)
+    }
+  }
+
+  if (tasksRes.status === 'fulfilled') {
+    const data = getResponseData(tasksRes.value)
+    const tasks = Array.isArray(data) ? data : (data.items || data.list || data.data || [])
+    realtimeTasks.value = Array.isArray(tasks) ? tasks.map(toTaskCard) : []
+  }
+}
+
 const goBack = () => {
   router.back()
 }
 
-const refreshData = () => {
-  showToast({
-    type: 'success',
-    message: '数据已刷新'
-  })
+const refreshData = async () => {
+  try {
+    await loadDashboardData()
+    showToast({ type: 'success', message: '数据已刷新' })
+  } catch (error) {
+    console.error('刷新生产看板失败:', error)
+    showToast('刷新失败')
+  }
 }
 
 const getStatusClass = (status) => {
@@ -254,6 +280,12 @@ const getStatusText = (status) => {
   }
   return statusMap[status] || '未知'
 }
+
+onMounted(() => {
+  loadDashboardData().catch((error) => {
+    console.error('加载生产看板失败:', error)
+  })
+})
 </script>
 
 <style lang="scss" scoped>
@@ -552,5 +584,3 @@ const getStatusText = (status) => {
   transform: rotate(180deg);
 }
 </style>
-
-

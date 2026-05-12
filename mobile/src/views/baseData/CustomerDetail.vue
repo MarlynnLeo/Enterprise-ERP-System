@@ -10,7 +10,7 @@
   <div class="customer-detail-page">
     <NavBar title="客户详情" left-arrow @click-left="onClickLeft">
       <template #right>
-        <Icon name="edit" size="18" @click="editCustomer" />
+        <Icon name="edit" size="18" @click="editCustomer" v-permission="'basedata:customers:update'" />
       </template>
     </NavBar>
 
@@ -84,7 +84,7 @@
 
       <!-- 操作按钮 -->
       <div class="action-buttons">
-        <Button type="primary" size="large" @click="editCustomer" style="margin-bottom: 12px">
+        <Button type="primary" size="large" @click="editCustomer" style="margin-bottom: 12px" v-permission="'basedata:customers:update'">
           编辑客户
         </Button>
         <Button type="default" size="large" @click="viewOrders"> 查看订单 </Button>

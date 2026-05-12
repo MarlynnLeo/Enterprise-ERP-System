@@ -42,10 +42,10 @@
           <span class="info-label">创建人</span>
           <span class="info-value">{{ detail.creator || '—' }}</span>
         </div>
-        <div class="info-row" v-if="detail.status === 'completed'">
+        <div class="info-row" v-if="['pending', 'completed'].includes(detail.status)">
           <span class="info-label">盘点结果</span>
-          <span class="info-value" :class="getResultClass(detail.profit_loss)">
-            {{ getResultText(detail.profit_loss) }}
+          <span class="info-value" :class="getResultClass(totalDifference)">
+            {{ getResultText(totalDifference) }}
           </span>
         </div>
         <div class="info-row" v-if="detail.description">
@@ -116,11 +116,10 @@
     <!-- 底部操作栏 -->
     <div
       class="bottom-bar"
+      v-permission="'inventory:check:update'"
       v-if="
         detail.id &&
-        (detail.status === 'draft' ||
-          detail.status === 'in_progress' ||
-          (detail.status === 'completed' && detail.profit_loss !== 0))
+        (detail.status === 'draft' || detail.status === 'in_progress' || detail.status === 'pending')
       "
     >
       <template v-if="detail.status === 'draft'">
@@ -148,11 +147,11 @@
         round
         block
         :loading="submitting"
-        @click="handleUpdateStatus('completed')"
+        @click="handleUpdateStatus('pending')"
         >完成盘点</VanButton
       >
       <VanButton
-        v-if="detail.status === 'completed' && detail.profit_loss !== 0"
+        v-if="detail.status === 'pending' && hasDifference"
         type="warning"
         round
         block
@@ -160,12 +159,21 @@
         @click="handleAdjust"
         >调整库存</VanButton
       >
+      <VanButton
+        v-if="detail.status === 'pending' && !hasDifference"
+        type="success"
+        round
+        block
+        :loading="submitting"
+        @click="handleUpdateStatus('completed')"
+        >确认完成</VanButton
+      >
     </div>
   </div>
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import {
     NavBar,
@@ -183,6 +191,29 @@
   const loading = ref(true)
   const submitting = ref(false)
   const detail = ref({})
+
+  const totalDifference = computed(() => {
+    if (detail.value.profit_loss !== undefined && detail.value.profit_loss !== null) {
+      return Number(detail.value.profit_loss) || 0
+    }
+
+    return (detail.value.items || []).reduce((sum, item) => {
+      const actual = Number(item.actual_quantity ?? item.actual_qty ?? 0)
+      const system = Number(item.system_quantity ?? item.book_qty ?? 0)
+      return sum + (actual - system)
+    }, 0)
+  })
+
+  const hasDifference = computed(() => Math.abs(totalDifference.value) > 0.000001)
+
+  const buildCheckResultItems = () =>
+    (detail.value.items || []).map((item) => ({
+      id: item.id,
+      material_id: item.material_id,
+      system_quantity: Number(item.system_quantity ?? item.book_qty ?? 0),
+      actual_quantity: Number(item.actual_quantity ?? item.actual_qty ?? 0),
+      remark: item.remark || item.remarks || ''
+    }))
 
   const loadDetail = async () => {
     loading.value = true
@@ -206,12 +237,13 @@
       cancelled: '已取消'
     })[s] || s
   const getStatusIcon = (s) =>
-    ({ draft: 'edit', in_progress: 'clock-o', completed: 'checked', cancelled: 'close' })[s] ||
+    ({ draft: 'edit', in_progress: 'clock-o', pending: 'todo-list', completed: 'checked', cancelled: 'close' })[s] ||
     'info-o'
   const getStatusAccent = (s) =>
     ({
       draft: 'status-draft',
       in_progress: 'status-progress',
+      pending: 'status-progress',
       completed: 'status-completed',
       cancelled: 'status-cancelled'
     })[s] || ''
@@ -239,7 +271,11 @@
         message: `确定要将状态更新为"${getStatusText(newStatus)}"吗？`
       })
       submitting.value = true
-      await inventoryApi.updateCheckStatus(detail.value.id, newStatus)
+      if (newStatus === 'pending') {
+        await inventoryApi.submitCheckResult(detail.value.id, { items: buildCheckResultItems() })
+      } else {
+        await inventoryApi.updateCheckStatus(detail.value.id, newStatus)
+      }
       showToast('状态更新成功')
       await loadDetail()
     } catch (e) {

@@ -27,9 +27,7 @@
 <script setup>
   import { ref } from 'vue'
   import { NavBar, CellGroup, Cell, Field, Button, Popup, Picker, DatePicker, showToast } from 'vant'
-  import { useRouter } from 'vue-router'
 
-  const router = useRouter()
   const submitting = ref(false)
   const showDatePicker = ref(false)
   const showTypePicker = ref(false)
@@ -47,8 +45,7 @@
     if (!form.value.reason) return showToast('请填写加班原因')
     submitting.value = true
     try {
-      showToast('加班申请已提交，等待审批')
-      setTimeout(() => router.go(-1), 800)
+      showToast('手机端暂未接入加班审批提交，请在网页端处理')
     } finally { submitting.value = false }
   }
 </script>

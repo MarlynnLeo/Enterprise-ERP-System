@@ -13,12 +13,12 @@
         <Icon name="plus" size="18" @click="createUser" />
       </template>
     </NavBar>
-    
+
     <div class="content-container">
       <!-- 搜索和筛选 -->
       <div class="search-section">
-        <Search 
-          v-model="searchKeyword" 
+        <Search
+          v-model="searchKeyword"
           placeholder="搜索用户名、姓名、邮箱..."
           @search="handleSearch"
           @clear="handleClear"
@@ -28,8 +28,8 @@
       <!-- 横向滑动筛选标签 -->
       <div class="filter-scroll-wrapper">
         <div class="filter-scroll">
-          <div 
-            v-for="filter in statusFilters" 
+          <div
+            v-for="filter in statusFilters"
             :key="filter.key"
             class="filter-chip"
             :class="{ active: activeFilter === filter.key }"
@@ -70,8 +70,8 @@
             finished-text="没有更多了"
             @load="onLoad"
           >
-            <div 
-              v-for="user in filteredUsers" 
+            <div
+              v-for="user in filteredUsers"
               :key="user.id"
               class="user-item"
               @click="viewUser(user)"
@@ -83,7 +83,7 @@
                 </div>
                 <div class="online-indicator" v-if="user.isOnline"></div>
               </div>
-              
+
               <div class="user-info">
                 <div class="user-header">
                   <div class="user-name">{{ user.name }}</div>
@@ -93,7 +93,7 @@
                     </div>
                   </div>
                 </div>
-                
+
                 <div class="user-details">
                   <div class="detail-item">
                     <Icon name="contact" size="12" color="var(--text-disabled)" />
@@ -112,7 +112,7 @@
                     <span>{{ user.role }}</span>
                   </div>
                 </div>
-                
+
                 <div class="user-meta">
                   <div class="meta-item">
                     <span class="meta-label">最后登录:</span>
@@ -124,7 +124,7 @@
                   </div>
                 </div>
               </div>
-              
+
               <div class="user-actions">
                 <Icon name="more-o" size="16" @click.stop="showUserActions(user)" />
               </div>
@@ -210,6 +210,18 @@
               type="tel"
             />
             <Field
+              v-if="!editingUser"
+              v-model="userForm.password"
+              name="password"
+              label="密码"
+              placeholder="请输入初始密码"
+              type="password"
+              :rules="[
+                { required: true, message: '请输入初始密码' },
+                { validator: validatePasswordStrength, message: passwordRuleText }
+              ]"
+            />
+            <Field
               v-model="userForm.department"
               name="department"
               label="部门"
@@ -245,19 +257,61 @@
         </div>
       </div>
     </Popup>
+
+    <!-- 重置密码弹窗 -->
+    <Popup v-model:show="showResetPasswordDialog" position="bottom" :style="{ height: '52%' }">
+      <div class="user-dialog">
+        <div class="dialog-header">
+          <span>重置密码</span>
+          <Icon name="cross" @click="closeResetPasswordDialog" />
+        </div>
+        <div class="dialog-content">
+          <Form @submit="submitResetPassword">
+            <Field
+              v-model="resetPasswordForm.password"
+              name="password"
+              label="新密码"
+              placeholder="请输入新密码"
+              type="password"
+              :rules="[
+                { required: true, message: '请输入新密码' },
+                { validator: validatePasswordStrength, message: passwordRuleText }
+              ]"
+            />
+            <Field
+              v-model="resetPasswordForm.confirmPassword"
+              name="confirmPassword"
+              label="确认密码"
+              placeholder="请再次输入新密码"
+              type="password"
+              :rules="[
+                { required: true, message: '请确认新密码' },
+                { validator: validateResetPasswordConfirm, message: '两次输入的密码不一致' }
+              ]"
+            />
+            <div class="password-tip">{{ passwordRuleText }}</div>
+            <div class="form-actions">
+              <Button block type="primary" native-type="submit" :loading="resettingPassword">
+                确认重置
+              </Button>
+            </div>
+          </Form>
+        </div>
+      </div>
+    </Popup>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { 
+import { useRoute } from 'vue-router';
+import {
   NavBar, Icon, Search, Badge, PullRefresh, List, Empty, Button,
-  ActionSheet, Popup, Form, Field, showToast, showConfirmDialog 
+  ActionSheet, Popup, Form, Field, showToast, showConfirmDialog, showDialog
 } from 'vant';
 import { systemApi } from '@/services/api';
 
-const router = useRouter();
+const route = useRoute();
 
 // 响应式数据
 const users = ref([]);
@@ -271,16 +325,21 @@ const showUserDialog = ref(false);
 const showDepartmentSheet = ref(false);
 const showRoleSheet = ref(false);
 const showStatusSheet = ref(false);
+const showResetPasswordDialog = ref(false);
 const saving = ref(false);
+const resettingPassword = ref(false);
 const selectedUser = ref(null);
 const editingUser = ref(null);
+const resetPasswordUser = ref(null);
 const departments = ref([]);
 const roles = ref([]);
+const passwordRuleText = '至少8位，包含大写字母、小写字母、数字和特殊字符';
 
 // 用户表单
 const userForm = reactive({
   username: '',
   name: '',
+  password: '',
   email: '',
   phone: '',
   department: '',
@@ -288,6 +347,11 @@ const userForm = reactive({
   role: '',
   roleId: null,
   status: 'active'
+});
+
+const resetPasswordForm = reactive({
+  password: '',
+  confirmPassword: ''
 });
 
 // 状态筛选器
@@ -300,10 +364,10 @@ const statusFilters = ref([
 
 // 用户统计
 const userStats = reactive({
-  total: 156,
-  active: 142,
-  online: 25,
-  disabled: 14
+  total: 0,
+  active: 0,
+  online: 0,
+  disabled: 0
 });
 
 // 用户操作
@@ -311,8 +375,7 @@ const userActions = ref([
   { name: '查看详情', key: 'view' },
   { name: '编辑用户', key: 'edit' },
   { name: '重置密码', key: 'reset-password' },
-  { name: '禁用用户', key: 'disable', color: '#ff6b6b' },
-  { name: '删除用户', key: 'delete', color: '#ff6b6b' }
+  { name: '禁用用户', key: 'disable', color: '#ff6b6b' }
 ]);
 
 const statusActions = [
@@ -334,10 +397,20 @@ const roleActions = computed(() =>
   }))
 );
 
+const normalizeUserStatus = (status) => {
+  const normalized = String(status ?? '').trim().toLowerCase();
+  if (!normalized) return 'active';
+  if (['1', 'true', 'active', 'enabled', 'normal'].includes(normalized)) return 'active';
+  if (['0', 'false', 'inactive', 'disabled', 'disable', 'locked'].includes(normalized)) return 'disabled';
+  return normalized;
+};
+
+const toApiUserStatus = (status) => (normalizeUserStatus(status) === 'active' ? 1 : 0);
+
 // 计算属性
 const filteredUsers = computed(() => {
   let filtered = users.value;
-  
+
   // 状态筛选
   if (activeFilter.value !== 'all') {
     if (activeFilter.value === 'online') {
@@ -346,17 +419,17 @@ const filteredUsers = computed(() => {
       filtered = filtered.filter(user => user.status === activeFilter.value);
     }
   }
-  
+
   // 搜索筛选
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase();
-    filtered = filtered.filter(user => 
+    filtered = filtered.filter(user =>
       user.username.toLowerCase().includes(keyword) ||
       user.name.toLowerCase().includes(keyword) ||
       user.email?.toLowerCase().includes(keyword)
     );
   }
-  
+
   return filtered;
 });
 
@@ -370,11 +443,11 @@ const getStatusText = (status) => {
 // 格式化时间
 const formatTime = (timestamp) => {
   if (!timestamp) return '从未登录';
-  
+
   const date = new Date(timestamp);
   const now = new Date();
   const diff = now - date;
-  
+
   if (diff < 60000) return '刚刚';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
@@ -385,6 +458,30 @@ const formatTime = (timestamp) => {
 // 分页状态
 const currentPage = ref(1);
 const pageSize = 20;
+
+const normalizeUser = (u) => {
+  const roles = Array.isArray(u.roles) ? u.roles : [];
+  return {
+    ...u,
+    name: u.real_name || u.name || u.username,
+    department: u.departmentName || u.department_name || u.department || '',
+    role: u.roleNames || u.role_name || roles.map(role => role.name || role.role_name).filter(Boolean).join(', ') || u.role || '',
+    roleId: u.role_id || u.roleId || roles[0]?.id || null,
+    roleIds: roles.map(role => role.id || role).filter(Boolean),
+    status: normalizeUserStatus(u.status),
+    isOnline: Boolean(u.is_online || u.isOnline),
+    lastLogin: u.last_login_at || u.lastLogin || null,
+    loginCount: u.login_count || 0
+  };
+};
+
+const syncUserStats = (total) => {
+  const numericTotal = Number(total);
+  userStats.total = Number.isFinite(numericTotal) ? numericTotal : users.value.length;
+  userStats.active = users.value.filter(user => user.status === 'active').length;
+  userStats.online = users.value.filter(user => user.isOnline).length;
+  userStats.disabled = users.value.filter(user => user.status === 'disabled').length;
+};
 
 // 加载用户数据
 const loadUsers = async (isRefresh = false) => {
@@ -397,22 +494,14 @@ const loadUsers = async (isRefresh = false) => {
   try {
     const response = await systemApi.getUsers({
       page: currentPage.value,
-      pageSize,
-      keyword: searchKeyword.value || undefined
+      limit: pageSize,
+      pageSize
     });
     const data = response.data;
     const list = data?.list || data?.rows || (Array.isArray(data) ? data : []);
 
     // 规范化字段
-    const normalized = list.map(u => ({
-      ...u,
-      name: u.real_name || u.name || u.username,
-      department: u.department_name || u.department || '',
-      role: u.role_name || u.role || '',
-      isOnline: false,
-      lastLogin: u.last_login_at || u.lastLogin || null,
-      loginCount: u.login_count || 0
-    }));
+    const normalized = list.map(normalizeUser);
 
     if (isRefresh) {
       users.value = normalized;
@@ -425,6 +514,7 @@ const loadUsers = async (isRefresh = false) => {
 
     // 更新筛选器计数
     updateFilterCounts();
+    syncUserStats(data?.total ?? data?.count ?? data?.pagination?.total);
 
   } catch (error) {
     console.error('加载用户失败:', error);
@@ -460,11 +550,12 @@ const onRefresh = () => {
 };
 
 const handleSearch = () => {
-  // 搜索逻辑已在计算属性中处理
+  loadUsers(true);
 };
 
 const handleClear = () => {
   searchKeyword.value = '';
+  loadUsers(true);
 };
 
 const selectFilter = (filterKey) => {
@@ -472,25 +563,36 @@ const selectFilter = (filterKey) => {
 };
 
 const viewUser = (user) => {
-  router.push(`/system/users/${user.id}`);
+  const item = normalizeUser(user);
+  showDialog({
+    title: item.name || '用户详情',
+    message: [
+      `用户名：${item.username || '-'}`,
+      `姓名：${item.name || '-'}`,
+      `部门：${item.department || '-'}`,
+      `角色：${item.role || '-'}`,
+      `状态：${getStatusText(item.status)}`,
+      `最后登录：${formatTime(item.lastLogin)}`
+    ].join('\n')
+  });
 };
 
 const showUserActions = (user) => {
   selectedUser.value = user;
-  
+
   // 根据用户状态调整操作选项
   if (user.status === 'disabled') {
     userActions.value[3] = { name: '启用用户', key: 'enable', color: '#2ccfb0' };
   } else {
     userActions.value[3] = { name: '禁用用户', key: 'disable', color: '#ff6b6b' };
   }
-  
+
   showActions.value = true;
 };
 
 const handleUserAction = (action) => {
   const user = selectedUser.value;
-  
+
   switch (action.key) {
     case 'view':
       viewUser(user);
@@ -507,9 +609,6 @@ const handleUserAction = (action) => {
     case 'enable':
       toggleUserStatus(user, 'active');
       break;
-    case 'delete':
-      deleteUser(user);
-      break;
   }
 };
 
@@ -520,11 +619,14 @@ const createUser = () => {
 };
 
 const editUser = (user) => {
-  editingUser.value = user;
+  const item = normalizeUser(user);
+  editingUser.value = item;
   Object.assign(userForm, {
-    ...user,
-    departmentId: user.department_id || user.departmentId || null,
-    roleId: user.role_id || user.roleId || null
+    ...item,
+    password: '',
+    departmentId: item.department_id || item.departmentId || null,
+    roleId: item.roleId || null,
+    status: normalizeUserStatus(item.status)
   });
   showUserDialog.value = true;
 };
@@ -533,6 +635,7 @@ const resetUserForm = () => {
   Object.assign(userForm, {
     username: '',
     name: '',
+    password: '',
     email: '',
     phone: '',
     department: '',
@@ -545,8 +648,24 @@ const resetUserForm = () => {
 
 const closeUserDialog = () => {
   showUserDialog.value = false;
+  editingUser.value = null;
   resetUserForm();
 };
+
+const validatePasswordStrength = (value) => {
+  const password = String(value || '');
+  const specialChars = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /\d/.test(password) &&
+    [...specialChars].some(char => password.includes(char)) &&
+    !/(.)\1{2,}/.test(password)
+  );
+};
+
+const validateResetPasswordConfirm = (value) => value === resetPasswordForm.password;
 
 const saveUser = async () => {
   saving.value = true;
@@ -555,7 +674,9 @@ const saveUser = async () => {
     const payload = {
       ...userForm,
       department_id: userForm.departmentId || undefined,
-      role_id: userForm.roleId || undefined
+      role_id: userForm.roleId || undefined,
+      roleIds: userForm.roleId ? [Number(userForm.roleId)] : [],
+      status: toApiUserStatus(userForm.status)
     };
     if (editingUser.value) {
       await systemApi.updateUser(editingUser.value.id, payload);
@@ -576,19 +697,34 @@ const saveUser = async () => {
   }
 };
 
-const resetPassword = async (user) => {
-  try {
-    await showConfirmDialog({
-      title: '重置密码',
-      message: `确定要重置用户 ${user.name} 的密码吗？`
-    });
+const resetPassword = (user) => {
+  resetPasswordUser.value = normalizeUser(user);
+  resetPasswordForm.password = '';
+  resetPasswordForm.confirmPassword = '';
+  showResetPasswordDialog.value = true;
+};
 
-    await systemApi.resetUserPassword(user.id);
+const closeResetPasswordDialog = () => {
+  showResetPasswordDialog.value = false;
+  resetPasswordUser.value = null;
+  resetPasswordForm.password = '';
+  resetPasswordForm.confirmPassword = '';
+};
+
+const submitResetPassword = async () => {
+  if (!resetPasswordUser.value) return;
+  resettingPassword.value = true;
+  try {
+    await systemApi.resetUserPassword(resetPasswordUser.value.id, {
+      password: resetPasswordForm.password
+    });
     showToast('密码重置成功');
+    closeResetPasswordDialog();
   } catch (error) {
-    if (error !== 'cancel') {
-      showToast('重置失败，请重试');
-    }
+    console.error('重置密码失败:', error);
+    showToast(error?.response?.data?.message || '重置失败，请重试');
+  } finally {
+    resettingPassword.value = false;
   }
 };
 
@@ -600,31 +736,14 @@ const toggleUserStatus = async (user, status) => {
       message: `确定要${action}用户 ${user.name} 吗？`
     });
 
-    await systemApi.updateUserStatus(user.id, status);
+    await systemApi.updateUserStatus(user.id, toApiUserStatus(status));
     user.status = status;
     showToast(`用户${action}成功`);
     updateFilterCounts();
+    syncUserStats();
   } catch (error) {
     if (error !== 'cancel') {
       showToast('操作失败，请重试');
-    }
-  }
-};
-
-const deleteUser = async (user) => {
-  try {
-    await showConfirmDialog({
-      title: '删除用户',
-      message: `确定要删除用户 ${user.name} 吗？此操作不可恢复。`
-    });
-
-    await systemApi.deleteUser(user.id);
-    users.value = users.value.filter(u => u.id !== user.id);
-    showToast('用户删除成功');
-    updateFilterCounts();
-  } catch (error) {
-    if (error !== 'cancel') {
-      showToast('删除失败，请重试');
     }
   }
 };
@@ -682,9 +801,26 @@ const chooseStatus = (action) => {
   userForm.status = action.value;
 };
 
+const openRouteUser = async () => {
+  if (!route.params.id) return;
+  try {
+    const response = await systemApi.getUserById(route.params.id);
+    const data = response.data || response;
+    viewUser(data);
+  } catch (error) {
+    console.error('加载用户详情失败:', error);
+    showToast('加载用户详情失败');
+  }
+};
+
 // 初始化
-onMounted(() => {
-  loadUsers(true);
+onMounted(async () => {
+  await loadUsers(true);
+  if (route.name === 'CreateUser') {
+    createUser();
+  } else if (route.name === 'UserDetail') {
+    await openRouteUser();
+  }
 });
 </script>
 
@@ -919,6 +1055,13 @@ onMounted(() => {
     flex: 1;
     overflow-y: auto;
     padding: 16px;
+
+    .password-tip {
+      margin: 8px 0 0;
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.5;
+    }
 
     .form-actions {
       margin-top: 24px;

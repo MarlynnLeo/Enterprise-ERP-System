@@ -27,6 +27,16 @@
   const roles = ref([])
   const permissions = ref([])
 
+  const normalizePermissions = (data) => {
+    const list = Array.isArray(data) ? data : (data.list || data.items || data.permissions || [])
+    return list.map((item, index) => {
+      if (typeof item === 'string') {
+        return { id: item, name: item, code: item, module: item.split(':')[0] || '-' }
+      }
+      return { id: item.id || item.code || index, ...item }
+    })
+  }
+
   const fetchData = async () => {
     try {
       const [rRes, pRes] = await Promise.allSettled([
@@ -34,7 +44,7 @@
         systemApi.getPermissions()
       ])
       if (rRes.status === 'fulfilled') { const d = extractApiData(rRes.value); roles.value = Array.isArray(d) ? d : (d.list || d.items || []) }
-      if (pRes.status === 'fulfilled') { const d = extractApiData(pRes.value); permissions.value = Array.isArray(d) ? d : (d.list || d.items || []) }
+      if (pRes.status === 'fulfilled') { const d = extractApiData(pRes.value); permissions.value = normalizePermissions(d) }
     } catch { /* 静默 */ } finally { loading.value = false }
   }
 

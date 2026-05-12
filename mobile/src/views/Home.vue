@@ -187,7 +187,7 @@
     { title: '库存管理', path: '/inventory', colorClass: 'mod-orange', icon: ArchiveBoxIcon, permission: 'inventory' },
     { title: '品质检验', path: '/quality', colorClass: 'mod-emerald', icon: ShieldCheckIcon, permission: 'quality' },
     { title: '财务管理', path: '/finance', colorClass: 'mod-yellow', icon: BanknotesIcon, permission: 'finance' },
-    { title: '设备管理', path: '/equipment', colorClass: 'mod-amber', icon: WrenchScrewdriverIcon, permission: 'equipment' },
+    { title: '设备管理', path: '/equipment', colorClass: 'mod-amber', icon: WrenchScrewdriverIcon, permission: 'production:equipment:view' },
     { title: '人事管理', path: '/hr', colorClass: 'mod-teal', icon: UserGroupIcon, permission: 'hr' },
     { title: '系统设置', path: '/system', colorClass: 'mod-gray', icon: Cog6ToothIcon, permission: 'system' }
   ])

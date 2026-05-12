@@ -113,11 +113,12 @@
 
 <script setup>
   import { ref, reactive, onMounted } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Field, CellGroup, Popup, Button as VanButton, Icon, showToast } from 'vant'
   import { productionApi } from '@/services/api'
 
   const router = useRouter()
+  const route = useRoute()
   const taskList = ref([])
   const selectedTask = ref(null)
   const selectedTaskName = ref('')
@@ -138,10 +139,26 @@
         pageSize: 100,
         status: 'in_progress'
       })
-      let tasks = response.data?.items || response.data || response.items || []
+      let tasks = response.data?.items || response.data?.list || response.data || response.items || response.list || []
       taskList.value = Array.isArray(tasks) ? tasks : []
     } catch (e) {
       console.error('加载任务失败:', e)
+    }
+  }
+
+  const loadRouteTask = async () => {
+    const taskId = route.params.id || route.query.taskId
+    if (!taskId) return
+
+    try {
+      const response = await productionApi.getProductionTask(taskId)
+      const task = response.data || response
+      if (task?.id) {
+        selectTask(task)
+        taskList.value = [task, ...taskList.value.filter((item) => item.id !== task.id)]
+      }
+    } catch (e) {
+      console.error('加载报工任务失败:', e)
     }
   }
 
@@ -172,7 +189,10 @@
     }
   }
 
-  onMounted(() => loadTasks())
+  onMounted(async () => {
+    await loadTasks()
+    await loadRouteTask()
+  })
 </script>
 
 <style lang="scss" scoped>

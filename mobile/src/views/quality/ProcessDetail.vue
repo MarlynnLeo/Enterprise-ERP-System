@@ -71,10 +71,10 @@
       </CellGroup>
 
       <!-- 操作按钮 -->
-      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:process:update'">
+      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:inspections:update'">
         <Button round block type="primary" @click="handleStart"> 开始检验 </Button>
       </div>
-      <div class="action-section" v-else-if="inspection.status === 'in_progress'" v-permission="'quality:process:update'">
+      <div class="action-section" v-else-if="inspection.status === 'in_progress'" v-permission="'quality:inspections:update'">
         <Button round block type="success" @click="handleComplete"> 提交并完成检验 </Button>
       </div>
     </div>
@@ -165,11 +165,10 @@
 
   const loadFromApi = async () => {
     try {
-      const response = await qualityApi.getProcessInspections({ id: route.params.id, limit: 1 })
-      const data = response.data || response
-      const items = data.items || data.list || data.inspections || []
-      if (items.length > 0) {
-        inspection.value = items[0]
+      const response = await qualityApi.getProcessInspection(route.params.id)
+      const data = response?.data?.data || response?.data || response
+      if (data?.id) {
+        inspection.value = data
         inspectForm.qualified_quantity =
           inspection.value.qualified_quantity || inspection.value.quantity || 0
         inspectForm.unqualified_quantity = inspection.value.unqualified_quantity || 0
@@ -204,18 +203,21 @@
 
     try {
       await showConfirmDialog({ title: '确认完成', message: '确定完成此次检验记录提交吗？' })
+      const status = uq > 0 ? 'failed' : 'passed'
       await qualityApi.completeInspection(inspection.value.id, {
         qualified_quantity: q,
         unqualified_quantity: uq,
-        status: 'completed',
+        status,
+        result: status,
         remark: inspectForm.remark
       })
       showToast('检验已完成')
-      inspection.value.status = 'completed'
+      inspection.value.status = status
       setTimeout(() => {
         router.go(-1)
       }, 1000)
     } catch (error) {
+      if (error === 'cancel') return
       console.error('完成检验失败:', error)
       showToast('操作失败')
     }

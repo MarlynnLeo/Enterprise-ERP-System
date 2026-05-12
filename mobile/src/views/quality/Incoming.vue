@@ -26,6 +26,11 @@
     ],
 
     // 字段映射
+    filterAliases: {
+      completed: ['completed', 'passed', 'failed', 'partial'],
+      received: ['received', 'warehoused']
+    },
+
     fields: {
       id: 'id',
       title: 'inspection_number',
@@ -94,11 +99,15 @@
   const loadIncoming = async (params) => {
     // 处理状态筛选
     const apiParams = { ...params, include_supplier: true }
+    if (apiParams.search) {
+      apiParams.keyword = apiParams.search
+      delete apiParams.search
+    }
     if (!params.status || params.status === 'all') {
       delete apiParams.status
     }
     const response = await qualityApi.getIncomingInspections(apiParams)
-    
+
     // 对 response 数据进行格式化或容错处理
     if (response && response.data && Array.isArray(response.data.list)) {
       response.data.list = response.data.list.map(item => ({
@@ -108,7 +117,7 @@
         batch_number: item.batch_number || item.batch_no || '-'
       }))
     }
-    
+
     return response
   }
 

@@ -18,6 +18,7 @@
 
 <script setup>
   import { computed } from 'vue'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { salesApi } from '@/services/api'
 
@@ -59,6 +60,6 @@
   }
 
   const handleItemClick = () => {
-    // 换货详情暂无单独页面
+    showToast('手机端暂未开放换货详情')
   }
 </script>

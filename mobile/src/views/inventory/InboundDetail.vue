@@ -4,7 +4,7 @@
  * @description 移动端入库单详情页，操作流程与网页端完全一致
  * @date 2026-04-24
  * @version 2.2.0
- * 
+ *
  * 状态流转：
  *   draft → confirmed → completed
  *   draft → cancelled (取消)
@@ -122,7 +122,7 @@
         </div>
 
         <!-- 底部操作栏 - 根据状态显示不同操作按钮（与网页端一致） -->
-        <div class="bottom-actions" v-if="inboundOrder && showActions">
+        <div class="bottom-actions" v-if="inboundOrder && showActions" v-permission="'inventory:inbound:update'">
             <!-- 草稿状态: 取消 + 确认 -->
             <template v-if="inboundOrder.status === 'draft'">
                 <van-button type="warning" plain :loading="submitting" @click="handleCancel" class="action-btn">

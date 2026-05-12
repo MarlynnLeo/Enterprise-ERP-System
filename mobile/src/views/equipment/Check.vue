@@ -52,7 +52,13 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '扫码点检', action: 'create' }
+      {
+        icon: 'plus',
+        label: '扫码点检',
+        action: 'create',
+        path: '/equipment/check/create',
+        permission: 'production:equipment:update'
+      }
     ]
   }))
 

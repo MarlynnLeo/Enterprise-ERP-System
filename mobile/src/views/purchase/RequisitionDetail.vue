@@ -44,7 +44,7 @@
         </div>
       </CellGroup>
 
-      <!-- 操作按钮 — 严格对齐网页端状态流转 -->
+      <!-- 操作按钮 — 对齐后端工作流状态流转 -->
       <div class="action-section">
         <!-- draft(草稿): 提交审批、删除 -->
         <template v-if="detail.status === 'draft'">
@@ -57,14 +57,17 @@
           </Button>
         </template>
 
-        <!-- pending(待审批): 审批通过、拒绝 -->
-        <template v-if="detail.status === 'pending'">
-          <Button round block type="success" @click="handleApprove" :loading="actionLoading"
-            style="margin-bottom: 10px">
-            审批通过
-          </Button>
-          <Button round block type="warning" plain @click="handleReject" :loading="actionLoading">
-            拒绝
+        <!-- submitted(已提交): 审批由工作流处理，移动端只提示状态 -->
+        <template v-else-if="detail.status === 'submitted'">
+          <div class="workflow-tip">
+            已提交审批，请在审批流程中处理。
+          </div>
+        </template>
+
+        <!-- rejected(已拒绝): 允许退回草稿后重新编辑/提交 -->
+        <template v-else-if="detail.status === 'rejected'">
+          <Button round block type="warning" plain @click="handleReturnToDraft" :loading="actionLoading" v-permission="'purchase:requisitions:update'">
+            退回草稿
           </Button>
         </template>
       </div>
@@ -89,6 +92,7 @@
 
   const statusMap = {
     draft: '草稿',
+    submitted: '已提交',
     pending: '待审批',
     approved: '已审批',
     rejected: '已拒绝',
@@ -111,12 +115,12 @@
     }
   }
 
-  // 草稿 → 提交审批 (draft → pending)
+  // 草稿 → 提交审批 (draft → submitted)
   const handleSubmit = async () => {
     try {
       await showConfirmDialog({ title: '提交审批', message: '确定提交该采购申请进行审批？' })
       actionLoading.value = true
-      await purchaseApi.updateRequisitionStatus(route.params.id, 'pending')
+      await purchaseApi.updateRequisitionStatus(route.params.id, 'submitted')
       showToast('已提交审批')
       await loadDetail()
     } catch (e) {
@@ -126,28 +130,13 @@
     }
   }
 
-  // 待审批 → 审批通过 (pending → approved)
-  const handleApprove = async () => {
+  // 已拒绝 → 草稿 (rejected → draft)
+  const handleReturnToDraft = async () => {
     try {
-      await showConfirmDialog({ title: '确认', message: '确定审批通过该采购申请？' })
+      await showConfirmDialog({ title: '退回草稿', message: '确定将该采购申请退回草稿？' })
       actionLoading.value = true
-      await purchaseApi.updateRequisitionStatus(route.params.id, 'approved')
-      showToast('审批通过')
-      await loadDetail()
-    } catch (e) {
-      if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
-    } finally {
-      actionLoading.value = false
-    }
-  }
-
-  // 待审批 → 拒绝 (pending → rejected)
-  const handleReject = async () => {
-    try {
-      await showConfirmDialog({ title: '拒绝申请', message: '确定拒绝该采购申请？' })
-      actionLoading.value = true
-      await purchaseApi.updateRequisitionStatus(route.params.id, 'rejected')
-      showToast('已拒绝')
+      await purchaseApi.updateRequisitionStatus(route.params.id, 'draft')
+      showToast('已退回草稿')
       await loadDetail()
     } catch (e) {
       if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
@@ -207,6 +196,9 @@
     &.pending {
       background: var(--color-warning);
     }
+    &.submitted {
+      background: var(--color-warning);
+    }
     &.approved {
       background: var(--color-success);
     }
@@ -233,6 +225,15 @@
   }
   .action-section {
     padding: 24px 16px;
+  }
+  .workflow-tip {
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--van-background);
+    border: 1px solid var(--van-border-color);
+    color: var(--van-text-color-2);
+    text-align: center;
+    font-size: 0.875rem;
   }
   .loading-container {
     display: flex;

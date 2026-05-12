@@ -5,7 +5,7 @@
 <script setup>
   import { computed } from 'vue'
   import { useRouter } from 'vue-router'
-  
+
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { qualityApi } from '@/services/api'
 
@@ -26,10 +26,15 @@
     ],
 
     // 字段映射
+    filterAliases: {
+      completed: ['completed', 'passed', 'failed', 'partial'],
+      warehoused: ['warehoused', 'received']
+    },
+
     fields: {
       id: 'id',
       title: 'inspection_no',
-      subtitle: 'batch_no', 
+      subtitle: 'batch_no',
       icon: 'badge-check',
       status: 'status',
 
@@ -86,11 +91,15 @@
   const loadFinal = async (params) => {
     // 处理状态筛选
     const apiParams = { ...params }
+    if (apiParams.search) {
+      apiParams.keyword = apiParams.search
+      delete apiParams.search
+    }
     if (!params.status || params.status === 'all') {
       delete apiParams.status
     }
     const response = await qualityApi.getFinalInspections(apiParams)
-    
+
     if (response && response.data && Array.isArray(response.data.list)) {
       response.data.list = response.data.list.map(item => ({
         ...item,
@@ -98,7 +107,7 @@
         batch_no: item.batch_no || item.batch_number || '-'
       }))
     }
-    
+
     return response
   }
 

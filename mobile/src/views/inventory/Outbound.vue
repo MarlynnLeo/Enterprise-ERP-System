@@ -19,7 +19,7 @@
         </span>
       </template>
     </NavBar>
-    
+
     <div class="content-container">
       <!-- 搜索栏 -->
       <div class="search-section">
@@ -45,7 +45,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 出库单列表 -->
       <PullRefresh v-model="refreshing" @refresh="onRefresh">
         <List
@@ -57,10 +57,10 @@
           <div v-if="outboundList.length === 0 && !loading" class="empty-state">
             <Empty description="暂无出库记录" />
           </div>
-          
-          <div 
-            v-for="(outbound, idx) in outboundList" 
-            :key="outbound.id" 
+
+          <div
+            v-for="(outbound, idx) in outboundList"
+            :key="outbound.id"
             class="list-card"
             :style="{ animationDelay: `${idx * 0.03}s` }"
             @click="viewOutboundDetail(outbound.id)"
@@ -215,9 +215,9 @@ const loadOutboundList = async () => {
       search: searchValue.value || undefined,
       status: statusTabs[activeTab.value].value || undefined
     };
-    
+
     const response = await inventoryApi.getOutboundList(params);
-    
+
     // 后端 ResponseHandler.paginated 返回 { data: { list, total } }
     // 经 axios 响应拦截器解包后，response.data = { list, total }
     const resData = response.data || response || {};
@@ -229,7 +229,7 @@ const loadOutboundList = async () => {
     } else {
       finished.value = true;
     }
-    
+
     pagination.page++;
   } catch (error) {
     console.error('获取出库单列表失败:', error);
@@ -240,16 +240,19 @@ const loadOutboundList = async () => {
   }
 };
 
-// 获取出库单状态类型（使用统一常量）;
+// 获取出库单状态类型（使用统一常量）
+;
 
 // 查看出库单详情
 const viewOutboundDetail = (id) => {
   router.push(`/inventory/outbound/${id}`);
 };
 
-// 确认出库;
+// 确认出库
+;
 
-// 完成出库;
+// 完成出库
+;
 
 onMounted(() => {
   loadOutboundList();

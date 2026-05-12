@@ -51,7 +51,13 @@
         <Button v-if="!notification.is_read" type="primary" block round @click="markAsRead">
           标记为已读
         </Button>
-        <Button type="default" block round @click="deleteNotification">
+        <Button
+          v-permission="'system:notifications:delete'"
+          type="default"
+          block
+          round
+          @click="deleteNotification"
+        >
           删除消息
         </Button>
       </div>
@@ -107,9 +113,8 @@
     loading.value = true
     try {
       const id = route.params.id
-      const response = await systemApi.getNotifications({ id })
-      const list = response.data?.list || response.data || []
-      notification.value = Array.isArray(list) ? list[0] : list
+      const response = await systemApi.getNotificationDetail(id)
+      notification.value = response.data || response
     } catch (error) {
       console.error('加载消息详情失败:', error)
       notification.value = null
@@ -121,7 +126,7 @@
   const markAsRead = async () => {
     try {
       await systemApi.markNotificationRead(route.params.id)
-      notification.value.is_read = true
+      if (notification.value) notification.value.is_read = true
       showToast('已标记为已读')
     } catch {
       showToast('操作失败')

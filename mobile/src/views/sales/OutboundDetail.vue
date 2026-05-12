@@ -19,7 +19,7 @@
                     </div>
                     <div class="status-info">
                         <h2 class="status-text">{{ getStatusText(outboundOrder.status) }}</h2>
-                        <p class="order-code">{{ outboundOrder.code }}</p>
+                        <p class="order-code">{{ outboundOrder.outbound_no || outboundOrder.code }}</p>
                     </div>
                     <div class="status-date">
                         {{ formatDate(outboundOrder.created_at) }}
@@ -32,7 +32,7 @@
             <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">关联订单</span>
-                    <span class="info-value">{{ outboundOrder.order_code || '-' }}</span>
+                    <span class="info-value">{{ outboundOrder.order_no || outboundOrder.order_code || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">客户名称</span>
@@ -40,15 +40,15 @@
                 </div>
                 <div class="info-row">
                     <span class="info-label">出库日期</span>
-                    <span class="info-value">{{ formatDate(outboundOrder.outbound_date, 'YYYY-MM-DD') || '-' }}</span>
+                    <span class="info-value">{{ formatDate(outboundOrder.delivery_date || outboundOrder.outbound_date, 'YYYY-MM-DD') || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">经办人</span>
-                    <span class="info-value">{{ outboundOrder.creator_name }}</span>
+                    <span class="info-value">{{ outboundOrder.operator || outboundOrder.creator_name || outboundOrder.created_by || '-' }}</span>
                 </div>
-                <div class="info-row" v-if="outboundOrder.remark">
+                <div class="info-row" v-if="outboundOrder.remarks || outboundOrder.remark">
                     <span class="info-label">备注</span>
-                    <span class="info-value">{{ outboundOrder.remark }}</span>
+                    <span class="info-value">{{ outboundOrder.remarks || outboundOrder.remark }}</span>
                 </div>
             </div>
 
@@ -57,17 +57,13 @@
             <div class="items-list">
                 <div class="basic-list-item" v-for="item in outboundOrder.items" :key="item.id">
        <div class="item-title-row">
-         <div class="item-title">{{ item.material_name }}</div>
-         <div class="item-subtitle">{{ `SKU: ${item.material_code}` || '' }}</div>
+         <div class="item-title">{{ item.material_name || item.product_name || `物料#${item.product_id || item.material_id}` }}</div>
+         <div class="item-subtitle" v-if="item.material_code || item.product_code">SKU: {{ item.material_code || item.product_code }}</div>
        </div>
                     <div class="item-details">
                         <div class="detail-row">
-                            <span class="detail-label">计划数量:</span>
-                            <span class="detail-value">{{ item.plan_quantity }} {{ item.unit_name }}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">实际数量:</span>
-                            <span class="detail-value highlight">{{ item.actual_quantity || '-' }} {{ item.unit_name
+                            <span class="detail-label">出库数量:</span>
+                            <span class="detail-value highlight">{{ item.quantity || item.actual_quantity || 0 }} {{ item.unit_name || item.unit
                                 }}</span>
                         </div>
                         <div class="detail-row" v-if="item.batch_no">
@@ -96,14 +92,33 @@
         </div>
 
         <!-- 底部操作栏 -->
-        <div class="bottom-actions glass-panel" v-if="outboundOrder && outboundOrder.status === 'pending'" v-permission="'sales:outbound:approve'">
-            <Button type="primary" block :loading="submitting" @click="showExecuteDialog = true">
-                确认出库
+        <div
+            class="bottom-actions glass-panel"
+            v-if="outboundOrder && ['draft', 'processing'].includes(outboundOrder.status)"
+            v-permission="'sales:outbound:update'"
+        >
+            <Button
+                v-if="outboundOrder.status === 'draft'"
+                type="primary"
+                block
+                :loading="submitting"
+                @click="handleStart"
+            >
+                开始出库
+            </Button>
+            <Button
+                v-else
+                type="primary"
+                block
+                :loading="submitting"
+                @click="showExecuteDialog = true"
+            >
+                完成出库
             </Button>
         </div>
 
         <!-- 确认出库弹窗 -->
-        <van-dialog v-model:show="showExecuteDialog" title="确认出库" show-cancel-button @confirm="handleExecute">
+        <van-dialog v-model:show="showExecuteDialog" title="完成出库" show-cancel-button @confirm="handleExecute">
             <div class="p-4 text-center">
                 确认将该单据标记为已出库？
                 <br>
@@ -132,6 +147,7 @@ const showExecuteDialog = ref(false)
 
 // 状态样式映射
 const statusClass = {
+    draft: 'bg-yellow-500',
     pending: 'bg-yellow-500',
     processing: 'bg-blue-500',
     completed: 'bg-green-500',
@@ -155,6 +171,7 @@ const fetchDetail = async () => {
 // 状态文本
 const getStatusText = (status) => {
     const map = {
+        draft: '草稿',
         pending: '待出库',
         processing: '出库中',
         completed: '已完成',
@@ -166,6 +183,7 @@ const getStatusText = (status) => {
 // 状态图标
 const getStatusIcon = (status) => {
     const map = {
+        draft: 'clock',
         pending: 'clock',
         processing: 'refresh',
         completed: 'check-circle',
@@ -179,12 +197,35 @@ const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
     return date ? dayjs(date).format(format) : '-'
 }
 
-// 执行出库
+const buildStatusPayload = (status) => ({
+    status,
+    delivery_date:
+        outboundOrder.value?.delivery_date ||
+        outboundOrder.value?.outbound_date ||
+        new Date().toISOString().slice(0, 10),
+    remarks: outboundOrder.value?.remarks || outboundOrder.value?.remark
+})
+
+// 草稿 → 出库中
+const handleStart = async () => {
+    submitting.value = true
+    try {
+        await salesApi.updateSalesOutbound(id, buildStatusPayload('processing'))
+        showToast({ type: 'success', message: '已进入出库中' })
+        fetchDetail()
+    } catch (error) {
+        console.error('开始出库失败:', error)
+        showToast('操作失败')
+    } finally {
+        submitting.value = false
+    }
+}
+
+// 出库中 → 已完成
 const handleExecute = async () => {
     submitting.value = true
     try {
-        const payload = { ...outboundOrder.value, status: 'completed' }
-        await salesApi.updateSalesOutbound(id, payload)
+        await salesApi.updateSalesOutbound(id, buildStatusPayload('completed'))
 
         showToast({ type: 'success', message: '出库成功' })
         fetchDetail() // 刷新详情

@@ -10,13 +10,14 @@
 
 <script setup>
   import { computed } from 'vue'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { equipmentApi } from '@/services/api'
 
   const pageConfig = computed(() => ({
     title: '保养计划',
     searchPlaceholder: '搜索保养工单或设备名称',
-    
+
     filterTabs: [
       { label: '全部', value: 'all' },
       { label: '计划中', value: 'planned' },
@@ -53,7 +54,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '制定计划', action: 'create' }
+      { icon: 'plus', label: '制定计划', action: 'create', handler: () => showToast('手机端暂未开放保养计划新建') }
     ]
   }))
 

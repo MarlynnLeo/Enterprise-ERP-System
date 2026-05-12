@@ -86,7 +86,8 @@
       {
         icon: 'plus',
         label: '新建',
-        action: 'create'
+        action: 'create',
+        path: '/production/plans/create'
       }
     ]
   }))

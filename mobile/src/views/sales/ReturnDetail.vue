@@ -43,7 +43,7 @@
       </CellGroup>
 
       <!-- 操作按钮 -->
-      <div class="action-section" v-if="detail.status === 'pending'">
+      <div class="action-section" v-if="detail.status === 'pending'" v-permission="'sales:returns:update'">
         <Button round block type="success" @click="handleApprove" :loading="actionLoading" style="margin-bottom: 10px">
           审批通过
         </Button>
@@ -51,7 +51,7 @@
           拒绝退货
         </Button>
       </div>
-      <div class="action-section" v-else-if="detail.status === 'approved'">
+      <div class="action-section" v-else-if="detail.status === 'approved'" v-permission="'sales:returns:update'">
         <Button round block type="primary" @click="handleComplete" :loading="actionLoading">
           完成退货
         </Button>

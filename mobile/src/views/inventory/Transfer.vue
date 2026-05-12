@@ -120,6 +120,7 @@
                   <div class="card-actions" @click.stop>
                     <div
                       v-if="item.status === 'draft'"
+                      v-permission="'inventory:transfer:update'"
                       class="action-btn confirm"
                       @click="changeStatus(item, 'pending')"
                     >
@@ -127,6 +128,7 @@
                     </div>
                     <div
                       v-if="item.status === 'approved'"
+                      v-permission="'inventory:transfer:update'"
                       class="action-btn complete"
                       @click="changeStatus(item, 'completed')"
                     >

@@ -10,6 +10,7 @@
 
 <script setup>
   import { computed } from 'vue'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { systemApi } from '@/services/api'
 
@@ -22,7 +23,7 @@
       title: 'name',
       subtitle: 'code',
       icon: 'cluster-o',
-      
+
       details: [
         { label: '负责人', field: 'manager_name' },
         { label: '部门人数', field: 'user_count', suffix: '人' },
@@ -31,7 +32,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '新增部门', action: 'create' }
+      { icon: 'plus', label: '新增部门', action: 'create', handler: () => showToast('手机端暂未开放部门新建') }
     ]
   }))
 

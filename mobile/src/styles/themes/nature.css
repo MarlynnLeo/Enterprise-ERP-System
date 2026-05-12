@@ -1,18 +1,18 @@
 /**
- * 移动�?- 自然护眼主题
- * @description 清新绿色配色，缓解视觉疲�? * @version 1.0.0
- * 
- * 色系来源：与 PC �?nature.css 对齐
- * 切换方式：html[data-theme="nature"] 激�? */
+ * 移动�?- 自然护眼主题
+ * @description 清新绿色配色，缓解视觉疲�? * @version 1.0.0
+ *
+ * 色系来源：与 PC �?nature.css 对齐
+ * 切换方式：html[data-theme="nature"] 激�? */
 
 :root[data-theme="nature"] {
-  /* ==================== 背景�?==================== */
+  /* ==================== 背景�?==================== */
   --bg-primary: #F0FFF4;
   --bg-secondary: #FFFFFF;
   --bg-tertiary: #E8F5E9;
   --bg-header: #FFFFFF;
 
-  /* ==================== 边框与遮�?==================== */
+  /* ==================== 边框与遮�?==================== */
   --border-subtle: rgba(81, 207, 102, 0.15);
   --border-card: transparent;
   --surface-hover: rgba(200, 230, 201, 0.5);
@@ -24,7 +24,7 @@
   --glass-border: var(--border-subtle);
   --glass-border-hover: var(--border-subtle);
 
-  /* ==================== 文字�?==================== */
+  /* ==================== 文字�?==================== */
   --text-primary: #2E7D32;
   --text-secondary: #4CAF50;
   --text-tertiary: #81C784;
@@ -32,7 +32,7 @@
   --text-on-dark: #ffffff;
   --text-on-dark-secondary: rgba(255, 255, 255, 0.8);
 
-  /* ==================== 功能�?==================== */
+  /* ==================== 功能�?==================== */
   --color-primary: #51CF66;
   --color-primary-bg: #E6F9E8;
 
@@ -50,7 +50,7 @@
 
   --color-accent: #51CF66;
 
-  /* ==================== 模块�?==================== */
+  /* ==================== 模块�?==================== */
   --module-blue: #339AF0;
   --module-green: #51CF66;
   --module-red: #FF6B6B;
@@ -91,7 +91,7 @@
   --van-tabbar-item-text-color: var(--text-secondary);
   --van-tabbar-item-active-color: var(--color-primary);
 
-  /* ״̬ɫ���� �� ������������Ӳ���� */
+  /* ״̬ɫ���� �� ������������Ӳ���� */
   --status-pending: #f59e0b;
   --status-in-progress: #3b82f6;
   --status-completed: #22c55e;

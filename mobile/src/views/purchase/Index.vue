@@ -21,11 +21,13 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  
+
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
   import { purchaseApi } from '@/services/api'
+  import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()
+  const authStore = useAuthStore()
 
   // ---- 统计数据 ----
   const statistics = ref({
@@ -156,6 +158,10 @@
 
   // ---- 加载数据 ----
   const loadStatistics = async () => {
+    if (!authStore.hasPermission('purchase:reports:view')) {
+      return
+    }
+
     try {
       const response = await purchaseApi.getStatistics()
       if (response.data) {
@@ -167,10 +173,10 @@
     } catch (error) {
       console.error('加载统计数据失败:', error)
       statistics.value = {
-        totalOrders: 156,
-        totalAmount: 2580000,
-        pendingOrders: 23,
-        completedOrders: 133
+        totalOrders: 0,
+        totalAmount: 0,
+        pendingOrders: 0,
+        completedOrders: 0
       }
     }
   }

@@ -38,12 +38,25 @@ export function usePagination(fetchDataFn, options = {}) {
       if (res && res.data && Array.isArray(res.data.items)) {
         newData = res.data.items
         total = res.data.total
+      } else if (res && res.data && Array.isArray(res.data.list)) {
+        newData = res.data.list
+        total = res.data.total
+      } else if (res && Array.isArray(res.data)) {
+        newData = res.data
+        total = res.data.length
       } else if (res && Array.isArray(res.items)) {
         newData = res.items
+        total = res.total
+      } else if (res && Array.isArray(res.list)) {
+        newData = res.list
         total = res.total
       } else if (Array.isArray(res)) {
         newData = res
         total = res.length
+      }
+
+      if (total === undefined || total === null) {
+        total = Number.POSITIVE_INFINITY
       }
 
       list.value = [...list.value, ...newData]

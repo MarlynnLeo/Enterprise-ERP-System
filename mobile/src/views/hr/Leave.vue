@@ -51,7 +51,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '发起请假', action: 'create' }
+      { icon: 'plus', label: '发起请假', action: 'create', path: '/hr/leave/create' }
     ]
   }))
 

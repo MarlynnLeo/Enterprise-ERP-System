@@ -163,10 +163,10 @@
     } catch (error) {
       console.error('加载统计数据失败:', error)
       statistics.value = {
-        totalPlans: 45,
-        totalTasks: 128,
-        inProgressTasks: 32,
-        completedTasks: 96
+        totalPlans: 0,
+        totalTasks: 0,
+        inProgressTasks: 0,
+        completedTasks: 0
       }
     }
   }

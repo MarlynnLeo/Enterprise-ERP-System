@@ -60,10 +60,31 @@
 
       <!-- 操作按钮 -->
       <div class="action-section" v-if="receipt.status !== 'void' && receipt.status !== '已作废'" v-permission="'finance:ar:update'">
-        <VanButton round block type="danger" @click="handleVoid" :loading="actionLoading">
+        <VanButton round block type="danger" @click="openVoidDialog" :loading="actionLoading">
           作废收款
         </VanButton>
       </div>
+
+      <Popup v-model:show="showVoidDialog" position="bottom" round>
+        <div class="void-dialog">
+          <div class="dialog-title">作废收款</div>
+          <Field
+            v-model="voidReason"
+            type="textarea"
+            rows="3"
+            autosize
+            maxlength="200"
+            show-word-limit
+            placeholder="请输入作废原因"
+          />
+          <div class="dialog-actions">
+            <VanButton round block @click="showVoidDialog = false">取消</VanButton>
+            <VanButton round block type="danger" @click="handleVoid" :loading="actionLoading">
+              确认作废
+            </VanButton>
+          </div>
+        </div>
+      </Popup>
     </div>
 
     <div class="loading-state" v-else-if="loading">
@@ -76,7 +97,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { useRoute } from 'vue-router'
-  import { NavBar, Loading, Empty, Button as VanButton, showToast, showConfirmDialog } from 'vant'
+  import { NavBar, Loading, Empty, Button as VanButton, Popup, Field, showToast, showConfirmDialog } from 'vant'
   import Icon from '@/components/icons/index.vue'
   import { financeApi } from '@/services/api'
   import dayjs from 'dayjs'
@@ -85,6 +106,8 @@
   const receipt = ref(null)
   const loading = ref(true)
   const actionLoading = ref(false)
+  const showVoidDialog = ref(false)
+  const voidReason = ref('')
 
   const fd = (d) => (d ? dayjs(d).format('YYYY-MM-DD') : '—')
   const fm = (v) => {
@@ -106,13 +129,25 @@
     }
   }
 
+  const openVoidDialog = () => {
+    voidReason.value = ''
+    showVoidDialog.value = true
+  }
+
   // 作废收款
   const handleVoid = async () => {
+    const reason = voidReason.value.trim()
+    if (!reason) {
+      showToast('请填写作废原因')
+      return
+    }
+
     try {
       await showConfirmDialog({ title: '作废确认', message: '确定作废此收款记录？此操作不可撤销。' })
       actionLoading.value = true
-      await financeApi.voidARReceipt(receipt.value.id)
+      await financeApi.voidARReceipt(receipt.value.id, reason)
       showToast('收款已作废')
+      showVoidDialog.value = false
       await loadDetail()
     } catch (e) {
       if (e !== 'cancel') showToast(e.response?.data?.message || '操作失败')
@@ -264,5 +299,21 @@
   }
   .action-section {
     padding: 20px 16px;
+  }
+  .void-dialog {
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-secondary);
+  }
+  .dialog-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+  .dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
   }
 </style>

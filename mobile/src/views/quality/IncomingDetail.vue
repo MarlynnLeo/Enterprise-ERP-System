@@ -158,12 +158,12 @@
       </CellGroup>
 
       <!-- 操作按钮 -->
-      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:incoming:update'">
+      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:inspections:update'">
         <VanButton round block type="primary" @click="handleStart" :loading="actionLoading">
           开始检验
         </VanButton>
       </div>
-      <div class="action-section" v-else-if="isInspecting" v-permission="'quality:incoming:update'">
+      <div class="action-section" v-else-if="isInspecting" v-permission="'quality:inspections:update'">
         <VanButton round block type="success" @click="handleSubmit" :loading="actionLoading">
           提交检验
         </VanButton>

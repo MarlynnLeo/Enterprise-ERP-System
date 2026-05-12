@@ -108,13 +108,13 @@
                 </Button>
                 <Button
                   v-if="requisition.status === 'approved'"
-                  v-permission="'purchase:orders:create'"
+                  v-permission="'purchase:orders:view'"
                   size="small"
                   type="warning"
                   plain
-                  @click.stop="createOrder(requisition)"
+                  @click.stop="viewGeneratedOrders"
                 >
-                  创建订单
+                  查看订单
                 </Button>
               </div>
             </div>
@@ -304,9 +304,10 @@
     }
   }
 
-  // 创建订单
-  const createOrder = (requisition) => {
-    router.push(`/purchase/orders/new?requisitionId=${requisition.id}`)
+  // 后端审批通过后会自动生成采购订单，移动端进入订单列表查看
+  const viewGeneratedOrders = () => {
+    showToast('审批通过后订单会自动生成，请在采购订单中查看')
+    router.push('/purchase/orders')
   }
 
   onMounted(() => {

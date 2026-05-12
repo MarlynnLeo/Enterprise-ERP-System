@@ -75,6 +75,12 @@ const routes = [
     meta: { title: '新建生产任务', permission: 'production' }
   },
   {
+    path: '/production/tasks/:id/report',
+    name: 'ProductionTaskReport',
+    component: () => import('@/views/production/Report.vue'),
+    meta: { title: '生产报工', permission: 'production' }
+  },
+  {
     path: '/production/tasks/:id',
     name: 'ProductionTaskDetail',
     component: () => import('@/views/production/TaskDetail.vue'),
@@ -148,6 +154,12 @@ const routes = [
     meta: { title: '新建客户', permission: 'basedata' }
   },
   {
+    path: '/baseData/customers/:id/edit',
+    name: 'EditCustomer',
+    component: () => import('@/views/baseData/CreateCustomer.vue'),
+    meta: { title: '编辑客户', permission: 'basedata' }
+  },
+  {
     path: '/baseData/customers/:id',
     name: 'CustomerDetail',
     component: () => import('@/views/baseData/CustomerDetail.vue'),
@@ -164,6 +176,12 @@ const routes = [
     name: 'CreateSupplier',
     component: () => import('@/views/baseData/CreateSupplier.vue'),
     meta: { title: '新建供应商', permission: 'basedata' }
+  },
+  {
+    path: '/baseData/suppliers/:id/edit',
+    name: 'EditSupplier',
+    component: () => import('@/views/baseData/CreateSupplier.vue'),
+    meta: { title: '编辑供应商', permission: 'basedata' }
   },
   {
     path: '/baseData/suppliers/:id',
@@ -352,6 +370,12 @@ const routes = [
     meta: { title: '新建采购订单', permission: 'purchase' }
   },
   {
+    path: '/purchase/orders/:id/edit',
+    name: 'EditPurchaseOrder',
+    component: () => import('@/views/purchase/CreateOrder.vue'),
+    meta: { title: '编辑采购订单', permission: 'purchase' }
+  },
+  {
     path: '/purchase/orders/:id',
     name: 'PurchaseOrderDetail',
     component: () => import('@/views/purchase/OrderDetail.vue'),
@@ -384,7 +408,7 @@ const routes = [
   {
     path: '/purchase/returns/:id',
     name: 'PurchaseReturnDetail',
-    component: () => import('@/views/purchase/ReceiptDetail.vue'),
+    component: () => import('@/views/purchase/ReturnDetail.vue'),
     meta: { title: '退货详情', permission: 'purchase' }
   },
   {
@@ -433,8 +457,7 @@ const routes = [
   {
     path: '/sales/outbound/new',
     name: 'CreateSalesOutbound',
-    component: () => import('@/views/sales/Outbound.vue'),
-    meta: { title: '新建销售出库', permission: 'sales' }
+    redirect: '/sales/outbound'
   },
   {
     path: '/sales/outbound/:id',
@@ -506,8 +529,7 @@ const routes = [
   {
     path: '/finance/gl/entries/create',
     name: 'GLEntryCreate',
-    component: () => import('@/views/finance/Entries.vue'),
-    meta: { title: '新建凭证', permission: 'finance' }
+    redirect: '/finance/gl/entries'
   },
   {
     path: '/finance/gl/periods',
@@ -548,8 +570,7 @@ const routes = [
   {
     path: '/finance/ar/receipts/create',
     name: 'ARReceiptCreate',
-    component: () => import('@/views/finance/ARReceipts.vue'),
-    meta: { title: '收款登记', permission: 'finance' }
+    redirect: '/finance/ar/receipts'
   },
   {
     path: '/finance/ar/receipts/:id',
@@ -578,8 +599,7 @@ const routes = [
   {
     path: '/finance/ap/payments/create',
     name: 'APPaymentCreate',
-    component: () => import('@/views/finance/APPayments.vue'),
-    meta: { title: '付款登记', permission: 'finance' }
+    redirect: '/finance/ap/payments'
   },
   {
     path: '/finance/ap/payments/:id',
@@ -656,8 +676,7 @@ const routes = [
   {
     path: '/finance/cash/transactions/create',
     name: 'CashTransactionCreate',
-    component: () => import('@/views/finance/BankTransactions.vue'),
-    meta: { title: '新建交易', permission: 'finance' }
+    redirect: '/finance/cash/bank-transactions'
   },
   {
     path: '/finance/reports/balance-sheet',
@@ -810,6 +829,12 @@ const routes = [
     name: 'EquipmentList',
     component: () => import('@/views/equipment/EquipmentList.vue'),
     meta: { title: '设备台账', permission: 'equipment' }
+  },
+  {
+    path: '/equipment/detail/:id',
+    name: 'EquipmentDetail',
+    component: () => import('@/views/equipment/EquipmentDetail.vue'),
+    meta: { title: '设备详情', permission: 'equipment' }
   },
   {
     path: '/equipment/types',
@@ -1096,19 +1121,26 @@ const routes = [
 const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/production\/plans\/create$/, permission: 'production:plans:create' },
   { pattern: /^\/production\/plans(\/:id)?$/, permission: 'production:plans:view' },
-  { pattern: /^\/production\/tasks(\/.*)?$/, permission: 'production:tasks:view' },
   { pattern: /^\/production\/tasks\/create$/, permission: 'production:tasks:create' },
+  { pattern: /^\/production\/tasks\/:id\/report$/, permission: 'production:tasks:update' },
+  { pattern: /^\/production\/tasks(\/:id)?$/, permission: 'production:tasks:view' },
   { pattern: /^\/baseData\/materials\/create$/, permission: 'basedata:materials:create' },
   { pattern: /^\/baseData\/materials\/:id\/edit$/, permission: 'basedata:materials:update' },
   { pattern: /^\/baseData\/materials(\/:id)?$/, permission: 'basedata:materials:view' },
   { pattern: /^\/baseData\/boms(\/.*)?$/, permission: 'basedata:boms:view' },
   { pattern: /^\/baseData\/customers\/create$/, permission: 'basedata:customers:create' },
+  { pattern: /^\/baseData\/customers\/:id\/edit$/, permission: 'basedata:customers:update' },
   { pattern: /^\/baseData\/customers(\/:id)?$/, permission: 'basedata:customers:view' },
   { pattern: /^\/baseData\/suppliers\/create$/, permission: 'basedata:suppliers:create' },
+  { pattern: /^\/baseData\/suppliers\/:id\/edit$/, permission: 'basedata:suppliers:update' },
   { pattern: /^\/baseData\/suppliers(\/:id)?$/, permission: 'basedata:suppliers:view' },
   { pattern: /^\/baseData\/categories(\/.*)?$/, permission: 'basedata:categories:view' },
   { pattern: /^\/baseData\/units(\/.*)?$/, permission: 'basedata:units:view' },
   { pattern: /^\/baseData\/locations(\/.*)?$/, permission: 'basedata:locations:view' },
+  {
+    pattern: /^\/baseData\/process-templates(\/.*)?$/,
+    permission: ['basedata:process-templates:view', 'basedata:processtemplates:view']
+  },
   { pattern: /^\/inventory\/stock$/, permission: 'inventory:stock:view' },
   { pattern: /^\/inventory\/inbound\/create$/, permission: 'inventory:inbound:create' },
   { pattern: /^\/inventory\/inbound(\/:id)?$/, permission: 'inventory:inbound:view' },
@@ -1119,20 +1151,60 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/inventory\/check\/new$/, permission: 'inventory:check:create' },
   { pattern: /^\/inventory\/check\/:id\/edit$/, permission: 'inventory:check:update' },
   { pattern: /^\/inventory\/check(\/:id)?$/, permission: 'inventory:check:view' },
-  { pattern: /^\/inventory\/(report|transaction)$/, permission: 'inventory:stock:view' },
+  { pattern: /^\/inventory\/report$/, permission: 'inventory:report:view' },
+  { pattern: /^\/inventory\/transaction$/, permission: 'inventory:transactions:view' },
+  { pattern: /^\/purchase\/requisitions\/(create|new)$/, permission: 'purchase:requisitions:create' },
+  { pattern: /^\/purchase\/requisitions(\/:id)?$/, permission: 'purchase:requisitions:view' },
   { pattern: /^\/purchase\/orders\/(create|new)$/, permission: 'purchase:orders:create' },
+  { pattern: /^\/purchase\/orders\/:id\/edit$/, permission: 'purchase:orders:update' },
   { pattern: /^\/purchase\/orders(\/:id)?$/, permission: 'purchase:orders:view' },
   { pattern: /^\/purchase\/receipts\/create$/, permission: 'purchase:receipts:create' },
   { pattern: /^\/purchase\/receipts(\/:id)?$/, permission: 'purchase:receipts:view' },
+  { pattern: /^\/purchase\/returns(\/:id)?$/, permission: 'purchase:returns:view' },
+  { pattern: /^\/purchase\/processing$/, permission: 'purchase:processing:view' },
+  { pattern: /^\/purchase\/processing-receipts$/, permission: 'purchase:processing-receipts:view' },
   { pattern: /^\/sales\/orders\/create$/, permission: 'sales:orders:create' },
   { pattern: /^\/sales\/orders(\/:id)?$/, permission: 'sales:orders:view' },
+  { pattern: /^\/sales\/outbound\/new$/, permission: 'sales:outbound:create' },
+  { pattern: /^\/sales\/outbound(\/:id)?$/, permission: 'sales:outbound:view' },
+  { pattern: /^\/sales\/returns(\/:id)?$/, permission: 'sales:returns:view' },
+  { pattern: /^\/sales\/exchanges(\/:id)?$/, permission: 'sales:returns:view' },
+  { pattern: /^\/sales\/quotations(\/:id)?$/, permission: 'sales:quotations:view' },
+  { pattern: /^\/sales\/customers(\/:id)?$/, permission: 'basedata:customers:view' },
+  { pattern: /^\/finance\/gl\/accounts(\/:id)?$/, permission: 'finance:accounts:view' },
+  { pattern: /^\/finance\/gl\/entries\/create$/, permission: 'finance:entries:create' },
+  { pattern: /^\/finance\/gl\/entries(\/:id)?$/, permission: 'finance:entries:view' },
+  { pattern: /^\/finance\/gl\/periods(\/:id)?$/, permission: 'finance:periods:view' },
+  { pattern: /^\/finance\/ar\/aging(\/:id)?$/, permission: 'finance:reports:view' },
+  { pattern: /^\/finance\/ar\/(invoices|receipts)(\/:id)?$/, permission: 'finance:ar:view' },
+  { pattern: /^\/finance\/ap\/aging(\/:id)?$/, permission: 'finance:reports:view' },
+  { pattern: /^\/finance\/ap\/(invoices|payments)(\/:id)?$/, permission: 'finance:ap:view' },
   { pattern: /^\/finance\/assets(\/.*)?$/, permission: 'finance:assets:view' },
+  { pattern: /^\/finance\/cash\/accounts(\/:id)?$/, permission: 'finance:cash:view' },
+  { pattern: /^\/finance\/cash\/(transactions|bank-transactions|cash-transactions)(\/.*)?$/, permission: 'finance:cash:view' },
+  { pattern: /^\/finance\/cash\/reconciliation(\/.*)?$/, permission: 'finance:cash:reconcile' },
   { pattern: /^\/finance\/.*reports?/, permission: 'finance:reports:view' },
-  { pattern: /^\/quality\/.*$/, permission: 'quality:reports:view' },
-  { pattern: /^\/equipment\/.*$/, permission: 'production:equipment:view' },
-  { pattern: /^\/hr\/employees.*$/, permission: 'hr:employees:view' },
+  { pattern: /^\/quality\/(incoming|process|final)\/create$/, permission: 'quality:inspections:create' },
+  { pattern: /^\/quality\/(incoming|process|final)\/:id\/inspect$/, permission: 'quality:inspections:update' },
+  { pattern: /^\/quality\/(incoming|process|final)(\/:id)?$/, permission: 'quality:inspections:view' },
+  { pattern: /^\/quality\/templates(\/.*)?$/, permission: 'quality:templates:view' },
+  { pattern: /^\/quality\/traceability(\/.*)?$/, permission: 'quality:traceability:view' },
+  { pattern: /^\/quality\/nonconformance(\/.*)?$/, permission: 'quality:nonconforming:view' },
+  { pattern: /^\/quality\/reports\/.*$/, permission: 'quality:reports:view' },
+  { pattern: /^\/quality\/standards(\/.*)?$/, permission: 'quality:aql:view' },
+  { pattern: /^\/quality(\/.*)?$/, permission: 'quality' },
+  { pattern: /^\/equipment\/(check|repair)\/create$/, permission: 'production:equipment:update' },
+  { pattern: /^\/equipment(\/.*)?$/, permission: 'production:equipment:view' },
+  { pattern: /^\/hr(\/.*)?$/, permission: 'hr' },
   { pattern: /^\/system\/users\/create$/, permission: 'system:users:create' },
-  { pattern: /^\/system\/users(\/:id)?$/, permission: 'system:users:view' }
+  { pattern: /^\/system\/users(\/:id)?$/, permission: 'system:users' },
+  { pattern: /^\/system\/departments(\/.*)?$/, permission: 'system:departments' },
+  { pattern: /^\/system\/hierarchy$/, permission: 'system:departments' },
+  { pattern: /^\/system\/(positions|sessions)$/, permission: 'system:users' },
+  { pattern: /^\/system\/(roles|permissions|access-control)(\/.*)?$/, permission: 'system:permissions' },
+  { pattern: /^\/system\/(config|profiles)$/, permission: 'system:settings:read' },
+  { pattern: /^\/system\/(logs|maintenance)$/, permission: 'system:logs' },
+  { pattern: /^\/system\/backup$/, permission: 'system:backup:view' }
 ]
 
 const applyEnterpriseRoutePermissions = (routeList) => {

@@ -13,6 +13,7 @@
 <script setup>
   import { computed } from 'vue'
   import { useRouter } from 'vue-router'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { financeApi } from '@/services/api'
 
@@ -71,7 +72,8 @@
       {
         icon: 'plus',
         label: '新建凭证',
-        action: 'create'
+        action: 'create',
+        handler: () => showToast('手机端暂未开放新建凭证')
       }
     ]
   }))

@@ -10,7 +10,7 @@
   <div class="detail-page">
     <NavBar title="凭证详情" left-arrow @click-left="$router.go(-1)">
       <template #right>
-        <div v-if="entry && !entry.is_posted" class="post-btn" @click="handlePost">过账</div>
+        <div v-if="entry && !entry.is_posted" v-permission="'finance:entries:approve'" class="post-btn" @click="handlePost">过账</div>
       </template>
     </NavBar>
 

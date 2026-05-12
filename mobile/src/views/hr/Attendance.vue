@@ -11,6 +11,7 @@
 <script setup>
   import { computed } from 'vue'
   import dayjs from 'dayjs'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { hrApi } from '@/services/api'
   import { filterByKeyword, getResponseList, toPagedResponse } from '@/utils/listResponse'
@@ -55,7 +56,7 @@
     },
 
     headerActions: [
-      { icon: 'passed', label: '手动补卡', action: 'create' }
+      { icon: 'passed', label: '手动补卡', action: 'create', handler: () => showToast('手机端暂未开放手动补卡') }
     ]
   }))
 

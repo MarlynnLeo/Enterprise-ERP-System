@@ -165,6 +165,7 @@
         <!-- pending(待审批): 批准、驳回 -->
         <template v-if="order.status === 'pending'">
           <Button
+            v-permission="'purchase:orders:update'"
             type="success"
             size="large"
             round
@@ -176,6 +177,7 @@
             批准
           </Button>
           <Button
+            v-permission="'purchase:orders:update'"
             type="warning"
             size="large"
             round

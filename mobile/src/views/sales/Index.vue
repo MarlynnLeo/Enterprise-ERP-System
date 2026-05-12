@@ -21,11 +21,13 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  
+
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
   import { salesApi } from '@/services/api'
+  import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()
+  const authStore = useAuthStore()
 
   // ---- 统计数据 ----
   const statistics = ref({
@@ -110,8 +112,7 @@
     { title: '新建订单', desc: '创建新的销售订单', path: '/sales/orders/create', icon: 'plus' }
   ])
   const outboundModules = ref([
-    { title: '销售出库', desc: '查看和管理销售出库单', path: '/sales/outbound', icon: 'truck' },
-    { title: '新建出库', desc: '创建新的销售出库单', path: '/sales/outbound/new', icon: 'plus' }
+    { title: '销售出库', desc: '查看和管理销售出库单', path: '/sales/outbound', icon: 'truck' }
   ])
   const afterSalesModules = ref([
     { title: '销售退货', desc: '查看和管理销售退货', path: '/sales/returns', icon: 'undo' },
@@ -126,13 +127,17 @@
 
   // ---- 路由跳转 ----
   const navigateTo = (path) => {
-    
+
 
     router.push(path)
   }
 
   // ---- 加载数据 ----
   const loadStatistics = async () => {
+    if (!authStore.hasPermission('sales:reports:view')) {
+      return
+    }
+
     try {
       const response = await salesApi.getSalesStatistics()
       if (response.data) {

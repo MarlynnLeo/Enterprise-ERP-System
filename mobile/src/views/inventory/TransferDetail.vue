@@ -120,7 +120,7 @@
       >
       <VanButton
         v-if="detail.status === 'approved'"
-        v-permission="'inventory:transfer:approve'"
+        v-permission="'inventory:transfer:update'"
         type="warning"
         block
         round

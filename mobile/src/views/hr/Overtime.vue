@@ -51,7 +51,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '申请加班', action: 'create' }
+      { icon: 'plus', label: '申请加班', action: 'create', path: '/hr/overtime/create' }
     ]
   }))
 

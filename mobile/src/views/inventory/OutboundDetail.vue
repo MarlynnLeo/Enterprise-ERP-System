@@ -4,7 +4,7 @@
  * @description 移动端出库单详情页，操作流程与网页端完全一致
  * @date 2026-04-24
  * @version 2.2.0
- * 
+ *
  * 状态流转：
  *   draft → confirmed → completed
  *   completed → draft (撤销，库存回退)
@@ -124,24 +124,24 @@
         <div class="bottom-actions" v-if="outboundOrder && showActions">
             <!-- 草稿状态: 确认 + 删除 -->
             <template v-if="outboundOrder.status === 'draft'">
-                <van-button type="danger" plain :loading="submitting" @click="handleDelete" class="action-btn">
+                <van-button v-permission="'inventory:outbound:delete'" type="danger" plain :loading="submitting" @click="handleDelete" class="action-btn">
                     删除
                 </van-button>
-                <van-button type="primary" :loading="submitting" @click="handleConfirm" class="action-btn flex-1">
+                <van-button v-permission="'inventory:outbound:update'" type="primary" :loading="submitting" @click="handleConfirm" class="action-btn flex-1">
                     确认出库
                 </van-button>
             </template>
 
             <!-- 已确认状态: 完成出库 -->
             <template v-else-if="outboundOrder.status === 'confirmed'">
-                <van-button type="primary" block :loading="submitting" @click="handleComplete">
+                <van-button v-permission="'inventory:outbound:update'" type="primary" block :loading="submitting" @click="handleComplete">
                     完成出库
                 </van-button>
             </template>
 
             <!-- 已完成状态: 撤销 -->
             <template v-else-if="outboundOrder.status === 'completed'">
-                <van-button type="danger" block :loading="submitting" @click="handleRevoke">
+                <van-button v-permission="'inventory:outbound:update'" type="danger" block :loading="submitting" @click="handleRevoke">
                     撤销出库
                 </van-button>
             </template>

@@ -64,7 +64,7 @@ const materialName = computed(() => {
     'inventory-check': 'fact_check', // 盘点
     'warehouse': 'warehouse',     // 仓库
     'package': 'package_2',       // 包裹
-    
+
     // ---- 销售、采购与财务 ----
     'shopping-bag': 'local_mall',
     'shopping-cart': 'shopping_cart',
@@ -76,7 +76,7 @@ const materialName = computed(() => {
     'safe': 'savings',
     'exchange': 'swap_horiz',
     'gift': 'card_giftcard',
-    
+
     // ---- 安全、验证与质量 ----
     'lock-closed': 'lock',
     'lock-open': 'lock_open',
@@ -91,7 +91,7 @@ const materialName = computed(() => {
     'user-group': 'group',
     'office-building': 'domain',
     'briefcase': 'work',
-    
+
     // ---- 系统行为 ----
     'logout': 'logout',
     'login': 'login',
@@ -192,7 +192,7 @@ const materialName = computed(() => {
     'arrow-down': 'arrow_downward',
     'success': 'check_circle'
   };
-  
+
   return map[props.name] || props.name; // 若未命中则直接传原值尝试渲染
 });
 

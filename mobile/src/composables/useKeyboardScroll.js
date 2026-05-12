@@ -10,7 +10,7 @@ import { onMounted, onBeforeUnmount } from 'vue'
 /**
  * 在页面中自动监听 input/textarea 的 focus 事件，
  * 当软键盘弹出时将当前聚焦元素滚动到可视区域
- * 
+ *
  * @param {Object} options 配置项
  * @param {number} options.delay 延迟滚动时间(ms)，默认 300
  * @param {string} options.behavior 滚动行为，默认 'smooth'

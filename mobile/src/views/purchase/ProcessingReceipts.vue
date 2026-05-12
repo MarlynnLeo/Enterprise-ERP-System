@@ -18,6 +18,7 @@
 
 <script setup>
   import { computed } from 'vue'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { purchaseApi } from '@/services/api'
 
@@ -61,6 +62,6 @@
   }
 
   const handleItemClick = () => {
-    // 外委入库详情
+    showToast('手机端暂未开放外委入库详情')
   }
 </script>

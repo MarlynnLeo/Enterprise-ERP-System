@@ -19,7 +19,7 @@
         </span>
       </template>
     </NavBar>
-    
+
     <div class="content-container">
       <!-- 搜索栏 -->
       <div class="search-section">
@@ -45,7 +45,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 入库单列表 -->
       <PullRefresh v-model="refreshing" @refresh="onRefresh">
         <List
@@ -57,10 +57,10 @@
           <div v-if="inboundList.length === 0 && !loading" class="empty-state">
             <Empty description="暂无入库记录" />
           </div>
-          
-          <div 
-            v-for="(inbound, idx) in inboundList" 
-            :key="inbound.id" 
+
+          <div
+            v-for="(inbound, idx) in inboundList"
+            :key="inbound.id"
             class="list-card"
             :style="{ animationDelay: `${idx * 0.03}s` }"
             @click="viewInboundDetail(inbound.id)"
@@ -215,9 +215,9 @@ const loadInboundList = async () => {
       search: searchValue.value || undefined,
       status: statusTabs[activeTab.value].value || undefined
     };
-    
+
     const response = await inventoryApi.getInboundList(params);
-    
+
     // 后端 ResponseHandler.paginated 返回 { data: { list, total } }
     // 经 axios 响应拦截器解包后，response.data = { list, total }
     const resData = response.data || response || {};
@@ -229,7 +229,7 @@ const loadInboundList = async () => {
     } else {
       finished.value = true;
     }
-    
+
     pagination.page++;
   } catch (error) {
     console.error('获取入库单列表失败:', error);
@@ -245,9 +245,11 @@ const viewInboundDetail = (id) => {
   router.push(`/inventory/inbound/${id}`);
 };
 
-// 确认入库;
+// 确认入库
+;
 
-// 完成入库;
+// 完成入库
+;
 
 onMounted(() => {
   loadInboundList();

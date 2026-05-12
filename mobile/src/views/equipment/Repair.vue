@@ -16,7 +16,7 @@
   const pageConfig = computed(() => ({
     title: '维修记录',
     searchPlaceholder: '搜索设备或维修单号',
-    
+
     filterTabs: [
       { label: '全部', value: 'all' },
       { label: '已上报', value: 'reported' },
@@ -53,7 +53,13 @@
     },
 
     headerActions: [
-      { icon: 'warning-o', label: '故障报修', action: 'create' }
+      {
+        icon: 'warning-o',
+        label: '故障报修',
+        action: 'create',
+        path: '/equipment/repair/create',
+        permission: 'production:equipment:update'
+      }
     ]
   }))
 

@@ -10,6 +10,7 @@
 
 <script setup>
   import { computed } from 'vue'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { equipmentApi } from '@/services/api'
   import { filterByKeyword, getResponseList, toPagedResponse } from '@/utils/listResponse'
@@ -23,7 +24,7 @@
       title: 'name',
       subtitle: 'code',
       icon: 'cluster-o',
-      
+
       details: [
         { label: '设备数量', field: 'count', suffix: '台' },
         { label: '厂商', field: 'manufacturer' }
@@ -31,7 +32,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '新增类别', action: 'create' }
+      { icon: 'plus', label: '新增类别', action: 'create', handler: () => showToast('手机端暂未开放设备类别新建') }
     ]
   }))
 

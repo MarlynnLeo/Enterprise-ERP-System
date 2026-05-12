@@ -15,6 +15,7 @@
 
 <script setup>
   import { computed } from 'vue'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { financeApi } from '@/services/api'
 
@@ -54,6 +55,6 @@
   }
 
   const handleItemClick = () => {
-    // 银行交易暂无独立详情页
+    showToast('手机端暂未开放银行交易详情')
   }
 </script>

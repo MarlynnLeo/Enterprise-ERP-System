@@ -40,9 +40,9 @@
       <!-- 主题列表 -->
       <div class="theme-list">
         <h2 class="section-title">选择主题</h2>
-        
-        <div 
-          v-for="themeOption in themeOptions" 
+
+        <div
+          v-for="themeOption in themeOptions"
           :key="themeOption.name"
           class="theme-item"
           :class="{ active: currentThemeName === themeOption.name }"
@@ -126,7 +126,7 @@ const currentThemeDescription = computed(() => {
 
 // 色板预览（使用主题的 preview 配色）
 const colorPalette = computed(() => {
-  
+
   const themeConfig = getTheme(currentThemeName.value)
   return [
     { name: '主色', value: themeConfig?.preview?.primary || '#1a73e8' },
@@ -180,7 +180,7 @@ const goBack = () => {
   border: none;
   color: var(--color-text-primary);
   cursor: pointer;
-  
+
   svg {
     width: 1.5rem;
     height: 1.5rem;

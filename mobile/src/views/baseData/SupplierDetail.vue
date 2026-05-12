@@ -48,7 +48,7 @@
         >
           拨打电话
         </VanButton>
-        <VanButton round block type="default" icon="edit" @click="handleEdit" v-permission="'baseData:suppliers:update'">
+        <VanButton round block type="default" icon="edit" @click="handleEdit" v-permission="'basedata:suppliers:update'">
           编辑供应商
         </VanButton>
       </div>

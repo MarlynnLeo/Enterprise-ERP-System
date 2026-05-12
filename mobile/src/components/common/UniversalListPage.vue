@@ -14,9 +14,17 @@
       @click-left="goBack"
     >
       <template #right>
-        <span v-if="showAdd" @click="handleAdd" v-permission="addPermission">
-          <SvgIcon name="plus" size="1.125rem" />
-        </span>
+        <div v-if="headerActions.length" class="nav-actions">
+          <span
+            v-for="action in headerActions"
+            :key="action.action || action.label || action.icon"
+            class="nav-action"
+            @click="handleHeaderAction(action)"
+            v-permission="action.permission || ''"
+          >
+            <SvgIcon :name="action.icon || 'plus'" size="1.125rem" />
+          </span>
+        </div>
       </template>
     </NavBar>
 
@@ -45,7 +53,7 @@
             :key="tab.value"
             class="filter-chip"
             :class="{ active: activeTag === tab.value }"
-            @click="activeTag = tab.value"
+            @click="handleFilterTab(tab.value)"
           >
             <span class="chip-text">{{ tab.label }}</span>
             <span v-if="getTabCount(tab.value)" class="chip-badge">{{
@@ -171,7 +179,7 @@
     listTitle: { type: String, default: '' }
   })
 
-  const emit = defineEmits(['add', 'filter', 'item-click', 'item-more'])
+  const emit = defineEmits(['add', 'filter', 'item-click', 'item-more', 'header-action'])
 
   const router = useRouter()
   const searchValue = ref('')
@@ -192,6 +200,20 @@
   // 筛选标签 — 优先使用 config.filterTabs，其次 config.tags
   const filterTabs = computed(() => props.config.filterTabs || props.config.tags || [])
 
+  const headerActions = computed(() => {
+    const configuredActions = props.config.headerActions || []
+    if (configuredActions.length > 0) return configuredActions
+    if (!props.showAdd) return []
+    return [
+      {
+        icon: 'plus',
+        label: '新增',
+        action: 'add',
+        permission: props.addPermission
+      }
+    ]
+  })
+
   // 统计数据
   const statsData = computed(() => {
     if (!props.config.stats) return []
@@ -207,7 +229,8 @@
     if (value === 'all') return totalCount.value > 0 ? totalCount.value : items.value.length
     if (props.config.fields.status) {
       const field = props.config.fields.status.field || props.config.fields.status
-      return items.value.filter((i) => i[field] === value).length
+      const values = props.config.filterAliases?.[value] || [value]
+      return items.value.filter((i) => values.includes(i[field])).length
     }
     return 0
   }
@@ -222,7 +245,8 @@
             typeof props.config.fields.status === 'string'
               ? props.config.fields.status
               : props.config.fields.status.field
-          return item[field] === activeTag.value
+          const values = props.config.filterAliases?.[activeTag.value] || [activeTag.value]
+          return values.includes(item[field])
         }
         return true
       })
@@ -234,6 +258,13 @@
   watch(debouncedSearch, () => {
     loadData(true)
   })
+
+  const handleFilterTab = (value) => {
+    if (activeTag.value === value) return
+    activeTag.value = value
+    emit('filter', value)
+    loadData(true)
+  }
 
   // 获取字段值
   const getFieldValue = (item, field) => {
@@ -446,11 +477,13 @@
 
     try {
       // 同时传 pageSize 和 limit，兼容不同后端接口
+      const hasFilterAlias = !!props.config.filterAliases?.[activeTag.value]
       const params = {
         page: currentPage.value,
         pageSize: PAGE_SIZE,
         limit: PAGE_SIZE,
-        search: searchValue.value || undefined
+        search: searchValue.value || undefined,
+        status: activeTag.value !== 'all' && !hasFilterAlias ? activeTag.value : undefined
       }
 
       const response = await props.apiFunction(params)
@@ -519,6 +552,21 @@
 
   const goBack = () => router.back()
   const handleAdd = () => emit('add')
+  const handleHeaderAction = (action = {}) => {
+    if (typeof action.handler === 'function') {
+      action.handler(action)
+      return
+    }
+    if (action.path || action.route) {
+      router.push(action.path || action.route)
+      return
+    }
+    if (action.action === 'add' || action.action === 'create') {
+      handleAdd()
+      return
+    }
+    emit('header-action', action)
+  }
   const handleItemClick = (item) => {
     if (props.config.detailRoute) {
       const route = props.config.detailRoute.replace(':id', item[props.config.fields.id])
@@ -551,6 +599,21 @@
   }
   .page-body {
     padding: 0 12px 12px;
+  }
+
+  .nav-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .nav-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: var(--text-primary);
   }
 
   // ========== 统计概览 ==========

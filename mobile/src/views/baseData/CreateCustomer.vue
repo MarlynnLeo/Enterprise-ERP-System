@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="create-page">
-    <NavBar title="新建客户" left-arrow @click-left="router.back()">
+    <NavBar :title="pageTitle" left-arrow @click-left="router.back()">
       <template #right>
         <Button type="primary" size="small" @click="submitForm" :loading="submitting">保存</Button>
       </template>
@@ -173,16 +173,19 @@
 </template>
 
 <script setup>
-  import { ref, reactive } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { ref, reactive, computed, onMounted } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
   import { baseDataApi } from '@/services/api'
 
   const router = useRouter()
+  const route = useRoute()
   const formRef = ref()
   const submitting = ref(false)
   const showCreditPicker = ref(false)
   const showCustomerTypePicker = ref(false)
+  const isEdit = computed(() => !!route.params.id)
+  const pageTitle = computed(() => isEdit.value ? '编辑客户' : '新建客户')
 
   // 表单数据 — 与网页端 CustomerFormDialog.vue 字段对齐
   const form = reactive({
@@ -240,6 +243,32 @@
     showCreditPicker.value = false
   }
 
+  const syncPickerText = () => {
+    selectedCustomerTypeName.value =
+      customerTypeColumns.find((item) => item.value === form.customer_type)?.text || ''
+    selectedCreditLevelName.value =
+      creditColumns.find((item) => item.value === form.credit_level)?.text || ''
+  }
+
+  const loadCustomer = async () => {
+    if (!isEdit.value) return
+    try {
+      const response = await baseDataApi.getCustomer(route.params.id)
+      const data = response.data || response
+      if (data) {
+        Object.assign(form, {
+          ...form,
+          ...data,
+          credit_limit: data.credit_limit ?? 0
+        })
+        syncPickerText()
+      }
+    } catch (e) {
+      console.error('加载客户失败:', e)
+      showToast(e.response?.data?.message || '加载客户失败')
+    }
+  }
+
   const submitForm = async () => {
     try {
       await formRef.value?.validate()
@@ -259,18 +288,24 @@
         remark: form.remark ? form.remark.trim() : ''
       }
 
-      await baseDataApi.createCustomer(submitData)
+      if (isEdit.value) {
+        await baseDataApi.updateCustomer(route.params.id, submitData)
+      } else {
+        await baseDataApi.createCustomer(submitData)
+      }
       closeToast()
-      showToast('客户创建成功')
+      showToast(isEdit.value ? '客户更新成功' : '客户创建成功')
       router.back()
     } catch (e) {
       closeToast()
-      console.error('创建客户失败:', e)
-      showToast(e.response?.data?.message || '创建客户失败')
+      console.error(isEdit.value ? '更新客户失败:' : '创建客户失败:', e)
+      showToast(e.response?.data?.message || (isEdit.value ? '更新客户失败' : '创建客户失败'))
     } finally {
       submitting.value = false
     }
   }
+
+  onMounted(loadCustomer)
 </script>
 
 <style lang="scss" scoped>

@@ -29,13 +29,15 @@
     searchPlaceholder: '搜索退货单号或供应商',
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '待处理', value: 'pending' },
-      { label: '已完成', value: 'completed' }
+      { label: '草稿', value: 'draft' },
+      { label: '已确认', value: 'confirmed' },
+      { label: '已完成', value: 'completed' },
+      { label: '已取消', value: 'cancelled' }
     ],
     fields: {
       id: 'id',
       title: 'supplier_name',
-      subtitle: 'return_code',
+      subtitle: 'return_no',
       icon: 'exchange',
       details: [
         { label: '退货金额', field: 'total_amount', prefix: '¥' },
@@ -47,9 +49,10 @@
           field: 'status',
           type: 'status',
           map: {
-            pending: { text: '待处理', color: 'warning' },
-            approved: { text: '已审核', color: 'info' },
-            completed: { text: '已完成', color: 'success' }
+            draft: { text: '草稿', color: 'default' },
+            confirmed: { text: '已确认', color: 'primary' },
+            completed: { text: '已完成', color: 'success' },
+            cancelled: { text: '已取消', color: 'default' }
           }
         }
       ]
@@ -57,7 +60,12 @@
   }))
 
   const loadReturns = async (params) => {
-    const response = await purchaseApi.getReturns(params)
+    const apiParams = { ...params }
+    apiParams.returnNo = params.search || undefined
+    delete apiParams.search
+    if (!apiParams.status || apiParams.status === 'all') delete apiParams.status
+
+    const response = await purchaseApi.getReturns(apiParams)
     return response
   }
 

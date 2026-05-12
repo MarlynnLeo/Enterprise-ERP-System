@@ -13,7 +13,7 @@
     :actions="quickActions"
     :groups="moduleGroups"
     @back="router.back()"
-    @add="navigateTo('/finance/gl/entries/create')"
+    @add="navigateTo('/finance/gl/entries')"
     @navigate="navigateTo"
   />
 </template>
@@ -21,10 +21,13 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  
+
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
+  import { financeApi } from '@/services/api'
+  import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()
+  const authStore = useAuthStore()
 
   // ---- 统计数据 ----
   const statistics = ref({
@@ -71,32 +74,7 @@
   ])
 
   // ---- 快捷操作 ----
-  const quickActions = ref([
-    {
-      label: '新建凭证',
-      path: '/finance/gl/entries/create',
-      icon: 'plus',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
-    },
-    {
-      label: '收款登记',
-      path: '/finance/ar/receipts/create',
-      icon: 'coin',
-      gradient: 'linear-gradient(135deg, #2CCFB0 0%, #1BA392 100%)'
-    },
-    {
-      label: '付款登记',
-      path: '/finance/ap/payments/create',
-      icon: 'cash',
-      gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A52 100%)'
-    },
-    {
-      label: '银行交易',
-      path: '/finance/cash/transactions/create',
-      icon: 'exchange',
-      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
-    }
-  ])
+  const quickActions = ref([])
 
   // ---- 功能模块 ----
   const glModules = ref([
@@ -180,16 +158,27 @@
 
   // ---- 加载数据 ----
   const getFinanceStatistics = async () => {
+    if (!authStore.hasPermission('finance:reports:view')) {
+      return
+    }
+
     try {
+      const [balanceRes, incomeRes] = await Promise.allSettled([
+        financeApi.getBalanceSheet(),
+        financeApi.getIncomeStatement()
+      ])
+      const balance = balanceRes.status === 'fulfilled' ? (balanceRes.value.data || balanceRes.value) : {}
+      const income = incomeRes.status === 'fulfilled' ? (incomeRes.value.data || incomeRes.value) : {}
+
       statistics.value = {
-        totalAssets: 12500000,
-        totalRevenue: 850000,
-        totalExpense: 620000,
-        netProfit: 230000
+        totalAssets: balance.totalAssets || balance.total_assets || balance.assets_total || 0,
+        totalRevenue: income.totalRevenue || income.total_revenue || income.revenue || 0,
+        totalExpense: income.totalExpense || income.total_expense || income.expense || 0,
+        netProfit: income.netProfit || income.net_profit || income.profit || 0
       }
-      glModules.value[1].badge = 5
     } catch (error) {
       console.error('获取财务统计数据失败:', error)
+      statistics.value = { totalAssets: 0, totalRevenue: 0, totalExpense: 0, netProfit: 0 }
     }
   }
 

@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="create-page">
-    <NavBar title="新建供应商" left-arrow @click-left="router.back()">
+    <NavBar :title="pageTitle" left-arrow @click-left="router.back()">
       <template #right>
         <Button type="primary" size="small" @click="submitForm" :loading="submitting">保存</Button>
       </template>
@@ -66,15 +66,18 @@
 </template>
 
 <script setup>
-  import { ref, reactive } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { ref, reactive, computed, onMounted } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
   import { baseDataApi } from '@/services/api'
 
   const router = useRouter()
+  const route = useRoute()
   const formRef = ref()
   const submitting = ref(false)
   const showRatingPicker = ref(false)
+  const isEdit = computed(() => !!route.params.id)
+  const pageTitle = computed(() => isEdit.value ? '编辑供应商' : '新建供应商')
 
   const form = reactive({
     name: '', code: '', short_name: '', rating: '',
@@ -96,23 +99,41 @@
     showRatingPicker.value = false
   }
 
+  const loadSupplier = async () => {
+    if (!isEdit.value) return
+    try {
+      const response = await baseDataApi.getSupplier(route.params.id)
+      const data = response.data || response
+      if (data) Object.assign(form, { ...form, ...data })
+    } catch (e) {
+      console.error('加载供应商失败:', e)
+      showToast(e.response?.data?.message || '加载供应商失败')
+    }
+  }
+
   const submitForm = async () => {
     try {
       await formRef.value?.validate()
       submitting.value = true
       showLoadingToast({ message: '保存中...', forbidClick: true })
-      await baseDataApi.createSupplier(form)
+      if (isEdit.value) {
+        await baseDataApi.updateSupplier(route.params.id, form)
+      } else {
+        await baseDataApi.createSupplier(form)
+      }
       closeToast()
-      showToast('供应商创建成功')
+      showToast(isEdit.value ? '供应商更新成功' : '供应商创建成功')
       router.back()
     } catch (e) {
       closeToast()
-      console.error('创建供应商失败:', e)
-      showToast(e.response?.data?.message || '创建供应商失败')
+      console.error(isEdit.value ? '更新供应商失败:' : '创建供应商失败:', e)
+      showToast(e.response?.data?.message || (isEdit.value ? '更新供应商失败' : '创建供应商失败'))
     } finally {
       submitting.value = false
     }
   }
+
+  onMounted(loadSupplier)
 </script>
 
 <style lang="scss" scoped>

@@ -16,7 +16,7 @@
         </div>
       </template>
     </NavBar>
-    
+
     <div class="content-container">
       <!-- 消息统计 -->
       <div class="message-stats">
@@ -37,8 +37,8 @@
       <!-- 消息类型筛选 -->
       <div class="filter-scroll-wrapper">
         <div class="filter-scroll">
-          <div 
-            v-for="filter in messageFilters" 
+          <div
+            v-for="filter in messageFilters"
             :key="filter.key"
             class="filter-chip"
             :class="{ active: activeFilter === filter.key }"
@@ -60,7 +60,13 @@
           <Button size="small" type="default" @click="markAsRead" :disabled="selectedMessages.length === 0">
             标记已读
           </Button>
-          <Button size="small" type="danger" @click="deleteMessages" :disabled="selectedMessages.length === 0">
+          <Button
+            v-permission="'system:notifications:delete'"
+            size="small"
+            type="danger"
+            @click="deleteMessages"
+            :disabled="selectedMessages.length === 0"
+          >
             删除
           </Button>
         </div>
@@ -75,8 +81,8 @@
             finished-text="没有更多了"
             @load="onLoad"
           >
-            <div 
-              v-for="message in filteredMessages" 
+            <div
+              v-for="message in filteredMessages"
               :key="message.id"
               class="message-item"
               :class="{ unread: !message.read, selected: selectedMessages.includes(message.id) }"
@@ -85,18 +91,18 @@
               <div class="message-checkbox" @click.stop>
                 <Checkbox v-model="selectedMessages" :name="message.id" />
               </div>
-              
+
               <div class="message-icon">
                 <Icon :name="getMessageIcon(message.type)" size="20" :color="getMessageColor(message.type)" />
                 <div class="priority-badge" v-if="message.priority === 'urgent'"></div>
               </div>
-              
+
               <div class="message-content">
                 <div class="message-header">
                   <div class="message-title">{{ message.title }}</div>
                   <div class="message-time">{{ formatTime(message.created_at) }}</div>
                 </div>
-                
+
                 <div class="message-body">
                   <div class="message-text">{{ message.content }}</div>
                   <div class="message-meta" v-if="message.meta">
@@ -106,12 +112,12 @@
                     </div>
                   </div>
                 </div>
-                
+
                 <div class="message-actions" v-if="message.actions">
-                  <Button 
-                    v-for="action in message.actions" 
+                  <Button
+                    v-for="action in message.actions"
                     :key="action.key"
-                    size="mini" 
+                    size="mini"
                     :type="action.type || 'default'"
                     @click.stop="handleAction(message, action)"
                   >
@@ -119,7 +125,7 @@
                   </Button>
                 </div>
               </div>
-              
+
               <div class="message-status">
                 <div class="read-indicator" v-if="!message.read"></div>
                 <Icon name="arrow" size="12" color="var(--text-disabled)" />
@@ -170,7 +176,7 @@
               </template>
             </Cell>
           </div>
-          
+
           <div class="setting-section">
             <div class="section-title">免打扰设置</div>
             <Field v-model="settings.quietHours.start" label="开始时间" placeholder="HH:mm" />
@@ -198,9 +204,9 @@ defineOptions({ name: 'Notifications' })
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { 
+import {
   NavBar, Icon, Badge, Checkbox, Button, PullRefresh, List, Empty,
-  Popup, Cell, Field, Switch, showToast, showConfirmDialog 
+  Popup, Cell, Field, Switch, showToast, showConfirmDialog
 } from 'vant';
 import { productionApi, systemApi } from '@/services/api';
 
@@ -245,7 +251,7 @@ const urgentCount = computed(() => messages.value.filter(m => m.priority === 'ur
 
 const filteredMessages = computed(() => {
   let filtered = messages.value;
-  
+
   if (activeFilter.value !== 'all') {
     if (activeFilter.value === 'unread') {
       filtered = filtered.filter(m => !m.read);
@@ -255,7 +261,7 @@ const filteredMessages = computed(() => {
       filtered = filtered.filter(m => m.type === activeFilter.value);
     }
   }
-  
+
   return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 });
 
@@ -286,7 +292,7 @@ const formatTime = (timestamp) => {
   const date = new Date(timestamp);
   const now = new Date();
   const diff = now - date;
-  
+
   if (diff < 60000) return '刚刚';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
@@ -402,7 +408,7 @@ const viewMessage = (message) => {
     message.read = true;
     updateFilterCounts();
   }
-  
+
   // 跳转到详情页或相关页面
   router.push(`/notifications/${message.id}`);
 };
@@ -510,7 +516,7 @@ const saveSettings = () => {
 // 初始化
 onMounted(() => {
   loadMessages(true);
-  
+
   // 加载设置
   try {
     const savedSettings = localStorage.getItem('notification_settings');

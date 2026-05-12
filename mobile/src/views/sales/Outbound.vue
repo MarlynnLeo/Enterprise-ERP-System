@@ -120,23 +120,23 @@
                 </Button>
                 <Button
                   v-if="outbound.status === 'draft'"
-                  v-permission="'sales:outbound:approve'"
+                  v-permission="'sales:outbound:update'"
                   size="small"
                   type="success"
                   plain
                   @click.stop="confirmOutbound(outbound)"
                 >
-                  确认出库
+                  开始出库
                 </Button>
                 <Button
-                  v-if="outbound.status === 'confirmed'"
-                  v-permission="'sales:outbound:approve'"
+                  v-if="outbound.status === 'processing'"
+                  v-permission="'sales:outbound:update'"
                   size="small"
                   type="warning"
                   plain
                   @click.stop="shipOutbound(outbound)"
                 >
-                  发货
+                  完成出库
                 </Button>
               </div>
             </div>
@@ -175,8 +175,7 @@
   const statusTabs = [
     { label: '全部', value: '' },
     { label: '草稿', value: 'draft' },
-    { label: '待处理', value: 'pending' },
-    { label: '已发货', value: 'shipped' },
+    { label: '出库中', value: 'processing' },
     { label: '已完成', value: 'completed' },
     { label: '已取消', value: 'cancelled' }
   ]
@@ -195,7 +194,9 @@
   const onClickLeft = () => router.back()
 
   // 创建出库单
-  const createOutbound = () => router.push('/inventory/outbound/create')
+  const createOutbound = () => {
+    showToast('手机端暂未开放销售出库新建')
+  }
 
   const reloadData = () => {
     onRefresh({
@@ -230,7 +231,7 @@
       draft: 'default',
       pending: 'warning',
       confirmed: 'primary',
-      shipped: 'warning',
+      processing: 'warning',
       completed: 'success',
       cancelled: 'danger'
     }
@@ -243,15 +244,22 @@
   // 查看出库单详情
   const viewOutboundDetail = (id) => router.push(`/sales/outbound/${id}`)
 
-  // 确认出库
+  const buildStatusPayload = (outbound, status) => ({
+    status,
+    delivery_date: outbound.delivery_date || outbound.outbound_date || new Date().toISOString().slice(0, 10),
+    remarks: outbound.remarks
+  })
+
+  // 草稿 → 出库中
   const confirmOutbound = async (outbound) => {
     try {
       await showConfirmDialog({
-        title: '确认出库',
-        message: `确定要确认出库单 ${outbound.outbound_no} 吗？`
+        title: '开始出库',
+        message: `确定开始处理出库单 ${outbound.outbound_no} 吗？`
       })
-      showToast('出库单已确认')
-      outbound.status = 'confirmed'
+      await salesApi.updateSalesOutbound(outbound.id, buildStatusPayload(outbound, 'processing'))
+      showToast('已进入出库中')
+      outbound.status = 'processing'
     } catch (error) {
       if (error !== 'cancel') {
         console.error('确认出库失败:', error)
@@ -260,15 +268,16 @@
     }
   }
 
-  // 发货
+  // 出库中 → 已完成
   const shipOutbound = async (outbound) => {
     try {
       await showConfirmDialog({
-        title: '确认发货',
-        message: `确定要发货出库单 ${outbound.outbound_no} 吗？`
+        title: '完成出库',
+        message: `确定完成出库单 ${outbound.outbound_no} 吗？库存数量将相应扣减。`
       })
-      showToast('出库单已发货')
-      outbound.status = 'shipped'
+      await salesApi.updateSalesOutbound(outbound.id, buildStatusPayload(outbound, 'completed'))
+      showToast('出库完成')
+      outbound.status = 'completed'
     } catch (error) {
       if (error !== 'cancel') {
         console.error('发货失败:', error)

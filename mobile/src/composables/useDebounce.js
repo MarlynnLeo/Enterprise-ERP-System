@@ -9,7 +9,7 @@ import { ref, watch } from 'vue'
 
 /**
  * 对 ref 值进行防抖处理
- * 
+ *
  * @param {import('vue').Ref} source 源 ref
  * @param {number} delay 防抖延迟(ms)，默认 300
  * @returns {import('vue').Ref} 防抖后的 ref
@@ -30,7 +30,7 @@ export function useDebouncedRef(source, delay = 300) {
 
 /**
  * 对函数进行防抖包装
- * 
+ *
  * @param {Function} fn 要防抖的函数
  * @param {number} delay 防抖延迟(ms)，默认 300
  * @returns {Function} 防抖后的函数

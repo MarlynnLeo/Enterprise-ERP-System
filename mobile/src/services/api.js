@@ -263,7 +263,7 @@ api.interceptors.response.use(
 export const inventoryApi = {
   // 看板
   getDashboard(params) {
-    return api.get('/inventory/dashboard', { params })
+    return api.get('/inventory/dashboard/summary', { params })
   },
   // 库存查询
   getInventoryStock(params) {
@@ -368,7 +368,7 @@ export const inventoryApi = {
   },
 
   updateTransferStatus(id, status) {
-    return api.put(`/inventory/transfer/${id}/status`, { status })
+    return api.put(`/inventory/transfer/${id}/status`, { newStatus: status })
   },
 
   getTransferStatistics() {
@@ -449,7 +449,7 @@ export const inventoryApi = {
 
   // 导出功能
   exportStocks(data) {
-    return api.post('/inventory/stocks/export', data)
+    return api.post('/inventory/stock/export', data)
   },
 
   // 获取库位列表
@@ -470,10 +470,6 @@ export const inventoryApi = {
   // 仓库管理
   getWarehouses(params) {
     return api.get('/baseData/warehouses', { params })
-  },
-
-  getWarehouse(id) {
-    return api.get(`/baseData/warehouses/${id}`)
   }
 }
 
@@ -549,6 +545,11 @@ export const productionApi = {
 
   updateProductionTaskProgress(id, progress) {
     return api.post(`/production/tasks/${id}/progress`, progress)
+  },
+
+  reportProductionProgress(data) {
+    const { task_id: taskId, ...progress } = data || {}
+    return api.post(`/production/tasks/${taskId}/progress`, progress)
   },
 
   generateTaskCode() {
@@ -759,7 +760,7 @@ export const purchaseApi = {
   },
 
   updateRequisitionStatus(id, status) {
-    return api.put(`/purchase/requisitions/${id}/status`, { status })
+    return api.put(`/purchase/requisitions/${id}/status`, { newStatus: status })
   },
 
   // 采购订单
@@ -804,10 +805,6 @@ export const purchaseApi = {
     return api.put(`/purchase/receipts/${id}`, data)
   },
 
-  deleteReceipt(id) {
-    return api.delete(`/purchase/receipts/${id}`)
-  },
-
   updateReceiptStatus(id, status, remarks) {
     return api.put(`/purchase/receipts/${id}/status`, { status, remarks })
   },
@@ -829,59 +826,51 @@ export const purchaseApi = {
     return api.put(`/purchase/returns/${id}`, data)
   },
 
-  deleteReturn(id) {
-    return api.delete(`/purchase/returns/${id}`)
+  updateReturnStatus(id, status) {
+    return api.put(`/purchase/returns/${id}/status`, { newStatus: status })
   },
 
   // 外委加工
   getProcessing(params) {
-    return api.get('/purchase/processing', { params })
+    return api.get('/purchase/outsourced-processings', { params })
   },
 
   getProcessingById(id) {
-    return api.get(`/purchase/processing/${id}`)
+    return api.get(`/purchase/outsourced-processings/${id}`)
   },
 
   createProcessing(data) {
-    return api.post('/purchase/processing', data)
+    return api.post('/purchase/outsourced-processings', data)
   },
 
   updateProcessing(id, data) {
-    return api.put(`/purchase/processing/${id}`, data)
+    return api.put(`/purchase/outsourced-processings/${id}`, data)
   },
 
   deleteProcessing(id) {
-    return api.delete(`/purchase/processing/${id}`)
+    return api.delete(`/purchase/outsourced-processings/${id}`)
   },
 
   // 外委入库
   getProcessingReceipts(params) {
-    return api.get('/purchase/processing-receipts', { params })
+    return api.get('/purchase/outsourced-receipts', { params })
   },
 
   getProcessingReceipt(id) {
-    return api.get(`/purchase/processing-receipts/${id}`)
+    return api.get(`/purchase/outsourced-receipts/${id}`)
   },
 
   createProcessingReceipt(data) {
-    return api.post('/purchase/processing-receipts', data)
+    return api.post('/purchase/outsourced-receipts', data)
   },
 
   updateProcessingReceipt(id, data) {
-    return api.put(`/purchase/processing-receipts/${id}`, data)
-  },
-
-  deleteProcessingReceipt(id) {
-    return api.delete(`/purchase/processing-receipts/${id}`)
+    return api.put(`/purchase/outsourced-receipts/${id}`, data)
   },
 
   // 供应商管理
   getSuppliers(params) {
     return api.get('/purchase/suppliers', { params })
-  },
-
-  getSupplier(id) {
-    return api.get(`/purchase/suppliers/${id}`)
   },
 
   // 统计数据
@@ -1082,11 +1071,6 @@ export const baseDataApi = {
 
 // 财务管理相关API
 export const financeApi = {
-  // 财务统计
-  getStatistics() {
-    return api.get('/finance/statistics')
-  },
-
   // 总账管理 — 后端路由: /api/finance/accounts
   getAccounts(params) {
     return api.get('/finance/accounts', { params })
@@ -1105,7 +1089,7 @@ export const financeApi = {
   },
 
   deleteAccount(id) {
-    return api.delete(`/finance/accounts/${id}`)
+    return api.patch(`/finance/accounts/${id}/deactivate`)
   },
 
   // 会计凭证 — 后端路由: /api/finance/entries
@@ -1119,10 +1103,6 @@ export const financeApi = {
 
   createEntry(data) {
     return api.post('/finance/entries', data)
-  },
-
-  updateEntry(id, data) {
-    return api.put(`/finance/entries/${id}`, data)
   },
 
   deleteEntry(id) {
@@ -1141,10 +1121,6 @@ export const financeApi = {
   // 会计期间 — 后端路由: /api/finance/periods
   getPeriods(params) {
     return api.get('/finance/periods', { params })
-  },
-
-  getCurrentPeriod() {
-    return api.get('/finance/periods/current')
   },
 
   closePeriod(id) {
@@ -1245,10 +1221,6 @@ export const financeApi = {
     return api.put(`/finance/assets/${id}`, data)
   },
 
-  deleteAsset(id) {
-    return api.delete(`/finance/assets/${id}`)
-  },
-
   getAssetCategories() {
     return api.get('/finance/assets/categories')
   },
@@ -1321,23 +1293,14 @@ export const financeApi = {
     return api.get('/finance/reports/cash-flow', { params: { ...params, startDate, endDate } })
   },
 
-  // 财务自动化
-  getAutomationTasks() {
-    return api.get('/finance/automation/tasks')
-  },
-
-  executeAutomationTask(taskType) {
-    return api.post('/finance/automation/execute', { taskType })
-  },
-
   // 应付发票状态操作
   updateAPInvoiceStatus(id, status) {
     return api.put(`/finance/ap/invoices/${id}/status`, { status })
   },
 
   // 应付付款作废
-  voidAPPayment(id) {
-    return api.post(`/finance/ap/payments/${id}/void`)
+  voidAPPayment(id, voidReason) {
+    return api.post(`/finance/ap/payments/${id}/void`, { void_reason: voidReason })
   },
 
   // 应收发票状态操作
@@ -1346,8 +1309,8 @@ export const financeApi = {
   },
 
   // 应收收款作废
-  voidARReceipt(id) {
-    return api.post(`/finance/ar/receipts/${id}/void`)
+  voidARReceipt(id, voidReason) {
+    return api.post(`/finance/ar/receipts/${id}/void`, { void_reason: voidReason })
   }
 }
 
@@ -1484,7 +1447,15 @@ export const qualityApi = {
   },
 
   processNonconformance(id, action, data) {
-    return api.put(`/nonconforming-products/${id}/${action}`, data)
+    if (action === 'start') {
+      return api.put(`/nonconforming-products/${id}`, { ...data, status: 'processing' })
+    }
+
+    if (action === 'complete') {
+      return api.put(`/nonconforming-products/${id}/complete`, data)
+    }
+
+    return api.put(`/nonconforming-products/${id}/disposition`, data)
   },
 
   // 质量报表
@@ -1498,28 +1469,6 @@ export const qualityApi = {
 
   getSPCData(params) {
     return api.get('/quality/defect-items', { params })
-  },
-
-  // 检验项目
-  getInspectionItems(params) {
-    return api.get('/quality/inspection-items', { params })
-  },
-
-  createInspectionItem(data) {
-    return api.post('/quality/inspection-items', data)
-  },
-
-  updateInspectionItem(id, data) {
-    return api.put(`/quality/inspection-items/${id}`, data)
-  },
-
-  // 检验结果录入
-  submitInspectionResult(inspectionId, data) {
-    return api.post(`/quality/inspections/${inspectionId}/results`, data)
-  },
-
-  updateInspectionResult(inspectionId, resultId, data) {
-    return api.put(`/quality/inspections/${inspectionId}/results/${resultId}`, data)
   },
 
   // ==================== 质量统计报表 ====================
@@ -1648,7 +1597,52 @@ export const systemApi = {
     return api.get('/system/roles', { params })
   },
   getPermissions(params) {
-    return api.get('/system/permissions', { params })
+    const query = { ...params, name: params?.name || params?.search || undefined }
+    delete query.search
+    delete query.status
+
+    return api.get('/system/menus', { params: query }).then((response) => {
+      const flattenMenus = (items = [], result = []) => {
+        items.forEach((item) => {
+          result.push(item)
+          if (Array.isArray(item.children) && item.children.length) {
+            flattenMenus(item.children, result)
+          }
+        })
+        return result
+      }
+
+      const menus = flattenMenus(Array.isArray(response.data) ? response.data : [])
+      let permissions = menus
+        .filter((item) => item.permission)
+        .map((item) => {
+          const code = item.permission
+          const typeMap = { 1: 'menu', 2: 'menu', 3: 'button' }
+          return {
+            id: item.id,
+            name: item.name || code,
+            code,
+            type: typeMap[item.type] || 'menu',
+            module: code.split(':')[0] || '-',
+            description: item.path || item.component || ''
+          }
+        })
+
+      const keyword = (params?.search || '').trim().toLowerCase()
+      if (keyword) {
+        permissions = permissions.filter((item) =>
+          [item.name, item.code, item.module].some((value) =>
+            String(value || '').toLowerCase().includes(keyword)
+          )
+        )
+      }
+
+      if (params?.status && params.status !== 'all') {
+        permissions = permissions.filter((item) => item.type === params.status)
+      }
+
+      return { ...response, data: permissions }
+    })
   },
   getLogs(params) {
     return api.get('/system/logs', { params })
@@ -1673,11 +1667,8 @@ export const systemApi = {
   updateUserStatus(id, status) {
     return api.put(`/system/users/${id}/status`, { status })
   },
-  resetUserPassword(id) {
-    return api.put(`/system/users/${id}/password/reset`)
-  },
-  deleteUser(id) {
-    return api.delete(`/system/users/${id}`)
+  resetUserPassword(id, data) {
+    return api.put(`/system/users/${id}/password/reset`, data)
   },
 
   // ==================== 通知管理 ====================
@@ -1688,7 +1679,13 @@ export const systemApi = {
     return api.get('/notifications/unread-count')
   },
   getNotificationDetail(id) {
-    return api.get(`/notifications/${id}`)
+    return api.get('/notifications', { params: { page: 1, pageSize: 100 } }).then((response) => {
+      const list = response.data?.list || response.data?.items || response.data || []
+      return {
+        ...response,
+        data: Array.isArray(list) ? list.find((item) => String(item.id) === String(id)) || null : null
+      }
+    })
   },
   markNotificationRead(id) {
     return api.put(`/notifications/${id}/read`)

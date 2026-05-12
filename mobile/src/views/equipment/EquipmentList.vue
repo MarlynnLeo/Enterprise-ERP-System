@@ -12,6 +12,7 @@
 <script setup>
   import { computed } from 'vue'
   import { useRouter } from 'vue-router'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { equipmentApi } from '@/services/api'
 
@@ -62,7 +63,8 @@
       {
         icon: 'plus',
         label: '新增设备',
-        action: 'create'
+        action: 'create',
+        handler: () => showToast('手机端暂未开放新增设备')
       }
     ]
   }))

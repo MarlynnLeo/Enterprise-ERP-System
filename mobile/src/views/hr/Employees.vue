@@ -10,6 +10,7 @@
 
 <script setup>
   import { computed } from 'vue'
+  import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { hrApi } from '@/services/api'
 
@@ -52,7 +53,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '新员工入职', action: 'create' }
+      { icon: 'plus', label: '新员工入职', action: 'create', handler: () => showToast('手机端暂未开放员工新建') }
     ]
   }))
 

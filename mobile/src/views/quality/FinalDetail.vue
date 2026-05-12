@@ -87,10 +87,10 @@
       </CellGroup>
 
       <!-- 操作按钮 -->
-      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:final:update'">
+      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:inspections:update'">
         <Button round block type="primary" @click="handleStart"> 开始检测(FQC) </Button>
       </div>
-      <div class="action-section" v-else-if="inspection.status === 'in_progress'" v-permission="'quality:final:update'">
+      <div class="action-section" v-else-if="inspection.status === 'in_progress'" v-permission="'quality:inspections:update'">
         <Button round block type="success" @click="handleComplete"> 提交入库评估并归档 </Button>
       </div>
     </div>
@@ -205,11 +205,10 @@
 
   const loadFromApi = async () => {
     try {
-      const response = await qualityApi.getFinalInspections({ id: route.params.id, limit: 1 })
-      const data = response.data || response
-      const items = data.items || data.list || data.inspections || []
-      if (items.length > 0) {
-        inspection.value = items[0]
+      const response = await qualityApi.getFinalInspection(route.params.id)
+      const data = response?.data?.data || response?.data || response
+      if (data?.id) {
+        inspection.value = data
         inspectForm.qualified_quantity =
           inspection.value.qualified_quantity || inspection.value.quantity || 0
         inspectForm.unqualified_quantity = inspection.value.unqualified_quantity || 0
@@ -250,19 +249,21 @@
 
     try {
       await showConfirmDialog({ title: '确认完成', message: '确定执行成品出厂品质归档吗？' })
+      const status = inspectForm.resultValue
       await qualityApi.completeInspection(inspection.value.id, {
         qualified_quantity: q,
         unqualified_quantity: uq,
-        status: inspectForm.resultValue === 'failed' ? 'failed' : 'completed',
+        status,
         result: inspectForm.resultValue,
         remark: inspectForm.remark
       })
       showToast('成品检验已记录')
-      inspection.value.status = 'completed'
+      inspection.value.status = status
       setTimeout(() => {
         router.go(-1)
       }, 1000)
     } catch (error) {
+      if (error === 'cancel') return
       console.error('完成检验失败:', error)
       showToast('提交失败')
     }

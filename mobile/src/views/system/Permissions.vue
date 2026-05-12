@@ -56,7 +56,15 @@
 
   const loadPermissions = async (params) => {
     const response = await systemApi.getPermissions(params)
-    return response
+    const data = response.data || response
+    const list = Array.isArray(data) ? data : (data.items || data.list || data.permissions || [])
+    const items = list.map((item, index) => {
+      if (typeof item === 'string') {
+        return { id: item, name: item, code: item, type: 'permission', module: item.split(':')[0] || '-' }
+      }
+      return { id: item.id || item.code || index, ...item }
+    })
+    return { items, total: items.length }
   }
 
   const handleItemClick = () => {
