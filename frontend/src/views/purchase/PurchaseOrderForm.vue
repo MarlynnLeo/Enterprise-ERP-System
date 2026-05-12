@@ -13,14 +13,14 @@
       <div>
         <el-button @click="goBack">返回</el-button>
         <el-button v-permission="'purchase:orders:update'" type="primary" @click="saveOrder" :loading="saveLoading">保存</el-button>
-        <el-button v-permission="'purchase:orders:update'" 
-          v-if="isEdit && formData.status === 'draft'" 
-          type="success" 
+        <el-button v-permission="'purchase:orders:update'"
+          v-if="isEdit && formData.status === 'draft'"
+          type="success"
           @click="submitOrder"
         >提交审批</el-button>
       </div>
     </div>
-    
+
     <el-card class="data-card">
       <el-form ref="orderForm" :model="formData" :rules="rules" label-width="120px">
         <el-row :gutter="20">
@@ -41,7 +41,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="预计到货日期" prop="expected_delivery_date">
@@ -74,7 +74,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="联系人" prop="contact_person">
@@ -87,7 +87,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
@@ -95,14 +95,14 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <!-- 物料列表 -->
         <el-divider content-position="left">物料列表</el-divider>
 
         <div class="material-list-header">
           <el-button type="primary" @click="openRequisitionDialog">选择采购申请</el-button>
         </div>
-        
+
         <el-table :data="formData.items" border style="width: 100%; margin-top: 15px;">
           <el-table-column label="序号" type="index" width="60" align="center"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" width="120"></el-table-column>
@@ -144,7 +144,7 @@
             </template>
           </el-table-column>
         </el-table>
-        
+
         <!-- 合计金额 -->
         <div class="total-price">
           <span>订单总金额: ¥{{ calculateTotalAmount() }}</span>
@@ -152,7 +152,7 @@
       </el-form>
     </el-card>
   </div>
-  
+
   <!-- 物料选择对话框 -->
   <el-dialog
     title="选择物料"
@@ -160,7 +160,7 @@
     width="70%"
   >
     <div class="material-search">
-      <el-input 
+      <el-input
         v-model="materialSearchKeyword"
         placeholder="输入物料编码或名称搜索"
         clearable
@@ -170,7 +170,7 @@
         </template>
       </el-input>
     </div>
-    
+
     <el-table
       :data="materialList"
       border
@@ -205,7 +205,7 @@
         </template>
       </el-table-column>
     </el-table>
-    
+
     <div class="pagination-container">
       <el-pagination
         @size-change="handleSizeChange"
@@ -218,7 +218,7 @@
       >
       </el-pagination>
     </div>
-    
+
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="materialDialogVisible = false">取消</el-button>
@@ -226,7 +226,7 @@
       </span>
     </template>
   </el-dialog>
-  
+
   <!-- 采购申请选择对话框 -->
   <el-dialog
     title="选择采购申请"
@@ -234,7 +234,7 @@
     width="70%"
   >
     <div class="requisition-search">
-      <el-input 
+      <el-input
         v-model="requisitionSearchKeyword"
         placeholder="输入采购申请编号搜索"
         clearable
@@ -244,7 +244,7 @@
         </template>
       </el-input>
     </div>
-    
+
     <el-table
       :data="requisitionList.filter(item => item.status === 'approved')"
       border
@@ -261,7 +261,7 @@
       </el-table-column>
       <el-table-column prop="remarks" label="备注" show-overflow-tooltip></el-table-column>
     </el-table>
-    
+
     <div class="pagination-container">
       <el-pagination
         @size-change="handleRequisitionSizeChange"
@@ -274,7 +274,7 @@
       >
       </el-pagination>
     </div>
-    
+
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="requisitionDialogVisible = false">取消</el-button>
@@ -356,7 +356,7 @@ const requisitionPagination = reactive({
 const loadSuppliers = async () => {
   try {
     const res = await supplierApi.getSuppliers({ page: 1, pageSize: 10000 });
-    
+
     if (res.data && res.data.list) {
       suppliers.value = res.data.list;
       } else if (res.list) {
@@ -369,7 +369,6 @@ const loadSuppliers = async () => {
       // 处理data字段直接是数组的情况
       suppliers.value = res.data;
       } else {
-      console.warn('供应商数据格式不符合预期:', res);
       suppliers.value = [];
     }
   } catch (error) {
@@ -397,12 +396,12 @@ const searchMaterials = async () => {
       limit: materialPagination.size,
       keyword: materialSearchKeyword.value
     };
-    
+
     const res = await materialApi.getMaterials(params);
-    
+
     let materialData = [];
     let totalCount = 0;
-    
+
     if (res.data && res.data.list) {
       materialData = res.data.list;
       totalCount = res.data.total || 0;
@@ -416,9 +415,8 @@ const searchMaterials = async () => {
       materialData = res.data;
       totalCount = res.data.length;
     } else {
-      console.warn('物料数据格式不符合预期:', res);
     }
-    
+
     materialList.value = materialData.map(item => ({
       ...item,
       id: item.id,
@@ -431,7 +429,7 @@ const searchMaterials = async () => {
       price: item.price || 0, // 默认单价
       selected: false
     }));
-    
+
     materialPagination.total = totalCount;
     } catch (error) {
     console.error('获取物料列表失败:', error);
@@ -451,7 +449,7 @@ const searchRequisitions = async () => {
       keyword: requisitionSearchKeyword.value,
       status: ['completed'] // 只显示已完成的采购申请
     };
-    
+
     const res = await purchaseApi.getOrderRequisitions(params);
 
     // 使用统一解析器处理分页数据
@@ -544,12 +542,12 @@ const confirmMaterialSelection = () => {
     ElMessage.warning('请至少选择一个物料');
     return;
   }
-  
+
   // 添加选中的物料到表单
   selectedMaterials.value.forEach(material => {
     // 检查是否已存在相同物料
     const existingIndex = formData.items.findIndex(item => item.material_id === material.id);
-    
+
     if (existingIndex >= 0) {
       // 如果已存在，增加数量
       formData.items[existingIndex].quantity += material.quantity;
@@ -571,7 +569,7 @@ const confirmMaterialSelection = () => {
       formData.items.push(newItem);
     }
   });
-  
+
   materialDialogVisible.value = false;
   ElMessage.success('物料添加成功');
 };
@@ -582,7 +580,7 @@ const confirmRequisitionSelection = async () => {
     ElMessage.warning('请选择一个采购申请');
     return;
   }
-  
+
   try {
     // 获取采购申请详细信息
     const res = await purchaseApi.getOrderRequisition(selectedRequisition.value.id);
@@ -590,7 +588,7 @@ const confirmRequisitionSelection = async () => {
       // 设置关联的采购申请
       formData.requisition_id = res.data.id;
       formData.requisition_number = res.data.requisition_number;
-      
+
       // 添加采购申请中的物料到订单
       if (res.data.items && res.data.items.length > 0) {
         // 清空现有的物料
@@ -603,16 +601,16 @@ const confirmRequisitionSelection = async () => {
             type: 'warning'
           }
         ).then(() => true).catch(() => false);
-        
+
         if (!keepExistingItems) {
           formData.items = [];
         }
-        
+
         // 添加采购申请中的物料
         res.data.items.forEach(item => {
           // 检查是否已存在相同物料
           const existingIndex = formData.items.findIndex(i => i.material_id === item.material_id);
-          
+
           if (existingIndex >= 0) {
             // 如果已存在，询问是否更新数量
             formData.items[existingIndex].quantity = item.quantity;
@@ -633,7 +631,7 @@ const confirmRequisitionSelection = async () => {
           }
         });
       }
-      
+
       requisitionDialogVisible.value = false;
       ElMessage.success('采购申请关联成功');
     }
@@ -682,17 +680,17 @@ const saveOrder = async () => {
     ElMessage.warning('请至少添加一个物料');
     return;
   }
-  
+
   try {
     saveLoading.value = true;
     await orderForm.value.validate();
-    
+
     const formDataToSubmit = {
       ...formData,
       status: formData.status || 'draft', // 保持原状态或默认草稿
       total_amount: parseFloat(calculateTotalAmount())
     };
-    
+
     if (route.params.id) {
       // 更新
       await purchaseApi.updateOrder(route.params.id, formDataToSubmit);
@@ -702,7 +700,7 @@ const saveOrder = async () => {
       await purchaseApi.createOrder(formDataToSubmit);
       ElMessage.success('采购订单创建成功');
     }
-    
+
     router.push('/purchase/orders');
   } catch (error) {
     console.error('保存失败:', error);
@@ -718,17 +716,17 @@ const submitOrder = async () => {
     ElMessage.warning('请至少添加一个物料');
     return;
   }
-  
+
   try {
     saveLoading.value = true;
     await orderForm.value.validate();
-    
+
     const formDataToSubmit = {
       ...formData,
       status: 'submitted', // 提交审批状态
       total_amount: parseFloat(calculateTotalAmount())
     };
-    
+
     await purchaseApi.updateOrder(route.params.id, formDataToSubmit);
     ElMessage.success('已提交审批');
     router.push('/purchase/orders');
@@ -744,7 +742,7 @@ const submitOrder = async () => {
 onMounted(async () => {
   // 加载供应商列表
   loadSuppliers();
-  
+
   // 如果是编辑模式，加载数据
   if (route.params.id) {
     try {
@@ -811,4 +809,4 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

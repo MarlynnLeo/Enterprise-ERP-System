@@ -28,7 +28,7 @@ class ActivityCostService {
     }
 
     const query = `
-      SELECT id, code, name, description, cost_pool, 
+      SELECT id, code, name, description, cost_pool,
              cost_driver_type, driver_rate, status,
              created_at, updated_at
       FROM cost_activities
@@ -99,8 +99,8 @@ class ActivityCostService {
     }
 
     const query = `
-      UPDATE cost_activities 
-      SET code = ?, name = ?, description = ?, cost_pool = ?, 
+      UPDATE cost_activities
+      SET code = ?, name = ?, description = ?, cost_pool = ?,
           cost_driver_type = ?, driver_rate = ?, status = ?
       WHERE id = ?
     `;
@@ -207,7 +207,7 @@ class ActivityCostService {
    */
   async getABCSummaryReport() {
     const query = `
-      SELECT 
+      SELECT
         ca.id, ca.code, ca.name, ca.cost_pool, ca.cost_driver_type, ca.driver_rate,
         COALESCE(SUM(pa.driver_quantity), 0) as total_driver_quantity,
         COALESCE(SUM(pa.driver_quantity * ca.driver_rate), 0) as total_allocated_cost,

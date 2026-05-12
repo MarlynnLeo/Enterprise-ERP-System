@@ -35,17 +35,13 @@ const productCategoryController = {
       const result = await productCategoryModel.getAllProductCategories(filters, page, pageSize);
 
       // 返回统一的分页格式
-      res.json({
-        success: true,
-        data: {
+      return ResponseHandler.success(res, {
           list: result.data,
           total: result.total,
           page: page,
           pageSize: pageSize,
           totalPages: Math.ceil(result.total / pageSize),
-        },
-        message: '获取产品大类列表成功',
-      });
+        }, '获取产品大类列表成功');
     } catch (error) {
       logger.error('获取产品大类列表失败:', error);
       ResponseHandler.error(res, '获取产品大类列表失败', 'SERVER_ERROR', 500, error);
@@ -80,7 +76,7 @@ const productCategoryController = {
 
       // 验证必填字段
       if (!categoryData.name || !categoryData.code) {
-        return ResponseHandler.error(res, '分类名称和编码不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '分类名称和编码不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const newCategory = await productCategoryModel.createProductCategory(categoryData);
@@ -100,7 +96,7 @@ const productCategoryController = {
 
       // 处理唯一约束错误
       if (error.code === 'ER_DUP_ENTRY') {
-        return ResponseHandler.error(res, '分类编码已存在', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '分类编码已存在', 'VALIDATION_ERROR', 400);
       }
 
       ResponseHandler.error(res, '创建产品大类失败', 'SERVER_ERROR', 500, error);
@@ -117,7 +113,7 @@ const productCategoryController = {
 
       // 验证必填字段
       if (!categoryData.name || !categoryData.code) {
-        return ResponseHandler.error(res, '分类名称和编码不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '分类名称和编码不能为空', 'VALIDATION_ERROR', 400);
       }
 
       // 检查分类是否存在
@@ -134,7 +130,7 @@ const productCategoryController = {
 
       // 处理唯一约束错误
       if (error.code === 'ER_DUP_ENTRY') {
-        return ResponseHandler.error(res, '分类编码已存在', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '分类编码已存在', 'VALIDATION_ERROR', 400);
       }
 
       ResponseHandler.error(res, '更新产品大类失败', 'SERVER_ERROR', 500, error);

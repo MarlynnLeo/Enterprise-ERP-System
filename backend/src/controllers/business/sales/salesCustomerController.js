@@ -19,7 +19,7 @@ exports.getCustomersList = async (req, res) => {
     const result = await customerService.getAllCustomers(1, 1000);
 
     // 返回客户列表，直接返回items数组
-    res.json(result.items || []);
+    return ResponseHandler.success(res, result.items || []);
   } catch (error) {
     logger.error('Error getting customers list:', error);
     ResponseHandler.error(res, 'Error getting customers list', 'SERVER_ERROR', 500, error);
@@ -34,7 +34,7 @@ exports.getProductsList = async (req, res) => {
 
     // materialService.getAllMaterials 返回 { data, pagination }
     const items = products?.data || products?.list || products?.items || [];
-    res.json(items);
+    return ResponseHandler.success(res, items);
   } catch (error) {
     logger.error('Error getting products list:', error);
     ResponseHandler.error(res, 'Error getting products list', 'SERVER_ERROR', 500, error);
@@ -63,7 +63,7 @@ exports.getCustomers = async (req, res) => {
     // 添加限制条数
     if (limit) {
       const safeLimit = parseInt(limit, 10) || 100;
-      query += ` LIMIT ${safeLimit}`;
+      query += ` LIMIT ${Math.max(1,Math.min(Math.floor(Number(safeLimit))||20,500))}`;
     }
 
     const { getConnection } = require('../../../config/db');
@@ -153,7 +153,7 @@ exports.createCustomer = async (req, res) => {
 exports.updateCustomer = async (req, res) => {
   try {
     const customer = await SalesDao.updateCustomer(req.params.id, req.body);
-    res.json(customer);
+    return ResponseHandler.success(res, customer);
   } catch (error) {
     logger.error('Error updating customer:', error);
     ResponseHandler.error(res, 'Error updating customer', 'SERVER_ERROR', 500, error);
@@ -169,7 +169,7 @@ exports.getCustomerOrderProducts = async (req, res) => {
     const { search } = req.query; // 获取搜索参数
 
     if (!customerId) {
-      return ResponseHandler.error(res, '客户ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '客户ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     connection = await db.pool.getConnection();
@@ -181,9 +181,9 @@ exports.getCustomerOrderProducts = async (req, res) => {
     if (search && search.trim()) {
       // 支持合同编码、产品编码、产品规格搜索
       searchCondition = ` AND(
-    so.contract_code LIKE ? OR 
-        m.code LIKE ? OR 
-        m.name LIKE ? OR 
+    so.contract_code LIKE ? OR
+        m.code LIKE ? OR
+        m.name LIKE ? OR
         m.specs LIKE ?
       )`;
       const searchTerm = `%${search.trim()}%`;
@@ -209,7 +209,7 @@ exports.getCustomerOrderProducts = async (req, res) => {
     COALESCE(shipped.shipped_quantity, 0) as shipped_quantity,
     (soi.quantity - COALESCE(shipped.shipped_quantity, 0)) as remaining_quantity,
     COALESCE(stock.total_stock, 0) as stock_quantity,
-    CASE 
+    CASE
           WHEN COALESCE(shipped.shipped_quantity, 0) = 0 THEN 'unshipped'
           WHEN COALESCE(shipped.shipped_quantity, 0) >= soi.quantity THEN 'fully_shipped'
           ELSE 'partial_shipped'
@@ -219,7 +219,7 @@ exports.getCustomerOrderProducts = async (req, res) => {
       LEFT JOIN materials m ON soi.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       LEFT JOIN(
-    SELECT 
+    SELECT
           soi2.material_id,
     soi2.order_id,
     SUM(sobi.quantity) as shipped_quantity

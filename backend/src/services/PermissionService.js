@@ -110,8 +110,8 @@ class PermissionService {
   static async getAllSystemPermissions() {
     const [permissions] = await pool.execute(
       `SELECT DISTINCT permission FROM menus
-       WHERE permission IS NOT NULL 
-       AND permission != '' 
+       WHERE permission IS NOT NULL
+       AND permission != ''
        AND status = 1
        ORDER BY permission`
     );

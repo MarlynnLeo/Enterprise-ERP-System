@@ -53,7 +53,7 @@ const processInspectionController = {
             } = req.body;
 
             if (!process_id) {
-                return ResponseHandler.error(res, '工序ID不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '工序ID不能为空', 'VALIDATION_ERROR', 400);
             }
 
             const result = await db.query(
@@ -165,11 +165,11 @@ const processInspectionController = {
             try {
                 const ruleResult = await db.query(
                     `
-          SELECT punch_interval FROM process_inspection_rules 
-          WHERE is_enabled = 1 
+          SELECT punch_interval FROM process_inspection_rules
+          WHERE is_enabled = 1
             AND (process_id = ? OR process_id IS NULL)
             AND (product_id = ? OR product_id IS NULL)
-          ORDER BY 
+          ORDER BY
             CASE WHEN process_id IS NOT NULL AND product_id IS NOT NULL THEN 1
                  WHEN process_id IS NOT NULL THEN 2
                  ELSE 3 END
@@ -189,7 +189,7 @@ const processInspectionController = {
             const recentPunchResult = await db.query(
                 `
         SELECT id, punch_time FROM process_inspection_punch_records
-        WHERE inspection_id = ? 
+        WHERE inspection_id = ?
           AND inspector_id = ?
           AND punch_time > DATE_SUB(NOW(), INTERVAL ? MINUTE)
         ORDER BY punch_time DESC
@@ -255,7 +255,7 @@ const processInspectionController = {
 
             const result = await db.query(
                 `
-        SELECT 
+        SELECT
           pipr.*,
           qi.inspection_no, qi.product_name, qi.process_name, qi.status
         FROM process_inspection_punch_records pipr
@@ -315,7 +315,7 @@ const processInspectionController = {
 
             const result = await db.query(
                 appendPaginationSQL(`
-        SELECT 
+        SELECT
           pipr.*,
           qi.inspection_no, qi.product_name, qi.process_name, qi.status
         FROM process_inspection_punch_records pipr
@@ -354,7 +354,7 @@ const processInspectionController = {
             const result = await db.query(
                 `
         INSERT INTO process_inspection_punch_records
-        (inspector_id, inspector_name, production_line_id, production_line_name, 
+        (inspector_id, inspector_name, production_line_id, production_line_name,
          process_id, process_name, punch_time, punch_type, remark)
         VALUES (?, ?, ?, ?, ?, ?, NOW(), 'visit', ?)
       `,

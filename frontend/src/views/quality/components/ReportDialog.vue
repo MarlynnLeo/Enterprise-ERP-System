@@ -112,10 +112,8 @@
 import { ref, computed } from 'vue'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage } from 'element-plus'
-import api from '@/services/api'
 import { getQualityInspectionTypeText } from '@/constants/systemConstants'
 import printService from '@/services/printService'
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 const props = defineProps({
   visible: Boolean,
   inspection: { type: Object, default: null }
@@ -136,7 +134,7 @@ const getStatusType = (status) => {
   return map[status] || 'info'
 }
 // 打印报告
-const handlePrint = () => {
+const handlePrint = async () => {
   if (!props.inspection) {
     ElMessage.error('报告数据加载失败，请重试')
     return
@@ -159,76 +157,22 @@ const handlePrint = () => {
     note: insp.note || '',
     items: (insp.items || []).map(item => ({
       ...item,
+      index: item.index,
+      item_code: item.item_code || item.code || '',
+      item_name: item.item_name || item.name || '-',
+      specification: item.standard || item.specification || '',
+      quantity: item.actual_value || item.quantity || '',
+      unit_name: item.unit || '',
+      result: getStatusText(item.result),
+      remark: item.remark || item.remarks || '',
       type_text: getQualityInspectionTypeText(item.type),
       result_is_passed: item.result === 'passed'
     }))
   }
-  // 尝试使用打印模板
-  printService.getDefaultTemplate('quality', 'incoming_inspection')
-    .then(response => {
-      let template = null
-      if (response.data?.content) template = response.data
-      else if (response?.content) template = response
-      else if (response.data?.data?.content) template = response.data.data
-      if (template?.content) {
-        try {
-          const printContent = printService.generatePrintContent(template, printData)
-          printService.printDocument(printContent)
-        } catch (printError) {
-          console.error('生成打印内容失败:', printError)
-          ElMessage.warning('生成打印内容失败，使用备用打印方式')
-          printWithLegacy()
-        }
-      } else {
-        ElMessage.warning('未找到打印模板，使用备用打印方式')
-        printWithLegacy()
-      }
-    })
-    .catch(error => {
-      console.error('获取打印模板出错:', error)
-      ElMessage.warning('获取打印模板失败，使用备用打印方式')
-      printWithLegacy()
-    })
-}
-// Legacy 打印方法
-const printWithLegacy = async () => {
-  if (!reportRef.value) {
-    ElMessage.error('报告内容加载失败，请重试')
-    return
-  }
+
   try {
-    let templateContent = ''
-    try {
-      const response = await api.get('/print/templates', {
-        params: { template_type: 'incoming_inspection', is_default: 1, status: 1 }
-      })
-      const templates = response.data?.list || response.data?.data || response.data || []
-      const template = Array.isArray(templates) ? templates[0] : null
-      if (template?.content) templateContent = template.content
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError)
-    }
-    if (!templateContent) {
-      ElMessage.warning('未找到来料检验打印模板，请在系统管理-打印管理中配置 incoming_inspection 类型模板')
-      return
-    }
-    const printContent = reportRef.value.innerHTML
-    templateContent = templateContent.replace(/{{content}}/g, printContent)
-    templateContent = templateContent.replace(/{{inspection_no}}/g, props.inspection?.inspectionNo || '-')
-    templateContent = templateContent.replace(/{{print_date}}/g, new Date().toLocaleDateString())
-    templateContent = templateContent.replace(/{{print_time}}/g, new Date().toLocaleTimeString())
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      ElMessage.error('无法创建打印窗口，请检查是否允许弹出窗口')
-      return
-    }
-    writeSafeHtmlDocument(printWindow, templateContent)
-    printWindow.onload = () => {
-      setTimeout(() => {
-        try { printWindow.focus(); printWindow.print() }
-        catch (err) { ElMessage.error(`打印失败: ${err.message}`) }
-      }, 500)
-    }
+    const html = await printService.generateByDefaultTemplate('quality', 'incoming_inspection', printData)
+    printService.previewDocument(html)
   } catch (error) {
     console.error('打印失败:', error)
     ElMessage.error('打印失败')

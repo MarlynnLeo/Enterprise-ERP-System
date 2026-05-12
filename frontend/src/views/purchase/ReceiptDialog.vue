@@ -7,9 +7,9 @@
  */
 -->
 <template>
-  <el-dialog 
-    :title="dialogTitle" 
-    v-model="dialogVisible" 
+  <el-dialog
+    :title="dialogTitle"
+    v-model="dialogVisible"
     width="80%"
     :before-close="handleClose"
   >
@@ -24,8 +24,8 @@
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="加工单号" prop="processing_no">
-              <el-input 
-                v-model="receiptForm.processing_no" 
+              <el-input
+                v-model="receiptForm.processing_no"
                 placeholder="加工单号"
                 :disabled="true"
               />
@@ -33,8 +33,8 @@
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="加工厂" prop="supplier_name">
-              <el-input 
-                v-model="receiptForm.supplier_name" 
+              <el-input
+                v-model="receiptForm.supplier_name"
                 placeholder="加工厂"
                 :disabled="true"
               />
@@ -42,11 +42,11 @@
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="入库日期" prop="receipt_date">
-              <el-date-picker 
-                v-model="receiptForm.receipt_date" 
-                type="date" 
-                placeholder="选择日期" 
-                value-format="YYYY-MM-DD" 
+              <el-date-picker
+                v-model="receiptForm.receipt_date"
+                type="date"
+                placeholder="选择日期"
+                value-format="YYYY-MM-DD"
                 style="width: 100%"
                 :disabled="viewOnly"
               />
@@ -56,10 +56,10 @@
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="仓库" prop="warehouse_id">
-              <el-select 
-                v-model="receiptForm.warehouse_id" 
-                filterable 
-                placeholder="请选择仓库" 
+              <el-select
+                v-model="receiptForm.warehouse_id"
+                filterable
+                placeholder="请选择仓库"
                 style="width: 100%"
                 :disabled="viewOnly"
                 @change="handleWarehouseChange"
@@ -75,8 +75,8 @@
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="操作员" prop="operator">
-              <el-input 
-                v-model="receiptForm.operator" 
+              <el-input
+                v-model="receiptForm.operator"
                 placeholder="请输入操作员"
                 :disabled="viewOnly"
               />
@@ -84,10 +84,10 @@
           </el-col>
         </el-row>
         <el-form-item label="备注" prop="remarks">
-          <el-input 
-            v-model="receiptForm.remarks" 
-            type="textarea" 
-            :rows="2" 
+          <el-input
+            v-model="receiptForm.remarks"
+            type="textarea"
+            :rows="2"
             placeholder="请输入备注信息"
             :disabled="viewOnly"
           />
@@ -101,7 +101,7 @@
             <span>入库明细</span>
           </div>
         </template>
-        
+
         <el-table :data="receiptForm.items" border style="width: 100%">
           <el-table-column type="index" width="50" label="序号" />
           <el-table-column prop="product_code" label="成品编码" min-width="120" />
@@ -115,10 +115,10 @@
           </el-table-column>
           <el-table-column prop="actual_quantity" label="实收数量" width="120">
             <template #default="scope">
-              <el-input-number 
-                v-if="!viewOnly" 
-                v-model="scope.row.actual_quantity" 
-                :min="0" 
+              <el-input-number
+                v-if="!viewOnly"
+                v-model="scope.row.actual_quantity"
+                :min="0"
                 :precision="2"
                 controls-position="right"
                 size="small"
@@ -139,7 +139,7 @@
             </template>
           </el-table-column>
         </el-table>
-        
+
         <div class="total-section">
           <span class="total-label">入库总金额：</span>
           <span class="total-value">{{ formatPrice(calculateTotal()) }}</span>
@@ -164,7 +164,7 @@ import { parseListData } from '@/utils/responseParser';
 
 import { ref, computed, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { api } from '@/services/api';
+import { api, baseDataApi } from '@/services/api';
 import { ensureValidId } from '@/utils/helpers/dataUtils'
 
 
@@ -250,7 +250,7 @@ const processing = ref(false);
 // 加载仓库数据
 const loadWarehouses = async () => {
   try {
-    const response = await api.get('/baseData/locations');
+    const response = await baseDataApi.getLocations();
     // 使用统一解析器
     const locations = parseListData(response, { enableLog: false });
     // 只过滤类型为warehouse的位置
@@ -332,7 +332,7 @@ const loadReceiptDetail = async () => {
     const response = await api.get(`/purchase/outsourced-receipts/${props.receiptId}`);
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
-    
+
     // 填充表单数据，使用工具函数确保数据格式正确
     receiptForm.processing_id = ensureValidId(data.processing_id);
     receiptForm.processing_no = data.processing_no || '';
@@ -369,9 +369,9 @@ const handleSubmit = async () => {
       ElMessage.error('请选择入库仓库');
       return;
     }
-    
+
     processing.value = true;
-    
+
     try {
       let response;
 
@@ -391,19 +391,19 @@ const handleSubmit = async () => {
         response = await api.put(`/purchase/outsourced-receipts/${props.receiptId}`, receiptForm);
         ElMessage.success('更新外委加工入库单成功');
       }
-      
+
       dialogVisible.value = false;
       emit('success');
-      
+
     } catch (error) {
       console.error('保存外委加工入库单失败:', error);
       let errorMessage = '保存外委加工入库单失败';
-      
+
       // 针对常见错误提供友好的错误信息
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
-      
+
       ElMessage.error(errorMessage);
     } finally {
       processing.value = false;
@@ -432,15 +432,15 @@ watch(() => props.visible, (newVal) => {
       remarks: '',
       items: []
     });
-    
+
     // 加载仓库数据
     loadWarehouses();
-    
+
     // 如果是创建模式且有加工单ID，加载加工单详情
     if (props.mode === 'create' && props.processingId) {
       loadProcessingDetail();
     }
-    
+
     // 如果是编辑或查看模式，加载入库单详情
     if ((props.mode === 'edit' || props.mode === 'view') && props.receiptId) {
       loadReceiptDetail();
@@ -494,4 +494,4 @@ watch(() => props.visible, (newVal) => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

@@ -20,7 +20,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -64,7 +64,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -84,7 +84,7 @@
         <div class="stat-label">今日单据</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -153,7 +153,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -167,7 +167,7 @@
         />
       </div>
     </el-card>
-    
+
     <!-- 新增/编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -636,7 +636,7 @@ import { parseListData } from '@/utils/responseParser'
 const authStore = useAuthStore()
 
 // 权限控制
-const canDelete = computed(() => authStore.hasPermission('inventory:manualtransaction:delete'))
+const canDelete = computed(() => authStore.hasPermission('inventory:manual:delete'))
 
 // 业务类型列表
 const businessTypes = ref([])

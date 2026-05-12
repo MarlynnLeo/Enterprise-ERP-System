@@ -17,7 +17,7 @@
         <el-button type="primary" :icon="Plus" @click="openTransferDialog()">新建调拨单</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :model="searchForm" :inline="true" class="search-form">
@@ -48,7 +48,7 @@
           </el-button>
         </el-form-item>
       </el-form>
-      
+
       <!-- 批量操作按钮 -->
       <div class="batch-actions">
         <el-dropdown @command="handleBatchCommand" v-permission="'inventory:transfer:update'">
@@ -71,7 +71,7 @@
         </el-dropdown>
       </div>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -99,7 +99,7 @@
         <div class="stat-label">已取消调拨单</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -135,9 +135,9 @@
         <el-table-column label="操作" min-width="250" fixed="right">
           <template #default="scope">
             <div class="operation-btns">
-              <el-dropdown 
-                v-if="scope.row.status !== 'cancelled' && scope.row.status !== 'completed'" 
-                trigger="click" 
+              <el-dropdown
+                v-if="scope.row.status !== 'cancelled' && scope.row.status !== 'completed'"
+                trigger="click"
                 placement="bottom-end"
                 class="operation-dropdown"
               >
@@ -170,14 +170,14 @@
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
-              
+
               <el-button size="small" @click="viewTransfer(scope.row.id)">
                 查看
               </el-button>
-              
-              <el-button 
-                size="small" 
-                type="primary" 
+
+              <el-button
+                size="small"
+                type="primary"
                 @click="editTransfer(scope.row.id)"
                 v-if="scope.row.status === 'draft'"
                 v-permission="'inventory:transfer:update'"
@@ -188,7 +188,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -366,9 +366,9 @@
     </el-dialog>
 
     <!-- 查看调拨单详情对话框 -->
-    <el-dialog 
-      title="调拨单详情" 
-      v-model="viewDialogVisible" 
+    <el-dialog
+      title="调拨单详情"
+      v-model="viewDialogVisible"
       width="50%"
     >
       <div v-loading="detailLoading" id="print-section">
@@ -383,7 +383,7 @@
           <el-descriptions-item label="创建人">{{ transferDetail.creator || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="3">{{ transferDetail.remarks || '无' }}</el-descriptions-item>
         </el-descriptions>
-        
+
         <h3 style="margin-top: 20px;">物料明细</h3>
         <el-table :data="transferDetail.items || []" border style="width: 100%; margin-top: 10px;">
           <el-table-column type="index" label="序号" width="50"></el-table-column>
@@ -405,7 +405,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search, Refresh, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/services/api';
@@ -415,7 +415,7 @@ import { getTransferStatusText, getTransferStatusColor } from '@/constants/syste
 import { useAuthStore } from '@/stores/auth';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity';
+import printService from '@/services/printService';
 
 
 // 权限store
@@ -531,17 +531,17 @@ const editTransfer = async (id) => {
     const response = await inventoryApi.getTransferDetail(id);
     // 拦截器已解包，response.data 就是业务数据
     const transferData = response.data;
-    
+
     // 重置表单
     resetTransferForm();
-    
+
     // 填充表单数据
     transferForm.id = transferData.id;
     transferForm.transfer_date = transferData.transfer_date;
     transferForm.from_location_id = transferData.from_location_id;
     transferForm.to_location_id = transferData.to_location_id;
     transferForm.remark = transferData.remark || transferData.remarks || '';
-    
+
     // 填充物料明细
     if (transferData.items && transferData.items.length > 0) {
       transferForm.items = transferData.items.map(item => ({
@@ -572,7 +572,7 @@ const updateStatus = async (id, status) => {
       cancelButtonText: '取消',
       type: 'warning'
     });
-    
+
     await inventoryApi.updateTransferStatus(id, status);
     ElMessage.success('状态更新成功');
     await loadTransferList();
@@ -593,7 +593,7 @@ const deleteTransfer = async (id) => {
       cancelButtonText: '取消',
       type: 'warning'
     });
-    
+
     await inventoryApi.deleteTransfer(id);
     ElMessage.success('删除成功');
     await loadTransferList();
@@ -639,11 +639,11 @@ const handleCurrentChange = async (current) => {
 const openTransferDialog = async () => {
   dialogType.value = 'create';
   resetTransferForm();
-  
+
   // 先显示对话框，再加载数据
-  transferDialogVisible.value = true; 
+  transferDialogVisible.value = true;
   editLoading.value = true;
-  
+
   try {
     // 异步加载基础数据
     await Promise.all([
@@ -695,14 +695,14 @@ const removeTransferItem = (index) => {
 // 处理物料变更
 const handleMaterialChange = async (materialId, index) => {
   if (!materialId) return;
-  
+
   const material = materialOptions.value.find(m => m.id === materialId);
   if (material) {
     transferForm.items[index].material_name = material.name;
     transferForm.items[index].material_code = material.code;
     transferForm.items[index].specification = material.specs || material.specification || '';
     transferForm.items[index].unit_name = material.unit_name || '';
-    
+
     // 获取该物料在源库位的库存
     if (transferForm.from_location_id) {
       try {
@@ -728,7 +728,7 @@ const handleFromLocationChange = async () => {
   if (transferForm.to_location_id === transferForm.from_location_id) {
     transferForm.to_location_id = '';
   }
-  
+
   // 更新已选物料的库存数量
   if (transferForm.items.length > 0 && transferForm.from_location_id) {
     for (let i = 0; i < transferForm.items.length; i++) {
@@ -754,16 +754,16 @@ const handleFromLocationChange = async () => {
 // 提交调拨单表单
 const submitTransferForm = async () => {
   if (!transferFormRef.value) return;
-  
+
   try {
     await transferFormRef.value.validate();
-    
+
     // 检查物料列表
     if (transferForm.items.length === 0) {
       ElMessage.warning('请添加至少一种物料');
       return;
     }
-    
+
     // 检查每个物料是否已选择
     for (let i = 0; i < transferForm.items.length; i++) {
       const item = transferForm.items[i];
@@ -771,22 +771,22 @@ const submitTransferForm = async () => {
         ElMessage.warning(`第${i+1}行物料未选择`);
         return;
       }
-      
+
       // 检查调拨数量是否超过库存
       if (item.quantity > item.available_stock) {
         ElMessage.warning(`${item.material_name}的调拨数量超过可用库存`);
         return;
       }
     }
-    
+
     // 检查源库位和目标库位是否相同
     if (transferForm.from_location_id === transferForm.to_location_id) {
       ElMessage.warning('源库位和目标库位不能相同');
       return;
     }
-    
+
     submitting.value = true;
-    
+
     // 准备提交数据
     const formData = {
       transfer_date: transferForm.transfer_date,
@@ -809,7 +809,7 @@ const submitTransferForm = async () => {
       await inventoryApi.updateTransfer(formData.id, formData);
       ElMessage.success('调拨单更新成功');
     }
-    
+
     // 关闭对话框并刷新列表
     transferDialogVisible.value = false;
     resetTransferForm();
@@ -932,13 +932,13 @@ const loadTransferList = async () => {
       transfer_no: searchForm.transfer_no,
       status: searchForm.status
     };
-    
+
     // 添加日期范围参数
     if (searchForm.date_range && searchForm.date_range.length === 2) {
       params.start_date = searchForm.date_range[0];
       params.end_date = searchForm.date_range[1];
     }
-    
+
     // 调用API获取数据
     const response = await inventoryApi.getTransferList(params);
     const { list, total } = parsePaginatedData(response);
@@ -965,16 +965,16 @@ const duplicateTransfer = async (id) => {
     const response = await inventoryApi.getTransferDetail(id);
     // 拦截器已解包，response.data 就是业务数据
     const transferData = response.data;
-    
+
     // 重置表单
     resetTransferForm();
-    
+
     // 填充表单数据，但不设置id，因为是新建
     transferForm.transfer_date = getCurrentDate(); // 使用当前日期
     transferForm.from_location_id = transferData.from_location_id;
     transferForm.to_location_id = transferData.to_location_id;
     transferForm.remark = (transferData.remark || transferData.remarks || '') + ' (复制)';
-    
+
     // 填充物料明细
     if (transferData.items && transferData.items.length > 0) {
       transferForm.items = transferData.items.map(item => ({
@@ -988,7 +988,7 @@ const duplicateTransfer = async (id) => {
         remarks: item.remarks || ''
       }));
     }
-    
+
     ElMessage.success('已创建调拨单副本，请检查并保存');
   } catch (error) {
     console.error('复制调拨单失败:', error);
@@ -1002,60 +1002,36 @@ const duplicateTransfer = async (id) => {
 // 打印调拨单
 const printTransfer = async (id) => {
   try {
-    // 先获取调拨单详情
     detailLoading.value = true;
     const response = await inventoryApi.getTransferDetail(id);
-    // 拦截器已解包，response.data 就是业务数据
-    transferDetail.value = response.data;
-    
-    // 等待DOM更新
-    await nextTick();
-    
-    // 创建打印样式
-    const printStyle = document.createElement('style');
-    printStyle.textContent = `
-      @media print {
-        body * {
-          visibility: hidden;
-        }
-        
-        #print-section, #print-section * {
-          visibility: visible;
-        }
-        
-        #print-section {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-        }
-        
-        .el-button, .dialog-footer {
-          display: none !important;
-        }
-      }
-    `;
-    document.head.appendChild(printStyle);
-    
-    // 打开详情对话框，但不显示
-    viewDialogVisible.value = true;
-    
-    // 等待对话框内容加载完成
-    setTimeout(() => {
-      // 执行打印
-      window.print();
-      
-      // 打印完成后移除样式并关闭对话框
-      setTimeout(() => {
-        document.head.removeChild(printStyle);
-        viewDialogVisible.value = false;
-        detailLoading.value = false;
-      }, 500);
-    }, 500);
+    const detail = response.data;
+
+    const html = await printService.generateByDefaultTemplate('inventory', 'transfer', {
+      ...detail,
+      transfer_date: formatDate(detail.transfer_date) || '-',
+      from_location_name: detail.from_location_name || detail.from_location || '-',
+      to_location_name: detail.to_location_name || detail.to_location || '-',
+      status: getStatusText(detail.status) || '-',
+      operator: detail.operator || detail.creator || '',
+      remark: detail.remark || detail.remarks || '',
+      print_time: new Date().toLocaleString(),
+      items: (detail.items || []).map((item, index) => ({
+        index: index + 1,
+        material_code: item.material_code || '-',
+        material_name: item.material_name || '-',
+        specification: item.specification || item.specs || '-',
+        quantity: item.quantity ?? '-',
+        unit_name: item.unit_name || item.unit || '-',
+        remark: item.remark || item.remarks || ''
+      }))
+    });
+
+    printService.previewDocument(html);
   } catch (error) {
-    detailLoading.value = false;
     console.error('打印调拨单失败:', error);
     ElMessage.error('打印调拨单失败');
+  } finally {
+    detailLoading.value = false;
   }
 };
 
@@ -1110,13 +1086,13 @@ const exportSelectedTransfers = async () => {
     const transferNos = selectedTransfers.value.map(item => item.transfer_no).join(', ');
 
     ElMessage.info(`正在导出 ${selectedTransfers.value.length} 个调拨单: ${transferNos}`);
-    
+
     // 调用导出API
     const response = await inventoryApi.exportTransfers(ids);
-    
+
     // 处理二进制文件下载
-    const blob = new Blob([response.data], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1126,7 +1102,7 @@ const exportSelectedTransfers = async () => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
-    
+
     ElMessage.success('导出成功');
   } catch (error) {
     console.error('导出调拨单失败:', error);
@@ -1134,109 +1110,45 @@ const exportSelectedTransfers = async () => {
   }
 };
 
-// 批量打印调拨单 - 使用打印模板系统
+// 批量打印调拨单 - 使用打印中心默认模板
 const batchPrintTransfers = async () => {
   if (selectedTransfers.value.length > 5) {
     ElMessage.warning('一次最多只能打印5个调拨单');
     return;
   }
-  
+
   try {
     ElMessage.info('正在准备打印...');
-    
-    // 获取打印模板
-    let templateContent = '';
-    try {
-      const response = await inventoryApi.getApi().get('/print/templates', {
-        params: {
-          template_type: 'transfer',
-          is_default: 1,
-          status: 1
-        }
-      });
-      
-      const templates = response.data?.list || response.data?.data || response.data || [];
-      const template = Array.isArray(templates) ? templates[0] : null;
-      
-      if (template && template.content) {
-        templateContent = template.content;
-      }
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError);
-    }
-    
-    // 如果没有找到模板，提示用户配置
-    if (!templateContent) {
-      ElMessage.warning('未找到调拨单打印模板，请在系统管理-打印管理中配置 transfer 类型模板');
-      return;
-    }
-    
-    // 创建打印窗口
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      ElMessage.error('无法打开打印窗口，请检查是否被浏览器拦截');
-      return;
-    }
-    
-    let allContent = '';
-    
-    // 为每个选中的调拨单获取详情并渲染模板
+
+    const pages = [];
     for (const transfer of selectedTransfers.value) {
       const response = await inventoryApi.getTransferDetail(transfer.id);
       const detail = response.data;
-      
-      // 复制模板内容
-      let pageContent = templateContent;
-      
-      // 替换模板变量
-      pageContent = pageContent.replace(/{{transfer_no}}/g, detail.transfer_no || '-');
-      pageContent = pageContent.replace(/{{transfer_date}}/g, formatDate(detail.transfer_date) || '-');
-      pageContent = pageContent.replace(/{{from_location}}/g, detail.from_location || '-');
-      pageContent = pageContent.replace(/{{to_location}}/g, detail.to_location || '-');
-      pageContent = pageContent.replace(/{{status}}/g, getStatusText(detail.status) || '-');
-      pageContent = pageContent.replace(/{{creator}}/g, detail.creator || '-');
-      pageContent = pageContent.replace(/{{remarks}}/g, detail.remarks || '无');
-      pageContent = pageContent.replace(/{{print_date}}/g, new Date().toLocaleDateString());
-      
-      // 处理明细项列表
-      if (pageContent.includes('{{#each items}}')) {
-        const itemStart = pageContent.indexOf('{{#each items}}');
-        const itemEnd = pageContent.indexOf('{{/each}}', itemStart);
-        
-        if (itemStart !== -1 && itemEnd !== -1) {
-          const itemTemplate = pageContent.substring(itemStart + '{{#each items}}'.length, itemEnd);
-          let itemsHtml = '';
-          
-          if (detail.items && detail.items.length > 0) {
-            detail.items.forEach((item, index) => {
-              let itemHtml = itemTemplate;
-              itemHtml = itemHtml.replace(/{{index}}/g, (index + 1).toString());
-              itemHtml = itemHtml.replace(/{{material_code}}/g, item.material_code || '-');
-              itemHtml = itemHtml.replace(/{{material_name}}/g, item.material_name || '-');
-              itemHtml = itemHtml.replace(/{{specs}}/g, item.specs || '-');
-              itemHtml = itemHtml.replace(/{{quantity}}/g, item.quantity?.toString() || '-');
-              itemHtml = itemHtml.replace(/{{unit_name}}/g, item.unit_name || '-');
-              itemHtml = itemHtml.replace(/{{remarks}}/g, item.remarks || '-');
-              itemsHtml += itemHtml;
-            });
-          } else {
-            itemsHtml = '<tr><td colspan="7" style="text-align: center;">暂无物料数据</td></tr>';
-          }
-          
-          pageContent = pageContent.substring(0, itemStart) + itemsHtml + pageContent.substring(itemEnd + '{{/each}}'.length);
-        }
-      }
-      
-      allContent += pageContent;
+
+      const page = await printService.generateByDefaultTemplate('inventory', 'transfer', {
+        ...detail,
+        transfer_date: formatDate(detail.transfer_date) || '-',
+        from_location_name: detail.from_location_name || detail.from_location || '-',
+        to_location_name: detail.to_location_name || detail.to_location || '-',
+        status: getStatusText(detail.status) || '-',
+        operator: detail.operator || detail.creator || '',
+        remark: detail.remark || detail.remarks || '',
+        print_time: new Date().toLocaleString(),
+        items: (detail.items || []).map((item, index) => ({
+          index: index + 1,
+          material_code: item.material_code || '-',
+          material_name: item.material_name || '-',
+          specification: item.specification || item.specs || '-',
+          quantity: item.quantity ?? '-',
+          unit_name: item.unit_name || item.unit || '-',
+          remark: item.remark || item.remarks || ''
+        }))
+      });
+
+      pages.push(page);
     }
-    
-    writeSafeHtmlDocument(printWindow, allContent);
-    
-    // 等待内容加载完成后打印
-    printWindow.onload = function() {
-      printWindow.print();
-      printWindow.close();
-    };
+
+    printService.previewDocument(pages.join('<div class="page-break"></div>'));
   } catch (error) {
     console.error('批量打印调拨单失败:', error);
     ElMessage.error('批量打印调拨单失败');
@@ -1247,12 +1159,12 @@ const batchPrintTransfers = async () => {
 const batchDeleteTransfers = async () => {
   // 筛选出可以删除的调拨单（草稿状态）
   const deletableTransfers = selectedTransfers.value.filter(item => item.status === 'draft');
-  
+
   if (deletableTransfers.length === 0) {
     ElMessage.warning('选中的调拨单中没有可删除的项（只能删除草稿状态的调拨单）');
     return;
   }
-  
+
   try {
     await ElMessageBox.confirm(
       `确定要删除选中的 ${deletableTransfers.length} 个草稿调拨单吗？此操作不可逆。`,
@@ -1263,10 +1175,10 @@ const batchDeleteTransfers = async () => {
         type: 'warning'
       }
     );
-    
-    
+
+
     const ids = deletableTransfers.map(item => item.id);
-    
+
     // 调用批量删除API（如果后端支持批量删除接口）
     // 优先使用批量删除接口以提高性能
     try {
@@ -1277,7 +1189,7 @@ const batchDeleteTransfers = async () => {
         // 否则循环调用单个删除
         let successCount = 0;
         let failCount = 0;
-        
+
         for (const id of ids) {
           try {
             await inventoryApi.deleteTransfer(id);
@@ -1287,7 +1199,7 @@ const batchDeleteTransfers = async () => {
             failCount++;
           }
         }
-        
+
         if (failCount > 0) {
           ElMessage.warning(`批量删除完成：成功 ${successCount} 个，失败 ${failCount} 个`);
         }
@@ -1297,7 +1209,7 @@ const batchDeleteTransfers = async () => {
       ElMessage.error('批量删除失败: ' + (error.response?.data?.message || error.message));
       return;
     }
-    
+
     ElMessage.success(`成功删除 ${deletableTransfers.length} 个调拨单`);
     await loadTransferList();
     loadTransferStats();
@@ -1455,4 +1367,4 @@ const batchDeleteTransfers = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

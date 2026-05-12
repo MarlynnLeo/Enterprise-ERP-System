@@ -1,26 +1,6 @@
 const logger = require('../utils/logger');
 
-const DEFAULT_DEV_ORIGINS = [
-  'http://localhost:3000',
-  'http://localhost:3100',
-  'http://localhost:3101',
-  'http://localhost:3102',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3100',
-  'http://127.0.0.1:3101',
-  'http://127.0.0.1:3102',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-  'https://localhost:3100',
-  'https://localhost:3101',
-  'https://localhost:3102',
-  'https://127.0.0.1:3100',
-  'https://127.0.0.1:3101',
-  'https://127.0.0.1:3102',
-];
-
+const LOCAL_DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 const PRIVATE_NETWORK_ORIGIN = /^(http|https):\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/;
 
 function parseAllowedOrigins(raw = process.env.ALLOWED_ORIGINS || '') {
@@ -38,7 +18,7 @@ function isOriginAllowed(origin) {
     if (!origin) return true;
     return (
       allowedOrigins.includes(origin) ||
-      DEFAULT_DEV_ORIGINS.includes(origin) ||
+      LOCAL_DEV_ORIGIN.test(origin) ||
       PRIVATE_NETWORK_ORIGIN.test(origin)
     );
   }
@@ -86,7 +66,7 @@ function createCorsOptions(overrides = {}) {
 }
 
 module.exports = {
-  DEFAULT_DEV_ORIGINS,
+  LOCAL_DEV_ORIGIN,
   createCorsOptions,
   isOriginAllowed,
   parseAllowedOrigins,

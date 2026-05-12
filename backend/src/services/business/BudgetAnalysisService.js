@@ -34,7 +34,7 @@ class BudgetAnalysisService {
       // 获取预算明细及执行情况（实时从gl_entries计算实际金额）
       const [details] = await db.pool.execute(
         `
-        SELECT 
+        SELECT
           bd.*,
           a.account_code as account_code,
           a.account_name as account_name,
@@ -124,7 +124,7 @@ class BudgetAnalysisService {
       // 获取预算明细（带实时实际金额）
       const [details] = await db.pool.execute(
         `
-        SELECT 
+        SELECT
           bd.*,
           a.account_code as account_code,
           a.account_name as account_name,
@@ -209,7 +209,7 @@ class BudgetAnalysisService {
     try {
       const [departments] = await db.pool.execute(
         `
-        SELECT 
+        SELECT
           d.id,
           d.name as department_name,
           SUM(bd.budget_amount) as total_budget,
@@ -246,7 +246,7 @@ class BudgetAnalysisService {
     try {
       const [trends] = await db.pool.execute(
         `
-        SELECT 
+        SELECT
           b.budget_year,
           SUM(bd.budget_amount) as budget_amount,
           SUM(bd.used_amount) as used_amount,

@@ -40,7 +40,7 @@ const getEquipmentDetail = async (req, res) => {
     const { id } = req.params;
 
     if (!id) {
-      return ResponseHandler.error(res, '设备ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '设备ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     const equipment = await equipmentMonitoringService.getEquipmentDetail(id);
@@ -61,7 +61,7 @@ const getEquipmentRealTimeData = async (req, res) => {
     const { timeRange = '1h' } = req.query;
 
     if (!id) {
-      return ResponseHandler.error(res, '设备ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '设备ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     const data = await equipmentMonitoringService.getEquipmentRealTimeData(id, timeRange);
@@ -83,7 +83,7 @@ const recordEquipmentData = async (req, res) => {
 
     // 数据验证
     if (!id || !parameterCode) {
-      return ResponseHandler.error(res, '设备ID和参数代码不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '设备ID和参数代码不能为空', 'VALIDATION_ERROR', 400);
     }
 
     const result = await equipmentMonitoringService.recordEquipmentData(
@@ -109,7 +109,7 @@ const batchRecordEquipmentData = async (req, res) => {
     const { dataPoints } = req.body;
 
     if (!id || !Array.isArray(dataPoints) || dataPoints.length === 0) {
-      return ResponseHandler.error(res, '设备ID和数据点不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '设备ID和数据点不能为空', 'VALIDATION_ERROR', 400);
     }
 
     const results = [];
@@ -174,7 +174,7 @@ const acknowledgeAlarm = async (req, res) => {
     const userId = req.user?.id;
 
     if (!id) {
-      return ResponseHandler.error(res, '报警ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '报警ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     const result = await equipmentMonitoringService.acknowledgeAlarm(id, userId, note);
@@ -196,7 +196,7 @@ const resolveAlarm = async (req, res) => {
     const userId = req.user?.id;
 
     if (!id || !resolutionNote) {
-      return ResponseHandler.error(res, '报警ID和解决说明不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '报警ID和解决说明不能为空', 'VALIDATION_ERROR', 400);
     }
 
     const result = await equipmentMonitoringService.resolveAlarm(id, userId, resolutionNote);
@@ -218,13 +218,13 @@ const updateEquipmentStatus = async (req, res) => {
     const userId = req.user?.id;
 
     if (!id || !status) {
-      return ResponseHandler.error(res, '设备ID和状态不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '设备ID和状态不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 验证状态值（使用统一常量）
     const validStatuses = Object.keys(EQUIPMENT_STATUS);
     if (!validStatuses.includes(status)) {
-      return ResponseHandler.error(res, '无效的设备状态', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的设备状态', 'VALIDATION_ERROR', 400);
     }
 
     const result = await equipmentMonitoringService.updateEquipmentStatus(
@@ -263,7 +263,7 @@ const getEquipmentHealth = async (req, res) => {
     const { id } = req.params;
 
     if (!id) {
-      return ResponseHandler.error(res, '设备ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '设备ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 获取设备详情和最新数据

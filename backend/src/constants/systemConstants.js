@@ -73,6 +73,7 @@ const INVENTORY_TRANSACTION_TYPES = {
   defective_return: '不良退回',
   outsourced_inbound: '委外入库',
   outsourced_outbound: '委外出库',
+  outsourced_return: '外协退料',
   sale: '销售出库',
   sales_outbound: '销售出库',
   sales_return: '销售退货',
@@ -105,6 +106,7 @@ const INVENTORY_TRANSACTION_GROUPS = {
     'production_inbound',
     'production_return',
     'outsourced_inbound',
+    'outsourced_return',
     'outbound_cancel',
   ],
   // 减少库存的类型
@@ -283,7 +285,8 @@ const PRODUCTION_PLAN_STATUS_FLOW = {
   material_issuing: ['preparing', 'material_issued', 'cancelled'], // 发料中 → 配料中 | 已发料 | 已取消
   preparing: ['material_issued', 'in_progress', 'cancelled'], // 配料中 → 已发料 | 生产中 | 已取消
   material_issued: ['in_progress', 'cancelled'], // 已发料 → 生产中 | 已取消
-  in_progress: ['inspection', 'cancelled'], // 生产中 → 检验中 | 已取消
+  in_progress: ['inspection', 'paused', 'cancelled'], // 生产中 → 检验中 | 已暂停 | 已取消
+  paused: ['in_progress', 'cancelled'], // 已暂停 → 恢复生产 | 已取消
   inspection: ['warehousing', 'cancelled'], // 检验中 → 入库中 | 已取消
   warehousing: ['completed'], // 入库中 → 已完成
   completed: [], // 已完成（终态）
@@ -298,7 +301,8 @@ const PRODUCTION_TASK_STATUS_FLOW = {
   preparing: ['material_issued', 'material_partial_issued', 'in_progress', 'cancelled'], // 配料中 → 已发料 | 部分发料 | 生产中 | 已取消
   material_issued: ['in_progress', 'cancelled'], // 已发料 → 生产中 | 已取消
   material_partial_issued: ['in_progress', 'cancelled'], // 部分发料 → 生产中 | 已取消
-  in_progress: ['inspection', 'cancelled'], // 生产中 → 待检验 | 已取消
+  in_progress: ['inspection', 'paused', 'cancelled'], // 生产中 → 待检验 | 已暂停 | 已取消
+  paused: ['in_progress', 'cancelled'], // 已暂停 → 恢复生产 | 已取消
   inspection: ['in_progress', 'warehousing', 'cancelled'], // 待检验 → 检验中(in_progress) | 入库中 | 已取消
   warehousing: ['completed'], // 入库中 → 已完成
   completed: [], // 已完成（终态）

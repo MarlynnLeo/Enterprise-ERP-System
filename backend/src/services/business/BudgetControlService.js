@@ -50,7 +50,7 @@ class BudgetControlService {
     try {
       // 查找适用的预算
       let query = `
-        SELECT 
+        SELECT
           b.id as budget_id,
           b.budget_no,
           b.budget_name,
@@ -158,7 +158,7 @@ class BudgetControlService {
 
       // 同步更新主表的已使用金额和剩余金额
       await connection.execute(
-        `UPDATE budgets SET 
+        `UPDATE budgets SET
            used_amount = COALESCE(used_amount, 0) + ?,
            remaining_amount = total_amount - (COALESCE(used_amount, 0) + ?)
          WHERE id = ?`,

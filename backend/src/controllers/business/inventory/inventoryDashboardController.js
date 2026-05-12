@@ -25,7 +25,7 @@ const getDashboardSummary = async (req, res) => {
 
     // 2. 本月出入库单据数和物料数
     const thisMonthQuery = `
-      SELECT 
+      SELECT
         SUM(CASE WHEN transaction_type LIKE '%in%' THEN 1 ELSE 0 END) as inbound_count,
         SUM(CASE WHEN transaction_type LIKE '%out%' THEN 1 ELSE 0 END) as outbound_count,
         SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as inbound_items_qty,
@@ -38,7 +38,7 @@ const getDashboardSummary = async (req, res) => {
 
     // 3. 物料分类分布
     const categoryQuery = `
-      SELECT 
+      SELECT
         COALESCE(c.name, '未分类') as category_name,
         COUNT(m.id) as item_count
       FROM materials m
@@ -50,7 +50,7 @@ const getDashboardSummary = async (req, res) => {
 
     // 4. 最近12个月的出入库趋势
     const trendQuery = `
-      SELECT 
+      SELECT
         DATE_FORMAT(created_at, '%Y-%m') as month,
         SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END) as inbound_qty,
         SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as outbound_qty
@@ -63,11 +63,11 @@ const getDashboardSummary = async (req, res) => {
 
     // 5. 预警清单 (分页拉一些足够展示)
     const alertQuery = `
-      SELECT 
-        m.id, 
-        m.code, 
-        m.name, 
-        m.specs as specification, 
+      SELECT
+        m.id,
+        m.code,
+        m.name,
+        m.specs as specification,
         u.name as unit,
         COALESCE(m.min_stock, 0) as safetyStock,
         COALESCE(m.max_stock, 0) as maxStock,
@@ -77,7 +77,7 @@ const getDashboardSummary = async (req, res) => {
       LEFT JOIN units u ON m.unit_id = u.id
       LEFT JOIN locations l ON m.location_id = l.id
       LEFT JOIN (
-        SELECT il.material_id, SUM(il.quantity) as quantity 
+        SELECT il.material_id, SUM(il.quantity) as quantity
         FROM inventory_ledger il
         JOIN materials mat ON il.material_id = mat.id
         WHERE mat.location_id IS NULL OR il.location_id = mat.location_id

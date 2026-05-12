@@ -35,6 +35,10 @@ const getRoleMenus = async (roleId) => {
  */
 const setRoleMenus = async (roleId, menuIds = []) => {
   try {
+    const normalizedMenuIds = [...new Set((Array.isArray(menuIds) ? menuIds : []).map((id) => Number(id)))].filter(
+      (id) => Number.isInteger(id) && id > 0
+    );
+
     // ✅ 使用事务处理确保数据一致性
     const result = await DBManager.executeTransaction(async (connection) => {
       // 步骤1: 先删除该角色的所有菜单关联
@@ -44,11 +48,22 @@ const setRoleMenus = async (roleId, menuIds = []) => {
       logger.info(`[事务] 删除角色 ${roleId} 的菜单关联: ${deleteResult.affectedRows} 行`);
 
       // 步骤2: 如果有新的菜单ID，则插入新关联
-      if (menuIds.length > 0) {
-        const values = menuIds.map(() => '(?, ?)').join(',');
+      if (normalizedMenuIds.length > 0) {
+        const placeholders = normalizedMenuIds.map(() => '?').join(',');
+        const [existingMenus] = await connection.execute(
+          `SELECT id FROM menus WHERE id IN (${placeholders})`,
+          normalizedMenuIds
+        );
+        const existingIds = new Set(existingMenus.map((row) => Number(row.id)));
+        const missingIds = normalizedMenuIds.filter((menuId) => !existingIds.has(menuId));
+        if (missingIds.length > 0) {
+          throw new Error(`invalid menuIds: ${missingIds.join(',')}`);
+        }
+
+        const values = normalizedMenuIds.map(() => '(?, ?)').join(',');
         const params = [];
 
-        for (const menuId of menuIds) {
+        for (const menuId of normalizedMenuIds) {
           params.push(roleId, menuId);
         }
 

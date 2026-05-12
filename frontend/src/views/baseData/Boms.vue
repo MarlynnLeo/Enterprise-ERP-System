@@ -322,12 +322,11 @@ const fetchData = async () => {
       pageSize: pageSize.value,
       ...searchForm
     };
-    // 假设 bomApi.getBoms 存在
     const res = await bomApi.getBoms(params);
     const { list, total: t } = parsePaginatedData(res);
     tableData.value = list;
     total.value = t;
-    
+
     // 更新统计
     fetchStats();
   } catch (error) {
@@ -391,7 +390,7 @@ const handleUpgrade = async (row) => {
     // 先审核当前草稿
     await bomApi.approveBom(row.id);
     ElMessage.success('已审核当前版本，正在进入升版编辑...');
-    
+
     // 审核后再调用编辑（后端检测到已审核状态，会自动走升版分支）
     const detail = await bomApi.getBom(row.id);
     const bomData = parseDataObject(detail);
@@ -407,8 +406,9 @@ const handleView = async (row) => {
   try {
     let detail = await bomApi.getBom(row.id);
     detail = parseDataObject(detail);
-    // 处理 children 树形结构用于查看
-    if (detail.details) {
+    if (Array.isArray(detail.detailsTree) && detail.detailsTree.length > 0) {
+      detail.details = detail.detailsTree;
+    } else if (detail.details) {
       const map = new Map();
       detail.details.forEach(d => {
         d.children = [];
@@ -424,7 +424,7 @@ const handleView = async (row) => {
       });
       detail.details = tree; // 替换为树形
     }
-    
+
     currentViewBom.value = detail;
     viewDialogVisible.value = true;
   } catch {
@@ -524,7 +524,7 @@ const handleImportBom = () => {
   input.onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -549,12 +549,12 @@ const handleLocatePart = async () => {
       inputPattern: /\S+/,
       inputErrorMessage: '请输入有效的编码'
     });
-    
+
     const keyword = value.trim();
     const response = await bomApi.locatePart(keyword);
     const result = parseListData(response);
     const bomList = Array.isArray(result) ? result : [result];
-    
+
     locateKeyword.value = keyword;
     locateResults.value = bomList;
     locateDialogVisible.value = true;
@@ -616,21 +616,21 @@ const executeCopyBom = async () => {
     ElMessage.warning('请输入目标版本号');
     return;
   }
-  
+
   copyLoading.value = true;
   try {
     const bomId = copySelectedBomId.value;
     // 获取原BOM详情
     const bomResponse = await bomApi.getBom(bomId);
     const bomData = parseDataObject(bomResponse);
-    
+
     // 创建副本给新产品
     const newBom = {
       product_id: copyTargetProductId.value,
       version: copyTargetVersion.value,
       remark: `复制自 BOM #${bomId} (${bomData.product_code || ''} ${bomData.version || ''})`
     };
-    
+
     const details = Array.isArray(bomData.details) ? bomData.details.map(d => ({
       material_id: d.material_id,
       quantity: d.quantity,
@@ -639,9 +639,9 @@ const executeCopyBom = async () => {
       level: d.level || 1,
       parent_id: d.parent_id || 0
     })) : [];
-    
+
     await bomApi.createBom({ ...newBom, details });
-    
+
     ElMessage.success('BOM复制成功');
     copyDialogVisible.value = false;
     fetchData();
@@ -660,17 +660,17 @@ const handleReplaceBom = async () => {
       '请输入要被替换的物料编码', '替换物料 (1/2)',
       { confirmButtonText: '下一步', cancelButtonText: '取消' }
     );
-    
+
     const { value: newCode } = await ElMessageBox.prompt(
       '请输入替换后的物料编码', '替换物料 (2/2)',
       { confirmButtonText: '执行替换', cancelButtonText: '取消' }
     );
-    
+
     await bomApi.replaceBom({
       oldMaterialCode: oldCode.trim(),
       newMaterialCode: newCode.trim()
     });
-    
+
     ElMessage.success(`已将物料 "${oldCode}" 替换为 "${newCode}"`);
     fetchData();
   } catch (error) {

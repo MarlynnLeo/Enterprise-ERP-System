@@ -12,7 +12,7 @@ class AqlController {
             const creatorId = req.user?.id || null;
 
             if (!data.code || !data.name || !data.sample_size || !data.aql_level) {
-                return ResponseHandler.error(res, 'Missing required AQL fields', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, 'Missing required AQL fields', 'VALIDATION_ERROR', 400);
             }
 
             const standard = await AqlService.createStandard(data, creatorId);
@@ -97,7 +97,7 @@ class AqlController {
             const { batch_size, aql_level } = req.body;
 
             if (!batch_size || !aql_level) {
-                return ResponseHandler.error(res, '必须提供批量 (batch_size) 和 AQL级别 (aql_level)', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '必须提供批量 (batch_size) 和 AQL级别 (aql_level)', 'VALIDATION_ERROR', 400);
             }
 
             const result = await AqlService.calculate(Number(batch_size), String(aql_level));

@@ -25,10 +25,10 @@
       </el-table-column>
       <el-table-column prop="check_interval_minutes" label="检查间隔(分)" width="110" align="center" />
       <el-table-column prop="is_active" label="状态" width="70">
-        <template #default="{ row }"><el-switch v-model="row.is_active" v-permission="'system:settings:edit'" :active-value="1" :inactive-value="0" @change="toggleActive(row)" /></template>
+        <template #default="{ row }"><el-switch v-model="row.is_active" v-permission="'system:business-alerts:edit'" :active-value="1" :inactive-value="0" @change="toggleActive(row)" /></template>
       </el-table-column>
       <el-table-column label="操作" width="80">
-        <template #default="{ row }"><el-button link type="primary" v-permission="'system:settings:edit'" @click="openEdit(row)">配置</el-button></template>
+        <template #default="{ row }"><el-button link type="primary" v-permission="'system:business-alerts:edit'" @click="openEdit(row)">配置</el-button></template>
       </el-table-column>
       </el-table>
     </el-card>
@@ -46,7 +46,7 @@
       </el-form>
       <template #footer>
         <el-button @click="editVis = false">取消</el-button>
-        <el-button type="primary" v-permission="'system:settings:edit'" @click="saveEdit" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="'system:business-alerts:edit'" @click="saveEdit" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>

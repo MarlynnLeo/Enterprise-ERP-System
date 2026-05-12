@@ -1,9 +1,9 @@
 /**
  * 统一存储工具
- * 
+ *
  * 合并了 storage.js 和 secureStorage.js 的功能
  * 提供统一的、安全的客户端数据存储方案
- * 
+ *
  * 功能特性：
  * - 支持 localStorage 和 sessionStorage
  * - 自动过期处理
@@ -11,7 +11,7 @@
  * - 错误处理和降级
  * - 权限相关存储的专用方法
  * - Token 管理的专用方法
- * 
+ *
  * @author 系统开发团队
  * @version 2.0.0 - 合并存储工具
  * @since 2025-09-17
@@ -55,7 +55,6 @@ class UnifiedStorage {
    */
   set(key, value, options = {}) {
     if (!this.isSupported) {
-      console.warn('浏览器不支持本地存储');
       return false;
     }
 
@@ -224,10 +223,10 @@ class UnifiedStorage {
    * 设置localStorage数据（兼容旧的 StorageUtils.setLocal）
    */
   setLocal(key, value, expireTime = null) {
-    return this.set(key, value, { 
-      expires: expireTime, 
-      session: false, 
-      usePrefix: false 
+    return this.set(key, value, {
+      expires: expireTime,
+      session: false,
+      usePrefix: false
     });
   }
 
@@ -235,10 +234,10 @@ class UnifiedStorage {
    * 获取localStorage数据（兼容旧的 StorageUtils.getLocal）
    */
   getLocal(key, defaultValue = null) {
-    return this.get(key, { 
-      defaultValue, 
-      session: false, 
-      usePrefix: false 
+    return this.get(key, {
+      defaultValue,
+      session: false,
+      usePrefix: false
     });
   }
 
@@ -253,9 +252,9 @@ class UnifiedStorage {
    * 设置sessionStorage数据（兼容旧的 StorageUtils.setSession）
    */
   setSession(key, value) {
-    return this.set(key, value, { 
-      session: true, 
-      usePrefix: false 
+    return this.set(key, value, {
+      session: true,
+      usePrefix: false
     });
   }
 
@@ -263,10 +262,10 @@ class UnifiedStorage {
    * 获取sessionStorage数据（兼容旧的 StorageUtils.getSession）
    */
   getSession(key, defaultValue = null) {
-    return this.get(key, { 
-      defaultValue, 
-      session: true, 
-      usePrefix: false 
+    return this.get(key, {
+      defaultValue,
+      session: true,
+      usePrefix: false
     });
   }
 
@@ -296,9 +295,9 @@ class TokenManager {
    */
   setToken(token) {
     // 访问token默认2小时过期
-    return this.storage.set(this.tokenKey, token, { 
+    return this.storage.set(this.tokenKey, token, {
       expires: 2 * 60 * 60 * 1000,
-      session: true 
+      session: true
     });
   }
 
@@ -322,9 +321,9 @@ class TokenManager {
    */
   setRefreshToken(refreshToken) {
     // 刷新token默认7天过期
-    return this.storage.set(this.refreshTokenKey, refreshToken, { 
+    return this.storage.set(this.refreshTokenKey, refreshToken, {
       expires: 7 * 24 * 60 * 60 * 1000,
-      session: false 
+      session: false
     });
   }
 

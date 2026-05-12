@@ -19,7 +19,7 @@ router.get('/conversations', async (req, res) => {
   try {
     const userId = req.user.userId || req.user.id;
     const [rows] = await pool.query(`
-      SELECT 
+      SELECT
         c.id, c.name, c.type, c.last_message_at, c.last_message_preview, c.created_at,
         cm.unread_count,
         cm.last_read_at
@@ -182,8 +182,8 @@ router.get('/conversations/:id/messages', async (req, res) => {
     }
 
     const [messages] = await pool.query(`
-      SELECT 
-        m.id, m.conversation_id, m.sender_id, m.content, m.type, 
+      SELECT
+        m.id, m.conversation_id, m.sender_id, m.content, m.type,
         m.file_url, m.file_name, m.created_at,
         u.username AS sender_name, u.real_name AS sender_real_name, u.avatar AS sender_avatar
       FROM chat_messages m
@@ -223,8 +223,8 @@ router.get('/contacts', async (req, res) => {
     const userId = req.user.userId || req.user.id;
     const search = req.query.search || '';
     let query = `
-      SELECT id, username, real_name, avatar, department AS department_name 
-      FROM users 
+      SELECT id, username, real_name, avatar, department AS department_name
+      FROM users
       WHERE id != ? AND status = 1
     `;
     const params = [userId];

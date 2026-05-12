@@ -22,8 +22,8 @@
         <div class="card-header">
           <span>检验模板管理</span>
           <div class="header-buttons">
-            <el-button 
-              type="primary" 
+            <el-button
+              type="primary"
               @click="handleCreate"
               v-permission="'quality:templates:create'"
             >
@@ -32,12 +32,12 @@
           </div>
         </div>
       </template>
-      
+
       <!-- 搜索表单 -->
       <div class="search-container">
         <el-row :gutter="16">
           <el-col :span="4">
-            <el-input 
+            <el-input
               v-model="searchKeyword"
               placeholder="请输入模板名称/编号"
               @keyup.enter="handleSearch"
@@ -47,7 +47,7 @@
               </template>
             </el-input>
           </el-col>
-          
+
           <el-col :span="3">
             <el-select v-model="typeFilter" placeholder="检验类型" clearable @change="handleSearch" style="width: 100%">
               <el-option label="来料检验" value="incoming" />
@@ -55,7 +55,7 @@
               <el-option label="成品检验" value="final" />
             </el-select>
           </el-col>
-          
+
           <el-col :span="2">
             <el-select v-model="statusFilter" placeholder="状态" clearable @change="handleSearch" style="width: 100%">
               <el-option label="启用" value="active" />
@@ -63,16 +63,16 @@
               <el-option label="草稿" value="draft" />
             </el-select>
           </el-col>
-          
+
           <el-col :span="4">
             <div class="search-buttons">
-              <el-button 
-                type="primary" 
+              <el-button
+                type="primary"
                 @click="handleSearch"
               >
                 查询
               </el-button>
-              <el-button 
+              <el-button
                 @click="handleRefresh"
               >
                 重置
@@ -109,6 +109,15 @@
           </template>
         </el-table-column>
         <el-table-column prop="version" label="版本" min-width="80" />
+        <el-table-column prop="is_default" label="默认" min-width="80">
+          <template #default="scope">
+            <el-tag v-if="scope.row.is_default" type="warning">默认</el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="priority" label="优先级" min-width="80">
+          <template #default="scope">{{ scope.row.priority || 100 }}</template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" min-width="80">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
@@ -128,25 +137,25 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="220">
           <template #default="scope">
-            <el-button 
-              size="small" 
+            <el-button
+              size="small"
               @click="handleView(scope.row)"
             >
               查看
             </el-button>
-            <el-button 
-              v-if="scope.row.status !== 'active'" 
-              size="small" 
-              type="primary" 
+            <el-button
+              v-if="scope.row.status !== 'active'"
+              size="small"
+              type="primary"
               @click="handleEdit(scope.row)"
               v-permission="'quality:templates:update'"
             >
               编辑
             </el-button>
-            <el-button 
-              v-if="scope.row.status === 'inactive' || scope.row.status === 'draft'" 
-              size="small" 
-              type="primary" 
+            <el-button
+              v-if="scope.row.status === 'inactive' || scope.row.status === 'draft'"
+              size="small"
+              type="primary"
               @click="handleActivate(scope.row)"
               v-permission="'quality:templates:update'"
             >
@@ -181,7 +190,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -209,7 +218,7 @@
         <el-form-item label="模板名称" prop="template_name">
           <el-input v-model="form.template_name" placeholder="请输入模板名称" />
         </el-form-item>
-        
+
         <el-form-item label="检验类型" prop="inspection_type">
           <el-select v-model="form.inspection_type" placeholder="请选择检验类型" style="width: 100%">
             <el-option label="来料检验" value="incoming" />
@@ -217,12 +226,22 @@
             <el-option label="成品检验" value="final" />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="通用模板">
           <el-checkbox v-model="form.is_general" @change="handleGeneralChange">设为通用模板</el-checkbox>
           <span class="form-tip">勾选后，该模板适用于所有物料，无需选择具体物料</span>
         </el-form-item>
-        
+
+        <el-form-item label="默认兜底" v-if="form.is_general">
+          <el-switch v-model="form.is_default" active-text="默认" inactive-text="普通" />
+          <span class="form-tip">同一检验类型仅保留一个默认通用模板，用于无专用模板时自动兜底</span>
+        </el-form-item>
+
+        <el-form-item label="优先级" prop="priority">
+          <el-input-number v-model="form.priority" :min="1" :max="999" :step="1" />
+          <span class="form-tip">数值越小越优先；专用模板仍优先于通用模板</span>
+        </el-form-item>
+
         <el-form-item label="适用物料" prop="material_types" v-if="!form.is_general">
           <div class="material-select-container">
             <el-select
@@ -268,11 +287,11 @@
             </div>
           </div>
         </el-form-item>
-        
+
         <el-form-item label="版本" prop="version">
           <el-input v-model="form.version" placeholder="请输入版本号" />
         </el-form-item>
-        
+
         <el-form-item label="描述" prop="description">
           <el-input
             v-model="form.description"
@@ -297,36 +316,36 @@
           </el-select>
           <span class="form-tip">按 GB/T 2828.1-2012 标准自动确定抽样数和接收准则</span>
         </el-form-item>
-        
+
         <el-form-item label="检验项目" prop="items">
           <div class="items-container">
             <div class="items-header">
               <h3>检验项目列表</h3>
-              <el-button 
-                type="primary" 
+              <el-button
+                type="primary"
                 @click="addItem"
                 v-permission="isEdit ? 'quality:templates:update' : 'quality:templates:create'"
               >
                 添加检验项
               </el-button>
             </div>
-            
+
             <div class="table-wrapper">
               <div class="table-container">
-                <el-table 
-                  :data="form.items" 
-                  border 
-                  style="width: 100%" 
+                <el-table
+                  :data="form.items"
+                  border
+                  style="width: 100%"
                   table-layout="fixed"
                   size="small"
                 >
                   <el-table-column type="index" width="50" label="序号" fixed />
                   <el-table-column prop="item_name" label="检验项目" width="150" fixed>
                     <template #default="scope">
-                      <el-input 
-                        v-model="scope.row.item_name" 
-                        placeholder="请输入检验项目名称" 
-                        size="small" 
+                      <el-input
+                        v-model="scope.row.item_name"
+                        placeholder="请输入检验项目名称"
+                        size="small"
                         @input="() => { if (scope.row.reuse_item_id) { scope.row.reuse_item_id = null } }"
                       />
                     </template>
@@ -334,15 +353,15 @@
                   <el-table-column prop="standard" label="检验标准" width="200">
                     <template #default="scope">
                       <div class="standard-input-group">
-                        <el-input 
-                          v-model="scope.row.standard" 
+                        <el-input
+                          v-model="scope.row.standard"
                           placeholder="请输入检验标准"
                           size="small"
                           class="standard-input"
                         />
-                        <el-button 
-                          type="primary" 
-                          size="small" 
+                        <el-button
+                          type="primary"
+                          size="small"
                           @click="openStandardSelector(scope.$index)"
                           class="standard-button"
                         >
@@ -353,9 +372,9 @@
                   </el-table-column>
                   <el-table-column prop="type" label="检验类型" width="100">
                     <template #default="scope">
-                      <el-select 
-                        v-model="scope.row.type" 
-                        placeholder="选择类型" 
+                      <el-select
+                        v-model="scope.row.type"
+                        placeholder="选择类型"
                         style="width: 100%"
                         size="small"
                       >
@@ -375,9 +394,9 @@
                   </el-table-column>
                   <el-table-column prop="dimension_value" label="标准尺寸" width="100">
                     <template #default="scope">
-                      <el-input 
+                      <el-input
                         v-if="scope.row.type === 'dimension'"
-                        v-model.number="scope.row.dimension_value" 
+                        v-model.number="scope.row.dimension_value"
                         placeholder="尺寸值"
                         size="small"
                         type="number"
@@ -388,9 +407,9 @@
                   </el-table-column>
                   <el-table-column prop="tolerance_upper" label="上公差(+)" width="100">
                     <template #default="scope">
-                      <el-input 
+                      <el-input
                         v-if="scope.row.type === 'dimension'"
-                        v-model.number="scope.row.tolerance_upper" 
+                        v-model.number="scope.row.tolerance_upper"
                         placeholder="+0.000"
                         size="small"
                         type="number"
@@ -401,9 +420,9 @@
                   </el-table-column>
                   <el-table-column prop="tolerance_lower" label="下公差(-)" width="100">
                     <template #default="scope">
-                      <el-input 
+                      <el-input
                         v-if="scope.row.type === 'dimension'"
-                        v-model.number="scope.row.tolerance_lower" 
+                        v-model.number="scope.row.tolerance_lower"
                         placeholder="-0.000"
                         size="small"
                         type="number"
@@ -414,9 +433,9 @@
                   </el-table-column>
                   <el-table-column label="操作" width="80" fixed="right">
                     <template #default="scope">
-                      <el-button 
-                        size="small" 
-                        type="danger" 
+                      <el-button
+                        size="small"
+                        type="danger"
                         @click="removeItem(scope.$index)"
                         v-permission="isEdit ? 'quality:templates:update' : 'quality:templates:create'"
                       >
@@ -430,7 +449,7 @@
           </div>
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
@@ -455,6 +474,11 @@
           <span v-else>{{ getMultipleMaterialCodes(currentTemplate?.material_types || [currentTemplate?.material_type]) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="版本">{{ currentTemplate?.version }}</el-descriptions-item>
+        <el-descriptions-item label="默认兜底">
+          <el-tag v-if="currentTemplate?.is_default" type="warning">默认模板</el-tag>
+          <el-tag v-else type="info">普通模板</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="优先级">{{ currentTemplate?.priority || 100 }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentTemplate?.status)">
             {{ getStatusText(currentTemplate?.status) }}
@@ -468,7 +492,7 @@
         <el-descriptions-item label="创建时间">{{ formatDate(currentTemplate?.created_at) }}</el-descriptions-item>
         <el-descriptions-item label="描述" :span="2">{{ currentTemplate?.description || '-' }}</el-descriptions-item>
       </el-descriptions>
-      
+
       <div class="template-items" v-if="currentTemplate?.items?.length">
         <h3>检验项目列表</h3>
         <div class="table-container">
@@ -515,10 +539,10 @@
       <div class="standard-search-form">
         <el-row :gutter="16">
           <el-col :span="8">
-            <el-input  
-              v-model="standardSearch.keyword" 
-              placeholder="输入项目名称或标准" 
-              clearable 
+            <el-input
+              v-model="standardSearch.keyword"
+              placeholder="输入项目名称或标准"
+              clearable
               @keyup.enter="searchStandards" >
               <template #prefix>
                 <el-icon><Search /></el-icon>
@@ -620,28 +644,28 @@
         <el-form-item label="关键项">
           <el-switch v-model="newStandardForm.is_critical" />
         </el-form-item>
-        
+
         <!-- 只有选择"尺寸"类型时才显示尺寸相关字段 -->
         <template v-if="newStandardForm.type === 'dimension'">
           <el-form-item label="标准尺寸">
-            <el-input 
-              v-model.number="newStandardForm.dimension_value" 
+            <el-input
+              v-model.number="newStandardForm.dimension_value"
               placeholder="请输入标准尺寸值"
               type="number"
               :step="0.001"
             />
           </el-form-item>
           <el-form-item label="上公差(+)">
-            <el-input 
-              v-model.number="newStandardForm.tolerance_upper" 
+            <el-input
+              v-model.number="newStandardForm.tolerance_upper"
               placeholder="例如: 0.5"
               type="number"
               :step="0.001"
             />
           </el-form-item>
           <el-form-item label="下公差(-)">
-            <el-input 
-              v-model.number="newStandardForm.tolerance_lower" 
+            <el-input
+              v-model.number="newStandardForm.tolerance_lower"
               placeholder="例如: -0.5"
               type="number"
               :step="0.001"
@@ -718,6 +742,8 @@ const form = reactive({
   description: '',
   items: [],
   is_general: false,
+  is_default: false,
+  priority: 100,
   is_aql: false,
   aql_level: null
 })
@@ -727,7 +753,7 @@ const aqlLevelOptions = ref([])
 const rules = {
   template_name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
   inspection_type: [{ required: true, message: '请选择检验类型', trigger: 'change' }],
-  material_types: [{ 
+  material_types: [{
     validator: (rule, value, callback) => {
       // 检查是否为通用模板
       if (form.is_general === true) {
@@ -737,10 +763,11 @@ const rules = {
       } else {
         callback()
       }
-    }, 
-    trigger: 'change' 
+    },
+    trigger: 'change'
   }],
   version: [{ required: true, message: '请输入版本号', trigger: 'blur' }],
+  priority: [{ required: true, type: 'number', message: '请输入模板优先级', trigger: 'change' }],
   items: [
     {
       validator: (rule, value, callback) => {
@@ -751,7 +778,7 @@ const rules = {
         } else {
           // 检查尺寸类型的检验项是否填写了标准尺寸
           const dimensionItems = value.filter(item => item.type === 'dimension')
-          const invalidDimensionItems = dimensionItems.filter(item => 
+          const invalidDimensionItems = dimensionItems.filter(item =>
             !item.dimension_value && item.dimension_value !== 0
           )
           if (invalidDimensionItems.length > 0) {
@@ -838,7 +865,9 @@ const normalizeTemplateRow = (template) => {
 
   return {
     ...normalizedTemplate,
-    is_general: isGeneralTemplateUtil(normalizedTemplate)
+    is_general: isGeneralTemplateUtil(normalizedTemplate),
+    is_default: normalizeBoolean(normalizedTemplate.is_default),
+    priority: Number(normalizedTemplate.priority) || 100
   }
 }
 // 初始化
@@ -862,21 +891,21 @@ const fetchAqlLevelOptions = async () => {
 // 根据用户ID获取用户真实姓名
 const getUserRealName = (userId) => {
   if (!userId) return '未知用户';
-  
+
   // 如果是当前用户ID，直接从authStore获取
   if (authStore.user && authStore.user.id === userId) {
     return authStore.realName || authStore.user.username || userId;
   }
-  
+
   // 从用户映射中查找
   if (userMap.value[userId]) {
-    return userMap.value[userId].real_name || 
-           userMap.value[userId].realName || 
-           userMap.value[userId].name || 
-           userMap.value[userId].username || 
+    return userMap.value[userId].real_name ||
+           userMap.value[userId].realName ||
+           userMap.value[userId].name ||
+           userMap.value[userId].username ||
            userId;
   }
-  
+
   // 如果用户数据还没请求过，则请求一次
   if (!userDataRequested.value) {
     userDataRequested.value = true;
@@ -885,7 +914,7 @@ const getUserRealName = (userId) => {
       fetchUsers();
     }, 100);
   }
-  
+
   return userId;
 };
 // 获取用户列表
@@ -942,7 +971,7 @@ const debounce = (func, wait) => {
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
-  
+
   try {
     let resultItems = [];
     if (!query || query.trim().length === 0) {
@@ -958,7 +987,7 @@ const searchProducts = async (query) => {
       });
       resultItems = searchResults;
     }
-    
+
     if (searchId === currentSearchId) {
       const mapped = mapMaterialData(resultItems);
       materialsList.value = mapped.map(item => ({
@@ -968,7 +997,7 @@ const searchProducts = async (query) => {
         code: item.code,
         specs: item.specification || item.specs || ''
       }));
-      
+
       // 合并新物料到映射中，避免重复请求单条数据
       resultItems.forEach(item => {
         materialsMap.value[item.id] = {
@@ -1067,7 +1096,7 @@ const getTableMaterialCodes = (row) => {
     return row.material_details.map(m => m.code).join('、')
   }
   // 这里的fallback逻辑保留，以防万一后端没有返回details
-  
+
   // 优先使用新的 material_types 字段
   if (row.material_types) {
     const materialIds = parseMaterialTypes(row.material_types)
@@ -1090,10 +1119,10 @@ const handleMaterialChange = (values) => {
   if (!Array.isArray(values)) {
     values = [values].filter(Boolean)
   }
-  
+
   // 设置单个material_type为第一个值（兼容旧代码）
   form.material_type = values.length > 0 ? values[0] : ''
-  
+
   // 获取第一个物料的名称（兼容旧代码）
   if (values.length > 0) {
     const firstMaterial = materialsList.value.find(item => item.value === values[0])
@@ -1119,13 +1148,13 @@ const getMaterialDisplayText = (materialId) => {
   if (materialsMap.value[materialId]) {
     return materialsMap.value[materialId].code
   }
-  
+
   // 其次从 materialsList 获取
   const material = materialsList.value.find(item => item.value === materialId)
   if (material) {
     return material.code || material.label
   }
-  
+
   // 都没找到，返回 ID
   return materialId
 }
@@ -1169,15 +1198,15 @@ const getItemsCount = (row) => {
   if (row.items_count !== undefined) {
     return row.items_count;
   }
-  
+
   if (row.InspectionItems && Array.isArray(row.InspectionItems)) {
     return row.InspectionItems.length;
   }
-  
+
   if (row.items && Array.isArray(row.items)) {
     return row.items.length;
   }
-  
+
   // 返回默认值
   return 0;
 }
@@ -1214,12 +1243,14 @@ const resetForm = () => {
   form.material_type = null
   form.material_name = ''
   form.is_general = false
+  form.is_default = false
+  form.priority = 100
   form.is_aql = false
   form.aql_level = null
   form.version = ''
   form.description = ''
   form.items = []
-  
+
   // 清除表单验证状态
   if (formRef.value) {
     formRef.value.clearValidate()
@@ -1250,12 +1281,12 @@ const handleEdit = async (row) => {
       if (!form.is_general) {
         // 非通用模板，需要设置物料
         let types = parseMaterialTypes(templateData.material_types);
-        
+
         // 如果没有 material_types 但有 material_type，则使用 material_type
         if (types.length === 0 && templateData.material_type) {
           types = [templateData.material_type];
         }
-        
+
         form.material_types = types;
         // 确保下拉列表和映射中包含当前选中的物料
         if (templateData.material_details && Array.isArray(templateData.material_details)) {
@@ -1268,7 +1299,7 @@ const handleEdit = async (row) => {
                 specs: material.specs
               };
             }
-            
+
             // 同时更新 materialsList（用于下拉选择）
             const exists = materialsList.value.some(item => item.value === material.id);
             if (!exists) {
@@ -1294,6 +1325,8 @@ const handleEdit = async (row) => {
       form.version = templateData.version
       form.description = templateData.description
       form.status = templateData.status
+      form.is_default = normalizeBoolean(templateData.is_default)
+      form.priority = Number(templateData.priority) || 100
       form.is_aql = templateData.is_aql === true || templateData.is_aql === 1
       form.aql_level = templateData.aql_level || null
       // 确保检验项目数据完整
@@ -1356,19 +1389,21 @@ const removeItem = (index) => {
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       try {
-        
+
         // 准备提交数据
         // 确保is_general是布尔值
         const isGeneralValue = normalizeBoolean(form.is_general)
-        
+
         const formData = {
           template_name: form.template_name,
           inspection_type: form.inspection_type,
           is_general: isGeneralValue, // 明确使用布尔值true/false
+          is_default: isGeneralValue ? normalizeBoolean(form.is_default) : false,
+          priority: Number(form.priority) || 100,
           material_types: isGeneralValue ? [] : form.material_types, // 通用模板时清空物料
           material_type: isGeneralValue ? null : (form.material_types[0] || null), // 兼容旧字段
           material_name: form.material_name,
@@ -1384,18 +1419,18 @@ const submitForm = async () => {
               is_critical: item.is_critical === true, // 确保也是布尔值
               reuse_item_id: item.reuse_item_id // 保留复用项目ID
             }
-            
+
             // 只有尺寸类型才传递尺寸相关字段
             if (item.type === 'dimension') {
               itemData.dimension_value = item.dimension_value || null
               itemData.tolerance_upper = item.tolerance_upper || null
               itemData.tolerance_lower = item.tolerance_lower || null
             }
-            
+
             return itemData
           })
         }
-        
+
         // 使用统一的检验项验证函数
         const validation = validateInspectionItems(form.items)
         if (!validation.valid) {
@@ -1408,9 +1443,9 @@ const submitForm = async () => {
           }
           return
         }
-        
+
         // 根据模式选择不同的API
-        const response = isEdit.value 
+        const response = isEdit.value
           ? await qualityApi.updateTemplate(form.id, formData)
           : await qualityApi.createTemplate(formData)
         // axios 拦截器已自动解包，检查响应是否存在即表示成功
@@ -1520,7 +1555,7 @@ const selectStandard = (row) => {
     form.items[currentEditingIndex.value].tolerance_upper = row.tolerance_upper
     form.items[currentEditingIndex.value].tolerance_lower = row.tolerance_lower
     form.items[currentEditingIndex.value].reuse_item_id = row.id // 设置复用项目ID
-    
+
     ElMessage.success('已选择标准')
     standardSelectorVisible.value = false
   }
@@ -1550,7 +1585,7 @@ const openAddStandardDialog = () => {
   newStandardForm.dimension_value = null
   newStandardForm.tolerance_upper = null
   newStandardForm.tolerance_lower = null
-  
+
   addStandardDialogVisible.value = true
 }
 // 保存新标准
@@ -1560,7 +1595,7 @@ const saveNewStandard = async () => {
     ElMessage.warning('请完整填写检验标准信息')
     return
   }
-  
+
   // 如果检验类型是尺寸，验证尺寸相关字段
   if (newStandardForm.type === 'dimension') {
     if (!newStandardForm.dimension_value && newStandardForm.dimension_value !== 0) {
@@ -1568,7 +1603,7 @@ const saveNewStandard = async () => {
       return
     }
   }
-  
+
   savingStandard.value = true
   try {
     // 准备提交数据
@@ -1578,14 +1613,14 @@ const saveNewStandard = async () => {
       type: newStandardForm.type,
       is_critical: newStandardForm.is_critical
     }
-    
+
     // 只有尺寸类型才传递尺寸相关字段
     if (newStandardForm.type === 'dimension') {
       submitData.dimension_value = newStandardForm.dimension_value
       submitData.tolerance_upper = newStandardForm.tolerance_upper
       submitData.tolerance_lower = newStandardForm.tolerance_lower
     }
-    
+
     // 直接创建新的检验项目
     const response = await qualityApi.createReusableItem(submitData)
     // 后端可能返回 null，先检查字段是否存在
@@ -1633,16 +1668,17 @@ const saveNewStandard = async () => {
 const handleGeneralChange = (val) => {
   // 确保val是布尔值
   const isGeneral = val === true;
-  
+
   // 确保form.is_general也是布尔值
   form.is_general = isGeneral;
-  
+
   if (isGeneral) {
     // 如果选择了通用模板，清空物料选择
     form.material_types = []
     form.material_type = null
     form.material_name = ''
   } else {
+    form.is_default = false
     // 如果取消了通用模板选择，可以保留之前的物料选择
     // 这里不清空物料选择，允许用户重新选择
   }
@@ -1765,4 +1801,4 @@ const handleGeneralChange = (val) => {
   margin: 0;
   display: inline-flex !important;
 }
-</style> 
+</style>

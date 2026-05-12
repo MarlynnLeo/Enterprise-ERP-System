@@ -23,7 +23,7 @@
         </el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -230,7 +230,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -248,7 +248,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 查看凭证明细对话框 -->
     <el-dialog
       title="凭证明细"
@@ -261,7 +261,7 @@
           <el-button v-permission="'finance:entries:view'" type="primary" size="small" @click="handlePrint" :icon="Printer">打印凭证</el-button>
         </div>
       </template>
-      <div ref="printAreaRef" class="print-area">
+      <div class="print-area">
       <div class="entry-detail-header">
         <div class="detail-item">
           <span class="label">凭证编号：</span>
@@ -282,12 +282,12 @@
           </el-tag>
         </div>
       </div>
-      
+
       <div class="entry-description">
         <span class="label">描述：</span>
         <span class="value">{{ currentEntry.description }}</span>
       </div>
-      
+
       <el-table :data="currentEntryItems" border style="width: 100%; margin-top: 20px;">
         <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
         <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
@@ -307,7 +307,7 @@
         </el-table-column>
         <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
       </el-table>
-      
+
       <div class="entry-totals">
         <div class="total-item">
           <span class="label">借方合计：</span>
@@ -422,7 +422,7 @@ import { storeToRefs } from 'pinia';
 
 // 项目工具和API
 import { api } from '@/services/api';
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 
 
 // Props定义
@@ -475,7 +475,6 @@ const detailDialogVisible = ref(false);
 const currentEntry = ref({});
 const currentEntryItems = ref([]);
 const openedRouteEntryId = ref('');
-const printAreaRef = ref(null);
 const reverseDialogVisible = ref(false);
 const reverseSubmitting = ref(false);
 const reversingEntry = ref(null);
@@ -487,106 +486,43 @@ const reversalForm = reactive({
 });
 
 // 打印凭证
-const handlePrint = () => {
-  if (!printAreaRef.value) {
-    ElMessage.warning('打印区域未就绪');
+const handlePrint = async () => {
+  if (!currentEntry.value?.id) {
+    ElMessage.warning('凭证数据未就绪');
     return;
   }
-  
-  const printContent = printAreaRef.value.innerHTML;
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    ElMessage.error('无法创建打印窗口，请检查浏览器是否阻止了弹出窗口');
-    return;
+
+  try {
+    const entry = currentEntry.value
+    const html = await printService.generateByDefaultTemplate('finance', 'gl_voucher', {
+      entry_number: entry.entryNumber || entry.technicalId || '',
+      document_no: entry.entryNumber || entry.technicalId || '',
+      entry_date: entry.entryDate || '',
+      posting_date: entry.postingDate || '',
+      document_type: entry.documentType || '',
+      document_number: entry.documentNumber || '',
+      period_name: entry.periodName || '',
+      status: entry.isPosted ? '已过账' : '未过账',
+      description: entry.description || '',
+      total_debit: formatCurrency(totalDebit.value || 0),
+      total_credit: formatCurrency(totalCredit.value || 0),
+      created_by: entry.createdBy || '',
+      print_time: new Date().toLocaleString(),
+      items: currentEntryItems.value.map((item, index) => ({
+        index: index + 1,
+        account_code: item.accountCode || item.account_code || '',
+        account_name: item.accountName || item.account_name || '',
+        description: item.description || '',
+        debit_amount: item.debitAmount ? formatCurrency(item.debitAmount) : '-',
+        credit_amount: item.creditAmount ? formatCurrency(item.creditAmount) : '-'
+      }))
+    })
+    printService.previewDocument(html)
+    ElMessage.success('打印预览已打开')
+  } catch (error) {
+    console.error('打印凭证失败:', error)
+    ElMessage.error('打印凭证失败')
   }
-  
-  writeSafeHtmlDocument(printWindow, `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>凭证打印 - ${currentEntry.value.entryNumber}</title>
-      <style>
-        body { 
-          font-family: 'Microsoft YaHei', SimHei, sans-serif; 
-          padding: 20px;
-          margin: 0;
-        }
-        .print-title {
-          text-align: center;
-          font-size: 20px;
-          font-weight: bold;
-          margin-bottom: 20px;
-          border-bottom: 2px solid #333;
-          padding-bottom: 10px;
-        }
-        .entry-detail-header { 
-          display: flex; 
-          flex-wrap: wrap; 
-          gap: 20px; 
-          margin-bottom: 15px;
-          padding: 10px;
-          background: #f5f5f5;
-          border-radius: 4px;
-        }
-        .detail-item { display: flex; }
-        .detail-item .label { font-weight: bold; margin-right: 5px; }
-        table { 
-          width: 100%; 
-          border-collapse: collapse; 
-          margin: 15px 0;
-        }
-        th, td { 
-          border: 1px solid #333; 
-          padding: 8px; 
-          text-align: left; 
-        }
-        th { 
-          background: #e0e0e0; 
-          font-weight: bold;
-        }
-        .entry-totals { 
-          display: flex; 
-          justify-content: flex-end; 
-          gap: 30px; 
-          margin-top: 15px;
-          padding: 10px;
-          border-top: 2px solid #333;
-        }
-        .debit { color: var(--color-primary); }
-        .credit { color: var(--color-danger); }
-        .signature-area {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 50px;
-          padding-top: 20px;
-        }
-        .signature-item {
-          text-decoration: underline;
-          min-width: 100px;
-        }
-        @media print {
-          body { -webkit-print-color-adjust: exact; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="print-title">记   账   凭   证</div>
-      ${printContent}
-      <div class="signature-area">
-        <div>制单人：_____________</div>
-        <div>审核人：_____________</div>
-        <div>记账：_____________</div>
-        <div>主管：_____________</div>
-      </div>
-    </body>
-    </html>
-  `);
-  printWindow.focus();
-  
-  setTimeout(() => {
-    printWindow.print();
-    printWindow.close();
-  }, 250);
 };
 
 // 计算借贷方合计
@@ -722,7 +658,7 @@ const loadEntries = async () => {
       page: currentPage.value,
       pageSize: pageSize.value
     };
-    
+
     // 添加筛选条件
     if (searchForm.entryNumber) {
       params.entry_number = searchForm.entryNumber;
@@ -758,20 +694,20 @@ const loadEntries = async () => {
     if (searchForm.isPosted !== '') {
       params.is_posted = searchForm.isPosted;
     }
-    
+
     const response = await api.get('/finance/entries', { params });
     // 根据后端返回的实际数据结构调整
     if (response.data.entries && Array.isArray(response.data.entries)) {
       // 提取基本数据
       entriesList.value = response.data.entries.map(normalizeEntryRow);
-      
+
       // 设置分页信息
       if (response.data.pagination) {
         total.value = response.data.pagination.total;
       } else {
         total.value = entriesList.value.length;
       }
-      
+
 
 
       // 使用后端返回的统计数据（真实总量）
@@ -1041,7 +977,7 @@ const handleExpandChange = async (row, expandedRows) => {
       if (Array.isArray(response.data)) {
         // 为当前行添加明细数据
         row.items = response.data;
-        
+
         // 计算并添加展开行的借贷方合计
         row.expandedTotalDebit = response.data.reduce((sum, item) => sum + (item.debitAmount || 0), 0);
         row.expandedTotalCredit = response.data.reduce((sum, item) => sum + (item.creditAmount || 0), 0);
@@ -1291,4 +1227,4 @@ watch(() => [props.fixedType, route.query.type], () => {
     padding: 0;
   }
 }
-</style> 
+</style>

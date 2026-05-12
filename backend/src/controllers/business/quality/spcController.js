@@ -25,7 +25,18 @@ function pickFields(data, allowedFields) {
     }, {});
 }
 
+// 允许的表名白名单（防止动态表名注入）
+const ALLOWED_TABLES = new Set(['spc_control_plans', 'spc_data_points']);
+
+function assertAllowedTable(table) {
+    if (!ALLOWED_TABLES.has(table)) {
+        throw new Error(`不允许的表名: ${table}`);
+    }
+    return table;
+}
+
 async function insertRecord(table, data, allowedFields) {
+    assertAllowedTable(table);
     const record = pickFields(data, allowedFields);
     const columns = Object.keys(record);
     if (columns.length === 0) throw new Error('No fields to insert');
@@ -39,6 +50,7 @@ async function insertRecord(table, data, allowedFields) {
 }
 
 async function updateRecord(table, data, id, allowedFields) {
+    assertAllowedTable(table);
     const record = pickFields(data, allowedFields);
     const columns = Object.keys(record);
     if (columns.length === 0) throw new Error('No fields to update');
@@ -199,7 +211,7 @@ const spcController = {
             const data = req.body;
 
             if (!data.plan_name || !data.characteristic) {
-                return ResponseHandler.error(res, '计划名称和监控特性不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '计划名称和监控特性不能为空', 'VALIDATION_ERROR', 400);
             }
 
             if (!data.plan_no) {
@@ -257,7 +269,7 @@ const spcController = {
             const { plan_id, subgroup_no, samples } = req.body;
 
             if (!plan_id || !subgroup_no || !samples || !Array.isArray(samples)) {
-                return ResponseHandler.error(res, '控制计划ID、子组号和样本数据不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '控制计划ID、子组号和样本数据不能为空', 'VALIDATION_ERROR', 400);
             }
 
             const plan = await db.query('SELECT * FROM spc_control_plans WHERE id = ?', [plan_id]);

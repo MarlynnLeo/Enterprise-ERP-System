@@ -21,6 +21,10 @@ const permissionAliasMap = {
   'basedata:product-categories': 'basedata:productcategories',
   'basedata:material-sources': 'basedata:materialsources',
   'basedata:inspection-methods': 'basedata:inspectionmethods',
+  'inventory:manualtransaction': 'inventory:manual',
+  'production:productionreport': 'production:reports',
+  'production:productionreport:read': 'production:reports:view',
+  'sales:packinglists': 'sales:packing',
   'quality:incoming': 'quality:inspections',
   'quality:process': 'quality:inspections',
   'quality:final': 'quality:inspections',
@@ -51,7 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
   const permissions = ref(Array.isArray(savedPermissions) ? savedPermissions : [])
   // 初始化时不将 permissionsLoaded 置为 true，强制初次访问带 permission 的路由时获取最新权限
   // 但为了不阻塞白屏，我们仍然可以使用缓存的内容作为初始值
-  const permissionsLoaded = ref(false) 
+  const permissionsLoaded = ref(false)
   const permissionsLoading = ref(false) // 权限是否正在加载
 
   const isAuthenticated = computed(() => !!token.value && tokenManager.isTokenValid())
@@ -100,9 +104,8 @@ export const useAuthStore = defineStore('auth', () => {
       // 登录成功后尝试获取用户详细信息（不阻塞登录流程）
       try {
         await fetchUserProfile()
-      } catch (profileError) {
+      } catch {
         if (import.meta.env.DEV) {
-          console.warn('[auth] 获取用户详细信息失败:', profileError.message)
         }
       }
 
@@ -241,7 +244,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     return await fetchUserPermissions(true)
   }
-  
+
   // 检查是否有特定权限
   const hasPermission = (permission) => {
     // 即使未完全 loaded，如果本地缓存 permissions.value 有数据，也允许基于本地数据判断（防止页面闪烁）
@@ -283,13 +286,13 @@ export const useAuthStore = defineStore('auth', () => {
       candidates.some(candidate => p.startsWith(`${candidate}:`))
     )
   }
-  
+
   // 获取用户真实姓名的计算属性
   const realName = computed(() => {
     if (!user.value) return '';
     return user.value.real_name || user.value.realName || user.value.name || user.value.username || '';
   })
-  
+
   return {
     token,
     user,

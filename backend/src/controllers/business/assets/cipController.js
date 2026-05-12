@@ -50,16 +50,13 @@ const cipController = {
         try {
             const id = parseInt(req.params.id);
             if (isNaN(id)) {
-                return ResponseHandler.error(res, '无效的工程ID', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
 
             const project = await cipModel.getCipProjectById(id);
 
             if (!project) {
-                return res.status(404).json({
-                    success: false,
-                    message: `未找到ID为 ${id} 的在建工程`,
-                });
+                return ResponseHandler.error(res, `未找到ID为 ${id} 的在建工程`, 'NOT_FOUND', 404);
             }
 
             return ResponseHandler.success(res, project, '获取在建工程详情成功');
@@ -76,13 +73,13 @@ const cipController = {
         try {
             const { project_code, project_name } = req.body;
             if (!project_code || !project_name) {
-                return ResponseHandler.error(res, '项目编码和项目名称均为必填项', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '项目编码和项目名称均为必填项', 'VALIDATION_ERROR', 400);
             }
 
             // 检查编号是否冲突
             const [existing] = await db.pool.query('SELECT id FROM cip_projects WHERE project_code = ?', [project_code]);
             if (existing.length > 0) {
-                return ResponseHandler.error(res, `工程编号 ${project_code} 已存在`, 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, `工程编号 ${project_code} 已存在`, 'VALIDATION_ERROR', 400);
             }
 
             const id = await cipModel.createCipProject(req.body);
@@ -100,7 +97,7 @@ const cipController = {
         try {
             const id = parseInt(req.params.id);
             if (isNaN(id)) {
-                return ResponseHandler.error(res, '无效的工程ID', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
 
             await cipModel.updateCipProject(id, req.body);
@@ -118,7 +115,7 @@ const cipController = {
         try {
             const id = parseInt(req.params.id);
             if (isNaN(id)) {
-                return ResponseHandler.error(res, '无效的工程ID', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
 
             await cipModel.deleteCipProject(id);
@@ -126,7 +123,7 @@ const cipController = {
         } catch (error) {
             logger.error('删除在建工程失败:', error);
             if (error.message.includes('不允许删除')) {
-                return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
             }
             ResponseHandler.error(res, '删除在建工程失败', 'SERVER_ERROR', 500, error);
         }
@@ -139,12 +136,12 @@ const cipController = {
         try {
             const id = parseInt(req.params.id);
             if (isNaN(id)) {
-                return ResponseHandler.error(res, '无效的工程ID', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
 
             const { assetData } = req.body;
             if (!assetData || !assetData.asset_code || !assetData.asset_name) {
-                return ResponseHandler.error(res, '必须提供固定资产的基本录入信息 (asset_code, asset_name 等)', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '必须提供固定资产的基本录入信息 (asset_code, asset_name 等)', 'VALIDATION_ERROR', 400);
             }
 
             const newAssetId = await cipModel.transferToFixedAsset(id, assetData, {
@@ -156,7 +153,7 @@ const cipController = {
         } catch (error) {
             logger.error('在建工程转固失败:', error);
             if (error.message.includes('不能重复操作') || error.message.includes('不能转为无形/固定资产')) {
-                return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
             }
             ResponseHandler.error(res, '转固执行失败', 'SERVER_ERROR', 500, error);
         }
@@ -169,18 +166,18 @@ const cipController = {
         try {
             const id = parseInt(req.params.id);
             if (isNaN(id)) {
-                return ResponseHandler.error(res, '无效的工程ID', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
 
             const amount = parseFloat(req.body.amount || 0);
             if (amount <= 0) {
-                return ResponseHandler.error(res, '附加费用金额必须大于0', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '附加费用金额必须大于0', 'VALIDATION_ERROR', 400);
             }
 
             // 获取当前项目
             const project = await cipModel.getCipProjectById(id);
             if (!project || project.status !== '建设中') {
-                return ResponseHandler.error(res, '工程不存在或已不可附加费用', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '工程不存在或已不可附加费用', 'VALIDATION_ERROR', 400);
             }
 
             const newAmount = parseFloat(project.accumulated_amount || 0) + amount;

@@ -152,7 +152,7 @@ class AccountingConfig {
     try {
       const value = JSON.stringify(config);
       await db.pool.execute(
-        `INSERT INTO system_settings (\`key\`, \`value\`, description) 
+        `INSERT INTO system_settings (\`key\`, \`value\`, description)
          VALUES ('accounting.account_codes', ?, '会计科目编码映射配置')
          ON DUPLICATE KEY UPDATE \`value\` = ?, updated_at = CURRENT_TIMESTAMP`,
         [value, value]

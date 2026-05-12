@@ -95,7 +95,7 @@ const exchangeRates = {
       const { from_currency, to_currency, rate, effective_date } = req.body;
       const parsedRate = Number(rate);
       if (!from_currency || !effective_date || !Number.isFinite(parsedRate) || parsedRate <= 0) {
-        return ResponseHandler.error(res, 'from_currency, effective_date and positive rate are required', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, 'from_currency, effective_date and positive rate are required', 'VALIDATION_ERROR', 400);
       }
       const userId = req.user?.userId || req.user?.id;
       await pool.query(
@@ -116,7 +116,7 @@ const exchangeRates = {
     try {
       const { from, to } = req.query;
       if (!from) {
-        return ResponseHandler.error(res, 'from currency is required', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, 'from currency is required', 'VALIDATION_ERROR', 400);
       }
       const [[row]] = await pool.query(
         `SELECT * FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND effective_date <= CURDATE() AND deleted_at IS NULL

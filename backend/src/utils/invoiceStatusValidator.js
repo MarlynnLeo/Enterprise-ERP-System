@@ -111,7 +111,7 @@ graph LR
     已逾期 --> 部分付款
     已逾期 --> 已付款
     已逾期 --> 已取消
-    
+
     style 已付款 fill:#90EE90
     style 已取消 fill:#FFB6C1
     style 已逾期 fill:#FFD700

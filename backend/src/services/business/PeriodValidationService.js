@@ -25,7 +25,7 @@ class PeriodValidationService {
       const year = date.getFullYear();
 
       const [result] = await db.pool.execute(
-        `SELECT COUNT(*) as count, MAX(is_frozen) as is_frozen 
+        `SELECT COUNT(*) as count, MAX(is_frozen) as is_frozen
          FROM inventory_year_end_balances WHERE year = ?`,
         [year]
       );
@@ -84,7 +84,7 @@ class PeriodValidationService {
   static async checkYearEndTransferred(year) {
     try {
       const [result] = await db.pool.execute(
-        `SELECT COUNT(*) as count FROM gl_entries 
+        `SELECT COUNT(*) as count FROM gl_entries
          WHERE document_type = ? AND YEAR(entry_date) = ?`,
         [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year]
       );

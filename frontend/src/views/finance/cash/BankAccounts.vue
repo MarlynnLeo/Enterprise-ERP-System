@@ -17,7 +17,7 @@
         <el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增账户</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -39,7 +39,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 账户统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -63,7 +63,7 @@
         <div class="stat-label">本月支出</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -103,9 +103,9 @@
             <el-button type="primary" size="small" @click="handleEdit(scope.row)"
               v-permission="'finance:cash:update'">编辑</el-button>
             <el-button type="success" size="small" @click="showTransactions(scope.row)">交易明细</el-button>
-            <el-button 
+            <el-button
               :type="scope.row.status === 'active' ? 'warning' : 'success'"
-              size="small" 
+              size="small"
               @click="toggleAccountStatus(scope.row)"
             >
               {{ scope.row.status === 'active' ? '冻结' : '激活' }}
@@ -113,7 +113,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -128,7 +128,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑账户对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -148,7 +148,7 @@
         <el-form-item label="开户网点" prop="branchName">
           <el-input v-model="accountForm.branchName" placeholder="请输入开户网点名称"></el-input>
         </el-form-item>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="币种" prop="currency">
@@ -163,9 +163,9 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="初始余额" prop="initialBalance">
-              <el-input-number 
-                v-model="accountForm.initialBalance" 
-                :precision="2" 
+              <el-input-number
+                v-model="accountForm.initialBalance"
+                :precision="2"
                 :step="1000"
                 style="width: 100%"
                 :disabled="!isNewAccount"
@@ -173,7 +173,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="开户日期" prop="openDate">
@@ -196,7 +196,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-      
+
         <el-form-item label="账户类型" prop="accountType">
           <el-select v-model="accountForm.accountType" placeholder="请选择账户类型" style="width: 100%">
             <el-option label="活期" value="活期"></el-option>
@@ -205,7 +205,7 @@
             <el-option label="其他" value="其他"></el-option>
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="备注" prop="notes">
           <el-input
             v-model="accountForm.notes"
@@ -222,7 +222,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 交易明细对话框 -->
     <el-dialog
       :title="`${selectedAccount.accountName} - 交易明细`"
@@ -260,7 +260,7 @@
           </el-form-item>
         </el-form>
       </div>
-      
+
       <el-table
         :data="transactionsList"
         style="width: 100%"
@@ -272,7 +272,7 @@
         <el-table-column prop="transaction_date" label="交易日期" width="100"></el-table-column>
         <el-table-column label="交易类型" width="90">
           <template #default="scope">
-            <el-tag 
+            <el-tag
               :type="getTransactionTagType(scope.row.transaction_type)"
             >
               {{ scope.row.transaction_type }}
@@ -296,7 +296,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -501,11 +501,11 @@ const showAddDialog = () => {
 const handleEdit = (row) => {
   dialogTitle.value = '编辑银行账户';
   resetAccountForm();
-  
+
   // 填充表单数据
   Object.assign(accountForm, row);
   isNewAccount.value = false;
-  
+
   dialogVisible.value = true;
 };
 
@@ -513,7 +513,7 @@ const handleEdit = (row) => {
 const toggleAccountStatus = (row) => {
   const action = row.status === 'active' ? '冻结' : '激活';
   const newStatus = row.status === 'active' ? 'frozen' : 'active';
-  
+
   ElMessageBox.confirm(`确认要${action}该银行账户吗？`, '提示', {
     confirmButtonText: '确认',
     cancelButtonText: '取消',
@@ -523,7 +523,7 @@ const toggleAccountStatus = (row) => {
       await api.patch(`/finance/bank-accounts/${row.id}/status`, {
         status: newStatus
       });
-      
+
       ElMessage.success(`账户${action}成功`);
       loadAccounts();
     } catch (error) {
@@ -536,7 +536,7 @@ const toggleAccountStatus = (row) => {
 // 保存账户
 const saveAccount = async () => {
   if (!accountFormRef.value) return;
-  
+
   await accountFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
@@ -554,7 +554,7 @@ const saveAccount = async () => {
           is_active: accountForm.status === 'active',
           notes: accountForm.notes
         };
-        
+
         if (accountForm.id) {
           // 更新
           await api.put(`/finance/bank-accounts/${accountForm.id}`, data);
@@ -589,7 +589,7 @@ const showTransactions = (row) => {
 // 加载交易明细
 const loadTransactions = async () => {
   if (!selectedAccount.value.id) return;
-  
+
   transactionsLoading.value = true;
   try {
     const params = {
@@ -597,12 +597,12 @@ const loadTransactions = async () => {
       page: transactionsCurrentPage.value,
       limit: transactionsPageSize.value
     };
-    
+
     if (transactionSearchForm.dateRange && transactionSearchForm.dateRange.length === 2) {
       params.startDate = transactionSearchForm.dateRange[0];
       params.endDate = transactionSearchForm.dateRange[1];
     }
-    
+
     if (transactionSearchForm.type) {
       params.transactionType = transactionSearchForm.type;
     }
@@ -631,19 +631,19 @@ const searchTransactions = () => {
 // 导出交易明细
 const exportTransactions = () => {
   if (!selectedAccount.value.id) return;
-  
+
   // 使用环境变量配置的API基础URL，默认为相对路径
   const baseURL = import.meta.env.VITE_API_URL || '';
   let url = `${baseURL}/api/finance/bank-transactions/export?accountId=${selectedAccount.value.id}`;
-  
+
   if (transactionSearchForm.dateRange && transactionSearchForm.dateRange.length === 2) {
     url += `&startDate=${transactionSearchForm.dateRange[0]}&endDate=${transactionSearchForm.dateRange[1]}`;
   }
-  
+
   if (transactionSearchForm.type) {
     url += `&type=${transactionSearchForm.type}`;
   }
-  
+
   window.open(url);
 };
 
@@ -662,7 +662,7 @@ const resetAccountForm = () => {
   accountForm.status = 'active';
   accountForm.notes = '';
   accountForm.lastTransactionDate = '';
-  
+
   // 清除校验
   if (accountFormRef.value) {
     accountFormRef.value.resetFields();
@@ -756,4 +756,4 @@ onMounted(() => {
 
 
 
-</style> 
+</style>

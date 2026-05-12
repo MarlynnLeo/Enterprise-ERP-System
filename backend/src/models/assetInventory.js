@@ -5,7 +5,6 @@
 
 const db = require('../config/db');
 const logger = require('../utils/logger');
-const crypto = require('crypto');
 
 const assetInventoryModel = {
     /**
@@ -111,8 +110,9 @@ const assetInventoryModel = {
                 throw new Error('存在未完成的盘点单，请先完成或取消当前盘点');
             }
 
-            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-            const inventoryNo = `INV-${dateStr}-${String(crypto.randomInt(100, 1000))}`;
+            // 生成盘点单号 — 使用统一编码引擎
+            const { CodeGenerators } = require('../utils/codeGenerator');
+            const inventoryNo = await CodeGenerators.generateAssetInventoryCode(connection);
 
             // 创建主单
             const [result] = await connection.query(
@@ -155,8 +155,8 @@ const assetInventoryModel = {
     updateInventoryItem: async (itemId, data) => {
         try {
             await db.pool.query(
-                `UPDATE asset_inventory_items 
-                 SET actual_quantity = ?, status = ?, notes = ? 
+                `UPDATE asset_inventory_items
+                 SET actual_quantity = ?, status = ?, notes = ?
                  WHERE id = ?`,
                 [data.actual_quantity, data.status, data.notes || null, itemId]
             );
@@ -187,20 +187,20 @@ const assetInventoryModel = {
 
             // 更新主单状态
             await connection.query(
-                `UPDATE asset_inventories 
-                 SET status = '已完成', completed_at = NOW(), completed_by = ? 
+                `UPDATE asset_inventories
+                 SET status = '已完成', completed_at = NOW(), completed_by = ?
                  WHERE id = ?`,
                 [userId, id]
             );
 
             // 获取最终统计结果
             const [stats] = await connection.query(
-                `SELECT 
+                `SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN status = '盘点相符' THEN 1 ELSE 0 END) as matched,
                     SUM(CASE WHEN status = '盘盈' THEN 1 ELSE 0 END) as surplus,
                     SUM(CASE WHEN status = '盘亏' THEN 1 ELSE 0 END) as shortage
-                 FROM asset_inventory_items 
+                 FROM asset_inventory_items
                  WHERE inventory_id = ?`,
                 [id]
             );

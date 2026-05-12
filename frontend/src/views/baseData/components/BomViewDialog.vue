@@ -60,10 +60,10 @@
     </div>
 
     <!-- 图片预览器 -->
-    <el-image-viewer 
-      v-if="showImageViewer" 
-      :url-list="previewList" 
-      @close="showImageViewer = false" 
+    <el-image-viewer
+      v-if="showImageViewer"
+      :url-list="previewList"
+      @close="showImageViewer = false"
     />
 
     <template #footer>
@@ -90,10 +90,10 @@ const previewList = ref([])
 // 计算并构建WBS层级
 const displayDetails = computed(() => {
   if (!props.bomData || !props.bomData.details) return []
-  
+
   // 深拷贝避免直接修改 prop 警告
   const tree = JSON.parse(JSON.stringify(props.bomData.details))
-  
+
   const assignWBS = (nodes, prefix = '') => {
     nodes.forEach((node, index) => {
       const currentWBS = prefix ? `${prefix}.${index + 1}` : `${index + 1}`
@@ -103,7 +103,7 @@ const displayDetails = computed(() => {
       }
     })
   }
-  
+
   assignWBS(tree)
   return tree
 })
@@ -141,7 +141,7 @@ const buildAttachmentUrl = (url) => {
 // 在线预览
 const previewAttachment = (url) => {
   if (!url) return
-  
+
   const fullUrl = buildAttachmentUrl(url)
 
   if (isImage(url)) {
@@ -157,7 +157,7 @@ const previewAttachment = (url) => {
 // 下载附件
 const downloadAttachment = async (url) => {
   if (!url) return
-  
+
   const fullUrl = buildAttachmentUrl(url)
 
   // 根本解决：采用二进制下载文件，防止跨域、路由Fallback或强制变成_uid_xxxx.htm

@@ -91,7 +91,7 @@ const getOrders = async (req, res) => {
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const actualPageSize = parseInt(pageSize);
     const actualOffset = parseInt(offset);
-    query += ` ORDER BY o.created_at DESC LIMIT ${actualPageSize} OFFSET ${actualOffset}`;
+    query += ` ORDER BY o.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(actualOffset))||0)}`;
 
     // 使用正确的连接池查询方法
     const [rows] = await pool.query(query, queryParams);
@@ -140,7 +140,7 @@ const getOrders = async (req, res) => {
 
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
-    res.json({
+    return ResponseHandler.success(res, {
       items: orders,
       total: totalCount,
       page: parseInt(page),
@@ -184,7 +184,7 @@ const getOrder = async (req, res) => {
       return ResponseHandler.notFound(res, '采购订单不存在');
     }
 
-    res.json(order);
+    return ResponseHandler.success(res, order);
   } catch (error) {
     logger.error('获取采购订单详情失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -223,7 +223,7 @@ const createOrder = async (req, res) => {
       const insertQuery = `
         INSERT INTO purchase_orders (
           order_no, order_date, supplier_id, supplier_name, contract_code,
-          expected_delivery_date, contact_person, contact_phone, 
+          expected_delivery_date, contact_person, contact_phone,
           total_amount, tax_rate, tax_amount, subtotal, remarks, status, requisition_id, requisition_number
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -336,7 +336,7 @@ const updateOrder = async (req, res) => {
     // 获取更新后的订单信息
     const orderDetails = await getOrderById(updatedOrder);
 
-    res.json(orderDetails);
+    return ResponseHandler.success(res, orderDetails);
   } catch (error) {
     logger.error('更新采购订单失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -356,7 +356,7 @@ const deleteOrder = async (req, res) => {
       await softDelete(connection, 'purchase_orders', 'id', id);
     });
 
-    res.json({ message: '采购订单删除成功' });
+    return ResponseHandler.success(res, null, '采购订单删除成功');
   } catch (error) {
     logger.error('删除采购订单失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -377,20 +377,13 @@ const updateOrderStatus = async (req, res) => {
     } else if (typeof req.body === 'string') {
       newStatus = req.body;
     } else {
-      return res.status(400).json({
-        error: '无效的状态格式',
-        receivedBody: req.body,
-      });
+      return ResponseHandler.error(res, '无效的状态格式', 'VALIDATION_ERROR', 400);
     }
 
     // 检查状态值是否有效（使用统一常量）
     const validStatuses = Object.values(PURCHASE_STATUS);
     if (!validStatuses.includes(newStatus)) {
-      return res.status(400).json({
-        error: '无效的状态值',
-        receivedStatus: newStatus,
-        validStatuses: validStatuses,
-      });
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
@@ -453,7 +446,7 @@ const updateOrderStatus = async (req, res) => {
     // 获取更新后的订单
     const orderDetails = await getOrderById(updatedOrder);
 
-    res.json(orderDetails);
+    return ResponseHandler.success(res, orderDetails);
   } catch (error) {
     logger.error('更新采购订单状态失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -465,7 +458,7 @@ const getStatistics = async (req, res) => {
   try {
     // 获取订单数量统计
     const ordersCountQuery = `
-      SELECT 
+      SELECT
         COUNT(*) as total_orders,
         COUNT(CASE WHEN status = '${PURCHASE_STATUS.DRAFT}' THEN 1 END) as draft_orders,
         COUNT(CASE WHEN status = '${PURCHASE_STATUS.PENDING}' THEN 1 END) as pending_orders,
@@ -502,7 +495,7 @@ const getStatistics = async (req, res) => {
     `;
     const [supplierRows] = await pool.query(topSuppliersQuery);
 
-    res.json({
+    return ResponseHandler.success(res, {
       counts: countRows[0],
       monthlyAmount: amountRows[0].monthly_amount,
       topSuppliers: supplierRows,
@@ -618,12 +611,12 @@ const getSuppliers = async (req, res) => {
     // 如果指定了限制数量
     if (limit) {
       const safeLimit = parseInt(limit, 10) || 100;
-      query += ` LIMIT ${safeLimit}`;
+      query += ` LIMIT ${Math.max(1,Math.min(Math.floor(Number(safeLimit))||20,500))}`;
     }
 
     const [rows] = await pool.query(query, queryParams);
 
-    res.json(rows);
+    return ResponseHandler.success(res, rows);
   } catch (error) {
     logger.error('获取供应商列表失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -655,7 +648,7 @@ const getRequisitions = async (req, res) => {
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const actualPageSize = Number(pageSize);
     const actualOffset = Number(offset);
-    query += ` ORDER BY r.created_at DESC LIMIT ${actualPageSize} OFFSET ${actualOffset}`;
+    query += ` ORDER BY r.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(actualOffset))||0)}`;
 
     const [rows] = await pool.query(query, queryParams);
 
@@ -725,7 +718,7 @@ const getRequisitions = async (req, res) => {
 
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
-    res.json({
+    return ResponseHandler.success(res, {
       items: requisitions,
       total: totalCount,
       page: parseInt(page),
@@ -785,7 +778,7 @@ const getRequisition = async (req, res) => {
 
     requisition.materials = itemRows;
 
-    res.json(requisition);
+    return ResponseHandler.success(res, requisition);
   } catch (error) {
     logger.error('获取采购申请详情失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -799,7 +792,7 @@ const getPurchaseDashboardStats = async (req, res) => {
     const PurchaseDashboardService = require('../../../services/business/PurchaseDashboardService');
     const dashboardData = await PurchaseDashboardService.getDashboardData();
 
-    res.json(dashboardData);
+    return ResponseHandler.success(res, dashboardData);
   } catch (error) {
     logger.error('获取采购综合统计数据失败:', error);
     ResponseHandler.error(res, '获取采购综合统计数据失败', 'SERVER_ERROR', 500, error);
@@ -813,7 +806,7 @@ const updateOrderItemsReceived = async (req, res) => {
     const { items } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return ResponseHandler.error(res, '缺少物料收货信息', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '缺少物料收货信息', 'VALIDATION_ERROR', 400);
     }
 
     // 引入采购订单状态服务
@@ -834,7 +827,7 @@ const updateOrderItemsReceived = async (req, res) => {
       }
     });
 
-    res.json({ message: '收货数量更新成功' });
+    return ResponseHandler.success(res, null, '收货数量更新成功');
   } catch (error) {
     logger.error('更新采购订单物料收货数量失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -851,7 +844,7 @@ const getLatestPrice = async (req, res) => {
 
     // 物料标识是必须的，供应商可选（未选供应商时直接走全局历史查询）
     if (!material_id && !material_code) {
-      return ResponseHandler.error(res, '缺少必要参数 (物料编码或物料ID)', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '缺少必要参数 (物料编码或物料ID)', 'VALIDATION_ERROR', 400);
     }
 
     // 第一层：查找该供应商历史上卖给我们这个物料的最新有效价格（仅当供应商已选定时）
@@ -860,7 +853,7 @@ const getLatestPrice = async (req, res) => {
         SELECT poi.price, po.order_date
         FROM purchase_order_items poi
         JOIN purchase_orders po ON poi.order_id = po.id
-        WHERE (poi.material_id = ? OR poi.material_code = ?) 
+        WHERE (poi.material_id = ? OR poi.material_code = ?)
           AND po.supplier_id = ?
           AND po.status NOT IN ('cancelled')
           AND poi.price > 0
@@ -884,7 +877,7 @@ const getLatestPrice = async (req, res) => {
       FROM purchase_order_items poi
       JOIN purchase_orders po ON poi.order_id = po.id
       LEFT JOIN suppliers s ON po.supplier_id = s.id
-      WHERE (poi.material_id = ? OR poi.material_code = ?) 
+      WHERE (poi.material_id = ? OR poi.material_code = ?)
         AND po.status NOT IN ('cancelled')
         AND poi.price > 0
       ORDER BY po.order_date DESC, po.id DESC
@@ -903,7 +896,7 @@ const getLatestPrice = async (req, res) => {
 
     // 第三层：从物料主数据提取预估成本价作为兜底
     const matQuery = `
-      SELECT cost_price, price FROM materials 
+      SELECT cost_price, price FROM materials
       WHERE (id = ? OR code = ?)
       LIMIT 1
     `;

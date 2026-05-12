@@ -129,7 +129,7 @@
                 v-if="row.status !== 1 && String(row.status) !== '1'"
                 size="small"
                 @click="handleEdit(row)"
-              
+
               v-permission="'system:business-types:update'"><el-icon><Edit /></el-icon> 编辑</el-button>
 
               <el-popconfirm
@@ -183,15 +183,15 @@
         label-width="100px"
       >
         <el-form-item label="字典分组" prop="group_code">
-          <el-input 
-            v-model="form.group_code" 
-            placeholder="如 warehouse_type" 
+          <el-input
+            v-model="form.group_code"
+            placeholder="如 warehouse_type"
           />
         </el-form-item>
         <el-form-item label="业务编码" prop="code">
-          <el-input 
-            v-model="form.code" 
-            placeholder="请输入业务编码（英文）" 
+          <el-input
+            v-model="form.code"
+            placeholder="请输入业务编码（英文）"
             :disabled="dialogType === 'edit' || dialogType === 'view'"
           />
         </el-form-item>
@@ -227,9 +227,9 @@
           </el-select>
         </el-form-item>
         <el-form-item label="描述">
-          <el-input 
-            v-model="form.description" 
-            type="textarea" 
+          <el-input
+            v-model="form.description"
+            type="textarea"
             :rows="3"
             placeholder="请输入业务类型描述"
           />

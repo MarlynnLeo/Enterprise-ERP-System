@@ -18,10 +18,10 @@ import ko from 'element-plus/dist/locale/ko.mjs'
 export const useLanguageStore = defineStore('language', () => {
   // 当前语言
   const currentLanguage = ref(localStorage.getItem('language') || 'zh-CN')
-  
+
   // Element Plus 语言配置
   const elementLocale = ref(zhCn)
-  
+
   // 支持的语言列表
   const supportedLanguages = [
     {
@@ -70,7 +70,7 @@ export const useLanguageStore = defineStore('language', () => {
       currentLanguage.value = langCode
       elementLocale.value = language.elementLocale
       localStorage.setItem('language', langCode)
-      
+
       // 更新 HTML lang 属性
       document.documentElement.lang = langCode
     }

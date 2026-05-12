@@ -59,8 +59,8 @@ class InventoryYearEndService {
       // 3. 获取上一年度期末余额作为本年期初
       const prevYear = year - 1;
       const [prevBalances] = await connection.execute(
-        `SELECT material_id, location_id, closing_quantity, closing_value 
-         FROM inventory_year_end_balances 
+        `SELECT material_id, location_id, closing_quantity, closing_value
+         FROM inventory_year_end_balances
          WHERE year = ? AND is_frozen = 1`,
         [prevYear]
       );
@@ -82,7 +82,7 @@ class InventoryYearEndService {
       // 获取本年度所有涉及的物料和仓库组合
       const [ledgerData] = await connection.execute(
         `
-        SELECT 
+        SELECT
           il.material_id,
           il.location_id,
           SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as inbound_qty,
@@ -117,8 +117,8 @@ class InventoryYearEndService {
 
         await connection.execute(
           `
-          INSERT INTO inventory_year_end_balances 
-          (year, material_id, location_id, opening_quantity, opening_value, 
+          INSERT INTO inventory_year_end_balances
+          (year, material_id, location_id, opening_quantity, opening_value,
            inbound_quantity, inbound_value, outbound_quantity, outbound_value,
            closing_quantity, closing_value, is_frozen, frozen_by, frozen_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NOW())

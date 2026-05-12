@@ -42,7 +42,7 @@ const login = async (req, res) => {
 
   // 0. 输入校验：用户名和密码不能为空
   if (!username || !password) {
-    return ResponseHandler.error(res, '用户名和密码不能为空', 'BAD_REQUEST', 400);
+    return ResponseHandler.error(res, '用户名和密码不能为空', 'VALIDATION_ERROR', 400);
   }
 
   try {
@@ -68,12 +68,12 @@ const login = async (req, res) => {
       const msg = result.locked
         ? `账号已被锁定，请 ${result.lockDurationMinutes} 分钟后再试`
         : `用户名或密码错误，剩余 ${result.remainingAttempts} 次机会`;
-      return ResponseHandler.error(res, msg, 'CLIENT_ERROR', 401);
+      return ResponseHandler.error(res, msg, 'VALIDATION_ERROR', 401);
     }
 
     // 3. 检查用户状态是否禁用
     if (user.status === 0) {
-      return ResponseHandler.error(res, '账号已被禁用，请联系管理员', 'CLIENT_ERROR', 403);
+      return ResponseHandler.error(res, '账号已被禁用，请联系管理员', 'VALIDATION_ERROR', 403);
     }
 
     // 4. 验证密码（防御性检查：确保密码哈希存在）
@@ -88,7 +88,7 @@ const login = async (req, res) => {
       const msg = result.locked
         ? `账号已被锁定，请 ${result.lockDurationMinutes} 分钟后再试`
         : `用户名或密码错误，剩余 ${result.remainingAttempts} 次机会`;
-      return ResponseHandler.error(res, msg, 'CLIENT_ERROR', 401);
+      return ResponseHandler.error(res, msg, 'VALIDATION_ERROR', 401);
     }
 
     // 5. 登录成功，清除失败记录
@@ -196,7 +196,7 @@ const updateUserProfile = async (req, res) => {
     }
 
     if (updateFields.length === 0) {
-      return ResponseHandler.error(res, 'No fields to update', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, 'No fields to update', 'VALIDATION_ERROR', 400);
     }
 
     updateFields.push('updated_at = NOW()');
@@ -247,7 +247,7 @@ const changePassword = async (req, res) => {
       users[0].password
     );
     if (!isCurrentPasswordValid) {
-      return ResponseHandler.error(res, 'Current password is incorrect', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, 'Current password is incorrect', 'VALIDATION_ERROR', 400);
     }
 
     // 验证新密码强度
@@ -256,7 +256,7 @@ const changePassword = async (req, res) => {
       return ResponseHandler.error(
         res,
         'Password does not meet security requirements',
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -317,7 +317,7 @@ const uploadAvatar = async (req, res) => {
     const userId = req.user.id;
 
     if (!req.file) {
-      return ResponseHandler.error(res, 'No avatar file provided', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, 'No avatar file provided', 'VALIDATION_ERROR', 400);
     }
 
     // Magic bytes 校验 — 确保文件内容与声明的 MIME 类型一致
@@ -325,7 +325,7 @@ const uploadAvatar = async (req, res) => {
       // 删除不合格的文件
       const fs = require('fs');
       fs.unlinkSync(req.file.path);
-      return ResponseHandler.error(res, '文件内容与声明的类型不一致', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '文件内容与声明的类型不一致', 'VALIDATION_ERROR', 400);
     }
 
     // 构建相对URL（前端通过 /uploads/avatars/xxx.png 访问）
@@ -400,7 +400,7 @@ const updateAvatarFrame = async (req, res) => {
     // 支持 frame1~frame999 + lottie-* 主题 + none
     const framePattern = /^(frame\d+|lottie-[a-z]+|none)$/;
     if (!framePattern.test(frameId)) {
-      return ResponseHandler.error(res, '无效的头像特效ID', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的头像特效ID', 'VALIDATION_ERROR', 400);
     }
 
     // 更新用户的头像特效设置
@@ -500,6 +500,43 @@ const refreshToken = async (req, res) => {
 const getUserMenus = async (req, res) => {
   try {
     const userId = req.user.id;
+    const PermissionService = require('../../services/PermissionService');
+
+    const isAdmin = await PermissionService.isAdmin(userId);
+    if (isAdmin) {
+      const [menus] = await pool.execute(
+        `SELECT id, parent_id, name, path, icon, permission, type, sort_order as sort
+         FROM menus
+         WHERE status = 1
+         ORDER BY sort_order, id`
+      );
+
+      const menuMap = {};
+      menus.forEach((m) => {
+        menuMap[m.id] = { ...m, children: [] };
+      });
+
+      const tree = [];
+      menus.forEach((m) => {
+        if (m.parent_id && m.parent_id !== 0 && menuMap[m.parent_id]) {
+          menuMap[m.parent_id].children.push(menuMap[m.id]);
+        } else if (!m.parent_id || m.parent_id === 0) {
+          tree.push(menuMap[m.id]);
+        }
+      });
+
+      const sortMenus = (nodes) => {
+        nodes.sort((a, b) => (a.sort || 0) - (b.sort || 0) || a.id - b.id);
+        nodes.forEach((n) => {
+          if (n.children && n.children.length > 0) {
+            sortMenus(n.children);
+          }
+        });
+      };
+      sortMenus(tree);
+
+      return ResponseHandler.success(res, tree, '获取菜单成功');
+    }
 
     // 1. 获取用户角色
     const [userRoles] = await pool.execute('SELECT role_id FROM user_roles WHERE user_id = ?', [
@@ -527,7 +564,7 @@ const getUserMenus = async (req, res) => {
     // 3. 获取菜单详情
     const [menus] = await pool.execute(
       `SELECT id, parent_id, name, path, icon, permission, type, sort_order as sort
-       FROM menus 
+       FROM menus
        WHERE id IN (${menuIds.map(() => '?').join(',')}) AND status = 1
        ORDER BY sort_order`,
       menuIds
@@ -540,7 +577,7 @@ const getUserMenus = async (req, res) => {
     while (currentParentIds.length > 0) {
       const [parents] = await pool.execute(
         `SELECT id, parent_id, name, path, icon, permission, type, sort_order as sort
-         FROM menus 
+         FROM menus
          WHERE id IN (${currentParentIds.map(() => '?').join(',')}) AND status = 1`,
         currentParentIds
       );

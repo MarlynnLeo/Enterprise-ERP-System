@@ -12,6 +12,7 @@ const { handleError } = require('./shared/errorHandler');
 const {
   calculateMaterialRequirementsWithStock,
 } = require('../../../services/business/MaterialCalculationService');
+const BomExplosionService = require('../../../services/BomExplosionService');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
 
 // 采购状态常量
@@ -25,7 +26,7 @@ exports.calculateMaterials = async (req, res) => {
     const { productId, bomId, quantity } = req.body;
 
     if (!productId || !quantity) {
-      return ResponseHandler.error(res, '产品ID和数量是必需的', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '产品ID和数量是必需的', 'VALIDATION_ERROR', 400);
     }
 
     // 不检查status，只检查BOM是否存在（可以使用未启用但已审核的BOM）
@@ -60,11 +61,11 @@ exports.calculateMaterialsByBomId = async (req, res) => {
     const { quantity } = req.query;
 
     if (!bomId) {
-      return ResponseHandler.error(res, 'BOM ID是必需的', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, 'BOM ID是必需的', 'VALIDATION_ERROR', 400);
     }
 
     if (!quantity || isNaN(quantity) || parseFloat(quantity) <= 0) {
-      return ResponseHandler.error(res, '数量必须是大于0的有效数字', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '数量必须是大于0的有效数字', 'VALIDATION_ERROR', 400);
     }
 
     // 不检查status，只检查BOM是否存在（可以使用未启用但已审核的BOM）
@@ -98,25 +99,21 @@ exports.getBomByProductId = async (req, res) => {
     const { productId } = req.params;
 
     // 不检查status，优先选择已审核的BOM
-    const [bomMasters] = await pool.query(
-      `
-      SELECT bm.*, m.name as product_name, m.code as product_code
-      FROM bom_masters bm
-      LEFT JOIN materials m ON bm.product_id = m.id
-      WHERE bm.product_id = ?
-      ORDER BY
-        CASE WHEN bm.approved_by IS NOT NULL THEN 0 ELSE 1 END,
-        bm.created_at DESC
-      LIMIT 1
-    `,
-      [productId]
-    );
+    const preferredBom = await BomExplosionService.getPreferredBom(productId);
 
-    if (bomMasters.length === 0) {
+    if (!preferredBom) {
       return ResponseHandler.error(res, '未找到该产品的BOM配置', 'NOT_FOUND', 404);
     }
 
-    const bom = bomMasters[0];
+    const [products] = await pool.query(
+      'SELECT name as product_name, code as product_code FROM materials WHERE id = ?',
+      [productId]
+    );
+    const bom = {
+      ...preferredBom,
+      product_name: products[0]?.product_name || null,
+      product_code: products[0]?.product_code || null,
+    };
 
     const [bomDetails] = await pool.query(
       `
@@ -197,9 +194,9 @@ exports.getMaterialShortageSummary = async (req, res) => {
         u.name as material_unit,
         ppm.required_quantity,
         COALESCE(inv.stock_quantity, 0) as current_stock_quantity,
-        CASE 
+        CASE
           WHEN EXISTS (
-            SELECT 1 
+            SELECT 1
             FROM purchase_requisitions pr
             INNER JOIN purchase_requisition_items pri ON pr.id = pri.requisition_id
             WHERE pri.material_id = m.id

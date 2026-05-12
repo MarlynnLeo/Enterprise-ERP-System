@@ -33,7 +33,7 @@
       <div class="search-container">
         <el-form :inline="true" :model="searchForm" class="search-form">
           <el-form-item>
-            <el-input 
+            <el-input
               v-model="searchKeyword"
               placeholder="请输入不合格品编号/物料名称"
               @keyup.enter="fetchData"
@@ -146,19 +146,19 @@
               处理决策
             </el-button>
             <!-- 特采申请按钮: 处理方式为让步接收/特采，但尚未进入待审状态 -->
-            <el-button 
-              size="small" 
-              type="warning" 
-              @click="handleApplyConcession(row)" 
+            <el-button
+              size="small"
+              type="warning"
+              @click="handleApplyConcession(row)"
               v-if="(row.status === 'pending' || row.status === 'processing') && row.concession_status !== 'pending' && row.concession_status !== 'approved'"
               v-permission="'quality:nonconforming:update'">
               申请特采
             </el-button>
             <!-- 特采审批按钮: 特采待审状态 -->
-            <el-button 
-              size="small" 
-              type="primary" 
-              @click="handleApproveConcession(row)" 
+            <el-button
+              size="small"
+              type="primary"
+              @click="handleApproveConcession(row)"
               v-if="row.concession_status === 'pending'"
               v-permission="'quality:nonconforming:update'">
               特采审批
@@ -326,7 +326,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import { Search, Refresh, Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import ncpApi from '@/api/nonconformingProductApi'
-import request from '@/utils/request'
+import { baseDataApi } from '@/api/baseData'
+import { parseListData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 const route = useRoute()
@@ -390,7 +391,6 @@ const fetchData = async () => {
       tableData.value = responseData
       total.value = responseData.length
     } else {
-      console.warn('⚠️ Unexpected response structure:', response)
       tableData.value = []
       total.value = 0
     }
@@ -510,7 +510,7 @@ const submitComplete = async () => {
     ElMessage.error('完成处理失败')
   }
 }
-// Concession application 
+// Concession application
 const handleApplyConcession = (row) => {
   currentNcp.value = row;
   applyConcessionForm.reason = '';
@@ -523,7 +523,7 @@ const submitApplyConcession = async () => {
   }
   submitLoading.value = true;
   try {
-    await request.post(`/quality/ncp/${currentNcp.value.id}/concession/apply`, { reason: applyConcessionForm.reason });
+    await ncpApi.applyConcession(currentNcp.value.id, { reason: applyConcessionForm.reason });
     ElMessage.success('特采申请提交成功');
     applyConcessionDialogVisible.value = false;
     fetchData();
@@ -541,7 +541,7 @@ const handleApproveConcession = (row) => {
 const submitApproveConcession = async () => {
   submitLoading.value = true;
   try {
-    await request.post(`/quality/ncp/${currentNcp.value.id}/concession/approve`, { status: approveConcessionForm.status });
+    await ncpApi.approveConcession(currentNcp.value.id, { status: approveConcessionForm.status });
     ElMessage.success('审批完成');
     approveConcessionDialogVisible.value = false;
     fetchData();
@@ -618,8 +618,8 @@ const getStatusLabel = (status) => {
 const supplierList = ref([])
 const fetchSuppliers = async () => {
   try {
-    const res = await request.get('/baseData/suppliers', { params: { page: 1, pageSize: 3000 } })
-    supplierList.value = res.data?.items || res.data?.list || res.data || []
+    const res = await baseDataApi.getSuppliers({ page: 1, pageSize: 3000 })
+    supplierList.value = parseListData(res, { enableLog: false })
   } catch(error) {
     console.error('Failed to fetch suppliers:', error)
   }

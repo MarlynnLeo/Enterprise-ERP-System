@@ -216,7 +216,7 @@ const customerService = {
   async getCustomerStats() {
     try {
       const [rows] = await pool.query(`
-        SELECT 
+        SELECT
           COUNT(*) as total,
           SUM(CASE WHEN status = 1 OR status = 'active' THEN 1 ELSE 0 END) as active,
           SUM(CASE WHEN status = 0 OR status = 'inactive' THEN 1 ELSE 0 END) as inactive,

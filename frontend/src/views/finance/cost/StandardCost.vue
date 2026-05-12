@@ -128,7 +128,7 @@
         </el-descriptions>
 
         <el-divider>成本明细</el-divider>
-        
+
         <el-tabs v-model="activeTab">
           <el-tab-pane label="材料明细" name="material">
             <el-table v-if="currentDetail.material_details?.length > 0" :data="currentDetail.material_details" border size="small">
@@ -201,7 +201,7 @@
       <div v-if="currentSelectedProduct" style="margin-bottom: 16px;">
         <el-alert :title="`正在为产品 ${currentSelectedProduct.product_code} - ${currentSelectedProduct.product_name} 配置专属制造费用`" type="info" :closable="false" show-icon></el-alert>
       </div>
-      
+
       <div style="margin-bottom: 16px; display:flex; justify-content: space-between;">
         <span style="line-height:32px; font-weight:bold;">已配置专属规则</span>
         <el-button type="primary" size="small" @click="openAddOverheadForm" v-permission="'finance:cost:create'">新增专属费率</el-button>
@@ -231,7 +231,7 @@
           <el-empty description="暂无专属费率，将使用全局默认费率" :image-size="60"></el-empty>
         </template>
       </el-table>
-      
+
       <!-- 内部：新增专属制费弹窗 -->
       <el-dialog v-model="addOverheadFormVisible" title="新增单品费率" width="500px" append-to-body>
         <el-form :model="overheadForm" label-width="120px">
@@ -333,11 +333,11 @@ const loadStandardCosts = async () => {
         productCode: searchForm.productCode || undefined
       }
     });
-    
+
     const data = response.data;
     costList.value = data.items || [];
     pagination.total = Number(data.total) || 0;
-    
+
     // 如果列表为空，显示提示
     if (costList.value.length === 0) {
     }
@@ -403,7 +403,7 @@ const viewDetail = async (row) => {
       const response = await api.get(`/finance-enhancement/cost/standard/${row.product_id}`);
       // ResponseHandler包装的数据在response.data.data中
       const result = response.data?.data || response.data;
-      
+
       currentDetail.value = {
         ...row,
         // 从API返回的details中获取真实数据
@@ -522,7 +522,7 @@ const saveProductOverhead = async () => {
     ElMessage.warning('请选择要引用的全局规则模板');
     return;
   }
-  
+
   const template = globalOverheadTemplates.value.find(t => t.id === overheadForm.templateId);
   if (!template) return;
 
@@ -539,12 +539,12 @@ const saveProductOverhead = async () => {
       effective_date: overheadForm.effective_date,
       is_active: true
     };
-    
+
     await api.post('/finance-enhancement/cost/overhead-allocation', payload);
     ElMessage.success('配置单品专属费率成功');
     addOverheadFormVisible.value = false;
     await loadProductOverheads(currentSelectedProduct.value.product_id);
-    
+
     await calculateAndPersistStandardCost(currentSelectedProduct.value.product_id);
     await loadStandardCosts();
   } catch {

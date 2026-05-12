@@ -22,7 +22,7 @@ const reportsController = {
       const { reportDate } = req.query;
 
       if (!reportDate) {
-        return ResponseHandler.error(res, '请提供报表日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供报表日期', 'VALIDATION_ERROR', 400);
       }
 
       return ResponseHandler.error(
@@ -47,7 +47,7 @@ const reportsController = {
       } = req.query;
 
       if (!startDate || !endDate) {
-        return ResponseHandler.error(res, '请提供开始日期和结束日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供开始日期和结束日期', 'VALIDATION_ERROR', 400);
       }
 
       return ResponseHandler.error(
@@ -69,7 +69,7 @@ const reportsController = {
       const { reportMonth } = req.query;
 
       if (!reportMonth) {
-        return ResponseHandler.error(res, '请提供报表月份', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供报表月份', 'VALIDATION_ERROR', 400);
       }
 
       // 解析报表月份 (格式: 2025-08)

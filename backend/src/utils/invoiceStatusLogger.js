@@ -37,7 +37,7 @@ async function logStatusChange({
     connection = await db.pool.getConnection();
 
     await connection.execute(
-      `INSERT INTO invoice_status_log 
+      `INSERT INTO invoice_status_log
        (invoice_type, invoice_id, invoice_code, old_status, new_status, changed_by, change_reason)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [invoiceType, invoiceId, invoiceCode, oldStatus, newStatus, changedBy, changeReason]
@@ -69,7 +69,7 @@ async function getStatusHistory(invoiceType, invoiceId) {
     connection = await db.pool.getConnection();
 
     const [rows] = await connection.execute(
-      `SELECT * FROM invoice_status_log 
+      `SELECT * FROM invoice_status_log
        WHERE invoice_type = ? AND invoice_id = ?
        ORDER BY changed_at DESC`,
       [invoiceType, invoiceId]
@@ -100,7 +100,7 @@ async function getStatusChangeStats({ invoiceType, startDate, endDate } = {}) {
     connection = await db.pool.getConnection();
 
     let sql = `
-      SELECT 
+      SELECT
         invoice_type,
         old_status,
         new_status,

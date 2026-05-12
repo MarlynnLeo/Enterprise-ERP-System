@@ -12,7 +12,6 @@ const { validateRequiredFields } = require('../../../utils/validationHelper');
 
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
-// const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getInventoryLedger } = require('./inventoryLedgerController');
 
@@ -293,7 +292,7 @@ const getStockRecords = async (req, res) => {
 
     // 获取库存交易记录
     const recordsQuery = `
-      SELECT 
+      SELECT
         t.id,
         t.transaction_type,
         DATE_FORMAT(t.created_at, '%Y-%m-%d %H:%i:%s') as date,
@@ -475,7 +474,7 @@ const getMaterialsList = async (req, res) => {
 
     // 查询物料列表
     const query = `
-      SELECT 
+      SELECT
         m.id,
         m.code,
         m.name,
@@ -485,13 +484,13 @@ const getMaterialsList = async (req, res) => {
         m.unit_id,
         u.name as unit_name,
         m.price,
-        COALESCE(s.location_id, 1) as location_id, 
+        COALESCE(s.location_id, 1) as location_id,
         COALESCE(l.name, '默认仓库') as location_name
-      FROM 
+      FROM
         materials m
-      LEFT JOIN 
+      LEFT JOIN
         categories c ON m.category_id = c.id
-      LEFT JOIN 
+      LEFT JOIN
         units u ON m.unit_id = u.id
       LEFT JOIN ${STOCK_SUBQUERY} s ON m.id = s.material_id
       LEFT JOIN

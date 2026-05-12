@@ -33,10 +33,7 @@ const printController = {
       const printSetting = await printModel.getPrintSettingById(id);
 
       if (!printSetting) {
-        return res.status(404).json({
-          code: 404,
-          message: '打印设置不存在',
-        });
+        return ResponseHandler.error(res, '打印设置不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, printSetting, '获取打印设置成功');
@@ -82,10 +79,7 @@ const printController = {
       const success = await printModel.updatePrintSetting(id, data);
 
       if (!success) {
-        return res.status(404).json({
-          code: 404,
-          message: '打印设置不存在或更新失败',
-        });
+        return ResponseHandler.error(res, '打印设置不存在或更新失败', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, '更新打印设置成功');
@@ -101,10 +95,7 @@ const printController = {
       const success = await printModel.deletePrintSetting(id);
 
       if (!success) {
-        return res.status(404).json({
-          code: 404,
-          message: '打印设置不存在或删除失败',
-        });
+        return ResponseHandler.error(res, '打印设置不存在或删除失败', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, '删除打印设置成功');
@@ -133,10 +124,7 @@ const printController = {
       const printTemplate = await printModel.getPrintTemplateById(id);
 
       if (!printTemplate) {
-        return res.status(404).json({
-          code: 404,
-          message: '打印模板不存在',
-        });
+        return ResponseHandler.error(res, '打印模板不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, printTemplate, '获取打印模板成功');
@@ -151,19 +139,13 @@ const printController = {
       const { module, template_type } = req.query;
 
       if (!module || !template_type) {
-        return res.status(400).json({
-          code: 400,
-          message: '缺少必要参数：module 和 template_type',
-        });
+        return ResponseHandler.error(res, '缺少必要参数：module 和 template_type', 'VALIDATION_ERROR', 400);
       }
 
       const template = await printModel.getDefaultTemplateByType(module, template_type);
 
       if (!template) {
-        return res.status(404).json({
-          code: 404,
-          message: '未找到默认打印模板',
-        });
+        return ResponseHandler.error(res, '未找到默认打印模板', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, template, '获取默认打印模板成功');
@@ -212,10 +194,7 @@ const printController = {
       const success = await printModel.updatePrintTemplate(id, data);
 
       if (!success) {
-        return res.status(404).json({
-          code: 404,
-          message: '打印模板不存在或更新失败',
-        });
+        return ResponseHandler.error(res, '打印模板不存在或更新失败', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, '更新打印模板成功');
@@ -234,10 +213,7 @@ const printController = {
       const success = await printModel.deletePrintTemplate(id);
 
       if (!success) {
-        return res.status(404).json({
-          code: 404,
-          message: '打印模板不存在或删除失败',
-        });
+        return ResponseHandler.error(res, '打印模板不存在或删除失败', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, '删除打印模板成功');
@@ -251,10 +227,7 @@ const printController = {
   async uploadLogo(req, res) {
     try {
       if (!req.file) {
-        return res.status(400).json({
-          code: 400,
-          message: '没有上传文件',
-        });
+        return ResponseHandler.error(res, '没有上传文件', 'VALIDATION_ERROR', 400);
       }
 
       // 获取上传的文件信息

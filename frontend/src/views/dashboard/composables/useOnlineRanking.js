@@ -56,7 +56,10 @@ export function useOnlineRanking() {
       // axios拦截器已自动解包，response.data 直接就是数据
       // 兼容解包后和未解包的格式
       const data = response.data || response
-      const rankings = data?.rankings || data?.data?.rankings || []
+      // 后端直接返回数组或 { rankings: [...] } 对象，都要兼容
+      const rankings = Array.isArray(data) ? data
+        : Array.isArray(data?.data) ? data.data
+        : data?.rankings || data?.data?.rankings || []
       const date = data?.date || data?.data?.date || ''
 
       // 计算已花费的时间

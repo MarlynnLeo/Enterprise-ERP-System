@@ -42,13 +42,13 @@
           </el-col>
         </el-row>
       </el-form>
-      
+
       <div class="items-section">
         <div class="items-header">
           <h3>凭证明细</h3>
           <el-button v-permission="'finance:entries:create'" type="success" size="small" plain @click="addItem">添加明细行</el-button>
         </div>
-        
+
         <el-table :data="entryForm.items" border style="width: 100%" class="entry-table">
           <el-table-column label="摘要" width="200">
             <template #default="scope">
@@ -66,7 +66,7 @@
                 style="width: 100%"
                 @change="(val) => handleAccountChange(val, scope.$index)"
               ></el-cascader>
-              
+
               <!-- 辅助核算展开区域 -->
               <div v-if="scope.row._accountAux && Object.values(scope.row._accountAux).some(v => v)" class="aux-area">
                 <el-select v-if="scope.row._accountAux.has_customer" v-model="scope.row.customer_id" placeholder="客户" size="small" class="aux-item">
@@ -89,9 +89,9 @@
           </el-table-column>
           <el-table-column label="借方金额" width="150">
             <template #default="scope">
-              <el-input-number 
-                v-model="scope.row.debit_amount" 
-                :precision="2" :step="100" :min="0" 
+              <el-input-number
+                v-model="scope.row.debit_amount"
+                :precision="2" :step="100" :min="0"
                 :controls="false"
                 style="width: 100%"
                 @change="() => scope.row.credit_amount = scope.row.debit_amount > 0 ? 0 : scope.row.credit_amount"
@@ -100,9 +100,9 @@
           </el-table-column>
           <el-table-column label="贷方金额" width="150">
             <template #default="scope">
-              <el-input-number 
-                v-model="scope.row.credit_amount" 
-                :precision="2" :step="100" :min="0" 
+              <el-input-number
+                v-model="scope.row.credit_amount"
+                :precision="2" :step="100" :min="0"
                 :controls="false"
                 style="width: 100%"
                 @change="() => scope.row.debit_amount = scope.row.credit_amount > 0 ? 0 : scope.row.debit_amount"
@@ -115,7 +115,7 @@
             </template>
           </el-table-column>
         </el-table>
-        
+
         <div class="totals-row">
           <div class="total-label">合计:</div>
           <div class="total-value" :class="{ 'is-balanced': isBalanced, 'is-unbalanced': !isBalanced }">
@@ -229,7 +229,7 @@ const flattenAccounts = (accounts, result = []) => {
 const loadOptions = async () => {
   try {
     const accRes = await api.get('/finance/accounts/options');
-     
+
     const accounts = accRes.data.hasOwnProperty('data') ? accRes.data.data : accRes.data;
     const processAccounts = (list) => {
       return list.map(item => {
@@ -251,7 +251,7 @@ const loadOptions = async () => {
       const custRes = await api.get('/sales/customers').catch(()=>({data:[]}));
       customerOptions.value = custRes?.data?.data || custRes?.data || [];
     } catch(e) { console.warn('加载客户选项失败:', e.message) }
-    
+
     try {
       const userRes = await api.get('/system/users/list').catch(()=>({data:[]}));
       userOptions.value = userRes?.data?.data || userRes?.data || [];
@@ -261,7 +261,7 @@ const loadOptions = async () => {
       const deptRes = await api.get('/system/departments/list').catch(()=>({data:[]}));
       departmentOptions.value = deptRes?.data?.data || deptRes?.data || [];
     } catch(e) { console.warn('加载部门选项失败:', e.message) }
-    
+
     // Attempt suppliers and projects if routes exist
     try {
       const suppRes = await api.get('/purchase/suppliers').catch(()=>({data:[]}));
@@ -294,7 +294,7 @@ const saveEntry = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async valid => {
     if (!valid) return;
-    
+
     if (!isBalanced.value) {
       ElMessage.error('凭证借贷不平，无法保存');
       return;

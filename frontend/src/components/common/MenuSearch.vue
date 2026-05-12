@@ -65,7 +65,7 @@
           </div>
         </div>
       </div>
-      
+
       <div class="search-footer">
         <div class="key-hint">
           <span class="key">↑</span>
@@ -89,7 +89,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePermissionStore } from '../../stores/permissionStore'
-import { 
+import {
   Search, Menu, ArrowRight, Right
 } from '@element-plus/icons-vue'
 
@@ -105,19 +105,19 @@ const inputRef = ref(null)
 // 不再需要手动维护硬编码菜单，新增菜单后搜索自动生效
 const menuOptions = computed(() => {
   const options = []
-  
+
   const flattenMenuTree = (items, parentBreadcrumbs = []) => {
     if (!Array.isArray(items)) return
-    
+
     items.forEach(item => {
       // 跳过按钮权限（type=2）和无名称的项
       if (item.type === 2 || !item.name) return
-      
+
       const currentBreadcrumbs = [...parentBreadcrumbs, item.name]
-      
+
       // 有 path 且是叶子菜单（无子菜单或子菜单都是按钮）才加入搜索
       const visibleChildren = (item.children || []).filter(c => c.type !== 2 && c.name)
-      
+
       if (item.path && visibleChildren.length === 0) {
         options.push({
           path: item.path,
@@ -126,14 +126,14 @@ const menuOptions = computed(() => {
           icon: item.icon ? mapIconName(item.icon) : null
         })
       }
-      
+
       // 递归处理子菜单
       if (visibleChildren.length > 0) {
         flattenMenuTree(visibleChildren, currentBreadcrumbs)
       }
     })
   }
-  
+
   flattenMenuTree(permissionStore.menuTree)
   return options
 })
@@ -149,7 +149,7 @@ const mapIconName = (iconStr) => {
 const filteredOptions = computed(() => {
   if (!keyword.value) return []
   const k = keyword.value.toLowerCase()
-  return menuOptions.value.filter(item => 
+  return menuOptions.value.filter(item =>
     item.title.toLowerCase().includes(k) ||
     item.path.toLowerCase().includes(k) ||
     item.breadcrumbs.some(b => b.toLowerCase().includes(k))
@@ -178,13 +178,13 @@ const handleSearch = () => {
 
 const navigateOptions = (direction) => {
   if (filteredOptions.value.length === 0) return
-  
+
   if (direction === 'next') {
     activeIndex.value = (activeIndex.value + 1) % filteredOptions.value.length
   } else {
     activeIndex.value = (activeIndex.value - 1 + filteredOptions.value.length) % filteredOptions.value.length
   }
-  
+
   // 滚动到可见区域
   const el = document.querySelector('.result-item.active')
   if (el) {
@@ -247,11 +247,11 @@ const handleGlobalKeydown = (e) => {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  
+
   .el-dialog__header {
     display: none;
   }
-  
+
   .el-dialog__body {
     padding: 0;
     max-height: 80vh;
@@ -269,7 +269,7 @@ const handleGlobalKeydown = (e) => {
   background-color: var(--el-fill-color-light);
   box-shadow: none !important;
   border-radius: 8px;
-  
+
   &.is-focus {
     background-color: var(--el-bg-color);
     box-shadow: 0 0 0 2px var(--tech-primary) !important;
@@ -290,11 +290,11 @@ const handleGlobalKeydown = (e) => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  
+
   &:hover, &.active {
     background-color: var(--el-fill-color);
   }
-  
+
   &.active {
     .item-title {
       color: var(--tech-primary);

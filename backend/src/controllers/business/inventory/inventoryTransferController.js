@@ -148,7 +148,7 @@ const getTransferDetail = async (req, res) => {
 
     // 获取调拨单基本信息
     const [transferResults] = await db.pool.execute(
-      `SELECT 
+      `SELECT
         t.id,
         t.transfer_no,
         t.transfer_date,
@@ -176,7 +176,7 @@ const getTransferDetail = async (req, res) => {
 
     // 获取调拨单物料明细
     const [items] = await db.pool.execute(
-      `SELECT 
+      `SELECT
         i.id,
         i.material_id,
         m.code as material_code,
@@ -235,7 +235,7 @@ const createTransfer = async (req, res) => {
       return ResponseHandler.error(
         res,
         '请提供调拨日期、源库位、目标库位和物料明细',
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -246,13 +246,13 @@ const createTransfer = async (req, res) => {
       await PeriodValidationService.validateInventoryTransaction(transfer_date);
     if (!inventoryCheck.allowed) {
       await connection.rollback();
-      return ResponseHandler.error(res, inventoryCheck.message, 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
     }
     // ===== 年度结存校验结束 =====
 
     if (from_location_id === to_location_id) {
       await connection.rollback();
-      return ResponseHandler.error(res, '源库位和目标库位不能相同', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '源库位和目标库位不能相同', 'VALIDATION_ERROR', 400);
     }
 
     // 验证物料明细
@@ -262,7 +262,7 @@ const createTransfer = async (req, res) => {
         return ResponseHandler.error(
           res,
           '调拨物料必须提供物料ID和大于0的数量',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -284,9 +284,7 @@ const createTransfer = async (req, res) => {
           );
           const materialName =
             materialResult.length > 0 ? materialResult[0].name : `物料ID: ${item.material_id}`;
-          return res.status(400).json({
-            message: `库存不足: ${materialName} 当前库存 ${validation.currentStock}, 需要 ${item.quantity}`,
-          });
+          return ResponseHandler.error(res, `库存不足: ${materialName} 当前库存 ${validation.currentStock}, 需要 ${item.quantity}`, 'VALIDATION_ERROR', 400);
         }
       } catch (error) {
         await connection.rollback();
@@ -307,12 +305,12 @@ const createTransfer = async (req, res) => {
     // 创建调拨单
     const [transferResult] = await connection.execute(
       `INSERT INTO inventory_transfers (
-        transfer_no, 
-        transfer_date, 
-        from_location_id, 
-        to_location_id, 
-        status, 
-        remark, 
+        transfer_no,
+        transfer_date,
+        from_location_id,
+        to_location_id,
+        status,
+        remark,
         creator
       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -332,8 +330,8 @@ const createTransfer = async (req, res) => {
     for (const item of items) {
       await connection.execute(
         `INSERT INTO inventory_transfer_items (
-          transfer_id, 
-          material_id, 
+          transfer_id,
+          material_id,
           quantity
         ) VALUES (?, ?, ?)`,
         [transferId, item.material_id, item.quantity]
@@ -387,7 +385,7 @@ const updateTransfer = async (req, res) => {
     // 只有草稿状态的调拨单可以更新
     if (currentStatus !== 'draft') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只有草稿状态的调拨单可以更新', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只有草稿状态的调拨单可以更新', 'VALIDATION_ERROR', 400);
     }
 
     // 基本验证
@@ -402,14 +400,14 @@ const updateTransfer = async (req, res) => {
       return ResponseHandler.error(
         res,
         '请提供调拨日期、源库位、目标库位和物料明细',
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
 
     if (from_location_id === to_location_id) {
       await connection.rollback();
-      return ResponseHandler.error(res, '源库位和目标库位不能相同', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '源库位和目标库位不能相同', 'VALIDATION_ERROR', 400);
     }
 
     // 验证物料明细
@@ -419,7 +417,7 @@ const updateTransfer = async (req, res) => {
         return ResponseHandler.error(
           res,
           '调拨物料必须提供物料ID和大于0的数量',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -440,20 +438,18 @@ const updateTransfer = async (req, res) => {
         );
         const materialName =
           materialResult.length > 0 ? materialResult[0].name : `物料ID: ${item.material_id}`;
-        return res.status(400).json({
-          message: `库存不足: ${materialName} 当前库存 ${currentStock}, 需要 ${item.quantity}`,
-        });
+        return ResponseHandler.error(res, `库存不足: ${materialName} 当前库存 ${currentStock}, 需要 ${item.quantity}`, 'VALIDATION_ERROR', 400);
       }
     }
 
     // 更新调拨单
     await connection.execute(
-      `UPDATE inventory_transfers SET 
-        transfer_date = ?, 
-        from_location_id = ?, 
-        to_location_id = ?, 
-        remark = ?, 
-        updated_at = CURRENT_TIMESTAMP 
+      `UPDATE inventory_transfers SET
+        transfer_date = ?,
+        from_location_id = ?,
+        to_location_id = ?,
+        remark = ?,
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?`,
       [transfer_date, from_location_id, to_location_id, remark || '', id]
     );
@@ -465,8 +461,8 @@ const updateTransfer = async (req, res) => {
     for (const item of items) {
       await connection.execute(
         `INSERT INTO inventory_transfer_items (
-          transfer_id, 
-          material_id, 
+          transfer_id,
+          material_id,
           quantity
         ) VALUES (?, ?, ?)`,
         [id, item.material_id, item.quantity]
@@ -510,7 +506,7 @@ const deleteTransfer = async (req, res) => {
     // 只有草稿状态的调拨单可以删除
     if (currentStatus !== 'draft') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只有草稿状态的调拨单可以删除', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只有草稿状态的调拨单可以删除', 'VALIDATION_ERROR', 400);
     }
 
     // 删除调拨单物料明细
@@ -545,12 +541,12 @@ const updateTransferStatus = async (req, res) => {
     const validStatuses = ['draft', 'pending', 'approved', 'completed', 'cancelled'];
     if (!validStatuses.includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 获取当前调拨单信息
     const [transferResults] = await connection.execute(
-      `SELECT 
+      `SELECT
         t.*,
         fl.name as from_location_name,
         tl.name as to_location_name
@@ -580,9 +576,7 @@ const updateTransferStatus = async (req, res) => {
 
     if (!validTransitions[currentStatus].includes(newStatus)) {
       await connection.rollback();
-      return res.status(400).json({
-        message: `调拨单状态无法从 "${currentStatus}" 变更为 "${newStatus}"`,
-      });
+      return ResponseHandler.error(res, `调拨单状态无法从 "${currentStatus}" 变更为 "${newStatus}"`, 'VALIDATION_ERROR', 400);
     }
 
     // 如果状态从'approved'变更为'completed'，执行实际的库存转移
@@ -590,8 +584,8 @@ const updateTransferStatus = async (req, res) => {
       // 获取调拨单物料明细
       const [items] = await connection.execute(
         `SELECT
-          i.id, 
-          i.material_id, 
+          i.id,
+          i.material_id,
           i.quantity,
           m.name as material_name,
           m.unit_id
@@ -683,7 +677,7 @@ const exportTransfers = async (req, res) => {
     const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return ResponseHandler.error(res, '请选择要导出的调拨单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '请选择要导出的调拨单', 'VALIDATION_ERROR', 400);
     }
 
     const ExcelJS = require('exceljs');
@@ -705,7 +699,7 @@ const exportTransfers = async (req, res) => {
     const placeholders = ids.map(() => '?').join(',');
     const [transfers] = await db.pool.execute(
       `
-      SELECT 
+      SELECT
         t.id,
         t.transfer_no,
         t.from_location_id,
@@ -746,7 +740,7 @@ const exportTransfers = async (req, res) => {
     const allTransferIds = transfers.map(t => t.id);
     const detailPlaceholders = allTransferIds.map(() => '?').join(',');
     const [allItems] = await db.pool.execute(
-      `SELECT 
+      `SELECT
         ti.transfer_id,
         ti.*,
         m.code as material_code,
@@ -837,7 +831,7 @@ const batchDeleteTransfers = async (req, res) => {
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '请选择要删除的调拨单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '请选择要删除的调拨单', 'VALIDATION_ERROR', 400);
     }
 
     // 检查所有调拨单的状态
@@ -860,7 +854,7 @@ const batchDeleteTransfers = async (req, res) => {
       return ResponseHandler.error(
         res,
         `以下调拨单不是草稿状态，无法删除: ${nonDraftNos}`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }

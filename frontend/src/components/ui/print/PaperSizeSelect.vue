@@ -7,8 +7,8 @@
  */
 -->
 <template>
-  <el-select 
-    :model-value="modelValue" 
+  <el-select
+    :model-value="modelValue"
     :placeholder="placeholder"
     :style="{ width: width }"
     @update:model-value="$emit('update:modelValue', $event)"

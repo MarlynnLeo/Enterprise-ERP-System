@@ -495,7 +495,8 @@ class WorkflowService {
 
     switch (templateNode.approver_type) {
       case 'user': {
-        const ids = templateNode.approver_ids ? JSON.parse(templateNode.approver_ids) : [];
+        const raw = templateNode.approver_ids;
+        const ids = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : []);
         if (ids.length > 0) approverId = ids[0]; // 简化: 取第一个
         break;
       }
@@ -515,7 +516,8 @@ class WorkflowService {
         break;
       }
       case 'role': {
-        const roleIds = templateNode.approver_ids ? JSON.parse(templateNode.approver_ids) : [];
+        const raw = templateNode.approver_ids;
+        const roleIds = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : []);
         if (roleIds.length > 0) {
           const [users] = await conn.query(
             `SELECT DISTINCT ur.user_id FROM user_roles ur WHERE ur.role_id IN (?)`,

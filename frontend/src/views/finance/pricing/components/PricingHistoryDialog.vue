@@ -1,8 +1,8 @@
 <template>
   <!-- 定价历史记录对话框 -->
-  <el-dialog 
-    v-model="visible" 
-    title="定价历史记录" 
+  <el-dialog
+    v-model="visible"
+    title="定价历史记录"
     width="800px"
   >
     <el-table :data="history" border stripe max-height="400">

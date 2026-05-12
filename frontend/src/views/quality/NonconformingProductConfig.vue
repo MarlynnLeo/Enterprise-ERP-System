@@ -12,11 +12,11 @@
 
       <el-form :model="config" label-width="180px">
         <el-divider content-position="left">基础配置</el-divider>
-        
+
         <el-form-item label="启用自动处理决策">
-          <el-switch 
-            v-model="config.enable" 
-            active-text="启用" 
+          <el-switch
+            v-model="config.enable"
+            active-text="启用"
             inactive-text="禁用"
             @change="handleConfigChange"
           />
@@ -26,9 +26,9 @@
         </el-form-item>
 
         <el-form-item label="自动完成处理">
-          <el-switch 
-            v-model="config.auto_complete" 
-            active-text="启用" 
+          <el-switch
+            v-model="config.auto_complete"
+            active-text="启用"
             inactive-text="禁用"
             :disabled="!config.enable"
             @change="handleConfigChange"
@@ -39,9 +39,9 @@
         </el-form-item>
 
         <el-form-item label="通知相关人员">
-          <el-switch 
-            v-model="config.notify_users" 
-            active-text="启用" 
+          <el-switch
+            v-model="config.notify_users"
+            active-text="启用"
             inactive-text="禁用"
             :disabled="!config.enable"
             @change="handleConfigChange"

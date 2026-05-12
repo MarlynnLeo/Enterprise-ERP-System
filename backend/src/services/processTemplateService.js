@@ -42,11 +42,11 @@ const processTemplateService = {
             // 查询列表（JOIN materials表获取产品信息）
             const actualPageSize = parseInt(pageSize);
             const [templates] = await pool.query(
-                `SELECT pt.*, m.code as product_code, m.name as product_name 
+                `SELECT pt.*, m.code as product_code, m.name as product_name
          FROM process_templates pt
          LEFT JOIN materials m ON pt.product_id = m.id
-         ${whereClause} 
-         ORDER BY pt.created_at DESC 
+         ${whereClause}
+         ORDER BY pt.created_at DESC
          LIMIT ${actualPageSize} OFFSET ${parseInt(offset)}`,
                 params
             );

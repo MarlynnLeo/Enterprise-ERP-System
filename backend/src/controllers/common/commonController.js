@@ -49,7 +49,7 @@ const commonController = {
         }
 
         default:
-          return ResponseHandler.error(res, `未知的枚举类型: ${type}`, 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, `未知的枚举类型: ${type}`, 'VALIDATION_ERROR', 400);
       }
 
       ResponseHandler.success(res, data, '获取枚举数据成功');

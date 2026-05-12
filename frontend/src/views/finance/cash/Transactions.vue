@@ -22,7 +22,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -63,7 +63,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 交易统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -87,7 +87,7 @@
         <div class="stat-label">平均金额</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -108,7 +108,7 @@
         <el-table-column prop="accountName" label="交易账户" min-width="120"></el-table-column>
         <el-table-column label="交易类型" width="90">
           <template #default="scope">
-            <el-tag 
+            <el-tag
               :type="scope.row.type === 'income' ? 'success' : (scope.row.type === 'expense' ? 'danger' : 'info')"
               size="small"
             >
@@ -126,9 +126,9 @@
         <el-table-column prop="related_party" label="交易对方" min-width="150"></el-table-column>
         <el-table-column label="关联发票" min-width="120">
           <template #default="scope">
-            <el-link 
+            <el-link
               v-if="scope.row.related_invoice_id"
-              type="primary" 
+              type="primary"
               @click="jumpToInvoice(scope.row)"
               underline="never"
             >
@@ -210,7 +210,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -228,7 +228,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑交易对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -238,14 +238,14 @@
       <el-form :model="transactionForm" :rules="transactionRules" ref="transactionFormRef" label-width="100px">
         <el-form-item label="交易类型" prop="type">
           <el-radio-group v-model="transactionForm.type" @change="handleTypeChange">
-            <el-radio 
+            <el-radio
               v-for="type in bankConfig.transactionTypes"
               :key="type.value"
               :value="type.value"
             >{{ type.label }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        
+
         <el-form-item label="交易日期" prop="transactionDate">
           <el-date-picker
             v-model="transactionForm.transactionDate"
@@ -256,7 +256,7 @@
             style="width: 100%"
           ></el-date-picker>
         </el-form-item>
-        
+
         <el-form-item :label="transactionForm.type === 'transfer' ? '源账户' : '交易账户'" prop="accountId">
           <el-select v-model="transactionForm.accountId" placeholder="请选择账户" style="width: 100%">
             <el-option
@@ -267,7 +267,7 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        
+
         <el-form-item v-if="transactionForm.type === 'transfer'" label="目标账户" prop="targetAccountId">
           <el-select v-model="transactionForm.targetAccountId" placeholder="请选择目标账户" style="width: 100%">
             <el-option
@@ -278,41 +278,41 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="交易金额" prop="amount">
-          <el-input-number 
-            v-model="transactionForm.amount" 
-            :precision="2" 
+          <el-input-number
+            v-model="transactionForm.amount"
+            :precision="2"
             :step="100"
             style="width: 100%"
           ></el-input-number>
         </el-form-item>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="交易分类" prop="category">
               <el-select v-model="transactionForm.category" placeholder="请选择分类" style="width: 100%">
                 <el-option-group v-if="transactionForm.type === 'income'" label="收入类别">
-                  <el-option 
-                    v-for="cat in bankConfig.transactionCategories?.income || []" 
-                    :key="cat.value" 
-                    :label="cat.label" 
+                  <el-option
+                    v-for="cat in bankConfig.transactionCategories?.income || []"
+                    :key="cat.value"
+                    :label="cat.label"
                     :value="cat.value"
                   />
                 </el-option-group>
                 <el-option-group v-if="transactionForm.type === 'expense'" label="支出类别">
-                  <el-option 
-                    v-for="cat in bankConfig.transactionCategories?.expense || []" 
-                    :key="cat.value" 
-                    :label="cat.label" 
+                  <el-option
+                    v-for="cat in bankConfig.transactionCategories?.expense || []"
+                    :key="cat.value"
+                    :label="cat.label"
                     :value="cat.value"
                   />
                 </el-option-group>
                 <el-option-group v-if="transactionForm.type === 'transfer'" label="转账类别">
-                  <el-option 
-                    v-for="cat in bankConfig.transactionCategories?.transfer || []" 
-                    :key="cat.value" 
-                    :label="cat.label" 
+                  <el-option
+                    v-for="cat in bankConfig.transactionCategories?.transfer || []"
+                    :key="cat.value"
+                    :label="cat.label"
                     :value="cat.value"
                   />
                 </el-option-group>
@@ -332,11 +332,11 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-form-item label="交易对方" prop="counterparty">
           <el-input v-model="transactionForm.counterparty" placeholder="请输入交易对方名称"></el-input>
         </el-form-item>
-        
+
         <el-form-item label="交易描述" prop="description">
           <el-input
             v-model="transactionForm.description"
@@ -345,7 +345,7 @@
             placeholder="请输入交易描述"
           ></el-input>
         </el-form-item>
-        
+
         <el-form-item label="参考号" prop="referenceNumber">
           <el-input v-model="transactionForm.referenceNumber" placeholder="请输入参考号/单据号"></el-input>
         </el-form-item>
@@ -438,7 +438,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 查看交易详情对话框 -->
     <el-dialog
       title="交易详情"
@@ -467,7 +467,7 @@
           </el-tag>
         </div>
       </div>
-      
+
       <el-descriptions :column="2" border style="margin-top: 20px;">
         <el-descriptions-item label="交易金额">
           <span :class="currentTransaction.type === 'income' ? 'positive-value' : (currentTransaction.type === 'expense' ? 'negative-value' : '')">
@@ -500,12 +500,15 @@ import { useAuthStore } from '@/stores/auth';
 import { useFinanceStore } from '@/stores/finance';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 // 权限store
 const authStore = useAuthStore()
 const financeStore = useFinanceStore()
 const { bankConfig } = storeToRefs(financeStore)
-// 权限计算属性
+// 权限计算属性
+
+
+
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
@@ -836,7 +839,7 @@ const handleEdit = (row) => {
     })
     .catch(error => {
       console.error('获取交易详情失败:', error);
-      
+
       // 如果API不存在，仍然使用行数据填充表单
       if (error.response && error.response.status === 404) {
         // 填充表单数据
@@ -851,7 +854,7 @@ const handleEdit = (row) => {
         transactionForm.description = row.description;
         transactionForm.referenceNumber = row.referenceNumber;
         transactionForm.transactionNumber = row.transactionNumber || row.transaction_number || '';
-        
+
         dialogVisible.value = true;
       } else {
         ElMessage.error('获取交易详情失败');
@@ -872,7 +875,7 @@ const resetTransactionForm = () => {
   transactionForm.description = '';
   transactionForm.referenceNumber = '';
   transactionForm.transactionNumber = '';
-  
+
   // 清除校验
   if (transactionFormRef.value) {
     transactionFormRef.value.resetFields();
@@ -903,7 +906,7 @@ const handleDelete = (row) => {
 // 保存交易
 const saveTransaction = async () => {
   if (!transactionFormRef.value) return;
-  
+
   await transactionFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
@@ -914,11 +917,11 @@ const saveTransaction = async () => {
           const now = new Date();
           transactionNumber = `TX${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
         }
-        
+
         // 获取分类和支付方式的显示文本
         const categoryText = getCategoryDisplayText(transactionForm.category);
         const paymentMethodText = getPaymentMethodDisplayText(transactionForm.paymentMethod);
-        
+
         // 在描述中包含分类和支付方式信息，便于后续解析
         let enhancedDescription = transactionForm.description || '';
         if (categoryText && !enhancedDescription.includes(categoryText)) {
@@ -927,7 +930,7 @@ const saveTransaction = async () => {
         if (paymentMethodText && !enhancedDescription.includes(paymentMethodText)) {
           enhancedDescription = `${enhancedDescription} (${paymentMethodText})`;
         }
-        
+
         // 确保日期格式正确 (YYYY-MM-DD)
         let formattedDate = transactionForm.transactionDate;
         if (typeof formattedDate === 'object' && formattedDate instanceof Date) {
@@ -935,7 +938,7 @@ const saveTransaction = async () => {
         } else if (typeof formattedDate === 'string' && formattedDate.includes('T')) {
           formattedDate = formattedDate.split('T')[0];
         }
-        
+
         // 准备提交的数据
         const data = {
           bank_account_id: transactionForm.accountId,
@@ -951,7 +954,7 @@ const saveTransaction = async () => {
           category: transactionForm.category,
           payment_method: transactionForm.paymentMethod
         };
-        
+
         // 对于编辑操作，保留原交易编号
         if (transactionForm.id) {
           try {
@@ -978,7 +981,7 @@ const saveTransaction = async () => {
             } else if (typeof formattedDate === 'string' && formattedDate.includes('T')) {
               data.transaction_date = formattedDate.split('T')[0];
             }
-            
+
             const response = transactionForm.type === 'transfer'
               ? await api.post('/finance/bank-transactions/transfer', {
                 transaction_number: transactionNumber,
@@ -1049,7 +1052,7 @@ const mapTransactionTypeToFrontend = (backendType) => {
     'interest': 'income',
     'fee': 'expense'
   };
-  
+
   return typeMap[backendType] || 'income'; // 默认为收入类型
 };
 // 从描述中提取交易分类
@@ -1063,14 +1066,14 @@ const getPaymentMethodFromDescription = (description) => {
     { pattern: /(信用卡|credit card)/i, method: 'credit_card' },
     { pattern: /(电子支付|electronic payment|支付宝|微信|alipay|wechat)/i, method: 'electronic_payment' }
   ];
-  
+
   // 查找匹配的支付方式
   for (const { pattern, method } of methodPatterns) {
     if (pattern.test(description)) {
       return method;
     }
   }
-  
+
   // 默认为银行转账
   return 'bank_transfer';
 };
@@ -1108,7 +1111,7 @@ const submitForAudit = async (row) => {
     await api.post(`/finance/bank-transactions/${row.id}/submit`, {
       userId: authStore.user?.id || 0
     });
-    
+
     ElMessage.success('提交审核成功');
     loadTransactions();
   } catch (error) {
@@ -1130,14 +1133,14 @@ const handleAudit = (row) => {
         done();
         return;
       }
-      
+
       const remark = instance.inputValue;
       const status = action === 'confirm' ? 'approved' : 'rejected';
-      
+
       try {
         instance.confirmButtonLoading = true;
         instance.cancelButtonLoading = true;
-        
+
         const response = await api.post(`/finance/bank-transactions/${row.id}/audit`, {
           status,
           remark,
@@ -1172,25 +1175,25 @@ const exportTransactions = () => {
   // 使用环境变量配置的API基础URL，默认为相对路径
   const baseURL = import.meta.env.VITE_API_URL || '';
   let url = `${baseURL}/api/finance/bank-transactions/export`;
-  
+
   const params = [];
   if (searchForm.dateRange && searchForm.dateRange.length === 2) {
     params.push(`startDate=${searchForm.dateRange[0]}`);
     params.push(`endDate=${searchForm.dateRange[1]}`);
   }
-  
+
   if (searchForm.accountId) {
     params.push(`accountId=${searchForm.accountId}`);
   }
-  
+
   if (searchForm.type) {
     params.push(`transactionType=${searchForm.type}`);
   }
-  
+
   if (params.length > 0) {
     url += `?${params.join('&')}`;
   }
-  
+
   window.open(url);
 };
 // 显示导入对话框
@@ -1319,86 +1322,47 @@ const printBankStatement = async () => {
     const selectedAccount = accountOptions.value.find(acc => acc.id === searchForm.accountId);
     const accountName = selectedAccount ? selectedAccount.accountName : '全部账户';
     const accountNumber = selectedAccount ? selectedAccount.accountNumber : '';
-    // 尝试获取打印模板
-    try {
-      const templateResponse = await api.get('/print/templates/public/default', {
-        params: {
-          module: 'finance',
-          template_type: 'bank_statement'
-        }
-      });
-      // 使用统一的响应解析工具
-      const template = parseDataObject(templateResponse, { enableLog: false });
-      if (template) {
-        // 使用模板进行打印
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-          ElMessage.error('无法打开打印窗口，请检查浏览器是否阻止弹出窗口');
-          return;
-        }
-        // 替换模板中的变量
-        let printContent = template.content;
-        // 替换基本信息
-        printContent = printContent.replace(/{{accountName}}/g, accountName);
-        printContent = printContent.replace(/{{accountNumber}}/g, accountNumber);
-        printContent = printContent.replace(/{{companyName}}/g, '浙江开控电气有限公司');
-        printContent = printContent.replace(/{{printDate}}/g, new Date().toLocaleDateString('zh-CN'));
-        // 生成交易记录表格
-        let tableRows = '';
-        let runningBalance = 0;
-        // 按日期排序
-        const sortedData = printData.sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
-        sortedData.forEach((item) => {
-          const amount = parseFloat(item.amount);
-          // 修复交易类型判断 - 使用中文交易类型
-          const isIncome = item.transaction_type === '存款' || item.transaction_type === '转入' || item.transaction_type === 'deposit' || item.transaction_type === 'income';
-          if (isIncome) {
-            runningBalance += amount;
-          } else {
-            runningBalance -= amount;
-          }
-          tableRows += `
-            <tr>
-              <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.transaction_date}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.related_party || ''}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.reference_number || ''}</td>
-              <td style="border: 1px solid #000; padding: 4px;">${item.description || ''}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: right;">${isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-'}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: right;">${!isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-'}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: right;">${runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</td>
-            </tr>
-          `;
-        });
-        printContent = printContent.replace(/{{transactionRows}}/g, tableRows);
-        // 计算合计 - 修复交易类型判断
-        const totalIncome = sortedData.filter(item =>
-          item.transaction_type === '存款' || item.transaction_type === '转入' ||
-          item.transaction_type === 'deposit' || item.transaction_type === 'income'
-        ).reduce((sum, item) => sum + parseFloat(item.amount), 0);
-        const totalExpense = sortedData.filter(item =>
-          item.transaction_type === '取款' || item.transaction_type === '转出' ||
-          item.transaction_type === 'withdrawal' || item.transaction_type === 'expense'
-        ).reduce((sum, item) => sum + parseFloat(item.amount), 0);
-        printContent = printContent.replace(/{{totalIncome}}/g, totalIncome.toLocaleString('zh-CN', { minimumFractionDigits: 2 }));
-        printContent = printContent.replace(/{{totalExpense}}/g, totalExpense.toLocaleString('zh-CN', { minimumFractionDigits: 2 }));
-        printContent = printContent.replace(/{{finalBalance}}/g, runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 }));
-        writeSafeHtmlDocument(printWindow, printContent);
-        // 等待内容加载完成后打印
-        printWindow.onload = function() {
-          setTimeout(() => {
-            printWindow.print();
-          }, 500);
-        };
-      } else {
-        // 没有找到模板
-        ElMessage.error('未找到银行存款日记账打印模板，请联系管理员配置模板');
-        return;
-      }
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError);
-      ElMessage.error('获取打印模板失败，请联系管理员检查模板配置');
-      return;
-    }
+    const sortedData = [...printData].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+    const incomeTypes = new Set(['存款', '转入', 'deposit', 'income']);
+    const expenseTypes = new Set(['取款', '转出', 'withdrawal', 'expense']);
+    let runningBalance = 0;
+
+    const items = sortedData.map((item, index) => {
+      const amount = Number(item.amount) || 0;
+      const isIncome = incomeTypes.has(item.transaction_type);
+      runningBalance += isIncome ? amount : -amount;
+
+      return {
+        index: index + 1,
+        transaction_date: item.transaction_date,
+        counterparty: item.related_party || '',
+        reference_number: item.reference_number || '',
+        description: item.description || '',
+        income_amount: isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
+        expense_amount: !isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
+        balance: runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })
+      };
+    });
+
+    const totalIncome = sortedData
+      .filter(item => incomeTypes.has(item.transaction_type))
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const totalExpense = sortedData
+      .filter(item => expenseTypes.has(item.transaction_type))
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+    const html = await printService.generateByDefaultTemplate('finance', 'bank_statement', {
+      accountName,
+      accountNumber,
+      printDate: new Date().toLocaleDateString('zh-CN'),
+      totalIncome: totalIncome.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
+      totalExpense: totalExpense.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
+      finalBalance: runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
+      items
+    });
+
+    printService.previewDocument(html);
+    ElMessage.success(`准备打印 ${printData.length} 条交易记录`);
   } catch (error) {
     console.error('打印失败:', error);
     ElMessage.error('打印失败: ' + (error.message || '未知错误'));
@@ -1410,7 +1374,7 @@ const jumpToInvoice = (row) => {
     ElMessage.warning('未找到关联发票信息');
     return;
   }
-  
+
   const router = useRouter();
   if (row.relatedInvoiceType === 'AR') {
     // 跳转到应收发票页面

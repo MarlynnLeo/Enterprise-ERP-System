@@ -17,11 +17,326 @@ const AsyncTaskService = require('../../../services/business/AsyncTaskService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
-// 导入生产发料状态同步和智能出库能力
-const { checkAndUpdateTaskStatus, _syncProductionStatus, smartOutboundStock } = require('./inventoryConsistencyController');
+// 导入生产发料状态同步能力
+const { checkAndUpdateTaskStatus, _syncProductionStatus } = require('./inventoryConsistencyController');
+const {
+  calculateMaterialRequirementsWithStock,
+} = require('../../../services/business/MaterialCalculationService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
+
+const PRODUCTION_OUTBOUND_REFERENCE_TYPES = new Set([
+  'production_task',
+  'production_plan',
+  'batch_production_tasks',
+]);
+
+const isProductionOutboundReference = (referenceType) =>
+  PRODUCTION_OUTBOUND_REFERENCE_TYPES.has(referenceType);
+
+const normalizeOutboundItem = (item) => ({
+  ...item,
+  materialId: item.materialId || item.material_id,
+  unitId: item.unitId || item.unit_id,
+  batchNumber: item.batchNumber || item.batch_number,
+});
+
+const toQuantityNumber = (value, fallback = 0) => {
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeIssueQuantities = (item) => {
+  const plannedQuantity = toQuantityNumber(
+    item.planned_quantity ??
+      item.plannedQuantity ??
+      item.required_quantity ??
+      item.requiredQuantity ??
+      item.quantity,
+    0
+  );
+
+  const actualFallback = plannedQuantity;
+  const actualQuantity = toQuantityNumber(
+    item.actual_quantity ??
+      item.actualQuantity ??
+      item.issue_quantity ??
+      item.issueQuantity,
+    actualFallback
+  );
+
+  const shortageQuantity = toQuantityNumber(
+    item.shortage_quantity ?? item.shortageQuantity,
+    Math.max(plannedQuantity - actualQuantity, 0)
+  );
+
+  return {
+    plannedQuantity,
+    actualQuantity,
+    shortageQuantity,
+    isShortage: shortageQuantity > 0 ? 1 : 0,
+  };
+};
+
+const getMaterialInfoMap = async (connection, materialIds) => {
+  const uniqueIds = [...new Set((materialIds || []).filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+
+  const placeholders = uniqueIds.map(() => '?').join(',');
+  const [rows] = await connection.execute(
+    `SELECT id, code, name, location_id, unit_id, price, COALESCE(cost_price, 0) AS cost_price
+     FROM materials
+     WHERE id IN (${placeholders})`,
+    uniqueIds
+  );
+
+  const infoMap = new Map(
+    rows.map((row) => [
+      row.id,
+      {
+        locationId: row.location_id || null,
+        unitId: row.unit_id || null,
+        code: row.code || '',
+        name: row.name || '',
+        price: parseFloat(row.price) || 0,
+        costPrice: parseFloat(row.cost_price) || 0,
+      },
+    ])
+  );
+
+  for (const id of uniqueIds) {
+    if (!infoMap.has(id)) {
+      throw new Error(`Material ${id} does not exist`);
+    }
+  }
+
+  return infoMap;
+};
+
+const getProductionPlanMaterialRows = async (connection, planId) => {
+  if (!planId) return [];
+
+  const [columnRows] = await connection.execute(
+    `
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'production_plan_materials'
+    `
+  );
+  const columnSet = new Set(columnRows.map((column) => column.COLUMN_NAME));
+  const grossColumn = columnSet.has('gross_required_quantity')
+    ? 'ppm.gross_required_quantity'
+    : 'ppm.required_quantity';
+  const issueColumn = columnSet.has('issue_quantity')
+    ? 'ppm.issue_quantity'
+    : 'ppm.required_quantity';
+  const shortageColumn = columnSet.has('shortage_quantity')
+    ? 'ppm.shortage_quantity'
+    : '0';
+
+  const [rows] = await connection.execute(
+    `
+    SELECT
+      ppm.material_id,
+      ${grossColumn} AS gross_required_quantity,
+      ppm.required_quantity,
+      ${issueColumn} AS issue_quantity,
+      ${shortageColumn} AS shortage_quantity,
+      ppm.stock_quantity,
+      ppm.level,
+      m.unit_id
+    FROM production_plan_materials ppm
+    JOIN materials m ON m.id = ppm.material_id
+    WHERE ppm.plan_id = ?
+      AND ppm.required_quantity > 0
+    ORDER BY ppm.level ASC, ppm.id ASC
+    `,
+    [planId]
+  );
+
+  return rows;
+};
+
+const mergeRequirementRows = (materialMap, rows, scale = 1, sourceTask = null) => {
+  for (const row of rows) {
+    const plannedQuantity = (parseFloat(row.required_quantity) || 0) * scale;
+    const issueQuantity = (parseFloat(row.issue_quantity ?? row.issueQuantity ?? row.required_quantity) || 0) * scale;
+    const shortageQuantity = (parseFloat(row.shortage_quantity ?? row.shortageQuantity ?? 0) || 0) * scale;
+    const grossRequiredQuantity =
+      (parseFloat(row.gross_required_quantity ?? row.grossRequiredQuantity ?? row.required_quantity) || 0) *
+      scale;
+    if (plannedQuantity <= 0) continue;
+
+    const materialId = row.material_id || row.materialId;
+    const existing = materialMap.get(materialId) || {
+      material_id: materialId,
+      unit_id: row.unit_id || row.unitId || null,
+      quantity: 0,
+      planned_quantity: 0,
+      actual_quantity: 0,
+      shortage_quantity: 0,
+      gross_required_quantity: 0,
+      level: row.level || 1,
+      source_tasks: [],
+    };
+
+    existing.quantity += plannedQuantity;
+    existing.planned_quantity += plannedQuantity;
+    existing.actual_quantity += issueQuantity;
+    existing.shortage_quantity += shortageQuantity;
+    existing.gross_required_quantity += grossRequiredQuantity;
+    existing.level = Math.min(existing.level || row.level || 1, row.level || 1);
+    if (!existing.unit_id && (row.unit_id || row.unitId)) {
+      existing.unit_id = row.unit_id || row.unitId;
+    }
+    if (sourceTask) {
+      existing.source_tasks.push({
+        ...sourceTask,
+        quantity: plannedQuantity,
+        actual_quantity: issueQuantity,
+        shortage_quantity: shortageQuantity,
+      });
+    }
+    materialMap.set(materialId, existing);
+  }
+};
+
+const getTaskNetRequirementRows = async (connection, task) => {
+  const planMaterials = await getProductionPlanMaterialRows(connection, task.plan_id);
+  if (planMaterials.length > 0) {
+    const planQuantity = parseFloat(task.plan_quantity) || parseFloat(task.quantity) || 1;
+    const taskQuantity = parseFloat(task.quantity) || 0;
+    const scale = planQuantity > 0 ? taskQuantity / planQuantity : 1;
+    return planMaterials.map((row) => ({
+      ...row,
+      gross_required_quantity: (parseFloat(row.gross_required_quantity) || 0) * scale,
+      required_quantity: (parseFloat(row.required_quantity) || 0) * scale,
+      issue_quantity: (parseFloat(row.issue_quantity) || 0) * scale,
+      shortage_quantity: (parseFloat(row.shortage_quantity) || 0) * scale,
+    }));
+  }
+
+  const requirements = await calculateMaterialRequirementsWithStock(
+    task.product_id,
+    task.bom_id || null,
+    parseFloat(task.quantity) || 0,
+    task.plan_id || null
+  );
+
+  return requirements.map((item) => ({
+    material_id: item.materialId,
+    required_quantity: item.requiredQuantity,
+    gross_required_quantity: item.grossRequiredQuantity || item.requiredQuantity,
+    issue_quantity: item.issueQuantity ?? item.requiredQuantity,
+    shortage_quantity: item.shortageQuantity || 0,
+    level: item.level || 1,
+    unit_id: item.unitId || item.unit_id || null,
+  }));
+};
+
+const insertOutboundRequirementItems = async (connection, outboundId, materialMap) => {
+  const materials = Array.from(materialMap.values()).filter((item) => item.quantity > 0);
+  const missingUnitMaterialIds = materials
+    .filter((item) => !item.unit_id)
+    .map((item) => item.material_id);
+
+  if (missingUnitMaterialIds.length > 0) {
+    const uniqueMissingUnitIds = [...new Set(missingUnitMaterialIds)];
+    const placeholders = uniqueMissingUnitIds.map(() => '?').join(',');
+    const [unitRows] = await connection.execute(
+      `SELECT id, unit_id FROM materials WHERE id IN (${placeholders})`,
+      uniqueMissingUnitIds
+    );
+    const unitMap = new Map(unitRows.map((row) => [row.id, row.unit_id]));
+
+    for (const material of materials) {
+      if (!material.unit_id) {
+        material.unit_id = unitMap.get(material.material_id) || null;
+      }
+    }
+  }
+
+  for (const material of materials) {
+    const plannedQuantity = Number(material.planned_quantity ?? material.quantity) || 0;
+    const actualQuantity = Number(material.actual_quantity ?? material.quantity) || 0;
+    const shortageQuantity = Number(material.shortage_quantity ?? 0) || 0;
+
+    await connection.execute(
+      `INSERT INTO inventory_outbound_items
+        (outbound_id, material_id, quantity, planned_quantity, actual_quantity,
+         shortage_quantity, is_shortage, unit_id, source_tasks, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [
+        outboundId,
+        material.material_id,
+        plannedQuantity,
+        plannedQuantity,
+        actualQuantity,
+        shortageQuantity,
+        shortageQuantity > 0 ? 1 : 0,
+        material.unit_id,
+        material.source_tasks.length > 0 ? JSON.stringify(material.source_tasks) : null,
+      ]
+    );
+  }
+
+  return materials.length;
+};
+
+const issueOutboundItemFromDetail = async ({
+  connection,
+  item,
+  locationId,
+  outboundNo,
+  operator,
+  referenceType,
+  unitId,
+  issueReason = null,
+  isExcess = 0,
+  batchNumber = null,
+}) => {
+  const actualQuantity = parseFloat(item.actual_quantity ?? item.actualQuantity ?? 0);
+  if (actualQuantity <= 0) return null;
+
+  if (!locationId) {
+    throw new Error(`Material ${item.material_id || item.materialId} has no default location`);
+  }
+
+  const currentStock = await InventoryService.getCurrentStock(
+    item.material_id || item.materialId,
+    locationId,
+    connection,
+    true
+  );
+
+  if (currentStock < actualQuantity) {
+    throw new Error(
+      `Material ${item.material_id || item.materialId} stock is insufficient. Current ${currentStock}, required ${actualQuantity}`
+    );
+  }
+
+  return InventoryService.updateStock(
+    {
+      materialId: item.material_id || item.materialId,
+      locationId,
+      transactionType: isProductionOutboundReference(referenceType)
+        ? 'production_outbound'
+        : 'outbound',
+      quantity: -actualQuantity,
+      unitId,
+      referenceNo: outboundNo,
+      referenceType: 'outbound',
+      operator,
+      remark: `Outbound: ${outboundNo}`,
+      issue_reason: issueReason,
+      is_excess: isExcess,
+      batchNumber,
+    },
+    connection
+  );
+};
 
 
 // 引入成本凭证服务（用于生成领料凭证）
@@ -301,33 +616,8 @@ const getOutboundDetail = async (req, res) => {
       [id]
     );
 
-    // 获取实际出库记录（包括替代物料）
-    const [actualOutboundResult] = await connection.execute(
-      `
-      SELECT
-        il.material_id,
-        ABS(il.quantity) as actual_quantity,
-        m.code as material_code,
-        m.name as material_name,
-        m.specs as specification,
-        u.name as unit_name,
-        il.location_id,
-        l.name as location_name,
-        il.remark,
-        COALESCE(s.quantity, 0) as current_stock_quantity
-      FROM inventory_ledger il
-      LEFT JOIN materials m ON il.material_id = m.id
-      LEFT JOIN units u ON il.unit_id = u.id
-      LEFT JOIN locations l ON il.location_id = l.id
-      LEFT JOIN ${STOCK_SUBQUERY} s ON m.id = s.material_id AND s.location_id = il.location_id
-      WHERE il.reference_no = ? AND il.transaction_type = 'outbound' AND il.quantity < 0
-      ORDER BY il.created_at
-    `,
-      [outboundResult[0].outbound_no]
-    );
-
-    // 如果是生产出库单且明细为空且状态为draft（撤销后的情况），从BOM重新获取并保存
-    // 注意：只有draft状态才从BOM获取，completed状态的出库单应该显示实际出库的物料
+    // 如果是生产出库单且明细为空且状态为draft（撤销后的情况），从统一净需求重新生成并保存
+    // 注意：completed状态只显示实际出库明细，不再临时展开BOM
     let finalItemsResult = itemsResult;
     const outbound = outboundResult[0];
 
@@ -339,10 +629,10 @@ const getOutboundDetail = async (req, res) => {
       outbound.reference_id
     ) {
       logger.info(
-        `出库单 ${id} (状态:${STATUS.OUTBOUND.DRAFT}) 明细为空，准备从BOM重新获取并保存...`
+        `出库单 ${id} (状态:${STATUS.OUTBOUND.DRAFT}) 明细为空，准备从统一净需求重新生成...`
       );
 
-      // 使用辅助函数从BOM获取并保存物料明细
+      // 使用统一净需求结果保存物料明细
       const bomResult = await fetchBomItemsForOutbound(
         connection,
         id,
@@ -374,7 +664,7 @@ const getOutboundDetail = async (req, res) => {
 
         finalItemsResult = savedItems;
       } else if (!bomResult.success) {
-        logger.warn(`出库单 ${id} 从BOM获取物料失败: ${bomResult.error}`);
+        logger.warn(`出库单 ${id} 从统一净需求生成物料失败: ${bomResult.error}`);
       }
     }
 
@@ -387,38 +677,7 @@ const getOutboundDetail = async (req, res) => {
           : 0,
     }));
 
-    // 重构完整的出库信息（包括替代物料）
-    const enhancedItems = processedItems.map((originalItem) => {
-      // 查找该物料的实际出库记录
-      const _actualRecords = actualOutboundResult.filter(
-        (record) => record.material_id === originalItem.material_id
-      );
-
-      // 查找替代物料出库记录（通过remark识别）
-      const substituteRecords = actualOutboundResult.filter(
-        (record) => record.remark && record.remark.includes(`替代物料 ${originalItem.material_id}`)
-      );
-
-      const enhancedItem = { ...originalItem };
-
-      // 如果有替代物料出库，添加替代物料信息
-      if (substituteRecords.length > 0) {
-        enhancedItem.substitutionInfo = {
-          substituteMaterials: substituteRecords.map((sub) => ({
-            materialId: sub.material_id,
-            code: sub.material_code,
-            name: sub.material_name,
-            specification: sub.specification || '',
-            unit: sub.unit_name || '件',
-            stockQuantity: sub.current_stock_quantity,
-            requiredQuantity: 1, // BOM基础数量，这里简化为1
-            actualOutboundQuantity: sub.actual_quantity,
-          })),
-        };
-      }
-
-      return enhancedItem;
-    });
+    const enhancedItems = processedItems;
 
     // 从明细项中获取location_id和location_name (如果有多个，使用第一个)
     let locationId = null;
@@ -437,7 +696,7 @@ const getOutboundDetail = async (req, res) => {
 
     const outboundDetail = {
       ...outboundResult[0],
-      items: enhancedItems, // 使用包含替代物料信息的增强数据
+      items: enhancedItems,
       location_id: locationId, // 使用从明细项中获取的location_id
       location_name: locationName, // 使用从明细项中获取的location_name
       production_task_id: productionTaskId, // 如果关联的是生产任务，返回任务ID
@@ -491,7 +750,7 @@ const updateOutbound = async (req, res) => {
 
     // 只要出库单还没有完成(completed),就允许更新
     if (currentStatus === STATUS.OUTBOUND.COMPLETED) {
-      return ResponseHandler.error(res, '已完成的出库单不能修改', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已完成的出库单不能修改', 'VALIDATION_ERROR', 400);
     }
 
     // 格式化日期
@@ -593,7 +852,7 @@ const updateOutbound = async (req, res) => {
       const completedMaterialIds = items.map(i => i.material_id);
       let completedMaterialInfoMap;
       try {
-        completedMaterialInfoMap = await InventoryService.getBatchMaterialInfo(completedMaterialIds, connection);
+        completedMaterialInfoMap = await getMaterialInfoMap(connection, completedMaterialIds);
       } catch (e) {
         // getBatchMaterialInfo 会对未配置仓库的物料抛错，这里降级为空 Map
         logger.warn('完成出库时批量获取物料信息失败（可能有物料未配置仓库）:', e.message);
@@ -608,25 +867,24 @@ const updateOutbound = async (req, res) => {
           const locationId = matInfo?.locationId || null; // 从物料表取真实默认库位，如果没有不能强行转1
 
           // ========== 部分发料支持: 使用actual_quantity扣减库存 ==========
-          const actualQuantity = parseFloat(item.actual_quantity ?? item.quantity) || 0; // Fallback to quantity if actual is missing
+          const actualQuantity = isProductionOutbound
+            ? parseFloat(item.actual_quantity ?? 0) || 0
+            : parseFloat(item.actual_quantity ?? item.quantity) || 0;
 
           if (actualQuantity > 0) {
             if (isProductionOutbound) {
-              // 使用智能出库逻辑
-              await smartOutboundStock(
-                item.material_id,
-                locationId,
-                actualQuantity,
-                outboundRecord.operator,
-                `出库单号: ${outboundRecord.outbound_no}`,
-                referenceId,
+              await issueOutboundItemFromDetail({
                 connection,
-                {
-                  issueReason: outboundRecord.issue_reason,
-                  isExcess: outboundRecord.is_excess,
-                  batchNumber: item.batch_number || item.batchNumber
-                }
-              );
+                item: { ...item, actual_quantity: actualQuantity },
+                locationId,
+                outboundNo: outboundRecord.outbound_no,
+                operator: outboundRecord.operator,
+                referenceType,
+                unitId: item.unit_id,
+                issueReason: outboundRecord.issue_reason,
+                isExcess: outboundRecord.is_excess,
+                batchNumber: item.batch_number || item.batchNumber,
+              });
             } else {
               // 普通出库逻辑：由于单仓架构废弃了旧库位校验规则，且不再存在“智能寻仓”，强制使用物料的默认存放仓库 (或业务指派) 出库。
               // 若未指定仓库且物料也未配置默认仓库，拒绝出库以防库存错乱。
@@ -853,9 +1111,9 @@ const _createOutbound = async (outboundData) => {
     // 插入出库单主表（含出库类型标记）
     const outboundType = outboundData.outbound_type || 'manual';
     const [result] = await connection.execute(
-      `INSERT INTO inventory_outbound 
-        (outbound_no, outbound_date, status, outbound_type, operator, remark, reference_id, reference_type, production_task_id, issue_reason, is_excess) 
-       VALUES 
+      `INSERT INTO inventory_outbound
+        (outbound_no, outbound_date, status, outbound_type, operator, remark, reference_id, reference_type, production_task_id, issue_reason, is_excess)
+       VALUES
         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         outboundNo,
@@ -881,15 +1139,36 @@ const _createOutbound = async (outboundData) => {
       outboundData.items = items;
     }
 
+    outboundData.items = outboundData.items.map(normalizeOutboundItem);
+
     // 如果没有items，直接提交并返回
     if (outboundData.items.length === 0) {
+      if (referenceType === 'production_task' && productionTaskId) {
+        const fillResult = await fetchBomItemsForOutbound(
+          connection,
+          outboundId,
+          referenceType,
+          productionTaskId
+        );
+        if (!fillResult.success) {
+          throw new Error(fillResult.error);
+        }
+        await connection.commit();
+        return {
+          id: outboundId,
+          outboundNo: outboundNo,
+          generatedItems: fillResult.itemCount,
+          warning: 'Production outbound items were generated from net material requirements',
+        };
+      }
+
       await connection.commit();
       return { id: outboundId, outboundNo: outboundNo, warning: '出库单创建成功，但没有明细项' };
     }
 
     // 批量获取所有物料的仓库和单位信息（通过 InventoryService 统一入口）
     const materialIds = outboundData.items.map((item) => item.materialId);
-    const materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, connection);
+    const materialInfoMap = await getMaterialInfoMap(connection, materialIds);
 
     // 构建兼容的 materialLocationMap（供后续逻辑使用）
     const materialLocationMap = {};
@@ -902,11 +1181,16 @@ const _createOutbound = async (outboundData) => {
 
     // 插入出库单明细
     for (const item of outboundData.items) {
-      if (!item.materialId || !item.quantity) {
+      if (!item.materialId) {
         throw new Error('每个出库项目必须包含物料ID和数量');
       }
 
       const matInfo = materialInfoMap.get(item.materialId);
+      const { plannedQuantity, actualQuantity, shortageQuantity, isShortage } =
+        normalizeIssueQuantities(item);
+      if (plannedQuantity <= 0) {
+        throw new Error('Invalid outbound item quantity');
+      }
 
       // 如果没有提供 unitId，使用批查询中获取的默认单位
       if (!item.unitId) {
@@ -920,7 +1204,7 @@ const _createOutbound = async (outboundData) => {
 
       // 获取物料对应的库位，由于已经通过getBatchMaterialInfo校验过，一定存在
       let locationId = materialLocationMap[item.materialId];
-      if (!locationId) {
+      if (!locationId && actualQuantity > 0) {
         // 只有在状态为completed时才严格检查物料和库位
         if (status === STATUS.OUTBOUND.COMPLETED) {
           throw new Error(`物料ID ${item.materialId} 不存在或没有设置默认库位`);
@@ -936,11 +1220,6 @@ const _createOutbound = async (outboundData) => {
       const itemRemark = item.remark !== undefined ? item.remark : null;
 
       // ========== 部分发料支持: 检查库存并设置planned/actual quantity ==========
-      const plannedQuantity = parseFloat(item.quantity);
-      const actualQuantity = plannedQuantity;
-      const shortageQuantity = 0;
-      const isShortage = 0;
-
       // 查询当前库存
       try {
         const [stockResult] = await connection.execute(
@@ -992,7 +1271,7 @@ const _createOutbound = async (outboundData) => {
           [
             outboundId,
             item.materialId,
-            item.quantity,
+            plannedQuantity,
             plannedQuantity,
             actualQuantity,
             shortageQuantity,
@@ -1010,21 +1289,19 @@ const _createOutbound = async (outboundData) => {
       if (status === STATUS.OUTBOUND.COMPLETED) {
         // 只有actual_quantity > 0时才扣减库存
         if (actualQuantity > 0) {
-          // 如果是生产出库，使用智能出库逻辑
-          if (referenceType === 'production_plan') {
-            await smartOutboundStock(
-              item.materialId,
-              locationId,
-              actualQuantity,
-              operator,
-              `出库单号: ${outboundNo}`,
-              referenceId,
+          if (isProductionOutboundReference(referenceType)) {
+            await issueOutboundItemFromDetail({
               connection,
-              {
-                issueReason: outboundData.issueReason || outboundData.issue_reason,
-                isExcess: outboundData.isExcess || 0,
-              }
-            );
+              item: { material_id: item.materialId, actual_quantity: actualQuantity },
+              locationId,
+              outboundNo,
+              operator,
+              referenceType,
+              unitId: item.unitId,
+              issueReason: outboundData.issueReason || outboundData.issue_reason,
+              isExcess: outboundData.isExcess || 0,
+              batchNumber: item.batchNumber || item.batch_number,
+            });
           } else {
             // 普通出库 - 使用新的InventoryService
             await InventoryService.updateStock(
@@ -1318,7 +1595,7 @@ const deleteOutbound = async (req, res) => {
 
     // 检查出库单状态，只允许删除草稿状态的出库单
     if (status !== 'draft') {
-      return ResponseHandler.error(res, '只能删除草稿状态的出库单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能删除草稿状态的出库单', 'VALIDATION_ERROR', 400);
     }
 
     // 如果出库单关联了生产任务,回退任务状态
@@ -1434,7 +1711,7 @@ const _cancelOutboundLegacy = async (req, res) => {
     // 统一使用状态常量
     if (status !== STATUS.OUTBOUND.COMPLETED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能撤销已完成的出库单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能撤销已完成的出库单', 'VALIDATION_ERROR', 400);
     }
 
     // ============ 新增：检查关联的生产任务/计划状态，判断是否允许撤销 ============
@@ -1466,7 +1743,7 @@ const _cancelOutboundLegacy = async (req, res) => {
           return ResponseHandler.error(
             res,
             `无法撤销：关联的生产任务 ${taskCode} 已进入"${getStatusText(taskStatus)}"状态，物料已被消耗转化为成品，撤销会导致数据不一致`,
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
@@ -1502,7 +1779,7 @@ const _cancelOutboundLegacy = async (req, res) => {
           return ResponseHandler.error(
             res,
             `无法撤销：关联的生产计划 ${planCode} 已进入"${getStatusText(planStatus)}"状态，物料已被消耗转化为成品，撤销会导致数据不一致`,
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
@@ -1543,7 +1820,7 @@ const _cancelOutboundLegacy = async (req, res) => {
           return ResponseHandler.error(
             res,
             `无法撤销：该计划下有 ${completedNum} 个生产任务已完成或进入检验阶段，物料已被消耗转化为成品`,
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
@@ -1741,7 +2018,7 @@ const _cancelOutboundLegacy = async (req, res) => {
           [id]
         );
         logger.info(
-          `已删除出库单 ${outbound_no} 的 ${deleteResult.affectedRows} 条明细项，重新出库时将获取最新BOM`
+        `已删除出库单 ${outbound_no} 的 ${deleteResult.affectedRows} 条明细项，重新出库时将使用统一净需求`
         );
       } catch (deleteError) {
         logger.error('删除出库单明细失败:', deleteError);
@@ -1823,88 +2100,131 @@ const _cancelOutboundLegacy = async (req, res) => {
   }
 };
 
-/**
- * 辅助函数：从BOM获取物料明细并保存到出库单
- * @param {Object} connection - 数据库连接
- * @param {number} outboundId - 出库单ID
- * @param {string} referenceType - 关联类型 ('production_task' 或 'production_plan')
- * @param {number} referenceId - 关联ID
- * @returns {Object} { success: boolean, itemCount: number, error?: string }
- */
-
 const fetchBomItemsForOutbound = async (connection, outboundId, referenceType, referenceId) => {
   try {
-    // 获取生产任务/计划信息以获取product_id
-    let productId = null;
-    let planQuantity = 1;
+    const materialMap = new Map();
 
     if (referenceType === 'production_task') {
-      const [taskInfo] = await connection.execute(
-        'SELECT product_id, quantity FROM production_tasks WHERE id = ?',
+      const [tasks] = await connection.execute(
+        `SELECT
+           pt.id,
+           pt.code,
+           pt.product_id,
+           pt.quantity,
+           pt.plan_id,
+           pp.quantity AS plan_quantity,
+           pp.bom_id
+         FROM production_tasks pt
+         LEFT JOIN production_plans pp ON pp.id = pt.plan_id
+         WHERE pt.id = ?`,
         [referenceId]
       );
-      if (taskInfo.length > 0) {
-        productId = taskInfo[0].product_id;
-        planQuantity = parseFloat(taskInfo[0].quantity) || 1;
+
+      if (tasks.length === 0) {
+        return { success: false, itemCount: 0, error: '生产任务不存在' };
       }
+
+      const rows = await getTaskNetRequirementRows(connection, tasks[0]);
+      mergeRequirementRows(materialMap, rows);
     } else if (referenceType === 'production_plan') {
-      const [planInfo] = await connection.execute(
-        'SELECT product_id, quantity FROM production_plans WHERE id = ?',
-        [referenceId]
-      );
-      if (planInfo.length > 0) {
-        productId = planInfo[0].product_id;
-        planQuantity = parseFloat(planInfo[0].quantity) || 1;
+      const planRows = await getProductionPlanMaterialRows(connection, referenceId);
+      if (planRows.length > 0) {
+        mergeRequirementRows(materialMap, planRows);
+      } else {
+        const [plans] = await connection.execute(
+          `SELECT product_id, quantity, bom_id
+           FROM production_plans
+           WHERE id = ?`,
+          [referenceId]
+        );
+
+        if (plans.length === 0) {
+          return { success: false, itemCount: 0, error: '生产计划不存在' };
+        }
+
+        const requirements = await calculateMaterialRequirementsWithStock(
+          plans[0].product_id,
+          plans[0].bom_id || null,
+          parseFloat(plans[0].quantity) || 0,
+          referenceId
+        );
+
+        mergeRequirementRows(
+          materialMap,
+          requirements.map((item) => ({
+            material_id: item.materialId,
+            required_quantity: item.requiredQuantity,
+            level: item.level || 1,
+            unit_id: item.unitId || item.unit_id || null,
+          }))
+        );
       }
+    } else {
+      return { success: false, itemCount: 0, error: '不支持的生产出库来源类型' };
     }
 
-    if (!productId) {
-      return { success: false, itemCount: 0, error: '无法获取产品信息' };
+    if (materialMap.size === 0) {
+      return { success: false, itemCount: 0, error: '统一净需求结果为空，无法生成生产出库明细' };
     }
 
-    // 通过product_id获取已审核的BOM（通过approved_by字段判断是否已审核）
-    const [bomResult] = await connection.execute(
-      'SELECT id FROM bom_masters WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL ORDER BY id DESC LIMIT 1',
-      [productId]
-    );
-
-    if (bomResult.length === 0) {
-      return { success: false, itemCount: 0, error: '关联的产品没有启用的BOM' };
-    }
-
-    const bomId = bomResult[0].id;
-
-    // 从BOM获取物料明细（只获取第一层级）
-    const [bomItems] = await connection.execute(
-      `SELECT bd.material_id, bd.quantity as bom_quantity, m.unit_id
-       FROM bom_details bd
-       JOIN materials m ON bd.material_id = m.id
-       WHERE bd.bom_id = ? AND bd.level = 1`,
-      [bomId]
-    );
-
-    // 插入出库单明细
-    for (const bomItem of bomItems) {
-      const requiredQuantity = parseFloat(bomItem.bom_quantity) * planQuantity;
-      await connection.execute(
-        `INSERT INTO inventory_outbound_items
-          (outbound_id, material_id, quantity, planned_quantity, actual_quantity, unit_id)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          outboundId,
-          bomItem.material_id,
-          requiredQuantity,
-          requiredQuantity,
-          requiredQuantity,
-          bomItem.unit_id,
-        ]
-      );
-    }
-
-    logger.info(`已从BOM(ID:${bomId})获取 ${bomItems.length} 条物料明细到出库单 ${outboundId}`);
-    return { success: true, itemCount: bomItems.length };
+    const itemCount = await insertOutboundRequirementItems(connection, outboundId, materialMap);
+    logger.info(`已从统一净需求生成 ${itemCount} 条生产出库明细到出库单 ${outboundId}`);
+    return { success: true, itemCount };
   } catch (error) {
-    logger.error('从BOM获取物料明细失败:', error);
+    logger.error('从统一净需求生成生产出库明细失败:', error);
+    return { success: false, itemCount: 0, error: error.message };
+  }
+};
+
+// Kept as a compatibility wrapper for legacy callers. It no longer reads raw BOM details.
+const fetchBatchBomItemsForOutbound = async (connection, outboundId, taskIds) => {
+  if (!Array.isArray(taskIds) || taskIds.length === 0) {
+    return { success: false, itemCount: 0, error: '批量发料缺少来源生产任务' };
+  }
+
+  try {
+    const placeholders = taskIds.map(() => '?').join(',');
+    const [tasks] = await connection.execute(
+      `SELECT
+         pt.id,
+         pt.code,
+         pt.product_id,
+         pt.quantity,
+         pt.plan_id,
+         pp.quantity AS plan_quantity,
+         pp.bom_id,
+         p.code AS product_code,
+         p.name AS product_name
+       FROM production_tasks pt
+       LEFT JOIN production_plans pp ON pp.id = pt.plan_id
+       LEFT JOIN materials p ON pt.product_id = p.id
+       WHERE pt.id IN (${placeholders})`,
+      taskIds
+    );
+
+    if (tasks.length !== taskIds.length) {
+      return { success: false, itemCount: 0, error: '部分来源生产任务不存在' };
+    }
+
+    const materialMap = new Map();
+    for (const task of tasks) {
+      const rows = await getTaskNetRequirementRows(connection, task);
+      mergeRequirementRows(materialMap, rows, 1, {
+        task_id: task.id,
+        task_code: task.code,
+        product_code: task.product_code,
+        product_name: task.product_name,
+      });
+    }
+
+    if (materialMap.size === 0) {
+      return { success: false, itemCount: 0, error: '统一净需求结果为空，无法生成批量发料明细' };
+    }
+
+    const itemCount = await insertOutboundRequirementItems(connection, outboundId, materialMap);
+    return { success: true, itemCount };
+  } catch (error) {
+    logger.error('批量发料从统一净需求生成明细失败:', error);
     return { success: false, itemCount: 0, error: error.message };
   }
 };
@@ -1920,120 +2240,6 @@ const parseSourceTaskIds = (sourceTaskIds) => {
     return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isInteger) : [];
   } catch {
     return [];
-  }
-};
-
-const parseSourceTaskDetails = (sourceTasks) => {
-  if (!sourceTasks) return [];
-  if (Array.isArray(sourceTasks)) return sourceTasks;
-
-  try {
-    const parsed = JSON.parse(sourceTasks);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const fetchBatchBomItemsForOutbound = async (connection, outboundId, taskIds) => {
-  if (!Array.isArray(taskIds) || taskIds.length === 0) {
-    return { success: false, itemCount: 0, error: '批量发料缺少来源生产任务' };
-  }
-
-  try {
-    const placeholders = taskIds.map(() => '?').join(',');
-    const [tasks] = await connection.execute(
-      `SELECT
-         pt.id, pt.code, pt.product_id, pt.quantity,
-         p.code AS product_code, p.name AS product_name,
-         (
-           SELECT bm.id
-           FROM bom_masters bm
-           WHERE bm.product_id = pt.product_id
-             AND bm.approved_by IS NOT NULL
-             AND bm.deleted_at IS NULL
-           ORDER BY bm.id DESC
-           LIMIT 1
-         ) AS bom_id
-       FROM production_tasks pt
-       LEFT JOIN materials p ON pt.product_id = p.id
-       WHERE pt.id IN (${placeholders})`,
-      taskIds
-    );
-
-    if (tasks.length !== taskIds.length) {
-      return { success: false, itemCount: 0, error: '部分来源生产任务不存在' };
-    }
-
-    const materialMap = new Map();
-
-    for (const task of tasks) {
-      if (!task.bom_id) {
-        return {
-          success: false,
-          itemCount: 0,
-          error: `生产任务 ${task.code || task.id} 没有已审核BOM`,
-        };
-      }
-
-      const [bomItems] = await connection.execute(
-        `SELECT bd.material_id, bd.quantity AS bom_quantity, m.unit_id
-         FROM bom_details bd
-         JOIN materials m ON bd.material_id = m.id
-         WHERE bd.bom_id = ? AND bd.level = 1`,
-        [task.bom_id]
-      );
-
-      for (const bomItem of bomItems) {
-        const requiredQuantity = parseFloat(bomItem.bom_quantity) * (parseFloat(task.quantity) || 0);
-        if (requiredQuantity <= 0) continue;
-
-        const existing = materialMap.get(bomItem.material_id) || {
-          material_id: bomItem.material_id,
-          unit_id: bomItem.unit_id,
-          quantity: 0,
-          source_tasks: [],
-        };
-
-        existing.quantity += requiredQuantity;
-        existing.source_tasks.push({
-          task_id: task.id,
-          task_code: task.code,
-          product_code: task.product_code,
-          product_name: task.product_name,
-          quantity: requiredQuantity,
-        });
-        materialMap.set(bomItem.material_id, existing);
-      }
-    }
-
-    const mergedMaterials = Array.from(materialMap.values());
-    if (mergedMaterials.length === 0) {
-      return { success: false, itemCount: 0, error: '最新BOM没有可发料明细' };
-    }
-
-    for (const material of mergedMaterials) {
-      await connection.execute(
-        `INSERT INTO inventory_outbound_items
-          (outbound_id, material_id, quantity, planned_quantity, actual_quantity,
-           shortage_quantity, is_shortage, unit_id, source_tasks, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, NOW(), NOW())`,
-        [
-          outboundId,
-          material.material_id,
-          material.quantity,
-          material.quantity,
-          material.quantity,
-          material.unit_id,
-          JSON.stringify(material.source_tasks),
-        ]
-      );
-    }
-
-    return { success: true, itemCount: mergedMaterials.length };
-  } catch (error) {
-    logger.error('批量发料从最新BOM生成明细失败:', error);
-    return { success: false, itemCount: 0, error: error.message };
   }
 };
 
@@ -2162,7 +2368,7 @@ const updateOutboundStatus = async (req, res) => {
     };
 
     if (!validTransitions[currentStatus] || !validTransitions[currentStatus].includes(newStatus)) {
-      return ResponseHandler.error(res, '无效的状态转换', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态转换', 'VALIDATION_ERROR', 400);
     }
 
     // 如果从draft转为confirmed，更新operator为当前用户
@@ -2176,7 +2382,7 @@ const updateOutboundStatus = async (req, res) => {
       updateParams.push(currentUser);
       logger.info(`出库单 ${id} 确认，记录操作人: ${currentUser}`);
 
-      // 如果是生产出库单且没有明细项，从BOM获取物料
+      // 如果是生产出库单且没有明细项，确认时只允许从统一净需求生成
       if (
         referenceId &&
         (referenceType === 'production_task' || referenceType === 'production_plan')
@@ -2188,7 +2394,7 @@ const updateOutboundStatus = async (req, res) => {
 
         const itemCount = Number(itemCheck[0].count);
         if (itemCount === 0) {
-          logger.info(`出库单 ${id} 确认时没有明细项，准备从BOM获取...`);
+          logger.info(`出库单 ${id} 确认时没有明细项，准备从统一净需求生成...`);
           const bomResult = await fetchBomItemsForOutbound(
             connection,
             id,
@@ -2196,7 +2402,7 @@ const updateOutboundStatus = async (req, res) => {
             referenceId
           );
           if (!bomResult.success) {
-            logger.warn(`出库单 ${id} 确认时从BOM获取物料失败: ${bomResult.error}`);
+            logger.warn(`出库单 ${id} 确认时从统一净需求生成物料失败: ${bomResult.error}`);
           }
         }
       }
@@ -2211,7 +2417,7 @@ const updateOutboundStatus = async (req, res) => {
         if (itemCount === 0) {
           const bomResult = await fetchBatchBomItemsForOutbound(connection, id, batchTaskIds);
           if (!bomResult.success) {
-            logger.warn(`批量出库单 ${id} 确认时从最新BOM生成明细失败: ${bomResult.error}`);
+            logger.warn(`批量出库单 ${id} 确认时从统一净需求生成明细失败: ${bomResult.error}`);
           }
         }
       }
@@ -2301,44 +2507,16 @@ const updateOutboundStatus = async (req, res) => {
       );
 
       // 注意：MySQL的COUNT(*)返回的可能是字符串或BigInt，需要转换为数字
-      let itemCount = Number(itemCheck[0].count);
+      const itemCount = Number(itemCheck[0].count);
 
-      // 如果是生产出库单且没有明细项，从BOM获取物料
-      if (
-        itemCount === 0 &&
-        referenceId &&
-        (referenceType === 'production_task' || referenceType === 'production_plan')
-      ) {
-        logger.warn(`出库单 ${id} 完成时发现没有明细项，尝试从BOM获取...`);
-
-        // 调用辅助函数从BOM获取物料明细
-        const bomResult = await fetchBomItemsForOutbound(
-          connection,
-          id,
-          referenceType,
-          referenceId
+      if (itemCount === 0 && isProductionOutboundReference(referenceType)) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '生产出库单没有明细，不能完成。请先由统一净需求结果生成出库明细。',
+          'VALIDATION_ERROR',
+          400
         );
-
-        if (bomResult.success) {
-          itemCount = bomResult.itemCount;
-          logger.info(`出库单 ${id} 完成时从BOM获取并保存了 ${itemCount} 条物料明细`);
-        } else {
-          logger.error(`出库单 ${id} 完成失败：${bomResult.error}`);
-          await connection.rollback();
-          return ResponseHandler.error(res, bomResult.error, 'BAD_REQUEST', 400);
-        }
-      }
-
-      if (itemCount === 0 && referenceType === 'batch_production_tasks') {
-        logger.warn(`批量出库单 ${id} 完成时发现没有明细项，尝试从最新BOM获取...`);
-        const bomResult = await fetchBatchBomItemsForOutbound(connection, id, batchTaskIds);
-
-        if (bomResult.success) {
-          itemCount = bomResult.itemCount;
-        } else {
-          await connection.rollback();
-          return ResponseHandler.error(res, bomResult.error, 'BAD_REQUEST', 400);
-        }
       }
 
       if (itemCount === 0) {
@@ -2377,7 +2555,7 @@ const updateOutboundStatus = async (req, res) => {
 
         if (materialIds.length > 0) {
           // 通过服务层批量获取物料仓库和单位信息
-          const materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, connection);
+          const materialInfoMap = await getMaterialInfoMap(connection, materialIds);
           for (const [id, info] of materialInfoMap) {
             materialMap.set(id, { id, location_id: info.locationId, unit_id: info.unitId });
           }
@@ -2409,10 +2587,7 @@ const updateOutboundStatus = async (req, res) => {
           try {
             // 从预加载的 Map 获取物料默认库位（不再逐条查询）
             const matInfo = materialMap.get(item.material_id);
-            const locationId = matInfo?.location_id; // 从物料表取真实默认库位
-            if (!locationId) {
-              throw new Error(`物料 ${item.material_id} 未配置默认仓库，请在物料管理中设置`);
-            }
+            const locationId = matInfo?.location_id;
 
             // ========== 部分发料支持: 使用actual_quantity扣减库存 ==========
             // 当actual_quantity为0时,不使用quantity作为后备值
@@ -2420,53 +2595,22 @@ const updateOutboundStatus = async (req, res) => {
 
             // 只有actual_quantity > 0时才扣减库存
             if (actualQuantity > 0) {
-              // 如果是生产出库，使用智能出库逻辑
+              if (!locationId) {
+                throw new Error(`物料 ${item.material_id} 未配置默认仓库，请在物料管理中设置`);
+              }
+
               if (isProductionOutbound) {
-                if (isBatchProductionOutbound) {
-                  const sourceTasks = parseSourceTaskDetails(item.source_tasks);
-                  const sourceTotal = sourceTasks.reduce(
-                    (sum, source) => sum + (parseFloat(source.quantity) || 0),
-                    0
-                  );
-
-                  if (sourceTasks.length === 0 || sourceTotal <= 0) {
-                    throw new Error(`批量发料明细 ${item.material_id} 缺少来源任务分摊信息`);
-                  }
-
-                  for (const sourceTask of sourceTasks) {
-                    const sourceQuantity = parseFloat(sourceTask.quantity) || 0;
-                    const allocatedQuantity = actualQuantity * (sourceQuantity / sourceTotal);
-                    if (allocatedQuantity <= 0) continue;
-
-                    await smartOutboundStock(
-                      item.material_id,
-                      locationId,
-                      allocatedQuantity,
-                      outboundInfo[0].operator,
-                      `出库单号: ${outboundInfo[0].outbound_no}`,
-                      sourceTask.task_id,
-                      connection,
-                      {
-                        issueReason: checkResult[0].issue_reason,
-                        isExcess: checkResult[0].is_excess,
-                      }
-                    );
-                  }
-                } else {
-                  await smartOutboundStock(
-                    item.material_id,
-                    locationId,
-                    actualQuantity,
-                    outboundInfo[0].operator,
-                    `出库单号: ${outboundInfo[0].outbound_no}`,
-                    referenceId,
-                    connection,
-                    {
-                      issueReason: checkResult[0].issue_reason,
-                      isExcess: checkResult[0].is_excess,
-                    }
-                  );
-                }
+                await issueOutboundItemFromDetail({
+                  connection,
+                  item: { ...item, actual_quantity: actualQuantity },
+                  locationId,
+                  outboundNo: outboundInfo[0].outbound_no,
+                  operator: outboundInfo[0].operator,
+                  referenceType,
+                  unitId: item.unit_id,
+                  issueReason: checkResult[0].issue_reason,
+                  isExcess: checkResult[0].is_excess,
+                });
               } else {
                 // 非生产类出库 - 从预加载的 stockMap 读取库存
                 const stockKey = `${item.material_id}_${locationId}`;
@@ -2815,13 +2959,13 @@ const supplementOutbound = async (req, res) => {
 
     if (originalOutbound.status !== 'partial_completed') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能对部分完成的出库单进行补发', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能对部分完成的出库单进行补发', 'VALIDATION_ERROR', 400);
     }
 
     // 2. 验证补发物料和数量
     if (!items || items.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '补发物料不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '补发物料不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 3. 获取原出库单明细(包含物料名称)
@@ -2840,7 +2984,7 @@ const supplementOutbound = async (req, res) => {
       materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, connection);
     } catch (err) {
       await connection.rollback();
-      return ResponseHandler.error(res, err.message, 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, err.message, 'VALIDATION_ERROR', 400);
     }
 
     // 4. 验证每个补发物料
@@ -2852,7 +2996,7 @@ const supplementOutbound = async (req, res) => {
         return ResponseHandler.error(
           res,
           `物料ID ${item.material_id} 不在原出库单中`,
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -2866,7 +3010,7 @@ const supplementOutbound = async (req, res) => {
         return ResponseHandler.error(
           res,
           `物料 ${originalItem.material_code} - ${originalItem.material_name} 补发数量(${supplementQty})不能超过缺料数量(${shortageQty})`,
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -2896,7 +3040,7 @@ const supplementOutbound = async (req, res) => {
         return ResponseHandler.error(
           res,
           `物料 ${materialName} 库存不足，当前库存: ${currentStock}，需要: ${supplementQty}`,
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -3053,17 +3197,10 @@ const batchOutbound = async (req, res) => {
     const [tasks] = await connection.execute(
       `SELECT
         pt.id, pt.code, pt.plan_id, pt.product_id, pt.quantity,
+        pp.quantity AS plan_quantity, pp.bom_id,
         p.code as product_code, p.name as product_name,
-        (
-          SELECT latest_bm.id
-          FROM bom_masters latest_bm
-          WHERE latest_bm.product_id = pt.product_id
-            AND latest_bm.approved_by IS NOT NULL
-            AND latest_bm.deleted_at IS NULL
-          ORDER BY latest_bm.id DESC
-          LIMIT 1
-        ) as bom_id
       FROM production_tasks pt
+      LEFT JOIN production_plans pp ON pp.id = pt.plan_id
       LEFT JOIN materials p ON pt.product_id = p.id
       WHERE pt.id IN (${placeholders}) AND pt.status IN ('pending', 'allocated', 'preparing')`,
       task_ids
@@ -3082,78 +3219,54 @@ const batchOutbound = async (req, res) => {
       );
     }
 
-    // 2. 获取每个任务的BOM物料需求
+    // 2. 获取每个任务的统一净需求物料
     const materialMap = new Map(); // 用于合并相同物料
 
     for (const task of tasks) {
-      if (!task.bom_id) {
-        logger.warn(`生产任务 ${task.code} 没有关联BOM，跳过`);
-        continue;
-      }
-
-      // 获取BOM明细
-      const [bomItems] = await connection.execute(
-        `SELECT
-          bd.material_id, bd.quantity as bom_quantity,
-          m.code as material_code, m.name as material_name,
-          m.specs as specification, m.unit_id,
-          u.name as unit_name,
-          m.location_id as default_location_id,
-          l.name as location_name
-        FROM bom_details bd
-        JOIN materials m ON bd.material_id = m.id
-        LEFT JOIN units u ON m.unit_id = u.id
-        LEFT JOIN locations l ON m.location_id = l.id
-        WHERE bd.bom_id = ? AND bd.level = 1`,
-        [task.bom_id]
-      );
-
-      // 计算物料需求并合并
-      for (const bomItem of bomItems) {
-        const requiredQuantity = bomItem.bom_quantity * task.quantity;
-        const materialId = bomItem.material_id;
-
-        if (materialMap.has(materialId)) {
-          // 物料已存在，累加数量并记录来源任务
-          const existing = materialMap.get(materialId);
-          existing.quantity += requiredQuantity;
-          existing.source_tasks.push({
-            task_id: task.id,
-            task_code: task.code,
-            product_code: task.product_code,
-            product_name: task.product_name,
-            quantity: requiredQuantity,
-          });
-        } else {
-          // 新物料，添加到Map
-          materialMap.set(materialId, {
-            material_id: materialId,
-            material_code: bomItem.material_code,
-            material_name: bomItem.material_name,
-            specification: bomItem.specification,
-            unit_id: bomItem.unit_id,
-            unit_name: bomItem.unit_name,
-            location_id: bomItem.default_location_id || null, // 由物料基础资料决定
-            location_name: bomItem.location_name || null,
-            quantity: requiredQuantity,
-            source_tasks: [
-              {
-                task_id: task.id,
-                task_code: task.code,
-                product_code: task.product_code,
-                product_name: task.product_name,
-                quantity: requiredQuantity,
-              },
-            ],
-          });
-        }
-      }
+      const rows = await getTaskNetRequirementRows(connection, task);
+      mergeRequirementRows(materialMap, rows, 1, {
+        task_id: task.id,
+        task_code: task.code,
+        product_code: task.product_code,
+        product_name: task.product_name,
+      });
     }
 
     const mergedMaterials = Array.from(materialMap.values());
 
     if (mergedMaterials.length === 0) {
       return ResponseHandler.error(res, '没有找到需要发料的物料', 'VALIDATION_ERROR', 400);
+    }
+
+    const mergedMaterialIds = mergedMaterials.map((material) => material.material_id);
+    const mergedMaterialPlaceholders = mergedMaterialIds.map(() => '?').join(',');
+    const [materialRows] = await connection.execute(
+      `SELECT
+         m.id,
+         m.code,
+         m.name,
+         m.specs,
+         m.unit_id,
+         u.name AS unit_name,
+         m.location_id,
+         l.name AS location_name
+       FROM materials m
+       LEFT JOIN units u ON u.id = m.unit_id
+       LEFT JOIN locations l ON l.id = m.location_id
+       WHERE m.id IN (${mergedMaterialPlaceholders})`,
+      mergedMaterialIds
+    );
+    const materialInfoMap = new Map(materialRows.map((row) => [row.id, row]));
+    for (const material of mergedMaterials) {
+      const info = materialInfoMap.get(material.material_id);
+      if (!info) continue;
+      material.material_code = info.code;
+      material.material_name = info.name;
+      material.specification = info.specs;
+      material.unit_id = material.unit_id || info.unit_id;
+      material.unit_name = info.unit_name;
+      material.location_id = info.location_id || null;
+      material.location_name = info.location_name || null;
     }
 
     // 如果是预览模式，只返回合并后的物料清单
@@ -3208,25 +3321,29 @@ const batchOutbound = async (req, res) => {
 
     // 批量预取物料信息（消除循环内 N+1 查询）
     const batchMaterialIds = mergedMaterials.map(m => m.material_id);
-    const batchMaterialInfoMap = await InventoryService.getBatchMaterialInfo(batchMaterialIds, connection);
+    const batchMaterialInfoMap = await getMaterialInfoMap(connection, batchMaterialIds);
 
     // 6. 插入出库单明细
     for (const material of mergedMaterials) {
       // 从批量预取结果获取物料的单位ID
       const batchMatInfo = batchMaterialInfoMap.get(material.material_id);
       const unit_id = batchMatInfo ? batchMatInfo.unitId : null;
+      const { plannedQuantity, actualQuantity, shortageQuantity, isShortage } =
+        normalizeIssueQuantities(material);
 
       await connection.execute(
         `INSERT INTO inventory_outbound_items
           (outbound_id, material_id, quantity, planned_quantity, actual_quantity,
            shortage_quantity, is_shortage, unit_id, source_tasks, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, NOW(), NOW())`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [
           outboundId,
           material.material_id,
-          material.quantity,
-          material.quantity,
-          material.quantity,
+          plannedQuantity,
+          plannedQuantity,
+          actualQuantity,
+          shortageQuantity,
+          isShortage,
           unit_id,
           JSON.stringify(material.source_tasks),
         ]
@@ -3266,7 +3383,7 @@ const getTaskMaterialIssueRecords = async (req, res) => {
     const { taskId } = req.params;
 
     if (!taskId) {
-      return ResponseHandler.error(res, '任务ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '任务ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 查询该任务关联的所有已完成出库单及其明细
@@ -3417,7 +3534,7 @@ const batchUpdateOutboundStatus = async (req, res) => {
       return ResponseHandler.error(
         res,
         `以下出库单已完成,无法修改状态: ${completedNos}`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -3482,7 +3599,7 @@ const batchDeleteOutbound = async (req, res) => {
       return ResponseHandler.error(
         res,
         `以下出库单不是草稿状态,无法删除: ${nonDraftNos}`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -3553,7 +3670,7 @@ const cancelOutboundReissue = async (req, res) => {
         : [];
     if (![STATUS.OUTBOUND.COMPLETED, STATUS.OUTBOUND.PARTIAL_COMPLETED].includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能撤销已完成或部分完成的出库单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能撤销已完成或部分完成的出库单', 'VALIDATION_ERROR', 400);
     }
 
     const prohibitedStatuses = ['inspection', 'quality_passed', 'completed', 'warehoused'];
@@ -3573,7 +3690,7 @@ const cancelOutboundReissue = async (req, res) => {
           return ResponseHandler.error(
             res,
             `无法撤销：关联的生产任务 ${taskCode} 已进入 ${taskStatus} 状态`,
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
@@ -3605,7 +3722,7 @@ const cancelOutboundReissue = async (req, res) => {
           return ResponseHandler.error(
             res,
             `无法撤销：关联的生产计划 ${planCode} 已进入 ${planStatus} 状态`,
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
@@ -3626,7 +3743,7 @@ const cancelOutboundReissue = async (req, res) => {
     if (reference_type === 'batch_production_tasks') {
       if (batchTaskIds.length === 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, '批量发料单缺少来源生产任务，无法安全撤销重发', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '批量发料单缺少来源生产任务，无法安全撤销重发', 'VALIDATION_ERROR', 400);
       }
 
       const placeholders = batchTaskIds.map(() => '?').join(',');
@@ -3640,7 +3757,7 @@ const cancelOutboundReissue = async (req, res) => {
 
       if (taskRows.length !== batchTaskIds.length) {
         await connection.rollback();
-        return ResponseHandler.error(res, '批量发料单的部分来源生产任务不存在', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '批量发料单的部分来源生产任务不存在', 'VALIDATION_ERROR', 400);
       }
 
       const blockedTask = taskRows.find((task) => prohibitedStatuses.includes(task.status));
@@ -3649,7 +3766,7 @@ const cancelOutboundReissue = async (req, res) => {
         return ResponseHandler.error(
           res,
           `无法撤销：批量来源生产任务 ${blockedTask.code} 已进入 ${blockedTask.status} 状态`,
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -3676,7 +3793,7 @@ const cancelOutboundReissue = async (req, res) => {
 
     if (Number(alreadyReversed[0]?.count || 0) > 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '该出库单已有冲销流水，禁止重复撤销', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '该出库单已有冲销流水，禁止重复撤销', 'VALIDATION_ERROR', 400);
     }
 
     const [ledgerRows] = await connection.execute(
@@ -3701,7 +3818,7 @@ const cancelOutboundReissue = async (req, res) => {
       return ResponseHandler.error(
         res,
         '找不到该出库单的实际出库流水，无法安全撤销重发',
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -3718,7 +3835,7 @@ const cancelOutboundReissue = async (req, res) => {
         return ResponseHandler.error(
           res,
           `台账 ${ledger.id} 缺少库位，无法安全冲回`,
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -3732,7 +3849,7 @@ const cancelOutboundReissue = async (req, res) => {
           referenceNo: outbound_no,
           referenceType: 'outbound_reversal',
           operator,
-          remark: `Reverse outbound ${outbound_no}; source ledger ${ledger.id}`,
+          remark: `撤销出库单 ${outbound_no}，来源台账 ${ledger.id}`,
           unitId: ledger.unit_id,
           batchNumber: ledger.batch_number || `REV-${outbound_no}-${ledger.id}`,
         },
@@ -3747,7 +3864,7 @@ const cancelOutboundReissue = async (req, res) => {
       `UPDATE inventory_outbound
        SET status = ?, remark = CONCAT(COALESCE(remark, ''), ?), updated_at = NOW()
        WHERE id = ?`,
-      [STATUS.OUTBOUND.REVERSED, ` [Reversed by ${operator}]`, id]
+      [STATUS.OUTBOUND.REVERSED, ` [已由 ${operator} 撤销]`, id]
     );
 
     const affectedTaskIds =
@@ -3786,7 +3903,7 @@ const cancelOutboundReissue = async (req, res) => {
             STATUS.OUTBOUND.DRAFT,
             outbound.outbound_type || 'batch_issue',
             operator,
-            `Reissue generated from reversed batch outbound ${outbound_no}. Verify latest BOM before completing.`,
+            `由已撤销的批量出库单 ${outbound_no} 按统一净需求重新生成，请在完成前核实明细。`,
             'batch_production_tasks',
             JSON.stringify(batchTaskIds),
           ]
@@ -3808,7 +3925,7 @@ const cancelOutboundReissue = async (req, res) => {
             STATUS.OUTBOUND.DRAFT,
             outbound.outbound_type || 'bom_issue',
             operator,
-            `Reissue generated from reversed outbound ${outbound_no}. Verify latest BOM before completing.`,
+            `由已撤销的出库单 ${outbound_no} 按统一净需求重新生成，请在完成前核实明细。`,
             reference_id,
             reference_type,
             productionTaskId,
@@ -3827,8 +3944,8 @@ const cancelOutboundReissue = async (req, res) => {
         await connection.rollback();
         return ResponseHandler.error(
           res,
-          `已准备冲销，但无法按最新BOM生成新出库单: ${bomResult.error}`,
-          'BAD_REQUEST',
+          `已准备冲销，但无法按统一净需求生成新出库单: ${bomResult.error}`,
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -3897,7 +4014,7 @@ const cancelOutboundReissue = async (req, res) => {
         financeReversal,
       },
       reissueOutbound
-        ? '撤销重发成功，已按最新BOM生成新的草稿出库单'
+        ? '撤销重发成功，已按统一净需求生成新的草稿出库单'
         : '撤销成功，库存已冲回'
     );
   } catch (error) {

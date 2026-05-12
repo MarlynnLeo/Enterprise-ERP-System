@@ -17,7 +17,7 @@
         <el-button type="primary" :icon="Plus" @click="showAddDialog" v-permission="'purchase:returns:create'">新建退货单</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -55,7 +55,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -79,7 +79,7 @@
         <div class="stat-label">退货总金额</div>
       </el-card>
     </div>
-    
+
     <!-- 退货单列表 -->
     <el-card class="data-card">
       <el-table
@@ -164,7 +164,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -179,7 +179,7 @@
         ></el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 查看退货单详情对话框 -->
     <el-dialog
       title="退货单详情"
@@ -200,7 +200,7 @@
           <el-descriptions-item label="出库仓库">{{ viewDialog.return.warehouseName }}</el-descriptions-item>
           <el-descriptions-item label="退货原因" :span="2">{{ viewDialog.return.reason }}</el-descriptions-item>
         </el-descriptions>
-        
+
         <el-divider content-position="center">退货物料</el-divider>
         <el-table :data="viewDialog.return.items || []" border style="width: 100%">
           <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
@@ -229,7 +229,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 新建/编辑退货单对话框 -->
     <el-dialog
       :title="returnDialog.isEdit ? '编辑退货单' : '新建退货单'"
@@ -290,7 +290,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <div class="mt-4">
           <div class="mb-2 font-weight-bold">物料清单</div>
           <el-table :data="returnDialog.form.items" border style="width: 100%">
@@ -335,17 +335,17 @@
             </el-table-column>
             <el-table-column label="退货原因" min-width="180">
               <template #default="scope">
-                <el-select 
-                  v-model="scope.row.returnReason" 
-                  placeholder="请选择" 
+                <el-select
+                  v-model="scope.row.returnReason"
+                  placeholder="请选择"
                   size="small"
                   style="width: 100%"
                   :disabled="!scope.row.returnQuantity"
                 >
-                  <el-option 
-                    v-for="reason in returnReasons" 
+                  <el-option
+                    v-for="reason in returnReasons"
                     :key="reason"
-                    :label="reason" 
+                    :label="reason"
                     :value="reason"
                   ></el-option>
                 </el-select>
@@ -362,7 +362,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 状态更新确认对话框 -->
     <el-dialog
       v-model="statusDialog.visible"
@@ -390,16 +390,17 @@ import { useAuthStore } from '@/stores/auth';
 import { purchaseApi } from '@/services/api';
 import { baseDataApi } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
+import printService from '@/services/printService';
 import {
   getPurchaseReturnStatusText,
   getPurchaseReturnStatusColor
 } from '@/constants/systemConstants';
 const { showSnackbar } = useSnackbar();
 const authStore = useAuthStore();
-// 表格列定义;
-;
-;
-// 状态选项（使用统一常量）;
+// 表格列定义
+
+
+// 状态选项（使用统一常量）
 // 退货原因选项
 const returnReasons = [
   '质量问题',
@@ -470,7 +471,7 @@ const returnStats = ref({
   totalAmount: 0
 });
 // 提交状态
-const submitLoading = ref(false);;;
+const submitLoading = ref(false);
 // 表单验证规则
 const returnRules = {
   receiptId: [{ required: true, message: '请选择关联收货单', trigger: 'change' }],
@@ -524,10 +525,10 @@ async function loadReturns() {
       startDate: searchForm.dateRange?.[0] || undefined,
       endDate: searchForm.dateRange?.[1] || undefined
     };
-    
+
     const response = await purchaseApi.getReturns(params);
     const paginated = parsePaginatedData(response);
-    
+
     const returnsData = paginated.list || [];
     const paginationData = { total: paginated.total };
     // 映射后端字段名到前端字段名
@@ -557,7 +558,7 @@ async function loadReturns() {
   } finally {
     loading.value = false;
   }
-  
+
   await loadReturnStats();
 }
 // 方法：加载供应商列表
@@ -572,7 +573,7 @@ async function loadSuppliers() {
     } else {
       suppliers.value = [];
     }
-    
+
     } catch (error) {
     console.error('加载供应商失败:', error);
     showSnackbar('加载供应商失败', 'error');
@@ -698,6 +699,7 @@ async function viewReturn(returnItem) {
       // 映射退货物料字段
       items: (returnData.items || []).map(item => ({
         id: item.id,
+        materialCode: item.material_code || item.materialCode || '',
         materialName: item.material_name,
         specification: item.specification || '',
         unitName: item.unit || '',
@@ -824,7 +826,7 @@ async function submitReturn() {
       showSnackbar(`物料 ${item.materialName} 的退货数量必须在0至收货数量之间`, 'warning');
       return;
     }
-    
+
     if (item.returnQuantity > 0 && !item.returnReason) {
       showSnackbar(`请为退货物料 ${item.materialName} 选择退货原因`, 'warning');
       return;
@@ -832,7 +834,7 @@ async function submitReturn() {
   }
   try {
     submitLoading.value = true;
-    
+
     // 筛选出退货数量大于0的物料
     const returnItems = returnDialog.form.items
       .filter(item => item.returnQuantity > 0)
@@ -896,9 +898,9 @@ const handleCommand = (command, row) => {
       break;
   }
 };
-// 显示状态更新对话框;
+// 显示状态更新对话框
 // 确认删除
-// 确认删除（保留给可能未使用 popconfirm 的地方使用，如果有的话）;
+// 确认删除（保留给可能未使用 popconfirm 的地方使用，如果有的话）
 // 执行删除逻辑
 const handleDelete = async (row) => {
     try {
@@ -949,9 +951,49 @@ function handleCurrentChange(current) {
   loadReturns();
 }
 // 方法：打印退货单
-function printReturn() {
-  // 实现打印功能
-  window.print();
+async function printReturn() {
+  if (!viewDialog.return?.id) {
+    ElMessage.warning('退货单数据未就绪');
+    return;
+  }
+
+  try {
+    const currentReturn = viewDialog.return;
+    const items = currentReturn.items || [];
+    const totalAmount = items.reduce((sum, item) => sum + Number(item.returnQuantity || 0) * Number(item.price || 0), 0);
+    const html = await printService.generateByDefaultTemplate('purchase', 'purchase_return', {
+      return_no: currentReturn.returnNumber || currentReturn.return_no || '',
+      return_date: formatDate(currentReturn.returnDate || currentReturn.return_date),
+      receipt_no: currentReturn.receiptNumber || currentReturn.receipt_no || '',
+      supplier_name: currentReturn.supplierName || currentReturn.supplier_name || '',
+      warehouse_name: currentReturn.warehouseName || currentReturn.warehouse_name || '',
+      operator: currentReturn.operatorName || currentReturn.operator || '',
+      status: getStatusText(currentReturn.status),
+      reason: currentReturn.reason || '',
+      total_amount: formatCurrency(totalAmount || currentReturn.totalAmount || currentReturn.total_amount || 0),
+      print_time: new Date().toLocaleString(),
+      items: items.map((item, index) => {
+        const amount = Number(item.returnQuantity || 0) * Number(item.price || 0);
+        return {
+          index: index + 1,
+          material_code: item.materialCode || item.material_code || '',
+          material_name: item.materialName || item.material_name || '',
+          specification: item.specification || '',
+          received_quantity: item.receivedQuantity || item.quantity || '',
+          return_quantity: item.returnQuantity || item.return_quantity || '',
+          unit_name: item.unitName || item.unit_name || item.unit || '',
+          unit_price: formatCurrency(item.price || 0),
+          amount: formatCurrency(amount),
+          return_reason: item.returnReason || item.return_reason || ''
+        };
+      })
+    });
+    printService.previewDocument(html);
+    ElMessage.success('打印预览已打开');
+  } catch (error) {
+    console.error('打印采购退货单失败:', error);
+    ElMessage.error('打印采购退货单失败');
+  }
 }
 </script>
 <style scoped>
@@ -1001,4 +1043,4 @@ function printReturn() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

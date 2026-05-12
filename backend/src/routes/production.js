@@ -32,7 +32,7 @@ router.get('/scheduling/standard-hours/:productId', async (req, res) => {
     const result = await SchedulingService.getProductStandardHours(parseInt(req.params.productId));
     res.json({ success: true, data: result });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -50,7 +50,7 @@ router.post('/scheduling/calculate', async (req, res) => {
     });
     res.json({ success: true, data: result });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -98,82 +98,12 @@ router.post('/scheduling/batch', async (req, res) => {
 });
 
 // 甘特图排程数据
-router.get('/scheduling/gantt', async (req, res) => {
+router.get('/scheduling/gantt', requirePermission('production:gantt'), async (req, res) => {
   try {
-    const { pool } = require('../config/db');
-    const { startDate, endDate } = req.query;
-
-    // 默认查近30天
-    const start = startDate || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-    const end = endDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-
-    const [tasks] = await pool.query(`
-      SELECT 
-        t.id, t.code, t.quantity, t.manager, t.status,
-        t.start_date, t.expected_end_date,
-        m.name as product_name,
-        MIN(p.planned_start_time) as planned_start,
-        MAX(p.planned_end_time) as planned_end
-      FROM production_tasks t
-      LEFT JOIN materials m ON t.product_id = m.id
-      LEFT JOIN production_processes p ON p.task_id = t.id
-      WHERE t.deleted_at IS NULL
-        AND t.status NOT IN ('cancelled')
-        AND (
-          (t.start_date IS NOT NULL AND t.start_date <= ?)
-          OR (t.start_date IS NULL AND p.planned_start_time IS NOT NULL)
-          OR (t.start_date IS NULL AND t.expected_end_date IS NOT NULL)
-        )
-        AND (
-          t.expected_end_date >= ?
-          OR p.planned_end_time >= ?
-          OR t.start_date >= ?
-          OR t.expected_end_date IS NULL
-        )
-      GROUP BY t.id
-      ORDER BY t.manager, COALESCE(MIN(p.planned_start_time), t.start_date, t.created_at)
-    `, [end, start, start, start]);
-
-    // 按生产组分组
-    const groups = {};
-    for (const task of tasks) {
-      const group = task.manager || '未分配';
-      if (!groups[group]) groups[group] = [];
-
-      // 确定时间范围
-      const taskStart = task.planned_start
-        ? new Date(task.planned_start)
-        : task.start_date
-          ? new Date(task.start_date + ' 08:00:00')
-          : null;
-      const taskEnd = task.planned_end
-        ? new Date(task.planned_end)
-        : task.expected_end_date
-          ? new Date(task.expected_end_date + ' 17:30:00')
-          : null;
-
-      if (!taskStart) continue;
-
-      groups[group].push({
-        id: task.id,
-        code: task.code,
-        productName: task.product_name,
-        quantity: parseFloat(task.quantity),
-        status: task.status,
-        startTime: taskStart.toISOString(),
-        endTime: taskEnd ? taskEnd.toISOString() : taskStart.toISOString(),
-      });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        groups: Object.entries(groups).map(([name, tasks]) => ({ name, tasks })),
-        dateRange: { start, end },
-      },
-    });
+    const data = await SchedulingService.getGanttData(req.query);
+    return res.json({ success: true, data });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -216,11 +146,11 @@ router.get(
 );
 
 // 计算物料需求
-router.post('/calculate-materials', requirePermission('production:plans:view'), productionController.calculateMaterials);
-router.get('/calculate-materials/:bomId', requirePermission('production:plans:view'), productionController.calculateMaterialsByBomId);
+router.post('/calculate-materials', requirePermission(['production:plans:view', 'production:mrp:view']), productionController.calculateMaterials);
+router.get('/calculate-materials/:bomId', requirePermission(['production:plans:view', 'production:mrp:view']), productionController.calculateMaterialsByBomId);
 
 // 直接获取产品BOM信息
-router.get('/product-bom/:productId', requirePermission('production:plans:view'), productionController.getBomByProductId);
+router.get('/product-bom/:productId', requirePermission(['production:plans:view', 'production:mrp:view']), productionController.getBomByProductId);
 
 // 获取当天的最大序号
 router.get('/today-sequence', requirePermission('production:plans:view'), productionController.getTodayMaxSequence);
@@ -231,7 +161,7 @@ router.get('/plans/:id/materials', requirePermission('production:plans:view'), p
 // 获取所有生产计划的缺料统计
 router.get(
   '/material-shortage-summary',
-  requirePermission('production:plans:view'),
+  requirePermission(['production:plans:view', 'production:mrp:view']),
   productionController.getMaterialShortageSummary
 );
 

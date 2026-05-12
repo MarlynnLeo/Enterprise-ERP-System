@@ -90,7 +90,7 @@ exports.getPackingLists = async (req, res) => {
       FROM packing_lists pl
       ${whereClause}
       ORDER BY pl.created_at DESC
-      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+      LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
       `;
 
 
@@ -125,7 +125,7 @@ exports.getPackingLists = async (req, res) => {
       FROM packing_lists pl
         `);
 
-    res.json({
+    return ResponseHandler.success(res, {
       data: rows,
       total: countResult[0].total,
       page: currentPage,
@@ -184,7 +184,7 @@ exports.getPackingList = async (req, res) => {
 
     packingList.details = detailRows;
 
-    res.json(packingList);
+    return ResponseHandler.success(res, packingList);
   } catch (error) {
     logger.error('获取装箱单详情失败:', error);
     ResponseHandler.error(res, '获取装箱单详情失败', 'SERVER_ERROR', 500, error);
@@ -205,10 +205,10 @@ exports.createPackingList = async (req, res) => {
 
     // 验证必填字段
     if (!customer_id) {
-      return ResponseHandler.error(res, '客户ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '客户ID不能为空', 'VALIDATION_ERROR', 400);
     }
     if (!packing_date) {
-      return ResponseHandler.error(res, '装箱日期不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '装箱日期不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 获取客户信息
@@ -216,7 +216,7 @@ exports.createPackingList = async (req, res) => {
       customer_id,
     ]);
     if (customerRows.length === 0) {
-      return ResponseHandler.error(res, '客户不存在', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '客户不存在', 'VALIDATION_ERROR', 400);
     }
     const customer = customerRows[0];
 
@@ -414,10 +414,9 @@ exports.updatePackingList = async (req, res) => {
 
     await connection.commit();
 
-    res.json({
+    return ResponseHandler.success(res, {
       id: parseInt(id),
-      message: '装箱单更新成功',
-    });
+    }, '装箱单更新成功');
   } catch (error) {
     await connection.rollback();
     logger.error('更新装箱单失败:', error);
@@ -453,7 +452,7 @@ exports.deletePackingList = async (req, res) => {
 
     // 检查是否可以删除（只有草稿状态可以删除）
     if (packingList.status !== 'draft') {
-      return ResponseHandler.error(res, '只有草稿状态的装箱单可以删除', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只有草稿状态的装箱单可以删除', 'VALIDATION_ERROR', 400);
     }
 
     // 删除装箱单明细（由于外键约束，会自动删除）
@@ -464,9 +463,7 @@ exports.deletePackingList = async (req, res) => {
 
     await connection.commit();
 
-    res.json({
-      message: '装箱单删除成功',
-    });
+    return ResponseHandler.success(res, null, '装箱单删除成功');
   } catch (error) {
     await connection.rollback();
     logger.error('删除装箱单失败:', error);
@@ -489,7 +486,7 @@ exports.updatePackingListStatus = async (req, res) => {
     // 验证状态值
     const validStatuses = ['draft', 'confirmed', 'packing', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 检查装箱单是否存在
@@ -514,9 +511,7 @@ exports.updatePackingListStatus = async (req, res) => {
     };
 
     if (!statusTransitions[currentStatus].includes(status)) {
-      return res.status(400).json({
-        message: `不能从状态 "${currentStatus}" 转换到 "${status}"`,
-      });
+      return ResponseHandler.error(res, `不能从状态 "${currentStatus}" 转换到 "${status}"`, 'VALIDATION_ERROR', 400);
     }
 
     // 更新状态
@@ -531,11 +526,10 @@ exports.updatePackingListStatus = async (req, res) => {
       [status, remark, req.user?.username || 'system', id]
     );
 
-    res.json({
+    return ResponseHandler.success(res, {
       id: parseInt(id),
       status,
-      message: '状态更新成功',
-    });
+    }, '状态更新成功');
   } catch (error) {
     logger.error('更新装箱单状态失败:', error);
     ResponseHandler.error(res, '更新装箱单状态失败', 'SERVER_ERROR', 500, error);
@@ -618,7 +612,7 @@ exports.getPackingListStatistics = async (req, res) => {
       queryParams
     );
 
-    res.json({
+    return ResponseHandler.success(res, {
       basic: basicStats[0],
       daily: dailyStats,
       customers: customerStats,

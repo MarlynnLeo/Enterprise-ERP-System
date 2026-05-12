@@ -253,7 +253,7 @@ class BudgetAIService {
             const startYear = targetYear - lookbackYears;
 
             let historicalQuery = `
-                SELECT 
+                SELECT
                     ga.id as account_id, ga.account_code, ga.account_name,
                     YEAR(ge.entry_date) as year,
                     SUM(gei.debit_amount) as total_debit,
@@ -400,11 +400,11 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
         try {
             // 1. 获取预算执行数据
             const [details] = await db.pool.execute(`
-                SELECT 
+                SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
-                    CASE WHEN bd.budget_amount > 0 
-                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2) 
+                    CASE WHEN bd.budget_amount > 0
+                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2)
                         ELSE 0 END as execution_rate
                 FROM budget_details bd
                 LEFT JOIN gl_accounts ga ON bd.account_id = ga.id
@@ -542,11 +542,11 @@ ${JSON.stringify(executionData, null, 2)}
         try {
             // 1. 获取数据
             const [details] = await db.pool.execute(`
-                SELECT 
+                SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
-                    CASE WHEN bd.budget_amount > 0 
-                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2) 
+                    CASE WHEN bd.budget_amount > 0
+                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2)
                         ELSE 0 END as execution_rate
                 FROM budget_details bd
                 LEFT JOIN gl_accounts ga ON bd.account_id = ga.id
@@ -855,12 +855,12 @@ ${JSON.stringify(executionData, null, 2)}
         try {
             // 获取两个年度的预算执行数据
             const [data] = await db.pool.execute(`
-                SELECT 
+                SELECT
                     b.budget_year,
                     ga.account_code, ga.account_name,
                     bd.budget_amount, bd.used_amount,
-                    CASE WHEN bd.budget_amount > 0 
-                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2) 
+                    CASE WHEN bd.budget_amount > 0
+                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2)
                         ELSE 0 END as execution_rate
                 FROM budget_details bd
                 JOIN budgets b ON bd.budget_id = b.id
@@ -982,11 +982,11 @@ ${JSON.stringify(comparisonData, null, 2)}
             if (!budgetInfo.length) throw new Error('预算不存在');
 
             const [details] = await db.pool.execute(`
-                SELECT 
+                SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
-                    CASE WHEN bd.budget_amount > 0 
-                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2) 
+                    CASE WHEN bd.budget_amount > 0
+                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2)
                         ELSE 0 END as execution_rate
                 FROM budget_details bd
                 LEFT JOIN gl_accounts ga ON bd.account_id = ga.id

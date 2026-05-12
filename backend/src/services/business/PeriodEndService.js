@@ -338,7 +338,7 @@ class PeriodEndService {
 
       // 4. 更新期间状态
       await connection.execute(
-        `UPDATE gl_periods 
+        `UPDATE gl_periods
          SET is_closed = true, closed_by = ?, closed_at = ?, closing_date = ?
          WHERE id = ?`,
         [closed_by, new Date(), closing_date || new Date(), period_id]
@@ -537,7 +537,7 @@ class PeriodEndService {
     await connection.execute(
       `
       INSERT INTO gl_period_balances (period_id, account_id, debit_balance, credit_balance)
-      SELECT 
+      SELECT
         ? as period_id,
         a.id as account_id,
         GREATEST(
@@ -640,8 +640,8 @@ class PeriodEndService {
 
       // 更新期间状态
       await connection.execute(
-        `UPDATE gl_periods 
-         SET is_closed = false, closed_by = NULL, closed_at = NULL, 
+        `UPDATE gl_periods
+         SET is_closed = false, closed_by = NULL, closed_at = NULL,
              closing_date = NULL, reopened_by = ?, reopened_at = ?
          WHERE id = ?`,
         [reopened_by, new Date(), period_id]

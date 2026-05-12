@@ -69,7 +69,7 @@
     <el-card class="data-card" v-loading="loading">
       <!-- 报表标题 -->
       <div class="report-header" v-if="reportData.length">
-        <div class="company-name">浙江开控电气有限公司</div>
+        <div class="company-name">{{ companyName }}</div>
         <div class="report-title">出纳月报表</div>
         <div class="report-period">{{ formatReportPeriod(queryParams.reportMonth) }}</div>
       </div>
@@ -126,6 +126,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import printService from '@/services/printService';
 import { formatCurrency } from '@/utils/format';
 import ExcelJS from 'exceljs';
 // 查询参数
@@ -144,7 +145,12 @@ const reportStats = reactive({
   totalBalance: 0,
   accountCount: 0
 });
-// 计算金额单位显示文本;
+const companyName = ref('');
+const getUnitText = () => {
+  const unitMap = { 1: '元', 1000: '千元', 10000: '万元' };
+  return unitMap[queryParams.unit] || '元';
+};
+// 计算金额单位显示文本
 // 生成报表
 const generateReport = async () => {
   if (!queryParams.reportMonth) {
@@ -189,8 +195,37 @@ const formatReportPeriod = (reportMonth) => {
   return `${year}年${month}月`;
 };
 // 打印报表
-const printReport = () => {
-  window.print();
+const printReport = async () => {
+  if (!reportData.value.length) {
+    ElMessage.warning('没有可打印的数据');
+    return;
+  }
+
+  try {
+    const html = await printService.generateByDefaultTemplate('finance', 'cash_flow_statement', {
+      report_period: formatReportPeriod(queryParams.reportMonth),
+      unit_text: getUnitText(),
+      total_income: formatAmount(reportStats.totalIncome),
+      total_expense: formatAmount(reportStats.totalExpense),
+      net_amount: formatAmount(reportStats.netAmount),
+      total_balance: formatAmount(reportStats.totalBalance),
+      account_count: reportStats.accountCount,
+      print_time: new Date().toLocaleString(),
+      items: reportData.value.map((item, index) => ({
+        index: index + 1,
+        name: item.name || '',
+        last_month_balance: formatAmount(item.lastMonthBalance),
+        current_month_income: formatAmount(item.currentMonthIncome),
+        current_month_expense: formatAmount(item.currentMonthExpense),
+        current_month_balance: formatAmount(item.currentMonthBalance)
+      }))
+    });
+    printService.previewDocument(html);
+    ElMessage.success('打印预览已打开');
+  } catch (error) {
+    console.error('打印出纳月报表失败:', error);
+    ElMessage.error('打印出纳月报表失败');
+  }
 };
 // 导出Excel
 const exportExcel = async () => {
@@ -200,7 +235,7 @@ const exportExcel = async () => {
   // 准备报表数据
   const rows = prepareCashierExcelData(reportData.value);
   // 添加标题行
-  worksheet.addRow(['浙江开控电气有限公司', '', '', '', '']);
+  worksheet.addRow([companyName.value || '', '', '', '', '']);
   worksheet.addRow(['出纳月报表', '', '', '', '']);
   worksheet.addRow([formatReportPeriod(queryParams.reportMonth), '', '', '', '']);
   worksheet.addRow(['', '', '', '', '']);
@@ -281,9 +316,13 @@ const formatAmount = (amount) => {
   });
 };
 // 页面加载时执行
-onMounted(() => {
-  // 可以选择自动加载报表，也可以等用户点击按钮
-  // generateReport();
+onMounted(async () => {
+  try {
+    const info = await printService.getCompanyInfo();
+    companyName.value = info.company_name || '';
+  } catch {
+    companyName.value = '';
+  }
 });
 </script>
 <style scoped>

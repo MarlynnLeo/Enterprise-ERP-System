@@ -128,7 +128,7 @@ class BatchManagementService {
     try {
       // ✅ 单表架构：从 v_batch_stock 视图查询
       const query = `
-        SELECT 
+        SELECT
           vbs.*,
           m.name as material_name,
           m.code as material_code,
@@ -158,7 +158,7 @@ class BatchManagementService {
     try {
       // ✅ 单表架构：从 v_batch_stock 视图查询
       const query = `
-        SELECT 
+        SELECT
           vbs.*,
           m.name as material_name,
           m.code as material_code,
@@ -187,7 +187,7 @@ class BatchManagementService {
   static async getFIFOOutboundBatches(materialId, requiredQuantity) {
     // ✅ 单表架构：直接从批次库存视图查询 (v_batch_stock)
     const query = `
-      SELECT 
+      SELECT
         material_id,
         location_id,
         batch_number,
@@ -198,7 +198,7 @@ class BatchManagementService {
         warehouse_name,
         supplier_name
       FROM v_batch_stock
-      WHERE material_id = ? 
+      WHERE material_id = ?
         AND current_quantity > 0
       ORDER BY receipt_date ASC
     `;
@@ -263,10 +263,23 @@ class BatchManagementService {
       const outboundRecords = [];
 
       // 2. 逐批次执行出库
-      // 2. 逐批次执行出库
       for (const batch of fifoResult.allocated_batches) {
         // ✅ 使用 InventoryService 更新库存 (Single Table Truth)
-
+        await InventoryService.updateStock(
+          {
+            materialId: material_id,
+            locationId: batch.location_id,
+            quantity: -batch.allocated_quantity, // 负数表示出库
+            transactionType: outboundData.reference_type || 'fifo_outbound',
+            referenceNo: outboundData.reference_no || '',
+            referenceType: outboundData.reference_type || 'fifo_outbound',
+            operator: outboundData.operator || 'system',
+            remark: `FIFO出库: 批次 ${batch.batch_number}, 数量 ${batch.allocated_quantity}${outboundData.remarks ? ' - ' + outboundData.remarks : ''}`,
+            batchNumber: batch.batch_number,
+            unitCost: batch.unit_cost || 0,
+          },
+          connection
+        );
 
         outboundRecords.push({
           batch_number: batch.batch_number,
@@ -400,7 +413,7 @@ class BatchManagementService {
             reference_id,
             reference_no,
             operator,
-            remarks || '????',
+            remarks || '批次预留',
           ]
         );
 

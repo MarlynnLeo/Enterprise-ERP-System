@@ -15,6 +15,9 @@ const cacheService = require('../../services/cacheService');
 const DLQService = require('../../services/business/DLQService');
 const BackupService = require('../../services/system/BackupService');
 
+// 以下模块原散落于各函数体内，统一移至顶部（P1 治理）
+const PermissionService = require('../../services/PermissionService');
+
 function omitUserSecrets(user) {
   if (!user || typeof user !== 'object') return user;
   const safeUser = { ...user };
@@ -29,6 +32,11 @@ function omitUserSecrets(user) {
 function normalizeBinaryStatus(status) {
   if (status === true || status === 1 || status === '1') return 1;
   if (status === false || status === 0 || status === '0') return 0;
+  if (typeof status === 'string') {
+    const normalized = status.trim().toLowerCase();
+    if (['active', 'enabled', 'enable', 'normal'].includes(normalized)) return 1;
+    if (['inactive', 'disabled', 'disable', 'locked'].includes(normalized)) return 0;
+  }
   throw new Error('status must be 0 or 1');
 }
 
@@ -84,19 +92,13 @@ const systemController = {
       const { id } = req.params;
 
       if (!id) {
-        return res.status(400).json({
-          code: 400,
-          message: '缺少用户ID参数',
-        });
+        return ResponseHandler.error(res, '缺少用户ID参数', 'VALIDATION_ERROR', 400);
       }
 
       const user = await systemModel.getUserById(id);
 
       if (!user) {
-        return res.status(404).json({
-          code: 404,
-          message: '用户不存在',
-        });
+        return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
       }
 
       const userData = omitUserSecrets(user);
@@ -138,7 +140,7 @@ const systemController = {
 
       // 安全检查：禁止非超管修改超管信息
       if (String(id) === '1' && String(req.user?.id) !== '1') {
-        return res.status(403).json({ code: 403, message: '禁止越权修改超级管理员信息' });
+        return ResponseHandler.error(res, '禁止越权修改超级管理员信息', 'FORBIDDEN', 403);
       }
 
 
@@ -159,28 +161,22 @@ const systemController = {
       // 安全检查：禁止非超管操作超管状态，且超管不可被禁用
       if (String(id) === '1') {
         if (String(req.user?.id) !== '1') {
-          return res.status(403).json({ code: 403, message: '禁止越权修改超级管理员状态' });
+          return ResponseHandler.error(res, '禁止越权修改超级管理员状态', 'FORBIDDEN', 403);
         }
         if (String(status) === '0' || Number(status) === 0) {
-          return res.status(403).json({ code: 403, message: '超级管理员账号不允许禁用' });
+          return ResponseHandler.error(res, '超级管理员账号不允许禁用', 'FORBIDDEN', 403);
         }
       }
 
       if (status === undefined) {
-        return res.status(400).json({
-          code: 400,
-          message: '缺少状态参数',
-        });
+        return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
       }
 
       const normalizedStatus = normalizeBinaryStatus(status);
       const result = await systemModel.updateUserStatus(id, normalizedStatus);
 
       if (!result) {
-        return res.status(404).json({
-          code: 404,
-          message: '用户不存在',
-        });
+        return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
       }
 
       // 清除该用户的权限缓存（统一由 PermissionService 管理）
@@ -206,23 +202,17 @@ const systemController = {
 
       // 安全检查：禁止非超管重置超管密码
       if (String(id) === '1' && String(req.user?.id) !== '1') {
-        return res.status(403).json({ code: 403, message: '禁止越权重置超级管理员密码' });
+        return ResponseHandler.error(res, '禁止越权重置超级管理员密码', 'FORBIDDEN', 403);
       }
 
       if (!password) {
-        return res.status(400).json({
-          code: 400,
-          message: '缺少密码参数',
-        });
+        return ResponseHandler.error(res, '缺少密码参数', 'VALIDATION_ERROR', 400);
       }
 
       const result = await systemModel.resetUserPassword(id, password);
 
       if (!result) {
-        return res.status(404).json({
-          code: 404,
-          message: '用户不存在',
-        });
+        return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, '密码重置成功');
@@ -254,10 +244,7 @@ const systemController = {
       const department = await systemModel.getDepartmentById(id);
 
       if (!department) {
-        return res.status(404).json({
-          code: 404,
-          message: '部门不存在',
-        });
+        return ResponseHandler.error(res, '部门不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, department, '获取部门信息成功');
@@ -297,10 +284,7 @@ const systemController = {
       const result = await systemModel.updateDepartment(id, departmentData);
 
       if (!result) {
-        return res.status(404).json({
-          code: 404,
-          message: '部门不存在',
-        });
+        return ResponseHandler.error(res, '部门不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, '更新部门成功');
@@ -316,20 +300,14 @@ const systemController = {
       const { status } = req.body;
 
       if (status === undefined) {
-        return res.status(400).json({
-          code: 400,
-          message: '缺少状态参数',
-        });
+        return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
       }
 
       const normalizedStatus = normalizeBinaryStatus(status);
       const result = await systemModel.updateDepartmentStatus(id, normalizedStatus);
 
       if (!result) {
-        return res.status(404).json({
-          code: 404,
-          message: '部门不存在',
-        });
+        return ResponseHandler.error(res, '部门不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, `部门状态已${normalizedStatus === 1 ? '启用' : '禁用'}`);
@@ -352,10 +330,7 @@ const systemController = {
 
       // 捕获并区分底层阻断异常
       if (error.message && error.message.startsWith('BLOCK_DELETE:')) {
-        return res.status(400).json({
-          code: 400,
-          message: error.message.replace('BLOCK_DELETE:', ''),
-        });
+        return ResponseHandler.error(res, error.message.replace('BLOCK_DELETE:', ''), 'VALIDATION_ERROR', 400);
       }
 
       return sendBusinessError(res, error, '删除部门失败');
@@ -392,10 +367,7 @@ const systemController = {
       const role = await systemModel.getRoleById(id);
 
       if (!role) {
-        return res.status(404).json({
-          code: 404,
-          message: '角色不存在',
-        });
+        return ResponseHandler.error(res, '角色不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, role, '获取角色信息成功');
@@ -433,7 +405,7 @@ const systemController = {
 
       // 安全检查：禁止非超管修改超管角色
       if (String(id) === '1' && String(req.user?.id) !== '1') {
-        return res.status(403).json({ code: 403, message: '禁止越权修改超级管理员角色' });
+        return ResponseHandler.error(res, '禁止越权修改超级管理员角色', 'FORBIDDEN', 403);
       }
 
 
@@ -453,24 +425,18 @@ const systemController = {
 
       // 安全检查：超级管理员角色不可禁用
       if (String(id) === '1' && (String(status) === '0' || Number(status) === 0)) {
-        return res.status(403).json({ code: 403, message: '系统内置超级管理员角色不允许禁用' });
+        return ResponseHandler.error(res, '系统内置超级管理员角色不允许禁用', 'FORBIDDEN', 403);
       }
 
       if (status === undefined) {
-        return res.status(400).json({
-          code: 400,
-          message: '缺少状态参数',
-        });
+        return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
       }
 
       const normalizedStatus = normalizeBinaryStatus(status);
       const result = await systemModel.updateRoleStatus(id, normalizedStatus);
 
       if (!result) {
-        return res.status(404).json({
-          code: 404,
-          message: '角色不存在',
-        });
+        return ResponseHandler.error(res, '角色不存在', 'NOT_FOUND', 404);
       }
 
       // 记录审计日志
@@ -513,7 +479,7 @@ const systemController = {
 
       // 安全检查：超级管理员角色不可删除
       if (String(id) === '1') {
-        return res.status(403).json({ code: 403, message: '系统内置超级管理员角色不允许删除' });
+        return ResponseHandler.error(res, '系统内置超级管理员角色不允许删除', 'FORBIDDEN', 403);
       }
 
 
@@ -543,10 +509,7 @@ const systemController = {
       const menu = await systemModel.getMenuById(id);
 
       if (!menu) {
-        return res.status(404).json({
-          code: 404,
-          message: '菜单不存在',
-        });
+        return ResponseHandler.error(res, '菜单不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, menu, '获取菜单信息成功');
@@ -560,6 +523,7 @@ const systemController = {
     try {
       const menuData = req.body;
       const newMenu = await systemModel.createMenu(menuData);
+      PermissionService.clearUserPermissionsCache();
 
       ResponseHandler.success(
         res,
@@ -584,12 +548,12 @@ const systemController = {
 
 
       const result = await systemModel.updateMenu(id, menuData);
+      if (result) {
+        PermissionService.clearUserPermissionsCache();
+      }
 
       if (!result) {
-        return res.status(404).json({
-          code: 404,
-          message: '菜单不存在',
-        });
+        return ResponseHandler.error(res, '菜单不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, '更新菜单成功');
@@ -605,20 +569,17 @@ const systemController = {
       const { status } = req.body;
 
       if (status === undefined) {
-        return res.status(400).json({
-          code: 400,
-          message: '缺少状态参数',
-        });
+        return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
       }
 
       const normalizedStatus = normalizeBinaryStatus(status);
       const result = await systemModel.updateMenuStatus(id, normalizedStatus);
+      if (result) {
+        PermissionService.clearUserPermissionsCache();
+      }
 
       if (!result) {
-        return res.status(404).json({
-          code: 404,
-          message: '菜单不存在',
-        });
+        return ResponseHandler.error(res, '菜单不存在', 'NOT_FOUND', 404);
       }
 
       ResponseHandler.success(res, null, `菜单状态已${normalizedStatus === 1 ? '显示' : '隐藏'}`);
@@ -634,6 +595,7 @@ const systemController = {
 
 
       await systemModel.deleteMenu(id);
+      PermissionService.clearUserPermissionsCache();
 
       ResponseHandler.success(res, null, '删除菜单成功');
     } catch (error) {
@@ -718,7 +680,7 @@ const systemController = {
 
       // 安全检查：禁止非超管修改超管角色的权限
       if (String(id) === '1' && String(req.user?.id) !== '1') {
-        return res.status(403).json({ code: 403, message: '禁止越权修改超级管理员角色的权限' });
+        return ResponseHandler.error(res, '禁止越权修改超级管理员角色的权限', 'FORBIDDEN', 403);
       }
 
       // 检查角色是否存在
@@ -858,7 +820,7 @@ const systemController = {
       const { menus } = req.body;
 
       if (!menus || !Array.isArray(menus) || menus.length === 0) {
-        return ResponseHandler.error(res, '菜单数据不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '菜单数据不能为空', 'VALIDATION_ERROR', 400);
       }
 
       // 开始事务
@@ -879,20 +841,30 @@ const systemController = {
 
         for (const menu of menus) {
           // 使用 INSERT ... ON DUPLICATE KEY UPDATE 减少逐条查询
-          await connection.execute(
-            `INSERT INTO menus (parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW(), NOW())
-             ON DUPLICATE KEY UPDATE
-               parent_id = VALUES(parent_id), name = VALUES(name), path = VALUES(path),
-               component = VALUES(component), icon = VALUES(icon), type = VALUES(type),
-               sort_order = VALUES(sort_order), status = VALUES(status), updated_at = NOW()`,
-            [
-              menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
-              menu.icon || '', menu.permission, menu.type || 1, menu.status || 1, menu.sort || 0,
-            ]
-          );
-          if (existingSet.has(menu.permission)) updatedCount++;
-          else insertedCount++;
+          const params = [
+            menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
+            menu.icon || '', menu.type || 1, menu.status || 1, menu.sort || 0,
+          ];
+          if (existingSet.has(menu.permission)) {
+            await connection.execute(
+              `UPDATE menus SET parent_id = ?, name = ?, path = ?, component = ?, icon = ?,
+               type = ?, status = ?, sort_order = ?, updated_at = NOW()
+               WHERE permission = ?`,
+              [...params, menu.permission]
+            );
+            updatedCount++;
+          } else {
+            await connection.execute(
+              `INSERT INTO menus (parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW(), NOW())`,
+              [
+                menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
+                menu.icon || '', menu.permission, menu.type || 1, menu.status || 1, menu.sort || 0,
+              ]
+            );
+            existingSet.add(menu.permission);
+            insertedCount++;
+          }
         }
 
         // 更新父子关系 — 批量获取映射后一次性处理
@@ -923,6 +895,7 @@ const systemController = {
         }
 
         await connection.commit();
+        PermissionService.clearUserPermissionsCache();
 
         logger.info(`菜单导入成功: 新增${insertedCount}条, 更新${updatedCount}条`);
         return ResponseHandler.success(
@@ -966,7 +939,7 @@ const systemController = {
     try {
       const { key, value } = req.body;
       if (!key) {
-        return ResponseHandler.error(res, '设置键不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '设置键不能为空', 'VALIDATION_ERROR', 400);
       }
 
       await pool.execute(
@@ -1014,7 +987,7 @@ const systemController = {
 
       // 验证配置格式
       if (!accountCodes || typeof accountCodes !== 'object') {
-        return ResponseHandler.error(res, '无效的配置格式', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的配置格式', 'VALIDATION_ERROR', 400);
       }
 
       // 保存到数据库
@@ -1049,7 +1022,7 @@ const systemController = {
       const actualLimit = Math.min(Math.max(parseInt(limit) || 100, 1), 1000); // 限制1-1000
       const actualOffset = Math.max(parseInt(offset) || 0, 0);
       const [logs] = await pool.query(
-        `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${actualLimit} OFFSET ${actualOffset}`
+        `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualLimit))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(actualOffset))||0)}`
       );
       return ResponseHandler.success(res, logs, '获取系统日志成功');
     } catch (error) {

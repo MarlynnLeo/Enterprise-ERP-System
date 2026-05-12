@@ -116,7 +116,7 @@
         </el-col>
         <el-col :span="8">
           <el-form-item label="物料位置">
-            <el-input 
+            <el-input
               v-model="form.location_detail"
               placeholder="如：零部件库-3排-4列"
               clearable />

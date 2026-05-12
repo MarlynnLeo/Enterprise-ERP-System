@@ -101,5 +101,12 @@ const getResultText = (result) => ({
   failed: '不合格',
   conditional: '有条件放行'
 }[result] || '未知')
+
+const getResultType = (result) => ({
+  pending: 'info',
+  passed: 'success',
+  failed: 'danger',
+  conditional: 'warning'
+}[result] || 'info')
 </script>
 

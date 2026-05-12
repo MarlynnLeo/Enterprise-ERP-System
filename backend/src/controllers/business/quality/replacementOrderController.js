@@ -175,7 +175,7 @@ const updateReplacementOrder = async (req, res) => {
       checkResult[0].status === STATUS.REPLACEMENT.CANCELLED
     ) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成或已取消的换货单不能修改', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已完成或已取消的换货单不能修改', 'VALIDATION_ERROR', 400);
     }
 
     // 更新换货单
@@ -211,7 +211,7 @@ const confirmReceipt = async (req, res) => {
     const receiveQty = parseFloat(received_quantity);
     if (!Number.isFinite(receiveQty) || receiveQty <= 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '收货数量必须大于0', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '收货数量必须大于0', 'VALIDATION_ERROR', 400);
     }
 
     // 获取换货单信息
@@ -229,7 +229,7 @@ const confirmReceipt = async (req, res) => {
       order.status === STATUS.REPLACEMENT.CANCELLED
     ) {
       await connection.rollback();
-      return ResponseHandler.error(res, '该换货单已完成或已取消', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '该换货单已完成或已取消', 'VALIDATION_ERROR', 400);
     }
 
     // 计算新的已收货数量
@@ -238,7 +238,7 @@ const confirmReceipt = async (req, res) => {
 
     if (newReceivedQty > totalQty) {
       await connection.rollback();
-      return ResponseHandler.error(res, '收货数量超过换货数量', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '收货数量超过换货数量', 'VALIDATION_ERROR', 400);
     }
 
     // 确定新状态
@@ -296,7 +296,7 @@ const updateStatus = async (req, res) => {
     const validStatuses = ['pending', 'partial', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     const [existing] = await connection.query('SELECT * FROM replacement_orders WHERE id = ?', [id]);
@@ -309,15 +309,15 @@ const updateStatus = async (req, res) => {
     const receivedQty = parseFloat(order.received_quantity || 0);
     if (order.status === STATUS.REPLACEMENT.COMPLETED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成的换货单不能变更状态', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已完成的换货单不能变更状态', 'VALIDATION_ERROR', 400);
     }
     if (['partial', 'completed'].includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '部分收货和完成状态必须通过收货确认流程产生', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '部分收货和完成状态必须通过收货确认流程产生', 'VALIDATION_ERROR', 400);
     }
     if (['pending', 'cancelled'].includes(status) && receivedQty > 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已有收货记录的换货单不能退回待收货或取消', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已有收货记录的换货单不能退回待收货或取消', 'VALIDATION_ERROR', 400);
     }
 
     await connection.query(

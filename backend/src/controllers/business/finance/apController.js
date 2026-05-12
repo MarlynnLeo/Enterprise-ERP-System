@@ -710,7 +710,7 @@ const apController = {
         // 执行查询
         const [payables] = await connection.execute(
           `
-          SELECT 
+          SELECT
             s.id AS supplierId,
             s.name AS supplierName,
             s.contact_person AS contactPerson,
@@ -721,7 +721,7 @@ const apController = {
             COALESCE(SUM(i.balance_amount), 0) AS balance,
             MAX(i.invoice_date) AS lastInvoiceDate
           FROM suppliers s
-          LEFT JOIN ap_invoices i ON s.id = i.supplier_id 
+          LEFT JOIN ap_invoices i ON s.id = i.supplier_id
             AND i.status IN ('已确认', '部分付款')
           WHERE s.status = 1 ${whereClause}
           GROUP BY s.id, s.name, s.contact_person, s.contact_phone
@@ -771,7 +771,7 @@ const apController = {
         // 获取供应商信息和应付款汇总
         const [supplierData] = await connection.execute(
           `
-          SELECT 
+          SELECT
             s.id AS supplierId,
             s.name AS supplierName,
             s.contact_person AS contactPerson,
@@ -782,7 +782,7 @@ const apController = {
             COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
             COALESCE(SUM(i.balance_amount), 0) AS balance
           FROM suppliers s
-          LEFT JOIN ap_invoices i ON s.id = i.supplier_id 
+          LEFT JOIN ap_invoices i ON s.id = i.supplier_id
             AND i.status IN ('已确认', '部分付款')
           WHERE s.id = ?
           GROUP BY s.id, s.name, s.contact_person, s.contact_phone, s.email
@@ -797,7 +797,7 @@ const apController = {
         // 获取该供应商的所有未付清发票
         const [invoices] = await connection.execute(
           `
-          SELECT 
+          SELECT
             id,
             invoice_number AS invoiceNumber,
             invoice_date AS invoiceDate,
@@ -873,39 +873,39 @@ const apController = {
         // 执行查询，获取应付账款数据
         const [payables] = await connection.execute(
           `
-          SELECT 
+          SELECT
             s.id AS supplierId,
             s.name AS supplierName,
             COALESCE(SUM(i.balance_amount), 0) AS totalAmount,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(i.due_date, CURDATE()) >= 0 AND DATEDIFF(i.due_date, CURDATE()) <= 30 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(i.due_date, CURDATE()) >= 0 AND DATEDIFF(i.due_date, CURDATE()) <= 30 THEN i.balance_amount
+              ELSE 0
             END), 0) AS within30Days,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount
+              ELSE 0
             END), 0) AS days31to60,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount
+              ELSE 0
             END), 0) AS days61to90,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) > 60 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) > 60 THEN i.balance_amount
+              ELSE 0
             END), 0) AS over90Days,
             s.contact_person AS contactPerson,
             s.contact_phone AS contactPhone
-          FROM 
+          FROM
             suppliers s
-          LEFT JOIN 
+          LEFT JOIN
             ap_invoices i ON s.id = i.supplier_id AND i.status IN ('已确认', '部分付款')
-          WHERE 
+          WHERE
             s.status = 1 ${whereClause}
-          GROUP BY 
+          GROUP BY
             s.id, s.name, s.contact_person, s.contact_phone
           HAVING
             totalAmount >= 0
-          ORDER BY 
+          ORDER BY
             totalAmount DESC
         `,
           params
@@ -959,32 +959,32 @@ const apController = {
         // 查询供应商账龄数据
         const [aging] = await connection.execute(
           `
-          SELECT 
+          SELECT
             s.id AS supplierId,
             s.name AS supplierName,
             s.contact_person AS contactPerson,
             s.contact_phone AS contactPhone,
             COALESCE(SUM(i.balance_amount), 0) AS totalAmount,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(i.due_date, CURDATE()) >= 0 AND DATEDIFF(i.due_date, CURDATE()) <= 30 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(i.due_date, CURDATE()) >= 0 AND DATEDIFF(i.due_date, CURDATE()) <= 30 THEN i.balance_amount
+              ELSE 0
             END), 0) AS within30Days,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount
+              ELSE 0
             END), 0) AS days31to60,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount
+              ELSE 0
             END), 0) AS days61to90,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) > 60 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) > 60 THEN i.balance_amount
+              ELSE 0
             END), 0) AS over90Days,
             MAX(i.invoice_date) AS lastInvoiceDate,
             COUNT(i.id) AS invoiceCount
           FROM suppliers s
-          LEFT JOIN ap_invoices i ON s.id = i.supplier_id 
+          LEFT JOIN ap_invoices i ON s.id = i.supplier_id
             AND i.status IN ('已确认', '部分付款')
           WHERE s.id = ? AND s.status = 1
           GROUP BY s.id, s.name, s.contact_person, s.contact_phone
@@ -999,7 +999,7 @@ const apController = {
         // 获取该供应商的未付清发票明细
         const [invoices] = await connection.execute(
           `
-          SELECT 
+          SELECT
             id,
             invoice_number AS invoiceNumber,
             invoice_date AS invoiceDate,

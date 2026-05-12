@@ -87,7 +87,7 @@ class AdvancedReportsService {
     // 获取资产数据
     const [assets] = await db.pool.execute(
       `
-      SELECT 
+      SELECT
         SUM(CASE WHEN a.account_type = '资产' AND a.account_code LIKE '1001%' THEN pb.debit_balance ELSE 0 END) as cash_and_equivalents,
         SUM(CASE WHEN a.account_type = '资产' AND a.account_code LIKE '1122%' THEN pb.debit_balance ELSE 0 END) as accounts_receivable,
         SUM(CASE WHEN a.account_type = '资产' AND a.account_code LIKE '1123%' THEN pb.debit_balance ELSE 0 END) as inventory,
@@ -105,7 +105,7 @@ class AdvancedReportsService {
     // 获取负债数据
     const [liabilities] = await db.pool.execute(
       `
-      SELECT 
+      SELECT
         SUM(CASE WHEN a.account_type = '负债' AND a.account_code LIKE '2001%' THEN pb.credit_balance ELSE 0 END) as accounts_payable,
         SUM(CASE WHEN a.account_type = '负债' AND a.account_code LIKE '20%' THEN pb.credit_balance ELSE 0 END) as current_liabilities,
         SUM(CASE WHEN a.account_type = '负债' AND a.account_code LIKE '25%' THEN pb.credit_balance ELSE 0 END) as long_term_liabilities,
@@ -121,7 +121,7 @@ class AdvancedReportsService {
     // 获取权益数据
     const [equity] = await db.pool.execute(
       `
-      SELECT 
+      SELECT
         SUM(CASE WHEN a.account_type = '权益' THEN pb.credit_balance ELSE 0 END) as total_equity
       FROM gl_accounts a
       LEFT JOIN gl_period_balances pb ON a.id = pb.account_id
@@ -134,7 +134,7 @@ class AdvancedReportsService {
     // 获取收入费用数据
     const [incomeExpense] = await db.pool.execute(
       `
-      SELECT 
+      SELECT
         SUM(CASE WHEN a.account_type = '收入' THEN ei.credit_amount - ei.debit_amount ELSE 0 END) as total_revenue,
         SUM(CASE WHEN a.account_type = '费用' AND a.account_code LIKE '5001%' THEN ei.debit_amount - ei.credit_amount ELSE 0 END) as cost_of_sales,
         SUM(CASE WHEN a.account_type = '费用' THEN ei.debit_amount - ei.credit_amount ELSE 0 END) as total_expenses

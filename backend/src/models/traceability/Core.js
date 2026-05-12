@@ -28,21 +28,21 @@ class TraceabilityCore {
         const offset = (pageNum - 1) * pageSizeNum;
 
         let query = `
-          SELECT 
-            t.id, 
-            t.product_code AS "productCode", 
-            t.product_name AS "productName", 
-            t.batch_number AS "batchNumber", 
-            t.production_date AS "productionDate", 
-            s.name AS supplier, 
+          SELECT
+            t.id,
+            t.product_code AS "productCode",
+            t.product_name AS "productName",
+            t.batch_number AS "batchNumber",
+            t.production_date AS "productionDate",
+            s.name AS supplier,
             t.status,
             t.remarks,
             (SELECT COUNT(*) FROM traceability_process WHERE traceability_id = t.id) AS "processCount",
             (SELECT COUNT(*) FROM traceability_material WHERE traceability_id = t.id) AS "materialCount",
             (SELECT COUNT(*) FROM quality_inspections qi WHERE (qi.product_name = t.product_name OR qi.batch_no = t.batch_number OR qi.product_code = t.product_code)) AS "qualityCount"
-          FROM 
+          FROM
             traceability t
-          LEFT JOIN 
+          LEFT JOIN
             suppliers s ON t.supplier_id = s.id
           WHERE 1=1
         `;
@@ -140,23 +140,23 @@ class TraceabilityCore {
   static async getTraceabilityById(id) {
     try {
       const query = `
-        SELECT 
-          t.id, 
-          t.product_code AS "productCode", 
-          t.product_name AS "productName", 
-          t.batch_number AS "batchNumber", 
-          t.production_date AS "productionDate", 
+        SELECT
+          t.id,
+          t.product_code AS "productCode",
+          t.product_name AS "productName",
+          t.batch_number AS "batchNumber",
+          t.production_date AS "productionDate",
           t.supplier_id AS "supplierId",
-          s.name AS supplier, 
+          s.name AS supplier,
           t.status,
           t.remarks,
           t.created_at AS "createdAt",
           t.updated_at AS "updatedAt"
-        FROM 
+        FROM
           traceability t
-        LEFT JOIN 
+        LEFT JOIN
           suppliers s ON t.supplier_id = s.id
-        WHERE 
+        WHERE
           t.id = ?
       `;
 
@@ -183,12 +183,12 @@ class TraceabilityCore {
     try {
       const query = `
         INSERT INTO traceability(
-          product_code, 
-          product_name, 
-          batch_number, 
-          production_date, 
-          supplier_id, 
-          status, 
+          product_code,
+          product_name,
+          batch_number,
+          production_date,
+          supplier_id,
+          status,
           remarks,
           created_at,
           updated_at
@@ -303,7 +303,7 @@ class TraceabilityCore {
       const id = parseInt(traceabilityId, 10);
 
       const query = `
-        SELECT 
+        SELECT
           id,
           process_name AS "processName",
           operator,
@@ -314,11 +314,11 @@ class TraceabilityCore {
           remarks,
           created_at AS "createdAt",
           updated_at AS "updatedAt"
-        FROM 
+        FROM
           traceability_process
-        WHERE 
+        WHERE
           traceability_id = ${id}
-        ORDER BY 
+        ORDER BY
           id
       `;
 
@@ -341,7 +341,7 @@ class TraceabilityCore {
       const id = parseInt(traceabilityId, 10);
 
       const query = `
-        SELECT 
+        SELECT
           tm.id,
           tm.material_code AS "materialCode",
           tm.batch_number AS "batchNumber",
@@ -351,13 +351,13 @@ class TraceabilityCore {
           tm.remarks,
           tm.created_at AS "createdAt",
           tm.updated_at AS "updatedAt"
-        FROM 
+        FROM
           traceability_material tm
         LEFT JOIN
           suppliers s ON tm.supplier_id = s.id
-        WHERE 
+        WHERE
           tm.traceability_id = ${id}
-        ORDER BY 
+        ORDER BY
           tm.id
       `;
 
@@ -378,7 +378,7 @@ class TraceabilityCore {
   static async getQualityRecords(traceabilityId) {
     // 首先查找直接关联到此追溯记录的质检记录
     const directQuery = `
-      SELECT 
+      SELECT
         qi.id,
         qi.inspection_no,
         qi.inspection_type,
@@ -389,11 +389,11 @@ class TraceabilityCore {
         qi.note AS "remarks",
         qi.created_at AS "createdAt",
         qi.updated_at AS "updatedAt"
-      FROM 
+      FROM
         quality_inspections qi
-      WHERE 
+      WHERE
         qi.traceability_id = ?
-      ORDER BY 
+      ORDER BY
         qi.actual_date DESC
     `;
 
@@ -407,14 +407,14 @@ class TraceabilityCore {
 
     // 如果没有直接关联的记录，则尝试通过产品代码和批次号查找
     const traceabilityQuery = `
-      SELECT 
+      SELECT
         id,
         product_code,
         product_name,
         batch_number
-      FROM 
+      FROM
         traceability
-      WHERE 
+      WHERE
         id = ?
     `;
 
@@ -428,7 +428,7 @@ class TraceabilityCore {
 
     // 使用产品名称、产品代码或批次号查询quality_inspections表
     const fallbackQuery = `
-      SELECT 
+      SELECT
         qi.id,
         qi.inspection_no,
         qi.inspection_type,
@@ -439,16 +439,16 @@ class TraceabilityCore {
         qi.note AS "remarks",
         qi.created_at AS "createdAt",
         qi.updated_at AS "updatedAt"
-      FROM 
+      FROM
         quality_inspections qi
-      WHERE 
+      WHERE
         (qi.traceability_id IS NULL OR qi.traceability_id = ?)
         AND (
           qi.product_code = ?
           OR qi.batch_no = ?
           OR qi.product_name = ?
         )
-      ORDER BY 
+      ORDER BY
         qi.actual_date DESC
       LIMIT 1
     `;

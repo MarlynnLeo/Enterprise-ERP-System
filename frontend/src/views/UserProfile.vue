@@ -14,11 +14,11 @@
     </el-card>
     <template v-else>
       <!-- 头部组件 -->
-      <ProfileHeader 
+      <ProfileHeader
         :user-name="userForm.name"
         :days="daysFromRegistration"
       />
-    
+
       <!-- 导航按钮 -->
       <div class="nav-buttons">
         <el-button
@@ -54,7 +54,7 @@
         <!-- 右侧：内容区 -->
         <el-col :xs="24" :sm="24" :md="16" :lg="17" :xl="18">
           <!-- 基本信息与密码 -->
-          <ProfileEdit 
+          <ProfileEdit
             v-show="activeTab === 'basic' || activeTab === 'password'"
             :active-tab="activeTab"
             :user-form="userForm"
@@ -77,7 +77,7 @@
                   </div>
                 </div>
               </template>
-              
+
               <el-form :model="appearanceForm" label-width="120px">
                 <div class="appearance-section">
                   <div class="section-title">
@@ -98,9 +98,9 @@
                     </el-radio-group>
                   </el-form-item>
                 </div>
-                
+
                 <el-divider />
-                
+
                 <div class="appearance-section">
                   <div class="section-title">
                     <el-icon><Brush /></el-icon>
@@ -114,9 +114,9 @@
                     </div>
                   </el-form-item>
                 </div>
-                
+
                 <el-divider />
-                
+
                 <div class="appearance-section">
                   <div class="section-title">
                     <el-icon><Reading /></el-icon>
@@ -124,12 +124,12 @@
                   </div>
                   <el-form-item label="字体大小">
                     <div class="font-size-wrapper">
-                      <el-slider 
-                        v-model="appearanceForm.fontSize" 
-                        :min="12" 
-                        :max="20" 
-                        :step="1" 
-                        show-stops 
+                      <el-slider
+                        v-model="appearanceForm.fontSize"
+                        :min="12"
+                        :max="20"
+                        :step="1"
+                        show-stops
                         :marks="{12: '小', 14: '默认', 16: '中', 18: '大', 20: '超大'}"
                       />
                       <div class="font-preview" :style="{fontSize: appearanceForm.fontSize + 'px'}">
@@ -138,7 +138,7 @@
                     </div>
                   </el-form-item>
                 </div>
-                
+
                 <el-form-item>
                   <el-button type="primary" @click="saveAppearance">
                     <el-icon><Check /></el-icon> 保存设置
@@ -152,7 +152,7 @@
           </div>
           <!-- 近期活动 -->
           <div v-show="activeTab === 'activities'">
-            <ActivityLog 
+            <ActivityLog
               :activities="userActivities"
               @load-more="loadMoreActivities"
               @export="exportActivities"
@@ -160,7 +160,7 @@
           </div>
           <!-- 数据统计 -->
           <div v-show="activeTab === 'stats'">
-            <UserMetrics 
+            <UserMetrics
               :efficiency-score="efficiencyScore"
               :average-response-time="averageResponseTime"
               :days-active="userStats.daysActive"
@@ -170,7 +170,7 @@
           </div>
           <!-- 头像特效 -->
           <div v-show="activeTab === 'avatar'">
-            <AvatarSelector 
+            <AvatarSelector
               v-model="currentAvatarFrame"
               :avatar="userForm.avatar"
               :name="userForm.name"
@@ -403,7 +403,7 @@ const saveProfile = async () => {
       phone: userForm.phone,
       bio: userForm.bio
     })
-    
+
     // 更新本地store
     if (response.data) {
       authStore.updateUser(response.data)
@@ -416,7 +416,7 @@ const saveProfile = async () => {
         bio: userForm.bio
       })
     }
-    
+
     ElMessage.success('个人资料已更新')
     isEditing.value = false
   } catch (error) {
@@ -460,10 +460,10 @@ const handleFrameChange = async (frameId) => {
   try {
     // 使用专用接口保存
     await userApi.updateAvatarFrame(frameId)
-    
+
     // 更新本地 store
     authStore.user.avatar_frame = frameId
-    
+
     ElMessage.success('头像特效已保存')
   } catch (error) {
     ElMessage.error('特效保存失败: ' + (error.message || '未知错误'))
@@ -553,11 +553,11 @@ const formatOnlineTime = (seconds) => {
   .user-profile {
     padding: 10px;
   }
-  
+
   .nav-buttons {
     gap: 8px;
   }
-  
+
   .nav-btn {
     padding: 8px 12px;
     font-size: 12px;

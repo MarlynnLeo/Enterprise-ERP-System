@@ -217,7 +217,7 @@ class PurchaseOrderService {
 
     // 使用数据库实际列名：price, total (不是 unit_price, amount)
     await connection.query(
-      `INSERT INTO purchase_order_items 
+      `INSERT INTO purchase_order_items
       (order_id, material_id, material_code, material_name, specification, unit, unit_id, price, quantity, total, tax_rate)
       VALUES ${placeholders}`,
       values

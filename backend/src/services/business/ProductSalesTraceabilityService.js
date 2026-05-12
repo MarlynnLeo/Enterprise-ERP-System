@@ -229,7 +229,7 @@ class ProductSalesTraceabilityService {
       // ✅ 从 v_batch_stock 视图获取成品批次信息
       const [productBatch] = await connection.execute(
         `
-        SELECT 
+        SELECT
           vbs.*,
           m.code as material_code,
           m.name as material_name
@@ -249,7 +249,7 @@ class ProductSalesTraceabilityService {
       // ✅ 获取原材料（基于 batch_relationships，使用 batch_number）
       const [rawMaterials] = await connection.execute(
         `
-        SELECT 
+        SELECT
           m.code as raw_material_code,
           m.name as raw_material_name,
           br.parent_batch_number as raw_material_batch,
@@ -268,7 +268,7 @@ class ProductSalesTraceabilityService {
       // 获取销售记录（使用batch_number）
       const [salesRecords] = await connection.execute(
         `
-        SELECT 
+        SELECT
           pst.outbound_no,
           pst.customer_name,
           pst.allocated_quantity,
@@ -334,7 +334,7 @@ class ProductSalesTraceabilityService {
       // ✅ 使用 batch_number 进行关联查询
       const [traceabilityData] = await connection.execute(
         `
-        SELECT 
+        SELECT
           pst.customer_name,
           pst.outbound_no,
           pst.delivery_date,

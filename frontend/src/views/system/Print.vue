@@ -173,7 +173,7 @@
       width="60%"
       destroy-on-close
     >
-      <el-form 
+      <el-form
         ref="templateFormRef"
         :model="currentTemplate"
         :rules="templateRules"
@@ -182,7 +182,7 @@
         <el-form-item label="模板名称" prop="name">
           <el-input v-model="currentTemplate.name" placeholder="请输入模板名称" />
         </el-form-item>
-        
+
         <el-form-item label="所属模块" prop="module">
           <el-select v-model="currentTemplate.module" placeholder="选择所属模块" style="width: 100%">
             <el-option
@@ -193,7 +193,7 @@
             />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="模板类型" prop="template_type">
           <el-select v-model="currentTemplate.template_type" placeholder="选择模板类型" style="width: 100%">
             <el-option
@@ -204,7 +204,7 @@
             />
           </el-select>
         </el-form-item>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="纸张大小" prop="paper_size">
@@ -224,7 +224,7 @@
         <el-form-item label="边距(mm)">
           <MarginInputs v-model="templateMargins" />
         </el-form-item>
-        
+
         <el-form-item label="编辑模式">
           <el-radio-group v-model="editMode">
             <el-radio-button value="visual">可视化编辑</el-radio-button>
@@ -300,7 +300,7 @@
             </div>
           </div>
         </el-form-item>
-        
+
         <el-form-item label="是否默认">
           <el-switch
             v-model="currentTemplate.is_default"
@@ -310,7 +310,7 @@
             inactive-text="否"
           />
         </el-form-item>
-        
+
         <el-form-item label="状态">
           <el-switch
             v-model="currentTemplate.status"
@@ -321,7 +321,7 @@
           />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="templateDialogVisible = false">取消</el-button>
@@ -329,7 +329,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 模板预览对话框 -->
     <el-dialog
       v-model="previewDialogVisible"
@@ -366,11 +366,13 @@ import {
   TEMPLATE_TYPE_OPTIONS,
   DEFAULT_TEMPLATE,
   VALIDATION_RULES,
-  PAGINATION_CONFIG
+  PAGINATION_CONFIG,
+  PREVIEW_DATA
 } from '../../constants/printConstants'
 
 import {
-  previewTemplate as processTemplatePreview
+  previewTemplate as processTemplatePreview,
+  processTemplate
 } from '../../utils/helpers/templateUtils'
 
 // 导入公共组件
@@ -479,12 +481,12 @@ const fetchCompanyInfo = async () => {
     const response = await api.get('/system/settings')
     if (response.data) {
       const settings = Array.isArray(response.data) ? response.data : []
-      
+
       const companyNameSetting = settings.find(s => s.key === 'company_name' || s.setting_key === 'company_name')
       const companyPhoneSetting = settings.find(s => s.key === 'company_phone' || s.setting_key === 'company_phone')
       const companyFaxSetting = settings.find(s => s.key === 'company_fax' || s.setting_key === 'company_fax')
       const companyAddressSetting = settings.find(s => s.key === 'company_address' || s.setting_key === 'company_address')
-      
+
       companyInfo.company_name = companyNameSetting?.value || companyNameSetting?.setting_value || ''
       companyInfo.company_phone = companyPhoneSetting?.value || companyPhoneSetting?.setting_value || ''
       companyInfo.company_fax = companyFaxSetting?.value || companyFaxSetting?.setting_value || ''
@@ -500,7 +502,7 @@ const fetchCompanyInfo = async () => {
 const saveCompanyInfo = async () => {
   try {
     savingCompanyInfo.value = true
-    
+
     // 保存每个设置项
     const settingsToSave = [
       { key: 'company_name', value: companyInfo.company_name },
@@ -508,11 +510,11 @@ const saveCompanyInfo = async () => {
       { key: 'company_fax', value: companyInfo.company_fax },
       { key: 'company_address', value: companyInfo.company_address }
     ]
-    
+
     for (const setting of settingsToSave) {
       await api.put('/system/settings', setting)
     }
-    
+
     ElMessage.success('公司信息保存成功')
   } catch (error) {
     console.error('保存公司信息失败:', error)
@@ -612,7 +614,7 @@ const openTemplateDialog = (row) => {
 
 const savePrintTemplate = async () => {
   if (!templateFormRef.value) return
-  
+
   await templateFormRef.value.validate(async (valid) => {
     if (valid) {
       try {
@@ -626,7 +628,7 @@ const savePrintTemplate = async () => {
           ElMessage.success('添加打印模板成功')
         }
         templateDialogVisible.value = false
-        
+
         // 延迟一下再刷新列表，确保后端数据已更新
         setTimeout(() => {
           fetchPrintTemplates()
@@ -727,86 +729,17 @@ const onCodeEditorInput = () => {
 }
 
 const updatePreview = () => {
-  // 生成预览HTML，替换变量为预览数据
-  let html = currentTemplate.content || ''
-
-  let previewData = {}
-
-  if (currentTemplate.template_type === 'production_outbound') {
-    previewData = {
-      outbound_no: 'OUT20250830006',
-      outbound_date: '2025-08-30',
-      outbound_type_text: '生产出库',
-      operator: '王晓敏',
-      production_plan_code: 'PP20250830001',
-      status: '已完成',
-      remark: '智能替代配料出库',
-      print_time: new Date().toLocaleString()
-    }
-
-    // 处理物料列表的循环
-    const itemsHtml = `
-      <tr>
-        <td>1</td>
-        <td>999905005</td>
-        <td>脚踏盒子</td>
-        <td>无规格</td>
-        <td>只</td>
-        <td>1</td>
-        <td>半成品仓库</td>
-      </tr>
-      <tr class="substitute-row">
-        <td>└</td>
-        <td>999905006</td>
-        <td>螺丝钉<span class="substitute-mark">替代</span></td>
-        <td>标准规格</td>
-        <td>件</td>
-        <td>1</td>
-        <td>零配件仓库</td>
-      </tr>
-      <tr class="substitute-row">
-        <td>└</td>
-        <td>999905004</td>
-        <td>微动开盒子<span class="substitute-mark">替代</span></td>
-        <td>T-001</td>
-        <td>件</td>
-        <td>1</td>
-        <td>零配件仓库</td>
-      </tr>
-      <tr>
-        <td>2</td>
-        <td>999905003</td>
-        <td>弹簧</td>
-        <td>T-001</td>
-        <td>只</td>
-        <td>1</td>
-        <td>零配件仓库</td>
-      </tr>
-    `
-
-    // 替换物料列表循环 - 支持多种格式
-    html = html.replace(/\{\{#items\}\}[\s\S]*?\{\{\/items\}\}/g, itemsHtml)
-    html = html.replace(/\{\{#each\s+items\}\}[\s\S]*?\{\{\/each\}\}/g, itemsHtml)
-    html = html.replace(/\{\{#each items\}\}[\s\S]*?\{\{\/each\}\}/g, itemsHtml)
-    html = html.replace(/\{\{#each\}\}[\s\S]*?\{\{\/each\}\}/g, itemsHtml)
-  } else {
-    previewData = {
-      company_name: '预览公司名称',
-      order_no: 'SO202501001',
-      customer_name: '预览客户',
-      date: new Date().toLocaleDateString(),
-      outbound_no: 'OUT202501001',
-      delivery_date: new Date().toLocaleDateString(),
-      total_amount: '1000.00'
-    }
+  const previewData = PREVIEW_DATA[currentTemplate.template_type] || {
+    company_name: '预览公司名称',
+    title: '打印模板预览',
+    document_no: 'DOC-20260511001',
+    date: new Date().toLocaleDateString(),
+    items: [
+      { index: 1, name: '示例项目', quantity: '1.00', remark: '' }
+    ]
   }
 
-  Object.keys(previewData).forEach(key => {
-    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
-    html = html.replace(regex, previewData[key])
-  })
-
-  previewHtml.value = html
+  previewHtml.value = processTemplate(currentTemplate.content || '', previewData)
 }
 
 const insertVariable = (variable) => {

@@ -24,15 +24,15 @@ export function ensureNotArray(value, defaultValue = null) {
 export function ensureValidId(value, defaultValue = null) {
   // 先确保不是数组
   const singleValue = ensureNotArray(value, defaultValue);
-  
+
   // 转换为数字
   const numValue = Number(singleValue);
-  
+
   // 检查是否为有效数字
   if (isNaN(numValue) || numValue <= 0) {
     return defaultValue;
   }
-  
+
   return numValue;
 }
 
@@ -47,17 +47,17 @@ export function safeGet(obj, path, defaultValue = null) {
   if (!obj || typeof obj !== 'object') {
     return defaultValue;
   }
-  
+
   const keys = path.split('.');
   let result = obj;
-  
+
   for (const key of keys) {
     if (result === null || result === undefined || typeof result !== 'object') {
       return defaultValue;
     }
     result = result[key];
   }
-  
+
   return result !== undefined ? result : defaultValue;
 }
 
@@ -70,9 +70,9 @@ export function formatApiResponse(response) {
   if (!response || !response.data) {
     return { items: [], total: 0 };
   }
-  
+
   const data = response.data;
-  
+
   // 处理不同的响应格式
   if (data.items && Array.isArray(data.items)) {
     // 新格式: { items: [], total: number }
@@ -93,7 +93,7 @@ export function formatApiResponse(response) {
       total: data.length
     };
   }
-  
+
   return { items: [], total: 0 };
 }
 
@@ -105,22 +105,22 @@ export function formatApiResponse(response) {
  */
 export function cleanFormData(formData, idFields = []) {
   const cleaned = { ...formData };
-  
+
   // 默认的ID字段
   const defaultIdFields = [
-    'id', 'warehouse_id', 'supplier_id', 'customer_id', 'material_id', 
+    'id', 'warehouse_id', 'supplier_id', 'customer_id', 'material_id',
     'product_id', 'order_id', 'processing_id', 'unit_id', 'category_id'
   ];
-  
+
   const allIdFields = [...new Set([...defaultIdFields, ...idFields])];
-  
+
   // 清理ID字段
   allIdFields.forEach(field => {
     if (cleaned.hasOwnProperty(field)) {
       cleaned[field] = ensureValidId(cleaned[field]);
     }
   });
-  
+
   return cleaned;
 }
 
@@ -132,14 +132,14 @@ export function cleanFormData(formData, idFields = []) {
  */
 export function validateRequiredFields(data, requiredFields) {
   const errors = [];
-  
+
   requiredFields.forEach(field => {
     const value = safeGet(data, field);
     if (value === null || value === undefined || value === '') {
       errors.push(`${field} 是必填字段`);
     }
   });
-  
+
   return {
     valid: errors.length === 0,
     errors
@@ -188,21 +188,21 @@ export function deepClone(obj) {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
-  
+
   if (obj instanceof Date) {
     return new Date(obj.getTime());
   }
-  
+
   if (Array.isArray(obj)) {
     return obj.map(item => deepClone(item));
   }
-  
+
   const cloned = {};
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
       cloned[key] = deepClone(obj[key]);
     }
   }
-  
+
   return cloned;
 }

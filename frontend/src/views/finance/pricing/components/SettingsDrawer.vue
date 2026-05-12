@@ -12,9 +12,9 @@
         <el-tab-pane label="预警阈值" name="thresholds">
           <el-form label-width="150px" class="settings-form">
             <el-form-item label="低利润率阈值 (%)">
-              <el-input-number 
-                :model-value="form.lowMarginThreshold" 
-                :min="0" 
+              <el-input-number
+                :model-value="form.lowMarginThreshold"
+                :min="0"
                 :max="100"
                 :step="1"
                 @update:model-value="updateFormField('lowMarginThreshold', $event)"
@@ -22,9 +22,9 @@
               <div class="form-tip">低于此阈值的产品将显示警告标记</div>
             </el-form-item>
             <el-form-item label="成本变动阈值 (%)">
-              <el-input-number 
-                :model-value="form.costVarianceThreshold" 
-                :min="0" 
+              <el-input-number
+                :model-value="form.costVarianceThreshold"
+                :min="0"
                 :max="100"
                 :step="1"
                 @update:model-value="updateFormField('costVarianceThreshold', $event)"
@@ -32,9 +32,9 @@
               <div class="form-tip">成本变动超过此阈值时显示警告</div>
             </el-form-item>
             <el-form-item label="最低利润率限制 (%)">
-              <el-input-number 
-                :model-value="form.minProfitMargin" 
-                :min="-100" 
+              <el-input-number
+                :model-value="form.minProfitMargin"
+                :min="-100"
                 :max="100"
                 :step="1"
                 @update:model-value="updateFormField('minProfitMargin', $event)"
@@ -86,9 +86,9 @@
             <el-table-column prop="description" label="描述" show-overflow-tooltip />
             <el-table-column prop="is_active" label="状态" width="80" align="center">
               <template #default="{ row }">
-                <el-switch 
-                  :model-value="row.is_active" 
-                  :active-value="1" 
+                <el-switch
+                  :model-value="row.is_active"
+                  :active-value="1"
                   :inactive-value="0"
                   @change="$emit('toggle-field', row, $event)"
                 />
@@ -138,14 +138,14 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-  'update:modelValue', 
+  'update:modelValue',
   'update:activeTab',
   'update:form',
-  'save', 
-  'reset', 
-  'add-field', 
-  'edit-field', 
-  'delete-field', 
+  'save',
+  'reset',
+  'add-field',
+  'edit-field',
+  'delete-field',
   'toggle-field'
 ]);
 

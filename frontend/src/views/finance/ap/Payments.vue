@@ -17,7 +17,7 @@
         <el-button v-permission="'finance:ap:pay'" type="primary" :icon="Plus" @click="showAddDialog">新增付款</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -66,7 +66,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -100,17 +100,17 @@
         <el-table-column label="操作" min-width="230" fixed="right">
           <template #default="scope">
             <el-button type="info" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
-            <el-button v-permission="'finance:ap:update'" 
-              v-if="scope.row.status === 'normal'" 
-              type="warning" 
-              size="small" 
+            <el-button v-permission="'finance:ap:update'"
+              v-if="scope.row.status === 'normal'"
+              type="warning"
+              size="small"
               @click="handleVoid(scope.row)"
             >作废</el-button>
             <el-button v-permission="'finance:ap:view'" type="success" size="small" @click="handlePrint(scope.row)">打印</el-button>
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -128,7 +128,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -140,10 +140,10 @@
           <el-input v-model="paymentForm.paymentNumber" placeholder="系统自动生成" disabled></el-input>
         </el-form-item>
         <el-form-item label="关联发票" prop="invoiceId">
-          <el-select 
-            v-model="paymentForm.invoiceId" 
-            placeholder="请选择关联发票" 
-            filterable 
+          <el-select
+            v-model="paymentForm.invoiceId"
+            placeholder="请选择关联发票"
+            filterable
             style="width: 100%"
             @change="handleInvoiceChange"
           >
@@ -197,7 +197,7 @@
             placeholder="请输入备注信息"
           ></el-input>
         </el-form-item>
-        
+
         <!-- 自动生成会计凭证选项 -->
         <el-form-item label="会计凭证">
           <el-switch
@@ -212,13 +212,13 @@
             将自动生成应付账款付款会计凭证
           </div>
         </el-form-item>
-        
+
         <!-- 银行账户选择，当付款方式为银行转账、支票或信用卡时显示 -->
         <el-form-item label="付款账户" prop="bankAccountId" v-if="['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod)">
-          <el-select 
-            v-model="paymentForm.bankAccountId" 
-            placeholder="选择付款账户" 
-            filterable 
+          <el-select
+            v-model="paymentForm.bankAccountId"
+            placeholder="选择付款账户"
+            filterable
             style="width: 100%"
           >
             <el-option
@@ -230,7 +230,7 @@
           </el-select>
           <div class="form-tip"><el-icon style="vertical-align: middle; color: var(--color-primary);"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
         </el-form-item>
-        
+
         <el-form-item label="参考号" prop="referenceNumber" v-if="paymentForm.paymentMethod !== 'cash'">
           <el-input v-model="paymentForm.referenceNumber" placeholder="请输入付款参考号/交易号"></el-input>
         </el-form-item>
@@ -258,7 +258,7 @@
         <el-descriptions-item label="付款金额">{{ formatCurrency(detailData.amount) }}</el-descriptions-item>
         <el-descriptions-item label="付款方式">{{ getPaymentMethodText(detailData.paymentMethod) }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData.notes || '-' }}</el-descriptions-item>
-        
+
         <!-- 如果已作废，显示作废信息 -->
         <template v-if="detailData.status === 'void'">
           <el-descriptions-item label="作废时间">{{ detailData.voided_at }}</el-descriptions-item>
@@ -288,7 +288,7 @@
           ✓ 记录将保留但无法再编辑
         </div>
       </el-alert>
-      
+
       <el-form :model="voidForm" :rules="voidRules" ref="voidFormRef" label-width="100px">
         <el-form-item label="付款编号">
           <el-input v-model="voidForm.paymentNumber" disabled></el-input>
@@ -307,7 +307,7 @@
           ></el-input>
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="voidDialogVisible = false">取消</el-button>
@@ -519,13 +519,13 @@ const handleInvoiceChange = async () => {
     paymentForm.amount = 0;
     return;
   }
-  
+
   try {
     const response = await api.get(`/finance/ap/invoices/${paymentForm.invoiceId}`);
     const invoice = response.data;
-    
+
     const balance = invoice.amount - invoice.paidAmount;
-    
+
     paymentForm.invoiceNumber = invoice.invoiceNumber;
     paymentForm.supplierName = invoice.supplierName;
     paymentForm.invoiceAmount = formatCurrency(invoice.amount);
@@ -586,18 +586,18 @@ const handleVoid = (row) => {
   voidForm.paymentNumber = row.paymentNumber;
   voidForm.amount = formatCurrency(row.amount);
   voidForm.voidReason = '';
-  
+
   // 清除校验
   if (voidFormRef.value) {
     voidFormRef.value.resetFields();
   }
-  
+
   voidDialogVisible.value = true;
 };
 // 确认作废
 const confirmVoid = async () => {
   if (!voidFormRef.value) return;
-  
+
   await voidFormRef.value.validate(async (valid) => {
     if (valid) {
       voidLoading.value = true;
@@ -605,7 +605,7 @@ const confirmVoid = async () => {
         await api.post(`/finance/ap/payments/${voidForm.id}/void`, {
           void_reason: voidForm.voidReason
         });
-        
+
         ElMessage.success('付款记录已成功作废');
         voidDialogVisible.value = false;
         loadPayments(); // 刷新列表
@@ -626,8 +626,10 @@ const showAddDialog = () => {
   loadBankAccountOptions();
   dialogVisible.value = true;
 };
-// 编辑付款记录;
-// 删除付款记录;
+// 编辑付款记录
+;
+// 删除付款记录
+;
 // 打印相关状态
 const printDialogVisible = ref(false);
 const printData = ref({});
@@ -651,7 +653,7 @@ const handlePrint = async (row) => {
       supplier_name: payment.supplierName,
       payment_method: getPaymentMethodText(payment.paymentMethod),
       // 如果没有具体的银行账户信息，显示"-"
-      bank_account_name: payment.bankAccountName || '-', 
+      bank_account_name: payment.bankAccountName || '-',
       bank_account_number: payment.bankAccountNumber || '',
       amount: payment.amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       amount_upper: NumberFormatter.digitUppercase(payment.amount), // 使用工具类转换金额大写
@@ -669,7 +671,7 @@ const handlePrint = async (row) => {
 // 保存付款记录
 const savePayment = async () => {
   if (!paymentFormRef.value) return;
-  
+
   await paymentFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
@@ -687,7 +689,7 @@ const savePayment = async () => {
           bankAccountId: paymentForm.bankAccountId,
           referenceNumber: paymentForm.referenceNumber
         };
-        
+
         await api.post('/finance/ap/payments', data);
         ElMessage.success('添加成功');
         dialogVisible.value = false;
@@ -719,7 +721,7 @@ const resetPaymentForm = () => {
   paymentForm.createLedgerEntry = false;
   paymentForm.bankAccountId = null;
   paymentForm.referenceNumber = '';
-  
+
   // 清除校验
   if (paymentFormRef.value) {
     paymentFormRef.value.resetFields();

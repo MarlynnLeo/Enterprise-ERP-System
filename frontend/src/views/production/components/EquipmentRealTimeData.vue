@@ -17,7 +17,7 @@
           <el-radio-button value="7d">7天</el-radio-button>
         </el-radio-group>
       </div>
-      
+
       <div class="control-buttons">
         <el-button @click="refreshData" :loading="loading">
           <el-icon><Refresh /></el-icon>
@@ -33,8 +33,8 @@
     <!-- 参数卡片 -->
     <div class="parameter-cards" v-loading="loading">
       <el-row :gutter="20">
-        <el-col 
-          v-for="(parameter, parameterCode) in realTimeData" 
+        <el-col
+          v-for="(parameter, parameterCode) in realTimeData"
           :key="parameterCode"
           :xs="24" :sm="12" :md="8" :lg="6" :xl="6"
         >
@@ -42,15 +42,15 @@
             <template #header>
               <div class="parameter-header">
                 <span class="parameter-name">{{ parameter.parameter_name }}</span>
-                <el-tag 
-                  :type="getParameterStatusType(parameter)" 
+                <el-tag
+                  :type="getParameterStatusType(parameter)"
                   size="small"
                 >
                   {{ getParameterStatusText(parameter) }}
                 </el-tag>
               </div>
             </template>
-            
+
             <div class="parameter-content">
               <!-- 当前值显示 -->
               <div class="current-value">
@@ -59,10 +59,10 @@
                 </span>
                 <span class="unit" v-if="parameter.unit">{{ parameter.unit }}</span>
               </div>
-              
+
               <!-- 趋势图 -->
               <div class="trend-chart" :id="`chart-${parameterCode}`"></div>
-              
+
               <!-- 统计信息 -->
               <div class="parameter-stats">
                 <div class="stat-item">
@@ -81,7 +81,7 @@
     </div>
 
     <!-- 无数据提示 -->
-    <el-empty 
+    <el-empty
       v-if="!loading && Object.keys(realTimeData).length === 0"
       description="暂无实时数据"
     />
@@ -133,11 +133,11 @@ const fetchRealTimeData = async () => {
   try {
     loading.value = true
     const response = await equipmentMonitoringAPI.getEquipmentRealTimeData(
-      props.equipmentId, 
+      props.equipmentId,
       timeRange.value
     )
     realTimeData.value = response.data
-    
+
     // 更新图表
     await nextTick()
     updateCharts()
@@ -153,26 +153,26 @@ const updateCharts = () => {
     const parameter = realTimeData.value[parameterCode]
     const chartId = `chart-${parameterCode}`
     const chartElement = document.getElementById(chartId)
-    
+
     if (chartElement) {
       // 销毁旧图表
       if (charts[parameterCode]) {
         charts[parameterCode].dispose()
       }
-      
+
       // 创建新图表
       const chart = echarts.init(chartElement)
       charts[parameterCode] = chart
-      
+
       // 准备数据
       const timeData = []
       const valueData = []
-      
+
       parameter.data.forEach(item => {
         timeData.push(formatTime(item.timestamp))
         valueData.push(item.value !== null ? item.value : 0)
       })
-      
+
       // 图表配置
       const option = {
         grid: {
@@ -220,7 +220,7 @@ const updateCharts = () => {
           }
         }
       }
-      
+
       chart.setOption(option)
     }
   })
@@ -236,7 +236,7 @@ const handleTimeRangeChange = () => {
 
 const toggleAutoRefresh = () => {
   autoRefresh.value = !autoRefresh.value
-  
+
   if (autoRefresh.value) {
     refreshTimer = setInterval(() => {
       fetchRealTimeData()
@@ -254,7 +254,7 @@ const toggleAutoRefresh = () => {
 // 工具方法
 const getCurrentValue = (parameter) => {
   if (parameter.data.length === 0) return '-'
-  
+
   const latestData = parameter.data[0] // 数据按时间倒序排列
   if (latestData.value !== null) {
     return latestData.value
@@ -266,14 +266,14 @@ const getCurrentValue = (parameter) => {
 
 const getLastUpdateTime = (parameter) => {
   if (parameter.data.length === 0) return '-'
-  
+
   const latestData = parameter.data[0]
   return formatTime(latestData.timestamp)
 }
 
 const getParameterStatusText = (parameter) => {
   if (parameter.data.length === 0) return '无数据'
-  
+
   const latestData = parameter.data[0]
   const statusMap = {
     normal: '正常',
@@ -286,7 +286,7 @@ const getParameterStatusText = (parameter) => {
 
 const getParameterStatusType = (parameter) => {
   if (parameter.data.length === 0) return 'info'
-  
+
   const latestData = parameter.data[0]
   const typeMap = {
     normal: 'success',
@@ -299,7 +299,7 @@ const getParameterStatusType = (parameter) => {
 
 const getParameterColor = (parameter) => {
   if (parameter.data.length === 0) return '#909399'
-  
+
   const latestData = parameter.data[0]
   const colorMap = {
     normal: '#67c23a',
@@ -320,12 +320,12 @@ onMounted(() => {
 onUnmounted(() => {
   // 移除 resize 监听
   window.removeEventListener('resize', handleResize)
-  
+
   // 清理定时器
   if (refreshTimer) {
     clearInterval(refreshTimer)
   }
-  
+
   // 销毁图表
   Object.values(charts).forEach(chart => {
     if (chart) {
@@ -429,20 +429,20 @@ onUnmounted(() => {
   .equipment-realtime-data {
     padding: 10px;
   }
-  
+
   .control-panel {
     flex-direction: column;
     gap: 10px;
   }
-  
+
   .parameter-card {
     height: 250px;
   }
-  
+
   .current-value .value {
     font-size: 20px;
   }
-  
+
   .trend-chart {
     min-height: 100px;
   }

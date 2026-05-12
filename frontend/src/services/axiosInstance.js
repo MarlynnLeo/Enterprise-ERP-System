@@ -102,8 +102,8 @@ const setupInterceptors = (apiInstance) => {
         async (error) => {
             const originalRequest = error.config;
             // 如果是401错误且不是登录/刷新接口且未重试过
-            if (error.response?.status === 401 && 
-                !originalRequest.url.includes('/auth/login') && 
+            if (error.response?.status === 401 &&
+                !originalRequest.url.includes('/auth/login') &&
                 !originalRequest.url.includes('/auth/refresh') &&
                 !originalRequest._retry) {
                 // ✅ 根源判断：如果本地根本没有任何 token，说明用户未登录，直接跳登录页
@@ -134,7 +134,7 @@ const setupInterceptors = (apiInstance) => {
                     // 尝试用 Cookie 或 localStorage 中的 refreshToken 刷新
                     let refreshResponse;
                     const storedRefreshToken = tokenManager.getRefreshToken();
-                    
+
                     try {
                         refreshResponse = await apiInstance.post('/auth/refresh',
                             storedRefreshToken ? { refreshToken: storedRefreshToken } : undefined

@@ -2,6 +2,8 @@
  * 生产计划性能优化工具
  */
 
+import { baseDataApi } from '@/api/baseData'
+import { parseListData } from '@/utils/responseParser'
 import logger from './logger'
 
 /**
@@ -23,7 +25,7 @@ export class MaterialBatchLoader {
   async batchLoadMaterials(materialIds) {
     const uniqueIds = [...new Set(materialIds)]
     const uncachedIds = uniqueIds.filter(id => !this.cache.has(id))
-    
+
     if (uncachedIds.length === 0) {
       // 全部命中缓存
       const result = new Map()
@@ -38,10 +40,10 @@ export class MaterialBatchLoader {
     // 分批加载未缓存的物料
     const batches = this.chunkArray(uncachedIds, this.batchSize)
     const batchPromises = batches.map(batch => this.loadMaterialBatch(batch))
-    
+
     try {
       await Promise.all(batchPromises)
-      
+
       // 返回所有请求的物料信息
       const result = new Map()
       uniqueIds.forEach(id => {
@@ -49,13 +51,13 @@ export class MaterialBatchLoader {
           result.set(id, this.cache.get(id))
         }
       })
-      
-      logger.debug('批量加载物料完成', { 
-        total: uniqueIds.length, 
+
+      logger.debug('批量加载物料完成', {
+        total: uniqueIds.length,
         cached: uniqueIds.length - uncachedIds.length,
-        loaded: uncachedIds.length 
+        loaded: uncachedIds.length
       })
-      
+
       return result
     } catch (error) {
       logger.error('批量加载物料失败', error)
@@ -69,7 +71,7 @@ export class MaterialBatchLoader {
    */
   async loadMaterialBatch(materialIds) {
     const batchKey = materialIds.sort().join(',')
-    
+
     // 避免重复请求
     if (this.pendingRequests.has(batchKey)) {
       return this.pendingRequests.get(batchKey)
@@ -77,15 +79,15 @@ export class MaterialBatchLoader {
 
     const promise = this.fetchMaterialBatch(materialIds)
     this.pendingRequests.set(batchKey, promise)
-    
+
     try {
       const materials = await promise
-      
+
       // 缓存结果
       materials.forEach(material => {
         this.cache.set(material.id, material)
       })
-      
+
       return materials
     } finally {
       this.pendingRequests.delete(batchKey)
@@ -97,14 +99,8 @@ export class MaterialBatchLoader {
    * @param {Array} materialIds - 物料ID数组
    */
   async fetchMaterialBatch(materialIds) {
-    const { default: axios } = await import('@/services/api')
-
-    const response = await axios.post('/baseData/materials/batch', {
-      ids: materialIds
-    })
-
-    // 拦截器已解包，response.data 就是业务数据
-    return response.data || []
+    const response = await baseDataApi.getMaterialsByIds(materialIds)
+    return parseListData(response, { enableLog: false })
   }
 
   /**

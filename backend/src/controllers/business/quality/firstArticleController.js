@@ -17,7 +17,7 @@ const { parsePagination, appendPaginationSQL } = require('../../../utils/safePag
 
 const INSPECTION_INSERT_FIELDS = [
     'inspection_no', 'inspection_type', 'task_id', 'product_id', 'product_code', 'product_name',
-    'batch_no', 'quantity', 'unit', 'planned_date', 'status', 'is_first_article',
+    'batch_no', 'quantity', 'unit', 'unit_id', 'planned_date', 'status', 'is_first_article',
     'first_article_qty', 'is_full_inspection', 'first_article_result',
     'production_can_continue', 'template_id', 'inspector_id', 'inspector_name', 'note',
 ];
@@ -163,7 +163,7 @@ const firstArticleController = {
             } = req.body;
 
             if (!task_id || !product_id || !production_quantity) {
-                return ResponseHandler.error(res, '生产任务、产品和生产数量不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '生产任务、产品和生产数量不能为空', 'VALIDATION_ERROR', 400);
             }
 
             const existingResult = await db.query(
@@ -172,7 +172,7 @@ const firstArticleController = {
             );
 
             if (existingResult.rows && existingResult.rows.length > 0) {
-                return ResponseHandler.error(res, '该生产任务已存在首检单', 'DUPLICATE', 400);
+                return ResponseHandler.error(res, '该生产任务已存在首检单', 'CONFLICT', 400);
             }
 
             const rulesResult = await db.query('SELECT * FROM first_article_rules WHERE product_id = ?', [product_id]);
@@ -189,7 +189,7 @@ const firstArticleController = {
             const taskResult = await db.query('SELECT code FROM production_tasks WHERE id = ?', [task_id]);
             const taskCode = taskResult.rows?.[0]?.code;
             if (!taskCode) {
-                return ResponseHandler.error(res, '生产任务不存在，无法生成首检批次号', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '生产任务不存在，无法生成首检批次号', 'VALIDATION_ERROR', 400);
             }
 
             const inspectionNo = await QualityInspection.generateInspectionNo(FIRST_ARTICLE_CONFIG.INSPECTION_NO_PREFIX);
@@ -250,7 +250,7 @@ const firstArticleController = {
             } = req.body;
 
             if (!first_article_result) {
-                return ResponseHandler.error(res, '首检结果不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '首检结果不能为空', 'VALIDATION_ERROR', 400);
             }
 
             const existingResult = await db.query(
@@ -345,8 +345,8 @@ const firstArticleController = {
                     if (inspectionData.task_id) {
                         await db.query(
                             `
-              UPDATE production_tasks 
-              SET status = 'paused', 
+              UPDATE production_tasks
+              SET status = 'paused',
                   pause_reason = '首检不合格，自动暂停生产',
                   pause_time = NOW()
               WHERE id = ? AND status NOT IN ('completed', 'cancelled')
@@ -370,8 +370,8 @@ const firstArticleController = {
                     if (inspectionData.task_id) {
                         await db.query(
                             `
-              UPDATE production_tasks 
-              SET status = 'in_progress', 
+              UPDATE production_tasks
+              SET status = 'in_progress',
                   pause_reason = NULL,
                   pause_time = NULL
               WHERE id = ? AND status = 'paused' AND pause_reason LIKE '%首检不合格%'
@@ -466,7 +466,7 @@ const firstArticleController = {
             } = req.body;
 
             if (!product_id) {
-                return ResponseHandler.error(res, '产品ID不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '产品ID不能为空', 'VALIDATION_ERROR', 400);
             }
 
             const existingResult = await db.query(
@@ -475,7 +475,7 @@ const firstArticleController = {
             );
 
             if (existingResult.rows && existingResult.rows.length > 0) {
-                return ResponseHandler.error(res, '该产品已存在首检规则', 'DUPLICATE', 400);
+                return ResponseHandler.error(res, '该产品已存在首检规则', 'CONFLICT', 400);
             }
 
             const result = await db.query(

@@ -364,7 +364,7 @@ const fetchData = async () => {
     // 简化统计：活跃/禁用基于当前页数据的比例估算，或直接显示总数
     stats.active = tableData.value.filter(item => Number(item.status) === 1).length;
     stats.inactive = tableData.value.filter(item => Number(item.status) === 0).length;
-    
+
   } catch (error) {
     console.error('获取供应商列表失败:', error);
     if (error.response) {
@@ -487,7 +487,6 @@ const handleUpload = async () => {
     // 如果业务失败，拦截器会抛出错误
     ElMessage.success(`导入成功！成功导入 ${response.data.successCount || 0} 条记录`);
     if (response.data.errors && response.data.errors.length > 0) {
-      console.warn('导入警告:', response.data.errors);
     }
     importDialogVisible.value = false;
     selectedFile.value = null;

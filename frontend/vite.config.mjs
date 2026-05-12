@@ -6,6 +6,7 @@ import path from 'path'
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
+  const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080'
 
   return {
     plugins: [vue()],
@@ -28,7 +29,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': {
-          target: env.VITE_API_TARGET || 'http://localhost:8080',
+          target: apiTarget,
           changeOrigin: true,
           // 不重写路径，保留 /api 前缀
           rewrite: (path) => path,
@@ -36,7 +37,7 @@ export default defineConfig(({ mode }) => {
           ws: true
         },
         '/uploads': {
-          target: env.VITE_API_TARGET || 'http://localhost:8080',
+          target: apiTarget,
           changeOrigin: true,
           // 不重写路径，保留 /uploads 前缀
           rewrite: (path) => path,

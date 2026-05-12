@@ -36,14 +36,14 @@
   --color-accent: #1ABC9C;
   --color-accent-light: #D5F4EC;
   --color-accent-dark: #15967d;
-  
+
   /* 文本色 */
   --color-text-primary: #2C3E50;
   --color-text-regular: #34495E;
   --color-text-secondary: #7F8C8D;
   --color-text-placeholder: #95A5A6;
   --color-text-disabled: #BDC3C7;
-  
+
   /* 边框颜色 - 低对比度 */
   --color-border-darker: #BDC3C7;
   --color-border-dark: #D0D6D9;
@@ -51,7 +51,7 @@
   --color-border-light: #E8ECEF;
   --color-border-lighter: #ECF0F1;
   --color-border-extra-light: #F5F6F7;
-  
+
   /* 背景色 */
   --color-bg-base: #FFFFFF;
   --color-bg-page: #ECF0F1;
@@ -69,14 +69,14 @@
   --color-danger-hover: #ef6b6b;
   --color-info-gradient-end: #657071;
   --color-on-primary: #ffffff;
-  
+
   /* ==================== 专业主题特有颜色 ==================== */
   --color-navy: #2C3E50;
   --color-slate: #34495E;
   --color-teal: #1ABC9C;
   --color-silver: #BDC3C7;
   --color-concrete: #95A5A6;
-  
+
   /* ==================== 间距系统 ==================== */
   --spacing-xs: 4px;
   --spacing-sm: 8px;

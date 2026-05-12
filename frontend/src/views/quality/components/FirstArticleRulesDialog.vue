@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * FirstArticleRulesDialog.vue
  * @description 首检规则配置弹窗
@@ -46,14 +46,14 @@
     <el-dialog v-model="showAddRule" :title="editingRule ? '编辑规则' : '添加规则'" width="500px" append-to-body>
       <el-form ref="ruleFormRef" :model="ruleForm" :rules="ruleFormRules" label-width="100px">
         <el-form-item label="产品" prop="product_id">
-          <el-select 
-            v-model="ruleForm.product_id" 
-            placeholder="搜索/选择产品" 
-            filterable 
+          <el-select
+            v-model="ruleForm.product_id"
+            placeholder="搜索/选择产品"
+            filterable
             remote
             :remote-method="debouncedSearchProducts"
             :loading="loadingProducts"
-            style="width: 100%" 
+            style="width: 100%"
             :disabled="!!editingRule"
           >
             <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code || '无编码'} - ${p.name || '未命名'}`" :value="p.id" />
@@ -69,7 +69,7 @@
         </el-form-item>
         <el-form-item label="检验模板">
           <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable style="width: 100%">
-            <el-option v-for="t in templateOptions" :key="t.id" :label="t.name" :value="t.id" />
+            <el-option v-for="t in templateOptions" :key="t.id" :label="t.template_name || t.name" :value="t.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="强制首检">
@@ -97,7 +97,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { qualityApi } from '@/api/quality'
 import { materialApi } from '@/api/material'
-import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig'
+import { searchMaterials, loadMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig'
 import { FIRST_ARTICLE_CONFIG } from '@/constants/systemConstants'
 
 const props = defineProps({ visible: Boolean })
@@ -148,43 +148,48 @@ const fetchRules = async () => {
   }
 }
 
+// 初始加载产品列表（无搜索条件）
 const fetchProducts = async () => {
-  debouncedSearchProducts('')
+  loadingProducts.value = true
+  try {
+    const res = await loadMaterials(materialApi, { type: 'product', pageSize: 50 })
+    productOptions.value = mapMaterialData(res)
+  } catch (error) {
+    console.error('获取产品列表失败:', error)
+    productOptions.value = []
+  } finally {
+    loadingProducts.value = false
+  }
 }
 
+// 远程搜索产品
 const debouncedSearchProducts = (query) => {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
-  }
-  
+  if (searchTimeout) clearTimeout(searchTimeout)
   const searchId = ++currentSearchId
-  
   searchTimeout = setTimeout(async () => {
+    if (!query || !query.trim()) {
+      // 空搜索时重新加载全量产品列表
+      await fetchProducts()
+      return
+    }
     loadingProducts.value = true
     try {
-      const res = await searchMaterials(materialApi, query, { 
-        type: 'product', 
-        pageSize: 50 
-      })
+      const res = await searchMaterials(materialApi, query, { type: 'product', pageSize: 50 })
       if (searchId === currentSearchId) {
         productOptions.value = mapMaterialData(res)
       }
     } catch (error) {
-      console.error('获取产品列表失败:', error)
-      if (searchId === currentSearchId) {
-        productOptions.value = []
-      }
+      console.error('搜索产品失败:', error)
+      if (searchId === currentSearchId) productOptions.value = []
     } finally {
-      if (searchId === currentSearchId) {
-        loadingProducts.value = false
-      }
+      if (searchId === currentSearchId) loadingProducts.value = false
     }
   }, SEARCH_CONFIG.debounceTime)
 }
 
 const fetchTemplates = async () => {
   try {
-    const res = await qualityApi.getTemplates({ type: 'first_article', pageSize: 100 })
+    const res = await qualityApi.getTemplates({ status: 'active', pageSize: 100 })
     templateOptions.value = (res.data || res)?.list || res.data || res || []
   } catch (error) {
     console.error('获取模板列表失败:', error)

@@ -14,7 +14,7 @@
         <img src="../assets/logo.svg" alt="Logo" class="logo">
         <h1 class="title tech-title">{{ $t('system.title') }}</h1>
       </div>
-      
+
       <!-- 权限加载中的占位符 -->
       <div v-if="!permissionsReady" class="menu-loading">
         <el-skeleton :rows="10" animated />
@@ -34,9 +34,9 @@
         @close="handleMenuClose"
       >
         <!-- 动态菜单（从数据库加载） -->
-        <sidebar-menu 
-          v-if="dynamicMenuTree.length > 0" 
-          :menus="dynamicMenuTree" 
+        <sidebar-menu
+          v-if="dynamicMenuTree.length > 0"
+          :menus="dynamicMenuTree"
         />
       </el-menu>
     </el-aside>
@@ -130,7 +130,7 @@
           </el-tooltip>
         </div>
       </el-header>
-      
+
       <!-- 内容区 -->
       <el-main class="main-content">
         <router-view />
@@ -153,7 +153,7 @@ import SidebarMenu from '../components/layout/SidebarMenu.vue'
 import { usePermissionStore } from '../stores/permissionStore'
 import { userApi } from '../api/user'
 // 图标组件
-import { 
+import {
   Menu as IconMenu,
   User as IconUser,
   PictureRounded as IconPictureRounded,
@@ -297,14 +297,14 @@ onMounted(async () => {
       authStore.fetchUserProfile(false),
       loadDynamicMenus()
     ]
-    
+
     // 权限未加载时也并行加载
     if (!authStore.permissionsLoaded) {
       tasks.push(authStore.fetchUserPermissions())
     }
-    
+
     await Promise.all(tasks)
-    
+
     // 标记权限已准备好
     permissionsReady.value = true
   } catch (error) {
@@ -324,21 +324,21 @@ onMounted(async () => {
   --tech-glow: rgba(0, 195, 255, 0.5);
   --tech-dark: #1a1a2e;
   --tech-light: #e9f4ff;
-  
+
   /* 玻璃效果 */
   --glass-bg: rgba(255, 255, 255, 0.1);
   --glass-border: rgba(255, 255, 255, 0.2);
   --glass-shadow: rgba(0, 0, 0, 0.1);
-  
+
   /* 圆角 */
   --border-radius-sm: 8px;
   --border-radius-md: 12px;
   --border-radius-lg: 16px;
-  
+
   /* 浮空阴影 */
   --float-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
   --float-shadow-hover: 0 15px 30px -5px rgba(0, 0, 0, 0.15);
-  
+
   /* 公共按钮样式变量 */
   --btn-bg: rgba(255, 255, 255, 0.05);
   --btn-border: rgba(255, 255, 255, 0.1);
@@ -355,7 +355,7 @@ onMounted(async () => {
   width: 100%;
   overflow: hidden;
   background-color: var(--el-bg-color);
-  background-image: 
+  background-image:
     radial-gradient(circle at 10% 20%, rgba(0, 195, 255, 0.05) 0%, transparent 20%),
     radial-gradient(circle at 90% 80%, rgba(30, 136, 229, 0.05) 0%, transparent 20%);
 }
@@ -771,11 +771,11 @@ onMounted(async () => {
     margin: 0;
     border-radius: 0;
   }
-  
+
   .sidebar.collapsed {
     transform: translateX(-100%);
   }
-  
+
   .header, .main-content {
     margin: 5px;
   }

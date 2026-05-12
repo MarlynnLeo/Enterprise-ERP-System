@@ -151,7 +151,7 @@ const getIconComponent = (iconName) => {
 const hasVisibleChildren = (menu) => {
   if (!menu.children || menu.children.length === 0) return false
   // 检查是否有 type=1 或 type 不存在（默认为菜单项）且有 path 或者有可见子菜单的项
-  return menu.children.some(child => 
+  return menu.children.some(child =>
     child.type !== 2 && (child.path || hasVisibleChildren(child))
   )
 }
@@ -167,7 +167,7 @@ const getMenuIndex = (menu) => {
 // 获取可显示的子菜单列表（过滤掉 type=2 的按钮权限）
 const getVisibleChildren = (menu) => {
   if (!menu.children) return []
-  return menu.children.filter(child => 
+  return menu.children.filter(child =>
     child.type !== 2 && (child.path || hasVisibleChildren(child))
   )
 }

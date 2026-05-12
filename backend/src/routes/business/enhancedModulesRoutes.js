@@ -27,10 +27,10 @@ router.post('/document-links', authenticateToken, requirePermission('system:docu
 router.delete('/document-links/:id', authenticateToken, requirePermission('system:documents:edit'), docLinks.deleteLink);
 
 // ========== 汇率 ==========
-router.get('/exchange-rates', authenticateToken, requirePermission('finance:settings:view'), exchangeRates.getList);
-router.get('/exchange-rates/latest', authenticateToken, requirePermission('finance:settings:view'), exchangeRates.getLatestRate);
-router.post('/exchange-rates', authenticateToken, requirePermission('finance:settings:update'), exchangeRates.create);
-router.delete('/exchange-rates/:id', authenticateToken, requirePermission('finance:settings:update'), exchangeRates.delete);
+router.get('/exchange-rates', authenticateToken, requirePermission('finance:exchange-rates:view'), exchangeRates.getList);
+router.get('/exchange-rates/latest', authenticateToken, requirePermission('finance:exchange-rates:view'), exchangeRates.getLatestRate);
+router.post('/exchange-rates', authenticateToken, requirePermission('finance:exchange-rates:update'), exchangeRates.create);
+router.delete('/exchange-rates/:id', authenticateToken, requirePermission('finance:exchange-rates:update'), exchangeRates.delete);
 
 // ========== 绩效管理 ==========
 router.get('/performance/indicators', authenticateToken, requirePermission('hr:performance:view'), performance.getIndicators);
@@ -49,10 +49,10 @@ router.put('/performance/evaluations/:id/score', authenticateToken, requirePermi
 
 // ========== ECN 变更管理 ==========
 const ecnPerms = {
-  view: ['basedata:boms:view', 'basedata:bom:view'],
-  create: ['basedata:boms:create', 'basedata:bom:create'],
-  update: ['basedata:boms:update', 'basedata:bom:update', 'basedata:bom:edit'],
-  delete: ['basedata:boms:delete', 'basedata:bom:delete'],
+  view: 'basedata:ecn:view',
+  create: 'basedata:ecn:create',
+  update: 'basedata:ecn:update',
+  delete: 'basedata:ecn:delete',
 };
 
 router.get('/ecn', authenticateToken, requirePermission(ecnPerms.view), ecn.getList);
@@ -70,7 +70,7 @@ router.delete('/documents/:id', authenticateToken, requirePermission('system:doc
 router.get('/documents/:id/download', authenticateToken, requirePermission('system:documents:view'), documents.download);
 
 // ========== 业务告警 ==========
-router.get('/business-alerts', authenticateToken, requirePermission('system:settings:view'), alerts.getList);
-router.put('/business-alerts/:id', authenticateToken, requirePermission('system:settings:edit'), alerts.update);
+router.get('/business-alerts', authenticateToken, requirePermission('system:business-alerts:view'), alerts.getList);
+router.put('/business-alerts/:id', authenticateToken, requirePermission('system:business-alerts:edit'), alerts.update);
 
 module.exports = router;

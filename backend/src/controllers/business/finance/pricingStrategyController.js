@@ -24,7 +24,7 @@ exports.getStrategyFields = async (req, res) => {
     }
 
     const query = `
-            SELECT 
+            SELECT
                 id,
                 field_name,
                 field_label,
@@ -70,7 +70,7 @@ exports.createStrategyField = async (req, res) => {
 
     // 参数验证
     if (!field_name || !field_label) {
-      return ResponseHandler.error(res, '字段名和显示标签不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '字段名和显示标签不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 检查字段名是否符合规范 (只允许英文字母、数字、下划线)
@@ -78,19 +78,19 @@ exports.createStrategyField = async (req, res) => {
       return ResponseHandler.error(
         res,
         '字段名只能包含英文字母、数字和下划线,且必须以字母或下划线开头',
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
 
     if (field_type && !VALID_FIELD_TYPES.has(field_type)) {
-      return ResponseHandler.error(res, '字段类型只能是 amount 或 percentage', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '字段类型只能是 amount 或 percentage', 'VALIDATION_ERROR', 400);
     }
 
     connection = await getConnection();
 
     if (field_type && !VALID_FIELD_TYPES.has(field_type)) {
-      return ResponseHandler.error(res, '字段类型只能是 amount 或 percentage', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '字段类型只能是 amount 或 percentage', 'VALIDATION_ERROR', 400);
     }
 
     // 检查字段名是否重复
@@ -105,7 +105,7 @@ exports.createStrategyField = async (req, res) => {
 
     // 插入新字段
     const [result] = await connection.query(
-      `INSERT INTO pricing_strategy_fields 
+      `INSERT INTO pricing_strategy_fields
             (field_name, field_label, field_type, unit, description, sort_order, is_additive)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -194,7 +194,7 @@ exports.updateStrategyField = async (req, res) => {
     }
 
     if (updates.length === 0) {
-      return ResponseHandler.error(res, '没有可更新的字段', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '没有可更新的字段', 'VALIDATION_ERROR', 400);
     }
 
     params.push(id);

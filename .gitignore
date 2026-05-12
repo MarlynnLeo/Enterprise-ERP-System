@@ -24,3 +24,10 @@ backend/node_modules/
 coverage/
 
 backend/backups/
+
+# 二进制文件和开发遗留物
+*.exe
+*.bak
+*.tmp
+*.old
+_*.cjs

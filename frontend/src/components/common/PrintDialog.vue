@@ -18,7 +18,7 @@
       <div v-if="error" class="error-message">
         <el-alert :title="error" type="error" show-icon :closable="false" />
       </div>
-      
+
       <div v-else class="preview-content">
         <iframe
           ref="previewIframe"
@@ -42,9 +42,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 
-import { api } from '@/services/api';
-
-import { processTemplate, createDefaultTemplateData } from '@/utils/helpers/templateUtils';
+import printService from '@/services/printService';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -75,64 +73,20 @@ const loading = ref(false);
 const error = ref('');
 const previewHtml = ref('');
 const previewIframe = ref(null);
-const currentTemplate = ref(null);
 
-// 获取打印模板
-const fetchTemplate = async () => {
+// 通过统一打印服务生成预览，自动合并系统公司信息。
+const generatePreview = async () => {
   loading.value = true;
   error.value = '';
   previewHtml.value = '';
-  
+
   try {
-    // 查询启用的、指定类型的模板
-    // 优先使用默认模板
-    const params = {
-      module: props.module,
-      template_type: props.templateType,
-      status: 1,
-      page: 1,
-      limit: 100 // 获取列表，然后在前端筛选默认项
-    };
-    
-    const response = await api.get('/print/templates', { params });
-    const list = response.data?.list || response.data?.data || (Array.isArray(response.data) ? response.data : []);
-    
-    // 找到默认模板，如果没有默认的，就取第一个，如果列表为空，使用系统默认硬编码模板
-    let template = list.find(t => t.is_default === 1);
-    if (!template && list.length > 0) {
-      template = list[0];
-    }
-    
-    if (!template) {
-      // 如果没有找到数据库模板，使用系统默认模板
-      template = createDefaultTemplateData(props.templateType, props.module);
-    }
-    
-    currentTemplate.value = template;
-    generatePreview();
-    
+    previewHtml.value = await printService.generateByDefaultTemplate(props.module, props.templateType, props.data);
   } catch (err) {
-    console.error('获取打印模板失败:', err);
-    error.value = '获取打印模板失败，请检查网络或联系管理员';
+    console.error('生成打印预览失败:', err);
+    error.value = '生成打印预览失败，请检查模板配置或联系管理员';
   } finally {
     loading.value = false;
-  }
-};
-
-// 生成预览HTML
-const generatePreview = () => {
-  if (!currentTemplate.value || !props.data) return;
-  
-  try {
-    // 注入公司信息等全局变量（如果有）
-    // 这里假设 props.data 已经包含了所需的所有数据
-    // 实际应用中可能需要在这里合并一些全局配置
-    
-    const html = processTemplate(currentTemplate.value.content, props.data);
-    previewHtml.value = html;
-  } catch (err) {
-    console.error('生成预览失败:', err);
-    error.value = '生成打印预览失败';
   }
 };
 
@@ -145,12 +99,12 @@ const handlePrint = () => {
 
 // 监听打开事件
 const onOpened = () => {
-  fetchTemplate();
+  generatePreview();
 };
 
 // 监听数据变化，重新生成预览（如果对话框已打开）
 watch(() => props.data, () => {
-  if (visible.value && currentTemplate.value) {
+  if (visible.value) {
     generatePreview();
   }
 }, { deep: true });

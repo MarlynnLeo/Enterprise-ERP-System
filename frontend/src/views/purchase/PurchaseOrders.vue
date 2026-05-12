@@ -30,10 +30,10 @@
           ></el-input>
         </el-form-item>
         <el-form-item :label="$t('page.purchase.orders.status')">
-          <el-select 
-            v-model="searchForm.status" 
-            :placeholder="$t('page.baseData.materials.statusPlaceholder')" 
-            clearable 
+          <el-select
+            v-model="searchForm.status"
+            :placeholder="$t('page.baseData.materials.statusPlaceholder')"
+            clearable
             @change="handleSearch"
           >
             <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value"></el-option>
@@ -56,7 +56,7 @@
         <div v-show="showAdvancedFilter" class="advanced-filter" style="margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--color-border-base);">
           <el-form :inline="true" class="search-form" >
             <el-form-item :label="$t('page.purchase.orders.supplier')">
-              <el-select 
+              <el-select
                 v-model="searchForm.supplier_id"
                 :placeholder="$t('page.purchase.orders.supplierPlaceholder')"
                 clearable
@@ -101,7 +101,7 @@
         </div>
       </el-collapse-transition>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -125,7 +125,7 @@
         <div class="stat-label">已完成订单</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -171,9 +171,9 @@
         <el-table-column prop="requisition_number" label="关联申请单" width="150" show-overflow-tooltip>
           <template #default="scope">
             <!-- 简化条件判断逻辑，直接检查requisition_id和requisition_number -->
-            <el-link 
-              v-if="scope.row.requisition_id" 
-              type="primary" 
+            <el-link
+              v-if="scope.row.requisition_id"
+              type="primary"
               @click="viewRequisition(scope.row.requisition_id)"
             >
               {{ scope.row.requisition_number || `申请单-${scope.row.requisition_id}` }}
@@ -440,7 +440,7 @@
             </template>
           </el-table-column>
         </el-table>
-        
+
         <!-- 合计金额 -->
         <div class="total-price" style="margin-top: 15px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
@@ -456,7 +456,7 @@
           </el-row>
         </div>
       </el-form>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="orderDialog.visible = false">取消</el-button>
@@ -471,7 +471,7 @@
       align-center
     >
       <div class="requisition-search">
-        <el-input 
+        <el-input
           v-model="requisitionSearchKeyword"
           placeholder="输入物料编码或名称搜索"
           clearable
@@ -481,7 +481,7 @@
           </template>
         </el-input>
       </div>
-      
+
       <el-alert
         title="以下是所有采购申请中尚未生成采购订单的物料，可直接勾选需要采购的物料"
         type="info"
@@ -489,7 +489,7 @@
         show-icon
         style="margin-top: 10px;"
       />
-      
+
       <el-table
         ref="materialTableRef"
         :data="unorderedMaterialsList"
@@ -538,11 +538,11 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <div class="pagination-container" v-if="unorderedMaterialsList.length > 0">
         <span style="color: var(--color-text-regular); font-size: 14px;">共 {{ unorderedMaterialsList.length }} 条未采购物料</span>
       </div>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="requisitionDialogVisible = false">取消</el-button>
@@ -1107,4 +1107,4 @@ onActivated(async () => {
 .delete-text-btn:hover {
   color: #f78989 !important;
 }
-</style> 
+</style>

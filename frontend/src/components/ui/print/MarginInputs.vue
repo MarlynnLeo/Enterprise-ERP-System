@@ -8,30 +8,30 @@
 -->
 <template>
   <div class="margin-inputs">
-    <el-input-number 
-      :model-value="modelValue.top" 
-      :min="0" 
+    <el-input-number
+      :model-value="modelValue.top"
+      :min="0"
       :max="100"
       placeholder="上"
       @update:model-value="updateValue('top', $event)"
     />
-    <el-input-number 
-      :model-value="modelValue.right" 
-      :min="0" 
+    <el-input-number
+      :model-value="modelValue.right"
+      :min="0"
       :max="100"
       placeholder="右"
       @update:model-value="updateValue('right', $event)"
     />
-    <el-input-number 
-      :model-value="modelValue.bottom" 
-      :min="0" 
+    <el-input-number
+      :model-value="modelValue.bottom"
+      :min="0"
       :max="100"
       placeholder="下"
       @update:model-value="updateValue('bottom', $event)"
     />
-    <el-input-number 
-      :model-value="modelValue.left" 
-      :min="0" 
+    <el-input-number
+      :model-value="modelValue.left"
+      :min="0"
       :max="100"
       placeholder="左"
       @update:model-value="updateValue('left', $event)"

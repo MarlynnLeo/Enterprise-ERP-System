@@ -52,7 +52,7 @@
         </el-card>
       </el-timeline-item>
     </el-timeline>
-    
+
     <div class="load-more" v-if="hasMore">
       <el-button type="primary" text @click="loadMore">
         <el-icon><More /></el-icon> 加载更多活动
@@ -63,8 +63,8 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { 
-  Clock, Download, More 
+import {
+  Clock, Download, More
 } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -82,11 +82,11 @@ const hasMore = ref(true)
 
 const filteredActivities = computed(() => {
   let result = props.activities
-  
+
   if (filterType.value !== 'all') {
     result = result.filter(a => a.category === filterType.value)
   }
-  
+
   if (dateRange.value && dateRange.value.length === 2) {
     const start = new Date(dateRange.value[0]).getTime()
     const end = new Date(dateRange.value[1]).getTime() + 86400000 // 包含结束当天
@@ -95,7 +95,7 @@ const filteredActivities = computed(() => {
       return time >= start && time < end
     })
   }
-  
+
   return result
 })
 

@@ -81,7 +81,7 @@
             </div>
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="code" label="模板编号" width="170" />
         <el-table-column prop="name" label="模板名称" width="200" />
         <el-table-column prop="product_name" label="关联产品" min-width="180">
@@ -166,7 +166,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -231,30 +231,30 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="模板描述">
-              <el-input 
-                v-model="form.description" 
-                type="textarea" 
-                :rows="2" 
+              <el-input
+                v-model="form.description"
+                type="textarea"
+                :rows="2"
                 placeholder="请输入模板描述"
               />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
-      
+
       <el-divider>工序列表</el-divider>
-        
+
         <div class="process-table-container">
           <div class="process-table-header" v-if="dialogType !== 'view'">
             <el-button type="primary" size="small" @click="addProcess">
               <el-icon><Plus /></el-icon> 添加工序
             </el-button>
           </div>
-          
+
           <el-table :data="form.processes" border>
             <el-table-column label="顺序" width="90">
               <template #default="{ row }">
@@ -267,21 +267,21 @@
                 />
               </template>
             </el-table-column>
-            
+
             <el-table-column label="工序名称" width="180">
               <template #default="{ row }">
                 <span v-if="dialogType === 'view'">{{ row.name }}</span>
                 <el-input v-else v-model="row.name" placeholder="请输入工序名称" />
               </template>
             </el-table-column>
-            
+
             <el-table-column label="工序描述" min-width="200">
               <template #default="{ row }">
                 <span v-if="dialogType === 'view'">{{ row.description || '-' }}</span>
                 <el-input v-else v-model="row.description" placeholder="请输入工序描述" />
               </template>
             </el-table-column>
-            
+
             <el-table-column label="标准工时(小时)" width="120">
               <template #default="{ row }">
                 <span v-if="dialogType === 'view'">{{ row.standard_hours || '-' }}</span>
@@ -293,7 +293,7 @@
                 />
               </template>
             </el-table-column>
-            
+
             <el-table-column label="执行部门" width="150">
               <template #default="{ row }">
                 <span v-if="dialogType === 'view'">{{ departmentList.find(d => d.id === row.department_id)?.name || row.department || '-' }}</span>
@@ -307,7 +307,7 @@
                 </el-select>
               </template>
             </el-table-column>
-            
+
             <el-table-column label="作业指导书" min-width="200">
               <template #default="{ row }">
                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -494,7 +494,7 @@ const fetchTemplateList = async () => {
       pageSize: pageSize.value,
       ...searchForm
     }
-    
+
     const response = await baseDataApi.getProcessTemplates(params)
     // 使用统一解析器
     if (response.data) {
@@ -603,7 +603,7 @@ const handleEdit = async (row) => {
   form.product_id = row.product_id
   form.description = row.description || ''
   form.status = row.status
-  
+
   // 如果有关联产品但不在选项列表中，添加到选项列表
   if (row.product_id && row.product_code) {
     const existingProduct = productOptions.value.find(p => p.id === row.product_id)
@@ -615,7 +615,7 @@ const handleEdit = async (row) => {
       })
     }
   }
-  
+
   // 支持 processes 或 details 两种字段名
   const sourceProcesses = row.processes || row.details
   form.processes = sourceProcesses && sourceProcesses.length
@@ -651,7 +651,7 @@ const handleView = (row) => {
   form.product_id = row.product_id
   form.description = row.description || ''
   form.status = row.status
-  
+
   // 如果有关联产品但不在选项列表中，添加到选项列表
   if (row.product_id && row.product_code) {
     const existingProduct = productOptions.value.find(p => p.id === row.product_id)
@@ -663,7 +663,7 @@ const handleView = (row) => {
       })
     }
   }
-  
+
   const sourceProcesses = row.processes || row.details
   form.processes = sourceProcesses && sourceProcesses.length
     ? JSON.parse(JSON.stringify(sourceProcesses))
@@ -697,16 +697,16 @@ const handleDelete = async (row) => {
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return
-  
+
   try {
     await formRef.value.validate()
-    
+
     // 校验工序列表
     if (!form.processes.length) {
       ElMessage.warning('请至少添加一个工序')
       return
     }
-    
+
     for (const process of form.processes) {
       if (!process.name) {
         ElMessage.warning('工序名称不能为空')
@@ -717,10 +717,10 @@ const submitForm = async () => {
         return
       }
     }
-    
+
     // 排序工序
     form.processes.sort((a, b) => a.order_num - b.order_num)
-    
+
     // 构建发送数据，将processes映射为details（后端期望的字段名）
     const submitData = {
       name: form.name,
@@ -739,7 +739,7 @@ const submitForm = async () => {
         instructionDocs: p.instructionDocs || []
       }))
     }
-    
+
     loading.value = true
     if (dialogType.value === 'create') {
       await baseDataApi.createProcessTemplate(submitData)
@@ -748,7 +748,7 @@ const submitForm = async () => {
       await baseDataApi.updateProcessTemplate(form.id, submitData)
       ElMessage.success('工序模板更新成功')
     }
-    
+
     dialogVisible.value = false
     await fetchTemplateList()
   } catch (error) {

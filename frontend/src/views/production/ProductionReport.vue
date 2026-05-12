@@ -24,7 +24,7 @@
         </el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -42,10 +42,10 @@
         </el-form-item>
         <el-form-item label="生产任务">
           <el-select  v-model="searchForm.taskId" placeholder="选择生产任务" clearable>
-            <el-option 
-              v-for="task in taskList" 
-              :key="task.id" 
-              :label="`${task.code} - ${task.productName}`" 
+            <el-option
+              v-for="task in taskList"
+              :key="task.id"
+              :label="`${task.code} - ${task.productName}`"
               :value="task.id"
             />
           </el-select>
@@ -60,7 +60,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -80,7 +80,7 @@
         <div class="stat-label">合格率</div>
       </el-card>
     </div>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-tabs v-model="activeTab" class="report-tabs" @tab-click="handleTabChange">
@@ -110,14 +110,14 @@
                 </div>
               </template>
             </el-table-column>
-            
+
             <el-table-column prop="productName" label="产品名称" min-width="180" />
             <el-table-column prop="plannedQuantity" label="计划数量" width="100" align="center" />
             <el-table-column prop="actualQuantity" label="完成数量" width="100" align="center" />
             <el-table-column prop="completionRate" label="完成率" width="100" align="center">
               <template #default="scope">
-                {{ typeof scope.row.completionRate === 'number' ? 
-                  (scope.row.completionRate * 100).toFixed(2) + '%' : 
+                {{ typeof scope.row.completionRate === 'number' ?
+                  (scope.row.completionRate * 100).toFixed(2) + '%' :
                   scope.row.completionRate }}
               </template>
             </el-table-column>
@@ -126,7 +126,7 @@
             <el-table-column prop="qualificationRate" label="合格率" width="100" align="center" />
           </el-table>
         </el-tab-pane>
-        
+
         <el-tab-pane label="生产明细" name="detail">
           <el-table
             :data="detailData"
@@ -161,7 +161,7 @@
                 </div>
               </template>
             </el-table-column>
-            
+
             <el-table-column prop="taskCode" label="任务编号" min-width="150" />
             <el-table-column prop="productName" label="产品名称" min-width="180" />
             <el-table-column prop="processName" label="工序名称" min-width="150" />
@@ -203,7 +203,7 @@
               </template>
             </el-table-column>
           </el-table>
-          
+
           <!-- 分页 -->
           <div class="pagination-container">
             <el-pagination
@@ -223,7 +223,7 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
-    
+
     <!-- 报工详情弹窗 -->
     <el-dialog
       v-model="detailVisible"
@@ -246,12 +246,12 @@
         <el-descriptions-item label="工时" label-align="right">{{ reportDetail.workHours }}小时</el-descriptions-item>
         <el-descriptions-item label="报工人" label-align="right">{{ reportDetail.reporter }}</el-descriptions-item>
       </el-descriptions>
-      
+
       <el-divider>备注信息</el-divider>
       <div class="remarks-content">
         <div style="white-space: pre-line;">{{ reportDetail.remarks || '无' }}</div>
       </div>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailVisible = false">关闭</el-button>
@@ -259,7 +259,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 新增/编辑报工弹窗 -->
     <el-dialog
       v-model="reportModalVisible"
@@ -372,9 +372,9 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-divider content-position="left">数量信息</el-divider>
-        
+
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="计划数量" prop="plannedQuantity">
@@ -383,9 +383,9 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="完成数量" prop="completedQuantity">
-              <el-input-number 
-                v-model="formData.completedQuantity" 
-                :min="0" 
+              <el-input-number
+                v-model="formData.completedQuantity"
+                :min="0"
                 :max="formData.plannedQuantity"
                 style="width: 100%"
                 @change="handleQuantityChange"
@@ -394,16 +394,16 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="合格数量" prop="qualifiedQuantity">
-              <el-input-number 
-                v-model="formData.qualifiedQuantity" 
-                :min="0" 
+              <el-input-number
+                v-model="formData.qualifiedQuantity"
+                :min="0"
                 :max="formData.completedQuantity"
                 style="width: 100%"
               />
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="不合格数量" prop="unqualifiedQuantity">
@@ -411,9 +411,9 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-divider content-position="left">其他信息</el-divider>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="工时(小时)" prop="workHours">
@@ -427,7 +427,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
@@ -461,7 +461,7 @@ import { parseListData } from '@/utils/responseParser'
 import { productionApi } from '@/api/production'
 import { useAuthStore } from '@/stores/auth'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 
 // 权限store
 const authStore = useAuthStore()
@@ -470,10 +470,10 @@ const authStore = useAuthStore()
 const { onFormKeydown: reportFormKeydown } = useFormKeyboardNav(() => handleReportSubmit())
 
 // 权限计算属性（修复：之前未定义导致运行时 TypeError）
-const canView = computed(() => authStore.hasPermission('production:productionreport:read'));
-const canCreate = computed(() => authStore.hasPermission('production:productionreport:create'));
-const canUpdate = computed(() => authStore.hasPermission('production:productionreport:update'));
-const canDelete = computed(() => authStore.hasPermission('production:productionreport:delete'));
+const canView = computed(() => authStore.hasPermission('production:reports:view'));
+const canCreate = computed(() => authStore.hasPermission('production:reports:create'));
+const canUpdate = computed(() => authStore.hasPermission('production:reports:update'));
+const canDelete = computed(() => authStore.hasPermission('production:reports:delete'));
 // 数据定义
 const loading = ref(false)
 const activeTab = ref('summary')
@@ -729,7 +729,7 @@ const handleExport = async () => {
     ElMessage.warning('请选择日期范围')
     return
   }
-  
+
   try {
     const [startDate, endDate] = searchForm.value.dateRange
     const params = {
@@ -737,20 +737,20 @@ const handleExport = async () => {
       endDate,
       taskId: searchForm.value.taskId
     }
-    
+
     const response = await axios.get('/production/reports/export', {
       params,
       responseType: 'blob'
     })
-    
-    const blob = new Blob([response.data], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     })
     const link = document.createElement('a')
     link.href = window.URL.createObjectURL(blob)
     link.download = `生产报工_${params.startDate}_${params.endDate}.xlsx`
     link.click()
-    
+
     ElMessage.success('导出报表成功')
   } catch (error) {
     console.error('导出报表失败:', error)
@@ -991,61 +991,25 @@ watch(() => searchForm.value.dateRange, () => {
 // 添加打印报工单方法 - 使用打印模板系统
 const printReport = async () => {
   const reportData = reportDetail.value;
-  
+
   try {
-    // 获取打印模板
-    let templateContent = '';
-    try {
-      const response = await axios.get('/print/templates', {
-        params: {
-          template_type: 'production_task',
-          is_default: 1,
-          status: 1
-        }
-      });
-      
-      const templates = response.data?.list || response.data?.data || response.data || [];
-      const template = Array.isArray(templates) ? templates[0] : null;
-      
-      if (template && template.content) {
-        templateContent = template.content;
-      }
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError);
-    }
-    
-    // 如果没有找到模板，提示用户配置
-    if (!templateContent) {
-      ElMessage.warning('未找到生产报工打印模板，请在系统管理-打印管理中配置 production_task 类型模板');
-      return;
-    }
-    
-    {
-      // 替换模板变量
-      const printData = {
-        taskCode: reportData.taskCode || '-',
-        productName: reportData.productName || '-',
-        processName: reportData.processName || '-',
-        reporter: reportData.reporter || '-',
-        reportDate: reportData.reportDate || '-',
-        plannedQuantity: reportData.plannedQuantity || 0,
-        completedQuantity: reportData.completedQuantity || 0,
-        qualifiedQuantity: reportData.qualifiedQuantity || 0,
-        unqualifiedQuantity: reportData.unqualifiedQuantity || 0,
-        workHours: reportData.workHours || 0,
-        remarks: reportData.remarks || '-',
-        print_date: new Date().toLocaleDateString(),
-        print_time: new Date().toLocaleTimeString()
-      };
-      
-      Object.keys(printData).forEach(key => {
-        const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
-        templateContent = templateContent.replace(regex, printData[key]);
-      });
-    }
-    
-    const printWindow = window.open('', '_blank');
-    writeSafeHtmlDocument(printWindow, templateContent);
+    const html = await printService.generateByDefaultTemplate('production', 'production_task', {
+      task_no: reportData.taskCode || '-',
+      product_name: reportData.productName || '-',
+      process_name: reportData.processName || '-',
+      responsible_person: reportData.reporter || '-',
+      report_date: reportData.reportDate || '-',
+      planned_quantity: reportData.plannedQuantity || 0,
+      completed_quantity: reportData.completedQuantity || 0,
+      qualified_quantity: reportData.qualifiedQuantity || 0,
+      unqualified_quantity: reportData.unqualifiedQuantity || 0,
+      work_hours: reportData.workHours || 0,
+      remark: reportData.remarks || '-',
+      print_time: new Date().toLocaleString(),
+      items: []
+    });
+
+    printService.previewDocument(html);
   } catch (error) {
     console.error('打印失败:', error);
     ElMessage.error('打印失败');

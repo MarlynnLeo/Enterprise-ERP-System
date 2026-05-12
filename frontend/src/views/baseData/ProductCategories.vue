@@ -742,10 +742,10 @@ const loadData = async () => {
 
       // 将平铺数据转换为树形结构
       const fullTree = buildTreeFromFlatData(data);
-      
+
       // 更新分页总数为根节点数量
       categoryPagination.total = fullTree.length;
-      
+
       // 执行前端树形结构分页截取
       const start = (categoryPagination.current - 1) * categoryPagination.size;
       const end = start + categoryPagination.size;
@@ -839,11 +839,10 @@ const loadInspectionData = async () => {
       page: inspectionPagination.current,
       pageSize: inspectionPagination.size
     };
-    
-    // 我们需要在 frontend/src/api/baseData.js 中补充相关的检验方式 API
+
     const response = await baseDataApi.getInspectionMethods(params);
     const { data, total } = parseResponseData(response);
-    
+
     inspectionTableData.value = data;
     inspectionPagination.total = total || data.length;
   } catch (error) {
@@ -921,7 +920,7 @@ const handleAdd = (parentRow = null) => {
   isEdit.value = false;
   currentId.value = null;
   dialogTitle.value = '新增物料类型';
-  
+
   Object.assign(formData, {
     parent_id: parentRow ? parentRow.id : 0,
     name: '',
@@ -930,7 +929,7 @@ const handleAdd = (parentRow = null) => {
     status: 1,
     description: ''
   });
-  
+
   dialogVisible.value = true;
 };
 
@@ -938,7 +937,7 @@ const handleEdit = (row) => {
   isEdit.value = true;
   currentId.value = row.id;
   dialogTitle.value = '编辑物料类型';
-  
+
   Object.assign(formData, {
     parent_id: row.parent_id || 0,
     name: row.name,
@@ -947,7 +946,7 @@ const handleEdit = (row) => {
     status: row.status,
     description: row.description || ''
   });
-  
+
   dialogVisible.value = true;
 };
 
@@ -962,7 +961,7 @@ const handleDelete = async (row) => {
         type: 'warning'
       }
     );
-    
+
     await baseDataApi.deleteProductCategory(row.id);
     ElMessage.success('删除成功');
     // 删除后重新加载所有数据
@@ -978,9 +977,9 @@ const handleDelete = async (row) => {
 const handleSubmit = async () => {
   try {
     await formRef.value.validate();
-    
+
     submitLoading.value = true;
-    
+
     if (isEdit.value) {
       await baseDataApi.updateProductCategory(currentId.value, formData);
       ElMessage.success('更新成功');
@@ -988,7 +987,7 @@ const handleSubmit = async () => {
       await baseDataApi.createProductCategory(formData);
       ElMessage.success('创建成功');
     }
-    
+
     dialogVisible.value = false;
     // 操作成功后重新加载所有数据
     loadAllData();
@@ -1182,7 +1181,7 @@ const loadSourceData = async () => {
 
     const response = await baseDataApi.getMaterialSources(params);
     const { data, total } = parseResponseData(response);
-    
+
     sourceTableData.value = data;
     sourcePagination.total = total;
   } catch (error) {
@@ -1194,10 +1193,10 @@ const loadSourceData = async () => {
 };
 
 // 分页处理
-const { handleSizeChange: handleSourceSizeChange, handlePageChange: handleSourcePageChange } = 
+const { handleSizeChange: handleSourceSizeChange, handlePageChange: handleSourcePageChange } =
   createPaginationHandlers(sourcePagination, loadSourceData);
 
-const { handleSizeChange: handleCategorySizeChange, handlePageChange: handleCategoryPageChange } = 
+const { handleSizeChange: handleCategorySizeChange, handlePageChange: handleCategoryPageChange } =
   createPaginationHandlers(categoryPagination, loadData);
 
 // 物料来源编辑

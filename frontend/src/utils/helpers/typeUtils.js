@@ -13,12 +13,12 @@ export function ensureNumber(value, defaultValue = 0) {
   if (typeof value === 'number' && !isNaN(value)) {
     return value;
   }
-  
+
   if (typeof value === 'string') {
     const parsed = parseFloat(value);
     return isNaN(parsed) ? defaultValue : parsed;
   }
-  
+
   return defaultValue;
 }
 
@@ -32,12 +32,12 @@ export function ensureInteger(value, defaultValue = 0) {
   if (typeof value === 'number' && Number.isInteger(value)) {
     return value;
   }
-  
+
   if (typeof value === 'string') {
     const parsed = parseInt(value, 10);
     return isNaN(parsed) ? defaultValue : parsed;
   }
-  
+
   return defaultValue;
 }
 
@@ -51,11 +51,11 @@ export function ensureString(value, defaultValue = '') {
   if (typeof value === 'string') {
     return value;
   }
-  
+
   if (value === null || value === undefined) {
     return defaultValue;
   }
-  
+
   return String(value);
 }
 
@@ -69,7 +69,7 @@ export function ensureArray(value, defaultValue = []) {
   if (Array.isArray(value)) {
     return value;
   }
-  
+
   return defaultValue;
 }
 
@@ -83,15 +83,15 @@ export function ensureBoolean(value, defaultValue = false) {
   if (typeof value === 'boolean') {
     return value;
   }
-  
+
   if (typeof value === 'string') {
     return value.toLowerCase() === 'true';
   }
-  
+
   if (typeof value === 'number') {
     return value !== 0;
   }
-  
+
   return defaultValue;
 }
 
@@ -107,18 +107,18 @@ export function normalizePaginationData(response) {
     page: 1,
     pageSize: 10
   };
-  
+
   if (!response) {
     return result;
   }
-  
+
   const data = response.data !== undefined ? response.data : response;
   if (!data) {
     return result;
   }
 
   const pagination = data?.pagination || {};
-  
+
   // 处理数据列表
   if (Array.isArray(data)) {
     result.items = data;
@@ -133,18 +133,18 @@ export function normalizePaginationData(response) {
     result.items = data.data;
     result.total = ensureInteger(data.total ?? pagination.total, data.data.length);
   }
-  
+
   // 处理分页信息
   const page = data.page ?? data.current ?? pagination.page ?? pagination.current;
   if (page !== undefined) {
     result.page = ensureInteger(page, 1);
   }
-  
+
   const pageSize = data.pageSize ?? data.limit ?? data.size ?? pagination.pageSize ?? pagination.limit;
   if (pageSize !== undefined) {
     result.pageSize = ensureInteger(pageSize, 10);
   }
-  
+
   return result;
 }
 

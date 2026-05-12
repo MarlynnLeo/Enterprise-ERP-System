@@ -5,11 +5,11 @@
         <div class="card-header">
           <span>薪酬核算中心</span>
           <div>
-            <el-date-picker 
-              v-model="queryPeriod" 
-              type="month" 
-              placeholder="选择计薪月份" 
-              value-format="YYYY-MM" 
+            <el-date-picker
+              v-model="queryPeriod"
+              type="month"
+              placeholder="选择计薪月份"
+              value-format="YYYY-MM"
               @change="fetchData"
               style="margin-right: 15px; width: 140px;"
               :clearable="false"
@@ -32,7 +32,7 @@
         <el-table-column type="index" label="序号" width="60" fixed />
         <el-table-column prop="employee_no" label="工号" width="100" fixed show-overflow-tooltip />
         <el-table-column prop="employee_name" label="姓名" width="100" fixed />
-        
+
         <!-- 左侧: 薪酬明细 -->
         <el-table-column label="薪酬计算明细" align="center">
           <el-table-column prop="base_salary" label="基本工资" width="100" />
@@ -95,7 +95,7 @@ const handleCalculate = async () => {
       '提示',
       { type: 'warning' }
     )
-    
+
     calcLoading.value = true
     const res = await hrApi.calculateSalary(queryPeriod.value)
     ElMessage.success(res.data.message || '核算成功')

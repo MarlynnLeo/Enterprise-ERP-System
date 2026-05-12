@@ -14,7 +14,7 @@ import { ElMessage } from 'element-plus';
  */
 export function handleDashboardError(error, moduleName, fallbackData = {}, showMessage = true) {
   console.error(`${moduleName}数据加载失败:`, error);
-  
+
   if (showMessage) {
     if (error.response?.status === 401) {
       ElMessage.error('登录已过期，请重新登录');
@@ -26,7 +26,7 @@ export function handleDashboardError(error, moduleName, fallbackData = {}, showM
       ElMessage.warning(`${moduleName}数据加载失败，请稍后重试`);
     }
   }
-  
+
   return fallbackData;
 }
 
@@ -113,16 +113,16 @@ export function getDateBefore(months) {
  * @returns {Array} 月份标签数组
  */
 export function generateMonthLabels(count = 12) {
-  const months = ['一月', '二月', '三月', '四月', '五月', '六月', 
+  const months = ['一月', '二月', '三月', '四月', '五月', '六月',
                   '七月', '八月', '九月', '十月', '十一月', '十二月'];
   const currentMonth = new Date().getMonth();
   const labels = [];
-  
+
   for (let i = count - 1; i >= 0; i--) {
     const monthIndex = (currentMonth - i + 12) % 12;
     labels.push(months[monthIndex]);
   }
-  
+
   return labels;
 }
 
@@ -137,14 +137,14 @@ export function safeGet(data, path, defaultValue = null) {
   try {
     const keys = path.split('.');
     let result = data;
-    
+
     for (const key of keys) {
       if (result === null || result === undefined) {
         return defaultValue;
       }
       result = result[key];
     }
-    
+
     return result !== undefined ? result : defaultValue;
   } catch {
     return defaultValue;
@@ -197,14 +197,14 @@ export async function retryApiCall(apiCall, maxRetries = 3, delay = 1000) {
       if (i === maxRetries - 1) {
         throw error;
       }
-      
+
       // 如果是网络错误或服务器错误，进行重试
-      if (error.code === 'NETWORK_ERROR' || 
+      if (error.code === 'NETWORK_ERROR' ||
           (error.response && error.response.status >= 500)) {
         await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
         continue;
       }
-      
+
       // 其他错误直接抛出
       throw error;
     }
@@ -220,21 +220,21 @@ export async function retryApiCall(apiCall, maxRetries = 3, delay = 1000) {
 export async function batchApiCall(apiCalls, concurrency = 3) {
   const results = [];
   const executing = [];
-  
+
   for (const apiCall of apiCalls) {
     const promise = apiCall().then(result => {
       executing.splice(executing.indexOf(promise), 1);
       return result;
     });
-    
+
     results.push(promise);
     executing.push(promise);
-    
+
     if (executing.length >= concurrency) {
       await Promise.race(executing);
     }
   }
-  
+
   return Promise.allSettled(results);
 }
 
@@ -248,27 +248,27 @@ export function validateData(data, schema) {
   if (!data || typeof data !== 'object') {
     return false;
   }
-  
+
   for (const [key, validator] of Object.entries(schema)) {
     const value = data[key];
-    
+
     if (validator.required && (value === undefined || value === null)) {
       return false;
     }
-    
+
     if (value !== undefined && validator.type && typeof value !== validator.type) {
       return false;
     }
-    
+
     if (validator.min !== undefined && value < validator.min) {
       return false;
     }
-    
+
     if (validator.max !== undefined && value > validator.max) {
       return false;
     }
   }
-  
+
   return true;
 }
 
@@ -316,6 +316,6 @@ export function getDefaultStatistics(type) {
       returns: { total: 0, pending: 0 }
     }
   };
-  
+
   return defaults[type] || {};
 }

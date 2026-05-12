@@ -35,8 +35,8 @@
 
     <!-- 特效网格 -->
     <div class="frames-grid">
-      <div 
-        v-for="frame in filteredFrames" 
+      <div
+        v-for="frame in filteredFrames"
         :key="frame.id"
         class="frame-item"
         :class="{ 'active': modelValue === frame.id }"
@@ -45,15 +45,15 @@
         <div class="frame-preview">
           <div class="avatar-frame-container" style="position: relative; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;">
             <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2;">
-              <Vue3Lottie 
-                v-if="frame.animationData" 
-                :animationData="frame.animationData" 
-                :height="85" 
-                :width="85" 
+              <Vue3Lottie
+                v-if="frame.animationData"
+                :animationData="frame.animationData"
+                :height="85"
+                :width="85"
               />
             </div>
-            <el-avatar 
-              :size="70" 
+            <el-avatar
+              :size="70"
               :src="avatar || '/default-avatar.png'"
               class="preview-avatar"
               style="position: relative; z-index: 1;"
@@ -74,18 +74,18 @@
         </div>
 
         <div class="frame-actions">
-          <el-button 
+          <el-button
             v-if="modelValue === frame.id"
-            type="success" 
+            type="success"
             size="small"
             disabled
           >
             <el-icon><Check /></el-icon>
             使用中
           </el-button>
-          <el-button 
+          <el-button
             v-else
-            type="primary" 
+            type="primary"
             size="small"
             @click.stop="applyFrame(frame.id)"
           >
@@ -112,15 +112,15 @@
       <div class="large-preview">
         <div class="preview-container-large" style="position: relative; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center;">
           <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2;">
-            <Vue3Lottie 
-              v-if="getCurrentPreviewFrame.animationData" 
-              :animationData="getCurrentPreviewFrame.animationData" 
-              :height="140" 
-              :width="140" 
+            <Vue3Lottie
+              v-if="getCurrentPreviewFrame.animationData"
+              :animationData="getCurrentPreviewFrame.animationData"
+              :height="140"
+              :width="140"
             />
           </div>
-          <el-avatar 
-            :size="120" 
+          <el-avatar
+            :size="120"
             :src="avatar || '/default-avatar.png'"
             class="large-preview-avatar"
             style="position: relative; z-index: 1;"
@@ -130,7 +130,7 @@
         </div>
       </div>
       <div class="preview-info">
-        <el-alert 
+        <el-alert
           :title="`预览：${getFrameName(previewFrame)}`"
           type="info"
           :closable="false"
@@ -182,7 +182,7 @@ const filteredFrames = computed(() => {
   if (activeCategory.value === 'all') {
     return props.frames
   }
-  
+
   const targetTags = categoryTags[activeCategory.value] || []
   return props.frames.filter(frame => {
     return frame.tags.some(tag => targetTags.includes(tag))

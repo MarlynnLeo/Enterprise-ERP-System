@@ -112,7 +112,7 @@
               size="small"
               type="primary"
               @click="handleEditReceipt(scope.row)"
-            
+
               v-permission="'purchase:processing-receipts'">
               编辑
             </el-button>
@@ -385,10 +385,10 @@ onMounted(() => {
   .statistics-row {
     flex-direction: column;
   }
-  
+
   .stat-card {
     margin-bottom: 10px;
     width: 100%;
   }
 }
-</style> 
+</style>

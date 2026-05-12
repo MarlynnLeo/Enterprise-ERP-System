@@ -6,7 +6,6 @@ export const salesApi = {
   getCustomer: (id) => api.get(`/sales/customers/${id}`),
   createCustomer: (customer) => api.post('/sales/customers', customer),
   updateCustomer: (id, customer) => api.put(`/sales/customers/${id}`, customer),
-  deleteCustomer: (id) => api.delete(`/sales/customers/${id}`),
 
   // 产品列表（用于报价单和订单）
   getProductsList: () => api.get('/sales/products-list'),

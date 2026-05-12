@@ -19,7 +19,7 @@ const productSalesTraceabilityController = {
       const { productCode, batchNumber } = req.params;
 
       if (!productCode || !batchNumber) {
-        return ResponseHandler.error(res, '产品编码和批次号不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '产品编码和批次号不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const result = await ProductSalesTraceabilityService.getProductFullTraceability(
@@ -28,7 +28,7 @@ const productSalesTraceabilityController = {
       );
 
       if (result.success) {
-        res.json(result);
+        return ResponseHandler.success(res, result);
       } else {
         res.status(404).json(result);
       }
@@ -47,7 +47,7 @@ const productSalesTraceabilityController = {
       const { productCode } = req.query;
 
       if (!customerId) {
-        return ResponseHandler.error(res, '客户ID不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '客户ID不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const result = await ProductSalesTraceabilityService.getCustomerMaterialTraceability(
@@ -56,7 +56,7 @@ const productSalesTraceabilityController = {
       );
 
       if (result.success) {
-        res.json(result);
+        return ResponseHandler.success(res, result);
       } else {
         res.status(404).json(result);
       }
@@ -74,7 +74,7 @@ const productSalesTraceabilityController = {
       const connection = await db.pool.getConnection();
       try {
         const [customers] = await connection.execute(`
-          SELECT 
+          SELECT
             c.id,
             c.name,
             c.contact_person,
@@ -104,7 +104,7 @@ const productSalesTraceabilityController = {
       const connection = await db.pool.getConnection();
       try {
         const [salesStats] = await connection.execute(`
-          SELECT 
+          SELECT
             COUNT(DISTINCT pst.customer_id) as total_customers,
             COUNT(DISTINCT pst.outbound_no) as total_outbound_orders,
             COUNT(DISTINCT pst.product_code) as total_products,
@@ -114,7 +114,7 @@ const productSalesTraceabilityController = {
         `);
 
         const [recentSales] = await connection.execute(`
-          SELECT 
+          SELECT
             pst.outbound_no,
             pst.customer_name,
             pst.product_code,
@@ -127,7 +127,7 @@ const productSalesTraceabilityController = {
         `);
 
         const [topProducts] = await connection.execute(`
-          SELECT 
+          SELECT
             pst.product_code,
             pst.product_name,
             SUM(pst.allocated_quantity) as total_sold,
@@ -138,14 +138,11 @@ const productSalesTraceabilityController = {
           LIMIT 10
         `);
 
-        res.json({
-          success: true,
-          data: {
+        return ResponseHandler.success(res, {
             statistics: salesStats[0] || {},
             recent_sales: recentSales,
             top_products: topProducts,
-          },
-        });
+          });
       } finally {
         connection.release();
       }
@@ -164,7 +161,7 @@ const productSalesTraceabilityController = {
       const { materialCode, batchNumber } = req.params;
 
       if (!materialCode || !batchNumber) {
-        return ResponseHandler.error(res, '原材料编码和批次号不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '原材料编码和批次号不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const connection = await db.pool.getConnection();
@@ -172,7 +169,7 @@ const productSalesTraceabilityController = {
       try {
         [traceChain] = await connection.execute(
           `
-          SELECT 
+          SELECT
             m1.code as raw_material_code,
             m1.name as raw_material_name,
             br.parent_batch_number as raw_material_batch,
@@ -190,10 +187,10 @@ const productSalesTraceabilityController = {
           FROM batch_relationships br
           LEFT JOIN v_batch_stock source_vbs ON br.parent_batch_number = source_vbs.batch_number
           LEFT JOIN materials m1 ON source_vbs.material_id = m1.id
-          LEFT JOIN v_batch_stock target_vbs ON br.child_batch_number = target_vbs.batch_number  
+          LEFT JOIN v_batch_stock target_vbs ON br.child_batch_number = target_vbs.batch_number
           LEFT JOIN materials m2 ON target_vbs.material_id = m2.id
           LEFT JOIN product_sales_traceability pst ON br.child_batch_number = pst.product_batch_number
-          WHERE m1.code = ? 
+          WHERE m1.code = ?
           AND br.parent_batch_number = ?
           AND br.relationship_type = 'consume'
           ORDER BY target_vbs.production_date ASC, pst.delivery_date ASC
@@ -205,10 +202,7 @@ const productSalesTraceabilityController = {
       }
 
       if (traceChain.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: `未找到原材料 ${materialCode} - ${batchNumber} 的追溯记录`,
-        });
+        return ResponseHandler.error(res, `未找到原材料 ${materialCode} - ${batchNumber} 的追溯记录`, 'NOT_FOUND', 404);
       }
 
       // 按成品批次分组
@@ -245,9 +239,7 @@ const productSalesTraceabilityController = {
         }
       });
 
-      res.json({
-        success: true,
-        data: {
+      return ResponseHandler.success(res, {
           material_info: {
             code: materialCode,
             batch: batchNumber,
@@ -262,8 +254,7 @@ const productSalesTraceabilityController = {
               .filter((r) => r.allocated_quantity)
               .reduce((sum, r) => sum + parseFloat(r.allocated_quantity), 0),
           },
-        },
-      });
+        });
     } catch (error) {
       logger.error('获取原材料到客户追溯失败:', error);
       ResponseHandler.error(res, '获取原材料到客户追溯失败', 'SERVER_ERROR', 500, error);

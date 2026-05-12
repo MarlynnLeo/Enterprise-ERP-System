@@ -377,7 +377,7 @@ exports.getSalesOutboundById = async (req, res) => {
         ];
       }
 
-    res.json(outbound);
+    return ResponseHandler.success(res, outbound);
   } catch (error) {
     logger.error('获取销售出库单详情失败:', error);
     ResponseHandler.error(res, '获取销售出库单详情失败', 'SERVER_ERROR', 500, error);
@@ -410,7 +410,7 @@ exports.createSalesOutbound = async (req, res) => {
         related_orders = JSON.parse(rawRelatedOrders);
       } catch (error) {
         logger.error('解析related_orders JSON失败:', error);
-        return ResponseHandler.error(res, '无效的关联订单格式', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的关联订单格式', 'VALIDATION_ERROR', 400);
       }
     } else if (Array.isArray(rawRelatedOrders)) {
       related_orders = rawRelatedOrders;
@@ -445,7 +445,7 @@ exports.createSalesOutbound = async (req, res) => {
       }
     } catch (error) {
       logger.error('日期格式转换错误:', error);
-      return ResponseHandler.error(res, '无效的日期格式', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的日期格式', 'VALIDATION_ERROR', 400);
     }
 
     connection = await DBManager.getConnection();
@@ -476,12 +476,7 @@ exports.createSalesOutbound = async (req, res) => {
         reason: '已存在草稿出库单',
       });
 
-      return res.status(409).json({
-        success: false,
-        error: `该订单已存在草稿状态的出库单 ${recentDrafts[0].outbound_no}。请先完成或取消现有出库单，才能创建新的出库单。`,
-        code: 'DUPLICATE_DRAFT_EXISTS',
-        existing_outbound_no: recentDrafts[0].outbound_no,
-      });
+      return ResponseHandler.error(res, `该订单已存在草稿状态的出库单 ${recentDrafts[0].outbound_no}。请先完成或取消现有出库单，才能创建新的出库单。`, 'CONFLICT', 409);
     }
 
     logger.info('✅ 幂等性检查通过，开始创建出库单', { order_id, created_by });
@@ -491,7 +486,7 @@ exports.createSalesOutbound = async (req, res) => {
       // 多订单模式：验证所有关联订单存在
       if (!related_orders || related_orders.length === 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, '多订单模式下必须提供关联订单列表', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '多订单模式下必须提供关联订单列表', 'VALIDATION_ERROR', 400);
       }
 
       const [orderCheck] = await connection.query(
@@ -501,7 +496,7 @@ exports.createSalesOutbound = async (req, res) => {
 
       if (orderCheck.length !== related_orders.length) {
         await connection.rollback();
-        return ResponseHandler.error(res, '部分关联订单不存在', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '部分关联订单不存在', 'VALIDATION_ERROR', 400);
       }
 
       // 检查是否所有订单属于同一客户（可选验证）
@@ -518,7 +513,7 @@ exports.createSalesOutbound = async (req, res) => {
 
         if (orderCheck.length === 0) {
           await connection.rollback();
-          return ResponseHandler.error(res, '关联的订单不存在', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, '关联的订单不存在', 'VALIDATION_ERROR', 400);
         }
       }
     }
@@ -740,12 +735,7 @@ exports.updateSalesOutbound = async (req, res) => {
       !validTransitions[currentOutbound.status]?.includes(status)
     ) {
       await connection.rollback();
-      return res.status(400).json({
-        error: '无效的状态转换',
-        currentStatus: currentOutbound.status,
-        newStatus: status,
-        message: `当前状态 "${currentOutbound.status}" 不能转换为 "${status}"`,
-      });
+      return ResponseHandler.error(res, `当前状态 "${currentOutbound.status}" 不能转换为 "${status}"`, 'VALIDATION_ERROR', 400);
     }
 
     // 3. 验证订单存在性
@@ -757,7 +747,7 @@ exports.updateSalesOutbound = async (req, res) => {
       // 多订单模式：验证所有关联订单存在
       if (!finalRelatedOrders || finalRelatedOrders.length === 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, '多订单模式下必须提供关联订单列表', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '多订单模式下必须提供关联订单列表', 'VALIDATION_ERROR', 400);
       }
 
       const [orderCheck] = await connection.query('SELECT id FROM sales_orders WHERE id IN (?)', [
@@ -766,7 +756,7 @@ exports.updateSalesOutbound = async (req, res) => {
 
       if (orderCheck.length !== finalRelatedOrders.length) {
         await connection.rollback();
-        return ResponseHandler.error(res, '部分关联订单不存在', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '部分关联订单不存在', 'VALIDATION_ERROR', 400);
       }
 
       finalOrderId = null; // 多订单时主订单ID为空
@@ -779,7 +769,7 @@ exports.updateSalesOutbound = async (req, res) => {
 
         if (orderCheck.length === 0) {
           await connection.rollback();
-          return ResponseHandler.error(res, '关联的订单不存在', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, '关联的订单不存在', 'VALIDATION_ERROR', 400);
         }
       } else {
         finalOrderId = currentOutbound.order_id;
@@ -1060,9 +1050,9 @@ exports.updateSalesOutbound = async (req, res) => {
 
       if (finalOrderId) {
         const [salesOrders] = await connection.execute(
-          `SELECT so.*, c.name as customer_name 
-           FROM sales_orders so 
-           LEFT JOIN customers c ON so.customer_id = c.id 
+          `SELECT so.*, c.name as customer_name
+           FROM sales_orders so
+           LEFT JOIN customers c ON so.customer_id = c.id
            WHERE so.id = ?`,
           [finalOrderId]
         );
@@ -1120,12 +1110,7 @@ exports.updateSalesOutbound = async (req, res) => {
       items: updatedItems,
     };
 
-    res.json({
-      message: '销售出库单更新成功',
-      data: completeOutbound,
-    });
-
-    // ========== 响应已返回、事务已提交、连接即将归还 ==========
+    // ========== 响应返回前注册异步事件；setImmediate 会在 finally 释放连接后执行 ==========
     // 【关键】EventEmitter.emit 是同步的！如果直接 emit，订阅者的 async handler
     // 会在当前同步调用栈中立即开始执行，此时主连接可能还未 release，造成锁等待。
     // 使用 setImmediate 推迟到下一个宏任务，确保 finally 中 connection.release() 先执行。
@@ -1141,6 +1126,11 @@ exports.updateSalesOutbound = async (req, res) => {
         }
       });
     }
+
+    return ResponseHandler.success(res, {
+      message: '销售出库单更新成功',
+      data: completeOutbound,
+    });
   } catch (error) {
     if (connection) {
       await connection.rollback();
@@ -1182,9 +1172,7 @@ exports.deleteSalesOutbound = async (req, res) => {
     const deletableStatuses = ['draft', 'pending'];
     if (!deletableStatuses.includes(outbound.status)) {
       await connection.rollback();
-      return res.status(400).json({
-        error: `无法删除状态为"${outbound.status}"的出库单。已完成或处理中的出库单请使用"撤销"功能以回滚库存和财务数据。仅草稿和待处理状态的出库单可以直接删除。`,
-      });
+      return ResponseHandler.error(res, `无法删除状态为"${outbound.status}"的出库单。已完成或处理中的出库单请使用"撤销"功能以回滚库存和财务数据。仅草稿和待处理状态的出库单可以直接删除。`, 'VALIDATION_ERROR', 400);
     }
 
     try {
@@ -1198,7 +1186,7 @@ exports.deleteSalesOutbound = async (req, res) => {
 
       logger.info(`✅ 销售出库单 ${outbound.outbound_no} (ID: ${id}) 已安全删除，状态: ${outbound.status}`);
 
-      res.json({
+      return ResponseHandler.success(res, {
         message: '销售出库单删除成功',
         id: parseInt(id),
       });
@@ -1229,10 +1217,7 @@ exports.getMaterialSalesHistory = async (req, res) => {
 
     // 验证参数
     if (!materialId) {
-      return res.status(400).json({
-        success: false,
-        error: '物料ID不能为空',
-      });
+      return ResponseHandler.error(res, '物料ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     const actualPage = parseInt(page, 10);
@@ -1312,22 +1297,18 @@ exports.getMaterialSalesHistory = async (req, res) => {
       LEFT JOIN units u ON soi.unit_id = u.id
       ${whereClause}
       ORDER BY so.delivery_date DESC, so.created_at DESC
-      LIMIT ${actualPageSize} OFFSET ${offset}
+      LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
   `;
 
     const [dataResult] = await connection.query(dataQuery, queryParams);
 
     // 返回结果
-    res.json({
-      success: true,
-      data: {
+    return ResponseHandler.success(res, {
         list: dataResult,
         total: total,
         page: actualPage,
         pageSize: actualPageSize,
-      },
-      message: '获取物料销售历史成功',
-    });
+      }, '获取物料销售历史成功');
   } catch (error) {
     logger.error('获取物料销售历史失败:', error);
     ResponseHandler.error(res, '获取物料销售历史失败', 'SERVER_ERROR', 500, error);

@@ -82,7 +82,7 @@ const getStockList = async (
 
     // 计算有效物料的总数（构建与列表查询一致的条件）
     let countQuery = `
-      SELECT COUNT(*) as count 
+      SELECT COUNT(*) as count
       FROM materials m
       LEFT JOIN (
         SELECT material_id, location_id, SUM(quantity) as quantity
@@ -136,13 +136,13 @@ const exportStockData = async (search = '', locationId = null, categoryId = null
   try {
     // 构建查询条件
     let query = `
-      SELECT 
-        m.code as '物料编码', 
-        m.name as '物料名称', 
-        m.specs as '规格', 
-        COALESCE(w.name, m.location_name) as '库位', 
-        c.name as '类别', 
-        s.quantity as '库存数量', 
+      SELECT
+        m.code as '物料编码',
+        m.name as '物料名称',
+        m.specs as '规格',
+        COALESCE(w.name, m.location_name) as '库位',
+        c.name as '类别',
+        s.quantity as '库存数量',
         u.name as '单位'
       FROM
         materials m

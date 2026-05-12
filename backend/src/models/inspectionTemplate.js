@@ -47,11 +47,28 @@ module.exports = (sequelize) => {
         allowNull: true,
         comment: '物料类型ID',
       },
+      material_types: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment: '适用物料ID列表',
+      },
       is_general: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
         comment: '是否通用模板',
+      },
+      is_default: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: '是否默认兜底模板',
+      },
+      priority: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 100,
+        comment: '模板匹配优先级，数值越小越优先',
       },
       version: {
         type: DataTypes.STRING(20),
@@ -68,6 +85,17 @@ module.exports = (sequelize) => {
         allowNull: false,
         defaultValue: 'draft',
         comment: '状态：活跃、非活跃、草稿',
+      },
+      is_aql: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: '鏄惁鍚敤 AQL 鎶芥牱',
+      },
+      aql_level: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        comment: '榛樿 AQL 绛夌骇',
       },
       created_by: {
         type: DataTypes.BIGINT,

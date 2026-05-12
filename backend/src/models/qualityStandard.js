@@ -25,7 +25,7 @@ class QualityStandard {
         CASE
           WHEN qs.target_type = 'material' THEN m.name
           WHEN qs.target_type = 'product' THEN prod_m.name
-          ELSE pr.name
+          ELSE pr.process_name
         END as target_name
       FROM quality_standards qs
       LEFT JOIN quality_standard_items qsi ON qs.id = qsi.standard_id
@@ -53,7 +53,7 @@ class QualityStandard {
                 CASE
                   WHEN qs.target_type = 'material' THEN m.name
                   WHEN qs.target_type = 'product' THEN prod_m.name
-                  ELSE pr.name
+                  ELSE pr.process_name
                 END LIKE ?)`;
       const keyword = `%${filters.keyword}%`;
       queryParams.push(keyword, keyword, keyword);
@@ -68,17 +68,17 @@ class QualityStandard {
 
     // 获取总数
     const countQuery = `SELECT COUNT(*) as total FROM (${query}) as countTable`;
-    const [countRows] = await db.query(countQuery, queryParams);
-    const total = countRows[0].total;
+    const countResult = await db.query(countQuery, queryParams);
+    const total = countResult.rows[0].total;
 
     // 添加分页（直接拼接，已验证）
     const offset = (page - 1) * pageSize;
     query += ` ORDER BY qs.created_at DESC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`;
 
-    const [rows] = await db.query(query, queryParams);
+    const result = await db.query(query, queryParams);
 
     return {
-      rows,
+      rows: result.rows,
       total,
     };
   }
@@ -94,7 +94,7 @@ class QualityStandard {
         CASE
           WHEN qs.target_type = 'material' THEN m.name
           WHEN qs.target_type = 'product' THEN prod_m.name
-          ELSE pr.name
+          ELSE pr.process_name
         END as target_name
       FROM quality_standards qs
       LEFT JOIN materials m ON qs.target_type = 'material' AND qs.target_id = m.id
@@ -103,22 +103,23 @@ class QualityStandard {
       WHERE qs.id = ?
     `;
 
-    const [rows] = await db.query(query, [id]);
+    const result = await db.query(query, [id]);
+    const rows = result.rows;
     if (rows.length === 0) {
       return null;
     }
 
     // 获取标准项
     const itemsQuery = `
-      SELECT * FROM quality_standard_items 
-      WHERE standard_id = ? 
+      SELECT * FROM quality_standard_items
+      WHERE standard_id = ?
       ORDER BY sequence
     `;
-    const [items] = await db.query(itemsQuery, [id]);
+    const itemsResult = await db.query(itemsQuery, [id]);
 
     return {
       ...rows[0],
-      items,
+      items: itemsResult.rows,
     };
   }
 
@@ -211,7 +212,7 @@ class QualityStandard {
    * @returns {Promise<boolean>} 删除结果
    */
   static async deleteStandard(id) {
-    const [result] = await db.query('DELETE FROM quality_standards WHERE id = ?', [id]);
+    const result = await db.query('DELETE FROM quality_standards WHERE id = ?', [id]);
 
     return result.affectedRows > 0;
   }
@@ -227,8 +228,8 @@ class QualityStandard {
     switch (targetType) {
       case 'material':
         query = `
-          SELECT id, name, code, unit 
-          FROM materials 
+          SELECT id, name, code, unit
+          FROM materials
           ORDER BY name
         `;
         break;
@@ -250,8 +251,8 @@ class QualityStandard {
         return [];
     }
 
-    const [rows] = await db.query(query);
-    return rows;
+    const result = await db.query(query);
+    return result.rows;
   }
 }
 

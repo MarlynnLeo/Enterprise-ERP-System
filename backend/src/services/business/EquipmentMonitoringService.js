@@ -68,14 +68,14 @@ class EquipmentMonitoringService extends BaseService {
       // 获取最新的设备数据
       const [dataRows] = await connection.execute(
         `
-        SELECT ep.parameter_name, ep.parameter_code, ep.unit, ed.value, ed.text_value, 
+        SELECT ep.parameter_name, ep.parameter_code, ep.unit, ed.value, ed.text_value,
                ed.status, ed.timestamp
         FROM equipment_parameters ep
         LEFT JOIN equipment_data ed ON ep.id = ed.parameter_id
         WHERE ep.equipment_id = ?
         AND (ed.id IS NULL OR ed.id IN (
-          SELECT MAX(id) FROM equipment_data 
-          WHERE parameter_id = ep.id 
+          SELECT MAX(id) FROM equipment_data
+          WHERE parameter_id = ep.id
           GROUP BY parameter_id
         ))
         ORDER BY ep.parameter_name
@@ -126,7 +126,7 @@ class EquipmentMonitoringService extends BaseService {
 
       const [rows] = await connection.execute(
         `
-        SELECT ep.parameter_name, ep.parameter_code, ep.unit, 
+        SELECT ep.parameter_name, ep.parameter_code, ep.unit,
                ed.value, ed.text_value, ed.status, ed.timestamp
         FROM equipment_data ed
         JOIN equipment_parameters ep ON ed.parameter_id = ep.id
@@ -250,8 +250,8 @@ class EquipmentMonitoringService extends BaseService {
 
       await connection.execute(
         `
-        INSERT INTO equipment_alarms 
-        (equipment_id, parameter_id, alarm_type, alarm_level, alarm_message, current_value, threshold_value) 
+        INSERT INTO equipment_alarms
+        (equipment_id, parameter_id, alarm_type, alarm_level, alarm_message, current_value, threshold_value)
         VALUES (?, ?, 'parameter', ?, ?, ?, ?)
       `,
         [
@@ -304,8 +304,8 @@ class EquipmentMonitoringService extends BaseService {
       // 获取总数
       const [countResult] = await connection.execute(
         `
-        SELECT COUNT(*) as total 
-        FROM equipment_alarms ea 
+        SELECT COUNT(*) as total
+        FROM equipment_alarms ea
         ${whereClause}
       `,
         params
@@ -440,32 +440,32 @@ class EquipmentMonitoringService extends BaseService {
     try {
       // 设备状态统计
       const [statusStats] = await connection.execute(`
-        SELECT status, COUNT(*) as count 
-        FROM equipment 
-        WHERE is_active = 1 
+        SELECT status, COUNT(*) as count
+        FROM equipment
+        WHERE is_active = 1
         GROUP BY status
       `);
 
       // 设备类型统计 (表结构无 equipment_type，使用 model 替代)
       const [typeStats] = await connection.execute(`
-        SELECT COALESCE(model, '未知型号') as equipment_type, COUNT(*) as count 
-        FROM equipment 
-        WHERE is_active = 1 
+        SELECT COALESCE(model, '未知型号') as equipment_type, COUNT(*) as count
+        FROM equipment
+        WHERE is_active = 1
         GROUP BY COALESCE(model, '未知型号')
       `);
 
       // 活跃报警统计
       const [alarmStats] = await connection.execute(`
-        SELECT alarm_level, COUNT(*) as count 
-        FROM equipment_alarms 
-        WHERE status = 'active' 
+        SELECT alarm_level, COUNT(*) as count
+        FROM equipment_alarms
+        WHERE status = 'active'
         GROUP BY alarm_level
       `);
 
       // 今日数据点数
       const [dataStats] = await connection.execute(`
         SELECT COUNT(*) as total_data_points
-        FROM equipment_data 
+        FROM equipment_data
         WHERE DATE(timestamp) = CURDATE()
       `);
 

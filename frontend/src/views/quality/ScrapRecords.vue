@@ -106,30 +106,30 @@
         <el-table-column label="操作" min-width="250" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button 
-              link 
-              type="success" 
-              size="small" 
+            <el-button
+              link
+              type="success"
+              size="small"
               @click="approveScrap(row)"
               v-if="row.status === 'pending'"
-            
+
               v-permission="'quality:scrap:update'">
               审批
             </el-button>
-            <el-button 
-              link 
-              type="warning" 
-              size="small" 
+            <el-button
+              link
+              type="warning"
+              size="small"
               @click="completeScrap(row)"
               v-if="row.status === 'approved'"
-            
+
               v-permission="'quality:scrap:update'">
               完成报废
             </el-button>
-            <el-button 
-              link 
-              type="info" 
-              size="small" 
+            <el-button
+              link
+              type="info"
+              size="small"
               @click="editRecord(row)"
               v-if="row.status === 'pending' || row.status === 'approved'"
               v-permission="'quality:scrap:update'"

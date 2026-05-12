@@ -17,7 +17,7 @@
         <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新增资产</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -51,7 +51,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -79,7 +79,7 @@
         <div class="stat-label">维修中</div>
       </el-card>
     </div>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -148,7 +148,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -166,7 +166,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -194,7 +194,7 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="购入日期" prop="purchaseDate">
@@ -216,7 +216,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="使用年限" prop="usefulLife">
@@ -233,7 +233,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-form-item label="折旧方法" prop="depreciationMethod">
           <el-radio-group v-model="assetForm.depreciationMethod">
             <el-radio value="straight_line">直线法</el-radio>
@@ -242,7 +242,7 @@
             <el-radio value="no_depreciation">不计提折旧</el-radio>
           </el-radio-group>
         </el-form-item>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="存放地点" prop="location">
@@ -262,7 +262,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="责任人" prop="responsible">
@@ -280,7 +280,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-form-item label="备注" prop="notes">
           <el-input
             v-model="assetForm.notes"
@@ -297,7 +297,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 资产调拨对话框 -->
     <el-dialog
       :title="transferDialogTitle"
@@ -785,7 +785,7 @@ const loadAssets = async () => {
       if (asset.purchaseDate || asset.acquisitionDate) {
         asset.purchaseDate = formatDate(asset.purchaseDate || asset.acquisitionDate);
       }
-      
+
       // 字段映射适配
       asset.assetCode = asset.assetCode || asset.asset_code || '';
       asset.assetName = asset.assetName || asset.asset_name || '';
@@ -889,16 +889,16 @@ const onCategoryChange = () => {
   if (!assetForm.id && assetForm.categoryId) {
     // 自动获取编号
     generateCode();
-    
+
     // 同步类别默认设置
     const category = categoryOptions.value.find(c => c.id === assetForm.categoryId);
     if (category) {
       const usefulLife = category.defaultUsefulLife || category.default_useful_life;
       if (usefulLife) assetForm.usefulLife = usefulLife;
-      
+
       const salvageRate = category.defaultSalvageRate || category.default_salvage_rate;
       if (salvageRate !== undefined) assetForm.salvageRate = Number(salvageRate);
-      
+
       const depMethod = category.defaultDepreciationMethod || category.default_depreciation_method;
       if (depMethod) {
         // 数据库返回的是中文，前端表单需要英文 key
@@ -937,29 +937,29 @@ const goToDetail = (id) => {
 // 编辑资产
 const handleEdit = async (row) => {
   dialogTitle.value = '编辑固定资产';
-  
+
   try {
     const response = await api.get(`/finance/assets/${row.id}`);
     const asset = response.data;
-    
+
     resetAssetForm();
-    
+
     // 处理日期格式
     if (asset.purchaseDate) {
       asset.purchaseDate = formatDate(asset.purchaseDate);
     }
-    
+
     // 确保数值字段为数字类型
     if (asset.originalValue) asset.originalValue = parseFloat(asset.originalValue);
     if (asset.netValue) asset.netValue = parseFloat(asset.netValue);
     if (asset.usefulLife) asset.usefulLife = parseInt(asset.usefulLife);
     if (asset.salvageRate) asset.salvageRate = parseFloat(asset.salvageRate);
     if (asset.categoryId) asset.categoryId = parseInt(asset.categoryId);
-    
+
     // 填充表单数据
     Object.assign(assetForm, asset);
-    
-    
+
+
     dialogVisible.value = true;
   } catch (error) {
     console.error('获取资产详情失败:', error);
@@ -1003,7 +1003,7 @@ const handleAudit = async (row, action) => {
   } catch {
     return;
   }
-  
+
   try {
     await api.post(`/finance/assets/${row.id}/audit`, { action });
     ElMessage.success(`${row.assetName} ${actionText}成功`);
@@ -1033,7 +1033,7 @@ const handleTransfer = (row) => {
   transferForm.transferDate = formatDate(new Date());
   transferForm.transferReason = '';
   transferForm.notes = '';
-  
+
   // 显示调拨对话框
   transferDialogVisible.value = true;
 };
@@ -1041,7 +1041,7 @@ const handleTransfer = (row) => {
 // 提交资产调拨
 const submitTransfer = async () => {
   if (!transferFormRef.value) return;
-  
+
   await transferFormRef.value.validate(async (valid) => {
     if (valid) {
       transferLoading.value = true;
@@ -1113,21 +1113,21 @@ const handleImpairment = (row) => {
   impairmentForm.impairment_amount = 0;
   impairmentForm.impairment_date = new Date().toISOString().split('T')[0];
   impairmentForm.reason = '';
-  
+
   impairmentDialogVisible.value = true;
 };
 
 // 提交资产减值
 const submitImpairment = async () => {
   if (!impairmentFormRef.value) return;
-  
+
   await impairmentFormRef.value.validate(async (valid) => {
     if (valid) {
       if (impairmentForm.impairment_amount > impairmentForm.netValue) {
         ElMessage.error('减值金额不能大于当前净值');
         return;
       }
-      
+
       submitImpairmentLoading.value = true;
       try {
         await api.post(`/finance/assets/${impairmentForm.assetId}/impairments`, impairmentForm);
@@ -1207,7 +1207,7 @@ const submitDispose = async () => {
 // 保存资产
 const saveAsset = async () => {
   if (!assetFormRef.value) return;
-  
+
   await assetFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
@@ -1216,10 +1216,10 @@ const saveAsset = async () => {
         if (!assetForm.id) {
           assetForm.netValue = assetForm.originalValue;
         }
-        
+
         // 准备提交的数据
         const data = { ...assetForm };
-        
+
         if (assetForm.id) {
           // 更新
           await api.put(`/finance/assets/${assetForm.id}`, data);
@@ -1258,7 +1258,7 @@ const resetAssetForm = () => {
   assetForm.responsible = '';
   assetForm.status = 'in_use';
   assetForm.notes = '';
-  
+
   // 清除校验
   if (assetFormRef.value) {
     assetFormRef.value.resetFields();

@@ -16,13 +16,13 @@
         </svg>
         <span class="brand-text">KACON</span>
       </div>
-      
+
       <!-- 纯CSS构建的抽象插画，用于左侧视觉区域 -->
       <div class="illustration-container">
         <!--巨型圆环背景-->
         <div class="float-ring"></div>
         <div class="float-ring small"></div>
-        
+
         <!-- 数据面板背景 -->
         <div class="dashboard-panel panel-bg">
           <div class="panel-header">
@@ -39,7 +39,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- 悬浮的主 Logo 卡片 -->
         <div class="dashboard-panel panel-fg">
           <svg class="fg-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -49,7 +49,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 右侧表单区 -->
     <div class="login-right">
       <div class="login-form-container">
@@ -64,21 +64,21 @@
           </div>
           <p class="form-slogan">新一代的开源 AI ERP系统</p>
         </div>
-        
+
         <!-- 表单主体 -->
         <div class="form-box">
           <h2 class="form-title">账号登录</h2>
-          
+
           <el-form :model="loginForm" :rules="rules" ref="loginFormRef" class="login-form" :show-message="false">
             <el-form-item prop="username">
-              <el-input 
+              <el-input
                 v-model="loginForm.username"
                 placeholder="请输入手机号或邮箱"
                 class="brand-input"
                 clearable
                 @keyup.enter="handleLogin" />
             </el-form-item>
-            
+
             <el-form-item prop="password">
               <el-input
                 v-model="loginForm.password"
@@ -90,11 +90,11 @@
                 @input="checkPasswordStrength"
               />
             </el-form-item>
-            
+
             <transition name="error-fade">
               <div v-if="loginError" class="login-error-text">{{ loginError }}</div>
             </transition>
-            
+
             <el-form-item>
               <el-button
                 type="primary"
@@ -130,16 +130,16 @@ const strengthColor = ref('')
 const checkPasswordStrength = () => {
   const password = loginForm.password
   let strength = 0
-  
+
   if (password.length >= 6) strength++
   if (password.length >= 10) strength++
   if (/[A-Z]/.test(password) && /[a-z]/.test(password)) strength++
   if (/\d/.test(password)) strength++
   if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++
-  
+
   strength = Math.min(strength, 4)
   passwordStrength.value = strength
-  
+
   const strengthMap = {
     0: { text: '', color: '' },
     1: { text: '弱', color: 'var(--color-danger)' },
@@ -147,7 +147,7 @@ const checkPasswordStrength = () => {
     3: { text: '强', color: 'var(--color-primary)' },
     4: { text: '非常强', color: 'var(--color-success)' }
   }
-  
+
   strengthText.value = strengthMap[strength].text
   strengthColor.value = strengthMap[strength].color
 }
@@ -200,12 +200,11 @@ const handleLogin = async () => {
       loading.value = true
       try {
         await authStore.login(loginForm)
-        
+
         try {
           const dictStore = useDictionaryStore()
           await dictStore.fetchDictionary()
-        } catch (dictErr) {
-          console.warn('登录后获取字典失败:', dictErr)
+        } catch {
         }
         ElMessage.success({
           message: '登录成功！欢迎回来 🎉',

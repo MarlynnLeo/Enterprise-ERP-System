@@ -83,7 +83,7 @@ const getScrapRecords = async (req, res) => {
 
     // 查询列表数据
     const dataQuery = appendPaginationSQL(`
-      SELECT 
+      SELECT
         sr.*,
         ncp.inspection_no,
         ncp.defect_description
@@ -164,7 +164,7 @@ const updateScrapRecord = async (req, res) => {
 
     if (checkResult[0].status === STATUS.SCRAP.COMPLETED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成的报废记录不能修改', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已完成的报废记录不能修改', 'VALIDATION_ERROR', 400);
     }
 
     // 更新报废记录
@@ -209,7 +209,7 @@ const approveScrap = async (req, res) => {
 
     if (checkResult[0].status !== 'pending') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能审批待审批状态的报废记录', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能审批待审批状态的报废记录', 'VALIDATION_ERROR', 400);
     }
 
     // 更新审批状态
@@ -278,12 +278,12 @@ const completeScrap = async (req, res) => {
 
     if (record.status === STATUS.SCRAP.COMPLETED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '该报废记录已完成', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '该报废记录已完成', 'VALIDATION_ERROR', 400);
     }
 
     if (record.status !== STATUS.SCRAP.APPROVED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '只有审批通过的报废记录才能完成', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只有审批通过的报废记录才能完成', 'VALIDATION_ERROR', 400);
     }
 
     // 完成报废
@@ -334,7 +334,7 @@ const updateStatus = async (req, res) => {
     const validStatuses = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 获取报废记录信息（completed 状态需要做额外处理）
@@ -348,18 +348,18 @@ const updateStatus = async (req, res) => {
 
     if (record.status === STATUS.SCRAP.COMPLETED && status !== STATUS.SCRAP.COMPLETED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成的报废记录不能变更状态', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已完成的报废记录不能变更状态', 'VALIDATION_ERROR', 400);
     }
 
     // 🔒 闭环保护：completed 状态必须走正规流程（库存扣减 + 质量成本）
     if (status === 'completed') {
       if (record.status === STATUS.SCRAP.COMPLETED) {
         await connection.rollback();
-        return ResponseHandler.error(res, '该报废记录已完成', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '该报废记录已完成', 'VALIDATION_ERROR', 400);
       }
       if (record.status !== STATUS.SCRAP.APPROVED) {
         await connection.rollback();
-        return ResponseHandler.error(res, '只有审批通过的报废记录才能完成，请先审批', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '只有审批通过的报废记录才能完成，请先审批', 'VALIDATION_ERROR', 400);
       }
 
       // 更新状态为已完成

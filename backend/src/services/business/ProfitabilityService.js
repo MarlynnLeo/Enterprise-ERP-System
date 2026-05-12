@@ -31,7 +31,7 @@ class ProfitabilityService {
     }
 
     const query = `
-      SELECT 
+      SELECT
         m.id as product_id,
         m.code as product_code,
         m.name as product_name,
@@ -40,18 +40,18 @@ class ProfitabilityService {
         COALESCE(psc.unit_cost, 0) as unit_cost,
         COALESCE(SUM(soi.quantity) * psc.unit_cost, 0) as total_cost,
         COALESCE(SUM(soi.amount) - SUM(soi.quantity) * COALESCE(psc.unit_cost, 0), 0) as gross_profit,
-        CASE 
-          WHEN SUM(soi.amount) > 0 
+        CASE
+          WHEN SUM(soi.amount) > 0
           THEN ROUND((SUM(soi.amount) - SUM(soi.quantity) * COALESCE(psc.unit_cost, 0)) / SUM(soi.amount) * 100, 2)
-          ELSE 0 
+          ELSE 0
         END as gross_margin
       FROM materials m
       LEFT JOIN sales_order_items soi ON m.id = soi.material_id
       LEFT JOIN sales_orders so ON soi.order_id = so.id AND so.status != 'cancelled'
       LEFT JOIN (
-        SELECT product_id, SUM(standard_price) as unit_cost 
-        FROM standard_costs 
-        WHERE is_active = 1 
+        SELECT product_id, SUM(standard_price) as unit_cost
+        FROM standard_costs
+        WHERE is_active = 1
         GROUP BY product_id
       ) psc ON m.id = psc.product_id
       WHERE 1=1 ${dateCondition}
@@ -88,7 +88,7 @@ class ProfitabilityService {
     }
 
     const query = `
-      SELECT 
+      SELECT
         c.id as customer_id,
         c.code as customer_code,
         c.name as customer_name,
@@ -106,15 +106,15 @@ class ProfitabilityService {
            LEFT JOIN (SELECT product_id, SUM(standard_price) as unit_cost FROM standard_costs WHERE is_active = 1 GROUP BY product_id) psc2 ON soi2.material_id = psc2.product_id
            WHERE soi2.order_id = so.id)
         ), 0) as gross_profit,
-        CASE 
-          WHEN SUM(so.total_amount) > 0 
+        CASE
+          WHEN SUM(so.total_amount) > 0
           THEN ROUND((SUM(so.total_amount) - SUM(
             (SELECT SUM(soi2.quantity * COALESCE(psc2.unit_cost, 0))
              FROM sales_order_items soi2
              LEFT JOIN (SELECT product_id, SUM(standard_price) as unit_cost FROM standard_costs WHERE is_active = 1 GROUP BY product_id) psc2 ON soi2.material_id = psc2.product_id
              WHERE soi2.order_id = so.id)
           )) / SUM(so.total_amount) * 100, 2)
-          ELSE 0 
+          ELSE 0
         END as gross_margin
       FROM customers c
       LEFT JOIN sales_orders so ON c.id = so.customer_id AND so.status != 'cancelled'
@@ -168,7 +168,7 @@ class ProfitabilityService {
     }
 
     const query = `
-      SELECT 
+      SELECT
         DATE_FORMAT(so.created_at, '${dateFormat}') as period,
         COALESCE(SUM(so.total_amount), 0) as total_revenue,
         COALESCE(SUM(
@@ -215,7 +215,7 @@ class ProfitabilityService {
     }
 
     const query = `
-      SELECT 
+      SELECT
         COUNT(DISTINCT so.id) as order_count,
         COUNT(DISTINCT so.customer_id) as customer_count,
         COALESCE(SUM(so.total_amount), 0) as total_revenue,

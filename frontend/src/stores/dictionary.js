@@ -72,12 +72,12 @@ export const useDictionaryStore = defineStore('dictionary', {
       if (this.isLoading) return;
       // 如果已经加载过并要求优先使用缓存
       if (this.isLoaded) return;
-      
+
       this.isLoading = true;
       try {
         // 请求后台数据，需确保引入的是正确的 api
         const apiToUse = systemApi;
-        
+
         if (!apiToUse) {
           console.error('[Dictionary Store] 无法找到 getBusinessTypes API');
           return;
@@ -88,19 +88,19 @@ export const useDictionaryStore = defineStore('dictionary', {
           // 处理后端分页包裹或者直接数组的格式
           const allTypes = Array.isArray(response.data) ? response.data : (response.data.list || []);
           this.types = allTypes;
-          
+
           // 根据 group_code 对所有字典进行分组，便于前端快速查找
           const newGroups = {};
           allTypes.forEach(item => {
             const groupCode = item.group_code;
             if (!groupCode) return;
-            
+
             if (!newGroups[groupCode]) {
               newGroups[groupCode] = [];
             }
             newGroups[groupCode].push(item);
           });
-          
+
           this.groups = newGroups;
           this.isLoaded = true;
         }

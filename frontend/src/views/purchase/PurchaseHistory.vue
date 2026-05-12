@@ -5,20 +5,20 @@
       <div class="search-bar">
         <el-form :inline="true" :model="searchForm" class="tech-form">
           <el-form-item label="部件编码">
-            <el-input 
-              v-model="searchForm.materialCode" 
-              placeholder="请输入部件编码" 
+            <el-input
+              v-model="searchForm.materialCode"
+              placeholder="请输入部件编码"
               clearable
               @keyup.enter="handleSearch"
             >
               <template #prefix><el-icon><Monitor /></el-icon></template>
             </el-input>
           </el-form-item>
-          
+
           <el-form-item label="零部件名称">
-            <el-input 
-              v-model="searchForm.materialName" 
-              placeholder="模糊搜索名称" 
+            <el-input
+              v-model="searchForm.materialName"
+              placeholder="模糊搜索名称"
               clearable
               @keyup.enter="handleSearch"
             >
@@ -64,9 +64,9 @@
 
       <!-- 核心数据表格 -->
       <div class="table-container">
-        <el-table 
-          v-loading="loading" 
-          :data="historyList" 
+        <el-table
+          v-loading="loading"
+          :data="historyList"
           class="tech-table glass-table"
           stripe
           border
@@ -77,7 +77,7 @@
               <span class="tech-text-info">{{ row.receipt_date }}</span>
             </template>
           </el-table-column>
-          
+
           <el-table-column prop="receipt_no" label="收货凭证" width="160" show-overflow-tooltip>
             <template #default="{ row }">
               <el-tag size="small" type="info" effect="plain">{{ row.receipt_no }}</el-tag>
@@ -198,12 +198,12 @@ const fetchHistory = async () => {
     if (res.data && Array.isArray(res.data.rows)) {
       historyList.value = res.data.rows;
       pagination.total = res.data.total || 0;
-    } 
+    }
     // 若未被正确拦截且返回原始 Axios 结构包含 data 的场景
     else if (res.data && res.data.data && Array.isArray(res.data.data.rows)) {
       historyList.value = res.data.data.rows;
       pagination.total = res.data.data.total || 0;
-    } 
+    }
     // 直接返回结果的特殊场景
     else if (Array.isArray(res.rows)) {
       historyList.value = res.rows;

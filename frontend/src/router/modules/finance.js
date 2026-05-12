@@ -318,7 +318,7 @@ export default {
             component: () => import('../../views/finance/reports/StandardCashFlow.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:reports:view'
+                permission: 'finance:reports:standard-cash-flow'
             }
         },
         // 财务自动化模块路由
@@ -567,7 +567,7 @@ export default {
             component: () => import('../../views/finance/settings/ExchangeRates.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:settings:view'
+                permission: 'finance:exchange-rates'
             }
         }
     ]

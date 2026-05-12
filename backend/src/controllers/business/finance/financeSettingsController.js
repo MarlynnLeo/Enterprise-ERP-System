@@ -33,7 +33,7 @@ const updateSettings = async (req, res) => {
 
     // 验证配置
     if (!newConfig || typeof newConfig !== 'object') {
-      return ResponseHandler.error(res, '无效的配置数据', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的配置数据', 'VALIDATION_ERROR', 400);
     }
 
     // 加载现有配置

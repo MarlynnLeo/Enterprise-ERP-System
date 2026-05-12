@@ -72,7 +72,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          
+
           <el-table-column label="期初余额" align="center">
         <el-table-column label="借方" width="150" align="right">
           <template #default="{ row }">
@@ -85,7 +85,7 @@
           </template>
         </el-table-column>
       </el-table-column>
-      
+
       <el-table-column label="本期发生额" align="center">
         <el-table-column prop="total_debit" label="借方" width="150" align="right">
           <template #default="{ row }">
@@ -178,13 +178,13 @@ const fetchPeriods = async () => {
 // 获取试算平衡表数据
 const fetchData = async () => {
   if (!filters.value.period_id) return
-  
+
   loading.value = true
   try {
     const res = await request.get('/finance/gl/trial-balance', {
       params: filters.value
     })
-    
+
     // 过滤掉所有金额均为0的科目（期初0，本期发生0）
     // 只要有一项不为0就保留
     tableData.value = res.data.trialBalance.filter(row => {
@@ -192,7 +192,7 @@ const fetchData = async () => {
       const hasPeriod = (Math.abs(row.total_debit || 0) > 0.001) || (Math.abs(row.total_credit || 0) > 0.001)
       return hasOpening || hasPeriod
     })
-    
+
     summary.value = {
       ...res.data.summary,
       isBalanced: res.data.isBalanced
@@ -209,13 +209,13 @@ const fetchData = async () => {
 const getSummaries = (param) => {
   const { columns, data } = param
   const sums = []
-  
+
   if (!summary.value) return sums
 
   // 计算期初汇总（前端计算，因为后端没有返回汇总）
   let totalOpeningDebit = 0
   let totalOpeningCredit = 0
-  
+
   data.forEach(row => {
     const net = row.is_debit ? row.opening_balance : -row.opening_balance
     if (net > 0) totalOpeningDebit += net
@@ -227,18 +227,18 @@ const getSummaries = (param) => {
       sums[index] = '合计'
       return
     }
-    
+
     // 对应列的汇总值
     // 注意：列索引可能因为新增列而改变，建议不依赖硬编码索引，但 Element Plus getSummaries 基于列顺序
     // 我们这里根据 column.label 或 property 来判断更安全，但 property 对于自定义模板列可能为空
-    
+
     // 简单起见，根据 current column logic
     // 期初借方：第4列 (index 3? depends on visible columns)
     // No, getSummaries iterates columns.
-    
+
     // 我们无法直接通过 property 匹配 opening columns 因为它们没有 prop
     // 但可以通过 label 判断 (虽然有点脆弱)
-    
+
     if (column.label === '借方' && column.parent?.label === '期初余额') {
       sums[index] = formatCurrency(totalOpeningDebit)
     } else if (column.label === '贷方' && column.parent?.label === '期初余额') {
@@ -306,7 +306,7 @@ const exportData = async () => {
     worksheet.getCell('C2').value = '科目类型'
     worksheet.mergeCells('D2:D3')
     worksheet.getCell('D2').value = '余额方向'
-    
+
     worksheet.mergeCells('E2:F2')
     worksheet.getCell('E2').value = '期初余额'
     worksheet.mergeCells('G2:H2')
@@ -400,7 +400,7 @@ const exportData = async () => {
       worksheet.mergeCells(`A${summaryRow.number}:D${summaryRow.number}`)
       summaryRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
       summaryRow.getCell(1).font = { bold: true }
-      
+
       summaryRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         cell.border = {
           top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}

@@ -9,7 +9,6 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const InventoryService = require('../../../services/InventoryService');
-// const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
@@ -229,7 +228,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     // 2. 获取BOM需求
     // 查找由于productId可能对应多版本BOM，取最新的已审核版本
     const [boms] = await connection.execute(
-      `SELECT id FROM bom_masters 
+      `SELECT id FROM bom_masters
        WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL
        ORDER BY created_at DESC LIMIT 1`,
       [task.product_id]

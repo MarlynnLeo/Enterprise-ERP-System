@@ -23,7 +23,7 @@
         </el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -70,7 +70,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -147,7 +147,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -165,7 +165,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -186,7 +186,7 @@
               </el-form-item>
             </el-col>
           </el-row>
-          
+
           <!-- 第二行：供应商 -->
         <el-row :gutter="20">
           <el-col :span="24">
@@ -202,7 +202,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <!-- 第三行：开票日期 + 到期日期 -->
         <el-row :gutter="20">
           <el-col :span="12">
@@ -246,7 +246,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <!-- 发票明细项 -->
         <div class="invoice-items">
           <h3 style="margin-bottom: 12px; font-size: 14px;">发票明细</h3>
@@ -254,15 +254,15 @@
             <el-table :data="invoiceForm.items" border size="small" style="width: 100%">
               <el-table-column label="物料/服务" width="140">
                 <template #default="scope">
-                  <el-select 
-                    v-model="scope.row.materialId" 
-                    placeholder="请输入物料名称/编码搜索" 
-                    filterable 
+                  <el-select
+                    v-model="scope.row.materialId"
+                    placeholder="请输入物料名称/编码搜索"
+                    filterable
                     remote
                     :remote-method="debouncedSearchMaterials"
                     :loading="loadingMaterials"
-                    size="small" 
-                    style="width: 100%" 
+                    size="small"
+                    style="width: 100%"
                     @change="() => handleMaterialChange(scope.row)"
                   >
                     <el-option
@@ -296,8 +296,8 @@
               </el-table-column>
               <el-table-column label="操作" width="60" align="center" :resizable="false">
                 <template #default="scope">
-                  <el-button 
-                    type="danger" 
+                  <el-button
+                    type="danger"
                     size="small"
                     link
                     @click="removeInvoiceItem(scope.$index)"
@@ -313,7 +313,7 @@
             <el-button v-permission="'finance:ap:create'" type="primary" size="small" @click="addInvoiceItem">添加明细项</el-button>
           </div>
         </div>
-        
+
         <!-- 税率和总计 -->
         <div class="invoice-total" style="margin-top: 16px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
@@ -347,7 +347,7 @@
             </el-col>
           </el-row>
         </div>
-        
+
         <el-form-item label="备注" label-width="60px" style="margin-top: 16px;">
           <el-input
             v-model="invoiceForm.notes"
@@ -364,7 +364,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 记录付款对话框 -->
     <el-dialog
       title="记录付款"
@@ -410,17 +410,17 @@
           </el-select>
         </el-form-item>
         <el-form-item label="银行账户" prop="bankAccountId" v-if="['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod)">
-          <el-select 
-            v-model="paymentForm.bankAccountId" 
-            placeholder="请选择银行账户" 
-            style="width: 100%" 
+          <el-select
+            v-model="paymentForm.bankAccountId"
+            placeholder="请选择银行账户"
+            style="width: 100%"
             filterable
             :loading="bankAccountsLoading"
           >
-            <el-option 
-              v-for="account in bankAccounts" 
-              :key="account.id" 
-              :label="`${account.bankName} - ${account.accountName}`" 
+            <el-option
+              v-for="account in bankAccounts"
+              :key="account.id"
+              :label="`${account.bankName} - ${account.accountName}`"
               :value="account.id"
             >
               <div style="display: flex; justify-content: space-between; align-items: center">
@@ -446,7 +446,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 发票明细查看对话框 -->
     <el-dialog
       title="发票详情查看"
@@ -470,7 +470,7 @@
           <el-descriptions-item label="创建时间">{{ invoiceDetail.createdAt }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ invoiceDetail.notes || '无' }}</el-descriptions-item>
         </el-descriptions>
-        
+
         <!-- 明细项 -->
         <div class="detail-title">
           <h3>发票明细项</h3>
@@ -512,11 +512,11 @@ import { formatCurrency } from '@/utils/format'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
-import api from '@/services/api';
+import api, { baseDataApi } from '@/services/api';
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
 import '@/utils/request' // Import request utility
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 const financeStore = useFinanceStore()
 const { vatRateOptions, defaultVATRate, paymentTermOptions, defaultPaymentTermDays, pagination } = storeToRefs(financeStore)
 // 高级搜索展开状态
@@ -614,9 +614,9 @@ const paymentRules = {
     { required: true, message: '请选择付款方式', trigger: 'change' }
   ],
   bankAccountId: [
-    { 
-      required: true, 
-      message: '请选择银行账户', 
+    {
+      required: true,
+      message: '请选择银行账户',
       trigger: 'change',
       validator: (rule, value, callback) => {
         if (['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) && !value) {
@@ -692,7 +692,8 @@ const handlePaymentTermsChange = (days) => {
     invoiceForm.dueDate = dueDate.toISOString().slice(0, 10);
   }
 };
-// 自动生成发票编号;
+// 自动生成发票编号
+;
 // 添加发票明细项
 const addInvoiceItem = () => {
   invoiceForm.items.push({
@@ -720,14 +721,14 @@ const loadInvoices = async () => {
       endDate: searchForm.dateRange?.[1] || '',
       status: searchForm.status
     };
-    
+
     const response = await api.get('/finance/ap/invoices', { params });
     const { list, total: totalCount } = parsePaginatedData(response);
     invoiceList.value = list;
     total.value = totalCount;
   } catch {
     ElMessage.error('加载发票列表失败');
-    
+
     // 出错时使用空数据
     invoiceList.value = [];
     total.value = 0;
@@ -738,7 +739,7 @@ const loadInvoices = async () => {
 // 加载供应商选项
 const loadSupplierOptions = async () => {
   try {
-    const response = await api.get('/baseData/suppliers', { params: { pageSize: 1000 } });
+    const response = await baseDataApi.getSuppliers({ pageSize: 1000 });
     const suppliers = parseListData(response, { enableLog: false });
     if (suppliers.length > 0) {
       supplierOptions.value = suppliers.map(supplier => ({
@@ -763,16 +764,16 @@ const debouncedSearchMaterials = (query) => {
   if (searchTimeout) {
     clearTimeout(searchTimeout);
   }
-  
+
   const searchId = ++currentSearchId;
-  
+
   searchTimeout = setTimeout(async () => {
     loadingMaterials.value = true;
     try {
       const results = await searchMaterials(api, query, {
         pageSize: 50 // Invoices 通常也只需要前50项来展示
       });
-      
+
       if (searchId === currentSearchId) {
         materialOptions.value = mapMaterialData(results);
       }
@@ -852,18 +853,18 @@ const handleStatusChange = async (row, status) => {
 // 编辑发票
 const handleEdit = async (row) => {
   dialogTitle.value = '编辑采购发票';
-  
+
   try {
     // 确保供应商选项已加载（编辑前必须加载，否则 el-select 无法匹配显示名称）
     if (supplierOptions.value.length === 0) {
       await loadSupplierOptions();
     }
-    
+
     const response = await api.get(`/finance/ap/invoices/${row.id}`);
     const invoice = response.data;
-    
+
     resetInvoiceForm();
-    
+
     // 填充表单数据
     invoiceForm.id = invoice.id;
     invoiceForm.invoiceNumber = invoice.invoiceNumber;
@@ -875,7 +876,7 @@ const handleEdit = async (row) => {
     invoiceForm.notes = invoice.notes;
     // 填充明细项
     invoiceForm.items = invoice.items || [];
-    
+
     if (invoice.taxRate !== undefined) {
       invoiceForm.taxRate = invoice.taxRate;
     } else if (invoice.amount !== undefined && invoiceForm.items.length > 0) {
@@ -891,7 +892,7 @@ const handleEdit = async (row) => {
     } else {
       invoiceForm.taxRate = defaultVATRate.value;
     }
-    
+
     dialogVisible.value = true;
   } catch {
     ElMessage.error('获取发票详情失败');
@@ -923,85 +924,37 @@ const handleViewDetails = async (row) => {
 // 打印发票详情 - 使用打印模板系统
 const printInvoiceDetail = async () => {
   try {
-    // 获取打印模板
-    let templateContent = '';
-    try {
-      const response = await api.get('/print/templates', {
-        params: {
-          template_type: 'ap_invoice',
-          is_default: 1,
-          status: 1
-        }
-      });
-      
-      const templates = response.data?.list || response.data?.data || response.data || [];
-      const template = Array.isArray(templates) ? templates[0] : null;
-      
-      if (template && template.content) {
-        templateContent = template.content;
-      }
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError);
-    }
-    
-    // 如果没有找到模板，提示用户配置
-    if (!templateContent) {
-      ElMessage.warning('未找到采购发票打印模板，请在系统管理-打印管理中配置 ap_invoice 类型模板');
-      return;
-    }
-    
-    // 替换模板变量
-    const printData = {
+    const items = (invoiceDetail.value.items || []).map((item, index) => ({
+      index: index + 1,
+      material_code: item.materialCode || item.material_code || '',
+      material_name: item.materialName || item.material_name || item.description || '',
+      specification: item.specification || item.specs || '',
+      quantity: item.quantity?.toString() || '0',
+      unit_price: formatCurrency(item.unitPrice || item.unit_price || 0),
+      tax_amount: formatCurrency(item.taxAmount || item.tax_amount || 0),
+      amount: formatCurrency(item.amount || 0)
+    }));
+    const subtotal = (invoiceDetail.value.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const taxAmount = Number(invoiceDetail.value.taxAmount || invoiceDetail.value.tax_amount || 0);
+
+    const html = await printService.generateByDefaultTemplate('finance', 'ap_invoice', {
       invoice_number: invoiceDetail.value.invoiceNumber || '-',
+      order_no: invoiceDetail.value.orderNumber || invoiceDetail.value.order_no || '',
       supplier_name: invoiceDetail.value.supplierName || '-',
       invoice_date: invoiceDetail.value.invoiceDate || '-',
       due_date: invoiceDetail.value.dueDate || '-',
       status: getStatusText(invoiceDetail.value),
-      amount: formatCurrency(invoiceDetail.value.amount),
+      subtotal: formatCurrency(invoiceDetail.value.subtotal || subtotal),
+      tax_amount: formatCurrency(taxAmount),
+      total_amount: formatCurrency(invoiceDetail.value.amount),
       paid_amount: formatCurrency(invoiceDetail.value.paidAmount),
-      balance: formatCurrency(invoiceDetail.value.balance),
+      balance_amount: formatCurrency(invoiceDetail.value.balance),
       notes: invoiceDetail.value.notes || '无',
-      print_date: new Date().toLocaleDateString(),
-      print_time: new Date().toLocaleTimeString()
-    };
-    
-    Object.keys(printData).forEach(key => {
-      const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
-      templateContent = templateContent.replace(regex, printData[key]);
+      print_time: new Date().toLocaleString(),
+      items
     });
-    
-    // 处理明细项列表
-    if (templateContent.includes('{{#each items}}')) {
-      const itemStart = templateContent.indexOf('{{#each items}}');
-      const itemEnd = templateContent.indexOf('{{/each}}', itemStart);
-      
-      if (itemStart !== -1 && itemEnd !== -1) {
-        const itemTemplate = templateContent.substring(itemStart + '{{#each items}}'.length, itemEnd);
-        let itemsHtml = '';
-        
-        (invoiceDetail.value.items || []).forEach((item, index) => {
-          let itemHtml = itemTemplate;
-          itemHtml = itemHtml.replace(/{{index}}/g, (index + 1).toString());
-          itemHtml = itemHtml.replace(/{{material_name}}/g, item.materialName || '');
-          itemHtml = itemHtml.replace(/{{description}}/g, item.description || '');
-          itemHtml = itemHtml.replace(/{{quantity}}/g, item.quantity?.toString() || '0');
-          itemHtml = itemHtml.replace(/{{unit_price}}/g, formatCurrency(item.unitPrice));
-          itemHtml = itemHtml.replace(/{{amount}}/g, formatCurrency(item.amount));
-          itemsHtml += itemHtml;
-        });
-        
-        templateContent = templateContent.substring(0, itemStart) + itemsHtml + templateContent.substring(itemEnd + '{{/each}}'.length);
-      }
-    }
-    
-    // 创建打印窗口
-    const printWindow = window.open('', '_blank');
-    writeSafeHtmlDocument(printWindow, templateContent);
-    
-    // 等待样式加载完成后打印
-    printWindow.onload = function() {
-      printWindow.print();
-    };
+
+    printService.previewDocument(html);
   } catch (error) {
     console.error('打印失败:', error);
     ElMessage.error('打印失败');
@@ -1011,7 +964,7 @@ const printInvoiceDetail = async () => {
 const handleRecordPayment = (row) => {
   // 直接使用服务端已计算的余额字段，避免前端浮点减法与DB值不一致
   const balance = parseFloat(row.balance) || parseFloat(row.balance_amount) || 0;
-  
+
   // 填充付款表单
   paymentForm.invoiceId = row.id;
   paymentForm.invoiceNumber = row.invoiceNumber;
@@ -1023,24 +976,24 @@ const handleRecordPayment = (row) => {
   paymentForm.amount = balance; // 默认填充剩余金额
   paymentForm.paymentMethod = 'bank_transfer'; // 默认为银行转账
   paymentForm.bankAccountId = null; // 清空银行账户选择
-  
+
   // 确保有银行账户选项可选
   if (bankAccounts.value.length === 0) {
     loadBankAccounts();
   }
-  
+
   paymentDialogVisible.value = true;
 };
 // 保存发票
 const saveInvoice = async () => {
   if (!invoiceFormRef.value) return;
-  
+
   // 至少有一个明细项
   if (invoiceForm.items.length === 0) {
     ElMessage.warning('请至少添加一个发票明细项');
     return;
   }
-  
+
   // 每个明细项都需要填写完整
   for (const item of invoiceForm.items) {
     if (!item.materialId || item.quantity <= 0 || item.unitPrice <= 0) {
@@ -1048,7 +1001,7 @@ const saveInvoice = async () => {
       return;
     }
   }
-  
+
   await invoiceFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
@@ -1058,7 +1011,7 @@ const saveInvoice = async () => {
           ...invoiceForm,
           amount: calculateTotal() // 设置总金额
         };
-        
+
         if (invoiceForm.id) {
           // 更新
           await api.put(`/finance/ap/invoices/${invoiceForm.id}`, data);
@@ -1068,7 +1021,7 @@ const saveInvoice = async () => {
           await api.post('/finance/ap/invoices', data);
           ElMessage.success('添加成功');
         }
-        
+
         dialogVisible.value = false;
         loadInvoices();
       } catch (error) {
@@ -1082,13 +1035,13 @@ const saveInvoice = async () => {
 // 保存付款记录
 const savePayment = async () => {
   if (!paymentFormRef.value) return;
-  
+
   // 银行转账必须关联银行账户
   if (['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) && !paymentForm.bankAccountId) {
     ElMessage.warning('请选择银行账户');
     return;
   }
-  
+
   await paymentFormRef.value.validate(async (valid) => {
     if (valid) {
       savePaymentLoading.value = true;
@@ -1102,10 +1055,10 @@ const savePayment = async () => {
           bankAccountId: paymentForm.bankAccountId,
           notes: paymentForm.notes
         };
-        
+
         const response = await api.post('/finance/ap/payments', data);
         ElMessage.success('付款记录已保存');
-        
+
         // 拦截器已解包，response.data 就是业务数据
         if (response.data?.details) {
           ElMessage({
@@ -1114,10 +1067,10 @@ const savePayment = async () => {
             duration: 3000
           });
         }
-        
+
         paymentDialogVisible.value = false;
         loadInvoices();
-        
+
         // 如果是从详情对话框发起的付款，刷新详情
         if (detailsDialogVisible.value && invoiceDetail.value.id === paymentForm.invoiceId) {
           handleViewDetails({ id: invoiceDetail.value.id });

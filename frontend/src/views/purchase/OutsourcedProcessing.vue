@@ -124,7 +124,7 @@
               size="small"
               type="primary"
               @click="handleEditProcessing(scope.row)"
-            
+
               v-permission="'purchase:processing:update'">
               编辑
             </el-button>
@@ -133,7 +133,7 @@
               size="small"
               type="danger"
               @click="handleDeleteProcessing(scope.row)"
-            
+
               v-permission="'purchase:processing:delete'">
               删除
             </el-button>
@@ -201,11 +201,11 @@
           <el-row :gutter="20">
             <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="加工日期" prop="processing_date">
-                <el-date-picker 
-                  v-model="processingForm.processing_date" 
-                  type="date" 
-                  placeholder="选择日期" 
-                  value-format="YYYY-MM-DD" 
+                <el-date-picker
+                  v-model="processingForm.processing_date"
+                  type="date"
+                  placeholder="选择日期"
+                  value-format="YYYY-MM-DD"
                   style="width: 100%"
                   :disabled="viewOnly"
                 />
@@ -213,10 +213,10 @@
             </el-col>
             <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="加工厂" prop="supplier_id">
-                <el-select 
-                  v-model="processingForm.supplier_id" 
-                  filterable 
-                  placeholder="请选择加工厂" 
+                <el-select
+                  v-model="processingForm.supplier_id"
+                  filterable
+                  placeholder="请选择加工厂"
                   style="width: 100%"
                   :disabled="viewOnly"
                   @change="handleSupplierChange"
@@ -232,11 +232,11 @@
             </el-col>
             <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="预计交期" prop="expected_delivery_date">
-                <el-date-picker 
-                  v-model="processingForm.expected_delivery_date" 
-                  type="date" 
-                  placeholder="选择日期" 
-                  value-format="YYYY-MM-DD" 
+                <el-date-picker
+                  v-model="processingForm.expected_delivery_date"
+                  type="date"
+                  placeholder="选择日期"
+                  value-format="YYYY-MM-DD"
                   style="width: 100%"
                   :disabled="viewOnly"
                 />
@@ -246,8 +246,8 @@
           <el-row :gutter="20">
             <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="联系人" prop="contact_person">
-                <el-input 
-                  v-model="processingForm.contact_person" 
+                <el-input
+                  v-model="processingForm.contact_person"
                   placeholder="请输入联系人"
                   :disabled="viewOnly"
                 />
@@ -255,8 +255,8 @@
             </el-col>
             <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="联系电话" prop="contact_phone">
-                <el-input 
-                  v-model="processingForm.contact_phone" 
+                <el-input
+                  v-model="processingForm.contact_phone"
                   placeholder="请输入联系电话"
                   :disabled="viewOnly"
                 />
@@ -264,10 +264,10 @@
             </el-col>
           </el-row>
           <el-form-item label="备注" prop="remarks">
-            <el-input 
-              v-model="processingForm.remarks" 
-              type="textarea" 
-              :rows="2" 
+            <el-input
+              v-model="processingForm.remarks"
+              type="textarea"
+              :rows="2"
               placeholder="请输入备注信息"
               :disabled="viewOnly"
             />
@@ -278,10 +278,10 @@
           <template #header>
             <div class="card-header">
               <span>发料物料</span>
-              <el-button 
-                v-if="!viewOnly" 
-                type="primary" 
-                size="small" 
+              <el-button
+                v-if="!viewOnly"
+                type="primary"
+                size="small"
                 @click="handleAddMaterial"
                 v-permission="'purchase:processing:update'"
               >
@@ -289,7 +289,7 @@
               </el-button>
             </div>
           </template>
-          
+
           <el-table :data="processingForm.materials" border style="width: 100%">
             <el-table-column type="index" width="50" label="序号" />
             <el-table-column prop="material_code" label="物料编码" min-width="120" />
@@ -298,10 +298,10 @@
             <el-table-column prop="unit" label="单位" width="80" />
             <el-table-column prop="quantity" label="数量" width="120">
               <template #default="scope">
-                <el-input-number 
-                  v-if="!viewOnly" 
-                  v-model="scope.row.quantity" 
-                  :min="0.01" 
+                <el-input-number
+                  v-if="!viewOnly"
+                  v-model="scope.row.quantity"
+                  :min="0.01"
                   :precision="2"
                   controls-position="right"
                   size="small"
@@ -312,9 +312,9 @@
             </el-table-column>
             <el-table-column prop="remark" label="备注" min-width="150">
               <template #default="scope">
-                <el-input 
-                  v-if="!viewOnly" 
-                  v-model="scope.row.remark" 
+                <el-input
+                  v-if="!viewOnly"
+                  v-model="scope.row.remark"
                   size="small"
                 />
                 <span v-else>{{ scope.row.remark }}</span>
@@ -322,11 +322,11 @@
             </el-table-column>
             <el-table-column v-if="!viewOnly" label="操作" width="80">
               <template #default="scope">
-                <el-button 
-                  type="danger" 
-                  size="small" 
+                <el-button
+                  type="danger"
+                  size="small"
                   @click="handleRemoveMaterial(scope.$index)"
-                
+
                   v-permission="'purchase:processing:update'">
                   删除
                 </el-button>
@@ -339,10 +339,10 @@
           <template #header>
             <div class="card-header">
               <span>加工成品</span>
-              <el-button 
-                v-if="!viewOnly" 
-                type="primary" 
-                size="small" 
+              <el-button
+                v-if="!viewOnly"
+                type="primary"
+                size="small"
                 @click="handleAddProduct"
                 v-permission="'purchase:processing:update'"
               >
@@ -350,7 +350,7 @@
               </el-button>
             </div>
           </template>
-          
+
           <el-table :data="processingForm.products" border style="width: 100%">
             <el-table-column type="index" width="50" label="序号" />
             <el-table-column prop="product_code" label="成品编码" min-width="120" />
@@ -359,10 +359,10 @@
             <el-table-column prop="unit" label="单位" width="80" />
             <el-table-column prop="quantity" label="数量" width="120">
               <template #default="scope">
-                <el-input-number 
-                  v-if="!viewOnly" 
-                  v-model="scope.row.quantity" 
-                  :min="0.01" 
+                <el-input-number
+                  v-if="!viewOnly"
+                  v-model="scope.row.quantity"
+                  :min="0.01"
                   :precision="2"
                   controls-position="right"
                   size="small"
@@ -374,10 +374,10 @@
             </el-table-column>
             <el-table-column prop="unit_price" label="加工单价" width="120">
               <template #default="scope">
-                <el-input-number 
-                  v-if="!viewOnly" 
-                  v-model="scope.row.unit_price" 
-                  :min="0" 
+                <el-input-number
+                  v-if="!viewOnly"
+                  v-model="scope.row.unit_price"
+                  :min="0"
                   :precision="2"
                   controls-position="right"
                   size="small"
@@ -394,9 +394,9 @@
             </el-table-column>
             <el-table-column prop="remark" label="备注" min-width="150">
               <template #default="scope">
-                <el-input 
-                  v-if="!viewOnly" 
-                  v-model="scope.row.remark" 
+                <el-input
+                  v-if="!viewOnly"
+                  v-model="scope.row.remark"
                   size="small"
                 />
                 <span v-else>{{ scope.row.remark }}</span>
@@ -404,18 +404,18 @@
             </el-table-column>
             <el-table-column v-if="!viewOnly" label="操作" width="80">
               <template #default="scope">
-                <el-button 
-                  type="danger" 
-                  size="small" 
+                <el-button
+                  type="danger"
+                  size="small"
                   @click="handleRemoveProduct(scope.$index)"
-                
+
                   v-permission="'purchase:processing:update'">
                   删除
                 </el-button>
               </template>
             </el-table-column>
           </el-table>
-          
+
           <div class="total-section">
             <span class="total-label">加工总金额：</span>
             <span class="total-value">{{ formatPrice(calculateTotal()) }}</span>
@@ -629,7 +629,7 @@ const allMaterials = ref([]);
 const materialsData = ref([]);
 const loadMaterials = async () => {
   try {
-    const response = await api.get('/baseData/materials');
+    const response = await baseDataApi.getMaterials();
     // 使用统一解析器
     allMaterials.value = parseListData(response, { enableLog: false });
     materialsData.value = [...allMaterials.value];
@@ -645,7 +645,7 @@ const allProducts = ref([]);
 const productsData = ref([]);
 const loadProducts = async () => {
   try {
-    const response = await api.get('/baseData/materials');
+    const response = await baseDataApi.getMaterials();
     // 使用统一解析器
     allProducts.value = parseListData(response, { enableLog: false });
     productsData.value = [...allProducts.value];
@@ -658,9 +658,9 @@ const loadProducts = async () => {
 const filteredMaterials = computed(() => {
   const keyword = materialSearchKeyword.value.toLowerCase();
   if (!keyword) return materialsData.value;
-  
-  return materialsData.value.filter(item => 
-    item.code?.toLowerCase().includes(keyword) || 
+
+  return materialsData.value.filter(item =>
+    item.code?.toLowerCase().includes(keyword) ||
     item.name?.toLowerCase().includes(keyword) ||
     item.specification?.toLowerCase().includes(keyword)
   );
@@ -669,9 +669,9 @@ const filteredMaterials = computed(() => {
 const filteredProducts = computed(() => {
   const keyword = productSearchKeyword.value.toLowerCase();
   if (!keyword) return productsData.value;
-  
-  return productsData.value.filter(item => 
-    item.code?.toLowerCase().includes(keyword) || 
+
+  return productsData.value.filter(item =>
+    item.code?.toLowerCase().includes(keyword) ||
     item.name?.toLowerCase().includes(keyword) ||
     item.specification?.toLowerCase().includes(keyword)
   );
@@ -697,7 +697,7 @@ const resetProcessingForm = () => {
   processingForm.remarks = '';
   processingForm.materials = [];
   processingForm.products = [];
-  
+
   // 重置表单验证
   nextTick(() => {
     processingFormRef.value?.resetFields();
@@ -715,13 +715,12 @@ const handleSupplierChange = () => {
   const selectedSupplier = supplierOptions.value.find(
     item => Number(item.id) === supplierId
   );
-  
+
   if (selectedSupplier) {
     processingForm.supplier_name = selectedSupplier.name;
     processingForm.contact_person = selectedSupplier.contact_person || '';
     processingForm.contact_phone = selectedSupplier.contact_phone || '';
     } else {
-    console.warn('未找到匹配的供应商');
   }
 };
 // 加载加工单详情
@@ -759,13 +758,13 @@ const handleSelectMaterial = (row) => {
   const existingIndex = processingForm.materials.findIndex(
     item => item.material_id === row.id
   );
-  
+
   if (existingIndex >= 0) {
     ElMessage.warning('该物料已添加到发料清单中');
     materialDialogVisible.value = false;
     return;
   }
-  
+
   // 添加物料到清单
   processingForm.materials.push({
     material_id: row.id,
@@ -777,7 +776,7 @@ const handleSelectMaterial = (row) => {
     quantity: 1,
     remark: ''
   });
-  
+
   materialDialogVisible.value = false;
 };
 const handleRemoveMaterial = (index) => {
@@ -793,13 +792,13 @@ const handleSelectProduct = (row) => {
   const existingIndex = processingForm.products.findIndex(
     item => item.product_id === row.id
   );
-  
+
   if (existingIndex >= 0) {
     ElMessage.warning('该成品已添加到加工清单中');
     productDialogVisible.value = false;
     return;
   }
-  
+
   // 添加成品到清单
   processingForm.products.push({
     product_id: row.id,
@@ -813,7 +812,7 @@ const handleSelectProduct = (row) => {
     total_price: 0,
     remark: ''
   });
-  
+
   productDialogVisible.value = false;
 };
 const handleRemoveProduct = (index) => {
@@ -838,18 +837,18 @@ const formatPrice = (price) => {
 // 提交加工单
 const handleProcessingSubmit = async () => {
   if (processing.value) return;
-  
+
   processingFormRef.value.validate(async (valid) => {
     if (!valid) {
       ElMessage.error('请填写完整的加工单信息');
       return;
     }
-    
+
     if (processingForm.materials.length === 0) {
       ElMessage.error('请至少添加一种发料物料');
       return;
     }
-    
+
     if (processingForm.products.length === 0) {
       ElMessage.error('请至少添加一种加工成品');
       return;
@@ -860,7 +859,7 @@ const handleProcessingSubmit = async () => {
         processingForm[fieldName] = defaultValue;
       }
     };
-    
+
     // 检查主表字段
     checkAndFix('processing_date', new Date().toISOString().split('T')[0]);
     checkAndFix('supplier_id', '');
@@ -869,22 +868,21 @@ const handleProcessingSubmit = async () => {
     checkAndFix('contact_person', '');
     checkAndFix('contact_phone', '');
     checkAndFix('remarks', '');
-    
+
     // 检查物料和成品
     processingForm.materials.forEach((material) => {
       if (material.remark === undefined) material.remark = '';
     });
-    
-    processingForm.products.forEach((product, index) => {
+
+    processingForm.products.forEach((product) => {
       if (product.remark === undefined) product.remark = '';
       if (product.total_price === undefined) {
         product.total_price = parseFloat(product.quantity) * parseFloat(product.unit_price);
-        console.warn(`成品 ${index} 的 total_price 是 undefined，已重新计算:`, product.total_price);
       }
     });
-    
+
     processing.value = true;
-    
+
     try {
       if (processingDialogMode.value === 'create') {
         await api.post('/purchase/outsourced-processings', processingForm);
@@ -893,10 +891,10 @@ const handleProcessingSubmit = async () => {
         await api.put(`/purchase/outsourced-processings/${selectedProcessingId.value}`, processingForm);
         ElMessage.success('更新外委加工单成功');
       }
-      
+
       processingDialogVisible.value = false;
       fetchProcessingList();
-      
+
     } catch (error) {
       console.error('保存外委加工单失败:', error);
       ElMessage.error('保存外委加工单失败: ' + (error.response?.data?.message || error.message));
@@ -982,7 +980,7 @@ const handleCurrentChange = (val) => {
 const updateProcessingStatus = async (row, status) => {
   try {
     const response = await api.put(`/purchase/outsourced-processings/${row.id}/status`, { status });
-    
+
     if (response.data.warnings && response.data.warnings.length > 0) {
       // 以警告形式显示库存不足等信息
       ElMessage({
@@ -994,7 +992,7 @@ const updateProcessingStatus = async (row, status) => {
     } else {
       ElMessage.success(`状态更新成功`);
     }
-    
+
     fetchProcessingList();
   } catch (error) {
     console.error('状态更新失败:', error);
@@ -1012,7 +1010,7 @@ const handleCreateAndComplete = async (row) => {
   selectedProcessingId.value = row.id;
   receiptDialogMode.value = 'create';
   receiptDialogVisible.value = true;
-  
+
   // 添加监听一次性事件，当入库单创建成功后，自动将加工单状态更新为已完成
   const onSuccess = async () => {
     try {
@@ -1023,7 +1021,7 @@ const handleCreateAndComplete = async (row) => {
       console.error('自动更新加工单状态失败:', error);
     }
   };
-  
+
   // 通过一次性事件监听器监听入库单创建成功
   window.addEventListener('receipt-created', onSuccess, { once: true });
 };
@@ -1164,7 +1162,7 @@ onMounted(() => {
   .statistics-row {
     flex-direction: column;
   }
-  
+
   .stat-card {
     margin-bottom: 10px;
     width: 100%;
@@ -1181,4 +1179,4 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

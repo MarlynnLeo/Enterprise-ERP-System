@@ -27,7 +27,7 @@ const updatePurchaseOrderAfterInspection = async (
 
             // 更新检验数据，此处使用事务内的 connection 而不是模型的全局 pool
             await connection.query(
-                `UPDATE purchase_order_items 
+                `UPDATE purchase_order_items
          SET inspected_quantity = inspected_quantity + ?,
              qualified_quantity = qualified_quantity + ?,
              unqualified_quantity = unqualified_quantity + ?

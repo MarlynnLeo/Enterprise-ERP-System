@@ -57,11 +57,11 @@
         </el-form-item>
         <el-form-item label="仓库位置">
           <el-select v-model="searchForm.locationId" placeholder="选择仓库位置" clearable>
-            <el-option 
-              v-for="location in locationOptions" 
-              :key="location.id" 
-              :label="location.name" 
-              :value="location.id" 
+            <el-option
+              v-for="location in locationOptions"
+              :key="location.id"
+              :label="location.name"
+              :value="location.id"
             />
           </el-select>
         </el-form-item>
@@ -75,7 +75,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row" v-if="statistics">
       <el-card class="stat-card" shadow="hover">
@@ -107,7 +107,7 @@
         <div class="stat-label">总交易数量</div>
       </el-card>
     </div>
-    
+
     <!-- 流水记录列表 -->
     <el-card class="data-card" v-if="activeTab && transactionList">
       <el-tabs v-model="activeTab" @tab-click="handleTabChange">
@@ -182,7 +182,7 @@
               </template>
             </el-table-column>
           </el-table>
-          
+
           <!-- 分页 -->
           <div class="pagination-container" v-if="pagination">
             <el-pagination
@@ -198,7 +198,7 @@
             </el-pagination>
           </div>
         </el-tab-pane>
-        
+
         <el-tab-pane label="流水统计" name="stats">
           <div class="chart-container">
             <div class="chart-row">
@@ -209,7 +209,7 @@
                 </h3>
                 <div class="chart-box" ref="typeChartRef"></div>
               </el-card>
-              
+
               <el-card class="chart-card">
                 <h3 class="chart-title">
                   <el-icon><Histogram /></el-icon>
@@ -218,7 +218,7 @@
                 <div class="chart-box" ref="amountChartRef"></div>
               </el-card>
             </div>
-            
+
             <el-card class="chart-card full-width">
               <h3 class="chart-title">
                 <el-icon><TrendCharts /></el-icon>
@@ -230,7 +230,7 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
-    
+
     <!-- 交易详情对话框 -->
     <el-dialog
       v-model="detailDialogVisible"
@@ -482,64 +482,64 @@ const handleReset = () => {
 const calculateBeforeAfterQuantity = () => {
   // 首先检查是否所有记录都已有变动前后数量
   const needCalculation = transactionList.value.some(
-    item => item.beforeQuantity === undefined || item.beforeQuantity === null || 
+    item => item.beforeQuantity === undefined || item.beforeQuantity === null ||
            item.afterQuantity === undefined || item.afterQuantity === null
   );
-  
+
   // 如果所有记录都已有变动前后数量，直接返回
   if (!needCalculation) {
     return;
   }
-  
+
   // 按物料ID、位置ID和时间排序
   const sortedList = [...transactionList.value].sort((a, b) => {
     if (a.materialId !== b.materialId) return a.materialId - b.materialId;
     if (a.locationId !== b.locationId) return a.locationId - b.locationId;
     return new Date(a.transactionTime) - new Date(b.transactionTime);
   });
-  
+
   // 用于跟踪每个物料在每个位置的当前库存
   const stockMap = {};
-  
+
   // 处理每条记录
   sortedList.forEach(item => {
     // 组合key，确保每个物料在每个位置都有独立的库存跟踪
     const key = `${item.materialId}_${item.locationId}`;
-    
+
     // 如果记录已经有变动前后数量，无需计算
-    if (item.beforeQuantity !== undefined && item.beforeQuantity !== null && 
+    if (item.beforeQuantity !== undefined && item.beforeQuantity !== null &&
         item.afterQuantity !== undefined && item.afterQuantity !== null) {
       // 更新stockMap以保持状态一致
       stockMap[key] = item.afterQuantity;
       return;
     }
-    
+
     const quantity = parseFloat(item.quantity || 0);
     const absQuantity = Math.abs(quantity);
-    
+
     // 如果是第一次遇到这个物料位置组合，设置初始库存
     if (stockMap[key] === undefined) {
       // 委外入库和普通入库一样是增加库存，入库前的库存默认为0
       // 委外出库和普通出库一样是减少库存，出库前的库存默认为出库数量
-      if (item.transactionType === 'inbound' || 
+      if (item.transactionType === 'inbound' ||
           item.transactionType === 'outsourced_inbound') {
         stockMap[key] = 0;
-      } else if (item.transactionType === 'outbound' || 
+      } else if (item.transactionType === 'outbound' ||
                  item.transactionType === 'outsourced_outbound') {
         stockMap[key] = absQuantity;
       } else {
         stockMap[key] = 0; // 其他类型初始库存为0
       }
     }
-    
+
     // 设置变动前数量
     item.beforeQuantity = stockMap[key];
-    
+
     // 更新库存并设置变动后数量
-    if (item.transactionType === 'inbound' || 
+    if (item.transactionType === 'inbound' ||
         item.transactionType === 'outsourced_inbound') {
       stockMap[key] += absQuantity; // 入库增加库存，确保使用绝对值
-    } else if (item.transactionType === 'outbound' || 
+    } else if (item.transactionType === 'outbound' ||
                item.transactionType === 'outsourced_outbound') {
       stockMap[key] -= absQuantity; // 出库减少库存，确保使用绝对值
     } else if (item.transactionType === 'transfer') {
@@ -547,10 +547,10 @@ const calculateBeforeAfterQuantity = () => {
     } else {
       stockMap[key] += quantity; // 其他类型按实际值调整
     }
-    
+
     item.afterQuantity = stockMap[key];
   });
-  
+
   // 更新交易列表
   transactionList.value.forEach(item => {
     const matchItem = sortedList.find(s => s.id === item.id);
@@ -570,7 +570,7 @@ const fetchStatsData = async () => {
       transactionType: searchForm.value.transactionType,
       locationId: searchForm.value.locationId
     }
-    
+
     const response = await inventoryApi.getTransactionStats(params)
     return response.data
   } catch (error) {
@@ -594,7 +594,7 @@ const fetchBaseData = async () => {
 const initCharts = async () => {
   const statsData = await fetchStatsData()
   if (!statsData) return
-  
+
   // 类型分布图表
   if (typeChartRef.value) {
     typeChart = echarts.init(typeChartRef.value)
@@ -642,7 +642,7 @@ const initCharts = async () => {
       ]
     })
   }
-  
+
   // 交易金额统计图表
   if (amountChartRef.value) {
     amountChart = echarts.init(amountChartRef.value)
@@ -682,7 +682,7 @@ const initCharts = async () => {
       ]
     })
   }
-  
+
   // 交易趋势图表
   if (trendChartRef.value) {
     trendChart = echarts.init(trendChartRef.value)
@@ -793,7 +793,7 @@ const handleResize = () => {
 // 导出报表
 const handleExport = async () => {
   try {
-    
+
     const params = {
       startDate: searchForm.value.dateRange[0],
       endDate: searchForm.value.dateRange[1],
@@ -801,9 +801,9 @@ const handleExport = async () => {
       transactionType: searchForm.value.transactionType,
       locationId: searchForm.value.locationId
     }
-    
+
     const response = await inventoryApi.exportTransactions(params)
-    
+
     const blob = new Blob([response.data], { type: 'application/vnd.ms-excel' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -813,7 +813,7 @@ const handleExport = async () => {
     a.click()
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
-    
+
     ElMessage.success('导出成功')
   } catch (error) {
     console.error('导出报表失败:', error)
@@ -883,11 +883,11 @@ const showTransactionDetail = (row) => {
     detailDialogVisible.value = true
     return
   }
-  
+
   // 如果没有变动前后数量数据，设置默认值
   const rowQuantity = parseFloat(row.quantity || 0)
   const absQuantity = Math.abs(rowQuantity)
-  
+
   // 设置默认值
   if (row.transactionType === 'inbound' || row.transactionType === 'outsourced_inbound') {
     row.beforeQuantity = 0
@@ -900,7 +900,7 @@ const showTransactionDetail = (row) => {
     row.beforeQuantity = 0
     row.afterQuantity = rowQuantity // 可能是正数或负数
   }
-  
+
   currentTransaction.value = row
   detailDialogVisible.value = true
 }

@@ -223,7 +223,7 @@ const handleBatchCreateRequisition = () => {
   try {
     // 按物料分组整合数据
     const materialMap = new Map()
-    
+
     selectedShortages.value.forEach(item => {
       const key = item.material_id
       if (materialMap.has(key)) {
@@ -252,7 +252,7 @@ const handleBatchCreateRequisition = () => {
     })
     // 检查是否有已申请的记录
     const requestedItems = selectedShortages.value.filter(item => item.purchase_status === 'requested')
-    
+
     // 如果全部都已申请，给出警告并阻止
     if (requestedItems.length === selectedShortages.value.length) {
       ElMessage.warning('选中的所有缺料记录都已创建过采购申请，请勿重复提交！')
@@ -264,7 +264,7 @@ const handleBatchCreateRequisition = () => {
       // 添加一个编辑用的数量字段
       edit_quantity: item.shortage_quantity
     }))
-    
+
     // 显示确认对话框
     confirmDialogVisible.value = true
   } catch (error) {
@@ -281,7 +281,7 @@ const confirmSubmitRequisition = async () => {
       ElMessage.warning('请输入有效的采购数量（必须大于0）')
       return
     }
-    
+
     batchLoading.value = true
     const planCodes = Array.from(new Set(selectedShortages.value.map(item => item.plan_code)))
     // 准备采购申请数据（使用用户编辑后的数量）
@@ -347,7 +347,7 @@ onMounted(() => {
         <el-button type="success" :icon="Download" @click="handleExport" v-permission="'production:plans:export'">导出</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -370,7 +370,7 @@ onMounted(() => {
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -405,28 +405,28 @@ onMounted(() => {
             </el-link>
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="contract_code" label="合同编码" width="150" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.contract_code || '-' }}
           </template>
         </el-table-column>
-        
+
         <el-table-column label="计划开始日期" width="120" sortable>
           <template #default="scope">
             {{ formatDate(scope.row.start_date) }}
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="product_name" label="产品名称" width="180" show-overflow-tooltip />
-        
+
         <el-table-column prop="product_code" label="产品编码" width="130" />
-        
+
         <el-table-column prop="product_specs" label="产品规格" width="150" show-overflow-tooltip>
           <template #default="scope">
-            <el-tooltip 
-              v-if="scope.row.product_specs" 
-              :content="scope.row.product_specs" 
+            <el-tooltip
+              v-if="scope.row.product_specs"
+              :content="scope.row.product_specs"
               placement="top"
             >
               <span class="specs-text">{{ scope.row.product_specs }}</span>
@@ -439,16 +439,16 @@ onMounted(() => {
             {{ formatQuantity(scope.row.plan_quantity) }}
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="material_code" label="缺料编码" width="130" />
-        
+
         <el-table-column prop="material_name" label="缺料名称" width="180" show-overflow-tooltip />
-        
+
         <el-table-column prop="material_specs" label="缺料规格" width="150" show-overflow-tooltip>
           <template #default="scope">
-            <el-tooltip 
-              v-if="scope.row.material_specs" 
-              :content="scope.row.material_specs" 
+            <el-tooltip
+              v-if="scope.row.material_specs"
+              :content="scope.row.material_specs"
               placement="top"
             >
               <span class="specs-text">{{ scope.row.material_specs }}</span>
@@ -456,13 +456,13 @@ onMounted(() => {
             <span v-else>-</span>
           </template>
         </el-table-column>
-        
+
         <el-table-column label="需求数量" width="110" align="right">
           <template #default="scope">
             {{ formatQuantity(scope.row.required_quantity) }}
           </template>
         </el-table-column>
-        
+
         <el-table-column label="当前库存" width="110" align="right">
           <template #default="scope">
             <span class="text-info">{{ formatQuantity(scope.row.current_stock_quantity) }}</span>
@@ -474,7 +474,7 @@ onMounted(() => {
             <span class="text-info">{{ formatQuantity(scope.row.stock_quantity) }}</span>
           </template>
         </el-table-column>
-        
+
         <el-table-column label="缺料数量" width="110" align="right">
           <template #default="scope">
             <span class="text-danger shortage-quantity">
@@ -482,7 +482,7 @@ onMounted(() => {
             </span>
           </template>
         </el-table-column>
-        
+
         <el-table-column label="采购状态" width="100" align="center" fixed="right">
           <template #default="scope">
             <el-tag :type="scope.row.purchase_status === 'requested' ? 'success' : 'warning'">
@@ -490,7 +490,7 @@ onMounted(() => {
             </el-tag>
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="unit" label="单位" width="80" align="center" fixed="right" />
       </el-table>
       <!-- 分页 -->
@@ -524,29 +524,29 @@ onMounted(() => {
           max-height="400"
         >
           <el-table-column type="index" label="序号" width="60" align="center" />
-          
+
           <el-table-column prop="material_code" label="物料编码" width="110" />
-          
+
           <el-table-column prop="material_name" label="物料名称" min-width="140" show-overflow-tooltip />
-          
+
           <el-table-column prop="material_specs" label="规格" width="150" show-overflow-tooltip>
             <template #default="scope">
               {{ scope.row.material_specs || '-' }}
             </template>
           </el-table-column>
-          
+
           <el-table-column label="关联计划" min-width="130" show-overflow-tooltip>
             <template #default="scope">
               {{ scope.row.plans.map(p => p.plan_code).join(', ') }}
             </template>
           </el-table-column>
-          
+
           <el-table-column label="缺料数量" width="100" align="right">
             <template #default="scope">
               <span class="text-danger">{{ formatQuantity(scope.row.shortage_quantity) }}</span>
             </template>
           </el-table-column>
-          
+
           <el-table-column label="采购数量" width="110" align="center">
             <template #default="scope">
               <el-input
@@ -557,7 +557,7 @@ onMounted(() => {
               />
             </template>
           </el-table-column>
-          
+
           <el-table-column prop="unit" label="单位" width="70" align="center" />
         </el-table>
         <div class="dialog-summary">

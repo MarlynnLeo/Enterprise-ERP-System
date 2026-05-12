@@ -17,7 +17,7 @@
         <el-button type="primary" :icon="Plus" v-permission="'inventory:check:create'" @click="openCheckDialog()">新建盘点单</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :model="searchForm" :inline="true" class="search-form">
@@ -54,7 +54,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -78,7 +78,7 @@
         <div class="stat-label">盘盈盘亏金额</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -147,7 +147,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -163,9 +163,9 @@
       </div>
     </el-card>
     <!-- 新建/编辑盘点单对话框 -->
-    <el-dialog 
-      :title="dialogType === 'create' ? '新建盘点单' : '编辑盘点单'" 
-      v-model="checkDialogVisible" 
+    <el-dialog
+      :title="dialogType === 'create' ? '新建盘点单' : '编辑盘点单'"
+      v-model="checkDialogVisible"
       width="55%"
       class="check-dialog"
       destroy-on-close
@@ -175,9 +175,9 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="盘点日期" prop="check_date">
-              <el-date-picker 
-                v-model="checkForm.check_date" 
-                type="date" 
+              <el-date-picker
+                v-model="checkForm.check_date"
+                type="date"
                 placeholder="选择盘点日期"
                 value-format="YYYY-MM-DD"
                 style="width: 100%"
@@ -186,15 +186,15 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="盘点类型" prop="check_type">
-              <el-select 
-                v-model="checkForm.check_type" 
+              <el-select
+                v-model="checkForm.check_type"
                 placeholder="选择盘点类型"
                 style="width: 100%"
               >
-                <el-option 
-                  v-for="item in checkTypeOptions" 
-                  :key="item.value" 
-                  :label="item.label" 
+                <el-option
+                  v-for="item in checkTypeOptions"
+                  :key="item.value"
+                  :label="item.label"
                   :value="item.value"
                 ></el-option>
               </el-select>
@@ -202,39 +202,39 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="仓库/库区" prop="warehouse_id">
-              <el-select 
-                v-model="checkForm.warehouse_id" 
+              <el-select
+                v-model="checkForm.warehouse_id"
                 placeholder="选择仓库/库区"
                 style="width: 100%"
                 filterable
                 @change="handleWarehouseChange"
               >
-                <el-option 
-                  v-for="item in warehouseOptions" 
-                  :key="item.id" 
-                  :label="item.name" 
+                <el-option
+                  v-for="item in warehouseOptions"
+                  :key="item.id"
+                  :label="item.name"
                   :value="item.id"
                 ></el-option>
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-form-item label="盘点描述" prop="description">
-          <el-input 
-            v-model="checkForm.description" 
+          <el-input
+            v-model="checkForm.description"
             placeholder="请输入盘点描述"
           ></el-input>
         </el-form-item>
-        
+
         <el-divider content-position="center">物料明细</el-divider>
-        
+
         <div class="action-bar">
           <el-radio-group v-model="selectionType" size="small" style="margin-right: 15px;">
             <el-radio-button value="manual">手动选择</el-radio-button>
             <el-radio-button value="auto">自动加载</el-radio-button>
           </el-radio-group>
-          
+
           <template v-if="selectionType === 'manual'">
             <el-button type="primary" @click="addCheckItem" size="small">
               <el-icon><Plus /></el-icon> 添加物料
@@ -246,19 +246,19 @@
             </el-button>
           </template>
         </div>
-        
+
         <!-- 物料表格 -->
-        <el-table 
-          :data="checkForm.items" 
-          border 
+        <el-table
+          :data="checkForm.items"
+          border
           style="width: 100%; margin-top: 15px;"
         >
           <el-table-column type="index" label="序号" width="50"></el-table-column>
           <el-table-column label="物料编码" min-width="120">
             <template #default="scope">
               <template v-if="selectionType === 'manual'">
-                <el-select 
-                  v-model="scope.row.material_id" 
+                <el-select
+                  v-model="scope.row.material_id"
                   placeholder="选择或搜索物料"
                   style="width: 100%"
                   filterable
@@ -269,10 +269,10 @@
                   @focus="handleMaterialSelectFocus"
                   @change="(val) => handleMaterialChange(val, scope.$index)"
                 >
-                  <el-option 
-                    v-for="item in materialOptions" 
-                    :key="item.id" 
-                    :label="`${item.code} - ${item.name}`" 
+                  <el-option
+                    v-for="item in materialOptions"
+                    :key="item.id"
+                    :label="`${item.code} - ${item.name}`"
                     :value="item.id"
                   ></el-option>
                 </el-select>
@@ -285,9 +285,9 @@
           <el-table-column label="账面数量" prop="book_qty" min-width="100"></el-table-column>
           <el-table-column label="实盘数量" min-width="120">
             <template #default="scope">
-              <el-input-number 
-                v-model="scope.row.actual_qty" 
-                :min="0" 
+              <el-input-number
+                v-model="scope.row.actual_qty"
+                :min="0"
                 style="width: 100%"
               ></el-input-number>
             </template>
@@ -307,9 +307,9 @@
           </el-table-column>
           <el-table-column label="操作" width="80" v-if="selectionType === 'manual'">
             <template #default="scope">
-              <el-button 
-                type="danger" 
-                size="small" 
+              <el-button
+                type="danger"
+                size="small"
                 circle
                 @click="removeCheckItem(scope.$index)"
               >
@@ -318,14 +318,14 @@
             </template>
           </el-table-column>
         </el-table>
-        
+
         <el-divider></el-divider>
-        
+
         <el-form-item label="备注" prop="remarks">
-          <el-input 
-            v-model="checkForm.remarks" 
-            type="textarea" 
-            :rows="3" 
+          <el-input
+            v-model="checkForm.remarks"
+            type="textarea"
+            :rows="3"
             placeholder="请输入备注信息"
           ></el-input>
         </el-form-item>
@@ -339,9 +339,9 @@
       </template>
     </el-dialog>
     <!-- 查看盘点单详情对话框 -->
-    <el-dialog 
-      title="盘点单详情" 
-      v-model="viewDialogVisible" 
+    <el-dialog
+      title="盘点单详情"
+      v-model="viewDialogVisible"
       width="80%"
     >
       <div v-loading="detailLoading">
@@ -370,7 +370,7 @@
             <el-descriptions-item label="完成时间">{{ checkDetail.complete_time || '-' }}</el-descriptions-item>
           </template>
         </el-descriptions>
-        
+
         <h3 style="margin-top: 20px;">物料明细</h3>
         <el-table :data="checkDetail.items || []" border style="width: 100%; margin-top: 10px;">
           <el-table-column type="index" label="序号" width="50"></el-table-column>
@@ -546,7 +546,7 @@ const getDiff = (bookQty, actualQty) => {
 // 获取盈亏显示的CSS类
 const getDiffClass = (bookQty, actualQty) => {
   if (bookQty === undefined || actualQty === undefined) return '';
-  
+
   const diff = actualQty - bookQty;
   if (diff > 0) return 'profit-text';
   if (diff < 0) return 'loss-text';
@@ -582,13 +582,13 @@ const editCheck = async (id) => {
   try {
     await fetchMaterials();
     await fetchWarehouses();
-    
+
     const response = await inventoryApi.getCheckDetail(id);
     const checkData = response.data;
-    
+
     // 重置表单
     resetCheckForm();
-    
+
     // 填充表单数据
     checkForm.id = checkData.id;
     checkForm.check_date = checkData.check_date;
@@ -596,7 +596,7 @@ const editCheck = async (id) => {
     checkForm.warehouse_id = checkData.warehouse_id;
     checkForm.description = checkData.description || '';
     checkForm.remarks = checkData.remarks || '';
-    
+
     // 填充物料明细
     if (checkData.items && checkData.items.length > 0) {
       checkForm.items = checkData.items.map(item => ({
@@ -611,7 +611,7 @@ const editCheck = async (id) => {
         remarks: item.remarks || ''
       }));
     }
-    
+
     // 如果已有物料，设置为自动模式
     if (checkForm.items.length > 0) {
       selectionType.value = 'auto';
@@ -632,7 +632,7 @@ const updateStatus = async (id, status) => {
       cancelButtonText: '取消',
       type: 'warning'
     });
-    
+
     await inventoryApi.updateCheckStatus(id, status);
     ElMessage.success('状态更新成功');
     await loadCheckList();
@@ -652,7 +652,7 @@ const deleteCheck = async (id) => {
       cancelButtonText: '取消',
       type: 'warning'
     });
-    
+
     await inventoryApi.deleteCheck(id);
     ElMessage.success('删除成功');
     await loadCheckList();
@@ -693,7 +693,7 @@ const openCheckDialog = async () => {
   resetCheckForm();
   selectionType.value = 'manual';
   checkDialogVisible.value = true;
-  
+
   // 加载物料和仓库数据
   try {
     checkDialogLoading.value = true;
@@ -711,7 +711,7 @@ const resetCheckForm = () => {
   if (checkFormRef.value) {
     checkFormRef.value.resetFields();
   }
-  
+
   checkForm.id = '';
   checkForm.check_date = getCurrentDate();
   checkForm.check_type = 'cycle';
@@ -740,34 +740,34 @@ const removeCheckItem = (index) => {
 // 处理物料变更
 const handleMaterialChange = async (materialId, index) => {
   if (!materialId) return;
-  
+
   const material = materialOptions.value.find(m => m.id === materialId);
   if (material) {
     checkForm.items[index].material_code = material.code;
     checkForm.items[index].material_name = material.name;
     checkForm.items[index].specs = material.specs || '';
     checkForm.items[index].unit_name = material.unit_name || '';
-    
+
     // 获取该物料在仓库的库存
     if (checkForm.warehouse_id) {
       try {
         // 直接使用inventoryStock API获取准确的库存数量
-        const stockResponse = await inventoryApi.getInventoryStock({ 
-          location_id: checkForm.warehouse_id, 
-          material_id: materialId 
+        const stockResponse = await inventoryApi.getInventoryStock({
+          location_id: checkForm.warehouse_id,
+          material_id: materialId
         });
-        
+
         // 查找当前物料的库存数据
-        const stockItem = stockResponse.data ? 
-          (Array.isArray(stockResponse.data) 
-            ? stockResponse.data.find(item => (item.material_id || item.id) == materialId) 
-            : null) 
+        const stockItem = stockResponse.data ?
+          (Array.isArray(stockResponse.data)
+            ? stockResponse.data.find(item => (item.material_id || item.id) == materialId)
+            : null)
           : null;
-        
+
         if (stockItem) {
           // 从库存项目中获取数量
           const quantity = parseFloat(stockItem.quantity || 0);
-          
+
           // 设置表单中的账面数量和初始实盘数量
           checkForm.items[index].book_qty = quantity;
           checkForm.items[index].actual_qty = quantity; // 默认实盘数量与账面数量相同
@@ -827,7 +827,7 @@ const loadWarehouseItems = async () => {
     ElMessage.warning('请先选择仓库/库区');
     return;
   }
-  
+
   try {
     checkDialogLoading.value = true;
     // 直接使用inventoryApi.getInventoryStock获取库存数据，与库存管理页面使用相同API
@@ -839,8 +839,8 @@ const loadWarehouseItems = async () => {
       checkForm.items = stockData.map(item => {
         // 确保数量是数值类型
         const quantity = parseFloat(item.quantity || 0);
-        
-        
+
+
         return {
           material_id: item.material_id || item.id,
           material_code: item.material_code || item.code,
@@ -852,7 +852,7 @@ const loadWarehouseItems = async () => {
           remarks: ''
         };
       });
-      
+
       if (checkForm.items.length === 0) {
         ElMessage.warning('所选仓库/库区没有库存物料');
       } else {
@@ -870,16 +870,16 @@ const loadWarehouseItems = async () => {
 // 提交盘点单表单
 const submitCheckForm = async () => {
   if (!checkFormRef.value) return;
-  
+
   try {
     await checkFormRef.value.validate();
-    
+
     // 检查物料列表
     if (checkForm.items.length === 0) {
       ElMessage.warning('请添加至少一种物料');
       return;
     }
-    
+
     // 检查每个物料是否已选择
     if (selectionType.value === 'manual') {
       for (let i = 0; i < checkForm.items.length; i++) {
@@ -890,9 +890,9 @@ const submitCheckForm = async () => {
         }
       }
     }
-    
+
     submitting.value = true;
-    
+
     // 准备提交数据
     const formData = {
       ...checkForm,
@@ -900,7 +900,7 @@ const submitCheckForm = async () => {
       status: 'draft',
       warehouse: warehouseOptions.value.find(w => w.id === checkForm.warehouse_id)?.name || ''
     };
-    
+
     // 提交表单
     if (dialogType.value === 'create') {
       await inventoryApi.createCheck(formData);
@@ -909,7 +909,7 @@ const submitCheckForm = async () => {
       await inventoryApi.updateCheck(formData.id, formData);
       ElMessage.success('盘点单更新成功');
     }
-    
+
     // 关闭对话框并刷新列表
     checkDialogVisible.value = false;
     resetCheckForm();
@@ -930,7 +930,7 @@ const submitCheckForm = async () => {
 const adjustInventory = async (id) => {
   try {
     detailLoading.value = true;
-    
+
     // 获取盘点单详情
     try {
       const response = await inventoryApi.getCheckDetail(id);
@@ -940,7 +940,7 @@ const adjustInventory = async (id) => {
         // 如果API调用失败，使用列表中已有的数据
         adjustingCheck.value = checkList.value.find(item => item.id === id);
       }
-      
+
       // 打开确认对话框
       adjustDialogVisible.value = true;
     } catch (apiError) {
@@ -965,17 +965,17 @@ const adjustInventory = async (id) => {
 const confirmAdjustInventory = async () => {
   try {
     adjusting.value = true;
-    
+
     await inventoryApi.adjustInventory(adjustingCheck.value.id);
-    
+
     ElMessage.success('库存调整成功');
     adjustDialogVisible.value = false;
-    
+
     // 如果正在查看该盘点单，刷新详情
     if (viewDialogVisible.value && checkDetail.value.id === adjustingCheck.value.id) {
       await viewCheck(adjustingCheck.value.id);
     }
-    
+
     await loadCheckList();
     await loadCheckStats();
   } catch (error) {
@@ -1038,13 +1038,13 @@ const loadCheckList = async () => {
       status: searchForm.status,
       check_type: searchForm.check_type
     };
-    
+
     // 添加日期范围参数
     if (searchForm.date_range && searchForm.date_range.length === 2) {
       params.start_date = searchForm.date_range[0];
       params.end_date = searchForm.date_range[1];
     }
-    
+
     try {
       // 尝试调用API获取数据
       const response = await inventoryApi.getCheckList(params);
@@ -1085,20 +1085,20 @@ const loadCheckStats = async () => {
     } else {
       console.error('inventoryApi.getCheckStatistics函数未定义');
     }
-    
+
     // 如果API调用失败或返回数据不完整，使用列表数据计算统计信息
     const total = checkList.value.length;
     const pendingCount = checkList.value.filter(item => item.status === 'in_progress').length;
     const completeCount = checkList.value.filter(item => item.status === 'completed').length;
-    
+
     // 计算盈亏金额总和
     const profitLossAmount = checkList.value
       .filter(item => item.status === 'completed')
       .reduce((sum, item) => sum + (item.profit_loss || 0), 0);
-    
+
     // 计算准确率（假设）
     const accuracyRate = completeCount > 0 ? 0.95 : 0;
-    
+
     checkStats.value = {
       total,
       pendingCount,
@@ -1108,7 +1108,7 @@ const loadCheckStats = async () => {
     };
   } catch (error) {
     console.error('获取盘点单统计数据失败:', error);
-    
+
     // 设置默认值确保UI不会崩溃
     checkStats.value = {
       total: checkList.value.length || 0,
@@ -1123,11 +1123,11 @@ const loadCheckStats = async () => {
 onMounted(async () => {
   try {
     loading.value = true;
-    
+
     // 加载基础数据
     await fetchMaterials();
     await fetchWarehouses();
-    
+
     // 加载盘点单列表
     await loadCheckList();
     await loadCheckStats();
@@ -1197,4 +1197,4 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

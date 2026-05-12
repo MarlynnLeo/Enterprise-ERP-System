@@ -263,7 +263,7 @@
     <!-- 空状态 -->
     <el-empty v-else description="请输入物料编码和批次号进行查询" :image-size="200" />
 
-    
+
   </div>
 </template>
 
@@ -309,7 +309,7 @@ const handleSearch = async () => {
     if (searchForm.value.batchNumber) {
       params.batchNumber = searchForm.value.batchNumber
     }
-    
+
     // axiosInstance 拦截器会自动补齐 /api 和 Token，这里无需写 /api 前缀
     // 注意不能以 / 开头，否则 baseURL 结合在一起可能会诱发环境下的直接 404
     const response = await api.get('/batch-traceability/unified', { params })
@@ -344,7 +344,7 @@ const parseTraceabilityData = (data) => {
 
     // ✅ 优先使用后端返回的 production_materials（包含完整的采购日期和供应商信息）
     let rawMaterials = []
-    
+
     if (data.production_materials && data.production_materials.length > 0) {
       // 使用新的完整原材料信息
       rawMaterials = data.production_materials.map(m => ({
@@ -432,15 +432,15 @@ const parseTraceabilityData = (data) => {
   } else {
     // 原材料追溯数据 - 及正向追踪成品流向
     const batchInfo = data.batch_info || data || {}
-    
+
     // 整合出入库流水与成品组装追踪（Timeline展示）
     const combinedSteps = [];
-    
+
     if (data.transaction_history && data.transaction_history.length > 0) {
        combinedSteps.push(...data.transaction_history.map((t, index) => ({
           id: t.id || globalThis.crypto?.randomUUID?.() || `transaction_${t.reference_no || index}`,
-          step_name: t.transaction_type === 'inbound' || t.transaction_type === 'purchase_inbound' ? '采购入库' : 
-                     (t.transaction_type === 'production_inbound' ? '生产入库' : 
+          step_name: t.transaction_type === 'inbound' || t.transaction_type === 'purchase_inbound' ? '采购入库' :
+                     (t.transaction_type === 'production_inbound' ? '生产入库' :
                      (t.transaction_type === 'outbound' || t.transaction_type === 'sales_outbound' ? '出库发料/销售' : '库存流转')),
           status: 'completed',
           reference_no: t.reference_no,
@@ -452,7 +452,7 @@ const parseTraceabilityData = (data) => {
           created_at: t.created_at
        })));
     }
-    
+
     if (data.steps && data.steps.length > 0) {
        combinedSteps.push(...data.steps.map((s, index) => ({
           id: s.id || globalThis.crypto?.randomUUID?.() || `trace_step_${s.reference_no || index}`,
@@ -467,7 +467,7 @@ const parseTraceabilityData = (data) => {
           created_at: s.created_at
        })));
     }
-    
+
     // 按时间升序排序
     combinedSteps.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 

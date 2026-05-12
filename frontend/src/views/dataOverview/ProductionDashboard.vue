@@ -157,7 +157,7 @@
                 <el-button type="primary" size="small" icon="Refresh" @click="fetchPendingPlans" :loading="loading">
                   刷新
                 </el-button>
-                <el-input 
+                <el-input
                   v-model="search"
                   placeholder="搜索"
                   class="search-input"
@@ -265,6 +265,7 @@ const {
   loadData
 } = useDashboard('production', loadProductionData, {
   autoRefresh: true,
+  immediate: false,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
 // 使用图表管理组合式函数
@@ -574,7 +575,7 @@ async function fetchPendingPlans() {
     // 拦截器已解包，response.data 就是业务数据
     const responseData = response.data;
     const plansList = responseData?.items || responseData?.list || (Array.isArray(responseData) ? responseData : []);
-    
+
     pendingPlans.value = plansList.map(item => ({
       id: item.id,
       code: item.code,

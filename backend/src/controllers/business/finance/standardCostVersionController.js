@@ -45,10 +45,10 @@ const standardCostVersionController = {
       );
 
       const [list] = await db.pool.execute(
-        `SELECT * FROM standard_cost_versions 
-         WHERE ${whereClause} 
-         ORDER BY created_at DESC 
-         LIMIT ${pageSizeNumber} OFFSET ${offset}`,
+        `SELECT * FROM standard_cost_versions
+         WHERE ${whereClause}
+         ORDER BY created_at DESC
+         LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSizeNumber))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
         params
       );
 
@@ -91,7 +91,7 @@ const standardCostVersionController = {
       }
 
       const [result] = await db.pool.execute(
-        `INSERT INTO standard_cost_versions 
+        `INSERT INTO standard_cost_versions
          (version_no, version_name, status, effective_date, expiry_date, remark, created_by)
          VALUES (?, ?, 'draft', ?, ?, ?, ?)`,
         [version_no, version_name, effective_date, expiry_date || null, remark || '', created_by]
@@ -156,14 +156,14 @@ const standardCostVersionController = {
 
       // 激活本版本及其底层明细
       await connection.execute(`
-        UPDATE standard_cost_versions 
-        SET status = 'active', approved_by = ?, approved_at = NOW() 
+        UPDATE standard_cost_versions
+        SET status = 'active', approved_by = ?, approved_at = NOW()
         WHERE id = ?
       `, [approved_by, id]);
 
       await connection.execute(`
-        UPDATE standard_costs 
-        SET status = 'active', is_active = 1, effective_date = ? 
+        UPDATE standard_costs
+        SET status = 'active', is_active = 1, effective_date = ?
         WHERE version_id = ?
       `, [version[0].effective_date, id]);
 
@@ -203,11 +203,11 @@ const standardCostVersionController = {
       // 2. 获取所有启用的物料的基础采购价
       const [materials] = await connection.execute(`
         SELECT m.id, m.code, m.name, COALESCE(
-          (SELECT AVG(poi.price) FROM purchase_order_items poi 
-           JOIN purchase_orders po ON poi.order_id = po.id 
-           WHERE poi.material_id = m.id AND po.status = 'completed' 
+          (SELECT AVG(poi.price) FROM purchase_order_items poi
+           JOIN purchase_orders po ON poi.order_id = po.id
+           WHERE poi.material_id = m.id AND po.status = 'completed'
            AND po.created_at >= DATE_SUB(NOW(), INTERVAL 3 MONTH)),
-          m.cost_price, 
+          m.cost_price,
           m.price,
           0
         ) as suggested_price

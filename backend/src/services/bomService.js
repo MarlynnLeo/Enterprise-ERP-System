@@ -234,6 +234,8 @@ const bomService = {
           unit_name: detail.unit_name,
           level: detail.level || 1,
           parent_id: detail.parent_id || 0,
+          has_sub_bom: Number(detail.has_sub_bom) || 0,
+          ref_bom_id: detail.ref_bom_id || null,
         })),
         // 添加树形结构
         detailsTree: this.buildBomTree(
@@ -251,6 +253,8 @@ const bomService = {
             unit_name: detail.unit_name,
             level: detail.level || 1,
             parent_id: detail.parent_id || 0,
+            has_sub_bom: Number(detail.has_sub_bom) || 0,
+            ref_bom_id: detail.ref_bom_id || null,
           }))
         ),
       };
@@ -273,7 +277,9 @@ const bomService = {
           m.specs as specification,
           u.name as unit_name,
           COALESCE(bd.level, 1) as level,
-          COALESCE(bd.parent_id, 0) as parent_id
+          COALESCE(bd.parent_id, 0) as parent_id,
+          COALESCE(bd.has_sub_bom, 0) as has_sub_bom,
+          bd.ref_bom_id
         FROM bom_details bd
         LEFT JOIN materials m ON bd.material_id = m.id
         LEFT JOIN units u ON bd.unit_id = u.id
@@ -400,6 +406,9 @@ const bomService = {
   async _insertBomDetails(connection, bomId, details) {
     const idMapping = {};
     const sortedDetails = details.sort((a, b) => (a.level || 1) - (b.level || 1));
+    const materialIds = sortedDetails.map((detail) => detail.material_id);
+    const BomExplosionService = require('./BomExplosionService');
+    const subBomMap = await BomExplosionService.getLatestApprovedBomMap(materialIds, connection);
 
     for (const detail of sortedDetails) {
       const normalizedDetail = this.validateAndNormalizeDetail(detail);
@@ -409,8 +418,13 @@ const bomService = {
         actualParentId = idMapping[detail.parent_id] || 0;
       }
 
+      const refBomId = subBomMap.get(normalizedDetail.material_id)?.id || null;
+      const hasSubBom = refBomId ? 1 : 0;
+
       const [detailResult] = await connection.execute(
-        'INSERT INTO bom_details (bom_id, material_id, quantity, unit_id, remark, level, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        `INSERT INTO bom_details
+         (bom_id, material_id, quantity, unit_id, remark, level, parent_id, has_sub_bom, ref_bom_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           bomId,
           normalizedDetail.material_id,
@@ -419,6 +433,8 @@ const bomService = {
           normalizedDetail.remark,
           normalizedDetail.level,
           actualParentId,
+          hasSubBom,
+          refBomId,
         ]
       );
 
@@ -438,7 +454,7 @@ const bomService = {
         const result = await CostAccountingService.calculateStandardCost(productId, 1);
         if (result && result.standardCost) {
           await pool.execute(
-            `INSERT INTO standard_costs 
+            `INSERT INTO standard_costs
              (product_id, standard_price, effective_date, is_active, source_type)
              VALUES (?, ?, CURDATE(), 1, 'rollup')
              ON DUPLICATE KEY UPDATE

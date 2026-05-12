@@ -66,9 +66,9 @@
               <div class="card-header">总体执行率</div>
             </template>
             <div class="card-value">
-              <el-progress 
-                type="dashboard" 
-                :percentage="Math.min(summary.total_execution_rate, 100)" 
+              <el-progress
+                type="dashboard"
+                :percentage="Math.min(summary.total_execution_rate, 100)"
                 :status="getProgressStatus(summary.total_execution_rate)"
                 :width="80"
               >
@@ -122,8 +122,8 @@
           </el-table-column>
           <el-table-column label="执行进度" width="200">
             <template #default="{ row }">
-              <el-progress 
-                :percentage="Math.min(row.execution_rate, 100)" 
+              <el-progress
+                :percentage="Math.min(row.execution_rate, 100)"
                 :status="getProgressStatus(row.execution_rate)"
                 :format="() => row.execution_rate.toFixed(1) + '%'"
               />
@@ -191,13 +191,13 @@ const fetchBudgetList = async () => {
 // 获取分析数据
 const fetchAnalysis = async () => {
   if (!selectedBudgetId.value) return
-  
+
   loading.value = true
   try {
     const res = await api.get(`/finance/budgets/${selectedBudgetId.value}/analysis`)
     analysisData.value = res.data
     summary.value = res.data.summary
-    
+
     await nextTick()
     renderChart(res.data.details)
   } catch (error) {
@@ -335,6 +335,27 @@ onUnmounted(() => {
 .mb-4 {
   margin-bottom: 20px;
 }
+
+/* 概览卡片等高对齐 */
+.mb-4.el-row {
+  display: flex;
+  align-items: stretch;
+}
+.mb-4 .el-col {
+  display: flex;
+}
+.mb-4 .el-col > .el-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.mb-4 .el-col > .el-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .card-header {
   font-weight: bold;
 }

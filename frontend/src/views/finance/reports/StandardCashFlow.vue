@@ -15,9 +15,9 @@
           <p class="subtitle">间接法 · 符合企业会计准则</p>
         </div>
         <div class="header-actions">
-          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
-          <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.items?.length">打印报表</el-button>
-          <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.items?.length">导出Excel</el-button>
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:standard-cash-flow:view'">生成报表</el-button>
+          <el-button v-permission="'finance:reports:standard-cash-flow:view'" @click="printReport" :disabled="!reportData.items?.length">打印报表</el-button>
+          <el-button v-permission="'finance:reports:standard-cash-flow:view'" @click="exportExcel" :disabled="!reportData.items?.length">导出Excel</el-button>
         </div>
       </div>
     </el-card>
@@ -91,7 +91,7 @@
     <el-card class="data-card" v-loading="loading">
       <!-- 报表标题 -->
       <div class="report-header" v-if="reportData.items?.length">
-        <div class="company-name">浙江开控电气有限公司</div>
+        <div class="company-name">{{ companyName }}</div>
         <div class="report-title">现金流量表</div>
         <div class="report-period">{{ formatReportPeriod() }}</div>
         <div class="report-unit">单位：{{ unitText }}</div>
@@ -109,9 +109,9 @@
             </tr>
           </thead>
           <tbody>
-            <tr 
-              v-for="item in reportData.items" 
-              :key="item.id" 
+            <tr
+              v-for="item in reportData.items"
+              :key="item.id"
               :class="{
                 'header-row': item.isHeader,
                 'total-row': item.isTotal,
@@ -143,6 +143,7 @@ import { formatCurrency, formatAmount } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import printService from '@/services/printService';
 import ExcelJS from 'exceljs';
 
 // 查询参数
@@ -155,6 +156,7 @@ const queryParams = reactive({
 // 报表数据
 const reportData = ref({});
 const loading = ref(false);
+const companyName = ref('');
 
 // 计算金额单位显示文本
 const unitText = computed(() => ReportHelper.getUnitText(queryParams.unit));
@@ -170,7 +172,7 @@ const generateReport = async () => {
     ElMessage.warning('请选择报表开始和结束日期');
     return;
   }
-  
+
   loading.value = true;
   try {
     const response = await api.get('/finance/reports/standard-cash-flow', {
@@ -180,7 +182,7 @@ const generateReport = async () => {
         unit: queryParams.unit
       }
     });
-    
+
     // axios 拦截器已解包 ResponseHandler 格式
     // response.data 直接就是业务数据对象 { reportInfo, summary, items }
     const data = response.data;
@@ -206,8 +208,36 @@ const formatReportPeriod = () => {
 };
 
 // 打印报表
-const printReport = () => {
-  window.print();
+const printReport = async () => {
+  if (!reportData.value.items?.length) {
+    ElMessage.warning('没有可打印的数据');
+    return;
+  }
+
+  try {
+    const html = await printService.generateByDefaultTemplate('finance', 'standard_cash_flow', {
+      report_period: formatReportPeriod(),
+      unit_text: unitText.value,
+      operating_cash_flow: formatAmount(reportData.value.summary?.operatingCashFlow),
+      investing_cash_flow: formatAmount(reportData.value.summary?.investingCashFlow),
+      financing_cash_flow: formatAmount(reportData.value.summary?.financingCashFlow),
+      net_cash_increase: formatAmount(reportData.value.summary?.netCashIncrease),
+      ending_cash: formatAmount(reportData.value.summary?.endingCash),
+      print_time: new Date().toLocaleString(),
+      items: reportData.value.items.map((item, index) => ({
+        index: index + 1,
+        row_num: item.rowNum || '',
+        name: item.name || '',
+        amount: formatAmount(item.amount),
+        compare_amount: hasCompareData.value ? formatAmount(item.compareAmount) : ''
+      }))
+    });
+    printService.previewDocument(html);
+    ElMessage.success('打印预览已打开');
+  } catch (error) {
+    console.error('打印现金流量表失败:', error);
+    ElMessage.error('打印现金流量表失败');
+  }
 };
 
 // 导出Excel
@@ -229,7 +259,7 @@ const exportExcel = async () => {
     ];
 
     // 添加标题
-    worksheet.insertRow(1, ['浙江开控电气有限公司']);
+    worksheet.insertRow(1, [companyName.value || '']);
     worksheet.insertRow(2, ['现金流量表']);
     worksheet.insertRow(3, [`报表期间：${formatReportPeriod()}`]);
     worksheet.insertRow(4, [`单位：${unitText.value}`]);
@@ -256,7 +286,7 @@ const exportExcel = async () => {
         name: item.name,
         amount: item.amount
       });
-      
+
       if (item.isHeader || item.isTotal) {
         row.font = { bold: true };
       }
@@ -272,7 +302,7 @@ const exportExcel = async () => {
     link.href = URL.createObjectURL(blob);
     link.download = `现金流量表_${queryParams.startDate}_${queryParams.endDate}.xlsx`;
     link.click();
-    
+
     ElMessage.success('导出成功');
   } catch (error) {
     console.error('导出失败:', error);
@@ -281,7 +311,13 @@ const exportExcel = async () => {
 };
 
 // 组件挂载时自动生成报表
-onMounted(() => {
+onMounted(async () => {
+  try {
+    const info = await printService.getCompanyInfo();
+    companyName.value = info.company_name || '';
+  } catch {
+    companyName.value = '';
+  }
   generateReport();
 });
 </script>
@@ -481,11 +517,11 @@ onMounted(() => {
   .header-actions {
     display: none;
   }
-  
+
   .statistics-row {
     break-inside: avoid;
   }
-  
+
   .report-container {
     background: white;
     padding: 0;

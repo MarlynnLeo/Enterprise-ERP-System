@@ -1984,8 +1984,8 @@
   max-width: 220px;
 }
 
-/* 3. Global Date Picker Root Width Overrides 
-   We modify the generic Element Plus component classes directly. 
+/* 3. Global Date Picker Root Width Overrides
+   We modify the generic Element Plus component classes directly.
    This safely handles the actual element sizing without parent-view overrides.
 */
 [data-theme="kacon"] .el-date-editor:not(.el-range-editor) {

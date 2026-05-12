@@ -236,7 +236,7 @@ const financeController = {
       if (success) {
         ResponseHandler.success(res, { message: '会计科目更新成功' }, '更新成功');
       } else {
-        ResponseHandler.error(res, '会计科目更新失败', 'OPERATION_FAILED', 400);
+        ResponseHandler.error(res, '会计科目更新失败', 'OPERATION_ERROR', 400);
       }
     } catch (error) {
       logger.error('更新会计科目失败:', error);
@@ -262,7 +262,7 @@ const financeController = {
       if (success) {
         ResponseHandler.success(res, { message: '会计科目已停用' }, '停用成功');
       } else {
-        ResponseHandler.error(res, '会计科目停用失败', 'OPERATION_FAILED', 400);
+        ResponseHandler.error(res, '会计科目停用失败', 'OPERATION_ERROR', 400);
       }
     } catch (error) {
       logger.error('停用会计科目失败:', error);
@@ -290,7 +290,7 @@ const financeController = {
         const statusText = is_active ? '启用' : '禁用';
         ResponseHandler.success(res, { message: `会计科目已${statusText}` }, '状态更新成功');
       } else {
-        ResponseHandler.error(res, '会计科目状态更新失败', 'OPERATION_FAILED', 400);
+        ResponseHandler.error(res, '会计科目状态更新失败', 'OPERATION_ERROR', 400);
       }
     } catch (error) {
       logger.error('更新会计科目状态失败:', error);
@@ -357,7 +357,7 @@ const financeController = {
       const { balances, balanceDate } = req.body;
 
       if (!balances || !Array.isArray(balances) || balances.length === 0) {
-        return ResponseHandler.error(res, '请提供有效的余额数据', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供有效的余额数据', 'VALIDATION_ERROR', 400);
       }
 
       const result = await financeModel.setBatchOpeningBalance(balances, balanceDate);
@@ -656,7 +656,7 @@ const financeController = {
       if (success) {
         ResponseHandler.success(res, { message: '会计分录过账成功' }, '过账成功');
       } else {
-        ResponseHandler.error(res, '会计分录过账失败', 'OPERATION_FAILED', 400);
+        ResponseHandler.error(res, '会计分录过账失败', 'OPERATION_ERROR', 400);
       }
     } catch (error) {
       logger.error('过账会计分录失败:', error);
@@ -761,7 +761,7 @@ const financeController = {
       if (success) {
         ResponseHandler.success(res, { message: '凭证删除成功' }, '删除成功');
       } else {
-        ResponseHandler.error(res, '凭证删除失败', 'OPERATION_FAILED', 400);
+        ResponseHandler.error(res, '凭证删除失败', 'OPERATION_ERROR', 400);
       }
     } catch (error) {
       logger.error('删除会计分录失败:', error);
@@ -913,7 +913,7 @@ const financeController = {
         return ResponseHandler.error(
           res,
           'Accounting period update failed',
-          'OPERATION_FAILED',
+          'OPERATION_ERROR',
           400
         );
       }

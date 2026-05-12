@@ -13,6 +13,12 @@ const db = require('../../../config/db');
 const pool = db.pool;
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
+const DEFECT_ITEM_RESULT_CONDITION = `(
+  LOWER(COALESCE(qii.result, '')) IN ('failed', 'fail', 'ng', 'nok', 'unqualified')
+  OR qii.result LIKE '%不合格%'
+)`;
+const DEFECT_INSPECTION_STATUS_CONDITION = "qi.status IN ('failed', 'partial', 'critical')";
+
 // ==================== 检验统计（原 qualityStatController） ====================
 
 /**
@@ -66,12 +72,12 @@ const getQualityStatistics = async (req, res) => {
     );
 
     const [defectStats] = await pool.query(
-      `SELECT COUNT(*) as total_defects,
-              COUNT(DISTINCT qi.id) as defect_inspections,
-              COUNT(DISTINCT CASE WHEN qii.result LIKE '%不合格%' THEN qii.item_name END) as defect_types
+      `SELECT SUM(CASE WHEN ${DEFECT_ITEM_RESULT_CONDITION} THEN 1 ELSE 0 END) as total_defects,
+              COUNT(DISTINCT CASE WHEN ${DEFECT_ITEM_RESULT_CONDITION} THEN qi.id END) as defect_inspections,
+              COUNT(DISTINCT CASE WHEN ${DEFECT_ITEM_RESULT_CONDITION} THEN qii.item_name END) as defect_types
             FROM quality_inspections qi
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
-            WHERE qi.status = 'failed' ${dateFilter}`,
+            WHERE ${DEFECT_INSPECTION_STATUS_CONDITION} ${dateFilter}`,
       dateParams
     );
 
@@ -105,7 +111,7 @@ const getDefectItems = async (req, res) => {
   try {
     const { page = 1, pageSize = 10, keyword, startDate, endDate } = req.query;
 
-    const whereConds = ["qi.status = 'failed'"];
+    const whereConds = [DEFECT_INSPECTION_STATUS_CONDITION];
     const params = [];
 
     if (keyword) {
@@ -136,7 +142,7 @@ const getDefectItems = async (req, res) => {
               qi.product_name as materialName, qi.product_code as materialCode,
               DATE_FORMAT(qi.created_at, '%Y-%m-%d') as inspectionDate,
               qi.quantity as defectQty,
-              GROUP_CONCAT(DISTINCT CASE WHEN qii.result LIKE '%不合格%' OR COALESCE(qii.remark, '') != '' THEN COALESCE(NULLIF(qii.remark, ''), qii.item_name) ELSE qii.item_name END SEPARATOR ', ') as defectReason,
+              GROUP_CONCAT(DISTINCT CASE WHEN ${DEFECT_ITEM_RESULT_CONDITION} OR COALESCE(qii.remark, '') != '' THEN COALESCE(NULLIF(qii.remark, ''), qii.item_name) ELSE qii.item_name END SEPARATOR ', ') as defectReason,
               CASE WHEN qi.status = 'completed' THEN '已处理'
                    WHEN qi.status = 'pending' THEN '待处理' ELSE '处理中' END as processResult
             FROM quality_inspections qi
@@ -173,14 +179,13 @@ const getQualityTrends = async (req, res) => {
       `SELECT qii.item_name as defect_type, COUNT(*) as count
             FROM quality_inspection_items qii
             JOIN quality_inspections qi ON qii.inspection_id = qi.id
-            WHERE qi.status = 'failed'
-              AND qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
-              AND qii.result LIKE '%不合格%'
+            WHERE qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+              AND ${DEFECT_ITEM_RESULT_CONDITION}
             GROUP BY qii.item_name ORDER BY count DESC LIMIT 10`,
       [parseInt(months)]
     );
 
-    res.json({ success: true, data: { trends: trendData, defectTypes } });
+    return ResponseHandler.success(res, { trends: trendData, defectTypes });
   } catch (error) {
     logger.error('获取质量趋势数据失败:', error);
     ResponseHandler.error(res, '获取质量趋势数据失败', 'SERVER_ERROR', 500, error);

@@ -93,15 +93,15 @@ class InventoryCheckService {
 
     const placeholders = materialIds.map(() => '?').join(',');
     const sql = `
-      SELECT 
+      SELECT
         material_id,
         SUM(total_by_location) as total_stock
       FROM (
-        SELECT 
+        SELECT
           material_id,
           location_id,
           SUM(quantity) as total_by_location
-        FROM inventory_ledger 
+        FROM inventory_ledger
         WHERE material_id IN (${placeholders})
         GROUP BY material_id, location_id
         HAVING SUM(quantity) > 0
@@ -124,7 +124,7 @@ class InventoryCheckService {
 
     try {
       const sql = `
-        SELECT 
+        SELECT
           il.material_id,
           m.code as material_code,
           m.name as material_name,
@@ -134,9 +134,9 @@ class InventoryCheckService {
           l.name as location_name,
           SUM(il.quantity) as location_stock,
           (
-            SELECT SUM(quantity) 
-            FROM inventory_ledger 
-            WHERE material_id = il.material_id 
+            SELECT SUM(quantity)
+            FROM inventory_ledger
+            WHERE material_id = il.material_id
             AND quantity > 0
           ) as total_stock
         FROM inventory_ledger il

@@ -95,7 +95,7 @@ const supplierQualityController = {
         LEFT JOIN suppliers s ON sqs.supplier_id = s.id
         WHERE sqs.supplier_id = ?
         ORDER BY sqs.period DESC
-        LIMIT ${limit}
+        LIMIT ${Math.max(1,Math.min(Math.floor(Number(limit))||20,500))}
       `,
                 [supplierId]
             );
@@ -115,7 +115,7 @@ const supplierQualityController = {
             const { period } = req.query;
 
             if (!period) {
-                return ResponseHandler.error(res, '统计周期不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '统计周期不能为空', 'VALIDATION_ERROR', 400);
             }
 
             const result = await db.query(
@@ -152,7 +152,7 @@ const supplierQualityController = {
             const { period } = req.body; // YYYY-MM
 
             if (!period || !/^\d{4}-\d{2}$/.test(period)) {
-                return ResponseHandler.error(res, '请提供有效的统计周期 (YYYY-MM)', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '请提供有效的统计周期 (YYYY-MM)', 'VALIDATION_ERROR', 400);
             }
 
             const startDate = `${period}-01`;

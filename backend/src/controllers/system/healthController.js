@@ -207,24 +207,22 @@ class HealthController {
       const [versionRows] = await pool.query('SELECT VERSION() as version');
       const [processRows] = await pool.query('SHOW PROCESSLIST');
       const [sizeRows] = await pool.query(
-        `SELECT 
+        `SELECT
           table_schema as 'database_name',
           ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as 'size_mb'
-        FROM information_schema.tables 
+        FROM information_schema.tables
         WHERE table_schema = ?
         GROUP BY table_schema`,
         [config.database]
       );
       const [tableRows] = await pool.query(
-        `SELECT COUNT(*) as table_count 
-        FROM information_schema.tables 
+        `SELECT COUNT(*) as table_count
+        FROM information_schema.tables
         WHERE table_schema = ?`,
         [config.database]
       );
 
-      res.json({
-        success: true,
-        data: {
+      return ResponseHandler.success(res, {
           connection: {
             host: config.host,
             port: config.port,
@@ -239,8 +237,7 @@ class HealthController {
             tables: tableRows[0].table_count,
           },
           timestamp: new Date().toISOString(),
-        },
-      });
+        });
     } catch (error) {
       ResponseHandler.error(res, '获取数据库状态失败', 'SERVER_ERROR', 500, error);
     }

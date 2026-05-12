@@ -275,7 +275,7 @@ const apModel = {
         `INSERT INTO ap_invoices
         (invoice_number, supplier_id, invoice_date, due_date,
          total_amount, paid_amount, balance_amount,
-         currency_code, exchange_rate, status, terms, notes, 
+         currency_code, exchange_rate, status, terms, notes,
          supplier_invoice_number, source_type, source_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -459,9 +459,9 @@ const apModel = {
   getInvoiceById: async (id) => {
     // 查询发票主数据
     const [invoices] = await db.pool.execute(
-      `SELECT a.*, 
-              DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date, 
-              DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date, 
+      `SELECT a.*,
+              DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
+              DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
               DATE_FORMAT(a.created_at, '%Y-%m-%d') as created_at,
               s.name as supplier_name
        FROM ap_invoices a
@@ -478,7 +478,7 @@ const apModel = {
 
     // 查询发票明细项
     const [items] = await db.pool.execute(
-      `SELECT i.id, i.material_id as materialId, i.description, 
+      `SELECT i.id, i.material_id as materialId, i.description,
               i.quantity, i.unit_price as unitPrice, i.amount,
               m.name as materialName
        FROM ap_invoice_items i
@@ -727,8 +727,8 @@ const apModel = {
 
       // 更新发票主数据（供应商发票号、备注等始终可更新）
       await connection.execute(
-        `UPDATE ap_invoices 
-         SET invoice_number = ?, supplier_invoice_number = ?, supplier_id = ?, invoice_date = ?, 
+        `UPDATE ap_invoices
+         SET invoice_number = ?, supplier_invoice_number = ?, supplier_id = ?, invoice_date = ?,
              due_date = ?, total_amount = ?, balance_amount = ?, notes = ?, updated_at = NOW()
          WHERE id = ?`,
         [
@@ -779,8 +779,8 @@ const apModel = {
         );
         if (apSource.length > 0 && apSource[0].source_type === 'purchase_receipt' && apSource[0].source_id) {
           const [syncResult] = await connection.execute(
-            `UPDATE tax_invoices 
-             SET invoice_number = ?, updated_at = NOW() 
+            `UPDATE tax_invoices
+             SET invoice_number = ?, updated_at = NOW()
              WHERE related_document_type = '采购入库单' AND related_document_id = ?`,
             [invoiceData.supplier_invoice_number, apSource[0].source_id]
           );
@@ -822,9 +822,9 @@ const apModel = {
 
       // 插入付款记录
       const [result] = await connection.execute(
-        `INSERT INTO ap_payments 
-        (payment_number, supplier_id, payment_date, total_amount, 
-         payment_method, reference_number, bank_account_id, notes) 
+        `INSERT INTO ap_payments
+        (payment_number, supplier_id, payment_date, total_amount,
+         payment_method, reference_number, bank_account_id, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           paymentData.payment_number,
@@ -1086,7 +1086,7 @@ const apModel = {
     try {
       // 获取付款记录
       const [payments] = await db.pool.execute(
-        `SELECT p.id, p.payment_number, p.supplier_id, 
+        `SELECT p.id, p.payment_number, p.supplier_id,
                 DATE_FORMAT(p.payment_date, '%Y-%m-%d') as payment_date,
                 p.total_amount, p.payment_method, p.reference_number,
                 p.bank_account_id, p.notes,
@@ -1133,16 +1133,16 @@ const apModel = {
 
       // 构建查询，直接关联供应商表获取供应商名称，并通过付款明细表关联获取发票编号
       let query = `
-        SELECT p.id, p.payment_number, p.supplier_id, 
+        SELECT p.id, p.payment_number, p.supplier_id,
                DATE_FORMAT(p.payment_date, '%Y-%m-%d') as payment_date,
                p.total_amount, p.payment_method, p.reference_number,
                p.bank_account_id, p.notes, p.status,
                DATE_FORMAT(p.created_at, '%Y-%m-%d') as created_at,
                s.name as supplier_name,
-               (SELECT i.invoice_number 
-                FROM ap_payment_items pi 
-                JOIN ap_invoices i ON pi.invoice_id = i.id 
-                WHERE pi.payment_id = p.id 
+               (SELECT i.invoice_number
+                FROM ap_payment_items pi
+                JOIN ap_invoices i ON pi.invoice_id = i.id
+                WHERE pi.payment_id = p.id
                 LIMIT 1) as invoice_number
         FROM ap_payments p
         LEFT JOIN suppliers s ON p.supplier_id = s.id
@@ -1197,7 +1197,7 @@ const apModel = {
 
       // 获取总记录数（与主查询相同的 JOIN 结构）
       let countQuery = `
-        SELECT COUNT(*) as total 
+        SELECT COUNT(*) as total
         FROM ap_payments p
         LEFT JOIN suppliers s ON p.supplier_id = s.id
         WHERE 1=1
@@ -1306,10 +1306,10 @@ const apModel = {
 
       // 3. 更新付款记录状态为作废
       await connection.execute(
-        `UPDATE ap_payments 
-         SET status = 'void', 
-             voided_at = NOW(), 
-             voided_by = ?, 
+        `UPDATE ap_payments
+         SET status = 'void',
+             voided_at = NOW(),
+             voided_by = ?,
              void_reason = ?
          WHERE id = ?`,
         [voidedBy, voidData.void_reason, paymentId]
@@ -1362,7 +1362,7 @@ const apModel = {
         try {
           // 获取原银行交易记录
           const [bankTxs] = await connection.execute(
-            `SELECT * FROM bank_transactions 
+            `SELECT * FROM bank_transactions
              WHERE transaction_number = ? AND bank_account_id = ?
              LIMIT 1
              FOR UPDATE`,
@@ -1422,7 +1422,7 @@ const apModel = {
       // 6. 冲销关联的会计凭证（付款单号作为document_number）
       try {
         const [glEntries] = await connection.execute(
-          `SELECT id FROM gl_entries 
+          `SELECT id FROM gl_entries
            WHERE document_number = ? AND document_type IN ('付款单', 'PURCHASE_PAYMENT') AND (is_reversed IS NULL OR is_reversed = 0)`,
           [payment.payment_number]
         );
@@ -1573,7 +1573,7 @@ const apModel = {
   getSupplierPayables: async (supplierId = null) => {
     try {
       let query = `
-        SELECT 
+        SELECT
           s.id AS supplier_id,
           s.supplier_name,
           COUNT(a.id) AS invoice_count,
@@ -1610,7 +1610,7 @@ const apModel = {
       const currentDate = asOfDate || new Date().toISOString().split('T')[0];
 
       let query = `
-        SELECT 
+        SELECT
           s.id AS supplier_id,
           s.supplier_name,
           SUM(CASE WHEN DATEDIFF(?, a.due_date) <= 0 THEN a.balance_amount ELSE 0 END) AS current_amount,
@@ -1646,9 +1646,9 @@ const apModel = {
   getUnpaidInvoices: async () => {
     // 查询可付款的未付清发票（草稿必须先确认，不能直接付款）
     const [invoices] = await db.pool.execute(
-      `SELECT a.id, a.invoice_number as invoiceNumber, 
+      `SELECT a.id, a.invoice_number as invoiceNumber,
               a.supplier_id as supplierId, s.name as supplierName,
-              DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoiceDate, 
+              DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoiceDate,
               DATE_FORMAT(a.due_date, '%Y-%m-%d') as dueDate,
               ROUND(a.total_amount, 2) as amount,
               ROUND(a.paid_amount, 2) as paidAmount,
@@ -1678,8 +1678,8 @@ const apModel = {
   getInvoicePayments: async (invoiceId) => {
     // 通过付款项表查询与发票关联的所有付款记录
     const [payments] = await db.pool.execute(
-      `SELECT p.id, p.payment_number as paymentNumber, 
-              DATE_FORMAT(p.payment_date, '%Y-%m-%d') as paymentDate, 
+      `SELECT p.id, p.payment_number as paymentNumber,
+              DATE_FORMAT(p.payment_date, '%Y-%m-%d') as paymentDate,
               p.payment_method as paymentMethod,
               pi.amount, pi.discount_amount as discountAmount,
               p.notes, DATE_FORMAT(p.created_at, '%Y-%m-%d') as createdAt

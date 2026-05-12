@@ -23,7 +23,7 @@
         </el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -57,8 +57,8 @@
         <el-form-item>
           <el-button type="primary" @click="searchInvoices" :loading="loading">查询</el-button>
           <el-button @click="resetSearch" :loading="loading">重置</el-button>
-          <el-button 
-            type="success" 
+          <el-button
+            type="success"
             @click="showAddDialog"
             v-permission="'finance:ar:create'">
             新增
@@ -66,7 +66,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <div class="table-container">
@@ -144,7 +144,7 @@
           </el-table-column>
         </el-table>
       </div>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -162,7 +162,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -190,7 +190,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <!-- 第二行：开票日期 + 到期日期 -->
         <el-row :gutter="20">
           <el-col :span="12">
@@ -218,7 +218,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <!-- 发票明细项 -->
         <div class="invoice-items">
           <h3 style="margin-bottom: 12px; font-size: 14px;">发票明细</h3>
@@ -258,8 +258,8 @@
               </el-table-column>
               <el-table-column label="操作" width="60" align="center" :resizable="false">
                 <template #default="scope">
-                  <el-button 
-                    type="danger" 
+                  <el-button
+                    type="danger"
                     size="small"
                     link
                     @click="removeInvoiceItem(scope.$index)"
@@ -275,7 +275,7 @@
             <el-button v-permission="'finance:ar:create'" type="primary" size="small" @click="addInvoiceItem">添加明细项</el-button>
           </div>
         </div>
-        
+
         <!-- 税率和总计 -->
         <div class="invoice-total" style="margin-top: 16px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
@@ -309,7 +309,7 @@
             </el-col>
           </el-row>
         </div>
-        
+
         <el-form-item label="备注" label-width="60px" style="margin-top: 16px;">
           <el-input
             v-model="invoiceForm.notes"
@@ -326,7 +326,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 记录收款对话框 -->
     <el-dialog
       title="记录收款"
@@ -373,7 +373,7 @@
         </el-form-item>
         <el-form-item label="收款账户" prop="bankAccountId" v-if="showBankAccountField">
           <el-select v-model="paymentForm.bankAccountId" placeholder="选择收款账户" filterable style="width: 100%">
-            <el-option 
+            <el-option
               v-for="account in bankAccounts"
               :key="account.id"
               :label="`${account.account_name || account.accountName} (${account.account_number || account.accountNumber})`"
@@ -398,7 +398,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 发票详情对话框 -->
     <el-dialog
       title="发票详情"
@@ -421,7 +421,7 @@
           <el-descriptions-item label="创建时间">{{ invoiceDetails.createdAt || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ invoiceDetails.notes || '无' }}</el-descriptions-item>
         </el-descriptions>
-        
+
         <!-- 明细项 -->
         <div class="details-section">
           <div class="detail-title" style="margin-top: 20px; margin-bottom: 15px;">
@@ -463,11 +463,12 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { api, baseDataApi } from '@/services/api';
+import { parseListData } from '@/utils/responseParser'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
 import '@/utils/request' // Import request utility
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 const financeStore = useFinanceStore()
 const { vatRateOptions, defaultVATRate } = storeToRefs(financeStore)
 const _router = useRouter()
@@ -644,7 +645,8 @@ const handleProductChange = (item) => {
 const removeInvoiceItem = (index) => {
   invoiceForm.items.splice(index, 1);
 };
-// 自动生成发票编号;
+// 自动生成发票编号
+;
 // 加载发票列表
 const loadInvoices = async () => {
   loading.value = true;
@@ -658,20 +660,20 @@ const loadInvoices = async () => {
       endDate: searchForm.dateRange?.[1] || '',
       status: searchForm.status
     };
-    
+
     // 添加超时控制
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
-    
+
     try {
       // 使用api对象发送请求，确保经过代理
-      const response = await api.get('/finance/ar/invoices', { 
+      const response = await api.get('/finance/ar/invoices', {
         params,
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId); // 清除超时控制
-      
+
       // 拦截器已解包，response.data 就是业务数据
       if (response.data) {
         const data = response.data;
@@ -718,13 +720,10 @@ const loadCustomerOptions = async () => {
   try {
     // 首先尝试使用baseData API
     try {
-      const response = await api.get('/baseData/customers');
-      // 拦截器已解包，response.data 就是业务数据
-      if (response.data?.list) {
-        customerOptions.value = response.data.list;
-        return;
-      } else if (Array.isArray(response.data)) {
-        customerOptions.value = response.data;
+      const response = await baseDataApi.getCustomers({ pageSize: 1000 });
+      const customers = parseListData(response, { enableLog: false });
+      if (customers.length > 0) {
+        customerOptions.value = customers;
         return;
       }
     } catch {
@@ -743,20 +742,11 @@ const loadCustomerOptions = async () => {
 const loadProductOptions = async () => {
   try {
     // 使用物料API加载产品数据
-    const response = await api.get('/baseData/materials', {
-      params: {
-        pageSize: 100,
-        type: 'finished'
-      }
+    const response = await baseDataApi.getMaterials({
+      pageSize: 100,
+      type: 'finished'
     });
-    // 拦截器已解包，response.data 就是业务数据
-    if (response.data?.list) {
-      productOptions.value = response.data.list;
-    } else if (Array.isArray(response.data)) {
-      productOptions.value = response.data;
-    } else {
-      productOptions.value = [];
-    }
+    productOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
     console.error('加载产品列表失败:', error);
     ElMessage.error('加载产品列表失败');
@@ -803,14 +793,14 @@ const handleStatusChange = async (row, status) => {
 // 编辑发票
 const handleEdit = async (row) => {
   dialogTitle.value = '编辑销售发票';
-  
+
   try {
     // 获取发票基本信息
     const response = await api.get(`/finance/ar/invoices/${row.id}`);
     const invoice = response.data;
-    
+
     resetInvoiceForm();
-    
+
     // 填充表单数据，确保字段名称正确映射
     invoiceForm.id = invoice.id;
     invoiceForm.invoice_number = invoice.invoice_number;
@@ -819,7 +809,7 @@ const handleEdit = async (row) => {
     invoiceForm.due_date = invoice.due_date;
     invoiceForm.notes = invoice.notes || '';
     invoiceForm.taxRate = invoice.taxRate !== undefined ? invoice.taxRate : defaultVATRate.value;
-    
+
     // 从发票对象中直接获取明细项
     if (invoice.items && Array.isArray(invoice.items)) {
       // 确保明细项数据格式正确
@@ -831,7 +821,7 @@ const handleEdit = async (row) => {
         unitPrice: parseFloat(item.unitPrice) || parseFloat(item.unit_price) || 0,
         amount: parseFloat(item.amount) || 0
       }));
-      
+
       // 如果没有明细项，添加默认一个明细项
       if (invoiceForm.items.length === 0) {
         addInvoiceItem();
@@ -840,13 +830,13 @@ const handleEdit = async (row) => {
       // 如果没有明细项，添加默认一个明细项
       addInvoiceItem();
     }
-    
+
     // 打印排障信息
     dialogVisible.value = true;
   } catch (error) {
     console.error('获取发票详情失败:', error);
     ElMessage.error('获取发票详情失败: ' + (error.message || '未知错误'));
-    
+
     // 出错时也显示对话框，但添加一个默认明细项
     resetInvoiceForm();
     if (row) {
@@ -874,12 +864,12 @@ const handleViewDetails = async (row) => {
         invoiceDetails[key] = '';
       }
     });
-    
+
     try {
       // 尝试从API获取详细数据
       const response = await api.get(`/finance/ar/invoices/${row.id}`);
       const invoice = response.data;
-      
+
       // 限制数据量，只复制必要的字段
       invoiceDetails.id = invoice.id;
       invoiceDetails.invoice_number = invoice.invoice_number;
@@ -893,13 +883,13 @@ const handleViewDetails = async (row) => {
       invoiceDetails.status = invoice.status;
       invoiceDetails.createdAt = invoice.createdAt;
       invoiceDetails.notes = invoice.notes;
-      
+
       // 限制明细项数量
       if (invoice.items && Array.isArray(invoice.items)) {
         // 只保留最多20个明细项
         invoiceDetails.items = invoice.items.slice(0, 20);
       }
-      
+
       // 获取收款记录
       try {
         const paymentsResponse = await api.get(`/finance/ar/invoices/${row.id}/payments`);
@@ -907,8 +897,7 @@ const handleViewDetails = async (row) => {
           // 只保留最多10个收款记录
           invoiceDetails.payments = paymentsResponse.data.slice(0, 10);
         }
-      } catch (paymentError) {
-        console.warn('获取收款记录失败:', paymentError);
+      } catch {
         invoiceDetails.payments = [];
       }
     } catch (apiError) {
@@ -916,7 +905,7 @@ const handleViewDetails = async (row) => {
       ElMessage.error('获取发票详情失败：' + (apiError.message || '未知错误'));
       return;
     }
-    
+
     // 显示对话框
     detailsDialogVisible.value = true;
   } catch (error) {
@@ -951,7 +940,7 @@ const handlePaymentMethodChange = () => {
 const handleRecordPayment = async (row) => {
   // 直接使用数据库字段，避免前端浮点减法与DB值不一致
   const balance = parseFloat(row.balance_amount) || 0;
-  
+
   // 填充收款表单
   paymentForm.invoiceId = row.id;
   paymentForm.invoice_number = row.invoice_number;
@@ -962,23 +951,24 @@ const handleRecordPayment = async (row) => {
   paymentForm.balanceValue = balance;
   paymentForm.amount = balance; // 默认填充剩余金额
   paymentForm.bankAccountId = null; // 重置银行账户选择
-  
+
   // 加载银行账户列表
   await loadBankAccounts();
-  
+
   paymentDialogVisible.value = true;
 };
-// 查看发票关联的收款记录;
+// 查看发票关联的收款记录
+;
 // 保存发票
 const saveInvoice = async () => {
   if (!invoiceFormRef.value) return;
-  
+
   // 至少有一个明细项
   if (invoiceForm.items.length === 0) {
     ElMessage.warning('请至少添加一个发票明细项');
     return;
   }
-  
+
   // 每个明细项都需要填写完整
   for (const item of invoiceForm.items) {
     if (!item.productId || item.quantity <= 0 || item.unitPrice <= 0) {
@@ -986,7 +976,7 @@ const saveInvoice = async () => {
       return;
     }
   }
-  
+
   await invoiceFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
@@ -1009,7 +999,7 @@ const saveInvoice = async () => {
             amount: parseFloat(item.amount)
           }))
         };
-        
+
         if (invoiceForm.id) {
           // 更新
           await api.put(`/finance/ar/invoices/${invoiceForm.id}`, data);
@@ -1019,7 +1009,7 @@ const saveInvoice = async () => {
           await api.post('/finance/ar/invoices', data);
           ElMessage.success('添加成功');
         }
-        
+
         dialogVisible.value = false;
         loadInvoices();
       } catch (error) {
@@ -1034,7 +1024,7 @@ const saveInvoice = async () => {
 // 保存收款记录
 const savePayment = async () => {
   if (!paymentFormRef.value) return;
-  
+
   await paymentFormRef.value.validate(async (valid) => {
     if (valid) {
       savePaymentLoading.value = true;
@@ -1048,12 +1038,12 @@ const savePayment = async () => {
           bankAccountId: paymentForm.bankAccountId || null,  // 添加银行账户ID
           notes: paymentForm.notes
         };
-        
+
         // 发送请求
         await api.post('/finance/ar/receipts', _data);
-        
+
         ElMessage.success('收款记录已保存');
-        
+
         paymentDialogVisible.value = false;
         loadInvoices();
       } catch (error) {
@@ -1077,7 +1067,7 @@ const resetInvoiceForm = () => {
   invoiceForm.items = [];
   invoiceForm.notes = '';
   invoiceForm.taxRate = defaultVATRate.value;
-  
+
   // 清除校验
   if (invoiceFormRef.value) {
     invoiceFormRef.value.resetFields();
@@ -1101,7 +1091,8 @@ onMounted(() => {
 });
 // 格式化货币
 // 格式化货币 - 已统一使用 @/utils/format 导入
-// 获取支付方式文本;
+// 获取支付方式文本
+;
 // 打印发票 - 使用打印模板系统
 const handlePrint = async () => {
   if (!invoiceDetails.id) {
@@ -1109,92 +1100,43 @@ const handlePrint = async () => {
     return;
   }
   try {
-    // 获取打印模板
-    let templateContent = '';
-    try {
-      const response = await api.get('/print/templates', {
-        params: {
-          template_type: 'invoice',
-          is_default: 1,
-          status: 1
-        }
-      });
-      
-      const templates = response.data?.list || response.data?.data || response.data || [];
-      const template = Array.isArray(templates) ? templates[0] : null;
-      
-      if (template && template.content) {
-        templateContent = template.content;
-      }
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError);
-    }
-    
-    // 如果没有找到模板，提示用户配置
-    if (!templateContent) {
-      ElMessage.warning('未找到发票打印模板，请在系统管理-打印管理中配置 invoice 类型模板');
-      return;
-    }
-    
-    {
-      // 替换模板变量
-      const printData = {
-        invoice_number: invoiceDetails.invoice_number || '-',
-        customer_name: invoiceDetails.customer_name || '-',
-        invoice_date: invoiceDetails.invoice_date || '-',
-        due_date: invoiceDetails.due_date || '-',
-        status: getStatusText(invoiceDetails.status),
-        total_amount: parseFloat(invoiceDetails.total_amount || 0).toFixed(2),
-        paid_amount: parseFloat(invoiceDetails.paid_amount || 0).toFixed(2),
-        balance_amount: parseFloat(invoiceDetails.balance_amount || 0).toFixed(2),
-        notes: invoiceDetails.notes || '',
-        print_date: new Date().toLocaleDateString(),
-        print_time: new Date().toLocaleTimeString()
+    const items = (invoiceDetails.items || []).map((item, index) => {
+      const qty = Number(item.quantity || 0);
+      const price = Number(item.unit_price || item.unitPrice || 0);
+      const amount = Number(item.amount || qty * price || 0);
+
+      return {
+        index: index + 1,
+        item_code: item.product_code || item.material_code || item.item_code || '',
+        item_name: item.product_name || item.productName || item.material_name || '-',
+        specification: item.specification || item.specs || '',
+        quantity: qty.toString(),
+        unit_price: price.toFixed(2),
+        tax_amount: Number(item.tax_amount || 0).toFixed(2),
+        amount: amount.toFixed(2)
       };
-      
-      Object.keys(printData).forEach(key => {
-        const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
-        templateContent = templateContent.replace(regex, printData[key]);
-      });
-      
-      // 处理明细项列表
-      if (templateContent.includes('{{#each items}}')) {
-        const itemStart = templateContent.indexOf('{{#each items}}');
-        const itemEnd = templateContent.indexOf('{{/each}}', itemStart);
-        
-        if (itemStart !== -1 && itemEnd !== -1) {
-          const itemTemplate = templateContent.substring(itemStart + '{{#each items}}'.length, itemEnd);
-          let itemsHtml = '';
-          
-          (invoiceDetails.items || []).forEach((item, index) => {
-            let itemHtml = itemTemplate;
-            const qty = parseFloat(item.quantity || 0);
-            const price = parseFloat(item.unit_price || 0);
-            const amount = qty * price;
-            itemHtml = itemHtml.replace(/{{index}}/g, (index + 1).toString());
-            itemHtml = itemHtml.replace(/{{product_name}}/g, item.product_name || item.productName || '-');
-            itemHtml = itemHtml.replace(/{{quantity}}/g, qty.toString());
-            itemHtml = itemHtml.replace(/{{unit_price}}/g, price.toFixed(2));
-            itemHtml = itemHtml.replace(/{{amount}}/g, amount.toFixed(2));
-            itemsHtml += itemHtml;
-          });
-          
-          templateContent = templateContent.substring(0, itemStart) + itemsHtml + templateContent.substring(itemEnd + '{{/each}}'.length);
-        }
-      }
-    }
-    // 创建打印窗口
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      ElMessage.error('无法打开打印窗口,请检查浏览器弹窗设置');
-      return;
-    }
-    writeSafeHtmlDocument(printWindow, templateContent);
-    // 等待内容加载后打印
-    printWindow.onload = () => {
-      printWindow.print();
-      printWindow.close();
-    };
+    });
+    const subtotal = items.reduce((sum, item) => sum + Number(String(item.amount).replace(/,/g, '')), 0);
+    const taxAmount = Number(invoiceDetails.tax_amount || 0);
+
+    const html = await printService.generateByDefaultTemplate('finance', 'invoice', {
+      invoice_number: invoiceDetails.invoice_number || '-',
+      invoice_date: invoiceDetails.invoice_date || '-',
+      customer_name: invoiceDetails.customer_name || '-',
+      order_no: invoiceDetails.order_no || invoiceDetails.sales_order_no || '',
+      tax_rate: invoiceDetails.tax_rate || '',
+      status: getStatusText(invoiceDetails),
+      subtotal: formatCurrency(invoiceDetails.subtotal || subtotal),
+      tax_amount: formatCurrency(taxAmount),
+      total_amount: formatCurrency(invoiceDetails.total_amount || (subtotal + taxAmount)),
+      paid_amount: formatCurrency(invoiceDetails.paid_amount || 0),
+      balance_amount: formatCurrency(invoiceDetails.balance_amount || 0),
+      notes: invoiceDetails.notes || '',
+      print_time: new Date().toLocaleString(),
+      items
+    });
+
+    printService.previewDocument(html);
     ElMessage.success('打印预览已打开');
   } catch (error) {
     console.error('打印失败:', error);
@@ -1354,4 +1296,4 @@ const handlePrint = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

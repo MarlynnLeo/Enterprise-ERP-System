@@ -123,7 +123,7 @@ const createBusinessType = async (req, res) => {
 
     // 验证必填字段
     if (!code || !name) {
-      return ResponseHandler.error(res, '编码和名称为必填项', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '编码和名称为必填项', 'VALIDATION_ERROR', 400);
     }
 
     // 检查编码在同一个分组内是否已存在
@@ -305,7 +305,7 @@ const updateSortOrder = async (req, res) => {
     const { items } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
-      return ResponseHandler.error(res, '请提供要排序的项目', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '请提供要排序的项目', 'VALIDATION_ERROR', 400);
     }
 
     const connection = await pool.getConnection();

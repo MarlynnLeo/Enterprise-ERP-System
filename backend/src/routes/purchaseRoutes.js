@@ -89,6 +89,7 @@ router.get('/returns', authenticateToken, requirePermission('purchase:returns:vi
 router.get('/returns/:id', authenticateToken, requirePermission('purchase:returns:view'), purchaseReturnController.getReturn);
 router.post('/returns', authenticateToken, requirePermission('purchase:returns:create'), purchaseReturnController.createReturn);
 router.put('/returns/:id', authenticateToken, requirePermission('purchase:returns:update'), purchaseReturnController.updateReturn);
+router.delete('/returns/:id', authenticateToken, requirePermission('purchase:returns:update'), purchaseReturnController.deleteReturn);
 router.put('/returns/:id/status', authenticateToken, requirePermission('purchase:returns:update'), purchaseReturnController.updateReturnStatus);
 router.get('/returns-statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseReturnController.getReturnStats);
 
@@ -99,64 +100,64 @@ router.get('/statistics', authenticateToken, requirePermission('purchase:reports
 router.get(
   '/outsourced-processings',
   authenticateToken,
-  requirePermission('production:outsourced:view'),
+  requirePermission('purchase:processing:view'),
   outsourcedProcessingController.getProcessings
 );
 router.get(
   '/outsourced-processings/:id',
   authenticateToken,
-  requirePermission('production:outsourced:view'),
+  requirePermission('purchase:processing:view'),
   outsourcedProcessingController.getProcessing
 );
 router.post(
   '/outsourced-processings',
   authenticateToken,
-  requirePermission('production:outsourced:create'),
+  requirePermission('purchase:processing:create'),
   outsourcedProcessingController.createProcessing
 );
 router.put(
   '/outsourced-processings/:id',
   authenticateToken,
-  requirePermission('production:outsourced:update'),
+  requirePermission('purchase:processing:update'),
   outsourcedProcessingController.updateProcessing
 );
 router.delete(
   '/outsourced-processings/:id',
   authenticateToken,
-  requirePermission('production:outsourced:delete'),
+  requirePermission('purchase:processing:delete'),
   outsourcedProcessingController.deleteProcessing
 );
 router.put(
   '/outsourced-processings/:id/status',
   authenticateToken,
-  requirePermission('production:outsourced:update'),
+  requirePermission('purchase:processing:update'),
   outsourcedProcessingController.updateProcessingStatus
 );
 
 // 外委加工入库路由
-router.get('/outsourced-receipts', authenticateToken, requirePermission('production:outsourced:view'), outsourcedProcessingController.getReceipts);
+router.get('/outsourced-receipts', authenticateToken, requirePermission('purchase:processing-receipts:view'), outsourcedProcessingController.getReceipts);
 router.get(
   '/outsourced-receipts/:id',
   authenticateToken,
-  requirePermission('production:outsourced:view'),
+  requirePermission('purchase:processing-receipts:view'),
   outsourcedProcessingController.getReceipt
 );
 router.post(
   '/outsourced-receipts',
   authenticateToken,
-  requirePermission('production:outsourced:create'),
+  requirePermission('purchase:processing-receipts:create'),
   outsourcedProcessingController.createReceipt
 );
 router.put(
   '/outsourced-receipts/:id',
   authenticateToken,
-  requirePermission('production:outsourced:update'),
+  requirePermission('purchase:processing-receipts:edit'),
   outsourcedProcessingController.updateReceipt
 );
 router.put(
   '/outsourced-receipts/:id/status',
   authenticateToken,
-  requirePermission('production:outsourced:update'),
+  requirePermission('purchase:processing-receipts:edit'),
   outsourcedProcessingController.updateReceiptStatus
 );
 

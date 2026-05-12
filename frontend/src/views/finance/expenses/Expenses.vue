@@ -143,27 +143,27 @@
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleView(row)">查看</el-button>
-            <el-button 
-              v-if="['draft', 'rejected'].includes(row.status)" 
-              type="warning" size="small" link 
+            <el-button
+              v-if="['draft', 'rejected'].includes(row.status)"
+              type="warning" size="small" link
               @click="handleEdit(row)"
               v-permission="'finance:expenses:update'"
             >编辑</el-button>
             <el-button
-              v-if="['draft', 'rejected'].includes(row.status)" 
-              type="success" size="small" link 
+              v-if="['draft', 'rejected'].includes(row.status)"
+              type="success" size="small" link
               @click="handleSubmit(row)"
               v-permission="'finance:expenses:update'"
             >提交</el-button>
             <el-button
-              v-if="row.status === 'pending'" 
-              type="success" size="small" link 
+              v-if="row.status === 'pending'"
+              type="success" size="small" link
               @click="handleApprove(row)"
               v-permission="'finance:expenses:approve'"
             >审批</el-button>
-            <el-button 
-              v-if="row.status === 'approved'" 
-              type="primary" size="small" link 
+            <el-button
+              v-if="row.status === 'approved'"
+              type="primary" size="small" link
               @click="handlePay(row)"
               v-permission="'finance:expenses:pay'"
             >付款</el-button>
@@ -173,9 +173,9 @@
               @click="handleCancelExpense(row)"
               v-permission="'finance:expenses:update'"
             >取消</el-button>
-            <el-button v-permission="'finance:expenses:delete'" 
-              v-if="['draft', 'rejected', 'cancelled'].includes(row.status)" 
-              type="danger" size="small" link 
+            <el-button v-permission="'finance:expenses:delete'"
+              v-if="['draft', 'rejected', 'cancelled'].includes(row.status)"
+              type="danger" size="small" link
               @click="handleDelete(row)"
             >删除</el-button>
           </template>
@@ -203,10 +203,10 @@
       width="700px"
       :close-on-click-modal="false"
     >
-      <el-form 
-        :model="expenseForm" 
-        :rules="expenseRules" 
-        ref="expenseFormRef" 
+      <el-form
+        :model="expenseForm"
+        :rules="expenseRules"
+        ref="expenseFormRef"
         label-width="100px"
         :disabled="dialogMode === 'view'"
       >
@@ -234,9 +234,9 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="金额" prop="amount">
-              <el-input-number 
-                v-model="expenseForm.amount" 
-                :precision="2" 
+              <el-input-number
+                v-model="expenseForm.amount"
+                :precision="2"
                 :min="0.01"
                 :controls="false"
                 placeholder="请输入金额"
@@ -269,9 +269,9 @@
           </el-col>
         </el-row>
         <el-form-item label="费用说明">
-          <el-input 
-            v-model="expenseForm.description" 
-            type="textarea" 
+          <el-input
+            v-model="expenseForm.description"
+            type="textarea"
             :rows="3"
             placeholder="请输入费用说明"
           />
@@ -343,9 +343,9 @@
         </el-form-item>
         <el-form-item label="付款账户" prop="bank_account_id">
           <el-select v-model="payForm.bank_account_id" placeholder="选择付款账户" style="width: 100%">
-            <el-option 
-              v-for="account in bankAccounts" 
-              :key="account.id" 
+            <el-option
+              v-for="account in bankAccounts"
+              :key="account.id"
               :label="account.accountName || account.account_name || `账户${account.id}`"
               :value="account.id"
             />

@@ -50,7 +50,7 @@
       <el-form-item label="检验员" prop="inspector_name">
         <el-input v-model="form.inspector_name" placeholder="自动获取" disabled />
       </el-form-item>
-      
+
       <!-- 检验项目明细 -->
       <el-divider content-position="left">检验项目</el-divider>
       <el-table :data="form.items" border size="small" style="margin-bottom: 16px">
@@ -166,10 +166,10 @@ const autoCalcResult = () => {
   const items = form.value.items
   if (items.length === 0) return
   if (items.some(item => !item.result)) return
-  
+
   // 检查是否有不合格项
   const hasFailedItem = items.some(item => item.result === 'failed')
-  
+
   if (hasFailedItem) {
     form.value.first_article_result = 'failed'
     // 同时更新不合格数量

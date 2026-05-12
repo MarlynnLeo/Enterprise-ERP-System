@@ -37,7 +37,16 @@ export const qualityApi = {
     deleteFirstArticleRule: (id) => api.delete(`/quality/first-article-rules/${id}`),
 
     // 获取物料默认检验模板
-    getMaterialDefaultTemplate: (materialId) => api.get('/quality/templates', { params: { material_id: materialId, is_general: 0, status: 'active' } }),
+    getMaterialDefaultTemplate: (materialId, inspectionType = 'incoming') => api.get('/quality/templates', {
+        params: {
+            material_type: materialId,
+            inspection_type: inspectionType,
+            include_general: true,
+            status: 'active',
+            pageSize: 100,
+            page: 1
+        }
+    }),
     // 获取模板列表
     getTemplates: (params) => api.get('/quality/templates', { params }),
     // 获取模板详情
@@ -59,55 +68,19 @@ export const qualityApi = {
     createReusableItem: (data) => api.post('/quality/templates/reusable-items', data),
 
 
-    // 获取可追溯性记录
-    getTraceabilityRecords: (params) => api.get('/quality/traceability', { params }),
-    getTraceabilityRecord: (id) => api.get(`/quality/traceability/${id}`),
-    createTraceabilityRecord: (data) => api.post('/quality/traceability', data),
-    updateTraceabilityRecord: (id, data) => api.put(`/quality/traceability/${id}`, data),
-    deleteTraceabilityRecord: (id) => api.delete(`/quality/traceability/${id}`),
-
-    // 获取追溯记录关联的质检记录
-    getQualityRecords: async (traceabilityId) => {
-        try {
-            // 尝试直接使用关联API
-            const response = await api.get(`/quality/traceability/${traceabilityId}/quality`);
-            return response;
-        } catch (error) {
-            console.error('获取质检记录API调用失败:', error);
-            // 如果直接API调用失败，尝试获取追溯记录详情再查询相关质检记录
-            const traceResponse = await api.get(`/quality/traceability/${traceabilityId}`);
-            if (traceResponse.data) {
-                const traceData = traceResponse.data;
-                const batchNumber = traceData.batchNumber || traceData.batch_number;
-
-                if (batchNumber) {
-                    const inspectionResponse = await api.get(`/quality/inspections`, {
-                        params: { batch_no: batchNumber }
-                    });
-                    return inspectionResponse;
-                }
-            }
-            throw error;
-        }
-    },
+    // ==================== 追溯管理（已迁移至 /batch-traceability） ====================
+    // 以下方法已重定向到新版批次追溯API，旧版 /quality/traceability 路由不再存在
+    getTraceabilityRecords: (params) => api.get('/batch-traceability/latest-batches', { params }),
+    getTraceabilityRecord: (id) => api.get(`/batch-traceability/batch/details`, { params: { batchNumber: id } }),
 
     // 获取质检记录的检验项目详情
     getInspectionItems: async (inspectionId) => {
-        try {
-            const response = await api.get(`/quality/inspections/${inspectionId}/items`);
-            return response;
-        } catch (error) {
-            console.error(`获取检验单${inspectionId}的检验项目失败:`, error);
-            // 尝试备选API路径
-            const altResponse = await api.get(`/quality/inspection-items`, {
-                params: { inspection_id: inspectionId }
-            });
-            return altResponse;
-        }
+        const response = await api.get(`/quality/inspections/${inspectionId}/items`);
+        return response;
     },
 
-    // 获取全链路追溯数据
-    getFullTraceability: (data) => api.post('/quality/traceability/full', data),
+    // 获取全链路追溯数据（已迁移至 batch-traceability）
+    getFullTraceability: (data) => api.get('/batch-traceability/chain', { params: data }),
 
 
     // 获取质量检验数据统计信息
@@ -132,18 +105,13 @@ export const qualityApi = {
     // 根据批次号查询检验单详情（包括检验项目）
     getInspectionByBatchNo: (batchNo) => api.get(`/quality/inspections/batch/${batchNo}`),
 
-    // 批次号追溯相关API
-    getPurchaseByBatch: (batchNumber) => api.get(`/quality/traceability/purchase/${batchNumber}`),
-    getProductionByBatch: (batchNumber) => api.get(`/quality/traceability/production/${batchNumber}`),
-    getMaterialByBatch: (batchNumber) => api.get(`/quality/traceability/material/${batchNumber}`),
+    // 批次号追溯相关API（已迁移至 batch-traceability）
+    getPurchaseByBatch: (batchNumber) => api.get('/batch-traceability/chain', { params: { materialCode: batchNumber, direction: 'backward' } }),
+    getProductionByBatch: (batchNumber) => api.get('/batch-traceability/chain', { params: { materialCode: batchNumber, direction: 'forward' } }),
+    getMaterialByBatch: (batchNumber) => api.get('/batch-traceability/batch/details', { params: { batchNumber } }),
 
-    // （旧版单向创建物料追溯接口功能已移交控制台静默处理）
-    // 追溯图数据
-    getTraceabilityChart: (id) => api.get(`/quality/traceability/${id}/chart`),
-
-    // 自动生成追溯
-    generateAutoTraceability: () => api.post('/quality/traceability/auto-generate'),
-
+    // 追溯图数据（已迁移至 batch-traceability）
+    getTraceabilityChart: (id) => api.get('/batch-traceability/chain', { params: { batchNumber: id } }),
 
     // 过程检验规则配置
     getProcessInspectionRules: () => api.get('/quality/process-inspection/rules'),
@@ -228,4 +196,3 @@ export const eightDReportApi = {
     getStatistics: () => api.get('/eight-d-reports/statistics'),
     aiAnalyze: (data) => api.post('/eight-d-reports/ai-analyze', data, { timeout: 60000 })
 };
-

@@ -114,7 +114,7 @@ export default {
             component: () => import('../../views/system/BusinessAlerts.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'system:settings'
+                permission: 'system:business-alerts'
             }
         }
     ]

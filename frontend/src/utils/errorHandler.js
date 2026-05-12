@@ -12,11 +12,11 @@ import { ElMessage } from 'element-plus'
  */
 const parseErrorMessage = (error) => {
   let errorMsg = error.message || '未知错误'
-  
+
   // 从响应中提取错误信息
   if (error.response?.data) {
     const responseData = error.response.data
-    
+
     // 优先使用 error 字段
     if (responseData.error) {
       errorMsg = String(responseData.error)
@@ -30,40 +30,40 @@ const parseErrorMessage = (error) => {
       errorMsg = String(responseData.msg)
     }
   }
-  
+
   // 识别特定错误类型并提供友好提示
   if (errorMsg.includes('Duplicate entry') || errorMsg.includes('unique violation')) {
     return '数据重复，请检查输入内容'
   }
-  
+
   if (errorMsg.includes('foreign key constraint') || errorMsg.includes('violates foreign key')) {
     return '存在关联数据，无法删除'
   }
-  
+
   if (errorMsg.includes('timeout') || errorMsg.includes('ETIMEDOUT')) {
     return '请求超时，请检查网络连接后重试'
   }
-  
+
   if (errorMsg.includes('Network Error') || errorMsg.includes('ERR_NETWORK')) {
     return '网络连接失败，请检查网络设置'
   }
-  
+
   if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
     return '登录已过期，请重新登录'
   }
-  
+
   if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
     return '没有权限执行此操作'
   }
-  
+
   if (errorMsg.includes('404') || errorMsg.includes('Not Found')) {
     return '请求的资源不存在'
   }
-  
+
   if (errorMsg.includes('500') || errorMsg.includes('Internal Server Error')) {
     return '服务器内部错误，请稍后重试'
   }
-  
+
   return errorMsg
 }
 
@@ -83,7 +83,7 @@ export const handleApiError = (error, context = '操作', options = {}) => {
     logError = true,
     duration = 3000
   } = options
-  
+
   // 控制台记录完整错误信息（开发排障用）
   if (logError) {
     console.error(`${context}失败:`, error)
@@ -96,10 +96,10 @@ export const handleApiError = (error, context = '操作', options = {}) => {
       })
     }
   }
-  
+
   // 解析错误信息
   const errorMsg = parseErrorMessage(error)
-  
+
   // 显示用户友好的错误提示
   if (showMessage) {
     ElMessage.error({
@@ -108,7 +108,7 @@ export const handleApiError = (error, context = '操作', options = {}) => {
       showClose: true
     })
   }
-  
+
   return errorMsg
 }
 

@@ -666,7 +666,7 @@ const arController = {
         // 执行查询
         const [receivables] = await connection.execute(
           `
-          SELECT 
+          SELECT
             c.id AS customerId,
             c.name AS customerName,
             c.contact_person AS contactPerson,
@@ -677,7 +677,7 @@ const arController = {
             COALESCE(SUM(i.balance_amount), 0) AS balance,
             MAX(i.invoice_date) AS lastInvoiceDate
           FROM customers c
-          LEFT JOIN ar_invoices i ON c.id = i.customer_id 
+          LEFT JOIN ar_invoices i ON c.id = i.customer_id
             AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
           WHERE c.status = 'active' ${whereClause}
           GROUP BY c.id, c.name, c.contact_person, c.contact_phone
@@ -750,7 +750,7 @@ const arController = {
         // 获取该客户的所有未付清发票
         const [invoices] = await connection.execute(
           `
-          SELECT 
+          SELECT
             id,
             invoice_number AS invoiceNumber,
             invoice_date AS invoiceDate,
@@ -832,44 +832,44 @@ const arController = {
         // 执行查询，获取应收账款数据
         const [receivables] = await connection.execute(
           `
-          SELECT 
+          SELECT
             c.id AS customerId,
             c.name AS customerName,
             c.customer_type AS customerType,
             COALESCE(SUM(i.balance_amount), 0) AS totalAmount,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN i.balance_amount
+              ELSE 0
             END), 0) AS currentAmount,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount
+              ELSE 0
             END), 0) AS within30Days,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount
+              ELSE 0
             END), 0) AS within60Days,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN i.balance_amount
+              ELSE 0
             END), 0) AS within90Days,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) > 90 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) > 90 THEN i.balance_amount
+              ELSE 0
             END), 0) AS over90Days,
             c.contact_person AS contactPerson,
             COALESCE(c.contact_phone, c.phone) AS contactPhone
-          FROM 
+          FROM
             customers c
-          LEFT JOIN 
+          LEFT JOIN
             ar_invoices i ON c.id = i.customer_id AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
-          WHERE 
+          WHERE
             c.status = 'active' ${whereClause}
-          GROUP BY 
+          GROUP BY
             c.id, c.name, c.contact_person, c.contact_phone, c.phone
-          HAVING 
+          HAVING
             totalAmount > 0
-          ORDER BY 
+          ORDER BY
             totalAmount DESC
         `,
           params
@@ -924,37 +924,37 @@ const arController = {
         // 查询客户账龄数据
         const [aging] = await connection.execute(
           `
-          SELECT 
+          SELECT
             c.id AS customerId,
             c.name AS customerName,
             c.contact_person AS contactPerson,
             c.contact_phone AS contactPhone,
             'default' AS customerType,
             COALESCE(SUM(i.balance_amount), 0) AS totalAmount,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN i.balance_amount
+              ELSE 0
             END), 0) AS currentAmount,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount
+              ELSE 0
             END), 0) AS within30Days,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount
+              ELSE 0
             END), 0) AS within60Days,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN i.balance_amount
+              ELSE 0
             END), 0) AS within90Days,
-            COALESCE(SUM(CASE 
-              WHEN DATEDIFF(CURDATE(), i.due_date) > 90 THEN i.balance_amount 
-              ELSE 0 
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) > 90 THEN i.balance_amount
+              ELSE 0
             END), 0) AS over90Days,
             MAX(i.invoice_date) AS lastInvoiceDate,
             COUNT(i.id) AS invoiceCount
           FROM customers c
-          LEFT JOIN ar_invoices i ON c.id = i.customer_id 
+          LEFT JOIN ar_invoices i ON c.id = i.customer_id
             AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
           WHERE c.id = ? AND c.status = 'active'
           GROUP BY c.id, c.name, c.contact_person, c.contact_phone
@@ -969,7 +969,7 @@ const arController = {
         // 获取该客户的未付清发票明细
         const [invoices] = await connection.execute(
           `
-          SELECT 
+          SELECT
             id,
             invoice_number AS invoiceNumber,
             invoice_date AS invoiceDate,

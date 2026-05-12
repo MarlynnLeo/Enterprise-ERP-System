@@ -29,11 +29,11 @@
           />
         </el-form-item>
         <el-form-item label="发货状态">
-          <el-select 
-            v-model="searchForm.status" 
-            placeholder="全部状态" 
-            clearable 
-            @change="handleSearch" 
+          <el-select
+            v-model="searchForm.status"
+            placeholder="全部状态"
+            clearable
+            @change="handleSearch"
           >
             <el-option v-for="item in $dict.getOptions('delivery_status')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
@@ -201,7 +201,7 @@
           resizable
         >
           <template #default="{ row }">
-            <span :class="{ 
+            <span :class="{
               'text-green': (row.stock_quantity || 0) >= (row.unshipped_quantity || 0),
               'text-red': (row.stock_quantity || 0) < (row.unshipped_quantity || 0)
             }">
@@ -377,7 +377,7 @@
           </el-table-column>
           <el-table-column label="库存" width="100" header-align="center" align="right">
             <template #default="{ row }">
-              <span :class="{ 
+              <span :class="{
                 'text-green': (row.stock_quantity || 0) >= (row.unshipped_quantity || 0),
                 'text-red': (row.stock_quantity || 0) < (row.unshipped_quantity || 0)
               }">
@@ -425,8 +425,8 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="shippingDialogVisible = false">取消</el-button>
-          <el-button 
-            type="primary" 
+          <el-button
+            type="primary"
             @click="confirmShipping"
             :loading="shippingLoading"
           >
@@ -657,7 +657,7 @@ const getOutboundStatusType = (status, shippedQuantity) => {
   if (!shippedQuantity || shippedQuantity === 0) {
     return 'danger'
   }
-  
+
   const statusMap = {
     completed: 'success',
     pending: 'warning',
@@ -671,7 +671,7 @@ const getOutboundStatusText = (status, shippedQuantity) => {
   if (!shippedQuantity || shippedQuantity === 0) {
     return '未发货'
   }
-  
+
   const statusMap = {
     completed: '已完成',
     pending: '待出库',
@@ -765,7 +765,7 @@ const handleSingleShipping = (row) => {
     ElMessage.warning('请先完成当前发货操作')
     return
   }
-  
+
   isBatchShipping.value = false
   shippingItems.value = [{
     ...row,
@@ -782,12 +782,12 @@ const handleBatchShipping = () => {
     ElMessage.warning('请先完成当前发货操作')
     return
   }
-  
+
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请先选择要发货的订单项')
     return
   }
-  
+
   isBatchShipping.value = true
   shippingItems.value = selectedRows.value.map(row => ({
     ...row,
@@ -804,15 +804,15 @@ const handleShippingQuantityInput = (row) => {
     row.shipping_quantity = 0
     return
   }
-  
+
   // 转换为整数
   row.shipping_quantity = Math.floor(Number(row.shipping_quantity))
-  
+
   // 限制最小值
   if (row.shipping_quantity < 0) {
     row.shipping_quantity = 0
   }
-  
+
   // 限制最大值（不能超过未发数量和库存中的较小值）
   const maxQuantity = Math.min(row.unshipped_quantity, row.stock_quantity || 0)
   if (row.shipping_quantity > maxQuantity) {

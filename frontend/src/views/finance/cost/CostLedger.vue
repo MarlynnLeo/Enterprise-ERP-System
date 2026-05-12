@@ -75,7 +75,7 @@
               <template #default="scope">{{ formatCurrency(scope.row.unit_cost) }}</template>
             </el-table-column>
           </el-table>
-          <el-pagination 
+          <el-pagination
             v-model:current-page="pagination.page"
             v-model:page-size="pagination.pageSize"
             :total="pagination.total"
@@ -207,7 +207,7 @@
           </el-table-column>
           <el-table-column label="效率率" width="120" align="center">
             <template #default="scope">
-              <el-tag v-if="scope.row.efficiency_rate && scope.row.efficiency_rate > 0" 
+              <el-tag v-if="scope.row.efficiency_rate && scope.row.efficiency_rate > 0"
                       :type="scope.row.efficiency_rate <= 1 ? 'success' : 'danger'" size="small">
                 {{ (scope.row.efficiency_rate * 100).toFixed(0) }}%
               </el-tag>
@@ -241,8 +241,9 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Download } from '@element-plus/icons-vue';
-import api from '@/services/api';
+import api, { baseDataApi } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
+import { parseListData } from '@/utils/responseParser';
 
 const activeTab = ref('detail');
 const loading = ref(false);
@@ -295,8 +296,8 @@ const searchProducts = async (query) => {
     return;
   }
   try {
-    const res = await api.get('/baseData/materials', { params: { keyword: query, pageSize: 20 } });
-    productOptions.value = res.data?.data?.list || res.data?.list || [];
+    const res = await baseDataApi.getMaterials({ keyword: query, pageSize: 20 });
+    productOptions.value = parseListData(res, { enableLog: false });
   } catch (error) {
     console.error('搜索产品失败:', error);
   }

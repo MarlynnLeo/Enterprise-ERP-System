@@ -182,8 +182,8 @@ class PurchaseOrderStatusService {
 
       // 更新订单状态和完成百分比
       const updateOrderQuery = `
-        UPDATE purchase_orders 
-        SET 
+        UPDATE purchase_orders
+        SET
           status = ?,
           completion_percentage = ?,
           updated_at = CURRENT_TIMESTAMP
@@ -373,7 +373,7 @@ class PurchaseOrderStatusService {
     try {
       // 获取所有未完成的采购订单
       const ordersQuery = `
-        SELECT id FROM purchase_orders 
+        SELECT id FROM purchase_orders
         WHERE status NOT IN ('completed', 'cancelled')
       `;
 

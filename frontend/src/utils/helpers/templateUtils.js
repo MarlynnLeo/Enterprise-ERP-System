@@ -278,12 +278,12 @@ const BLANK_TEMPLATE = `<!DOCTYPE html>
   <div class="header">
     <h1>{{title}}</h1>
   </div>
-  
+
   <div class="info">
     <p>单据编号：{{document_no}}</p>
     <p>日期：{{date}}</p>
   </div>
-  
+
   <table>
     <thead>
       <tr>
@@ -304,7 +304,7 @@ const BLANK_TEMPLATE = `<!DOCTYPE html>
       {{/items}}
     </tbody>
   </table>
-  
+
   <div class="footer">
     <div class="signature-box">制单人：________________</div>
     <div class="signature-box">审核人：________________</div>

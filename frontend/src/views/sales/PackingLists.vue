@@ -130,7 +130,7 @@
                 <el-descriptions-item label="创建人">{{ props.row.created_by || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="备注" :span="3">{{ props.row.remark || '-' }}</el-descriptions-item>
               </el-descriptions>
-              
+
               <div class="products-title">装箱明细</div>
               <el-table :data="props.row.details" border style="width: 100%" table-layout="fixed">
                 <el-table-column prop="item_no" label="编号" width="120">
@@ -152,9 +152,9 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="packing_list_no" 
-          :width="getColumnWidth('packing_list_no', 150)" 
+        <el-table-column
+          prop="packing_list_no"
+          :width="getColumnWidth('packing_list_no', 150)"
           fixed
           sortable="custom"
           resizable>
@@ -177,8 +177,8 @@
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="customer_name" 
+        <el-table-column
+          prop="customer_name"
           :min-width="getColumnWidth('customer_name', 150)"
           resizable>
           <template #header>
@@ -195,9 +195,9 @@
             </el-popover>
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="sales_order_no" 
-          label="销售订单号" 
+        <el-table-column
+          prop="sales_order_no"
+          label="销售订单号"
           :width="getColumnWidth('sales_order_no', 150)"
           resizable>
           <template #default="scope">
@@ -207,9 +207,9 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="packing_date" 
-          label="装箱日期" 
+        <el-table-column
+          prop="packing_date"
+          label="装箱日期"
           :width="getColumnWidth('packing_date', 120)"
           sortable="custom"
           resizable>
@@ -400,10 +400,10 @@
               <el-table-column label="序号" type="index" width="60"></el-table-column>
               <el-table-column label="编号" width="120" align="center">
                 <template #default="scope">
-                  <el-input 
-                    v-model="scope.row.item_no" 
-                    placeholder="自动生成" 
-                    readonly 
+                  <el-input
+                    v-model="scope.row.item_no"
+                    placeholder="自动生成"
+                    readonly
                     style="width: 100%; text-align: center;"
                     class="item-no-input">
                   </el-input>
@@ -524,7 +524,7 @@
           <el-descriptions-item label="创建时间">{{ formatDate(currentPackingList.created_at) }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="3">{{ currentPackingList.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
-        
+
         <!-- 装箱明细列表 -->
         <div class="products-title">装箱明细</div>
         <el-table :data="currentPackingList.details" border style="width: 100%" table-layout="fixed">
@@ -549,7 +549,7 @@
   </div>
 </template>
 <script setup>
-// 
+//
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -568,12 +568,12 @@ import {
   Delete,
   Position
 } from '@element-plus/icons-vue'
-// 
+//
 const authStore = useAuthStore()
-// 
-const canUpdate = computed(() => authStore.hasPermission('sales:packinglists:update'))
-const canDelete = computed(() => authStore.hasPermission('sales:packinglists:delete'))
-// 
+//
+const canUpdate = computed(() => authStore.hasPermission('sales:packing:update'))
+const canDelete = computed(() => authStore.hasPermission('sales:packing:delete'))
+//
 const SEARCH_DEBOUNCE_DELAY = 300; // 搜索防抖延迟
 const DEFAULT_PAGE_SIZE = 20; // 默认分页大小
 // 数据定义
@@ -832,7 +832,7 @@ const debounce = (func, wait) => {
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
-  
+
   try {
     if (!query || query.trim().length === 0) {
       const defaultResults = await performSearchMaterials(baseDataApi, '', {
@@ -844,12 +844,12 @@ const searchProducts = async (query) => {
       }
       return;
     }
-    
+
     const searchResults = await performSearchMaterials(baseDataApi, query.trim(), {
       pageSize: SEARCH_CONFIG.REMOTE_SEARCH_PAGE_SIZE,
       includeAll: true
     });
-    
+
     if (searchId === currentSearchId) {
       productOptions.value = mapMaterialData(searchResults);
     }
@@ -957,7 +957,7 @@ const handleSortChange = ({ prop, order }) => {
     tableData.value.sort((a, b) => {
       const packingNoA = a.packing_list_no || '';
       const packingNoB = b.packing_list_no || '';
-      
+
       const comparison = packingNoA.localeCompare(packingNoB);
       return sortOrder === 'desc' ? -comparison : comparison;
     });
@@ -966,7 +966,7 @@ const handleSortChange = ({ prop, order }) => {
     tableData.value.sort((a, b) => {
       const packingDateA = a.packing_date;
       const packingDateB = b.packing_date;
-      
+
       const comparison = packingDateA.localeCompare(packingDateB);
       return sortOrder === 'desc' ? -comparison : comparison;
     });
@@ -975,7 +975,7 @@ const handleSortChange = ({ prop, order }) => {
     tableData.value.sort((a, b) => {
       const createdAtA = a.created_at;
       const createdAtB = b.created_at;
-      
+
       const comparison = createdAtA.localeCompare(createdAtB);
       return sortOrder === 'desc' ? -comparison : comparison;
     });
@@ -1028,7 +1028,7 @@ const handleEdit = async (row) => {
     const response = await salesApi.getPackingList(row.id);
     const packingListData = response.data;
     dialogType.value = 'edit';
-    
+
     // 先清空表单，避免数据混淆
     Object.keys(form).forEach(key => {
       if (key === 'details') {
@@ -1083,7 +1083,7 @@ const handleView = async (row) => {
     // 获取最新的装箱单详情
     const response = await salesApi.getPackingList(row.id)
     const packingListData = response.data
-    
+
     currentPackingList.value = packingListData
     detailsVisible.value = true
   } catch (error) {
@@ -1227,9 +1227,12 @@ const searchUnitByCode = async (index) => {
     ElMessage.error('搜索单位失败');
   }
 };
-// 客户变更处理;
-// 销售订单变更处理;
-// 重置表单;
+// 客户变更处理
+;
+// 销售订单变更处理
+;
+// 重置表单
+;
 // 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return;
@@ -1277,7 +1280,7 @@ const handleImport = () => {
           const lines = content.split('\n')
           const _headers = lines[0].split(',')
           ElMessage.success(`成功读取文件,共${lines.length - 1}行数据`)
-          
+
           // 实际项目中应该:
           // 1. 解析数据
           // 2. 验证数据格式

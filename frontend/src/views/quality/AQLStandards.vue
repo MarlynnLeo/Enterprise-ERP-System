@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>AQL 抽样标准库</span>
-          <el-button v-permission="'quality:settings:create'" type="primary" @click="handleAdd">
+          <el-button v-permission="'quality:aql:create'" type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>新增标准
           </el-button>
         </div>
@@ -14,7 +14,7 @@
       <div class="search-container">
         <el-row :gutter="20">
           <el-col :span="6">
-            <el-input 
+            <el-input
               v-model="searchKeyword"
               placeholder="搜索标准号/名称"
               clearable
@@ -67,7 +67,7 @@
             <span style="color: var(--color-danger); font-weight: bold">{{ scope.row.reject_limit }}</span>
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
             <el-tag :type="scope.row.status === 'active' ? 'success' : 'danger'">
@@ -85,8 +85,8 @@
         <el-table-column label="操作" fixed="right" min-width="150">
           <template #default="scope">
             <el-button size="small" type="primary" link @click="handleEdit(scope.row)"
-              v-permission="'quality:settings:update'">编辑</el-button>
-            <el-button v-permission="'quality:settings:delete'" size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
+              v-permission="'quality:aql:update'">编辑</el-button>
+            <el-button v-permission="'quality:aql:delete'" size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -119,9 +119,9 @@
         <el-form-item label="标准名称" prop="name">
           <el-input v-model="form.name" placeholder="标准规范的名称描述" />
         </el-form-item>
-        
+
         <el-divider>抽样字码基准</el-divider>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="AQL 级别" prop="aql_level">
@@ -177,7 +177,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-permission="isEdit ? 'quality:settings:update' : 'quality:settings:create'" type="primary" @click="handleSubmit" :loading="submitting">
+          <el-button v-permission="isEdit ? 'quality:aql:update' : 'quality:aql:create'" type="primary" @click="handleSubmit" :loading="submitting">
             确认
           </el-button>
         </span>
@@ -288,10 +288,10 @@ const handleDelete = (row) => {
 
 const handleSubmit = () => {
   if (!formRef.value) return;
-  
+
   formRef.value.validate(async (valid) => {
     if (!valid) return;
-    
+
     submitting.value = true;
     try {
       if (isEdit.value) {

@@ -305,20 +305,20 @@ const fetchData = async () => {
       unitName: searchForm.name,
       status: searchForm.status
     };
-    
+
     // 移除空值参数
     Object.keys(params).forEach(key => {
       if (params[key] === '' || params[key] === null || params[key] === undefined) {
         delete params[key];
       }
     });
-    
+
     const response = await baseDataApi.getUnits(params);
     const { data, total: totalCount } = parseResponseData(response);
-    
+
     tableData.value = data;
     total.value = totalCount || data.length;
-    
+
     // 注意：统计数据由 fetchStats() 独立获取全量数据计算，不再使用当前页数据
   } catch (error) {
     console.error('获取单位列表失败:', error);
@@ -405,7 +405,7 @@ const resetForm = () => {
   if (formRef.value) {
     formRef.value.resetFields();
   }
-  
+
   form.id = '';
   form.name = '';
   form.code = '';
@@ -422,7 +422,7 @@ const submitForm = () => {
         const submitData = { ...form };
         delete submitData.created_at;
         delete submitData.updated_at;
-        
+
         if (isEdit.value) {
           // 编辑
           await baseDataApi.updateUnit(form.id, submitData);

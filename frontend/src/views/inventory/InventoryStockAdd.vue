@@ -15,12 +15,12 @@
       width="600px"
       @close="handleClose"
     >
-      
+
       <!-- 表单 -->
-      <el-form 
-        :model="form" 
-        :rules="rules" 
-        ref="formRef" 
+      <el-form
+        :model="form"
+        :rules="rules"
+        ref="formRef"
         label-width="120px"
         label-position="right"
         class="stock-form"
@@ -67,20 +67,20 @@
             提示：输入至少2个字符开始搜索，支持物料编码、名称、规格搜索。系统将显示最匹配的前200条结果，如需查找更多，请输入更精确的关键词。
           </el-text>
         </el-form-item>
-        
+
         <el-form-item label="调整类型" prop="type">
           <el-select v-model="form.type" placeholder="选择调整类型" style="width: 100%">
             <el-option label="调整入库" value="in" />
             <el-option label="调整出库" value="out" />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="调整数量" prop="quantity">
-          <el-input-number 
-            v-model="form.quantity" 
-            :precision="2" 
-            :step="1" 
-            :min="form.type === 'out' ? 0.01 : 0.01" 
+          <el-input-number
+            v-model="form.quantity"
+            :precision="2"
+            :step="1"
+            :min="form.type === 'out' ? 0.01 : 0.01"
             style="width: 100%"
           />
           <div class="quantity-note" v-if="form.type === 'out'">
@@ -90,16 +90,16 @@
             调整入库时请输入正数，系统会自动增加库存
           </div>
         </el-form-item>
-        
+
         <el-form-item label="备注" prop="remark">
-          <el-input 
-            v-model="form.remark" 
-            type="textarea" 
-            :rows="3" 
+          <el-input
+            v-model="form.remark"
+            type="textarea"
+            :rows="3"
             placeholder="请输入备注信息"
           />
         </el-form-item>
-        
+
         <el-form-item>
           <el-button v-permission="'inventory:stock:edit'" type="primary" @click="submitForm" :loading="submitting">提交</el-button>
           <el-button @click="resetForm">重置</el-button>
@@ -167,7 +167,7 @@ const handleSelectFocus = () => {
 const doSearchMaterials = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true
-  
+
   try {
     if (!query || query.trim().length === 0) {
       // 首次加载或查询为空加载默认列表
@@ -216,7 +216,7 @@ const handleMaterialChange = (materialId) => {
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       submitting.value = true
@@ -226,7 +226,7 @@ const submitForm = async () => {
         if (form.type === 'out') {
           quantity = -Math.abs(quantity)
         }
-        
+
         // 验证选中的物料
         if (!selectedMaterial.value || !selectedMaterial.value.id) {
           ElMessage.error('请先选择物料')
@@ -251,7 +251,7 @@ const submitForm = async () => {
           remark: form.remark
         }
         await inventoryApi.adjustStock(data)
-        
+
         emit('success')
         emit('update:modelValue', false)
         resetForm()
@@ -282,7 +282,7 @@ const resetForm = () => {
   :deep(.el-dialog__body) {
     padding: 30px;
   }
-  
+
   :deep(.el-form-item) {
     margin-bottom: 22px;
   }

@@ -31,7 +31,7 @@
                     </el-form-item>
                   </el-col>
                 </el-row>
-                
+
                 <el-row :gutter="24">
                   <el-col :span="12">
                     <el-form-item label="计薪方式">
@@ -99,7 +99,7 @@
               </el-form>
             </el-card>
           </el-col>
-          
+
           <el-col :span="8">
              <el-card shadow="never" class="inner-card">
               <template #header>当前生效配置</template>
@@ -128,17 +128,17 @@
               <el-button v-permission="'finance:cost:update'" type="primary" size="small" @click="saveMappings" :loading="savingMappings">保存映射</el-button>
             </div>
           </template>
-          
+
           <el-table :data="glMappings" border style="width: 100%">
             <el-table-column prop="mapping_key" label="业务类型代码" width="180" />
             <el-table-column prop="mapping_name" label="业务名称" width="180" />
             <el-table-column prop="account_id" label="对应会计科目">
                <template #default="scope">
                  <el-select v-model="scope.row.account_id" placeholder="选择科目" style="width: 100%" filterable>
-                    <el-option 
-                      v-for="acc in glAccounts" 
-                      :key="acc.id" 
-                      :label="acc.account_code + ' ' + acc.account_name" 
+                    <el-option
+                      v-for="acc in glAccounts"
+                      :key="acc.id"
+                      :label="acc.account_code + ' ' + acc.account_name"
                       :value="acc.id"
                     >
                       <span style="float: left">{{ acc.account_code }}</span>
@@ -167,7 +167,7 @@
               <el-button v-permission="'finance:cost:create'" type="primary" size="small" @click="openReasonDialog()">新增原因</el-button>
             </div>
           </template>
-          
+
           <el-table :data="supplementReasons" border style="width: 100%" v-loading="reasonsLoading">
             <el-table-column prop="reason_name" label="原因名称" min-width="150" />
             <el-table-column prop="reason_code" label="原因代码" width="150" />
@@ -261,7 +261,7 @@
               </div>
             </div>
           </template>
-          
+
           <!-- 搜索区域 -->
           <el-form :inline="true" class="search-form" style="margin-bottom: 16px;">
             <el-form-item label="物料编码">
@@ -383,7 +383,7 @@
               </div>
             </div>
           </template>
-          
+
           <el-table :data="allocationRules" border style="width: 100%" v-loading="allocationRulesLoading">
             <el-table-column prop="priority" label="优先级" width="80" align="center" />
             <el-table-column prop="name" label="规则名称" min-width="150" />
@@ -500,7 +500,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import api from '@/services/api';
+import api, { baseDataApi } from '@/services/api';
+import { parseListData } from '@/utils/responseParser';
 
 const saving = ref(false);
 const activeTab = ref('config');
@@ -544,7 +545,7 @@ const loadSettings = async () => {
   try {
     const response = await api.get('/finance-enhancement/cost/settings');
     const data = response.data?.data || response.data;
-    
+
     // 更新表单数据
     settingsForm.costingMethod = data.costingMethod || 'weighted_average';
     settingsForm.wagePaymentMethod = data.wagePaymentMethod || 'hourly';
@@ -555,7 +556,7 @@ const loadSettings = async () => {
     settingsForm.fallbackLaborRatio = data.fallbackLaborRatio ?? 0.25;
     settingsForm.fallbackOverheadRatio = data.fallbackOverheadRatio ?? 0.15;
     settingsForm.description = data.description || '';
-    
+
     // 更新当前设置显示
     currentSettings.settingName = data.settingName || '默认成本配置';
     currentSettings.costingMethod = data.costingMethod || 'weighted_average';
@@ -583,12 +584,12 @@ const saveSettings = async () => {
       fallbackOverheadRatio: settingsForm.fallbackOverheadRatio,
       description: settingsForm.description
     });
-    
+
     // 更新当前设置显示
     currentSettings.costingMethod = settingsForm.costingMethod;
     currentSettings.wagePaymentMethod = settingsForm.wagePaymentMethod;
     currentSettings.updatedAt = new Date().toLocaleString('zh-CN');
-    
+
     ElMessage.success('设置保存成功');
   } catch (error) {
     console.error('保存设置失败:', error);
@@ -902,8 +903,8 @@ const searchMaterials = async (query) => {
   if (query) {
     materialsSearching.value = true;
     try {
-      const res = await api.get('/baseData/materials', { params: { keyword: query, pageSize: 20 } });
-      materialOptions.value = res.data?.data?.list || res.data?.data || [];
+      const res = await baseDataApi.getMaterials({ keyword: query, pageSize: 20 });
+      materialOptions.value = parseListData(res, { enableLog: false });
     } catch (e) {
       console.error('搜索物料失败', e);
     } finally {
@@ -932,8 +933,8 @@ const openAllocationRuleDialog = (row = null) => {
          name: row.product_name || `ID:${row.product_id}`
        });
     }
-    allocationRuleForm.value = { 
-      ...row, 
+    allocationRuleForm.value = {
+      ...row,
       rate: Number(row.rate),
       is_active: row.is_active === 1 || row.is_active === true
     };

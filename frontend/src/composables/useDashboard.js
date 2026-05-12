@@ -4,11 +4,11 @@
 
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { 
-  handleDashboardError, 
-  getDefaultStatistics, 
+import {
+  handleDashboardError,
+  getDefaultStatistics,
   retryApiCall,
-  debounce 
+  debounce
 } from '@/utils/dashboardUtils';
 
 /**
@@ -20,6 +20,7 @@ import {
 export function useDashboard(dashboardType, dataLoader, options = {}) {
   const {
     autoRefresh = true,
+    immediate = true,
     refreshInterval = 5 * 60 * 1000, // 5分钟
     retryCount = 3,
     showErrorMessage = true
@@ -30,7 +31,7 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
   const error = ref(null);
   const lastUpdated = ref(null);
   const statistics = reactive(getDefaultStatistics(dashboardType));
-  
+
   // 刷新相关
   const refreshTimer = ref(null);
   const isRefreshing = ref(false);
@@ -46,17 +47,17 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
 
     try {
       const data = await retryApiCall(dataLoader, retryCount);
-      
+
       // 更新统计数据
       Object.assign(statistics, data);
       lastUpdated.value = new Date();
-      
+
       return data;
     } catch (err) {
       error.value = err;
       const fallbackData = getDefaultStatistics(dashboardType);
       Object.assign(statistics, fallbackData);
-      
+
       handleDashboardError(err, dashboardType, fallbackData, showErrorMessage);
       throw err;
     } finally {
@@ -69,7 +70,7 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
    */
   const refresh = debounce(async () => {
     if (isRefreshing.value) return;
-    
+
     isRefreshing.value = true;
     try {
       await loadData(false);
@@ -86,7 +87,7 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
    */
   const startAutoRefresh = () => {
     if (!autoRefresh || refreshTimer.value) return;
-    
+
     refreshTimer.value = setInterval(() => {
       if (!document.hidden) { // 页面可见时才刷新
         loadData(false);
@@ -129,9 +130,11 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
   // 生命周期管理
   onMounted(async () => {
     try {
-      await loadData();
+      if (immediate) {
+        await loadData();
+      }
       startAutoRefresh();
-      
+
       // 监听页面可见性变化
       document.addEventListener('visibilitychange', handleVisibilityChange);
     } catch {
@@ -151,7 +154,7 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
     statistics,
     lastUpdated,
     isRefreshing,
-    
+
     // 方法
     loadData,
     refresh,
@@ -198,10 +201,10 @@ export function useCharts(chartRefs = {}) {
     try {
       // 确保DOM已更新
       await nextTick();
-      
+
       // 销毁现有图表
       destroyChart(chartName);
-      
+
       // 检查图表容器是否存在
       const chartRef = chartRefs[chartName];
       if (!chartRef?.value) {
@@ -227,7 +230,7 @@ export function useCharts(chartRefs = {}) {
       const initPromises = Object.entries(chartInitializers).map(
         ([chartName, initFunction]) => initChart(chartName, initFunction)
       );
-      
+
       await Promise.allSettled(initPromises);
       chartsReady.value = true;
     } catch (error) {
@@ -289,7 +292,7 @@ export function useCharts(chartRefs = {}) {
     // 数据
     chartInstances,
     chartsReady,
-    
+
     // 方法
     initChart,
     initAllCharts,
@@ -325,8 +328,8 @@ export function useDataFilter(dataSource, options = {}) {
     // 搜索过滤
     if (searchKeyword.value) {
       const keyword = searchKeyword.value.toLowerCase();
-      result = result.filter(item => 
-        searchFields.some(field => 
+      result = result.filter(item =>
+        searchFields.some(field =>
           String(item[field] || '').toLowerCase().includes(keyword)
         )
       );
@@ -337,14 +340,14 @@ export function useDataFilter(dataSource, options = {}) {
       result.sort((a, b) => {
         const aVal = a[sortField.value];
         const bVal = b[sortField.value];
-        
+
         if (typeof aVal === 'number' && typeof bVal === 'number') {
           return sortOrder.value === 'desc' ? bVal - aVal : aVal - bVal;
         }
-        
+
         const aStr = String(aVal || '');
         const bStr = String(bVal || '');
-        return sortOrder.value === 'desc' 
+        return sortOrder.value === 'desc'
           ? bStr.localeCompare(aStr)
           : aStr.localeCompare(bStr);
       });
@@ -404,7 +407,7 @@ export function useDataFilter(dataSource, options = {}) {
     filteredData,
     paginatedData,
     totalPages,
-    
+
     // 方法
     setSearchKeyword,
     setSort,

@@ -117,9 +117,9 @@ class InventoryConsistencyService {
   static async checkNegativeStock() {
     try {
       const [results] = await db.pool.execute(`
-        SELECT 
-          il.material_id, 
-          m.code as material_code, 
+        SELECT
+          il.material_id,
+          m.code as material_code,
           m.name as material_name,
           il.location_id,
           l.name as location_name,
@@ -146,7 +146,7 @@ class InventoryConsistencyService {
   static async checkQuantityConsistency() {
     try {
       const [results] = await db.pool.execute(`
-        SELECT 
+        SELECT
           id, material_id, location_id, transaction_type,
           quantity, before_quantity, after_quantity,
           (before_quantity + quantity) as expected_after

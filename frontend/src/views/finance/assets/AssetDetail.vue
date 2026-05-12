@@ -86,7 +86,7 @@
                 <el-empty v-if="changeLogs.length === 0" description="暂无变动记录"></el-empty>
               </el-timeline>
             </el-tab-pane>
-            
+
             <el-tab-pane label="折旧历史" name="depreciation">
               <el-table :data="depreciationHistory" v-loading="depHistoryLoading" style="width: 100%" size="small" border max-height="400">
                 <el-table-column prop="depreciation_date" label="折旧日期" width="100">
@@ -256,7 +256,7 @@ const goBack = () => {
 
 const loadAssetData = async () => {
   if (!assetId) return;
-  
+
   loading.value = true;
   try {
     const response = await api.get(`/finance/assets/${assetId}`);
@@ -272,7 +272,7 @@ const loadAssetData = async () => {
 
 const loadChangeLogs = async () => {
   if (!assetId) return;
-  
+
   logsLoading.value = true;
   try {
     const response = await api.get(`/finance/assets/${assetId}/change-logs`);
@@ -286,7 +286,7 @@ const loadChangeLogs = async () => {
 
 const loadDepreciationHistory = async () => {
   if (!assetId) return;
-  
+
   depHistoryLoading.value = true;
   try {
     const response = await api.get(`/finance/assets/${assetId}/depreciation-history`);
@@ -320,14 +320,14 @@ const openImpairmentDialog = () => {
 
 const submitImpairment = async () => {
   if (!impairmentFormRef.value) return;
-  
+
   await impairmentFormRef.value.validate(async (valid) => {
     if (valid) {
       if (impairmentForm.impairment_amount > assetInfo.netValue) {
         ElMessage.error('减值金额不能大于当前净值');
         return;
       }
-      
+
       submitLoading.value = true;
       try {
         await api.post(`/finance/assets/${assetId}/impairments`, impairmentForm);

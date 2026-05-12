@@ -114,20 +114,20 @@
         <el-table-column label="操作" min-width="200" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button 
-              link 
-              type="success" 
-              size="small" 
+            <el-button
+              link
+              type="success"
+              size="small"
               @click="confirmReceipt(row)"
               v-if="row.status === 'pending' || row.status === 'partial'"
               v-permission="'quality:replacement:update'"
             >
               收货确认
             </el-button>
-            <el-button 
-              link 
-              type="warning" 
-              size="small" 
+            <el-button
+              link
+              type="warning"
+              size="small"
               @click="editOrder(row)"
               v-if="row.status === 'pending' || row.status === 'partial'"
               v-permission="'quality:replacement:update'"

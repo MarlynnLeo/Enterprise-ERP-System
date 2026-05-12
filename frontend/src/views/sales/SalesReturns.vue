@@ -23,7 +23,7 @@
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
         <el-form-item label="退货单号/客户">
-          <el-input 
+          <el-input
             v-model="searchQuery"
             placeholder="退货单号/订单号/客户名称"
             @keyup.enter="handleSearch"
@@ -153,7 +153,7 @@
                 size="small"
                 type="success"
                 @click="handleApprove(scope.row)"
-              
+
               v-permission="'sales:returns:update'">
                 审批通过
               </el-button>
@@ -340,7 +340,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi } from '@/services/api'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import printService, { parseTemplateResponse } from '@/services/printService'
+import printService from '@/services/printService'
 // 退货单详情相关
 const detailsVisible = ref(false)
 const currentReturn = ref(null)
@@ -746,12 +746,6 @@ const handlePrintReturn = async () => {
   if (!currentReturn.value) return
   printLoading.value = true
   try {
-    const response = await printService.getPrintTemplateById(72)
-    const template = parseTemplateResponse(response)
-    if (!template || !template.content) {
-      ElMessage.error('未找到销售退货单打印模板，请在系统管理-打印模板中配置')
-      return
-    }
     const ret = currentReturn.value
     const printData = {
       return_no: ret.return_no || ret.returnNo || '',
@@ -770,7 +764,7 @@ const handlePrintReturn = async () => {
         remark: item.reason || item.remark || ''
       }))
     }
-    const html = printService.generatePrintContent(template, printData)
+    const html = await printService.generateByDefaultTemplate('sales', 'sales_return', printData)
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印退货单失败:', error)

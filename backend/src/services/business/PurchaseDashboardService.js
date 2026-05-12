@@ -32,7 +32,11 @@ class PurchaseDashboardService {
         COUNT(CASE WHEN status = 'submitted' THEN 1 END) as submitted,
         COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved,
         COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+        COUNT(CASE WHEN status = 'completed'
+          AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+          AND created_at < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+        THEN 1 END) as completed_this_month
       FROM purchase_requisitions
     `);
 
@@ -43,6 +47,7 @@ class PurchaseDashboardService {
       submitted: this.toNumber(rows[0].submitted),
       approved: this.toNumber(rows[0].approved),
       completed: this.toNumber(rows[0].completed),
+      completedThisMonth: this.toNumber(rows[0].completed_this_month),
     };
   }
 
@@ -121,23 +126,23 @@ class PurchaseDashboardService {
   async getTrendData(months = 6) {
     const [rows] = await this.pool.query(
       `
-      SELECT 
+      SELECT
         month,
         SUM(requisition_count) as requisition_count,
         SUM(order_count) as order_count,
         SUM(order_amount) as order_amount
       FROM (
-        SELECT 
+        SELECT
           DATE_FORMAT(created_at, '%Y-%m') as month,
           1 as requisition_count,
           0 as order_count,
           0 as order_amount
         FROM purchase_requisitions
         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
-        
+
         UNION ALL
-        
-        SELECT 
+
+        SELECT
           DATE_FORMAT(created_at, '%Y-%m') as month,
           0 as requisition_count,
           1 as order_count,
@@ -167,7 +172,7 @@ class PurchaseDashboardService {
   async getCategoryDistribution(months = 6, limit = 6) {
     const [rows] = await this.pool.query(
       `
-      SELECT 
+      SELECT
         COALESCE(c.name, '未分类') as category_name,
         COUNT(DISTINCT poi.order_id) as order_count,
         COALESCE(SUM(poi.quantity * poi.price), 0) as total_amount

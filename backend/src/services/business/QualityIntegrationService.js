@@ -117,12 +117,9 @@ class QualityIntegrationService {
     return Number(rows[0]?.count || 0) + 1;
   }
 
-  static buildReplacementBatchNumber(replacementOrder, receiptDate, sequence) {
-    const dateKey = this.toDateOnly(receiptDate).replace(/-/g, '');
-    const orderKey = String(replacementOrder.replacement_no || replacementOrder.id)
-      .replace(/[^A-Za-z0-9]/g, '')
-      .slice(-12);
-    return `RPL-${orderKey}-${dateKey}-${String(sequence).padStart(3, '0')}`;
+  static async buildReplacementBatchNumber(replacementOrder, receiptDate, sequence, connection) {
+    const { CodeGenerators } = require('../../utils/codeGenerator');
+    return await CodeGenerators.generateReplacementOrderCode(connection);
   }
 
   static async createReplacementReceipt(
@@ -152,7 +149,7 @@ class QualityIntegrationService {
     const purchaseReturn = await this.getPurchaseReturnContext(replacementOrder.return_no, connection);
     const receiptNo = await purchaseModel.generateReceiptNo(connection);
     const sequence = await this.nextReplacementReceiptSequence(replacementOrder.id, connection);
-    const batchNumber = this.buildReplacementBatchNumber(replacementOrder, receiptDate, sequence);
+    const batchNumber = await this.buildReplacementBatchNumber(replacementOrder, receiptDate, sequence, connection);
 
     const unitPrice =
       this.toNumber(orderContext.price, 0) ||

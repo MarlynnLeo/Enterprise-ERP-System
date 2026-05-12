@@ -1,575 +1,802 @@
-<!--
-/**
- * ProductionGantt.vue
- * @description 生产排程甘特图 — 可视化各组任务的时间分布
- * @date 2026-04-28
- * @version 1.0.0
- */
--->
 <template>
   <div class="production-gantt">
-    <!-- 页面标题 -->
     <div class="page-header">
-      <div class="page-header__left">
+      <div class="page-title">
         <h2>
           <el-icon><Calendar /></el-icon>
           排程甘特图
         </h2>
-        <span class="page-header__desc">按生产组展示任务时间分布，直观掌握产能负载</span>
+        <span>按生产组查看任务排程、延期和日期异常</span>
       </div>
-      <div class="page-header__right">
+      <div class="page-actions">
         <el-date-picker
           v-model="dateRange"
+          class="range-picker"
           type="daterange"
           range-separator="至"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
           value-format="YYYY-MM-DD"
           :shortcuts="dateShortcuts"
-          style="width: 300px"
+          :clearable="false"
           @change="fetchGanttData"
         />
-        <el-button :icon="Refresh" @click="fetchGanttData" :loading="loading">刷新</el-button>
+        <el-button :icon="Refresh" :loading="loading" @click="fetchGanttData">刷新</el-button>
+        <el-button type="primary" @click="goToTask">任务排程</el-button>
       </div>
     </div>
 
-    <!-- 统计信息 -->
-    <div class="gantt-stats" v-if="ganttData.groups.length > 0">
-      <div class="gantt-stat-item">
-        <span class="gantt-stat-value">{{ ganttData.groups.length }}</span>
-        <span class="gantt-stat-label">生产组</span>
+    <div class="gantt-summary" v-if="hasData || meta.generatedAt">
+      <div class="summary-item">
+        <strong>{{ groupCount }}</strong>
+        <span>生产组</span>
       </div>
-      <div class="gantt-stat-item">
-        <span class="gantt-stat-value">{{ totalTasks }}</span>
-        <span class="gantt-stat-label">任务数</span>
+      <div class="summary-item">
+        <strong>{{ totalTasks }}</strong>
+        <span>任务</span>
       </div>
-      <div class="gantt-stat-item">
-        <span class="gantt-stat-value accent">{{ activeTasks }}</span>
-        <span class="gantt-stat-label">进行中</span>
+      <div class="summary-item">
+        <strong>{{ activeTasks }}</strong>
+        <span>在制</span>
+      </div>
+      <div class="summary-item danger">
+        <strong>{{ overdueTasks }}</strong>
+        <span>逾期</span>
+      </div>
+      <div class="summary-item warning">
+        <strong>{{ dateIssueTasks }}</strong>
+        <span>日期异常</span>
+      </div>
+      <div class="summary-source">
+        来源：{{ meta.source?.primary || 'production_tasks' }}
       </div>
     </div>
 
-    <!-- 甘特图主体 -->
-    <div class="gantt-container" v-loading="loading">
-      <div v-if="ganttData.groups.length === 0 && !loading" class="gantt-empty">
-        <el-empty description="所选时间范围内没有排程数据">
+    <div class="gantt-shell" v-loading="loading">
+      <el-alert
+        v-if="errorMessage"
+        class="gantt-alert"
+        type="error"
+        :title="errorMessage"
+        show-icon
+        :closable="false"
+      />
+
+      <div v-if="!hasData && !loading" class="gantt-empty">
+        <el-empty description="所选时间范围内没有排程任务">
           <el-button type="primary" @click="goToTask">前往生产任务排程</el-button>
         </el-empty>
       </div>
 
-      <div v-else class="gantt-chart">
-        <!-- 时间刻度头 -->
+      <div v-else class="gantt-chart" :style="{ minWidth: chartMinWidth + 'px' }" ref="ganttChartRef">
         <div class="gantt-timeline">
-          <div class="gantt-group-label-header">生产组</div>
-          <div class="gantt-dates">
+          <div class="gantt-group-header">生产组</div>
+          <div class="gantt-days">
             <div
               v-for="day in dateColumns"
               :key="day.key"
-              class="gantt-date-col"
+              class="gantt-day"
               :class="{ weekend: day.isWeekend, today: day.isToday }"
+              :style="{ minWidth: dayColumnWidth + 'px', width: dayColumnWidth + 'px' }"
             >
-              <div class="gantt-date-weekday">{{ day.weekday }}</div>
-              <div class="gantt-date-day">{{ day.label }}</div>
+              <span>{{ day.weekday }}</span>
+              <strong>{{ day.label }}</strong>
             </div>
           </div>
         </div>
 
-        <!-- 各组行 -->
-        <div v-for="group in ganttData.groups" :key="group.name" class="gantt-group">
+        <div
+          v-for="group in ganttRows"
+          :key="group.name"
+          class="gantt-group"
+          :style="{ height: group.rowHeight + 'px' }"
+        >
           <div class="gantt-group-label">
             <el-icon><UserFilled /></el-icon>
             <span>{{ group.name }}</span>
-            <el-badge :value="group.tasks.length" type="info" />
+            <em>{{ group.tasks.length }}</em>
           </div>
-          <div class="gantt-group-bars">
-            <!-- 网格线 -->
+
+          <div class="gantt-group-body">
             <div class="gantt-grid">
               <div
                 v-for="day in dateColumns"
                 :key="day.key"
                 class="gantt-grid-col"
                 :class="{ weekend: day.isWeekend, today: day.isToday }"
+                :style="{ minWidth: dayColumnWidth + 'px', width: dayColumnWidth + 'px', flex: 'none' }"
               />
             </div>
-            <!-- 任务条 -->
-            <div
+
+            <button
               v-for="task in group.tasks"
               :key="task.id"
               class="gantt-bar"
-              :class="getStatusClass(task.status)"
+              :class="[getStatusClass(task.status), { overdue: task.isOverdue, issue: task.dateIssue }]"
               :style="getBarStyle(task)"
+              type="button"
               @mouseenter="showTooltip(task, $event)"
+              @mousemove="moveTooltip($event)"
               @mouseleave="hideTooltip"
             >
-              <span class="gantt-bar-text">{{ task.code }} · {{ task.productName }}</span>
-            </div>
+              <el-icon v-if="task.dateIssue || task.isOverdue"><WarningFilled /></el-icon>
+              <span>{{ task.code }} · {{ task.productName }}</span>
+            </button>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 图例 -->
-    <div class="gantt-legend" v-if="ganttData.groups.length > 0">
-      <div class="gantt-legend-item">
-        <span class="legend-dot status-preparing"></span>配料中
-      </div>
-      <div class="gantt-legend-item">
-        <span class="legend-dot status-material_issued"></span>已发料
-      </div>
-      <div class="gantt-legend-item">
-        <span class="legend-dot status-in_progress"></span>生产中
-      </div>
-      <div class="gantt-legend-item">
-        <span class="legend-dot status-inspection"></span>待检验
-      </div>
-      <div class="gantt-legend-item">
-        <span class="legend-dot status-completed"></span>已完成
-      </div>
-      <div class="gantt-legend-item">
-        <span class="legend-dot status-pending"></span>待处理
+      <div class="zoom-control" v-if="hasData">
+        <el-icon><ZoomIn /></el-icon>
+        <el-slider
+          v-model="dayColumnWidth"
+          :min="30"
+          :max="160"
+          :step="5"
+          :show-tooltip="false"
+          style="width: 120px;"
+        />
+        <span class="zoom-label">{{ dayColumnWidth }}px</span>
       </div>
     </div>
 
-    <!-- 悬浮提示 -->
+    <div class="gantt-legend" v-if="hasData">
+      <span v-for="status in legendStatuses" :key="status.value">
+        <i :class="getStatusClass(status.value)" />
+        {{ status.label }}
+      </span>
+      <span><i class="legend-overdue" /> 逾期</span>
+      <span><i class="legend-issue" /> 日期异常</span>
+    </div>
+
     <Teleport to="body">
       <div
         v-if="tooltip.visible"
         class="gantt-tooltip"
         :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
       >
-        <div class="gantt-tooltip-title">{{ tooltip.task?.code }}</div>
-        <div class="gantt-tooltip-row">产品：{{ tooltip.task?.productName }}</div>
-        <div class="gantt-tooltip-row">数量：{{ tooltip.task?.quantity }}</div>
-        <div class="gantt-tooltip-row">状态：{{ getStatusText(tooltip.task?.status) }}</div>
-        <div class="gantt-tooltip-row">开始：{{ formatDateTime(tooltip.task?.startTime) }}</div>
-        <div class="gantt-tooltip-row">结束：{{ formatDateTime(tooltip.task?.endTime) }}</div>
+        <div class="tooltip-title">{{ tooltip.task?.code }}</div>
+        <div>{{ tooltip.task?.productName || '-' }}</div>
+        <div>数量：{{ formatQuantity(tooltip.task) }}</div>
+        <div>状态：{{ getStatusText(tooltip.task?.status) }}</div>
+        <div>开始：{{ formatDateTime(tooltip.task?.startTime) }}</div>
+        <div>结束：{{ formatDateTime(tooltip.task?.endTime) }}</div>
+        <div v-if="tooltip.task?.planCode">计划：{{ tooltip.task.planCode }}</div>
+        <div v-if="tooltip.task?.deliveryDate">交期：{{ tooltip.task.deliveryDate }}</div>
+        <div v-if="tooltip.task?.isOverdue" class="tooltip-danger">已逾期</div>
+        <div v-if="tooltip.task?.dateIssue" class="tooltip-warning">计划结束早于开始</div>
       </div>
     </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Calendar, Refresh, UserFilled } from '@element-plus/icons-vue'
-import axios from '@/services/api'
+import { Calendar, Refresh, UserFilled, WarningFilled, ZoomIn } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
+import { productionApi } from '@/api/production'
 
 const router = useRouter()
 const loading = ref(false)
+const errorMessage = ref('')
 
-// 日期范围（默认近30天）
 const dateRange = ref([
   dayjs().subtract(7, 'day').format('YYYY-MM-DD'),
   dayjs().add(30, 'day').format('YYYY-MM-DD')
 ])
 
 const dateShortcuts = [
-  { text: '近7天', value: () => [dayjs().subtract(7, 'day').toDate(), dayjs().toDate()] },
+  { text: '近 7 天', value: () => [dayjs().subtract(7, 'day').toDate(), dayjs().toDate()] },
   { text: '本月', value: () => [dayjs().startOf('month').toDate(), dayjs().endOf('month').toDate()] },
-  { text: '未来30天', value: () => [dayjs().toDate(), dayjs().add(30, 'day').toDate()] },
-  { text: '近60天', value: () => [dayjs().subtract(30, 'day').toDate(), dayjs().add(30, 'day').toDate()] },
+  { text: '未来 30 天', value: () => [dayjs().toDate(), dayjs().add(30, 'day').toDate()] },
+  { text: '前后 30 天', value: () => [dayjs().subtract(30, 'day').toDate(), dayjs().add(30, 'day').toDate()] }
 ]
 
-// 甘特图数据
-const ganttData = ref({ groups: [], dateRange: { start: '', end: '' } })
+const ganttData = ref({
+  groups: [],
+  dateRange: { start: '', end: '' },
+  meta: {}
+})
 
-// 统计
-const totalTasks = computed(() => ganttData.value.groups.reduce((sum, g) => sum + g.tasks.length, 0))
-const activeTasks = computed(() => ganttData.value.groups.reduce((sum, g) => sum + g.tasks.filter(t => t.status === 'in_progress').length, 0))
+const statusMap = {
+  pending: { text: '待处理', className: 'status-pending' },
+  allocated: { text: '已分配', className: 'status-allocated' },
+  preparing: { text: '配料中', className: 'status-preparing' },
+  material_issuing: { text: '发料中', className: 'status-material_issuing' },
+  material_partial_issued: { text: '部分发料', className: 'status-material_partial_issued' },
+  material_issued: { text: '已发料', className: 'status-material_issued' },
+  in_progress: { text: '生产中', className: 'status-in_progress' },
+  paused: { text: '暂停', className: 'status-paused' },
+  inspection: { text: '待检验', className: 'status-inspection' },
+  warehousing: { text: '入库中', className: 'status-warehousing' },
+  completed: { text: '已完成', className: 'status-completed' }
+}
 
-// 日期列（天粒度）
+const legendStatuses = [
+  { value: 'pending', label: '待处理' },
+  { value: 'allocated', label: '已分配' },
+  { value: 'material_issued', label: '已发料' },
+  { value: 'in_progress', label: '生产中' },
+  { value: 'inspection', label: '待检验' },
+  { value: 'completed', label: '已完成' }
+]
+
+const meta = computed(() => ganttData.value.meta || {})
+const hasData = computed(() => ganttData.value.groups.some((group) => group.tasks.length > 0))
+const groupCount = computed(() => ganttData.value.groups.length)
+const totalTasks = computed(() => meta.value.totalTasks ?? sumTasks())
+const activeTasks = computed(() => meta.value.activeTasks ?? countTasks((task) => isActiveStatus(task.status)))
+const overdueTasks = computed(() => meta.value.overdueTasks ?? countTasks((task) => task.isOverdue))
+const dateIssueTasks = computed(() => meta.value.dateIssueTasks ?? countTasks((task) => task.dateIssue))
+
+const dayColumnWidth = ref(42)
+const chartMinWidth = computed(() => Math.max(920, dateColumns.value.length * dayColumnWidth.value + 160))
+
 const dateColumns = computed(() => {
-  if (!dateRange.value || dateRange.value.length < 2) return []
-  const start = dayjs(dateRange.value[0])
-  const end = dayjs(dateRange.value[1])
+  const [startValue, endValue] = dateRange.value || []
+  if (!startValue || !endValue) return []
+
+  const start = dayjs(startValue)
+  const end = dayjs(endValue)
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六']
   const days = []
-  const weekdayNames = ['日', '一', '二', '三', '四', '五', '六']
   let cursor = start
+
   while (cursor.isBefore(end) || cursor.isSame(end, 'day')) {
-    const dow = cursor.day()
+    const dayOfWeek = cursor.day()
     days.push({
       key: cursor.format('YYYY-MM-DD'),
       label: cursor.format('MM/DD'),
-      weekday: weekdayNames[dow],
-      isWeekend: dow === 0 || dow === 6,
-      isToday: cursor.isSame(dayjs(), 'day'),
+      weekday: weekdays[dayOfWeek],
+      isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+      isToday: cursor.isSame(dayjs(), 'day')
     })
     cursor = cursor.add(1, 'day')
   }
+
   return days
 })
 
-// 悬浮提示
+const ganttRows = computed(() => {
+  return ganttData.value.groups.map((group) => {
+    const tasks = assignLanes(group.tasks)
+    const laneCount = Math.max(1, ...tasks.map((task) => task.lane + 1))
+    return {
+      ...group,
+      tasks,
+      rowHeight: laneCount * 34 + 16
+    }
+  })
+})
+
 const tooltip = ref({ visible: false, x: 0, y: 0, task: null })
 
-function showTooltip(task, event) {
-  tooltip.value = {
-    visible: true,
-    x: event.clientX + 12,
-    y: event.clientY + 12,
-    task,
+function sumTasks() {
+  return ganttData.value.groups.reduce((sum, group) => sum + group.tasks.length, 0)
+}
+
+function countTasks(predicate) {
+  return ganttData.value.groups.reduce(
+    (sum, group) => sum + group.tasks.filter(predicate).length,
+    0
+  )
+}
+
+function isActiveStatus(status) {
+  return [
+    'preparing',
+    'material_issuing',
+    'material_partial_issued',
+    'material_issued',
+    'in_progress',
+    'inspection',
+    'warehousing'
+  ].includes(status)
+}
+
+function assignLanes(tasks) {
+  const lanes = []
+  return [...tasks]
+    .sort((a, b) => dayjs(a.startTime).valueOf() - dayjs(b.startTime).valueOf())
+    .map((task) => {
+      const start = dayjs(task.startTime).valueOf()
+      const end = Math.max(dayjs(task.endTime).valueOf(), start)
+      let lane = lanes.findIndex((laneEnd) => start >= laneEnd)
+
+      if (lane === -1) {
+        lane = lanes.length
+        lanes.push(end)
+      } else {
+        lanes[lane] = end
+      }
+
+      return { ...task, lane }
+    })
+}
+
+async function fetchGanttData() {
+  const [startDate, endDate] = dateRange.value || []
+  if (!startDate || !endDate) return
+
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    const response = await productionApi.getSchedulingGanttData({ startDate, endDate })
+    const data = response.data || response
+    ganttData.value = {
+      groups: Array.isArray(data.groups) ? data.groups : [],
+      dateRange: data.dateRange || { start: startDate, end: endDate },
+      meta: data.meta || {}
+    }
+  } catch (error) {
+    console.error('获取排程甘特图数据失败', error)
+    errorMessage.value = error.response?.data?.message || error.message || '获取排程数据失败'
+    ElMessage.error(errorMessage.value)
+    ganttData.value = { groups: [], dateRange: { start: startDate, end: endDate }, meta: {} }
+  } finally {
+    loading.value = false
   }
+}
+
+function getBarStyle(task) {
+  const [startValue, endValue] = dateRange.value || []
+  if (!startValue || !endValue || !task.startTime || !task.endTime) return { display: 'none' }
+
+  const rangeStart = dayjs(startValue).startOf('day')
+  const rangeEnd = dayjs(endValue).endOf('day')
+  const totalMs = rangeEnd.diff(rangeStart)
+  const taskStart = dayjs(task.startTime)
+  const taskEnd = dayjs(task.endTime)
+
+  if (!taskStart.isValid() || !taskEnd.isValid() || totalMs <= 0) {
+    return { display: 'none' }
+  }
+
+  const visibleStart = taskStart.isBefore(rangeStart) ? rangeStart : taskStart
+  const visibleEnd = taskEnd.isAfter(rangeEnd) ? rangeEnd : taskEnd
+  const leftPct = ((visibleStart.diff(rangeStart) / totalMs) * 100).toFixed(4)
+  const widthPct = Math.max((visibleEnd.diff(visibleStart) / totalMs) * 100, 0.7).toFixed(4)
+
+  return {
+    left: `${leftPct}%`,
+    width: `${widthPct}%`,
+    top: `${task.lane * 34 + 8}px`
+  }
+}
+
+function getStatusClass(status) {
+  return statusMap[status]?.className || 'status-pending'
+}
+
+function getStatusText(status) {
+  return statusMap[status]?.text || status || '-'
+}
+
+function showTooltip(task, event) {
+  tooltip.value = { visible: true, task, ...tooltipPosition(event) }
+}
+
+function moveTooltip(event) {
+  if (!tooltip.value.visible) return
+  Object.assign(tooltip.value, tooltipPosition(event))
 }
 
 function hideTooltip() {
   tooltip.value.visible = false
 }
 
-// 获取甘特图数据
-async function fetchGanttData() {
-  if (!dateRange.value || dateRange.value.length < 2) return
-  loading.value = true
-  try {
-    const res = await axios.get('/production/scheduling/gantt', {
-      params: {
-        startDate: dateRange.value[0],
-        endDate: dateRange.value[1],
-      },
-    })
-    if (res.data?.groups) {
-      ganttData.value = res.data
-    }
-  } catch (error) {
-    console.error('获取甘特图数据失败:', error)
-    ElMessage.error('获取排程数据失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 计算任务条的位置和宽度
-function getBarStyle(task) {
-  if (!dateRange.value || dateRange.value.length < 2) return {}
-  const rangeStart = dayjs(dateRange.value[0]).startOf('day')
-  const rangeEnd = dayjs(dateRange.value[1]).endOf('day')
-  const totalDays = rangeEnd.diff(rangeStart, 'day') + 1
-
-  const taskStart = dayjs(task.startTime)
-  const taskEnd = dayjs(task.endTime)
-
-  // 限制在可视范围内
-  const visibleStart = taskStart.isBefore(rangeStart) ? rangeStart : taskStart
-  const visibleEnd = taskEnd.isAfter(rangeEnd) ? rangeEnd : taskEnd
-
-  const leftDays = visibleStart.diff(rangeStart, 'day', true)
-  const widthDays = Math.max(visibleEnd.diff(visibleStart, 'day', true), 0.3)
-
-  const leftPct = (leftDays / totalDays) * 100
-  const widthPct = (widthDays / totalDays) * 100
-
+function tooltipPosition(event) {
+  const width = 320
+  const height = 220
+  const x = Math.min(event.clientX + 14, window.innerWidth - width - 12)
+  const y = Math.min(event.clientY + 14, window.innerHeight - height - 12)
   return {
-    left: `${leftPct}%`,
-    width: `${Math.max(widthPct, 1)}%`,
+    x: Math.max(12, x),
+    y: Math.max(12, y)
   }
 }
 
-// 状态样式
-function getStatusClass(status) {
-  return `status-${status || 'pending'}`
+function formatDateTime(value) {
+  return value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-'
 }
 
-function getStatusText(status) {
-  const map = {
-    pending: '待处理', allocated: '分配中', preparing: '配料中',
-    material_issuing: '发料中', material_issued: '已发料',
-    in_progress: '生产中', inspection: '待检验',
-    warehousing: '入库中', completed: '已完成',
-  }
-  return map[status] || status
-}
-
-function formatDateTime(dt) {
-  if (!dt) return '—'
-  return dayjs(dt).format('YYYY-MM-DD HH:mm')
+function formatQuantity(task) {
+  if (!task) return '-'
+  return `${task.quantity ?? 0}${task.unitName ? ` ${task.unitName}` : ''}`
 }
 
 function goToTask() {
   router.push('/production/task')
 }
 
-onMounted(() => {
-  fetchGanttData()
-})
+onMounted(fetchGanttData)
 </script>
 
 <style scoped>
 .production-gantt {
-  padding: 20px;
-  background: #f5f7fa;
   min-height: calc(100vh - 60px);
+  padding: 16px;
+  background: var(--el-fill-color-lighter);
 }
 
 .page-header {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
 }
 
-.page-header__left h2 {
+.page-title h2 {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0 0 4px;
   font-size: 20px;
-  color: #1a1a1a;
+  color: var(--el-text-color-primary);
 }
 
-.page-header__desc {
+.page-title span {
+  color: var(--el-text-color-secondary);
   font-size: 13px;
-  color: #909399;
 }
 
-.page-header__right {
+.page-actions {
   display: flex;
-  gap: 10px;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-/* 统计条 */
-.gantt-stats {
+.range-picker {
+  width: 300px;
+  max-width: 100%;
+}
+
+.zoom-control {
   display: flex;
-  gap: 24px;
-  padding: 14px 20px;
-  background: #fff;
-  border-radius: 10px;
-  margin-bottom: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  color: var(--el-text-color-regular);
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  background: var(--el-bg-color);
+  border-top: 1px solid var(--el-border-color-lighter);
+  z-index: 9;
 }
 
-.gantt-stat-item {
+.zoom-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  min-width: 36px;
+}
+
+.gantt-summary {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.summary-item {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 5px;
+  min-width: 68px;
 }
 
-.gantt-stat-value {
-  font-size: 22px;
-  font-weight: 700;
-  color: #303133;
+.summary-item strong {
+  color: var(--el-text-color-primary);
+  font-size: 20px;
 }
 
-.gantt-stat-value.accent { color: #00b894; }
-.gantt-stat-label { font-size: 13px; color: #909399; }
+.summary-item span,
+.summary-source {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
 
-/* 甘特图容器 */
-.gantt-container {
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+.summary-item.danger strong {
+  color: var(--el-color-danger);
+}
+
+.summary-item.warning strong {
+  color: var(--el-color-warning);
+}
+
+.summary-source {
+  margin-left: auto;
+}
+
+.gantt-shell {
+  min-height: 360px;
   overflow-x: auto;
-  min-height: 300px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
-.gantt-chart {
-  min-width: 900px;
-}
-
-/* 时间刻度头 */
-.gantt-timeline {
-  display: flex;
-  border-bottom: 2px solid #e4e7ed;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #fafbfc;
-}
-
-.gantt-group-label-header {
-  width: 140px;
-  min-width: 140px;
-  padding: 10px 16px;
-  font-weight: 600;
-  color: #606266;
-  font-size: 13px;
-  border-right: 1px solid #e4e7ed;
-  display: flex;
-  align-items: center;
-}
-
-.gantt-dates {
-  display: flex;
-  flex: 1;
-}
-
-.gantt-date-col {
-  flex: 1;
-  min-width: 36px;
-  text-align: center;
-  padding: 6px 2px;
-  font-size: 11px;
-  color: #909399;
-  border-right: 1px solid #f0f2f5;
-}
-
-.gantt-date-col.weekend {
-  background: #fef6f6;
-  color: #f56c6c;
-}
-
-.gantt-date-col.today {
-  background: #e8f5e9;
-  color: #00b894;
-  font-weight: 700;
-}
-
-.gantt-date-weekday { font-size: 10px; }
-.gantt-date-day { font-size: 11px; font-weight: 600; margin-top: 2px; }
-
-/* 组行 */
-.gantt-group {
-  display: flex;
-  border-bottom: 1px solid #f0f2f5;
-  min-height: 48px;
-}
-
-.gantt-group:hover {
-  background: #fafbfc;
-}
-
-.gantt-group-label {
-  width: 140px;
-  min-width: 140px;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #303133;
-  border-right: 1px solid #e4e7ed;
-  background: #fafbfc;
-}
-
-.gantt-group-bars {
-  flex: 1;
-  position: relative;
-  padding: 6px 0;
-}
-
-/* 网格 */
-.gantt-grid {
-  display: flex;
-  position: absolute;
-  inset: 0;
-}
-
-.gantt-grid-col {
-  flex: 1;
-  border-right: 1px solid #f5f7fa;
-}
-
-.gantt-grid-col.weekend { background: rgba(245, 108, 108, 0.03); }
-.gantt-grid-col.today { background: rgba(0, 184, 148, 0.06); }
-
-/* 任务条 */
-.gantt-bar {
-  position: relative;
-  height: 28px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  margin: 2px 0;
-  cursor: pointer;
-  transition: all .2s;
-  z-index: 2;
-  box-shadow: 0 1px 3px rgba(0,0,0,.1);
-}
-
-.gantt-bar:hover {
-  transform: scaleY(1.15);
-  box-shadow: 0 3px 8px rgba(0,0,0,.15);
-  z-index: 5;
-}
-
-.gantt-bar-text {
-  font-size: 11px;
-  font-weight: 500;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 状态颜色 */
-.status-pending { background: linear-gradient(135deg, #b2bec3, #95a5a6); }
-.status-allocated { background: linear-gradient(135deg, #74b9ff, #0984e3); }
-.status-preparing { background: linear-gradient(135deg, #fdcb6e, #f39c12); }
-.status-material_issuing { background: linear-gradient(135deg, #ffeaa7, #fdcb6e); }
-.status-material_issued { background: linear-gradient(135deg, #55efc4, #00b894); }
-.status-material_partial_issued { background: linear-gradient(135deg, #81ecec, #00cec9); }
-.status-in_progress { background: linear-gradient(135deg, #a29bfe, #6c5ce7); }
-.status-inspection { background: linear-gradient(135deg, #fd79a8, #e84393); }
-.status-warehousing { background: linear-gradient(135deg, #fab1a0, #e17055); }
-.status-completed { background: linear-gradient(135deg, #00b894, #00816a); }
-
-/* 图例 */
-.gantt-legend {
-  display: flex;
-  gap: 20px;
-  padding: 12px 20px;
-  margin-top: 12px;
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.05);
-}
-
-.gantt-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #606266;
-}
-
-.legend-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  display: inline-block;
-}
-
-.legend-dot.status-preparing { background: #f39c12; }
-.legend-dot.status-material_issued { background: #00b894; }
-.legend-dot.status-in_progress { background: #6c5ce7; }
-.legend-dot.status-inspection { background: #e84393; }
-.legend-dot.status-completed { background: #00816a; }
-.legend-dot.status-pending { background: #95a5a6; }
-
-/* 悬浮提示 */
-.gantt-tooltip {
-  position: fixed;
-  z-index: 9999;
-  background: rgba(30, 30, 30, 0.92);
-  color: #fff;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  pointer-events: none;
-  box-shadow: 0 4px 12px rgba(0,0,0,.3);
-  backdrop-filter: blur(8px);
-  max-width: 280px;
-}
-
-.gantt-tooltip-title {
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 6px;
-  color: #55efc4;
-}
-
-.gantt-tooltip-row {
-  padding: 2px 0;
-  opacity: .9;
+.gantt-alert {
+  margin: 12px;
+  width: auto;
 }
 
 .gantt-empty {
   display: flex;
-  justify-content: center;
   align-items: center;
-  min-height: 400px;
+  justify-content: center;
+  min-height: 360px;
+}
+
+.gantt-chart {
+  position: relative;
+}
+
+.gantt-timeline,
+.gantt-group {
+  display: flex;
+}
+
+.gantt-timeline {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  border-bottom: 1px solid var(--el-border-color);
+  background: var(--el-fill-color-light);
+}
+
+.gantt-group-header,
+.gantt-group-label {
+  width: 150px;
+  min-width: 150px;
+  border-right: 1px solid var(--el-border-color-lighter);
+}
+
+.gantt-group-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+}
+
+.gantt-days {
+  display: flex;
+  flex: 1;
+}
+
+.gantt-day {
+  flex: none;
+  padding: 6px 2px;
+  text-align: center;
+  border-right: 1px solid var(--el-border-color-extra-light);
+  color: var(--el-text-color-secondary);
+}
+
+.gantt-day span,
+.gantt-day strong {
+  display: block;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.gantt-day.today {
+  background: #e8f4ff;
+  color: #1d6fb8;
+}
+
+.gantt-day.weekend {
+  background: #fff7ed;
+  color: #b45309;
+}
+
+.gantt-group {
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+
+.gantt-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-blank);
+}
+
+.gantt-group-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gantt-group-label em {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 999px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.gantt-group-body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.gantt-grid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.gantt-grid-col {
+  flex: none;
+  border-right: 1px solid var(--el-border-color-extra-light);
+}
+
+.gantt-grid-col.today {
+  background: rgba(64, 158, 255, 0.08);
+}
+
+.gantt-grid-col.weekend {
+  background: rgba(230, 162, 60, 0.06);
+}
+
+.gantt-bar {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  min-width: 16px;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.gantt-bar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.gantt-bar:hover {
+  z-index: 5;
+  filter: brightness(1.04);
+}
+
+.gantt-bar.overdue {
+  outline: 2px solid rgba(245, 108, 108, 0.55);
+  outline-offset: 1px;
+}
+
+.gantt-bar.issue {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.2) 0,
+    rgba(255, 255, 255, 0.2) 6px,
+    rgba(0, 0, 0, 0.08) 6px,
+    rgba(0, 0, 0, 0.08) 12px
+  );
+}
+
+.status-pending { background: #737373; }
+.status-allocated { background: #2563eb; }
+.status-preparing { background: #b45309; }
+.status-material_issuing { background: #d97706; }
+.status-material_partial_issued { background: #0f766e; }
+.status-material_issued { background: #0284c7; }
+.status-in_progress { background: #16a34a; }
+.status-paused { background: #dc2626; }
+.status-inspection { background: #7c3aed; }
+.status-warehousing { background: #c2410c; }
+.status-completed { background: #15803d; }
+
+.gantt-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 10px 2px 0;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+}
+
+.gantt-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gantt-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.legend-overdue {
+  background: var(--el-color-danger);
+}
+
+.legend-issue {
+  background: repeating-linear-gradient(
+    135deg,
+    #f59e0b 0,
+    #f59e0b 5px,
+    #92400e 5px,
+    #92400e 10px
+  );
+}
+
+.gantt-tooltip {
+  position: fixed;
+  z-index: 9999;
+  width: 300px;
+  padding: 10px 12px;
+  color: #f8fafc;
+  background: rgba(17, 24, 39, 0.94);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.tooltip-title {
+  margin-bottom: 4px;
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.tooltip-danger {
+  color: #fca5a5;
+}
+
+.tooltip-warning {
+  color: #fcd34d;
+}
+
+@media (max-width: 768px) {
+  .production-gantt {
+    padding: 12px;
+  }
+
+  .page-header,
+  .gantt-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-actions {
+    justify-content: flex-start;
+  }
+
+  .range-picker {
+    width: 100%;
+  }
+
+  .summary-source {
+    margin-left: 0;
+  }
 }
 </style>

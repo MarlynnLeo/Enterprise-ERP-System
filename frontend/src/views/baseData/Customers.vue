@@ -385,10 +385,10 @@ const handleDelete = async (row) => {
     fetchData();
   } catch (error) {
     console.error('删除客户失败:', error);
-    
+
     // 提取更详细的错误信息
     let errorMessage = '删除客户失败';
-    
+
     if (error.response) {
       if (error.response.data && error.response.data.message) {
         errorMessage = `删除失败: ${error.response.data.message}`;
@@ -402,7 +402,7 @@ const handleDelete = async (row) => {
     } else if (error.request) {
       errorMessage = '服务器无响应，请检查网络连接';
     }
-    
+
     ElMessage.error(errorMessage);
   }
 };

@@ -33,27 +33,17 @@ const createReinspectionTask = async (task, connection) => {
     if (originalRows.length === 0) return;
     const origin = originalRows[0];
 
-    // 生成新的复检单号 (例如：在原主单号加 R 标记，或者生成全新的)
-    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-    const prefix = `${origin.inspection_type === 'incoming' ? 'IQC' : origin.inspection_type === 'process' ? 'PQC' : 'FQC'}${dateStr}`;
-
-    const [maxNoResult] = await connection.query(
-      'SELECT MAX(inspection_no) as max_no FROM quality_inspections WHERE inspection_no LIKE ?',
-      [`${prefix}%`]
-    );
-    let sequence = 1;
-    if (maxNoResult[0].max_no) {
-      sequence = parseInt(maxNoResult[0].max_no.slice(-3)) + 1;
-    }
-    const newInspectionNo = `${prefix}${sequence.toString().padStart(3, '0')}`;
+    // 生成新的复检单号 — 使用统一编码引擎
+    const { CodeGenerators } = require('../../../utils/codeGenerator');
+    const newInspectionNo = await CodeGenerators.generateInspectionCode(connection);
 
     // 插入复检主单 (继承原单的大部分信息，数量为返工合格返工数)
     const [insertResult] = await connection.query(`
       INSERT INTO quality_inspections (
-        inspection_no, inspection_type, reference_no, reference_id, 
+        inspection_no, inspection_type, reference_no, reference_id,
         material_id, product_id, product_code, product_name,
-        quantity, unit, planned_date, status, note, template_id, batch_no
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+        quantity, unit, unit_id, planned_date, status, note, template_id, batch_no
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
     `, [
       newInspectionNo,
       origin.inspection_type,
@@ -65,6 +55,7 @@ const createReinspectionTask = async (task, connection) => {
       origin.product_name,
       task.quantity,
       origin.unit || '个',
+      origin.unit_id || null,
       new Date(), // 复检计划日期为当天
       `自动创建：由返工任务 ${task.rework_no} (不良品单 ${task.ncp_no}) 触发的返工复检`,
       origin.template_id,
@@ -183,7 +174,7 @@ const getReworkTasks = async (req, res) => {
 
     // 查询列表数据
     const dataQuery = appendPaginationSQL(`
-      SELECT 
+      SELECT
         rt.*,
         ncp.inspection_no,
         ncp.defect_description
@@ -195,7 +186,7 @@ const getReworkTasks = async (req, res) => {
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(dataQuery, queryParams);
 
-    res.json({
+    return ResponseHandler.success(res, {
       data: rows,
       pagination: {
         total,
@@ -267,7 +258,7 @@ const updateReworkTask = async (req, res) => {
       checkResult[0].status === STATUS.REWORK.CANCELLED
     ) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成或已取消的返工任务不能修改', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已完成或已取消的返工任务不能修改', 'VALIDATION_ERROR', 400);
     }
 
     // 更新返工任务
@@ -279,7 +270,7 @@ const updateReworkTask = async (req, res) => {
     );
 
     await connection.commit();
-    res.json({ message: '返工任务更新成功' });
+    return ResponseHandler.success(res, null, '返工任务更新成功');
   } catch (error) {
     await connection.rollback();
     logger.error('更新返工任务失败:', error);
@@ -315,7 +306,7 @@ const assignTask = async (req, res) => {
       checkResult[0].status === STATUS.REWORK.CANCELLED
     ) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成或已取消的返工任务不能分配', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已完成或已取消的返工任务不能分配', 'VALIDATION_ERROR', 400);
     }
 
     // 分配任务
@@ -327,7 +318,7 @@ const assignTask = async (req, res) => {
     );
 
     await connection.commit();
-    res.json({ message: '任务分配成功' });
+    return ResponseHandler.success(res, null, '任务分配成功');
   } catch (error) {
     await connection.rollback();
     logger.error('分配返工任务失败:', error);
@@ -350,7 +341,7 @@ const completeTask = async (req, res) => {
 
     // 获取返工任务信息 (带上ncp单等信息以便复检使用)
     const [tasks] = await connection.query(`
-      SELECT rt.*, ncp.ncp_no, ncp.inspection_id 
+      SELECT rt.*, ncp.ncp_no, ncp.inspection_id
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       WHERE rt.id = ?
@@ -365,17 +356,17 @@ const completeTask = async (req, res) => {
 
     if (task.status === STATUS.REWORK.COMPLETED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '该返工任务已完成', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '该返工任务已完成', 'VALIDATION_ERROR', 400);
     }
 
     if (task.status === STATUS.REWORK.CANCELLED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已取消的返工任务不能完成', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已取消的返工任务不能完成', 'VALIDATION_ERROR', 400);
     }
 
     if (task.status !== STATUS.REWORK.IN_PROGRESS) {
       await connection.rollback();
-      return ResponseHandler.error(res, '返工任务必须先分配并进入进行中后才能完成', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '返工任务必须先分配并进入进行中后才能完成', 'VALIDATION_ERROR', 400);
     }
 
     // 完成返工任务
@@ -407,7 +398,7 @@ const completeTask = async (req, res) => {
     await createReinspectionTask(task, connection);
 
     await connection.commit();
-    res.json({ message: '返工任务完成' });
+    return ResponseHandler.success(res, null, '返工任务完成');
   } catch (error) {
     await connection.rollback();
     logger.error('完成返工任务失败:', error);
@@ -433,14 +424,14 @@ const updateStatus = async (req, res) => {
     const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 🔒 闭环保护：completed 状态必须走正规流程（复检单 + 质量成本）
     if (status === 'completed') {
       // 获取完整任务信息（含 NCP 关联数据，用于创建复检单）
       const [tasks] = await connection.query(`
-        SELECT rt.*, ncp.ncp_no, ncp.inspection_id 
+        SELECT rt.*, ncp.ncp_no, ncp.inspection_id
         FROM rework_tasks rt
         LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
         WHERE rt.id = ?
@@ -455,17 +446,17 @@ const updateStatus = async (req, res) => {
 
       if (task.status === STATUS.REWORK.COMPLETED) {
         await connection.rollback();
-        return ResponseHandler.error(res, '该返工任务已完成', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '该返工任务已完成', 'VALIDATION_ERROR', 400);
       }
 
       if (task.status === STATUS.REWORK.CANCELLED) {
         await connection.rollback();
-        return ResponseHandler.error(res, '已取消的返工任务不能完成', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '已取消的返工任务不能完成', 'VALIDATION_ERROR', 400);
       }
 
       if (task.status !== STATUS.REWORK.IN_PROGRESS) {
         await connection.rollback();
-        return ResponseHandler.error(res, '返工任务必须先进入进行中后才能完成', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '返工任务必须先进入进行中后才能完成', 'VALIDATION_ERROR', 400);
       }
 
       // 更新状态为已完成
@@ -576,7 +567,7 @@ const updateProgress = async (req, res) => {
     // 检查返工任务是否存在 (获取 ncp 信息以便自动完成时创建复检单)
     const [checkResult] = await connection.query(`
       SELECT rt.status, rt.quantity, rt.rework_no, rt.created_by, rt.assigned_to, rt.material_code,
-             ncp.ncp_no, ncp.inspection_id 
+             ncp.ncp_no, ncp.inspection_id
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       WHERE rt.id = ?
@@ -589,12 +580,12 @@ const updateProgress = async (req, res) => {
 
     if (checkResult[0].status === STATUS.REWORK.COMPLETED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已完成的返工任务不能修改进度', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已完成的返工任务不能修改进度', 'VALIDATION_ERROR', 400);
     }
 
     if (checkResult[0].status === STATUS.REWORK.CANCELLED) {
       await connection.rollback();
-      return ResponseHandler.error(res, '已取消的返工任务不能修改进度', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '已取消的返工任务不能修改进度', 'VALIDATION_ERROR', 400);
     }
 
     // 更新进度
@@ -652,7 +643,7 @@ const getReworkStatusByInspectionId = async (req, res) => {
     const { inspectionId } = req.params;
 
     const query = `
-      SELECT 
+      SELECT
         rt.id AS rework_id,
         rt.rework_no,
         rt.status AS rework_status,

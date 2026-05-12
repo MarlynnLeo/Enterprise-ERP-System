@@ -552,7 +552,7 @@ class ScheduledTaskService {
       // 示例：保存到系统通知表
       const db = require('../../config/db');
       await db.pool.execute(
-        `INSERT INTO notifications (title, content, type, is_read, created_at) 
+        `INSERT INTO notifications (title, content, type, is_read, created_at)
          VALUES (?, ?, 'finance_auto', 0, NOW())`,
         [title, message]
       );
@@ -573,7 +573,7 @@ class ScheduledTaskService {
       // 示例：保存到系统通知表
       const db = require('../../config/db');
       await db.pool.execute(
-        `INSERT INTO notifications (title, content, type, is_read, created_at) 
+        `INSERT INTO notifications (title, content, type, is_read, created_at)
          VALUES (?, ?, 'finance_error', 0, NOW())`,
         [title, error]
       );

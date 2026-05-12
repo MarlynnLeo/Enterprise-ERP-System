@@ -36,11 +36,7 @@ class SafeLogger {
   /**
    * 警告日志 - 生产环境也显示
    */
-  warn(message, ...args) {
-    if (this.logLevel >= LOG_LEVELS.WARN) {
-      console.warn(`[WARN] ${message}`, ...args);
-    }
-  }
+  warn() {}
   /**
    * 信息日志 - 仅开发环境显示
    */

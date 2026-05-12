@@ -49,7 +49,6 @@ export function useProductionPlans() {
     try {
       // 检查登录状态
       if (!authStore.isAuthenticated) {
-        console.warn('用户未登录，无法加载生产计划')
         return 0
       }
 
@@ -129,7 +128,6 @@ export function useProductionPlans() {
         return plans.length
       } else {
         // 如果没有数据
-        console.warn('未找到生产计划数据')
         return 0
       }
     } catch (error) {

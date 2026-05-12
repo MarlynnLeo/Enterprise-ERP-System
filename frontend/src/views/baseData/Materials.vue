@@ -218,7 +218,7 @@ const buildProductCategoryTree = (flatData, parentId = 0) => {
     if (itemParentId === parentId) {
       // 显示名称格式：编码 - 名称（如 "1001 - EQ1开关电源"）
       const displayName = item.code ? `${item.code} - ${item.name}` : item.name;
-      
+
       const node = {
         id: item.id,
         name: item.name,
@@ -227,12 +227,12 @@ const buildProductCategoryTree = (flatData, parentId = 0) => {
         displayName: displayName, // 用于 TreeSelect 显示和搜索
         children: buildProductCategoryTree(flatData, item.id)
       };
-      
+
       // 如果没有子节点，删除 children 属性
       if (node.children.length === 0) {
         delete node.children;
       }
-      
+
       tree.push(node);
     }
   }
@@ -278,13 +278,13 @@ const loadOptions = async () => {
     materialSourceOptions.value = parseListData(sources, { enableLog: false });
     unitOptions.value = parseListData(units, { enableLog: false });
     locationOptions.value = parseListData(locs, { enableLog: false });
-    
+
     // 产品大类需要构建树形结构
     const pCatList = parseListData(pCatOptions, { enableLog: false });
     productCategoryOptions.value = buildProductCategoryTree(pCatList);
-    
+
     productionGroupOptions.value = parseListData(groups, { enableLog: false });
-    
+
     // 用户列表可能需要特殊处理
     const userRes = parseListData(users, { enableLog: false });
     managerOptions.value = userRes.map(u => ({
@@ -331,7 +331,7 @@ const fetchData = async () => {
     const { list, total: t } = parsePaginatedData(res);
     tableData.value = list;
     total.value = t;
-    
+
     // 更新统计数据
     if (statsRes) {
       const statsData = parseDataObject(statsRes);

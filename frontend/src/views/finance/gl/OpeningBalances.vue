@@ -67,10 +67,10 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table 
-        :data="accountList" 
-        style="width: 100%" 
-        border 
+      <el-table
+        :data="accountList"
+        style="width: 100%"
+        border
         v-loading="loading"
         row-key="id"
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"

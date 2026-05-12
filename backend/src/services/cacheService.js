@@ -45,6 +45,7 @@ class CacheService {
 
     this.timers.set(key, timer);
     logger.debug(`[缓存设置] ${key}, TTL: ${ttl}s`);
+    return true;
   }
 
   /**
@@ -88,6 +89,7 @@ class CacheService {
     if (existed) {
       logger.info(`🗑️ [缓存删除] ${key}`);
     }
+    return existed;
   }
 
   /**

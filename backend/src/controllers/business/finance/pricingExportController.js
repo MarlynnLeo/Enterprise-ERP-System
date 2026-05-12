@@ -28,7 +28,7 @@ exports.exportPricingList = async (req, res) => {
 
     // 查询数据
     const query = `
-            SELECT 
+            SELECT
                 m.code as product_code,
                 m.name as product_name,
                 m.specs as product_specs,
@@ -43,7 +43,7 @@ exports.exportPricingList = async (req, res) => {
             LEFT JOIN product_pricing pp ON m.id = pp.product_id AND pp.is_active = 1
             LEFT JOIN users u ON pp.created_by = u.id
             WHERE ${whereClause}
-            ORDER BY 
+            ORDER BY
                 CASE WHEN pp.id IS NOT NULL THEN 0 ELSE 1 END ASC,
                 m.code ASC
         `;

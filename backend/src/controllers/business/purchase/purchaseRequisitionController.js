@@ -94,7 +94,7 @@ const getRequisitions = async (req, res) => {
     // 直接在查询字符串中嵌入LIMIT和OFFSET值
     const limitValue = Number(pageSize);
     const offsetValue = Number(offset);
-    query += ` ORDER BY r.created_at DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
+    query += ` ORDER BY r.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(limitValue))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offsetValue))||0)}`;
 
     const [rows] = await db.pool.execute(query, queryParams);
 
@@ -184,7 +184,7 @@ const getRequisitions = async (req, res) => {
       totalPages: Math.ceil(totalCount / pageSize),
     };
 
-    res.json(responseData);
+    return ResponseHandler.success(res, responseData);
   } catch (error) {
     logger.error('获取采购申请列表失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -208,20 +208,20 @@ const getRequisition = async (req, res) => {
 
     // 获取申请单物料，同时获取物料表中的specs字段和供应商信息
     const itemsQuery = `
-      SELECT 
+      SELECT
         ri.*,
         m.specs as material_specs,
         m.supplier_id,
         s.name as supplier_name,
         u.name as unit_name
-      FROM 
+      FROM
         purchase_requisition_items ri
         LEFT JOIN materials m ON ri.material_id = m.id
         LEFT JOIN suppliers s ON m.supplier_id = s.id
         LEFT JOIN units u ON m.unit_id = u.id
-      WHERE 
-        ri.requisition_id = ? 
-      ORDER BY 
+      WHERE
+        ri.requisition_id = ?
+      ORDER BY
         ri.id
     `;
     const [itemsRows] = await db.pool.execute(itemsQuery, [id]);
@@ -235,7 +235,7 @@ const getRequisition = async (req, res) => {
       unit: item.unit || item.unit_name || '',
     }));
 
-    res.json(requisition);
+    return ResponseHandler.success(res, requisition);
   } catch (error) {
     logger.error('获取采购申请详情失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -412,7 +412,7 @@ const createRequisition = async (req, res) => {
       }
 
       const insertItemsQuery = `
-        INSERT INTO purchase_requisition_items 
+        INSERT INTO purchase_requisition_items
         (requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
@@ -499,7 +499,7 @@ const updateRequisition = async (req, res) => {
     const currentStatus = checkRows[0].status;
     if (currentStatus !== 'draft') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能编辑草稿状态的采购申请', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能编辑草稿状态的采购申请', 'VALIDATION_ERROR', 400);
     }
 
     // 更新采购申请基本信息（添加合同编码字段）
@@ -559,7 +559,7 @@ const updateRequisition = async (req, res) => {
       });
 
       const insertItemsQuery = `
-        INSERT INTO purchase_requisition_items 
+        INSERT INTO purchase_requisition_items
         (requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
@@ -592,7 +592,7 @@ const updateRequisition = async (req, res) => {
     // 获取更新后的申请单信息
     const updatedRequisition = await getRequisitionById(id);
 
-    res.json(updatedRequisition);
+    return ResponseHandler.success(res, updatedRequisition);
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('更新采购申请失败:', error);
@@ -624,7 +624,7 @@ const deleteRequisition = async (req, res) => {
     const currentStatus = checkRows[0].status;
     if (currentStatus !== 'draft') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能删除草稿状态的采购申请', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能删除草稿状态的采购申请', 'VALIDATION_ERROR', 400);
     }
 
     // 删除申请单 (物料项目会通过外键CASCADE自动删除)
@@ -633,7 +633,7 @@ const deleteRequisition = async (req, res) => {
 
     await connection.commit();
 
-    res.json({ message: '采购申请删除成功' });
+    return ResponseHandler.success(res, null, '采购申请删除成功');
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('删除采购申请失败:', error);
@@ -658,7 +658,7 @@ const updateRequisitionStatus = async (req, res) => {
     const validStatuses = ['draft', 'submitted', 'approved', 'rejected', 'completed'];
     if (!validStatuses.includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 检查申请单是否存在
@@ -675,13 +675,13 @@ const updateRequisitionStatus = async (req, res) => {
     // 检查状态变更是否有效
     if (currentStatus === newStatus) {
       await connection.rollback();
-      return ResponseHandler.error(res, '当前已经是该状态', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '当前已经是该状态', 'VALIDATION_ERROR', 400);
     }
 
     // ✅ 审批结果状态只能由工作流回调变更，前端不可直接设置
     if (['approved', 'rejected'].includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '审批通过/拒绝只能通过工作流完成，请先提交审批(submitted)', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '审批通过/拒绝只能通过工作流完成，请先提交审批(submitted)', 'VALIDATION_ERROR', 400);
     }
 
     // 状态流转规则（前端可操作的转换）
@@ -695,7 +695,7 @@ const updateRequisitionStatus = async (req, res) => {
     const allowed = allowedTransitions[currentStatus] || [];
     if (!allowed.includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, `不允许从 [${currentStatus}] 转换到 [${newStatus}]`, 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, `不允许从 [${currentStatus}] 转换到 [${newStatus}]`, 'VALIDATION_ERROR', 400);
     }
 
     // 提交审批时发起工作流
@@ -751,7 +751,7 @@ const updateRequisitionStatus = async (req, res) => {
       generated_orders: generatedOrders,
     };
 
-    res.json(response);
+    return ResponseHandler.success(res, response);
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('更新采购申请状态失败:', error);
@@ -776,18 +776,18 @@ const getRequisitionById = async (id) => {
 
     // 获取申请单物料，同时获取物料表中的specs字段和供应商信息
     const itemsQuery = `
-      SELECT 
+      SELECT
         ri.*,
         m.specs as material_specs,
         m.supplier_id,
         s.name as supplier_name
-      FROM 
+      FROM
         purchase_requisition_items ri
         LEFT JOIN materials m ON ri.material_id = m.id
         LEFT JOIN suppliers s ON m.supplier_id = s.id
-      WHERE 
-        ri.requisition_id = ? 
-      ORDER BY 
+      WHERE
+        ri.requisition_id = ?
+      ORDER BY
         ri.id
     `;
     const [itemsRows] = await db.pool.execute(itemsQuery, [id]);
@@ -948,7 +948,7 @@ const getRequisitionItems = async (req, res) => {
       specification: item.material_specs || item.specification || '',
     }));
 
-    res.json(items);
+    return ResponseHandler.success(res, items);
   } catch (error) {
     logger.error('获取采购申请物料项目失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -1015,7 +1015,7 @@ const updateRequisitionItem = async (req, res) => {
       itemId,
     ]);
 
-    res.json({ message: '物料项目更新成功' });
+    return ResponseHandler.success(res, null, '物料项目更新成功');
   } catch (error) {
     logger.error('更新采购申请物料项目失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -1030,7 +1030,7 @@ const deleteRequisitionItem = async (req, res) => {
     const query = 'DELETE FROM purchase_requisition_items WHERE id = ?';
     await db.pool.execute(query, [itemId]);
 
-    res.json({ message: '物料项目删除成功' });
+    return ResponseHandler.success(res, null, '物料项目删除成功');
   } catch (error) {
     logger.error('删除采购申请物料项目失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);

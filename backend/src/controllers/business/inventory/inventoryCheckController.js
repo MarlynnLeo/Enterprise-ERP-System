@@ -11,7 +11,6 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
-// const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
@@ -146,7 +145,7 @@ const getCheckDetail = async (req, res) => {
 
     // 获取盘点单基本信息
     const [checkResults] = await db.pool.execute(
-      `SELECT 
+      `SELECT
         c.*,
         l.name as location_name,
         u.username as creator_name
@@ -165,7 +164,7 @@ const getCheckDetail = async (req, res) => {
 
     // 获取盘点明细
     const [items] = await db.pool.execute(
-      `SELECT 
+      `SELECT
         i.*,
         m.code as material_code,
         m.name as material_name,
@@ -262,8 +261,8 @@ const createCheck = async (req, res) => {
     if (shouldPrepopulate) {
       // 为该库位的所有物料创建盘点明细条目
       const [stockItems] = await connection.execute(
-        `SELECT 
-          s.material_id, 
+        `SELECT
+          s.material_id,
           s.quantity as system_quantity,
           m.unit_id
         FROM ${SIMPLE_STOCK_SUBQUERY} as s
@@ -474,10 +473,10 @@ const updateCheck = async (req, res) => {
 
     // 更新盘点单基本信息
     await connection.execute(
-      `UPDATE inventory_checks SET 
-        check_date = ?, 
-        remark = ?, 
-        updated_at = CURRENT_TIMESTAMP 
+      `UPDATE inventory_checks SET
+        check_date = ?,
+        remark = ?,
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?`,
       [check_date, remark || null, id]
     );
@@ -494,10 +493,10 @@ const updateCheck = async (req, res) => {
         const difference = actualQuantity - systemQuantity;
 
         await connection.execute(
-          `UPDATE inventory_check_items SET 
-            actual_quantity = ?, 
-            difference = ?, 
-            remark = ? 
+          `UPDATE inventory_check_items SET
+            actual_quantity = ?,
+            difference = ?,
+            remark = ?
           WHERE id = ? AND check_id = ?`,
           [actualQuantity, difference, item.remark || null, item.id, id]
         );
@@ -614,10 +613,10 @@ const submitCheckResult = async (req, res) => {
         const difference = actualQuantity - systemQuantity;
 
         await connection.execute(
-          `UPDATE inventory_check_items SET 
-            actual_quantity = ?, 
-            difference = ?, 
-            remark = ? 
+          `UPDATE inventory_check_items SET
+            actual_quantity = ?,
+            difference = ?,
+            remark = ?
           WHERE id = ? AND check_id = ?`,
           [actualQuantity, difference, item.remark || null, item.id, id]
         );
@@ -742,7 +741,7 @@ const adjustInventory = async (req, res) => {
 
     // 获取盘点明细
     const [items] = await connection.execute(
-      `SELECT 
+      `SELECT
         i.*,
         m.name as material_name,
         m.unit_id

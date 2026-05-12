@@ -14,8 +14,6 @@ export const equipmentApi = {
     // 设备维护
     getMaintenances: (params) => api.get('/equipment/maintenance', { params }),
     createMaintenance: (equipmentId, data) => api.post(`/equipment/${equipmentId}/maintenance`, data),
-    updateMaintenance: (id, data) => api.put(`/equipment/maintenance/${id}`, data),
-    completeMaintenance: (id, data) => api.post(`/equipment/maintenance/${id}/complete`, data),
 
     // 设备故障
     getFailures: (params) => api.get('/equipment/failures', { params }),

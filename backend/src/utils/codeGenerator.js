@@ -133,6 +133,44 @@ const CodeGenerators = {
   async generateCheckCode(connection) {
     return CodeGeneratorService.nextCode('inventory_check', connection);
   },
+
+  // ========== 质量模块 ==========
+
+  /** 生成8D报告编号 */
+  async generate8DReportCode(connection) {
+    return CodeGeneratorService.nextCode('eight_d_report', connection);
+  },
+
+  /** 生成补料单编号 */
+  async generateReplacementOrderCode(connection) {
+    return CodeGeneratorService.nextCode('replacement_order', connection);
+  },
+
+  // ========== 财务/费用模块 ==========
+
+  /** 生成费用单编号 */
+  async generateExpenseCode(connection) {
+    return CodeGeneratorService.nextCode('expense', connection);
+  },
+
+  /** 生成费用付款流水编号 */
+  async generateExpensePaymentCode(connection) {
+    return CodeGeneratorService.nextCode('expense_payment', connection);
+  },
+
+  // ========== 资产模块 ==========
+
+  /** 生成固定资产盘点编号 */
+  async generateAssetInventoryCode(connection) {
+    return CodeGeneratorService.nextCode('asset_inventory', connection);
+  },
+
+  // ========== 手工事务 ==========
+
+  /** 生成手工事务单号 */
+  async generateManualTransactionCode(connection) {
+    return CodeGeneratorService.nextCode('manual_transaction', connection);
+  },
 };
 
 /**

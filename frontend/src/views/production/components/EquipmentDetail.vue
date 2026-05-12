@@ -91,10 +91,10 @@
               <div v-if="healthData.issues && healthData.issues.length > 0" class="health-issues">
                 <span class="label">问题:</span>
                 <div class="issues-list">
-                  <el-tag 
-                    v-for="issue in healthData.issues" 
-                    :key="issue" 
-                    type="warning" 
+                  <el-tag
+                    v-for="issue in healthData.issues"
+                    :key="issue"
+                    type="warning"
                     size="small"
                     style="margin: 2px;"
                   >
@@ -118,7 +118,7 @@
           </el-button>
         </div>
       </template>
-      
+
       <el-table :data="equipment.currentData" stripe border>
         <el-table-column prop="parameter_name" label="参数名称" width="150" />
         <el-table-column prop="parameter_code" label="参数代码" width="120" />
@@ -149,7 +149,7 @@
       <template #header>
         <span>活跃报警</span>
       </template>
-      
+
       <el-table :data="equipment.activeAlarms" stripe border>
         <el-table-column prop="alarm_level" label="级别" width="100">
           <template #default="{ row }">

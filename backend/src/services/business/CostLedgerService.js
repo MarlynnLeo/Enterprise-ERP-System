@@ -60,7 +60,7 @@ class CostLedgerService {
 
       // 查询明细
       const sql = `
-                SELECT 
+                SELECT
                     pt.id as task_id,
                     pt.code as task_code,
                     pt.status,
@@ -177,7 +177,7 @@ class CostLedgerService {
       }
 
       const sql = `
-                SELECT 
+                SELECT
                     ${selectFields},
                     COUNT(pt.id) as task_count,
                     COALESCE(SUM(pt.quantity), 0) as total_quantity,
@@ -227,7 +227,7 @@ class CostLedgerService {
       // ✅ 安全修复：dateFormat 来自白名单常量，intervalUnit 也来自白名单
       // count 通过参数绑定传入，彻底消除拼接注入风险
       const sql = `
-                SELECT 
+                SELECT
                     DATE_FORMAT(pt.updated_at, '${config.dateFormat}') as period,
                     COUNT(pt.id) as task_count,
                     COALESCE(SUM(pt.quantity), 0) as total_quantity,
@@ -260,7 +260,7 @@ class CostLedgerService {
       // 获取任务基本信息
       const [tasks] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     pt.*,
                     m.code as product_code,
                     m.name as product_name,
@@ -283,17 +283,23 @@ class CostLedgerService {
       // 获取材料消耗明细
       const [materials] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     m.code as material_code,
                     m.name as material_name,
-                    SUM(ioi.actual_quantity) as quantity,
-                    m.price as unit_cost,
-                    SUM(ioi.actual_quantity * COALESCE(m.price, 0)) as total_cost
+                    SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) as quantity,
+                    SUM(
+                        (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+                        * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+                    ) / NULLIF(SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END), 0) as unit_cost,
+                    SUM(
+                        (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+                        * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+                    ) as total_cost
                 FROM inventory_outbound io
                 JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
                 JOIN materials m ON ioi.material_id = m.id
                 WHERE io.production_task_id = ?
-                GROUP BY m.id, m.code, m.name, m.price
+                GROUP BY m.id, m.code, m.name
             `,
         [taskId]
       );
@@ -301,7 +307,7 @@ class CostLedgerService {
       // 获取工序工时明细
       const [processes] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     process_name,
                     standard_hours,
                     TIMESTAMPDIFF(SECOND, actual_start_time, actual_end_time) / 3600 as actual_hours,
@@ -317,7 +323,7 @@ class CostLedgerService {
       // 获取关联凭证
       const [vouchers] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     ge.id,
                     ge.entry_number,
                     ge.description,

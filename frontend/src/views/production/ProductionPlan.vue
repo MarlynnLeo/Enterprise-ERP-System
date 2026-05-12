@@ -18,7 +18,7 @@ import axios from '@/services/api'
 import { Plus } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity } from '@/utils/helpers/quantity'
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig'
-import { parseListData } from '@/utils/responseParser'
+import { parseDataObject, parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 const router = useRouter()
 // ✅ 键盘导航：Enter 跳转下一字段，最后一个字段按 Enter 自动提交
@@ -98,7 +98,13 @@ const rules = {
   productId: [{ required: true, message: '请选择产品', trigger: 'change' }],
   quantity: [{ required: true, message: '请输入计划数量', trigger: 'change' }]
 }
-import { getProductionStatusText, getProductionStatusColor } from '@/constants/systemConstants'
+import {
+  getProductionStatusText,
+  getProductionStatusColor,
+  PRODUCTION_STATUS_KEYS,
+  PRODUCTION_PLAN_PUSHABLE_STATUSES,
+  PRODUCTION_PLAN_STATUS_OPTIONS
+} from '@/constants/systemConstants'
 // 获取状态样式
 const getStatusType = (status) => {
   return getProductionStatusColor(status)
@@ -109,11 +115,16 @@ const getStatusText = (status) => {
 }
 // 获取状态自定义样式类
 const getStatusClass = (status) => {
-  if (status === 'in_progress') return 'status-in-progress'
-  if (status === 'inspection') return 'status-inspection'
+  if (status === PRODUCTION_STATUS_KEYS.IN_PROGRESS) return 'status-in-progress'
+  if (status === PRODUCTION_STATUS_KEYS.INSPECTION) return 'status-inspection'
   return ''
 }
 // 添加计划统计数据
+const canPushDownPlan = (row) => (
+  PRODUCTION_PLAN_PUSHABLE_STATUSES.includes(row.status) &&
+  (row.quantity || 0) - (row.pushed_quantity || 0) > 0
+)
+const canCancelPlan = (row) => PRODUCTION_PLAN_PUSHABLE_STATUSES.includes(row.status)
 const planStats = ref({
   total: 0,
   draft: 0,
@@ -214,24 +225,23 @@ const fetchActiveBom = async (productId) => {
 // 辅助函数：标准化物料数据
 const standardizeMaterialData = (material, materialInfo = null) => {
   if (!material) {
-    console.warn('物料对象为空，无法标准化');
     return {};
   }
-  
+
   // 尝试从物料信息中获取规格
   let specs = '';
   if (materialInfo && materialInfo.specs) {
     specs = materialInfo.specs;
   }
-  
+
   // 使用通用函数获取规格信息
   const specValue = specs || getSpecification(material);
-  
+
   // 提取库存数量和需求数量，确保为数字类型
   const stockQty = parseQuantity(material.stock_quantity || material.stockQuantity || 0);
   const requiredQty = parseQuantity(material.required_quantity || material.requiredQuantity || 0);
-  
-  
+
+
   // 基础字段标准化
   const result = {
     ...material,
@@ -249,10 +259,17 @@ const standardizeMaterialData = (material, materialInfo = null) => {
     required_quantity: requiredQty,
     requiredQuantity: requiredQty,
     stock_quantity: stockQty,
-    stockQuantity: stockQty
+    stockQuantity: stockQty,
+    bomPath: material.bomPath || material.bom_path || '',
+    bom_path: material.bomPath || material.bom_path || '',
+    bomPaths: material.bomPaths || material.bom_paths || [],
+    parentMaterialId: material.parentMaterialId || material.parent_material_id || null,
+    parent_material_id: material.parentMaterialId || material.parent_material_id || null,
+    isLeaf: material.isLeaf ?? material.is_leaf ?? true,
+    is_leaf: material.isLeaf ?? material.is_leaf ?? true
   };
-  
-  
+
+
   return result;
 };
 // 获取生产计划列表 - 优化版本
@@ -316,8 +333,7 @@ const searchProducts = async (query) => {
         if (searchId === currentSearchId) {
           productOptions.value = mapMaterialData(defaultResults)
         }
-      } catch (e) {
-        console.warn('加载默认产品列表失败:', e)
+      } catch {
         if (searchId === currentSearchId) {
           productOptions.value = []
         }
@@ -387,16 +403,16 @@ const calculateMaterials = async () => {
   }
   try {
     modalLoading.value = true
-    
+
     // 1. 先获取BOM详情，包含规格信息
-    const bomDetailResponse = await axios.get(`/baseData/boms/${formData.value.bomId}`);
+    const bomDetailResponse = await bomApi.getBom(formData.value.bomId);
     // 2. 计算物料需求（已包含智能分析）
     const response = await axios.post('/production/calculate-materials', {
       productId: formData.value.productId,
       bomId: formData.value.bomId,
       quantity: formData.value.quantity
     })
-    
+
     if (Array.isArray(response.data)) {
       let materials = response.data;
       // 从BOM详情中提取物料规格信息
@@ -410,18 +426,16 @@ const calculateMaterials = async () => {
             }
         });
       }
-      
+
       // 获取物料ID列表
       const materialIds = materials
         .filter(mat => mat.materialId || mat.id)
         .map(mat => mat.materialId || mat.id);
-      
+
       if (materialIds.length > 0) {
         try {
           // 批量获取物料信息以获取规格
-          const materialsResponse = await axios.get('/baseData/materials', {
-            params: { ids: materialIds.join(',') }
-          });
+          const materialsResponse = await baseDataApi.getMaterialsByIds(materialIds);
           // 创建物料ID映射
           const materialsMap = {};
           const materialsData = parseListData(materialsResponse, { enableLog: false });
@@ -431,18 +445,18 @@ const calculateMaterials = async () => {
               materialsMap[mat.id] = mat;
             }
           });
-          
+
           // 更新物料的规格信息 - 优化版本
           for (const mat of materials) {
             const materialId = mat.materialId || mat.id;
             const materialCode = mat.code || mat.material_code;
-            
+
             // 1. 首先尝试从BOM详情中获取规格信息
             if (materialCode && bomMaterialSpecMap[materialCode]) {
               setSpecification(mat, bomMaterialSpecMap[materialCode]);
               continue;
             }
-            
+
             // 2. 尝试从物料映射中获取规格
             if (materialId && materialsMap[materialId]) {
               const materialInfo = materialsMap[materialId];
@@ -452,34 +466,33 @@ const calculateMaterials = async () => {
                 continue;
               }
             }
-            
+
             // 3. 使用已有的规格信息
             const existingSpec = getSpecification(mat);
             if (existingSpec) {
               setSpecification(mat, existingSpec);
               continue;
             }
-            
+
             // 4. 设置为空字符串
             setSpecification(mat, '');
           }
-          
+
           // 然后处理其他属性，保持智能分析的结果
           materials = materials.map(mat => {
             const materialId = mat.materialId || mat.id;
             const materialInfo = materialId && materialsMap[materialId] ? materialsMap[materialId] : null;
             return standardizeMaterialData(mat, materialInfo);
           });
-          
+
           } catch (error) {
           console.error('获取物料规格信息失败:', error);
         }
       }
-      
+
       materialList.value = materials;
     } else {
       materialList.value = []
-      console.warn('物料需求计算返回的不是数组:', response.data)
     }
   } catch (error) {
     console.error('计算物料需求失败:', error)
@@ -525,19 +538,19 @@ const viewPlanDetail = async (row) => {
   planDetailLoading.value = true;
   try {
     // 性能监控
-    
+
     // 使用现有API获取计划详情
     const response = await productionApi.getProductionPlan(row.id);
     // 创建当前计划对象的副本以避免引用原始对象
     currentPlan.value = JSON.parse(JSON.stringify(response.data));
     // 加载该计划的采购申请状态（异步，不阻塞弹窗显示）
     loadPurchaseRequestStatus(row.id);
-    
+
     // 简化产品名称设置
     currentPlan.value.productName = row.productName || currentPlan.value.product_name || '未知产品';
     // 简化规格设置
     currentPlan.value.specification = currentPlan.value.specification || currentPlan.value.specs || '';
-    
+
     // 如果物料需求为空，尝试从BOM计算物料需求
     if (!currentPlan.value.materials || currentPlan.value.materials.length === 0) {
       try {
@@ -546,7 +559,7 @@ const viewPlanDetail = async (row) => {
           const calcResponse = await axios.get(`/production/calculate-materials/${bom.id}`, {
             params: { quantity: currentPlan.value.quantity || 1 }
           });
-          
+
           if (calcResponse.data?.materials && calcResponse.data.materials.length > 0) {
             currentPlan.value.materials = calcResponse.data.materials;
           }
@@ -556,11 +569,11 @@ const viewPlanDetail = async (row) => {
         // 继续执行，不阻塞详情显示
       }
     }
-    
+
     // 获取智能物料需求分析数据
     if (currentPlan.value.materials && currentPlan.value.materials.length > 0) {
       // 如果计划已完成，使用简单格式化
-      if (currentPlan.value.status === 'completed') {
+      if (currentPlan.value.status === PRODUCTION_STATUS_KEYS.COMPLETED) {
         currentPlan.value.materials = currentPlan.value.materials.map(material => {
           const reqQty = material.requiredQuantity || material.required_quantity || 0;
           const stockQty = material.stockQuantity || material.stock_quantity || 0;
@@ -667,34 +680,28 @@ const handleProductChange = async () => {
       // 优先选择已审核的BOM，如果没有则选择第一个
       const activeBom = bomList.find(bom => bom.approved || bom.approved_by) || bomList[0]
       formData.value.bomId = activeBom.id
-      
+
       // 获取产品规格信息
       let specification = selectedProduct.specification || selectedProduct.specs || '';
       // 如果产品对象中没有规格信息，尝试从API获取
       if (!specification) {
         try {
-          const materialResponse = await baseDataApi.getMaterials({
-            id: selectedProduct.id
-          })
-          const materialData = parseListData(materialResponse, { enableLog: false });
-          if (materialData.length > 0) {
-            const material = materialData[0];
-            specification = getSpecification(material);
-            if (specification) {
-              selectedProduct.specification = specification;
-            }
+          const materialResponse = await baseDataApi.getMaterial(selectedProduct.id)
+          const material = parseDataObject(materialResponse, { enableLog: false })
+          specification = getSpecification(material)
+          if (specification) {
+            selectedProduct.specification = specification
           }
-        } catch (error) {
-          console.warn('获取产品规格失败:', error)
+        } catch {
         }
       }
-      
+
       // 如果仍然没有获取到规格，尝试直接从API获取
       if (!specification) {
         try {
-          const productDetailResponse = await axios.get(`/baseData/materials/${selectedProduct.id}`);
-          if (productDetailResponse.data) {
-            const productDetail = productDetailResponse.data;
+          const productDetailResponse = await baseDataApi.getMaterial(selectedProduct.id);
+          const productDetail = parseDataObject(productDetailResponse, { enableLog: false });
+          if (productDetail) {
             specification = productDetail.specs || productDetail.specification || productDetail.material_specs || productDetail.spec || productDetail.standard || '';
             if (specification) {
               selectedProduct.specification = specification;
@@ -704,7 +711,7 @@ const handleProductChange = async () => {
           console.error('获取产品规格详情失败:', error);
         }
       }
-      
+
       // 计算物料需求
       await calculateMaterials()
     } else {
@@ -738,7 +745,7 @@ const handleModalOk = async () => {
         modalLoading.value = false
         return
       }
-      
+
       if (!formData.value.bomId) {
         ElMessage({
           message: '所选产品没有关联的BOM配置，无法创建生产计划。请先在"基础数据 > BOM管理"中为该产品创建BOM。',
@@ -795,16 +802,16 @@ const handleModalOk = async () => {
         } catch (error) {
     console.error('保存生产计划失败:', error)
     console.error('错误详情:', error.response?.data)
-    
+
     // 获取详细的错误信息
     const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || '未知错误'
-    
+
     ElMessage.error({
       message: `保存生产计划失败: ${errorMessage}`,
       duration: 5000,
       showClose: true
     })
-    
+
     modalLoading.value = false
   }
 }
@@ -877,14 +884,9 @@ const _handleDelete = async (row) => {
   }
 }
 const _handleStatusChange = async (row, targetStatus) => {
-  const statusNames = {
-    'draft': '草稿', 'preparing': '备料中', 'material_issued': '已发料',
-    'in_progress': '生产中', 'inspection': '待检验', 'warehousing': '待入库',
-    'completed': '已完成', 'cancelled': '已取消'
-  }
   try {
     await axios.put(`/production/plans/${row.id}/status`, { status: targetStatus })
-    ElMessage.success(`状态已变更为「${statusNames[targetStatus]}」`)
+    ElMessage.success(`状态已变更为「${getStatusText(targetStatus)}」`)
     await fetchPlanList(true)
   } catch (error) {
     const msg = error.response?.data?.message || error.message || '状态变更失败'
@@ -893,7 +895,7 @@ const _handleStatusChange = async (row, targetStatus) => {
 }
 const handleCancelPlan = async (row) => {
   try {
-    await axios.put(`/production/plans/${row.id}/status`, { status: 'cancelled' })
+    await axios.put(`/production/plans/${row.id}/status`, { status: PRODUCTION_STATUS_KEYS.CANCELLED })
     ElMessage.success('生产计划已取消')
     await fetchPlanList(true)
   } catch (error) {
@@ -918,13 +920,13 @@ const confirmPushDown = async () => {
   try {
     const row = pushDownPlan.value;
     const remainingQuantity = (row.quantity || 0) - (row.pushed_quantity || 0);
-    
+
     // 检查剩余数量
     if (remainingQuantity <= 0) {
       ElMessage.warning('该计划已全部下推完成');
       return;
     }
-    
+
     // 验证部分下推时的数量
     if (pushDownType.value === 'partial') {
       if (!pushDownQuantity.value || pushDownQuantity.value <= 0) {
@@ -936,7 +938,7 @@ const confirmPushDown = async () => {
         return;
       }
     }
-    
+
     pushDownDialogVisible.value = false;
     loading.value = true;
     // 确定下推数量（全部下推时使用剩余数量）
@@ -945,8 +947,8 @@ const confirmPushDown = async () => {
     let productionGroupName = '未分配';
     try {
       // 获取产品详情（产品数据存储在materials表中）
-      const productResponse = await axios.get(`/baseData/materials/${row.product_id}`);
-      const product = productResponse.data;
+      const productResponse = await baseDataApi.getMaterial(row.product_id);
+      const product = parseDataObject(productResponse, { enableLog: false });
       // 产品本身就是物料，直接使用其production_group_id
       if (product && product.production_group_id) {
         // 获取生产组（部门）信息
@@ -1020,10 +1022,10 @@ const confirmPushDown = async () => {
 const updateEndDate = () => {
   if (formData.value.startDate) {
     // 确保startDate是日期对象
-    const startDate = typeof formData.value.startDate === 'string' 
-      ? dayjs(formData.value.startDate) 
+    const startDate = typeof formData.value.startDate === 'string'
+      ? dayjs(formData.value.startDate)
       : dayjs(formData.value.startDate);
-    
+
     // 设置结束日期为开始日期后的4周
     formData.value.endDate = startDate.add(4, 'week').toDate();
   }
@@ -1034,10 +1036,10 @@ const disableBeforeStartDate = (time) => {
     return false
   }
   // 确保startDate是日期对象
-  const startDate = typeof formData.value.startDate === 'string' 
-    ? dayjs(formData.value.startDate) 
+  const startDate = typeof formData.value.startDate === 'string'
+    ? dayjs(formData.value.startDate)
     : dayjs(formData.value.startDate);
-  
+
   return dayjs(time).isBefore(startDate, 'day')
 }
 // 创建物料规格缓存
@@ -1046,14 +1048,12 @@ const materialSpecCache = ref({});
 // 预加载物料规格信息
 const preloadMaterialSpecs = async () => {
   try {
-    const response = await axios.get('/baseData/materials', {
-      params: { page: 1, pageSize: 100 }
-    });
+    const response = await baseDataApi.getMaterials({ page: 1, pageSize: 100 });
     // 拦截器已解包，response.data 就是业务数据
     const materialsData = response.data?.list || response.data || [];
     if (Array.isArray(materialsData)) {
       const materials = materialsData;
-      
+
       materials.forEach(material => {
         if (material.id && (material.specs || material.specification)) {
           const specValue = getSpecification(material);
@@ -1065,8 +1065,8 @@ const preloadMaterialSpecs = async () => {
           }
         }
       });
-      
-      
+
+
     }
   } catch (err) {
     console.error('预加载物料规格信息失败:', err);
@@ -1074,21 +1074,21 @@ const preloadMaterialSpecs = async () => {
 };
 // 生命周期钩子
 onMounted(() => {
-  
+
   // 确保分页参数有默认值
   pagination.currentPage = 1;
   pagination.pageSize = 10;
   pagination.total = 0;
-  
+
   // 预加载物料规格信息
   preloadMaterialSpecs();
-  
+
   fetchPlanList();
 });
 // 智能采购申请处理函数
 const handleCreatePurchaseRequest = async (material) => {
   // 修复：正确获取物料ID，包括materialId字段
-  
+
   const materialName = material.name || material.material_name || '未知物料';
   const materialCode = material.code || material.material_code || '';
   // 检查是否有缺料的子物料需要采购
@@ -1133,36 +1133,35 @@ const createPurchaseRequestForMaterial = async (material) => {
     // 先获取物料详情，包括最小库存信息
     let minStock = 0;
     try {
-      const materialDetailResponse = await axios.get(`/baseData/materials/${materialId}`);
+      const materialDetailResponse = await baseDataApi.getMaterial(materialId);
       // 使用统一解析方式获取物料数据
-      const materialData = materialDetailResponse.data?.data || materialDetailResponse.data;
+      const materialData = parseDataObject(materialDetailResponse, { enableLog: false });
       if (materialData && typeof materialData.min_stock !== 'undefined') {
         minStock = parseQuantity(materialData.min_stock);
       } else {
-        console.warn(`未找到物料 [${materialCode}] 的最小库存值，使用默认值0`);
       }
     } catch (detailError) {
       console.error('获取物料详情失败:', detailError);
       ElMessage.warning(`无法获取物料 [${materialCode}] 的详细信息，将使用默认最小库存0`);
     }
-    
+
     // 计算需要采购的数量：
     // 1. 首先满足生产需求的不足量
     // 2. 如果库存低于最小库存，补充到最小库存
     let needQty = requiredQty - stockQty > 0 ? requiredQty - stockQty : 0;
-    
+
     // 如果当前库存量加上已确定的采购量仍然低于最小库存，增加采购量
     if ((stockQty + needQty) < minStock) {
       const additionalQty = minStock - (stockQty + needQty);
       needQty += additionalQty;
       }
-    
+
     // 如果没有需要采购的数量，给出提示
     if (needQty <= 0) {
       ElMessage.info(`物料 [${materialCode}] ${materialName} 当前库存充足，无需创建采购`);
       return;
     }
-    
+
     // 准备采购申请数据
     const requestData = {
       requestDate: new Date().toISOString().split('T')[0],
@@ -1179,11 +1178,11 @@ const createPurchaseRequestForMaterial = async (material) => {
         }
       ]
     };
-    
+
     try {
       // 直接创建采购申请
       const response = await purchaseApi.createRequisition(requestData);
-      
+
       ElMessage.success(`已成功创建采购申请: ${response.requisition_number || '采购'}`);
       // 更新申请状态
       purchaseRequestStatus.value[materialId] = {
@@ -1195,17 +1194,17 @@ const createPurchaseRequestForMaterial = async (material) => {
       savePurchaseRequestStatus();
     } catch (apiError) {
       console.error('采购申请API错误:', apiError);
-      
+
       // 检查是否是主键重复错误
-      if (apiError.response && 
-          apiError.response.data && 
-          (apiError.response.data.sqlMessage?.includes('Duplicate entry') || 
+      if (apiError.response &&
+          apiError.response.data &&
+          (apiError.response.data.sqlMessage?.includes('Duplicate entry') ||
            apiError.response.data.error?.includes('Duplicate entry') ||
            apiError.response.data.code === 'ER_DUP_ENTRY')) {
-        
+
         // 这是重复申请，可能是多次点击或者已有申请
         ElMessage.info(`物料 [${materialCode}] ${materialName} 的采购申请已经存在，无需重复申请`);
-        
+
         // 标记为已申请
         purchaseRequestStatus.value[materialId] = {
           requested: true,
@@ -1216,11 +1215,11 @@ const createPurchaseRequestForMaterial = async (material) => {
         savePurchaseRequestStatus();
         return;
       }
-      
+
       // 其他错误
       throw apiError;
     }
-    
+
   } catch (error) {
     console.error('创建采购申请失败:', error);
     ElMessage.error('创建采购申请失败: ' + (error.response?.data?.message || error.message));
@@ -1283,7 +1282,7 @@ const formatMaterialForDisplay = (material) => {
         <el-button type="primary" :icon="Plus" @click="showCreateModal" v-permission="'production:plans:create'">新建生产计划</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -1309,14 +1308,12 @@ const formatMaterialForDisplay = (material) => {
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="状态" clearable>
-            <el-option label="草稿" value="draft" />
-            <el-option label="备料中" value="preparing" />
-            <el-option label="已发料" value="material_issued" />
-            <el-option label="生产中" value="in_progress" />
-            <el-option label="待检验" value="inspection" />
-            <el-option label="待入库" value="warehousing" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="已取消" value="cancelled" />
+            <el-option
+              v-for="option in PRODUCTION_PLAN_STATUS_OPTIONS"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -1332,7 +1329,7 @@ const formatMaterialForDisplay = (material) => {
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -1360,7 +1357,7 @@ const formatMaterialForDisplay = (material) => {
         <div class="stat-label">已完成</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -1526,7 +1523,7 @@ const formatMaterialForDisplay = (material) => {
               size="small"
               type="primary"
               @click="handleEdit(scope.row)"
-              v-if="scope.row.status === 'draft'"
+              v-if="scope.row.status === PRODUCTION_STATUS_KEYS.DRAFT"
               v-permission="'production:plans:update'"
             >
               编辑
@@ -1535,7 +1532,7 @@ const formatMaterialForDisplay = (material) => {
               size="small"
               type="success"
               @click="handlePushDown(scope.row)"
-              v-if="['draft', 'preparing', 'material_issued', 'in_progress'].includes(scope.row.status) && (scope.row.quantity || 0) - (scope.row.pushed_quantity || 0) > 0"
+              v-if="canPushDownPlan(scope.row)"
               v-permission="'production:plans:update'"
             >
               下推
@@ -1543,7 +1540,7 @@ const formatMaterialForDisplay = (material) => {
             <el-popconfirm
               title="确认取消此生产计划？"
               @confirm="handleCancelPlan(scope.row)"
-              v-if="['draft', 'preparing', 'material_issued', 'in_progress'].includes(scope.row.status)"
+              v-if="canCancelPlan(scope.row)"
             >
               <template #reference>
                 <el-button size="small" type="danger" v-permission="'production:plans:update'">取消</el-button>
@@ -1552,7 +1549,7 @@ const formatMaterialForDisplay = (material) => {
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -1570,7 +1567,7 @@ const formatMaterialForDisplay = (material) => {
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 对话框 -->
     <el-dialog
       v-model="modalVisible"
@@ -1705,6 +1702,7 @@ const formatMaterialForDisplay = (material) => {
               <el-tag size="small" :type="getLevelTagType(scope.row.level)" :style="getLevelTagStyle(scope.row.level)">L{{ scope.row.level || 1 }}</el-tag>
             </template>
           </el-table-column>
+
           <el-table-column prop="code" label="物料编码" width="120" />
           <el-table-column label="物料名称" width="180">
             <template #default="scope">
@@ -1799,6 +1797,12 @@ const formatMaterialForDisplay = (material) => {
           <!-- 物料需求 -->
           <el-divider content-position="left">物料需求</el-divider>
           <el-table :data="currentPlan.materials || []" border style="width: 100%" max-height="350">
+            <el-table-column label="层级" width="70" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="getLevelTagType(row.level)" :style="getLevelTagStyle(row.level)">L{{ row.level || 1 }}</el-tag>
+              </template>
+            </el-table-column>
+
             <el-table-column prop="code" label="物料编码" width="130" show-overflow-tooltip>
               <template #default="{ row }">{{ row.code || row.material_code || '-' }}</template>
             </el-table-column>
@@ -1930,6 +1934,14 @@ const formatMaterialForDisplay = (material) => {
 }
 .text-nowrap {
   white-space: nowrap;
+}
+.bom-path-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
 }
 /* 增强型号规格的显示 */
 .el-table .specs-text {

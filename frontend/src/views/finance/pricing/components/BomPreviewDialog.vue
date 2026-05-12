@@ -1,8 +1,8 @@
 ﻿<template>
   <!-- BOM预览对话框(只读模式) -->
-  <el-dialog 
-    v-model="visible" 
-    title="BOM成本明细" 
+  <el-dialog
+    v-model="visible"
+    title="BOM成本明细"
     width="1000px"
     destroy-on-close
   >

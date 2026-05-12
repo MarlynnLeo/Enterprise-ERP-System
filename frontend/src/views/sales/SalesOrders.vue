@@ -50,7 +50,7 @@
             />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="日期范围">
           <el-date-picker
             v-model="dateRange"
@@ -61,7 +61,7 @@
             @change="() => handleSearch(true)"
           />
         </el-form-item>
-        
+
         <el-form-item>
           <el-button type="primary" @click="() => handleSearch(true)" :loading="loading">
             <el-icon v-if="!loading"><Search /></el-icon> 查询
@@ -127,7 +127,7 @@
                 <el-descriptions-item label="合同编码">{{ props.row.contract_code || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="订单备注" :span="2">{{ props.row.remark }}</el-descriptions-item>
               </el-descriptions>
-              
+
               <el-divider>订单物料</el-divider>
               <el-table :data="props.row.items" border style="width: 100%" table-layout="fixed">
                 <el-table-column prop="material_code" label="物料编码" width="120" show-overflow-tooltip>
@@ -186,7 +186,7 @@
             </div>
           </template>
         </el-table-column>
-        
+
         <el-table-column
           prop="order_no"
           label="订单编号"
@@ -222,9 +222,9 @@
             {{ row.contract_code || '-' }}
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="totalAmount" 
-          label="订单金额" 
+        <el-table-column
+          prop="totalAmount"
+          label="订单金额"
           width="120"
           resizable
           show-overflow-tooltip>
@@ -232,9 +232,9 @@
             ¥{{ (typeof row.totalAmount === 'number' ? row.totalAmount : parseFloat(row.totalAmount) || 0).toFixed(2) }}
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="order_no" 
-          label="下单日期" 
+        <el-table-column
+          prop="order_no"
+          label="下单日期"
           width="120"
           sortable="custom"
           resizable
@@ -243,9 +243,9 @@
             {{ getOrderDateFromOrderNo(row.order_no) }}
           </template>
         </el-table-column>
-        <el-table-column 
-          prop="deliveryDate" 
-          label="交付日期" 
+        <el-table-column
+          prop="deliveryDate"
+          label="交付日期"
           width="120"
           resizable
           show-overflow-tooltip>
@@ -352,7 +352,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -445,7 +445,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <!-- 订单明细 -->
         <el-form-item label="订单明细">
           <div class="materials-table-container">
@@ -484,7 +484,7 @@
                 </template>
               </el-table-column>
               <el-table-column label="物料名称" prop="material_name" width="140" show-overflow-tooltip />
-              
+
               <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
               <el-table-column label="数量" width="80">
                 <template #default="{ row, $index }">
@@ -498,7 +498,7 @@
                   />
                 </template>
               </el-table-column>
-              
+
               <el-table-column label="单价" width="70">
                 <template #default="{ row, $index }">
                   <el-input
@@ -520,8 +520,8 @@
               </el-table-column>
               <el-table-column label="税率" width="100">
                 <template #default="{ row, $index }">
-                  <el-select 
-                    v-model="row.tax_rate" 
+                  <el-select
+                    v-model="row.tax_rate"
                     placeholder="税率"
                     size="small"
                     @change="calculateItemAmount($index)"
@@ -543,7 +543,7 @@
               </el-table-column>
               <el-table-column label="备注" width="125">
                 <template #default="{ row }">
-                  <el-input 
+                  <el-input
                     v-model="row.remark"
                     placeholder="请输入备注"
                     size="small"
@@ -557,7 +557,7 @@
                     type="danger"
                     size="small"
                     @click="removeMaterial($index)"
-                  
+
                     v-permission="'sales:orders'">
                     删除
                   </el-button>
@@ -731,7 +731,7 @@ const _router = useRouter()
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 import { Search, Plus, Upload, Download, Refresh } from '@element-plus/icons-vue'
 import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
-import printService, { parseTemplateResponse } from '@/services/printService'
+import printService from '@/services/printService'
 // ========== 组合式函数导入 ==========
 import { useOrderForm } from './composables/useOrderForm'
 import { useOrderActions } from './composables/useOrderActions'
@@ -899,13 +899,6 @@ const handlePrintOrder = async () => {
   if (!currentOrder.value) return
   printLoading.value = true
   try {
-    // 加载销售订单默认打印模板
-    const response = await printService.getPrintTemplateById(62)
-    const template = parseTemplateResponse(response)
-    if (!template || !template.content) {
-      ElMessage.error('未找到销售订单打印模板，请在系统管理-打印模板中配置')
-      return
-    }
     // 组装打印数据，匹配模板变量
     const order = currentOrder.value
     const printData = {
@@ -929,7 +922,7 @@ const handlePrintOrder = async () => {
         amount: (parseFloat(item.amount) || 0).toFixed(2)
       }))
     }
-    const html = printService.generatePrintContent(template, printData)
+    const html = await printService.generateByDefaultTemplate('sales', 'sales_order', printData)
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印销售订单失败:', error)

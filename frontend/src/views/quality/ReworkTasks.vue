@@ -111,29 +111,29 @@
         <el-table-column label="操作" min-width="250" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button 
-              link 
-              type="success" 
-              size="small" 
+            <el-button
+              link
+              type="success"
+              size="small"
               @click="assignTask(row)"
               v-if="row.status === 'pending'"
-            
+
               v-permission="'quality:rework:update'">
               分配任务
             </el-button>
-            <el-button 
-              link 
-              type="warning" 
-              size="small" 
+            <el-button
+              link
+              type="warning"
+              size="small"
               @click="completeTask(row)"
               v-if="row.status === 'in_progress'"
               v-permission="'quality:rework:update'">
               完成返工
             </el-button>
-            <el-button 
-              link 
-              type="info" 
-              size="small" 
+            <el-button
+              link
+              type="info"
+              size="small"
               @click="editTask(row)"
               v-if="row.status === 'pending' || row.status === 'in_progress'"
               v-permission="'quality:rework:update'">

@@ -252,10 +252,10 @@ const arModel = {
 
       // 插入应收账款发票
       const [result] = await connection.query(
-        `INSERT INTO ar_invoices 
-        (invoice_number, customer_id, invoice_date, due_date, 
-         total_amount, paid_amount, balance_amount, 
-         currency_code, exchange_rate, status, terms, notes, source_type, source_id) 
+        `INSERT INTO ar_invoices
+        (invoice_number, customer_id, invoice_date, due_date,
+         total_amount, paid_amount, balance_amount,
+         currency_code, exchange_rate, status, terms, notes, source_type, source_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceData.invoice_number,
@@ -288,8 +288,8 @@ const arModel = {
           item.amount || item.quantity * item.unit_price || 0,
         ]);
         await connection.query(
-          `INSERT INTO ar_invoice_items 
-           (invoice_id, product_id, description, quantity, unit_price, amount) 
+          `INSERT INTO ar_invoice_items
+           (invoice_id, product_id, description, quantity, unit_price, amount)
            VALUES ?`,
           [itemValues]
         );
@@ -415,9 +415,9 @@ const arModel = {
       // 构建基本查询
       let query = `
         SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
-               DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date, 
+               DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
                DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
-               a.total_amount, a.paid_amount, a.balance_amount, 
+               a.total_amount, a.paid_amount, a.balance_amount,
                a.status, a.currency_code
         FROM ar_invoices a
         LEFT JOIN customers c ON a.customer_id = c.id
@@ -507,8 +507,8 @@ const arModel = {
 
       // 计算总记录数
       const countQuery = `
-        SELECT COUNT(*) as total 
-        FROM ar_invoices a 
+        SELECT COUNT(*) as total
+        FROM ar_invoices a
         LEFT JOIN customers c ON a.customer_id = c.id
         WHERE 1=1
         ${filters.invoice_number ? ' AND a.invoice_number LIKE ?' : ''}
@@ -610,9 +610,9 @@ const arModel = {
       try {
         const [invoices] = await connection.execute(
           `SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
-                  DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date, 
+                  DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
                   DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
-                  a.total_amount, a.paid_amount, a.balance_amount, 
+                  a.total_amount, a.paid_amount, a.balance_amount,
                   a.status, a.currency_code, a.terms, a.notes,
                   a.source_type, a.source_id
            FROM ar_invoices a
@@ -626,7 +626,7 @@ const arModel = {
 
           // 查询发票明细项
           const [items] = await connection.execute(
-            `SELECT i.id, i.product_id as productId, i.description, 
+            `SELECT i.id, i.product_id as productId, i.description,
                     i.quantity, i.unit_price as unitPrice, i.amount,
                     p.name as productName
              FROM ar_invoice_items i
@@ -874,8 +874,8 @@ const arModel = {
           );
           for (const ob of outbounds) {
             const [syncResult] = await connection.execute(
-              `UPDATE tax_invoices 
-               SET invoice_number = ?, updated_at = NOW() 
+              `UPDATE tax_invoices
+               SET invoice_number = ?, updated_at = NOW()
                WHERE related_document_type = '销售出库单' AND related_document_id = ?`,
               [invoiceData.customer_invoice_number, ob.id]
             );
@@ -928,9 +928,9 @@ const arModel = {
 
       // 插入收款记录
       const [result] = await connection.execute(
-        `INSERT INTO ar_receipts 
-        (receipt_number, customer_id, receipt_date, total_amount, 
-         payment_method, reference_number, bank_account_id, notes) 
+        `INSERT INTO ar_receipts
+        (receipt_number, customer_id, receipt_date, total_amount,
+         payment_method, reference_number, bank_account_id, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptData.receipt_number,
@@ -1253,9 +1253,9 @@ const arModel = {
 
       let query = `
         SELECT r.*, c.name as customer_name,
-               (SELECT i.invoice_number 
-                FROM ar_receipt_items ri 
-                LEFT JOIN ar_invoices i ON ri.invoice_id = i.id 
+               (SELECT i.invoice_number
+                FROM ar_receipt_items ri
+                LEFT JOIN ar_invoices i ON ri.invoice_id = i.id
                 WHERE ri.receipt_id = r.id LIMIT 1) as invoice_number
         FROM ar_receipts r
         LEFT JOIN customers c ON r.customer_id = c.id
@@ -1304,8 +1304,8 @@ const arModel = {
       // 按发票编号过滤（通过关联表查询）
       if (filters.invoice_number) {
         query += ` AND EXISTS (
-          SELECT 1 FROM ar_receipt_items ri 
-          JOIN ar_invoices i ON ri.invoice_id = i.id 
+          SELECT 1 FROM ar_receipt_items ri
+          JOIN ar_invoices i ON ri.invoice_id = i.id
           WHERE ri.receipt_id = r.id AND i.invoice_number = ?
         )`;
         params.push(filters.invoice_number);
@@ -1322,8 +1322,8 @@ const arModel = {
 
       // 获取总记录数
       const countQuery = `
-        SELECT COUNT(*) as total 
-        FROM ar_receipts r 
+        SELECT COUNT(*) as total
+        FROM ar_receipts r
         LEFT JOIN customers c ON r.customer_id = c.id
         WHERE 1=1
         ${filters.receipt_number ? ' AND r.receipt_number LIKE ?' : ''}
@@ -1433,10 +1433,10 @@ const arModel = {
 
       // 3. 更新收款记录状态为作废
       await connection.execute(
-        `UPDATE ar_receipts 
-         SET status = 'void', 
-             voided_at = NOW(), 
-             voided_by = ?, 
+        `UPDATE ar_receipts
+         SET status = 'void',
+             voided_at = NOW(),
+             voided_by = ?,
              void_reason = ?
          WHERE id = ?`,
         [voidedBy, voidData.void_reason, receiptId]
@@ -1489,7 +1489,7 @@ const arModel = {
         try {
           // 获取原银行交易记录
           const [bankTxs] = await connection.execute(
-            `SELECT * FROM bank_transactions 
+            `SELECT * FROM bank_transactions
              WHERE transaction_number = ? AND bank_account_id = ?
              LIMIT 1
              FOR UPDATE`,
@@ -1550,7 +1550,7 @@ const arModel = {
       // 6. 冲销关联的会计凭证（收款单号作为document_number）
       try {
         const [glEntries] = await connection.execute(
-          `SELECT id FROM gl_entries 
+          `SELECT id FROM gl_entries
            WHERE document_number = ? AND document_type = '收款单' AND (is_reversed IS NULL OR is_reversed = 0)`,
           [receipt.receipt_number]
         );
@@ -1702,7 +1702,7 @@ const arModel = {
     let connection;
     try {
       let query = `
-        SELECT 
+        SELECT
           c.id AS customer_id,
           c.name as customer_name,
           COUNT(a.id) AS invoice_count,
@@ -1746,7 +1746,7 @@ const arModel = {
       const currentDate = asOfDate || new Date().toISOString().split('T')[0];
 
       let query = `
-        SELECT 
+        SELECT
           c.id AS customer_id,
           c.name as customer_name,
           SUM(CASE WHEN DATEDIFF(?, a.due_date) <= 0 THEN a.balance_amount ELSE 0 END) AS current_amount,
@@ -1803,7 +1803,7 @@ const arModel = {
       try {
         const [paymentResults] = await connection.execute(
           `SELECT rp.id, rp.receipt_id, rp.invoice_id, rp.amount, rp.discount_amount,
-                  r.receipt_number, DATE_FORMAT(r.receipt_date, '%Y-%m-%d') as payment_date, 
+                  r.receipt_number, DATE_FORMAT(r.receipt_date, '%Y-%m-%d') as payment_date,
                   r.payment_method, r.reference_number
            FROM ar_receipt_items rp
            LEFT JOIN ar_receipts r ON rp.receipt_id = r.id

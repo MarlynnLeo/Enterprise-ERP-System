@@ -1,8 +1,8 @@
 <template>
   <!-- 价格调整表单对话框 -->
-  <el-dialog 
-    v-model="visible" 
-    title="调整物料价格" 
+  <el-dialog
+    v-model="visible"
+    title="调整物料价格"
     width="500px"
     :close-on-click-modal="false"
   >
@@ -14,16 +14,16 @@
         <el-input :value="form.material_name" disabled />
       </el-form-item>
       <el-form-item label="原始采购价">
-        <el-input-number 
-          :model-value="form.original_price" 
-          disabled 
-          style="width: 100%" 
+        <el-input-number
+          :model-value="form.original_price"
+          disabled
+          style="width: 100%"
           :controls="false"
         />
       </el-form-item>
       <el-form-item label="调整后价格" prop="adjusted_price" required>
-        <el-input-number 
-          :model-value="form.adjusted_price" 
+        <el-input-number
+          :model-value="form.adjusted_price"
           :min="0"
           :precision="2"
           :step="0.01"
@@ -32,8 +32,8 @@
         />
       </el-form-item>
       <el-form-item label="调整原因" prop="adjustment_reason" required>
-        <el-input 
-          :model-value="form.adjustment_reason" 
+        <el-input
+          :model-value="form.adjustment_reason"
           type="textarea"
           :rows="3"
           placeholder="请输入调整原因"

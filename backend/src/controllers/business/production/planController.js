@@ -18,6 +18,7 @@ const {
 const { PRODUCTION_STATUS_KEYS, PRODUCTION_PLAN_STATUS_FLOW, getProductionStatusText } = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { appendPaginationSQL } = require('../../../utils/safePagination');
 
 // 计划状态常量别名
 const PLAN_STATUS = businessConfig.status.productionPlan;
@@ -272,9 +273,9 @@ exports.getPlanMaterials = async (req, res) => {
           ppm.level,
           ppm.required_quantity as requiredQuantity,
           COALESCE(
-            (SELECT SUM(il.quantity) 
-             FROM inventory_ledger il 
-             WHERE il.material_id = m.id 
+            (SELECT SUM(il.quantity)
+             FROM inventory_ledger il
+             WHERE il.material_id = m.id
                AND (m.location_id IS NULL OR il.location_id = m.location_id)
             ),
             0
@@ -313,6 +314,14 @@ exports.getPlanMaterials = async (req, res) => {
       unit: material.unit,
       unit_name: material.unit,
       level: material.level,
+      bomPath: material.bomPath,
+      bom_path: material.bomPath,
+      bomPaths: material.bomPaths,
+      parentMaterialId: material.parentMaterialId,
+      parent_material_id: material.parentMaterialId,
+      sourceBomIds: material.sourceBomIds,
+      isLeaf: material.isLeaf,
+      is_leaf: material.isLeaf,
       requiredQuantity: material.requiredQuantity,
       required_quantity: material.requiredQuantity,
       stockQuantity: material.stockQuantity,
@@ -407,15 +416,15 @@ exports.createProductionPlan = async (req, res) => {
     // === 必填字段与业务规则校验 ===
     if (!productId) {
       await connection.rollback();
-      return ResponseHandler.error(res, '产品ID为必填项', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '产品ID为必填项', 'VALIDATION_ERROR', 400);
     }
     if (!quantity || Number(quantity) <= 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '生产数量必须大于0', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '生产数量必须大于0', 'VALIDATION_ERROR', 400);
     }
     if (!name || !name.trim()) {
       await connection.rollback();
-      return ResponseHandler.error(res, '计划名称为必填项', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '计划名称为必填项', 'VALIDATION_ERROR', 400);
     }
     // start_date 和 end_date 可选，排程后自动反写
 
@@ -426,7 +435,7 @@ exports.createProductionPlan = async (req, res) => {
     );
     if (productCheck.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '指定的产品不存在', 'PRODUCT_NOT_FOUND', 400);
+      return ResponseHandler.error(res, '指定的产品不存在', 'NOT_FOUND', 400);
     }
 
     // 如果没有传code，使用统一的PP前缀生成
@@ -515,7 +524,7 @@ exports.createProductionPlan = async (req, res) => {
         400
       );
     } else if (error.message.includes('未找到有效的BOM')) {
-      return ResponseHandler.error(res, error.message, 'BOM_NOT_FOUND', 400);
+      return ResponseHandler.error(res, error.message, 'NOT_FOUND', 400);
     } else if (error.message.includes('BOM中没有物料明细')) {
       return ResponseHandler.error(res, error.message, 'BOM_EMPTY', 400);
     } else {
@@ -565,7 +574,7 @@ exports.updateProductionPlan = async (req, res) => {
       // pushed_quantity 为增量值时的目标值
       const targetPushed = Number(pushed_quantity);
       if (targetPushed < 0) {
-        return ResponseHandler.error(res, '下推数量不能为负数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '下推数量不能为负数', 'VALIDATION_ERROR', 400);
       }
       if (targetPushed > currentQuantity) {
         return ResponseHandler.error(
@@ -587,13 +596,13 @@ exports.updateProductionPlan = async (req, res) => {
 
     // 其他字段只能在草稿状态修改
     if (plans[0].status !== 'draft') {
-      return ResponseHandler.error(res, '只能修改草稿状态的生产计划', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能修改草稿状态的生产计划', 'VALIDATION_ERROR', 400);
     }
 
     // 更新生产计划，不更新编号
     await connection.query(
       `
-      UPDATE production_plans 
+      UPDATE production_plans
       SET name = ?, start_date = ?, end_date = ?, delivery_date = ?, product_id = ?, quantity = ?, contract_code = ?
       WHERE id = ?
     `,
@@ -645,7 +654,7 @@ exports.deleteProductionPlan = async (req, res) => {
     }
 
     if (plans[0].status !== 'draft') {
-      return ResponseHandler.error(res, '只能删除草稿状态的生产计划', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能删除草稿状态的生产计划', 'VALIDATION_ERROR', 400);
     }
 
     // 删除物料需求（子表硬删除）
@@ -680,7 +689,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     // 验证状态值是否有效（使用统一状态流转规则的 key 集合）
     const validStatuses = Object.keys(PRODUCTION_PLAN_STATUS_FLOW);
     if (!validStatuses.includes(status)) {
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 检查生产计划是否存在（使用 FOR UPDATE 加行级锁防止并发）
@@ -711,7 +720,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
           COUNT(*) as total,
           SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed_count,
           SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.INSPECTION}' THEN 1 ELSE 0 END) as inspection_count,
-          SUM(CASE WHEN status IN ('${PRODUCTION_STATUS_KEYS.IN_PROGRESS}', 'inProgress') THEN 1 ELSE 0 END) as in_progress_count,
+          SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}' THEN 1 ELSE 0 END) as in_progress_count,
           SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled_count
         FROM production_tasks WHERE plan_id = ?`,
         [id]
@@ -758,9 +767,14 @@ exports.updateProductionPlanStatus = async (req, res) => {
     // 取消计划时，同步取消关联的未完成任务
     if (status === PLAN_STATUS.CANCELLED) {
       const [cancelResult] = await connection.query(
-        `UPDATE production_tasks SET status = 'cancelled' 
-         WHERE plan_id = ? AND status NOT IN ('completed', 'cancelled')`,
-        [id]
+        `UPDATE production_tasks SET status = ?
+         WHERE plan_id = ? AND status NOT IN (?, ?)`,
+        [
+          PRODUCTION_STATUS_KEYS.CANCELLED,
+          id,
+          PRODUCTION_STATUS_KEYS.COMPLETED,
+          PRODUCTION_STATUS_KEYS.CANCELLED,
+        ]
       );
       if (cancelResult.affectedRows > 0) {
         logger.info(`计划 ${id} 取消，同步取消 ${cancelResult.affectedRows} 个关联任务`);
@@ -813,7 +827,12 @@ exports.getDashboardProductionPlans = async (req, res) => {
 
     const safeLimit = parseInt(limit, 10) || 10;
 
-    const query = `
+    const dashboardStatuses = [
+      PRODUCTION_STATUS_KEYS.IN_PROGRESS,
+      PRODUCTION_STATUS_KEYS.PREPARING,
+    ];
+
+    const baseQuery = `
       SELECT
         pp.id,
         pp.code,
@@ -830,12 +849,12 @@ exports.getDashboardProductionPlans = async (req, res) => {
       FROM production_plans pp
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
-      WHERE pp.status IN ('in_progress', 'preparing')
+      WHERE pp.status IN (?)
       ORDER BY pp.code DESC
-      LIMIT ${safeLimit}
     `;
+    const query = appendPaginationSQL(baseQuery, safeLimit, 0);
 
-    const [plans] = await pool.query(query);
+    const [plans] = await pool.query(query, [dashboardStatuses]);
     ResponseHandler.success(res, plans);
   } catch (error) {
     logger.error('获取仪表盘生产计划失败:', error);

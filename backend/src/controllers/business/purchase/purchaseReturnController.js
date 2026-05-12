@@ -115,7 +115,7 @@ const getReturns = async (req, res) => {
     }
 
     // 添加排序和分页
-    dataQuery += ` ORDER BY r.created_at DESC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`;
+    dataQuery += ` ORDER BY r.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(parseInt(offset)))||0)}`;
 
     // 执行数据查询
     const [result] = await pool.query(dataQuery, queryParams);
@@ -133,7 +133,7 @@ const getReturns = async (req, res) => {
       };
     });
 
-    res.json({
+    return ResponseHandler.success(res, {
       data: returns,
       pagination: {
         total: totalCount,
@@ -191,7 +191,7 @@ const getReturn = async (req, res) => {
 
     returnData.items = itemsResult;
 
-    res.json(returnData);
+    return ResponseHandler.success(res, returnData);
   } catch (error) {
     logger.error('获取采购退货详情失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -280,8 +280,8 @@ const createReturn = async (req, res) => {
     // 创建采购退货物料项目
     if (items && items.length > 0) {
       const insertItemsQuery = `
-        INSERT INTO purchase_return_items 
-        (return_id, receipt_item_id, material_id, material_code, material_name, 
+        INSERT INTO purchase_return_items
+        (return_id, receipt_item_id, material_id, material_code, material_name,
          specification, unit, unit_id, quantity, return_quantity, price)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
@@ -349,7 +349,7 @@ const updateReturn = async (req, res) => {
     const currentStatus = checkResult[0].status;
     if (currentStatus !== 'draft' && currentStatus !== 'pending') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能编辑草稿或待处理状态的退货单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能编辑草稿或待处理状态的退货单', 'VALIDATION_ERROR', 400);
     }
 
     // ✅ 优先使用前端传来的operator,否则使用当前登录用户
@@ -377,8 +377,8 @@ const updateReturn = async (req, res) => {
     // 添加新的物料项目
     if (items && items.length > 0) {
       const insertItemsQuery = `
-        INSERT INTO purchase_return_items 
-        (return_id, receipt_item_id, material_id, material_code, material_name, 
+        INSERT INTO purchase_return_items
+        (return_id, receipt_item_id, material_id, material_code, material_name,
          specification, unit, unit_id, quantity, return_quantity, price)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
@@ -407,10 +407,47 @@ const updateReturn = async (req, res) => {
     // 获取更新后的退货单信息
     const updatedReturn = await getReturnById(id);
 
-    res.json(updatedReturn);
+    return ResponseHandler.success(res, updatedReturn);
   } catch (error) {
     await connection.rollback();
     logger.error('更新采购退货单失败:', error);
+    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+  } finally {
+    connection.release();
+  }
+};
+
+// 删除采购退货单（仅允许删除草稿，避免已确认/已完成单据影响库存链路）
+const deleteReturn = async (req, res) => {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const { id } = req.params;
+    const [rows] = await connection.query(
+      'SELECT status FROM purchase_returns WHERE id = ? FOR UPDATE',
+      [id]
+    );
+
+    if (rows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.notFound(res, '采购退货单不存在');
+    }
+
+    if (rows[0].status !== 'draft') {
+      await connection.rollback();
+      return ResponseHandler.error(res, '仅草稿状态的采购退货单允许删除', 'VALIDATION_ERROR', 400);
+    }
+
+    await connection.query('DELETE FROM purchase_return_items WHERE return_id = ?', [id]);
+    await connection.query('DELETE FROM purchase_returns WHERE id = ?', [id]);
+
+    await connection.commit();
+    return ResponseHandler.success(res, null, '删除成功');
+  } catch (error) {
+    await connection.rollback();
+    logger.error('删除采购退货单失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
   } finally {
     connection.release();
@@ -431,7 +468,7 @@ const updateReturnStatus = async (req, res) => {
     const validStatuses = ['draft', 'confirmed', 'completed', 'cancelled'];
     if (!validStatuses.includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 检查退货单是否存在
@@ -448,7 +485,7 @@ const updateReturnStatus = async (req, res) => {
     // 检查状态变更是否有效
     if (currentStatus === newStatus) {
       await connection.rollback();
-      return ResponseHandler.error(res, '当前已经是该状态', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '当前已经是该状态', 'VALIDATION_ERROR', 400);
     }
 
     // 特定状态转换的验证
@@ -461,7 +498,7 @@ const updateReturnStatus = async (req, res) => {
 
     if (!validTransitions[currentStatus] || !validTransitions[currentStatus].includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态变更', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态变更', 'VALIDATION_ERROR', 400);
     }
 
     // 如果状态变为已完成，则需要更新库存
@@ -536,9 +573,7 @@ const updateReturnStatus = async (req, res) => {
           // 确保库存不会变为负数
           if (currentQuantity < returnQuantity) {
             await connection.rollback();
-            return res.status(400).json({
-              error: `物料 ${item.material_name} 库存不足，当前库存: ${currentQuantity}, 退货数量: ${returnQuantity}`,
-            });
+            return ResponseHandler.error(res, `物料 ${item.material_name} 库存不足，当前库存: ${currentQuantity}, 退货数量: ${returnQuantity}`, 'VALIDATION_ERROR', 400);
           }
 
 
@@ -723,7 +758,7 @@ const updateReturnStatus = async (req, res) => {
       }
     }
 
-    res.json(updatedReturn);
+    return ResponseHandler.success(res, updatedReturn);
   } catch (error) {
     await connection.rollback();
     logger.error('更新采购退货状态失败:', error);
@@ -771,7 +806,7 @@ const getReturnById = async (id) => {
 const getReturnStats = async (req, res) => {
   try {
     const statsQuery = `
-      SELECT 
+      SELECT
         COUNT(*) as total_count,
         COUNT(CASE WHEN status = '${STATUS.PURCHASE_RETURN.DRAFT}' THEN 1 ELSE NULL END) as draft_count,
         COUNT(CASE WHEN status = '${STATUS.PURCHASE_RETURN.CONFIRMED}' THEN 1 ELSE NULL END) as confirmed_count,
@@ -812,7 +847,7 @@ const getReturnStats = async (req, res) => {
       lastMonthAmount: parseFloat(lastMonthResult[0].last_month_amount) || 0,
     };
 
-    res.json(stats);
+    return ResponseHandler.success(res, stats);
   } catch (error) {
     logger.error('获取采购退货统计信息失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -824,6 +859,7 @@ module.exports = {
   getReturn,
   createReturn,
   updateReturn,
+  deleteReturn,
   updateReturnStatus,
   getReturnStats,
 };

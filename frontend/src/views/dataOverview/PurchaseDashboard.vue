@@ -42,7 +42,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card success-card" shadow="hover">
           <div class="stat-content">
@@ -65,7 +65,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card info-card" shadow="hover">
           <div class="stat-content">
@@ -88,7 +88,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card warning-card" shadow="hover">
           <div class="stat-content">
@@ -150,7 +150,7 @@
           <template #header>
             <div class="card-header-with-search">
               <span>待处理采购事项</span>
-              <el-input 
+              <el-input
                 v-model="search"
                 placeholder="搜索"
                 class="search-input"
@@ -197,10 +197,10 @@
             </el-table-column>
             <el-table-column label="操作" min-width="120" fixed="right">
               <template #default="scope">
-                <el-button 
-                  type="primary" 
-                  text 
-                  size="small" 
+                <el-button
+                  type="primary"
+                  text
+                  size="small"
                   @click="viewPurchaseItem(scope.row)"
                 >查看</el-button>
               </template>
@@ -223,7 +223,6 @@
   </div>
 </template>
 <script setup>
-import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router';
@@ -252,6 +251,7 @@ const {
   loadData
 } = useDashboard('purchase', loadPurchaseData, {
   autoRefresh: true,
+  immediate: false,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
 // 使用图表管理组合式函数
@@ -268,60 +268,22 @@ const pageSize = ref(10);
 // 加载采购数据
 async function loadPurchaseData() {
   try {
-    // 获取当前月份的开始和结束日期
-    const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const queryParams = {
-      startDate: currentMonthStart.toISOString().split('T')[0],
-      endDate: currentMonthEnd.toISOString().split('T')[0],
-      status: 'completed'
-    };
-    // 并行获取多个数据源
-    const [dashboardStats, completedRequisitions, pendingRequisitions, orders, _receipts, _returns] = await Promise.allSettled([
-      purchaseApi.getDashboardStatistics ? purchaseApi.getDashboardStatistics() : purchaseApi.getStatistics(),
-      // 获取当月已完成的采购申请
-      purchaseApi.getRequisitions({
-        ...queryParams,
-        pageSize: 100
-      }),
-      // 获取待处理的采购申请
-      purchaseApi.getRequisitions({ status: 'pending', pageSize: 20 }),
-      purchaseApi.getOrders({ status: 'pending', pageSize: 20 }),
-      purchaseApi.getReceipts ? purchaseApi.getReceipts({ status: 'pending', limit: 20 }) : Promise.resolve({ data: [] }),
-      purchaseApi.getReturns ? purchaseApi.getReturns({ status: 'pending', limit: 20 }) : Promise.resolve({ data: [] })
+    const [dashboardStats] = await Promise.allSettled([
+      purchaseApi.getDashboardStatistics ? purchaseApi.getDashboardStatistics() : purchaseApi.getStatistics()
     ]);
     // 处理统计数据
     let stats = getDefaultStatistics('purchase');
-    // 计算当月已完成的采购申请数量 - axios拦截器已解包
-    let completedThisMonth = 0;
-    if (completedRequisitions.status === 'fulfilled' && completedRequisitions.value) {
-      const responseData = completedRequisitions.value.data || completedRequisitions.value;
-      // 处理不同的响应数据结构
-      let reqData = [];
-      if (Array.isArray(responseData)) {
-        reqData = responseData;
-      } else if (responseData.items && Array.isArray(responseData.items)) {
-        reqData = responseData.items;
-      } else if (responseData.list && Array.isArray(responseData.list)) {
-        reqData = responseData.list;
-      } else if (responseData.data && Array.isArray(responseData.data)) {
-        reqData = responseData.data;
-      }
-      completedThisMonth = reqData.length;
-    } else {
-      completedThisMonth = 0;
-    }
     // 处理仪表盘统计数据 - axios拦截器已解包
     if (dashboardStats.status === 'fulfilled' && dashboardStats.value) {
       const data = dashboardStats.value.data || dashboardStats.value;
       // 提取统计数据（处理嵌套结构）
       const statsData = data.statistics || data;
+      const requisitions = statsData.requisitions || {};
       stats = {
         requisitions: {
-          total: completedThisMonth,
-          pending: statsData.requisitions?.pending || 0,
-          completed: completedThisMonth
+          total: requisitions.total || 0,
+          pending: requisitions.pending || 0,
+          completed: requisitions.completedThisMonth ?? requisitions.completed ?? 0
         },
         orders: {
           total: statsData.orders?.total || 0,
@@ -339,48 +301,18 @@ async function loadPurchaseData() {
         trendData: data.trendData || [],
         categoryDistribution: data.categoryDistribution || []
       };
+      pendingItems.value = (data.pendingItems || []).map(item => ({
+          id: item.id,
+          type: item.type,
+          number: item.number,
+          supplier: item.supplier || item.requester || '-',
+          amount: Number(item.amount || 0),
+          date: item.date,
+          status: item.status
+      }));
     } else {
-      stats.requisitions = {
-        total: completedThisMonth,
-        pending: 0,
-        completed: completedThisMonth
-      };
+      pendingItems.value = [];
     }
-    // 处理待处理事项数据
-    const pendingItemsList = [];
-    // 添加待处理申请单
-    if (pendingRequisitions.status === 'fulfilled' && pendingRequisitions.value) {
-      // 使用统一解析器处理响应数据
-      const reqData = parseListData(pendingRequisitions.value, { enableLog: false });
-      reqData.forEach(item => {
-        pendingItemsList.push({
-          id: item.id,
-          type: 'requisition',
-          number: item.requisition_number || item.number,
-          supplier: item.supplier_name || '-',
-          amount: item.total_amount || 0,
-          date: item.request_date || item.created_at,
-          status: item.status
-        });
-      });
-    }
-    // 添加待处理订单
-    if (orders.status === 'fulfilled' && orders.value) {
-      // 使用统一解析器处理响应数据
-      const orderData = parseListData(orders.value, { enableLog: false });
-      orderData.forEach(item => {
-        pendingItemsList.push({
-          id: item.id,
-          type: 'order',
-          number: item.order_no || item.number,
-          supplier: item.supplier_name || '-',
-          amount: item.total_amount || 0,
-          date: item.order_date || item.created_at,
-          status: item.status
-        });
-      });
-    }
-    pendingItems.value = pendingItemsList;
     return stats;
   } catch (error) {
     console.error('获取采购数据失败:', error);
@@ -464,7 +396,7 @@ function viewPurchaseItem(item) {
     'receipt': '/purchase/receipts',
     'return': '/purchase/returns'
   };
-  
+
   const route = routeMap[item.type] || '/purchase';
   router.push({
     path: route,
@@ -577,7 +509,32 @@ onMounted(async () => {
 // 监听时间范围变化，更新图表
 watch(timeRange, () => {
   if (chartInstances.purchaseTrend) {
-    updateChart('purchaseTrend', initPurchaseTrendChart);
+    const trendData = statistics.trendData || [];
+    const labels = trendData.map(item => {
+      const date = new Date(`${item.month}-01`);
+      return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short' });
+    });
+    updateChart('purchaseTrend', {
+      labels: labels.length ? labels : generateMonthLabels(parseInt(timeRange.value)),
+      datasets: [
+        {
+          label: '采购申请',
+          data: labels.length ? trendData.map(item => item.requisitionCount ?? item.requisition_count ?? null) : [],
+          borderColor: chartColors.primary[0],
+          backgroundColor: chartColors.primary[4],
+          tension: 0.4,
+          fill: false
+        },
+        {
+          label: '采购订单',
+          data: labels.length ? trendData.map(item => item.orderCount ?? item.order_count ?? null) : [],
+          borderColor: chartColors.success[0],
+          backgroundColor: chartColors.success[4],
+          tension: 0.4,
+          fill: false
+        }
+      ]
+    });
   }
 });
 </script>
@@ -688,11 +645,11 @@ watch(timeRange, () => {
   .search-input {
     max-width: 120px;
   }
-  
+
   .stat-value {
     font-size: 22px;
   }
-  
+
   .stat-secondary-value {
     font-size: 18px;
   }
@@ -708,4 +665,4 @@ watch(timeRange, () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

@@ -180,7 +180,7 @@ watch(() => props.modelValue, async (visible) => {
     selectedBomA.value = null
     selectedBomB.value = null
     compareResult.value = null
-    
+
     loadingList.value = true
     try {
       const res = await bomApi.getBoms({ page: 1, pageSize: 500, includeHistory: true })

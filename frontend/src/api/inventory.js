@@ -1,10 +1,10 @@
 import { api } from '../services/axiosInstance';
+import { baseDataApi } from './baseData';
 import {  parseListData } from '../utils/responseParser';
 
 export const inventoryApi = {
     // 库存查询
     getStocks: (params) => api.get('/inventory/stock', { params }),
-    getStockDetail: (id) => api.get(`/inventory/stocks/${id}`),
     getStockRecords: (id) => api.get(`/inventory/stock/${id}/records`),
     // 添加通过物料ID获取库存记录的API
     getMaterialRecords: (materialId, params = {}) => api.get(`/inventory/materials/${materialId}/records`, { params }),
@@ -76,16 +76,16 @@ export const inventoryApi = {
      * @returns {Promise} response.data = { list: [], total, page, pageSize }
      * 注意：不再做二次封装，组件使用 parseListData 解析
      */
-    getAllMaterials: (params = {}) => api.get('/baseData/materials', {
-        params: { ...params, timestamp: Date.now() },
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+    getAllMaterials: (params = {}) => baseDataApi.getMaterials({
+        ...params,
+        timestamp: Date.now()
     }),
 
     // 获取单位列表 - 与 baseDataApi.getUnits 保持一致
-    getUnits: (params) => api.get('/baseData/units', { params }),
+    getUnits: (params) => baseDataApi.getUnits(params),
 
     // 获取库位列表 - 与 baseDataApi.getLocations 保持一致
-    getLocations: (params) => api.get('/baseData/locations', { params }),
+    getLocations: (params) => baseDataApi.getLocations(params),
 
     // 新增出库单
     createOutbound: (data) => api.post('/inventory/outbound', data),
@@ -127,9 +127,6 @@ export const inventoryApi = {
 
     // 批量发料
     batchOutbound: (data) => api.post('/inventory/outbound/batch', data),
-
-    // 搜索物料
-    searchMaterials: (query) => api.get(`/inventory/materials/search?query=${query}`),
 
     // 获取物料库存
     getMaterialStock: async (materialId, warehouseId) => {

@@ -24,7 +24,7 @@
             </div>
           </div>
         </template>
-        
+
         <el-form :model="localUserForm" :rules="rules" ref="userFormRef" label-width="100px" :disabled="!isEditing">
           <div class="form-section">
             <div class="section-title">
@@ -43,7 +43,7 @@
                 </el-form-item>
               </el-col>
             </el-row>
-            
+
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="手机号" prop="phone">
@@ -57,9 +57,9 @@
               </el-col>
             </el-row>
           </div>
-          
+
           <el-divider />
-          
+
           <div class="form-section">
             <div class="section-title">
               <el-icon><Location /></el-icon>
@@ -74,12 +74,12 @@
                 @update:model-value="updateUserFormField('location', $event)"
               />
             </el-form-item>
-            
+
             <el-form-item label="个人简介">
-              <el-input 
-                :model-value="localUserForm.bio" 
-                type="textarea" 
-                :rows="4" 
+              <el-input
+                :model-value="localUserForm.bio"
+                type="textarea"
+                :rows="4"
                 placeholder="介绍一下自己..."
                 maxlength="200"
                 show-word-limit
@@ -101,7 +101,7 @@
             </div>
           </div>
         </template>
-        
+
         <el-alert
           title="安全提示"
           type="info"
@@ -116,31 +116,31 @@
             </ul>
           </template>
         </el-alert>
-        
+
         <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" label-width="120px" class="password-form">
           <el-form-item label="当前密码" prop="currentPassword">
-            <el-input 
-              v-model="passwordForm.currentPassword" 
-              type="password" 
-              show-password 
+            <el-input
+              v-model="passwordForm.currentPassword"
+              type="password"
+              show-password
               placeholder="请输入当前密码"
               prefix-icon="Lock"
             />
           </el-form-item>
-          
+
           <el-form-item label="新密码" prop="newPassword">
-            <el-input 
-              v-model="passwordForm.newPassword" 
-              type="password" 
-              show-password 
+            <el-input
+              v-model="passwordForm.newPassword"
+              type="password"
+              show-password
               placeholder="请输入新密码（至少8位）"
               prefix-icon="Lock"
               @input="checkStrength"
             />
             <div v-if="passwordStrength > 0" class="password-strength">
               <div class="strength-label">密码强度:</div>
-              <el-progress 
-                :percentage="passwordStrength" 
+              <el-progress
+                :percentage="passwordStrength"
                 :color="passwordStrengthColor"
                 :show-text="false"
               />
@@ -149,17 +149,17 @@
               </span>
             </div>
           </el-form-item>
-          
+
           <el-form-item label="确认新密码" prop="confirmPassword">
-            <el-input 
-              v-model="passwordForm.confirmPassword" 
-              type="password" 
-              show-password 
+            <el-input
+              v-model="passwordForm.confirmPassword"
+              type="password"
+              show-password
               placeholder="请再次输入新密码"
               prefix-icon="Lock"
             />
           </el-form-item>
-          
+
           <el-form-item>
             <el-button type="primary" @click="submitPasswordChange" :loading="passwordChanging">
               <el-icon><Check /></el-icon> 更新密码
@@ -175,7 +175,7 @@
 </template>
 <script setup>
 import { ref, reactive, watch } from 'vue'
-import { 
+import {
   User, Check, Close, Edit, Location,
   Lock, RefreshRight
 } from '@element-plus/icons-vue'
@@ -186,7 +186,7 @@ const props = defineProps({
   isEditing: Boolean
 })
 const emit = defineEmits([
-  'start-editing', 'cancel-editing', 'save-profile', 
+  'start-editing', 'cancel-editing', 'save-profile',
   'update:userForm', 'change-password'
 ])
 const userFormRef = ref(null)
@@ -245,15 +245,15 @@ const passwordRules = {
   ],
   confirmPassword: [
     { required: true, message: '请确认新密码', trigger: 'blur' },
-    { 
+    {
       validator: (rule, value, callback) => {
         if (value !== passwordForm.newPassword) {
           callback(new Error('两次输入的密码不一致'))
         } else {
           callback()
         }
-      }, 
-      trigger: 'blur' 
+      },
+      trigger: 'blur'
     }
   ]
 }
@@ -273,16 +273,16 @@ const checkStrength = (value) => {
     passwordStrength.value = 0
     return
   }
-  
+
   let score = 0
   if (value.length >= 8) score += 30
   if (/[A-Z]/.test(value)) score += 20
   if (/[a-z]/.test(value)) score += 20
   if (/[0-9]/.test(value)) score += 15
   if (/[^A-Za-z0-9]/.test(value)) score += 15
-  
+
   passwordStrength.value = Math.min(score, 100)
-  
+
   if (score < 60) {
     passwordStrengthText.value = '弱'
     passwordStrengthColor.value = '#F56C6C'

@@ -21,7 +21,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 查询条件区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="queryParams" class="search-form">
@@ -77,7 +77,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 报表区域 -->
     <el-card class="data-card" v-loading="loading">
       <div class="report-title" v-if="reportData.length">
@@ -156,6 +156,7 @@ import { ReportHelper } from '@/utils/commonHelpers'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import printService from '@/services/printService';
 import ExcelJS from 'exceljs';
 // 查询参数
 const queryParams = reactive({
@@ -180,12 +181,12 @@ const generateReport = async () => {
     ElMessage.warning('请选择报表开始和结束日期');
     return;
   }
-  
+
   if (queryParams.enableCompare && (!queryParams.compareStartDate || !queryParams.compareEndDate)) {
     ElMessage.warning('已启用比较，请选择比较期间的开始和结束日期');
     return;
   }
-  
+
   loading.value = true;
   try {
     const response = await api.get('/finance/reports/income-statement', {
@@ -216,9 +217,49 @@ const generateReport = async () => {
   }
 };
 
+const flattenIncomeRows = (rows, level = 0, result = []) => {
+  rows.forEach((item) => {
+    result.push({ ...item, level });
+    if (Array.isArray(item.children) && item.children.length) {
+      flattenIncomeRows(item.children, level + 1, result);
+    }
+  });
+  return result;
+};
+
 // 打印报表
-const printReport = () => {
-  window.print();
+const printReport = async () => {
+  if (!reportData.value.length) {
+    ElMessage.warning('没有可打印的数据');
+    return;
+  }
+
+  try {
+    const rows = flattenIncomeRows(reportData.value);
+    const html = await printService.generateByDefaultTemplate('finance', 'income_statement', {
+      report_period: formatDateRange(queryParams.startDate, queryParams.endDate),
+      compare_period: queryParams.enableCompare ? formatDateRange(queryParams.compareStartDate, queryParams.compareEndDate) : '',
+      unit_text: unitText.value,
+      print_time: new Date().toLocaleString(),
+      items: rows.map((item, index) => {
+        const changeAmount = (Number(item.amount) || 0) - (Number(item.compareAmount) || 0);
+        return {
+          index: index + 1,
+          name: `${item.level ? '  '.repeat(item.level) : ''}${item.name || ''}`,
+          row_num: item.rowNum || '',
+          amount: formatAmount(item.amount),
+          compare_amount: queryParams.enableCompare ? formatAmount(item.compareAmount) : '',
+          change_amount: queryParams.enableCompare ? formatAmount(changeAmount) : '',
+          change_rate: queryParams.enableCompare ? calculateChangeRate(item.amount, item.compareAmount) : ''
+        };
+      })
+    });
+    printService.previewDocument(html);
+    ElMessage.success('打印预览已打开');
+  } catch (error) {
+    console.error('打印利润表失败:', error);
+    ElMessage.error('打印利润表失败');
+  }
 };
 
 // 导出Excel
@@ -255,31 +296,31 @@ const exportExcel = async () => {
 // 准备Excel数据
 const prepareExcelData = (data) => {
   const headerRow = { A: '项目', B: '行次', C: formatDateRange(queryParams.startDate, queryParams.endDate) };
-  
+
   if (queryParams.enableCompare) {
     headerRow.D = formatDateRange(queryParams.compareStartDate, queryParams.compareEndDate);
     headerRow.E = '变动';
     headerRow.F = '变动率(%)';
   }
-  
+
   const rows = [headerRow];
-  
+
   data.forEach(item => {
     const row = {
       A: item.name,
       B: item.rowNum,
       C: formatAmount(item.amount)
     };
-    
+
     if (queryParams.enableCompare) {
       const change = item.amount - item.compareAmount;
       row.D = formatAmount(item.compareAmount);
       row.E = formatAmount(change);
       row.F = calculateChangeRate(item.amount, item.compareAmount);
     }
-    
+
     rows.push(row);
-    
+
     // 处理子项
     if (item.children && item.children.length) {
       item.children.forEach(child => {
@@ -288,39 +329,39 @@ const prepareExcelData = (data) => {
           B: child.rowNum,
           C: formatAmount(child.amount)
         };
-        
+
         if (queryParams.enableCompare) {
           const childChange = child.amount - child.compareAmount;
           childRow.D = formatAmount(child.compareAmount);
           childRow.E = formatAmount(childChange);
           childRow.F = calculateChangeRate(child.amount, child.compareAmount);
         }
-        
+
         rows.push(childRow);
       });
     }
   });
-  
+
   return rows;
 };
 
 // 格式化日期范围
 const formatDateRange = (startDate, endDate) => {
   if (!startDate || !endDate) return '';
-  
+
   const start = new Date(startDate);
   const end = new Date(endDate);
-  
+
   return `${start.getFullYear()}年${start.getMonth() + 1}月${start.getDate()}日 - ${end.getFullYear()}年${end.getMonth() + 1}月${end.getDate()}日`;
 };
 
 // 格式化金额
 const formatAmount = (amount) => {
   if (amount === undefined || amount === null) return '-';
-  
+
   // 换算单位
   const convertedAmount = amount / queryParams.unit;
-  
+
   // 格式化为千分位
   return convertedAmount.toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
@@ -331,7 +372,7 @@ const formatAmount = (amount) => {
 // 计算变动率
 const calculateChangeRate = (current, compare) => {
   if (compare === 0 || compare === null || compare === undefined) return 'N/A';
-  
+
   const rate = ((current - compare) / Math.abs(compare)) * 100;
   return rate.toFixed(2) + '%';
 };
@@ -425,14 +466,14 @@ onMounted(() => {
   .header-actions {
     display: none;
   }
-  
+
   .report-container {
     padding: 0;
   }
-  
+
   .report-card {
     box-shadow: none;
     border: none;
   }
 }
-</style> 
+</style>

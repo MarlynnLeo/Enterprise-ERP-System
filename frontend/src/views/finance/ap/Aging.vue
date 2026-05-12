@@ -21,7 +21,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 搜索表单 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" ref="searchFormRef" class="search-form">
@@ -48,7 +48,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计卡片 -->
     <div class="statistics-row" v-if="hasData">
       <el-card class="stat-card" shadow="hover">
@@ -59,7 +59,7 @@
         </template>
         <div class="stat-value">{{ formatCurrency(summaryData.totalAmount) }}</div>
       </el-card>
-      
+
       <el-card class="stat-card" shadow="hover">
         <template #header>
           <div class="card-header">
@@ -69,7 +69,7 @@
         <div class="stat-value">{{ formatCurrency(summaryData.within30Days) }}</div>
         <div class="stat-percent">{{ calculatePercent(summaryData.within30Days, summaryData.totalAmount) }}%</div>
       </el-card>
-      
+
       <el-card class="stat-card" shadow="hover">
         <template #header>
           <div class="card-header">
@@ -79,7 +79,7 @@
         <div class="stat-value">{{ formatCurrency(summaryData.days31to60) }}</div>
         <div class="stat-percent">{{ calculatePercent(summaryData.days31to60, summaryData.totalAmount) }}%</div>
       </el-card>
-      
+
       <el-card class="stat-card" shadow="hover">
         <template #header>
           <div class="card-header">
@@ -89,7 +89,7 @@
         <div class="stat-value">{{ formatCurrency(summaryData.days61to90) }}</div>
         <div class="stat-percent">{{ calculatePercent(summaryData.days61to90, summaryData.totalAmount) }}%</div>
       </el-card>
-      
+
       <el-card class="stat-card" shadow="hover">
         <template #header>
           <div class="card-header">
@@ -100,7 +100,7 @@
         <div class="stat-percent">{{ calculatePercent(summaryData.over90Days, summaryData.totalAmount) }}%</div>
       </el-card>
     </div>
-    
+
     <!-- 图表展示 -->
     <el-card class="chart-card" v-if="hasData">
       <template #header>
@@ -113,7 +113,7 @@
         <div id="barChart" class="chart"></div>
       </div>
     </el-card>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <template #header>
@@ -121,11 +121,11 @@
           <span>应付账款账龄明细</span>
         </div>
       </template>
-      
+
       <div v-if="!hasData" class="empty-container">
         <el-empty description='请选择报表日期并点击"生成报表"按钮'></el-empty>
       </div>
-      
+
       <el-table
         v-else
         :data="safeTableData"
@@ -173,7 +173,7 @@
         </el-table-column>
       </el-table>
     </el-card>
-    
+
     <!-- 明细对话框 -->
     <el-dialog
       title="应付账款明细"
@@ -186,7 +186,7 @@
         <el-descriptions-item label="联系人">{{ selectedSupplier.contactPerson }}</el-descriptions-item>
         <el-descriptions-item label="联系电话">{{ selectedSupplier.contactPhone }}</el-descriptions-item>
       </el-descriptions>
-      
+
       <div style="margin-top: 20px">
         <h4>未付发票列表</h4>
         <el-table :data="detailsList" border style="width: 100%">
@@ -223,6 +223,7 @@ import { formatCurrency } from '@/utils/format'
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import printService from '@/services/printService';
 import * as echarts from 'echarts';
 import ExcelJS from 'exceljs';
 // 权限计算属性
@@ -304,7 +305,7 @@ const generateReport = async () => {
     ElMessage.warning('请选择报表日期');
     return;
   }
-  
+
   loading.value = true;
   // 重置数据，避免竞态条件
   tableData.value = [];
@@ -315,14 +316,13 @@ const generateReport = async () => {
       supplierType: searchForm.supplierType,
       supplierName: searchForm.supplierName
     };
-    
+
     const response = await api.get('/finance/ap/aging', { params });
 
     // 安全设置数据
     if (response.data && Array.isArray(response.data.details)) {
       tableData.value = response.data.details;
     } else {
-      console.warn('[应付账款账龄分析] API返回数据格式异常:', response.data);
       tableData.value = [];
     }
 
@@ -393,7 +393,7 @@ const getSummaries = (param) => {
         if (column.property === 'over90Days') return item.over90Days || 0;
         return 0;
       });
-    
+
     if (['totalAmount', 'within30Days', 'days31to60', 'days61to90', 'over90Days'].includes(column.property)) {
       const sum = values.reduce((prev, curr) => {
         const value = Number(curr);
@@ -403,7 +403,7 @@ const getSummaries = (param) => {
           return prev;
         }
       }, 0);
-      
+
       sums[index] = formatCurrency(sum);
     } else {
       sums[index] = '';
@@ -464,16 +464,16 @@ const renderCharts = () => {
     ]
   };
   pieChart.setOption(pieOption);
-  
+
   // 柱状图
   const barChart = echarts.init(document.getElementById('barChart'));
-  
+
   // 获取金额最高的5个供应商
   const data = safeTableData.value;
   const top5Suppliers = Array.isArray(data) ? [...data]
     .sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0))
     .slice(0, 5) : [];
-  
+
   const barOption = {
     title: {
       text: '前5大供应商应付账款',
@@ -499,8 +499,8 @@ const renderCharts = () => {
       type: 'value',
       axisLabel: {
         formatter: (value) => {
-          return value >= 10000 
-            ? (value / 10000).toFixed(1) + '万' 
+          return value >= 10000
+            ? (value / 10000).toFixed(1) + '万'
             : value;
         }
       }
@@ -573,10 +573,10 @@ const renderCharts = () => {
     ]
   };
   barChart.setOption(barOption);
-  
+
   pieChartInstance = pieChart;
   barChartInstance = barChart;
-  
+
   // 注册统一的 resize 监听
   window.addEventListener('resize', handleChartResize);
 };
@@ -667,12 +667,44 @@ const exportToExcel = async () => {
 };
 
 // 打印报表
-const printReport = () => {
-  if (!tableData.value.length) {
+const printReport = async () => {
+  if (!hasData.value) {
     ElMessage.warning('没有可打印的数据');
     return;
   }
-  window.print();
+
+  try {
+    const html = await printService.generateByDefaultTemplate('finance', 'ap_aging', {
+      report_date: searchForm.reportDate,
+      entity_label: '供应商',
+      total_amount: formatCurrency(summaryData.totalAmount),
+      current_amount: '',
+      within_30_days: formatCurrency(summaryData.within30Days),
+      days_31_to_60: formatCurrency(summaryData.days31to60),
+      days_61_to_90: formatCurrency(summaryData.days61to90),
+      over_90_days: formatCurrency(summaryData.over90Days),
+      print_time: new Date().toLocaleString(),
+      items: safeTableData.value.map((item, index) => ({
+        index: index + 1,
+        entity_name: item.supplierName || '',
+        entity_type: getSupplierTypeText(item.supplierType),
+        total_amount: formatCurrency(item.totalAmount),
+        current_amount: '',
+        within_30_days: formatCurrency(item.within30Days),
+        days_31_to_60: formatCurrency(item.days31to60),
+        days_61_to_90: formatCurrency(item.days61to90),
+        over_90_days: formatCurrency(item.over90Days),
+        overdue_ratio: calculatePercent((item.days31to60 || 0) + (item.days61to90 || 0) + (item.over90Days || 0), item.totalAmount || 0) + '%',
+        contact_person: item.contactPerson || '',
+        contact_phone: item.contactPhone || ''
+      }))
+    });
+    printService.previewDocument(html);
+    ElMessage.success('打印预览已打开');
+  } catch (error) {
+    console.error('打印应付账龄分析失败:', error);
+    ElMessage.error('打印应付账龄分析失败');
+  }
 };
 
 // 初始化
@@ -686,7 +718,7 @@ onMounted(() => {
 onUnmounted(() => {
   // 移除 resize 监听
   window.removeEventListener('resize', handleChartResize);
-  
+
   // 销毁 ECharts 实例
   if (pieChartInstance) { pieChartInstance.dispose(); pieChartInstance = null; }
   if (barChartInstance) { barChartInstance.dispose(); barChartInstance = null; }
@@ -775,4 +807,4 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

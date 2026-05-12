@@ -357,7 +357,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       const transaction = await BankTransactionModel.getBankTransactionById(id);
@@ -428,7 +428,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查交易记录是否存在
@@ -468,7 +468,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查交易记录是否存在
@@ -528,7 +528,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的对账ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的对账ID', 'VALIDATION_ERROR', 400);
       }
 
       const reconciliation = await ReconciliationModel.getReconciliationById(id);
@@ -600,7 +600,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的对账ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的对账ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查对账记录是否存在
@@ -708,7 +708,7 @@ const cashController = {
 
       // 参数验证
       if (page < 1 || limit < 1 || limit > 100) {
-        return ResponseHandler.error(res, '无效的分页参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的分页参数', 'VALIDATION_ERROR', 400);
       }
 
       // 获取账户数据
@@ -771,7 +771,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的银行账户ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的银行账户ID', 'VALIDATION_ERROR', 400);
       }
 
       const account = await BankAccountModel.getBankAccountById(id);
@@ -851,7 +851,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的银行账户ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的银行账户ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查银行账户是否存在
@@ -938,7 +938,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       // 调用正确的银行交易查询方法
@@ -986,11 +986,11 @@ const cashController = {
       // 检查必要字段
       if (!transactionData.transaction_number) {
         logger.error('缺少交易编号');
-        return ResponseHandler.error(res, '缺少交易编号', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少交易编号', 'VALIDATION_ERROR', 400);
       }
 
       if (!transactionData.bank_account_id || isNaN(transactionData.bank_account_id)) {
-        return ResponseHandler.error(res, '无效的银行账户ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的银行账户ID', 'VALIDATION_ERROR', 400);
       }
 
       // gl_entry 字段不在此创建流程中处理
@@ -1027,7 +1027,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       const shouldReconcile = req.body.is_reconciled !== false && req.body.reconciled !== false;
@@ -1056,7 +1056,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查交易是否存在
@@ -1106,7 +1106,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查交易是否存在
@@ -1149,16 +1149,16 @@ const cashController = {
       };
 
       if (!transferData.transaction_number) {
-        return ResponseHandler.error(res, '缺少交易编号', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少交易编号', 'VALIDATION_ERROR', 400);
       }
       if (!transferData.from_account_id || !transferData.to_account_id) {
-        return ResponseHandler.error(res, '源账户和目标账户不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '源账户和目标账户不能为空', 'VALIDATION_ERROR', 400);
       }
       if (transferData.from_account_id === transferData.to_account_id) {
-        return ResponseHandler.error(res, '源账户和目标账户不能相同', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '源账户和目标账户不能相同', 'VALIDATION_ERROR', 400);
       }
       if (!transferData.amount || transferData.amount <= 0) {
-        return ResponseHandler.error(res, '调拨金额必须大于0', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '调拨金额必须大于0', 'VALIDATION_ERROR', 400);
       }
 
       const result = await cash.transferFunds(transferData);
@@ -1184,7 +1184,7 @@ const cashController = {
           error.message.includes('会计期间') ||
           error.message.includes('No open accounting period'))
       ) {
-        return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
       }
       ResponseHandler.error(res, '资金调拨失败', 'SERVER_ERROR', 500, error);
     }
@@ -1198,7 +1198,7 @@ const cashController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的银行账户ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的银行账户ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查银行账户是否存在
@@ -1369,7 +1369,7 @@ const cashController = {
       const { transactionId, accountId } = req.body;
 
       if (!transactionId) {
-        return ResponseHandler.error(res, '缺少交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少交易ID', 'VALIDATION_ERROR', 400);
       }
 
       const reconciliationDate = new Date().toISOString().split('T')[0];
@@ -1406,7 +1406,7 @@ const cashController = {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       // 使用BankTransactionModel而不是CashTransactionModel，因为这是银行交易
@@ -1432,14 +1432,14 @@ const cashController = {
       const { status, remark, auditorId } = req.body;
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       if (!['approved', 'rejected'].includes(status)) {
         return ResponseHandler.error(
           res,
           '无效的审核状态，仅支持 approved 或 rejected',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -1481,7 +1481,7 @@ const cashController = {
       const { transactionId, accountId } = req.body;
 
       if (!transactionId) {
-        return ResponseHandler.error(res, '缺少交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少交易ID', 'VALIDATION_ERROR', 400);
       }
 
       // 更新数据库中的交易记录，取消对账标记
@@ -1518,7 +1518,7 @@ const cashController = {
         : null;
 
       if (!statementItemId) {
-        return ResponseHandler.error(res, '缺少银行对账单明细ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少银行对账单明细ID', 'VALIDATION_ERROR', 400);
       }
 
       const transactions = await ReconciliationModel.getMatchedTransactions(statementItemId);
@@ -1541,7 +1541,7 @@ const cashController = {
       const accountId = req.query.accountId ? parseInt(req.query.accountId) : null;
 
       if (!statementItemId || !accountId) {
-        return ResponseHandler.error(res, '缺少必要参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少必要参数', 'VALIDATION_ERROR', 400);
       }
 
       const transactions = await ReconciliationModel.getPossibleMatchingTransactions(
@@ -1572,7 +1572,7 @@ const cashController = {
       const { statementItemId, transactionIds, accountId } = req.body;
 
       if (!statementItemId || !transactionIds || !transactionIds.length || !accountId) {
-        return ResponseHandler.error(res, '缺少必要参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少必要参数', 'VALIDATION_ERROR', 400);
       }
 
       const result = await ReconciliationModel.confirmTransactionMatch(
@@ -1615,7 +1615,7 @@ const cashController = {
       const transactions = result.transactions || [];
 
       if (transactions.length === 0) {
-        return ResponseHandler.error(res, '没有找到符合条件的交易数据', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '没有找到符合条件的交易数据', 'VALIDATION_ERROR', 400);
       }
 
       // 使用 ExcelJS 创建工作簿
@@ -1683,7 +1683,7 @@ const cashController = {
   importBankTransactions: async (req, res) => {
     try {
       if (!req.file) {
-        return ResponseHandler.error(res, '请选择要导入的Excel文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请选择要导入的Excel文件', 'VALIDATION_ERROR', 400);
       }
 
       const ExcelJS = require('exceljs');
@@ -1710,7 +1710,7 @@ const cashController = {
       });
 
       if (data.length === 0) {
-        return ResponseHandler.error(res, '文件中没有有效数据', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '文件中没有有效数据', 'VALIDATION_ERROR', 400);
       }
 
       let successCount = 0;
@@ -1887,10 +1887,10 @@ const cashController = {
       const endDate = req.body.endDate || null;
 
       if (!accountId) {
-        return ResponseHandler.error(res, '缺少银行账户ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少银行账户ID', 'VALIDATION_ERROR', 400);
       }
       if (!req.file) {
-        return ResponseHandler.error(res, '缺少银行对账单文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少银行对账单文件', 'VALIDATION_ERROR', 400);
       }
 
       const account = await BankAccountModel.getBankAccountById(accountId);
@@ -1900,7 +1900,7 @@ const cashController = {
 
       const rows = await readStatementRows(req.file);
       if (rows.length === 0) {
-        return ResponseHandler.error(res, '对账单文件没有可导入的数据', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '对账单文件没有可导入的数据', 'VALIDATION_ERROR', 400);
       }
 
       const errors = [];
@@ -2115,7 +2115,7 @@ const cashController = {
 
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       const transactionData = {
@@ -2147,7 +2147,7 @@ const cashController = {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       const deleted = await CashTransactionModel.deleteCashTransaction(id);
@@ -2220,7 +2220,7 @@ const cashController = {
   importCashTransactions: async (req, res) => {
     try {
       if (!req.file) {
-        return ResponseHandler.error(res, '请选择要导入的文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请选择要导入的文件', 'VALIDATION_ERROR', 400);
       }
 
       const result = await cashTransactionService.importCashTransactions(
@@ -2242,7 +2242,7 @@ const cashController = {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       const userId = getAuthenticatedUserId(req);
@@ -2266,7 +2266,7 @@ const cashController = {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       const userId = getAuthenticatedUserId(req);
@@ -2290,7 +2290,7 @@ const cashController = {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
       const userId = getAuthenticatedUserId(req);

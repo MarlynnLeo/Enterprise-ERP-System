@@ -20,7 +20,7 @@ const locationsController = {
   getWarehouses: async (req, res) => {
     try {
       const warehouses = await Locations.getWarehouses();
-      res.json(warehouses);
+      return ResponseHandler.success(res, warehouses);
     } catch (error) {
       logger.error('Error getting warehouses:', error);
       ResponseHandler.error(res, 'Error getting warehouses', 'SERVER_ERROR', 500, error);
@@ -34,7 +34,7 @@ const locationsController = {
       const pageSize = parseInt(req.query.pageSize, 10) || 10;
       const search = req.query.search || '';
       const result = await Locations.getAll(search, page, pageSize);
-      res.json(result);
+      return ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('Error getting locations:', error);
       ResponseHandler.error(res, 'Error getting locations', 'SERVER_ERROR', 500, error);
@@ -46,11 +46,11 @@ const locationsController = {
     try {
       const id = parseRequiredId(req.params.id);
       if (!id) {
-        return ResponseHandler.error(res, 'Invalid location id', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, 'Invalid location id', 'VALIDATION_ERROR', 400);
       }
       const location = await Locations.getById(id);
       if (location) {
-        res.json(location);
+        return ResponseHandler.success(res, location);
       } else {
         ResponseHandler.error(res, 'Location not found', 'NOT_FOUND', 404);
       }
@@ -70,7 +70,7 @@ const locationsController = {
       const missingFields = requiredFields.filter((field) => !locationData[field]);
 
       if (missingFields.length > 0) {
-        return ResponseHandler.error(res, 'Missing required fields', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, 'Missing required fields', 'VALIDATION_ERROR', 400);
       }
 
       const id = await Locations.create(locationData);
@@ -86,7 +86,7 @@ const locationsController = {
     try {
       const id = parseRequiredId(req.params.id);
       if (!id) {
-        return ResponseHandler.error(res, 'Invalid location id', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, 'Invalid location id', 'VALIDATION_ERROR', 400);
       }
       const locationData = { ...req.body };
 
@@ -96,7 +96,7 @@ const locationsController = {
 
       const affectedRows = await Locations.update(id, locationData);
       if (affectedRows) {
-        res.json({ id, ...locationData });
+        return ResponseHandler.success(res, { id, ...locationData });
       } else {
         ResponseHandler.error(res, 'Location not found', 'NOT_FOUND', 404);
       }
@@ -111,11 +111,11 @@ const locationsController = {
     try {
       const id = parseRequiredId(req.params.id);
       if (!id) {
-        return ResponseHandler.error(res, 'Invalid location id', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, 'Invalid location id', 'VALIDATION_ERROR', 400);
       }
       const affectedRows = await Locations.delete(id);
       if (affectedRows) {
-        res.json({ message: 'Location deleted successfully' });
+        return ResponseHandler.success(res, null, 'Location deleted successfully');
       } else {
         ResponseHandler.error(res, 'Location not found', 'NOT_FOUND', 404);
       }

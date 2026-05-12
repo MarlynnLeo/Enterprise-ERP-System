@@ -1,8 +1,8 @@
 <template>
   <!-- BOM价格调整对话框(定价设置专用,简化版) -->
-  <el-dialog 
-    v-model="visible" 
-    title="BOM成本明细与价格调整" 
+  <el-dialog
+    v-model="visible"
+    title="BOM成本明细与价格调整"
     width="900px"
     :close-on-click-modal="true"
   >
@@ -39,11 +39,11 @@
                 <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
                   {{ row.has_adjustment ? '重新调整' : '调整' }}
                 </el-button>
-                <el-button 
-                  v-if="row.has_adjustment" 
-                  type="info" 
-                  link 
-                  size="small" 
+                <el-button
+                  v-if="row.has_adjustment"
+                  type="info"
+                  link
+                  size="small"
                   @click="$emit('history', row)"
                 >
                   历史

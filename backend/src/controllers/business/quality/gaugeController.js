@@ -31,7 +31,18 @@ function pickFields(data, allowedFields) {
     }, {});
 }
 
+// 允许的表名白名单（防止动态表名注入）
+const ALLOWED_TABLES = new Set(['gauges', 'gauge_calibration_records']);
+
+function assertAllowedTable(table) {
+    if (!ALLOWED_TABLES.has(table)) {
+        throw new Error(`不允许的表名: ${table}`);
+    }
+    return table;
+}
+
 async function insertRecord(table, data, allowedFields) {
+    assertAllowedTable(table);
     const record = pickFields(data, allowedFields);
     const columns = Object.keys(record);
     if (columns.length === 0) throw new Error('No fields to insert');
@@ -45,6 +56,7 @@ async function insertRecord(table, data, allowedFields) {
 }
 
 async function updateRecord(table, data, id, allowedFields) {
+    assertAllowedTable(table);
     const record = pickFields(data, allowedFields);
     const columns = Object.keys(record);
     if (columns.length === 0) throw new Error('No fields to update');
@@ -151,13 +163,13 @@ const gaugeController = {
             const data = req.body;
 
             if (!data.gauge_no || !data.gauge_name) {
-                return ResponseHandler.error(res, '量具编号和名称不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '量具编号和名称不能为空', 'VALIDATION_ERROR', 400);
             }
 
             // 检查编号唯一性
             const existing = await db.query('SELECT id FROM gauges WHERE gauge_no = ?', [data.gauge_no]);
             if (existing.rows && existing.rows.length > 0) {
-                return ResponseHandler.error(res, '量具编号已存在', 'DUPLICATE', 400);
+                return ResponseHandler.error(res, '量具编号已存在', 'CONFLICT', 400);
             }
 
             // 计算下次校准日期
@@ -300,7 +312,7 @@ const gaugeController = {
             const data = req.body;
 
             if (!data.gauge_id || !data.calibration_date) {
-                return ResponseHandler.error(res, '量具ID和校准日期不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '量具ID和校准日期不能为空', 'VALIDATION_ERROR', 400);
             }
 
             // 验证量具存在

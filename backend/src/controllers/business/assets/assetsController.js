@@ -68,17 +68,14 @@ const assetsController = {
     try {
       const assetId = parseInt(req.params.id);
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
       // 获取固定资产详情
       const asset = await assetsModel.getAssetById(assetId);
 
       if (!asset) {
-        return res.status(404).json({
-          success: false,
-          message: `未找到ID为${assetId}的资产`,
-        });
+        return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
       }
 
       // 转换字段名为前端期望的驼峰式
@@ -144,10 +141,7 @@ const assetsController = {
         );
 
         if (existingAssets && existingAssets.length > 0) {
-          return res.status(400).json({
-            success: false,
-            message: `资产编码 ${req.body.assetCode} 已存在`,
-          });
+          return ResponseHandler.error(res, `资产编码 ${req.body.assetCode} 已存在`, 'VALIDATION_ERROR', 400);
         }
       } catch {
         // 继续执行，不中断流程
@@ -272,7 +266,7 @@ const assetsController = {
     try {
       const assetId = parseInt(req.params.id);
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
       logger.info('更新数据:', req.body);
@@ -280,10 +274,7 @@ const assetsController = {
       // 检查资产是否存在
       const existingAsset = await assetsModel.getAssetById(assetId);
       if (!existingAsset) {
-        return res.status(404).json({
-          success: false,
-          message: `未找到ID为${assetId}的资产`,
-        });
+        return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
       }
 
       // 检查审核状态，已审核资产不允许编辑
@@ -408,16 +399,13 @@ const assetsController = {
       const assetId = parseInt(req.params.id);
 
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
       // 首先检查资产是否存在
       const asset = await assetsModel.getAssetById(assetId);
       if (!asset) {
-        return res.status(404).json({
-          success: false,
-          message: `未找到ID为${assetId}的资产`,
-        });
+        return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
       }
 
       // 获取当前日期作为折旧日期
@@ -427,7 +415,7 @@ const assetsController = {
       const GLService = require('../../../services/finance/GLService');
       const periodId = await GLService.getPeriodIdByDate(depreciationDate);
       if (!periodId) {
-        return ResponseHandler.error(res, '未找到折旧日期对应的开放会计期间，请先维护会计期间', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '未找到折旧日期对应的开放会计期间，请先维护会计期间', 'VALIDATION_ERROR', 400);
       }
 
       // 准备折旧参数
@@ -459,7 +447,7 @@ const assetsController = {
       } catch (modelError) {
         // 检查是否是已经计提折旧的错误
         if (modelError.message && modelError.message.includes('已计提折旧')) {
-          return ResponseHandler.error(res, modelError.message, 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, modelError.message, 'VALIDATION_ERROR', 400);
         }
 
         // 其他错误
@@ -479,7 +467,7 @@ const assetsController = {
       const { depreciationDate, categoryId, department } = req.query;
 
       if (!depreciationDate) {
-        return ResponseHandler.error(res, '缺少折旧日期参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少折旧日期参数', 'VALIDATION_ERROR', 400);
       }
 
       // 调用模型方法计算折旧
@@ -503,7 +491,7 @@ const assetsController = {
     try {
       const { depreciationDate } = req.query;
       if (!depreciationDate) {
-        return ResponseHandler.error(res, '缺少计提年月参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少计提年月参数', 'VALIDATION_ERROR', 400);
       }
       const [records] = await db.pool.query(
         `SELECT id, asset_id, depreciation_date, depreciation_amount
@@ -531,7 +519,7 @@ const assetsController = {
       const { depreciationDate, assets } = req.body;
 
       if (!depreciationDate || !assets || !Array.isArray(assets) || assets.length === 0) {
-        return ResponseHandler.error(res, '缺少必要参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少必要参数', 'VALIDATION_ERROR', 400);
       }
 
       // 调用模型方法提交折旧
@@ -575,14 +563,14 @@ const assetsController = {
       const { depreciationDate, categoryId, department } = req.query;
 
       if (!depreciationDate) {
-        return ResponseHandler.error(res, '缺少折旧日期参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少折旧日期参数', 'VALIDATION_ERROR', 400);
       }
 
       // 查询折旧数据
       let query = `
-        SELECT 
+        SELECT
           fa.asset_code AS '资产编号',
-          fa.asset_name AS '资产名称', 
+          fa.asset_name AS '资产名称',
           fa.asset_type AS '资产类型',
           d.name AS '使用部门',
           fa.acquisition_cost AS '原值',
@@ -682,11 +670,11 @@ const assetsController = {
       const { action } = req.body; // 'approve' or 'reject'
 
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
       if (!['approve', 'reject'].includes(action)) {
-        return ResponseHandler.error(res, '无效的审核操作', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的审核操作', 'VALIDATION_ERROR', 400);
       }
 
       const asset = await assetsModel.getAssetById(assetId);
@@ -696,7 +684,7 @@ const assetsController = {
 
       if (action === 'reject') {
         if (DISPOSED_ASSET_STATUSES.has(String(asset.status || '').trim())) {
-          return ResponseHandler.error(res, '已处置资产不能反审核', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, '已处置资产不能反审核', 'VALIDATION_ERROR', 400);
         }
 
         const [usageRows] = await db.pool.query(
@@ -720,7 +708,7 @@ const assetsController = {
           return ResponseHandler.error(
             res,
             '资产已发生折旧、减值、调拨或凭证关联，不能反审核',
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
@@ -805,15 +793,15 @@ const assetsController = {
       // 获取资产信息
       const asset = await assetsModel.getAssetById(assetId);
       if (!asset) {
-        return res.status(404).json({ error: '资产不存在' });
+        return ResponseHandler.error(res, '资产不存在', 'NOT_FOUND', 404);
       }
 
       // 检查资产状态
       if (DISPOSED_ASSET_STATUSES.has(String(asset.status || '').trim())) {
-        return res.status(400).json({ error: '该资产已经处置，不能重复处置' });
+        return ResponseHandler.error(res, '该资产已经处置，不能重复处置', 'VALIDATION_ERROR', 400);
       }
       if (asset.audit_status !== 'approved') {
-        return ResponseHandler.error(res, '资产必须先审核通过，才能进行处置', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '资产必须先审核通过，才能进行处置', 'VALIDATION_ERROR', 400);
       }
 
       // 准备处置数据
@@ -862,7 +850,7 @@ const assetsController = {
           error.message.includes('已处置') ||
           error.message.includes('银行账户'))
       ) {
-        return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
       }
       ResponseHandler.error(res, '处置资产失败', 'SERVER_ERROR', 500, error);
     }
@@ -876,24 +864,21 @@ const assetsController = {
       const assetId = parseInt(req.params.id);
 
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查资产是否存在
       const asset = await assetsModel.getAssetById(assetId);
       if (!asset) {
-        return res.status(404).json({
-          success: false,
-          message: `未找到ID为${assetId}的资产`,
-        });
+        return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
       }
 
       // 检查资产状态是否允许调拨
       if (DISPOSED_ASSET_STATUSES.has(String(asset.status || '').trim())) {
-        return ResponseHandler.error(res, '已处置的资产不能进行调拨', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '已处置的资产不能进行调拨', 'VALIDATION_ERROR', 400);
       }
       if (asset.audit_status !== 'approved') {
-        return ResponseHandler.error(res, '资产必须先审核通过，才能进行调拨', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '资产必须先审核通过，才能进行调拨', 'VALIDATION_ERROR', 400);
       }
 
       // 获取调拨参数
@@ -905,7 +890,7 @@ const assetsController = {
         return ResponseHandler.error(
           res,
           '缺少必要参数：新部门、新责任人、新存放地点或调拨日期',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -950,7 +935,7 @@ const assetsController = {
           error.message.includes('必须先审核') ||
           error.message.includes('已处置'))
       ) {
-        return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
       }
       ResponseHandler.error(res, '转移资产失败', 'SERVER_ERROR', 500, error);
     }
@@ -963,7 +948,7 @@ const assetsController = {
     try {
       // 查询资产总数和总价值
       const [totalResult] = await db.pool.query(`
-        SELECT 
+        SELECT
           COUNT(*) as total,
           SUM(acquisition_cost) as totalValue,
           SUM(GREATEST(COALESCE(acquisition_cost, 0) - COALESCE(accumulated_depreciation, 0) - COALESCE(impairment_amount, 0), 0)) as netValue
@@ -972,7 +957,7 @@ const assetsController = {
 
       // 查询各种状态的资产数量
       const [statusResult] = await db.pool.query(`
-        SELECT 
+        SELECT
           status,
           COUNT(*) as count,
           SUM(acquisition_cost) as value
@@ -1047,7 +1032,7 @@ const assetsController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的类别ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的类别ID', 'VALIDATION_ERROR', 400);
       }
 
       const category = await assetsModel.getAssetCategoryById(id);
@@ -1078,7 +1063,7 @@ const assetsController = {
       };
 
       if (!categoryData.name || !categoryData.code) {
-        return ResponseHandler.error(res, '类别名称和编码为必填项', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '类别名称和编码为必填项', 'VALIDATION_ERROR', 400);
       }
 
       const categoryId = await assetsModel.createAssetCategory(categoryData);
@@ -1097,7 +1082,7 @@ const assetsController = {
       );
     } catch (error) {
       if (error.code === 'ER_DUP_ENTRY' || (error.message && error.message.includes('Duplicate entry'))) {
-        return ResponseHandler.error(res, `类别编码 '${req.body.code}' 已存在，请使用其他编码`, 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, `类别编码 '${req.body.code}' 已存在，请使用其他编码`, 'VALIDATION_ERROR', 400);
       }
       logger.error('创建资产类别失败:', error);
       ResponseHandler.error(res, '创建资产类别失败', 'SERVER_ERROR', 500, error);
@@ -1112,7 +1097,7 @@ const assetsController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的类别ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的类别ID', 'VALIDATION_ERROR', 400);
       }
 
       const categoryData = {
@@ -1125,7 +1110,7 @@ const assetsController = {
       };
 
       if (!categoryData.name || !categoryData.code) {
-        return ResponseHandler.error(res, '类别名称和编码为必填项', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '类别名称和编码为必填项', 'VALIDATION_ERROR', 400);
       }
 
       // 检查类别是否存在
@@ -1145,7 +1130,7 @@ const assetsController = {
       }
     } catch (error) {
       if (error.code === 'ER_DUP_ENTRY' || (error.message && error.message.includes('Duplicate entry'))) {
-        return ResponseHandler.error(res, `类别编码 '${req.body.code}' 已存在，请使用其他编码`, 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, `类别编码 '${req.body.code}' 已存在，请使用其他编码`, 'VALIDATION_ERROR', 400);
       }
       logger.error('更新资产类别失败:', error);
       ResponseHandler.error(res, '更新资产类别失败', 'SERVER_ERROR', 500, error);
@@ -1160,7 +1145,7 @@ const assetsController = {
       const id = parseInt(req.params.id);
 
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的类别ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的类别ID', 'VALIDATION_ERROR', 400);
       }
 
       // 检查类别是否存在
@@ -1199,7 +1184,7 @@ const assetsController = {
     try {
       const assetId = parseInt(req.params.id);
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
       const page = parseInt(req.query.page) || 1;
       const pageSize = parseInt(req.query.pageSize) || 50;
@@ -1218,7 +1203,7 @@ const assetsController = {
     try {
       const assetId = parseInt(req.params.id);
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
       const records = await assetsModel.getDepreciationHistory(assetId);
       return ResponseHandler.success(res, records, '获取折旧历史成功');
@@ -1235,12 +1220,12 @@ const assetsController = {
     try {
       const assetId = parseInt(req.params.id);
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
       const { impairment_amount, impairment_date, reason } = req.body;
       if (!impairment_amount || !impairment_date) {
-        return ResponseHandler.error(res, '缺少必填字段(impairment_amount, impairment_date)', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少必填字段(impairment_amount, impairment_date)', 'VALIDATION_ERROR', 400);
       }
 
       const impairmentData = {
@@ -1259,7 +1244,7 @@ const assetsController = {
         error.message.includes('资产减值失败') ||
         error.message.includes('必须大于0')
       ) {
-        return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
       }
       logger.error('计提减值准备失败:', error);
       ResponseHandler.error(res, '计提减值准备失败', 'SERVER_ERROR', 500, error);
@@ -1273,7 +1258,7 @@ const assetsController = {
     try {
       const assetId = parseInt(req.params.id);
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
       const splitData = req.body;
@@ -1299,7 +1284,7 @@ const assetsController = {
           error.message.includes('不能拆分') ||
           error.message.includes('拆分金额'))
       ) {
-        return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
       }
       ResponseHandler.error(res, '资产拆分失败', 'SERVER_ERROR', 500, error);
     }
@@ -1312,7 +1297,7 @@ const assetsController = {
     try {
       const assetId = parseInt(req.params.id);
       if (isNaN(assetId)) {
-        return ResponseHandler.error(res, '无效的资产ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
       const records = await assetsModel.getImpairments(assetId);
       return ResponseHandler.success(res, records, '获取减值记录成功');
@@ -1339,7 +1324,7 @@ const assetsController = {
     try {
       const months = parseInt(req.query.months) || 6;
       if (months <= 0 || months > 60) {
-        return ResponseHandler.error(res, '月数必须在 1 到 60 之间', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '月数必须在 1 到 60 之间', 'VALIDATION_ERROR', 400);
       }
       const forecast = await assetsModel.getDepreciationForecast(months);
       return ResponseHandler.success(res, forecast, '获取折旧预测成功');

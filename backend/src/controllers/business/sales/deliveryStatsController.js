@@ -42,9 +42,9 @@ exports.getDeliveryStats = async (req, res) => {
     // 搜索条件
     if (search) {
       whereClause += ` AND (
-        so.order_no LIKE ? OR 
-        c.name LIKE ? OR 
-        m.code LIKE ? OR 
+        so.order_no LIKE ? OR
+        c.name LIKE ? OR
+        m.code LIKE ? OR
         m.name LIKE ? OR
         so.contract_code LIKE ?
       )`;
@@ -72,7 +72,7 @@ exports.getDeliveryStats = async (req, res) => {
 
     // 主查询：获取订单产品的发货统计
     const mainQuery = `
-      SELECT 
+      SELECT
         so.id as order_id,
         so.order_no,
         so.created_at as order_date,
@@ -94,16 +94,16 @@ exports.getDeliveryStats = async (req, res) => {
         COALESCE(shipped_summary.shipped_quantity, 0) as shipped_quantity,
         (soi.quantity - COALESCE(shipped_summary.shipped_quantity, 0)) as unshipped_quantity,
         ROUND(COALESCE(inv.quantity, 0), 1) as stock_quantity,
-        CASE 
+        CASE
           WHEN COALESCE(shipped_summary.shipped_quantity, 0) = 0 THEN 'unshipped'
           WHEN COALESCE(shipped_summary.shipped_quantity, 0) >= soi.quantity THEN 'shipped'
           ELSE 'partial'
         END as delivery_status,
-        CASE 
+        CASE
           WHEN COALESCE(shipped_summary.shipped_quantity, 0) = 0 THEN 0
           ELSE ROUND((COALESCE(shipped_summary.shipped_quantity, 0) / soi.quantity) * 100, 2)
         END as delivery_progress,
-        CASE 
+        CASE
           WHEN pending_outbound.outbound_count > 0 THEN 1
           ELSE 0
         END as has_pending_outbound
@@ -113,7 +113,7 @@ exports.getDeliveryStats = async (req, res) => {
       INNER JOIN materials m ON soi.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       LEFT JOIN (
-        SELECT 
+        SELECT
           il.material_id,
           SUM(il.quantity) as quantity
         FROM inventory_ledger il
@@ -122,20 +122,20 @@ exports.getDeliveryStats = async (req, res) => {
         GROUP BY il.material_id
       ) inv ON m.id = inv.material_id
       LEFT JOIN (
-        SELECT 
+        SELECT
           soi_inner.order_id,
           soi_inner.material_id,
           SUM(sobi.quantity) as shipped_quantity
         FROM sales_order_items soi_inner
         INNER JOIN sales_outbound sob ON soi_inner.order_id = sob.order_id
-        INNER JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id 
+        INNER JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id
           AND soi_inner.material_id = sobi.product_id
         WHERE sob.status IN ('completed', 'processing')
         GROUP BY soi_inner.order_id, soi_inner.material_id
-      ) shipped_summary ON soi.order_id = shipped_summary.order_id 
+      ) shipped_summary ON soi.order_id = shipped_summary.order_id
         AND soi.material_id = shipped_summary.material_id
       LEFT JOIN (
-        SELECT 
+        SELECT
           sob.order_id,
           sobi.product_id,
           COUNT(*) as outbound_count
@@ -143,7 +143,7 @@ exports.getDeliveryStats = async (req, res) => {
         INNER JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id
         WHERE sob.status = 'draft'
         GROUP BY sob.order_id, sobi.product_id
-      ) pending_outbound ON soi.order_id = pending_outbound.order_id 
+      ) pending_outbound ON soi.order_id = pending_outbound.order_id
         AND soi.material_id = pending_outbound.product_id
       WHERE 1=1 ${whereClause}
     `;
@@ -176,7 +176,7 @@ exports.getDeliveryStats = async (req, res) => {
       ${mainQuery}
       ${statusFilter}
       ORDER BY so.created_at DESC, so.order_no, m.code
-      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+      LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
     `;
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
@@ -184,7 +184,7 @@ exports.getDeliveryStats = async (req, res) => {
 
     // 统计各状态数量
     const statsQuery = `
-      SELECT 
+      SELECT
         delivery_status,
         COUNT(*) as count
       FROM (
@@ -207,16 +207,13 @@ exports.getDeliveryStats = async (req, res) => {
       stats.total += parseInt(stat.count);
     });
 
-    res.json({
-      success: true,
-      data: {
+    return ResponseHandler.success(res, {
         items: results,
         total: total,
         page: parseInt(page),
         pageSize: parseInt(pageSize),
         stats: stats,
-      },
-    });
+      });
   } catch (error) {
     logger.error('获取发货统计数据失败:', error);
     ResponseHandler.error(res, '获取发货统计数据失败', 'SERVER_ERROR', 500, error);
@@ -242,7 +239,7 @@ exports.getOrderDeliveryDetails = async (req, res) => {
     // 查询订单基本信息
     const [orderInfo] = await connection.query(
       `
-      SELECT 
+      SELECT
         so.id,
         so.order_no,
         so.created_at as order_date,
@@ -264,7 +261,7 @@ exports.getOrderDeliveryDetails = async (req, res) => {
     // 查询订单产品及发货明细
     const [details] = await connection.query(
       `
-      SELECT 
+      SELECT
         soi.id as order_item_id,
         soi.material_id,
         m.code as material_code,
@@ -283,7 +280,7 @@ exports.getOrderDeliveryDetails = async (req, res) => {
       INNER JOIN materials m ON soi.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       LEFT JOIN sales_outbound sob ON soi.order_id = sob.order_id
-      LEFT JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id 
+      LEFT JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id
         AND soi.material_id = sobi.product_id
       WHERE soi.order_id = ?
       ORDER BY m.code, sob.created_at
@@ -291,13 +288,10 @@ exports.getOrderDeliveryDetails = async (req, res) => {
       [orderId]
     );
 
-    res.json({
-      success: true,
-      data: {
+    return ResponseHandler.success(res, {
         orderInfo: orderInfo[0],
         details: details,
-      },
-    });
+      });
   } catch (error) {
     logger.error('获取订单发货明细失败:', error);
     ResponseHandler.error(res, '获取订单发货明细失败', 'SERVER_ERROR', 500, error);
@@ -320,7 +314,7 @@ exports.getDeliveryOverview = async (req, res) => {
 
     // 获取总体统计
     const [overviewResult] = await connection.query(`
-      SELECT 
+      SELECT
         COUNT(DISTINCT so.id) as total_orders,
         COUNT(soi.id) as total_items,
         SUM(CASE WHEN COALESCE(shipped_summary.shipped_quantity, 0) >= soi.quantity THEN 1 ELSE 0 END) as fully_shipped_items,
@@ -329,17 +323,17 @@ exports.getDeliveryOverview = async (req, res) => {
       FROM sales_orders so
       INNER JOIN sales_order_items soi ON so.id = soi.order_id
       LEFT JOIN (
-        SELECT 
+        SELECT
           soi_inner.order_id,
           soi_inner.material_id,
           SUM(sobi.quantity) as shipped_quantity
         FROM sales_order_items soi_inner
         INNER JOIN sales_outbound sob ON soi_inner.order_id = sob.order_id
-        INNER JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id 
+        INNER JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id
           AND soi_inner.material_id = sobi.product_id
         WHERE sob.status IN ('completed', 'processing')
         GROUP BY soi_inner.order_id, soi_inner.material_id
-      ) shipped_summary ON soi.order_id = shipped_summary.order_id 
+      ) shipped_summary ON soi.order_id = shipped_summary.order_id
         AND soi.material_id = shipped_summary.material_id
       WHERE so.status IN ('confirmed', 'processing', 'shipped', 'ready_to_ship', 'in_production', 'partial_shipped', 'completed')
     `);

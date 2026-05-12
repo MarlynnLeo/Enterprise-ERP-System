@@ -17,7 +17,7 @@
         <el-button type="primary" :icon="Plus" v-permission="'system:users:create'" @click="showAddDialog">新增用户</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -49,7 +49,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -125,7 +125,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -140,7 +140,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑/查看对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -231,7 +231,10 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Check, Close, View, Edit, Key } from '@element-plus/icons-vue';
 import { api } from '../../services/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';
-// 权限计算属性
+// 权限计算属性
+
+
+
 // 数据加载状态
 const loading = ref(false);
 
@@ -383,7 +386,7 @@ const loadDepartmentOptions = async () => {
       code: dept.code || '',
       description: dept.description || ''
     }));
-    
+
     } catch (error) {
     console.error('加载部门列表失败:', error);
     departmentOptions.value = []; // 确保出错时也是空数组
@@ -425,7 +428,7 @@ const loadRoleOptions = async () => {
       code: role.code || '',
       description: role.description || ''
     }));
-    
+
     // 仅在开发环境下显示角色信息
     if (process.env.NODE_ENV === 'development') {
       }
@@ -481,7 +484,7 @@ const handleEdit = async (row) => {
 const loadUserDataForDialog = async (row, displayTitle) => {
   dialogTitle.value = displayTitle;
   resetUserForm();
-  
+
   try {
     const response = await api.get(`/api/system/users/${row.id}`);
     // 拦截器已解包，response.data 就是业务数据
@@ -490,7 +493,7 @@ const loadUserDataForDialog = async (row, displayTitle) => {
     if (!user) {
       throw new Error('无法获取用户数据');
     }
-    
+
     // 填充表单数据
     userForm.id = user.id;
     userForm.username = user.username;
@@ -505,9 +508,9 @@ const loadUserDataForDialog = async (row, displayTitle) => {
     } else {
       userForm.roleIds = [];
     }
-    
+
     userForm.status = user.status === undefined ? 1 : Number(user.status);
-    
+
     dialogVisible.value = true;
   } catch (error) {
     console.error('获取用户详情失败:', error);

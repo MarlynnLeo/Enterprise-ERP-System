@@ -69,7 +69,7 @@ class SystemConfigService {
       }
 
       await db.pool.execute(
-        `INSERT INTO system_config (config_key, config_value, config_type) 
+        `INSERT INTO system_config (config_key, config_value, config_type)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE config_value = ?, config_type = ?, updated_at = NOW()`,
         [configKey, valueStr, configType, valueStr, configType]
@@ -149,7 +149,7 @@ class SystemConfigService {
         }
 
         await connection.execute(
-          `INSERT INTO system_config (config_key, config_value, config_type) 
+          `INSERT INTO system_config (config_key, config_value, config_type)
            VALUES (?, ?, ?)
            ON DUPLICATE KEY UPDATE config_value = ?, updated_at = NOW()`,
           [key, valueStr, type, valueStr]

@@ -17,7 +17,7 @@
         <el-button v-permission="'finance:ar:receive'" type="primary" :icon="Plus" @click="showAddDialog">新增收款</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -66,7 +66,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 过滤提示条 - 当通过发票跳转时显示 -->
     <el-alert
       v-if="isFilteredByInvoice"
@@ -82,7 +82,7 @@
         </el-button>
       </template>
     </el-alert>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -123,17 +123,17 @@
         <el-table-column label="操作" min-width="230" fixed="right">
           <template #default="scope">
             <el-button type="info" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
-            <el-button v-permission="'finance:ar:update'" 
-              v-if="scope.row.status === 'normal'" 
-              type="warning" 
-              size="small" 
+            <el-button v-permission="'finance:ar:update'"
+              v-if="scope.row.status === 'normal'"
+              type="warning"
+              size="small"
               @click="handleVoid(scope.row)"
             >作废</el-button>
             <el-button v-permission="'finance:ar:view'" type="success" size="small" @click="handlePrint(scope.row)">打印</el-button>
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -151,7 +151,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -163,10 +163,10 @@
           <el-input v-model="receiptForm.receiptNumber" placeholder="请输入收款编号"></el-input>
         </el-form-item>
         <el-form-item label="关联发票" prop="invoiceId">
-          <el-select 
-            v-model="receiptForm.invoiceId" 
-            placeholder="请选择关联发票" 
-            filterable 
+          <el-select
+            v-model="receiptForm.invoiceId"
+            placeholder="请选择关联发票"
+            filterable
             style="width: 100%"
             @change="handleInvoiceChange"
           >
@@ -214,7 +214,7 @@
         </el-form-item>
         <el-form-item label="收款账户" prop="bankAccountId" v-if="showBankAccountField">
           <el-select v-model="receiptForm.bankAccountId" placeholder="选择收款账户" filterable style="width: 100%">
-            <el-option 
+            <el-option
               v-for="account in bankAccounts"
               :key="account.id"
               :label="`${account.accountName} (${account.accountNumber})`"
@@ -263,7 +263,7 @@
         <el-descriptions-item label="收款方式">{{ detailData.payment_method }}</el-descriptions-item>
         <el-descriptions-item label="银行账户">{{ detailData.bank_account_name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData.notes || '-' }}</el-descriptions-item>
-        
+
         <!-- 如果已作废，显示作废信息 -->
         <template v-if="detailData.status === 'void'">
           <el-descriptions-item label="作废时间">{{ detailData.voided_at }}</el-descriptions-item>
@@ -294,7 +294,7 @@
           ✓ 记录将保留但无法再编辑
         </div>
       </el-alert>
-      
+
       <el-form :model="voidForm" :rules="voidRules" ref="voidFormRef" label-width="100px">
         <el-form-item label="收款编号">
           <el-input v-model="voidForm.receiptNumber" disabled></el-input>
@@ -313,7 +313,7 @@
           ></el-input>
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="voidDialogVisible = false">取消</el-button>
@@ -472,7 +472,8 @@ const receiptRules = {
   ]
 };
 
-// 获取收款方式文本;
+// 获取收款方式文本
+;
 
 // 加载收款记录列表
 const loadReceipts = async () => {
@@ -562,7 +563,7 @@ const handleInvoiceChange = async () => {
     receiptForm.amount = 0;
     return;
   }
-  
+
   try {
     const response = await api.get(`/finance/ar/invoices/${receiptForm.invoiceId}`);
     const invoice = response.data;
@@ -645,19 +646,19 @@ const handleVoid = (row) => {
   voidForm.receiptNumber = row.receipt_number;
   voidForm.amount = formatCurrency(row.total_amount);
   voidForm.voidReason = '';
-  
+
   // 清除校验
   if (voidFormRef.value) {
     voidFormRef.value.resetFields();
   }
-  
+
   voidDialogVisible.value = true;
 };
 
 // 确认作废
 const confirmVoid = async () => {
   if (!voidFormRef.value) return;
-  
+
   await voidFormRef.value.validate(async (valid) => {
     if (valid) {
       voidLoading.value = true;
@@ -665,7 +666,7 @@ const confirmVoid = async () => {
         await api.post(`/finance/ar/receipts/${voidForm.id}/void`, {
           void_reason: voidForm.voidReason
         });
-        
+
         ElMessage.success('收款记录已成功作废');
         voidDialogVisible.value = false;
         loadReceipts(); // 刷新列表
@@ -704,7 +705,7 @@ const jumpToInvoiceFromDetail = () => {
 const showAddDialog = async () => {
   dialogTitle.value = '新增收款记录';
   resetReceiptForm();
-  
+
   // 自动生成收款编号
   try {
     const response = await api.get('/finance/ar/receipts/generate-number');
@@ -713,7 +714,7 @@ const showAddDialog = async () => {
     console.error('生成收款编号失败:', error);
     ElMessage.warning('生成收款编号失败，请手动输入');
   }
-  
+
   loadInvoiceOptions();
   loadBankAccounts();  // 加载银行账户
   dialogVisible.value = true;
@@ -729,7 +730,7 @@ const handlePrint = async (row) => {
     // 获取完整详情以包含银行账户等信息
     const response = await api.get(`/finance/ar/receipts/${row.id}`);
     const data = response.data;
-    
+
     const operatorName =
       authStore.realName ||
       authStore.user?.real_name ||
@@ -754,7 +755,7 @@ const handlePrint = async (row) => {
       operator: operatorName,
       print_time: DateFormatter.toDateTime(new Date())
     };
-    
+
     printDialogVisible.value = true;
   } catch (error) {
     console.error('准备打印数据失败:', error);
@@ -765,7 +766,7 @@ const handlePrint = async (row) => {
 // 保存收款记录
 const saveReceipt = async () => {
   if (!receiptFormRef.value) return;
-  
+
   await receiptFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
@@ -781,7 +782,7 @@ const saveReceipt = async () => {
           bankAccountId: receiptForm.bankAccountId,  // 新增：银行账户ID
           notes: receiptForm.notes
         };
-        
+
         await api.post('/finance/ar/receipts', data);
         ElMessage.success('添加成功');
         dialogVisible.value = false;
@@ -812,7 +813,7 @@ const resetReceiptForm = () => {
   receiptForm.paymentMethod = 'bank_transfer';
   receiptForm.bankAccountId = null;  // 新增：重置银行账户
   receiptForm.notes = '';
-  
+
   // 清除校验
   if (receiptFormRef.value) {
     receiptFormRef.value.resetFields();
@@ -899,4 +900,4 @@ onMounted(() => {
   margin-top: 4px;
   line-height: 1.4;
 }
-</style> 
+</style>

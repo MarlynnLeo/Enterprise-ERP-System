@@ -124,14 +124,14 @@ class InboundTransactionService {
             if (outboundRows.length > 0) {
               const outboundNo = outboundRows[0].outbound_no;
               const [ledgerRows] = await connection.execute(
-                `SELECT batch_number 
-                 FROM inventory_ledger 
-                 WHERE reference_no = ? 
-                   AND material_id = ? 
+                `SELECT batch_number
+                 FROM inventory_ledger
+                 WHERE reference_no = ?
+                   AND material_id = ?
                    AND quantity < 0
                    AND batch_number IS NOT NULL
                    AND batch_number != ''
-                 ORDER BY created_at DESC 
+                 ORDER BY created_at DESC
                  LIMIT 1`,
                 [outboundNo, item.material_id]
               );
@@ -144,8 +144,8 @@ class InboundTransactionService {
             // 策略2: 如果策略1未命中，按生产任务ID查出所有关联出库单号
             if (!finalBatchNumber) {
               const [taskOutbounds] = await connection.execute(
-                `SELECT outbound_no FROM inventory_outbound 
-                 WHERE production_task_id = ? 
+                `SELECT outbound_no FROM inventory_outbound
+                 WHERE production_task_id = ?
                     OR (reference_type = 'production_task' AND reference_id = ?)
                  LIMIT 10`,
                 [inboundData.reference_id, inboundData.reference_id]
@@ -153,14 +153,14 @@ class InboundTransactionService {
 
               for (const ob of taskOutbounds) {
                 const [ledgerRows] = await connection.execute(
-                  `SELECT batch_number 
-                   FROM inventory_ledger 
-                   WHERE reference_no = ? 
-                     AND material_id = ? 
+                  `SELECT batch_number
+                   FROM inventory_ledger
+                   WHERE reference_no = ?
+                     AND material_id = ?
                      AND quantity < 0
                      AND batch_number IS NOT NULL
                      AND batch_number != ''
-                   ORDER BY created_at DESC 
+                   ORDER BY created_at DESC
                    LIMIT 1`,
                   [ob.outbound_no, item.material_id]
                 );
@@ -181,9 +181,21 @@ class InboundTransactionService {
         }
 
         if (!finalBatchNumber) {
-          throw new Error(
-            `入库明细缺少可追溯批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
-          );
+          // 生产退料/不良退回：溯源失败时自动生成退料批次号
+          // 实际生产中部分物料是手工领用、补料或样品，台账中没有发料记录属于正常情况
+          if (['defective_return', 'production_return'].includes(inboundType)) {
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+            finalBatchNumber = `RT-${dateStr}-${item.material_id}-${item.id}`;
+            logger.warn(
+              `⚠️ [批次号自动生成] 退料入库溯源失败，自动生成批次号: ${finalBatchNumber}` +
+              ` (inbound_no=${inboundData.inbound_no}, material_id=${item.material_id})`
+            );
+          } else {
+            throw new Error(
+              `入库明细缺少可追溯批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
+            );
+          }
         }
 
         // 回写明细
@@ -406,7 +418,7 @@ class InboundTransactionService {
                   // 查询该生产任务下实际领用的原料批次（来自对应的生产出库单领料）
                   // 1. 获取该生产任务对应的所有出库单号
                   const [outbounds] = await connection.query(
-                    `SELECT outbound_no FROM inventory_outbound 
+                    `SELECT outbound_no FROM inventory_outbound
                      WHERE production_task_id = ? OR (reference_type = 'production_task' AND reference_id = ?)`,
                     [taskId, taskId]
                   );
@@ -418,7 +430,7 @@ class InboundTransactionService {
 
                     // 2. 查询这些出库单在台账中的扣减明细
                     const [ledgerRows] = await connection.query(
-                      `SELECT 
+                      `SELECT
                          il.material_id,
                          il.batch_number    as raw_batch_number,
                          m.code             as raw_material_code,
@@ -445,7 +457,7 @@ class InboundTransactionService {
                     if (fallbackNos.length > 0) {
                         const fallPlaceholders = fallbackNos.map(() => '?').join(',');
                         const [fallbackRows] = await connection.query(
-                          `SELECT 
+                          `SELECT
                              il.material_id,
                              il.batch_number    as raw_batch_number,
                              m.code             as raw_material_code,
@@ -469,8 +481,8 @@ class InboundTransactionService {
                   for (const raw of consumedRows) {
                     // 避免重复写入（幂等保护）
                     const [existing] = await connection.query(
-                      `SELECT id FROM batch_relationships 
-                       WHERE parent_batch_number = ? AND child_batch_number = ? 
+                      `SELECT id FROM batch_relationships
+                       WHERE parent_batch_number = ? AND child_batch_number = ?
                          AND parent_material_code = ? AND relationship_type = 'consume'
                        LIMIT 1`,
                       [raw.raw_batch_number, productBatchNo, raw.raw_material_code]

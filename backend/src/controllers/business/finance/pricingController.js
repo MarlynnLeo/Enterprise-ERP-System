@@ -41,7 +41,7 @@ exports.getPricingList = async (req, res) => {
 
     // 查询当前有效定价
     const query = `
-      SELECT 
+      SELECT
         pp.id,
         m.id as product_id,
         m.code as product_code,
@@ -57,10 +57,10 @@ exports.getPricingList = async (req, res) => {
       LEFT JOIN product_pricing pp ON m.id = pp.product_id AND pp.is_active = 1
       LEFT JOIN users u ON pp.created_by = u.id
       WHERE ${whereClause}
-      ORDER BY 
+      ORDER BY
         CASE WHEN pp.id IS NOT NULL THEN 0 ELSE 1 END ASC,
         m.code ASC
-      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
+      LIMIT ${Math.max(1,Math.min(Math.floor(Number(pagination.limit))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(pagination.offset))||0)}
     `;
 
     // 统计总数
@@ -86,7 +86,7 @@ exports.getPricingList = async (req, res) => {
       const placeholders = pricingIds.map(() => '?').join(',');
       const [allStrategies] = await connection.query(
         `
-                SELECT 
+                SELECT
                     pps.pricing_id,
                     pps.field_value,
                     psf.field_name,
@@ -179,7 +179,7 @@ exports.getPricingDetail = async (req, res) => {
 
     // 参数验证
     if (!productId || isNaN(parseInt(productId))) {
-      return ResponseHandler.error(res, '无效的产品ID', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的产品ID', 'VALIDATION_ERROR', 400);
     }
 
     connection = await getConnection();
@@ -194,8 +194,8 @@ exports.getPricingDetail = async (req, res) => {
     // 2. 获取当前有效定价
     const [pricing] = await connection.query(
       `
-            SELECT 
-                pp.*, 
+            SELECT
+                pp.*,
                 u.username as created_by_name,
                 COALESCE(pp.suggested_price, m.price) as suggested_price
             FROM product_pricing pp
@@ -213,7 +213,7 @@ exports.getPricingDetail = async (req, res) => {
     if (currentPricing) {
       const [strategyData] = await connection.query(
         `
-                SELECT 
+                SELECT
                     pps.field_id,
                     pps.field_value,
                     psf.field_name,
@@ -275,7 +275,7 @@ async function calculateBomCostsInBatch(connection, productIds) {
         INNER JOIN (
             SELECT product_id, MAX(CASE WHEN approved_by IS NOT NULL THEN 1 ELSE 0 END) as has_approved,
                    MAX(version) as max_version
-            FROM bom_masters 
+            FROM bom_masters
             WHERE product_id IN (${placeholders}) AND status IN (0, 1)
             GROUP BY product_id
         ) latest ON bm.product_id = latest.product_id
@@ -302,11 +302,11 @@ async function calculateBomCostsInBatch(connection, productIds) {
   const bomPlaceholders = bomIds.map(() => '?').join(',');
   const [details] = await connection.query(
     `
-        SELECT 
+        SELECT
             bd.bom_id,
             SUM(COALESCE(bd.quantity, 0) * COALESCE(
-                (SELECT sc.standard_price FROM standard_costs sc 
-                 WHERE sc.material_id = m.id AND sc.is_active = 1 
+                (SELECT sc.standard_price FROM standard_costs sc
+                 WHERE sc.material_id = m.id AND sc.is_active = 1
                  AND sc.effective_date <= CURDATE()
                  AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
                  ORDER BY sc.effective_date DESC LIMIT 1),
@@ -354,11 +354,11 @@ async function calculateBomCostInternal(connection, productId, bomId = null) {
   // 优化：增加生效日期检查 effective_date <= CURDATE()
   const [details] = await connection.query(
     `
-        SELECT 
+        SELECT
             bd.quantity,
             COALESCE(
-                (SELECT sc.standard_price FROM standard_costs sc 
-                 WHERE sc.material_id = m.id AND sc.is_active = 1 
+                (SELECT sc.standard_price FROM standard_costs sc
+                 WHERE sc.material_id = m.id AND sc.is_active = 1
                  AND sc.effective_date <= CURDATE()
                  AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
                  ORDER BY sc.effective_date DESC LIMIT 1),
@@ -389,8 +389,8 @@ async function calculateProductCost(connection, productId) {
   const [frozenCost] = await connection.query(
     `
         SELECT SUM(standard_price) AS standard_price, MAX(effective_date) AS effective_date
-        FROM standard_costs 
-        WHERE (product_id = ? OR material_id = ?) AND is_active = 1 
+        FROM standard_costs
+        WHERE (product_id = ? OR material_id = ?) AND is_active = 1
         AND effective_date <= CURDATE()
     `,
     [productId, productId]
@@ -420,10 +420,10 @@ async function calculateProductCost(connection, productId) {
   // 3. 无BOM时，优化：也读取standard_costs表的冻结价格
   const [materials] = await connection.query(
     `
-        SELECT 
+        SELECT
             COALESCE(
-                (SELECT sc.standard_price FROM standard_costs sc 
-                 WHERE sc.material_id = m.id AND sc.is_active = 1 
+                (SELECT sc.standard_price FROM standard_costs sc
+                 WHERE sc.material_id = m.id AND sc.is_active = 1
                  AND sc.effective_date <= CURDATE()
                  AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
                  ORDER BY sc.effective_date DESC LIMIT 1),
@@ -508,7 +508,7 @@ exports.createPricing = async (req, res) => {
     } = req.body;
 
     if (!product_id) {
-      return ResponseHandler.error(res, '产品ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '产品ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     let costPrice;
@@ -522,7 +522,7 @@ exports.createPricing = async (req, res) => {
         throw new Error('profit_margin must be a number');
       }
     } catch (validationError) {
-      return ResponseHandler.error(res, validationError.message, 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, validationError.message, 'VALIDATION_ERROR', 400);
     }
 
     // 价格验证
@@ -532,7 +532,7 @@ exports.createPricing = async (req, res) => {
         logger.warn(validation.warning);
       }
     } catch (validationError) {
-      return ResponseHandler.error(res, validationError.message, 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, validationError.message, 'VALIDATION_ERROR', 400);
     }
 
     connection = await getConnection();
@@ -559,7 +559,7 @@ exports.createPricing = async (req, res) => {
 
     // 3. 插入新定价
     const [pricingResult] = await connection.query(
-      `INSERT INTO product_pricing 
+      `INSERT INTO product_pricing
        (product_id, cost_price, suggested_price, profit_margin, version, is_active, effective_date, remarks, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -630,7 +630,7 @@ exports.getPricingHistory = async (req, res) => {
 
     const [history] = await connection.query(
       `
-      SELECT 
+      SELECT
         pp.*,
         u.username as created_by_name
       FROM product_pricing pp
@@ -647,7 +647,7 @@ exports.getPricingHistory = async (req, res) => {
     if (pricingIds.length > 0) {
       const placeholders = pricingIds.map(() => '?').join(',');
       const [allStrategies] = await connection.query(
-        `SELECT 
+        `SELECT
             pps.pricing_id,
             pps.field_value,
             psf.field_name,
@@ -708,7 +708,7 @@ exports.getBomDetails = async (req, res) => {
     // 2. 获取BOM明细及物料信息
     const [details] = await connection.query(
       `
-            SELECT 
+            SELECT
                 bd.id,
                 bd.material_id,
                 bd.quantity,
@@ -856,8 +856,8 @@ exports.updatePricingSettings = async (req, res) => {
     // 表结构由 migrations/20260312000009_baseline_misc_tables.js 管理
 
     await connection.query(
-      `INSERT INTO user_pricing_settings (user_id, settings_json) 
-             VALUES (?, ?) 
+      `INSERT INTO user_pricing_settings (user_id, settings_json)
+             VALUES (?, ?)
              ON DUPLICATE KEY UPDATE settings_json = VALUES(settings_json)`,
       [userId, JSON.stringify(settings)]
     );

@@ -42,7 +42,7 @@ async function _getInspectionsByType(type, req, res, extraFilters = {}) {
         const actualPage = db.ensureNumber(page, 1);
 
         if (actualPage < 1 || actualPageSize < 1 || actualPageSize > 1000) {
-            return ResponseHandler.error(res, '页码或每页条数参数无效', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '页码或每页条数参数无效', 'VALIDATION_ERROR', 400);
         }
 
         const result = await QualityInspection.getInspections(type, filters, actualPage, actualPageSize);
@@ -121,7 +121,7 @@ const inspectionController = {
             const inspection = req.body;
 
             if (!inspection.inspection_type) {
-                return ResponseHandler.error(res, '检验类型不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '检验类型不能为空', 'VALIDATION_ERROR', 400);
             }
 
             if (
@@ -133,7 +133,7 @@ const inspectionController = {
                 return ResponseHandler.error(
                     res,
                     '批次号、检验数量、单位和计划检验日期不能为空',
-                    'BAD_REQUEST',
+                    'VALIDATION_ERROR',
                     400
                 );
             }
@@ -174,7 +174,10 @@ const inspectionController = {
             ResponseHandler.success(res, result, result.is_exempt ? '系统检测到免检验属性，成功自动放行！' : '检验单创建成功');
         } catch (error) {
             logger.error('创建检验单失败:', error);
-            ResponseHandler.error(res, '创建检验单失败', 'SERVER_ERROR', 500, error);
+            const statusCode = error.statusCode || 500;
+            const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+            const message = statusCode === 400 ? error.message : '创建检验单失败';
+            ResponseHandler.error(res, message, errorCode, statusCode, error);
         }
     },
 
@@ -247,8 +250,10 @@ const inspectionController = {
                         const PurchaseReceiptService = require('../../../services/quality/PurchaseReceiptService');
                         await PurchaseReceiptService.autoCreateFromInspection(updatedInspection, inspection);
                         logger.info(`✅ 来料检验单 ${inspection.inspection_no} 已自动创建采购入库单`);
+                        result.receipt_auto_created = true;
                     } catch (loopError) {
                         logger.warn(`⚠️ 来料检验单 ${inspection.inspection_no} 业务闭环联动失败:`, loopError.message);
+                        result.receipt_auto_created = false;
                     }
                 }
             }
@@ -273,7 +278,7 @@ const inspectionController = {
             }
 
             if (inspection.status !== 'pending') {
-                return ResponseHandler.error(res, '只有待检验状态的检验单才能删除', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '只有待检验状态的检验单才能删除', 'VALIDATION_ERROR', 400);
             }
 
             const result = await QualityInspection.deleteInspection(parseInt(id));
@@ -293,12 +298,12 @@ const inspectionController = {
             const { type } = req.params;
 
             if (!['incoming', 'process', 'final'].includes(type)) {
-                return ResponseHandler.error(res, '检验类型参数错误', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '检验类型参数错误', 'VALIDATION_ERROR', 400);
             }
 
             const data = await QualityInspection.getReferenceData(type);
 
-            res.json({ success: true, data });
+            return ResponseHandler.success(res, { success: true, data });
         } catch (error) {
             logger.error('获取引用数据失败:', error);
             ResponseHandler.error(res, '获取引用数据失败', 'SERVER_ERROR', 500, error);
@@ -313,7 +318,7 @@ const inspectionController = {
             const { type, targetId } = req.params;
 
             if (!['incoming', 'process', 'final'].includes(type) || !targetId) {
-                return ResponseHandler.error(res, '参数错误', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '参数错误', 'VALIDATION_ERROR', 400);
             }
 
             const standards = await QualityInspection.getStandards(type, parseInt(targetId));
@@ -361,7 +366,7 @@ const inspectionController = {
             const { status, result, remarks, batch_number, qualified_quantity, unqualified_quantity } = req.body;
 
             if (!id || !status) {
-                return ResponseHandler.error(res, '检验单ID和状态不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '检验单ID和状态不能为空', 'VALIDATION_ERROR', 400);
             }
 
             const InspectionService = require('../../../services/quality/inspectionService');
@@ -440,9 +445,7 @@ const inspectionController = {
             const result = await db.query(query, params);
             const inspections = result.rows || [];
 
-            res.json({
-                success: true,
-                data: {
+            return ResponseHandler.success(res, {
                     inspections,
                     pagination: {
                         total,
@@ -450,8 +453,7 @@ const inspectionController = {
                         pageSize: pagination.pageSize,
                         totalPages: Math.ceil(total / pagination.pageSize),
                     },
-                },
-            });
+                });
         } catch (error) {
             logger.error('获取未关联质检记录失败:', error);
             ResponseHandler.error(res, '获取未关联质检记录失败', 'SERVER_ERROR', 500, error);
@@ -466,7 +468,7 @@ const inspectionController = {
             const { batchNo } = req.params;
 
             if (!batchNo) {
-                return ResponseHandler.error(res, '批次号不能为空', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '批次号不能为空', 'VALIDATION_ERROR', 400);
             }
 
             const pool = db.pool;

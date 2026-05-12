@@ -628,7 +628,7 @@ const executeProductionCost = async () => {
         'production',
         selectedTask.code,
         'success',
-        `成本分录生成成功，总成本: ${response.data.totalCost || 0}元`
+        `成本分录生成成功，总成本: ${response.data.actualCost?.totalCost || response.data.totalCost || 0}元`
       );
 
       // 清空表单

@@ -188,8 +188,8 @@ router.get('/assets/statistics/summary', requirePermission('finance:assets:view'
 router.get('/assets/stats', requirePermission('finance:assets:view'), assetsController.getAssetStatistics);
 router.get('/assets/dashboard/stats', requirePermission('finance:assets:view'), assetsController.getDashboardStats);
 
+
 // 资产看板数据与折旧预测
-router.get('/assets/dashboard/stats', requirePermission('finance:assets:view'), assetsController.getDashboardStats);
 router.get('/assets/depreciation/forecast', requirePermission('finance:assets:view'), assetsController.getDepreciationForecast);
 
 // 资产操作
@@ -354,7 +354,7 @@ router.get('/reports/income-statement', requirePermission('finance:reports:view'
 router.get('/reports/cash-flow', requirePermission('finance:reports:view'), enhancedReportsController.getCashFlowStatement);
 
 // 4. 标准现金流量表（间接法）
-router.get('/reports/standard-cash-flow', requirePermission('finance:reports:view'), enhancedReportsController.getStandardCashFlowStatement);
+router.get('/reports/standard-cash-flow', requirePermission('finance:reports:standard-cash-flow:view'), enhancedReportsController.getStandardCashFlowStatement);
 
 // 5. 财务报表汇总
 router.get('/reports/summary', requirePermission('finance:reports:view'), enhancedReportsController.getReportsSummary);

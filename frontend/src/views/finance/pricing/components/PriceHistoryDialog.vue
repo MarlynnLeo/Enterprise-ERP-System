@@ -1,8 +1,8 @@
 <template>
   <!-- 价格调整历史对话框 -->
-  <el-dialog 
-    v-model="visible" 
-    :title="`价格调整历史 - ${materialName}`" 
+  <el-dialog
+    v-model="visible"
+    :title="`价格调整历史 - ${materialName}`"
     width="600px"
   >
     <div v-if="history.length > 0" class="history-timeline">

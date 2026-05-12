@@ -20,9 +20,9 @@ const { pool } = require('../config/db');
 async function getNotificationUsers(permissionCode) {
   try {
     const [users] = await pool.query(`
-      SELECT DISTINCT u.id 
-      FROM users u 
-      JOIN user_roles ur ON u.id = ur.user_id 
+      SELECT DISTINCT u.id
+      FROM users u
+      JOIN user_roles ur ON u.id = ur.user_id
       JOIN roles r ON ur.role_id = r.id AND r.status = 1
       LEFT JOIN role_menus rm ON r.id = rm.role_id
       LEFT JOIN menus m ON rm.menu_id = m.id AND m.status = 1
@@ -88,9 +88,9 @@ async function checkOverdueInvoices({ model, type, label, counterpartyField, cou
     // 去重：查询今天已发过的通知（按 source_type + source_id + user_id）
     const invoiceIds = overdueInvoices.map(inv => inv.id);
     const [existingNotifications] = await pool.query(
-      `SELECT source_id, user_id FROM notifications 
-       WHERE source_type = 'overdue_invoice' 
-         AND source_id IN (?) 
+      `SELECT source_id, user_id FROM notifications
+       WHERE source_type = 'overdue_invoice'
+         AND source_id IN (?)
          AND user_id IN (?)
          AND DATE(created_at) = CURDATE()`,
       [invoiceIds, notifyUserIds]
@@ -136,8 +136,8 @@ async function checkOverdueInvoices({ model, type, label, counterpartyField, cou
     // 批量写入通知表
     if (notificationsToInsert.length > 0) {
       await pool.query(
-        `INSERT INTO notifications 
-         (user_id, type, title, content, link, link_params, priority, source_type, source_id, created_by) 
+        `INSERT INTO notifications
+         (user_id, type, title, content, link, link_params, priority, source_type, source_id, created_by)
          VALUES ?`,
         [notificationsToInsert]
       );

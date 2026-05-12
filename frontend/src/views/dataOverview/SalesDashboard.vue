@@ -42,7 +42,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card success-card" shadow="hover">
           <div class="stat-content">
@@ -65,7 +65,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card info-card" shadow="hover">
           <div class="stat-content">
@@ -88,7 +88,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card warning-card" shadow="hover">
           <div class="stat-content">
@@ -150,7 +150,7 @@
           <template #header>
             <div class="card-header-with-search">
               <span>最近销售订单</span>
-              <el-input 
+              <el-input
                 v-model="search"
                 placeholder="搜索"
                 class="search-input"
@@ -193,10 +193,10 @@
             </el-table-column>
             <el-table-column label="操作" min-width="120" fixed="right">
               <template #default="scope">
-                <el-button 
-                  type="primary" 
-                  text 
-                  size="small" 
+                <el-button
+                  type="primary"
+                  text
+                  size="small"
                   @click="$router.push(`/sales/orders?id=${scope.row.id}`)"
                 >查看</el-button>
               </template>
@@ -231,11 +231,11 @@ function createSafeChart(ctx, config) {
       console.error('无效的canvas上下文');
       return null;
     }
-    
+
     // 验证上下文是否可用
     ctx.save();
     ctx.restore();
-    
+
     // 创建图表
     return new Chart(ctx, config);
   } catch (error) {
@@ -275,6 +275,7 @@ const {
   loadData
 } = useDashboard('sales', loadSalesData, {
   autoRefresh: true,
+  immediate: false,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
 // 使用图表管理组合式函数
@@ -291,19 +292,19 @@ const pageSize = ref(10);
 const filteredRecentOrders = computed(() => {
   const startIndex = (currentPage.value - 1) * pageSize.value;
   const endIndex = startIndex + pageSize.value;
-  
+
   // 确保recentOrders是数组
   let orders = Array.isArray(recentOrders.value) ? recentOrders.value : [];
-  
+
   if (search.value) {
     const searchValue = search.value.toLowerCase();
-    orders = orders.filter(order => 
-      (order.orderNo && order.orderNo.toLowerCase().includes(searchValue)) || 
+    orders = orders.filter(order =>
+      (order.orderNo && order.orderNo.toLowerCase().includes(searchValue)) ||
       (order.customerName && order.customerName.toLowerCase().includes(searchValue)) ||
       (order.status && order.status.toLowerCase().includes(searchValue))
     );
   }
-  
+
   return orders.slice(startIndex, endIndex);
 });
 // 分页处理
@@ -359,7 +360,7 @@ function getPaymentStatusColor(status) {
 // 获取状态文本
 function getStatusText(status) {
   if (!status) return '-';
-  
+
   const statusTextMap = {
     'pending': '待处理',
     'confirmed': '已确认',
@@ -371,7 +372,7 @@ function getStatusText(status) {
     'completed': '已完成',
     'cancelled': '已取消'
   };
-  
+
   return statusTextMap[status] || status;
 }
 // 获取付款状态文本
@@ -468,31 +469,28 @@ async function loadSalesData() {
 // 初始化销售趋势图表
 function initSalesTrendChart() {
   if (!chartRefs.salesTrend?.value) {
-    console.warn('salesTrend canvas元素不存在');
     return null;
   }
   const canvas = chartRefs.salesTrend.value;
   if (!canvas) {
-    console.warn('salesTrend canvas元素为null');
     return null;
   }
-  
+
   // 确保canvas已经渲染
   if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-    console.warn('salesTrend canvas尺寸为0，等待渲染完成');
     return null;
   }
-  
+
   // 设置canvas尺寸
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
-  
+
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     console.error('无法获取salesTrend canvas 2D上下文');
     return null;
   }
-  
+
   // 验证上下文是否可用
   try {
     ctx.save();
@@ -528,31 +526,28 @@ function initSalesTrendChart() {
 // 初始化客户排名图表
 function initCustomerRankChart() {
   if (!chartRefs.customerRank?.value) {
-    console.warn('customerRank canvas元素不存在');
     return null;
   }
   const canvas = chartRefs.customerRank.value;
   if (!canvas) {
-    console.warn('customerRank canvas元素为null');
     return null;
   }
-  
+
   // 确保canvas已经渲染
   if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-    console.warn('customerRank canvas尺寸为0，等待渲染完成');
     return null;
   }
-  
+
   // 设置canvas尺寸
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
-  
+
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     console.error('无法获取customerRank canvas 2D上下文');
     return null;
   }
-  
+
   // 验证上下文是否可用
   try {
     ctx.save();
@@ -596,17 +591,17 @@ function recreateSalesTrendChart() {
     if (chartRefs.salesTrend?.value) {
       const canvas = chartRefs.salesTrend.value;
       if (!canvas) return;
-      
+
       // 设置canvas尺寸
       canvas.width = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
-      
+
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         console.error('无法获取salesTrend canvas 2D上下文');
         return;
       }
-      
+
       // 验证上下文是否可用
       try {
         ctx.save();
@@ -667,17 +662,17 @@ function recreateCustomerRankChart() {
     if (chartRefs.customerRank?.value) {
       const canvas = chartRefs.customerRank.value;
       if (!canvas) return;
-      
+
       // 设置canvas尺寸
       canvas.width = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
-      
+
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         console.error('无法获取customerRank canvas 2D上下文');
         return;
       }
-      
+
       // 验证上下文是否可用
       try {
         ctx.save();
@@ -725,7 +720,7 @@ watch(salesTrendType, () => {
 let customerUpdateTimer = null;
 let trendUpdateTimer = null;
 watch(() => statistics.top_customers, (newCustomers, oldCustomers) => {
-  if (newCustomers && newCustomers.length > 0 && newCustomers !== oldCustomers) {
+  if (Array.isArray(newCustomers) && newCustomers !== oldCustomers) {
     // 清除之前的定时器，避免重复更新
     if (customerUpdateTimer) {
       clearTimeout(customerUpdateTimer);
@@ -737,7 +732,7 @@ watch(() => statistics.top_customers, (newCustomers, oldCustomers) => {
   }
 }, { deep: false }); // 改为浅监听，避免深度监听导致的性能问题
 watch(() => statistics.trend_data, (newTrendData, oldTrendData) => {
-  if (newTrendData && newTrendData.length > 0 && newTrendData !== oldTrendData) {
+  if (Array.isArray(newTrendData) && newTrendData !== oldTrendData) {
     // 清除之前的定时器，避免重复更新
     if (trendUpdateTimer) {
       clearTimeout(trendUpdateTimer);
@@ -753,28 +748,28 @@ onMounted(async () => {
   try {
     // 等待DOM完全渲染
     await nextTick();
-    
+
     // 等待canvas元素完全渲染
     await new Promise(resolve => setTimeout(resolve, 200));
-    
+
     // 确保canvas元素存在且已渲染
     let retryCount = 0;
     const maxRetries = 5;
-    
+
     while (retryCount < maxRetries) {
       const salesTrendCanvas = chartRefs.salesTrend?.value;
       const customerRankCanvas = chartRefs.customerRank?.value;
-      
-      if (salesTrendCanvas && customerRankCanvas && 
+
+      if (salesTrendCanvas && customerRankCanvas &&
           salesTrendCanvas.offsetWidth > 0 && salesTrendCanvas.offsetHeight > 0 &&
           customerRankCanvas.offsetWidth > 0 && customerRankCanvas.offsetHeight > 0) {
         break;
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 100));
       retryCount++;
     }
-    
+
     // 初始化图表
     await initAllCharts({
       salesTrend: initSalesTrendChart,
@@ -785,13 +780,6 @@ onMounted(async () => {
   } catch (error) {
     handleDashboardError(error, '销售仪表盘初始化失败');
   }
-});
-// 加载仪表盘数据}
-// 初始化图表}
-// 获取销售趋势数据}
-// 监听销售趋势类型变化，更新图表
-watch(salesTrendType, () => {
-  initSalesTrendChart();
 });
 </script>
 <style scoped>
@@ -897,11 +885,11 @@ watch(salesTrendType, () => {
   .search-input {
     max-width: 120px;
   }
-  
+
   .stat-value {
     font-size: 22px;
   }
-  
+
   .stat-secondary-value {
     font-size: 18px;
   }
@@ -917,4 +905,4 @@ watch(salesTrendType, () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

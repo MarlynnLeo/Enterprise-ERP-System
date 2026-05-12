@@ -115,7 +115,7 @@ class BomExplosionService {
     try {
       const [details] = await pool.query(
         `
-        SELECT 
+        SELECT
           bd.*,
           m.code as material_code,
           m.name as material_name,
@@ -152,9 +152,18 @@ class BomExplosionService {
 
           if (qtyFromStock > 0 && netReqMap) {
              if (!netReqMap.has(currentDetail.material_id)) {
-                 netReqMap.set(currentDetail.material_id, { requiredQuantity: 0, level: internalLevel });
+                 netReqMap.set(currentDetail.material_id, {
+                   requiredQuantity: 0,
+                   issueQuantity: 0,
+                   shortageQuantity: 0,
+                   grossRequiredQuantity: 0,
+                   level: internalLevel,
+                 });
              }
-             netReqMap.get(currentDetail.material_id).requiredQuantity += qtyFromStock;
+             const req = netReqMap.get(currentDetail.material_id);
+             req.requiredQuantity += qtyFromStock;
+             req.issueQuantity += qtyFromStock;
+             req.grossRequiredQuantity += qtyFromStock;
           }
         } else {
           results.push({
@@ -206,9 +215,18 @@ class BomExplosionService {
 
             if (netStockMap && netReqMap && !hasExternal && !hasInternal) {
                 if (!netReqMap.has(currentDetail.material_id)) {
-                     netReqMap.set(currentDetail.material_id, { requiredQuantity: 0, level: internalLevel });
+                     netReqMap.set(currentDetail.material_id, {
+                       requiredQuantity: 0,
+                       issueQuantity: 0,
+                       shortageQuantity: 0,
+                       grossRequiredQuantity: 0,
+                       level: internalLevel,
+                     });
                 }
-                netReqMap.get(currentDetail.material_id).requiredQuantity += childNetDemand;
+                const req = netReqMap.get(currentDetail.material_id);
+                req.requiredQuantity += childNetDemand;
+                req.shortageQuantity += childNetDemand;
+                req.grossRequiredQuantity += childNetDemand;
             }
         }
       };
@@ -225,14 +243,50 @@ class BomExplosionService {
   /**
    * 获取最新已审核的BOM
    */
-  static async getLatestApprovedBom(productId) {
-    const [rows] = await pool.query(
+  static async getLatestApprovedBom(productId, db = pool) {
+    const bomMap = await this.getLatestApprovedBomMap([productId], db);
+    return bomMap.get(Number(productId)) || null;
+  }
+
+  /**
+   * 批量获取物料对应的最新已审核BOM，统一子BOM识别口径。
+   */
+  static async getLatestApprovedBomMap(productIds, db = pool) {
+    const ids = [...new Set((productIds || []).map(Number).filter(Boolean))];
+    const result = new Map();
+    if (!ids.length) return result;
+
+    const [rows] = await db.query(
       `
-      SELECT * FROM bom_masters 
-      WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL
-      ORDER BY approved_at DESC, id DESC
+      SELECT *
+      FROM bom_masters
+      WHERE product_id IN (?) AND approved_by IS NOT NULL AND deleted_at IS NULL
+      ORDER BY product_id ASC, approved_at DESC, id DESC
+      `,
+      [ids]
+    );
+
+    for (const row of rows) {
+      if (!result.has(row.product_id)) {
+        result.set(row.product_id, row);
+      }
+    }
+    return result;
+  }
+
+  static async getPreferredBom(productId, db = pool) {
+    const [rows] = await db.query(
+      `
+      SELECT *
+      FROM bom_masters
+      WHERE product_id = ? AND status != 2 AND deleted_at IS NULL
+      ORDER BY
+        CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END,
+        approved_at DESC,
+        created_at DESC,
+        id DESC
       LIMIT 1
-    `,
+      `,
       [productId]
     );
     return rows[0] || null;
@@ -260,7 +314,18 @@ class BomExplosionService {
       `,
         [bomId]
       );
-      return rows;
+      if (!rows.length) return rows;
+
+      const materialIds = [...new Set(rows.map((row) => row.material_id).filter(Boolean))];
+      if (!materialIds.length) return rows;
+
+      const subBomMap = await this.getLatestApprovedBomMap(materialIds);
+
+      return rows.map((row) => ({
+        ...row,
+        has_sub_bom: subBomMap.has(row.material_id) ? 1 : 0,
+        ref_bom_id: subBomMap.get(row.material_id)?.id || null,
+      }));
     } catch (error) {
       logger.warn('获取BOM缓存失败:', error.message);
       return null;
@@ -353,7 +418,7 @@ class BomExplosionService {
           // 3. 查找所有引用该产品作为子组件的父级BOM，加入队列继续向上失效
           const [parentBoms] = await pool.query(
             `
-            SELECT DISTINCT bd.bom_id 
+            SELECT DISTINCT bd.bom_id
             FROM bom_details bd
             WHERE bd.material_id = ? AND bd.has_sub_bom = 1
           `,
@@ -439,7 +504,7 @@ class BomExplosionService {
     // 兜底查找启用状态的草稿BOM（status=1 且未审核）
     const [rows] = await pool.query(
       `
-      SELECT * FROM bom_masters 
+      SELECT * FROM bom_masters
       WHERE product_id = ? AND status = 1 AND approved_by IS NULL AND deleted_at IS NULL
       ORDER BY id DESC
       LIMIT 1
@@ -457,13 +522,14 @@ class BomExplosionService {
       // 检查该物料是否有已审核的BOM
       const bom = await this.getLatestApprovedBom(materialId);
       const hasSubBom = bom ? 1 : 0;
+      const refBomId = bom?.id || null;
 
       // 更新所有使用该物料的BOM明细
       await pool.query(
         `
-        UPDATE bom_details SET has_sub_bom = ? WHERE material_id = ?
+        UPDATE bom_details SET has_sub_bom = ?, ref_bom_id = ? WHERE material_id = ?
       `,
-        [hasSubBom, materialId]
+        [hasSubBom, refBomId, materialId]
       );
 
       logger.info(`物料 ${materialId} 的 has_sub_bom 标记已更新为 ${hasSubBom}`);

@@ -208,7 +208,7 @@ const applyConcession = async (req, res) => {
     const applicant = await getCurrentUserName(req);
 
     if (!reason) {
-      return ResponseHandler.error(res, '请提供特采申请理由', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '请提供特采申请理由', 'VALIDATION_ERROR', 400);
     }
 
     await NonconformingProductService.applyConcession(id, { reason, applicant });
@@ -231,7 +231,7 @@ const approveConcession = async (req, res) => {
     const approverName = await getCurrentUserName(req);
 
     if (!['approved', 'rejected'].includes(status)) {
-      return ResponseHandler.error(res, '审批状态必须为 approved 或 rejected', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '审批状态必须为 approved 或 rejected', 'VALIDATION_ERROR', 400);
     }
 
     const approverId = getAuthenticatedUserId(req);

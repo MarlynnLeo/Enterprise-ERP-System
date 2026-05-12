@@ -9,6 +9,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const { logger } = require('../../utils/logger');
 const dingtalkConfig = require('../../config/dingtalkConfig');
+const db = require('../../config/db');
 
 class DingtalkService {
   constructor() {
@@ -415,8 +416,6 @@ class DingtalkService {
    */
   async syncFromDingtalk(options = {}) {
     try {
-      const db = require('../../config/db');
-
       // 1. 获取审批实例ID列表
       const instanceIds = await this.fetchApprovalList(options);
 
@@ -510,7 +509,7 @@ class DingtalkService {
           // 插入到ERP
           await db.pool.execute(
             `INSERT INTO expenses (
-                            expense_number, title, amount, status, 
+                            expense_number, title, amount, status,
                             category_id, description, expense_date, created_by,
                             submitted_by, submitted_at, approved_by, approved_at, approval_remark,
                             dingtalk_instance_id, dingtalk_status, dingtalk_result, dingtalk_submit_time,

@@ -12,17 +12,17 @@ export const parseQuantity = (value) => {
   if (value === undefined || value === null || value === '') {
     return null;
   }
-  
+
   // 处理0值
   if (value === 0 || value === '0') {
     return 0;
   }
-  
+
   // 处理数字类型
   if (typeof value === 'number') {
     return isNaN(value) ? null : value;
   }
-  
+
   // 处理字符串类型
   if (typeof value === 'string') {
     // 如果已经包含单位"件"
@@ -35,7 +35,7 @@ export const parseQuantity = (value) => {
       return isNaN(parsed) ? null : parsed;
     }
   }
-  
+
   return null;
 };
 
@@ -62,7 +62,7 @@ export const formatQuantity = (value, unit = null) => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(num);
-  
+
   // 如果提供了单位，则附加；否则只返回数字
   return unit ? `${formatted} ${unit}` : formatted;
 };
@@ -79,13 +79,13 @@ export const getQuantityFromRelatedItem = (items, id, idField = 'id', quantityFi
   if (!id || !items || !Array.isArray(items) || items.length === 0) {
     return null;
   }
-  
+
   // 使用字符串比较确保ID类型一致性
   const relatedItem = items.find(item => String(item[idField]) === String(id));
   if (!relatedItem) {
     return null;
   }
-  
+
   return parseQuantity(relatedItem[quantityField]);
 };
 
@@ -100,12 +100,12 @@ export const compareQuantities = (a, b, operator = '>=') => {
   // 将输入转换为数字
   const numA = parseQuantity(a) || 0;
   const numB = parseQuantity(b) || 0;
-  
+
   // 为了防止浮点数精度问题，将数字乘以100并取整
   // 这样可以在比较时处理最多两位小数的精度
   const preciseA = Math.round(numA * 100);
   const preciseB = Math.round(numB * 100);
-  
+
   // 根据操作符执行比较
   switch (operator) {
     case '>': return preciseA > preciseB;
@@ -115,4 +115,4 @@ export const compareQuantities = (a, b, operator = '>=') => {
     case '==': return preciseA === preciseB;
     default: return false;
   }
-}; 
+};

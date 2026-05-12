@@ -97,7 +97,7 @@ const createEmployee = async (req, res) => {
   } catch (error) {
     logger.error('添加员工失败:', error);
     if (error.code === 'ER_DUP_ENTRY') {
-      return ResponseHandler.error(res, '员工工号已存在', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '员工工号已存在', 'VALIDATION_ERROR', 400);
     }
     return ResponseHandler.error(res, '添加员工失败', 'OPERATION_ERROR', 500, error);
   }
@@ -155,7 +155,7 @@ const syncDingtalk = async (req, res) => {
 const syncAttendance = async (req, res) => {
   try {
     const { period } = req.body;
-    if (!period) return ResponseHandler.error(res, '请提供考勤周期(period)，格式 YYYY-MM', 'BAD_REQUEST', 400);
+    if (!period) return ResponseHandler.error(res, '请提供考勤周期(period)，格式 YYYY-MM', 'VALIDATION_ERROR', 400);
     const result = await DingtalkSyncService.syncAttendanceToDb(period);
     return ResponseHandler.success(res, result, `${period} 月考勤同步完成，共获取 ${result.totalRecords} 条打卡记录，处理 ${result.savedCount} 人`);
   } catch (error) {
@@ -167,7 +167,7 @@ const syncAttendance = async (req, res) => {
 const getAttendance = async (req, res) => {
   try {
     const { period } = req.query;
-    if (!period) return ResponseHandler.error(res, '请提供考勤周期(period)', 'BAD_REQUEST', 400);
+    if (!period) return ResponseHandler.error(res, '请提供考勤周期(period)', 'VALIDATION_ERROR', 400);
 
     const [rows] = await pool.query(`
       SELECT a.*, e.name, e.employee_no, d.name as department_name
@@ -187,7 +187,7 @@ const batchSaveAttendance = async (req, res) => {
   try {
     const { period, records } = req.body;
     if (!period || !records || records.length === 0) {
-      return ResponseHandler.error(res, '参数错误', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '参数错误', 'VALIDATION_ERROR', 400);
     }
 
     const connection = await pool.getConnection();
@@ -197,7 +197,7 @@ const batchSaveAttendance = async (req, res) => {
         await connection.query(`
           INSERT INTO hr_attendance (employee_id, period, days_in_month, leave_days, vacation_days, overtime_hours, full_attendance, status)
           VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed')
-          ON DUPLICATE KEY UPDATE 
+          ON DUPLICATE KEY UPDATE
             days_in_month = VALUES(days_in_month),
             leave_days = VALUES(leave_days),
             vacation_days = VALUES(vacation_days),
@@ -227,14 +227,14 @@ const batchSaveAttendance = async (req, res) => {
 // Excel 导入考勤
 const importAttendanceExcel = async (req, res) => {
   try {
-    if (!req.file) return ResponseHandler.error(res, '请上传 Excel 文件', 'BAD_REQUEST', 400);
+    if (!req.file) return ResponseHandler.error(res, '请上传 Excel 文件', 'VALIDATION_ERROR', 400);
     const { period } = req.body;
-    if (!period) return ResponseHandler.error(res, '请提供考勤周期(period)', 'BAD_REQUEST', 400);
+    if (!period) return ResponseHandler.error(res, '请提供考勤周期(period)', 'VALIDATION_ERROR', 400);
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(req.file.buffer);
     const worksheet = workbook.worksheets[0];
-    if (!worksheet) return ResponseHandler.error(res, 'Excel 中未找到工作表', 'BAD_REQUEST', 400);
+    if (!worksheet) return ResponseHandler.error(res, 'Excel 中未找到工作表', 'VALIDATION_ERROR', 400);
 
     // 先用 header:1 (数组模式) 找到真正的表头行
     const allRows = worksheetToRows(worksheet);
@@ -246,13 +246,13 @@ const importAttendanceExcel = async (req, res) => {
         break;
       }
     }
-    if (headerRowIdx < 0) return ResponseHandler.error(res, 'Excel 中未找到包含"姓名"的表头行', 'BAD_REQUEST', 400);
+    if (headerRowIdx < 0) return ResponseHandler.error(res, 'Excel 中未找到包含"姓名"的表头行', 'VALIDATION_ERROR', 400);
 
     // 从表头行重新解析为对象数组
     const headers = allRows[headerRowIdx].map(h => String(h).replace(/[\s\r\n]/g, ''));
     const dataRows = allRows.slice(headerRowIdx + 1).filter(r => r && r.length > 1);
 
-    if (dataRows.length === 0) return ResponseHandler.error(res, 'Excel 无数据行', 'BAD_REQUEST', 400);
+    if (dataRows.length === 0) return ResponseHandler.error(res, 'Excel 无数据行', 'VALIDATION_ERROR', 400);
     logger.info(`[Excel导入] 检测到表头在第 ${headerRowIdx + 1} 行，数据行 ${dataRows.length} 条，表头: ${headers.join(',')}`);
 
     // 获取所有员工做姓名映射
@@ -384,7 +384,7 @@ const getSalaryRecords = async (req, res) => {
   try {
     const { period } = req.query;
     let query = `
-      SELECT s.*, e.name as employee_name, e.employee_no 
+      SELECT s.*, e.name as employee_name, e.employee_no
       FROM hr_salary_records s
       JOIN hr_employees e ON s.employee_id = e.id
     `;
@@ -414,7 +414,7 @@ const getSalaryRecords = async (req, res) => {
 const calculateSalary = async (req, res) => {
   try {
     const { period } = req.body;
-    if (!period) return ResponseHandler.error(res, '缺少计算周期参数', 'BAD_REQUEST', 400);
+    if (!period) return ResponseHandler.error(res, '缺少计算周期参数', 'VALIDATION_ERROR', 400);
 
     const calcCount = await SalaryService.calculatePeriodSalary(period);
 
@@ -439,7 +439,7 @@ const confirmSalary = async (req, res) => {
 const batchConfirmSalary = async (req, res) => {
   try {
     const { period } = req.body;
-    if (!period) return ResponseHandler.error(res, '缺少周期参数', 'BAD_REQUEST', 400);
+    if (!period) return ResponseHandler.error(res, '缺少周期参数', 'VALIDATION_ERROR', 400);
     const [result] = await pool.query(
       "UPDATE hr_salary_records SET status = 'approved' WHERE period = ? AND status = 'draft'",
       [period]
@@ -454,7 +454,7 @@ const batchConfirmSalary = async (req, res) => {
 const exportSalary = async (req, res) => {
   try {
     const { period } = req.query;
-    if (!period) return ResponseHandler.error(res, '缺少周期参数', 'BAD_REQUEST', 400);
+    if (!period) return ResponseHandler.error(res, '缺少周期参数', 'VALIDATION_ERROR', 400);
 
     const [rows] = await pool.query(`
       SELECT e.employee_no AS 工号, e.name AS 姓名, d.name AS 部门,
@@ -506,7 +506,7 @@ const updateAttendanceRule = async (req, res) => {
   try {
     const { id } = req.params;
     const { rule_value, description } = req.body;
-    if (!rule_value) return ResponseHandler.error(res, '规则值不能为空', 'BAD_REQUEST', 400);
+    if (!rule_value) return ResponseHandler.error(res, '规则值不能为空', 'VALIDATION_ERROR', 400);
 
     await pool.query(
       'UPDATE hr_attendance_rules SET rule_value = ?, description = ? WHERE id = ?',

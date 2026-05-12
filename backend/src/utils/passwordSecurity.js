@@ -204,9 +204,9 @@ class PasswordSecurity {
   async checkPasswordHistory(userId, newPassword, connection) {
     try {
       const [history] = await connection.execute(
-        `SELECT password_hash FROM password_history 
-         WHERE user_id = ? 
-         ORDER BY created_at DESC 
+        `SELECT password_hash FROM password_history
+         WHERE user_id = ?
+         ORDER BY created_at DESC
          LIMIT ?`,
         [userId, this.config.passwordHistory]
       );
@@ -237,13 +237,13 @@ class PasswordSecurity {
 
       // 清理旧密码历史
       await connection.execute(
-        `DELETE FROM password_history 
-         WHERE user_id = ? 
+        `DELETE FROM password_history
+         WHERE user_id = ?
          AND id NOT IN (
            SELECT id FROM (
-             SELECT id FROM password_history 
-             WHERE user_id = ? 
-             ORDER BY created_at DESC 
+             SELECT id FROM password_history
+             WHERE user_id = ?
+             ORDER BY created_at DESC
              LIMIT ?
            ) t
          )`,
@@ -274,10 +274,10 @@ class PasswordSecurity {
   async isAccountLocked(username, connection) {
     try {
       const [attempts] = await connection.execute(
-        `SELECT COUNT(*) as count 
-         FROM login_attempts 
-         WHERE username = ? 
-         AND success = 0 
+        `SELECT COUNT(*) as count
+         FROM login_attempts
+         WHERE username = ?
+         AND success = 0
          AND created_at > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
         [username, this.config.lockoutDuration / 1000]
       );

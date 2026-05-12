@@ -23,7 +23,7 @@
           <el-button @click="resetSearch">重置</el-button>
         </el-form-item>
       </el-form>
-      
+
       <!-- 表格 -->
       <el-table :data="inventoryList" v-loading="loading" border style="width: 100%; margin-top: 15px;">
         <el-table-column prop="inventory_no" label="盘点单号" width="160"></el-table-column>
@@ -61,7 +61,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container" style="margin-top: 20px; text-align: right;">
         <el-pagination
@@ -98,13 +98,13 @@
     </el-dialog>
 
     <!-- 盘点详情对话框 (简化版,也可单独做页面) -->
-    <el-dialog 
-      :title="detailData.status === '进行中' ? '资产盘点执行' : '资产盘点报告'" 
-      v-model="detailVisible" 
-      width="60%" 
+    <el-dialog
+      :title="detailData.status === '进行中' ? '资产盘点执行' : '资产盘点报告'"
+      v-model="detailVisible"
+      width="60%"
       custom-class="inventory-detail-dialog"
       top="5vh">
-      
+
       <div v-if="detailData.id" class="detail-layout">
         <div class="header-info">
           <el-descriptions :column="3" border>
@@ -141,9 +141,9 @@
           <el-table-column label="实盘数量" width="100" align="center">
             <template #default="scope">
               <span v-if="detailData.status === '已完成'">{{ scope.row.actual_quantity !== null ? scope.row.actual_quantity : '-' }}</span>
-              <el-input-number 
+              <el-input-number
                 v-else
-                v-model="scope.row.editValue" 
+                v-model="scope.row.editValue"
                 :min="0"
                 controls-position="right"
                 style="width: 100%"
@@ -169,9 +169,9 @@
             <template #default="scope">
               <el-button
                 v-permission="'finance:assets:update'"
-                type="success" 
-                size="small" 
-                link 
+                type="success"
+                size="small"
+                link
                 v-if="scope.row.status === '未盘点' && scope.row.editValue === undefined"
                 @click="fastMatch(scope.row)"
               >
@@ -187,9 +187,9 @@
           <el-button @click="detailVisible = false">关闭</el-button>
           <el-button
             v-permission="'finance:assets:update'"
-            type="primary" 
+            type="primary"
             v-if="detailData.status === '进行中'"
-            @click="completeInventory" 
+            @click="completeInventory"
             :loading="completeLoading"
           >
             完成盘点提交
@@ -327,11 +327,11 @@ const viewDetail = async (row) => {
   detailVisible.value = true
   itemFilter.value = 'all'
   detailData.value = { ...row, items: [] }
-  
+
   try {
     const res = await api.get(`/finance/assets-inventory/${row.id}`)
     const data = parseDataObject(res, { enableLog: false })
-    
+
     // 初始化编辑状态
     if (data.status === '进行中' && data.items) {
       data.items.forEach(item => {
@@ -339,7 +339,7 @@ const viewDetail = async (row) => {
         item.editNotes = item.notes || ''
       })
     }
-    
+
     detailData.value = data
   } catch {
     ElMessage.error('加载详情失败')
@@ -358,11 +358,11 @@ const fastMatch = async (row) => {
 // 手动输入实盘数量
 const handleQuantityChange = async (row, val) => {
   if (val === undefined || val === null) return
-  
+
   let status = '盘点相符'
   if (val > row.book_quantity) status = '盘盈'
   else if (val < row.book_quantity) status = '盘亏'
-  
+
   await updateItem(row, val, status, row.editNotes)
 }
 
@@ -372,7 +372,7 @@ const saveItemNotes = async (row) => {
     let status = '盘点相符'
     if (row.editValue > row.book_quantity) status = '盘盈'
     else if (row.editValue < row.book_quantity) status = '盘亏'
-    
+
     await updateItem(row, row.editValue, status, row.editNotes)
   }
 }
@@ -399,7 +399,7 @@ const completeInventory = async () => {
   if (uncounted.length > 0) {
     return ElMessage.warning(`还有 ${uncounted.length} 项资产未录入实盘数据`)
   }
-  
+
   ElMessageBox.confirm('确认完成盘点？提交后将不可修改实盘数据并自动计算盈亏。', '操作提示', {
     type: 'warning'
   }).then(async () => {

@@ -56,7 +56,7 @@ class SalesDao {
   // ==========================================
   static async getSalesQuotations() {
     const [rows] = await pool.execute(`
-      SELECT sq.*, c.name as customer_name, u.username as created_by_name 
+      SELECT sq.*, c.name as customer_name, u.username as created_by_name
       FROM sales_quotations sq
       JOIN customers c ON sq.customer_id = c.id
       JOIN users u ON sq.created_by = u.id
@@ -66,7 +66,7 @@ class SalesDao {
 
   static async getSalesQuotation(id) {
     const [quotation] = await pool.execute(`
-      SELECT sq.*, c.name as customer_name, u.username as created_by_name 
+      SELECT sq.*, c.name as customer_name, u.username as created_by_name
       FROM sales_quotations sq
       JOIN customers c ON sq.customer_id = c.id
       JOIN users u ON sq.created_by = u.id
@@ -116,10 +116,10 @@ class SalesDao {
   // ==========================================
   static async getLastOrderNoOfDay(dateStr) {
     const [rows] = await pool.execute(`
-      SELECT order_no 
-      FROM sales_orders 
-      WHERE order_no LIKE ? 
-      ORDER BY order_no DESC 
+      SELECT order_no
+      FROM sales_orders
+      WHERE order_no LIKE ?
+      ORDER BY order_no DESC
       LIMIT 1
     `, [`DD${dateStr}%`]);
     return rows[0]?.order_no;
@@ -136,7 +136,7 @@ class SalesDao {
       if (orders.length > 0) {
         const orderIds = orders.map(o => o.id);
         const [allItems] = await pool.execute(`
-          SELECT soi.*, COALESCE(m.code, '') as material_code, m.name as material_name, 
+          SELECT soi.*, COALESCE(m.code, '') as material_code, m.name as material_name,
                  m.specs as specification, u.name as unit_name,
                  CASE WHEN m.id IS NULL THEN 0 ELSE 1 END as material_exists
           FROM sales_order_items soi
@@ -164,8 +164,8 @@ class SalesDao {
 
   static async getSalesOrder(id) {
     const [order] = await pool.execute(`
-      SELECT so.*, c.id as customer_id, c.name as customer_name, c.contact_person, c.contact_phone, 
-             c.address as delivery_address, u.username as created_by_name 
+      SELECT so.*, c.id as customer_id, c.name as customer_name, c.contact_person, c.contact_phone,
+             c.address as delivery_address, u.username as created_by_name
       FROM sales_orders so
       JOIN customers c ON so.customer_id = c.id
       JOIN users u ON so.created_by = u.id
@@ -173,7 +173,7 @@ class SalesDao {
     `, [id]);
 
     const [items] = await pool.execute(`
-      SELECT soi.*, COALESCE(m.code, '') as material_code, m.name as material_name, 
+      SELECT soi.*, COALESCE(m.code, '') as material_code, m.name as material_name,
              m.specs as specification, u.name as unit_name,
              CASE WHEN m.id IS NULL THEN 0 ELSE 1 END as material_exists
       FROM sales_order_items soi

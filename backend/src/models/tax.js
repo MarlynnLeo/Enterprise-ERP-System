@@ -102,25 +102,25 @@ const taxModel = {
       } = filters;
 
       let query = `
-        SELECT 
+        SELECT
           ti.*,
           s.name AS supplier_name,
           c.name AS customer_name,
           u.real_name AS creator_name,
-          CASE 
+          CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.invoice_number
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.invoice_number
             WHEN ti.related_document_type = '采购入库单' THEN pr.receipt_no
             WHEN ti.related_document_type = '销售出库单' THEN so.outbound_no
             ELSE NULL
           END AS linked_document_number,
-          CASE 
+          CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.total_amount
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.total_amount
             WHEN ti.related_document_type = '采购入库单' THEN pr.total_amount
             ELSE NULL
           END AS linked_document_amount,
-          CASE 
+          CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.status
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.status
             WHEN ti.related_document_type = '采购入库单' THEN pr.status
@@ -202,27 +202,27 @@ const taxModel = {
           s.name AS supplier_name,
           c.name AS customer_name,
           u.real_name AS creator_name,
-          CASE 
+          CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.invoice_number
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.invoice_number
             WHEN ti.related_document_type = '采购入库单' THEN pr.receipt_no
             WHEN ti.related_document_type = '销售出库单' THEN so.outbound_no
             ELSE NULL
           END AS linked_document_number,
-          CASE 
+          CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.total_amount
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.total_amount
             WHEN ti.related_document_type = '采购入库单' THEN pr.total_amount
             ELSE NULL
           END AS linked_document_amount,
-          CASE 
+          CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.status
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.status
             WHEN ti.related_document_type = '采购入库单' THEN pr.status
             WHEN ti.related_document_type = '销售出库单' THEN so.status
             ELSE NULL
           END AS linked_document_status,
-          CASE 
+          CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap_s.name
             WHEN ti.related_document_type = 'ar_invoice' THEN ar_c.name
             WHEN ti.related_document_type = '采购入库单' THEN pr_s.name

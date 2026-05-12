@@ -34,7 +34,7 @@ class CashReportsModel {
 
     // 获取未来期间的应收账款
     const [receivables] = await db.pool.execute(
-      `SELECT 
+      `SELECT
         DATE(due_date) as date,
         SUM(balance_amount) as amount,
         'AR' as type,
@@ -47,7 +47,7 @@ class CashReportsModel {
 
     // 获取未来期间的应付账款
     const [payables] = await db.pool.execute(
-      `SELECT 
+      `SELECT
         DATE(due_date) as date,
         SUM(balance_amount) as amount,
         'AP' as type,
@@ -64,7 +64,7 @@ class CashReportsModel {
     let plannedTransactions = [];
     try {
       const [pt] = await db.pool.execute(
-        `SELECT 
+        `SELECT
           DATE(transaction_date) as date,
           amount,
           transaction_type as type,
@@ -173,7 +173,7 @@ class CashReportsModel {
 
       // 查询交易笔数
       const [countResult] = await db.pool.execute(
-        `SELECT COUNT(*) as total_count 
+        `SELECT COUNT(*) as total_count
          FROM bank_transactions t
          WHERE 1=1 ${whereClause}`,
         params
@@ -181,25 +181,25 @@ class CashReportsModel {
 
       // 查询收入、支出和净额 - 同时支持中文和英文类型
       const [amountResult] = await db.pool.execute(
-        `SELECT 
-         SUM(CASE 
-           WHEN transaction_type IN ('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest') 
-           THEN amount 
-           ELSE 0 
+        `SELECT
+         SUM(CASE
+           WHEN transaction_type IN ('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')
+           THEN amount
+           ELSE 0
          END) as total_income,
-         
-         SUM(CASE 
-           WHEN transaction_type IN ('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee') 
-           THEN amount 
-           ELSE 0 
+
+         SUM(CASE
+           WHEN transaction_type IN ('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')
+           THEN amount
+           ELSE 0
          END) as total_expense,
-         
-         SUM(CASE 
-           WHEN transaction_type IN ('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest') 
-           THEN amount 
-           WHEN transaction_type IN ('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee') 
-           THEN -amount 
-           ELSE 0 
+
+         SUM(CASE
+           WHEN transaction_type IN ('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')
+           THEN amount
+           WHEN transaction_type IN ('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')
+           THEN -amount
+           ELSE 0
          END) as net_amount
          FROM bank_transactions t
          WHERE 1=1 ${whereClause}`,
@@ -208,7 +208,7 @@ class CashReportsModel {
 
       // 查询按交易类型分组的统计
       const [typeStats] = await db.pool.execute(
-        `SELECT 
+        `SELECT
          transaction_type,
          COUNT(*) as transaction_count,
          SUM(amount) as total_amount,
@@ -224,7 +224,7 @@ class CashReportsModel {
 
       // 查询按日期分组的统计数据
       const [timeSeriesStats] = await db.pool.execute(
-        `SELECT 
+        `SELECT
          DATE(transaction_date) as date,
          transaction_type,
          COUNT(*) as transaction_count,
@@ -266,7 +266,7 @@ class CashReportsModel {
     try {
       // 获取所有银行账户的合计数据
       const [totalResult] = await db.pool.execute(`
-        SELECT 
+        SELECT
           COUNT(*) as total_accounts,
           SUM(current_balance) as total_balance,
           COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_accounts,
@@ -288,13 +288,13 @@ class CashReportsModel {
       const [monthlyStats] = await db.pool.execute(
         `
         SELECT
-          SUM(CASE 
-            WHEN transaction_type IN ('存款', '转入', '利息') THEN amount 
-            ELSE 0 
+          SUM(CASE
+            WHEN transaction_type IN ('存款', '转入', '利息') THEN amount
+            ELSE 0
           END) as total_in_month,
-          SUM(CASE 
-            WHEN transaction_type IN ('取款', '转出', '费用') THEN amount 
-            ELSE 0 
+          SUM(CASE
+            WHEN transaction_type IN ('取款', '转出', '费用') THEN amount
+            ELSE 0
           END) as total_out_month
         FROM bank_transactions
         WHERE transaction_date BETWEEN ? AND ?
@@ -304,7 +304,7 @@ class CashReportsModel {
 
       // 按货币类型统计余额
       const [currencyStats] = await db.pool.execute(`
-        SELECT 
+        SELECT
           currency_code,
           COUNT(*) as account_count,
           SUM(current_balance) as total_balance
@@ -315,7 +315,7 @@ class CashReportsModel {
 
       // 按银行名称统计
       const [bankStats] = await db.pool.execute(`
-        SELECT 
+        SELECT
           bank_name,
           COUNT(*) as account_count,
           SUM(current_balance) as total_balance

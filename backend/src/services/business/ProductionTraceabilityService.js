@@ -80,7 +80,7 @@ class ProductionTraceabilityService {
       // 从出库记录中获取实际消耗的物料
       const [outboundResult] = await connection.execute(
         `
-        SELECT 
+        SELECT
           oi.material_id,
           m.code AS material_code,
           m.name AS material_name,
@@ -91,7 +91,7 @@ class ProductionTraceabilityService {
         FROM inventory_outbound_items oi
         JOIN inventory_outbound io ON oi.outbound_id = io.id
         JOIN materials m ON oi.material_id = m.id
-        WHERE io.reference_type = 'production_task' 
+        WHERE io.reference_type = 'production_task'
         AND io.reference_id = ?
         AND io.status = 'completed'
       `,
@@ -176,7 +176,7 @@ class ProductionTraceabilityService {
         // ✅ 从 v_batch_stock 视图获取FIFO批次
         const [fifoBatches] = await connection.execute(
           `
-          SELECT 
+          SELECT
             vbs.*,
             m.code as material_code
           FROM v_batch_stock vbs
@@ -240,11 +240,11 @@ class ProductionTraceabilityService {
         // ✅ 从 inventory_ledger 获取消耗的批次
         const [consumedBatches] = await connection.execute(
           `
-          SELECT DISTINCT 
+          SELECT DISTINCT
             batch_number,
             ABS(SUM(quantity)) as quantity
           FROM inventory_ledger
-          WHERE material_id = ? 
+          WHERE material_id = ?
             AND transaction_type = 'outbound'
             AND reference_no = ?
             AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
@@ -286,7 +286,7 @@ class ProductionTraceabilityService {
       // ✅ 从 inventory_ledger 计算消耗的物料成本
       const [costResult] = await connection.execute(
         `
-        SELECT 
+        SELECT
           SUM(ABS(il.quantity) * COALESCE(il.unit_cost, 0)) AS total_material_cost,
           COUNT(DISTINCT il.material_id) AS material_count
         FROM inventory_ledger il
@@ -328,7 +328,7 @@ class ProductionTraceabilityService {
       // ✅ 从 v_batch_stock 视图获取成品批次信息
       const [productBatch] = await connection.execute(
         `
-        SELECT 
+        SELECT
           vbs.*,
           m.code as material_code,
           m.name as material_name,
@@ -350,7 +350,7 @@ class ProductionTraceabilityService {
       // ✅ 获取消耗的原材料批次（基于关系表，使用batch_number）
       const [consumedMaterials] = await connection.execute(
         `
-        SELECT 
+        SELECT
           m.code as material_code,
           m.name as material_name,
           btr.source_batch_id as batch_number,
@@ -370,7 +370,7 @@ class ProductionTraceabilityService {
       // ✅ 从 inventory_ledger 获取流转记录
       const [transactions] = await connection.execute(
         `
-        SELECT * FROM inventory_ledger 
+        SELECT * FROM inventory_ledger
         WHERE batch_number = ?
         ORDER BY created_at ASC
       `,

@@ -14,7 +14,7 @@
     </el-card>
 
     <el-tabs v-model="activeTab" class="settings-tabs" type="border-card" v-loading="loading">
-      
+
       <!-- 基础发票设置 -->
       <el-tab-pane label="基础设置" name="base">
         <el-form :model="settings.invoice" label-position="top">
@@ -357,7 +357,7 @@ const loadSettings = async () => {
       // 深度合并或手动赋值，确保响应式丢失
       // Tax
       if (res.data.tax) Object.assign(settings.tax, res.data.tax)
-      
+
       // Invoice
       if (res.data.invoice) {
         Object.assign(settings.invoice, res.data.invoice)
@@ -415,7 +415,7 @@ const handleReset = async () => {
     await ElMessageBox.confirm('确定要重置为默认配置吗？', '警告', {
       type: 'warning'
     })
-    
+
     resetting.value = true
     const res = await request.post('/finance/settings/reset')
     if (res.success && res.data) {

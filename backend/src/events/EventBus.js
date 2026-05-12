@@ -8,12 +8,23 @@
 const EventEmitter = require('events');
 const { logger } = require('../utils/logger');
 
+const CRITICAL_EVENTS = new Set([
+    'SALES_OUTBOUND_COMPLETED',
+    'PURCHASE_RECEIPT_COMPLETED',
+    'PRODUCTION_TASK_COMPLETED',
+]);
+
 // 自定义 EventBus 类，扩展默认 EventEmitter 功能
 class EventBus extends EventEmitter {
     constructor() {
         super();
         // 增加最大监听器数量限制，防止内存泄漏
         this.setMaxListeners(50);
+        this.criticalListenerAuditEnabled = false;
+    }
+
+    enableCriticalListenerAudit() {
+        this.criticalListenerAuditEnabled = true;
     }
 
     on(eventName, listener) {
@@ -53,7 +64,19 @@ class EventBus extends EventEmitter {
     emit(eventName, ...args) {
         logger.debug(`[EventBus] 发送事件: ${eventName}`);
         try {
-            return super.emit(eventName, ...args);
+            const hasListener = super.emit(eventName, ...args);
+            if (
+                !hasListener &&
+                this.criticalListenerAuditEnabled &&
+                CRITICAL_EVENTS.has(eventName)
+            ) {
+                void this.recordListenerFailure(
+                    eventName,
+                    args,
+                    new Error(`Critical event ${eventName} has no registered listeners`)
+                );
+            }
+            return hasListener;
         } catch (error) {
             logger.error(`[EventBus] 派发事件 ${eventName} 时发生错误:`, error);
             return false;

@@ -27,7 +27,7 @@ class OverheadAllocationService {
   static async getConfigs(filters = {}) {
     try {
       let sql = `
-                SELECT 
+                SELECT
                     oac.*,
                     cc.name as cost_center_name,
                     m.code as product_code,
@@ -82,7 +82,7 @@ class OverheadAllocationService {
     try {
       const [result] = await db.pool.execute(
         `
-                INSERT INTO overhead_allocation_config 
+                INSERT INTO overhead_allocation_config
                 (name, allocation_base, rate, cost_center_id, product_id, product_category, effective_date, expiry_date, priority, is_active)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,

@@ -34,8 +34,11 @@ export function parseTemplateResponse(response) {
 
   let template = null;
 
+  if (response.content) {
+    template = response;
+  }
   // 格式1: { code: 200, data: {...} } - 传统格式
-  if (response.data?.data?.content) {
+  else if (response.data?.data?.content) {
     template = response.data.data;
   }
   // 格式2: { success: true, data: {...} } - ResponseHandler 格式（已被拦截器解包）
@@ -57,6 +60,45 @@ export function parseTemplateResponse(response) {
   }
 
   return template;
+}
+
+export function normalizeTemplateListResponse(response) {
+  const payload = response?.data ?? response;
+
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.list)) return payload.list;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.data?.list)) return payload.data.list;
+
+  return [];
+}
+
+export function normalizeSystemSettings(response) {
+  const payload = response?.data ?? response;
+
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.list)) return payload.list;
+  if (Array.isArray(payload?.data)) return payload.data;
+
+  return [];
+}
+
+function getSettingValue(settings, key) {
+  const item = settings.find((setting) => setting.key === key || setting.setting_key === key);
+  return item?.value ?? item?.setting_value ?? '';
+}
+
+function registerPrintHelpers() {
+  if (Handlebars.helpers.eq) return;
+
+  Handlebars.registerHelper('eq', (left, right) => left === right);
+  Handlebars.registerHelper('not', (value) => !value);
+  Handlebars.registerHelper('default', (value, fallback) => value ?? fallback ?? '');
+  Handlebars.registerHelper('formatNumber', (value, decimals = 2) => {
+    const normalizedDecimals = Number.isFinite(Number(decimals)) ? Number(decimals) : 2;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric.toFixed(normalizedDecimals) : '';
+  });
 }
 
 // 打印服务
@@ -135,6 +177,27 @@ const printService = {
     return api.get('/print/templates/default', { params: { module, template_type: type } })
   },
 
+  async getDefaultTemplateData(module, type) {
+    const response = await this.getDefaultTemplate(module, type)
+    const template = parseTemplateResponse(response)
+    if (!template?.content) {
+      throw new Error(`未找到 ${module}/${type} 默认打印模板，请在系统管理-打印管理中配置`)
+    }
+    return template
+  },
+
+  async getCompanyInfo() {
+    const response = await api.get('/system/settings')
+    const settings = normalizeSystemSettings(response)
+
+    return {
+      company_name: getSettingValue(settings, 'company_name'),
+      company_phone: getSettingValue(settings, 'company_phone'),
+      company_fax: getSettingValue(settings, 'company_fax'),
+      company_address: getSettingValue(settings, 'company_address')
+    }
+  },
+
   /**
    * 创建打印模板
    * @param {Object} data - 打印模板数据
@@ -181,6 +244,8 @@ const printService = {
     }
 
     try {
+      registerPrintHelpers();
+
       // 解码 HTML 实体（如果模板内容被转义了）
       let templateContent = template.content;
       if (templateContent && (templateContent.includes('&lt;') || templateContent.includes('&gt;'))) {
@@ -301,6 +366,52 @@ const printService = {
     }
   },
 
+  async generateByDefaultTemplate(module, type, data) {
+    const template = await this.getDefaultTemplateData(module, type)
+    let companyInfo = {}
+
+    try {
+      companyInfo = await this.getCompanyInfo()
+    } catch {
+      companyInfo = {}
+    }
+
+    return this.generatePrintContent(template, { ...companyInfo, ...(data || {}) })
+  },
+
+  async previewByDefaultTemplate(module, type, data) {
+    const html = await this.generateByDefaultTemplate(module, type, data)
+    return this.previewDocument(html)
+  },
+
+  async printByDefaultTemplate(module, type, data) {
+    const html = await this.generateByDefaultTemplate(module, type, data)
+    return this.printDocument(html)
+  },
+
+  printCurrentPage() {
+    window.print()
+  },
+
+  printExistingWindow(targetWindow) {
+    if (!targetWindow) {
+      throw new Error('打印窗口不可用')
+    }
+
+    const triggerPrint = () => {
+      targetWindow.focus?.()
+      targetWindow.print()
+    }
+
+    if (targetWindow.document?.readyState === 'complete') {
+      setTimeout(triggerPrint, 0)
+    } else {
+      targetWindow.onload = triggerPrint
+    }
+
+    return targetWindow
+  },
+
   /**
    * 打印文档
    * @param {String} html - 打印内容HTML
@@ -309,7 +420,7 @@ const printService = {
     // 创建打印窗口
     const printWindow = window.open('', '_blank')
     writeSafeHtmlDocument(printWindow, html)
-    
+
     // 等待资源加载完成后打印
     printWindow.onload = function() {
       printWindow.print()
@@ -331,4 +442,4 @@ const printService = {
   }
 }
 
-export default printService 
+export default printService

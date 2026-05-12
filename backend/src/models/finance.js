@@ -332,11 +332,11 @@ const financeModel = {
 
       // 更新科目期初余额
       await connection.execute(
-        `UPDATE gl_accounts SET 
-          opening_debit = ?, 
-          opening_credit = ?, 
+        `UPDATE gl_accounts SET
+          opening_debit = ?,
+          opening_credit = ?,
           opening_balance_date = ?,
-          opening_balance_set = 1 
+          opening_balance_set = 1
         WHERE id = ?`,
         [
           balanceData.debit || 0,
@@ -348,7 +348,7 @@ const financeModel = {
 
       // 记录历史
       await connection.execute(
-        `INSERT INTO gl_opening_balance_history 
+        `INSERT INTO gl_opening_balance_history
           (account_id, opening_debit, opening_credit, balance_date, set_by, notes)
         VALUES (?, ?, ?, ?, ?, ?)`,
         [
@@ -385,11 +385,11 @@ const financeModel = {
 
       for (const item of balances) {
         await connection.execute(
-          `UPDATE gl_accounts SET 
-            opening_debit = ?, 
-            opening_credit = ?, 
+          `UPDATE gl_accounts SET
+            opening_debit = ?,
+            opening_credit = ?,
             opening_balance_date = ?,
-            opening_balance_set = 1 
+            opening_balance_set = 1
           WHERE id = ?`,
           [item.debit || 0, item.credit || 0, balanceDate, item.accountId]
         );
@@ -415,8 +415,8 @@ const financeModel = {
       const [accounts] = await db.pool.execute(`
         SELECT id, account_code, account_name, account_type, is_debit,
           opening_debit, opening_credit, opening_balance_date, opening_balance_set
-        FROM gl_accounts 
-        WHERE is_active = 1 
+        FROM gl_accounts
+        WHERE is_active = 1
         ORDER BY account_code
       `);
       return accounts;
@@ -619,10 +619,10 @@ const financeModel = {
       const total = countResult[0].total;
 
       // 统计查询：已过账/未过账数量 和 总金额（基于相同筛选条件）
-      let statsQuery = `SELECT 
+      let statsQuery = `SELECT
         SUM(CASE WHEN is_posted = 1 THEN 1 ELSE 0 END) as posted_count,
         SUM(CASE WHEN is_posted = 0 THEN 1 ELSE 0 END) as unposted_count,
-        COALESCE((SELECT SUM(ei.debit_amount) FROM gl_entry_items ei 
+        COALESCE((SELECT SUM(ei.debit_amount) FROM gl_entry_items ei
           INNER JOIN gl_entries se ON ei.entry_id = se.id WHERE 1=1`;
       const statsParams = [];
 
@@ -726,17 +726,17 @@ const financeModel = {
       // 使用JOIN查询获取包含科目信息的明细
       const [items] = await db.pool.execute(
         `
-        SELECT 
-          ei.*, 
-          a.account_code, 
+        SELECT
+          ei.*,
+          a.account_code,
           a.account_name
-        FROM 
+        FROM
           gl_entry_items ei
-        JOIN 
+        JOIN
           gl_accounts a ON ei.account_id = a.id
-        WHERE 
+        WHERE
           ei.entry_id = ?
-        ORDER BY 
+        ORDER BY
           ei.id
       `,
         [entryId]
@@ -1338,13 +1338,13 @@ const financeModel = {
     try {
       const [entries] = await db.pool.execute(
         `
-        SELECT 
+        SELECT
           e.*,
           u.real_name as operator_name
         FROM gl_entries e
         LEFT JOIN users u ON e.created_by = u.id
-        WHERE e.period_id = ? 
-          AND (e.description LIKE '%结转%' 
+        WHERE e.period_id = ?
+          AND (e.description LIKE '%结转%'
                OR e.document_type LIKE '%结转%'
                OR e.document_number LIKE 'PL-%')
         ORDER BY e.created_at DESC

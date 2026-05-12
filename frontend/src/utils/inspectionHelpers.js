@@ -19,7 +19,7 @@ export async function ensureSupplierInfo(inspection) {
   if (inspection.supplier_id) {
     return inspection
   }
-  
+
   // 尝试通过采购订单ID获取供应商信息
   if (inspection.reference_id) {
     try {
@@ -33,7 +33,7 @@ export async function ensureSupplierInfo(inspection) {
       console.error('通过采购订单ID获取供应商失败:', err)
     }
   }
-  
+
   // 尝试通过采购订单号查询供应商信息
   if (!inspection.supplier_id && inspection.reference_no) {
     try {
@@ -56,7 +56,7 @@ export async function ensureSupplierInfo(inspection) {
       console.error('通过订单号查询供应商失败:', err)
     }
   }
-  
+
   return inspection
 }
 
@@ -70,11 +70,11 @@ export async function ensureSupplierInfo(inspection) {
 export async function createReceiptFromInspection(inspection, authStore, isReview = false) {
   // 确保有供应商信息
   await ensureSupplierInfo(inspection)
-  
+
   if (!inspection.supplier_id) {
     throw new Error('检验单缺少供应商信息，无法创建入库单')
   }
-  
+
   // 获取物料的默认库位
   let warehouseId = null
   let warehouseName = ''
@@ -136,7 +136,7 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
     warehouseName: warehouseName,
     // 日期和备注
     receiptDate: dayjs().format('YYYY-MM-DD'),
-    note: isReview 
+    note: isReview
       ? `来自检验单 ${inspection.inspection_no} 的复检自动入库`
       : `来自检验单 ${inspection.inspection_no} 的自动入库`,
     // 状态信息
@@ -169,7 +169,7 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
       fromInspection: true
     }]
   }
-  
+
   // 调用采购入库API
   const receiptResponse = await purchaseApi.createReceipt(receiptData)
   return receiptResponse
@@ -185,10 +185,10 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
  * @returns {Promise<Object>} 完整的检验单数据
  */
 export async function fetchInspectionDetailWithItems(
-  id, 
-  row = {}, 
-  extractMaterialName, 
-  extractMaterialSpecs, 
+  id,
+  row = {},
+  extractMaterialName,
+  extractMaterialSpecs,
   extractSupplierName
 ) {
   // 获取检验单基本信息
@@ -215,7 +215,7 @@ export async function fetchInspectionDetailWithItems(
   if (!inspectionData) {
     throw new Error('获取检验单详情失败')
   }
-  
+
   // 统一字段映射
   inspectionData = {
     ...inspectionData,
@@ -230,7 +230,7 @@ export async function fetchInspectionDetailWithItems(
     inspectionDate: inspectionData.actual_date || inspectionData.planned_date || inspectionData.inspectionDate,
     inspector: inspectionData.inspector_name || inspectionData.inspector
   }
-  
+
   // 获取供应商信息
   let supplierName = inspectionData.supplier_name || inspectionData.supplierName || ''
   if ((!supplierName || supplierName === '-') && inspectionData.reference_id) {
@@ -244,7 +244,7 @@ export async function fetchInspectionDetailWithItems(
     }
   }
   inspectionData.supplierName = supplierName || extractSupplierName(inspectionData)
-  
+
   // 获取检验项（使用统一 api 实例，确保经过拦截器和代理）
   if (!inspectionData.items || inspectionData.items.length === 0) {
     try {
@@ -253,8 +253,8 @@ export async function fetchInspectionDetailWithItems(
 
       if (itemsData) {
         // 兼容多种响应格式：直接数组 / { list: [] } / { data: [] }
-        inspectionData.items = Array.isArray(itemsData) 
-          ? itemsData 
+        inspectionData.items = Array.isArray(itemsData)
+          ? itemsData
           : (itemsData.list || itemsData.data || [])
       }
     } catch (error) {
@@ -262,7 +262,7 @@ export async function fetchInspectionDetailWithItems(
       inspectionData.items = []
     }
   }
-  
+
   // 标准化检验项数据
   if (inspectionData.items && inspectionData.items.length > 0) {
     inspectionData.items = inspectionData.items.map(item => ({
@@ -274,7 +274,7 @@ export async function fetchInspectionDetailWithItems(
       remarks: item.remarks || item.comment || ''
     }))
   }
-  
+
   return inspectionData
 }
 
@@ -287,10 +287,10 @@ export function calculateInspectionStatus(items) {
   if (!items || items.length === 0) {
     return 'pending'
   }
-  
+
   const criticalItemFailed = items.some(item => item.is_critical && item.result === 'failed')
   const anyFailed = items.some(item => item.result === 'failed')
-  
+
   if (criticalItemFailed) {
     return 'failed'
   } else if (anyFailed) {
@@ -311,16 +311,16 @@ export function validateInspectionItems(items) {
       message: '请添加检验项'
     }
   }
-  
+
   const unfilledItems = items.filter(item => !item.actual_value || !item.result)
-  
+
   if (unfilledItems.length === items.length) {
     return {
       valid: false,
       message: '请填写检验项的实际值和结果'
     }
   }
-  
+
   if (unfilledItems.length > 0) {
     return {
       valid: false,
@@ -328,7 +328,7 @@ export function validateInspectionItems(items) {
       unfilledCount: unfilledItems.length
     }
   }
-  
+
   return { valid: true }
 }
 
@@ -339,7 +339,7 @@ export function validateInspectionItems(items) {
  */
 export function extractMaterialNameSimple(item) {
   if (!item) return '未知物料'
-  
+
   // 定义检查优先级
   const nameFields = [
     item.product_name,
@@ -351,17 +351,17 @@ export function extractMaterialNameSimple(item) {
     item.reference_data?.material_name,
     item.material_code
   ]
-  
+
   // 查找第一个有效值
   for (const field of nameFields) {
-    if (field && 
-        field !== '-' && 
-        !field.includes('来自采购单') && 
+    if (field &&
+        field !== '-' &&
+        !field.includes('来自采购单') &&
         !field.includes('物料(PO')) {
       return field
     }
   }
-  
+
   return '未知物料'
 }
 
@@ -372,7 +372,7 @@ export function extractMaterialNameSimple(item) {
  */
 export function extractMaterialSpecsSimple(item) {
   if (!item) return '-'
-  
+
   const specsFields = [
     item.product_code,
     item.specs,
@@ -381,13 +381,13 @@ export function extractMaterialSpecsSimple(item) {
     item.reference_data?.items?.[0]?.specs,
     item.reference_data?.specs
   ]
-  
+
   for (const field of specsFields) {
     if (field && field !== '-') {
       return field
     }
   }
-  
+
   return '-'
 }
 
@@ -398,7 +398,7 @@ export function extractMaterialSpecsSimple(item) {
  */
 export function extractSupplierNameSimple(item) {
   if (!item) return '-'
-  
+
   const supplierFields = [
     item.supplier_name,
     item.supplierName,
@@ -408,13 +408,13 @@ export function extractSupplierNameSimple(item) {
     item.po_data?.supplier_name,
     item.po_data?.supplier?.name
   ]
-  
+
   for (const field of supplierFields) {
     if (field && field.trim() !== '') {
       return field
     }
   }
-  
+
   return '-'
 }
 
@@ -429,14 +429,14 @@ export async function loadMaterialInfoAsync(materialId, materialCache, inspectio
   if (!materialId || materialCache[materialId]) {
     return
   }
-  
+
   try {
     const materialInfo = await getMaterialInfo(materialId)
     if (!materialInfo) return
-    
+
     // 更新缓存
     materialCache[materialId] = materialInfo
-    
+
     // 更新列表中使用该物料的所有记录
     inspectionList.forEach(item => {
       if ((item.materialId === materialId || item.material_id === materialId)) {
@@ -464,14 +464,14 @@ export function formatDimensionTolerance(item) {
   if (!item.dimension_value) {
     return '-'
   }
-  
+
   const upper = item.tolerance_upper || 0
   const lower = Math.abs(item.tolerance_lower) || 0
-  
+
   if (upper === 0 && lower === 0) {
     return String(item.dimension_value)
   }
-  
+
   return `${item.dimension_value} (+${upper}/-${lower})`
 }
 
@@ -484,21 +484,21 @@ export function checkDimensionTolerance(item, showMessage = false) {
   if (!item.dimension_value || !item.actual_value) {
     return
   }
-  
+
   const actualValue = parseFloat(item.actual_value)
   const dimensionValue = parseFloat(item.dimension_value)
   const toleranceUpper = parseFloat(item.tolerance_upper) || 0
   const toleranceLower = parseFloat(item.tolerance_lower) || 0
-  
+
   if (isNaN(actualValue) || isNaN(dimensionValue)) {
     return
   }
-  
+
   const maxAllowed = dimensionValue + toleranceUpper
   const minAllowed = dimensionValue - Math.abs(toleranceLower)
   const deviation = actualValue - dimensionValue
   const deviationStr = deviation >= 0 ? `+${deviation.toFixed(3)}` : deviation.toFixed(3)
-  
+
   if (actualValue >= minAllowed && actualValue <= maxAllowed) {
     item.result = 'passed'
     if (showMessage) {
@@ -510,8 +510,8 @@ export function checkDimensionTolerance(item, showMessage = false) {
   } else {
     item.result = 'failed'
     if (showMessage) {
-      const exceeds = actualValue > maxAllowed 
-        ? `超出上限 ${(actualValue - maxAllowed).toFixed(3)}` 
+      const exceeds = actualValue > maxAllowed
+        ? `超出上限 ${(actualValue - maxAllowed).toFixed(3)}`
         : `超出下限 ${(minAllowed - actualValue).toFixed(3)}`
       ElMessage.warning({
         message: `✗ 检验不合格 | 实际: ${actualValue.toFixed(3)} | ${exceeds} | 范围: [${minAllowed.toFixed(3)} ~ ${maxAllowed.toFixed(3)}]`,
@@ -536,11 +536,11 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     const dateStr = `${year}${month}${day}`
-    
+
     if (!supplierCode) {
       throw new Error('供应商编码不能为空，无法生成采购检验批次号')
     }
-    
+
     // 3. 获取今天该供应商的检验单数量，生成递增序号
     let serialNo = '001'
     if (supplierId && qualityApiInstance) {
@@ -566,7 +566,7 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
         throw new Error('无法获取当天检验单序号，请稍后重试')
       }
     }
-    
+
     // 4. 组合批次号
     return `PUR-${supplierCode}-${dateStr}-${serialNo}`
   } catch (error) {

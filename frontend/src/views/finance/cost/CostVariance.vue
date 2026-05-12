@@ -230,7 +230,7 @@
             <el-table-column prop="idle_capacity" label="闲置产能(h)" width="130" align="right"></el-table-column>
             <el-table-column label="利用率" width="140" align="center">
               <template #default="scope">
-                <el-progress :percentage="Math.min(scope.row.utilization_rate, 100)" 
+                <el-progress :percentage="Math.min(scope.row.utilization_rate, 100)"
                              :color="scope.row.utilization_rate >= 80 ? '#67c23a' : '#f56c6c'" />
               </template>
             </el-table-column>
@@ -372,7 +372,7 @@ const loadVarianceData = async () => {
     if (searchForm.orderNumber) params.orderNumber = searchForm.orderNumber;
     if (searchForm.productName) params.productName = searchForm.productName;
     if (searchForm.varianceType) params.varianceType = searchForm.varianceType;
-    
+
     const res = await api.get('/finance-enhancement/cost/variance', { params });
     if (res.data && res.data.list) {
       varianceList.value = res.data.list;
@@ -403,11 +403,11 @@ const loadEfficiencyData = async () => {
       params.endDate = effDateRange.value[1];
     }
     if (effCostCenter.value) params.costCenterId = effCostCenter.value;
-    
+
     const res = await api.get('/finance/cost-centers/efficiency-variance', { params });
     const data = res.data?.data || res.data || {};
     efficiencyList.value = data.list || [];
-    
+
     // 计算汇总
     let stdTotal = 0, actTotal = 0;
     efficiencyList.value.forEach(r => {
@@ -436,7 +436,7 @@ const loadCapacityData = async () => {
     const res = await api.get('/finance/cost-centers/capacity-utilization', { params });
     const data = res.data?.data || res.data || {};
     capacityList.value = data.list || [];
-    
+
     // 计算汇总
     let stdCap = 0, actUsed = 0;
     capacityList.value.forEach(r => {

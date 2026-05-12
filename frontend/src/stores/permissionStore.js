@@ -44,7 +44,7 @@ export const usePermissionStore = defineStore('permission', () => {
   const menuCount = computed(() => menuList.value.length)
   const hasSelectedRole = computed(() => !!currentRole.value)
   const selectedMenuCount = computed(() => selectedMenuIds.value.length)
-  const isLoading = computed(() => 
+  const isLoading = computed(() =>
     roleLoading.value || menuLoading.value || permissionSaveLoading.value
   )
 
@@ -117,7 +117,7 @@ export const usePermissionStore = defineStore('permission', () => {
   }
 
   const setSelectedMenuIds = (ids) => {
-    selectedMenuIds.value = Array.isArray(ids) 
+    selectedMenuIds.value = Array.isArray(ids)
       ? ids.map(id => Number(id)).filter(id => !isNaN(id) && id > 0)
       : []
   }

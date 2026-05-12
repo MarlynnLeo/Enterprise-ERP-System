@@ -22,13 +22,13 @@
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
         <el-form-item label="报价单号/客户">
-            <el-input 
+            <el-input
               v-model="searchQuery"
               placeholder="报价单号/客户名称"
               @keyup.enter="handleSearch"
               clearable ></el-input>
         </el-form-item>
-          
+
         <el-form-item label="报价状态">
           <el-select v-model="statusFilter" placeholder="报价状态" clearable @change="handleSearch">
               <el-option
@@ -39,7 +39,7 @@
               />
             </el-select>
         </el-form-item>
-          
+
         <el-form-item label="日期范围">
             <el-date-picker
               v-model="dateRange"
@@ -51,7 +51,7 @@
             value-format="YYYY-MM-DD"
             />
         </el-form-item>
-          
+
         <el-form-item>
               <el-button type="primary" @click="handleSearch" :loading="loading">
             <el-icon v-if="!loading"><Search /></el-icon> 查询
@@ -91,10 +91,10 @@
       </div>
     <!-- 报价单表格 -->
     <el-card class="data-card">
-      <el-table 
-        :data="quotations" 
+      <el-table
+        :data="quotations"
         border
-        style="width: 100%" 
+        style="width: 100%"
         v-loading="loading"
         table-layout="fixed"
       >
@@ -132,17 +132,17 @@
             <el-button size="small" @click="handleView(scope.row)">
               查看
             </el-button>
-            <el-button 
-              v-if="scope.row.status === 'draft'" 
-              size="small" 
-              type="primary" 
+            <el-button
+              v-if="scope.row.status === 'draft'"
+              size="small"
+              type="primary"
               @click="handleEdit(scope.row)"
-            
+
               v-permission="'sales:quotations'">
               编辑
             </el-button>
-            <el-popconfirm 
-              v-if="scope.row.status === 'draft'" 
+            <el-popconfirm
+              v-if="scope.row.status === 'draft'"
               title="确定要删除该报价单吗？此操作无法恢复。"
               @confirm="handleDelete(scope.row)"
               confirm-button-type="danger"
@@ -151,8 +151,8 @@
                 <el-button v-permission="'sales:quotations:delete'" size="small" type="danger">删除</el-button>
               </template>
             </el-popconfirm>
-            <el-popconfirm 
-              v-if="scope.row.status === 'draft'" 
+            <el-popconfirm
+              v-if="scope.row.status === 'draft'"
               title="确定要确认该报价单吗？确认后将无法再编辑。"
               @confirm="handleConfirm(scope.row)"
             >
@@ -160,10 +160,10 @@
                 <el-button size="small" type="success">确认</el-button>
               </template>
             </el-popconfirm>
-            <el-button 
-              v-if="scope.row.status === 'accepted' && !scope.row.order_id" 
-              size="small" 
-              type="success" 
+            <el-button
+              v-if="scope.row.status === 'accepted' && !scope.row.order_id"
+              size="small"
+              type="success"
               @click="handleConvert(scope.row)"
             >
               转订单
@@ -187,7 +187,7 @@
         />
       </div>
     </el-card>
-    
+
     <!-- 创建/编辑报价单对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -208,7 +208,7 @@
             />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="有效期至" prop="validity_date">
           <el-date-picker
             v-model="quotationForm.validity_date"
@@ -218,11 +218,11 @@
             style="width: 100%"
           />
         </el-form-item>
-        
+
         <!-- 添加BOM查看字段 -->
         <el-form-item label="选择BOM">
           <div style="display: flex; gap: 10px; align-items: center;">
-            <el-select 
+            <el-select
               v-model="selectedProductId"
               placeholder="选择产品BOM"
               filterable
@@ -243,8 +243,8 @@
                 </div>
               </el-option>
             </el-select>
-            <el-button 
-              type="primary" 
+            <el-button
+              type="primary"
               @click="loadBomDetails"
               :disabled="!selectedProductId || dialogType === 'view'"
             >
@@ -252,22 +252,22 @@
             </el-button>
           </div>
         </el-form-item>
-        
+
         <!-- 报价单明细 -->
         <el-form-item label="报价明细">
           <div class="materials-table-container">
-              <el-table 
-                :data="quotationForm.items" 
-                border 
-              style="width: 100%" 
+              <el-table
+                :data="quotationForm.items"
+                border
+              style="width: 100%"
               table-layout="fixed"
               :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加报价物料"
               >
                 <el-table-column label="产品" min-width="200">
                   <template #default="{ row, $index }">
-                    <el-select  
-                      v-model="row.product_id" 
+                    <el-select
+                      v-model="row.product_id"
                       placeholder="选择产品"
                       filterable
                       clearable
@@ -289,16 +289,16 @@
                     </el-select>
                   </template>
                 </el-table-column>
-                
+
               <el-table-column label="规格" min-width="180">
                   <template #default="{ row }">
                     <el-input v-model="row.specification" disabled placeholder="规格" />
                   </template>
                 </el-table-column>
-                
+
               <el-table-column label="数量" width="120">
                   <template #default="{ row, $index }">
-                  <el-input 
+                  <el-input
                       v-model="row.quantity"
                     placeholder="输入数量"
                       :disabled="dialogType === 'view'"
@@ -308,7 +308,7 @@
                     />
                   </template>
                 </el-table-column>
-                
+
               <el-table-column label="单价" width="120">
                   <template #default="{ row, $index }">
                   <el-input
@@ -322,13 +322,13 @@
                     />
                   </template>
                 </el-table-column>
-                
+
               <el-table-column label="金额" width="120">
                   <template #default="{ row }">
                     ¥{{ ((row.quantity || 0) * (row.unit_price || 0)).toFixed(2) }}
                   </template>
                 </el-table-column>
-                
+
               <el-table-column label="操作" width="120" fixed="right">
                   <template #default="{ $index }">
                     <el-button
@@ -336,19 +336,19 @@
                       size="small"
                       @click="removeItem($index)"
                       v-if="dialogType !== 'view'"
-                    
+
               v-permission="'sales:quotations'">
                     删除
                     </el-button>
                   </template>
                 </el-table-column>
               </el-table>
-            
+
             <div class="add-material" style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
               <el-button type="primary" @click="addItem" v-if="dialogType !== 'view'">
                 <el-icon><Plus /></el-icon> 添加产品
               </el-button>
-              
+
               <div style="font-size: 16px; font-weight: bold;" v-if="quotationForm.items.length > 0">
                 总计金额：
                 <span style="color: var(--color-danger); font-size: 18px; margin-left: 5px;">
@@ -359,9 +359,9 @@
           </div>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input 
-            type="textarea" 
-            v-model="quotationForm.remarks" 
+          <el-input
+            type="textarea"
+            v-model="quotationForm.remarks"
             :disabled="dialogType === 'view'"
           />
         </el-form-item>
@@ -523,14 +523,14 @@ const calculateQuotationStats = () => {
     converted: 0,
     expired: 0
   }
-  
+
   quotations.value.forEach(quotation => {
     if (quotation.status === 'draft') stats.pending++
     else if (quotation.status === 'accepted') stats.confirmed++
     else if (quotation.status === 'sent' && quotation.order_id) stats.converted++
     else if (quotation.status === 'expired') stats.expired++
   })
-  
+
   quotationStats.value = stats
 }
 // 搜索方法
@@ -578,7 +578,7 @@ const fetchData = async () => {
       calculateQuotationStats()
     }
     loading.value = false
-    
+
     // 获取统计数据
     fetchQuotationStats()
   } catch (error) {
@@ -595,7 +595,7 @@ const fetchQuotationStats = async () => {
       // 更新统计数据
       monthlyQuotations.value = response.data.monthly_count || 0
       monthlyAmount.value = response.data.monthly_amount || 0
-      conversionRate.value = response.data.conversion_rate ? 
+      conversionRate.value = response.data.conversion_rate ?
         (response.data.conversion_rate * 100).toFixed(2) : 0
     }
   } catch (error) {
@@ -703,17 +703,17 @@ const showCreateDialog = () => {
 // 提交报价单
 const submitQuotation = async () => {
   if (!quotationFormRef.value) return
-  
+
   await quotationFormRef.value.validate(async (valid) => {
     if (valid) {
       try {
         dialogLoading.value = true
-        
+
         // 计算总金额
         const totalAmount = quotationForm.value.items.reduce((sum, item) => {
           return sum + (parseFloat(item.quantity) * parseFloat(item.unit_price))
         }, 0)
-        
+
         // 构建提交数据
         const quotationData = {
           quotation: {
@@ -730,7 +730,7 @@ const submitQuotation = async () => {
             total_price: (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)
           }))
         }
-        
+
         if (dialogType.value === 'create') {
           await salesApi.createQuotation(quotationData)
           ElMessage.success('报价单创建成功')
@@ -738,7 +738,7 @@ const submitQuotation = async () => {
           await salesApi.updateQuotation(quotationForm.value.id, quotationData)
           ElMessage.success('报价单更新成功')
         }
-        
+
         dialogVisible.value = false
         fetchData() // 刷新数据
       } catch (error) {
@@ -774,9 +774,9 @@ const handleConfirm = async (row) => {
       if (!response || !response.data) {
         throw new Error('获取报价单数据失败')
       }
-      
+
       const currentQuotation = response.data
-      
+
       // 构建更新数据，保留所有原始字段，仅更新状态
       const updateData = {
         quotation: {
@@ -788,7 +788,7 @@ const handleConfirm = async (row) => {
         },
         items: currentQuotation.items || []
       }
-      
+
       // 调用API确认报价单
       await salesApi.updateQuotation(row.id, updateData)
       ElMessage.success('报价单已确认')
@@ -839,7 +839,7 @@ const handleEdit = async (row) => {
   dialogVisible.value = true
   dialogLoading.value = true
   selectedProductId.value = ''
-  
+
   try {
     const response = await salesApi.getQuotation(row.id)
     if (response && response.data) {
@@ -881,9 +881,9 @@ const handleConvert = (row) => {
       if (!quotationResponse || !quotationResponse.data) {
         throw new Error('获取报价单数据失败')
       }
-      
+
       const quotationData = quotationResponse.data
-      
+
       // 构建销售订单数据
       const orderData = {
         customer_id: quotationData.customer_id,
@@ -903,24 +903,24 @@ const handleConvert = (row) => {
           notes: ''
         }))
       }
-      
+
       // 日期格式化辅助函数
       function formatDateToISOString(date) {
         return date.toISOString().split('T')[0];
       }
-      
+
       // 创建销售订单
       const orderResponse = await salesApi.createOrder(orderData)
-      
+
       if (!orderResponse || !orderResponse.data) {
         throw new Error('创建销售订单失败')
       }
-      
+
       // 更新报价单状态为已转订单
       await salesApi.convertQuotationToOrder(row.id)
-      
+
         ElMessage.success(`报价单 ${row.quotation_no} 已成功转为销售订单`)
-      
+
       // 跳转到新创建的订单详情页
       if (orderResponse.data.id) {
         router.push(`/sales/orders?id=${orderResponse.data.id}`)
@@ -949,36 +949,36 @@ const loadBomDetails = async () => {
     ElMessage.warning('请先选择产品')
     return
   }
-  
+
   try {
     loadingBom.value = true
     // 移除加载提示
-    
+
     // 调用API获取产品的BOM详情 - 使用getBoms而不是getBom
-    const response = await baseDataApi.getBoms({ 
+    const response = await baseDataApi.getBoms({
       product_id: selectedProductId.value,
       status: 1 // 获取状态为活跃的BOM
     })
-    // 拦截器已解包，response.data 就是业务数据
-    if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+    const bomList = parseListData(response)
+    if (bomList.length === 0) {
       ElMessage.warning('未找到该产品的BOM信息')
       return
     }
     // 获取第一个BOM的详情
-    const bom = response.data[0]
+    const bom = bomList[0]
     if (!bom.details || !Array.isArray(bom.details) || bom.details.length === 0) {
       ElMessage.warning('该产品的BOM不包含任何零部件')
       return
     }
-    
+
     const bomDetails = bom.details
-    
+
     // 将BOM零部件添加到报价明细中
     const newItems = bomDetails.map(detail => {
       // 尝试从产品列表中查找对应产品的价格信息
       const product = products.value.find(p => p.id === detail.material_id);
       const unitPrice = product ? (product.sale_price || product.price || 0) : 0;
-      
+
       return {
         product_id: detail.material_id,
         material_id: detail.material_id,
@@ -993,7 +993,7 @@ const loadBomDetails = async () => {
         unit_name: detail.unit_name
       }
     })
-    
+
     // 如果当前报价单只有一个空项，则替换；否则追加
     if (quotationForm.value.items.length === 1 && !quotationForm.value.items[0].product_id) {
       quotationForm.value.items = newItems
@@ -1001,17 +1001,17 @@ const loadBomDetails = async () => {
       // 过滤掉已存在的产品，避免重复添加
       const existingProductIds = quotationForm.value.items.map(item => item.product_id)
       const filteredNewItems = newItems.filter(item => !existingProductIds.includes(item.product_id))
-      
+
       if (filteredNewItems.length === 0) {
         ElMessage.info('所有BOM零部件已经存在于报价明细中')
         return
       }
-      
+
       quotationForm.value.items.push(...filteredNewItems)
     }
-    
+
     ElMessage.success(`成功添加 ${newItems.length} 个BOM零部件到报价明细`)
-    
+
   } catch (error) {
     console.error('加载BOM详情失败:', error)
     // 如果用户取消操作，不显示错误信息

@@ -17,7 +17,7 @@
         <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleCreate">新建入库单</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -54,7 +54,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -78,7 +78,7 @@
         <div class="stat-label">已取消</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -174,7 +174,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -359,7 +359,7 @@
           </el-table-column>
           <el-table-column label="备注" width="150">
             <template #default="{ row }">
-              <el-input 
+              <el-input
                 v-model="row.remark"
                 placeholder="请输入备注"
                 size="small"
@@ -489,7 +489,7 @@
     >
       <el-form :inline="true" class="search-form" :model="{ keyword: taskSearchKeyword }">
         <el-form-item label="任务编号/产品">
-          <el-input 
+          <el-input
             v-model="taskSearchKeyword"
             placeholder="输入任务编号或产品名称"
             clearable
@@ -596,7 +596,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
-import printService, { parseTemplateResponse } from '@/services/printService'
+import printService from '@/services/printService'
 const route = useRoute()
 // 权限store
 const authStore = useAuthStore()
@@ -835,7 +835,7 @@ const handleCreate = () => {
       form.operator = ''
     }
   }
-  
+
   form.remark = ''
   form.status = 'draft'
   form.items = []
@@ -846,12 +846,6 @@ const printLoading = ref(false)
 const handlePrintInbound = async () => {
   printLoading.value = true
   try {
-    const response = await printService.getPrintTemplateById(63)
-    const template = parseTemplateResponse(response)
-    if (!template || !template.content) {
-      ElMessage.error('未找到入库单打印模板，请在系统管理-打印模板中配置')
-      return
-    }
     const printData = {
       inbound_no: currentInbound.inbound_no || '',
       inbound_date: currentInbound.inbound_date || '',
@@ -870,7 +864,7 @@ const handlePrintInbound = async () => {
         remark: item.remark || ''
       }))
     }
-    const html = printService.generatePrintContent(template, printData)
+    const html = await printService.generateByDefaultTemplate('inventory', 'inbound', printData)
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印入库单失败:', error)
@@ -1188,24 +1182,24 @@ const getTaskStatusText = (status) => {
 // 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   try {
     await formRef.value.validate()
-    
+
     if (form.items.length === 0) {
       ElMessage.warning('请至少添加一个物料项')
       return
     }
-    
+
     submitLoading.value = true
-    
+
     // 确保所有物料项有unit_id和unit_name
     for (const item of form.items) {
       if (!item.unit_id) {
         ElMessage.warning('存在物料没有指定单位，请检查')
         return
       }
-      
+
       // 确保有unit_name
       if (!item.unit_name && item.unit_id) {
         const unit = units.value.find(u => u.id === item.unit_id)
@@ -1214,7 +1208,7 @@ const handleSubmit = async () => {
         }
       }
     }
-    
+
     const submitData = {
       ...form,
       items: form.items.map(item => ({
@@ -1226,7 +1220,7 @@ const handleSubmit = async () => {
         remark: item.remark
       }))
     };
-    
+
     // 根据对话框类型决定是创建还是更新
     if (dialogType.value === 'create') {
       await inventoryApi.createInbound(submitData)
@@ -1236,7 +1230,7 @@ const handleSubmit = async () => {
       ElMessage.success('入库单更新成功')
     }
     // 追溯关系由后端入库流程统一写入 batch_relationships，前端不再重复发起旧追溯接口。
-    
+
     dialogVisible.value = false
     handleSearch()
   } catch (error) {
@@ -1270,23 +1264,23 @@ const handleMaterialConfirm = async () => {
     ElMessage.warning('请选择至少一个物料')
     return
   }
-  
+
   // 确保已加载单位数据
   if (units.value.length === 0) {
     await loadUnits();
     }
-  
+
   // 添加选中的物料到表单
   for (const material of selectedMaterials.value) {
     // 获取物料详细信息
     try {
       const materialDetail = await baseDataApi.getMaterial(material.id);
       const detailedMaterial = materialDetail.data;
-      
+
       // 确保每个物料都有unit_id
       const unitId = detailedMaterial.unit_id || (units.value.length > 0 ? units.value[0].id : null);
       let unitName = '';
-      
+
       // 查找单位名称
       if (unitId) {
         const unit = units.value.find(u => u.id === unitId);
@@ -1294,7 +1288,7 @@ const handleMaterialConfirm = async () => {
           unitName = unit.name;
         }
       }
-      
+
       form.items.push({
         material_id: detailedMaterial.id,
         material_code: detailedMaterial.code,
@@ -1308,11 +1302,11 @@ const handleMaterialConfirm = async () => {
       });
     } catch (error) {
       console.error(`获取物料${material.id}详情失败:`, error);
-      
+
       // 使用列表中的简略信息
       const unitId = material.unit_id || (units.value.length > 0 ? units.value[0].id : null);
       let unitName = material.unit_name || '';
-      
+
       // 查找单位名称
       if (unitId && !unitName) {
         const unit = units.value.find(u => u.id === unitId);
@@ -1320,7 +1314,7 @@ const handleMaterialConfirm = async () => {
           unitName = unit.name;
         }
       }
-      
+
       form.items.push({
         material_id: material.id,
         material_code: material.code,
@@ -1334,7 +1328,7 @@ const handleMaterialConfirm = async () => {
       });
     }
   }
-  
+
   materialDialogVisible.value = false;
   selectedMaterials.value = [];
 }
@@ -1354,23 +1348,23 @@ const handleAddSingleMaterial = async (material) => {
     // 获取物料详情
     const materialDetail = await baseDataApi.getMaterial(material.id);
     const detailedMaterial = materialDetail.data;
-    
+
     // 确保已加载单位数据
     if (units.value.length === 0) {
       await loadUnits();
     }
-    
+
     // 设置单位
     const unitId = detailedMaterial.unit_id || (units.value.length > 0 ? units.value[0].id : null);
     let unitName = '';
-    
+
     if (unitId) {
       const unit = units.value.find(u => u.id === unitId);
       if (unit) {
         unitName = unit.name;
       }
     }
-    
+
     // 添加到物料列表
     form.items.push({
       material_id: detailedMaterial.id,
@@ -1383,7 +1377,7 @@ const handleAddSingleMaterial = async (material) => {
       batch_number: '',
       remark: ''
     });
-    
+
     materialDialogVisible.value = false;
     ElMessage.success(`已添加物料: ${detailedMaterial.code} - ${detailedMaterial.name}`);
   } catch (error) {

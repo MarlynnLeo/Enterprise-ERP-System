@@ -106,6 +106,13 @@ export const FIRST_ARTICLE_RESULT = createDictionaryGroup('first_article_result'
 export const FIRST_ARTICLE_RESULT_COLORS = createDictionaryColors('first_article_result');
 export const PRODUCTION_STATUS = createDictionaryGroup('production_status');
 export const PRODUCTION_STATUS_COLORS = createDictionaryColors('production_status');
+const createStatusKeyMap = (codes) => Object.freeze(
+  Object.fromEntries(codes.map((code) => [
+    code.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
+    code,
+  ]))
+);
+export const PRODUCTION_STATUS_KEYS = createStatusKeyMap(Object.keys(FALLBACK_DICTIONARY.production_status));
 export const EQUIPMENT_STATUS = createDictionaryGroup('equipment_status');
 export const EQUIPMENT_STATUS_COLORS = createDictionaryColors('equipment_status');
 export const COMMON_STATUS = createDictionaryGroup('common_status');
@@ -193,6 +200,20 @@ export const PRODUCTION_FLOW_STEPS = [
   { status: 'completed', name: '已完成' }
 ];
 
+export const PRODUCTION_PLAN_PUSHABLE_STATUSES = Object.freeze([
+  PRODUCTION_STATUS_KEYS.DRAFT,
+  PRODUCTION_STATUS_KEYS.PREPARING,
+  PRODUCTION_STATUS_KEYS.MATERIAL_ISSUED,
+  PRODUCTION_STATUS_KEYS.IN_PROGRESS,
+]);
+export const PRODUCTION_PLAN_STATUS_OPTIONS = Object.freeze([
+  ...PRODUCTION_FLOW_STEPS.map(({ status, name }) => ({ value: status, label: name })),
+  {
+    value: PRODUCTION_STATUS_KEYS.CANCELLED,
+    label: FALLBACK_DICTIONARY.production_status[PRODUCTION_STATUS_KEYS.CANCELLED]?.name || PRODUCTION_STATUS_KEYS.CANCELLED,
+  },
+]);
+
 export const isIncreaseTransaction = (type) => INVENTORY_TRANSACTION_GROUPS.INCREASE.includes(type);
 export const isDecreaseTransaction = (type) => INVENTORY_TRANSACTION_GROUPS.DECREASE.includes(type);
 export const isTransferTransaction = (type) => INVENTORY_TRANSACTION_GROUPS.TRANSFER.includes(type);
@@ -211,61 +232,60 @@ export const getBusinessTypeCategoryColor = (category) => BUSINESS_TYPE_CATEGORY
 // =======================
 // 旧 API Getter 实现（无缝兼容与容灾拦截调用）
 // =======================
-const getText = (group, code) => { 
+const getText = (group, code) => {
   if (!code) return '';
-  try { 
+  try {
     const storeObj = useDictionaryStore();
     // 强制触发响应式依赖追踪：直接读取 storeObj.groups 的内容
     // 并且读取 storeObj.isLoaded
     const isLoaded = storeObj.isLoaded;
     const groups = storeObj.groups;
     const groupData = groups[group] || [];
-    
+
     // 查找字典项
     const item = groupData.find(i => i.code === code);
-    
+
     if (item) {
       return item.name;
     }
-    
+
     // 如果还没加载完或者没找到，尝试 fallback
     if (FALLBACK_DICTIONARY[group] && FALLBACK_DICTIONARY[group][code]) {
-      // 容错时打印 warn 
+      // 容错时打印 warn
       if (isLoaded) {
-        console.warn(`[Dictionary Warning]: Fallback used for missing key '${code}' in '${group}'`);
       }
       return FALLBACK_DICTIONARY[group][code].name;
     }
-    
+
     return startCase(code);
-  } catch { 
-    return startCase(code); 
-  } 
+  } catch {
+    return startCase(code);
+  }
 };
 
-const getColor = (group, code) => { 
+const getColor = (group, code) => {
   if (!code) return 'info';
-  
+
   // 1. 全局标准且强制一致的主题语义色彩映射字典（适用于传中文字符串、未匹配字典或新加状态）
   const semanticColors = {
     // 成功/完成类 (绿色)
-    'completed': 'success', '已完成': 'success', 
+    'completed': 'success', '已完成': 'success',
     'approved': 'success', '已审批': 'success', '审批通过': 'success',
     'active': 'success', '启用': 'success', '正常': 'success',
     'inspected': 'success', '合格': 'success', '已检验': 'success',
-    
+
     // 进行中/核心动作 (品牌色/蓝色)
     'in_progress': 'primary', '处理中': 'primary', '生产中': 'primary',
     'warehousing': 'primary', '入库中': 'primary', '入库': 'primary',
     'material_issued': 'primary', '已发料': 'primary', '发料': 'primary',
     'processing': 'primary', '执行中': 'primary', '出库': 'primary',
-    
+
     // 警告/待处理动作 (橙/黄色)
     'pending': 'warning', '待审批': 'warning', '待处理': 'warning', '未开始': 'warning',
     'inspecting': 'warning', '待检验': 'warning', '检验中': 'warning',
     'material_issuing': 'warning', '发料中': 'warning', '配料中': 'warning',
     'paused': 'warning', '已暂停': 'warning', '暂停': 'warning',
-    
+
     // 危险/失败操作 (红色)
     'cancelled': 'danger', '已取消': 'danger', '取消': 'danger',
     'rejected': 'danger', '已拒绝': 'danger', '拒绝': 'danger',
@@ -273,13 +293,13 @@ const getColor = (group, code) => {
     'disabled': 'danger', '禁用': 'danger', '停用': 'danger'
   };
 
-  try { 
+  try {
     // 2. 尝试从 Pinia 后端字典获取颜色
     const storeObj = useDictionaryStore();
-    
+
     const groups = storeObj.groups;
     const groupData = groups[group] || [];
-    
+
     // （优先按 code，且优先获取后端发来的 tag_type）
     const item = groupData.find(i => i.code === code || i.name === code);
     if (item && item.tag_type && item.tag_type !== 'info') {
@@ -290,16 +310,16 @@ const getColor = (group, code) => {
     if (FALLBACK_DICTIONARY[group] && FALLBACK_DICTIONARY[group][code]) {
       return FALLBACK_DICTIONARY[group][code].color || 'info';
     }
-  } catch {} 
-  
+  } catch {}
+
   // 4. 终极智能语义匹配，保证全系统所有“已完成”等无论出于哪个界面的哪个模块，必定为统一样式
   const lowerCode = String(code).toLowerCase().trim();
   if (semanticColors[lowerCode]) {
     return semanticColors[lowerCode];
   }
-  
+
   // 5. 无法识别则返回 info（灰色）
-  return 'info'; 
+  return 'info';
 };
 export const getWarehouseTypeText = (code) => getText('warehouse_type', code);
 export const getWarehouseTypeColor = (code) => getColor('warehouse_type', code);
@@ -348,7 +368,7 @@ export const getAssetStatusColor = (code) => getColor('asset_status', code);
 export const getAssetTypeText = (code) => getText('asset_type', code);
 
 // 额外补充特定 API
-export const isValidStatusTransition = () => true; 
+export const isValidStatusTransition = () => true;
 export const generateStatusCaseSQL = () => '';
 
 // ========== 默认导出 ==========
@@ -415,6 +435,9 @@ export default {
   getFirstArticleResultColor,
   PRODUCTION_STATUS,
   PRODUCTION_STATUS_COLORS,
+  PRODUCTION_STATUS_KEYS,
+  PRODUCTION_PLAN_PUSHABLE_STATUSES,
+  PRODUCTION_PLAN_STATUS_OPTIONS,
   getProductionStatusText,
   getProductionStatusColor,
   EQUIPMENT_STATUS,

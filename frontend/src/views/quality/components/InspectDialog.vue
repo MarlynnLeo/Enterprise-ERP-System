@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InspectDialog.vue
  * @description 检验操作弹窗（最复杂的组件）
@@ -15,6 +15,14 @@
 <template>
   <el-dialog v-model="dialogVisible" :title="`检验操作 - ${inspectionNo}`" :width="inspectDialogWidth" destroy-on-close>
     <el-form ref="inspectFormRef" :model="inspectForm" :rules="inspectRules" label-width="100px">
+      <el-alert
+        v-if="inspectionTemplateSource"
+        :title="inspectionTemplateSource"
+        type="info"
+        show-icon
+        :closable="false"
+        style="margin-bottom: 12px"
+      />
       <el-form-item label="检验项目" prop="items">
         <div class="inspection-items">
           <el-table :data="inspectForm.items" border>
@@ -150,6 +158,12 @@ import { useAuthStore } from '@/stores/auth'
 import { calculateInspectionStatus, validateInspectionItems, createReceiptFromInspection } from '@/utils/inspectionHelpers'
 import dayjs from 'dayjs'
 import TemplateSelectDialog from './TemplateSelectDialog.vue'
+import {
+  getTemplateItems,
+  getTemplateSourceText,
+  isGeneralInspectionTemplate,
+  resolveEffectiveInspectionTemplates
+} from '@/utils/inspectionTemplateResolver'
 
 const props = defineProps({
   visible: Boolean,
@@ -230,6 +244,8 @@ const availableAqlLevels = ref([])
 
 // 模板相关
 const inspectionTemplateId = ref(null)
+const inspectionTemplateName = ref('')
+const inspectionTemplateSource = ref('')
 const inspectionTemplates = ref([])
 const currentTemplateItems = ref([])
 const selectTemplateDialogVisible = ref(false)
@@ -273,6 +289,9 @@ const loadInspectionData = async () => {
     }
 
     currentInspectionData.value = inspectionData
+    inspectionTemplateId.value = inspectionData.template_id || null
+    inspectionTemplateName.value = inspectionData.template_name || ''
+    inspectionTemplateSource.value = inspectionData.template_name ? `已引用模板：${inspectionData.template_name}` : ''
 
     // 获取物料型号
     if (!inspectionData.specs && inspectionData.material_id) {
@@ -331,28 +350,30 @@ const fetchInspectionTemplates = async (materialId) => {
     const response = await qualityApi.getTemplates({ material_type: materialId, inspection_type: 'incoming', status: 'active', include_general: true, pageSize: 100, page: 1 })
     const allTemplates = parseListData(response, { enableLog: false })
 
-    const specificTemplates = allTemplates.filter(t => {
-      if (String(t.material_type) === String(materialId)) return true
-      if (t.material_types) {
-        try {
-          const types = typeof t.material_types === 'string' ? JSON.parse(t.material_types) : t.material_types
-          if (Array.isArray(types) && types.map(String).includes(String(materialId))) return true
-        } catch { /* 忽略 */ }
-      }
-      return false
-    })
-    const generalTemplates = allTemplates.filter(t => t.is_general)
-    const effectiveTemplates = specificTemplates.length > 0 ? specificTemplates : generalTemplates
+    // 后端已按当前物料过滤：专属模板优先，通用模板作为兜底。
+    const specificTemplates = allTemplates.filter(t => !isGeneralInspectionTemplate(t))
+    const generalTemplates = allTemplates.filter(isGeneralInspectionTemplate)
+    const effectiveTemplates = resolveEffectiveInspectionTemplates([...specificTemplates, ...generalTemplates])
     inspectionTemplates.value = effectiveTemplates
 
-    if (effectiveTemplates.length === 1) {
+    if (
+      effectiveTemplates.length === 1 ||
+      effectiveTemplates.every(isGeneralInspectionTemplate)
+    ) {
       const tmpl = effectiveTemplates[0]
       inspectionTemplateId.value = tmpl.id
-      currentTemplateItems.value = tmpl.items || tmpl.InspectionItems || []
+      inspectionTemplateName.value = tmpl.template_name || ''
+      inspectionTemplateSource.value = getTemplateSourceText(tmpl)
+      currentTemplateItems.value = getTemplateItems(tmpl)
       applyTemplateAql(tmpl)
-      if (tmpl.is_general) ElMessage.info(`已自动使用来料通用模板: ${tmpl.template_name}`)
+      if (isGeneralInspectionTemplate(tmpl)) ElMessage.info(`已自动使用来料通用模板: ${tmpl.template_name}`)
     } else if (effectiveTemplates.length > 1) {
       selectTemplateDialogVisible.value = true
+    } else {
+      inspectionTemplateId.value = null
+      inspectionTemplateName.value = ''
+      inspectionTemplateSource.value = ''
+      currentTemplateItems.value = []
     }
   } catch (error) {
     console.error('获取检验模板失败:', error)
@@ -363,7 +384,9 @@ const selectTemplate = (templateId) => {
   inspectionTemplateId.value = templateId
   const selectedTemplate = inspectionTemplates.value.find(t => t.id === templateId)
   if (selectedTemplate) {
-    const templateItems = selectedTemplate.items || selectedTemplate.InspectionItems || []
+    const templateItems = getTemplateItems(selectedTemplate)
+    inspectionTemplateName.value = selectedTemplate.template_name || ''
+    inspectionTemplateSource.value = getTemplateSourceText(selectedTemplate)
     currentTemplateItems.value = templateItems
     inspectForm.items = mapInspectionItems(templateItems)
     applyTemplateAql(selectedTemplate)
@@ -597,6 +620,7 @@ const submitInspection = async () => {
       qualified_quantity: parseFloat(inspectForm.qualified_quantity) || 0,
       unqualified_quantity: parseFloat(inspectForm.unqualified_quantity) || 0,
       inspector_name: inspectForm.inspector_name,
+      template_id: inspectionTemplateId.value || currentInspectionData.value?.template_id || null,
       actual_date: dayjs(inspectForm.inspectionDate).format('YYYY-MM-DD'),
       note: inspectForm.note,
       status,
@@ -615,9 +639,21 @@ const submitInspection = async () => {
       ElMessage.success('检验提交成功')
 
       // 根据结果处理
-      if (status === 'passed') await promptCreateReceipt(submitData.id, false)
-      else if (status === 'partial') await handlePartialInspectionResult(submitData.id, submitData.qualified_quantity, submitData.unqualified_quantity)
-      else if (status === 'failed') await handleFailedInspectionResult(submitData.id, submitData.unqualified_quantity)
+      const resultData = respData?.data || respData
+      const receiptAutoCreated = resultData?.receipt_auto_created === true
+      if (status === 'passed') {
+        if (receiptAutoCreated) ElMessage.success('系统已自动创建采购入库单')
+        else await promptCreateReceipt(submitData.id, false)
+      } else if (status === 'partial') {
+        if (receiptAutoCreated) {
+          ElMessage.success('系统已自动创建采购入库单（仅合格部分）')
+          await handlePartialNonconformingOnly(submitData.id, submitData.unqualified_quantity)
+        } else {
+          await handlePartialInspectionResult(submitData.id, submitData.qualified_quantity, submitData.unqualified_quantity)
+        }
+      } else if (status === 'failed') {
+        await handleFailedInspectionResult(submitData.id, submitData.unqualified_quantity)
+      }
 
       dialogVisible.value = false
       emit('success')
@@ -680,6 +716,18 @@ const handleFailedInspectionResult = async (inspectionId, unqualifiedQty) => {
     ).then(() => { router.push({ path: '/quality/nonconforming', query: { inspection_id: inspectionId } }) })
   } catch (error) {
     if (error === 'cancel') ElMessage.warning('请记得及时处理不合格品,避免影响生产')
+  }
+}
+
+const handlePartialNonconformingOnly = async (inspectionId, unqualifiedQty) => {
+  try {
+    await ElMessageBox.confirm(
+      `不合格品(${unqualifiedQty})需要处理，是否前往不合格品管理页面?`,
+      '提示', { confirmButtonText: '前往处理', cancelButtonText: '稍后处理', type: 'info' }
+    )
+    router.push({ path: '/quality/nonconforming', query: { inspection_id: inspectionId } })
+  } catch {
+    ElMessage.info('请记得及时处理不合格品')
   }
 }
 </script>

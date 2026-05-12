@@ -115,7 +115,7 @@
         </el-descriptions>
 
         <el-divider>成本明细</el-divider>
-        
+
         <el-tabs v-model="activeTab">
           <el-tab-pane label="材料消耗明细" name="material">
             <el-table :data="currentDetail.material_details" border size="small" max-height="300">
@@ -237,7 +237,7 @@ const loadActualCosts = async () => {
       params.startDate = searchForm.dateRange[0];
       params.endDate = searchForm.dateRange[1];
     }
-    
+
     const res = await api.get('/finance-enhancement/cost/actual', { params });
     // axios拦截器已解包，res.data即为{ list, total }
     if (res.data && res.data.list) {

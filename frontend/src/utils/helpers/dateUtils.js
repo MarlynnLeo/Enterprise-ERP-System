@@ -10,17 +10,17 @@
  */
 export function formatDateTime(date, format = 'YYYY-MM-DD HH:mm:ss') {
   if (!date) return '-'
-  
+
   const d = new Date(date)
   if (isNaN(d.getTime())) return '-'
-  
+
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   const hours = String(d.getHours()).padStart(2, '0')
   const minutes = String(d.getMinutes()).padStart(2, '0')
   const seconds = String(d.getSeconds()).padStart(2, '0')
-  
+
   return format
     .replace('YYYY', year)
     .replace('MM', month)
@@ -55,18 +55,18 @@ export function formatTime(date) {
  */
 export function formatRelativeTime(date) {
   if (!date) return '-'
-  
+
   const d = new Date(date)
   if (isNaN(d.getTime())) return '-'
-  
+
   const now = new Date()
   const diff = now.getTime() - d.getTime()
-  
+
   const seconds = Math.floor(diff / 1000)
   const minutes = Math.floor(seconds / 60)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
-  
+
   if (seconds < 60) {
     return '刚刚'
   } else if (minutes < 60) {
@@ -88,28 +88,28 @@ export function formatRelativeTime(date) {
 export function getTimeRange(range) {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  
+
   switch (range) {
     case 'today':
       return {
         start: today,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
       }
-    
+
     case 'yesterday':
       const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
       return {
         start: yesterday,
         end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1)
       }
-    
+
     case 'week':
       const weekStart = new Date(today.getTime() - (today.getDay() || 7) * 24 * 60 * 60 * 1000)
       return {
         start: weekStart,
         end: new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1)
       }
-    
+
     case 'month':
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
@@ -117,7 +117,7 @@ export function getTimeRange(range) {
         start: monthStart,
         end: monthEnd
       }
-    
+
     default:
       return {
         start: today,
@@ -133,10 +133,10 @@ export function getTimeRange(range) {
  */
 export function isToday(date) {
   if (!date) return false
-  
+
   const d = new Date(date)
   if (isNaN(d.getTime())) return false
-  
+
   const today = new Date()
   return d.getDate() === today.getDate() &&
          d.getMonth() === today.getMonth() &&
@@ -152,9 +152,9 @@ export function isToday(date) {
 export function daysBetween(date1, date2) {
   const d1 = new Date(date1)
   const d2 = new Date(date2)
-  
+
   if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0
-  
+
   const diffTime = Math.abs(d2.getTime() - d1.getTime())
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 }
@@ -180,7 +180,7 @@ export function addDays(date, days) {
 export function getMonthRange(year, month) {
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0, 23, 59, 59, 999)
-  
+
   return {
     start: firstDay,
     end: lastDay

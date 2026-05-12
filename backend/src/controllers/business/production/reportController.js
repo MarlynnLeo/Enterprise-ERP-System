@@ -66,7 +66,7 @@ exports.getReportSummary = async (req, res) => {
     `;
 
     const [summary] = await pool.query(query, params);
-    res.json(summary);
+    return ResponseHandler.success(res, summary);
   } catch (error) {
     logger.error('获取报工汇总失败:', error);
     handleError(res, error);
@@ -118,13 +118,13 @@ exports.getReportDetail = async (req, res) => {
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       ORDER BY pr.report_time DESC, pr.created_at DESC
-      LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+      LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
     `;
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [reports] = await pool.query(query, params);
 
-    res.json({
+    return ResponseHandler.success(res, {
       items: reports,
       total: total[0].count,
       page: parseInt(page),
@@ -164,7 +164,7 @@ exports.exportReport = async (req, res) => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT 
+      SELECT
         pr.id,
         pt.code as task_code,
         m.name as product_name,
@@ -240,7 +240,7 @@ exports.getReportById = async (req, res) => {
       return ResponseHandler.error(res, '报工记录不存在', 'NOT_FOUND', 404);
     }
 
-    res.json(reports[0]);
+    return ResponseHandler.success(res, reports[0]);
   } catch (error) {
     logger.error('获取报工详情失败:', error);
     handleError(res, error);
@@ -374,8 +374,8 @@ exports.updateReport = async (req, res) => {
 
     await connection.query(
       `
-      UPDATE production_reports 
-      SET process_id = ?, process_name = ?, operator_name = ?, report_time = ?, completed_quantity = ?, 
+      UPDATE production_reports
+      SET process_id = ?, process_name = ?, operator_name = ?, report_time = ?, completed_quantity = ?,
           qualified_quantity = ?, defective_quantity = ?, unqualified_quantity = ?,
           work_hours = ?, remarks = ?
       WHERE id = ?
@@ -406,7 +406,7 @@ exports.updateReport = async (req, res) => {
 
     await connection.commit();
 
-    res.json({ message: '报工记录更新成功' });
+    return ResponseHandler.success(res, null, '报工记录更新成功');
   } catch (error) {
     await connection.rollback();
     logger.error('更新报工记录失败:', error);
@@ -443,7 +443,7 @@ exports.deleteReport = async (req, res) => {
 
     await connection.commit();
 
-    res.json({ message: '报工记录删除成功' });
+    return ResponseHandler.success(res, null, '报工记录删除成功');
   } catch (error) {
     await connection.rollback();
     logger.error('删除报工记录失败:', error);

@@ -6,6 +6,7 @@
 const db = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { appendPaginationSQL } = require('../../utils/safePagination');
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
@@ -170,7 +171,7 @@ class TechnicalCommunicationController {
       }
 
       const pagination = normalizePagination(page, pageSize);
-      const whereConditions = [];
+      const whereConditions = []; // 技术通讯表无 deleted_at 字段
       const params = [];
       const visibilityScope = this.buildVisibilityCondition(req);
 
@@ -207,17 +208,18 @@ class TechnicalCommunicationController {
 
       // 获取列表（添加点赞数和收藏数）
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const [communications] = await db.pool.query(
+      const paginatedSQL = appendPaginationSQL(
         `SELECT id, title, category, tags, summary, author_id, author_name,
                 status, published_at, view_count, like_count, favorite_count,
                 is_pinned, visibility, recipient_count, read_count,
                 created_at, updated_at
          FROM technical_communications
          ${whereClause}
-         ORDER BY is_pinned DESC, published_at DESC
-         LIMIT ${pagination.pageSize} OFFSET ${pagination.offset}`,
-        params
+         ORDER BY is_pinned DESC, published_at DESC`,
+        pagination.pageSize,
+        pagination.offset
       );
+      const [communications] = await db.pool.query(paginatedSQL, params);
 
       ResponseHandler.success(res, {
         list: communications,
@@ -262,8 +264,8 @@ class TechnicalCommunicationController {
 
       // 获取评论
       const [comments] = await db.pool.query(
-        `SELECT * FROM technical_communication_comments 
-         WHERE communication_id = ? 
+        `SELECT * FROM technical_communication_comments
+         WHERE communication_id = ?
          ORDER BY created_at DESC`,
         [id]
       );
@@ -556,7 +558,7 @@ class TechnicalCommunicationController {
         'DELETE FROM technical_communication_favorites WHERE communication_id = ?',
         [id]
       );
-      // 最后删除主表记录
+      // 主表改为软删除（保留数据可追溯）
       await connection.query('DELETE FROM technical_communications WHERE id = ?', [id]);
 
       await connection.commit();
@@ -590,7 +592,7 @@ class TechnicalCommunicationController {
       }
 
       const [result] = await db.pool.query(
-        `INSERT INTO technical_communication_comments 
+        `INSERT INTO technical_communication_comments
          (communication_id, user_id, user_name, content, parent_id)
          VALUES (?, ?, ?, ?, ?)`,
         [id, userId, userName, content, parentId || null]

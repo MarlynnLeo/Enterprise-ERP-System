@@ -179,7 +179,7 @@ exports.getSalesReturns = async (req, res) => {
       if (item.status === STATUS.SALES_RETURN.CANCELLED) statusStats.cancelledCount = item.count;
     });
 
-    res.json({
+    return ResponseHandler.success(res, {
       items: results,
       total,
       page: pagination.page,
@@ -243,7 +243,7 @@ exports.getSalesReturnById = async (req, res) => {
     returnData.items = detailsResults;
     returnData.total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
 
-    res.json(returnData);
+    return ResponseHandler.success(res, returnData);
   } catch (error) {
     logger.error('获取销售退货单详情失败:', error);
     ResponseHandler.error(res, '获取销售退货单详情失败', 'SERVER_ERROR', 500);
@@ -268,35 +268,23 @@ exports.createSalesReturn = async (req, res) => {
 
     // 验证必要参数（支持基于出库单或订单的退货）
     if (!return_date || !return_reason) {
-      return ResponseHandler.error(res, '退货日期和退货原因不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '退货日期和退货原因不能为空', 'VALIDATION_ERROR', 400);
     }
 
     if (!outbound_id && !order_id) {
-      return ResponseHandler.error(res, '必须指定出库单ID或订单ID', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '必须指定出库单ID或订单ID', 'VALIDATION_ERROR', 400);
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return ResponseHandler.error(res, '退货明细不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '退货明细不能为空', 'VALIDATION_ERROR', 400);
     }
 
     connection = await getConnection();
     await connection.beginTransaction();
 
-    // 生成退货单号 RT + 年月日 + 3位序号
-    const date = new Date();
-    const dateStr =
-      date.getFullYear() +
-      ('0' + (date.getMonth() + 1)).slice(-2) +
-      ('0' + date.getDate()).slice(-2);
-
-    // 查询当天最大序号
-    const [seqResult] = await connection.query(
-      'SELECT MAX(SUBSTRING(return_no, 11)) as max_seq FROM sales_returns WHERE return_no LIKE ?',
-      [`RT${dateStr}%`]
-    );
-
-    const seq = seqResult[0].max_seq ? parseInt(seqResult[0].max_seq) + 1 : 1;
-    const returnNo = `RT${dateStr}${seq.toString().padStart(3, '0')}`;
+    // 生成退货单号 — 使用统一编码引擎
+    const { CodeGenerators } = require('../../../utils/codeGenerator');
+    const returnNo = await CodeGenerators.generateSalesReturnCode(connection);
 
     // 如果是基于出库单的退货，需要获取订单信息
     let finalOrderId = order_id;
@@ -323,7 +311,7 @@ exports.createSalesReturn = async (req, res) => {
 
         if (orderItemResult.length === 0) {
           await connection.rollback();
-          return ResponseHandler.error(res, '原销售订单中不存在该产品', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, '原销售订单中不存在该产品', 'VALIDATION_ERROR', 400);
         }
 
         const maxOrderQty = parseFloat(orderItemResult[0].quantity) || 0;
@@ -342,7 +330,7 @@ exports.createSalesReturn = async (req, res) => {
 
         if (returnQty > maxReturnableQty) {
           await connection.rollback();
-          return res.status(400).json({ error: `退货数量超限阻止！原订单总购件数：${maxOrderQty}，历史已退累件数：${alreadyReturnedQty}。本次您最多只能申请退回余数：${maxReturnableQty}件。` });
+          return ResponseHandler.error(res, `退货数量超限阻止！原订单总购件数：${maxOrderQty}，历史已退累件数：${alreadyReturnedQty}。本次您最多只能申请退回余数：${maxReturnableQty}件。`, 'VALIDATION_ERROR', 400);
         }
       }
     }
@@ -445,7 +433,7 @@ exports.updateSalesReturn = async (req, res) => {
 
         if (orderItemResult.length === 0) {
           await connection.rollback();
-          return ResponseHandler.error(res, '数据异常：原订单中不存在您要修改的产品！', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, '数据异常：原订单中不存在您要修改的产品！', 'VALIDATION_ERROR', 400);
         }
 
         const maxOrderQty = parseFloat(orderItemResult[0].quantity) || 0;
@@ -455,8 +443,8 @@ exports.updateSalesReturn = async (req, res) => {
           `SELECT SUM(sri.quantity) as total_returned
            FROM sales_return_items sri
            JOIN sales_returns sr ON sri.return_id = sr.id
-           WHERE sr.order_id = ? AND sri.product_id = ? 
-             AND sr.id != ? 
+           WHERE sr.order_id = ? AND sri.product_id = ?
+             AND sr.id != ?
              AND sr.status NOT IN ('rejected', 'cancelled')`,
           [finalOrderId, productId, id]
         );
@@ -466,7 +454,7 @@ exports.updateSalesReturn = async (req, res) => {
 
         if (returnQty > maxReturnableQty) {
           await connection.rollback();
-          return res.status(400).json({ error: `修改数量超限阻止！原订单总购件数：${maxOrderQty}，除当前单外历史已退件数：${alreadyReturnedQty}。本次您最多只能将件数修改为：${maxReturnableQty}件。` });
+          return ResponseHandler.error(res, `修改数量超限阻止！原订单总购件数：${maxOrderQty}，除当前单外历史已退件数：${alreadyReturnedQty}。本次您最多只能将件数修改为：${maxReturnableQty}件。`, 'VALIDATION_ERROR', 400);
         }
       }
     }
@@ -624,7 +612,7 @@ exports.updateSalesReturn = async (req, res) => {
       });
     }
 
-    res.json({
+    return ResponseHandler.success(res, {
       message: '销售退货单更新成功',
       id: parseInt(id),
     });
@@ -648,7 +636,7 @@ exports.updateSalesReturnStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!isValidSalesReturnStatus(status)) {
-      return ResponseHandler.error(res, '无效的销售退货状态', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的销售退货状态', 'VALIDATION_ERROR', 400);
     }
 
     connection = await getConnection();
@@ -727,7 +715,7 @@ exports.deleteSalesReturn = async (req, res) => {
 
     await connection.commit();
 
-    res.json({
+    return ResponseHandler.success(res, {
       message: '销售退货单删除成功',
       id: parseInt(id),
     });

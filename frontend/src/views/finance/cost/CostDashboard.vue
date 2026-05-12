@@ -304,7 +304,6 @@ const loadPeriods = async () => {
       if (current) selectedPeriodId.value = current.id;
     } else {
       periods.value = [];
-      console.warn('未找到会计期间数据:', res.data);
     }
   } catch (error) {
     console.error('加载期间失败:', error);
@@ -344,7 +343,7 @@ const executeCostClosing = async () => {
     ElMessage.warning('请先选择会计期间');
     return;
   }
-  
+
   try {
     await ElMessageBox.confirm(
       '将执行以下操作：\n1. 计算在制品成本\n2. 生成WIP凭证\n3. 差异分摊\n\n确定要执行月末成本结转吗？',
@@ -383,7 +382,7 @@ const initCharts = () => {
   if (varianceChartRef.value) {
     varianceChart = echarts.init(varianceChartRef.value);
   }
-  
+
   window.addEventListener('resize', handleResize);
 };
 const handleResize = () => {
@@ -422,7 +421,7 @@ const loadTrendData = async () => {
       const materialCost = data.trend.map(item => parseFloat(item.materialCost) || 0);
       const laborCost = data.trend.map(item => parseFloat(item.laborCost) || 0);
       const overheadCost = data.trend.map(item => parseFloat(item.overheadCost) || 0);
-      
+
       const option = {
         tooltip: { trigger: 'axis' },
         legend: { data: ['生产总成本', '材料成本', '人工成本', '制造费用'] },
@@ -481,7 +480,7 @@ const loadVarianceData = async () => {
     const res = await api.get('/finance-enhancement/cost/variance', { params: { pageSize: 20 } });
     // API拦截器已解包，res.data 即为 { list, total }
     const listData = res.data?.list || res.data?.data?.list || [];
-    
+
     if (listData.length > 0 && varianceChart) {
       // 按产品名称分组汇总
       const productMap = new Map();
@@ -491,16 +490,16 @@ const loadVarianceData = async () => {
           productMap.set(name, { standard: 0, actual: 0 });
         }
         const data = productMap.get(name);
-        data.standard += parseFloat(item.standard_total) || 0;
-        data.actual += parseFloat(item.actual_total) || 0;
+        data.standard += parseFloat(item.standard_total ?? item.standard_cost) || 0;
+        data.actual += parseFloat(item.actual_total ?? item.actual_cost) || 0;
       });
-      
+
       // 转换为图表数据格式（取前8个产品）
       const entries = Array.from(productMap.entries()).slice(0, 8);
       const categories = entries.map(([name]) => name);
       const standard = entries.map(([, data]) => Math.round(data.standard * 100) / 100);
       const actual = entries.map(([, data]) => Math.round(data.actual * 100) / 100);
-      
+
       const option = {
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         legend: { data: ['标准成本', '实际成本'] },

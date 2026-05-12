@@ -215,11 +215,11 @@ html.dark .motivation-section {
     align-items: flex-start;
     gap: 20px;
   }
-  
+
   .header-right {
     width: 100%;
   }
-  
+
   .motivation-section {
     width: 100%;
   }

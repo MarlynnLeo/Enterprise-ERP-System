@@ -54,14 +54,14 @@
           </el-select>
         </el-form-item>
         <el-form-item label="产品">
-          <el-select 
-            v-model="ruleForm.product_id" 
-            placeholder="搜索/选择产品" 
-            filterable 
+          <el-select
+            v-model="ruleForm.product_id"
+            placeholder="搜索/选择产品"
+            filterable
             remote
             :remote-method="debouncedSearchProducts"
             :loading="loadingProducts"
-            clearable 
+            clearable
             style="width: 100%"
           >
             <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code || '无编码'} - ${p.name || '未命名'}`" :value="p.id" />
@@ -81,7 +81,7 @@
         </el-form-item>
         <el-form-item label="检验模板">
           <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable style="width: 100%">
-            <el-option v-for="t in templateOptions" :key="t.id" :label="t.name" :value="t.id" />
+            <el-option v-for="t in templateOptions" :key="t.id" :label="t.template_name || t.name" :value="t.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="启用状态">
@@ -186,15 +186,15 @@ const debouncedSearchProducts = (query) => {
   if (searchTimeout) {
     clearTimeout(searchTimeout)
   }
-  
+
   const searchId = ++currentSearchId
-  
+
   searchTimeout = setTimeout(async () => {
     loadingProducts.value = true
     try {
-      const res = await searchMaterials(materialApi, query, { 
-        type: 'product', 
-        pageSize: 50 
+      const res = await searchMaterials(materialApi, query, {
+        type: 'product',
+        pageSize: 50
       })
       if (searchId === currentSearchId) {
         productOptions.value = mapMaterialData(res)
@@ -214,7 +214,7 @@ const debouncedSearchProducts = (query) => {
 
 const fetchTemplates = async () => {
   try {
-    const res = await qualityApi.getTemplates({ type: 'process', pageSize: 100 })
+    const res = await qualityApi.getTemplates({ inspection_type: 'process', status: 'active', pageSize: 100 })
     templateOptions.value = (res.data || res)?.list || res.data || res || []
   } catch (error) {
     console.error('获取模板列表失败:', error)

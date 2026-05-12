@@ -5,13 +5,13 @@
  */
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { purchaseApi, api } from '@/services/api'
-import { PURCHASE_STATUS, PURCHASE_STATUS_ACTION_TEXT, PURCHASE_ORDER_PRINT_TEMPLATE_ID, isValidStatusTransition, getStatusLabel } from '@/constants/purchaseConstants'
+import { purchaseApi } from '@/services/api'
+import printService from '@/services/printService'
+import { PURCHASE_STATUS, PURCHASE_STATUS_ACTION_TEXT, isValidStatusTransition, getStatusLabel } from '@/constants/purchaseConstants'
 import { getPurchaseStatusText, getPurchaseStatusColor } from '@/constants/systemConstants'
 import { usePurchaseInspection } from '@/composables/usePurchaseInspection'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
-import { decodeHtmlEntities, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const { createInspectionForOrder, showInspectionResult } = usePurchaseInspection()
@@ -229,22 +229,9 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const printOrder = async () => {
     if (!viewData.id) { ElMessage.warning('无法打印，订单详情不完整'); return }
     try {
-      let template = null
-      const templateResponse = await api.get(`/print/templates/${PURCHASE_ORDER_PRINT_TEMPLATE_ID}`)
-      if (templateResponse.data?.data) template = templateResponse.data.data
-      else if (templateResponse.data?.content) template = templateResponse.data
-      else template = templateResponse.data
-      if (!template || !template.content) { console.error('模板数据:', templateResponse.data); throw new Error('打印模板内容为空') }
-      const companyInfo = { company_name: '', company_phone: '', company_fax: '', company_address: '' }
+      let companyInfo = { company_name: '', company_phone: '', company_fax: '', company_address: '' }
       try {
-        const settingsRes = await api.get('/system/settings')
-        if (settingsRes.data) {
-          const settings = Array.isArray(settingsRes.data) ? settingsRes.data : []
-          companyInfo.company_name = settings.find(s => s.key === 'company_name' || s.setting_key === 'company_name')?.value || settings.find(s => s.key === 'company_name' || s.setting_key === 'company_name')?.setting_value || ''
-          companyInfo.company_phone = settings.find(s => s.key === 'company_phone' || s.setting_key === 'company_phone')?.value || settings.find(s => s.key === 'company_phone' || s.setting_key === 'company_phone')?.setting_value || ''
-          companyInfo.company_fax = settings.find(s => s.key === 'company_fax' || s.setting_key === 'company_fax')?.value || settings.find(s => s.key === 'company_fax' || s.setting_key === 'company_fax')?.setting_value || ''
-          companyInfo.company_address = settings.find(s => s.key === 'company_address' || s.setting_key === 'company_address')?.value || settings.find(s => s.key === 'company_address' || s.setting_key === 'company_address')?.setting_value || ''
-        }
+        companyInfo = await printService.getCompanyInfo()
       } catch {
         ElMessage.warning('系统设置读取失败，已使用默认公司信息')
       }
@@ -255,42 +242,30 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         status: getStatusText(viewData.status), notes: viewData.notes || '', remark: viewData.notes || '', contract_code: viewData.contract_code || '-',
         subtotal: parseFloat(viewData.total_amount || 0).toFixed(2), tax_amount: '0.00', total_amount: parseFloat(viewData.total_amount || 0).toFixed(2),
         total_quantity: (viewData.items || []).reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0).toFixed(2),
-        print_time: new Date().toLocaleString('zh-CN'), items: viewData.items || []
+        print_time: new Date().toLocaleString('zh-CN'),
+        items: (viewData.items || []).map((item, index) => {
+          const quantity = parseFloat(item.quantity || 0)
+          const price = parseFloat(item.price || item.unit_price || 0)
+          return {
+            ...item,
+            index: index + 1,
+            material_code: item.material_code || item.code || item.product_code || '-',
+            product_code: item.material_code || item.code || item.product_code || '-',
+            material_name: item.material_name || item.name || item.product_name || '-',
+            product_name: item.material_name || item.name || item.product_name || '-',
+            specification: item.specification || item.specs || item.model || '-',
+            unit: item.unit || item.unit_name || item.Unit || '-',
+            unit_name: item.unit || item.unit_name || item.Unit || '-',
+            quantity: quantity.toFixed(2),
+            price: price.toFixed(2),
+            unit_price: price.toFixed(2),
+            total_price: parseFloat(item.total_price || item.amount || (quantity * price) || 0).toFixed(2),
+            amount: parseFloat(item.total_price || item.amount || (quantity * price) || 0).toFixed(2),
+            delivery_date: formatDate(item.delivery_date || viewData.expected_delivery_date || '')
+          }
+        })
       }
-      let printContent = template.content
-      if (printContent.includes('&lt;') || printContent.includes('&gt;')) printContent = decodeHtmlEntities(printContent)
-      Object.keys(printData).forEach(key => { if (key !== 'items') { const regex = new RegExp(`{{${key}}}`, 'g'); printContent = printContent.replace(regex, printData[key] || '') } })
-      let itemsLoopMatch = printContent.match(/{{#items}}([\s\S]*?){{\/items}}/)
-      if (!itemsLoopMatch) itemsLoopMatch = printContent.match(/{{#each\s+items}}([\s\S]*?){{\/each}}/)
-      if (!itemsLoopMatch) itemsLoopMatch = printContent.match(/{{#each}}([\s\S]*?){{\/each}}/)
-      if (itemsLoopMatch && printData.items && printData.items.length > 0) {
-        const itemTemplate = itemsLoopMatch[1]
-        const itemsHtml = printData.items.map((item, index) => {
-          let itemHtml = itemTemplate
-          itemHtml = itemHtml.replace(/{{index}}/g, index + 1).replace(/{{@index}}/g, index + 1).replace(/{{#index}}/g, index + 1)
-          const materialCode = item.material_code || item.code || item.product_code || '-'
-          const materialName = item.material_name || item.name || item.product_name || '-'
-          const specification = item.specification || item.specs || item.model || '-'
-          const unit = item.unit || item.unit_name || item.Unit || '-'
-          const quantity = parseFloat(item.quantity || 0).toFixed(2); const price = parseFloat(item.price || item.unit_price || 0).toFixed(2)
-          const totalPrice = parseFloat(item.total_price || item.amount || (quantity * price) || 0).toFixed(2)
-          const deliveryDate = formatDate(item.delivery_date || viewData.expected_delivery_date || '')
-          itemHtml = itemHtml.replace(/{{material_code}}/g, materialCode).replace(/{{code}}/g, materialCode).replace(/{{product_code}}/g, materialCode)
-          itemHtml = itemHtml.replace(/{{material_name}}/g, materialName).replace(/{{name}}/g, materialName).replace(/{{product_name}}/g, materialName)
-          itemHtml = itemHtml.replace(/{{specification}}/g, specification).replace(/{{specs}}/g, specification).replace(/{{model}}/g, specification)
-          itemHtml = itemHtml.replace(/{{Unit}}/g, unit).replace(/{{unit}}/g, unit).replace(/{{unit_name}}/g, unit)
-          itemHtml = itemHtml.replace(/{{quantity}}/g, quantity).replace(/{{price}}/g, price).replace(/{{unit_price}}/g, price)
-          itemHtml = itemHtml.replace(/{{total_price}}/g, totalPrice).replace(/{{amount}}/g, totalPrice).replace(/{{delivery_date}}/g, deliveryDate)
-          return itemHtml
-        }).join('')
-        printContent = printContent.replace(/{{#items}}[\s\S]*?{{\/items}}/g, itemsHtml)
-        printContent = printContent.replace(/{{#each\s+items}}[\s\S]*?{{\/each}}/g, itemsHtml)
-        printContent = printContent.replace(/{{#each}}[\s\S]*?{{\/each}}/g, itemsHtml)
-      }
-      const printWindow = window.open('', '_blank')
-      if (!printWindow) { ElMessage.error('打印窗口被阻止，请允许弹出窗口'); return }
-      writeSafeHtmlDocument(printWindow, printContent)
-      printWindow.onload = function () { setTimeout(() => { printWindow.focus() }, 500) }
+      await printService.previewByDefaultTemplate('purchase', 'purchase_order', printData)
     } catch (error) { console.error('打印失败:', error); ElMessage.error('打印失败: ' + (error.message || '未知错误')) }
   }
 

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="batch-traceability">
     <el-card class="search-card">
       <template #header>
@@ -105,12 +105,12 @@
       <template #header>
         <span>{{ searchForm.direction === 'forward' ? '正向追溯链路' : '反向追溯链路' }}</span>
       </template>
-      
+
       <!-- 链路流程图 -->
       <div class="chain-flow" style="margin-bottom: 20px;">
         <div class="flow-container">
-          <div 
-            v-for="(item, index) in traceabilityChain" 
+          <div
+            v-for="(item, index) in traceabilityChain"
             :key="index"
             class="flow-item"
             :style="{ marginLeft: (item.level * 40) + 'px' }"
@@ -245,7 +245,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { onMounted, ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search as SearchIcon, Refresh, Download, View as ViewIcon, ArrowDown } from '@element-plus/icons-vue'
-import axios from 'axios'
+import { api } from '@/services/axiosInstance'
 
 export default {
   name: 'BatchTraceability',
@@ -262,51 +262,50 @@ export default {
     const hasData = ref(false)
     const showFIFODialog = ref(false)
     const fifoLoading = ref(false)
-    
+
     const searchForm = reactive({
       materialCode: '',
       batchNumber: '',
       direction: 'forward'
     })
-    
+
     const fifoForm = reactive({
       materialId: '',
       requiredQuantity: ''
     })
-    
+
     const batchInfo = ref(null)
     const traceabilityChain = ref([])
     const transactionHistory = ref([])
     const fifoPreview = ref(null)
-    
+
     const latestBatches = ref([])
-    
+
     // 方法
     const handleSearch = async () => {
       if (!searchForm.materialCode || !searchForm.batchNumber) {
         ElMessage.warning('请输入物料编码和批次号')
         return
       }
-      
+
       loading.value = true
-      
+
       try {
         // 获取批次详细信息
-        const batchResponse = await axios.get('/api/batch-traceability/batch/details', {
+        const batchResponse = await api.get('/batch-traceability/batch/details', {
           params: {
             materialCode: searchForm.materialCode,
             batchNumber: searchForm.batchNumber
           }
         })
 
-        // 拦截器已解包，response.data 就是业务数据
         if (batchResponse.data) {
           batchInfo.value = batchResponse.data.batch_info
           transactionHistory.value = batchResponse.data.transaction_history
         }
 
         // 获取追溯链路
-        const chainResponse = await axios.get('/api/batch-traceability/chain', {
+        const chainResponse = await api.get('/batch-traceability/chain', {
           params: {
             materialCode: searchForm.materialCode,
             batchNumber: searchForm.batchNumber,
@@ -314,7 +313,6 @@ export default {
           }
         })
 
-        // 拦截器已解包，response.data 就是业务数据
         if (chainResponse.data) {
           traceabilityChain.value = chainResponse.data.traceability_chain
           hasData.value = true
@@ -342,7 +340,7 @@ export default {
 
     const loadLatestBatches = async () => {
       try {
-        const response = await axios.get('/api/batch-traceability/latest-batches')
+        const response = await api.get('/batch-traceability/latest-batches')
         const list = response.data?.list || response.data || []
         latestBatches.value = list
           .filter((item) => item.material_code && item.batch_number)
@@ -372,14 +370,13 @@ export default {
       fifoLoading.value = true
 
       try {
-        const response = await axios.get('/api/batch-traceability/fifo/preview', {
+        const response = await api.get('/batch-traceability/fifo/preview', {
           params: {
             materialId: fifoForm.materialId,
             requiredQuantity: fifoForm.requiredQuantity
           }
         })
 
-        // 拦截器已解包，response.data 就是业务数据
         if (response.data) {
           fifoPreview.value = response.data
           ElMessage.success('获取FIFO预览成功')
@@ -391,28 +388,28 @@ export default {
         fifoLoading.value = false
       }
     }
-    
+
     const handleCloseFIFODialog = () => {
       showFIFODialog.value = false
       fifoForm.materialId = ''
       fifoForm.requiredQuantity = ''
       fifoPreview.value = null
     }
-    
+
     const refreshData = () => {
       if (hasData.value) {
         handleSearch()
       }
     }
-    
+
     const exportReport = async () => {
       if (!batchInfo.value) {
         ElMessage.warning('请先查询批次信息')
         return
       }
-      
+
       try {
-        const response = await axios.get('/api/batch-traceability/export/report', {
+        const response = await api.get('/batch-traceability/export/report', {
           params: {
             materialCode: searchForm.materialCode,
             batchNumber: searchForm.batchNumber,
@@ -420,7 +417,7 @@ export default {
           },
           responseType: 'blob'
         })
-        
+
         // 创建下载链接
         const url = window.URL.createObjectURL(new Blob([response.data]))
         const link = document.createElement('a')
@@ -430,16 +427,16 @@ export default {
         link.click()
         document.body.removeChild(link)
         window.URL.revokeObjectURL(url)
-        
+
         ElMessage.success('导出成功')
       } catch (error) {
         ElMessage.error(error.response?.data?.message || '导出失败')
       }
     }
-    
+
     // 工具方法
     // formatDate 已统一引用公共实现
-    
+
     const getStatusType = (status) => {
       const types = {
         'active': 'success',
@@ -450,7 +447,7 @@ export default {
       }
       return types[status] || 'info'
     }
-    
+
     const getStatusText = (status) => {
       const texts = {
         'active': '正常',
@@ -461,7 +458,7 @@ export default {
       }
       return texts[status] || status
     }
-    
+
     const getRelationshipType = (type) => {
       const types = {
         'consume': 'warning',
@@ -471,7 +468,7 @@ export default {
       }
       return types[type] || 'info'
     }
-    
+
     const getRelationshipText = (type) => {
       const texts = {
         'consume': '消耗',
@@ -481,7 +478,7 @@ export default {
       }
       return texts[type] || type
     }
-    
+
     const getTransactionType = (type) => {
       const types = {
         'in': 'success',
@@ -493,7 +490,7 @@ export default {
       }
       return types[type] || 'info'
     }
-    
+
     const getTransactionText = (type) => {
       const texts = {
         'in': '入库',
@@ -505,7 +502,7 @@ export default {
       }
       return texts[type] || type
     }
-    
+
     onMounted(loadLatestBatches)
 
     return {

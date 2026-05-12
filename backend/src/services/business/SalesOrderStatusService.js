@@ -25,7 +25,7 @@ class SalesOrderStatusService {
       // 1. 获取订单的所有产品及其订购数量
       const [orderItems] = await client.query(
         `
-        SELECT 
+        SELECT
           soi.id as order_item_id,
           soi.material_id,
           soi.quantity as ordered_quantity,
@@ -181,8 +181,8 @@ class SalesOrderStatusService {
       // 7. 更新订单状态
       await client.query(
         `
-        UPDATE sales_orders 
-        SET 
+        UPDATE sales_orders
+        SET
           status = ?,
           updated_at = NOW()
         WHERE id = ?
@@ -309,7 +309,7 @@ class SalesOrderStatusService {
       // 1. 获取毛发货量统计
       const [stats] = await client.query(
         `
-        SELECT 
+        SELECT
           so.id as order_id,
           so.order_no,
           so.status as order_status,
@@ -470,7 +470,7 @@ class SalesOrderStatusService {
         for (const order of salesOrders) {
           try {
             const orderItemsQuery = `
-              SELECT soi.material_id, soi.quantity 
+              SELECT soi.material_id, soi.quantity
               FROM sales_order_items soi
               WHERE soi.order_id = ?
             `;

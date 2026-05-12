@@ -235,7 +235,7 @@ const productCategoryModel = {
       }
 
       const query = `
-        UPDATE categories 
+        UPDATE categories
         SET parent_id = ?, name = ?, code = ?, level = ?, sort = ?, status = ?
         WHERE id = ?
       `;

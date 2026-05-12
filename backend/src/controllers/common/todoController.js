@@ -50,10 +50,7 @@ exports.getAllTodos = async (req, res) => {
       ],
     });
 
-    return res.status(200).json({
-      success: true,
-      data: todos,
-    });
+    return ResponseHandler.success(res, todos);
   } catch (error) {
     logger.error('获取待办事项失败:', error);
     return ResponseHandler.error(res, '获取待办事项失败', 'SERVER_ERROR', 500, error);
@@ -77,10 +74,7 @@ exports.getTodoById = async (req, res) => {
       return ResponseHandler.error(res, '待办事项不存在', 'NOT_FOUND', 404);
     }
 
-    return res.status(200).json({
-      success: true,
-      data: todo,
-    });
+    return ResponseHandler.success(res, todo);
   } catch (error) {
     logger.error('获取待办事项详情失败:', error);
     return ResponseHandler.error(res, '获取待办事项详情失败', 'SERVER_ERROR', 500, error);
@@ -95,7 +89,7 @@ exports.createTodo = async (req, res) => {
 
     // 验证必填字段
     if (!title) {
-      return ResponseHandler.error(res, '标题不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '标题不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 检查是否为协同任务
@@ -213,11 +207,7 @@ exports.updateTodo = async (req, res) => {
       completed: completed !== undefined ? completed : todo.completed,
     });
 
-    return res.status(200).json({
-      success: true,
-      message: '待办事项更新成功',
-      data: updatedTodo,
-    });
+    return ResponseHandler.success(res, updatedTodo, '待办事项更新成功');
   } catch (error) {
     logger.error('更新待办事项失败:', error);
     return ResponseHandler.error(res, '更新待办事项失败', 'SERVER_ERROR', 500, error);
@@ -245,10 +235,7 @@ exports.deleteTodo = async (req, res) => {
     // 删除待办事项
     await todo.destroy();
 
-    return res.status(200).json({
-      success: true,
-      message: '待办事项删除成功',
-    });
+    return ResponseHandler.success(res, null, '待办事项删除成功');
   } catch (error) {
     logger.error('删除待办事项失败:', error);
     return ResponseHandler.error(res, '删除待办事项失败', 'SERVER_ERROR', 500, error);
@@ -278,11 +265,7 @@ exports.toggleTodoStatus = async (req, res) => {
       completed: !todo.completed,
     });
 
-    return res.status(200).json({
-      success: true,
-      message: `待办事项已标记为${updatedTodo.completed ? '已完成' : '未完成'}`,
-      data: updatedTodo,
-    });
+    return ResponseHandler.success(res, updatedTodo, `待办事项已标记为${updatedTodo.completed ? '已完成' : '未完成'}`);
   } catch (error) {
     logger.error('更新待办事项状态失败:', error);
     return ResponseHandler.error(res, '更新待办事项状态失败', 'SERVER_ERROR', 500, error);
@@ -305,10 +288,7 @@ exports.getAvailableUsers = async (req, res) => {
       order: [['real_name', 'ASC']],
     });
 
-    return res.status(200).json({
-      success: true,
-      data: users,
-    });
+    return ResponseHandler.success(res, users);
   } catch (error) {
     logger.error('获取用户列表失败:', error);
     return ResponseHandler.error(res, '获取用户列表失败', 'SERVER_ERROR', 500, error);
@@ -377,11 +357,7 @@ exports.filterTodos = async (req, res) => {
       order: [['deadline', 'ASC']],
     });
 
-    return res.status(200).json({
-      success: true,
-      count: todos.length,
-      data: todos,
-    });
+    return ResponseHandler.success(res, todos);
   } catch (error) {
     logger.error('过滤待办事项失败:', error);
     return ResponseHandler.error(res, '过滤待办事项失败', 'SERVER_ERROR', 500, error);

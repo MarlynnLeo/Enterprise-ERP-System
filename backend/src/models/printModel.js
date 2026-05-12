@@ -58,7 +58,7 @@ const printModel = {
   async createPrintSetting(data) {
     const [result] = await pool.execute(
       `INSERT INTO print_settings (
-        name, default_paper_size, default_orientation, 
+        name, default_paper_size, default_orientation,
         default_margin_top, default_margin_right, default_margin_bottom, default_margin_left,
         header_content, footer_content, company_logo, status, created_by
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -189,7 +189,7 @@ const printModel = {
 
   async getDefaultTemplateByType(module, templateType) {
     const [rows] = await pool.execute(
-      'SELECT * FROM print_templates WHERE module = ? AND template_type = ? AND is_default = 1 AND status = 1 AND deleted_at IS NULL LIMIT 1',
+      'SELECT * FROM print_templates WHERE module = ? AND template_type = ? AND is_default = 1 AND status = 1 AND deleted_at IS NULL ORDER BY updated_at DESC, id DESC LIMIT 1',
       [module, templateType]
     );
     return rows.length > 0 ? rows[0] : null;
@@ -203,7 +203,7 @@ const printModel = {
       // 如果设置为默认模板，先将同类型的其他模板设置为非默认
       if (data.is_default === 1) {
         await connection.execute(
-          'UPDATE print_templates SET is_default = 0 WHERE module = ? AND template_type = ?',
+          'UPDATE print_templates SET is_default = 0 WHERE module = ? AND template_type = ? AND deleted_at IS NULL',
           [data.module, data.template_type]
         );
       }
@@ -250,7 +250,7 @@ const printModel = {
       // 如果设置为默认模板，先将同类型的其他模板设置为非默认
       if (data.is_default === 1) {
         await connection.execute(
-          'UPDATE print_templates SET is_default = 0 WHERE module = ? AND template_type = ? AND id <> ?',
+          'UPDATE print_templates SET is_default = 0 WHERE module = ? AND template_type = ? AND id <> ? AND deleted_at IS NULL',
           [data.module, data.template_type, id]
         );
       }
@@ -259,6 +259,8 @@ const printModel = {
       const [result] = await connection.execute(
         `UPDATE print_templates SET
           name = ?,
+          module = ?,
+          template_type = ?,
           content = ?,
           paper_size = ?,
           orientation = ?,
@@ -273,6 +275,8 @@ const printModel = {
         WHERE id = ?`,
         [
           data.name,
+          data.module,
+          data.template_type,
           data.content,
           data.paper_size,
           data.orientation,

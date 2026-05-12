@@ -16,7 +16,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <el-row :gutter="20">
       <!-- 科目管理卡片 -->
       <el-col :xs="24" :sm="12" :md="8" :lg="6">
@@ -28,7 +28,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <!-- 凭证管理卡片 -->
       <el-col :xs="24" :sm="12" :md="8" :lg="6">
         <el-card class="module-card" shadow="hover" @click="navigateTo('/finance/gl/entries')">
@@ -39,7 +39,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <!-- 期间管理卡片 -->
       <el-col :xs="24" :sm="12" :md="8" :lg="6">
         <el-card class="module-card" shadow="hover" @click="navigateTo('/finance/gl/periods')">
@@ -50,7 +50,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <!-- 账簿查询卡片 -->
       <el-col :xs="24" :sm="12" :md="8" :lg="6">
         <el-card class="module-card" shadow="hover" @click="navigateTo('/finance/gl/trial-balance')">
@@ -61,7 +61,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <!-- 财务报表卡片 -->
       <el-col :xs="24" :sm="12" :md="8" :lg="6">
         <el-card class="module-card" shadow="hover" @click="navigateTo('/finance/reports/balance-sheet')">
@@ -72,7 +72,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <!-- 初始化卡片 -->
       <el-col :xs="24" :sm="12" :md="8" :lg="6">
         <el-card class="module-card" shadow="hover" @click="showInitConfirm">
@@ -84,7 +84,7 @@
         </el-card>
       </el-col>
     </el-row>
-    
+
     <!-- 财务概览 -->
     <div class="overview-section">
       <h3>财务概览</h3>
@@ -106,7 +106,7 @@
             </div>
           </el-card>
         </el-col>
-        
+
         <el-col :xs="24" :sm="12" :md="8">
           <el-card class="stat-card">
             <template #header>
@@ -124,7 +124,7 @@
             </div>
           </el-card>
         </el-col>
-        
+
         <el-col :xs="24" :sm="12" :md="8">
           <el-card class="stat-card">
             <template #header>
@@ -144,7 +144,7 @@
         </el-col>
       </el-row>
     </div>
-    
+
     <!-- 最近凭证 -->
     <div class="recent-section">
       <div class="section-header">
@@ -154,7 +154,7 @@
           <el-icon><ArrowRight /></el-icon>
         </el-button>
       </div>
-      
+
       <el-table :data="recentEntries" style="width: 100%" border v-loading="loading">
         <el-table-column prop="entryNumber" label="凭证编号" width="120"></el-table-column>
         <el-table-column prop="entryDate" label="记账日期" width="100"></el-table-column>
@@ -227,8 +227,7 @@ const loadStatistics = async () => {
       statistics.totalEquity = parseFloat(metrics.totalEquity || 0);
       statistics.equityRatio = parseFloat(metrics.equityRatio || 0);
     }
-  } catch (error) {
-    console.warn('加载财务统计数据失败，使用默认值:', error);
+  } catch {
     // 加载失败时保持初始化的0值，不影响页面渲染
   }
 };
@@ -278,7 +277,7 @@ const loadRecentEntries = async () => {
         pageSize: 5,
       },
     });
-    
+
     // 拦截器已解包，response.data 就是业务数据
     if (response.data?.entries) {
       recentEntries.value = response.data.entries.map(entry => ({
@@ -434,4 +433,4 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

@@ -12,6 +12,7 @@ const { apiStatusToDbStatus } = require('../utils/statusMapper');
 const { appendPaginationSQL } = require('../utils/safePagination');
 const businessConfig = require('../config/businessConfig');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
+const InspectionTemplateResolver = require('../services/business/InspectionTemplateResolverService');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -244,7 +245,7 @@ class QualityInspection {
 
         // 获取检验项
         const itemsQuery = `
-      SELECT * FROM quality_inspection_items 
+      SELECT * FROM quality_inspection_items
           WHERE inspection_id = ?
         ORDER BY id
         `;
@@ -268,6 +269,23 @@ class QualityInspection {
    * @param {object} inspection 检验单数据
    * @returns {Promise<object>} 创建结果
    */
+  static _getTemplateMaterialId(inspection) {
+    return InspectionTemplateResolver.getInspectionMaterialId(inspection);
+  }
+
+  static async findMatchingInspectionTemplate(connection, inspectionType, materialId, explicitTemplateId = null) {
+    return InspectionTemplateResolver.findMatchingTemplate(
+      connection,
+      inspectionType,
+      materialId,
+      explicitTemplateId
+    );
+  }
+
+  static async getTemplateItems(connection, templateId) {
+    return InspectionTemplateResolver.getTemplateItems(connection, templateId);
+  }
+
   static async createInspection(inspection, externalConnection = null) {
     let connection;
     const useOwnConnection = !externalConnection;
@@ -334,19 +352,26 @@ class QualityInspection {
         }
       }
 
-      // 如果material_id存在但unit为空，从materials表查询
-      if (inspection.material_id && !inspection.unit) {
+      // 如果material_id存在但unit或unit_id为空，从materials表查询补全
+      if (inspection.material_id && (!inspection.unit || !inspection.unit_id)) {
         try {
           const [materialRows] = await connection.query(
             'SELECT unit_id FROM materials WHERE id = ?',
             [inspection.material_id]
           );
           if (materialRows && materialRows.length > 0 && materialRows[0].unit_id) {
-            const [unitRows] = await connection.query('SELECT name FROM units WHERE id = ?', [
-              materialRows[0].unit_id,
-            ]);
-            if (unitRows && unitRows.length > 0) {
-              inspection.unit = unitRows[0].name;
+            // 补全 unit_id
+            if (!inspection.unit_id) {
+              inspection.unit_id = materialRows[0].unit_id;
+            }
+            // 补全 unit 文本
+            if (!inspection.unit) {
+              const [unitRows] = await connection.query('SELECT name FROM units WHERE id = ?', [
+                materialRows[0].unit_id,
+              ]);
+              if (unitRows && unitRows.length > 0) {
+                inspection.unit = unitRows[0].name;
+              }
             }
           }
         } catch (error) {
@@ -391,10 +416,10 @@ class QualityInspection {
           INSERT INTO quality_inspections(
           inspection_no, inspection_type, reference_id, reference_no,
           material_id, product_id, product_name, product_code, task_id,
-          batch_no, quantity, unit, standard_type, standard_no,
+          batch_no, quantity, unit, unit_id, standard_type, standard_no,
           planned_date, actual_date, note, inspector_name, status,
           is_aql, aql_level
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         [
           inspectionNo,
@@ -409,6 +434,7 @@ class QualityInspection {
           inspection.batch_no,
           inspection.quantity,
           inspection.unit,
+          inspection.unit_id || null,
           inspection.standard_type || null,
           inspection.standard_no || null,
           inspection.planned_date,
@@ -422,6 +448,53 @@ class QualityInspection {
       );
 
       const inspectionId = result.insertId;
+
+      // ===== 自动引用检验模板：显式模板 > 专用模板 > 默认通用模板 =====
+      const templateMaterialId = this._getTemplateMaterialId(inspection);
+      const appliedTemplate = await this.findMatchingInspectionTemplate(
+        connection,
+        inspection.inspection_type,
+        templateMaterialId,
+        inspection.template_id
+      );
+
+      if (appliedTemplate) {
+        inspection.template_id = appliedTemplate.id;
+        const updateFields = ['template_id = ?'];
+        const updateValues = [appliedTemplate.id];
+        const templateUsesAql = appliedTemplate.is_aql === true || appliedTemplate.is_aql === 1;
+
+        if (templateUsesAql && !inspection.is_aql) {
+          inspection.is_aql = 1;
+          inspection.aql_level = appliedTemplate.aql_level || inspection.aql_level || null;
+          updateFields.push('is_aql = ?', 'aql_level = ?');
+          updateValues.push(1, inspection.aql_level);
+        } else if (templateUsesAql && !inspection.aql_level && appliedTemplate.aql_level) {
+          inspection.aql_level = appliedTemplate.aql_level;
+          updateFields.push('aql_level = ?');
+          updateValues.push(inspection.aql_level);
+        }
+
+        updateValues.push(inspectionId);
+        await connection.query(
+          `UPDATE quality_inspections SET ${updateFields.join(', ')} WHERE id = ?`,
+          updateValues
+        );
+
+        if (!inspection.items || !Array.isArray(inspection.items) || inspection.items.length === 0) {
+          inspection.items = await this.getTemplateItems(connection, appliedTemplate.id);
+          logger.info(`自动引用检验模板 ${appliedTemplate.template_name}，加载 ${inspection.items.length} 个检验项目`);
+        }
+      }
+
+      if (
+        ['incoming', 'final'].includes(inspection.inspection_type) &&
+        (!inspection.items || !Array.isArray(inspection.items) || inspection.items.length === 0)
+      ) {
+        throw InspectionTemplateResolver.createValidationError(
+          '未匹配到可用检验模板，且检验单没有检验项目，不能创建来料/成品检验单'
+        );
+      }
 
       // 如果有检验项目数据，则创建检验项目
       if (inspection.items && Array.isArray(inspection.items) && inspection.items.length > 0) {
@@ -592,8 +665,8 @@ class QualityInspection {
           updateValues.push(id);
 
           await connection.execute(
-            `UPDATE quality_inspections 
-             SET ${updateFields.join(', ')} 
+            `UPDATE quality_inspections
+             SET ${updateFields.join(', ')}
              WHERE id = ? `,
             updateValues
           );
@@ -801,23 +874,16 @@ class QualityInspection {
 
                         // 如果物料没有设置默认仓库，通过统一服务获取（会抛错提示配置）
                         if (!locationId) {
-                          const InventoryService = require('../../../services/InventoryService');
+                          const InventoryService = require('../services/InventoryService');
                           locationId = await InventoryService.getMaterialLocation(task.product_id, connection);
                         }
 
                         if (!locationId) {
                           logger.warn('未找到默认仓库位置，无法自动创建入库单');
                         } else {
-                          // 生成入库单号（统一使用 RK{日期}{3位序号} 格式）
-                          // 使用 FOR UPDATE 加锁，防止并发时获取相同序号
-                          const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                          const [maxNoResult] = await connection.query(
-                            'SELECT MAX(TRIM(inbound_no)) as max_no FROM inventory_inbound WHERE TRIM(inbound_no) LIKE ? FOR UPDATE',
-                            [`RK${dateStr}%`]
-                          );
-                          const maxNo = (maxNoResult[0].max_no || `RK${dateStr}000`).trim();
-                          const nextSeq = (parseInt(maxNo.slice(-3), 10) || 0) + 1;
-                          const inboundNo = `RK${dateStr}${nextSeq.toString().padStart(3, '0')}`;
+                          // 生成入库单号 — 使用统一编码引擎
+                          const { CodeGenerators } = require('../utils/codeGenerator');
+                          const inboundNo = await CodeGenerators.generateInboundCode(connection);
 
                           // 获取操作人（优先使用检验员姓名，否则使用系统）
                           const operator =
@@ -972,35 +1038,38 @@ class QualityInspection {
 
     if (type === 'incoming') {
       // 获取采购单
-      const [purchaseOrders] = await db.query(`
-        SELECT po.id, po.order_no, po.supplier_id, s.name as supplier_name 
+      const purchaseOrdersResult = await db.query(`
+        SELECT po.id, po.order_no, po.supplier_id, s.name as supplier_name
         FROM purchase_orders po
         JOIN suppliers s ON po.supplier_id = s.id
         WHERE po.status = 'approved'
         ORDER BY po.created_at DESC
         LIMIT 100
         `);
+      const purchaseOrders = purchaseOrdersResult.rows || [];
 
       data.purchaseOrders = purchaseOrders;
 
       // 获取物料
       if (purchaseOrders.length > 0) {
         const supplierIds = [...new Set(purchaseOrders.map((po) => po.supplier_id))];
-        const [materials] = await db.query(
+        const materialsResult = await db.query(
           `
-          SELECT m.id, m.name, m.code, m.unit 
+          SELECT m.id, m.name, m.code, m.unit_id, u.name as unit_name, u.name as unit
           FROM materials m
           JOIN supplier_materials sm ON m.id = sm.material_id
+          LEFT JOIN units u ON m.unit_id = u.id
           WHERE sm.supplier_id IN(?)
         `,
           [supplierIds]
         );
+        const materials = materialsResult.rows || [];
 
         data.materials = materials;
       }
     } else {
       // 获取生产工单
-      const [productionOrders] = await db.query(`
+      const productionOrdersResult = await db.query(`
         SELECT pt.id, pt.code as order_no, pt.product_id, m.name as product_name, m.specs as unit
         FROM production_tasks pt
         JOIN materials m ON pt.product_id = m.id
@@ -1008,13 +1077,14 @@ class QualityInspection {
         ORDER BY pt.created_at DESC
         LIMIT 100
         `);
+      const productionOrders = productionOrdersResult.rows || [];
 
       data.productionOrders = productionOrders;
 
       if (type === 'process' && productionOrders.length > 0) {
         // 获取工序
 
-        const [processes] = await db.query(
+        const processesResult = await db.query(
           `
           SELECT pp.id, pp.task_id, pp.process_name, pp.sequence, pp.status
           FROM production_processes pp
@@ -1023,6 +1093,7 @@ class QualityInspection {
         `,
           [productionOrders.map(po => po.id)]
         );
+        const processes = processesResult.rows || [];
 
         data.processes = processes;
       }
@@ -1040,7 +1111,7 @@ class QualityInspection {
   static async getStandards(type, targetId) {
     const targetType = type === 'incoming' ? 'material' : 'product';
 
-    const [standards] = await db.query(
+    const standardsResult = await db.query(
       `
       SELECT s.*, COUNT(si.id) as item_count
       FROM quality_standards s
@@ -1051,11 +1122,12 @@ class QualityInspection {
         `,
       [targetType, targetId]
     );
+    const standards = standardsResult.rows || [];
 
     // 获取标准项
     if (standards.length > 0) {
       const standardIds = standards.map((s) => s.id);
-      const [items] = await db.query(
+      const itemsResult = await db.query(
         `
       SELECT * FROM quality_standard_items
         WHERE standard_id IN(?)
@@ -1063,6 +1135,7 @@ class QualityInspection {
       `,
         [standardIds]
       );
+      const items = itemsResult.rows || [];
 
       // 组装数据
       standards.forEach((standard) => {

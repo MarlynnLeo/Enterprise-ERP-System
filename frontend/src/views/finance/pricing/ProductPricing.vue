@@ -110,8 +110,8 @@
         </el-descriptions>
 
         <el-divider content-position="left">成本核算</el-divider>
-        
-        <div 
+
+        <div
           class="cost-section"
           @click="pricing.costType.value === 'bom' && pricing.pricingForm.product_id ? openBomPriceDialog() : null"
         >
@@ -144,8 +144,8 @@
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="目标利润率 (%)" prop="profit_margin">
-                <el-input-number 
-                  v-model="pricing.pricingForm.profit_margin" 
+                <el-input-number
+                  v-model="pricing.pricingForm.profit_margin"
                   :precision="2"
                   :step="1"
                   @change="() => pricing.handleMarginChange(calculateAdjustedCost)"
@@ -155,8 +155,8 @@
             </el-col>
             <el-col :span="12">
               <el-form-item label="建议售价 (¥)" prop="suggested_price">
-                <el-input-number 
-                  v-model="pricing.pricingForm.suggested_price" 
+                <el-input-number
+                  v-model="pricing.pricingForm.suggested_price"
                   :precision="2"
                   :min="0"
                   @change="() => pricing.handlePriceChange(calculateAdjustedCost)"
@@ -168,11 +168,11 @@
 
           <!-- 策略字段选择 -->
           <el-form-item label="策略字段">
-            <el-select 
-              v-model="strategy.selectedFieldIds.value" 
-              multiple 
-              filterable 
-              clearable 
+            <el-select
+              v-model="strategy.selectedFieldIds.value"
+              multiple
+              filterable
+              clearable
               collapse-tags
               collapse-tags-tooltip
               :max-collapse-tags="2"
@@ -180,10 +180,10 @@
               style="width: 100%"
               @change="handleStrategyFieldsSelect"
             >
-              <el-option 
-                v-for="field in strategy.availableFields.value" 
-                :key="field.id" 
-                :label="`${field.field_label} (${field.unit})`" 
+              <el-option
+                v-for="field in strategy.availableFields.value"
+                :key="field.id"
+                :label="`${field.field_label} (${field.unit})`"
                 :value="field.id"
               />
             </el-select>
@@ -195,9 +195,9 @@
               <el-col :span="12" v-for="fieldId in strategy.selectedFieldIds.value" :key="fieldId">
                 <div class="strategy-field-compact">
                   <span class="field-name">{{ strategy.getFieldById(fieldId).field_label }}</span>
-                  <el-input-number 
-                    v-model="strategy.getFieldById(fieldId).value" 
-                    :precision="2" 
+                  <el-input-number
+                    v-model="strategy.getFieldById(fieldId).value"
+                    :precision="2"
                     :step="1"
                     size="small"
                     controls-position="right"
@@ -221,9 +221,9 @@
           </el-form-item>
 
           <el-form-item label="定价备注">
-            <el-input 
-              v-model="pricing.pricingForm.remarks" 
-              type="textarea" 
+            <el-input
+              v-model="pricing.pricingForm.remarks"
+              type="textarea"
               :rows="3"
               placeholder="请输入备注信息"
             />

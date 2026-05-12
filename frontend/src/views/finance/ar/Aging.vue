@@ -21,7 +21,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 搜索条件区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="queryParams" class="search-form">
@@ -47,7 +47,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 报表区域 -->
     <el-card class="data-card" v-loading="loading">
       <div class="report-title" v-if="hasData">
@@ -110,7 +110,7 @@
           <el-table-column prop="contactPhone" label="联系电话" width="150"></el-table-column>
         </el-table>
       </div>
-      
+
       <!-- 图表展示 -->
       <div class="chart-container" v-if="hasData">
         <div class="chart-title">账龄分析图表</div>
@@ -137,6 +137,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import printService from '@/services/printService';
 import * as echarts from 'echarts';
 // 权限计算属性
 import ExcelJS from 'exceljs';
@@ -160,7 +161,6 @@ const safeReportData = computed(() => {
 // 确保reportData始终是数组的辅助函数
 const ensureReportDataIsArray = () => {
   if (!reportData.value || !Array.isArray(reportData.value)) {
-    console.warn('[安全检查] reportData 不是数组，重置为空数组:', reportData.value);
     reportData.value = [];
   }
 };
@@ -187,10 +187,10 @@ const handleChartResize = () => {
 // 计算逾期比例
 const calculateOverduePercentage = (row) => {
   if (!row.totalAmount || row.totalAmount === 0) return '0.00%';
-  
+
   const overdueAmount = row.within30Days + row.within60Days + row.within90Days + row.over90Days;
   const percentage = (overdueAmount / row.totalAmount) * 100;
-  
+
   return percentage.toFixed(2) + '%';
 };
 // 获取客户类型文本
@@ -207,7 +207,6 @@ const getSummaries = (param) => {
   try {
     // 确保参数安全
     if (!param || typeof param !== 'object') {
-      console.warn('[getSummaries] 参数无效:', param);
       return [];
     }
     const { columns, data } = param;
@@ -218,7 +217,6 @@ const getSummaries = (param) => {
       return Array.isArray(columns) ? columns.map((_, index) => index === 0 ? '总计' : '') : [];
     }
     if (!Array.isArray(columns)) {
-      console.warn('[getSummaries] columns不是数组:', columns);
       return [];
     }
     const sums = [];
@@ -227,14 +225,14 @@ const getSummaries = (param) => {
       sums[index] = '总计';
       return;
     }
-    
+
     if (index === 1) {
       sums[index] = '';
       return;
     }
-    
+
     const values = data.map(item => Number(item[column.property]) || 0);
-    
+
     if (values.every(value => Number.isNaN(value))) {
       sums[index] = 'N/A';
     } else {
@@ -246,14 +244,14 @@ const getSummaries = (param) => {
           return prev;
         }
       }, 0);
-      
+
       if (index === 8) { // 逾期比例列
         const totalAmount = data.reduce((prev, curr) => prev + (curr.totalAmount || 0), 0);
         const overdueAmount = data.reduce((prev, curr) => {
-          return prev + (curr.within30Days || 0) + (curr.within60Days || 0) + 
+          return prev + (curr.within30Days || 0) + (curr.within60Days || 0) +
                  (curr.within90Days || 0) + (curr.over90Days || 0);
         }, 0);
-        
+
         const percentage = totalAmount ? (overdueAmount / totalAmount) * 100 : 0;
         sums[index] = percentage.toFixed(2) + '%';
       } else if (index >= 2 && index <= 7) { // 金额列
@@ -298,7 +296,7 @@ const generateReport = async () => {
       ElMessage.error('获取数据格式异常');
       reportData.value = [];
     }
-    
+
     // 更新图表
     nextTick(() => {
       const data = safeReportData.value;
@@ -318,7 +316,7 @@ const generateReport = async () => {
 const initCharts = () => {
   // 初始化饼图
   initPieChart();
-  
+
   // 初始化柱状图
   initBarChart();
 };
@@ -334,15 +332,15 @@ const initPieChart = () => {
   const within60Days = data.reduce((sum, item) => sum + (item.within60Days || 0), 0);
   const within90Days = data.reduce((sum, item) => sum + (item.within90Days || 0), 0);
   const over90Days = data.reduce((sum, item) => sum + (item.over90Days || 0), 0);
-  
+
   // 销毁旧图表
   if (pieChartInstance) {
     pieChartInstance.dispose();
   }
-  
+
   // 创建新图表
   pieChartInstance = echarts.init(pieChart.value);
-  
+
   const pieOption = {
     title: {
       text: '应收账款账龄比例',
@@ -387,7 +385,7 @@ const initPieChart = () => {
       }
     ]
   };
-  
+
   pieChartInstance.setOption(pieOption);
 };
 // 初始化柱状图
@@ -403,22 +401,22 @@ const initBarChart = () => {
       return bOverdue - aOverdue;
     })
     .slice(0, 10);
-  
+
   // 准备数据
   const customerNames = top10Customers.map(item => item.customerName);
   const within30DaysData = top10Customers.map(item => item.within30Days || 0);
   const within60DaysData = top10Customers.map(item => item.within60Days || 0);
   const within90DaysData = top10Customers.map(item => item.within90Days || 0);
   const over90DaysData = top10Customers.map(item => item.over90Days || 0);
-  
+
   // 销毁旧图表
   if (barChartInstance) {
     barChartInstance.dispose();
   }
-  
+
   // 创建新图表
   barChartInstance = echarts.init(barChart.value);
-  
+
   const barOption = {
     title: {
       text: '逾期TOP10客户账龄分布',
@@ -506,7 +504,7 @@ const initBarChart = () => {
       }
     ]
   };
-  
+
   barChartInstance.setOption(barOption);
 };
 // 导出Excel
@@ -562,9 +560,59 @@ const exportExcel = async () => {
   link.click();
   window.URL.revokeObjectURL(url);
 };
+const getAgingTotals = () => {
+  const data = safeReportData.value;
+  return data.reduce((totals, item) => {
+    totals.totalAmount += Number(item.totalAmount || 0);
+    totals.currentAmount += Number(item.currentAmount || 0);
+    totals.within30Days += Number(item.within30Days || 0);
+    totals.within60Days += Number(item.within60Days || 0);
+    totals.within90Days += Number(item.within90Days || 0);
+    totals.over90Days += Number(item.over90Days || 0);
+    return totals;
+  }, { totalAmount: 0, currentAmount: 0, within30Days: 0, within60Days: 0, within90Days: 0, over90Days: 0 });
+};
+
 // 打印报表
-const printReport = () => {
-  window.print();
+const printReport = async () => {
+  if (!hasData.value) {
+    ElMessage.warning('没有可打印的数据');
+    return;
+  }
+
+  try {
+    const totals = getAgingTotals();
+    const html = await printService.generateByDefaultTemplate('finance', 'ar_aging', {
+      report_date: formatDate(queryParams.reportDate),
+      entity_label: '客户',
+      total_amount: formatAmount(totals.totalAmount),
+      current_amount: formatAmount(totals.currentAmount),
+      within_30_days: formatAmount(totals.within30Days),
+      days_31_to_60: formatAmount(totals.within60Days),
+      days_61_to_90: formatAmount(totals.within90Days),
+      over_90_days: formatAmount(totals.over90Days),
+      print_time: new Date().toLocaleString(),
+      items: safeReportData.value.map((item, index) => ({
+        index: index + 1,
+        entity_name: item.customerName || '',
+        entity_type: getCustomerTypeText(item.customerType),
+        total_amount: formatAmount(item.totalAmount),
+        current_amount: formatAmount(item.currentAmount),
+        within_30_days: formatAmount(item.within30Days),
+        days_31_to_60: formatAmount(item.within60Days),
+        days_61_to_90: formatAmount(item.within90Days),
+        over_90_days: formatAmount(item.over90Days),
+        overdue_ratio: calculateOverduePercentage(item),
+        contact_person: item.contactPerson || '',
+        contact_phone: item.contactPhone || ''
+      }))
+    });
+    printService.previewDocument(html);
+    ElMessage.success('打印预览已打开');
+  } catch (error) {
+    console.error('打印应收账龄分析失败:', error);
+    ElMessage.error('打印应收账龄分析失败');
+  }
 };
 // 页面加载时执行
 onMounted(() => {
@@ -576,7 +624,7 @@ onMounted(() => {
 onUnmounted(() => {
   // 移除 resize 监听
   window.removeEventListener('resize', handleChartResize);
-  
+
   // 销毁 ECharts 实例
   if (pieChartInstance) { pieChartInstance.dispose(); pieChartInstance = null; }
   if (barChartInstance) { barChartInstance.dispose(); barChartInstance = null; }
@@ -662,18 +710,18 @@ onUnmounted(() => {
   .header-actions {
     display: none;
   }
-  
+
   .aging-container {
     padding: 0;
   }
-  
+
   .report-card {
     box-shadow: none;
     border: none;
   }
-  
+
   .chart-container {
     page-break-before: always;
   }
 }
-</style> 
+</style>

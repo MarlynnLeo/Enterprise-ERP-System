@@ -47,7 +47,7 @@ exports.saveUserTheme = async (req, res) => {
 
     // 基本验证
     if (!themeSettings || typeof themeSettings !== 'object') {
-      return ResponseHandler.error(res, '主题设置格式错误', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '主题设置格式错误', 'VALIDATION_ERROR', 400);
     }
 
     // 验证必需字段
@@ -58,7 +58,7 @@ exports.saveUserTheme = async (req, res) => {
       return ResponseHandler.error(
         res,
         `缺少必需字段: ${missingFields.join(', ')}`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }

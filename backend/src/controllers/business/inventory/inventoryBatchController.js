@@ -10,7 +10,6 @@ const { logger } = require('../../../utils/logger');
 const { getMaterialBatchNumber } = require('./helpers');
 
 const db = require('../../../config/db');
-// const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
@@ -306,8 +305,8 @@ const getBatchInventoryDetail = async (req, res) => {
         (vbs.current_quantity * COALESCE(vbs.unit_cost, 0)) as total_cost,
         vbs.supplier_name
       FROM (
-        SELECT 
-          material_id, 
+        SELECT
+          material_id,
           COALESCE(batch_number, '[无批次]') as batch_number,
           SUM(quantity) as current_quantity,
           MIN(created_at) as receipt_date,
@@ -371,7 +370,7 @@ const getBatchTransactionsDetail = async (req, res) => {
       FROM inventory_ledger il
       LEFT JOIN materials m ON il.material_id = m.id
       LEFT JOIN locations l ON il.location_id = l.id
-      WHERE il.material_id = ? 
+      WHERE il.material_id = ?
         AND (il.batch_number = ? OR (il.batch_number IS NULL AND ? = '[无批次]') OR (il.batch_number = '' AND ? = '[无批次]'))
       ORDER BY il.created_at DESC
     `;

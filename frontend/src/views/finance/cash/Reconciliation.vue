@@ -20,7 +20,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 账户选择 -->
     <el-card class="select-account-card">
       <div class="card-header">
@@ -56,7 +56,7 @@
         </el-form>
       </div>
     </el-card>
-    
+
     <div v-if="isReconciling" class="reconciliation-content">
       <!-- 银行对账统计 -->
       <div class="statistics-row">
@@ -77,7 +77,7 @@
           <div class="stat-label">未对账项目</div>
         </el-card>
       </div>
-      
+
       <!-- 对账状态 -->
       <el-card class="status-card" v-if="reconciliationStats.difference !== 0">
         <el-alert
@@ -87,7 +87,7 @@
           show-icon
         ></el-alert>
       </el-card>
-      
+
       <el-card class="status-card" v-else>
         <el-alert
           title="账目已平衡"
@@ -96,15 +96,15 @@
           show-icon
         ></el-alert>
       </el-card>
-      
+
       <!-- 标签页 -->
       <el-tabs v-model="activeTab" class="reconciliation-tabs">
         <el-tab-pane label="账面未达账项" name="unreconciled">
           <div class="tab-toolbar">
             <el-button
               v-permission="'finance:cash:reconcile'"
-              type="success" 
-              size="small" 
+              type="success"
+              size="small"
               :disabled="selectedUnreconciled.length === 0"
               @click="batchMarkReconciled"
             >
@@ -113,10 +113,10 @@
             </el-button>
             <span class="tab-info">共 {{ unreconciledItems.length }} 条未对账</span>
           </div>
-          <el-table 
-            :data="unreconciledItems" 
-            border 
-            style="width: 100%" 
+          <el-table
+            :data="unreconciledItems"
+            border
+            style="width: 100%"
             v-loading="loading"
             @selection-change="handleUnreconciledSelect"
           >
@@ -124,7 +124,7 @@
             <el-table-column prop="transactionDate" label="交易日期" width="110" show-overflow-tooltip></el-table-column>
             <el-table-column label="交易类型" width="90">
               <template #default="scope">
-                <el-tag 
+                <el-tag
                   :type="getTypeStyle(scope.row.type)"
                   size="small"
                 >
@@ -148,7 +148,7 @@
               </template>
             </el-table-column>
           </el-table>
-          
+
           <div class="pagination-container" v-if="unreconciledTotal > 0">
             <el-pagination
               v-model:current-page="unreconciledPage"
@@ -161,7 +161,7 @@
             />
           </div>
         </el-tab-pane>
-        
+
         <el-tab-pane label="银行对账单" name="bank_statement">
           <div v-if="importedStatement.length === 0" class="empty-statement">
             <el-empty description="尚未导入银行对账单"></el-empty>
@@ -182,13 +182,13 @@
               </template>
             </el-upload>
           </div>
-          
+
           <el-table v-else :data="importedStatement" border style="width: 100%">
             <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
               <template #default="scope">
-                <el-tag 
+                <el-tag
                   :type="scope.row.type === 'income' ? 'success' : 'danger'"
                 >
                   {{ getTransactionTypeText(scope.row.type) }}
@@ -219,8 +219,8 @@
               <template #default="scope">
                 <el-button
                   v-permission="'finance:cash:reconcile'"
-                  :type="scope.row.status === 'matched' ? 'info' : 'primary'" 
-                  size="small" 
+                  :type="scope.row.status === 'matched' ? 'info' : 'primary'"
+                  size="small"
                   @click="matchTransaction(scope.row)"
                 >
                   {{ scope.row.status === 'matched' ? '查看匹配' : '手动匹配' }}
@@ -229,13 +229,13 @@
             </el-table-column>
           </el-table>
         </el-tab-pane>
-        
+
         <el-tab-pane label="已对账项目" name="reconciled">
           <el-table :data="reconciledItems" border style="width: 100%" v-loading="loading">
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
               <template #default="scope">
-                <el-tag 
+                <el-tag
                   :type="scope.row.type === 'income' ? 'success' : (scope.row.type === 'expense' ? 'danger' : 'info')"
                 >
                   {{ getTransactionTypeText(scope.row.type) }}
@@ -258,7 +258,7 @@
               </template>
             </el-table-column>
           </el-table>
-          
+
           <div class="pagination-container" v-if="reconciledTotal > 0">
             <el-pagination
               v-model:current-page="reconciledPage"
@@ -273,11 +273,11 @@
         </el-tab-pane>
       </el-tabs>
     </div>
-    
+
     <div v-if="!isReconciling && !loading" class="start-guide">
       <el-empty description="请选择账户和日期范围，然后点击查询开始对账"></el-empty>
     </div>
-    
+
     <!-- 匹配交易对话框 -->
     <el-dialog
       title="匹配交易记录"
@@ -294,7 +294,7 @@
             <el-descriptions-item label="摘要">{{ selectedStatementItem.summary }}</el-descriptions-item>
           </el-descriptions>
         </div>
-        
+
         <div class="matching-transactions">
           <h4>可匹配的账面交易</h4>
           <el-table :data="matchingTransactions" border style="width: 100%" @selection-change="handleSelectionChange">
@@ -302,7 +302,7 @@
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
               <template #default="scope">
-                <el-tag 
+                <el-tag
                   :type="scope.row.type === 'income' ? 'success' : 'danger'"
                 >
                   {{ getTransactionTypeText(scope.row.type) }}
@@ -417,17 +417,17 @@ const handleUnreconciledSelect = (selection) => {
 // 批量对账
 const batchMarkReconciled = async () => {
   if (selectedUnreconciled.value.length === 0) return;
-  
+
   try {
     await ElMessageBox.confirm(
       `确定要对 ${selectedUnreconciled.value.length} 条交易进行对账吗?`,
       '批量对账',
       { type: 'info' }
     );
-    
+
     loading.value = true;
     const reconciliationDate = new Date().toISOString().split('T')[0];
-    
+
     // 逐条对账
     for (const item of selectedUnreconciled.value) {
       await api.patch(`/finance/bank-transactions/${item.id}/reconcile`, {
@@ -435,10 +435,10 @@ const batchMarkReconciled = async () => {
         reconciliation_date: reconciliationDate
       });
     }
-    
+
     ElMessage.success(`成功对账 ${selectedUnreconciled.value.length} 条交易`);
     selectedUnreconciled.value = [];
-    
+
     // 刷新数据
     searchReconciliation();
   } catch (error) {
@@ -482,7 +482,7 @@ const searchReconciliation = async () => {
     ElMessage.warning('请选择账户和日期范围');
     return;
   }
-  
+
   loading.value = true;
   try {
     const params = {
@@ -490,11 +490,11 @@ const searchReconciliation = async () => {
       startDate: dateRange.value[0],
       endDate: dateRange.value[1]
     };
-    
+
     // 加载未对账项目 - 使用bank-transactions API
-    const unreconciledResponse = await api.get('/finance/bank-transactions', { 
-      params: { 
-        ...params, 
+    const unreconciledResponse = await api.get('/finance/bank-transactions', {
+      params: {
+        ...params,
         isReconciled: false,
         status: 'approved',
         page: unreconciledPage.value,
@@ -514,9 +514,9 @@ const searchReconciliation = async () => {
     }));
 
     // 加载已对账项目
-    const reconciledResponse = await api.get('/finance/bank-transactions', { 
-      params: { 
-        ...params, 
+    const reconciledResponse = await api.get('/finance/bank-transactions', {
+      params: {
+        ...params,
         isReconciled: true,
         page: reconciledPage.value,
         limit: reconciledPageSize.value
@@ -554,7 +554,7 @@ const searchReconciliation = async () => {
       difference: unreconciledNet, // 差异 = 未对账交易净额
       unreconciledItems: unreconciledItems.value.length
     });
-    
+
     isReconciling.value = true;
     activeTab.value = 'unreconciled';
   } catch (error) {
@@ -571,20 +571,20 @@ const startReconciliation = () => {
     ElMessage.warning('请先选择账户');
     return;
   }
-  
+
   // 默认设置日期范围为当前月
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  
+
   dateRange.value = [
     firstDay.toISOString().slice(0, 10),
     lastDay.toISOString().slice(0, 10)
   ];
-  
+
   unreconciledPage.value = 1;
   reconciledPage.value = 1;
-  
+
   searchReconciliation();
 };
 
@@ -608,7 +608,7 @@ const uploadFile = async () => {
     ElMessage.warning('请选择对账账户和对账期间');
     return;
   }
-  
+
   uploading.value = true;
   try {
     const formData = new FormData();
@@ -616,16 +616,16 @@ const uploadFile = async () => {
     formData.append('accountId', selectedAccount.value);
     formData.append('startDate', dateRange.value[0]);
     formData.append('endDate', dateRange.value[1]);
-    
+
     const response = await api.post('/finance/cash/reconciliation/import-statement', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     });
-    
+
     importedStatement.value = response.data || [];
     ElMessage.success('对账单导入成功');
-    
+
     // 更新对账统计
     const statsResponse = await api.get('/finance/cash/reconciliation/stats', {
       params: {
@@ -650,9 +650,9 @@ const markAsReconciled = async (transaction) => {
       is_reconciled: true,
       reconciliation_date: new Date().toISOString().split('T')[0]
     });
-    
+
     ElMessage.success('已标记为对账');
-    
+
     // 刷新对账数据
     searchReconciliation();
   } catch (error) {
@@ -668,9 +668,9 @@ const cancelReconciliation = async (transaction) => {
       is_reconciled: false,
       reconciliation_date: null
     });
-    
+
     ElMessage.success('已取消对账标记');
-    
+
     // 刷新对账数据
     searchReconciliation();
   } catch (error) {
@@ -682,7 +682,7 @@ const cancelReconciliation = async (transaction) => {
 // 匹配银行对账单明细与账面交易
 const matchTransaction = async (statementItem) => {
   selectedStatementItem.value = statementItem;
-  
+
   if (statementItem.status === 'matched') {
     // 查看已匹配的交易
     try {
@@ -691,7 +691,7 @@ const matchTransaction = async (statementItem) => {
           statementItemId: statementItem.id
         }
       });
-      
+
       matchingTransactions.value = response.data || [];
       selectedTransactions.value = [...matchingTransactions.value];
     } catch (error) {
@@ -707,7 +707,7 @@ const matchTransaction = async (statementItem) => {
           accountId: selectedAccount.value
         }
       });
-      
+
       matchingTransactions.value = response.data || [];
       selectedTransactions.value = [];
     } catch (error) {
@@ -715,7 +715,7 @@ const matchTransaction = async (statementItem) => {
       ElMessage.error('获取可能匹配的交易失败');
     }
   }
-  
+
   matchDialogVisible.value = true;
 };
 
@@ -734,21 +734,21 @@ const confirmMatch = async () => {
     ElMessage.warning('请选择要匹配的银行对账单明细');
     return;
   }
-  
+
   try {
     await api.post('/finance/cash/reconciliation/confirm-match', {
       statementItemId: selectedStatementItem.value.id,
       transactionIds: selectedTransactions.value.map(t => t.id),
       accountId: selectedAccount.value
     });
-    
+
     ElMessage.success('交易匹配成功');
     matchDialogVisible.value = false;
     const matchedItem = importedStatement.value.find(item => item.id === selectedStatementItem.value.id);
     if (matchedItem) {
       matchedItem.status = 'matched';
     }
-    
+
     // 刷新对账数据
     await searchReconciliation();
     activeTab.value = 'bank_statement';
@@ -925,4 +925,4 @@ onMounted(() => {
   color: var(--color-text-primary);
   font-weight: 600;
 }
-</style> 
+</style>

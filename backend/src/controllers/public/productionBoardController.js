@@ -67,7 +67,7 @@ exports.getProductionBoardData = async (req, res) => {
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       ORDER BY pp.created_at DESC
-      LIMIT ${limit}
+      LIMIT ${Math.max(1,Math.min(Math.floor(Number(limit))||20,500))}
     `
     );
 

@@ -63,12 +63,12 @@ exports.getProcesses = async (req, res) => {
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       ORDER BY pp.task_id, pp.sequence
-      LIMIT ${safePageSize} OFFSET ${safeOffset}
+      LIMIT ${Math.max(1,Math.min(Math.floor(Number(safePageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(safeOffset))||0)}
     `;
 
     const [processes] = await pool.query(query, params);
 
-    res.json({
+    return ResponseHandler.success(res, {
       items: processes,
       total: total[0].count,
       page: safePage,
@@ -102,7 +102,7 @@ exports.getProcessById = async (req, res) => {
       return ResponseHandler.error(res, '生产工序不存在', 'NOT_FOUND', 404);
     }
 
-    res.json(processes[0]);
+    return ResponseHandler.success(res, processes[0]);
   } catch (error) {
     logger.error('获取工序详情失败:', error);
     handleError(res, error);
@@ -438,7 +438,7 @@ exports.updateProcess = async (req, res) => {
       });
     }
 
-    res.json({ message: '生产工序更新成功' });
+    return ResponseHandler.success(res, null, '生产工序更新成功');
   } catch (error) {
     await connection.rollback();
     logger.error('更新生产工序失败:', error);
@@ -468,14 +468,14 @@ exports.deleteProcess = async (req, res) => {
     }
 
     if (processCheck[0].status !== PROC_STATUS.PENDING) {
-      return ResponseHandler.error(res, '只能删除待处理状态的工序', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能删除待处理状态的工序', 'VALIDATION_ERROR', 400);
     }
 
     await connection.query('DELETE FROM production_processes WHERE id = ?', [id]);
 
     await connection.commit();
 
-    res.json({ message: '生产工序删除成功' });
+    return ResponseHandler.success(res, null, '生产工序删除成功');
   } catch (error) {
     await connection.rollback();
     logger.error('删除生产工序失败:', error);

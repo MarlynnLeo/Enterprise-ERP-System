@@ -17,7 +17,7 @@
         <el-button v-if="canEdit" type="primary" :icon="Plus" @click="stockAddDialogVisible = true">{{ $t('common.adjust') }}</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
@@ -148,7 +148,7 @@
       </el-collapse-transition>
     </el-card>
 
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -168,7 +168,7 @@
         <div class="stat-label">零库存物料</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -249,7 +249,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -569,7 +569,7 @@ import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useRouter } from 'vue-router'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { debounce } from '@/utils/commonHelpers'
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 
 // 权限store
 const authStore = useAuthStore()
@@ -884,7 +884,7 @@ const handleBatchExport = async () => {
   }
 }
 
-// 批量打印 - 使用打印模板系统
+// 批量打印 - 使用打印中心默认模板
 const handleBatchPrint = async () => {
   if (selectedRows.value.length === 0) {
     ElMessage.warning('请先选择要打印的记录')
@@ -894,84 +894,27 @@ const handleBatchPrint = async () => {
   try {
     batchLoading.value = true
 
-    // 获取打印模板
-    let templateContent = ''
-    try {
-      const response = await inventoryApi.get('/print/templates', {
-        params: {
-          template_type: 'inventory_stock',
-          is_default: 1,
-          status: 1
-        }
-      })
-      
-      const templates = response.data?.list || response.data?.data || response.data || []
-      const template = Array.isArray(templates) ? templates[0] : null
-      
-      if (template && template.content) {
-        templateContent = template.content
-      }
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError)
-    }
-    
-    // 如果没有找到模板，提示用户配置
-    if (!templateContent) {
-      ElMessage.warning('未找到库存明细打印模板，请在系统管理-打印管理中配置 inventory_stock 类型模板')
-      return
-    }
-    
-    // 替换模板变量
-    const currentDate = new Date().toLocaleDateString()
-    const currentTime = new Date().toLocaleTimeString()
     const printData = {
-      print_date: currentDate,
-      print_time: currentTime,
-      total_count: selectedRows.value.length.toString()
-    }
-    
-    Object.keys(printData).forEach(key => {
-      const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g')
-      templateContent = templateContent.replace(regex, printData[key])
-    })
-    
-    // 处理明细项列表
-    if (templateContent.includes('{{#each items}}')) {
-      const itemStart = templateContent.indexOf('{{#each items}}')
-      const itemEnd = templateContent.indexOf('{{/each}}', itemStart)
-      
-      if (itemStart !== -1 && itemEnd !== -1) {
-        const itemTemplate = templateContent.substring(itemStart + '{{#each items}}'.length, itemEnd)
-        let itemsHtml = ''
-        
-        selectedRows.value.forEach((row, index) => {
-          let itemHtml = itemTemplate
-          itemHtml = itemHtml.replace(/{{index}}/g, (index + 1).toString())
-          itemHtml = itemHtml.replace(/{{material_code}}/g, row.material_code || '')
-          itemHtml = itemHtml.replace(/{{material_name}}/g, row.material_name || '')
-          itemHtml = itemHtml.replace(/{{category_name}}/g, row.category_name || '')
-          itemHtml = itemHtml.replace(/{{location_name}}/g, row.location_name || '')
-          itemHtml = itemHtml.replace(/{{quantity}}/g, formatQuantity(row.quantity))
-          itemHtml = itemHtml.replace(/{{unit}}/g, row.unit || '')
-          itemHtml = itemHtml.replace(/{{min_stock}}/g, (row.min_stock || 0).toString())
-          itemHtml = itemHtml.replace(/{{max_stock}}/g, (row.max_stock || 0).toString())
-          itemsHtml += itemHtml
-        })
-        
-        templateContent = templateContent.substring(0, itemStart) + itemsHtml + templateContent.substring(itemEnd + '{{/each}}'.length)
-      }
+      stock_no: `STOCK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
+      stock_date: new Date().toLocaleDateString(),
+      location_name: locationFilter.value || '全部仓库',
+      filter_summary: searchQuery.value || categoryFilter.value || stockStatusFilter.value || '当前选择库存',
+      print_time: new Date().toLocaleString(),
+      total_count: selectedRows.value.length.toString(),
+      items: selectedRows.value.map((row, index) => ({
+        index: index + 1,
+        material_code: row.material_code || '',
+        material_name: row.material_name || '',
+        specification: row.specification || row.specs || row.model || '',
+        quantity: formatQuantity(row.quantity),
+        available_quantity: formatQuantity(row.available_quantity ?? row.quantity),
+        unit_name: row.unit_name || row.unit || '',
+        location_name: row.location_name || ''
+      }))
     }
 
-    // 创建打印窗口
-    const printWindow = window.open('', '_blank')
-    writeSafeHtmlDocument(printWindow, templateContent)
-
-    // 等待内容加载后打印
-    printWindow.onload = () => {
-      printWindow.print()
-      printWindow.close()
-    }
-
+    const html = await printService.generateByDefaultTemplate('inventory', 'inventory_stock', printData)
+    printService.previewDocument(html)
     ElMessage.success(`已准备打印${selectedRows.value.length}条记录`)
   } catch (error) {
     console.error('批量打印失败:', error)
@@ -1053,7 +996,6 @@ const loadPurchaseHistory = async (materialId) => {
   } catch (error) {
     console.error('获取采购历史失败:', error)
     if (error.response?.status === 404) {
-      console.warn('采购历史API暂未实现')
     }
     purchaseHistory.value = []
     purchasePagination.total = 0
@@ -1081,7 +1023,6 @@ const loadSalesHistory = async (materialId) => {
   } catch (error) {
     console.error('获取销售历史失败:', error)
     if (error.response?.status === 404) {
-      console.warn('销售历史API暂未实现')
     }
     salesHistory.value = []
     salesPagination.total = 0
@@ -1144,7 +1085,7 @@ const handleExportCommand = (command) => {
 const handleExport = async (includeDetails = false, exportType = '库存汇总') => {
   try {
     ElMessage.info(`正在导出${exportType}，请稍候...`)
-    
+
     // 调用后端极速导出，彻底避免 N+1 限制
     const response = await inventoryApi.exportStock({
       search: searchQuery.value,
@@ -1205,7 +1146,8 @@ const getTypeText = (type) => {
     'purchase_return': '采购退货',
     'sales_return': '销售退货',
     'outsourced_outbound': '委外出库',
-    'outsourced_inbound': '委外入库'
+    'outsourced_inbound': '委外入库',
+    'outsourced_return': '外协退料'
   };
   return customMap[type] || getInventoryTransactionTypeText(type) || type;
 }

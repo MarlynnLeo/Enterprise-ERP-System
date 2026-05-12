@@ -156,20 +156,20 @@ async function getOverdueInvoicesStats() {
 
     // 获取应收逾期统计
     const [arStats] = await connection.execute(`
-      SELECT 
+      SELECT
         COUNT(*) as count,
         SUM(balance_amount) as total_amount
-      FROM ar_invoices 
+      FROM ar_invoices
       WHERE status = '已逾期'
         AND balance_amount > 0
     `);
 
     // 获取应付逾期统计
     const [apStats] = await connection.execute(`
-      SELECT 
+      SELECT
         COUNT(*) as count,
         SUM(balance_amount) as total_amount
-      FROM ap_invoices 
+      FROM ap_invoices
       WHERE status = '已逾期'
         AND balance_amount > 0
     `);

@@ -29,6 +29,11 @@ function _normalizeDept(dept) {
 function normalizeBinaryStatus(value, fieldName = 'status') {
   if (value === true || value === 1 || value === '1') return 1;
   if (value === false || value === 0 || value === '0') return 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['active', 'enabled', 'enable', 'normal'].includes(normalized)) return 1;
+    if (['inactive', 'disabled', 'disable', 'locked'].includes(normalized)) return 0;
+  }
   throw new Error(`${fieldName} must be 0 or 1`);
 }
 
@@ -354,6 +359,7 @@ const systemModel = {
       if (!password) {
         throw new Error('password is required');
       }
+      const status = userData.status !== undefined ? normalizeBinaryStatus(userData.status) : 1;
 
       // 检查用户名是否已存在
       const [existingUsers] = await connection.execute('SELECT * FROM users WHERE username = ?', [
@@ -387,8 +393,8 @@ const systemModel = {
 
       // 插入用户基本信息
       const [result] = await connection.execute(
-        `INSERT INTO users (username, password, real_name, email, department_id, position, role, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        `INSERT INTO users (username, password, real_name, email, department_id, position, role, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [
           username,
           hashedPassword,
@@ -397,6 +403,7 @@ const systemModel = {
           userData.department_id || null,
           userData.position || null,
           roleCode,
+          status,
         ]
       );
 
@@ -421,6 +428,7 @@ const systemModel = {
         department_id: userData.department_id || null,
         position: userData.position || null,
         role: roleCode,
+        status,
         roleIds,
       };
     } catch (error) {
@@ -439,12 +447,16 @@ const systemModel = {
       if (!Number.isInteger(userId) || userId <= 0) {
         throw new Error('invalid user id');
       }
-      const [[existingUser]] = await connection.execute('SELECT id, role FROM users WHERE id = ?', [userId]);
+      const [[existingUser]] = await connection.execute('SELECT id, role, status FROM users WHERE id = ?', [userId]);
       if (!existingUser) {
         throw new Error('NOT_FOUND: user not found');
       }
       const roleIds =
         userData.roleIds !== undefined ? normalizeIdList(userData.roleIds, 'roleIds') : null;
+      const status =
+        userData.status !== undefined
+          ? normalizeBinaryStatus(userData.status)
+          : existingUser.status;
 
       // 从roleIds获取第一个角色的code作为role字段的值
       let roleCode = existingUser.role || 'user';
@@ -460,12 +472,13 @@ const systemModel = {
 
       // 更新用户基本信息
       await connection.execute(
-        `UPDATE users SET 
-          real_name = ?, 
-          email = ?, 
-          department_id = ?, 
+        `UPDATE users SET
+          real_name = ?,
+          email = ?,
+          department_id = ?,
           position = ?,
           role = ?,
+          status = ?,
           updated_at = NOW()
          WHERE id = ?`,
         [
@@ -474,6 +487,7 @@ const systemModel = {
           userData.department_id || null,
           userData.position || null,
           roleCode,
+          status,
           userId,
         ]
       );
@@ -493,7 +507,7 @@ const systemModel = {
       }
 
       await connection.commit();
-      return { id: userId, ...userData, roleIds: roleIds || undefined };
+      return { id: userId, ...userData, status, roleIds: roleIds || undefined };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -546,7 +560,7 @@ const systemModel = {
 
     // 查询部门并统计用户数量
     const [rows] = await pool.execute(
-      `SELECT d.*, 
+      `SELECT d.*,
               u.real_name as manager_name,
               COUNT(DISTINCT eu.id) as user_count
        FROM departments d
@@ -569,9 +583,9 @@ const systemModel = {
 
   async getDepartmentById(id) {
     const [rows] = await pool.execute(
-      `SELECT d.*, u.real_name as manager_name 
-       FROM departments d 
-       LEFT JOIN users u ON d.manager_id = u.id 
+      `SELECT d.*, u.real_name as manager_name
+       FROM departments d
+       LEFT JOIN users u ON d.manager_id = u.id
        WHERE d.id = ?`,
       [id]
     );
@@ -586,13 +600,13 @@ const systemModel = {
       const data = await assertDepartmentIsValid(connection, departmentData);
       const [result] = await connection.execute(
         `INSERT INTO departments (
-          name, 
-          parent_id, 
-          code, 
-          manager_id, 
-          phone, 
-          status, 
-          remark, 
+          name,
+          parent_id,
+          code,
+          manager_id,
+          phone,
+          status,
+          remark,
           created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
@@ -627,8 +641,8 @@ const systemModel = {
       if (!existing) return false;
       const data = await assertDepartmentIsValid(connection, departmentData, id);
       const [result] = await connection.execute(
-        `UPDATE departments SET 
-          name = ?, 
+        `UPDATE departments SET
+          name = ?,
           parent_id = ?,
           code = ?,
           manager_id = ?,

@@ -6,6 +6,8 @@
  */
 
 const express = require('express');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const cors = require('cors');
 const { createCorsOptions } = require('./config/cors');
 // body-parser 已弃用，使用 Express 内置的 json()/urlencoded()
@@ -186,8 +188,6 @@ app.use((_, res, next) => {
 });
 
 // 静态文件服务 - 分级访问控制
-const path = require('path');
-
 // ✅ 修复: 定义 uploadsAuth / metricsAuth（此前未定义导致 ReferenceError 崩溃）
 const { authenticateToken: uploadsAuth } = require('./middleware/authEnhanced');
 const metricsAuth = uploadsAuth; // metrics 端点复用同一认证中间件
@@ -282,15 +282,15 @@ app.get('/api/health', async (_, res) => {
 // ✅ API 版本控制 — /api/v1/* 映射到 /api/*（向前兼容）
 // 现有 /api/ 路径继续工作，新客户端建议使用 /api/v1/ 前缀
 const v1Router = express.Router();
-app.use('/api/v1', v1Router);
 
 // 公开路由（无需认证）- 必须在其他路由之前注册
 app.use('/api/public', publicRoutes);
-v1Router.use('/public', publicRoutes);
+app.use('/api/v1/public', publicRoutes);
 
 // ✅ 挂载全域操作黑匣子拦截器 (拦截带副作用的POST/PUT/DELETE)
 const auditLogInterceptor = require('./middleware/auditLogInterceptor');
 app.use('/api/*', auditLogInterceptor);
+app.use('/api/v1', v1Router);
 
 // 注册各个模块的路由（登录接口限流已在上方配置）
 // app.use('/api/auth/login', loginLimiter); // 已移除，改用 authLimiter// 注册业务路由
@@ -353,9 +353,26 @@ const v1Modules = {
   '/production': productionRoutes, '/finance': financeRoutes,
   '/finance-enhancement': financeEnhancementRoutes,
   '/equipment': equipmentRoutes, '/locations': locationsRoutes,
-  '/todos': todoRoutes, '/common': commonRoutes,
+  '/print': printRoutes, '/user-activities': require('./routes/userActivityRoutes'),
+  '/health': healthRoutes, '/equipment-monitoring': equipmentMonitoringRoutes,
+  '/finance/automation': financeAutomationRoutes, '/finance/tax': taxRoutes,
+  '/finance/budgets': budgetRoutes, '/finance/cost-centers': costCenterRoutes,
+  '/finance/cost-ledger': costLedgerRoutes, '/finance/activity-cost': activityCostRoutes,
+  '/metal-prices': metalPricesRoutes, '/hr': hrRoutes,
+  '/monitoring': monitoringRoutes, '/batch-traceability': batchTraceabilityRoutes,
+  '/traceability-monitor': traceabilityMonitorRoutes,
+  '/notifications': notificationRoutes, '/technical-communications': technicalCommunicationRoutes,
+  '/nonconforming-products': nonconformingProductRoutes, '/replacement-orders': replacementOrderRoutes,
+  '/rework-tasks': reworkTaskRoutes, '/scrap-records': scrapRecordRoutes,
+  '/eight-d-reports': eightDReportRoutes, '/quality-statistics': qualityStatisticsRoutes,
+  '/weather': weatherRoutes, '/upload': require('./routes/uploadRoutes'),
+  '/todos': todoRoutes, '/common': commonRoutes, '/chat': chatRoutes,
+  '/dingtalk': require('./routes/integrations/dingtalkRoutes'),
+  '/workflow': workflowRoutes, '/contracts': contractRoutes,
+  '/enhanced': enhancedModulesRoutes,
 };
 Object.entries(v1Modules).forEach(([path, router]) => v1Router.use(path, router));
+v1Router.use('/quality', qualityAdvancedRoutes);
 
 // 数据库表结构由 Knex 迁移文件 (migrations/) 统一管理
 // 启动时由 index.js 中 knex.migrate.latest() 自动执行
@@ -427,6 +444,7 @@ if (!isTestRuntime) {
 
   // ✅ 启动并挂载各领域事件订阅者 (Domain Event Subscribers)
   require('./events/subscribers/FinanceSubscriber');
+  require('./events/EventBus').enableCriticalListenerAudit();
 
   // 启动财务自动化定时任务（DISABLE_CRON=true 时跳过）
   if (process.env.DISABLE_CRON !== 'true') {

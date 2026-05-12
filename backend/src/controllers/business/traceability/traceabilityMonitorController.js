@@ -123,7 +123,7 @@ exports.getTraceabilityCoverage = async (req, res) => {
     // 1. 采购入库追溯覆盖率
     // 追踪标准：采购入库单的明细行(purchase_receipt_items)中有批次号记录
     const purchaseStats = await safeQueryStats(`
-      SELECT 
+      SELECT
         COUNT(DISTINCT pr.id) as total,
         COUNT(DISTINCT CASE WHEN pri.batch_number IS NOT NULL AND pri.batch_number != '' THEN pr.id END) as traced
       FROM purchase_receipts pr
@@ -142,7 +142,7 @@ exports.getTraceabilityCoverage = async (req, res) => {
     // 2. 质检追溯覆盖率
     // 追踪标准：质检单记录了 traceability_batch
     const qualityStats = await safeQueryStats(`
-      SELECT 
+      SELECT
         COUNT(DISTINCT qi.id) as total,
         COUNT(DISTINCT CASE WHEN qi.traceability_batch IS NOT NULL AND qi.traceability_batch != '' THEN qi.id END) as traced
       FROM quality_inspections qi
@@ -158,7 +158,7 @@ exports.getTraceabilityCoverage = async (req, res) => {
     // 3. 生产追溯覆盖率
     // 追踪标准：已完成的生产任务有对应的出库单(物料领用)或入库单(成品入库)
     const productionStats = await safeQueryStats(`
-      SELECT 
+      SELECT
         COUNT(DISTINCT pt.id) as total,
         COUNT(DISTINCT CASE WHEN io.id IS NOT NULL THEN pt.id END) as traced
       FROM production_tasks pt
@@ -177,7 +177,7 @@ exports.getTraceabilityCoverage = async (req, res) => {
     // 4. 销售出库追溯覆盖率
     // 追踪标准：从产品销售追溯表里能找到对应凭证号的关联
     const salesStats = await safeQueryStats(`
-      SELECT 
+      SELECT
         COUNT(DISTINCT so.id) as total,
         COUNT(DISTINCT CASE WHEN pst.id IS NOT NULL THEN so.id END) as traced
       FROM sales_outbound so

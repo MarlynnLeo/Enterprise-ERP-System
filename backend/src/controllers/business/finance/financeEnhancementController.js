@@ -222,7 +222,7 @@ class FinanceEnhancementController {
           'production_cost'
         )
         ORDER BY created_at DESC
-        LIMIT ${pageSizeNum} OFFSET ${offset}
+        LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSizeNum))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
       `);
 
       // 获取总数

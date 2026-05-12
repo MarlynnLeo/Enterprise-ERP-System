@@ -738,7 +738,11 @@ async function verifyGaugeAndSpc(base, user) {
 async function verifyStaticRoutesAndPermissions() {
   const root = path.resolve(__dirname, '..', '..');
   const qualityAdvancedRoutes = fs.readFileSync(path.join(root, 'backend/src/routes/business/qualityAdvancedRoutes.js'), 'utf8');
-  assert(qualityAdvancedRoutes.includes("requirePermission('quality:reports:update')"), 'SPC/supplier quality write routes do not use quality:reports:update');
+  assert(qualityAdvancedRoutes.includes("requirePermission('quality:spc:update')"), 'SPC write routes do not use quality:spc:update');
+  assert(
+    qualityAdvancedRoutes.includes("requirePermission('quality:supplier-quality:update')"),
+    'supplier quality write routes do not use quality:supplier-quality:update'
+  );
 
   const batchRoutes = fs.readFileSync(path.join(root, 'backend/src/routes/business/traceability/batchTraceabilityRoutes.js'), 'utf8');
   const agingIndex = batchRoutes.indexOf("'/batch/aging-report'");

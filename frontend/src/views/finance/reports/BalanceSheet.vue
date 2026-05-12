@@ -21,7 +21,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 查询条件区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="queryParams" class="search-form">
@@ -54,7 +54,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 报表区域 -->
     <el-card class="data-card" v-loading="loading">
       <div class="report-title" v-if="reportData.summary">
@@ -62,7 +62,7 @@
         <h3>{{ formatDate(queryParams.reportDate) }}</h3>
         <h4>单位：{{ unitText }}</h4>
       </div>
-      
+
       <!-- 报表主体 -->
       <div class="report-body" v-if="reportData.summary">
         <el-row>
@@ -103,7 +103,7 @@
               </el-table>
             </div>
           </el-col>
-          
+
           <el-col :span="12">
             <div class="report-section">
               <h3>负债和所有者权益</h3>
@@ -143,7 +143,7 @@
           </el-col>
         </el-row>
       </div>
-      
+
       <!-- 无数据提示 -->
       <div class="empty-tip" v-if="!loading && !reportData.summary">
         <el-empty description='请选择报表日期并点击"生成报表"按钮'></el-empty>
@@ -159,6 +159,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import printService from '@/services/printService';
 import ExcelJS from 'exceljs';
 // 查询参数
 const queryParams = reactive({
@@ -192,7 +193,7 @@ const generateReport = async () => {
     ElMessage.warning('请选择报表日期');
     return;
   }
-  
+
   loading.value = true;
   try {
     const response = await api.get('/finance/reports/balance-sheet', {
@@ -215,9 +216,51 @@ const generateReport = async () => {
   }
 };
 
+const flattenBalanceRows = (rows, side, level = 0, result = []) => {
+  rows.forEach((item) => {
+    result.push({ ...item, side, level });
+    if (Array.isArray(item.children) && item.children.length) {
+      flattenBalanceRows(item.children, side, level + 1, result);
+    }
+  });
+  return result;
+};
+
 // 打印报表
-const printReport = () => {
-  window.print();
+const printReport = async () => {
+  if (!reportData.value.summary) {
+    ElMessage.warning('没有可打印的数据');
+    return;
+  }
+
+  try {
+    const rows = [
+      ...flattenBalanceRows(assetData.value, '资产'),
+      ...flattenBalanceRows(liabilityEquityData.value, '负债和所有者权益')
+    ];
+    const html = await printService.generateByDefaultTemplate('finance', 'balance_sheet', {
+      report_date: formatDate(queryParams.reportDate),
+      compare_date: queryParams.compareDate ? formatDate(queryParams.compareDate) : '',
+      unit_text: unitText.value,
+      total_assets: formatAmount(reportData.value.summary?.totalAssets ?? reportData.value.summary?.assetsTotal ?? 0),
+      total_liabilities_equity: formatAmount(reportData.value.summary?.totalLiabilitiesEquity ?? reportData.value.summary?.liabilitiesEquityTotal ?? 0),
+      print_time: new Date().toLocaleString(),
+      items: rows.map((item, index) => ({
+        index: index + 1,
+        side: item.side,
+        name: `${item.level ? '  '.repeat(item.level) : ''}${item.name || ''}`,
+        row_num: item.rowNum || '',
+        amount: formatAmount(item.amount),
+        compare_amount: queryParams.compareDate ? formatAmount(item.compareAmount) : '',
+        change_amount: queryParams.compareDate ? formatAmount(item.change) : ''
+      }))
+    });
+    printService.previewDocument(html);
+    ElMessage.success('打印预览已打开');
+  } catch (error) {
+    console.error('打印资产负债表失败:', error);
+    ElMessage.error('打印资产负债表失败');
+  }
 };
 
 // 导出Excel
@@ -290,11 +333,11 @@ const prepareExcelData = (data, sectionTitle) => {
   const rows = [
     { A: sectionTitle, B: '行次', C: '期末余额', D: '期初余额', E: '变动', F: '变动率(%)' }
   ];
-  
+
   data.forEach(item => {
     const change = item.change || (item.amount - (item.compareAmount || 0));
     const changeRate = item.changePercent || (item.compareAmount ? (change / Math.abs(item.compareAmount) * 100).toFixed(2) : 'N/A');
-    
+
     rows.push({
       A: item.name,
       B: item.rowNum,
@@ -303,13 +346,13 @@ const prepareExcelData = (data, sectionTitle) => {
       E: formatAmount(change),
       F: changeRate
     });
-    
+
     // 处理子项
     if (item.children && item.children.length) {
       item.children.forEach(child => {
         const childChange = child.change || (child.amount - (child.compareAmount || 0));
         const childChangeRate = child.changePercent || (child.compareAmount ? (childChange / Math.abs(child.compareAmount) * 100).toFixed(2) : 'N/A');
-        
+
         rows.push({
           A: '  ' + child.name, // 增加缩进
           B: child.rowNum,
@@ -321,7 +364,7 @@ const prepareExcelData = (data, sectionTitle) => {
       });
     }
   });
-  
+
   return rows;
 };
 
@@ -331,10 +374,10 @@ const prepareExcelData = (data, sectionTitle) => {
 // 格式化金额
 const formatAmount = (amount) => {
   if (amount === undefined || amount === null) return '-';
-  
+
   // 换算单位
   const convertedAmount = amount / queryParams.unit;
-  
+
   // 格式化为千分位
   return convertedAmount.toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
@@ -440,14 +483,14 @@ onMounted(() => {
   .header-actions {
     display: none;
   }
-  
+
   .report-container {
     padding: 0;
   }
-  
+
   .report-card {
     box-shadow: none;
     border: none;
   }
 }
-</style> 
+</style>

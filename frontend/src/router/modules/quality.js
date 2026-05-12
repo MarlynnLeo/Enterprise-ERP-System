@@ -83,7 +83,7 @@ export default {
             component: () => import('../../views/quality/AQLStandards.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'quality:settings',
+                permission: 'quality:aql',
                 title: 'AQL 抽样标准库',
                 icon: 'el-icon-setting'
             }
@@ -160,7 +160,7 @@ export default {
             component: () => import('../../views/quality/GaugeManagement.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'quality:settings',
+                permission: 'quality:gauges',
                 title: '量具管理',
                 icon: 'el-icon-odometer'
             }
@@ -171,7 +171,7 @@ export default {
             component: () => import('../../views/quality/SPCControlChart.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'quality:reports',
+                permission: 'quality:spc',
                 title: 'SPC 控制图',
                 icon: 'el-icon-data-line'
             }
@@ -182,7 +182,7 @@ export default {
             component: () => import('../../views/quality/SupplierQualityScorecard.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'quality:reports',
+                permission: 'quality:supplier-quality',
                 title: '供应商质量计分卡',
                 icon: 'el-icon-trophy'
             }

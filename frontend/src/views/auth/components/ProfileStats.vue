@@ -5,11 +5,11 @@
         <!-- 动态特效容器 -->
         <div class="avatar-frame-container" style="position: relative; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center;">
           <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2;">
-            <Vue3Lottie 
-              v-if="lottieData" 
-              :animationData="lottieData" 
-              :height="125" 
-              :width="125" 
+            <Vue3Lottie
+              v-if="lottieData"
+              :animationData="lottieData"
+              :height="125"
+              :width="125"
             />
           </div>
           <!-- 头像本体 -->
@@ -23,7 +23,7 @@
             {{ name ? name[0].toUpperCase() : 'U' }}
           </el-avatar>
         </div>
-        
+
         <el-upload
           v-if="isEditing"
           class="avatar-uploader"
@@ -40,7 +40,7 @@
       <h2 class="user-name">{{ name }}</h2>
       <span class="user-role">{{ role }}</span>
     </div>
-    
+
     <div class="user-stats">
       <div class="stat-item" v-for="(stat, index) in stats" :key="index" :style="{ animationDelay: `${index * 0.1}s` }">
         <div class="stat-icon-wrapper" :class="`stat-icon-${index + 1}`">
@@ -54,7 +54,7 @@
         </div>
       </div>
     </div>
-    
+
     <div class="online-time-display">
       <div class="time-item">
         <el-icon><Clock /></el-icon>
@@ -67,7 +67,7 @@
         <span class="time-value">{{ totalOnline }}</span>
       </div>
     </div>
-    
+
     <div class="last-login">
       <el-icon><Timer /></el-icon>
       <span>上次登录: {{ lastLogin }}</span>

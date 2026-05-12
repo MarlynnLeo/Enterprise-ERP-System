@@ -50,7 +50,7 @@ class TraceabilityQuery {
     try {
       // 1. 查询采购入库记录
       const purchaseQuery = `
-        SELECT 
+        SELECT
           pr.id AS receipt_id,
           pr.receipt_no,
           pr.receipt_date,
@@ -61,13 +61,13 @@ class TraceabilityQuery {
           pri.quantity,
           s.name AS supplier_name,
           pr.created_at
-        FROM 
+        FROM
           purchase_receipt_items pri
-        JOIN 
+        JOIN
           purchase_receipts pr ON pri.receipt_id = pr.id
-        JOIN 
+        JOIN
           materials m ON pri.material_id = m.id
-        JOIN 
+        JOIN
           suppliers s ON pr.supplier_id = s.id
         WHERE
           m.code = ? AND (pri.batch_number = ? OR pri.batch_number LIKE ?)
@@ -87,7 +87,7 @@ class TraceabilityQuery {
       // 2. 查询生产记录
       // 查找使用了该物料的生产任务
       const productionQuery = `
-        SELECT 
+        SELECT
           pt.id AS task_id,
           pt.task_no,
           pt.plan_id,
@@ -101,15 +101,15 @@ class TraceabilityQuery {
           pt.status,
           pt.start_time,
           pt.end_time
-        FROM 
+        FROM
           production_task_materials ptm
-        JOIN 
+        JOIN
           production_tasks pt ON ptm.task_id = pt.id
-        JOIN 
+        JOIN
           production_plans pp ON pt.plan_id = pp.id
-        JOIN 
+        JOIN
           materials m ON pt.product_id = m.id
-        WHERE 
+        WHERE
           ptm.material_id = (SELECT id FROM materials WHERE code = ?)
           AND ptm.batch_number = ?
       `;
@@ -123,7 +123,7 @@ class TraceabilityQuery {
         const taskIds = productionRecords.map((record) => record.task_id).join(',');
 
         const qualityQuery = `
-          SELECT 
+          SELECT
             qi.id AS inspection_id,
             qi.inspection_no,
             qi.inspection_type,
@@ -134,9 +134,9 @@ class TraceabilityQuery {
             qi.inspector,
             qi.inspection_date,
             qi.created_at
-          FROM 
+          FROM
             quality_inspections qi
-          WHERE 
+          WHERE
             qi.target_type = 'production_task' AND qi.target_id IN (${taskIds})
         `;
 
@@ -155,7 +155,7 @@ class TraceabilityQuery {
           .join(',');
 
         const outboundQuery = `
-          SELECT 
+          SELECT
             io.id AS outbound_id,
             io.outbound_no,
             io.outbound_date,
@@ -165,13 +165,13 @@ class TraceabilityQuery {
             ioi.batch_number,
             ioi.quantity,
             io.created_at
-          FROM 
+          FROM
             inventory_outbound_items ioi
-          JOIN 
+          JOIN
             inventory_outbound io ON ioi.outbound_id = io.id
-          JOIN 
+          JOIN
             materials m ON ioi.material_id = m.id
-          WHERE 
+          WHERE
             m.code IN (${productCodes}) AND ioi.batch_number IN (${productBatches})
         `;
 
@@ -247,7 +247,7 @@ class TraceabilityQuery {
 
       // 2. 查询生产记录
       const productionQuery = `
-        SELECT 
+        SELECT
           pt.id AS task_id,
           pt.task_no,
           pt.plan_id,
@@ -261,13 +261,13 @@ class TraceabilityQuery {
           pt.status,
           pt.start_time,
           pt.end_time
-        FROM 
+        FROM
           production_tasks pt
-        JOIN 
+        JOIN
           production_plans pp ON pt.plan_id = pp.id
-        JOIN 
+        JOIN
           materials m ON pt.product_id = m.id
-        WHERE 
+        WHERE
           pt.product_id = ? AND pt.batch_number = ?
       `;
 
@@ -321,7 +321,7 @@ class TraceabilityQuery {
 
         if (materialBatches) {
           const purchaseQuery = `
-            SELECT 
+            SELECT
               pr.id AS receipt_id,
               pr.receipt_no,
               pr.receipt_date,
@@ -332,15 +332,15 @@ class TraceabilityQuery {
               pri.quantity,
               s.name AS supplier_name,
               pr.created_at
-            FROM 
+            FROM
               purchase_receipt_items pri
-            JOIN 
+            JOIN
               purchase_receipts pr ON pri.receipt_id = pr.id
-            JOIN 
+            JOIN
               materials m ON pri.material_id = m.id
-            JOIN 
+            JOIN
               suppliers s ON pr.supplier_id = s.id
-            WHERE 
+            WHERE
               pri.batch_number IN (${materialBatches})
           `;
 
@@ -351,7 +351,7 @@ class TraceabilityQuery {
 
       // 5. 查询相关成品的质检记录
       const qualityQuery = `
-        SELECT 
+        SELECT
           qi.id AS inspection_id,
           qi.inspection_no,
           qi.inspection_type,
@@ -362,9 +362,9 @@ class TraceabilityQuery {
           qi.inspector,
           qi.inspection_date,
           qi.created_at
-        FROM 
+        FROM
           quality_inspections qi
-        WHERE 
+        WHERE
           qi.target_type = 'production_task' AND qi.target_id IN (${taskIds})
       `;
 

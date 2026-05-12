@@ -10,7 +10,6 @@ const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
-// const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const BusinessTypeService = require('../../../services/BusinessTypeService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
@@ -94,7 +93,7 @@ const _getStockStatistics = async (req, res) => {
     try {
       // 合并查询所有统计数据，减少数据库交互
       const [statsResult] = await connection.execute(`
-        SELECT 
+        SELECT
           (SELECT COUNT(id) FROM materials) as total_items,
           (SELECT COUNT(id) FROM locations) as total_locations,
           SUM(CASE WHEN max_qty < safety_stock OR max_qty IS NULL THEN 1 ELSE 0 END) as low_stock,
@@ -104,9 +103,9 @@ const _getStockStatistics = async (req, res) => {
           FROM materials m
           LEFT JOIN (
             SELECT il.material_id, il.location_id, SUM(il.quantity) as quantity
-            FROM inventory_ledger il 
-            JOIN materials mat ON il.material_id = mat.id 
-            WHERE mat.location_id IS NULL OR il.location_id = mat.location_id 
+            FROM inventory_ledger il
+            JOIN materials mat ON il.material_id = mat.id
+            WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
             GROUP BY il.material_id, il.location_id
           ) s ON m.id = s.material_id
           GROUP BY m.id, m.safety_stock
@@ -258,7 +257,7 @@ const getTransactionList = async (req, res) => {
         units.name as unitName,
         inventory_ledger.reference_no as referenceNo,
         inventory_ledger.reference_type as referenceType,
-        CASE 
+        CASE
           WHEN inventory_ledger.operator = 'system' THEN '系统'
           ELSE COALESCE(users.real_name, users.username, inventory_ledger.operator)
         END as operator,
@@ -987,7 +986,7 @@ const exportTransactionReport = async (req, res) => {
          units.name as unit_name,
          locations.name as location_name,
          inventory_ledger.reference_type,
-         CASE 
+         CASE
           WHEN inventory_ledger.operator = 'system' THEN '系统'
           ELSE COALESCE(users.real_name, users.username, inventory_ledger.operator)
         END as operator,
@@ -1290,7 +1289,7 @@ const getInventoryReport = async (req, res) => {
           SELECT material_id, MIN(created_at) as date
           FROM inventory_ledger
           WHERE transaction_type IN (
-            'inbound', 'purchase_inbound', 'production_inbound', 'outsourced_inbound', 
+            'inbound', 'purchase_inbound', 'production_inbound', 'outsourced_inbound',
             'in', 'return_in', 'other_in',
             '入库', '采购入库', '生产入库', '委外入库', '归还入库', '其他入库'
           )

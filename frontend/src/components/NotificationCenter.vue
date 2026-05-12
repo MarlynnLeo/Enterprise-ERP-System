@@ -74,8 +74,8 @@
 
       <!-- 通知列表 -->
       <div class="notification-list" v-loading="loading">
-        <div 
-          v-for="notification in notifications" 
+        <div
+          v-for="notification in notifications"
           :key="notification.id"
           class="notification-item"
           :class="{ 'unread': !notification.is_read }"
@@ -89,17 +89,17 @@
           <div class="notification-content">
             <div class="notification-title">
               {{ notification.title }}
-              <el-tag 
-                v-if="notification.priority === 2" 
-                type="danger" 
+              <el-tag
+                v-if="notification.priority === 2"
+                type="danger"
                 size="small"
                 effect="dark"
               >
                 紧急
               </el-tag>
-              <el-tag 
-                v-else-if="notification.priority === 1" 
-                type="warning" 
+              <el-tag
+                v-else-if="notification.priority === 1"
+                type="warning"
                 size="small"
               >
                 重要
@@ -109,18 +109,18 @@
             <div class="notification-time">{{ formatTime(notification.created_at) }}</div>
           </div>
           <div class="notification-actions">
-            <el-button 
+            <el-button
               v-if="!notification.is_read"
-              link 
-              type="primary" 
+              link
+              type="primary"
               size="small"
               @click.stop="handleMarkRead(notification.id)"
             >
               标记已读
             </el-button>
-            <el-button 
-              link 
-              type="danger" 
+            <el-button
+              link
+              type="danger"
               size="small"
               @click.stop="handleDelete(notification.id)"
             >
@@ -130,8 +130,8 @@
         </div>
 
         <!-- 空状态 -->
-        <el-empty 
-          v-if="!loading && notifications.length === 0" 
+        <el-empty
+          v-if="!loading && notifications.length === 0"
           description="暂无通知"
           :image-size="80"
         />

@@ -85,10 +85,11 @@ class CostAccountingService {
       // 价格优先级: standard_costs表 > cost_price(采购成本) > price(销售价格)
       const [items] = await db.pool.execute(
         `SELECT bd.material_id, bd.quantity, bd.has_sub_bom,
-                m.code as material_code, m.name as material_name, 
+                m.code as material_code, m.name as material_name,
                 COALESCE(
-                  (SELECT sc.standard_price FROM standard_costs sc 
-                   WHERE sc.material_id = m.id AND sc.is_active = 1 
+                  (SELECT sc.standard_price FROM standard_costs sc
+                   WHERE sc.material_id = m.id AND sc.is_active = 1
+                   AND (sc.status IS NULL OR sc.status = 'active')
                    AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
                    ORDER BY sc.effective_date DESC LIMIT 1),
                   m.cost_price,
@@ -225,11 +226,12 @@ class CostAccountingService {
             const bomId = bomMaster[0].id;
             // 价格优先级: standard_costs表 > cost_price(采购成本) > price(销售价格)
             const [items] = await db.pool.execute(
-              `SELECT bd.material_id, bd.quantity, 
-                      m.code as material_code, m.name as material_name, 
+              `SELECT bd.material_id, bd.quantity,
+                      m.code as material_code, m.name as material_name,
                       COALESCE(
-                        (SELECT sc.standard_price FROM standard_costs sc 
-                         WHERE sc.material_id = m.id AND sc.is_active = 1 
+                        (SELECT sc.standard_price FROM standard_costs sc
+                         WHERE sc.material_id = m.id AND sc.is_active = 1
+                         AND (sc.status IS NULL OR sc.status = 'active')
                          AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
                          ORDER BY sc.effective_date DESC LIMIT 1),
                         m.cost_price,
@@ -271,7 +273,7 @@ class CostAccountingService {
       try {
         // 获取产品关联的工序模板明细（只取启用状态的模板）
         const [steps] = await db.pool.execute(
-          `SELECT ptd.id, ptd.name as step_name, ptd.description, 
+          `SELECT ptd.id, ptd.name as step_name, ptd.description,
                   ptd.standard_hours, ptd.department,
                   pt.name as template_name
            FROM process_templates pt
@@ -458,7 +460,34 @@ class CostAccountingService {
 
       // ===== 回写成本到 production_tasks 表 =====
       await connection.execute(
-        `UPDATE production_tasks 
+        `INSERT INTO actual_costs (
+           production_order_id, product_id, quantity,
+           material_cost, labor_cost, overhead_cost, total_cost,
+           calculated_at, calculated_by
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+         ON DUPLICATE KEY UPDATE
+           product_id = VALUES(product_id),
+           quantity = VALUES(quantity),
+           material_cost = VALUES(material_cost),
+           labor_cost = VALUES(labor_cost),
+           overhead_cost = VALUES(overhead_cost),
+           total_cost = VALUES(total_cost),
+           calculated_at = VALUES(calculated_at),
+           calculated_by = VALUES(calculated_by)`,
+        [
+          productionOrderId,
+          order.product_id,
+          order.quantity,
+          materialCost.totalCost,
+          laborCost.totalCost,
+          overheadCost.totalCost,
+          totalActualCost,
+          'system',
+        ]
+      );
+
+      await connection.execute(
+        `UPDATE production_tasks
          SET actual_cost = ?, material_cost = ?, labor_cost = ?, overhead_cost = ?
          WHERE id = ?`,
         [
@@ -489,7 +518,7 @@ class CostAccountingService {
 
           await connection.execute(
             `INSERT INTO cost_variance_records (
-              task_id, product_id, quantity, 
+              task_id, product_id, quantity,
               standard_material_cost, standard_labor_cost, standard_overhead_cost, standard_total_cost,
               actual_material_cost, actual_labor_cost, actual_overhead_cost, actual_total_cost,
               material_variance, labor_variance, overhead_variance, total_variance,
@@ -529,10 +558,10 @@ class CostAccountingService {
 
       // 幂等性校验：检查是否已经生成过该任务的完工入库凭证
       const [existingEntries] = await connection.execute(
-        `SELECT id FROM gl_entries 
-         WHERE transaction_type = 'PRODUCTION_COMPLETE' 
-         AND transaction_id = ? LIMIT 1`,
-        [productionOrderId]
+        `SELECT id FROM gl_entries
+         WHERE transaction_type = 'PRODUCTION_COMPLETE'
+         AND (transaction_id = ? OR document_number IN (?, ?)) LIMIT 1`,
+        [productionOrderId, order.code, `${String(order.code).slice(0, 30)}-COMPLETE`]
       );
 
       if (existingEntries && existingEntries.length > 0) {
@@ -570,11 +599,11 @@ class CostAccountingService {
       ];
 
       const accounts = await GLService.getAccountIds(accountCodes);
-      const accFG = accounts['1405'];
-      const accWIP = accounts['5001'];
-      const accRaw = accounts['1403'];
-      const accWages = accounts['2211'];
-      const accOverhead = accounts['5101'];
+      const accFG = accounts[config.accounting.accounts.INVENTORY_GOODS];
+      const accWIP = accounts[config.accounting.accounts.PRODUCTION_COST];
+      const accRaw = accounts[config.accounting.accounts.RAW_MATERIALS];
+      const accWages = accounts[config.accounting.accounts.EMPLOYEE_PAYABLE];
+      const accOverhead = accounts[config.accounting.accounts.MANUFACTURING_EXPENSE];
 
       // 检查关键科目 (WIP和FG是必须的)
       if (accFG && accWIP) {
@@ -591,9 +620,37 @@ class CostAccountingService {
               is_posted: 1,
           };
 
+          const createProductionEntry = async (transactionType, entryData, items) => {
+            const typedDocumentNumber = `${String(order.code).slice(0, 30)}-${transactionType.replace('PRODUCTION_', '')}`;
+            const [existing] = await connection.execute(
+              `SELECT id FROM gl_entries
+               WHERE transaction_type = ?
+                 AND (transaction_id = ? OR document_number IN (?, ?))
+               LIMIT 1`,
+              [transactionType, productionOrderId, order.code, typedDocumentNumber]
+            );
+
+            if (existing.length > 0) {
+              logger.info(`Production cost entry skipped: type=${transactionType}, task=${productionOrderId}`);
+              return existing[0].id;
+            }
+
+            return GLService.createEntry(
+              {
+                ...baseEntryData,
+                ...entryData,
+                document_number: typedDocumentNumber,
+                transaction_type: transactionType,
+              },
+              items,
+              connection
+            );
+          };
+
           // --- 凭证 1: 生产领料 (借: 生产成本 / 贷: 原材料) ---
           if (accRaw && materialCost.totalCost > 0) {
-            await GLService.createEntry(
+            await createProductionEntry(
+              'PRODUCTION_MATERIAL',
               { ...baseEntryData, description: `生产领料结转: ${order.code}`, transaction_type: 'PRODUCTION_MATERIAL' },
               [
                 { account_id: accWIP, debit_amount: materialCost.totalCost, credit_amount: 0, description: `生产领料: ${order.code}` },
@@ -605,7 +662,8 @@ class CostAccountingService {
 
           // --- 凭证 2: 直接人工 (借: 生产成本 / 贷: 应付职工薪酬) ---
           if (accWages && laborCost.totalCost > 0) {
-             await GLService.createEntry(
+             await createProductionEntry(
+              'PRODUCTION_LABOR',
               { ...baseEntryData, description: `分配生产人工: ${order.code}`, transaction_type: 'PRODUCTION_LABOR' },
               [
                 { account_id: accWIP, debit_amount: laborCost.totalCost, credit_amount: 0, description: `分配生产人工: ${order.code}` },
@@ -617,7 +675,8 @@ class CostAccountingService {
 
           // --- 凭证 3: 制造费用 (借: 生产成本 / 贷: 制造费用转出) ---
           if (accOverhead && overheadCost.totalCost > 0) {
-            await GLService.createEntry(
+            await createProductionEntry(
+              'PRODUCTION_OVERHEAD',
               { ...baseEntryData, description: `分配制造费用: ${order.code}`, transaction_type: 'PRODUCTION_OVERHEAD' },
               [
                 { account_id: accWIP, debit_amount: overheadCost.totalCost, credit_amount: 0, description: `分配制造费用: ${order.code}` },
@@ -628,7 +687,8 @@ class CostAccountingService {
           }
 
           // --- 凭证 4: 完工入库 (借: 库存商品 / 贷: 生产成本) ---
-          await GLService.createEntry(
+          await createProductionEntry(
+            'PRODUCTION_COMPLETE',
             { ...baseEntryData, description: `生产完工入库: ${order.code}`, transaction_type: 'PRODUCTION_COMPLETE' },
             [
               { account_id: accFG, debit_amount: totalActualCost, credit_amount: 0, description: `生产完工入库: ${order.code}` },
@@ -691,21 +751,40 @@ class CostAccountingService {
     // 获取材料领用记录（原 material_issues，现对应 inventory_outbound+items）
     const [materialIssues] = await connection.execute(
       `SELECT
-              ioi.id, ioi.material_id, ioi.quantity, io.created_at as issue_date,
+              ioi.id,
+              ioi.material_id,
+              CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END as quantity,
+              ioi.quantity as planned_quantity,
+              io.created_at as issue_date,
               m.name as material_name, m.code as material_code, m.product_category_id as category,
-              it.transaction_type, it.batch_number,
-              0 as unit_cost
+              MAX(it.transaction_type) as transaction_type,
+              GROUP_CONCAT(DISTINCT it.batch_number) as batch_number,
+              COALESCE(
+                NULLIF(ioi.price, 0),
+                CASE
+                  WHEN (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) > 0
+                  THEN NULLIF(ioi.total_amount / (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END), 0)
+                  ELSE NULL
+                END,
+                NULLIF(m.cost_price, 0),
+                NULLIF(m.price, 0),
+                0
+              ) as unit_cost
        FROM inventory_outbound io
        JOIN inventory_outbound_items ioi ON ioi.outbound_id = io.id
        JOIN materials m ON ioi.material_id = m.id
        LEFT JOIN inventory_ledger it ON it.reference_no = io.outbound_no
                                     AND it.material_id = ioi.material_id
                                     AND it.transaction_type IN ('production_outbound', 'material_issue')
-       WHERE io.reference_type = 'production_task'
+       WHERE (io.reference_type = 'production_task' OR io.production_task_id = ?)
          AND (io.reference_id = ? OR io.production_task_id = ?)
-         AND io.status = 'completed'
+         AND io.status IN ('completed', 'confirmed')
+       GROUP BY
+              ioi.id, ioi.material_id, ioi.actual_quantity, ioi.quantity, ioi.price,
+              ioi.total_amount, io.created_at, m.name, m.code, m.product_category_id,
+              m.cost_price, m.price
        ORDER BY io.created_at, ioi.id`,
-      [productionOrderId, productionOrderId]
+      [productionOrderId, productionOrderId, productionOrderId]
     );
 
     let totalCost = 0;
@@ -718,9 +797,10 @@ class CostAccountingService {
 
     for (const issue of materialIssues) {
       // 根据成本计算方法获取更准确的单位成本
-      let actualUnitCost = issue.unit_cost || 0;
+      const issueQuantity = parseFloat(issue.quantity) || 0;
+      let actualUnitCost = parseFloat(issue.unit_cost) || 0;
 
-      if (method !== this.COSTING_METHOD.STANDARD && issue.material_id) {
+      if ((method === this.COSTING_METHOD.STANDARD || actualUnitCost <= 0) && issue.material_id) {
         try {
           actualUnitCost = await this.getMaterialUnitCost(
             connection,
@@ -742,12 +822,12 @@ class CostAccountingService {
         }
       }
 
-      const itemCost = issue.quantity * actualUnitCost;
+      const itemCost = issueQuantity * actualUnitCost;
       totalCost += itemCost;
 
       // ✅ 使用预取的标准成本映射，不再单独查询
       const standardUnitCost = standardCostMap[issue.material_id] || 0;
-      const costVariance = (actualUnitCost - standardUnitCost) * issue.quantity;
+      const costVariance = (actualUnitCost - standardUnitCost) * issueQuantity;
 
       if (Math.abs(costVariance) > 0.01) {
         // 差异超过0.01元才记录
@@ -755,12 +835,14 @@ class CostAccountingService {
           materialId: issue.material_id,
           materialCode: issue.material_code,
           materialName: issue.material_name,
-          quantity: issue.quantity,
+          quantity: issueQuantity,
           standardUnitCost,
           actualUnitCost,
           variance: costVariance,
           variancePercent:
-            standardUnitCost > 0 ? (costVariance / (standardUnitCost * issue.quantity)) * 100 : 0,
+            standardUnitCost > 0 && issueQuantity > 0
+              ? (costVariance / (standardUnitCost * issueQuantity)) * 100
+              : 0,
         });
       }
 
@@ -769,7 +851,7 @@ class CostAccountingService {
         materialName: issue.material_name,
         materialCode: issue.material_code,
         category: issue.category,
-        quantity: issue.quantity,
+        quantity: issueQuantity,
         unitCost: actualUnitCost,
         standardUnitCost,
         totalCost: itemCost,
@@ -799,7 +881,7 @@ class CostAccountingService {
   static async calculateActualLaborCost(connection, productionOrderId) {
     // 获取报工记录中的工时，代替废弃的 labor_records
     const [laborRecords] = await connection.execute(
-      `SELECT pr.id, pr.operator_name as employee_name, pr.process_name as workstation_name, 
+      `SELECT pr.id, pr.operator_name as employee_name, pr.process_name as workstation_name,
               pr.work_hours as hours_worked, pr.report_time as work_date
        FROM production_reports pr
        WHERE pr.task_id = ?`,
@@ -1055,7 +1137,7 @@ class CostAccountingService {
       // 获取任务的工序信息
       const [processes] = await connection.execute(
         `
-        SELECT 
+        SELECT
           pp.id,
           pp.process_name,
           pp.standard_hours,
@@ -1537,12 +1619,15 @@ class CostAccountingService {
 
       try {
         const [outboundCosts] = await connection.execute(
-          `SELECT SUM(ioi.actual_quantity * COALESCE(m.cost_price, m.price, 0)) as total_material_cost
+          `SELECT SUM(
+              (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+              * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+            ) as total_material_cost
             FROM inventory_outbound io
             JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
             JOIN materials m ON ioi.material_id = m.id
             LEFT JOIN cost_supplement_configs csc ON io.issue_reason = csc.reason_name
-            WHERE io.production_task_id = ? 
+            WHERE io.production_task_id = ?
               AND io.status IN ('completed', 'confirmed')
               AND (csc.is_included_in_cost IS NULL OR csc.is_included_in_cost = 1)`,
           [taskId]
@@ -1701,13 +1786,14 @@ class CostAccountingService {
     try {
       // 1. 优先从 standard_costs 表获取
       const [psc] = await db.pool.execute(
-        `SELECT 
+        `SELECT
            SUM(CASE WHEN cost_element = 'material' THEN standard_price ELSE 0 END) as material_cost,
            SUM(CASE WHEN cost_element = 'labor' THEN standard_price ELSE 0 END) as labor_cost,
            SUM(CASE WHEN cost_element = 'overhead' THEN standard_price ELSE 0 END) as overhead_cost,
-           SUM(standard_price) as total_cost 
-         FROM standard_costs 
-         WHERE product_id = ? AND is_active = 1`,
+           SUM(standard_price) as total_cost
+         FROM standard_costs
+         WHERE product_id = ? AND is_active = 1
+           AND (status IS NULL OR status = 'active')`,
         [productId]
       );
 
@@ -1817,7 +1903,7 @@ class CostAccountingService {
                m.name as product_name, m.code as product_code
         FROM production_tasks pt
         LEFT JOIN materials m ON pt.product_id = m.id
-        WHERE pt.created_at <= ? 
+        WHERE pt.created_at <= ?
           AND (pt.status NOT IN ('completed', 'cancelled') OR pt.actual_end_date > ?)
       `,
         [`${endDateStr} 23:59:59`, endDateStr]
@@ -1837,7 +1923,10 @@ class CostAccountingService {
         // 批量获取所有任务的材料投入成本（消除 N+1）
         const [allMatCosts] = await connection.execute(
           `SELECT io.production_task_id AS task_id,
-                  SUM(ioi.actual_quantity * m.price) as cost
+                  SUM(
+                    (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+                    * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+                  ) as cost
            FROM inventory_outbound_items ioi
            JOIN inventory_outbound io ON ioi.outbound_id = io.id
            JOIN materials m ON ioi.material_id = m.id
@@ -1958,7 +2047,7 @@ class CostAccountingService {
       // 查询已确认但未完成的委外加工单
       const [wipOrders] = await connection.execute(
         `
-        SELECT 
+        SELECT
           op.id,
           op.processing_no,
           op.supplier_id,
@@ -2133,12 +2222,15 @@ class CostAccountingService {
       if (outboundId) {
         // 指定出库单：只计算这一单的成本
         const [items] = await conn.execute(
-          `SELECT 
+          `SELECT
              ioi.material_id,
              m.code as material_code,
              m.name as material_name,
-             SUM(ioi.actual_quantity) as total_quantity,
-             SUM(ioi.actual_quantity * COALESCE(m.price, 0)) as total_cost,
+             SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) as total_quantity,
+             SUM(
+               (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+               * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+             ) as total_cost,
              io.is_excess,
              io.issue_reason
            FROM inventory_outbound io
@@ -2159,16 +2251,19 @@ class CostAccountingService {
       } else {
         // 未指定出库单：计算该任务所有出库的成本（原有逻辑）
         const [items] = await conn.execute(
-          `SELECT 
+          `SELECT
              ioi.material_id,
              m.code as material_code,
              m.name as material_name,
-             SUM(ioi.actual_quantity) as total_quantity,
-             SUM(ioi.actual_quantity * COALESCE(m.price, 0)) as total_cost
+             SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) as total_quantity,
+             SUM(
+               (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+               * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+             ) as total_cost
            FROM inventory_outbound io
            JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
            JOIN materials m ON ioi.material_id = m.id
-           WHERE io.production_task_id = ? 
+           WHERE io.production_task_id = ?
              AND io.status IN ('completed', 'confirmed')
            GROUP BY ioi.material_id, m.code, m.name`,
           [taskId]
@@ -2627,7 +2722,7 @@ class CostAccountingService {
 
       // 查询所有未完工任务（状态不是 completed/cancelled）
       const [wipTasks] = await connection.execute(`
-        SELECT 
+        SELECT
           pt.id as task_id,
           pt.code as task_code,
           pt.product_id,
@@ -2654,7 +2749,10 @@ class CostAccountingService {
         // 批量获取所有任务的领料成本（消除 N+1）
         const [allMatCosts] = await connection.execute(
           `SELECT io.production_task_id as task_id,
-                  COALESCE(SUM(ioi.actual_quantity * COALESCE(m.price, 0)), 0) as total
+                  COALESCE(SUM(
+                    (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+                    * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+                  ), 0) as total
            FROM inventory_outbound io
            JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
            JOIN materials m ON ioi.material_id = m.id
@@ -2855,7 +2953,7 @@ class CostAccountingService {
       // 获取该期间的 WIP 汇总
       const [wipSummary] = await connection.execute(
         `
-        SELECT 
+        SELECT
           SUM(wip_material_cost) as total_material,
           SUM(wip_labor_cost) as total_labor,
           SUM(wip_overhead_cost) as total_overhead,
@@ -2966,7 +3064,7 @@ class CostAccountingService {
       // 获取本期完工产品及其成本
       const [completedProducts] = await connection.execute(
         `
-        SELECT 
+        SELECT
           pt.product_id,
           m.name as product_name,
           SUM(pt.quantity) as total_quantity,
@@ -2979,8 +3077,8 @@ class CostAccountingService {
         JOIN materials m ON pt.product_id = m.id
         WHERE pt.status = 'completed'
           AND EXISTS (
-            SELECT 1 FROM gl_periods gp 
-            WHERE gp.id = ? 
+            SELECT 1 FROM gl_periods gp
+            WHERE gp.id = ?
             AND pt.completed_at BETWEEN gp.start_date AND gp.end_date
           )
         GROUP BY pt.product_id, m.name
@@ -3207,6 +3305,100 @@ class CostAccountingService {
         conn.release();
       }
     }
+  }
+  // ==================== 成本报表查询公共方法 ====================
+
+  /**
+   * 解析期间字符串为日期范围
+   * @param {string} period 期间，格式 'YYYY-MM'，为空则取当月
+   * @returns {{ year: string, month: string, startDate: string, endDate: string }}
+   */
+  static parsePeriodRange(period) {
+    const now = new Date();
+    const year = period ? period.split('-')[0] : String(now.getFullYear());
+    const month = period ? period.split('-')[1] : String(now.getMonth() + 1).padStart(2, '0');
+    const startDate = `${year}-${month}-01`;
+    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+    const endDate = `${year}-${month}-${lastDay}`;
+    return { year, month, startDate, endDate };
+  }
+
+  /**
+   * 获取指定期间的成本汇总数据（3层Fallback逻辑集中在此）
+   * 优先级: actual_costs -> wip_snapshots(同期) -> wip_snapshots(最新)
+   * @param {string} startDate 开始日期
+   * @param {string} endDate 结束日期
+   * @param {string[]} fields 查询字段列表
+   * @returns {Promise<Object>}
+   */
+  static async getCostSummaryForPeriod(startDate, endDate, fields = ['materialCost', 'laborCost', 'overheadCost', 'totalCost']) {
+    const defaultResult = {};
+    fields.forEach(f => { defaultResult[f] = 0; });
+
+    const fieldMap = {
+      materialCost: 'COALESCE(SUM(material_cost), 0) as materialCost',
+      laborCost: 'COALESCE(SUM(labor_cost), 0) as laborCost',
+      overheadCost: 'COALESCE(SUM(overhead_cost), 0) as overheadCost',
+      totalCost: 'COALESCE(SUM(total_cost), 0) as totalCost',
+    };
+    const selectClause = fields.map(f => fieldMap[f]).filter(Boolean).join(', ');
+
+    // 1. 优先从 actual_costs 获取
+    try {
+      const [costData] = await db.pool.execute(
+        `SELECT ${selectClause} FROM actual_costs WHERE calculated_at BETWEEN ? AND ?`,
+        [startDate, endDate]
+      );
+      const row = costData[0];
+      if (fields.some(f => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
+    } catch { /* actual_costs表可能不存在 */ }
+
+    // 2. 从 wip_snapshots 同期数据获取
+    try {
+      const [wipData] = await db.pool.execute(
+        `SELECT ${selectClause} FROM wip_snapshots WHERE snapshot_date BETWEEN ? AND ?`,
+        [startDate, endDate]
+      );
+      const row = wipData[0];
+      if (fields.some(f => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
+    } catch { /* 降级 */ }
+
+    // 3. 兜底：获取最新的 wip_snapshots 汇总
+    try {
+      const [latestWIP] = await db.pool.execute(
+        `SELECT ${selectClause} FROM wip_snapshots WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM wip_snapshots)`
+      );
+      const row = latestWIP[0];
+      if (fields.some(f => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
+    } catch { /* 全部失败 */ }
+
+    return defaultResult;
+  }
+
+  /**
+   * 批量获取多个月份的成本趋势数据
+   * @param {number} monthCount 月份数量
+   * @returns {Promise<Array>}
+   */
+  static async getCostTrendData(monthCount = 6) {
+    const trendData = [];
+    const now = new Date();
+    for (let i = parseInt(monthCount) - 1; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = String(date.getFullYear());
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const { startDate, endDate } = this.parsePeriodRange(`${year}-${month}`);
+      const stats = await this.getCostSummaryForPeriod(startDate, endDate);
+      trendData.push({ month: `${month}月`, period: `${year}-${month}`, ...stats });
+    }
+    return trendData;
+  }
+
+  /** @private 将查询结果字段统一转为 number */
+  static _parseNumericFields(row, fields) {
+    const result = {};
+    fields.forEach(f => { result[f] = parseFloat(row[f]) || 0; });
+    return result;
   }
 }
 

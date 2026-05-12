@@ -19,7 +19,7 @@ class AccountMappingService {
   static async getDefaultMapping(businessType, filters = {}) {
     try {
       let query = `
-        SELECT id, business_type, debit_account_id, credit_account_id, 
+        SELECT id, business_type, debit_account_id, credit_account_id,
                supplier_category_id, material_category_id, description
         FROM finance_account_mapping
         WHERE business_type = ? AND status = TRUE AND deleted_at IS NULL
@@ -82,8 +82,8 @@ class AccountMappingService {
       }
 
       const [result] = await db.pool.execute(
-        `INSERT INTO finance_account_mapping 
-        (business_type, debit_account_id, credit_account_id, supplier_category_id, 
+        `INSERT INTO finance_account_mapping
+        (business_type, debit_account_id, credit_account_id, supplier_category_id,
          material_category_id, description, is_default)
         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [

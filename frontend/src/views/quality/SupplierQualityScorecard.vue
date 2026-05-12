@@ -8,7 +8,7 @@
           <div>
             <el-date-picker v-model="selectedPeriod" type="month" value-format="YYYY-MM"
               placeholder="选择月份" style="width:160px;margin-right:12px" @change="fetchScores" />
-            <el-button v-permission="'quality:reports:update'" type="primary" @click="handleCalculate" :loading="calculating">
+            <el-button v-permission="'quality:supplier-quality:update'" type="primary" @click="handleCalculate" :loading="calculating">
               <el-icon><Cpu /></el-icon>计算本月得分
             </el-button>
           </div>
@@ -23,7 +23,7 @@
           </el-select>
         </el-col>
         <el-col :span="4">
-          <el-button v-permission="'quality:reports:view'" @click="fetchRanking">查看排名</el-button>
+          <el-button v-permission="'quality:supplier-quality:view'" @click="fetchRanking">查看排名</el-button>
         </el-col>
       </el-row>
 

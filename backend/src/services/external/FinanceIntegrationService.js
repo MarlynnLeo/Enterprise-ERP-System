@@ -519,6 +519,10 @@ class FinanceIntegrationService {
 
       // ✅ 精度修复：整数运算
       const totalAmount = receiptItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
+      if (totalAmount <= 0) {
+        await connection.rollback();
+        return { skipped: true, message: '入库单物料金额为0，跳过应付发票生成' };
+      }
       const invoiceDateStr = purchaseReceipt.receipt_date || new Date().toISOString().split('T')[0];
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
       const createdBy = await getUserIdByIdentifier(connection, userId || purchaseReceipt.operator || 'system');
@@ -735,7 +739,7 @@ class FinanceIntegrationService {
 
       const [outboundItems] = await connection.execute(
         `SELECT soi.product_id, soi.quantity, m.cost_price, m.price, m.name as material_name
-         FROM sales_outbound_items soi 
+         FROM sales_outbound_items soi
          LEFT JOIN materials m ON soi.product_id = m.id
          WHERE soi.outbound_id = ?`,
         [salesOutbound.id]
@@ -842,7 +846,7 @@ class FinanceIntegrationService {
 
       // 查询出库明细，并回溯订单明细获取售价（出库单 price 可能为0）
       const [outboundItems] = await connection.execute(
-        `SELECT soi.quantity, 
+        `SELECT soi.quantity,
                 COALESCE(NULLIF(soi.price, 0), soitm.unit_price, m.price, 0) AS price
          FROM sales_outbound_items soi
          LEFT JOIN sales_outbound so ON soi.outbound_id = so.id

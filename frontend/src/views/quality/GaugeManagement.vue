@@ -44,7 +44,7 @@
       <template #header>
         <div class="card-header">
           <span>量具台账</span>
-          <el-button v-permission="'quality:settings:create'" type="primary" @click="handleAdd">
+          <el-button v-permission="'quality:gauges:create'" type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>新增量具
           </el-button>
         </div>
@@ -107,10 +107,10 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="200">
           <template #default="scope">
-            <el-button v-permission="'quality:settings:create'" size="small" type="primary" link @click.stop="handleCalibrate(scope.row)">校准</el-button>
+            <el-button v-permission="'quality:gauges:create'" size="small" type="primary" link @click.stop="handleCalibrate(scope.row)">校准</el-button>
             <el-button size="small" type="warning" link @click.stop="handleEdit(scope.row)"
-              v-permission="'quality:settings:update'">编辑</el-button>
-            <el-button v-permission="'quality:settings:delete'" size="small" type="danger" link @click.stop="handleDelete(scope.row)">删除</el-button>
+              v-permission="'quality:gauges:update'">编辑</el-button>
+            <el-button v-permission="'quality:gauges:delete'" size="small" type="danger" link @click.stop="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -207,7 +207,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-permission="isEdit ? 'quality:settings:update' : 'quality:settings:create'" type="primary" @click="handleSubmit" :loading="submitting">确认</el-button>
+        <el-button v-permission="isEdit ? 'quality:gauges:update' : 'quality:gauges:create'" type="primary" @click="handleSubmit" :loading="submitting">确认</el-button>
       </template>
     </el-dialog>
 
@@ -248,7 +248,7 @@
       </el-form>
       <template #footer>
         <el-button @click="calDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:settings:create'" type="primary" @click="handleCalSubmit" :loading="submitting">提交校准记录</el-button>
+        <el-button v-permission="'quality:gauges:create'" type="primary" @click="handleCalSubmit" :loading="submitting">提交校准记录</el-button>
       </template>
     </el-dialog>
   </div>

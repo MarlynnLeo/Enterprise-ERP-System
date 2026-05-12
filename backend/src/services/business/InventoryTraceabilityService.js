@@ -257,8 +257,8 @@ class InventoryTraceabilityService {
 
     // ✅ 从 inventory_ledger 查询当天该物料的批次数量
     const query = `
-      SELECT COUNT(DISTINCT batch_number) as count 
-      FROM inventory_ledger 
+      SELECT COUNT(DISTINCT batch_number) as count
+      FROM inventory_ledger
       WHERE batch_number LIKE ? AND DATE(created_at) = CURDATE()
     `;
 
@@ -333,7 +333,7 @@ class InventoryTraceabilityService {
 
       // 查找该批次作为父批次的关系
       const query = `
-        SELECT 
+        SELECT
           br.*,
           m.code as child_material_code,
           m.name as child_material_name,
@@ -412,7 +412,7 @@ class InventoryTraceabilityService {
 
       // 查找该批次作为子批次的关系
       const query = `
-        SELECT 
+        SELECT
           br.*,
           m.code as parent_material_code,
           m.name as parent_material_name,
@@ -479,7 +479,7 @@ class InventoryTraceabilityService {
   static async findBatchByCodeAndNumber(materialCode, batchNumber) {
     // ✅ 单表架构：直接从 v_batch_stock 查询
     const query = `
-      SELECT 
+      SELECT
         vbs.*,
         m.code as material_code,
         m.name as material_name,

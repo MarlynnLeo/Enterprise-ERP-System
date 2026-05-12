@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ProcessInspection.vue
  * @description 前端界面组件文件
@@ -43,12 +43,12 @@
           </div>
         </div>
       </template>
-      
+
       <!-- 搜索表单 -->
       <div class="search-container">
         <el-row :gutter="16">
           <el-col :span="6">
-            <el-input 
+            <el-input
               v-model="searchKeyword"
               placeholder="请输入检验单号/工单号/产品名称"
               @keyup.enter="handleSearch"
@@ -58,7 +58,7 @@
               </template>
             </el-input>
           </el-col>
-          
+
           <el-col :span="4">
             <el-select v-model="statusFilter" placeholder="检验状态" clearable @change="handleSearch" style="width: 100%">
               <el-option label="待检验" value="pending" />
@@ -67,7 +67,7 @@
               <el-option label="返工" value="rework" />
             </el-select>
           </el-col>
-          
+
           <el-col :span="8">
             <el-date-picker
               v-model="dateRange"
@@ -79,7 +79,7 @@
               style="width: 100%"
             />
           </el-col>
-          
+
           <el-col :span="6">
             <div class="search-buttons">
               <el-button type="primary" @click="handleSearch">
@@ -111,7 +111,7 @@
             {{ scope.row.product_name || scope.row.item_name }}
           </template>
         </el-table-column>
-        <el-table-column prop="batch_no" label="批次号" min-width="180" />
+        <el-table-column prop="batch_no" label="批次号" min-width="190" />
         <el-table-column prop="quantity" label="检验数量" min-width="100">
           <template #default="scope">
             {{ scope.row.quantity }} {{ scope.row.unit }}
@@ -122,28 +122,18 @@
             {{ formatDate(scope.row.planned_date) }}
           </template>
         </el-table-column>
-        <el-table-column prop="inspector_name" label="检验员" min-width="120" />
+        <el-table-column prop="inspector_name" label="检验员" min-width="100" />
         <el-table-column prop="status" label="检验状态" min-width="100">
           <template #default="scope">
-            <el-tag v-if="scope.row.status === 'pending'" type="success">
-              巡检{{ scope.row.punch_count || 0 }}次
+            <el-tag :type="getStatusType(scope.row.status)">
+              {{ getStatusText(scope.row.status) }}
             </el-tag>
-            <template v-else>
-              <el-tag
-                :type="getStatusType(scope.row.status)"
-              >
-                {{ getStatusText(scope.row.status) }}
-              </el-tag>
-              <div v-if="scope.row.punch_count && scope.row.punch_count > 0" style="margin-top: 4px; font-size: 12px; color: var(--color-text-regular);">
-                巡检{{ scope.row.punch_count }}次
-              </div>
-            </template>
           </template>
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="200">
           <template #default="scope">
-            <el-button 
-              size="small" 
+            <el-button
+              size="small"
               @click="handleView(scope.row)"
             >
               查看
@@ -157,11 +147,18 @@
               巡检
             </el-button>
             <el-button
+              v-if="scope.row.status === 'pending' && (scope.row.punch_count || 0) >= 1 && canInspect"
+              size="small"
+              type="success"
+              @click="handleJudge(scope.row)"
+            >
+              判定
+            </el-button>
+            <el-button
               v-if="scope.row.status === 'failed'"
               size="small"
               type="primary"
               @click="handleDropdownCommand('rework', scope.row)"
-            
               v-permission="'quality:inspections:update'">
               返工
             </el-button>
@@ -176,7 +173,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -193,7 +190,7 @@
         />
       </div>
     </el-card>
-    
+
     <!-- 新建检验单弹窗 -->
     <el-dialog
       v-model="createDialogVisible"
@@ -203,62 +200,62 @@
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="采购单号" prop="purchaseOrderNo">
-          <el-select 
-            v-model="form.purchaseOrderNo" 
+          <el-select
+            v-model="form.purchaseOrderNo"
             placeholder="选择采购单号"
             filterable
             :loading="orderLoading"
             :remote-method="fetchPurchaseOrders"
             @change="handleOrderChange"
           >
-            <el-option 
-              v-for="order in purchaseOrderOptions" 
-              :key="order.id" 
-              :label="order.orderNo" 
-              :value="order.orderNo" 
+            <el-option
+              v-for="order in purchaseOrderOptions"
+              :key="order.id"
+              :label="order.orderNo"
+              :value="order.orderNo"
             />
             <template #empty>
               <el-empty description="暂无采购单数据" />
             </template>
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="产品名称" prop="productName">
           <el-input v-model="form.productName" disabled />
         </el-form-item>
-        
+
         <el-form-item label="工序" prop="processId">
-          <el-select 
-            v-model="form.processId" 
+          <el-select
+            v-model="form.processId"
             placeholder="选择工序"
             filterable
           >
-            <el-option 
-              v-for="process in processOptions" 
-              :key="process.id" 
-              :label="process.name" 
-              :value="process.id" 
+            <el-option
+              v-for="process in processOptions"
+              :key="process.id"
+              :label="process.name"
+              :value="process.id"
             />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="批次号" prop="batchNo">
           <el-input v-model="form.batchNo" placeholder="请输入批次号" />
         </el-form-item>
-        
+
         <el-form-item label="检验数量" prop="quantity">
           <el-input-number v-model="form.quantity" :min="1" />
           <span class="unit-text">{{ form.unit }}</span>
         </el-form-item>
-        
+
         <el-form-item label="计划检验日期" prop="plannedDate">
-          <el-date-picker 
+          <el-date-picker
             v-model="form.plannedDate"
             type="date"
             placeholder="选择计划检验日期"
           />
         </el-form-item>
-        
+
         <el-form-item label="备注" prop="note">
           <el-input
             v-model="form.note"
@@ -268,7 +265,7 @@
           />
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="createDialogVisible = false">取消</el-button>
@@ -276,7 +273,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 查看检验单详情弹窗 -->
     <el-dialog
       v-model="viewDialogVisible"
@@ -321,7 +318,7 @@
         </div>
       </div>
     </el-dialog>
-    
+
 
 
     <!-- 过程检验规则配置弹窗 -->
@@ -340,7 +337,7 @@ import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { qualityApi } from '@/api/quality'
 import { productionApi } from '@/api/production'
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 
 // 异步加载规则和打卡弹窗组件
 const RulesDialog = defineAsyncComponent(() => import('./components/ProcessInspectionRulesDialog.vue'))
@@ -590,7 +587,7 @@ const handleCreate = () => {
       form[key] = ''
     }
   })
-  
+
   createDialogVisible.value = true
 }
 
@@ -634,7 +631,7 @@ const handleView = async (row) => {
   viewData.value = { ...row }
   viewDialogVisible.value = true
   viewLoading.value = true
-  
+
   try {
     const res = await qualityApi.getProcessInspectionPunchList({
       inspection_id: row.id,
@@ -672,6 +669,44 @@ const handlePunchIn = async (row) => {
   }
 }
 
+// 判定过程检验结果
+const handleJudge = async (row) => {
+  try {
+    const { ElMessageBox } = await import('element-plus')
+    const { value: result } = await ElMessageBox.confirm(
+      `检验单 ${row.inspection_no} 已巡检 ${row.punch_count || 0} 次，请判定结果：`,
+      '过程检验判定',
+      {
+        distinguishCancelAndClose: true,
+        confirmButtonText: '合格',
+        cancelButtonText: '不合格',
+        confirmButtonClass: 'el-button--success',
+        cancelButtonClass: 'el-button--danger',
+        type: 'info'
+      }
+    ).then(() => ({ value: 'passed' }))
+     .catch((action) => {
+       if (action === 'cancel') return { value: 'failed' }
+       throw action // close 直接退出
+     })
+
+    // 调用后端更新状态
+    await qualityApi.updateProcessInspection(row.id, {
+      status: result,
+      inspector_id: authStore.userId,
+      inspector_name: authStore.realName || authStore.username,
+      actual_date: dayjs().format('YYYY-MM-DD')
+    })
+
+    ElMessage.success(result === 'passed' ? '已判定合格' : '已判定不合格')
+    fetchData()
+  } catch (err) {
+    if (err === 'close') return // 关闭弹窗忽略
+    console.error('判定失败:', err)
+    ElMessage.error(err.message || '判定操作失败')
+  }
+}
+
 // 处理下拉菜单命令
 const handleDropdownCommand = (command, row) => {
   if (command === 'rework') {
@@ -689,38 +724,6 @@ const handleRework = (row) => {
 // 打印报告
 const handlePrint = async (row) => {
   try {
-    // 从打印模板系统获取模板
-    const { api } = await import('@/services/api')
-    
-    // 获取过程检验单模板
-    let templateContent = ''
-    try {
-      const response = await api.get('/print/templates', {
-        params: {
-          template_type: 'process_inspection',
-          is_default: 1,
-          status: 1
-        }
-      })
-      
-      const templates = response.data?.list || response.data?.data || response.data || []
-      const template = Array.isArray(templates) ? templates[0] : null
-      
-      if (template && template.content) {
-        templateContent = template.content
-      }
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError)
-      ElMessage.error('获取打印模板失败，请在系统管理-打印管理中配置过程检验单模板')
-      return
-    }
-    
-    // 如果没有获取到模板，提示用户配置
-    if (!templateContent) {
-      ElMessage.warning('未找到过程检验单打印模板，请在系统管理-打印管理中配置')
-      return
-    }
-    
     // 准备打印数据
     const printData = {
       inspection_no: row.inspection_no || row.inspectionNo || '-',
@@ -739,28 +742,24 @@ const handlePrint = async (row) => {
       print_date: new Date().toLocaleDateString(),
       print_time: new Date().toLocaleTimeString()
     }
-    
-    // 渲染模板
-    let renderedContent = templateContent
-    Object.keys(printData).forEach(key => {
-      const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g')
-      renderedContent = renderedContent.replace(regex, printData[key])
+
+    const html = await printService.generateByDefaultTemplate('quality', 'process_inspection', {
+      ...printData,
+      document_no: printData.inspection_no,
+      date: printData.inspection_date !== '-' ? printData.inspection_date : printData.planned_date,
+      items: (row.items || row.inspection_items || []).map((item, index) => ({
+        index: index + 1,
+        item_code: item.item_code || item.code || '',
+        item_name: item.item_name || item.name || '-',
+        specification: item.standard || item.specification || '',
+        quantity: item.actual_value || item.quantity || '',
+        unit_name: item.unit || '',
+        result: item.result || item.status || '',
+        remark: item.remark || item.remarks || ''
+      }))
     })
-    
-    // 创建打印窗口
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      ElMessage.error('无法打开打印窗口,请检查浏览器弹窗设置')
-      return
-    }
 
-    writeSafeHtmlDocument(printWindow, renderedContent)
-
-    // 等待内容加载后打印
-    printWindow.onload = () => {
-      printWindow.print()
-      printWindow.close()
-    }
+    printService.previewDocument(html)
 
     ElMessage.success('打印预览已打开')
   } catch (error) {
@@ -832,4 +831,4 @@ const handlePrint = async (row) => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

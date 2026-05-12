@@ -1,81 +1,34 @@
 /**
  * 质量相关服务
+ * 注意：旧版 /quality/traceability/* 路由已废弃
+ * 追溯功能已迁移至 InventoryTraceabilityService 和 BatchManagementService
+ * 此服务保留为兼容适配层
  */
 const { logger } = require('../../utils/logger');
-const axios = require('axios');
-const config = require('../../config');
 
-// 构建API基础URL，避免硬编码
-const getApiUrl = () => {
-  const { protocol, host, port } = config.api;
-  // 如果有设置baseUrl，则优先使用
-  if (config.api.baseUrl) {
-    return config.api.baseUrl;
-  }
-  return `${protocol}://${host}:${port}/api`;
-};
-
-// 创建axios实例
-const api = axios.create({
-  baseURL: getApiUrl(),
-  timeout: 30000,
-});
-
-// 设置请求拦截器
-api.interceptors.request.use(
-  (config) => {
-    return config;
-  },
-  (error) => {
-    logger.error('[质量服务] 请求错误:', error);
-    return Promise.reject(error);
-  }
-);
-
-// 设置响应拦截器
-api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    logger.error('[质量服务] 响应错误:', error.message);
-    return Promise.reject(error);
-  }
-);
-
-// 质量API服务
+// 质量API服务（兼容适配层）
 const qualityApi = {
-  // 自动创建追溯记录
-  autoCreateTraceability: async (triggerType, data) => {
-    try {
-      const response = await api.post('/quality/traceability/auto-create', { triggerType, data });
-      return response.data;
-    } catch (error) {
-      logger.error('自动创建追溯记录失败:', error);
-      throw error;
-    }
+  // 自动创建追溯记录 — 新架构已通过 batch_relationships 自动管理
+  autoCreateTraceability: async (triggerType, _data) => {
+    logger.info(`[QualityService] 追溯记录已由 batch_relationships 自动管理, triggerType=${triggerType}`);
+    return { success: true, message: '新架构已自动管理追溯' };
   },
 
-  // 获取全链路追溯数据
+  // 获取全链路追溯数据 — 已迁移至 InventoryTraceabilityService.getBatchTraceabilityChain
   getFullTraceability: async (type, code, batchNumber) => {
     try {
-      const response = await api.post('/quality/traceability/full', { type, code, batchNumber });
-      return response.data;
+      const InventoryTraceabilityService = require('./InventoryTraceabilityService');
+      return await InventoryTraceabilityService.getBatchTraceabilityChain(code, batchNumber, 'forward');
     } catch (error) {
       logger.error('获取全链路追溯数据失败:', error);
       throw error;
     }
   },
 
-  // 自动生成所有可能的追溯记录
+  // 自动生成所有可能的追溯记录 — 新架构不再需要
   autoGenerateAllTraceability: async () => {
-    try {
-      const response = await api.post('/quality/traceability/auto-generate-all');
-      return response.data;
-    } catch (error) {
-      logger.error('自动生成所有追溯记录失败:', error);
-      throw error;
-    }
+    logger.info('[QualityService] 新架构已通过 batch_relationships 自动管理追溯，无需手动生成');
+    return { success: true, message: '新架构已自动管理追溯', count: 0 };
   },
 };
 

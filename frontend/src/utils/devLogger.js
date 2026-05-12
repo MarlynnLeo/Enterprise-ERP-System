@@ -14,20 +14,13 @@ export const devLogger = {
    * 普通日志 (仅开发环境)
    * @param {...any} args - 日志参数
    */
-  log: () => {
-    if (isDev) {
-    }
-  },
+  log: () => {},
 
   /**
    * 警告日志 (仅开发环境)
    * @param {...any} args - 日志参数
    */
-  warn: (...args) => {
-    if (isDev) {
-      console.warn(...args);
-    }
-  },
+  warn: () => {},
 
   /**
    * 错误日志 (所有环境)
@@ -41,20 +34,13 @@ export const devLogger = {
    * 开发跟踪日志 (仅开发环境)
    * @param {...any} args - 日志参数
    */
-  debug: () => {
-    if (isDev) {
-    }
-  },
+  debug: () => {},
 
   /**
    * 信息日志 (仅开发环境)
    * @param {...any} args - 日志参数
    */
-  info: (...args) => {
-    if (isDev) {
-      console.info(...args);
-    }
-  },
+  info: () => {},
 
   /**
    * 表格日志 (仅开发环境)
@@ -120,7 +106,7 @@ export const devLogger = {
  * 创建带前缀的日志工具
  * @param {string} prefix - 日志前缀
  * @returns {Object} 日志工具对象
- * 
+ *
  * @example
  * const logger = createLogger('🔍 检验模块');
  * logger.log('开始查询模板...'); // 输出: 🔍 检验模块 开始查询模板...

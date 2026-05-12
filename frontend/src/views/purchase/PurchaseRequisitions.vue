@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * PurchaseRequisitions.vue
  * @description 前端界面组件文件
@@ -17,7 +17,7 @@
         <el-button type="primary" :icon="Plus" @click="showCreateDialog">新建采购申请</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -190,6 +190,14 @@
             >
               重新编辑
             </el-button>
+            <el-button
+              v-if="row.status === 'submitted'"
+              size="small"
+              type="warning"
+              @click="openApprovalDialog(row)"
+            >
+              审批
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -233,7 +241,7 @@
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="合同编码">
-          <el-input 
+          <el-input
             v-model="requisitionForm.contractCode"
             placeholder="请输入关联的销售订单合同编码（选填）"
             clearable ></el-input>
@@ -396,6 +404,31 @@
         <el-button type="primary" @click="updateStatus">确认</el-button>
       </template>
     </el-dialog>
+    <!-- 审批对话框 -->
+    <el-dialog
+      v-model="approvalDialog.visible"
+      title="审批采购申请"
+      width="500px"
+      destroy-on-close
+    >
+      <div v-loading="approvalDialog.loading">
+        <el-descriptions border :column="1">
+          <el-descriptions-item label="申请单号">{{ approvalDialog.row?.requisition_number || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="申请人">{{ approvalDialog.row?.real_name || approvalDialog.row?.requester || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="备注">{{ approvalDialog.row?.remarks || '无' }}</el-descriptions-item>
+        </el-descriptions>
+        <el-form label-width="80px" style="margin-top: 16px;">
+          <el-form-item label="审批意见">
+            <el-input v-model="approvalDialog.comment" type="textarea" :rows="3" placeholder="请输入审批意见（选填）" />
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="approvalDialog.visible = false">取消</el-button>
+        <el-button type="danger" @click="handleApproval('reject')" :loading="approvalDialog.loading">拒绝</el-button>
+        <el-button type="success" @click="handleApproval('approve')" :loading="approvalDialog.loading">通过</el-button>
+      </template>
+    </el-dialog>
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedRequisitions.length > 0" class="floating-batch-bar">
@@ -426,11 +459,12 @@
 import { ref, reactive, onMounted, onActivated, nextTick, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, purchaseApi, baseDataApi } from '@/services/api';
+import { workflowApi } from '@/api/workflow';
 import { Plus, Search, Refresh, Select, Promotion, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { searchMaterials } from '@/utils/searchConfig';
 import { formatDate } from '@/utils/helpers/dateUtils'
-import printService, { parseTemplateResponse } from '@/services/printService'
+import printService from '@/services/printService'
 // 初始化 authStore
 const authStore = useAuthStore();
 // 搜索表单
@@ -515,6 +549,15 @@ const requisitionStats = ref({
   approvedCount: 0,
   rejectedCount: 0
 });
+// 审批对话框
+const approvalDialog = reactive({
+  visible: false,
+  loading: false,
+  row: null,
+  comment: '',
+  instanceId: null,
+  nodeId: null
+});
 // 加载申请单列表
 const loadRequisitions = async (page = pagination.page) => {
   loading.value = true;
@@ -544,12 +587,12 @@ const loadRequisitions = async (page = pagination.page) => {
         totalPages: 0
       };
     }
-    
+
     requisitions.value = response.items || [];
     pagination.total = Number(response.total ?? 0);
     pagination.page = Number(response.page ?? 1);
-    
-    
+
+
     await loadRequisitionStats();
   } catch (error) {
     console.error('加载采购申请列表失败:', error);
@@ -558,7 +601,7 @@ const loadRequisitions = async (page = pagination.page) => {
       console.error('错误响应数据:', error.response.data);
     }
     ElMessage.error('加载采购申请列表失败');
-    
+
     // 加载失败时设置空数据
     requisitions.value = [];
     pagination.total = 0;
@@ -641,11 +684,11 @@ const editRequisition = async (row) => {
   requisitionDialog.loading = true;
   try {
     const response = await purchaseApi.getRequisition(row.id);
-    
+
     requisitionForm.id = response.id;
     requisitionForm.requestDate = response.request_date;
     requisitionForm.remarks = response.remarks;
-    
+
     // 转换材料格式
     requisitionForm.materials = response.materials.map(item => ({
       materialId: item.material_id,
@@ -656,7 +699,7 @@ const editRequisition = async (row) => {
       unitId: item.unit_id,
       quantity: Number(item.quantity)
     }));
-    
+
     requisitionDialog.isEdit = true;
   } catch (error) {
     console.error('获取采购申请详情失败:', error);
@@ -669,20 +712,19 @@ const editRequisition = async (row) => {
 // 提交表单
 const submitForm = async () => {
   if (!requisitionFormRef.value) return;
-  
+
   await requisitionFormRef.value.validate(async (valid) => {
     if (!valid) return;
-    
+
     try {
       requisitionDialog.loading = true;
-      
+
       // 先尝试获取最新的用户信息
       try {
         await authStore.fetchUserProfile();
       } catch {
-        console.warn('获取最新用户信息失败，将使用当前缓存的用户信息');
       }
-      
+
       // 确保物料数据格式正确
       const processedMaterials = requisitionForm.materials.map(material => ({
         materialId: material.materialId || null,
@@ -693,7 +735,7 @@ const submitForm = async () => {
         unitId: material.unitId || null,
         quantity: material.quantity || 0
       }));
-      
+
       const formData = {
         requestDate: requisitionForm.requestDate,
         contractCode: requisitionForm.contractCode || null,  // 合同编码（选填）
@@ -702,7 +744,7 @@ const submitForm = async () => {
         requester: authStore.user?.username || '',
         real_name: authStore.user?.real_name || ''
       };
-      
+
       if (requisitionDialog.isEdit) {
         await purchaseApi.updateRequisition(requisitionForm.id, formData);
         ElMessage.success('采购申请更新成功');
@@ -710,7 +752,7 @@ const submitForm = async () => {
         await purchaseApi.createRequisition(formData);
         ElMessage.success('采购申请创建成功');
       }
-      
+
       requisitionDialog.visible = false;
       loadRequisitions();
     } catch (error) {
@@ -797,7 +839,7 @@ const handleMaterialSelect = (item, index) => {
   requisitionForm.materials[index].specification = item.specs;
   requisitionForm.materials[index].unit = item.unit_name;
   requisitionForm.materials[index].unitId = item.unit_id;
-  
+
   // 选择物料后，自动聚焦到数量输入框
   nextTick(() => {
     const quantityInput = quantityInputRefs.value[index];
@@ -817,9 +859,9 @@ const _handleMaterialChange = (materialCode, index) => {
     requisitionForm.materials[index].unitId = null;
     return;
   }
-  
+
   // 从过滤结果中找到选中的物料
-  const selectedMaterial = filteredProducts.value.find(m => 
+  const selectedMaterial = filteredProducts.value.find(m =>
     m.code === materialCode
   );
   if (selectedMaterial) {
@@ -838,7 +880,7 @@ const handleMaterialEnter = (index) => {
 const handleQuantityEnter = (_index) => {
   // 添加新的物料行
   addMaterialRow();
-  
+
   // 聚焦到新行的物料选择框
   nextTick(() => {
     const newIndex = requisitionForm.materials.length - 1;
@@ -864,7 +906,7 @@ const viewRequisition = async (row) => {
         materials: []
       };
     }
-    
+
     // 清空之前的数据
     Object.keys(viewData).forEach(key => {
       if (typeof viewData[key] === 'object' && !Array.isArray(viewData[key])) {
@@ -875,11 +917,11 @@ const viewRequisition = async (row) => {
         viewData[key] = '';
       }
     });
-    
+
     // 填充新数据
     Object.assign(viewData, response);
-    
-    
+
+
   } catch (error) {
     console.error('获取采购申请详情失败:', error);
     ElMessage.error('获取采购申请详情失败');
@@ -971,7 +1013,7 @@ const updateStatus = async () => {
       statusDialog.requisitionId,
       { newStatus: statusDialog.newStatus }
     );
-    
+
     // 检查后端自动审批通过后是否生成了采购订单（auto_approved场景）
     if (response.generated_orders && response.generated_orders.length > 0) {
       const orders = response.generated_orders;
@@ -983,7 +1025,7 @@ const updateStatus = async () => {
         message += `\n   总金额: ¥${order.total_amount.toFixed(2)}`;
       });
       message += '\n\n请前往"采购订单"页面查看详情。';
-      
+
       ElMessageBox.alert(message, '采购订单已生成', {
         confirmButtonText: '知道了',
         type: 'success',
@@ -992,7 +1034,7 @@ const updateStatus = async () => {
     } else {
       ElMessage.success('状态更新成功');
     }
-    
+
     statusDialog.visible = false;
     loadRequisitions();
   } catch (error) {
@@ -1000,6 +1042,70 @@ const updateStatus = async () => {
     ElMessage.error('更新状态失败: ' + (error.response?.data?.error || error.message));
   } finally {
     statusDialog.loading = false;
+  }
+};
+// 打开审批弹窗
+const openApprovalDialog = async (row) => {
+  approvalDialog.row = row;
+  approvalDialog.comment = '';
+  approvalDialog.loading = true;
+  approvalDialog.visible = true;
+  try {
+    // 查询该采购申请关联的审批实例
+    const res = await workflowApi.getByBusiness('purchase_requisition', row.id);
+    const instance = res.data || res;
+    if (!instance || !instance.id) {
+      ElMessage.warning('未找到该申请的审批流程');
+      approvalDialog.visible = false;
+      return;
+    }
+    approvalDialog.instanceId = instance.id;
+    // 找到当前 in_progress 的审批节点
+    const currentNode = (instance.nodes || []).find(n => n.status === 'in_progress' && n.node_type === 'approval');
+    if (!currentNode) {
+      ElMessage.warning('当前没有待审批的节点');
+      approvalDialog.visible = false;
+      return;
+    }
+    approvalDialog.nodeId = currentNode.id;
+  } catch (error) {
+    console.error('获取审批信息失败:', error);
+    ElMessage.error('获取审批信息失败');
+    approvalDialog.visible = false;
+  } finally {
+    approvalDialog.loading = false;
+  }
+};
+// 执行审批操作
+const handleApproval = async (action) => {
+  approvalDialog.loading = true;
+  try {
+    const res = await workflowApi.approveNode(approvalDialog.instanceId, {
+      node_id: approvalDialog.nodeId,
+      action,
+      comment: approvalDialog.comment || undefined
+    });
+    const result = res.data || res;
+
+    if (action === 'approve') {
+      // 检查是否自动生成了采购订单
+      if (result.generated_orders && result.generated_orders.length > 0) {
+        const orders = result.generated_orders;
+        const message = `审批通过！已自动生成 ${orders.length} 个采购订单`;
+        ElMessageBox.alert(message, '审批完成', { type: 'success' });
+      } else {
+        ElMessage.success('审批通过');
+      }
+    } else {
+      ElMessage.success('已拒绝');
+    }
+    approvalDialog.visible = false;
+    loadRequisitions();
+  } catch (error) {
+    console.error('审批操作失败:', error);
+    ElMessage.error('审批操作失败: ' + (error.response?.data?.error || error.message));
+  } finally {
+    approvalDialog.loading = false;
   }
 };
 // 确认删除
@@ -1036,7 +1142,7 @@ const loadRequisitionStats = async () => {
     const submittedCount = requisitions.value.filter(item => item.status === 'submitted').length;
     const approvedCount = requisitions.value.filter(item => item.status === 'approved').length;
     const rejectedCount = requisitions.value.filter(item => item.status === 'rejected').length;
-    
+
     // 更新统计数据
     requisitionStats.value = {
       total,
@@ -1085,12 +1191,6 @@ const printLoading = ref(false)
 const handlePrintRequisition = async () => {
   printLoading.value = true
   try {
-    const response = await printService.getPrintTemplateById(73)
-    const template = parseTemplateResponse(response)
-    if (!template || !template.content) {
-      ElMessage.error('未找到采购申请单打印模板，请在系统管理-打印模板中配置')
-      return
-    }
     const printData = {
       requisition_number: viewData.requisition_number || viewData.requisitionNumber || '',
       request_date: formatDate(viewData.request_date || viewData.requestDate) || '',
@@ -1107,7 +1207,7 @@ const handlePrintRequisition = async () => {
         remark: item.remark || ''
       }))
     }
-    const html = printService.generatePrintContent(template, printData)
+    const html = await printService.generateByDefaultTemplate('purchase', 'purchase_requisition', printData)
     printService.previewDocument(html)
   } catch (error) {
     console.error('打印采购申请单失败:', error)

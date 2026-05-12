@@ -43,12 +43,12 @@
           <span>来料检验管理</span>
         </div>
       </template>
-      
+
       <!-- 搜索表单 -->
       <div class="search-container">
         <el-row :gutter="16">
           <el-col :span="4">
-            <el-input 
+            <el-input
               v-model="searchKeyword"
               placeholder="请输入检验单号/物料名称/供应商"
               @keyup.enter="handleSearch"
@@ -58,7 +58,7 @@
               </template>
             </el-input>
           </el-col>
-          
+
           <el-col :span="3">
             <el-select v-model="statusFilter" placeholder="检验状态" clearable @change="handleSearch" style="width: 100%">
               <el-option label="待检验" value="pending" />
@@ -67,7 +67,7 @@
               <el-option label="部分合格" value="partial" />
             </el-select>
           </el-col>
-          
+
           <el-col :span="5">
             <el-date-picker
               v-model="dateRange"
@@ -79,7 +79,7 @@
               style="width: 100%"
             />
           </el-col>
-          
+
           <el-col :span="6">
             <div class="search-buttons">
               <el-button type="primary" @click="handleSearch" :loading="loading">
@@ -190,7 +190,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination

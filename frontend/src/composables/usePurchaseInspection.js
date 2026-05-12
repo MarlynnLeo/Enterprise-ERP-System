@@ -8,7 +8,7 @@ import { ElMessage } from 'element-plus';
 import { qualityApi, supplierApi } from '@/services/api';
 import { generateBatchNumber } from '@/utils/inspectionHelpers';
 import {
-  
+
   getGeneralTemplateQueryParams
 } from '@/constants/inspection';
 import { parseListData, isResponseSuccess } from '@/utils/responseParser';
@@ -113,7 +113,7 @@ export const usePurchaseInspection = () => {
     if (!templateDetail.InspectionItems || templateDetail.InspectionItems.length === 0) {
       throw new Error('模板没有检验项目');
     }
-    
+
     return {
       id: templateDetail.id,
       name: templateDetail.template_name,

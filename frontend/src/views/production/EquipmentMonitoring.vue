@@ -23,7 +23,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
         <el-card class="stat-card offline">
           <div class="stat-content">
@@ -37,7 +37,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
         <el-card class="stat-card alarm">
           <div class="stat-content">
@@ -51,7 +51,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
         <el-card class="stat-card maintenance">
           <div class="stat-content">
@@ -93,7 +93,7 @@
               <el-option label="辅助设备" value="auxiliary" />
             </el-select>
           </el-form-item>
-          
+
           <el-form-item label="设备状态">
             <el-select  v-model="filters.status" placeholder="全部状态" clearable>
               <el-option label="在线" value="online" />
@@ -103,7 +103,7 @@
               <el-option label="空闲" value="idle" />
             </el-select>
           </el-form-item>
-          
+
           <el-form-item>
             <el-button type="primary" @click="handleSearch">
               <el-icon><Search /></el-icon>
@@ -115,8 +115,8 @@
       </div>
 
       <!-- 设备表格 -->
-      <el-table 
-        :data="equipmentList" 
+      <el-table
+        :data="equipmentList"
         v-loading="loading"
         stripe
         border
@@ -194,7 +194,7 @@
       width="80%"
       :before-close="handleDetailClose"
     >
-      <EquipmentDetail 
+      <EquipmentDetail
         v-if="selectedEquipment"
         :equipment-id="selectedEquipment.id"
         @close="detailDialogVisible = false"
@@ -208,7 +208,7 @@
       width="90%"
       :before-close="handleRealTimeClose"
     >
-      <EquipmentRealTimeData 
+      <EquipmentRealTimeData
         v-if="selectedEquipment"
         :equipment-id="selectedEquipment.id"
         :equipment-name="selectedEquipment.equipment_name"
@@ -263,7 +263,7 @@ const fetchEquipmentList = async () => {
       page: pagination.page,
       pageSize: pagination.pageSize
     }
-    
+
     const response = await equipmentMonitoringAPI.getEquipmentList(params)
     // 使用统一解析器
     const { list, total } = parsePaginatedData(response, { enableLog: false })
@@ -413,7 +413,7 @@ const getEquipmentTypeTagType = (type) => {
 // 生命周期
 onMounted(() => {
   refreshData()
-  
+
   // 设置自动刷新
   refreshTimer = setInterval(() => {
     refreshData()
@@ -493,15 +493,15 @@ onUnmounted(() => {
   .equipment-monitoring {
     padding: 10px;
   }
-  
+
   .stats-cards {
     margin-bottom: 15px;
   }
-  
+
   .filter-form {
     display: block;
   }
-  
+
   .filter-form .el-form-item {
     display: block;
     margin-bottom: 10px;

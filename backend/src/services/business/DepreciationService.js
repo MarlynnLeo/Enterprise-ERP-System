@@ -396,7 +396,7 @@ class DepreciationService {
 
       // 记录折旧明细
       const [depResult] = await connection.execute(
-        `INSERT INTO fixed_asset_depreciation_details 
+        `INSERT INTO fixed_asset_depreciation_details
          (asset_id, depreciation_date, depreciation_amount, accumulated_depreciation, net_value,
           book_value_before, book_value_after, voucher_no, entry_id, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

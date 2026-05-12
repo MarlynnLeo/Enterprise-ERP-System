@@ -161,7 +161,7 @@ const loadData = async () => {
     reportSnapshot.statusStats = dashData.statusStats || []
     reportSnapshot.categoryStats = dashData.categoryStats || []
     reportSnapshot.trendStats = dashData.trendStats || []
-    
+
     renderStatusChart(dashData.statusStats)
     renderCategoryChart(dashData.categoryStats)
     renderTrendChart(dashData.trendStats)

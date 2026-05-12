@@ -73,7 +73,6 @@ export function useTodos() {
     try {
       // 检查登录状态
       if (!authStore.isAuthenticated) {
-        console.warn('用户未登录，无法加载待办事项')
         return
       }
 

@@ -30,7 +30,9 @@ const saveStandardCostSnapshot = async (productId, standardCost = {}) => {
       if (value <= 0) continue;
 
       await connection.execute(
-        'INSERT INTO standard_costs (product_id, cost_element, standard_price, effective_date, is_active, created_at) VALUES (?, ?, ?, CURDATE(), 1, NOW())',
+        `INSERT INTO standard_costs
+         (product_id, cost_element, standard_price, effective_date, is_active, status, source_type, operator, created_at)
+         VALUES (?, ?, ?, CURDATE(), 1, 'active', 'manual', 'system', NOW())`,
         [normalizedProductId, element, value]
       );
     }
@@ -80,79 +82,10 @@ const costController = {
   getCostStatistics: async (req, res) => {
     try {
       const { period } = req.query;
+      const { year, month, startDate, endDate } = CostAccountingService.parsePeriodRange(period);
+      const stats = await CostAccountingService.getCostSummaryForPeriod(startDate, endDate);
 
-      // 获取当前月份范围
-      const now = new Date();
-      const year = period ? period.split('-')[0] : now.getFullYear();
-      const month = period ? period.split('-')[1] : String(now.getMonth() + 1).padStart(2, '0');
-      const startDate = `${year}-${month}-01`;
-      const endDate = `${year}-${month}-31`;
-
-      // 查询本月生产成本汇总
-      let stats = { totalCost: 0, materialCost: 0, laborCost: 0, overheadCost: 0 };
-
-      try {
-        const [costData] = await db.pool.execute(
-          `
-                    SELECT 
-                      COALESCE(SUM(material_cost), 0) as materialCost,
-                      COALESCE(SUM(labor_cost), 0) as laborCost,
-                      COALESCE(SUM(overhead_cost), 0) as overheadCost,
-                      COALESCE(SUM(total_cost), 0) as totalCost
-                    FROM actual_costs
-                    WHERE calculated_at BETWEEN ? AND ?
-                `,
-          [startDate, endDate]
-        );
-        stats = costData[0];
-      } catch {
-        // actual_costs表可能不存在，忽略
-      }
-
-      // 如果没有数据，从WIP快照获取
-      if (parseFloat(stats.totalCost) === 0) {
-        const [wipData] = await db.pool.execute(
-          `
-                    SELECT 
-                      COALESCE(SUM(material_cost), 0) as materialCost,
-                      COALESCE(SUM(labor_cost), 0) as laborCost,
-                      COALESCE(SUM(overhead_cost), 0) as overheadCost,
-                      COALESCE(SUM(total_cost), 0) as totalCost
-                    FROM wip_snapshots
-                    WHERE snapshot_date BETWEEN ? AND ?
-                `,
-          [startDate, endDate]
-        );
-
-        if (parseFloat(wipData[0].totalCost) > 0) {
-          stats = wipData[0];
-        }
-      }
-
-      // 如果还是没有数据，获取最新的WIP快照汇总
-      if (parseFloat(stats.totalCost) === 0) {
-        const [latestWIP] = await db.pool.execute(`
-                    SELECT 
-                      COALESCE(SUM(material_cost), 0) as materialCost,
-                      COALESCE(SUM(labor_cost), 0) as laborCost,
-                      COALESCE(SUM(overhead_cost), 0) as overheadCost,
-                      COALESCE(SUM(total_cost), 0) as totalCost
-                    FROM wip_snapshots
-                    WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM wip_snapshots)
-                `);
-
-        if (parseFloat(latestWIP[0].totalCost) > 0) {
-          stats = latestWIP[0];
-        }
-      }
-
-      ResponseHandler.success(res, {
-        period: `${year}-${month}`,
-        totalCost: parseFloat(stats.totalCost) || 0,
-        materialCost: parseFloat(stats.materialCost) || 0,
-        laborCost: parseFloat(stats.laborCost) || 0,
-        overheadCost: parseFloat(stats.overheadCost) || 0,
-      });
+      ResponseHandler.success(res, { period: `${year}-${month}`, ...stats });
     } catch (error) {
       logger.error('获取成本统计失败:', error);
       ResponseHandler.error(res, '获取成本统计失败', 'SERVER_ERROR', 500);
@@ -166,71 +99,8 @@ const costController = {
   getCostTrend: async (req, res) => {
     try {
       const { months = 6 } = req.query;
-
-      // 生成近N个月的月份列表
-      const trendData = [];
-      const now = new Date();
-
-      for (let i = parseInt(months) - 1; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const startDate = `${year}-${month}-01`;
-        const lastDay = new Date(year, date.getMonth() + 1, 0).getDate();
-        const endDate = `${year}-${month}-${lastDay}`;
-
-        let monthStats = { totalCost: 0, materialCost: 0, laborCost: 0, overheadCost: 0 };
-
-        // 首先尝试从 actual_costs 获取
-        try {
-          const [costData] = await db.pool.execute(
-            `
-                        SELECT 
-                          COALESCE(SUM(material_cost), 0) as materialCost,
-                          COALESCE(SUM(labor_cost), 0) as laborCost,
-                          COALESCE(SUM(overhead_cost), 0) as overheadCost,
-                          COALESCE(SUM(total_cost), 0) as totalCost
-                        FROM actual_costs
-                        WHERE calculated_at BETWEEN ? AND ?
-                    `,
-            [startDate, endDate]
-          );
-          monthStats = costData[0];
-        } catch {
-          // 表可能不存在
-        }
-
-        // 如果没有数据，从WIP快照获取
-        if (parseFloat(monthStats.totalCost) === 0) {
-          const [wipData] = await db.pool.execute(
-            `
-                        SELECT 
-                          COALESCE(SUM(material_cost), 0) as materialCost,
-                          COALESCE(SUM(labor_cost), 0) as laborCost,
-                          COALESCE(SUM(overhead_cost), 0) as overheadCost,
-                          COALESCE(SUM(total_cost), 0) as totalCost
-                        FROM wip_snapshots
-                        WHERE snapshot_date BETWEEN ? AND ?
-                    `,
-            [startDate, endDate]
-          );
-
-          if (parseFloat(wipData[0].totalCost) > 0) {
-            monthStats = wipData[0];
-          }
-        }
-
-        trendData.push({
-          month: `${month}月`,
-          period: `${year}-${month}`,
-          totalCost: parseFloat(monthStats.totalCost) || 0,
-          materialCost: parseFloat(monthStats.materialCost) || 0,
-          laborCost: parseFloat(monthStats.laborCost) || 0,
-          overheadCost: parseFloat(monthStats.overheadCost) || 0,
-        });
-      }
-
-      ResponseHandler.success(res, { trend: trendData });
+      const trend = await CostAccountingService.getCostTrendData(months);
+      ResponseHandler.success(res, { trend });
     } catch (error) {
       logger.error('获取成本趋势失败:', error);
       ResponseHandler.error(res, '获取成本趋势失败', 'SERVER_ERROR', 500);
@@ -244,75 +114,16 @@ const costController = {
   getCostComposition: async (req, res) => {
     try {
       const { period } = req.query;
-
-      // 获取当前月份范围
-      const now = new Date();
-      const year = period ? period.split('-')[0] : now.getFullYear();
-      const month = period ? period.split('-')[1] : String(now.getMonth() + 1).padStart(2, '0');
-      const startDate = `${year}-${month}-01`;
-      const endDate = `${year}-${month}-31`;
-
-      let composition = { materialCost: 0, laborCost: 0, overheadCost: 0 };
-
-      // 先尝试从 actual_costs 获取
-      try {
-        const [costData] = await db.pool.execute(
-          `
-                    SELECT 
-                      COALESCE(SUM(material_cost), 0) as materialCost,
-                      COALESCE(SUM(labor_cost), 0) as laborCost,
-                      COALESCE(SUM(overhead_cost), 0) as overheadCost
-                    FROM actual_costs
-                    WHERE calculated_at BETWEEN ? AND ?
-                `,
-          [startDate, endDate]
-        );
-        composition = costData[0];
-      } catch {
-        // 表可能不存在
-      }
-
-      // 如果没有数据，从WIP快照获取
-      if (parseFloat(composition.materialCost) === 0 && parseFloat(composition.laborCost) === 0) {
-        const [wipData] = await db.pool.execute(
-          `
-                    SELECT 
-                      COALESCE(SUM(material_cost), 0) as materialCost,
-                      COALESCE(SUM(labor_cost), 0) as laborCost,
-                      COALESCE(SUM(overhead_cost), 0) as overheadCost
-                    FROM wip_snapshots
-                    WHERE snapshot_date BETWEEN ? AND ?
-                `,
-          [startDate, endDate]
-        );
-
-        if (parseFloat(wipData[0].materialCost) > 0 || parseFloat(wipData[0].laborCost) > 0) {
-          composition = wipData[0];
-        }
-      }
-
-      // 如果还是没有数据，获取最新的WIP快照
-      if (parseFloat(composition.materialCost) === 0 && parseFloat(composition.laborCost) === 0) {
-        const [latestWIP] = await db.pool.execute(`
-                    SELECT 
-                      COALESCE(SUM(material_cost), 0) as materialCost,
-                      COALESCE(SUM(labor_cost), 0) as laborCost,
-                      COALESCE(SUM(overhead_cost), 0) as overheadCost
-                    FROM wip_snapshots
-                    WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM wip_snapshots)
-                `);
-
-        if (parseFloat(latestWIP[0].materialCost) > 0 || parseFloat(latestWIP[0].laborCost) > 0) {
-          composition = latestWIP[0];
-        }
-      }
+      const { year, month, startDate, endDate } = CostAccountingService.parsePeriodRange(period);
+      const compositionFields = ['materialCost', 'laborCost', 'overheadCost'];
+      const stats = await CostAccountingService.getCostSummaryForPeriod(startDate, endDate, compositionFields);
 
       ResponseHandler.success(res, {
         period: `${year}-${month}`,
         composition: [
-          { name: '材料成本', value: parseFloat(composition.materialCost) || 0 },
-          { name: '人工成本', value: parseFloat(composition.laborCost) || 0 },
-          { name: '制造费用', value: parseFloat(composition.overheadCost) || 0 },
+          { name: '材料成本', value: stats.materialCost },
+          { name: '人工成本', value: stats.laborCost },
+          { name: '制造费用', value: stats.overheadCost },
         ],
       });
     } catch (error) {
@@ -374,7 +185,7 @@ const costController = {
         maxPageSize: 100,
       });
 
-      let whereClause = 'WHERE psc.is_active = 1';
+      let whereClause = "WHERE psc.is_active = 1 AND (psc.status IS NULL OR psc.status = 'active')";
       const params = [];
 
       if (productName) {
@@ -389,7 +200,7 @@ const costController = {
       // 尝试从standard_costs表获取
       const [rows] = await db.pool.query(
           `
-                    SELECT 
+                    SELECT
                         MAX(psc.id) as id,
                         COALESCE(psc.product_id, psc.material_id) as product_id,
                         p.code as product_code,
@@ -406,7 +217,7 @@ const costController = {
                     ${whereClause}
                     GROUP BY COALESCE(psc.product_id, psc.material_id), p.code, p.name
                     ORDER BY MAX(psc.updated_at) DESC, MAX(psc.id) DESC
-                    LIMIT ${pageSize} OFFSET ${offset}
+                    LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
                 `,
           params
         );
@@ -471,12 +282,12 @@ const costController = {
   getCostSettings: async (req, res) => {
     try {
       const [settings] = await db.pool.execute(
-        `SELECT id, setting_name, overhead_rate, labor_rate, costing_method, 
+        `SELECT id, setting_name, overhead_rate, labor_rate, costing_method,
                 wage_payment_method, piece_rate, overhead_allocation_rules,
                 fallback_material_ratio, fallback_labor_ratio, fallback_overhead_ratio,
                 is_active, description, created_at, updated_at
-         FROM cost_settings 
-         WHERE is_active = 1 
+         FROM cost_settings
+         WHERE is_active = 1
          ORDER BY id DESC LIMIT 1`
       );
 
@@ -532,7 +343,7 @@ const costController = {
 
       // 验证参数
       if (overheadRate === undefined || laborRate === undefined) {
-        return ResponseHandler.error(res, '请提供制造费用分摊率和人工费率', 'INVALID_PARAMS', 400);
+        return ResponseHandler.error(res, '请提供制造费用分摊率和人工费率', 'VALIDATION_ERROR', 400);
       }
 
       // 校验拆分比例（三项之和必须等于 1.0）
@@ -540,10 +351,10 @@ const costController = {
       const lr = parseFloat(fallbackLaborRatio);
       const or = parseFloat(fallbackOverheadRatio);
       if (isNaN(mr) || isNaN(lr) || isNaN(or)) {
-        return ResponseHandler.error(res, '请提供完整的成本拆分比例', 'INVALID_PARAMS', 400);
+        return ResponseHandler.error(res, '请提供完整的成本拆分比例', 'VALIDATION_ERROR', 400);
       }
       if (Math.abs((mr + lr + or) - 1.0) > 0.001) {
-        return ResponseHandler.error(res, `成本拆分比例之和必须等于1.0（当前: ${(mr + lr + or).toFixed(4)}）`, 'INVALID_PARAMS', 400);
+        return ResponseHandler.error(res, `成本拆分比例之和必须等于1.0（当前: ${(mr + lr + or).toFixed(4)}）`, 'VALIDATION_ERROR', 400);
       }
 
       // 检查是否存在激活的设置
@@ -561,8 +372,8 @@ const costController = {
           if (currentSettings.length > 0) {
             const cs = currentSettings[0];
             await db.pool.execute(
-              `INSERT INTO cost_settings_history 
-                             (settings_id, setting_name, overhead_rate, labor_rate, costing_method, 
+              `INSERT INTO cost_settings_history
+                             (settings_id, setting_name, overhead_rate, labor_rate, costing_method,
                               wage_payment_method, piece_rate, overhead_allocation_rules,
                               effective_from, effective_to, changed_by, change_reason)
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?)`,
@@ -587,8 +398,8 @@ const costController = {
 
         // 更新现有设置
         await db.pool.execute(
-          `UPDATE cost_settings 
-                     SET overhead_rate = ?, labor_rate = ?, costing_method = ?, 
+          `UPDATE cost_settings
+                     SET overhead_rate = ?, labor_rate = ?, costing_method = ?,
                          wage_payment_method = ?, piece_rate = ?, overhead_allocation_rules = ?,
                          fallback_material_ratio = ?, fallback_labor_ratio = ?, fallback_overhead_ratio = ?,
                          description = ?, updated_at = NOW()
@@ -613,7 +424,7 @@ const costController = {
       } else {
         // 创建新设置
         await db.pool.execute(
-          `INSERT INTO cost_settings 
+          `INSERT INTO cost_settings
                      (setting_name, overhead_rate, labor_rate, costing_method, wage_payment_method, piece_rate, overhead_allocation_rules, is_active, description, created_at, updated_at)
                      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())`,
           [
@@ -678,7 +489,7 @@ const costController = {
         req.body;
 
       if (!code || !name) {
-        return ResponseHandler.error(res, '成本中心编码和名称不能为空', 'INVALID_PARAMS', 400);
+        return ResponseHandler.error(res, '成本中心编码和名称不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const [result] = await db.pool.execute(
@@ -757,7 +568,7 @@ const costController = {
       const [rows] = await db.pool.query(`
                 SELECT * FROM cost_settings_history
                 ORDER BY COALESCE(effective_from, created_at) DESC, id DESC
-                LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+                LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number((page - 1) * pageSize))||0)}
             `);
 
       const [countResult] = await db.pool.execute(
@@ -818,7 +629,7 @@ const costController = {
       const { productIds, multiLevel = false } = req.body;
 
       if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
-        return ResponseHandler.error(res, '请提供产品ID列表', 'INVALID_PARAMS', 400);
+        return ResponseHandler.error(res, '请提供产品ID列表', 'VALIDATION_ERROR', 400);
       }
 
       const results = [];
@@ -866,7 +677,7 @@ const costController = {
 
       await db.pool.execute(
         `
-                UPDATE standard_costs 
+                UPDATE standard_costs
                 SET is_frozen = 1, frozen_at = NOW(), frozen_by = ?, frozen_period = ?
                 WHERE product_id = ? AND is_active = 1
             `,
@@ -890,7 +701,7 @@ const costController = {
 
       await db.pool.execute(
         `
-                UPDATE standard_costs 
+                UPDATE standard_costs
                 SET is_frozen = 0, frozen_at = NULL, frozen_by = NULL
                 WHERE product_id = ? AND is_active = 1
             `,
@@ -914,12 +725,12 @@ const costController = {
       const frozenBy = req.user?.name || req.user?.username || 'system';
 
       if (!period) {
-        return ResponseHandler.error(res, '请指定冻结期间', 'INVALID_PARAMS', 400);
+        return ResponseHandler.error(res, '请指定冻结期间', 'VALIDATION_ERROR', 400);
       }
 
       const [result] = await db.pool.execute(
         `
-                UPDATE standard_costs 
+                UPDATE standard_costs
                 SET is_frozen = 1, frozen_at = NOW(), frozen_by = ?, frozen_period = ?
                 WHERE is_active = 1 AND (is_frozen = 0 OR is_frozen IS NULL)
             `,
@@ -969,7 +780,7 @@ const costController = {
       // 查询总数
       const [countResult] = await db.pool.execute(
         `
-                SELECT COUNT(*) as total 
+                SELECT COUNT(*) as total
                 FROM actual_costs ac
                 JOIN production_tasks pt ON ac.production_order_id = pt.id
                 LEFT JOIN materials m ON pt.product_id = m.id
@@ -981,7 +792,7 @@ const costController = {
       // 查询列表
       const [list] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     ac.id,
                     pt.code as order_number,
                     m.code as product_code,
@@ -999,7 +810,7 @@ const costController = {
                 LEFT JOIN materials m ON pt.product_id = m.id
                 WHERE ${whereClause}
                 ORDER BY ac.calculated_at DESC
-                LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+                LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
             `,
         params
       );
@@ -1026,7 +837,7 @@ const costController = {
       // 获取成本主信息 - 支持通过ac.id或production_order_id查询
       const [costInfo] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     ac.id,
                     ac.production_order_id as production_task_id,
                     pt.code as order_number,
@@ -1060,23 +871,32 @@ const costController = {
       try {
         const [outboundMaterials] = await db.pool.execute(
           `
-                    SELECT 
+                    SELECT
                         m.code as material_code,
                         m.name as material_name,
-                        SUM(ioi.actual_quantity) as quantity,
-                        COALESCE(m.cost_price, m.price, 0) as unit_cost,
-                        ROUND(SUM(ioi.actual_quantity) * COALESCE(m.cost_price, m.price, 0), 2) as total_cost,
+                        SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) as quantity,
+                        ROUND(
+                          SUM(
+                            (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+                            * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+                          ) / NULLIF(SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END), 0),
+                          4
+                        ) as unit_cost,
+                        ROUND(SUM(
+                          (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
+                          * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+                        ), 2) as total_cost,
                         GROUP_CONCAT(DISTINCT il.batch_number) as batch_number,
                         DATE_FORMAT(MAX(io.outbound_date), '%Y-%m-%d') as issue_date,
                         CASE WHEN io.is_excess = 1 OR io.issue_reason IS NOT NULL THEN '补料' ELSE '正常' END as issue_type
                     FROM inventory_outbound io
                     JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
                     JOIN materials m ON ioi.material_id = m.id
-                    LEFT JOIN inventory_ledger il ON il.material_id = ioi.material_id 
+                    LEFT JOIN inventory_ledger il ON il.material_id = ioi.material_id
                         AND il.reference_no = io.outbound_no
-                    WHERE io.production_task_id = ? 
+                    WHERE io.production_task_id = ?
                         AND io.status IN ('completed', 'confirmed')
-                    GROUP BY ioi.material_id, m.code, m.name, m.price, io.is_excess, io.issue_reason
+                    GROUP BY ioi.material_id, m.code, m.name, io.is_excess, io.issue_reason
                     ORDER BY m.code
                 `,
           [prodTaskId]
@@ -1095,7 +915,7 @@ const costController = {
       try {
         const [vouchers] = await db.pool.execute(
           `
-                    SELECT 
+                    SELECT
                         ge.id,
                         ge.entry_number,
                         ge.document_number,
@@ -1137,7 +957,7 @@ const costController = {
       const laborRate = settings.laborRate;
 
       const [laborRecords] = await db.pool.execute(
-        `SELECT 
+        `SELECT
             COALESCE(process_name, '生产车间') as workstation,
             operator_name as operator,
             work_hours,
@@ -1220,7 +1040,7 @@ const costController = {
         // 从cost_variance_records表查询
         const [countResult] = await db.pool.execute(
           `
-                    SELECT COUNT(*) as total 
+                    SELECT COUNT(*) as total
                     FROM cost_variance_records cv
                     JOIN production_tasks pt ON cv.task_id = pt.id
                     LEFT JOIN materials m ON cv.product_id = m.id
@@ -1231,7 +1051,7 @@ const costController = {
 
         const [list] = await db.pool.execute(
           `
-                    SELECT 
+                    SELECT
                         cv.id,
                         pt.code as order_number,
                         m.name as product_name,
@@ -1250,7 +1070,7 @@ const costController = {
                     LEFT JOIN materials m ON cv.product_id = m.id
                     WHERE ${whereClause}
                     ORDER BY cv.created_at DESC
-                    LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+                    LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
                 `,
           params
         );
@@ -1289,7 +1109,7 @@ const costController = {
       // 1. 严格 ID 匹配：只接受 cost_variance_records.id
       const [records] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     cv.*,
                     pt.code as order_number,
                     pt.product_id,
@@ -1420,7 +1240,7 @@ const costController = {
       if (id) {
         // 更新
         await db.pool.execute(
-          `UPDATE cost_supplement_configs 
+          `UPDATE cost_supplement_configs
                      SET reason_code = ?, reason_name = ?, is_included_in_cost = ?, is_active = ?
                      WHERE id = ?`,
           [reason_code, reason_name, isIncludedInCost, isActive, id]
@@ -1475,7 +1295,7 @@ const costController = {
   getGLMappings: async (req, res) => {
     try {
       const [mappings] = await db.pool.execute(`
-                SELECT m.*, a.account_code, a.account_name 
+                SELECT m.*, a.account_code, a.account_name
                 FROM gl_account_mappings m
                 LEFT JOIN gl_accounts a ON m.account_id = a.id
                 ORDER BY m.id
@@ -1535,7 +1355,7 @@ const costController = {
 
       // 兜底逻辑：实时计算
       const [rows] = await db.pool.query(`
-                SELECT 
+                SELECT
                     ac.id,
                     pt.code as task_code,
                     m.name as product_name,
@@ -1550,14 +1370,14 @@ const costController = {
                 JOIN production_tasks pt ON ac.production_order_id = pt.id
                 LEFT JOIN materials m ON pt.product_id = m.id
                 LEFT JOIN (
-                    SELECT product_id as p_id, SUM(standard_price) as total_cost 
-                    FROM standard_costs 
-                    WHERE is_active = 1 
+                    SELECT product_id as p_id, SUM(standard_price) as total_cost
+                    FROM standard_costs
+                    WHERE is_active = 1
                     GROUP BY product_id
                 ) psc ON pt.product_id = psc.p_id
                 HAVING ABS(variance_rate) > ${threshold}
                 ORDER BY ABS(variance_rate) DESC
-                LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+                LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
             `, [parseInt(pageSize)]);
 
       // 处理 alert_level
@@ -1569,14 +1389,14 @@ const costController = {
       // 获取总数 (需要嵌套查询因为 HAVING 不能直接用于 COUNT)
       const [countResult] = await db.pool.query(`
                 SELECT COUNT(*) as total FROM (
-                    SELECT 
+                    SELECT
                         ROUND((COALESCE(psc.total_cost * pt.quantity, 0) - ac.total_cost) / NULLIF(ac.total_cost, 0) * 100, 2) as variance_rate
                     FROM actual_costs ac
                     JOIN production_tasks pt ON ac.production_order_id = pt.id
                     LEFT JOIN (
-                        SELECT product_id as p_id, SUM(standard_price) as total_cost 
-                        FROM standard_costs 
-                        WHERE is_active = 1 
+                        SELECT product_id as p_id, SUM(standard_price) as total_cost
+                        FROM standard_costs
+                        WHERE is_active = 1
                         GROUP BY product_id
                     ) psc ON pt.product_id = psc.p_id
                     HAVING ABS(variance_rate) > ${threshold}
@@ -1664,7 +1484,7 @@ const costController = {
       } else {
         await db.pool.execute(
           `
-                    INSERT INTO cost_alert_settings 
+                    INSERT INTO cost_alert_settings
                     (variance_threshold, material_threshold, labor_threshold, overhead_threshold, updated_by)
                     VALUES (?, ?, ?, ?, ?)
                 `,
@@ -1700,7 +1520,7 @@ const costController = {
       // 获取当年各月成本数据
       const [currentYearData] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     DATE_FORMAT(calculated_at, '%Y-%m') as month,
                     COALESCE(SUM(material_cost), 0) as material_cost,
                     COALESCE(SUM(labor_cost), 0) as labor_cost,
@@ -1718,7 +1538,7 @@ const costController = {
       // 获取去年各月成本数据
       const [lastYearData] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     DATE_FORMAT(calculated_at, '%Y-%m') as month,
                     COALESCE(SUM(material_cost), 0) as material_cost,
                     COALESCE(SUM(labor_cost), 0) as labor_cost,
@@ -1734,12 +1554,13 @@ const costController = {
       );
 
       // 计算年度累计
+      const roundTwo = (v) => Math.round(v * 100) / 100;
       const currentYearTotal = currentYearData.reduce(
         (acc, row) => ({
-          material_cost: acc.material_cost + parseFloat(row.material_cost),
-          labor_cost: acc.labor_cost + parseFloat(row.labor_cost),
-          overhead_cost: acc.overhead_cost + parseFloat(row.overhead_cost),
-          total_cost: acc.total_cost + parseFloat(row.total_cost),
+          material_cost: roundTwo(acc.material_cost + parseFloat(row.material_cost)),
+          labor_cost: roundTwo(acc.labor_cost + parseFloat(row.labor_cost)),
+          overhead_cost: roundTwo(acc.overhead_cost + parseFloat(row.overhead_cost)),
+          total_cost: roundTwo(acc.total_cost + parseFloat(row.total_cost)),
           task_count: acc.task_count + parseInt(row.task_count),
         }),
         { material_cost: 0, labor_cost: 0, overhead_cost: 0, total_cost: 0, task_count: 0 }
@@ -1747,10 +1568,10 @@ const costController = {
 
       const lastYearTotal = lastYearData.reduce(
         (acc, row) => ({
-          material_cost: acc.material_cost + parseFloat(row.material_cost),
-          labor_cost: acc.labor_cost + parseFloat(row.labor_cost),
-          overhead_cost: acc.overhead_cost + parseFloat(row.overhead_cost),
-          total_cost: acc.total_cost + parseFloat(row.total_cost),
+          material_cost: roundTwo(acc.material_cost + parseFloat(row.material_cost)),
+          labor_cost: roundTwo(acc.labor_cost + parseFloat(row.labor_cost)),
+          overhead_cost: roundTwo(acc.overhead_cost + parseFloat(row.overhead_cost)),
+          total_cost: roundTwo(acc.total_cost + parseFloat(row.total_cost)),
           task_count: acc.task_count + parseInt(row.task_count),
         }),
         { material_cost: 0, labor_cost: 0, overhead_cost: 0, total_cost: 0, task_count: 0 }
@@ -1819,7 +1640,7 @@ const costController = {
 
       const [data] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     DATE_FORMAT(ac.calculated_at, '%Y-%m-%d') as 日期,
                     pt.code as 任务编号,
                     m.code as 产品编码,
@@ -1894,7 +1715,7 @@ const costController = {
 
       const [data] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     pt.code as 任务编号,
                     m.name as 产品名称,
                     cv.quantity as 数量,
@@ -1974,7 +1795,7 @@ const costController = {
       // 获取总数
       const [countResult] = await db.pool.execute(
         `
-                SELECT COUNT(*) as total 
+                SELECT COUNT(*) as total
                 FROM standard_costs sc
                 LEFT JOIN materials m ON sc.material_id = m.id
                 WHERE ${whereClause} AND sc.material_id IS NOT NULL
@@ -1985,7 +1806,7 @@ const costController = {
       // 获取列表
       const [list] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     sc.id,
                     sc.material_id,
                     m.code as material_code,
@@ -2002,7 +1823,7 @@ const costController = {
                 LEFT JOIN materials m ON sc.material_id = m.id
                 WHERE ${whereClause} AND sc.material_id IS NOT NULL
                 ORDER BY sc.created_at DESC
-                LIMIT ${pageSize} OFFSET ${offset}
+                LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
             `,
         params
       );
@@ -2045,8 +1866,8 @@ const costController = {
       if (source === 'cost_price') {
         // 从materials.cost_price自动读取所有物料的当前采购成本
         const [materialList] = await connection.execute(`
-                    SELECT id, code, name, cost_price, price 
-                    FROM materials 
+                    SELECT id, code, name, cost_price, price
+                    FROM materials
                     WHERE status = 1 AND (cost_price > 0 OR price > 0)
                 `);
 
@@ -2060,8 +1881,8 @@ const costController = {
           // 先将该物料的旧标准成本设为失效
           await connection.execute(
             `
-                        UPDATE standard_costs 
-                        SET is_active = 0, expiry_date = DATE_SUB(?, INTERVAL 1 DAY)
+                        UPDATE standard_costs
+                        SET is_active = 0, status = 'archived', expiry_date = DATE_SUB(?, INTERVAL 1 DAY)
                         WHERE material_id = ? AND is_active = 1 AND cost_element = 'material'
                     `,
             [effective_date, mat.id]
@@ -2070,9 +1891,9 @@ const costController = {
           // 插入新的标准成本
           await connection.execute(
             `
-                        INSERT INTO standard_costs 
-                        (material_id, cost_element, standard_price, effective_date, expiry_date, is_active)
-                        VALUES (?, 'material', ?, ?, ?, 1)
+                        INSERT INTO standard_costs
+                        (material_id, cost_element, standard_price, effective_date, expiry_date, is_active, status, source_type, operator)
+                        VALUES (?, 'material', ?, ?, ?, 1, 'active', 'manual', 'system')
                     `,
             [mat.id, standardPrice, effective_date, expiry_date]
           );
@@ -2090,8 +1911,8 @@ const costController = {
           // 先将该物料的旧标准成本设为失效
           await connection.execute(
             `
-                        UPDATE standard_costs 
-                        SET is_active = 0, expiry_date = DATE_SUB(?, INTERVAL 1 DAY)
+                        UPDATE standard_costs
+                        SET is_active = 0, status = 'archived', expiry_date = DATE_SUB(?, INTERVAL 1 DAY)
                         WHERE material_id = ? AND is_active = 1 AND cost_element = 'material'
                     `,
             [effective_date, item.material_id]
@@ -2100,9 +1921,9 @@ const costController = {
           // 插入新的标准成本
           await connection.execute(
             `
-                        INSERT INTO standard_costs 
-                        (material_id, cost_element, standard_price, effective_date, expiry_date, is_active)
-                        VALUES (?, 'material', ?, ?, ?, 1)
+                        INSERT INTO standard_costs
+                        (material_id, cost_element, standard_price, effective_date, expiry_date, is_active, status, source_type, operator)
+                        VALUES (?, 'material', ?, ?, ?, 1, 'active', 'manual', 'system')
                     `,
             [item.material_id, item.standard_price, effective_date, expiry_date]
           );
@@ -2163,6 +1984,8 @@ const costController = {
       if (is_active !== undefined) {
         updateFields.push('is_active = ?');
         params.push(is_active ? 1 : 0);
+        updateFields.push('status = ?');
+        params.push(is_active ? 'active' : 'archived');
       }
 
       if (updateFields.length === 0) {
@@ -2172,7 +1995,7 @@ const costController = {
       params.push(id);
       await db.pool.execute(
         `
-                UPDATE standard_costs 
+                UPDATE standard_costs
                 SET ${updateFields.join(', ')}
                 WHERE id = ?
             `,

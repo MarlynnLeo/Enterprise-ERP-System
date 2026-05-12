@@ -74,7 +74,7 @@ const qualityStandardController = {
                 return ResponseHandler.error(
                     res,
                     '标准编号、标准名称、标准类型、适用对象类型、适用对象ID和版本号不能为空',
-                    'BAD_REQUEST',
+                    'VALIDATION_ERROR',
                     400
                 );
             }
@@ -139,7 +139,7 @@ const qualityStandardController = {
             const { targetType } = req.params;
 
             if (!['material', 'product', 'process'].includes(targetType)) {
-                return ResponseHandler.error(res, '目标类型参数错误', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '目标类型参数错误', 'VALIDATION_ERROR', 400);
             }
 
             const options = await QualityStandard.getTargetOptions(targetType);

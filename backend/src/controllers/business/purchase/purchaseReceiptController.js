@@ -45,7 +45,7 @@ const getReceipts = async (req, res) => {
     const actualPage = parseInt(page, 10);
     // 验证参数
     if (isNaN(actualPage) || isNaN(actualPageSize) || actualPage < 1 || actualPageSize < 1) {
-      return ResponseHandler.error(res, '无效的分页参数', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的分页参数', 'VALIDATION_ERROR', 400);
     }
 
     const offset = (actualPage - 1) * actualPageSize;
@@ -104,7 +104,7 @@ const getReceipts = async (req, res) => {
         LEFT JOIN locations l ON r.warehouse_id = l.id
         LEFT JOIN users u ON u.username = r.operator
         ${whereClause}
-        ORDER BY r.created_at DESC LIMIT ${actualPageSize} OFFSET ${offset}
+        ORDER BY r.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
       `;
       const [result] = await connection.query(dataQuery, queryParams);
 
@@ -124,7 +124,7 @@ const getReceipts = async (req, res) => {
       const hasPerm = await hasFinancePermission(req.user);
       const desensitizedReceipts = desensitizeData(receipts, hasPerm);
 
-      res.json({
+      return ResponseHandler.success(res, {
         items: desensitizedReceipts,
         total: totalCount,
         page: actualPage,
@@ -151,7 +151,7 @@ const getReceipt = async (req, res) => {
       const { id } = req.params;
 
       if (!id || isNaN(parseInt(id, 10))) {
-        return ResponseHandler.error(res, '无效的ID参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的ID参数', 'VALIDATION_ERROR', 400);
       }
 
       const receiptId = parseInt(id, 10);
@@ -161,21 +161,21 @@ const getReceipt = async (req, res) => {
 
       // 使用JOIN语句获取更详细的信息
       const query = `
-        SELECT 
+        SELECT
           pr.*,
           po.order_no,
           s.name AS supplier_name,
           l.name AS warehouse_name,
           (SELECT u.real_name FROM users u WHERE u.username = pr.operator OR u.real_name = pr.operator LIMIT 1) as real_name
-        FROM 
+        FROM
           purchase_receipts pr
-        LEFT JOIN 
+        LEFT JOIN
           purchase_orders po ON pr.order_id = po.id
-        LEFT JOIN 
+        LEFT JOIN
           suppliers s ON pr.supplier_id = s.id
-        LEFT JOIN 
+        LEFT JOIN
           locations l ON pr.warehouse_id = l.id
-        WHERE 
+        WHERE
           pr.id = ?
       `;
 
@@ -189,21 +189,21 @@ const getReceipt = async (req, res) => {
 
       // 获取入库单物料
       const itemsQuery = `
-        SELECT 
+        SELECT
           pri.*,
           m.name AS material_name,
           m.code AS material_code,
           m.specs,
           u.name AS unit_name
-        FROM 
+        FROM
           purchase_receipt_items pri
-        LEFT JOIN 
+        LEFT JOIN
           materials m ON pri.material_id = m.id
-        LEFT JOIN 
+        LEFT JOIN
           units u ON pri.unit_id = u.id
-        WHERE 
-          pri.receipt_id = ? 
-        ORDER BY 
+        WHERE
+          pri.receipt_id = ?
+        ORDER BY
           pri.id
       `;
 
@@ -273,7 +273,7 @@ const getReceipt = async (req, res) => {
       const desensitizedResponse = desensitizeData(response, hasPerm);
 
       // 直接返回响应对象，不再嵌套在data中
-      return res.json(desensitizedResponse);
+      return ResponseHandler.success(res, desensitizedResponse);
     } catch (error) {
       if (
         (error.code === 'ECONNRESET' || error.code === 'PROTOCOL_CONNECTION_LOST') &&
@@ -354,15 +354,7 @@ const createReceipt = async (req, res) => {
     // 验证必填字段
     if (!orderId || !supplierId || !warehouseId || !receiptDate) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        error: '缺少必填字段',
-        details: {
-          orderId: !orderId ? '订单ID必填' : null,
-          supplierId: !supplierId ? '供应商ID必填' : null,
-          warehouseId: !warehouseId ? '仓库ID必填' : null,
-          receiptDate: !receiptDate ? '收货日期必填' : null,
-        },
-      });
+      return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
     }
 
     // 确保warehouseId是数字类型
@@ -370,7 +362,7 @@ const createReceipt = async (req, res) => {
     if (isNaN(warehouseIdNumber)) {
       await client.query('ROLLBACK');
       logger.error(`仓库ID ${warehouseId} 不是有效的数字`);
-      return res.status(400).json({ error: `仓库ID必须是数字: ${warehouseId}` });
+      return ResponseHandler.error(res, `仓库ID必须是数字: ${warehouseId}`, 'VALIDATION_ERROR', 400);
     }
 
     // 第一性原理防御：获取订单信息并开启关联悲观锁
@@ -389,7 +381,7 @@ const createReceipt = async (req, res) => {
       // 业务硬控：已终止的订单不可在途收货（允许 completed 状态，因为入库可能在订单收货完成后进行）
       if (['cancelled', 'closed'].includes(orderResult[0].status)) {
         await client.rollback();
-        return res.status(400).json({ error: `采购订单当前状态为 ${orderResult[0].status}，无法操作` });
+        return ResponseHandler.error(res, `采购订单当前状态为 ${orderResult[0].status}，无法操作`, 'VALIDATION_ERROR', 400);
       }
 
       // ========== 防重复建单（基于实际业务关系，非订单级暴力阻击） ==========
@@ -420,9 +412,7 @@ const createReceipt = async (req, res) => {
         const [recentReceipts] = await client.query(clickGuardQuery, [orderId]);
         if (recentReceipts.length > 0) {
           await client.rollback();
-          return res.status(409).json({
-            error: `操作过于频繁，该订单在10秒内已创建收货单 ${recentReceipts[0].receipt_no}，请勿重复提交。`,
-          });
+          return ResponseHandler.error(res, `操作过于频繁，该订单在10秒内已创建收货单 ${recentReceipts[0].receipt_no}，请勿重复提交。`, 'CONFLICT', 409);
         }
       }
 
@@ -451,7 +441,7 @@ const createReceipt = async (req, res) => {
       return ResponseHandler.notFound(res, '供应商不存在');
     }
 
-    const supplierName = supplierResult.name ? supplierResult.name : '';
+    const supplierName = supplierResult[0]?.name || '';
 
     // 获取仓库信息
     let warehouseResult;
@@ -471,7 +461,7 @@ const createReceipt = async (req, res) => {
       return ResponseHandler.notFound(res, '仓库不存在');
     }
 
-    const warehouseName = warehouseResult.name ? warehouseResult.name : '';
+    const warehouseName = warehouseResult[0]?.name || '';
 
     // 生成入库单号
 
@@ -503,7 +493,7 @@ const createReceipt = async (req, res) => {
     // 创建采购入库单
     const insertQuery = `
       INSERT INTO purchase_receipts (
-        receipt_no, order_id, order_no, supplier_id, supplier_name, 
+        receipt_no, order_id, order_no, supplier_id, supplier_name,
         warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
         from_inspection, inspection_id
       )
@@ -814,13 +804,7 @@ const updateReceipt = async (req, res) => {
     // 验证必填字段
     if (!id || !receiptDate) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        error: '缺少必填字段',
-        details: {
-          id: !id ? '入库单ID必填' : null,
-          receiptDate: !receiptDate ? '收货日期必填' : null,
-        },
-      });
+      return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
     }
 
     // 检查入库单是否存在及其状态
@@ -843,7 +827,7 @@ const updateReceipt = async (req, res) => {
       if (currentStatus !== 'draft') {
         // 使用普通查询回滚事务
         await client.query('ROLLBACK');
-        return ResponseHandler.error(res, '只能编辑草稿状态的收货单', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '只能编辑草稿状态的收货单', 'VALIDATION_ERROR', 400);
       }
 
       // 如果更改了仓库，则需要获取新仓库的信息
@@ -970,13 +954,7 @@ const updateReceiptStatus = async (req, res) => {
     // 验证必填字段
     if (!id || !status) {
       await client.rollback();
-      return res.status(400).json({
-        error: '缺少必填字段',
-        details: {
-          id: !id ? '入库单ID必填' : null,
-          status: !status ? '状态必填' : null,
-        },
-      });
+      return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
     }
 
     // 验证状态值
@@ -984,7 +962,7 @@ const updateReceiptStatus = async (req, res) => {
     if (!validStatuses.includes(status)) {
       // 使用标准回滚
       await client.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 检查入库单是否存在
@@ -1003,7 +981,7 @@ const updateReceiptStatus = async (req, res) => {
       if (!isValidStatusTransition(currentStatus, status)) {
         // 使用标准回滚
         await client.rollback();
-        return ResponseHandler.error(res, '无效的状态变更', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的状态变更', 'VALIDATION_ERROR', 400);
       }
       // 优化：将状态更新移到事务提交前执行，为了减少行锁持有时间
       // 这里先只进行参数准备，不执行SQL update
@@ -1290,11 +1268,7 @@ const updateReceiptStatus = async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      message: '采购入库单状态更新成功',
-      data: { newStatus: status },
-    });
+    return ResponseHandler.success(res, { newStatus: status }, '采购入库单状态更新成功');
   } catch (error) {
     // 使用普通查询回滚事务
     try {
@@ -1407,19 +1381,13 @@ const getMaterialPurchaseHistory = async (req, res) => {
 
     // 验证参数
     if (!materialId) {
-      return res.status(400).json({
-        success: false,
-        error: '物料ID不能为空',
-      });
+      return ResponseHandler.error(res, '物料ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 解析并验证 materialId
     const parsedMaterialId = parseInt(materialId, 10);
     if (isNaN(parsedMaterialId)) {
-      return res.status(400).json({
-        success: false,
-        error: '物料ID必须是有效的数字',
-      });
+      return ResponseHandler.error(res, '物料ID必须是有效的数字', 'VALIDATION_ERROR', 400);
     }
 
     // 确保分页参数是有效的数字
@@ -1506,7 +1474,7 @@ const getMaterialPurchaseHistory = async (req, res) => {
         LEFT JOIN suppliers s ON pr.supplier_id = s.id
         ${whereClause}
         ORDER BY pr.receipt_date DESC, pr.created_at DESC
-        LIMIT ${actualPageSize} OFFSET ${offset}
+        LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
       `;
 
       const dataParams = queryParams;
@@ -1537,16 +1505,12 @@ const getMaterialPurchaseHistory = async (req, res) => {
           : [];
 
       // 返回结果
-      res.json({
-        success: true,
-        data: {
+      return ResponseHandler.success(res, {
           rows: dataRows,
           total: total,
           page: actualPage,
           pageSize: actualPageSize,
-        },
-        message: '获取物料采购历史成功',
-      });
+        }, '获取物料采购历史成功');
     } finally {
       client.release();
     }
@@ -1644,7 +1608,7 @@ const getPurchaseHistoryItems = async (req, res) => {
         LEFT JOIN suppliers s ON pr.supplier_id = s.id
         ${whereClause}
         ORDER BY pr.receipt_date DESC, pr.id DESC
-        LIMIT ${actualPageSize} OFFSET ${offset}
+        LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
       `;
 
       const dataResult = await client.query(dataQuery, queryParams);
@@ -1654,16 +1618,12 @@ const getPurchaseHistoryItems = async (req, res) => {
           ? dataResult.rows
           : [];
 
-      res.json({
-        success: true,
-        data: {
+      return ResponseHandler.success(res, {
           rows: dataRows,
           total: parseInt(total) || 0,
           page: actualPage,
           pageSize: actualPageSize,
-        },
-        message: '获取全量采购历史明细成功'
-      });
+        }, '获取全量采购历史明细成功');
     } finally {
       client.release();
     }

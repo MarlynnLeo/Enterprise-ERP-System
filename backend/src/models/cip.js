@@ -151,7 +151,7 @@ const cipModel = {
     createCipProject: async (data) => {
         try {
             const [result] = await db.pool.query(
-                `INSERT INTO cip_projects 
+                `INSERT INTO cip_projects
          (project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
@@ -260,9 +260,9 @@ const cipModel = {
             // 2. 插入新固定资产 (复用 assetsModel 的构建逻辑，或者直接执行 INSERT)
             // 为保持独立性，自己执行INSERT
             const [assetResult] = await connection.query(
-                `INSERT INTO fixed_assets 
-         (asset_code, asset_name, category_id, asset_type, acquisition_date, acquisition_cost, 
-          salvage_value, current_value, net_value, useful_life, depreciation_method, status, 
+                `INSERT INTO fixed_assets
+         (asset_code, asset_name, category_id, asset_type, acquisition_date, acquisition_cost,
+          salvage_value, current_value, net_value, useful_life, depreciation_method, status,
           location_id, department_id, custodian, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在用', ?, ?, ?, ?)`,
                 [
@@ -288,7 +288,7 @@ const cipModel = {
 
             // 3. 记录固定资产变更日志
             await connection.query(
-                `INSERT INTO asset_change_logs 
+                `INSERT INTO asset_change_logs
          (asset_id, change_type, change_date, changed_by, field_name, old_value, new_value, remarks)
          VALUES (?, '在建工程转固', ?, ?, 'status', null, '在用', ?)`,
                 [

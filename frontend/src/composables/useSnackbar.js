@@ -32,7 +32,7 @@ export function useSnackbar() {
       duration: duration,
       showClose: true
     });
-    
+
     // 同时更新本地状态，供App.vue中的组件使用
     snackbar.value = {
       show: true,
@@ -55,4 +55,4 @@ export function useSnackbar() {
     showSnackbar,
     hideSnackbar
   };
-} 
+}

@@ -67,9 +67,9 @@ class GLService {
   static async getCurrentPeriod() {
     try {
       const [periods] = await db.pool.execute(`
-        SELECT * FROM gl_periods 
-        WHERE is_closed = 0 
-        ORDER BY end_date DESC 
+        SELECT * FROM gl_periods
+        WHERE is_closed = 0
+        ORDER BY end_date DESC
         LIMIT 1
       `);
       return periods.length > 0 ? periods[0] : null;
@@ -88,9 +88,9 @@ class GLService {
     try {
       const [periods] = await db.pool.execute(
         `
-        SELECT id FROM gl_periods 
+        SELECT id FROM gl_periods
         WHERE start_date <= ? AND end_date >= ? AND is_closed = 0
-        ORDER BY start_date DESC 
+        ORDER BY start_date DESC
         LIMIT 1
       `,
         [date, date]
@@ -114,7 +114,7 @@ class GLService {
 
       const [periods] = await db.pool.execute(
         `
-        SELECT id FROM gl_periods 
+        SELECT id FROM gl_periods
         WHERE YEAR(start_date) = ? AND MONTH(start_date) = ?
         LIMIT 1
       `,
@@ -127,7 +127,7 @@ class GLService {
 
       const [altPeriods] = await db.pool.execute(
         `
-        SELECT id FROM gl_periods 
+        SELECT id FROM gl_periods
         WHERE start_date <= ? AND end_date >= ?
         LIMIT 1
       `,
@@ -324,7 +324,7 @@ class GLService {
       if (!voucherNumber) {
         // 锁定该期间+凭证字的最大号，防止并发导致跳号或重号
         const [maxVoucher] = await conn.execute(
-          `SELECT MAX(voucher_number) as max_num FROM gl_entries 
+          `SELECT MAX(voucher_number) as max_num FROM gl_entries
                      WHERE period_id = ? AND voucher_word = ? FOR UPDATE`,
           [resolvedPeriodId || 0, voucherWord]
         );
@@ -351,9 +351,9 @@ class GLService {
       // 7. 插入分录头
       const [result] = await conn.execute(
         `
-                INSERT INTO gl_entries 
-                (entry_number, entry_date, posting_date, period_id, document_type, document_number, description, created_by, transaction_type, voucher_word, voucher_number, status, is_posted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO gl_entries
+                (entry_number, entry_date, posting_date, period_id, document_type, document_number, description, created_by, transaction_type, transaction_id, voucher_word, voucher_number, status, is_posted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
         [
           entryNumber,
@@ -365,6 +365,7 @@ class GLService {
           entryData.description || null,
           createdById,
           entryData.transaction_type || entryData.document_type || null,
+          entryData.transaction_id || null,
           voucherWord,
           voucherNumber,
           entryData.status || 'draft',
@@ -387,7 +388,7 @@ class GLService {
         item.description || null,
       ]);
       await conn.query(
-        `INSERT INTO gl_entry_items 
+        `INSERT INTO gl_entry_items
          (entry_id, line_number, account_id, debit_amount, credit_amount, currency_code, exchange_rate, cost_center_id, description)
          VALUES ?`,
         [itemValues]
@@ -429,8 +430,8 @@ class GLService {
 
     // 使用 FOR UPDATE 锁获取当天最大编号
     const [maxEntry] = await connection.execute(
-      `SELECT entry_number FROM gl_entries 
-       WHERE entry_number LIKE ? 
+      `SELECT entry_number FROM gl_entries
+       WHERE entry_number LIKE ?
        ORDER BY entry_number DESC LIMIT 1 FOR UPDATE`,
       [`${prefix}%`]
     );

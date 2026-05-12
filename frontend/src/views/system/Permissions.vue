@@ -33,7 +33,7 @@
           <h3>系统角色</h3>
           <el-button type="primary" v-permission="'system:permissions:manage'" @click="showAddRoleDialog">新增角色</el-button>
         </div>
-        
+
         <el-table
           :data="roleList"
           style="width: 100%"
@@ -60,7 +60,7 @@
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要启用该角色吗？"
-                  @confirm="handleToggleMenuStatus(scope.row)"
+                  @confirm="handleToggleRoleStatus(scope.row)"
                 >
                   <template #reference>
                     <el-button size="small" type="success" v-permission="'system:permissions:manage'">
@@ -71,7 +71,7 @@
                 <el-popconfirm
                   v-if="String(scope.row.status) === '1'"
                   title="确定要禁用该角色吗？"
-                  @confirm="handleToggleMenuStatus(scope.row)"
+                  @confirm="handleToggleRoleStatus(scope.row)"
                   confirm-button-type="danger"
                 >
                   <template #reference>
@@ -123,7 +123,7 @@
             <el-button type="success" v-permission="'system:permissions:manage'" @click="importMenuData">导入完整菜单</el-button>
           </div>
         </div>
-        
+
         <el-table
           :data="menuList"
           style="width: 100%"
@@ -174,7 +174,7 @@
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要显示该菜单吗？"
-                  @confirm="handleToggleRoleStatus(scope.row)"
+                  @confirm="handleToggleMenuStatus(scope.row)"
                 >
                   <template #reference>
                     <el-button size="small" type="success" v-permission="'system:permissions:manage'">
@@ -185,7 +185,7 @@
                 <el-popconfirm
                   v-if="String(scope.row.status) === '1'"
                   title="确定要隐藏该菜单吗？"
-                  @confirm="handleToggleRoleStatus(scope.row)"
+                  @confirm="handleToggleMenuStatus(scope.row)"
                   confirm-button-type="danger"
                 >
                   <template #reference>
@@ -226,7 +226,7 @@
         </el-table>
       </div>
     </el-card>
-    
+
     <!-- 角色添加/编辑/查看对话框 -->
     <el-dialog
       :title="roleDialogTitle"
@@ -493,7 +493,7 @@ import { useAuthStore } from '../../stores/auth';
 const _authStore = useAuthStore();
 // 菜单类型标签组件
 const MenuTypeTag = (props) => {
-  return h('el-tag', { 
+  return h('el-tag', {
     type: props.type === 0 ? 'primary' : props.type === 1 ? 'success' : 'warning',
     size: 'small'
   }, props.type === 0 ? '目录' : props.type === 1 ? '菜单' : '按钮');
@@ -570,7 +570,16 @@ const menuRules = {
     { required: true, message: '请输入菜单名称', trigger: 'blur' }
   ],
   path: [
-    { required: true, message: '请输入路由路径', trigger: 'blur' }
+    {
+      validator: (_rule, value, callback) => {
+        if (menuForm.type !== 2 && (!value || String(value).trim() === '')) {
+          callback(new Error('请输入路由路径'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur'
+    }
   ],
   type: [
     { required: true, message: '请选择菜单类型', trigger: 'change' }
@@ -665,13 +674,13 @@ const loadRoles = async () => {
       limit: rolePageSize.value
     };
     const response = await systemApi.getRoles(params);
-    
+
     // 确保处理的是数组数据
     const responseData = response.data;
     const rolesData = responseData?.data || responseData?.list || responseData?.rows || (Array.isArray(responseData) ? responseData : []);
-    
+
     roleList.value = rolesData;
-    
+
     // 从多级结构中安全提取总数
     let totalCount = 0;
     if (responseData?.total !== undefined) {
@@ -709,7 +718,7 @@ const loadMenus = async () => {
       const directResponse = await systemApi.getMenusDirect();
       if (directResponse && directResponse.data && Array.isArray(directResponse.data)) {
         const menuData = directResponse.data;
-        
+
         // 处理直接从数据库获取的菜单数据
         menuList.value = menuData.map(item => ({
           ...item,
@@ -719,32 +728,31 @@ const loadMenus = async () => {
           sort: item.sort_order || item.sort || 0, // 处理排序字段
           type: Number(item.type || 0) // 确保type是数字
         }));
-        
+
         // 缓存菜单数据
         try {
           localStorage.setItem('cachedMenus', JSON.stringify(menuList.value));
         } catch {
           // 缓存失败不影响主流程
         }
-        
+
         // 构建菜单树
         const treeData = convertToTree(menuList.value);
         menuTree.value = treeData;
-        
+
         menuLoading.value = false;
         return menuTree.value;
       }
-    } catch (directError) {
-      console.warn('直接API获取菜单失败，尝试标准API:', directError);
+    } catch {
     }
-    
+
     // 如果直接API失败，使用标准API获取菜单列表
     const response = await systemApi.getMenus();
-    
+
     // 检查响应数据
     if (!response || !response.data) {
       ElMessage.error('加载菜单失败：响应数据无效');
-      
+
       // 尝试从本地存储中恢复菜单数据
       const cachedMenus = localStorage.getItem('cachedMenus');
       if (cachedMenus) {
@@ -758,16 +766,16 @@ const loadMenus = async () => {
           console.error('从本地缓存恢复菜单数据失败:', cacheError);
         }
       }
-      
+
       return [];
     }
-    
+
     let menuData = response.data;
     // 如果响应数据被包装在data字段中
     if (!Array.isArray(menuData) && menuData.data) {
       menuData = menuData.data;
     }
-    
+
     if (Array.isArray(menuData)) {
       // 修复：确保所有菜单项都有正确的id和parent_id格式
       menuList.value = menuData.map(item => ({
@@ -778,20 +786,19 @@ const loadMenus = async () => {
         sort: Number(item.sort_order || item.sort || 0), // 处理排序字段
         type: Number(item.type || 0) // 确保type是数字
       }));
-      
+
       // 缓存菜单数据到本地存储，以便在API失败时使用
       try {
         localStorage.setItem('cachedMenus', JSON.stringify(menuList.value));
-      } catch (cacheError) {
-        console.warn('缓存菜单数据到本地存储失败:', cacheError);
+      } catch {
       }
-      
+
       // 构建菜单树
       const treeData = convertToTree(menuList.value);
-      
+
       // 确保menuTree被正确赋值
       menuTree.value = treeData;
-      
+
       return menuTree.value; // 返回菜单树数据
     } else {
       ElMessage.error('加载菜单失败：数据格式错误');
@@ -799,7 +806,7 @@ const loadMenus = async () => {
     }
   } catch (error) {
     console.error('加载菜单失败:', error);
-    
+
     if (error.response?.status === 401) {
       ElMessage.error('请先登录');
     } else {
@@ -809,7 +816,7 @@ const loadMenus = async () => {
   } finally {
     menuLoading.value = false;
   }
-  
+
   return menuTree.value; // 确保总是返回菜单树数据，即使是空数组
 };
 // 将平铺的菜单列表转换为树形结构
@@ -817,20 +824,20 @@ const convertToTree = (flatList) => {
   if (!flatList || !Array.isArray(flatList) || flatList.length === 0) {
     return [];
   }
-  
+
   // 创建映射表和结果容器
   const map = {};
   const result = [];
-  
+
   // 第一次遍历: 创建所有节点的映射
   flatList.forEach(item => {
     if (!item || typeof item !== 'object') return;
-    
+
     const id = Number(item.id);
     if (isNaN(id) || id <= 0) {
       return;
     }
-    
+
     // 确保parent_id和parentId都被正确处理
     let parentId = 0;
     if (item.parentId !== undefined) {
@@ -838,25 +845,25 @@ const convertToTree = (flatList) => {
     } else if (item.parent_id !== undefined) {
       parentId = Number(item.parent_id);
     }
-    
+
     // 确保排序字段正确
     const sortValue = Number(item.sort_order || item.sort || 0);
-    
-    map[id] = { 
-      ...item, 
+
+    map[id] = {
+      ...item,
       id,
       parent_id: parentId,
       parentId: parentId,
       sort: sortValue,
       sort_order: sortValue,
-      children: [] 
+      children: []
     };
   });
-  
+
   // 第二次遍历: 构建树结构
   Object.values(map).forEach(node => {
     const parentId = Number(node.parentId || node.parent_id || 0);
-    
+
     if (parentId === 0) {
       // 根节点直接添加到结果中
       result.push(node);
@@ -868,14 +875,14 @@ const convertToTree = (flatList) => {
       result.push(node);
     }
   });
-  
+
   // 对所有节点进行排序
   const sortNodes = (nodes) => {
     if (!nodes || !Array.isArray(nodes)) return;
-    
+
     // 按sort字段排序
     nodes.sort((a, b) => (a.sort || 0) - (b.sort || 0));
-    
+
     // 递归对子节点排序
     nodes.forEach(node => {
       if (node.children && node.children.length > 0) {
@@ -883,9 +890,9 @@ const convertToTree = (flatList) => {
       }
     });
   };
-  
+
   sortNodes(result);
-  
+
   return result;
 };
 // 新增角色
@@ -909,14 +916,14 @@ const handleEditRole = (row) => {
   roleDialogTitle.value = '编辑角色';
   roleIsViewMode.value = false;
   resetRoleForm();
-  
+
   // 填充表单数据
   Object.keys(roleForm).forEach(key => {
     if (key in row) {
       roleForm[key] = row[key];
     }
   });
-  
+
   roleDialogVisible.value = true;
 };
 // 切换角色状态（el-popconfirm 已在模板中处理确认，此处直接执行）
@@ -949,27 +956,27 @@ const handleToggleMenuStatus = async (row) => {
 const handleRolePermission = async (row) => {
   try {
     currentRole.value = row;
-    
+
     // 显示加载中指示器
     const loading = ElLoading.service({
       lock: true,
       text: '正在加载菜单数据...',
       background: 'rgba(0, 0, 0, 0.7)'
     });
-    
+
     try {
       // 检查菜单列表是否已加载
       if (!menuList.value || menuList.value.length === 0) {
         await loadMenus();
       } else {
-        
+
         // 如果菜单树为空，但菜单列表已加载，则重新构建菜单树
         if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
           menuTree.value = convertToTree(menuList.value);
         }
       }
-      
-      
+
+
       // 如果菜单树仍然为空，尝试从本地存储恢复
       if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
         const cachedMenus = localStorage.getItem('cachedMenus');
@@ -985,32 +992,32 @@ const handleRolePermission = async (row) => {
           }
         }
       }
-      
+
       if (!menuList.value || menuList.value.length === 0) {
         loading.close();
         console.error('菜单数据为空');
         ElMessage.error('无法加载菜单数据');
         return;
       }
-      
+
       // 获取角色权限
       const response = await systemApi.getRolePermissions(row.id);
-      
+
       if (!response || !response.data) {
         loading.close();
         console.error('角色权限响应无效:', response);
         ElMessage.error('获取角色权限失败：响应数据无效');
         return;
       }
-      
+
       // 设置选中的菜单ID
       const permissionData = response.data;
-      
+
       // 兼容新旧接口
       if (Array.isArray(permissionData)) {
         // 旧格式：直接是菜单ID数组
         const allSelectedIds = permissionData.map(id => Number(id));
-        
+
         // 🔧 重要修复：只选中叶子节点，避免父节点导致子节点自动全选
         const leafNodeIds = filterLeafNodes(allSelectedIds);
         selectedMenuIds.value = leafNodeIds;
@@ -1020,7 +1027,7 @@ const handleRolePermission = async (row) => {
         selectedMenuIds.value = (permissionData.checkedKeys || []).map(id => Number(id));
         halfCheckedMenuIds.value = (permissionData.halfCheckedKeys || []).map(id => Number(id));
       }
-      
+
       // 保存当前角色的权限到localStorage，防止刷新丢失
       try {
         const roleSelectionsKey = `role_permissions_${row.id}`;
@@ -1028,18 +1035,17 @@ const handleRolePermission = async (row) => {
           checked: selectedMenuIds.value,
           halfChecked: halfCheckedMenuIds.value
         }));
-      } catch (err) {
-        console.warn('保存角色权限到本地存储失败:', err);
+      } catch {
       }
-      
+
       // 利用原生的选中能力
       if (permissionTreeRef.value) {
         permissionTreeRef.value.setCheckedKeys(selectedMenuIds.value);
       }
-      
+
       // 关闭加载指示器
       loading.close();
-      
+
       // 显示对话框 - 对话框打开后会触发onPermissionDialogOpened事件
       permissionDialogVisible.value = true;
     } finally {
@@ -1059,38 +1065,35 @@ const handleRolePermission = async (row) => {
 };
 // 提取设置树选中状态的逻辑为独立函数
 const _setTreeCheckedStatus = () => {
-  
+
   try {
     // 先清空所有选中状态
     if (typeof permissionTreeRef.value.setCheckedKeys === 'function') {
       permissionTreeRef.value.setCheckedKeys([]);
     } else {
-      console.warn('树组件没有setCheckedKeys方法');
       return; // 如果没有这个方法，则退出
     }
-    
+
     // 设置完全选中的菜单
     if (selectedMenuIds.value && selectedMenuIds.value.length > 0) {
       // 确保所有ID都是数字类型
       const numericIds = selectedMenuIds.value.map(id => Number(id));
       permissionTreeRef.value.setCheckedKeys(numericIds);
     }
-    
+
     // 检查菜单树数据状态
     const menuTreeData = menuTree.value || [];
-    
-    
+
+
     // 检查树节点是否正确渲染
     if (permissionTreeRef.value.store && permissionTreeRef.value.store.nodesMap) {
       const nodeKeys = Object.keys(permissionTreeRef.value.store.nodesMap);
       if (nodeKeys.length > 0) {
       } else {
-        console.warn('树节点未正确渲染');
       }
     } else {
-      console.warn('树组件没有store或nodesMap属性');
     }
-    
+
     // 强制展开所有节点 (使用正规 nextTick 而不是定时器)
     if (Array.isArray(menuTreeData) && menuTreeData.length > 0) {
       nextTick(() => {
@@ -1168,7 +1171,7 @@ const saveRolePermission = async () => {
       permissionSaveLoading.value = false;
       return;
     }
-    
+
     // 获取完全选中的节点keys和半选中的节点keys
     const checkedKeys = permissionTreeRef.value.getCheckedKeys();
     const halfCheckedKeys = permissionTreeRef.value.getHalfCheckedKeys();
@@ -1178,19 +1181,19 @@ const saveRolePermission = async () => {
       permissionSaveLoading.value = false;
       return;
     }
-    
+
     // 对比之前的选中状态和当前选中状态
     const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
     let uncheckedIds = [];
-    
+
     try {
       const prevData = JSON.parse(localStorage.getItem(rolePermissionsKey) || '{}');
       let prevChecked = [];
-      
+
       // 优先使用后端返回的完整数据作为比较基准
       if (prevData.fromBackend && prevData.checked) {
         prevChecked = prevData.checked;
-      } 
+      }
       // 其次使用原始保存的选中状态
       else if (prevData.originalChecked) {
         prevChecked = prevData.originalChecked;
@@ -1199,23 +1202,23 @@ const saveRolePermission = async () => {
       else if (prevData.checked) {
         prevChecked = prevData.checked;
       }
-      
+
       // 转换为数字格式进行比较
       const prevNumericChecked = prevChecked.map(id => Number(id));
       const currentNumericChecked = checkedKeys.map(id => Number(id));
-      
+
       // 找出已取消选中的菜单ID
       uncheckedIds = prevNumericChecked.filter(id => !currentNumericChecked.includes(id));
-      
+
       if (uncheckedIds.length > 0) {
-        
+
         // 获取这些菜单的名称用于显示
         const uncheckedNames = uncheckedIds.map(id => {
           const node = permissionTreeRef.value.getNode(id);
           return node ? node.data.name : `菜单ID:${id}`;
         });
-        
-        
+
+
         // 显示提示，确保用户知道哪些权限被取消了
         ElMessage({
           message: `已取消 ${uncheckedNames.length} 项权限: ${uncheckedNames.slice(0, 3).join(', ')}${uncheckedNames.length > 3 ? '等' : ''}`,
@@ -1223,10 +1226,9 @@ const saveRolePermission = async () => {
           duration: 5000
         });
       }
-    } catch (err) {
-      console.warn('对比选中状态失败:', err);
+    } catch {
     }
-    
+
     // 构建菜单ID列表 - 转换为数字格式并确保唯一性
     const menuIds = [...new Set(ensureNumericIds(checkedKeys))];
     const halfMenuIds = [...new Set(ensureNumericIds(halfCheckedKeys))];
@@ -1240,18 +1242,18 @@ const saveRolePermission = async () => {
       permissionSaveLoading.value = false;
       return;
     }
-    
+
     // 收集菜单名称用于确认提示
     const checkedMenuNames = menuIds.map(id => {
       const node = permissionTreeRef.value.getNode(id);
       return node ? node.data.name : `菜单ID:${id}`;
     });
-    
+
     const halfCheckedMenuNames = halfMenuIds.map(id => {
       const node = permissionTreeRef.value.getNode(id);
       return node ? node.data.name : `菜单ID:${id}`;
     });
-    
+
     const buildPermissionSection = (title, names, itemStyle = {}) => {
       if (names.length === 0) return null;
       const children = [
@@ -1285,7 +1287,7 @@ const saveRolePermission = async () => {
         )
       );
     }
-    
+
     // 防止空数组导致清空所有权限
     if (menuIds.length === 0 && halfMenuIds.length === 0) {
       ElMessageBox.confirm(
@@ -1324,7 +1326,7 @@ const saveRolePermission = async () => {
           userEdited: true,  // 标记为用户手动编辑
           exactSelection: true  // 标记为精确选择模式
         }));
-        
+
         await submitRolePermissions(menuIds, halfMenuIds, uncheckedIds);
       }).catch(() => {
         permissionSaveLoading.value = false;
@@ -1370,7 +1372,7 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
     const numericUncheckedIds = uncheckedIds.map(id => Number(id)).filter(id => !isNaN(id) && id > 0);
     // 确保取消的ID真的不在选中列表中
     numericMenuIds = numericMenuIds.filter(id => !numericUncheckedIds.includes(id));
-    
+
     // 保存到本地存储，确保即使后端保存失败也有备份
     const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
     try {
@@ -1395,7 +1397,7 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
       halfCheckedIds: finalHalfCheckedIds,
       uncheckedIds: numericUncheckedIds
     });
-    
+
     // 更新本地存储，标记保存成功
     try {
       const storedData = JSON.parse(localStorage.getItem(rolePermissionsKey) || '{}');
@@ -1407,19 +1409,19 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
     } catch {
       // 本地存储失败不影响主流程
     }
-    
+
     // 更新当前用户的权限缓存
     try {
       const authStore = useAuthStore();
-      
+
       // 不管是否是当前用户角色，都刷新一次权限，以便确保权限状态最新
       try {
         await authStore.fetchUserProfile();
-        await authStore.fetchUserPermissions();
+        await authStore.fetchUserPermissions(true);
       } catch {
         // 权限刷新失败不影响主流程
       }
-      
+
       // 关闭权限分配对话框
       permissionDialogVisible.value = false;
       // 🔧 延迟清除权限选择状态，避免渲染错误
@@ -1445,7 +1447,7 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
       // 刷新角色列表
       await loadRoles();
     }
-    
+
     permissionSaveLoading.value = false;
   } catch (error) {
     console.error('提交权限数据失败:', error);
@@ -1466,7 +1468,7 @@ const handleViewMenu = (row) => {
   menuDialogTitle.value = '查看菜单';
   menuIsViewMode.value = false; // 重置编辑状态，确保表单可赋值
   resetMenuForm();
-  
+
   menuIsViewMode.value = true;
   Object.assign(menuForm, row);
   menuForm.status = Number(row.status);
@@ -1479,7 +1481,7 @@ const handleAddChildMenu = (row) => {
   menuIsViewMode.value = false;
   resetMenuForm();
   menuForm.parentId = row.id;
-  
+
   // 如果父级是目录，则子级默认为菜单
   if (row.type === 0) {
     menuForm.type = 1;
@@ -1488,7 +1490,7 @@ const handleAddChildMenu = (row) => {
   else if (row.type === 1) {
     menuForm.type = 2;
   }
-  
+
   menuDialogVisible.value = true;
 };
 // 编辑菜单
@@ -1497,21 +1499,21 @@ const handleEditMenu = (row) => {
   menuIsViewMode.value = false;
   menuIsViewMode.value = false;
   resetMenuForm();
-  
+
   // 填充表单数据
   Object.keys(menuForm).forEach(key => {
     if (key in row) {
       menuForm[key] = row[key];
     }
   });
-  
+
   menuDialogVisible.value = true;
 };
 // 删除菜单
 const handleDeleteMenu = (row) => {
   ElMessageBox.confirm(
-    '确认要删除该菜单吗？删除后不可恢复！', 
-    '警告', 
+    '确认要删除该菜单吗？删除后不可恢复！',
+    '警告',
     {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
@@ -1586,7 +1588,7 @@ const resetRoleForm = () => {
   roleForm.code = '';
   roleForm.description = '';
   roleForm.status = 1;
-  
+
   // 清除校验
   if (roleFormRef.value) {
     roleFormRef.value.resetFields();
@@ -1604,7 +1606,7 @@ const resetMenuForm = () => {
   menuForm.icon = '';
   menuForm.sort = 0;
   menuForm.status = 1;
-  
+
   // 清除校验
   if (menuFormRef.value) {
     menuFormRef.value.resetFields();
@@ -1622,7 +1624,7 @@ const importMenuData = async () => {
     }
   ).then(async () => {
     try {
-      await api.post('/api/system/menus/import', { menus: menuPermissions });
+      await api.post('/system/menus/import', { menus: menuPermissions });
       ElMessage.success('菜单数据导入成功');
       loadMenus(); // 重新加载菜单数据
     } catch (error) {
@@ -1667,25 +1669,24 @@ const _handleNodeExpand = (_data, _node) => {
     try {
       if (permissionTreeRef.value && selectedMenuIds.value && selectedMenuIds.value.length > 0) {
         const currentCheckedKeys = permissionTreeRef.value.getCheckedKeys();
-        
+
         // 转换为数字格式，确保类型一致
         const numericCurrentKeys = ensureNumericIds(currentCheckedKeys);
         const numericSelectedKeys = ensureNumericIds(selectedMenuIds.value);
-        
+
         // 检查是否有选中状态丢失
         const lostKeys = numericSelectedKeys.filter(id => !numericCurrentKeys.includes(id));
-        
+
         // 如果有选中状态丢失，重新设置选中状态
         if (lostKeys.length > 0) {
           // 合并当前选中和应该选中的节点
           const mergedKeys = [...new Set([...numericCurrentKeys, ...numericSelectedKeys])];
-          
+
           // 重新设置选中状态
           permissionTreeRef.value.setCheckedKeys(mergedKeys);
         }
       }
-    } catch (err) {
-      console.warn('节点展开后检查选中状态失败:', err);
+    } catch {
     }
   }, 100);
 };
@@ -1700,7 +1701,7 @@ const onPermissionDialogOpened = async () => {
   try {
       // 检查菜单树数据是否有效，如果有效则不重新加载
       let needReloadMenus = false;
-      
+
       if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
         needReloadMenus = true;
       } else {
@@ -1711,16 +1712,16 @@ const onPermissionDialogOpened = async () => {
             hasChildren = true;
           }
         });
-        
+
         if (!hasChildren) {
           needReloadMenus = true;
         }
       }
-      
+
       // 只有在必要时才重新加载菜单数据
       if (needReloadMenus) {
     await loadMenus();
-    
+
         // 如果加载后菜单树仍为空，尝试从本地存储恢复
         if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
           // 尝试从本地存储恢复
@@ -1738,21 +1739,21 @@ const onPermissionDialogOpened = async () => {
           }
         }
       }
-      
+
       // 构建角色权限本地存储键
       const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
-      
-      // 优先级顺序: 
+
+      // 优先级顺序:
       // 1. 本地存储的角色权限(最新)
       // 2. 后端返回的角色权限(可能未更新)
-      
+
       // 尝试从本地存储恢复角色权限
       let loadedFromCache = false;
       try {
         const savedPermissions = localStorage.getItem(rolePermissionsKey);
         if (savedPermissions) {
           const parsedData = JSON.parse(savedPermissions);
-          
+
           // 检查是否有用户最近编辑过的数据
           if (parsedData.userEdited || parsedData.saveSuccess || parsedData.confirmed) {
             if (parsedData.checked && Array.isArray(parsedData.checked)) {
@@ -1768,10 +1769,9 @@ const onPermissionDialogOpened = async () => {
             loadedFromCache = true;
           }
         }
-      } catch (err) {
-        console.warn('从本地存储恢复角色权限失败:', err);
+      } catch {
       }
-      
+
       // 始终从后端获取最新的权限数据，确保数据一致性
       try {
         // 获取角色权限
@@ -1796,7 +1796,6 @@ const onPermissionDialogOpened = async () => {
         }
         // 情况3：其他格式
         else {
-          console.warn('未知的响应数据格式:', response.data);
           permissionData = [];
         }
         // 处理权限数据
@@ -1821,8 +1820,7 @@ const onPermissionDialogOpened = async () => {
         // 清除旧的本地存储，避免数据不一致
         try {
           localStorage.removeItem(rolePermissionsKey);
-        } catch (err) {
-          console.warn('清除本地存储失败:', err);
+        } catch {
         }
       } catch (error) {
         ElMessage.error('获取角色权限失败：' + (error.response?.data?.message || error.message));
@@ -1865,7 +1863,7 @@ const onPermissionDialogOpened = async () => {
 // 添加专门处理菜单ID的函数，确保ID类型一致性
 const ensureNumericIds = (ids) => {
   if (!Array.isArray(ids)) return [];
-  
+
   // 过滤并转换所有ID为数字类型
   return ids.map(id => {
     const numId = Number(id);
@@ -1876,7 +1874,7 @@ const ensureNumericIds = (ids) => {
 const buildMenuMaps = () => {
   const menuMap = {};
   const childrenMap = {};
-  
+
   menuList.value.forEach(menu => {
     menuMap[menu.id] = menu;
     if (menu.parent_id) {
@@ -1886,7 +1884,7 @@ const buildMenuMaps = () => {
       childrenMap[menu.parent_id].push(menu.id);
     }
   });
-  
+
   return { menuMap, childrenMap };
 };
 // 🔧 提取公共函数：过滤出叶子节点（没有子节点的节点）
@@ -1894,9 +1892,9 @@ const filterLeafNodes = (selectedIds) => {
   if (!Array.isArray(selectedIds) || selectedIds.length === 0) {
     return [];
   }
-  
+
   const { childrenMap } = buildMenuMaps();
-  
+
   // 只保留叶子节点
   return selectedIds.filter(id => {
     const children = childrenMap[id] || [];
@@ -2014,21 +2012,21 @@ const refreshMenuTree = async () => {
       text: '正在刷新菜单数据...',
       background: 'rgba(0, 0, 0, 0.7)'
     });
-    
+
     // 清除本地缓存，确保重新加载最新数据
     localStorage.removeItem('cachedMenus');
-    
+
     // 重新加载菜单数据
     await loadMenus();
-    
+
     // 如果菜单树仍然为空，但菜单列表有数据，则手动构建菜单树
     if ((!menuTree.value || menuTree.value.length === 0) && menuList.value && menuList.value.length > 0) {
       menuTree.value = convertToTree(menuList.value);
     }
-    
+
     // 关闭加载提示
     loading.close();
-    
+
     // 如果菜单树已加载，等待DOM更新后再展开所有节点
     if (menuTree.value && menuTree.value.length > 0) {
       // 使用nextTick确保DOM已更新
@@ -2061,9 +2059,9 @@ const handleCheckChange = (data, checked, indeterminate) => {
   try {
     if (currentRole.value && currentRole.value.id) {
       const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
-      
+
       const existingData = JSON.parse(localStorage.getItem(rolePermissionsKey) || '{}');
-      
+
       // 标记为用户手动编辑过
       existingData.lastEditTime = Date.now();
       existingData.lastEditedNode = {
@@ -2073,12 +2071,11 @@ const handleCheckChange = (data, checked, indeterminate) => {
         indeterminate: indeterminate
       };
       existingData.userEdited = true;
-      
+
       // 保存回本地存储
       localStorage.setItem(rolePermissionsKey, JSON.stringify(existingData));
     }
-  } catch (err) {
-    console.warn('记录节点状态变更失败:', err);
+  } catch {
   }
 };
 // 优化handleTreeCheck函数，移除多余日志
@@ -2088,18 +2085,18 @@ const handleTreeCheck = () => {
       // 获取当前所有选中和半选状态
       const checkedKeys = permissionTreeRef.value.getCheckedKeys();
       const halfCheckedKeys = permissionTreeRef.value.getHalfCheckedKeys();
-      
+
       // 确保数据类型一致
       const numericCheckedKeys = ensureNumericIds(checkedKeys);
       const numericHalfCheckedKeys = ensureNumericIds(halfCheckedKeys);
-      
+
       // 保存当前选中状态到响应式变量，确保使用最新状态
       selectedMenuIds.value = numericCheckedKeys;
       halfCheckedMenuIds.value = numericHalfCheckedKeys;
-      
+
       // 使用统一的key格式
       const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
-      
+
       // 每次勾选变化时，立即保存到本地存储
       try {
         localStorage.setItem(rolePermissionsKey, JSON.stringify({
@@ -2108,8 +2105,7 @@ const handleTreeCheck = () => {
           timestamp: Date.now(),
           userEdited: true  // 标记为用户手动编辑
         }));
-      } catch (err) {
-        console.warn('保存选中状态失败:', err);
+      } catch {
       }
     }
   } catch (err) {
@@ -2121,10 +2117,10 @@ onMounted(async () => {
   try {
     // 先加载角色列表
     await loadRoles();
-    
+
     // 加载菜单数据
     await loadMenus();
-    
+
     // 确保菜单树已正确初始化
     if (!Array.isArray(menuTree.value) || menuTree.value.length === 0) {
       setTimeout(async () => {
@@ -2503,4 +2499,4 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

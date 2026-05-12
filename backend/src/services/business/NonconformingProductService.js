@@ -564,8 +564,8 @@ class NonconformingProductService {
       let orderItemInfo = { price: 0, unit_id: null, specification: '' };
       if (inspection.reference_id && ncp.material_id) {
         const [poiRows] = await connection.query(
-          `SELECT price, unit_id, specification 
-           FROM purchase_order_items 
+          `SELECT price, unit_id, specification
+           FROM purchase_order_items
            WHERE order_id = ? AND material_id = ? LIMIT 1`,
           [inspection.reference_id, ncp.material_id]
         );
@@ -736,12 +736,12 @@ class NonconformingProductService {
 
       if (ncp.inspection_id) {
         const [inspectionRows] = await connection.query(
-          `SELECT qi.*, 
+          `SELECT qi.*,
                   r.id as receipt_id,
                   r.receipt_no,
                   r.order_id as purchase_order_id,
-                  po.order_no, 
-                  po.supplier_id, 
+                  po.order_no,
+                  po.supplier_id,
                   s.name as supplier_name
            FROM quality_inspections qi
            LEFT JOIN purchase_receipts r ON qi.reference_id = r.id AND qi.inspection_type = 'incoming'
@@ -766,7 +766,7 @@ class NonconformingProductService {
         if (ncp.batch_no) {
           try {
             const [originRows] = await connection.query(`
-              SELECT 
+              SELECT
                 receipt_id,
                 receipt_no,
                 purchase_order_id as order_id,
@@ -1336,8 +1336,8 @@ class NonconformingProductService {
 
       const db = require('../../config/db');
       await db.pool.query(
-        `UPDATE nonconforming_products 
-         SET concession_status = 'pending', 
+        `UPDATE nonconforming_products
+         SET concession_status = 'pending',
              concession_reason = ?,
              disposition = 'use_as_is',
              status = 'processing'
@@ -1389,9 +1389,9 @@ class NonconformingProductService {
       const approvalDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
       await connection.query(
-        `UPDATE nonconforming_products 
-         SET concession_status = ?, 
-             concession_approver_id = ?, 
+        `UPDATE nonconforming_products
+         SET concession_status = ?,
+             concession_approver_id = ?,
              concession_approval_date = ?
          WHERE id = ?`,
         [status, approverId, approvalDate, ncpId]
@@ -1407,9 +1407,9 @@ class NonconformingProductService {
 
         // 并将该不合格品标记为已完成
         await connection.query(
-          `UPDATE nonconforming_products 
-           SET status = 'completed', handled_quantity = quantity, 
-               disposition = 'use_as_is', updated_by = ? 
+          `UPDATE nonconforming_products
+           SET status = 'completed', handled_quantity = quantity,
+               disposition = 'use_as_is', updated_by = ?
            WHERE id = ?`,
           [approverName, ncpId]
         );

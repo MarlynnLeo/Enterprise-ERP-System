@@ -14,8 +14,8 @@ const logger = require('../utils/logger');
 async function cleanupExpiredNotifications(retentionDays = 90) {
   try {
     const [result] = await pool.query(
-      `DELETE FROM notifications 
-       WHERE is_read = 1 
+      `DELETE FROM notifications
+       WHERE is_read = 1
          AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
       [retentionDays]
     );

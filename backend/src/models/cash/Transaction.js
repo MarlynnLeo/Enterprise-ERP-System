@@ -123,10 +123,10 @@ class BankTransactionModel {
       const initialStatus = transactionData.status === 'approved' ? 'approved' : 'draft';
 
       const [result] = await connection.execute(
-        `INSERT INTO bank_transactions 
-        (transaction_number, bank_account_id, transaction_date, transaction_type, 
-         amount, reference_number, description, is_reconciled, 
-         reconciliation_date, related_party, category, payment_method, created_by, status) 
+        `INSERT INTO bank_transactions
+        (transaction_number, bank_account_id, transaction_date, transaction_type,
+         amount, reference_number, description, is_reconciled,
+         reconciliation_date, related_party, category, payment_method, created_by, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           transactionData.transaction_number,
@@ -430,10 +430,10 @@ class BankTransactionModel {
 
       const offset = (pageInt - 1) * pageSizeInt;
       const dataQuery = `
-        SELECT t.*, 
-               b.account_name, 
+        SELECT t.*,
+               b.account_name,
                b.bank_name,
-               CASE 
+               CASE
                  WHEN t.related_invoice_type = 'AR' THEN ar_inv.invoice_number
                  WHEN t.related_invoice_type = 'AP' THEN ap_inv.invoice_number
                  ELSE NULL
@@ -445,7 +445,7 @@ class BankTransactionModel {
                END as transaction_category
         ${fromClause}
         ${whereClause}
-        ORDER BY t.transaction_date DESC, t.id DESC 
+        ORDER BY t.transaction_date DESC, t.id DESC
         LIMIT ${pageSizeInt} OFFSET ${offset}`;
 
       const [transactions] = await db.pool.query(dataQuery, params);
@@ -505,12 +505,12 @@ class BankTransactionModel {
 
       // 2. 更新交易记录。草稿/驳回流水尚未入账，不调整银行余额。
       await connection.execute(
-        `UPDATE bank_transactions SET 
+        `UPDATE bank_transactions SET
                 bank_account_id = ?,
-                transaction_date = ?, 
-                transaction_type = ?, 
-                amount = ?, 
-                description = ?, 
+                transaction_date = ?,
+                transaction_type = ?,
+                amount = ?,
+                description = ?,
                 reference_number = ?,
                 related_party = ?,
                 category = ?,
@@ -707,7 +707,7 @@ class BankTransactionModel {
     try {
       const [result] = await db.pool.execute(
         `UPDATE bank_transactions
-                 SET status = 'rejected', approved_by = ?, approved_at = NOW(), 
+                 SET status = 'rejected', approved_by = ?, approved_at = NOW(),
                      reject_reason = ?
                  WHERE id = ? AND status IN ('pending', 'reviewed')`,
         [userId, reason, id]

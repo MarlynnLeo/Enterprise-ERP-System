@@ -15,7 +15,6 @@ const { requirePermission } = require('../middleware/requirePermission');
 
 // 拆分后的控制器
 const inspectionCtrl = require('../controllers/business/quality/inspectionController');
-// const traceabilityCtrl = require('../controllers/business/quality/traceabilityController');
 const standardCtrl = require('../controllers/business/quality/qualityStandardController');
 const firstArticleCtrl = require('../controllers/business/quality/firstArticleController');
 const processInspCtrl = require('../controllers/business/quality/processInspectionController');
@@ -29,11 +28,11 @@ const ncpController = require('../controllers/business/quality/nonconformingProd
 /**
  * AQL 标准管理
  */
-router.get('/aql-standards', authenticateToken, requirePermission('quality:settings:view'), aqlController.getStandards);
-router.post('/aql-standards', authenticateToken, requirePermission('quality:settings:create'), aqlController.createStandard);
-router.put('/aql-standards/:id', authenticateToken, requirePermission('quality:settings:update'), aqlController.updateStandard);
-router.delete('/aql-standards/:id', authenticateToken, requirePermission('quality:settings:delete'), aqlController.deleteStandard);
-router.get('/aql-levels', authenticateToken, requirePermission('quality:settings:view'), aqlController.getAqlLevels);
+router.get('/aql-standards', authenticateToken, requirePermission('quality:aql:view'), aqlController.getStandards);
+router.post('/aql-standards', authenticateToken, requirePermission('quality:aql:create'), aqlController.createStandard);
+router.put('/aql-standards/:id', authenticateToken, requirePermission('quality:aql:update'), aqlController.updateStandard);
+router.delete('/aql-standards/:id', authenticateToken, requirePermission('quality:aql:delete'), aqlController.deleteStandard);
+router.get('/aql-levels', authenticateToken, requirePermission('quality:aql:view'), aqlController.getAqlLevels);
 router.post('/aql-sampling/calculate', authenticateToken, requirePermission('quality:inspections:view'), aqlController.calculateSampling);
 
 /**

@@ -46,30 +46,6 @@ const getConnection = async () => {
   return await connection.getConnection();
 };
 
-// 安全的事务执行器：自动管理 begin/commit/rollback/release
-const executeTransaction = async (callback) => {
-  const conn = await connection.getConnection();
-  try {
-    await conn.beginTransaction();
-    const result = await callback(conn);
-    await conn.commit();
-    return result;
-  } catch (error) {
-    await conn.rollback();
-    throw error;
-  } finally {
-    conn.release();
-  }
-};
-
-// 向后兼容：获取带事务的连接（调用者必须自行 rollback/release）
-// ⚠️ 推荐使用 executeTransaction 替代此函数
-const getConnectionWithTransaction = async () => {
-  const conn = await connection.getConnection();
-  await conn.beginTransaction();
-  return conn;
-};
-
 // 统一的销售订单编号生成函数
 const generateSalesOrderNo = async (connection) => {
   return await CodeGenerators.generateSalesOrderCode(connection);
@@ -96,8 +72,6 @@ module.exports = {
   STATUS,
   connection,
   getConnection,
-  getConnectionWithTransaction,
-  executeTransaction,
   generateSalesOrderNo,
   generateTransactionNo,
   generateSalesOutboundNo,

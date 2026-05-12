@@ -39,7 +39,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
 
     // 获取采购申请的物料项，关联物料表获取供应商信息和价格
     const [itemsRows] = await conn.execute(
-      `SELECT 
+      `SELECT
         pri.*,
         m.supplier_id,
         m.code as material_code,

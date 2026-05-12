@@ -25,7 +25,7 @@ class InventoryAlertService {
 
       // 1. 获取低库存物料列表
       const [lowStockItems] = await connection.execute(`
-        SELECT 
+        SELECT
           m.id as material_id,
           m.code as material_code,
           m.name as material_name,
@@ -46,7 +46,7 @@ class InventoryAlertService {
           WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
           GROUP BY il.material_id
         ) stock ON m.id = stock.material_id
-        WHERE m.min_stock > 0 
+        WHERE m.min_stock > 0
           AND m.status = 1
           AND (COALESCE(stock.current_quantity, 0) < m.min_stock)
         ORDER BY (m.min_stock - COALESCE(stock.current_quantity, 0)) DESC
@@ -126,26 +126,20 @@ class InventoryAlertService {
         };
       }
 
-      // 3. 生成采购申请单号
-      const today = new Date();
-      const dateStr = today.toISOString().split('T')[0].replace(/-/g, '');
-      const [maxNoResult] = await connection.execute(
-        'SELECT MAX(requisition_number) as max_no FROM purchase_requisitions WHERE requisition_number LIKE ?',
-        [`PR${dateStr}%`]
-      );
-      const maxNo = maxNoResult[0].max_no || `PR${dateStr}000`;
-      const requisitionNo = `PR${dateStr}${(parseInt(maxNo.slice(-3)) + 1).toString().padStart(3, '0')}`;
+      // 3. 生成采购申请单号 — 使用统一编码引擎
+      const { CodeGenerators } = require('../../utils/codeGenerator');
+      const requisitionNo = await CodeGenerators.generatePurchaseRequisitionCode(connection);
 
       // 4. 创建采购申请
       const [requisitionResult] = await connection.execute(
         `
-        INSERT INTO purchase_requisitions 
+        INSERT INTO purchase_requisitions
         (requisition_number, request_date, requester, real_name, remarks, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, 'draft', NOW(), NOW())
       `,
         [
           requisitionNo,
-          today.toISOString().split('T')[0],
+          new Date().toISOString().split('T')[0],
           operator,
           '系统自动',
           `库存预警自动生成 - 共${newLowStockItems.length}个物料低于安全库存`,
@@ -161,7 +155,7 @@ class InventoryAlertService {
 
         await connection.execute(
           `
-          INSERT INTO purchase_requisition_items 
+          INSERT INTO purchase_requisition_items
           (requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,

@@ -125,7 +125,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -343,11 +343,11 @@ const handleEdit = (row) => {
   dialogTitle.value = '编辑库位';
   isEdit.value = true;
   resetForm();
-  
+
   // 复制行数据并确保status是数字类型
   const rowData = { ...row };
   rowData.status = Number(rowData.status);
-  
+
   Object.assign(form, rowData);
   dialogVisible.value = true;
 };
@@ -404,7 +404,7 @@ const resetForm = () => {
   if (formRef.value) {
     formRef.value.resetFields();
   }
-  
+
   form.id = '';
   form.name = '';
   form.code = '';
@@ -418,7 +418,7 @@ const resetForm = () => {
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return;
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true;
@@ -427,10 +427,10 @@ const submitForm = async () => {
         const submitData = { ...form };
         delete submitData.created_at;
         delete submitData.updated_at;
-        
+
         // 确保status为数字类型
         submitData.status = Number(submitData.status);
-        
+
         if (isEdit.value) {
           // 更新库位
           await baseDataApi.updateLocation(form.id, submitData);
@@ -442,12 +442,12 @@ const submitForm = async () => {
         }
         dialogVisible.value = false;
         // 确保创建后立即获取最新数据
-        await fetchData(); 
+        await fetchData();
       } catch (error) {
         console.error('保存库位失败:', error);
         // 显示详细的错误信息
-        const errorMsg = error.response?.data?.message || 
-                         error.message || 
+        const errorMsg = error.response?.data?.message ||
+                         error.message ||
                          '操作失败，请重试';
         ElMessage.error(`保存库位失败: ${errorMsg}`);
       } finally {

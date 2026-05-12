@@ -7,7 +7,7 @@
           <template #header>
             <div class="card-header">
               <span>SPC 控制计划</span>
-              <el-button v-permission="'quality:reports:update'" type="primary" size="small" @click="handleAddPlan">
+              <el-button v-permission="'quality:spc:update'" type="primary" size="small" @click="handleAddPlan">
                 <el-icon><Plus /></el-icon>新增
               </el-button>
             </div>
@@ -45,7 +45,7 @@
                 <span style="margin-left:12px;color:#909399;font-size:13px">{{ selectedPlan.characteristic }}</span>
               </div>
               <div>
-                <el-button v-permission="'quality:reports:update'" type="success" size="small" @click="showDataInput = true">
+                <el-button v-permission="'quality:spc:update'" type="success" size="small" @click="showDataInput = true">
                   <el-icon><Edit /></el-icon>录入数据
                 </el-button>
                 <el-button size="small" @click="fetchChartData">
@@ -185,7 +185,7 @@
       </el-form>
       <template #footer>
         <el-button @click="planDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:reports:update'" type="primary" @click="handlePlanSubmit" :loading="submitting">确认</el-button>
+        <el-button v-permission="'quality:spc:update'" type="primary" @click="handlePlanSubmit" :loading="submitting">确认</el-button>
       </template>
     </el-dialog>
 
@@ -199,12 +199,12 @@
           <el-input-number v-model="dataForm.samples[i].measured_value" :precision="4" style="width:100%" placeholder="实测值" />
         </el-form-item>
         <el-form-item>
-          <el-button v-permission="'quality:reports:update'" type="primary" link @click="addSample">+ 添加样本</el-button>
+          <el-button v-permission="'quality:spc:update'" type="primary" link @click="addSample">+ 添加样本</el-button>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showDataInput = false">取消</el-button>
-        <el-button v-permission="'quality:reports:update'" type="primary" @click="handleDataSubmit" :loading="submitting">提交</el-button>
+        <el-button v-permission="'quality:spc:update'" type="primary" @click="handleDataSubmit" :loading="submitting">提交</el-button>
       </template>
     </el-dialog>
   </div>

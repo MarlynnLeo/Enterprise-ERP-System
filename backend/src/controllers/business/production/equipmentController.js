@@ -28,15 +28,12 @@ const parsePagination = (query) => {
 const normalizeListStatus = (status) => (status && status !== 'all' ? status : '');
 
 const sendPagedEquipmentRecords = (res, rows, total, page, pageSize) => {
-  res.json({
-    success: true,
-    data: {
+  return ResponseHandler.success(res, {
       list: rows,
       total,
       page,
       pageSize,
-    },
-  });
+    });
 };
 
 /**
@@ -84,7 +81,7 @@ exports.getEquipmentList = async (req, res) => {
     // 查询分页数据
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(
-      `SELECT * FROM equipment ${whereClause} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
+      `SELECT * FROM equipment ${whereClause} ORDER BY created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
       params
     );
 
@@ -129,7 +126,7 @@ exports.getMaintenanceRecords = async (req, res) => {
        LEFT JOIN equipment e ON e.id = em.equipment_id
        ${whereClause}
        ORDER BY em.maintenance_date DESC, em.id DESC
-       LIMIT ${pageSize} OFFSET ${offset}`,
+       LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
       params
     );
 
@@ -174,7 +171,7 @@ exports.getFailureRecords = async (req, res) => {
        LEFT JOIN equipment e ON e.id = ef.equipment_id
        ${whereClause}
        ORDER BY ef.failure_date DESC, ef.id DESC
-       LIMIT ${pageSize} OFFSET ${offset}`,
+       LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
       params
     );
 
@@ -198,14 +195,14 @@ exports.getInspectionRecords = async (req, res) => {
     }
 
     if (status) {
-      conditions.push('ei.result = ?');
+      conditions.push('ei.inspection_result = ?');
       params.push(status);
     }
 
     if (search) {
-      conditions.push('(e.name LIKE ? OR e.code LIKE ? OR ei.inspector LIKE ? OR ei.inspection_type LIKE ?)');
+      conditions.push('(e.name LIKE ? OR e.code LIKE ? OR ei.inspector LIKE ?)');
       const keyword = `%${search}%`;
-      params.push(keyword, keyword, keyword, keyword);
+      params.push(keyword, keyword, keyword);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -214,14 +211,14 @@ exports.getInspectionRecords = async (req, res) => {
       params
     );
     const [rows] = await pool.query(
-      `SELECT ei.*, ei.result AS status, ei.inspection_date AS checkDate, ei.inspector AS checker,
-              COALESCE(ei.action_taken, ei.remarks, ei.abnormal_items, '') AS resultDesc,
+      `SELECT ei.*, ei.inspection_result AS status, ei.inspection_date AS checkDate, ei.inspector AS checker,
+              COALESCE(ei.remarks, '') AS resultDesc,
               e.name AS equipmentName, e.code AS equipmentCode
        FROM equipment_inspection ei
        LEFT JOIN equipment e ON e.id = ei.equipment_id
        ${whereClause}
        ORDER BY ei.inspection_date DESC, ei.id DESC
-       LIMIT ${pageSize} OFFSET ${offset}`,
+       LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
       params
     );
 
@@ -311,14 +308,14 @@ exports.createEquipment = async (req, res) => {
 
     // 检查必填字段
     if (!code || !name) {
-      return ResponseHandler.error(res, '设备编号和设备名称为必填项', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '设备编号和设备名称为必填项', 'VALIDATION_ERROR', 400);
     }
 
     // 检查设备编号是否已存在
     const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE code = ?', [code]);
 
     if (existingEquipment.length > 0) {
-      return ResponseHandler.error(res, '设备编号已存在', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '设备编号已存在', 'VALIDATION_ERROR', 400);
     }
 
     // 格式化日期
@@ -345,7 +342,7 @@ exports.createEquipment = async (req, res) => {
     // 插入设备数据
     const [result] = await pool.query(
       `INSERT INTO equipment (
-        code, name, model, manufacturer, 
+        code, name, model, manufacturer,
         purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, specs, description
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -500,7 +497,7 @@ exports.updateEquipmentStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!status) {
-      return ResponseHandler.error(res, '状态不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '状态不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 检查设备是否存在
@@ -516,7 +513,7 @@ exports.updateEquipmentStatus = async (req, res) => {
       return ResponseHandler.error(
         res,
         `无效的设备状态: "${status}"，允许的状态: ${VALID_EQUIPMENT_STATUSES.join(', ')}`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -543,7 +540,7 @@ exports.updateEquipmentStatus = async (req, res) => {
 exports.getEquipmentStats = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT 
+      SELECT
         COUNT(*) as total,
         SUM(CASE WHEN status = 'normal' THEN 1 ELSE 0 END) as normal,
         SUM(CASE WHEN status = 'maintenance' THEN 1 ELSE 0 END) as maintenance,
@@ -762,7 +759,7 @@ exports.importEquipment = async (req, res) => {
     const { equipments } = req.body;
 
     if (!equipments || !Array.isArray(equipments) || equipments.length === 0) {
-      return ResponseHandler.error(res, '请提供有效的设备数据', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '请提供有效的设备数据', 'VALIDATION_ERROR', 400);
     }
 
     let successCount = 0;
@@ -849,16 +846,12 @@ exports.importEquipment = async (req, res) => {
       // 提交事务
       await connection.commit();
 
-      res.json({
-        success: true,
-        message: `导入完成：成功 ${successCount} 条，失败 ${failedCount} 条`,
-        data: {
+      return ResponseHandler.success(res, {
           total: equipments.length,
           success: successCount,
           failed: failedCount,
           errors: errors,
-        },
-      });
+        }, `导入完成：成功 ${successCount} 条，失败 ${failedCount} 条`);
     } catch (transactionError) {
       // 回滚事务
       await connection.rollback();

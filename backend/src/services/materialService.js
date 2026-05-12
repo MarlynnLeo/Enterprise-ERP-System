@@ -513,7 +513,7 @@ const materialService = {
   async getMaterialPriceHistory(materialId, priceType = null) {
     try {
       let sql = `
-                SELECT 
+                SELECT
                     mph.*,
                     u.real_name as created_by_name
                 FROM material_price_history mph

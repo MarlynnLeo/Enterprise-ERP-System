@@ -131,7 +131,6 @@ const searchUsers = async (query) => {
   } catch (error) {
     // ✅ 优化: 如果是权限不足,静默处理
     if (error.response?.status === 403) {
-      console.warn('无权限搜索用户,用户列表将为空');
       userList.value = [];
     } else {
       console.error('搜索用户失败:', error);
@@ -154,7 +153,6 @@ const loadUsers = async () => {
   } catch (error) {
     // ✅ 优化: 如果是权限不足,静默处理
     if (error.response?.status === 403) {
-      console.warn('无权限加载用户列表,用户列表将为空');
       userList.value = [];
     } else {
       console.error('加载用户失败:', error);
@@ -174,7 +172,6 @@ const loadDepartments = async () => {
   } catch (error) {
     // ✅ 优化: 如果是权限不足,静默处理
     if (error.response?.status === 403) {
-      console.warn('无权限加载部门列表,部门列表将为空');
       departmentList.value = [];
     } else {
       console.error('加载部门失败:', error);

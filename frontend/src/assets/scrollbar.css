@@ -15,7 +15,7 @@
   background: rgba(193, 193, 193, 0.3);
   border-radius: 10px;
   /* 设置最小高度，防止滑块太小 */
-  min-height: 50px; 
+  min-height: 50px;
 }
 
 ::-webkit-scrollbar-thumb:hover {

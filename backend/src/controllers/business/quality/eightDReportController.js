@@ -67,24 +67,11 @@ const hasListValue = (value) => {
 };
 
 /**
- * 生成8D报告编号
+ * 生成8D报告编号 — 使用统一编码引擎
  */
-const generateReportNo = async () => {
-    const date = new Date();
-    const dateStr = date.toISOString().slice(2, 10).replace(/-/g, '');
-    const prefix = `8D${dateStr}`;
-
-    const [maxNoResult] = await pool.query(
-        'SELECT MAX(report_no) as max_no FROM eight_d_reports WHERE report_no LIKE ?',
-        [`${prefix}%`]
-    );
-
-    let sequence = 1;
-    if (maxNoResult[0] && maxNoResult[0].max_no) {
-        sequence = parseInt(maxNoResult[0].max_no.slice(-3)) + 1;
-    }
-
-    return `${prefix}${String(sequence).padStart(3, '0')}`;
+const generateReportNo = async (connection) => {
+    const { CodeGenerators } = require('../../../utils/codeGenerator');
+    return CodeGenerators.generate8DReportCode(connection);
 };
 
 /**
@@ -251,7 +238,7 @@ const createReport = async (req, res) => {
     try {
         const data = req.body;
         if (!data.title) {
-            return ResponseHandler.error(res, '报告标题不能为空', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '报告标题不能为空', 'VALIDATION_ERROR', 400);
         }
 
         conn = await pool.getConnection();
@@ -393,7 +380,7 @@ const updateReport = async (req, res) => {
         const data = req.body;
 
         if (data.status !== undefined || data.current_phase !== undefined) {
-            return ResponseHandler.error(res, '流程状态请通过提交/审核/完成接口变更', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '流程状态请通过提交/审核/完成接口变更', 'VALIDATION_ERROR', 400);
         }
 
         conn = await pool.getConnection();
@@ -408,7 +395,7 @@ const updateReport = async (req, res) => {
 
         if (!['draft', 'in_progress'].includes(existing[0].status)) {
             await conn.rollback();
-            return ResponseHandler.error(res, `当前状态"${existing[0].status}"不允许编辑`, 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, `当前状态"${existing[0].status}"不允许编辑`, 'VALIDATION_ERROR', 400);
         }
 
         const ncpLink = await EightDNcpLinkService.prepareUpdate(conn, existing[0], data, id);
@@ -452,7 +439,7 @@ const updateReport = async (req, res) => {
 
         if (updates.length === 0) {
             await conn.rollback();
-            return ResponseHandler.error(res, '没有可更新的字段', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '没有可更新的字段', 'VALIDATION_ERROR', 400);
         }
 
         values.push(id);
@@ -505,11 +492,11 @@ const submitReview = async (req, res) => {
 
         // 状态校验：只有进行中/被驳回的才能提交审核
         if (!['in_progress', 'draft'].includes(report.status)) {
-            return ResponseHandler.error(res, `当前状态"${report.status}"不允许提交审核`, 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, `当前状态"${report.status}"不允许提交审核`, 'VALIDATION_ERROR', 400);
         }
 
         if (!['draft', 'd1_d3'].includes(report.current_phase)) {
-            return ResponseHandler.error(res, '当前阶段不能提交D1-D3初审', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '当前阶段不能提交D1-D3初审', 'VALIDATION_ERROR', 400);
         }
 
         parseJsonFields(report);
@@ -517,7 +504,7 @@ const submitReview = async (req, res) => {
         // 阶段门控校验
         const gate = validatePhaseGate(report, 'd1_d3');
         if (!gate.pass) {
-            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'VALIDATION_ERROR', 400);
         }
 
         await pool.query(
@@ -552,7 +539,7 @@ const reviewReport = async (req, res) => {
         const report = existing[0];
 
         if (report.status !== 'review') {
-            return ResponseHandler.error(res, '只有"待审核"状态的报告才能审核', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '只有"待审核"状态的报告才能审核', 'VALIDATION_ERROR', 400);
         }
 
         let newStatus, newPhase, msg;
@@ -632,18 +619,18 @@ const submitPhase2Review = async (req, res) => {
         const report = existing[0];
 
         if (report.current_phase !== 'd4_d7') {
-            return ResponseHandler.error(res, '当前阶段不是D4-D7，不能提交结案审核', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '当前阶段不是D4-D7，不能提交结案审核', 'VALIDATION_ERROR', 400);
         }
 
         if (report.status !== 'in_progress') {
-            return ResponseHandler.error(res, `当前状态"${report.status}"不允许提交结案审核`, 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, `当前状态"${report.status}"不允许提交结案审核`, 'VALIDATION_ERROR', 400);
         }
 
         parseJsonFields(report);
 
         const gate = validatePhaseGate(report, 'd4_d7');
         if (!gate.pass) {
-            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'VALIDATION_ERROR', 400);
         }
 
         await pool.query(
@@ -682,19 +669,19 @@ const completeReport = async (req, res) => {
 
         if (report.current_phase !== 'd8') {
             await conn.rollback();
-            return ResponseHandler.error(res, '当前阶段不是D8，不能完成报告', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '当前阶段不是D8，不能完成报告', 'VALIDATION_ERROR', 400);
         }
 
         if (!report.d8_summary) {
             await conn.rollback();
-            return ResponseHandler.error(res, '请先填写D8总结内容', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '请先填写D8总结内容', 'VALIDATION_ERROR', 400);
         }
 
         parseJsonFields(report);
         const gate = validatePhaseGate(report, 'completed');
         if (!gate.pass) {
             await conn.rollback();
-            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'VALIDATION_ERROR', 400);
         }
 
         await conn.query(
@@ -742,7 +729,7 @@ const closeReport = async (req, res) => {
 
         if (report.status !== 'completed') {
             await conn.rollback();
-            return ResponseHandler.error(res, '只有已完成的报告才能关闭归档', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '只有已完成的报告才能关闭归档', 'VALIDATION_ERROR', 400);
         }
 
         const userName = await getCurrentUserName(req);
@@ -779,7 +766,7 @@ const deleteReport = async (req, res) => {
         }
 
         if (existing[0].status !== 'draft') {
-            return ResponseHandler.error(res, '只有草稿状态的报告才能删除', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '只有草稿状态的报告才能删除', 'VALIDATION_ERROR', 400);
         }
 
         // ✅ 软删除替代硬删除
@@ -797,7 +784,7 @@ const deleteReport = async (req, res) => {
 const getStatistics = async (req, res) => {
     try {
         const [stats] = await pool.query(`
-            SELECT 
+            SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft_count,
                 SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count,
@@ -826,7 +813,7 @@ const aiAnalyze = async (req, res) => {
         const { problemDescription, materialName, supplierName, defectType, quantityAffected, priority } = req.body;
 
         if (!problemDescription) {
-            return ResponseHandler.error(res, '请输入问题描述', 'BAD_REQUEST', 400);
+            return ResponseHandler.error(res, '请输入问题描述', 'VALIDATION_ERROR', 400);
         }
 
         const userName = await getCurrentUserName(req);
@@ -834,9 +821,9 @@ const aiAnalyze = async (req, res) => {
 
         // 获取真实的部门负责人名单作为AI的上下文 (保障关联真实且精确)
         const [deptManagers] = await pool.query(
-            `SELECT d.name as dept_name, u.real_name as manager_name 
-             FROM departments d 
-             INNER JOIN users u ON d.manager_id = u.id 
+            `SELECT d.name as dept_name, u.real_name as manager_name
+             FROM departments d
+             INNER JOIN users u ON d.manager_id = u.id
              WHERE d.status = 1 AND u.status = 1`
         );
 

@@ -100,8 +100,8 @@
     <!-- 通知列表 -->
     <el-card class="list-card">
       <div class="notification-list" v-loading="loading">
-        <div 
-          v-for="notification in notifications" 
+        <div
+          v-for="notification in notifications"
           :key="notification.id"
           class="notification-item"
           :class="{ 'unread': !notification.is_read }"
@@ -115,17 +115,17 @@
             <div class="notification-header">
               <div class="notification-title">
                 {{ notification.title }}
-                <el-tag 
-                  v-if="notification.priority === 2" 
-                  type="danger" 
+                <el-tag
+                  v-if="notification.priority === 2"
+                  type="danger"
                   size="small"
                   effect="dark"
                 >
                   紧急
                 </el-tag>
-                <el-tag 
-                  v-else-if="notification.priority === 1" 
-                  type="warning" 
+                <el-tag
+                  v-else-if="notification.priority === 1"
+                  type="warning"
                   size="small"
                 >
                   重要
@@ -139,27 +139,27 @@
                 {{ getTypeText(notification.type) }}
               </el-tag>
               <div class="notification-actions">
-                <el-button 
+                <el-button
                   v-if="!notification.is_read"
-                  link 
-                  type="primary" 
+                  link
+                  type="primary"
                   size="small"
                   @click="handleMarkRead(notification.id)"
                 >
                   标记已读
                 </el-button>
-                <el-button 
+                <el-button
                   v-if="notification.link"
-                  link 
-                  type="success" 
+                  link
+                  type="success"
                   size="small"
                   @click="handleGotoLink(notification)"
                 >
                   查看详情
                 </el-button>
                 <el-button v-permission="'system:notifications:delete'"
-                  link 
-                  type="danger" 
+                  link
+                  type="danger"
                   size="small"
                   @click="handleDelete(notification.id)"
                 >
@@ -171,8 +171,8 @@
         </div>
 
         <!-- 空状态 -->
-        <el-empty 
-          v-if="!loading && notifications.length === 0" 
+        <el-empty
+          v-if="!loading && notifications.length === 0"
           description="暂无通知"
         />
       </div>
@@ -202,18 +202,18 @@
           <el-tag :type="getTypeTag(currentNotification.type)" size="large">
             {{ getTypeText(currentNotification.type) }}
           </el-tag>
-          <el-tag 
-            v-if="currentNotification.priority === 2" 
-            type="danger" 
+          <el-tag
+            v-if="currentNotification.priority === 2"
+            type="danger"
             size="large"
             effect="dark"
             style="margin-left: 8px;"
           >
             紧急
           </el-tag>
-          <el-tag 
-            v-else-if="currentNotification.priority === 1" 
-            type="warning" 
+          <el-tag
+            v-else-if="currentNotification.priority === 1"
+            type="warning"
             size="large"
             style="margin-left: 8px;"
           >
@@ -236,9 +236,9 @@
       </div>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
-        <el-button 
-          v-if="currentNotification && !currentNotification.is_read" 
-          type="primary" 
+        <el-button
+          v-if="currentNotification && !currentNotification.is_read"
+          type="primary"
           @click="handleMarkReadAndClose"
         >
           标记已读并关闭

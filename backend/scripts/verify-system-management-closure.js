@@ -106,7 +106,7 @@ async function verifyUsers(adminRoleId, departmentId) {
   const username = `sys_verify_${stamp}`;
   const user = await systemModel.createUser({
     username,
-    password: `SysVerify#${stamp}aA1!`,
+    password: 'SysVerify#Az7$mK2p',
     real_name: 'System Verify User',
     email: `${username}@example.test`,
     department_id: departmentId,
@@ -543,7 +543,7 @@ function verifyFrontendActionPermissions() {
       "v-permission=\"'system:documents:delete'\"",
     ]],
     [readView('BusinessAlerts.vue'), [
-      "v-permission=\"'system:settings:edit'\"",
+      "v-permission=\"'system:business-alerts:edit'\"",
     ]],
     [readView('Print.vue'), [
       "v-permission=\"'system:settings:write'\"",

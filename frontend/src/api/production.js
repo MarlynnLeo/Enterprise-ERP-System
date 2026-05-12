@@ -12,13 +12,34 @@ const normalizeMaterialRequirement = (material) => {
   const stockQuantity = normalizeMaterialNumber(
     material.stockQuantity ?? material.stock_quantity
   )
-  const shortageQuantity = Math.max(0, requiredQuantity - stockQuantity)
+  const availableQuantity = normalizeMaterialNumber(
+    material.availableQuantity ?? material.available_quantity ?? stockQuantity
+  )
+  const rawIssueQuantity =
+    material.issueQuantity ?? material.issue_quantity ?? material.actualQuantity ?? material.actual_quantity
+  const issueQuantity =
+    rawIssueQuantity === undefined || rawIssueQuantity === null
+      ? Math.min(requiredQuantity, availableQuantity)
+      : normalizeMaterialNumber(rawIssueQuantity)
+  const shortageQuantity = normalizeMaterialNumber(
+    material.shortageQuantity ??
+      material.shortage_quantity ??
+      Math.max(0, requiredQuantity - issueQuantity)
+  )
+  const grossRequiredQuantity = normalizeMaterialNumber(
+    material.grossRequiredQuantity ?? material.gross_required_quantity ?? requiredQuantity
+  )
 
   return {
     ...material,
-    quantity: normalizeMaterialNumber(material.quantity),
+    quantity: requiredQuantity,
     requiredQuantity,
+    plannedQuantity: requiredQuantity,
+    grossRequiredQuantity,
+    issueQuantity,
+    actualQuantity: issueQuantity,
     stockQuantity,
+    availableQuantity,
     shortageQuantity,
     status: shortageQuantity > 0 ? 'shortage' : 'sufficient',
     materialCode: material.code || material.materialCode || material.material_code || '',
@@ -84,7 +105,6 @@ export const productionApi = {
   updateProductionProcess: (id, data) => api.put(`/production/processes/${id}`, data),
 
   // Reports
-  getProductionReports: (params) => api.get('/production/reports', { params }),
   getProductionReportSummary: (params) => api.get('/production/reports/summary', { params }),
   getProductionReportDetail: (params) => api.get('/production/reports/detail', { params }),
   getProductionReportStatistics: (params) => api.get('/production/reports/statistics', { params }),
@@ -127,7 +147,28 @@ export const productionApi = {
 
     const response = await api.get(`/production/product-bom/${productId}`)
     return { data: response.data }
-  }
+  },
+
+  // 任务完成
+  completeTask: (id, data) => api.post(`/production/tasks/${id}/complete`, data),
+
+  // 获取任务负责人列表
+  getTaskManagers: () => api.get('/production/tasks/managers'),
+
+  // 更新任务进度
+  updateTaskProgress: (id, data) => api.post(`/production/tasks/${id}/progress`, data),
+
+  // 获取任务BOM
+  getTaskBom: (id) => api.get(`/production/tasks/${id}/bom`),
+
+  // 获取计划物料需求
+  getPlanMaterials: (id) => api.get(`/production/plans/${id}/materials`),
+
+  // 获取缺料汇总
+  getMaterialShortageSummary: (params) => api.get('/production/material-shortage-summary', { params }),
+
+  // 排程相关接口
+  getSchedulingGanttData: (params) => api.get('/production/scheduling/gantt', { params })
 }
 
 export default productionApi

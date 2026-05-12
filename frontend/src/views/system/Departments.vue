@@ -17,7 +17,7 @@
         <el-button type="primary" :icon="Plus" v-permission="'system:departments:create'" @click="showAddDialog">新增部门</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -39,7 +39,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -140,7 +140,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container" style="display: flex; justify-content: flex-end; margin-top: 20px;">
         <el-pagination
@@ -155,7 +155,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑/查看对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -191,10 +191,10 @@
           <el-input v-model="departmentForm.code" placeholder="请输入部门编码"></el-input>
         </el-form-item>
         <el-form-item label="部门负责人">
-          <el-select 
-            v-model="departmentForm.manager_id" 
-            placeholder="请选择部门负责人" 
-            filterable 
+          <el-select
+            v-model="departmentForm.manager_id"
+            placeholder="请选择部门负责人"
+            filterable
             clearable
             style="width: 100%"
           >
@@ -219,10 +219,10 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input 
-            v-model="departmentForm.remark" 
-            type="textarea" 
-            :rows="3" 
+          <el-input
+            v-model="departmentForm.remark"
+            type="textarea"
+            :rows="3"
             placeholder="请输入备注信息"
           ></el-input>
         </el-form-item>
@@ -242,7 +242,10 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue';
 import { api } from '../../services/api';
-// 权限计算属性
+// 权限计算属性
+
+
+
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
@@ -441,7 +444,7 @@ const handleView = (row) => {
   dialogTitle.value = '查看部门';
   isViewMode.value = true;
   resetDepartmentForm();
-  
+
   // 填充表单数据
   departmentForm.id = row.id;
   departmentForm.parent_id = row.parent_id;
@@ -451,7 +454,7 @@ const handleView = (row) => {
   departmentForm.phone = row.phone;
   departmentForm.status = row.status;
   departmentForm.remark = row.remark;
-  
+
   dialogVisible.value = true;
 };
 
@@ -460,7 +463,7 @@ const handleEdit = (row) => {
   dialogTitle.value = '编辑部门';
   isViewMode.value = false;
   resetDepartmentForm();
-  
+
   // 填充表单数据
   departmentForm.id = row.id;
   departmentForm.parent_id = row.parent_id;
@@ -470,7 +473,7 @@ const handleEdit = (row) => {
   departmentForm.phone = row.phone;
   departmentForm.status = row.status;
   departmentForm.remark = row.remark;
-  
+
   dialogVisible.value = true;
 };
 
@@ -611,7 +614,7 @@ const resetDepartmentForm = () => {
   departmentForm.status = 1;
   departmentForm.remark = '';
   parentDepartmentName.value = '';
-  
+
   // 清除校验
   if (departmentFormRef.value) {
     departmentFormRef.value.resetFields();

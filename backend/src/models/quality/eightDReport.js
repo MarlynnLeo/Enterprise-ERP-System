@@ -79,12 +79,10 @@ const EightDReport = {
   async create(data, userId) {
     const id = randomUUID();
 
-    // 生成报告编号 8D-YYYYMMDD-XXXX
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/(|-)/g, '');
+    // 生成报告编号 — 使用统一编码引擎
+    const { CodeGenerators } = require('../../utils/codeGenerator');
     const dbPool = db.pool || db;
-    const [countRows] = await dbPool.query("SELECT COUNT(*) as count FROM eight_d_reports WHERE report_no LIKE ?", [`8D-${dateStr}-%`]);
-    const sequence = String(countRows[0].count + 1).padStart(4, '0');
-    const report_no = `8D-${dateStr}-${sequence}`;
+    const report_no = await CodeGenerators.generate8DReportCode();
 
     const insertData = {
       id,

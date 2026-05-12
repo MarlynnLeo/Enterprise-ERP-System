@@ -54,7 +54,7 @@ const breadcrumbs = computed(() => {
 // 根据路径获取标题，考虑前一级路径
 const getTitleByPath = (path, prevPath = '') => {
   // 处理特殊情况：相同路径名在不同模块下的映射
-  
+
   // 处理receipts在不同模块下
   if (path === 'receipts') {
     if (prevPath === 'purchase') {
@@ -266,17 +266,17 @@ const getTitleByPath = (path, prevPath = '') => {
     'automation': '自动化',
     'expenses': '费用管理',
     'pricing': '产品定价',
-    
+
     // 税务管理
     'tax': '税务管理',
     'returns': '纳税申报',
     'account-config': '税务科目配置',
-    
+
     // 预算管理
     'budget': '预算管理',
     'execution': '预算执行',
     'analysis': '预算分析',
-    
+
     // 成本管理
     'cost': '成本管理',
     'standard': '标准成本',
@@ -322,10 +322,10 @@ const getTitleByPath = (path, prevPath = '') => {
     'business-types': '业务类型',
     'technical-communication': '技术沟通',
     'settings': '系统设置',
-    
+
     // 个人中心
     'profile': '个人中心',
-    
+
     // 通用操作
     'create': '新建',
     'edit': '编辑',

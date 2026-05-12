@@ -16,8 +16,8 @@ class AqlStandard {
 
         try {
             const [result] = await pool.query(
-                `INSERT INTO quality_aql_standards 
-        (code, name, batch_min, batch_max, sample_size, aql_level, accept_limit, reject_limit, status, creator_id) 
+                `INSERT INTO quality_aql_standards
+        (code, name, batch_min, batch_max, sample_size, aql_level, accept_limit, reject_limit, status, creator_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [code, name, batch_min, batch_max, sample_size, aql_level, accept_limit, reject_limit, status, creator_id]
             );
@@ -142,10 +142,10 @@ class AqlStandard {
         try {
             const [rows] = await pool.query(
                 `SELECT id as aql_standard_id, sample_size, accept_limit, reject_limit, code, name
-         FROM quality_aql_standards 
-         WHERE status = 'active' 
-           AND aql_level = ? 
-           AND batch_min <= ? 
+         FROM quality_aql_standards
+         WHERE status = 'active'
+           AND aql_level = ?
+           AND batch_min <= ?
            AND batch_max >= ?
          LIMIT 1`,
                 [aqlLevel, batchSize, batchSize]

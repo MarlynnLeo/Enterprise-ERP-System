@@ -84,7 +84,7 @@
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
-        :data="transactionList" 
+        :data="transactionList"
         v-loading="loading"
         stripe
         border
@@ -355,7 +355,7 @@
           </el-tag>
         </div>
       </div>
-      
+
       <el-descriptions :column="2" border style="margin-top: 20px;">
         <el-descriptions-item label="交易金额">
           <span :class="currentTransaction.type === 'income' ? 'amount-income' : 'amount-expense'">
@@ -380,7 +380,7 @@ import { ref, reactive, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { UploadFilled, Plus } from '@element-plus/icons-vue'
 import { api } from '@/services/api';
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 
 // 数据加载状态
 const loading = ref(false);
@@ -571,7 +571,7 @@ const submitForAudit = async (row) => {
         type: 'warning'
       }
     );
-    
+
     await api.put(`/finance/cash-transactions/${row.id}/submit`);
     ElMessage.success('已提交审核');
     loadTransactions();
@@ -595,14 +595,14 @@ const handleAudit = (row) => {
         done();
         return;
       }
-      
+
       const remark = instance.inputValue;
       const isApprove = action === 'confirm';
-      
+
       try {
         instance.confirmButtonLoading = true;
         instance.cancelButtonLoading = true;
-        
+
         if (isApprove) {
           await api.put(`/finance/cash-transactions/${row.id}/approve`, { remark });
           ElMessage.success('审核通过');
@@ -610,7 +610,7 @@ const handleAudit = (row) => {
           await api.put(`/finance/cash-transactions/${row.id}/reject`, { remark });
           ElMessage.warning('已驳回');
         }
-        
+
         loadTransactions();
         done();
       } catch (error) {
@@ -629,13 +629,13 @@ const handleAudit = (row) => {
 // 保存交易
 const saveTransaction = async () => {
   if (!transactionFormRef.value) return;
-  
+
   try {
     await transactionFormRef.value.validate();
     saveLoading.value = true;
-    
+
     const data = { ...transactionForm };
-    
+
     if (data.id) {
       await api.put(`/finance/cash-transactions/${data.id}`, data);
       ElMessage.success('交易更新成功');
@@ -643,7 +643,7 @@ const saveTransaction = async () => {
       await api.post('/finance/cash-transactions', data);
       ElMessage.success('交易创建成功');
     }
-    
+
     dialogVisible.value = false;
     loadTransactions();
   } catch (error) {
@@ -666,7 +666,7 @@ const deleteTransaction = async (row) => {
         type: 'warning',
       }
     );
-    
+
     await api.delete(`/finance/cash-transactions/${row.id}`);
     ElMessage.success('交易删除成功');
     loadTransactions();
@@ -687,17 +687,17 @@ const loadTransactions = async () => {
       pageSize: pageSize.value,
       ...searchForm
     };
-    
+
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
       params.startDate = searchForm.dateRange[0];
       params.endDate = searchForm.dateRange[1];
     }
-    
+
     const response = await api.get('/finance/cash-transactions', { params });
     // axios拦截器已自动解包ResponseHandler格式
     transactionList.value = response.data.transactions || [];
     total.value = parseInt(response.data.total) || 0;
-    
+
     // 加载统计数据
     await loadTransactionsStats();
   } catch (error) {
@@ -716,7 +716,7 @@ const loadTransactionsStats = async () => {
       params.startDate = searchForm.dateRange[0];
       params.endDate = searchForm.dateRange[1];
     }
-    
+
     const response = await api.get('/finance/cash-transactions/stats', { params });
     // axios拦截器已自动解包ResponseHandler格式
     Object.assign(transactionStats, response.data);
@@ -733,14 +733,14 @@ const exportTransactions = async () => {
       params.startDate = searchForm.dateRange[0];
       params.endDate = searchForm.dateRange[1];
     }
-    
-    const response = await api.get('/finance/cash-transactions/export', { 
+
+    const response = await api.get('/finance/cash-transactions/export', {
       params,
       responseType: 'blob'
     });
-    
-    const blob = new Blob([response.data], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -748,7 +748,7 @@ const exportTransactions = async () => {
     link.download = `现金交易记录_${new Date().toISOString().slice(0, 10)}.xlsx`;
     link.click();
     window.URL.revokeObjectURL(url);
-    
+
     ElMessage.success('导出成功');
   } catch (error) {
     console.error('导出失败:', error);
@@ -779,18 +779,18 @@ const importTransactions = async () => {
     ElMessage.warning('请选择要导入的文件');
     return;
   }
-  
+
   try {
     importLoading.value = true;
     const formData = new FormData();
     formData.append('file', importFileList.value[0].raw);
-    
+
     const response = await api.post('/finance/cash-transactions/import', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     });
-    
+
     // axios拦截器已自动解包ResponseHandler格式
     ElMessage.success(`导入成功，共导入 ${response.data.count || 0} 条记录`);
     importDialogVisible.value = false;
@@ -834,95 +834,43 @@ const printCashStatement = async () => {
       return;
     }
 
+    const sortedData = [...printData].sort((a, b) => new Date(a.transactionDate) - new Date(b.transactionDate));
+    let runningBalance = 0;
+
+    const items = sortedData.map((item, index) => {
+      const amount = Number(item.amount) || 0;
+      const isIncome = item.type === 'income';
+      runningBalance += isIncome ? amount : -amount;
+
+      return {
+        index: index + 1,
+        transaction_date: item.transactionDate,
+        reference_number: item.referenceNumber || '',
+        counterparty: item.counterparty || '',
+        description: item.description || '',
+        income_amount: isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
+        expense_amount: !isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
+        balance: runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })
+      };
+    });
+
+    const totalIncome = sortedData
+      .filter(item => item.type === 'income')
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const totalExpense = sortedData
+      .filter(item => item.type === 'expense')
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+    const html = await printService.generateByDefaultTemplate('finance', 'cash_statement', {
+      printDate: new Date().toLocaleDateString('zh-CN'),
+      totalIncome: totalIncome.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
+      totalExpense: totalExpense.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
+      finalBalance: runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 }),
+      items
+    });
+
+    printService.previewDocument(html);
     ElMessage.success(`准备打印 ${printData.length} 条交易记录`);
-
-    // 尝试获取打印模板
-    try {
-      const templateResponse = await api.get('/print/templates/public/default', {
-        params: {
-          module: 'finance',
-          template_type: 'cash_statement'
-        }
-      });
-
-      // 拦截器已解包，response.data 就是业务数据
-      if (templateResponse.data) {
-        const template = templateResponse.data;
-
-        // 使用模板进行打印
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-          ElMessage.error('无法打开打印窗口，请检查浏览器是否阻止弹出窗口');
-          return;
-        }
-
-        // 替换模板中的变量
-        let printContent = template.content;
-
-        // 替换基本信息
-        printContent = printContent.replace(/{{companyName}}/g, '浙江开控电气有限公司');
-        printContent = printContent.replace(/{{printDate}}/g, new Date().toLocaleDateString('zh-CN'));
-
-        // 生成交易记录表格
-        let tableRows = '';
-        let runningBalance = 0;
-
-        // 按日期排序
-        const sortedData = printData.sort((a, b) => new Date(a.transactionDate) - new Date(b.transactionDate));
-
-        sortedData.forEach((item) => {
-          const amount = parseFloat(item.amount);
-          const isIncome = item.type === 'income';
-
-          if (isIncome) {
-            runningBalance += amount;
-          } else {
-            runningBalance -= amount;
-          }
-
-          tableRows += `
-            <tr>
-              <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.transactionDate}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.referenceNumber || ''}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: center;">${item.counterparty || ''}</td>
-              <td style="border: 1px solid #000; padding: 4px;">${item.description || ''}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: right;">${isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-'}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: right;">${!isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-'}</td>
-              <td style="border: 1px solid #000; padding: 4px; text-align: right;">${runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</td>
-            </tr>
-          `;
-        });
-
-        printContent = printContent.replace(/{{transactionRows}}/g, tableRows);
-
-        // 计算合计
-        const totalIncome = sortedData.filter(item => item.type === 'income').reduce((sum, item) => sum + parseFloat(item.amount), 0);
-        const totalExpense = sortedData.filter(item => item.type === 'expense').reduce((sum, item) => sum + parseFloat(item.amount), 0);
-
-        printContent = printContent.replace(/{{totalIncome}}/g, totalIncome.toLocaleString('zh-CN', { minimumFractionDigits: 2 }));
-        printContent = printContent.replace(/{{totalExpense}}/g, totalExpense.toLocaleString('zh-CN', { minimumFractionDigits: 2 }));
-        printContent = printContent.replace(/{{finalBalance}}/g, runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 }));
-
-        writeSafeHtmlDocument(printWindow, printContent);
-
-        // 等待内容加载完成后打印
-        printWindow.onload = function() {
-          setTimeout(() => {
-            printWindow.print();
-          }, 500);
-        };
-
-      } else {
-        // 没有找到模板
-        ElMessage.error('未找到现金日记账打印模板，请联系管理员配置模板');
-        return;
-      }
-
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError);
-      ElMessage.error('获取打印模板失败，请联系管理员检查模板配置');
-      return;
-    }
 
   } catch (error) {
     console.error('打印失败:', error);

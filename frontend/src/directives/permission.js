@@ -12,7 +12,7 @@ import { watch } from 'vue'
 function hideElement(el) {
   // 标记元素为权限不足
   el.setAttribute('data-permission-denied', 'true')
-  
+
   // 使用 visibility 而不是 display，保持元素在 DOM 中的位置和状态
   // 这样可以避免影响 Element Plus el-menu 组件的内部状态管理
   el.style.visibility = 'hidden'
@@ -106,17 +106,17 @@ export const permission = {
       }
     }
   },
-  
+
   // 组件更新时重新检查权限
   updated(el, binding) {
     const authStore = useAuthStore()
     const permission = binding.value
-    
+
     if (permission) {
       // 如果权限已加载，检查权限并更新显示状态
       if (authStore.permissionsLoaded) {
         const hasPermission = checkPermission(authStore, permission)
-        
+
         if (!hasPermission) {
           hideElement(el)
         } else {
@@ -127,7 +127,7 @@ export const permission = {
       }
     }
   },
-  
+
   // 卸载时清理
   unmounted(el) {
     // 停止监听
@@ -135,7 +135,7 @@ export const permission = {
       el._permissionWatcher()
       delete el._permissionWatcher
     }
-    
+
     // 清理可能存在的属性
     el.removeAttribute('data-permission-denied')
     el.removeAttribute('data-permission-pending')
@@ -146,4 +146,4 @@ export default {
   install(app) {
     app.directive('permission', permission)
   }
-} 
+}

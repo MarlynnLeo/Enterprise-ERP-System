@@ -45,13 +45,13 @@ class NonconformingProduct {
           logger.info(`🔍 [血缘追溯] 捕获生产线退料，任务号:${ncpData.source_task_no} 物料:${ncpData.material_id}，启动跨表溯源...`);
           // 1. 在 `inventory_ledger` 与 `inventory_outbound` 联合查找该物料在此工单领料的最新批次号
           const [ledgerRows] = await connection.query(`
-            SELECT il.batch_number 
+            SELECT il.batch_number
             FROM inventory_ledger il
             JOIN inventory_outbound o ON il.reference_no = o.outbound_no
-            WHERE o.production_task_id = ? 
-              AND il.material_id = ? 
+            WHERE o.production_task_id = ?
+              AND il.material_id = ?
               AND il.batch_number IS NOT NULL
-            ORDER BY il.created_at DESC 
+            ORDER BY il.created_at DESC
             LIMIT 1
           `, [ncpData.source_task_id, ncpData.material_id]);
 
@@ -79,7 +79,7 @@ class NonconformingProduct {
               const [inboundLedgerRows] = await connection.query(`
                 SELECT reference_no
                 FROM inventory_ledger
-                WHERE transaction_type = 'inbound' 
+                WHERE transaction_type = 'inbound'
                   AND reference_type = 'purchase_receipt'
                   AND batch_number = ?
                   AND material_id = ?
@@ -287,7 +287,7 @@ class NonconformingProduct {
    */
   static async getById(id) {
     const query = `
-      SELECT ncp.*, 
+      SELECT ncp.*,
         ROUND((ncp.quantity / NULLIF(qi.quantity, 0)) * 100, 2) as unqualified_rate
       FROM nonconforming_products ncp
       LEFT JOIN quality_inspections qi ON ncp.inspection_id = qi.id

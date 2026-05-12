@@ -245,14 +245,14 @@ const loadTrend = async () => {
 const renderTrendChart = () => {
   nextTick(() => {
     if (!trendChartRef.value) return
-    
+
     // 检查 DOM 元素是否有有效尺寸（避免 ECharts 报错）
     const { clientWidth, clientHeight } = trendChartRef.value
     if (clientWidth === 0 || clientHeight === 0) {
       // 元素不可见，延迟再次尝试
       return
     }
-    
+
     if (!trendChart) {
       trendChart = echarts.init(trendChartRef.value)
     }

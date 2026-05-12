@@ -17,10 +17,7 @@ exports.logActivity = async (req, res) => {
     // 这里可以扩展为使用专门的活动记录表
     // 目前先返回成功响应
 
-    return res.status(200).json({
-      success: true,
-      message: '活动记录成功',
-    });
+    return ResponseHandler.success(res, null, '活动记录成功');
   } catch (error) {
     return ResponseHandler.error(res, '记录活动失败', 'SERVER_ERROR', 500, error);
   }
@@ -54,16 +51,13 @@ exports.getUserActivities = async (req, res) => {
       createdAt: log.created_at,
     }));
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        activities,
-        pagination: {
-          page: result.page,
-          limit: result.pageSize,
-          total: result.total,
-          totalPages: Math.ceil(result.total / result.pageSize),
-        },
+    return ResponseHandler.success(res, {
+      activities,
+      pagination: {
+        page: result.page,
+        limit: result.pageSize,
+        total: result.total,
+        totalPages: Math.ceil(result.total / result.pageSize),
       },
     });
   } catch (error) {
@@ -88,7 +82,7 @@ exports.getUserStatistics = async (req, res) => {
     try {
       const [todoResult] = await db.pool.query(
         `
-        SELECT 
+        SELECT
           COUNT(*) as total,
           SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed
         FROM todos
@@ -120,7 +114,7 @@ exports.getUserStatistics = async (req, res) => {
         `
         SELECT COUNT(DISTINCT DATE(created_at)) as login_count
         FROM audit_logs
-        WHERE user_id = ? 
+        WHERE user_id = ?
           AND action IN ('LOGIN', 'login', '登录')
       `,
         [userId]
@@ -159,21 +153,21 @@ exports.getUserStatistics = async (req, res) => {
       const [todayOnlineResult] = await db.pool.query(
         `
         WITH user_activities AS (
-          SELECT 
+          SELECT
             created_at,
-            TIMESTAMPDIFF(SECOND, 
+            TIMESTAMPDIFF(SECOND,
               LAG(created_at) OVER (ORDER BY created_at),
               created_at
             ) as time_diff
           FROM audit_logs
-          WHERE user_id = ? 
+          WHERE user_id = ?
             AND created_at >= ?
             AND created_at < ?
           ORDER BY created_at
         )
-        SELECT 
+        SELECT
           SUM(
-            CASE 
+            CASE
               WHEN time_diff IS NULL OR time_diff > 300 THEN 60
               WHEN time_diff <= 300 THEN time_diff
               ELSE 60
@@ -189,9 +183,9 @@ exports.getUserStatistics = async (req, res) => {
       const [totalOnlineResult] = await db.pool.query(
         `
         WITH user_activities AS (
-          SELECT 
+          SELECT
             created_at,
-            TIMESTAMPDIFF(SECOND, 
+            TIMESTAMPDIFF(SECOND,
               LAG(created_at) OVER (ORDER BY created_at),
               created_at
             ) as time_diff
@@ -199,9 +193,9 @@ exports.getUserStatistics = async (req, res) => {
           WHERE user_id = ?
           ORDER BY created_at
         )
-        SELECT 
+        SELECT
           SUM(
-            CASE 
+            CASE
               WHEN time_diff IS NULL OR time_diff > 300 THEN 60
               WHEN time_diff <= 300 THEN time_diff
               ELSE 60
@@ -246,10 +240,7 @@ exports.getUserStatistics = async (req, res) => {
       },
     };
 
-    return res.status(200).json({
-      success: true,
-      data: statistics,
-    });
+    return ResponseHandler.success(res, statistics);
   } catch (error) {
     logger.error('获取用户统计失败:', error);
     return ResponseHandler.error(res, '获取统计数据失败', 'SERVER_ERROR', 500, error);
@@ -282,7 +273,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
     // 逻辑：如果两次请求间隔小于5分钟，认为用户一直在线
     const query = `
       WITH user_activities AS (
-        SELECT 
+        SELECT
           u.id as user_id,
           u.username,
           u.real_name,
@@ -290,19 +281,19 @@ exports.getOnlineTimeRanking = async (req, res) => {
           u.avatar_frame,
           u.bio,
           a.created_at,
-          TIMESTAMPDIFF(SECOND, 
+          TIMESTAMPDIFF(SECOND,
             LAG(a.created_at) OVER (PARTITION BY u.id ORDER BY a.created_at),
             a.created_at
           ) as time_diff
         FROM audit_logs a
         INNER JOIN users u ON a.user_id = u.id
-        WHERE a.created_at >= ? 
+        WHERE a.created_at >= ?
           AND a.created_at <= ?
           AND a.user_id IS NOT NULL
         ORDER BY u.id, a.created_at
       ),
       user_online_time AS (
-        SELECT 
+        SELECT
           user_id,
           username,
           real_name,
@@ -310,7 +301,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
           avatar_frame,
           bio,
           SUM(
-            CASE 
+            CASE
               WHEN time_diff IS NULL OR time_diff > 300 THEN 60
               WHEN time_diff <= 300 THEN time_diff
               ELSE 60
@@ -319,7 +310,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
         FROM user_activities
         GROUP BY user_id, username, real_name, avatar, avatar_frame, bio
       )
-      SELECT 
+      SELECT
         user_id,
         username,
         real_name,
@@ -351,13 +342,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
       displayTime: `${row.hours}小时${row.minutes}分钟`,
     }));
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        date: targetDate.toISOString().split('T')[0],
-        rankings,
-      },
-    });
+    return ResponseHandler.success(res, rankings);
   } catch (error) {
     logger.error('获取在线时长排行榜失败:', error);
 
@@ -416,7 +401,7 @@ exports.exportActivities = async (req, res) => {
         'Content-Disposition',
         `attachment; filename="user_activities_${new Date().toISOString().split('T')[0]}.json"`
       );
-      res.json(activities);
+      return ResponseHandler.success(res, activities);
     }
   } catch (error) {
     logger.error('导出活动记录失败:', error);

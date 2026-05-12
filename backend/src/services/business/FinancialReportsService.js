@@ -1467,7 +1467,7 @@ class FinancialReportsService {
   static async getAccountChangeByCode(connection, accountCode, beginDate, endDate) {
     try {
       const [accounts] = await connection.execute(
-        `SELECT id FROM gl_accounts 
+        `SELECT id FROM gl_accounts
          WHERE account_code LIKE ? AND is_active = 1`,
         [accountCode + '%']
       );
@@ -1500,7 +1500,7 @@ class FinancialReportsService {
     try {
       // 获取现金类科目（1001库存现金，1002银行存款）
       const [accounts] = await connection.execute(
-        `SELECT id FROM gl_accounts 
+        `SELECT id FROM gl_accounts
          WHERE (account_code LIKE '1001%' OR account_code LIKE '1002%') AND is_active = 1`
       );
 

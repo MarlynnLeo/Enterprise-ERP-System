@@ -76,6 +76,28 @@ export function completeHandling(id, data) {
 }
 
 /**
+ * Apply concession handling
+ */
+export function applyConcession(id, data) {
+  return request({
+    url: `/quality/ncp/${id}/concession/apply`,
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * Approve or reject concession handling
+ */
+export function approveConcession(id, data) {
+  return request({
+    url: `/quality/ncp/${id}/concession/approve`,
+    method: 'post',
+    data
+  })
+}
+
+/**
  * Delete NCP
  */
 export function deleteNcp(id) {
@@ -104,6 +126,8 @@ export default {
   update,
   updateDisposition,
   completeHandling,
+  applyConcession,
+  approveConcession,
   deleteNcp,
   getStatistics
 }

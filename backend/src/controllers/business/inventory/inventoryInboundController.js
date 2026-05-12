@@ -157,7 +157,7 @@ const getInboundList = async (req, res) => {
        ) first_item ON i.id = first_item.inbound_id AND first_item.rn = 1
        ${whereClause}
        ORDER BY i.created_at DESC
-       LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}
+       LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
     `;
 
     const [rows] = await connection.execute(query, params);
@@ -429,7 +429,7 @@ const createInboundFromQuality = async (req, res) => {
 
     // 验证必填字段
     if (!inbound_date || !location_id || !operator || !items || items.length === 0) {
-      return ResponseHandler.error(res, '缺少必填字段', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
     }
 
     // ===== 年度结存校验 =====
@@ -437,7 +437,7 @@ const createInboundFromQuality = async (req, res) => {
     const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(inbound_date);
     if (!inventoryCheck.allowed) {
       await connection.rollback();
-      return res.status(400).json({ error: inventoryCheck.message });
+      return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
     }
     // ===== 年度结存校验结束 =====
 
@@ -455,7 +455,7 @@ const createInboundFromQuality = async (req, res) => {
 
       if (inspectionResult[0].status !== 'passed') {
         await connection.rollback();
-        return ResponseHandler.error(res, '只有质检合格的单据才能生成入库单', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '只有质检合格的单据才能生成入库单', 'VALIDATION_ERROR', 400);
       }
     }
 
@@ -556,7 +556,7 @@ const createInboundFromQuality = async (req, res) => {
                 // 确保必填字段都存在
                 if (!unit_id || !quantity || quantity <= 0) {
                   await connection.rollback();
-                  return ResponseHandler.error(res, '物料明细字段不完整或无效', 'BAD_REQUEST', 400);
+                  return ResponseHandler.error(res, '物料明细字段不完整或无效', 'VALIDATION_ERROR', 400);
                 }
 
                 await connection.execute(
@@ -602,7 +602,7 @@ const createInboundFromQuality = async (req, res) => {
       // 确保所有必填字段都存在
       if (!material_id || !unit_id || !quantity || quantity <= 0) {
         await connection.rollback();
-        return ResponseHandler.error(res, '物料明细字段不完整或无效', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料明细字段不完整或无效', 'VALIDATION_ERROR', 400);
       }
 
       // 检查material_id是否存在于materials表中
@@ -661,9 +661,7 @@ const createInboundFromQuality = async (req, res) => {
               validMaterialId = anyMaterial[0].id;
             } else {
               await connection.rollback();
-              return res.status(400).json({
-                error: `物料ID ${material_id} 不存在，且无法找到替代物料`,
-              });
+              return ResponseHandler.error(res, `物料ID ${material_id} 不存在，且无法找到替代物料`, 'VALIDATION_ERROR', 400);
             }
           }
         }

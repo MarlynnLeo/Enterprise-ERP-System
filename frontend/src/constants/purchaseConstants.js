@@ -14,7 +14,6 @@ export const DEFAULT_DELIVERY_DAYS = 21
 export const DEFAULT_VAT_RATE = 0.13
 
 /** 采购订单打印模板ID（后台 print_templates 表中的主键） */
-export const PURCHASE_ORDER_PRINT_TEMPLATE_ID = 8
 
 /**
  * 采购订单状态枚举
@@ -171,4 +170,3 @@ export const RECEIPT_STATUS_LABELS = {
   [RECEIPT_STATUS.COMPLETED]: '已完成',
   [RECEIPT_STATUS.CANCELLED]: '已取消'
 };
-

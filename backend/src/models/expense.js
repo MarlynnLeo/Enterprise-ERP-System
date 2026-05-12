@@ -42,29 +42,9 @@ function normalizePositiveAmount(value, fieldName) {
   return Math.round(amount * 100) / 100;
 }
 
-async function generateExpensePaymentTransactionNumber(connection, paymentDate) {
-  const txDateStr = paymentDate.replace(/-/g, '');
-  const prefix = `TX-${txDateStr}-`;
-  const [rows] = await connection.execute(
-    `SELECT transaction_number
-     FROM bank_transactions
-     WHERE transaction_number LIKE ?
-     ORDER BY transaction_number DESC
-     LIMIT 1
-     FOR UPDATE`,
-    [`${prefix}%`]
-  );
-
-  let nextNumber = 1;
-  if (rows.length > 0) {
-    const lastSegment = String(rows[0].transaction_number).split('-').pop();
-    const parsed = Number.parseInt(lastSegment, 10);
-    if (Number.isInteger(parsed) && parsed > 0) {
-      nextNumber = parsed + 1;
-    }
-  }
-
-  return `${prefix}${String(nextNumber).padStart(4, '0')}`;
+async function generateExpensePaymentTransactionNumber(connection) {
+  const { CodeGenerators } = require('../utils/codeGenerator');
+  return await CodeGenerators.generateExpensePaymentCode(connection);
 }
 
 async function getEntryNumberById(connection, entryId) {
@@ -369,7 +349,7 @@ const expenseModel = {
   async getExpenseCategories(filters = {}) {
     try {
       let sql = `
-        SELECT 
+        SELECT
           c.*,
           pc.name as parent_name
         FROM expense_categories c
@@ -408,7 +388,7 @@ const expenseModel = {
   async getExpenseCategoryTree() {
     try {
       const [rows] = await db.pool.execute(`
-        SELECT * FROM expense_categories 
+        SELECT * FROM expense_categories
         WHERE status = 1 AND deleted_at IS NULL
         ORDER BY sort_order, id
       `);
@@ -436,7 +416,7 @@ const expenseModel = {
   async createExpenseCategory(data) {
     try {
       const [result] = await db.pool.execute(
-        `INSERT INTO expense_categories (code, name, parent_id, description, status, sort_order) 
+        `INSERT INTO expense_categories (code, name, parent_id, description, status, sort_order)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [
           data.code,
@@ -538,28 +518,12 @@ const expenseModel = {
   // ==================== 费用记录管理 ====================
 
   /**
-   * 生成费用编号
+   * 生成费用编号 — 使用统一编码引擎
    */
-  async generateExpenseNumber() {
+  async generateExpenseNumber(connection) {
     try {
-      const today = new Date();
-      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-      const prefix = `EXP-${dateStr}-`;
-
-      const [rows] = await db.pool.execute(
-        `SELECT expense_number FROM expenses 
-         WHERE expense_number LIKE ? 
-         ORDER BY expense_number DESC LIMIT 1`,
-        [`${prefix}%`]
-      );
-
-      let nextNum = 1;
-      if (rows.length > 0) {
-        const lastNum = parseInt(rows[0].expense_number.split('-').pop(), 10);
-        nextNum = lastNum + 1;
-      }
-
-      return `${prefix}${String(nextNum).padStart(3, '0')}`;
+      const { CodeGenerators } = require('../utils/codeGenerator');
+      return await CodeGenerators.generateExpenseCode(connection);
     } catch (error) {
       logger.error('生成费用编号失败:', error);
       throw error;
@@ -653,7 +617,7 @@ const expenseModel = {
       // 获取列表 — 使用安全分页工具
       const { limit: safeLimit, offset: safeOffset } = parsePagination(page, pageSize);
       const paginatedSql = appendPaginationSQL(
-        `SELECT 
+        `SELECT
           e.*,
           c.name as category_name,
           c.code as category_code,
@@ -684,7 +648,7 @@ const expenseModel = {
   async getExpenseById(id) {
     try {
       const [rows] = await db.pool.execute(
-        `SELECT 
+        `SELECT
           e.*,
           c.name as category_name,
           c.code as category_code,
@@ -864,9 +828,9 @@ const expenseModel = {
 
       // 4. 创建银行交易记录
       const [bankTransactionResult] = await connection.execute(
-        `INSERT INTO bank_transactions 
-                (transaction_number, bank_account_id, transaction_date, transaction_type, 
-                amount, reference_number, description, is_reconciled, related_party, status, created_by) 
+        `INSERT INTO bank_transactions
+                (transaction_number, bank_account_id, transaction_date, transaction_type,
+                amount, reference_number, description, is_reconciled, related_party, status, created_by)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           txNumber,
@@ -894,9 +858,9 @@ const expenseModel = {
 
       // 6. 更新费用状态
       await connection.execute(
-        `UPDATE expenses SET 
-                status = 'paid', 
-                paid_at = ?, 
+        `UPDATE expenses SET
+                status = 'paid',
+                paid_at = ?,
                 payment_bank_account_id = ?,
                 payment_transaction_id = ?
                 WHERE id = ?`,
@@ -1085,7 +1049,7 @@ const expenseModel = {
 
       // 总体统计
       const [overview] = await db.pool.execute(
-        `SELECT 
+        `SELECT
           COUNT(*) as total_count,
           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
           SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_count,
@@ -1100,7 +1064,7 @@ const expenseModel = {
 
       // 按类型统计
       const [byCategory] = await db.pool.execute(
-        `SELECT 
+        `SELECT
           c.id,
           c.name as category_name,
           c.code as category_code,
@@ -1118,7 +1082,7 @@ const expenseModel = {
 
       // 月度趋势（最近6个月）
       const [monthlyTrend] = await db.pool.execute(
-        `SELECT 
+        `SELECT
           DATE_FORMAT(expense_date, '%Y-%m') as month,
           COUNT(*) as count,
           SUM(amount) as amount
@@ -1167,7 +1131,7 @@ const expenseModel = {
   async saveDingtalkInstanceId(expenseId, instanceId) {
     try {
       await db.pool.execute(
-        `UPDATE expenses SET 
+        `UPDATE expenses SET
                     dingtalk_instance_id = ?,
                     dingtalk_status = 'RUNNING',
                     dingtalk_submit_time = NOW()

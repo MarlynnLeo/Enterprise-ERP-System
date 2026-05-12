@@ -24,7 +24,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 搜索表单 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" ref="searchFormRef" class="search-form">
@@ -59,7 +59,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row" v-if="hasDepreciation">
       <el-card class="stat-card" shadow="hover">
@@ -83,7 +83,7 @@
         <div class="stat-label">计提后净值</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <template #header>
@@ -94,11 +94,11 @@
           </el-checkbox>
         </div>
       </template>
-      
+
       <div v-if="!hasDepreciation" class="empty-container">
         <el-empty description='请选择计提年月并点击"计算折旧"按钮'></el-empty>
       </div>
-      
+
       <el-table
         v-else
         ref="depTableRef"
@@ -167,14 +167,14 @@
         </el-table-column>
         <el-table-column label="折旧状态" width="120">
           <template #default="scope">
-            <el-tag 
+            <el-tag
               v-if="scope.row.submitted"
               type="success"
               effect="dark"
             >
               已计提
             </el-tag>
-            <el-tag 
+            <el-tag
               v-else
               :type="scope.row.depreciationAmount > 0 ? 'warning' : 'info'"
               :effect="scope.row.depreciationAmount > 0 ? 'dark' : 'plain'"
@@ -198,7 +198,7 @@
         </el-table-column>
       </el-table>
     </el-card>
-    
+
     <!-- 确认对话框 -->
     <el-dialog
       title="确认折旧计提"
@@ -261,8 +261,9 @@ const depreciationSummary = reactive({
   totalNetValueAfter: 0
 });
 // 计算属性
-const hasDepreciation = computed(() => assetsList.value.length > 0);;
-const pendingSubmitTotal = computed(() => 
+const hasDepreciation = computed(() => assetsList.value.length > 0);
+;
+const pendingSubmitTotal = computed(() =>
   pendingSubmitAssets.value.reduce((sum, a) => sum + a.depreciationAmount, 0)
 );
 import { getAssetStatusText, getAssetStatusColor } from '@/constants/systemConstants'
@@ -291,14 +292,14 @@ const calculateDepreciation = async () => {
     ElMessage.warning('请选择计提年月');
     return;
   }
-  
+
   // 验证日期格式是否正确 (YYYY-MM)
   const datePattern = /^\d{4}-\d{2}$/;
   if (!datePattern.test(searchForm.depreciationDate)) {
     ElMessage.warning('计提年月格式不正确，应为YYYY-MM格式');
     return;
   }
-  
+
   // 验证计提年月是否在合理范围内
   const [year, _month] = searchForm.depreciationDate.split('-').map(Number);
   const currentYear = new Date().getFullYear();
@@ -306,12 +307,12 @@ const calculateDepreciation = async () => {
     ElMessage.warning(`计提年月超出合理范围，年份应在2000至${currentYear + 10}之间`);
     return;
   }
-  
+
   loading.value = true;
   assetsList.value = [];
   filteredAssetsList.value = [];
   depreciationSubmitted.value = false;
-  
+
   try {
     ElMessage.info('正在获取资产数据并计算折旧...');
     // 获取在用资产列表
@@ -330,7 +331,7 @@ const calculateDepreciation = async () => {
       loading.value = false;
       return;
     }
-    
+
     // 前端计算折旧逻辑
     // 映射字段名称以适应后端返回的不同字段格式
     const fieldMapping = {
@@ -349,7 +350,7 @@ const calculateDepreciation = async () => {
       purchaseDate: ['purchaseDate', 'acquisition_date', 'acquisitionDate', 'purchase_date'],
       status: ['status']
     };
-    
+
     // 获取资产的字段值，适应不同的字段名称
     const getFieldValue = (asset, fieldNames) => {
       for (const name of fieldNames) {
@@ -359,7 +360,7 @@ const calculateDepreciation = async () => {
       }
       return undefined;
     };
-    
+
     // 为每个资产计算折旧
     const calculatedAssets = assets.map(asset => {
       try {
@@ -377,11 +378,11 @@ const calculateDepreciation = async () => {
         const location = getFieldValue(asset, fieldMapping.location);
         const status = getFieldValue(asset, fieldMapping.status);
         const purchaseDate = getFieldValue(asset, fieldMapping.purchaseDate);
-        
+
         // 尝试获取资产类别信息
         let categoryName = asset.categoryName || asset.category_name || '';
         const categoryId = asset.categoryId || asset.category_id;
-        
+
         // 如果有类别ID但没有类别名称，从分类列表中查找
         let category = null;
         if (categoryId && categoryOptions.value.length > 0) {
@@ -390,34 +391,34 @@ const calculateDepreciation = async () => {
             categoryName = category.name;
           }
         }
-        
+
         // 尝试从类别获取缺失的属性
         if (category) {
           // 如果资产没有使用年限，使用类别的默认使用年限
           if (!usefulLife && category.default_useful_life) {
             usefulLife = parseInt(category.default_useful_life);
             }
-          
+
           // 如果资产没有折旧方法，使用类别的默认折旧方法
           if (!depreciationMethod && category.default_depreciation_method) {
             depreciationMethod = category.default_depreciation_method;
             }
         }
-        
+
         // 为缺失的关键值设置默认值
         if (!usefulLife) {
           usefulLife = 5; // 默认5年
           }
-        
+
         if (!depreciationMethod) {
           depreciationMethod = 'straight_line'; // 默认直线法
           }
-        
+
         // 检查净值和原值
         if (originalValue <= 0 && currentValue > 0) {
           originalValue = currentValue;
         }
-        
+
         // 如果原值为0，标记为无需计提折旧
         if (originalValue <= 0) {
           return {
@@ -439,30 +440,28 @@ const calculateDepreciation = async () => {
             categoryName
           };
         }
-        
+
         // 计算已使用月份数
         let usedMonths = 0;
         if (purchaseDate) {
           const purchaseDateObj = new Date(purchaseDate);
           if (!isNaN(purchaseDateObj.getTime())) {
             const depreciationDate = new Date(`${searchForm.depreciationDate}-01`);
-            usedMonths = (depreciationDate.getFullYear() - purchaseDateObj.getFullYear()) * 12 + 
+            usedMonths = (depreciationDate.getFullYear() - purchaseDateObj.getFullYear()) * 12 +
                         (depreciationDate.getMonth() - purchaseDateObj.getMonth());
           } else {
-            console.warn(`资产 ${assetCode || id} 购买日期格式无效: ${purchaseDate}`);
           }
         } else {
-          console.warn(`资产 ${assetCode || id} 无购买日期，假设已使用12个月`);
           usedMonths = 12; // 假设已使用1年
         }
-        
+
         // 使用资产当前净值，如果当前净值不存在，则用原值减去累计折旧
         const netValueBefore = currentValue > 0 ? currentValue : (originalValue - accumulatedDepreciation);
-        
+
         // 计算折旧额
         let depreciationAmount = 0;
         let netValueAfter = netValueBefore;
-        
+
         // 如果净值为0或者负数，或者已经超过使用年限，不计提折旧
         if (netValueBefore <= 0 || usedMonths >= usefulLife * 12) {
           depreciationAmount = 0;
@@ -472,11 +471,11 @@ const calculateDepreciation = async () => {
           } else {
           // 根据折旧方法计算
           try {
-            const effectiveSalvageRate = salvageValue > 0 ? 
-              (salvageValue / originalValue) : 
+            const effectiveSalvageRate = salvageValue > 0 ?
+              (salvageValue / originalValue) :
               (salvageRate > 0 ? salvageRate / 100 : 0.05); // 默认5%残值率
             const residualValue = originalValue * effectiveSalvageRate; // 残值
-            
+
             if (depreciationMethod === '直线法' || depreciationMethod === 'straight_line' || depreciationMethod.includes('线性')) {
               // 直线法：(原值 - 残值) / 使用年限 / 12
               const monthlyDepreciation = (originalValue - residualValue) / (usefulLife * 12);
@@ -503,16 +502,15 @@ const calculateDepreciation = async () => {
               depreciationAmount = Math.round((yearlyDepreciation / 12) * 100) / 100;
             } else {
               // 默认按直线法（安全兜底）
-              console.warn(`资产 ${assetCode || id} 折旧方法"${depreciationMethod}"未识别，使用直线法`);
               const monthlyDepreciation = (originalValue - residualValue) / (usefulLife * 12);
               depreciationAmount = Math.round(monthlyDepreciation * 100) / 100;
             }
-            
+
             // 确保折旧后净值不低于残值
             if (netValueBefore - depreciationAmount < residualValue) {
               depreciationAmount = Math.max(0, Math.round((netValueBefore - residualValue) * 100) / 100);
             }
-            
+
             // 计算计提后净值
             netValueAfter = Math.max(residualValue, netValueBefore - depreciationAmount);
           } catch (error) {
@@ -520,7 +518,7 @@ const calculateDepreciation = async () => {
             depreciationAmount = 0;
           }
         }
-        
+
         return {
           id,
           assetCode,
@@ -553,7 +551,7 @@ const calculateDepreciation = async () => {
         };
       }
     });
-    
+
     // 先检查该月份是否已经计提过（在渲染表格前完成，避免视觉闪烁）
     try {
       const depCheckRes = await api.get(`/finance/assets/depreciation/records`, {
@@ -563,19 +561,18 @@ const calculateDepreciation = async () => {
       if (Array.isArray(records) && records.length > 0) {
         depreciationSubmitted.value = true;
       }
-    } catch (checkErr) {
-      console.warn('检查已计提状态失败:', checkErr?.response?.status);
+    } catch {
     }
-    
+
     // 更新列表（此时 depreciationSubmitted 已经是正确的值）
     assetsList.value = calculatedAssets;
     filterAssets();
     calculateSummary();
-    
+
     ElMessage.success(`成功计算${calculatedAssets.length}个资产的折旧`);
   } catch (error) {
     console.error('计算折旧失败:', error);
-    
+
     // 更详细的错误日志
     if (error.response) {
       const { status, data } = error.response;
@@ -632,7 +629,7 @@ const submitSingleDepreciation = async (row) => {
   } catch {
     return; // 用户取消
   }
-  
+
   row.submitting = true;
   try {
     const data = {
@@ -643,9 +640,9 @@ const submitSingleDepreciation = async (row) => {
         netValueAfter: row.netValueAfter
       }]
     };
-    
+
     await api.post('/finance/assets/depreciation/submit', data);
-    
+
     row.submitted = true;
     ElMessage.success(`${row.assetName} 折旧计提成功`);
   } catch (error) {
@@ -667,23 +664,23 @@ const submitDepreciation = async () => {
         netValueAfter: asset.netValueAfter
       }))
     };
-    
+
     await api.post('/finance/assets/depreciation/submit', data);
-    
+
     // 标记已提交的资产
     pendingSubmitAssets.value.forEach(asset => {
       asset.submitted = true;
     });
-    
+
     ElMessage.success(`成功计提 ${pendingSubmitAssets.value.length} 个资产的折旧`);
     confirmDialogVisible.value = false;
-    
+
     // 清除选择
     selectedAssets.value = [];
     if (depTableRef.value) {
       depTableRef.value.clearSelection();
     }
-    
+
     // 检查是否全部已计提
     const allSubmitted = assetsList.value.filter(a => a.depreciationAmount > 0).every(a => a.submitted);
     if (allSubmitted) {
@@ -702,7 +699,7 @@ const exportData = () => {
     ElMessage.warning('请先计算折旧');
     return;
   }
-  
+
   // 使用环境变量配置的API基础URL，默认为相对路径
   const baseURL = import.meta.env.VITE_API_URL || '';
   window.open(`${baseURL}/api/finance/assets/depreciation/export?depreciationDate=${searchForm.depreciationDate}&categoryId=${searchForm.categoryId || ''}&department=${searchForm.department || ''}`);
@@ -711,28 +708,28 @@ const exportData = () => {
 const getSummaries = (param) => {
   const { columns } = param;
   const sums = [];
-  
+
   columns.forEach((column, index) => {
     if (index === 0) {
       sums[index] = '合计';
       return;
     }
-    
+
     if (['originalValue', 'netValueBefore', 'depreciationAmount', 'netValueAfter'].includes(column.property)) {
       const values = filteredAssetsList.value.map(item => {
         return Number(item[column.property]);
       });
-      
+
       const sum = values.reduce((prev, curr) => {
         return prev + (isNaN(curr) ? 0 : curr);
       }, 0);
-      
+
       sums[index] = formatCurrency(sum);
     } else {
       sums[index] = '';
     }
   });
-  
+
   return sums;
 };
 // 加载资产类别选项
@@ -831,4 +828,4 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

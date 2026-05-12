@@ -24,13 +24,13 @@ const enhancedReportsController = {
       // 验证输入参数
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return ResponseHandler.error(res, '参数验证失败', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '参数验证失败', 'VALIDATION_ERROR', 400);
       }
 
       const { reportDate, compareDate, unit = 1 } = req.query;
 
       if (!reportDate) {
-        return ResponseHandler.error(res, '请提供报表日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供报表日期', 'VALIDATION_ERROR', 400);
       }
 
       // 验证日期格式
@@ -38,7 +38,7 @@ const enhancedReportsController = {
         return ResponseHandler.error(
           res,
           '报表日期格式不正确，请使用YYYY-MM-DD格式',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -47,7 +47,7 @@ const enhancedReportsController = {
         return ResponseHandler.error(
           res,
           '对比日期格式不正确，请使用YYYY-MM-DD格式',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -59,7 +59,7 @@ const enhancedReportsController = {
         return ResponseHandler.error(
           res,
           '金额单位不正确，支持的单位：1(元), 1000(千元), 10000(万元), 100000(十万元), 1000000(百万元)',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -86,7 +86,7 @@ const enhancedReportsController = {
       // 验证输入参数
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return ResponseHandler.error(res, '参数验证失败', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '参数验证失败', 'VALIDATION_ERROR', 400);
       }
 
       const {
@@ -99,7 +99,7 @@ const enhancedReportsController = {
       } = req.query;
 
       if (!startDate || !endDate) {
-        return ResponseHandler.error(res, '请提供开始日期和结束日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供开始日期和结束日期', 'VALIDATION_ERROR', 400);
       }
 
       // 验证日期格式
@@ -110,14 +110,14 @@ const enhancedReportsController = {
         return ResponseHandler.error(
           res,
           '日期格式不正确，请使用YYYY-MM-DD格式',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
 
       // 验证日期逻辑
       if (new Date(startDate) > new Date(endDate)) {
-        return ResponseHandler.error(res, '开始日期不能大于结束日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '开始日期不能大于结束日期', 'VALIDATION_ERROR', 400);
       }
 
       // 验证对比期间日期
@@ -129,13 +129,13 @@ const enhancedReportsController = {
           return ResponseHandler.error(
             res,
             '对比期间日期格式不正确，请使用YYYY-MM-DD格式',
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
 
         if (new Date(compareStartDate) > new Date(compareEndDate)) {
-          return ResponseHandler.error(res, '对比期间开始日期不能大于结束日期', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, '对比期间开始日期不能大于结束日期', 'VALIDATION_ERROR', 400);
         }
       }
 
@@ -143,13 +143,13 @@ const enhancedReportsController = {
       const validUnits = [1, 1000, 10000, 100000, 1000000];
       const unitValue = parseInt(unit);
       if (!validUnits.includes(unitValue)) {
-        return ResponseHandler.error(res, '金额单位不正确', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '金额单位不正确', 'VALIDATION_ERROR', 400);
       }
 
       // 验证显示层级
       const levelValue = parseInt(level);
       if (levelValue < 0 || levelValue > 4) {
-        return ResponseHandler.error(res, '显示层级不正确', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '显示层级不正确', 'VALIDATION_ERROR', 400);
       }
 
       // 生成利润表
@@ -177,7 +177,7 @@ const enhancedReportsController = {
       const { startDate, endDate, unit = 1 } = req.query;
 
       if (!startDate || !endDate) {
-        return ResponseHandler.error(res, '请提供开始日期和结束日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供开始日期和结束日期', 'VALIDATION_ERROR', 400);
       }
 
       // 验证日期格式
@@ -188,7 +188,7 @@ const enhancedReportsController = {
         return ResponseHandler.error(
           res,
           '日期格式不正确，请使用YYYY-MM-DD格式',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -323,7 +323,7 @@ const enhancedReportsController = {
       const { startDate, endDate, compareStartDate, compareEndDate, unit = 1 } = req.query;
 
       if (!startDate || !endDate) {
-        return ResponseHandler.error(res, '请提供开始日期和结束日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供开始日期和结束日期', 'VALIDATION_ERROR', 400);
       }
 
       // 验证日期格式
@@ -334,14 +334,14 @@ const enhancedReportsController = {
         return ResponseHandler.error(
           res,
           '日期格式不正确，请使用YYYY-MM-DD格式',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
 
       // 验证日期逻辑
       if (new Date(startDate) > new Date(endDate)) {
-        return ResponseHandler.error(res, '开始日期不能大于结束日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '开始日期不能大于结束日期', 'VALIDATION_ERROR', 400);
       }
 
       // 验证对比期间日期
@@ -353,13 +353,13 @@ const enhancedReportsController = {
           return ResponseHandler.error(
             res,
             '对比期间日期格式不正确，请使用YYYY-MM-DD格式',
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
 
         if (new Date(compareStartDate) > new Date(compareEndDate)) {
-          return ResponseHandler.error(res, '对比期间开始日期不能大于结束日期', 'BAD_REQUEST', 400);
+          return ResponseHandler.error(res, '对比期间开始日期不能大于结束日期', 'VALIDATION_ERROR', 400);
         }
       }
 
@@ -367,7 +367,7 @@ const enhancedReportsController = {
       const validUnits = [1, 1000, 10000, 100000, 1000000];
       const unitValue = parseInt(unit);
       if (!validUnits.includes(unitValue)) {
-        return ResponseHandler.error(res, '金额单位不正确', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '金额单位不正确', 'VALIDATION_ERROR', 400);
       }
 
       // 生成标准现金流量表
@@ -394,7 +394,7 @@ const enhancedReportsController = {
       const { reportDate } = req.query;
 
       if (!reportDate) {
-        return ResponseHandler.error(res, '请提供报表日期', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供报表日期', 'VALIDATION_ERROR', 400);
       }
 
       // 获取基础财务数据汇总

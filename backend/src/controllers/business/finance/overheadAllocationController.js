@@ -40,7 +40,7 @@ class OverheadAllocationController {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的配置ID', 'INVALID_ID', 400);
+        return ResponseHandler.error(res, '无效的配置ID', 'VALIDATION_ERROR', 400);
       }
       const result = await OverheadAllocationService.updateConfig(id, req.body);
       ResponseHandler.success(res, result, '更新分摊配置成功');
@@ -56,7 +56,7 @@ class OverheadAllocationController {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的配置ID', 'INVALID_ID', 400);
+        return ResponseHandler.error(res, '无效的配置ID', 'VALIDATION_ERROR', 400);
       }
       const result = await OverheadAllocationService.deleteConfig(id);
       ResponseHandler.success(res, result, '删除分摊配置成功');

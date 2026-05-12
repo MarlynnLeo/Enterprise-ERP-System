@@ -36,7 +36,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card success-card" shadow="hover">
           <div class="stat-content">
@@ -59,7 +59,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card info-card" shadow="hover">
           <div class="stat-content">
@@ -82,7 +82,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card warning-card" shadow="hover">
           <div class="stat-content">
@@ -125,7 +125,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :md="12" class="mb-20">
         <el-card shadow="hover">
           <template #header>
@@ -147,7 +147,7 @@
           <template #header>
             <div class="card-header-with-search">
               <span>最近不合格项目</span>
-              <el-input 
+              <el-input
                 v-model="search"
                 placeholder="搜索"
                 class="search-input"
@@ -188,10 +188,10 @@
             </el-table-column>
             <el-table-column label="操作" min-width="120" fixed="right">
               <template #default="scope">
-                <el-button 
-                  type="primary" 
-                  text 
-                  size="small" 
+                <el-button
+                  type="primary"
+                  text
+                  size="small"
                   @click="viewInspection(scope.row)"
                 >查看</el-button>
               </template>
@@ -257,20 +257,20 @@ const pageSize = ref(10);
 const filteredDefectItems = computed(() => {
   const startIndex = (currentPage.value - 1) * pageSize.value;
   const endIndex = startIndex + pageSize.value;
-  
+
   // 确保defectItems是数组
   let items = Array.isArray(defectItems.value) ? defectItems.value : [];
-  
+
   if (search.value) {
     const searchValue = search.value.toLowerCase();
-    items = items.filter(item => 
-      (item.inspectionNo && item.inspectionNo.toLowerCase().includes(searchValue)) || 
+    items = items.filter(item =>
+      (item.inspectionNo && item.inspectionNo.toLowerCase().includes(searchValue)) ||
       (item.materialName && item.materialName.toLowerCase().includes(searchValue)) ||
       (item.materialCode && item.materialCode.toLowerCase().includes(searchValue)) ||
       (item.defectReason && item.defectReason.toLowerCase().includes(searchValue))
     );
   }
-  
+
   return items.slice(startIndex, endIndex);
 });
 
@@ -325,7 +325,7 @@ function viewInspection(item) {
     'final': '/quality/final',
     'first_article': '/quality/first-article'
   };
-  
+
   const route = routeMap[item.inspectionType] || '/quality';
   router.push(`${route}?id=${item.id}`);
 }
@@ -431,8 +431,10 @@ async function initPassRateChart() {
       try {
         const trendsResponse = await qualityApi.getQualityTrends({ months: monthCount });
         // 拦截器已自动解包并移除了 success 取到了直辖业务数据
-        if (trendsResponse && trendsResponse.trends) {
-          const trends = trendsResponse.trends;
+        const trendsPayload = trendsResponse?.data || trendsResponse || {};
+        const trendsData = trendsPayload.data || trendsPayload;
+        if (Array.isArray(trendsData.trends)) {
+          const trends = trendsData.trends;
 
           // 处理趋势数据
           const trendMap = {};
@@ -459,10 +461,9 @@ async function initPassRateChart() {
             }
           });
         }
-      } catch (error) {
-        console.warn('获取趋势数据失败，图表将显示为空数据:', error);
+      } catch {
       }
-      
+
       const config = createLineChartConfig({
         yAxisFormatter: function(value) { return value + '%'; },
         tooltipFormatter: function(context) {
@@ -474,7 +475,7 @@ async function initPassRateChart() {
       });
       config.scales.y.min = 0;
       config.scales.y.max = 100;
-      
+
       passRateChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -534,17 +535,18 @@ async function initDefectTypeChart() {
       // 获取真实的不良原因分类数据
       try {
         const trendsResponse = await qualityApi.getQualityTrends({ months: 6 });
-        if (trendsResponse && trendsResponse.defectTypes) {
-          const realDefectTypes = trendsResponse.defectTypes;
+        const trendsPayload = trendsResponse?.data || trendsResponse || {};
+        const trendsData = trendsPayload.data || trendsPayload;
+        if (Array.isArray(trendsData.defectTypes)) {
+          const realDefectTypes = trendsData.defectTypes;
           if (realDefectTypes.length > 0) {
             defectTypes = realDefectTypes.map(item => item.defect_type || '未知');
             defectCounts = realDefectTypes.map(item => item.count || 0);
           }
         }
-      } catch (error) {
-        console.warn('获取不良原因分类数据失败，图表将保持为空:', error);
+      } catch {
       }
-      
+
       // 颜色配置重置为新版科幻组合
       const backgroundColors = [
         chartColors.primary[0],
@@ -554,7 +556,7 @@ async function initDefectTypeChart() {
         chartColors.danger[0],
         chartColors.info[0]
       ];
-      
+
       const config = createPieChartConfig({
         tooltipFormatter: function(context) {
           const label = context.label || '';
@@ -564,7 +566,7 @@ async function initDefectTypeChart() {
           return `${label}: ${value}个 (${percentage}%)`;
         }
       });
-      
+
       defectTypeChartInstance = new Chart(ctx, {
         type: 'pie',
         data: {
@@ -724,11 +726,11 @@ watch(timeRange, () => {
   .search-input {
     max-width: 120px;
   }
-  
+
   .stat-value {
     font-size: 22px;
   }
-  
+
   .stat-secondary-value {
     font-size: 18px;
   }
@@ -747,4 +749,4 @@ watch(timeRange, () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

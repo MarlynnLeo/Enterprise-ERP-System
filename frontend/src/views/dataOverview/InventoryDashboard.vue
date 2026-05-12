@@ -42,7 +42,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card success-card" shadow="hover">
           <div class="stat-content">
@@ -65,7 +65,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card info-card" shadow="hover">
           <div class="stat-content">
@@ -88,7 +88,7 @@
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
         <el-card class="stat-card warning-card" shadow="hover">
           <div class="stat-content">
@@ -146,7 +146,7 @@
           <template #header>
             <div class="card-header-with-search">
               <span>库存预警清单</span>
-              <el-input 
+              <el-input
                 v-model="search"
                 placeholder="搜索"
                 class="search-input"
@@ -184,10 +184,10 @@
             <el-table-column label="所在库位" prop="location" min-width="120" />
             <el-table-column label="操作" min-width="120" fixed="right">
               <template #default="scope">
-                <el-button 
-                  type="primary" 
-                  text 
-                  size="small" 
+                <el-button
+                  type="primary"
+                  text
+                  size="small"
                   @click="viewMaterial(scope.row)"
                 >查看</el-button>
               </template>
@@ -235,6 +235,7 @@ const {
   loadData
 } = useDashboard('inventory', loadInventoryData, {
   autoRefresh: true,
+  immediate: false,
   refreshInterval: 5 * 60 * 1000 // 5分钟
 });
 // 使用图表管理组合式函数
@@ -253,10 +254,10 @@ async function loadInventoryData() {
   try {
     const response = await inventoryApi.getDashboardSummary();
     const data = response.data || response;
-    
+
     dashboardData.value = data;
     alertItems.value = data.alertItems || [];
-    
+
     // 返回标准统计对象格式供 useDashboard 使用
     return {
       totalStock: data.statistics?.totalStock || 0,
@@ -331,16 +332,16 @@ async function getMonthlyTrendData() {
     inbound: [],
     outbound: []
   };
-  
+
   try {
     const trend = dashboardData.value?.monthlyTrend || [];
     const today = new Date();
-    
+
     // 获取过去12个月的数据
     for (let i = 11; i >= 0; i--) {
       const monthDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const yyyyMm = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
-      
+
       const item = trend.find(t => t.month === yyyyMm);
       monthlyData.inbound.push(item ? parseFloat(item.inbound_qty || 0) : 0);
       monthlyData.outbound.push(item ? parseFloat(item.outbound_qty || 0) : 0);
@@ -371,17 +372,17 @@ onMounted(async () => {
   try {
     // 首先加载数据
     await loadData();
-    
+
     // 然后初始化图表
     await initAllCharts({
       stockTrend: initStockTrendChart,
       categoryDistribution: initCategoryChart
     });
-    
+
   } catch (error) {
     console.error('初始化库存仪表盘失败:', error);
     ElMessage.error('获取库存数据失败，请检查网络连接');
-    
+
     // 出错时清空展示数据，避免展示伪造库存
     statistics.value = getDefaultStatistics('inventory');
     alertItems.value = [];
@@ -394,10 +395,10 @@ async function initStockTrendChart() {
   try {
     // 获取过去12个月的月份标签
     const labels = generateMonthLabels(12);
-    
+
     // 获取过去12个月的库存流水数据
     const monthlyData = await getMonthlyTrendData();
-    
+
     const config = createLineChartConfig({
       tooltipFormatter: (context) => {
         const label = context.dataset.label || '';
@@ -430,13 +431,12 @@ async function initStockTrendChart() {
       },
       options: config
     });
-  } catch (error) {
-    console.warn('获取库存趋势数据失败，图表将保持为空:', error);
-    
+  } catch {
+
     const labels = generateMonthLabels(12);
     const inboundData = Array(12).fill(0);
     const outboundData = Array(12).fill(0);
-    
+
     const config = createLineChartConfig({
       tooltipFormatter: (context) => {
         const label = context.dataset.label || '';
@@ -478,7 +478,7 @@ async function initCategoryChart() {
   try {
     // 获取物料分类统计数据
     const categoryData = await getCategoryDistribution();
-    
+
     const config = createPieChartConfig({
       tooltipFormatter: (context) => {
         const label = context.label || '';
@@ -503,12 +503,11 @@ async function initCategoryChart() {
       },
       options: config
     });
-  } catch (error) {
-    console.warn('获取分类分布数据失败，图表将保持为空:', error);
-    
+  } catch {
+
     const labels = [];
     const inventoryData = [];
-    
+
     const config = createPieChartConfig({
       tooltipFormatter: (context) => {
         const label = context.label || '';
@@ -647,11 +646,11 @@ async function initCategoryChart() {
   .search-input {
     max-width: 120px;
   }
-  
+
   .stat-value {
     font-size: 22px;
   }
-  
+
   .stat-secondary-value {
     font-size: 18px;
   }
@@ -667,4 +666,4 @@ async function initCategoryChart() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

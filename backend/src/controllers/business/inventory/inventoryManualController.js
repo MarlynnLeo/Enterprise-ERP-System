@@ -10,7 +10,6 @@ const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
-// const InventoryDeductionService = require('../../../services/business/InventoryDeductionService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
@@ -392,43 +391,11 @@ const createManualTransaction = async (req, res) => {
       }
     }
 
-    // 生成单据编号 (使用数据库锁防止并发重复)
-    const prefix = transaction_type === 'in' ? 'MTIN' : 'MTOUT';
-    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
-    const prefixWithDate = `${prefix}${dateStr}`;
+    // 生成单据编号 — 使用统一编码引擎
+    const { CodeGenerators } = require('../../../utils/codeGenerator');
+    const transaction_no = await CodeGenerators.generateManualTransactionCode(connection);
 
-    // 使用 FOR UPDATE 锁定查询，防止并发时产生重复编号
-    const [maxNoResult] = await connection.execute(
-      `SELECT MAX(transaction_no) as max_no
-       FROM manual_transactions
-       WHERE transaction_no LIKE ?
-       FOR UPDATE`,
-      [`${prefixWithDate}%`]
-    );
-
-    let sequenceNumber = 1;
-    if (maxNoResult[0].max_no) {
-      // 提取最后3位序号并加1
-      const lastSeq = maxNoResult[0].max_no.slice(-3);
-      sequenceNumber = parseInt(lastSeq) + 1;
-
-      // 防止序号溢出（最大999）
-      if (sequenceNumber > 999) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          '当天单据编号已达上限(999)，请联系管理员',
-          'VALIDATION_ERROR',
-          400
-        );
-      }
-    }
-
-    const transaction_no = `${prefixWithDate}${String(sequenceNumber).padStart(3, '0')}`;
-
-    logger.info(
-      `生成单据编号: ${transaction_no}, 当前最大编号: ${maxNoResult[0].max_no}, 下一个序号: ${sequenceNumber}`
-    );
+    logger.info(`生成单据编号: ${transaction_no}`);
 
     // 批量预取物料信息（消除循环内 N+1 查询）
 
@@ -543,31 +510,9 @@ const createManualTransactionInternal = async (connection, params) => {
     }
   }
 
-  // 生成单据编号 (使用数据库锁防止并发重复)
-  const prefix = transaction_type === 'in' ? 'MTIN' : 'MTOUT';
-  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
-  const prefixWithDate = `${prefix}${dateStr}`;
-
-  // 使用 FOR UPDATE 锁定查询，防止并发时产生重复编号
-  const [maxNoResult] = await connection.execute(
-    `SELECT MAX(transaction_no) as max_no
-     FROM manual_transactions
-     WHERE transaction_no LIKE ?
-     FOR UPDATE`,
-    [`${prefixWithDate}%`]
-  );
-
-  let sequenceNumber = 1;
-  if (maxNoResult[0].max_no) {
-    const lastSeq = maxNoResult[0].max_no.slice(-3);
-    sequenceNumber = parseInt(lastSeq) + 1;
-
-    if (sequenceNumber > 999) {
-      throw new Error('当天单据编号已达上限(999)，请联系管理员');
-    }
-  }
-
-  const transaction_no = `${prefixWithDate}${String(sequenceNumber).padStart(3, '0')}`;
+  // 生成单据编号 — 使用统一编码引擎
+  const { CodeGenerators } = require('../../../utils/codeGenerator');
+  const transaction_no = await CodeGenerators.generateManualTransactionCode(connection);
 
   logger.info(`生成单据编号: ${transaction_no}`);
 

@@ -37,7 +37,7 @@ exports.getSalesOrderOperators = async (req, res) => {
     try {
       // 获取所有创建过销售订单的用户
       const [operators] = await connection.query(`
-        SELECT DISTINCT 
+        SELECT DISTINCT
           u.id,
           u.username,
           u.real_name,
@@ -380,7 +380,7 @@ exports.getSalesOrder = async (req, res) => {
       // 添加前端期望的字段以保持兼容性
       order.totalAmount = order.total_amount;
 
-      res.json(order);
+      return ResponseHandler.success(res, order);
     } finally {
       connection.release();
     }
@@ -408,7 +408,7 @@ exports.updateOrderStatus = async (req, res) => {
       logger.error(
         `❌ [订单状态更新] 无效的状态值: ${newStatus}, 有效状态: ${validStatuses.join(', ')}`
       );
-      return ResponseHandler.error(res, `无效的状态值: ${newStatus}`, 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, `无效的状态值: ${newStatus}`, 'VALIDATION_ERROR', 400);
     }
 
     // 检查订单是否存在
@@ -491,7 +491,7 @@ exports.updateOrderStatus = async (req, res) => {
       return ResponseHandler.error(
         res,
         `无效的状态转换：订单当前状态为"${currentStatusText}"，不能直接转换为"${newStatusText}"`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -720,7 +720,7 @@ exports.updateOrderStatus = async (req, res) => {
     ]);
 
     await connection.commit();
-    res.json(updatedOrder[0]);
+    return ResponseHandler.success(res, updatedOrder[0]);
   } catch (error) {
     await connection.rollback();
     logger.error('更新订单状态时出错:', error);
@@ -736,12 +736,12 @@ exports.createSalesOrder = async (req, res) => {
     const orderData = req.body;
 
     if (!orderData || !orderData.items || !Array.isArray(orderData.items)) {
-      return ResponseHandler.error(res, '订单数据格式不正确', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '订单数据格式不正确', 'VALIDATION_ERROR', 400);
     }
 
     // 验证必要字段
     if (!orderData.customer_id) {
-      return ResponseHandler.error(res, '客户ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '客户ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     const createdBy = req.user?.id;
@@ -901,11 +901,11 @@ exports.updateSalesOrder = async (req, res) => {
 
     // 验证必需字段
     if (!order.customer_id) {
-      return ResponseHandler.error(res, '客户ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '客户ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     if (!items || items.length === 0) {
-      return ResponseHandler.error(res, '订单明细不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '订单明细不能为空', 'VALIDATION_ERROR', 400);
     }
 
     // 验证所有物料项都有material_id
@@ -914,7 +914,7 @@ exports.updateSalesOrder = async (req, res) => {
       return ResponseHandler.error(
         res,
         `有 ${invalidItems.length} 个物料项缺少物料ID`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -972,9 +972,7 @@ exports.deleteSalesOrder = async (req, res) => {
     const deletableStatuses = ['draft', 'pending'];
     if (!deletableStatuses.includes(order.status)) {
       await connection.rollback();
-      return res.status(400).json({
-        error: `无法删除状态为"${order.status}"的订单。仅草稿和待审核状态的订单可以删除。`,
-      });
+      return ResponseHandler.error(res, `无法删除状态为"${order.status}"的订单。仅草稿和待审核状态的订单可以删除。`, 'VALIDATION_ERROR', 400);
     }
 
     // 3. 检查是否存在关联的出库单
@@ -984,9 +982,7 @@ exports.deleteSalesOrder = async (req, res) => {
     );
     if (outboundCheck[0].count > 0) {
       await connection.rollback();
-      return res.status(400).json({
-        error: `此订单已有 ${outboundCheck[0].count} 条关联出库单，无法删除。请先删除相关出库单。`,
-      });
+      return ResponseHandler.error(res, `此订单已有 ${outboundCheck[0].count} 条关联出库单，无法删除。请先删除相关出库单。`, 'VALIDATION_ERROR', 400);
     }
 
     // 4. 检查是否存在关联的退货单
@@ -996,9 +992,7 @@ exports.deleteSalesOrder = async (req, res) => {
     );
     if (returnCheck[0].count > 0) {
       await connection.rollback();
-      return res.status(400).json({
-        error: `此订单已有 ${returnCheck[0].count} 条关联退货单，无法删除。请先处理相关退货单。`,
-      });
+      return ResponseHandler.error(res, `此订单已有 ${returnCheck[0].count} 条关联退货单，无法删除。请先处理相关退货单。`, 'VALIDATION_ERROR', 400);
     }
 
     // 5. 检查是否存在关联的换货单
@@ -1008,9 +1002,7 @@ exports.deleteSalesOrder = async (req, res) => {
     );
     if (exchangeCheck[0].count > 0) {
       await connection.rollback();
-      return res.status(400).json({
-        error: `此订单已有 ${exchangeCheck[0].count} 条关联换货单，无法删除。请先处理相关换货单。`,
-      });
+      return ResponseHandler.error(res, `此订单已有 ${exchangeCheck[0].count} 条关联换货单，无法删除。请先处理相关换货单。`, 'VALIDATION_ERROR', 400);
     }
 
     // 6. 安全删除：先删除明细，再软删除主表
@@ -1022,7 +1014,7 @@ exports.deleteSalesOrder = async (req, res) => {
 
     logger.info(`✅ 销售订单 ${order.order_no} (ID: ${id}) 已安全删除，原状态: ${order.status}`);
 
-    res.json({
+    return ResponseHandler.success(res, {
       message: '销售订单删除成功',
       id: parseInt(id),
     });
@@ -1064,7 +1056,7 @@ exports.lockOrder = async (req, res) => {
     // 检查订单是否已经锁定
     if (order.is_locked) {
       await connection.rollback();
-      return ResponseHandler.error(res, '订单已经锁定，无法重复锁定', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '订单已经锁定，无法重复锁定', 'VALIDATION_ERROR', 400);
     }
 
     // 检查订单状态是否允许锁定 - 只允许生产中和采购中的订单锁定
@@ -1072,9 +1064,7 @@ exports.lockOrder = async (req, res) => {
 
     if (!allowedStatuses.includes(order.status)) {
       await connection.rollback();
-      return res.status(400).json({
-        message: `订单状态为"${order.status}"，不允许锁定。只有"生产中"和"采购中"的订单才能锁定库存。`,
-      });
+      return ResponseHandler.error(res, `订单状态为"${order.status}"，不允许锁定。只有"生产中"和"采购中"的订单才能锁定库存。`, 'VALIDATION_ERROR', 400);
     }
 
     // 获取订单物料项
@@ -1099,12 +1089,7 @@ exports.lockOrder = async (req, res) => {
         insufficientItems: reservationResult.insufficientItems,
         reservations: reservationResult.reservations
       }));
-      return res.status(400).json({
-        success: false,
-        message: '库存不足，无法锁定订单',
-        errorCode: 'BAD_REQUEST',
-        insufficientItems: reservationResult.insufficientItems || []
-      });
+      return ResponseHandler.error(res, '库存不足，无法锁定订单', 'VALIDATION_ERROR', 400);
     }
 
     // 更新订单锁定状态
@@ -1120,7 +1105,7 @@ exports.lockOrder = async (req, res) => {
     await connection.commit();
 
     // 返回详细的锁定结果
-    res.json({
+    return ResponseHandler.success(res, {
       success: reservationResult.success,
       message: reservationResult.fullSuccess ? '订单锁定成功' : '订单部分锁定成功',
       data: {
@@ -1167,7 +1152,7 @@ exports.unlockOrder = async (req, res) => {
     // 检查订单是否已经锁定
     if (!order.is_locked) {
       await connection.rollback();
-      return ResponseHandler.error(res, '订单未锁定，无需解锁', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '订单未锁定，无需解锁', 'VALIDATION_ERROR', 400);
     }
 
     // 释放库存预留
@@ -1189,14 +1174,10 @@ exports.unlockOrder = async (req, res) => {
 
     await connection.commit();
 
-    res.json({
-      success: true,
-      message: '订单解锁成功',
-      data: {
+    return ResponseHandler.success(res, {
         orderId: id,
         releaseResult: releaseResult,
-      }
-    });
+      }, '订单解锁成功');
   } catch (error) {
     await connection.rollback();
     logger.error('解锁订单失败:', error);
@@ -1236,7 +1217,7 @@ exports.getOrderLockStatus = async (req, res) => {
     // 获取预留信息
     const reservations = await InventoryReservationService.getOrderReservations(id);
 
-    res.json({
+    return ResponseHandler.success(res, {
       orderId: id,
       isLocked: order.is_locked,
       lockedAt: order.locked_at,
@@ -1386,7 +1367,7 @@ exports.importOrders = async (req, res) => {
     });
 
     if (!req.file) {
-      return ResponseHandler.error(res, '请选择要导入的文件', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '请选择要导入的文件', 'VALIDATION_ERROR', 400);
     }
 
     const ExcelJS = require('exceljs');
@@ -1411,7 +1392,7 @@ exports.importOrders = async (req, res) => {
     });
 
     if (!data || data.length === 0) {
-      return ResponseHandler.error(res, '导入文件为空或格式不正确', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '导入文件为空或格式不正确', 'VALIDATION_ERROR', 400);
     }
 
     const connection = await db.pool.getConnection();
@@ -1811,15 +1792,11 @@ exports.importOrders = async (req, res) => {
 
       await connection.commit();
 
-      res.json({
-        success: true,
-        message: `导入完成，成功${successCount} 条，失败${errorCount} 条`,
-        data: {
+      return ResponseHandler.success(res, {
           successCount,
           errorCount,
           errors: errors.slice(0, 10), // 只返回前10个错误
-        },
-      });
+        }, `导入完成，成功${successCount} 条，失败${errorCount} 条`);
     } catch (error) {
       await connection.rollback();
       throw error;

@@ -61,7 +61,7 @@ exports.getSalesExchanges = async (req, res) => {
 
       const query = appendPaginationSQL(
         `
-        SELECT se.*, 
+        SELECT se.*,
                se.return_amount, se.new_amount, se.difference_amount
         FROM sales_exchanges se
         WHERE 1 = 1 ${whereClause}
@@ -107,7 +107,7 @@ exports.getSalesExchanges = async (req, res) => {
         statusStats,
       };
 
-      res.json(responseData);
+      return ResponseHandler.success(res, responseData);
     } finally {
       connection.release();
     }
@@ -142,7 +142,7 @@ exports.getSalesExchangeById = async (req, res) => {
 
       // 查询换货单明细（含单价金额）
       const detailsQuery = `
-        SELECT sei.*, 
+        SELECT sei.*,
                sei.unit_price, sei.amount,
                m.id as material_id, m.price as material_price
         FROM sales_exchange_items sei
@@ -188,7 +188,7 @@ exports.getSalesExchangeById = async (req, res) => {
         exchange_reason: item.reason, // 换货原因
       }));
 
-      res.json(exchange);
+      return ResponseHandler.success(res, exchange);
     } finally {
       connection.release();
     }
@@ -216,7 +216,7 @@ exports.createSalesExchange = async (req, res) => {
 
     // 验证必要参数
     if (!orderNo || !exchangeDate || !reason) {
-      return ResponseHandler.error(res, '缺少必要参数：订单号、换货日期、换货原因', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '缺少必要参数：订单号、换货日期、换货原因', 'VALIDATION_ERROR', 400);
     }
 
     // 支持新的数据结构（returnItems + newItems）或旧的数据结构（items）
@@ -224,15 +224,15 @@ exports.createSalesExchange = async (req, res) => {
     const hasOldFormat = items && Array.isArray(items) && items.length > 0;
 
     if (!hasNewFormat && !hasOldFormat) {
-      return ResponseHandler.error(res, '至少需要退回商品和换出商品，或者换货项目', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '至少需要退回商品和换出商品，或者换货项目', 'VALIDATION_ERROR', 400);
     }
 
     if (hasNewFormat) {
       if (!Array.isArray(returnItems) || returnItems.length === 0) {
-        return ResponseHandler.error(res, '至少需要一个退回商品', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '至少需要一个退回商品', 'VALIDATION_ERROR', 400);
       }
       if (!Array.isArray(newItems) || newItems.length === 0) {
-        return ResponseHandler.error(res, '至少需要一个换出商品', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '至少需要一个换出商品', 'VALIDATION_ERROR', 400);
       }
     }
 
@@ -297,10 +297,10 @@ exports.createSalesExchange = async (req, res) => {
     if (orderNo) {
       try {
         const [orderItems] = await connection.query(
-          `SELECT m.code, soi.unit_price 
-           FROM sales_order_items soi 
-           JOIN materials m ON soi.material_id = m.id 
-           JOIN sales_orders so ON soi.order_id = so.id 
+          `SELECT m.code, soi.unit_price
+           FROM sales_order_items soi
+           JOIN materials m ON soi.material_id = m.id
+           JOIN sales_orders so ON soi.order_id = so.id
            WHERE so.order_no = ?`, [orderNo]
         );
         orderItems.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
@@ -506,8 +506,8 @@ exports.updateSalesExchange = async (req, res) => {
         }
         if (orderNo) {
           const [ois] = await connection.query(
-            `SELECT m.code, soi.unit_price FROM sales_order_items soi 
-             JOIN materials m ON soi.material_id = m.id 
+            `SELECT m.code, soi.unit_price FROM sales_order_items soi
+             JOIN materials m ON soi.material_id = m.id
              JOIN sales_orders so ON soi.order_id = so.id WHERE so.order_no = ?`, [orderNo]
           );
           ois.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
@@ -632,7 +632,7 @@ exports.updateSalesExchange = async (req, res) => {
       });
     }
 
-    res.json({
+    return ResponseHandler.success(res, {
       message: '销售换货单更新成功',
       id: parseInt(id),
     });
@@ -668,7 +668,7 @@ exports.deleteSalesExchange = async (req, res) => {
 
     await connection.commit();
 
-    res.json({
+    return ResponseHandler.success(res, {
       message: '销售换货单删除成功',
       id: parseInt(id),
     });
@@ -694,13 +694,13 @@ exports.updateExchangeStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!status) {
-      return ResponseHandler.error(res, '缺少必要参数：status', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '缺少必要参数：status', 'VALIDATION_ERROR', 400);
     }
 
     // 允许的状态值
     const allowedStatuses = ['pending', 'processing', 'completed', 'rejected'];
     if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({ error: `无效的状态值: ${status}，允许值: ${allowedStatuses.join(', ')}` });
+      return ResponseHandler.error(res, `无效的状态值: ${status}，允许值: ${allowedStatuses.join(', ')}`, 'VALIDATION_ERROR', 400);
     }
 
     connection = await db.pool.getConnection();
@@ -731,9 +731,7 @@ exports.updateExchangeStatus = async (req, res) => {
     const allowed = validTransitions[previousStatus];
     if (allowed && !allowed.includes(status)) {
       await connection.rollback();
-      return res.status(400).json({
-        error: `状态"${previousStatus}"不允许变更为"${status}"。允许的目标状态: ${allowed.length > 0 ? allowed.join(', ') : '无（终态）'}`,
-      });
+      return ResponseHandler.error(res, `状态"${previousStatus}"不允许变更为"${status}"。允许的目标状态: ${allowed.length > 0 ? allowed.join(', ') : '无（终态）'}`, 'VALIDATION_ERROR', 400);
     }
 
     // 更新状态
@@ -777,7 +775,7 @@ exports.updateExchangeStatus = async (req, res) => {
       });
     }
 
-    res.json({
+    return ResponseHandler.success(res, {
       message: '换货单状态更新成功',
       data: { id: parseInt(id), status, previousStatus },
     });

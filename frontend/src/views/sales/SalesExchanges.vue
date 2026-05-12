@@ -18,18 +18,18 @@
         <el-button v-permission="'sales:returns:create'" type="primary" :icon="Plus" @click="handleCreate">新增换货单</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" class="search-form">
         <el-form-item label="换货单号/客户">
-          <el-input 
+          <el-input
             v-model="searchQuery"
             placeholder="换货单号/订单号/客户名称"
             @keyup.enter="handleSearch"
             clearable ></el-input>
         </el-form-item>
-        
+
         <el-form-item label="换货状态">
           <el-select v-model="statusFilter" placeholder="换货状态" clearable @change="handleSearch" style="width: 100%">
             <el-option
@@ -40,7 +40,7 @@
             />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="日期范围">
           <el-date-picker
             v-model="dateRange"
@@ -51,7 +51,7 @@
             @change="handleSearch"
           />
         </el-form-item>
-        
+
         <el-form-item>
           <el-button type="primary" @click="handleSearch">
             <el-icon><Search /></el-icon> 查询
@@ -87,10 +87,10 @@
     </div>
     <!-- 换货单表格 -->
     <el-card class="data-card">
-      <el-table 
-        :data="exchangeRecords" 
+      <el-table
+        :data="exchangeRecords"
         border
-        style="width: 100%" 
+        style="width: 100%"
         v-loading="loading"
         table-layout="fixed"
       >
@@ -164,14 +164,14 @@
               v-if="scope.row.status === '已拒绝'"
               size="small"
               @click="handleEdit(scope.row)"
-            
+
               v-permission="'sales:exchanges'">
               编辑
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -302,7 +302,7 @@
                   size="small"
                   type="danger"
                   @click="removeReturnItem(scope.$index)"
-                
+
                   v-permission="'sales:exchanges'">
                   删除
                 </el-button>
@@ -354,7 +354,7 @@
                   size="small"
                   type="danger"
                   @click="removeNewItem(scope.$index)"
-                
+
                   v-permission="'sales:exchanges'">
                   删除
                 </el-button>
@@ -558,7 +558,7 @@
     <!-- 选择订单对话框 -->
     <el-dialog v-model="orderDialog.visible" title="选择已完成出库的订单" width="900px">
       <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-        <el-input 
+        <el-input
           v-model="orderDialog.keyword"
           placeholder="按订单号/客户名搜索已出库订单"
           clearable
@@ -729,14 +729,14 @@ const calculateExchangeStats = () => {
     completed: 0,
     rejected: 0
   }
-  
+
   exchangeRecords.value.forEach(record => {
     if (record.status === '待处理') stats.pending++
     else if (record.status === '处理中') stats.processing++
     else if (record.status === '已完成') stats.completed++
     else if (record.status === '已拒绝') stats.rejected++
   })
-  
+
   exchangeStats.value = stats
 }
 // 搜索方法

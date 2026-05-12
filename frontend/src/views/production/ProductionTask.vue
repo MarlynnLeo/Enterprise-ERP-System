@@ -153,7 +153,7 @@
             </div>
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="code" label="任务编号" width="130" show-overflow-tooltip />
         <el-table-column prop="productCode" label="物料编码" width="120" show-overflow-tooltip />
         <el-table-column prop="productName" label="产品名称" min-width="130" show-overflow-tooltip />
@@ -255,7 +255,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -296,10 +296,10 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="生产组" prop="manager">
-              <el-select 
-                v-model="formData.manager" 
-                placeholder="请选择生产组" 
-                filterable 
+              <el-select
+                v-model="formData.manager"
+                placeholder="请选择生产组"
+                filterable
                 allow-create
                 default-first-option
                 style="width: 100%"
@@ -317,15 +317,15 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="生产计划" prop="planId">
-              <el-select 
-                v-model="formData.planId" 
-                placeholder="请输入计划编号或产品名称搜索" 
-                style="width: 100%" 
-                @change="handlePlanChange" 
+              <el-select
+                v-model="formData.planId"
+                placeholder="请输入计划编号或产品名称搜索"
+                style="width: 100%"
+                @change="handlePlanChange"
                 filterable
                 remote
                 reserve-keyword
@@ -334,10 +334,10 @@
                 :loading="planSearchLoading"
                 @focus="handlePlanSelectFocus"
               >
-                <el-option 
-                  v-for="plan in filteredPlanList.filter(p => p && p.id != null)" 
-                  :key="plan.id" 
-                  :label="`${plan.code} - ${plan.productName}`" 
+                <el-option
+                  v-for="plan in filteredPlanList.filter(p => p && p.id != null)"
+                  :key="plan.id"
+                  :label="`${plan.code} - ${plan.productName}`"
                   :value="plan.id"
                 >
                   <div style="display: flex; justify-content: space-between; align-items: center">
@@ -349,7 +349,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="产品名称">
@@ -365,13 +365,13 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20" v-if="formData.productId">
           <el-col :span="24">
             <el-form-item label="工序模板" prop="processTemplateId">
-              <el-select 
-                v-model="formData.processTemplateId" 
-                placeholder="选择工序模板" 
+              <el-select
+                v-model="formData.processTemplateId"
+                placeholder="选择工序模板"
                 style="width: 100%"
                 @change="handleProcessTemplateChange"
                 :loading="processTemplateLoading"
@@ -391,9 +391,9 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-divider content-position="center">时间安排</el-divider>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="开始时间" prop="startDate">
@@ -457,7 +457,7 @@
             </el-alert>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20" style="margin-top: 8px">
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
@@ -680,13 +680,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from '@/services/api'
-import { productionApi } from '@/services/api'
+import { baseDataApi, productionApi } from '@/services/api'
 import dayjs from 'dayjs'
 import { Plus, Refresh, Search, Clock, SetUp, WarningFilled } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/utils/helpers/quantity'
-import { parseListData } from '@/utils/responseParser'
+import { parseDataObject, parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
-import { decodeHtmlEntities, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 
 // 获取当前登录用户
 // ✅ 键盘导航：Enter 跳转下一字段
@@ -843,12 +843,12 @@ const fetchTaskList = async () => {
           quantity = getQuantityFromRelatedItem(planList.value, item.plan_id);
         }
       }
-      
+
       // 确保0值不会丢失
       if (quantity === 0) {
         quantity = 0; // 确保是数值0而不是其他假值
       }
-      
+
       const mappedItem = {
         ...item,
         startDate: item.start_date || item.startDate,
@@ -865,7 +865,7 @@ const fetchTaskList = async () => {
 
       return mappedItem
     })
-    
+
     total.value = responseData?.total || 0
 
     // 更新统计数据（使用后端返回的统计信息）
@@ -904,7 +904,7 @@ const fetchPlanList = async () => {
     planList.value = planItems
       .filter(plan => plan.id !== null && plan.id !== undefined)
       .map(plan => formatPlanItem(plan))
-    
+
     // 同步到过滤结果
     filteredPlanList.value = [...planList.value]
 
@@ -936,7 +936,7 @@ const searchPlans = async (query) => {
     filteredPlanList.value = planList.value.slice(0, 50)
     return
   }
-  
+
   planSearchLoading.value = true
   try {
     const response = await productionApi.getProductionPlans({
@@ -944,12 +944,12 @@ const searchPlans = async (query) => {
       pageSize: 50,
       keyword: query.trim()
     })
-    
+
     const planItems = parseListData(response, { enableLog: false })
     filteredPlanList.value = planItems
       .filter(plan => plan.id !== null && plan.id !== undefined)
       .map(plan => formatPlanItem(plan))
-    
+
     // 更新缓存
     filteredPlanList.value.forEach(item => {
       if (!planList.value.find(p => p.id === item.id)) {
@@ -977,7 +977,7 @@ const handlePlanSelectFocus = async () => {
       filteredPlanList.value = planItems
         .filter(plan => plan.id !== null && plan.id !== undefined)
         .map(plan => formatPlanItem(plan))
-      
+
       // 更新缓存
       filteredPlanList.value.forEach(item => {
         if (!planList.value.find(p => p.id === item.id)) {
@@ -1044,15 +1044,15 @@ const showCreateModal = async () => {
 
 const handleEdit = async (record) => {
   modalTitle.value = '编辑生产任务'
-  
+
   // 确保计划列表已加载
   if (planList.value.length === 0) {
     await fetchPlanList();
   }
-  
+
   // 处理数量字段
   const quantity = parseQuantity(record.quantity);
-  
+
   // 先设置基本表单数据，显式映射所有字段
   formData.value = {
     ...record,
@@ -1066,14 +1066,14 @@ const handleEdit = async (record) => {
     expectedEndDate: record.expectedEndDate ? new Date(record.expectedEndDate) : null,
     remarks: record.remarks || ''
   }
-  
+
   // 如果任务有关联的计划ID，但计划相关信息不完整，尝试从计划列表中获取更多信息
   if (record.plan_id) {
     const relatedPlan = planList.value.find(plan => String(plan.id) === String(record.plan_id));
     if (relatedPlan) {
       // 确保planId是正确的类型（数字）
       formData.value.planId = Number(record.plan_id);
-      
+
       // 如果产品名称为空，从计划中获取
       if (!formData.value.productName && relatedPlan.productName) {
         formData.value.productName = relatedPlan.productName;
@@ -1098,16 +1098,16 @@ const handleEdit = async (record) => {
       }
     }
   }
-  
+
   modalVisible.value = true
 }
 
 const handleModalOk = async () => {
   if (!formRef.value) return
-  
+
   try {
     await formRef.value.validate()
-    
+
     const payload = {
       plan_id: formData.value.planId,
       product_id: formData.value.productId,
@@ -1120,7 +1120,7 @@ const handleModalOk = async () => {
       remarks: formData.value.remarks,
       process_template_id: formData.value.processTemplateId  // 添加工序模板ID
     }
-    
+
     if (formData.value.id) {
       // 编辑模式
       await axios.put(`/production/tasks/${formData.value.id}`, payload)
@@ -1130,7 +1130,7 @@ const handleModalOk = async () => {
       await axios.post('/production/tasks', payload)
       ElMessage.success('生产任务创建成功')
     }
-    
+
     modalVisible.value = false
     await fetchTaskList()
     // 统计数据已在 fetchTaskList 中更新
@@ -1175,7 +1175,7 @@ const onScheduleParamsChange = () => {
 
 const doScheduleCalculation = async () => {
   const { productId, quantity, startDate, manager } = formData.value
-  
+
   // 参数不完整时清空
   if (!productId || !quantity || !startDate) {
     scheduleInfo.value = { totalMinutes: 0, totalHours: '0', estimatedEndTime: '', processSchedule: [] }
@@ -1328,7 +1328,7 @@ const taskDetail = ref({})
 const showTaskDetail = (record) => {
   // 处理数量字段
   const quantity = parseQuantity(record.quantity);
-  
+
   taskDetail.value = {
     ...record,
     quantity: quantity,
@@ -1338,7 +1338,7 @@ const showTaskDetail = (record) => {
     createdAt: record.createdAt ? dayjs(record.createdAt).format('YYYY-MM-DD HH:mm') : '-',
     updatedAt: record.updatedAt ? dayjs(record.updatedAt).format('YYYY-MM-DD HH:mm') : '-'
   }
-  
+
   detailVisible.value = true
 }
 
@@ -1380,7 +1380,7 @@ const fetchProductProcessTemplates = async (productId) => {
     processTemplateLoading.value = true
     formData.value.processTemplateId = undefined
 
-    const response = await axios.get(`/baseData/products/${productId}/process-template`)
+    const response = await baseDataApi.getProcessTemplateByProductId(productId)
 
     // 拦截器已解包，response.data 就是业务数据
     if (response.data) {
@@ -1390,11 +1390,9 @@ const fetchProductProcessTemplates = async (productId) => {
     }
 
     // 获取所有可用的工序模板
-    const allTemplatesResponse = await axios.get('/baseData/process-templates', {
-      params: {
-        productId: productId,
-        pageSize: 100
-      }
+    const allTemplatesResponse = await baseDataApi.getProcessTemplates({
+      productId,
+      pageSize: 100
     })
 
     // 拦截器已解包，response.data 就是业务数据
@@ -1536,8 +1534,7 @@ const submitOutbound = async (outboundData, task) => {
       // 更新生产任务状态为配料中 (preparing/material_issuing)
       try {
         await productionApi.updateProductionTaskStatus(task.id, { status: 'preparing' })
-      } catch (err) {
-        console.warn('更新生产任务状态为配料中失败', err)
+      } catch {
       }
 
       // 刷新任务列表
@@ -1577,12 +1574,12 @@ const submitOutbound = async (outboundData, task) => {
 const printTaskDetail = async () => {
   try {
     const task = taskDetail.value;
-    
+
     // 获取关联计划编号
-    const relatedPlanCode = task.plan_id 
-      ? (planList.value.find(plan => String(plan.id) === String(task.plan_id))?.code || '未找到计划') 
+    const relatedPlanCode = task.plan_id
+      ? (planList.value.find(plan => String(plan.id) === String(task.plan_id))?.code || '未找到计划')
       : '-';
-    
+
     // 准备打印数据
     const printData = {
       code: task.code || '-',
@@ -1598,45 +1595,26 @@ const printTaskDetail = async () => {
       statusText: getStatusText(task.status),
       remarks: task.remarks || '无'
     };
-    
-    // 获取打印模板
-    const response = await axios.get('/print/templates/default', {
-      params: {
-        module: 'production',
-        template_type: 'production_task'
-      }
+
+    const htmlContent = await printService.generateByDefaultTemplate('production', 'production_task', {
+      ...printData,
+      task_no: printData.code,
+      product_name: printData.productName,
+      product_code: printData.productCode,
+      specification: printData.specs,
+      plan_no: relatedPlanCode,
+      planned_quantity: printData.quantity,
+      responsible_person: printData.manager,
+      start_date: printData.startDate,
+      due_date: printData.expectedEndDate,
+      status: printData.statusText,
+      remark: printData.remarks,
+      print_time: new Date().toLocaleString(),
+      items: []
     });
 
-    // 适配多种响应格式
-    let template = null;
-    if (response.data?.data) {
-      template = response.data.data;
-    } else if (response.data?.content) {
-      template = response.data;
-    }
+    printService.previewDocument(htmlContent);
 
-    if (!template || !template.content) {
-      ElMessage.error('未找到生产任务单打印模板，请在系统设置中配置');
-      return;
-    }
-
-    // 替换模板中的变量
-    let htmlContent = template.content;
-
-    // 解码 HTML 实体（如果模板内容被转义了）
-    if (htmlContent.includes('&lt;') || htmlContent.includes('&gt;')) {
-      htmlContent = decodeHtmlEntities(htmlContent);
-    }
-
-    for (const [key, value] of Object.entries(printData)) {
-      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-      htmlContent = htmlContent.replace(regex, value);
-    }
-    
-    // 打开新窗口并打印
-    const printWindow = window.open('', '_blank');
-    writeSafeHtmlDocument(printWindow, htmlContent);
-    
   } catch (error) {
     ElMessage.error('打印失败: ' + (error.response?.data?.message || error.message));
   }
@@ -1652,8 +1630,8 @@ const fetchProductionGroupByProduct = async (productId) => {
     }
 
     // 获取产品详情（产品数据存储在materials表中）
-    const response = await axios.get(`/baseData/materials/${productId}`);
-    const product = response.data;
+    const response = await baseDataApi.getMaterial(productId);
+    const product = parseDataObject(response, { enableLog: false });
 
     // 产品本身就是物料，直接使用其production_group_id
     if (product && product.production_group_id) {
@@ -1700,15 +1678,15 @@ const fetchProductionUsers = async () => {
     });
 
     const departments = parseListData(response, { enableLog: false });
-    
+
     // 找到生产部（通常名称为"生产部"或"生产中心"）
-    const productionDept = departments.find(dept => 
+    const productionDept = departments.find(dept =>
       dept && (dept.name === '生产部' || dept.name === '生产中心' || dept.name.includes('生产'))
     );
-    
+
     if (productionDept) {
       // 获取生产部下的所有子部门作为生产组
-      productionUsers.value = departments.filter(dept => 
+      productionUsers.value = departments.filter(dept =>
         dept && dept.parent_id === productionDept.id
       ).map(dept => ({
         id: dept.id,
@@ -1716,7 +1694,7 @@ const fetchProductionUsers = async () => {
         code: dept.code || ''
       }));
     }
-    
+
     // 如果没有找到生产组子部门，显示所有部门作为备选
     if (productionUsers.value.length === 0) {
       productionUsers.value = departments.filter(dept => dept && dept.name).map(dept => ({

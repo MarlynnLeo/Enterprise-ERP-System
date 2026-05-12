@@ -67,7 +67,7 @@ exports.getSalesQuotations = async (req, res) => {
          LEFT JOIN users u ON q.created_by = u.id
          WHERE 1=1 ${whereClause}
          ORDER BY q.created_at DESC
-         LIMIT ${actualPageSize} OFFSET ${offset}`,
+         LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
         params
       );
 
@@ -97,7 +97,7 @@ exports.getSalesQuotations = async (req, res) => {
         }));
       }
 
-      res.json({
+      return ResponseHandler.success(res, {
         items: quotations,
         total,
         page: parseInt(page),
@@ -150,7 +150,7 @@ exports.getSalesQuotationStatistics = async (req, res) => {
     const convertedCount = convertedData[0].count || 0;
     const conversionRate = monthlyCount > 0 ? convertedCount / monthlyCount : 0;
 
-    res.json({
+    return ResponseHandler.success(res, {
       monthly_count: monthlyCount,
       monthly_amount: monthlyData[0].amount || 0,
       conversion_rate: conversionRate,
@@ -200,7 +200,7 @@ exports.getSalesQuotation = async (req, res) => {
     // 组合数据
     quotation.items = itemRows;
 
-    res.json(quotation);
+    return ResponseHandler.success(res, quotation);
   } catch (error) {
     logger.error('Error getting sales quotation:', error);
     ResponseHandler.error(res, 'Error getting sales quotation', 'SERVER_ERROR', 500, error);
@@ -226,8 +226,8 @@ exports.createSalesQuotation = async (req, res) => {
 
     // 插入报价单主表
     const [result] = await conn.query(
-      `INSERT INTO sales_quotations 
-       (quotation_no, customer_id, total_amount, validity_date, status, remarks, created_by, created_at) 
+      `INSERT INTO sales_quotations
+       (quotation_no, customer_id, total_amount, validity_date, status, remarks, created_by, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         quotationNo,
@@ -272,8 +272,8 @@ exports.createSalesQuotation = async (req, res) => {
         );
       }
       await conn.query(
-        `INSERT INTO sales_quotation_items 
-         (quotation_id, product_id, quantity, unit_price, total_price) 
+        `INSERT INTO sales_quotation_items
+         (quotation_id, product_id, quantity, unit_price, total_price)
          VALUES ${valuesPlaceholders}`,
         values
       );
@@ -317,8 +317,8 @@ exports.updateSalesQuotation = async (req, res) => {
 
     // 更新报价单主表
     await conn.query(
-      `UPDATE sales_quotations 
-       SET customer_id = ?, 
+      `UPDATE sales_quotations
+       SET customer_id = ?,
            total_amount = ?,
            validity_date = ?,
            status = ?,
@@ -366,8 +366,8 @@ exports.updateSalesQuotation = async (req, res) => {
         );
       }
       await conn.query(
-        `INSERT INTO sales_quotation_items 
-         (quotation_id, product_id, quantity, unit_price, total_price) 
+        `INSERT INTO sales_quotation_items
+         (quotation_id, product_id, quantity, unit_price, total_price)
          VALUES ${valuesPlaceholders}`,
         values
       );
@@ -376,7 +376,7 @@ exports.updateSalesQuotation = async (req, res) => {
     // 提交事务
     await conn.commit();
 
-    res.json({
+    return ResponseHandler.success(res, {
       id,
       message: 'Quotation updated successfully',
     });
@@ -414,7 +414,7 @@ exports.deleteSalesQuotation = async (req, res) => {
 
     // 只允许删除"待确认"状态的报价单
     if (statusRows[0].status !== 'draft') {
-      return ResponseHandler.error(res, '只能删除待确认状态的报价单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能删除待确认状态的报价单', 'VALIDATION_ERROR', 400);
     }
 
     // 删除报价单明细
@@ -426,7 +426,7 @@ exports.deleteSalesQuotation = async (req, res) => {
     // 提交事务
     await conn.commit();
 
-    res.json({
+    return ResponseHandler.success(res, {
       message: 'Quotation deleted successfully',
       id,
     });
@@ -471,7 +471,7 @@ exports.convertQuotationToOrder = async (req, res) => {
     // 只允许转换"已确认"状态的报价单
     if (quotation.status !== 'accepted') {
       await conn.rollback();
-      return ResponseHandler.error(res, '只能转换已确认状态的报价单为订单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能转换已确认状态的报价单为订单', 'VALIDATION_ERROR', 400);
     }
 
     // 获取报价单明细
@@ -485,7 +485,7 @@ exports.convertQuotationToOrder = async (req, res) => {
 
     if (itemRows.length === 0) {
       await conn.rollback();
-      return ResponseHandler.error(res, '报价单没有明细项目，无法转换为订单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '报价单没有明细项目，无法转换为订单', 'VALIDATION_ERROR', 400);
     }
 
     // ✅ 使用统一编码规则引擎生成销售订单号
@@ -549,7 +549,7 @@ exports.convertQuotationToOrder = async (req, res) => {
     // 提交事务
     await conn.commit();
 
-    res.json({
+    return ResponseHandler.success(res, {
       message: 'Quotation converted to order successfully',
       quotation_id: id,
       order_id: orderId,

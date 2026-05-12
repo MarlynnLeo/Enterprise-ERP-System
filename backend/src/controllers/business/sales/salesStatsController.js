@@ -115,7 +115,7 @@ exports.getSalesStatistics = async (req, res) => {
       returns_count: returns.returns_count,
     });
 
-    res.json({
+    return ResponseHandler.success(res, {
       // 订单统计
       total_sales: parseFloat(stats.total_sales_amount || 0),
       pending_orders: parseInt(stats.pending_orders || 0),
@@ -189,7 +189,7 @@ exports.getSalesTrend = async (req, res) => {
       };
     });
 
-    res.json({
+    return ResponseHandler.success(res, {
       trend_data: trendResult,
     });
   } catch (error) {

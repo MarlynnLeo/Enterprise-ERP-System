@@ -517,7 +517,7 @@
         <el-descriptions-item label="结案审核时间" v-if="detailData.phase2_approved_at">{{ formatDate(detailData.phase2_approved_at) }}</el-descriptions-item>
         <el-descriptions-item label="审核意见" :span="2" v-if="detailData.review_comments">{{ detailData.review_comments }}</el-descriptions-item>
       </el-descriptions>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="detailDialogVisible = false">关闭</el-button>
@@ -570,7 +570,7 @@
         <el-button v-permission="'quality:8d:create'" type="primary" @click="submitAiGenerate" :loading="aiLoading">开始生成</el-button>
       </template>
     </el-dialog>
-  
+
     <!-- 流转审计日志弹窗 / 客户报告打印 -->
     <el-dialog v-model="logsDialogVisible" :title="isPrintMode ? '客户报告打印预览' : '8D生命周期审计流转记录'" width="800px">
       <div v-if="!isPrintMode">
@@ -651,7 +651,7 @@ import { systemApi } from '@/api/system'
 import { api } from '@/services/axiosInstance'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 // 响应式状态
 const logsDialogVisible = ref(false)
 const isPrintMode = ref(false)
@@ -672,29 +672,58 @@ const _printCustomerReport = async (row) => {
   isPrintMode.value = true
   logsDialogVisible.value = true
 }
-const handlePrintCommand = () => {
-  const printElement = document.getElementById('printable-8d-report');
-  if (!printElement) {
-    ElMessage.error('无法获取打印内容');
-    return;
+const handlePrintCommand = async () => {
+  const row = currentPrintRow.value
+  if (!row) {
+    ElMessage.error('无法获取打印数据')
+    return
   }
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    ElMessage.error('无法创建打印窗口，请检查浏览器是否阻止了弹出窗口');
-    return;
+
+  try {
+    const printData = {
+      report_no: row.report_no || '',
+      title: row.title || '',
+      ncp_no: row.ncp_no || '',
+      occurrence_date: row.d2_occurrence_date ? dayjs(row.d2_occurrence_date).format('YYYY-MM-DD') : '',
+      defect_type: row.d2_defect_type || '',
+      status: getStatusLabel(row.status),
+      current_phase: getPhaseLabel(row.current_phase),
+      material_name: row.material_name || row.product_name || '',
+      customer_name: row.supplier_name || row.customer_name || '',
+      target_close_date: row.target_close_date ? dayjs(row.target_close_date).format('YYYY-MM-DD') : '',
+      team_leader: row.d1_team_leader || '',
+      team_members: formatList(row.d1_team_members),
+      problem_description: row.d2_problem_description || '',
+      quantity_affected: row.d2_quantity_affected || '',
+      containment_actions: formatList(row.d3_containment_actions),
+      root_cause: row.d4_root_cause || '',
+      corrective_actions: formatList(row.d5_corrective_actions),
+      verification_method: row.d6_verification_method || '',
+      verification_result: row.d6_verification_result || '',
+      preventive_actions: formatList(row.d7_preventive_actions),
+      standardization: row.d7_standardization || '',
+      summary: row.d8_summary || '',
+      lessons_learned: row.d8_lessons_learned || '',
+      print_time: new Date().toLocaleString(),
+      items: [
+        { index: 1, phase: 'D1 团队', owner: row.d1_team_leader || '', action: formatList(row.d1_team_members), result: row.d1_completed_at ? '完成' : '' },
+        { index: 2, phase: 'D2 问题描述', owner: row.d2_responsible_person || '', action: row.d2_problem_description || '', result: row.d2_completed_at ? '完成' : '' },
+        { index: 3, phase: 'D3 遏制措施', owner: row.d3_responsible_person || '', action: formatList(row.d3_containment_actions), result: row.d3_completed_at ? '完成' : '' },
+        { index: 4, phase: 'D4 根因分析', owner: row.d4_responsible_person || '', action: row.d4_root_cause || '', result: row.d4_completed_at ? '完成' : '' },
+        { index: 5, phase: 'D5 纠正措施', owner: row.d5_responsible_person || '', action: formatList(row.d5_corrective_actions), result: row.d5_completed_at ? '完成' : '' },
+        { index: 6, phase: 'D6 效果验证', owner: row.d6_responsible_person || '', action: `${row.d6_verification_method || ''} ${row.d6_implementation_results || ''}`.trim(), result: row.d6_verification_result || '' },
+        { index: 7, phase: 'D7 预防措施', owner: row.d7_responsible_person || '', action: formatList(row.d7_preventive_actions), result: row.d7_completed_at ? '完成' : '' },
+        { index: 8, phase: 'D8 总结关闭', owner: row.d8_responsible_person || '', action: row.d8_summary || '', result: row.d8_completed_at ? '完成' : '' }
+      ]
+    }
+    const html = await printService.generateByDefaultTemplate('quality', 'eight_d_report', printData)
+    printService.previewDocument(html)
+    logsDialogVisible.value = false
+    ElMessage.success('打印预览已打开')
+  } catch (error) {
+    console.error('打印8D报告失败:', error)
+    ElMessage.error('打印8D报告失败')
   }
-  writeSafeHtmlDocument(printWindow, `<!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <title>8D报告</title>
-      </head>
-      <body>${printElement.outerHTML}</body>
-    </html>`);
-  printWindow.onload = () => {
-    printWindow.print();
-  };
-  logsDialogVisible.value = false;
 }
 const exportPdfLoading = ref(false)
 const exportDetailToPdf = () => {
@@ -707,7 +736,7 @@ const exportDetailToPdf = () => {
     html2canvas:  { scale: 2, useCORS: true },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
-  
+
   exportPdfLoading.value = true;
   html2pdf().set(opt).from(element).save().then(() => {
     exportPdfLoading.value = false;
@@ -833,8 +862,7 @@ const fetchUsers = async () => {
     loadingUsers.value = true
     const res = await systemApi.getUsers({ page: 1, pageSize: 500, status: 1 })
     userList.value = res.data?.data?.list || res.data?.list || []
-  } catch (error) {
-    console.warn('获取用户列表失败', error)
+  } catch {
   } finally {
     loadingUsers.value = false
   }
@@ -846,8 +874,7 @@ const fetchNcpList = async (query = '') => {
     const data = res.data?.data || res.data || {}
     const rows = data.items || data.list || data.records || []
     ncpList.value = rows.filter(item => ['pending', 'processing'].includes(item.status))
-  } catch (error) {
-    console.warn('获取NCP列表失败', error)
+  } catch {
   } finally {
     loadingNcp.value = false
   }
@@ -946,7 +973,7 @@ const submitAiGenerate = async () => {
   try {
     const response = await eightDReportApi.aiAnalyze(aiForm)
     const result = response.data?.data || response.data
-    
+
     if (result) {
       // 成功获取AI数据，填充到主表单
       if (result.title) formData.title = result.title
@@ -1074,7 +1101,7 @@ const handleEdit = async (row) => {
     formData.d4_contributing_factors_str = Array.isArray(data.d4_contributing_factors) ? data.d4_contributing_factors.join('\n') : (data.d4_contributing_factors || '')
     formData.d5_corrective_actions_str = Array.isArray(data.d5_corrective_actions) ? data.d5_corrective_actions.join('\n') : (data.d5_corrective_actions || '')
     formData.d7_preventive_actions_str = Array.isArray(data.d7_preventive_actions) ? data.d7_preventive_actions.join('\n') : (data.d7_preventive_actions || '')
-    
+
     // 附件数组解析
     try { formData.d3_attachments = typeof data.d3_attachments === 'string' ? JSON.parse(data.d3_attachments) : (data.d3_attachments || []) } catch { formData.d3_attachments = [] }
     try { formData.d5_attachments = typeof data.d5_attachments === 'string' ? JSON.parse(data.d5_attachments) : (data.d5_attachments || []) } catch { formData.d5_attachments = [] }

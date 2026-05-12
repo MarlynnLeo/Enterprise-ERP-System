@@ -62,21 +62,21 @@
         </el-form-item>
         <el-form-item label="物料类别">
           <el-select v-model="searchForm.categoryId" placeholder="选择类别" clearable>
-            <el-option 
-              v-for="category in categoryOptions" 
-              :key="category.id" 
-              :label="category.name" 
-              :value="category.id" 
+            <el-option
+              v-for="category in categoryOptions"
+              :key="category.id"
+              :label="category.name"
+              :value="category.id"
             />
           </el-select>
         </el-form-item>
         <el-form-item label="仓库位置">
           <el-select v-model="searchForm.locationId" placeholder="选择位置" clearable>
-            <el-option 
-              v-for="location in locationOptions" 
-              :key="location.id" 
-              :label="location.name" 
-              :value="location.id" 
+            <el-option
+              v-for="location in locationOptions"
+              :key="location.id"
+              :label="location.name"
+              :value="location.id"
             />
           </el-select>
         </el-form-item>
@@ -203,7 +203,7 @@
         </el-table-column>
         <el-table-column prop="safetyStock" label="安全库存" width="120" />
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination && pagination.total > 0">
         <el-pagination
@@ -573,7 +573,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination">
         <el-pagination
@@ -626,7 +626,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination">
         <el-pagination
@@ -692,7 +692,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination">
         <el-pagination
@@ -718,7 +718,8 @@ import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import ExcelJS from 'exceljs'
-import { api as axios } from '@/services/api'
+import { api as axios, baseDataApi } from '@/services/api'
+import { parseListData } from '@/utils/responseParser'
 // 页面数据
 const loading = ref(false)
 const reportData = ref([])
@@ -858,7 +859,7 @@ const fetchReportData = async () => {
     const response = await axios.get(apiUrl, { params })
     // 拦截器已解包，response.data 就是业务数据
     const responseData = response.data
-    
+
     // 处理统计数据
     if (searchForm.value.reportType === 'period') {
       statistics.value = responseData.statistics || {
@@ -886,7 +887,7 @@ const fetchReportData = async () => {
         lowStock: 0
       }
     }
-    
+
     // 处理报表数据
     reportData.value = responseData.items || []
     // 正确设置分页总数 - 确保转换为数字类型
@@ -909,10 +910,9 @@ const fetchReportData = async () => {
 const fetchBaseData = async () => {
   try {
     // 获取物料类别
-    const categoryResponse = await axios.get('/baseData/categories')
-    const categoryData = categoryResponse.data?.data || categoryResponse.data
-    categoryOptions.value = categoryData.items || categoryData.list || categoryData || []
-    
+    const categoryResponse = await baseDataApi.getCategories()
+    categoryOptions.value = parseListData(categoryResponse, { enableLog: false })
+
     // 获取仓库位置
     const locationResponse = await axios.get('/inventory/locations')
     const locationData = locationResponse.data?.data || locationResponse.data
@@ -924,7 +924,7 @@ const fetchBaseData = async () => {
 // 导出报表
 const handleExport = async () => {
   try {
-    
+
     // 构造请求参数，请求全部数据（设定非常大的pageSize）
     const params = {
       page: 1,
@@ -1004,7 +1004,7 @@ const handleExport = async () => {
       })
     } else if (reportType === 'period' || reportType === 'turnover') {
       const isTurnover = reportType === 'turnover'
-      
+
       const _baseRows = []
       if (!isTurnover) {
         worksheet.mergeCells('A1:A2'); worksheet.getCell('A1').value = '物料编码'
@@ -1012,7 +1012,7 @@ const handleExport = async () => {
         worksheet.mergeCells('C1:C2'); worksheet.getCell('C1').value = '规格'
         worksheet.mergeCells('D1:D2'); worksheet.getCell('D1').value = '类别'
         worksheet.mergeCells('E1:E2'); worksheet.getCell('E1').value = '单位'
-        
+
         worksheet.mergeCells('F1:G1'); worksheet.getCell('F1').value = '期初结存'
         worksheet.getCell('F2').value = '数量'; worksheet.getCell('G2').value = '金额'
         worksheet.mergeCells('H1:I1'); worksheet.getCell('H1').value = '本期收入'
@@ -1023,7 +1023,7 @@ const handleExport = async () => {
         worksheet.getCell('L2').value = '数量'; worksheet.getCell('M2').value = '金额'
         worksheet.mergeCells('N1:O1'); worksheet.getCell('N1').value = '分析指标'
         worksheet.getCell('N2').value = '周转率'; worksheet.getCell('O2').value = '周转天数'
-        
+
         worksheet.columns = [
           { key: 'col1', width: 15 }, { key: 'col2', width: 20 }, { key: 'col3', width: 22 },
           { key: 'col4', width: 10 }, { key: 'col5', width: 6 },
@@ -1033,7 +1033,7 @@ const handleExport = async () => {
           { key: 'col12', width: 10 }, { key: 'col13', width: 12 },
           { key: 'col14', width: 8 }, { key: 'col15', width: 9 },
         ]
-        
+
         applyHeaderStyle(worksheet.getRow(1))
         applyHeaderStyle(worksheet.getRow(2))
         allData.forEach(item => {
@@ -1091,7 +1091,7 @@ const handleExport = async () => {
       worksheet.getCell('J2').value = '数量'; worksheet.getCell('K2').value = '金额'
       worksheet.mergeCells('L1:L2'); worksheet.getCell('L1').value = '库位'
       worksheet.mergeCells('M1:M2'); worksheet.getCell('M1').value = '操作员'
-      
+
       worksheet.columns = [
         { key: 'c1', width: 12 }, { key: 'c2', width: 15 }, { key: 'c3', width: 22 },
         { key: 'c4', width: 12 }, { key: 'c5', width: 16 }, { key: 'c6', width: 10 },
@@ -1099,7 +1099,7 @@ const handleExport = async () => {
         { key: 'c10', width: 10 }, { key: 'c11', width: 12 }, { key: 'c12', width: 15 },
         { key: 'c13', width: 12 }
       ]
-      
+
       applyHeaderStyle(worksheet.getRow(1))
       applyHeaderStyle(worksheet.getRow(2))
       allData.forEach(item => {
@@ -1632,4 +1632,4 @@ onMounted(() => {
     padding: 6px 0;
   }
 }
-</style> 
+</style>

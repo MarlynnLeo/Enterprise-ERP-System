@@ -75,7 +75,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -90,7 +90,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -116,10 +116,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="默认残值率" prop="default_salvage_rate">
-          <el-input-number 
-            v-model="categoryForm.default_salvage_rate" 
-            :precision="2" 
-            :min="0" 
+          <el-input-number
+            v-model="categoryForm.default_salvage_rate"
+            :precision="2"
+            :min="0"
             :max="30"
             :step="0.5"
             style="width: 100%"
@@ -227,9 +227,9 @@ const loadCategories = async () => {
       page: currentPage.value,
       limit: pageSize.value
     };
-    
+
     const response = await api.get('/finance/assets/categories', { params });
-    
+
     // 使用类型安全工具处理分页数据
     const paginationData = normalizePaginationData(response);
     categoryList.value = paginationData.items;
@@ -254,12 +254,12 @@ const showAddDialog = () => {
 // 编辑类别
 const handleEdit = async (row) => {
   dialogTitle.value = '编辑资产类别';
-  
+
   resetCategoryForm();
-  
+
   // 填充表单数据
   Object.assign(categoryForm, row);
-  
+
   dialogVisible.value = true;
 };
 
@@ -282,14 +282,14 @@ const handleDelete = async (id) => {
 // 保存类别
 const saveCategory = async () => {
   if (!categoryFormRef.value) return;
-  
+
   await categoryFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
       try {
         // 准备提交的数据
         const data = { ...categoryForm };
-        
+
         if (categoryForm.id) {
           // 更新
           await api.put(`/finance/assets/categories/${categoryForm.id}`, data);
@@ -324,7 +324,7 @@ const resetCategoryForm = () => {
   categoryForm.default_depreciation_method = 'straight_line';
   categoryForm.default_salvage_rate = 5.0;
   categoryForm.description = '';
-  
+
   // 清除校验
   if (categoryFormRef.value) {
     categoryFormRef.value.resetFields();

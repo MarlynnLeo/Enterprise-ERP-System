@@ -16,7 +16,7 @@
         </div>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -61,7 +61,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -89,7 +89,7 @@
         <div class="stat-label">已完成</div>
       </el-card>
     </div>
-    
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -174,7 +174,7 @@
             </div>
           </template>
         </el-table-column>
-        
+
         <!-- 主表格内容 -->
         <el-table-column prop="code" label="任务编号" min-width="140" />
         <el-table-column prop="productCode" label="物料编码" min-width="140" />
@@ -215,7 +215,7 @@
         <el-table-column prop="manager" label="负责人" min-width="100" />
         <el-table-column label="状态" min-width="110">
           <template #default="scope">
-            <el-tag 
+            <el-tag
               :type="getTaskStatusType(scope.row.status)"
               :class="getTaskStatusClass(scope.row.status)"
             >
@@ -274,7 +274,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -432,7 +432,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="当前状态" prop="status">
@@ -444,7 +444,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="进度" prop="progress">
@@ -459,7 +459,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20" v-if="!formData.actualStartTime">
           <el-col :span="24">
             <el-form-item label="实际开始时间" prop="actualStartTime">
@@ -472,7 +472,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20" v-if="formData.status === 'completed'">
           <el-col :span="24">
             <el-form-item label="实际结束时间" prop="actualEndTime">
@@ -485,7 +485,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
@@ -531,18 +531,18 @@
           <el-input :value="remainingQuantity" disabled />
         </el-form-item>
         <el-form-item label="本次完工数量" required>
-          <el-input-number 
-            v-model="completionForm.quantity" 
-            :min="1" 
+          <el-input-number
+            v-model="completionForm.quantity"
+            :min="1"
             :max="remainingQuantity"
             :precision="0"
 
           />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input 
-            v-model="completionForm.remark" 
-            type="textarea" 
+          <el-input
+            v-model="completionForm.remark"
+            type="textarea"
             :rows="2"
             placeholder="可选，如：急单先完工100件"
           />
@@ -578,15 +578,15 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-form-item label="补料物料" prop="materialId">
           <!-- 替换为 BOM 表格选择 -->
           <div class="bom-selection-area" v-if="bomList.length > 0">
             <p class="bom-tip">请从BOM清单中选择，或搜索其他物料：</p>
-            <el-table 
-              :data="bomList" 
-              border 
-              size="small" 
+            <el-table
+              :data="bomList"
+              border
+              size="small"
               highlight-current-row
               @current-change="handleBomSelect"
               v-loading="bomLoading"
@@ -624,11 +624,11 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="补料数量" prop="quantity">
-              <el-input-number 
-                v-model="applyPartsForm.quantity" 
-                :min="0.01" 
-                :precision="2" 
-                style="width: 100%" 
+              <el-input-number
+                v-model="applyPartsForm.quantity"
+                :min="0.01"
+                :precision="2"
+                style="width: 100%"
               />
             </el-form-item>
           </el-col>
@@ -661,11 +661,11 @@
         />
 
         <el-form-item label="详细说明">
-          <el-input 
-            v-model="applyPartsForm.remark" 
-            type="textarea" 
-            :rows="2" 
-            placeholder="请详细描述补料原因" 
+          <el-input
+            v-model="applyPartsForm.remark"
+            type="textarea"
+            :rows="2"
+            placeholder="请详细描述补料原因"
           />
         </el-form-item>
       </el-form>
@@ -679,12 +679,80 @@
       </template>
     </el-dialog>
 
+    <!-- 退料对话框 -->
+    <el-dialog
+      v-model="returnMaterialVisible"
+      title="生产退料"
+      width="850px"
+      destroy-on-close
+    >
+      <el-form :model="returnMaterialForm" :rules="returnMaterialRules" ref="returnMaterialFormRef" label-width="100px">
+        <el-form-item label="任务编号">
+          <el-input v-model="returnMaterialForm.taskCode" disabled />
+        </el-form-item>
+        <el-form-item label="产品名称">
+          <el-input v-model="returnMaterialForm.productName" disabled />
+        </el-form-item>
+
+        <!-- BOM物料列表（勾选要退的物料） -->
+        <el-form-item label="选择物料">
+          <el-table
+            v-if="returnBomList.length > 0"
+            ref="returnBomTableRef"
+            :data="returnBomList"
+            size="small"
+            max-height="250"
+            @selection-change="handleReturnSelectionChange"
+            style="width: 100%"
+          >
+            <el-table-column type="selection" width="40" />
+            <el-table-column prop="material_code" label="编码" width="120" />
+            <el-table-column prop="material_name" label="名称" min-width="120" />
+            <el-table-column prop="material_specs" label="规格" width="100" />
+            <el-table-column prop="unit_usage" label="BOM用量" width="80" />
+            <el-table-column label="退料数量" width="120">
+              <template #default="scope">
+                <el-input-number
+                  v-model="scope.row.returnQty"
+                  :min="0"
+                  :precision="2"
+                  size="small"
+                  controls-position="right"
+                  style="width: 100%"
+                />
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-else description="该任务无BOM数据" :image-size="40" />
+          <div v-if="returnItems.length > 0" style="margin-top: 8px; color: #67C23A; font-size: 13px;">
+            已选择 {{ returnItems.length }} 种物料退料
+          </div>
+        </el-form-item>
+
+        <el-form-item label="备注">
+          <el-input
+            v-model="returnMaterialForm.remark"
+            type="textarea"
+            :rows="2"
+            placeholder="退料原因说明"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="returnMaterialVisible = false" size="large">取消</el-button>
+          <el-button type="primary" @click="submitReturnMaterial" :loading="submittingReturn" size="large">
+            确认退料
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
   </div>
 </template>
 
 <script setup>
 import { defineAsyncComponent, ref, onMounted, watch, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
@@ -698,10 +766,8 @@ const formatQuantity = (val) => {
 }
 import axios from '@/services/api'
 import { baseDataApi } from '@/services/api'
-import { parseListData } from '@/utils/responseParser'
+import { parseDataObject, parseListData } from '@/utils/responseParser'
 import { useAuthStore } from '@/stores/auth'
-
-const router = useRouter()
 
 // 权限store
 const authStore = useAuthStore()
@@ -815,21 +881,11 @@ const warehouseList = ref([])
 // 加载仓库列表并通过仓库类型变量自动匹配隔离区
 const fetchWarehouseList = async () => {
   try {
-    const res = await axios.get('/baseData/locations', { params: { page: 1, pageSize: 200 } })
+    const res = await baseDataApi.getLocations({ page: 1, pageSize: 200 })
     // axios 拦截器已解包，res.data 直接是业务数据
-    const rawData = res.data
-    let items = []
-    if (Array.isArray(rawData)) {
-      items = rawData
-    } else if (rawData && rawData.list) {
-      items = rawData.list
-    } else if (rawData && rawData.items) {
-      items = rawData.items
-    } else if (rawData && rawData.rows) {
-      items = rawData.rows
-    }
+    const items = parseListData(res, { enableLog: false })
     warehouseList.value = items
-    
+
     // 通过仓库类型变量精确匹配
     const quarantine = items.find(w => w.type === 'quarantine')
     if (quarantine) {
@@ -870,7 +926,7 @@ const handleApplyParts = async (row) => {
   }
   materialOptions.value = []
   applyPartsVisible.value = true
-  
+
   // 加载该任务的BOM清单
   await fetchTaskBom(row.id)
   // 加载仓库列表（用于选择隔离区仓库）
@@ -918,7 +974,7 @@ const fetchTaskBom = async (taskId) => {
 // 处理BOM表格选择
 const handleBomSelect = (row) => {
   if (!row) return
-  
+
   // 将选中的BOM项添加到下拉选项中，并选中
   const option = {
     id: row.material_id,
@@ -926,13 +982,13 @@ const handleBomSelect = (row) => {
     unitId: row.unit_id,
     unitName: row.unit_name
   }
-  
+
   // 检查是否已存在
   const exists = materialOptions.value.find(opts => opts.id === option.id)
   if (!exists) {
     materialOptions.value.push(option)
   }
-  
+
   applyPartsForm.value.materialId = row.material_id
   applyPartsForm.value.unitId = row.unit_id
   applyPartsForm.value.unitName = row.unit_name
@@ -944,23 +1000,19 @@ const searchMaterials = async (query) => {
     materialOptions.value = []
     return
   }
-  
+
   try {
     materialLoading.value = true
-    // 假设后端有 /materials/search 接口，或者使用通用列表接口过滤
-    // 这里复用已知的 material 列表接口
-    const res = await axios.get('/baseData/materials', {
-      params: {
-        page: 1,
-        limit: 20,
-        search: query,
-        status: 1
-      }
+    const res = await baseDataApi.getMaterials({
+      page: 1,
+      limit: 20,
+      search: query,
+      status: 1
     })
-    
+
     // 解析返回结构，兼容 paginated response
-    const items = res.data?.items || res.data || []
-    
+    const items = parseListData(res, { enableLog: false })
+
     materialOptions.value = items.map(item => ({
       id: item.id,
       label: `${item.code} - ${item.name} (${item.specs || '-'})`,
@@ -986,12 +1038,12 @@ const handleMaterialChange = (val) => {
 // 提交补料申请
 const submitApplyParts = async () => {
   if (!applyPartsFormRef.value) return
-  
+
   await applyPartsFormRef.value.validate(async (valid) => {
     if (valid) {
       try {
         submittingApply.value = true
-        
+
         // 步骤1：生成补料出库单（新料发出）
         const payload = {
           outbound_date: dayjs().format('YYYY-MM-DD'),
@@ -1010,16 +1062,16 @@ const submitApplyParts = async () => {
             }
           ]
         }
-        
+
         await axios.post('/inventory/outbound', payload)
-        
+
         let successMsg = '补料申请已提交，生成的出库单为草稿状态，请联系仓库审核。'
-        
+
         // 步骤2：来料不良 → 自动生成不良退回入库单（直接退入隔离区）
         if (isDefectiveReason.value && applyPartsForm.value.returnLocationId) {
           try {
             const currentUser = authStore.user?.username || authStore.user?.real_name || 'system'
-            
+
             const inboundPayload = {
               inbound_date: dayjs().format('YYYY-MM-DD'),
               location_id: applyPartsForm.value.returnLocationId,
@@ -1040,9 +1092,9 @@ const submitApplyParts = async () => {
                 }
               ]
             }
-            
+
             await axios.post('/inventory/inbound', inboundPayload)
-            
+
             // 新流程：此步骤仅发起退回隔离区的入库单草稿，不越权直接生成 NCP
             // 等待库管确认收货后，由后端服务自动抛出进料检验单(IQA)，再由检验定性抛出 NCP。
             successMsg = '补料申请已提交！不良品收货通知已发送至入库管理，等待库管入库后将由品质部门处理。'
@@ -1051,7 +1103,7 @@ const submitApplyParts = async () => {
             successMsg = '补料出库单已生成，但退回单创建失败，请手动到入库管理创建。'
           }
         }
-        
+
         ElMessage.success(successMsg)
         applyPartsVisible.value = false
       } catch (error) {
@@ -1351,7 +1403,7 @@ const viewInstructionDocs = async (process, task) => {
   instructionDocsLoading.value = true
   currentProcessName.value = process.processName || process.process_name || ''
   currentInstructionDocs.value = []
-  
+
   try {
     const processes = await fetchProcessTemplateProcesses(task)
     if (!processes) return
@@ -1437,7 +1489,7 @@ const handleQuickComplete = async (row) => {
     fetchTaskList()
   } catch (error) {
     console.error('完成工序失败:', error)
-    ElMessage.error('操作失败: ' + (error.response?.data?.message || '未知错误'))
+    ElMessage.error(error.message || error.response?.data?.message || '操作失败')
   } finally {
     loading.value = false
   }
@@ -1523,23 +1575,23 @@ const hasInstructionDocs = (task) => {
 const handleModalOk = async () => {
   try {
     await formRef.value.validate()
-    
+
     // 检查状态和进度是否匹配
     if (formData.value.status === 'completed' && formData.value.progress !== 100) {
       ElMessage.warning('已完成状态下进度必须为100%')
       return
     }
-    
+
     if (formData.value.status === 'pending' && formData.value.progress > 0) {
       ElMessage.warning('未开始状态下进度必须为0%')
       return
     }
-    
+
     // 如果状态是已完成，但是没有设置实际结束时间，则使用当前时间
     if (formData.value.status === 'completed' && !formData.value.actualEndTime) {
       formData.value.actualEndTime = new Date()
     }
-    
+
     const data = {
       status: formData.value.status,
       progress: formData.value.progress,
@@ -1547,7 +1599,7 @@ const handleModalOk = async () => {
       actualEndTime: formData.value.actualEndTime ? dayjs(formData.value.actualEndTime).format('YYYY-MM-DD HH:mm:ss') : null,
       remarks: formData.value.remarks
     }
-    
+
     await axios.put(`/production/processes/${formData.value.id}`, data)
     ElMessage.success('进度更新成功')
     modalVisible.value = false
@@ -1608,7 +1660,7 @@ const handleCompleteTask = (row) => {
   if (row.processes && row.processes.length > 0) {
     // 检查是否有未完成的工序 (状态不是 completed 且不是 cancelled)
     const uncompletedProcesses = row.processes.filter(p => p.status !== 'completed' && p.status !== 'cancelled')
-    
+
     if (uncompletedProcesses.length > 0) {
       ElMessage.warning(`存在 ${uncompletedProcesses.length} 个未完成的工序，请先完成所有工序后再进行任务完工。`)
       return
@@ -1634,30 +1686,30 @@ const submitCompletion = async () => {
     ElMessage.warning('请输入有效的完工数量')
     return
   }
-  
+
   if (completionForm.value.quantity > remainingQuantity.value) {
     ElMessage.warning('完工数量不能超过剩余数量')
     return
   }
-  
+
   submittingCompletion.value = true
-  
+
   try {
     // 调用后端完工API，传入本次完工数量
     await axios.post(`/production/tasks/${completionForm.value.taskId}/complete`, {
       quantity: completionForm.value.quantity,
       remark: completionForm.value.remark
     })
-    
+
     const newCompleted = completionForm.value.completedQuantity + completionForm.value.quantity
     const isFullComplete = newCompleted >= completionForm.value.totalQuantity
-    
+
     if (isFullComplete) {
       ElMessage.success('全部完工！任务已进入待检验状态')
     } else {
       ElMessage.success(`本次完工 ${completionForm.value.quantity} 件，累计完工 ${newCompleted} 件`)
     }
-    
+
     completionDialogVisible.value = false
     fetchTaskList()
   } catch (error) {
@@ -1674,17 +1726,107 @@ const canReturnMaterial = (row) => {
   return row.status === 'completed'
 }
 
-// 处理退料 - 跳转到入库页面
-const handleReturnMaterial = (row) => {
-  // 跳转到入库管理页面，并带上任务信息
-  router.push({
-    path: '/inventory/inbound',
-    query: {
-      action: 'return',
-      taskId: row.id,
-      taskCode: row.code
+// ====== 退料相关状态 ======
+const returnMaterialVisible = ref(false)
+const submittingReturn = ref(false)
+const returnMaterialFormRef = ref()
+const returnBomTableRef = ref()
+const returnBomList = ref([])
+const returnItems = ref([])
+const returnMaterialForm = ref({
+  taskId: null,
+  taskCode: '',
+  productName: '',
+  remark: ''
+})
+const returnMaterialRules = {}
+
+// 处理退料 - 弹出退料对话框
+const handleReturnMaterial = async (row) => {
+  returnMaterialForm.value = {
+    taskId: row.id,
+    taskCode: row.code,
+    productName: row.productName,
+    remark: ''
+  }
+  returnItems.value = []
+  returnBomList.value = []
+  returnMaterialVisible.value = true
+
+  try {
+    const bomRes = await axios.get(`/production/tasks/${row.id}/bom`)
+    const bomData = bomRes.data
+    const list = Array.isArray(bomData) ? bomData : (bomData?.data || [])
+    returnBomList.value = list.map(item => ({ ...item, returnQty: 0 }))
+  } catch (err) {
+    console.error('加载BOM数据失败:', err)
+  }
+}
+
+// BOM表格勾选变化
+const handleReturnSelectionChange = (selection) => {
+  returnItems.value = selection
+}
+
+
+
+// 提交退料（多物料）
+const submitReturnMaterial = async () => {
+  // 过滤出退料数量 > 0 的勾选项
+  const validItems = returnItems.value.filter(item => item.returnQty > 0)
+
+  if (validItems.length === 0) {
+    ElMessage.warning('请勾选要退的物料并填写退料数量')
+    return
+  }
+
+  try {
+    submittingReturn.value = true
+    const currentUser = authStore.user?.username || authStore.user?.real_name || 'system'
+
+    // 批量查询每个物料的默认仓位
+    const materialLocations = {}
+    let firstLocationId = null
+    for (const item of validItems) {
+      try {
+        const res = await baseDataApi.getMaterial(item.material_id)
+        const mat = parseDataObject(res, { enableLog: false }) || {}
+        materialLocations[item.material_id] = mat.location_id || null
+        if (!firstLocationId && mat.location_id) firstLocationId = mat.location_id
+      } catch {
+        materialLocations[item.material_id] = null
+      }
     }
-  })
+
+    const payload = {
+      inbound_date: dayjs().format('YYYY-MM-DD'),
+      location_id: firstLocationId,
+      status: 'draft',
+      operator: currentUser,
+      inbound_type: 'production_return',
+      reference_type: 'production_task',
+      reference_id: returnMaterialForm.value.taskId,
+      reference_no: returnMaterialForm.value.taskCode,
+      remark: `【生产退料】${returnMaterialForm.value.remark || '剩余物料退回仓库'}`,
+      items: validItems.map(item => ({
+        material_id: item.material_id,
+        quantity: item.returnQty,
+        unit_id: item.unit_id,
+        location_id: materialLocations[item.material_id] || firstLocationId,
+        remark: returnMaterialForm.value.remark || '生产退料'
+      }))
+    }
+
+    await axios.post('/inventory/inbound', payload)
+    ElMessage.success(`退料入库单已创建（${validItems.length} 种物料），请通知仓库确认入库。`)
+    returnMaterialVisible.value = false
+  } catch (error) {
+    console.error('退料失败:', error)
+    const msg = error.response?.data?.message || error.message || '退料失败'
+    ElMessage.error(msg)
+  } finally {
+    submittingReturn.value = false
+  }
 }
 
 // 生命周期钩子

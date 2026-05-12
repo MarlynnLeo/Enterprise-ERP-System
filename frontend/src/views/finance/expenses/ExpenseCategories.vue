@@ -25,12 +25,12 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table 
-        :data="categoryList" 
-        style="width: 100%" 
+      <el-table
+        :data="categoryList"
+        style="width: 100%"
         row-key="id"
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
-        border 
+        border
         v-loading="loading"
       >
         <template #empty>
@@ -48,9 +48,9 @@
         <el-table-column prop="sort_order" label="排序" width="80" align="center" />
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-switch 
-              v-model="row.status" 
-              :active-value="1" 
+            <el-switch
+              v-model="row.status"
+              :active-value="1"
               :inactive-value="0"
               @change="handleToggleStatus(row)"
             />
@@ -60,9 +60,9 @@
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)"
               v-permission="'finance:expenses:update'">编辑</el-button>
-            <el-button v-permission="'finance:expenses:create'" 
+            <el-button v-permission="'finance:expenses:create'"
               v-if="!row.parent_id"
-              type="success" size="small" link 
+              type="success" size="small" link
               @click="handleAdd(row.id)"
             >添加子类</el-button>
             <el-button v-permission="'finance:expenses:delete'" type="danger" size="small" link @click="handleDelete(row)">删除</el-button>

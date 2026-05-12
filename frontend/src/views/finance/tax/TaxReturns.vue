@@ -9,7 +9,7 @@
             <el-option label="个人所得税" value="个人所得税" />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="申报状态">
           <el-select v-model="searchForm.status" placeholder="请选择" clearable>
             <el-option label="草稿" value="草稿" />
@@ -18,7 +18,7 @@
             <el-option label="已作废" value="已作废" />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="申报年份">
           <el-date-picker
             v-model="searchForm.year"
@@ -28,7 +28,7 @@
 
           />
         </el-form-item>
-        
+
         <el-form-item>
           <el-button type="primary" @click="handleSearch" :icon="Search">查询</el-button>
           <el-button @click="handleReset" :icon="Refresh">重置</el-button>
@@ -55,41 +55,41 @@
             </el-tag>
           </template>
         </el-table-column>
-        
+
         <!-- 增值税相关列 -->
-        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type" 
+        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type"
           prop="sales_amount" label="销售额" width="120" align="right">
           <template #default="{ row }">
             {{ row.return_type === '增值税' ? formatAmount(row.sales_amount) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type" 
+        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type"
           prop="sales_output_tax" label="销项税额" width="120" align="right">
           <template #default="{ row }">
             {{ row.return_type === '增值税' ? formatAmount(row.sales_output_tax) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type" 
+        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type"
           prop="purchase_input_tax" label="进项税额" width="120" align="right">
           <template #default="{ row }">
             {{ row.return_type === '增值税' ? formatAmount(row.purchase_input_tax) : '-' }}
           </template>
         </el-table-column>
-        
+
         <!-- 企业所得税相关列 -->
-        <el-table-column v-if="searchForm.return_type === '企业所得税' || !searchForm.return_type" 
+        <el-table-column v-if="searchForm.return_type === '企业所得税' || !searchForm.return_type"
           prop="total_revenue" label="营业收入" width="120" align="right">
           <template #default="{ row }">
             {{ row.return_type === '企业所得税' ? formatAmount(row.total_revenue) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column v-if="searchForm.return_type === '企业所得税' || !searchForm.return_type" 
+        <el-table-column v-if="searchForm.return_type === '企业所得税' || !searchForm.return_type"
           prop="taxable_income" label="应纳税所得额" width="140" align="right">
           <template #default="{ row }">
             {{ row.return_type === '企业所得税' ? formatAmount(row.taxable_income) : '-' }}
           </template>
         </el-table-column>
-        
+
         <!-- 通用列 -->
         <el-table-column prop="tax_payable" label="应纳税额" width="120" align="right">
           <template #default="{ row }">
@@ -98,7 +98,7 @@
             </span>
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
@@ -106,44 +106,44 @@
             </el-tag>
           </template>
         </el-table-column>
-        
+
         <el-table-column prop="declaration_date" label="申报日期" width="120" align="center" />
         <el-table-column prop="payment_date" label="缴纳日期" width="120" align="center" />
         <el-table-column prop="creator_name" label="创建人" width="100" align="center" />
-        
+
         <el-table-column label="操作" width="280" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleView(row)" :icon="View">查看</el-button>
-            
+
             <!-- 提交申报按钮：只在草稿状态显示 -->
-            <el-button 
-              v-if="row.status === '草稿'" 
-              type="success" 
-              size="small" 
+            <el-button
+              v-if="row.status === '草稿'"
+              type="success"
+              size="small"
               @click="handleSubmit(row)"
               v-permission="'finance:tax:update'"
               :icon="Check"
-            
+
               >提交申报</el-button>
-            
+
             <!-- 缴纳税款按钮：只在已申报状态显示 -->
-            <el-button 
-              v-if="row.status === '已申报'" 
-              type="warning" 
-              size="small" 
+            <el-button
+              v-if="row.status === '已申报'"
+              type="warning"
+              size="small"
               @click="handlePay(row)"
               v-permission="'finance:tax:pay'"
               :icon="Money"
             >缴纳税款</el-button>
-            
+
             <!-- 删除按钮：只在草稿状态显示 -->
-            <el-button 
-              v-if="row.status === '草稿'" 
-              type="danger" 
-              size="small" 
+            <el-button
+              v-if="row.status === '草稿'"
+              type="danger"
+              size="small"
               @click="handleDelete(row)"
               :icon="Delete"
-            
+
               v-permission="'finance:tax:delete'">删除</el-button>
           </template>
         </el-table-column>
@@ -519,7 +519,7 @@ const loadData = async () => {
 
     // axiosInstance 已经解包了 ResponseHandler 响应
     const data = response.data;
-    
+
     if (Array.isArray(data)) {
       tableData.value = data;
       pagination.total = data.length;
@@ -566,10 +566,10 @@ const handleCreate = () => {
 // 提交创建
 const submitCreate = async () => {
   if (!createFormRef.value) return;
-  
+
   await createFormRef.value.validate(async (valid) => {
     if (!valid) return;
-    
+
     createLoading.value = true;
     try {
       await api.post('/finance/tax/returns', { ...createForm });

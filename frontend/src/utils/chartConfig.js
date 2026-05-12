@@ -178,22 +178,22 @@ export const chartColors = {
  */
 export function createBarChartConfig(options = {}) {
   const config = JSON.parse(JSON.stringify(barChartConfig));
-  
+
   if (options.yAxisFormatter) {
     config.scales.y.ticks.callback = options.yAxisFormatter;
   }
-  
+
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
       label: options.tooltipFormatter
     };
   }
-  
+
   if (options.colors) {
     config.backgroundColor = options.colors;
     config.borderColor = options.colors;
   }
-  
+
   return config;
 }
 
@@ -204,22 +204,22 @@ export function createBarChartConfig(options = {}) {
  */
 export function createLineChartConfig(options = {}) {
   const config = JSON.parse(JSON.stringify(lineChartConfig));
-  
+
   if (options.yAxisFormatter) {
     config.scales.y.ticks.callback = options.yAxisFormatter;
   }
-  
+
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
       label: options.tooltipFormatter
     };
   }
-  
+
   if (options.fill) {
     config.elements.line.fill = true;
     config.elements.line.backgroundColor = options.fillColor || 'rgba(58, 122, 242, 0.15)';
   }
-  
+
   return config;
 }
 
@@ -230,7 +230,7 @@ export function createLineChartConfig(options = {}) {
  */
 export function createPieChartConfig(options = {}) {
   const config = JSON.parse(JSON.stringify(pieChartConfig));
-  
+
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
       label: options.tooltipFormatter
@@ -246,7 +246,7 @@ export function createPieChartConfig(options = {}) {
       }
     };
   }
-  
+
   return config;
 }
 
@@ -257,7 +257,7 @@ export function createPieChartConfig(options = {}) {
  */
 export function createMixedChartConfig(options = {}) {
   const config = JSON.parse(JSON.stringify(barChartConfig));
-  
+
   config.scales.y1 = {
     type: 'linear',
     display: true,
@@ -273,13 +273,13 @@ export function createMixedChartConfig(options = {}) {
       color: '#8A8F99'
     }
   };
-  
+
   if (options.tooltipFormatter) {
     config.plugins.tooltip.callbacks = {
       label: options.tooltipFormatter
     };
   }
-  
+
   return config;
 }
 
@@ -389,7 +389,7 @@ export function getResponsiveConfig(breakpoint) {
     },
     desktop: {}
   };
-  
+
   return configs[breakpoint] || configs.desktop;
 }
 
@@ -420,9 +420,9 @@ export const chartThemes = {
 export function applyTheme(config, theme = 'light') {
   const themeConfig = chartThemes[theme];
   if (!themeConfig) return config;
-  
+
   const themedConfig = JSON.parse(JSON.stringify(config));
-  
+
   // 应用网格颜色
   if (themedConfig.scales) {
     Object.keys(themedConfig.scales).forEach(scaleKey => {
@@ -434,11 +434,11 @@ export function applyTheme(config, theme = 'light') {
       }
     });
   }
-  
+
   // 应用图例颜色
   if (themedConfig.plugins?.legend?.labels) {
     themedConfig.plugins.legend.labels.color = themeConfig.textColor;
   }
-  
+
   return themedConfig;
 }

@@ -50,7 +50,7 @@
               </div>
             </template>
             <template v-else>
-              <el-input 
+              <el-input
                 v-model="form.version"
                 placeholder="请输入版本号，如：V1.1"
                 clearable />
@@ -81,12 +81,12 @@
           </template>
         </el-upload>
       </el-form-item>
-      
+
       <!-- 图片预览器 -->
-      <el-image-viewer 
-        v-if="showImageViewer" 
-        :url-list="previewList" 
-        @close="showImageViewer = false" 
+      <el-image-viewer
+        v-if="showImageViewer"
+        :url-list="previewList"
+        @close="showImageViewer = false"
       />
       <el-form-item label="备注">
         <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="请输入备注"></el-input>
@@ -281,7 +281,7 @@ const initForm = (data) => {
   form.version = data.version || ''
   form.remark = data.remark || ''
   form.attachment = data.attachment || null
-  
+
   if (data.attachment) {
     fileList.value = [{
       name: data.attachment.split('/').pop() || '附件文件',
@@ -290,7 +290,7 @@ const initForm = (data) => {
   } else {
     fileList.value = []
   }
-  
+
   // 处理明细
   if (data.details && Array.isArray(data.details)) {
     form.details = data.details.map(d => ({
@@ -323,10 +323,10 @@ const searchProducts = async (query) => {
   if (query) {
     loadingProducts.value = true
     try {
-      const res = await materialApi.getMaterials({ 
-        keyword: query, 
-        page: 1, 
-        pageSize: 20 
+      const res = await materialApi.getMaterials({
+        keyword: query,
+        page: 1,
+        pageSize: 20
       })
       productOptions.value = parseListData(res)
     } catch (error) {
@@ -369,7 +369,7 @@ const buildAttachmentUrl = (url) => {
 
 const handlePreview = async (file) => {
   if (!file.url && !file.raw) return
-  
+
   if (file.raw) {
     // 根本解决：不使用 window.open 直接打开 Blob URL 导致下载变为 uid.htm
     // 如果是未上传的本地文件，直接用原生方式读取供预览
@@ -383,7 +383,7 @@ const handlePreview = async (file) => {
     }
     return
   }
-  
+
   // 已有文件
   const url = buildAttachmentUrl(file.url)
   const fileName = file.name || file.url.split('/').pop() || 'attachment'
@@ -499,9 +499,9 @@ const removeDetailByRow = (row) => {
       findChildrenIds(c.id)
     })
   }
-  
+
   findChildrenIds(row.id)
-  
+
   const newDetails = form.details.filter(d => !idsToRemove.includes(d.id))
   form.details.splice(0, form.details.length, ...newDetails)
 }
@@ -509,10 +509,10 @@ const searchMaterialsForRow = async (query, row) => {
   if (query) {
     row.loading = true
     try {
-      const res = await materialApi.getMaterials({ 
-        keyword: query, 
-        page: 1, 
-        pageSize: 20 
+      const res = await materialApi.getMaterials({
+        keyword: query,
+        page: 1,
+        pageSize: 20
       })
       row.materialOptions = parseListData(res)
     } catch (error) {
@@ -544,8 +544,7 @@ const handleMaterialCodeChangeByRow = async (val, row) => {
           row.material_specs = ''
           row.unit_name = ''
         }
-      } catch (e) {
-        console.warn('循环引用检测失败:', e)
+      } catch {
       }
     }
   }
@@ -553,14 +552,14 @@ const handleMaterialCodeChangeByRow = async (val, row) => {
 // 提交表单 (根源解决核心: 在提交业务数据之前上传物理文件)
 const submitForm = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       if (form.details.length === 0) {
         ElMessage.warning('请至少添加一条BOM明细')
         return
       }
-      
+
       const invalidDetails = form.details.some(d => !d.material_code || !d.quantity)
       if (invalidDetails) {
         ElMessage.warning('请补全物料编码和用量信息')
@@ -569,7 +568,7 @@ const submitForm = async () => {
       submitting.value = true
       try {
         let attachmentPath = form.attachment
-        
+
         // 如果是本地选取的物理 File 对象，则先执行真实上传流程
         if (attachmentPath instanceof File || attachmentPath?.constructor?.name === 'File') {
           const uploadedUrl = await uploadFile(attachmentPath)

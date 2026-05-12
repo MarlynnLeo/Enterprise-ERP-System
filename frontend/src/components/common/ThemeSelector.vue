@@ -137,7 +137,7 @@ const _buttonType = computed(() => {
 const handleThemeChange = (presetId) => {
   try {
     themeStore.applyPreset(presetId)
-    
+
     const preset = themeStore.themePresets[presetId]
     ElMessage.success({
       message: `已切换到 ${preset.name}`,

@@ -33,7 +33,7 @@
             <div class="update-indicator" v-if="!isLoadingStats"></div>
           </div>
         </el-col>
-        
+
         <!-- 个人信息与天气整合卡片 -->
         <el-col :xs="24" :md="8">
           <div class="combined-info-card">
@@ -180,7 +180,7 @@
             </div>
           </div>
         </el-col>
-        
+
         <el-col :xs="24" :sm="24" :md="8">
           <div class="chart-container ranking-container">
             <div class="chart-header">
@@ -192,11 +192,11 @@
               <div class="ranking-content">
                 <!-- 排行榜显示 - 新设计 -->
                 <div class="ranking-podium" v-if="!rankingLoading">
-                  <div 
-                    v-for="config in podiumCardConfigs" 
+                  <div
+                    v-for="config in podiumCardConfigs"
                     :key="config.rankClass"
-                    class="podium-item" 
-                    :class="[config.rankClass, { 'no-data': !onlineTimeRanking[config.dataIndex], 'flipped': flippedCards[config.dataIndex] }]" 
+                    class="podium-item"
+                    :class="[config.rankClass, { 'no-data': !onlineTimeRanking[config.dataIndex], 'flipped': flippedCards[config.dataIndex] }]"
                     @click="toggleFlip(config.dataIndex)"
                   >
                     <div class="flipper">
@@ -210,11 +210,11 @@
                           >
                             <!-- 特效层：绝对铺满 + flex 居中 -->
                             <div class="ranking-effect-layer">
-                              <Vue3Lottie 
+                              <Vue3Lottie
                                 v-if="onlineTimeRanking[config.dataIndex].avatarFrame && getLottieAnimation(onlineTimeRanking[config.dataIndex].avatarFrame)"
-                                :animationData="getLottieAnimation(onlineTimeRanking[config.dataIndex].avatarFrame)" 
-                                :height="config.iconSize * 1.6" 
-                                :width="config.iconSize * 1.6" 
+                                :animationData="getLottieAnimation(onlineTimeRanking[config.dataIndex].avatarFrame)"
+                                :height="config.iconSize * 1.6"
+                                :width="config.iconSize * 1.6"
                               />
                             </div>
                             <!-- 头像层：绝对铺满 + flex 居中（与特效层完全对称） -->
@@ -263,7 +263,7 @@
                     </div>
                   </div>
                 </div>
-                
+
                 <!-- 加载状态 - 优化的骨架屏 -->
                 <div v-if="rankingLoading" class="ranking-loading">
                   <div class="ranking-podium-skeleton">
@@ -276,7 +276,7 @@
                     </div>
                   </div>
                 </div>
-                
+
                 <div class="last-update" v-if="rankingDate">
                   统计日期: {{ rankingDate }}
                 </div>
@@ -284,7 +284,7 @@
             </div>
           </div>
         </el-col>
-        
+
         <el-col :xs="24" :sm="24" :md="8">
           <div class="chart-container">
             <div class="chart-header">
@@ -406,7 +406,7 @@
             </div>
           </div>
         </el-col>
-        
+
         <el-col :xs="24" :sm="24" :md="10">
           <div class="calendar-wrapper">
             <div class="calendar-header">

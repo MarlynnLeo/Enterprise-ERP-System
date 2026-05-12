@@ -220,7 +220,7 @@ const budgetModel = {
   getBudgets: async (filters = {}) => {
     try {
       let query = `
-        SELECT 
+        SELECT
           b.*,
           d.name as department_name,
           u.real_name as creator_name,
@@ -866,7 +866,7 @@ const budgetModel = {
       // 2. 获取预算明细，同时实时计算实际发生额（基于日期范围查询凭证明细表）
       const [details] = await db.pool.query(
         `
-        SELECT 
+        SELECT
           bd.*,
           a.account_code,
           a.account_name,

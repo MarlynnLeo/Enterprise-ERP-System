@@ -10,6 +10,7 @@ const { logger } = require('../utils/logger');
 
 let client = null;
 let connectPromise = null;
+const DEFAULT_REDIS_HOST = 'localhost';
 
 /**
  * 获取或创建 Redis 客户端（懒初始化，保证单例）
@@ -45,7 +46,7 @@ async function getRedisClient() {
       client.on('reconnecting', () => logger.warn('Redis 重连中…'));
 
       await client.connect();
-      logger.info(`✅ Redis 已连接 (${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379})`);
+      logger.info(`✅ Redis 已连接 (${process.env.REDIS_HOST || DEFAULT_REDIS_HOST}:${process.env.REDIS_PORT || 6379})`);
       return client;
     } catch (err) {
       logger.error('Redis 连接失败，限流将回退到内存:', err.message);
@@ -60,7 +61,7 @@ async function getRedisClient() {
 }
 
 function buildRedisUrl() {
-  const host = process.env.REDIS_HOST || '127.0.0.1';
+  const host = process.env.REDIS_HOST || DEFAULT_REDIS_HOST;
   const port = process.env.REDIS_PORT || 6379;
   const password = process.env.REDIS_PASSWORD || '';
   const username = process.env.REDIS_USERNAME || 'erp_app';

@@ -197,9 +197,9 @@ class DBManager {
    */
   static async tableExists(tableName) {
     const sql = `
-      SELECT COUNT(*) as count 
-      FROM information_schema.tables 
-      WHERE table_schema = DATABASE() 
+      SELECT COUNT(*) as count
+      FROM information_schema.tables
+      WHERE table_schema = DATABASE()
       AND table_name = ?
     `;
 
@@ -220,10 +220,10 @@ class DBManager {
    */
   static async columnExists(tableName, columnName) {
     const sql = `
-      SELECT COUNT(*) as count 
-      FROM information_schema.columns 
-      WHERE table_schema = DATABASE() 
-      AND table_name = ? 
+      SELECT COUNT(*) as count
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+      AND table_name = ?
       AND column_name = ?
     `;
 

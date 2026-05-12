@@ -17,7 +17,7 @@
         <el-button v-permission="'finance:periods:create'" type="primary" :icon="Plus" @click="showAddDialog">新增期间</el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -43,7 +43,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -85,7 +85,7 @@
               type="primary"
               size="small"
               @click="handleEdit(scope.row)"
-            
+
               v-permission="'finance:periods:update'">编辑</el-button>
             <el-button
               v-if="!scope.row.isClosed"
@@ -104,7 +104,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -119,7 +119,7 @@
         </el-pagination>
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -215,13 +215,13 @@ const periodForm = reactive({
 const fiscalYears = computed(() => {
   const years = new Set();
   const currentYear = new Date().getFullYear();
-  
+
   // 添加当前年度和前后两年
   years.add(currentYear - 2);
   years.add(currentYear - 1);
   years.add(currentYear);
   years.add(currentYear + 1);
-  
+
   // 添加期间列表中的年度
   if (periodList.value && Array.isArray(periodList.value)) {
     periodList.value.forEach(period => {
@@ -230,7 +230,7 @@ const fiscalYears = computed(() => {
       }
     });
   }
-  
+
   return Array.from(years).sort((a, b) => b - a); // 降序排列
 });
 
@@ -276,7 +276,7 @@ const loadPeriods = async () => {
       isClosed: searchForm.isClosed
     };
     const response = await api.get('/finance/periods', { params });
-    
+
     // 拦截器已解包，response.data 就是业务数据
     if (response.data?.periods) {
       // 转换后端字段名为前端使用的驼峰命名法
@@ -305,7 +305,6 @@ const loadPeriods = async () => {
     } else {
       periodList.value = [];
       total.value = 0;
-      console.warn('未找到会计期间数据或数据格式不正确:', response.data);
     }
   } catch (error) {
     console.error('加载会计期间失败:', error);
@@ -350,7 +349,7 @@ const handleEdit = (row) => {
 const handleClose = (row) => {
   ElMessageBox.confirm(
     '关闭会计期间会执行未过账检查、损益结转、期末余额快照，并阻止该期间继续创建或过账凭证。确认要关闭此期间吗？',
-    '警告', 
+    '警告',
     {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
@@ -372,7 +371,7 @@ const handleClose = (row) => {
 const handleReopen = (row) => {
   ElMessageBox.confirm(
     '重新开启会计期间会先检查后续期间是否已关闭，然后清理本期损益结转凭证和期末余额快照。确认要重新开启此期间吗？',
-    '警告', 
+    '警告',
     {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
@@ -393,7 +392,7 @@ const handleReopen = (row) => {
 // 保存会计期间
 const savePeriod = async () => {
   if (!periodFormRef.value) return;
-  
+
   await periodFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;
@@ -406,7 +405,7 @@ const savePeriod = async () => {
           is_adjusting: periodForm.isAdjusting,
           fiscal_year: periodForm.fiscalYear
         };
-        
+
         if (periodForm.id) {
           // 更新
           await api.put(`/finance/periods/${periodForm.id}`, periodData);
@@ -437,7 +436,7 @@ const resetPeriodForm = () => {
   periodForm.endDate = '';
   periodForm.isAdjusting = false;
   periodForm.isClosed = false;
-  
+
   // 清除校验
   if (periodFormRef.value) {
     periodFormRef.value.resetFields();

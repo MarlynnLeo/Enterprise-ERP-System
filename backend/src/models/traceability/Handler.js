@@ -125,7 +125,7 @@ class TraceabilityHandler {
 
       // 检查是否已存在该批次的追溯记录
       const existingQuery = `
-        SELECT id FROM traceability 
+        SELECT id FROM traceability
         WHERE product_code = ? AND batch_number = ?
       `;
 

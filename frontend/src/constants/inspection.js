@@ -5,18 +5,18 @@
 
 // 检验类型配置
 export const INSPECTION_TYPES = {
-  incoming: { 
-    text: '来料检验', 
+  incoming: {
+    text: '来料检验',
     prefix: '来料',
     value: 'incoming'
   },
-  process: { 
-    text: '过程检验', 
+  process: {
+    text: '过程检验',
     prefix: '过程',
     value: 'process'
   },
-  final: { 
-    text: '成品检验', 
+  final: {
+    text: '成品检验',
     prefix: '成品',
     value: 'final'
   }

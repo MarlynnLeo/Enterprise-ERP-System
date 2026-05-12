@@ -23,7 +23,7 @@
         </el-button>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" :model="searchForm" class="search-form">
@@ -49,7 +49,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -119,7 +119,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -138,7 +138,7 @@
       </div>
 
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog
       :title="dialogTitle"
@@ -172,7 +172,7 @@
           <el-cascader
             v-model="accountForm.parent_id"
             :options="accountOptions"
-            :props="{ 
+            :props="{
               checkStrictly: true,
               value: 'id',
               label: 'fullName',
@@ -411,7 +411,7 @@ const handleToggleStatus = (row) => {
 // 保存会计科目
 const saveAccount = async () => {
   if (!accountFormRef.value) return;
-  
+
   await accountFormRef.value.validate(async (valid) => {
     if (valid) {
       saveLoading.value = true;

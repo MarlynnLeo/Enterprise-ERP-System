@@ -146,7 +146,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -173,7 +173,7 @@
           <el-cascader
             v-model="form.parent_id"
             :options="categoryOptions"
-            :props="{ 
+            :props="{
               checkStrictly: true,
               value: 'id',
               label: 'name',
@@ -350,7 +350,8 @@ const pageSize = ref(10);
 
 // 导入相关
 const importDialogVisible = ref(false);
-const importMethod = ref('template');;
+const importMethod = ref('template');
+;
 const importing = ref(false);
 const importResult = ref(null);
 const uploadRef = ref(null);
@@ -365,7 +366,7 @@ onMounted(() => {
 // 导出数据
 const handleExport = async () => {
   try {
-    const response = await baseDataApi.exportCategories({ 
+    const response = await baseDataApi.exportCategories({
       name: searchForm.name,
       code: searchForm.code,
       status: searchForm.status
@@ -389,11 +390,11 @@ const calculateStats = () => {
   const allCategories = getAllCategories(tableData.value);
   const activeCount = allCategories.filter(item => String(item.status) === '1').length;
   const inactiveCount = allCategories.filter(item => String(item.status) === '0').length;
-  
+
   // 计算父大类和子大类数量
   const parentCount = tableData.value.length;
   const childCount = allCategories.length - parentCount;
-  
+
   stats.total = allCategories.length;
   stats.active = activeCount;
   stats.inactive = inactiveCount;
@@ -404,14 +405,14 @@ const calculateStats = () => {
 // 递归获取所有分类 (包括子大类)
 const getAllCategories = (categories) => {
   let allCategories = [];
-  
+
   categories.forEach(category => {
     allCategories.push(category);
     if (category.children && category.children.length > 0) {
       allCategories = allCategories.concat(getAllCategories(category.children));
     }
   });
-  
+
   return allCategories;
 };
 
@@ -450,7 +451,6 @@ const fetchData = async () => {
     // 处理分类选项，用于级联选择器
     const processOptions = (data) => {
       if (!Array.isArray(data)) {
-        console.warn('processOptions 接收到非数组数据:', data);
         return [];
       }
       return data.map(item => {
@@ -460,17 +460,17 @@ const fetchData = async () => {
           label: item.name,
           value: item.id  // 添加value字段，确保级联选择器正常工作
         };
-        
+
         if (item.children && item.children.length > 0) {
           option.children = processOptions(item.children);
         }
-        
+
         return option;
       });
     };
-    
+
     categoryOptions.value = processOptions(tableData.value);
-    
+
     // 计算统计数据
     calculateStats();
   } catch (error) {
@@ -486,11 +486,11 @@ const handleAdd = (row) => {
   dialogTitle.value = row ? '添加子大类' : '新增大类';
   isEdit.value = false;
   resetForm();
-  
+
   if (row) {
     form.parent_id = row.id;
   }
-  
+
   dialogVisible.value = true;
 };
 
@@ -509,7 +509,7 @@ const handleDelete = async (row) => {
     ElMessage.warning('该大类下有子大类，不能删除');
     return;
   }
-  
+
   try {
     await baseDataApi.deleteCategory(row.id);
     ElMessage.success('删除成功');
@@ -540,7 +540,7 @@ const resetForm = () => {
   if (formRef.value) {
     formRef.value.resetFields();
   }
-  
+
   form.id = '';
   form.parent_id = null;
   form.name = '';
@@ -553,7 +553,7 @@ const resetForm = () => {
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return;
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true;
@@ -563,7 +563,7 @@ const submitForm = async () => {
         delete submitData.children;
         delete submitData.created_at;
         delete submitData.updated_at;
-        
+
         if (isEdit.value) {
           // 更新分类
           await baseDataApi.updateCategory(form.id, submitData);

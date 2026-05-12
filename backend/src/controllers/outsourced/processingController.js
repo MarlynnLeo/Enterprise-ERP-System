@@ -12,12 +12,14 @@ const db = require('../../config/db');
 const purchaseModel = require('../../models/purchase');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const InventoryService = require('../../services/InventoryService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
+const { appendPaginationSQL } = require('../../utils/safePagination');
 
 // 状态常量
 const STATUS = {
   PROCESSING: {
-    DRAFT: 'draft',
+    PENDING: 'pending',
     CONFIRMED: 'confirmed',
     IN_PROGRESS: 'in_progress',
     COMPLETED: 'completed',
@@ -25,7 +27,16 @@ const STATUS = {
   },
 };
 
+// 加工单状态转换规则
 const PROCESSING_STATUS_TRANSITIONS = {
+  pending: new Set(['confirmed', 'cancelled']),
+  confirmed: new Set(['completed', 'cancelled']),
+  completed: new Set(),
+  cancelled: new Set(),
+};
+
+// 入库单独立状态转换规则（入库单业务流程与加工单不同）
+const RECEIPT_STATUS_TRANSITIONS = {
   pending: new Set(['confirmed', 'cancelled']),
   confirmed: new Set(['completed', 'cancelled']),
   completed: new Set(),
@@ -90,21 +101,14 @@ const getProcessings = async (req, res) => {
     const pageInt = parseInt(page, 10);
     const offset = (pageInt - 1) * actualPageSize;
 
-    // 分页数值已安全整数化，作为 LIMIT/OFFSET 片段拼接
-    query += ` ORDER BY id DESC LIMIT ${actualPageSize} OFFSET ${offset}`;
+    // 使用统一分页工具追加 LIMIT/OFFSET
+    query = appendPaginationSQL(query + ' ORDER BY id DESC', actualPageSize, offset);
 
     // 使用原始参数数组，不添加分页参数
     const [rows] = await db.pool.execute(query, params);
 
     // 返回前端期望的格式
-    res.json({
-      success: true,
-      data: rows,
-      total: total,
-      page: pageInt,
-      pageSize: actualPageSize,
-      message: '获取外委加工单列表成功',
-    });
+    return ResponseHandler.paginated(res, rows, total, pageInt, actualPageSize, '获取外委加工单列表成功');
   } catch (error) {
     logger.error('获取外委加工单列表失败:', error);
     ResponseHandler.error(res, '获取外委加工单列表失败', 'SERVER_ERROR', 500, error);
@@ -140,13 +144,10 @@ const getProcessing = async (req, res) => {
       [id]
     );
 
-    res.json({
-      success: true,
-      data: {
-        ...processing[0],
-        materials,
-        products,
-      },
+    return ResponseHandler.success(res, {
+      ...processing[0],
+      materials,
+      products,
     });
   } catch (error) {
     logger.error('获取外委加工单详情失败:', error);
@@ -208,64 +209,60 @@ const createProcessing = async (req, res) => {
 
     const processing_id = result.insertId;
 
-    // 插入发料明细
+    // 批量插入发料明细
     if (materials && materials.length > 0) {
-      for (const material of materials) {
-        await connection.execute(
-          `INSERT INTO outsourced_processing_materials (
-            processing_id, material_id, material_code, material_name,
-            specification, unit, unit_id, quantity, remark
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            processing_id,
-            safeNumber(material.material_id),
-            safeString(material.material_code),
-            safeString(material.material_name),
-            safeString(material.specification),
-            safeString(material.unit),
-            safeNumber(material.unit_id),
-            safeNumber(material.quantity || 0),
-            safeString(material.remark),
-          ]
-        );
-      }
+      const matPlaceholders = materials.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const matValues = materials.flatMap(m => [
+        processing_id,
+        safeNumber(m.material_id),
+        safeString(m.material_code),
+        safeString(m.material_name),
+        safeString(m.specification),
+        safeString(m.unit),
+        safeNumber(m.unit_id),
+        safeNumber(m.quantity || 0),
+        safeString(m.remark),
+      ]);
+      await connection.execute(
+        `INSERT INTO outsourced_processing_materials (
+          processing_id, material_id, material_code, material_name,
+          specification, unit, unit_id, quantity, remark
+        ) VALUES ${matPlaceholders}`,
+        matValues
+      );
     }
 
-    // 插入成品明细
+    // 批量插入成品明细
     if (products && products.length > 0) {
-      for (const product of products) {
-        await connection.execute(
-          `INSERT INTO outsourced_processing_products (
-            processing_id, product_id, product_code, product_name,
-            specification, unit, unit_id, quantity, unit_price, total_price, remark
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            processing_id,
-            safeNumber(product.product_id),
-            safeString(product.product_code),
-            safeString(product.product_name),
-            safeString(product.specification),
-            safeString(product.unit),
-            safeNumber(product.unit_id),
-            safeNumber(product.quantity || 0),
-            safeNumber(product.unit_price || 0),
-            safeNumber(product.total_price || 0),
-            safeString(product.remark),
-          ]
-        );
-      }
+      const prodPlaceholders = products.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const prodValues = products.flatMap(p => [
+        processing_id,
+        safeNumber(p.product_id),
+        safeString(p.product_code),
+        safeString(p.product_name),
+        safeString(p.specification),
+        safeString(p.unit),
+        safeNumber(p.unit_id),
+        safeNumber(p.quantity || 0),
+        safeNumber(p.unit_price || 0),
+        safeNumber(p.total_price || 0),
+        safeString(p.remark),
+      ]);
+      await connection.execute(
+        `INSERT INTO outsourced_processing_products (
+          processing_id, product_id, product_code, product_name,
+          specification, unit, unit_id, quantity, unit_price, total_price, remark
+        ) VALUES ${prodPlaceholders}`,
+        prodValues
+      );
     }
 
     await connection.commit();
 
     ResponseHandler.success(
       res,
-      {
-        success: true,
-        message: '外委加工单创建成功',
-        data: { id: processing_id, processing_no },
-      },
-      '创建成功',
+      { id: processing_id, processing_no },
+      '外委加工单创建成功',
       201
     );
   } catch (error) {
@@ -316,7 +313,7 @@ const updateProcessing = async (req, res) => {
 
     if (existingProcessing[0].status !== 'pending') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能修改待确认状态的加工单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能修改待确认状态的加工单', 'VALIDATION_ERROR', 400);
     }
 
 
@@ -359,52 +356,52 @@ const updateProcessing = async (req, res) => {
       id,
     ]);
 
-    // 插入新的发料明细
+    // 批量插入新的发料明细
     if (materials && materials.length > 0) {
-      for (const material of materials) {
-        await connection.execute(
-          `INSERT INTO outsourced_processing_materials (
-            processing_id, material_id, material_code, material_name,
-            specification, unit, unit_id, quantity, remark
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            safeNumber(material.material_id),
-            safeString(material.material_code),
-            safeString(material.material_name),
-            safeString(material.specification),
-            safeString(material.unit),
-            safeNumber(material.unit_id),
-            safeNumber(material.quantity || 0),
-            safeString(material.remark),
-          ]
-        );
-      }
+      const matPlaceholders = materials.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const matValues = materials.flatMap(m => [
+        id,
+        safeNumber(m.material_id),
+        safeString(m.material_code),
+        safeString(m.material_name),
+        safeString(m.specification),
+        safeString(m.unit),
+        safeNumber(m.unit_id),
+        safeNumber(m.quantity || 0),
+        safeString(m.remark),
+      ]);
+      await connection.execute(
+        `INSERT INTO outsourced_processing_materials (
+          processing_id, material_id, material_code, material_name,
+          specification, unit, unit_id, quantity, remark
+        ) VALUES ${matPlaceholders}`,
+        matValues
+      );
     }
 
-    // 插入新的成品明细
+    // 批量插入新的成品明细
     if (products && products.length > 0) {
-      for (const product of products) {
-        await connection.execute(
-          `INSERT INTO outsourced_processing_products (
-            processing_id, product_id, product_code, product_name,
-            specification, unit, unit_id, quantity, unit_price, total_price, remark
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            safeNumber(product.product_id),
-            safeString(product.product_code),
-            safeString(product.product_name),
-            safeString(product.specification),
-            safeString(product.unit),
-            safeNumber(product.unit_id),
-            safeNumber(product.quantity || 0),
-            safeNumber(product.unit_price || 0),
-            safeNumber(product.total_price || 0),
-            safeString(product.remark),
-          ]
-        );
-      }
+      const prodPlaceholders = products.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const prodValues = products.flatMap(p => [
+        id,
+        safeNumber(p.product_id),
+        safeString(p.product_code),
+        safeString(p.product_name),
+        safeString(p.specification),
+        safeString(p.unit),
+        safeNumber(p.unit_id),
+        safeNumber(p.quantity || 0),
+        safeNumber(p.unit_price || 0),
+        safeNumber(p.total_price || 0),
+        safeString(p.remark),
+      ]);
+      await connection.execute(
+        `INSERT INTO outsourced_processing_products (
+          processing_id, product_id, product_code, product_name,
+          specification, unit, unit_id, quantity, unit_price, total_price, remark
+        ) VALUES ${prodPlaceholders}`,
+        prodValues
+      );
     }
 
     await connection.commit();
@@ -443,7 +440,7 @@ const deleteProcessing = async (req, res) => {
 
     if (existingProcessing[0].status !== 'pending') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能删除待确认状态的加工单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能删除待确认状态的加工单', 'VALIDATION_ERROR', 400);
     }
 
     // 删除相关明细记录
@@ -487,7 +484,7 @@ const updateProcessingStatus = async (req, res) => {
 
     if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 检查加工单是否存在
@@ -512,7 +509,7 @@ const updateProcessingStatus = async (req, res) => {
       return ResponseHandler.error(
         res,
         `外委加工单不能从 ${currentStatus} 变更为 ${status}`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -532,7 +529,7 @@ const updateProcessingStatus = async (req, res) => {
       );
 
       // 使用加工单中指定的仓库，如果没有则从物料基础资料获取
-      const InventoryService = require('../../services/InventoryService');
+      // InventoryService 已在文件顶部引入
 
       // 减少每个发料物料的库存
       for (const material of materials) {
@@ -547,8 +544,7 @@ const updateProcessingStatus = async (req, res) => {
         }
 
         try {
-          // 使用统一的 InventoryService 更新库存
-          const InventoryService = require('../../services/InventoryService');
+          // 使用统一的 InventoryService 更新库存（已在循环外引入）
           await InventoryService.updateStock(
             {
               materialId: material.material_id,
@@ -588,6 +584,54 @@ const updateProcessingStatus = async (req, res) => {
         logger.error('外委发料分录生成失败:', glError.message);
         warnings.push('外委发料分录生成异常');
         throw glError;
+      }
+    }
+
+    // 如果从已确认状态取消，需要回退已扣减的发料库存
+    if (status === 'cancelled' && currentStatus === STATUS.PROCESSING.CONFIRMED) {
+      const [materials] = await connection.execute(
+        'SELECT * FROM outsourced_processing_materials WHERE processing_id = ?',
+        [id]
+      );
+
+      if (materials.length > 0) {
+        // InventoryService 已在文件顶部引入
+
+        for (const material of materials) {
+          // 使用与发料时相同的仓库逻辑
+          let usedWarehouseId;
+          if (existingProcessing[0].location_id) {
+            usedWarehouseId = existingProcessing[0].location_id;
+          } else {
+            usedWarehouseId = await InventoryService.getMaterialLocation(material.material_id, connection);
+          }
+
+          try {
+            // 正数 = 退回库存
+            await InventoryService.updateStock(
+              {
+                materialId: material.material_id,
+                locationId: usedWarehouseId,
+                quantity: parseFloat(material.quantity),
+                transactionType: 'outsourced_return',
+                referenceNo: existingProcessing[0].processing_no,
+                referenceType: 'outsourced_processing_cancel',
+                operator: 'system',
+                remark: `外委加工取消退料 ${existingProcessing[0].processing_no}`,
+                unitId: material.unit_id,
+                batchNumber: null,
+              },
+              connection
+            );
+            logger.info(`✅ 外委取消退料成功: 物料ID=${material.material_id}, 数量=${material.quantity}`);
+          } catch (returnError) {
+            logger.error(`外委取消退料失败: 物料ID=${material.material_id}`, returnError.message);
+            throw returnError;
+          }
+        }
+
+        logger.info(`外委加工单 ${existingProcessing[0].processing_no} 取消，已回退 ${materials.length} 个物料的库存`);
+        warnings.push(`已回退 ${materials.length} 个发料物料的库存，请检查关联的外委发料会计分录是否需要手动冲销`);
       }
     }
 
@@ -668,21 +712,14 @@ const getReceipts = async (req, res) => {
     const pageInt = parseInt(page, 10);
     const offset = (pageInt - 1) * actualPageSize;
 
-    // 分页数值已安全整数化，作为 LIMIT/OFFSET 片段拼接
-    query += ` ORDER BY id DESC LIMIT ${actualPageSize} OFFSET ${offset}`;
+    // 使用统一分页工具追加 LIMIT/OFFSET
+    query = appendPaginationSQL(query + ' ORDER BY id DESC', actualPageSize, offset);
 
     // 使用原始参数数组，不添加分页参数
     const [rows] = await db.pool.execute(query, params);
 
     // 返回前端期望的格式
-    res.json({
-      success: true,
-      data: rows,
-      total: total,
-      page: pageInt,
-      pageSize: actualPageSize,
-      message: '获取外委加工入库单列表成功',
-    });
+    return ResponseHandler.paginated(res, rows, total, pageInt, actualPageSize, '获取外委加工入库单列表成功');
   } catch (error) {
     logger.error('获取外委加工入库单列表失败:', error);
     ResponseHandler.error(res, '获取外委加工入库单列表失败', 'SERVER_ERROR', 500, error);
@@ -712,12 +749,9 @@ const getReceipt = async (req, res) => {
       [id]
     );
 
-    res.json({
-      success: true,
-      data: {
-        ...receipt[0],
-        items,
-      },
+    return ResponseHandler.success(res, {
+      ...receipt[0],
+      items,
     });
   } catch (error) {
     logger.error('获取外委加工入库单详情失败:', error);
@@ -755,10 +789,7 @@ const createReceipt = async (req, res) => {
 
     if (existingWarehouse.length === 0) {
       await connection.rollback();
-      return res.status(400).json({
-        success: false,
-        message: `仓库ID ${location_id} 不存在，请确保选择了有效的仓库`,
-      });
+      return ResponseHandler.error(res, `仓库ID ${location_id} 不存在，请确保选择了有效的仓库`, 'VALIDATION_ERROR', 400);
     }
 
     // 使用仓库表中的名称，确保一致性
@@ -837,12 +868,8 @@ const createReceipt = async (req, res) => {
 
       ResponseHandler.success(
         res,
-        {
-          success: true,
-          message: '外委加工入库单创建成功',
-          data: { id: receipt_id, receipt_no },
-        },
-        '创建成功',
+        { id: receipt_id, receipt_no },
+        '外委加工入库单创建成功',
         201
       );
     } catch (error) {
@@ -905,7 +932,7 @@ const updateReceipt = async (req, res) => {
 
     if (existingReceipt[0].status !== 'pending') {
       await connection.rollback();
-      return ResponseHandler.error(res, '只能修改待确认状态的入库单', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '只能修改待确认状态的入库单', 'VALIDATION_ERROR', 400);
     }
 
     // 更新入库单主表
@@ -914,7 +941,7 @@ const updateReceipt = async (req, res) => {
         location_id = ?, warehouse_name = ?, receipt_date = ?,
         operator = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?`,
-      [location_id, warehouse_name, receipt_date, operator, remarks, id]
+      [safeNumber(location_id), safeString(warehouse_name), safeString(receipt_date), safeString(operator), safeString(remarks), id]
     );
 
     // 删除旧的入库明细
@@ -926,7 +953,9 @@ const updateReceipt = async (req, res) => {
     // 插入新的入库明细
     if (items && items.length > 0) {
       for (const item of items) {
-        const total_price = parseFloat(item.unit_price) * parseFloat(item.actual_quantity);
+        const unitPrice = safeNumber(item.unit_price || 0);
+        const actualQty = safeNumber(item.actual_quantity || 0);
+        const total_price = unitPrice * actualQty;
 
         await connection.execute(
           `INSERT INTO outsourced_processing_receipt_items (
@@ -936,15 +965,15 @@ const updateReceipt = async (req, res) => {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
-            item.product_id,
-            item.product_code,
-            item.product_name,
-            item.specification,
-            item.unit,
-            item.unit_id,
-            item.expected_quantity,
-            item.actual_quantity,
-            item.unit_price,
+            safeNumber(item.product_id),
+            safeString(item.product_code),
+            safeString(item.product_name),
+            safeString(item.specification),
+            safeString(item.unit),
+            safeNumber(item.unit_id),
+            safeNumber(item.expected_quantity || 0),
+            actualQty,
+            unitPrice,
             total_price,
           ]
         );
@@ -976,7 +1005,7 @@ const updateReceiptStatus = async (req, res) => {
 
     if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
     // 检查入库单是否存在
@@ -996,12 +1025,12 @@ const updateReceiptStatus = async (req, res) => {
       return ResponseHandler.success(res, null, '外委加工入库单状态未变化');
     }
 
-    if (!PROCESSING_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
+    if (!RECEIPT_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
         `外委加工入库单不能从 ${currentStatus} 变更为 ${status}`,
-        'BAD_REQUEST',
+        'VALIDATION_ERROR',
         400
       );
     }
@@ -1035,7 +1064,7 @@ const updateReceiptStatus = async (req, res) => {
           }
 
           // 使用统一的 InventoryService 更新库存
-          const InventoryService = require('../../services/InventoryService');
+          // InventoryService 已在文件顶部引入
           await InventoryService.updateStock(
             {
               materialId: material_id,
@@ -1069,13 +1098,22 @@ const updateReceiptStatus = async (req, res) => {
       }
       logger.info(`外委入库分录生成成功: ${existingReceipt[0].receipt_no}`);
 
-      // 如果所有产品已入库，则将对应的加工单状态更新为已完成
+      // 检查加工单是否所有入库单都已确认，满足条件时才标记加工单为完成
       if (existingReceipt[0].processing_id) {
-        await connection.execute(
-          `UPDATE outsourced_processings SET status = 'completed', updated_at = CURRENT_TIMESTAMP 
-           WHERE id = ?`,
+        const [pendingReceipts] = await connection.execute(
+          `SELECT COUNT(*) as cnt FROM outsourced_processing_receipts
+           WHERE processing_id = ? AND status NOT IN ('confirmed', 'completed', 'cancelled')`,
           [existingReceipt[0].processing_id]
         );
+        // 所有入库单都已确认/完成，才将加工单标记为完成
+        if (pendingReceipts[0].cnt === 0) {
+          await connection.execute(
+            `UPDATE outsourced_processings SET status = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND status = ?`,
+            [STATUS.PROCESSING.COMPLETED, existingReceipt[0].processing_id, STATUS.PROCESSING.CONFIRMED]
+          );
+          logger.info(`外委加工单 ${existingReceipt[0].processing_id} 所有入库单已确认，自动标记为完成`);
+        }
       }
     }
 

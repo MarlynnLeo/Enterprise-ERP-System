@@ -7,14 +7,30 @@
  */
 
 const { doubleCsrf } = require('csrf-csrf');
+const crypto = require('crypto');
 const { logger } = require('../utils/logger');
+
+const isProduction = process.env.NODE_ENV === 'production';
+const isTest = process.env.NODE_ENV === 'test';
+
+if (isProduction && !process.env.CSRF_SECRET) {
+  throw new Error('CSRF_SECRET environment variable is required in production.');
+}
+
+const developmentCsrfSecret = process.env.CSRF_SECRET || crypto.randomBytes(32).toString('hex');
+if (!isProduction && !isTest && !process.env.CSRF_SECRET) {
+  logger.warn('CSRF_SECRET 未配置，开发环境将使用本次进程生成的临时密钥');
+}
+
+const getCsrfSecret = () => process.env.CSRF_SECRET || developmentCsrfSecret;
 
 // 配置 CSRF 保护
 const {
-  generateToken, // 生成 CSRF token
+  generateCsrfToken, // 生成 CSRF token（新版 API）
   doubleCsrfProtection, // CSRF 保护中间件
 } = doubleCsrf({
-  getSecret: () => process.env.CSRF_SECRET,
+  getSecret: getCsrfSecret,
+  getSessionIdentifier: (req) => req.ip || 'anonymous', // v4 必需：会话标识符
   cookieName: '__Host-psifi.x-csrf-token', // 推荐的安全 cookie 名称
   cookieOptions: {
     httpOnly: true,
@@ -35,7 +51,7 @@ const {
  * CSRF Token获取端点
  */
 const getCsrfToken = (req, res) => {
-  const csrfToken = generateToken(req, res);
+  const csrfToken = generateCsrfToken(req, res);
   res.json({
     success: true,
     csrfToken: csrfToken,
@@ -120,5 +136,5 @@ module.exports = {
   conditionalCsrfProtection,
   getCsrfToken,
   csrfErrorHandler,
-  generateToken, // 导出 token 生成函数
+  generateCsrfToken, // 导出 token 生成函数
 };

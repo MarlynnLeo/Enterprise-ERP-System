@@ -50,10 +50,7 @@ export function useWeather() {
       } else {
         throw new Error('天气数据格式错误')
       }
-    } catch (error) {
-      const message = error?.response?.data?.message || error?.message || ''
-      console.warn('天气数据加载失败:', message || error)
-
+    } catch {
       weather.value = createUnavailableWeather()
     } finally {
       weatherLoading.value = false

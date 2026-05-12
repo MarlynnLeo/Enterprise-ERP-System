@@ -57,7 +57,7 @@ exports.exportProductionData = async (req, res) => {
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       query = `
-        SELECT 
+        SELECT
           pp.id,
           pp.code,
           pp.name,
@@ -77,8 +77,8 @@ exports.exportProductionData = async (req, res) => {
         LEFT JOIN units u ON m.unit_id = u.id
         LEFT JOIN production_tasks pt ON pp.id = pt.plan_id
         ${whereClause}
-        GROUP BY pp.id, pp.code, pp.name, pp.start_date, pp.end_date, 
-                 pp.status, pp.created_at, pp.updated_at, 
+        GROUP BY pp.id, pp.code, pp.name, pp.start_date, pp.end_date,
+                 pp.status, pp.created_at, pp.updated_at,
                  m.name, m.code, m.specs, u.name, pp.quantity
         ORDER BY pp.created_at DESC
       `;

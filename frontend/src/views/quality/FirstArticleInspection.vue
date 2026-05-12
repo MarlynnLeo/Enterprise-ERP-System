@@ -42,7 +42,7 @@
           </div>
         </div>
       </template>
-      
+
       <!-- 搜索表单 -->
       <div class="search-container">
         <el-row :gutter="16">
@@ -105,7 +105,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" background layout="total, sizes, prev, pager, next, jumper" :total="total" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
@@ -113,13 +113,13 @@
     </el-card>
     <!-- 新建首检单弹窗 -->
     <CreateDialog v-model:visible="showCreateDialog" @success="handleCreateSuccess" />
-    
+
     <!-- 检验弹窗 -->
     <InspectDialog v-model:visible="showInspectDialog" :inspection="currentInspection" @success="handleInspectSuccess" />
-    
+
     <!-- 查看详情弹窗 -->
     <ViewDialog v-model:visible="showViewDialog" :inspection="currentInspection" />
-    
+
     <!-- 首检规则配置弹窗 -->
     <RulesDialog v-model:visible="showRulesDialog" />
   </div>
@@ -131,7 +131,7 @@ import { ElMessage } from 'element-plus'
 import { qualityApi } from '@/api/quality'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { writeSafeHtmlDocument } from '@/utils/htmlSecurity'
+import printService from '@/services/printService'
 import {
   getFirstArticleResultText,
   getFirstArticleResultColor
@@ -237,63 +237,32 @@ const handleReinspect = (row) => {
 const handlePrint = async (row) => {
   try {
     // 首先获取完整的检验详情（包含检验项目）
-    const { api } = await import('@/services/api')
-    
     let inspectionDetail = row
     try {
       const detailRes = await qualityApi.getFirstArticleInspection(row.id)
       inspectionDetail = detailRes.data || detailRes || row
-    } catch (detailError) {
-      console.warn('获取首检详情失败，使用列表数据:', detailError)
+    } catch {
     }
-    
-    // 获取打印模板 - 使用首件检验专用模板类型
-    let templateContent = ''
-    try {
-      const response = await api.get('/print/templates', {
-        params: {
-          template_type: 'first_article_inspection',
-          is_default: 1,
-          status: 1
-        }
-      })
-      
-      const templates = response.data?.list || response.data?.data || response.data || []
-      const template = Array.isArray(templates) ? templates[0] : null
-      
-      if (template && template.content) {
-        templateContent = template.content
-      }
-    } catch (templateError) {
-      console.error('获取打印模板失败:', templateError)
-      ElMessage.error('获取打印模板失败，请在系统管理-打印管理中配置首件检验单模板')
-      return
-    }
-    
-    if (!templateContent) {
-      ElMessage.warning('未找到首件检验单打印模板，请在系统管理-打印管理中配置 first_article_inspection 类型模板')
-      return
-    }
-    
+
     // 使用获取到的完整详情进行打印
     const data = inspectionDetail
-    
+
     // 准备打印数据 - 确保所有模板变量都有对应的值
     const getStatusText = (status) => {
       const statusMap = { 'pending': '待检验', 'passed': '合格', 'failed': '不合格', 'conditional': '有条件放行', 'review': '复检' }
       return statusMap[status] || status || '-'
     }
-    
+
     const getResultText = (result) => {
       const resultMap = { 'passed': '合格', 'failed': '不合格', 'conditional': '有条件放行' }
       return resultMap[result] || result || '-'
     }
-    
+
     const formatDateValue = (date) => {
       if (!date) return '-'
       return dayjs(date).format('YYYY-MM-DD')
     }
-    
+
     const printData = {
       // 基本信息
       inspection_no: data.inspection_no || data.inspectionNo || '-',
@@ -305,94 +274,47 @@ const handlePrint = async (row) => {
       quantity: data.quantity || 0,
       unit: data.unit || '',
       standard_no: data.standard_no || data.standardNo || '-',
-      
+
       // 日期
       inspection_date: formatDateValue(data.inspection_date || data.inspectionDate),
       planned_date: formatDateValue(data.planned_date || data.plannedDate),
-      
+
       // 人员
       inspector_name: data.inspector || data.inspector_name || '-',
       inspector: data.inspector || data.inspector_name || '-',
-      
+
       // 状态和结果
       status: getStatusText(data.status || data.first_article_result),
       result: getResultText(data.first_article_result || data.result),
       first_article_result: getResultText(data.first_article_result),
-      
+
       // 备注
       remark: data.remark || '',
       note: data.remark || data.note || '',
-      
+
       // 打印时间
       print_date: new Date().toLocaleDateString(),
       print_time: new Date().toLocaleTimeString()
     }
-    
-    // 渲染模板 - 替换简单变量
-    let renderedContent = templateContent
-    Object.keys(printData).forEach(key => {
-      const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g')
-      renderedContent = renderedContent.replace(regex, printData[key])
+
+    const items = data.items || data.inspectionItems || data.inspection_items || [];
+    const html = await printService.generateByDefaultTemplate('quality', 'first_article_inspection', {
+      ...printData,
+      document_no: printData.inspection_no,
+      date: printData.inspection_date !== '-' ? printData.inspection_date : printData.planned_date,
+      items: items.map((item, index) => ({
+        index: index + 1,
+        item_code: item.item_code || item.code || '',
+        item_name: item.item_name || item.itemName || item.name || '-',
+        specification: item.standard || item.standard_value || item.standardValue || '-',
+        quantity: item.actual_value || item.actualValue || item.measured_value || '-',
+        unit_name: item.unit || '',
+        result: getResultText(item.result || item.status),
+        remark: item.remarks || item.remark || ''
+      }))
     })
-    
-    // 处理条件表达式 {{status === 'passed' ? '合格' : ...}}
-    renderedContent = renderedContent.replace(/\{\{status\s*===\s*'passed'\s*\?\s*'合格'\s*:\s*status\s*===\s*'failed'\s*\?\s*'不合格'\s*:\s*status\s*===\s*'review'\s*\?\s*'复检'\s*:\s*'待检验'\}\}/g, printData.status)
-    renderedContent = renderedContent.replace(/\{\{result\s*===\s*'passed'\s*\?\s*'合格'\s*:\s*result\s*===\s*'failed'\s*\?\s*'不合格'\s*:\s*'-'\}\}/g, printData.result)
-    
-    // 处理 || 表达式
-    renderedContent = renderedContent.replace(/\{\{inspection_date\s*\|\|\s*planned_date\}\}/g, printData.inspection_date !== '-' ? printData.inspection_date : printData.planned_date)
-    
-    // 处理检验项目列表 {{#each items}} ... {{/each}}
-    const itemsMatch = renderedContent.match(/\{\{#each\s+items\}\}([\s\S]*?)\{\{\/each\}\}/);
-    if (itemsMatch) {
-      const itemTemplate = itemsMatch[1];
-      let itemsHtml = '';
-      
-      // 获取检验项目数据（从详情接口返回）
-      const items = data.items || data.inspectionItems || data.inspection_items || [];
-      
-      if (items && items.length > 0) {
-        items.forEach((item, index) => {
-          let itemHtml = itemTemplate;
-          
-          // 替换序号
-          itemHtml = itemHtml.replace(/\{\{@index\+1\}\}/g, (index + 1).toString());
-          itemHtml = itemHtml.replace(/\{\{index\}\}/g, (index + 1).toString());
-          
-          // 替换检验项目字段
-          itemHtml = itemHtml.replace(/\{\{item_name\}\}/g, item.item_name || item.itemName || item.name || '-');
-          itemHtml = itemHtml.replace(/\{\{standard\}\}/g, item.standard || item.standard_value || item.standardValue || '-');
-          itemHtml = itemHtml.replace(/\{\{type\}\}/g, item.type || item.inspection_type || '-');
-          itemHtml = itemHtml.replace(/\{\{actual_value\}\}/g, item.actual_value || item.actualValue || item.measured_value || '-');
-          itemHtml = itemHtml.replace(/\{\{remarks\}\}/g, item.remarks || item.remark || '-');
-          
-          // 处理结果条件表达式
-          const itemResult = item.result || item.status || '';
-          const resultText = itemResult === 'passed' ? '合格' : (itemResult === 'failed' ? '不合格' : '-');
-          itemHtml = itemHtml.replace(/\{\{result\s*===\s*'passed'\s*\?\s*'合格'\s*:\s*result\s*===\s*'failed'\s*\?\s*'不合格'\s*:\s*'-'\}\}/g, resultText);
-          itemHtml = itemHtml.replace(/\{\{result\}\}/g, resultText);
-          
-          itemsHtml += itemHtml;
-        });
-      } else {
-        itemsHtml = '<tr><td colspan="7" style="text-align: center; color: var(--color-text-secondary);">暂无检验项目数据</td></tr>';
-      }
-      
-      renderedContent = renderedContent.replace(/\{\{#each\s+items\}\}[\s\S]*?\{\{\/each\}\}/g, itemsHtml);
-    }
-    
-    // 创建打印窗口
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      ElMessage.error('无法打开打印窗口,请检查浏览器弹窗设置')
-      return
-    }
-    writeSafeHtmlDocument(printWindow, renderedContent)
-    // 等待内容加载后打印
-    printWindow.onload = () => {
-      printWindow.print()
-      printWindow.close()
-    }
+
+    printService.previewDocument(html)
     ElMessage.success('打印预览已打开')
   } catch (error) {
     console.error('打印失败:', error)

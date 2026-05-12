@@ -31,8 +31,8 @@
           </el-select>
         </el-form-item>
         <el-form-item label="关键词">
-          <el-input  
-            v-model="filterForm.keyword" 
+          <el-input
+            v-model="filterForm.keyword"
             placeholder="搜索标题或内容"
             clearable
             @keyup.enter="handleSearch" />
@@ -51,8 +51,8 @@
     <!-- 通讯列表 -->
     <el-card class="list-card">
       <div class="communication-list" v-loading="loading">
-        <div 
-          v-for="item in communicationList" 
+        <div
+          v-for="item in communicationList"
           :key="item.id"
           class="communication-item"
           @click="handleView(item)"
@@ -119,17 +119,17 @@
               </span>
             </div>
             <div class="item-actions">
-              <el-button 
-                link 
-                type="primary" 
+              <el-button
+                link
+                type="primary"
                 @click.stop="handleEdit(item)"
                 v-permission="'system:tech-comm:edit'"
               >
                 编辑
               </el-button>
-              <el-button 
-                link 
-                type="danger" 
+              <el-button
+                link
+                type="danger"
                 @click.stop="handleDelete(item)"
                 v-permission="'system:tech-comm:delete'"
               >
@@ -140,9 +140,9 @@
 
           <!-- 标签 -->
           <div v-if="item.tags && item.tags.length > 0" class="item-tags">
-            <el-tag 
-              v-for="tag in item.tags" 
-              :key="tag" 
+            <el-tag
+              v-for="tag in item.tags"
+              :key="tag"
               size="small"
               effect="plain"
             >
@@ -152,8 +152,8 @@
         </div>
 
         <!-- 空状态 -->
-        <el-empty 
-          v-if="!loading && communicationList.length === 0" 
+        <el-empty
+          v-if="!loading && communicationList.length === 0"
           description="暂无即时通讯"
         />
       </div>
@@ -179,7 +179,7 @@
       :close-on-click-modal="false"
       @close="handleDialogClose"
     >
-      <el-form 
+      <el-form
         ref="formRef"
         :model="form"
         :rules="formRules"
@@ -195,8 +195,8 @@
           </el-select>
         </el-form-item>
         <el-form-item label="摘要" prop="summary">
-          <el-input 
-            v-model="form.summary" 
+          <el-input
+            v-model="form.summary"
             type="textarea"
             :rows="3"
             placeholder="请输入摘要"
@@ -212,11 +212,11 @@
             allow-create
             placeholder="请选择或输入标签"
           >
-            <el-option 
-              v-for="tag in commonTags" 
-              :key="tag" 
-              :label="tag" 
-              :value="tag" 
+            <el-option
+              v-for="tag in commonTags"
+              :key="tag"
+              :label="tag"
+              :value="tag"
             />
           </el-select>
         </el-form-item>

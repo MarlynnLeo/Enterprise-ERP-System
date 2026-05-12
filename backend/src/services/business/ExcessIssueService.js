@@ -34,8 +34,8 @@ class ExcessIssueService {
       // 查找该物料在BOM中的用量 (可能有多个BOM版本，这里取最新审核通过的)
       // 先找到BOM ID
       const { rows: boms } = await db.query(
-        `SELECT id FROM bom_masters 
-                 WHERE product_id = ? AND approved_by IS NOT NULL 
+        `SELECT id FROM bom_masters
+                 WHERE product_id = ? AND approved_by IS NOT NULL
                  ORDER BY created_at DESC LIMIT 1`,
         [productId]
       );
@@ -44,7 +44,7 @@ class ExcessIssueService {
       if (boms.length > 0) {
         const bomId = boms[0].id;
         const { rows: bomDetails } = await db.query(
-          `SELECT quantity FROM bom_details 
+          `SELECT quantity FROM bom_details
                      WHERE bom_id = ? AND material_id = ?`,
           [bomId, materialId]
         );
@@ -61,11 +61,11 @@ class ExcessIssueService {
       // 仅统计 'completed' 或 'confirmed' 状态的出库单 (视业务规则而定，这里包括confirmed以免并发超发)
       // 以及排除已取消的
       const { rows: issuedResult } = await db.query(
-        `SELECT SUM(ioi.actual_quantity) as total 
+        `SELECT SUM(ioi.actual_quantity) as total
                  FROM inventory_outbound io
                  JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
-                 WHERE io.production_task_id = ? 
-                   AND ioi.material_id = ? 
+                 WHERE io.production_task_id = ?
+                   AND ioi.material_id = ?
                    AND io.status IN ('completed', 'confirmed', 'partial_completed')`,
         [productionTaskId, materialId]
       );

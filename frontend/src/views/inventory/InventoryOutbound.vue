@@ -271,7 +271,7 @@
 
           <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
             <template #default="scope">
-              <!-- 替代物料显示 -->
+              <!-- 真实出库明细 -->
               <span v-if="scope.row.isSubstitute" style="color: var(--color-success);">
                 {{ scope.row.material_code || scope.row.materialCode }}
               </span>
@@ -608,12 +608,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search as SearchIcon, Plus, Printer, Refresh, Select as SelectIcon, Close } from '@element-plus/icons-vue'
 import api, { productionApi, inventoryApi, baseDataApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
-import { generateOutboundPrintHTML } from '@/utils/printTemplates'
+import printService from '@/services/printService'
 import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { decodeHtmlEntities, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 
 export default {
   name: 'InventoryOutbound',
@@ -968,32 +967,8 @@ export default {
       dialogVisible.value = true  // 显示对话框
     }
 
-    // 共享智能分析函数：获取替代物料信息（handleView 和 handlePrint 共用，DRY原则）
-    const _enrichItemsWithSubstitution = async (items, productionPlanCode) => {
-      try {
-        if (productionPlanCode) {
-          // 有生产计划编码：调用智能分析API
-          const planRes = await api.get(`/production/plans?search=${productionPlanCode}`)
-          if (planRes.data?.data?.length > 0) {
-            const plan = planRes.data.data[0]
-            const smartRes = await api.post('/production/calculate-materials', {
-              productId: plan.product_id,
-              bomId: plan.bom_id,
-              quantity: plan.quantity,
-              forceAnalysis: true
-            })
-            if (smartRes.data && Array.isArray(smartRes.data)) {
-              return items.map(item => {
-                const sm = smartRes.data.find(m => m.materialId == item.material_id)
-                return sm ? { ...item, availableQuantity: sm.availableQuantity || item.stock_quantity, substitutionInfo: sm.substitutionInfo } : item
-              })
-            }
-          }
-        }
-        // 无生产计划编码：已完成的出库单保持原样，草稿/确认状态不做处理（替代物料应由后端 API 返回）
-      } catch (err) {
-        console.error('智能分析失败，使用原始数据:', err)
-      }
+    // 查看和打印只展示已落表的真实出库明细
+    const _normalizePersistedOutboundItems = async (items) => {
       return items
     }
 
@@ -1010,13 +985,9 @@ export default {
         // 设置查看数据
         Object.assign(currentOutbound, outboundData)
 
-        // 智能分析替代物料信息
+        // 只展示已落表的真实出库明细
         if (currentOutbound.items?.length > 0) {
-          currentOutbound.items = await _enrichItemsWithSubstitution(
-            currentOutbound.items,
-            currentOutbound.production_plan_code,
-            currentOutbound.status
-          )
+          currentOutbound.items = await _normalizePersistedOutboundItems(currentOutbound.items)
         }
 
       } catch (error) {
@@ -1057,7 +1028,7 @@ export default {
       dialogType.value = 'supplement'
       dialogVisible.value = true
       editLoading.value = true
-      
+
       try {
         // 获取出库单详情
         const res = await api.get(`/inventory/outbound/${row.id}`)
@@ -1116,7 +1087,7 @@ export default {
       dialogType.value = type
       dialogVisible.value = true
       editLoading.value = true
-      
+
       try {
         const res = await api.get(`/inventory/outbound/${id}`)
 
@@ -1182,7 +1153,6 @@ export default {
         } catch (checkError) {
           if (checkError === 'cancel') return
           // 预检失败不阻止流程，继续走后端校验
-          console.warn('出库预检失败，将依赖后端校验:', checkError)
         }
       }
 
@@ -1321,7 +1291,6 @@ export default {
 
         // 确保 searchResults 是数组
         if (!searchResults || !Array.isArray(searchResults)) {
-          console.warn('搜索结果不是数组:', searchResults)
           callback([])
           return
         }
@@ -1707,13 +1676,9 @@ export default {
         // 后端使用 ResponseHandler.success 返回，数据在 res.data.data 中
         printData.value = res.data?.data || res.data
 
-        // 智能分析替代物料信息
+        // 只展示已落表的真实出库明细
         if (printData.value.items?.length > 0) {
-          printData.value.items = await _enrichItemsWithSubstitution(
-            printData.value.items,
-            printData.value.production_plan_code,
-            printData.value.status
-          )
+          printData.value.items = await _normalizePersistedOutboundItems(printData.value.items)
         }
 
         printDialogVisible.value = true
@@ -1723,129 +1688,41 @@ export default {
       }
     }
 
+    const buildProductionOutboundPrintData = (outbound) => ({
+      outbound_no: outbound.outbound_no || '',
+      outbound_date: formatDate(outbound.outbound_date),
+      outbound_type_text: '生产出库',
+      operator: outbound.operator || outbound.operator_name || '',
+      production_plan_code: outbound.production_plan_code || '',
+      status: outbound.status === 'completed' ? '已完成' : (outbound.status || ''),
+      remark: outbound.remark || '无',
+      print_time: new Date().toLocaleString(),
+      items: (outbound.items || []).map((item, index) => ({
+        index: index + 1,
+        material_code: item.material_code || '',
+        material_name: item.material_name || '',
+        specification: item.specification || item.specs || '',
+        unit_name: item.unit_name || item.unit || '',
+        planned_quantity: parseFloat(item.planned_quantity ?? item.quantity ?? 0).toFixed(2),
+        actual_quantity: parseFloat(item.actual_quantity ?? item.quantity ?? 0).toFixed(2),
+        shortage_quantity: parseFloat(item.shortage_quantity ?? 0).toFixed(2),
+        quantity: parseFloat(item.actual_quantity ?? item.quantity ?? 0).toFixed(2),
+        location_name: item.location_name || ''
+      }))
+    })
+
     // 打印出库单
     const printOutbound = async () => {
       try {
-        // 尝试获取系统打印模板
-        const templateRes = await api.get('/print/templates', {
-          params: {
-            module: 'inventory',
-            template_type: 'production_outbound',
-            status: 1,
-            limit: 1
-          }
-        })
-
-        let htmlContent = ''
-
-        // 适配多种响应格式
-        let templateList = null
-        if (templateRes.data?.data?.length > 0) {
-          templateList = templateRes.data.data
-        } else if (templateRes.data?.list?.length > 0) {
-          templateList = templateRes.data.list
-        } else if (Array.isArray(templateRes.data) && templateRes.data.length > 0) {
-          templateList = templateRes.data
-        }
-
-        if (templateList && templateList.length > 0) {
-          // 使用系统模板
-          const template = templateList[0]
-          htmlContent = template.content
-
-          // 解码 HTML 实体（如果模板内容被转义了）
-          if (htmlContent.includes('&lt;') || htmlContent.includes('&gt;')) {
-            htmlContent = decodeHtmlEntities(htmlContent)
-          }
-
-          // 替换模板变量
-          const templateData = {
-            outbound_no: printData.value.outbound_no,
-            outbound_date: formatDate(printData.value.outbound_date),
-            outbound_type_text: '生产出库',
-            operator: printData.value.operator,
-            production_plan_code: printData.value.production_plan_code || '',
-            status: printData.value.status === 'completed' ? '已完成' : printData.value.status,
-            remark: printData.value.remark || '无',
-            print_time: new Date().toLocaleString()
-          }
-
-          // 替换基本变量
-          Object.keys(templateData).forEach(key => {
-            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
-            htmlContent = htmlContent.replace(regex, templateData[key])
-          })
-
-          // 处理物料列表
-          const expandedItems = []
-          printData.value.items.forEach((item, index) => {
-            // 添加主物料
-            expandedItems.push({
-              ...item,
-              originalIndex: index,
-              isSubstitute: false
-            })
-
-            // 添加替代物料
-            if (item.substitutionInfo?.substituteMaterials?.length > 0) {
-
-              item.substitutionInfo.substituteMaterials.forEach(sub => {
-                // 计算替代物料的实际出库数量：只替代缺口部分
-                // 缺口 = 需要出库数量 - 现有库存数量
-                const shortage = Math.max(0, item.quantity - (item.stock_quantity || 0));
-                const actualSubstituteQuantity = (sub.requiredQuantity || 1) * shortage;
-
-                expandedItems.push({
-                  material_code: sub.code,
-                  material_name: sub.name,
-                  specification: sub.specification || '',
-                  unit_name: sub.unit,
-                  quantity: actualSubstituteQuantity,
-                  location_name: sub.location_name,
-                  originalIndex: index,
-                  isSubstitute: true
-                })
-              })
-            }
-          })
-
-          // 生成物料表格HTML
-          const itemsHtml = expandedItems.map(item => {
-            const sequenceNumber = item.isSubstitute ? '└' : (item.originalIndex + 1)
-            const materialName = item.isSubstitute ?
-              item.material_name + '<span class="substitute-mark">替代</span>' :
-              item.material_name
-            const rowClass = item.isSubstitute ? ' class="substitute-row"' : ''
-
-            return `
-              <tr${rowClass}>
-                <td>${sequenceNumber}</td>
-                <td>${item.material_code || ''}</td>
-                <td>${materialName || ''}</td>
-                <td>${item.specification || item.specs || ''}</td>
-                <td>${item.unit_name || item.unit || ''}</td>
-                <td>${item.quantity || ''}</td>
-                <td>${item.location_name || ''}</td>
-              </tr>
-            `
-          }).join('')
-
-          // 替换物料列表
-          htmlContent = htmlContent.replace(/\{\{#each items\}\}[\s\S]*?\{\{\/each\}\}/g, itemsHtml)
-        } else {
-          // 使用默认模板
-          htmlContent = generateOutboundPrintHTML(printData.value, formatDate)
-        }
-
-        // 创建打印窗口
-        const printWindow = window.open('', '_blank')
-        writeSafeHtmlDocument(printWindow, htmlContent)
-
-      } catch {
-        // 降级到默认模板
-        const printWindow = window.open('', '_blank')
-        const htmlContent = generateOutboundPrintHTML(printData.value, formatDate)
-        writeSafeHtmlDocument(printWindow, htmlContent)
+        const htmlContent = await printService.generateByDefaultTemplate(
+          'inventory',
+          'production_outbound',
+          buildProductionOutboundPrintData(printData.value)
+        )
+        printService.previewDocument(htmlContent)
+      } catch (error) {
+        console.error('打印生产出库单失败:', error)
+        ElMessage.error(error.message || '打印生产出库单失败')
       }
     }
 
@@ -1860,20 +1737,7 @@ export default {
           }
         })
 
-        if (!bomRes?.data) {
-          throw new Error('获取BOM数据失败')
-        }
-
-        let bomData
-        if (Array.isArray(bomRes.data.data)) {
-          bomData = bomRes.data.data[0]
-        } else if (bomRes.data.data) {
-          bomData = bomRes.data.data
-        } else if (Array.isArray(bomRes.data)) {
-          bomData = bomRes.data[0]
-        } else {
-          bomData = bomRes.data
-        }
+        const [bomData] = parseListData(bomRes)
 
         if (!bomData?.id) {
           throw new Error('未找到对应的BOM信息')
@@ -1887,35 +1751,21 @@ export default {
 
     // 辅助函数：获取BOM明细
     const fetchBomDetails = async (bomData, productId, quantity) => {
-      let details = []
+      try {
+        const materialsRes = await productionApi.calculateMaterials({
+          productId,
+          bomId: bomData.id,
+          quantity
+        })
 
-      if (Array.isArray(bomData.details)) {
-        details = bomData.details
-      } else if (bomData.bom_details) {
-        details = bomData.bom_details
-      } else if (bomData.materials) {
-        details = bomData.materials
-      }
-
-      if (!details || !details.length) {
-        try {
-          const materialsRes = await productionApi.calculateMaterials({
-            productId,
-            bomId: bomData.id,
-            quantity
-          })
-
-          if (Array.isArray(materialsRes.data) && materialsRes.data.length > 0) {
-            details = materialsRes.data
-          } else {
-            throw new Error('该产品的BOM中没有物料明细')
-          }
-        } catch {
-          throw new Error('计算物料需求失败')
+        if (Array.isArray(materialsRes.data) && materialsRes.data.length > 0) {
+          return materialsRes.data
         }
-      }
 
-      return details
+        throw new Error('统一净需求结果为空')
+      } catch {
+        throw new Error('计算物料净需求失败')
+      }
     }
 
     // 处理生产任务变化
@@ -1976,26 +1826,9 @@ export default {
         try {
           // 批量获取物料信息
           const materialInfoRes = await baseDataApi.getMaterialsByIds(materialIds)
-
-          if (!materialInfoRes?.data?.success || !materialInfoRes.data.data) {
+          const materialsInfo = parseListData(materialInfoRes)
+          if (!materialsInfo.length) {
             throw new Error('获取物料信息失败')
-          }
-
-          // 处理不同的响应格式
-          let materialsInfo = []
-          const innerData = materialInfoRes.data.data
-
-          if (Array.isArray(innerData)) {
-            materialsInfo = innerData
-          } else if (innerData.list && Array.isArray(innerData.list)) {
-            materialsInfo = innerData.list
-          } else if (innerData.rows && Array.isArray(innerData.rows)) {
-            materialsInfo = innerData.rows
-          } else if (innerData.items && Array.isArray(innerData.items)) {
-            materialsInfo = innerData.items
-          } else {
-            console.error('无法识别的物料信息响应格式:', innerData)
-            throw new Error('物料信息格式错误')
           }
 
           // 构建批量库存查询参数
@@ -2062,8 +1895,11 @@ export default {
             bomQuantity = detail.unitQuantity
           }
 
-          // 计算实际需要的数量：生产任务数量 * BOM中的单位用量
-          const requiredQuantity = selectedTask.quantity * bomQuantity
+          // 生产出库以统一净需求为准；只有旧格式明细才回退到 BOM 用量换算
+          const requiredQuantity = detail.requiredQuantity ?? detail.required_quantity ?? (selectedTask.quantity * bomQuantity)
+          const issueQuantity = detail.issueQuantity ?? detail.issue_quantity ?? detail.actualQuantity ?? detail.actual_quantity ?? requiredQuantity
+          const shortageQuantity = detail.shortageQuantity ?? detail.shortage_quantity ?? Math.max(0, requiredQuantity - issueQuantity)
+          const grossRequiredQuantity = detail.grossRequiredQuantity ?? detail.gross_required_quantity ?? requiredQuantity
 
           // 获取该物料的库存信息
           const stockKey = materialInfo.location_id ? `${materialId}_${materialInfo.location_id}` : null
@@ -2081,6 +1917,10 @@ export default {
             stock_quantity: stockInfo.stock_quantity,
             // 使用计算后的数量作为出库数量
             quantity: requiredQuantity,
+            planned_quantity: requiredQuantity,
+            actual_quantity: issueQuantity,
+            shortage_quantity: shortageQuantity,
+            gross_required_quantity: grossRequiredQuantity,
             // 确保保存正确的BOM用量
             bom_quantity: bomQuantity,
             // 添加库位信息
@@ -2092,75 +1932,18 @@ export default {
           return materialData
         })
 
-        // 使用智能物料需求分析检查库存状态
-        try {
-          const smartAnalysisRes = await api.post('/production/calculate-materials', {
-            productId: selectedTask.product_id,
-            bomId: bomData.id,
-            quantity: selectedTask.quantity
+        const shortageItems = outboundForm.items.filter(item => Number(item.shortage_quantity || 0) > 0)
+        if (shortageItems.length > 0) {
+          const warningMessages = shortageItems.map(item =>
+            `${item.material_code} - ${item.material_name}: 计划 ${item.planned_quantity}，可发 ${item.actual_quantity}，缺料 ${item.shortage_quantity}`
+          )
+
+          ElMessage({
+            message: `以下物料存在缺料:\n${warningMessages.join('\n')}`,
+            type: 'warning',
+            duration: 8000,
+            showClose: true
           })
-
-          if (smartAnalysisRes.data && Array.isArray(smartAnalysisRes.data)) {
-            const smartMaterials = smartAnalysisRes.data
-
-            // 更新出库单物料的智能分析结果
-            outboundForm.items = outboundForm.items.map(item => {
-              const smartMaterial = smartMaterials.find(sm => sm.materialId == item.material_id)
-              if (smartMaterial) {
-                return {
-                  ...item,
-                  availableQuantity: smartMaterial.availableQuantity || item.stock_quantity,
-                  substitutionInfo: smartMaterial.substitutionInfo
-                }
-              }
-              return item
-            })
-
-            // 检查智能分析结果，分别处理不同状态的物料
-            const problematicItems = smartMaterials.filter(material =>
-              material.stockQuantity < material.requiredQuantity
-            )
-
-            // 显示库存不足的警告
-            if (problematicItems.length > 0) {
-              const warningMessages = problematicItems.map(material => {
-                const materialInfo = outboundForm.items.find(item => item.material_id == material.materialId)
-                const code = materialInfo?.material_code || material.code || material.materialId
-                const name = materialInfo?.material_name || material.name
-                return `${code} - ${name}: 需要 ${material.requiredQuantity}，但库存只有 ${material.stockQuantity}`
-              })
-
-              ElMessage({
-                message: `以下物料库存不足:\n${warningMessages.join('\n')}`,
-                type: 'warning',
-                duration: 8000,
-                showClose: true
-              })
-            }
-
-            // 智能替代提醒已移除 - 信息现在直接显示在表格中
-
-            // 所有物料库存充足，无需替代
-          } else {
-            console.error('智能分析API返回数据格式错误:', smartAnalysisRes.data)
-            throw new Error('API返回数据格式错误')
-          }
-        } catch (smartAnalysisError) {
-          console.error('智能物料分析失败，使用简单库存检查:', smartAnalysisError)
-          // 降级到简单库存检查
-          const insufficientItems = outboundForm.items.filter(item => item.quantity > item.stock_quantity)
-          if (insufficientItems.length > 0) {
-            const warningMessages = insufficientItems.map(item =>
-              `${item.material_code} - ${item.material_name}: 需要 ${item.quantity}，但库存只有 ${item.stock_quantity}`
-            )
-
-            ElMessage({
-              message: `以下物料库存不足:\n${warningMessages.join('\n')}`,
-              type: 'warning',
-              duration: 8000,
-              showClose: true
-            })
-          }
         }
 
       } catch (error) {
@@ -2170,72 +1953,35 @@ export default {
       }
     }
 
-    // 工具函数：构建包含替代物料的展开表格数据（DRY原则，三处共用）
-    const _buildExpandedItems = (items, status) => {
+    // 工具函数：构建真实出库明细表格数据
+    const _buildExpandedItems = (items) => {
       if (!items) return []
-      const result = []
-      items.forEach((item, index) => {
-        result.push({ ...item, originalIndex: index, isSubstitute: false })
-
-        const hasSubs = item.substitutionInfo?.substituteMaterials?.length > 0
-        const needsSubs = (item.stock_quantity || 0) < item.quantity
-        if (hasSubs && needsSubs) {
-          item.substitutionInfo.substituteMaterials.forEach(sub => {
-            let qty
-            if (status === 'completed' && sub.actualOutboundQuantity !== undefined) {
-              qty = sub.actualOutboundQuantity
-            } else {
-              const shortage = Math.max(0, item.quantity - (item.stock_quantity || 0))
-              qty = (sub.requiredQuantity || 1) * shortage
-            }
-            result.push({
-              material_id: sub.materialId,
-              material_code: sub.code,
-              material_name: sub.name,
-              specification: sub.specification || '',
-              unit_name: sub.unit,
-              location_name: sub.location_name,
-              stock_quantity: sub.stockQuantity,
-              quantity: qty,
-              originalIndex: index,
-              isSubstitute: true,
-              parentMaterialId: item.material_id
-            })
-          })
-        }
-      })
-      return result
+      return items.map((item, index) => ({ ...item, originalIndex: index, isSubstitute: false }))
     }
 
     // 计算属性：编辑对话框的展开表格数据
     const expandedTableData = computed(() =>
-      _buildExpandedItems(outboundForm.items, outboundForm.status)
+      _buildExpandedItems(outboundForm.items)
     )
 
     // 计算属性：查看对话框的展开表格数据
     const viewExpandedTableData = computed(() =>
-      _buildExpandedItems(currentOutbound.items, currentOutbound.status)
+      _buildExpandedItems(currentOutbound.items)
     )
 
     // 计算属性：打印预览的展开表格数据
     const printExpandedTableData = computed(() =>
-      _buildExpandedItems(printData.value?.items, printData.value?.status)
+      _buildExpandedItems(printData.value?.items)
     )
 
     // 计算属性：是否有需要替代的物料
     const hasSubstitutionItems = computed(() => {
-      return outboundForm.items.some(item =>
-        item.substitutionInfo?.substituteMaterials?.length > 0 &&
-        (item.stock_quantity || 0) < item.quantity
-      )
+      return false
     })
 
     // 计算属性：需要替代的物料列表
     const substitutionItems = computed(() => {
-      return outboundForm.items.filter(item =>
-        item.substitutionInfo?.substituteMaterials?.length > 0 &&
-        (item.stock_quantity || 0) < item.quantity
-      )
+      return []
     })
 
     // ========== 批量选择相关 ==========
@@ -2309,17 +2055,14 @@ export default {
           items: mergedItems
         }
 
-        // 生成打印HTML
-        const htmlContent = generateOutboundPrintHTML(mergedOutbound, formatDate)
+        const htmlContent = await printService.generateByDefaultTemplate(
+          'inventory',
+          'production_outbound',
+          buildProductionOutboundPrintData(mergedOutbound)
+        )
 
         // 打开打印窗口
-        const printWindow = window.open('', '_blank')
-        writeSafeHtmlDocument(printWindow, htmlContent)
-
-        // 等待内容加载后打印
-        printWindow.onload = () => {
-          printWindow.print()
-        }
+        printService.previewDocument(htmlContent)
 
         ElMessage.success('打印准备完成')
       } catch (error) {

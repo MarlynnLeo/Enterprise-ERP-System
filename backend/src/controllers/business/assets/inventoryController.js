@@ -37,15 +37,12 @@ const inventoryController = {
         try {
             const id = parseInt(req.params.id);
             if (isNaN(id)) {
-                return ResponseHandler.error(res, '无效的盘点单ID', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的盘点单ID', 'VALIDATION_ERROR', 400);
             }
 
             const inventory = await assetInventoryModel.getInventoryById(id);
             if (!inventory) {
-                return res.status(404).json({
-                    success: false,
-                    message: `未找到ID为 ${id} 的盘点单`
-                });
+                return ResponseHandler.error(res, `未找到ID为 ${id} 的盘点单`, 'NOT_FOUND', 404);
             }
 
             return ResponseHandler.success(res, inventory, '获取盘点单详情成功');
@@ -62,7 +59,7 @@ const inventoryController = {
         try {
             const { title, notes } = req.body;
             if (!title) {
-                return ResponseHandler.error(res, '盘点单标题为必填项', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '盘点单标题为必填项', 'VALIDATION_ERROR', 400);
             }
 
             const userId = req.user ? req.user.username : 'system';
@@ -72,7 +69,7 @@ const inventoryController = {
         } catch (error) {
             logger.error('创建盘点单失败:', error);
             if (error.message.includes('存在未完成的盘点单')) {
-                return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
             }
             ResponseHandler.error(res, '创建盘点单失败', 'SERVER_ERROR', 500, error);
         }
@@ -87,16 +84,16 @@ const inventoryController = {
             const itemId = parseInt(req.params.itemId);
 
             if (isNaN(id) || isNaN(itemId)) {
-                return ResponseHandler.error(res, '无效的参数', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的参数', 'VALIDATION_ERROR', 400);
             }
 
             const { actual_quantity, status, notes } = req.body;
             if (actual_quantity === undefined || !status) {
-                return ResponseHandler.error(res, '实盘数量和盘点状态为必填项', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '实盘数量和盘点状态为必填项', 'VALIDATION_ERROR', 400);
             }
 
             if (!INVENTORY_ITEM_STATUS.has(status)) {
-                return ResponseHandler.error(res, '无效的盘点状态', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的盘点状态', 'VALIDATION_ERROR', 400);
             }
 
             await assetInventoryModel.updateInventoryItem(itemId, {
@@ -119,7 +116,7 @@ const inventoryController = {
         try {
             const id = parseInt(req.params.id);
             if (isNaN(id)) {
-                return ResponseHandler.error(res, '无效的盘点单ID', 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, '无效的盘点单ID', 'VALIDATION_ERROR', 400);
             }
 
             const userId = req.user ? req.user.username : 'system';
@@ -129,7 +126,7 @@ const inventoryController = {
         } catch (error) {
             logger.error('盘点完成操作失败:', error);
             if (error.message.includes('存在未确认实盘数量的资产明细')) {
-                return ResponseHandler.error(res, error.message, 'BAD_REQUEST', 400);
+                return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
             }
             ResponseHandler.error(res, '盘点完成操作失败', 'SERVER_ERROR', 500, error);
         }

@@ -211,7 +211,7 @@ export const isResponseSuccess = (response) => {
  * @param {Object} response - API响应对象
  * @param {string} defaultMessage - 默认错误消息
  * @returns {string} 错误消息
- * 
+ *
  * @example
  * const response = await api.create(data);
  * if (!isResponseSuccess(response)) {
@@ -272,7 +272,7 @@ export const parsePaginatedData = (response, options = {}) => {
  * @param {string} options.type - 数据类型 ('list' | 'object' | 'paginated')
  * @param {string} options.logPrefix - 日志前缀
  * @returns {*} 解析后的数据
- * 
+ *
  * @example
  * const response = await api.getData();
  * const data = parseResponse(response, { type: 'list', logPrefix: '📋 数据' });

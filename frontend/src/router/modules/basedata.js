@@ -97,7 +97,7 @@ export default {
             component: () => import('../../views/baseData/ECNManagement.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'basedata:boms'
+                permission: 'basedata:ecn'
             }
         }
     ]

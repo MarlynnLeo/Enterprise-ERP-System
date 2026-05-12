@@ -45,7 +45,7 @@ export const usePurchaseOrder = (options = {}) => {
   const orders = ref([]);
   const currentOrder = ref(null);
   const suppliers = ref([]);
-  
+
   // 搜索表单
   const searchForm = reactive({
     order_no: '',
@@ -53,14 +53,14 @@ export const usePurchaseOrder = (options = {}) => {
     supplier_id: '',
     date_range: []
   });
-  
+
   // 分页信息
   const pagination = reactive({
     current: 1,
     size: pageSize,
     total: 0
   });
-  
+
   // 订单表单
   const orderForm = reactive({
     order_number: '',
@@ -76,17 +76,17 @@ export const usePurchaseOrder = (options = {}) => {
     status: 'draft',
     items: []
   });
-  
+
   // 计算属性
   const formattedOrders = computed(() => formatOrderDataList(orders.value));
-  
+
   const orderTotal = computed(() => calculateOrderTotal(orderForm.items));
-  
+
   const hasSelectedItems = computed(() => orderForm.items && orderForm.items.length > 0);
-  
+
   // 防抖搜索
   const debouncedSearch = debounce(loadOrders, 300);
-  
+
   /**
    * 加载订单列表
    */
@@ -98,13 +98,13 @@ export const usePurchaseOrder = (options = {}) => {
         pageSize: pagination.size,
         ...searchForm
       };
-      
+
       // 处理日期范围
       if (searchForm.date_range && searchForm.date_range.length === 2) {
         params.startDate = searchForm.date_range[0];
         params.endDate = searchForm.date_range[1];
       }
-      
+
       const response = await purchaseApi.getOrders(params);
 
       // 使用统一解析器处理分页数据
@@ -119,7 +119,7 @@ export const usePurchaseOrder = (options = {}) => {
       loading.value = false;
     }
   };
-  
+
   /**
    * 搜索订单
    */
@@ -127,7 +127,7 @@ export const usePurchaseOrder = (options = {}) => {
     pagination.current = 1;
     debouncedSearch();
   };
-  
+
   /**
    * 重置搜索
    */
@@ -141,7 +141,7 @@ export const usePurchaseOrder = (options = {}) => {
     pagination.current = 1;
     loadOrders();
   };
-  
+
   /**
    * 分页改变
    */
@@ -149,7 +149,7 @@ export const usePurchaseOrder = (options = {}) => {
     pagination.current = page;
     loadOrders();
   };
-  
+
   /**
    * 分页大小改变
    */
@@ -158,7 +158,7 @@ export const usePurchaseOrder = (options = {}) => {
     pagination.current = 1;
     loadOrders();
   };
-  
+
   /**
    * 加载供应商列表
    */
@@ -172,7 +172,7 @@ export const usePurchaseOrder = (options = {}) => {
       handleApiError(error, '加载供应商列表');
     }
   };
-  
+
   /**
    * 重置订单表单
    */
@@ -180,7 +180,7 @@ export const usePurchaseOrder = (options = {}) => {
     // 计算三周后的日期
     const threeWeeksLater = new Date();
     threeWeeksLater.setDate(threeWeeksLater.getDate() + 21);
-    
+
     Object.assign(orderForm, {
       order_number: '',
       order_date: new Date().toISOString().split('T')[0],
@@ -196,7 +196,7 @@ export const usePurchaseOrder = (options = {}) => {
       items: []
     });
   };
-  
+
   /**
    * 加载订单详情
    */
@@ -217,7 +217,7 @@ export const usePurchaseOrder = (options = {}) => {
       loading.value = false;
     }
   };
-  
+
   /**
    * 提交订单表单
    */
@@ -228,21 +228,21 @@ export const usePurchaseOrder = (options = {}) => {
       ElMessage.error(validation.errors[0]);
       return { success: false, errors: validation.errors };
     }
-    
+
     loading.value = true;
     try {
       const formData = {
         ...orderForm,
         total_amount: orderTotal.value
       };
-      
+
       let response;
       if (isEdit && currentOrder.value) {
         response = await purchaseApi.updateOrder(currentOrder.value.id, formData);
       } else {
         response = await purchaseApi.createOrder(formData);
       }
-      
+
       if (response.success) {
         ElMessage.success(isEdit ? '订单更新成功' : '订单创建成功');
         loadOrders(); // 重新加载列表
@@ -257,7 +257,7 @@ export const usePurchaseOrder = (options = {}) => {
       loading.value = false;
     }
   };
-  
+
   /**
    * 删除订单
    */
@@ -272,10 +272,10 @@ export const usePurchaseOrder = (options = {}) => {
           type: 'warning'
         }
       );
-      
+
       loading.value = true;
       const response = await purchaseApi.deleteOrder(orderId);
-      
+
       if (response.success) {
         ElMessage.success('订单删除成功');
         loadOrders(); // 重新加载列表
@@ -292,7 +292,7 @@ export const usePurchaseOrder = (options = {}) => {
       loading.value = false;
     }
   };
-  
+
   /**
    * 更新订单状态
    */
@@ -307,10 +307,10 @@ export const usePurchaseOrder = (options = {}) => {
           type: 'warning'
         }
       );
-      
+
       loading.value = true;
       const response = await purchaseApi.updateOrderStatus(orderId, { status: newStatus });
-      
+
       if (response.success) {
         ElMessage.success('状态更新成功');
         loadOrders(); // 重新加载列表
@@ -327,7 +327,7 @@ export const usePurchaseOrder = (options = {}) => {
       loading.value = false;
     }
   };
-  
+
   /**
    * 添加物料到订单
    */
@@ -335,11 +335,11 @@ export const usePurchaseOrder = (options = {}) => {
     const existingIndex = orderForm.items.findIndex(
       item => item.material_id === material.material_id
     );
-    
+
     if (existingIndex >= 0) {
       // 如果物料已存在，累加数量
       orderForm.items[existingIndex].quantity += material.quantity || 1;
-      orderForm.items[existingIndex].total = 
+      orderForm.items[existingIndex].total =
         orderForm.items[existingIndex].quantity * orderForm.items[existingIndex].price;
     } else {
       // 添加新物料
@@ -350,7 +350,7 @@ export const usePurchaseOrder = (options = {}) => {
       });
     }
   };
-  
+
   /**
    * 从订单中移除物料
    */
@@ -359,7 +359,7 @@ export const usePurchaseOrder = (options = {}) => {
       orderForm.items.splice(index, 1);
     }
   };
-  
+
   /**
    * 重新计算订单金额
    */
@@ -368,13 +368,13 @@ export const usePurchaseOrder = (options = {}) => {
       item.total = (item.quantity || 0) * (item.price || 0);
     });
   };
-  
+
   // 初始化
   if (autoLoad) {
     loadOrders();
     loadSuppliers();
   }
-  
+
   return {
     // 响应式数据
     loading,
@@ -384,12 +384,12 @@ export const usePurchaseOrder = (options = {}) => {
     searchForm,
     pagination,
     orderForm,
-    
+
     // 计算属性
     formattedOrders,
     orderTotal,
     hasSelectedItems,
-    
+
     // 方法
     loadOrders,
     searchOrders,
@@ -405,7 +405,7 @@ export const usePurchaseOrder = (options = {}) => {
     addMaterialToOrder,
     removeMaterialFromOrder,
     recalculateOrderTotal,
-    
+
     // 工具方法
     getStatusDisplay,
     getCountdownDisplay,

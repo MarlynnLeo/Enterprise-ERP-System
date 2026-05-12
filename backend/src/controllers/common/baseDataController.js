@@ -51,7 +51,7 @@ const baseDataController = {
   async uploadFile(req, res) {
     try {
       if (!req.file) {
-        return ResponseHandler.error(res, '没有上传文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '没有上传文件', 'VALIDATION_ERROR', 400);
       }
       const fileUrl = `/uploads/${req.file.filename}`;
       ResponseHandler.success(res, { fileUrl, filename: req.file.filename }, '上传成功');
@@ -65,7 +65,7 @@ const baseDataController = {
     try {
       const { filePath } = req.query;
       if (!filePath) {
-        return ResponseHandler.error(res, '文件路径不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '文件路径不能为空', 'VALIDATION_ERROR', 400);
       }
 
       // 安全：只允许从uploads目录下载
@@ -75,7 +75,7 @@ const baseDataController = {
       // 验证解析后的路径是否仍在uploads目录
       if (!absolutePath.startsWith(uploadsDir + path.sep)) {
         logger.warn('检测到路径穿越尝试:', { filePath, resolvedPath: absolutePath });
-        return ResponseHandler.error(res, '文件路径无效', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '文件路径无效', 'VALIDATION_ERROR', 400);
       }
 
       res.download(absolutePath);
@@ -127,7 +127,7 @@ const baseDataController = {
   async importCategories(req, res) {
     try {
       if (!req.file) {
-        return ResponseHandler.error(res, '请上传Excel文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请上传Excel文件', 'VALIDATION_ERROR', 400);
       }
 
       const ImportExportService = require('../../services/importExportService');
@@ -147,7 +147,7 @@ const baseDataController = {
   async importCategoriesJson(req, res) {
     try {
       if (!req.body || !Array.isArray(req.body)) {
-        return ResponseHandler.error(res, '无效的数据格式', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的数据格式', 'VALIDATION_ERROR', 400);
       }
 
       const successList = [];
@@ -260,20 +260,20 @@ const baseDataController = {
     try {
       const { ids } = req.body;
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        return ResponseHandler.error(res, '请提供有效的物料ID数组', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供有效的物料ID数组', 'VALIDATION_ERROR', 400);
       }
       if (ids.length > 100) {
-        return ResponseHandler.error(res, '批量查询数量不能超过100条', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '批量查询数量不能超过100条', 'VALIDATION_ERROR', 400);
       }
 
       // ✅ 批量查询替代 N 次循环调用
       const { pool: dbPool } = require('../../config/db');
       const placeholders = ids.map(() => '?').join(',');
       const [materials] = await dbPool.query(
-        `SELECT m.*, c.name as category_name, u.name as unit_name 
-         FROM materials m 
-         LEFT JOIN categories c ON m.category_id = c.id 
-         LEFT JOIN units u ON m.unit_id = u.id 
+        `SELECT m.*, c.name as category_name, u.name as unit_name
+         FROM materials m
+         LEFT JOIN categories c ON m.category_id = c.id
+         LEFT JOIN units u ON m.unit_id = u.id
          WHERE m.id IN (${placeholders})`,
         ids
       );
@@ -354,7 +354,7 @@ const baseDataController = {
     try {
       const { prefix } = req.query;
       if (!prefix) {
-        return ResponseHandler.error(res, '前缀不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '前缀不能为空', 'VALIDATION_ERROR', 400);
       }
       const nextSequence = await materialService.getNextMaterialSequence(prefix);
       ResponseHandler.success(res, { nextSequence }, '获取下一个编码成功');
@@ -371,13 +371,13 @@ const baseDataController = {
 
       // ✅ 合并 4 次 SQL 为 1 次条件聚合查询
       const [result] = await dbPool.query(`
-        SELECT 
+        SELECT
           COUNT(*) as total,
           SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
           SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as inactive,
           SUM(CASE WHEN min_stock > 0 AND min_stock >= (
-            SELECT IFNULL(SUM(il.quantity), 0) FROM inventory_ledger il 
-            WHERE il.material_id = materials.id 
+            SELECT IFNULL(SUM(il.quantity), 0) FROM inventory_ledger il
+            WHERE il.material_id = materials.id
             AND (materials.location_id IS NULL OR il.location_id = materials.location_id)
           ) THEN 1 ELSE 0 END) as lowStock
         FROM materials
@@ -397,12 +397,12 @@ const baseDataController = {
 
       // 统计：「已审核」基于 approved_by 字段（非 status），与前端 UI 对齐
       const [bomResult] = await dbPool.query(`
-        SELECT 
+        SELECT
           COUNT(*) as total,
           SUM(CASE WHEN approved_by IS NOT NULL THEN 1 ELSE 0 END) as active,
           SUM(CASE WHEN approved_by IS NULL THEN 1 ELSE 0 END) as inactive,
           (SELECT COUNT(*) FROM bom_details) as detailsCount,
-          (SELECT COALESCE(SUM(sc.standard_price), 0) FROM standard_costs sc 
+          (SELECT COALESCE(SUM(sc.standard_price), 0) FROM standard_costs sc
            JOIN bom_masters bm ON sc.product_id = bm.product_id WHERE bm.status != 2) as totalCost
         FROM bom_masters
         WHERE status != 2 AND deleted_at IS NULL
@@ -542,7 +542,7 @@ const baseDataController = {
   async importMaterials(req, res) {
     try {
       if (!req.file) {
-        return ResponseHandler.error(res, '请上传Excel文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请上传Excel文件', 'VALIDATION_ERROR', 400);
       }
 
       const ExcelHelper = require('../../utils/excelHelper');
@@ -551,7 +551,7 @@ const baseDataController = {
       const data = await ExcelHelper.readExcel(req.file.buffer);
 
       if (!data || data.length === 0) {
-        return ResponseHandler.error(res, 'Excel文件中没有数据', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, 'Excel文件中没有数据', 'VALIDATION_ERROR', 400);
       }
 
       const successList = [];
@@ -714,11 +714,11 @@ const baseDataController = {
     try {
 
       if (!req.body || !Array.isArray(req.body)) {
-        return ResponseHandler.error(res, '无效的数据格式，应该是数据', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的数据格式，应该是数据', 'VALIDATION_ERROR', 400);
       }
 
       if (req.body.length === 0) {
-        return ResponseHandler.error(res, '没有可导入的数据', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '没有可导入的数据', 'VALIDATION_ERROR', 400);
       }
 
       const successList = [];
@@ -940,7 +940,7 @@ const baseDataController = {
       const result = await materialService.getAllMaterials(1, 100000, filters);
 
       if (!result.data || result.data.length === 0) {
-        return ResponseHandler.error(res, '没有可导出的数据', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '没有可导出的数据', 'VALIDATION_ERROR', 400);
       }
 
       const ExcelHelper = require('../../utils/excelHelper');
@@ -1142,7 +1142,7 @@ const baseDataController = {
   async importBoms(req, res) {
     try {
       if (!req.file) {
-        return ResponseHandler.error(res, '请上传Excel文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请上传Excel文件', 'VALIDATION_ERROR', 400);
       }
 
       const ImportExportService = require('../../services/importExportService');
@@ -1184,7 +1184,7 @@ const baseDataController = {
       const materialCode = req.params.partCode || req.body.materialCode;
 
       if (!materialCode) {
-        return ResponseHandler.error(res, '物料编码不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料编码不能为空', 'VALIDATION_ERROR', 400);
       }
 
       // 查询该物料在哪些BOM中被使用
@@ -1223,7 +1223,7 @@ const baseDataController = {
       const { pool } = require('../../config/db');
       const bomId = parseInt(req.params.id, 10);
       if (!Number.isInteger(bomId) || bomId <= 0) {
-        return ResponseHandler.error(res, '无效的BOM ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的BOM ID', 'VALIDATION_ERROR', 400);
       }
 
       // 审核BOM：同步设置 status=1 + approved_at + approved_by（INT字段，存用户ID）
@@ -1262,7 +1262,7 @@ const baseDataController = {
       const { pool } = require('../../config/db');
       const bomId = parseInt(req.params.id, 10);
       if (!Number.isInteger(bomId) || bomId <= 0) {
-        return ResponseHandler.error(res, '无效的BOM ID', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '无效的BOM ID', 'VALIDATION_ERROR', 400);
       }
 
       // 反审前获取产品ID用于后处理
@@ -1445,7 +1445,7 @@ const baseDataController = {
   async importSuppliers(req, res) {
     try {
       if (!req.file) {
-        return ResponseHandler.error(res, '请上传Excel文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请上传Excel文件', 'VALIDATION_ERROR', 400);
       }
 
       const ImportExportService = require('../../services/importExportService');
@@ -1544,7 +1544,7 @@ const baseDataController = {
   async importCustomers(req, res) {
     try {
       if (!req.file) {
-        return ResponseHandler.error(res, '请上传Excel文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请上传Excel文件', 'VALIDATION_ERROR', 400);
       }
 
       const ImportExportService = require('../../services/importExportService');
@@ -1629,7 +1629,7 @@ const baseDataController = {
     try {
       const { name } = req.body;
       if (!name) {
-        return ResponseHandler.error(res, '模板名称不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '模板名称不能为空', 'VALIDATION_ERROR', 400);
       }
       const result = await processTemplateService.create(req.body);
       ResponseHandler.success(res, result, '创建工序模板成功', 201);
@@ -1743,7 +1743,7 @@ const baseDataController = {
     try {
       const { id } = req.params;
       if (!req.file) {
-        return ResponseHandler.error(res, '没有上传文件', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '没有上传文件', 'VALIDATION_ERROR', 400);
       }
 
       const attachmentData = {
@@ -1839,7 +1839,7 @@ const baseDataController = {
       const { productId, materialId } = req.query;
 
       if (!productId || !materialId) {
-        return ResponseHandler.error(res, '缺少必要参数', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '缺少必要参数', 'VALIDATION_ERROR', 400);
       }
 
       const BomExplosionService = require('../../services/BomExplosionService');

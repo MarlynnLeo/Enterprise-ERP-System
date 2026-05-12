@@ -78,9 +78,9 @@ function handleKeyDown(event) {
 // 监听全屏状态变化
 function handleFullScreenChange() {
   isFullScreen.value = !!(
-    document.fullscreenElement || 
+    document.fullscreenElement ||
     document.mozFullScreenElement ||
-    document.webkitFullscreenElement || 
+    document.webkitFullscreenElement ||
     document.msFullscreenElement
   );
 }
@@ -90,7 +90,7 @@ onMounted(() => {
   document.addEventListener('mozfullscreenchange', handleFullScreenChange);
   document.addEventListener('webkitfullscreenchange', handleFullScreenChange);
   document.addEventListener('MSFullscreenChange', handleFullScreenChange);
-  
+
   // 添加键盘事件监听
   window.addEventListener('keydown', handleKeyDown);
 });
@@ -100,7 +100,7 @@ onUnmounted(() => {
   document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
   document.removeEventListener('webkitfullscreenchange', handleFullScreenChange);
   document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
-  
+
   // 移除键盘事件监听
   window.removeEventListener('keydown', handleKeyDown);
 });
@@ -142,4 +142,4 @@ onUnmounted(() => {
 .finance-container {
   padding: 0;
 }
-</style> 
+</style>

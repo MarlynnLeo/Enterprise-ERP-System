@@ -45,7 +45,7 @@
                 </el-button>
               </template>
             </el-popconfirm>
-            
+
             <el-popconfirm
               v-if="canUpdate && String(scope.row.status) === '1'"
               title="确定要禁用该物料吗？"
@@ -77,7 +77,7 @@
             >
               <el-icon><Edit /></el-icon> 编辑
             </el-button>
-            
+
             <el-popconfirm
               v-if="canDelete && String(scope.row.status) !== '1'"
               title="确定要删除该物料吗？此操作无法恢复。"

@@ -9,6 +9,7 @@
 import { ref, reactive, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { DateFormatter, NumberFormatter } from '@/utils/commonHelpers';
+import printService from '@/services/printService';
 
 /**
  * 账龄分析报表通用逻辑
@@ -50,7 +51,7 @@ export function useAgingReport(options = {}) {
   });
 
   // ==================== 计算属性 ====================
-  
+
   // 安全的数据访问器
   const safeTableData = computed(() => {
     const data = tableData.value;
@@ -87,7 +88,7 @@ export function useAgingReport(options = {}) {
   });
 
   // ==================== 格式化函数 ====================
-  
+
   /**
    * 格式化货币
    */
@@ -100,9 +101,9 @@ export function useAgingReport(options = {}) {
    */
   const formatAmount = (amount) => {
     if (amount === undefined || amount === null) return '0.00';
-    return amount.toLocaleString('zh-CN', { 
-      minimumFractionDigits: 2, 
-      maximumFractionDigits: 2 
+    return amount.toLocaleString('zh-CN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
   };
 
@@ -122,7 +123,7 @@ export function useAgingReport(options = {}) {
   };
 
   // ==================== 业务逻辑 ====================
-  
+
   /**
    * 生成报表
    */
@@ -139,7 +140,7 @@ export function useAgingReport(options = {}) {
 
     loading.value = true;
     tableData.value = [];
-    
+
     // 重置摘要数据
     Object.keys(summaryData).forEach(key => {
       summaryData[key] = 0;
@@ -153,18 +154,18 @@ export function useAgingReport(options = {}) {
       };
 
       const response = await fetchDataApi(params);
-      
+
       if (response && response.data) {
         const data = response.data;
-        
+
         // 设置表格数据
         tableData.value = Array.isArray(data.details) ? data.details : [];
-        
+
         // 设置摘要数据
         if (data.summary) {
           Object.assign(summaryData, data.summary);
         }
-        
+
         ElMessage.success('报表生成成功');
       } else {
         ElMessage.warning('未获取到数据');
@@ -188,14 +189,14 @@ export function useAgingReport(options = {}) {
 
     selectedEntity.value = row;
     detailsDialogVisible.value = true;
-    
+
     try {
       const entityId = reportType === 'ap' ? row.supplier_id : row.customer_id;
       const response = await fetchDetailsApi({
         entityId,
         reportDate: searchForm.reportDate
       });
-      
+
       if (response && response.data) {
         detailsList.value = Array.isArray(response.data) ? response.data : [];
       }
@@ -256,13 +257,50 @@ export function useAgingReport(options = {}) {
   /**
    * 打印报表
    */
-  const printReport = () => {
+  const printReport = async () => {
     if (!hasData.value) {
       ElMessage.warning('没有可打印的数据');
       return;
     }
-    
-    window.print();
+
+    try {
+      const isAp = reportType === 'ap';
+      const templateType = isAp ? 'ap_aging' : 'ar_aging';
+      const entityLabel = isAp ? '供应商' : '客户';
+      const html = await printService.generateByDefaultTemplate('finance', templateType, {
+        report_date: formatDate(searchForm.reportDate),
+        entity_label: entityLabel,
+        total_amount: formatCurrency(summaryData.totalAmount),
+        current_amount: isAp ? '' : formatCurrency(summaryData.currentAmount),
+        within_30_days: formatCurrency(summaryData.within30Days),
+        days_31_to_60: formatCurrency(summaryData.days31to60),
+        days_61_to_90: formatCurrency(summaryData.days61to90),
+        over_90_days: formatCurrency(summaryData.over90Days),
+        print_time: DateFormatter.toDateTime(new Date()),
+        items: safeTableData.value.map((row, index) => ({
+          index: index + 1,
+          entity_name: row[entityNameField.value] || row.entityName || '',
+          entity_type: row[entityTypeField.value] || row.entityType || '',
+          total_amount: formatCurrency(row.totalAmount ?? row.total_amount ?? 0),
+          current_amount: isAp ? '' : formatCurrency(row.currentAmount ?? row.current_amount ?? 0),
+          within_30_days: formatCurrency(row.within30Days ?? row.within_30_days ?? 0),
+          days_31_to_60: formatCurrency(row.days31to60 ?? row.days_31_to_60 ?? 0),
+          days_61_to_90: formatCurrency(row.days61to90 ?? row.days_61_to_90 ?? 0),
+          over_90_days: formatCurrency(row.over90Days ?? row.over_90_days ?? 0),
+          overdue_ratio: calculatePercent(
+            (row.days31to60 ?? row.days_31_to_60 ?? 0) + (row.days61to90 ?? row.days_61_to_90 ?? 0) + (row.over90Days ?? row.over_90_days ?? 0),
+            row.totalAmount ?? row.total_amount ?? 0
+          ) + '%',
+          contact_person: row.contactPerson || row.contact_person || '',
+          contact_phone: row.contactPhone || row.contact_phone || ''
+        }))
+      });
+      printService.previewDocument(html);
+      ElMessage.success('打印预览已打开');
+    } catch (error) {
+      console.error('[打印账龄报表错误]:', error);
+      ElMessage.error('打印报表失败');
+    }
   };
 
   /**
@@ -290,18 +328,18 @@ export function useAgingReport(options = {}) {
     detailsDialogVisible,
     selectedEntity,
     detailsList,
-    
+
     // 计算属性
     reportTitle,
     entityNameField,
     entityTypeField,
-    
+
     // 格式化函数
     formatCurrency,
     formatAmount,
     calculatePercent,
     formatDate,
-    
+
     // 业务方法
     generateReport,
     viewDetails,

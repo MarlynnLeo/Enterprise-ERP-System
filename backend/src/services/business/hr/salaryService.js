@@ -48,7 +48,7 @@ class SalaryService {
       // 2. 清理当月未审批的旧账单（防止重复累加，幂等性）
       // [修复 B3] 删除所有非 approved 的记录，而非只删 draft
       await connection.query(`
-        DELETE FROM hr_salary_records 
+        DELETE FROM hr_salary_records
         WHERE period = ? AND status != 'approved'
       `, [period]);
 

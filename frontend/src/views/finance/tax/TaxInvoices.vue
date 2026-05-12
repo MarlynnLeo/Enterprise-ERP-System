@@ -22,7 +22,7 @@
             <el-option label="销项" value="销项" />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="发票状态">
           <el-select v-model="searchForm.status" placeholder="请选择" clearable>
             <el-option label="未认证" value="未认证" />
@@ -31,7 +31,7 @@
             <el-option label="已作废" value="已作废" />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="开票日期">
           <el-date-picker
             v-model="dateRange"
@@ -43,11 +43,11 @@
 
           />
         </el-form-item>
-        
+
         <el-form-item label="发票号码">
           <el-input v-model="searchForm.invoice_number" placeholder="请输入发票号码" clearable />
         </el-form-item>
-        
+
         <el-form-item>
           <el-button type="primary" @click="handleSearch" :icon="Search">查询</el-button>
           <el-button @click="handleReset" :icon="Refresh">重置</el-button>
@@ -182,40 +182,40 @@
                   <el-dropdown-item command="view" :icon="View">查看详情</el-dropdown-item>
                   <el-dropdown-item
                     v-permission="'finance:tax:update'"
-                    v-if="row.status === '未认证'" 
-                    command="certify" 
+                    v-if="row.status === '未认证'"
+                    command="certify"
                     :icon="Check"
                   >认证发票</el-dropdown-item>
                   <el-dropdown-item
                     v-permission="'finance:tax:update'"
-                    v-if="row.status === '已认证' && row.invoice_type === '进项'" 
-                    command="deduct" 
+                    v-if="row.status === '已认证' && row.invoice_type === '进项'"
+                    command="deduct"
                     :icon="Discount"
                   >抵扣发票</el-dropdown-item>
                   <el-dropdown-item
                     v-permission="'finance:tax:update'"
-                    v-if="row.status === '未认证'" 
-                    command="void" 
+                    v-if="row.status === '未认证'"
+                    command="void"
                     :icon="Delete"
                     divided
                   >作废发票</el-dropdown-item>
                   <el-dropdown-item
                     v-permission="'finance:tax:update'"
-                    v-if="row.status === '未认证' && !row.gl_entry_id" 
-                    command="editNumber" 
+                    v-if="row.status === '未认证' && !row.gl_entry_id"
+                    command="editNumber"
                     :icon="EditPen"
                     divided
                   >编辑发票号</el-dropdown-item>
                   <el-dropdown-item
                     v-permission="'finance:tax:update'"
                     v-if="canChangeDocumentLink(row) && !row.linked_document_number"
-                    command="link" 
+                    command="link"
                     :icon="Link"
                   >关联AP/AR单据</el-dropdown-item>
                   <el-dropdown-item
                     v-permission="'finance:tax:update'"
                     v-if="canChangeDocumentLink(row) && row.linked_document_number"
-                    command="unlink" 
+                    command="unlink"
                     :icon="Unlink"
                   >取消关联</el-dropdown-item>
                 </el-dropdown-menu>
@@ -348,9 +348,9 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="不含税金额" prop="amount_excluding_tax">
-              <el-input-number 
-                v-model="createForm.amount_excluding_tax" 
-                :precision="2" 
+              <el-input-number
+                v-model="createForm.amount_excluding_tax"
+                :precision="2"
                 :min="0"
                 :controls="false"
                 style="width: 100%"
@@ -372,8 +372,8 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="税额">
-              <el-input-number 
-                v-model="createForm.tax_amount" 
+              <el-input-number
+                v-model="createForm.tax_amount"
                 :precision="2"
                 :controls="false"
                 disabled
@@ -383,8 +383,8 @@
           </el-col>
         </el-row>
         <el-form-item label="价税合计">
-          <el-input-number 
-            v-model="createForm.total_amount" 
+          <el-input-number
+            v-model="createForm.total_amount"
             :precision="2"
             :controls="false"
             disabled
@@ -416,17 +416,17 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="搜索单据">
-          <el-input 
-            v-model="linkForm.keyword" 
-            placeholder="输入发票号或供应商/客户名搜索" 
+          <el-input
+            v-model="linkForm.keyword"
+            placeholder="输入发票号或供应商/客户名搜索"
             clearable
             @input="debounceSearchDocuments"
             style="margin-bottom: 12px"
           />
-          <el-table 
-            :data="availableDocuments" 
-            v-loading="linkLoading" 
-            border 
+          <el-table
+            :data="availableDocuments"
+            v-loading="linkLoading"
+            border
             stripe
             max-height="300"
             @row-click="selectLinkDocument"
@@ -459,17 +459,17 @@
 
     <!-- 编辑发票号对话框 -->
     <el-dialog v-model="editNumberDialogVisible" title="编辑发票号码" width="480px" destroy-on-close>
-      <el-alert 
-        title="请输入供应商/客户提供的真实增值税发票号码" 
-        type="info" 
-        :closable="false" 
-        show-icon 
+      <el-alert
+        title="请输入供应商/客户提供的真实增值税发票号码"
+        type="info"
+        :closable="false"
+        show-icon
         style="margin-bottom: 16px"
       />
       <el-form label-width="80px">
         <el-form-item label="发票号码">
-          <el-input  
-            v-model="editNumberForm.invoice_number" 
+          <el-input
+            v-model="editNumberForm.invoice_number"
             placeholder="请输入真实发票号码"
             clearable
             maxlength="100"
@@ -622,7 +622,7 @@ const loadData = async () => {
 
     const response = await api.get('/finance/tax/invoices', { params });
     const data = response.data;
-    
+
     if (Array.isArray(data)) {
       tableData.value = data;
       pagination.total = data.length;
@@ -696,9 +696,9 @@ const submitCreate = async () => {
   try {
     await createFormRef.value.validate();
     submitting.value = true;
-    
+
     await api.post('/finance/tax/invoices', createForm);
-    
+
     ElMessage.success('发票创建成功');
     createDialogVisible.value = false;
     loadData();

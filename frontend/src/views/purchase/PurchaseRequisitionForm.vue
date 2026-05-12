@@ -13,19 +13,19 @@
       <div>
         <el-button @click="goBack">返回</el-button>
         <el-button v-permission="'purchase:requisitions:update'" type="primary" @click="saveRequisition" :loading="saveLoading">保存</el-button>
-        <el-button v-permission="'purchase:requisitions:update'" 
-          v-if="isEdit && requisitionForm.status === 'draft'" 
-          type="success" 
+        <el-button v-permission="'purchase:requisitions:update'"
+          v-if="isEdit && requisitionForm.status === 'draft'"
+          type="success"
           @click="submitRequisition"
         >提交审批</el-button>
       </div>
     </div>
-    
+
     <el-card class="data-card">
-      <el-form 
-        ref="requisitionFormRef" 
-        :model="requisitionForm" 
-        :rules="requisitionRules" 
+      <el-form
+        ref="requisitionFormRef"
+        :model="requisitionForm"
+        :rules="requisitionRules"
         label-width="120px"
         :disabled="formDisabled"
       >
@@ -59,14 +59,14 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <!-- 物料列表 -->
         <el-divider content-position="left">物料列表</el-divider>
-        
+
         <div class="material-list-header">
           <el-button v-permission="'purchase:requisitions:create'" type="primary" @click="openMaterialDialog">添加物料</el-button>
         </div>
-        
+
         <el-table :data="requisitionForm.items" border style="width: 100%; margin-top: 15px;">
           <el-table-column label="序号" type="index" width="60" align="center"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" width="120" show-overflow-tooltip></el-table-column>
@@ -91,7 +91,7 @@
                 link
                 class="delete-text-btn"
                 @click="removeItem(scope.$index)"
-              
+
               v-permission="'purchase:requisitions'">
                 删除
               </el-button>
@@ -100,7 +100,7 @@
         </el-table>
       </el-form>
     </el-card>
-    
+
     <!-- 物料选择对话框 -->
     <el-dialog
       title="选择物料"
@@ -108,7 +108,7 @@
       width="70%"
     >
       <div class="material-search">
-        <el-input 
+        <el-input
           v-model="materialSearchKeyword"
           placeholder="输入物料编码或名称搜索"
           clearable
@@ -118,7 +118,7 @@
           </template>
         </el-input>
       </div>
-      
+
       <el-table
         :data="materialList"
         border
@@ -142,7 +142,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <div class="pagination-container">
         <el-pagination
           @size-change="handleSizeChange"
@@ -155,7 +155,7 @@
         >
         </el-pagination>
       </div>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="materialDialogVisible = false">取消</el-button>
@@ -223,7 +223,7 @@ const searchMaterials = async () => {
       limit: materialPagination.size,
       keyword: materialSearchKeyword.value
     };
-    
+
     const res = await materialApi.getMaterials(params);
     if (res.data && res.data.list) {
       materialList.value = res.data.list.map(item => ({
@@ -266,12 +266,12 @@ const confirmMaterialSelection = () => {
     ElMessage.warning('请至少选择一个物料');
     return;
   }
-  
+
   // 添加选中的物料到表单
   selectedMaterials.value.forEach(material => {
     // 检查是否已存在相同物料
     const existingIndex = requisitionForm.items.findIndex(item => item.material_id === material.id);
-    
+
     if (existingIndex >= 0) {
       // 如果已存在，增加数量
       requisitionForm.items[existingIndex].quantity += material.quantity;
@@ -288,7 +288,7 @@ const confirmMaterialSelection = () => {
       });
     }
   });
-  
+
   materialDialogVisible.value = false;
   ElMessage.success('物料添加成功');
 };
@@ -323,16 +323,16 @@ const saveRequisition = async () => {
     ElMessage.warning('请至少添加一个物料');
     return;
   }
-  
+
   try {
     saveLoading.value = true;
     await requisitionFormRef.value.validate();
-    
+
     const formDataToSubmit = {
       ...requisitionForm,
       status: requisitionForm.status || 'draft' // 保持原状态或默认草稿
     };
-    
+
     if (route.params.id) {
       // 更新
       await purchaseApi.updateRequisition(route.params.id, formDataToSubmit);
@@ -342,7 +342,7 @@ const saveRequisition = async () => {
       await purchaseApi.createRequisition(formDataToSubmit);
       ElMessage.success('采购申请创建成功');
     }
-    
+
     router.push('/purchase/requisitions');
   } catch (error) {
     console.error('保存失败:', error);
@@ -358,16 +358,16 @@ const submitRequisition = async () => {
     ElMessage.warning('请至少添加一个物料');
     return;
   }
-  
+
   try {
     saveLoading.value = true;
     await requisitionFormRef.value.validate();
-    
+
     const formDataToSubmit = {
       ...requisitionForm,
       status: 'submitted' // 提交审批状态
     };
-    
+
     await purchaseApi.updateRequisition(route.params.id, formDataToSubmit);
     ElMessage.success('已提交审批');
     router.push('/purchase/requisitions');

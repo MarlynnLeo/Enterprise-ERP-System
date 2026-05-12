@@ -18,7 +18,7 @@ class CostCenterService {
   static async getAll(filters = {}) {
     try {
       let sql = `
-                SELECT 
+                SELECT
                     cc.*,
                     d.name as department_name,
                     d.code as department_code,
@@ -85,7 +85,7 @@ class CostCenterService {
     try {
       const [rows] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     cc.*,
                     pcc.name as parent_name
                 FROM cost_centers cc
@@ -102,7 +102,7 @@ class CostCenterService {
       // 获取关联的成本汇总
       const [costSummary] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     SUM(pt.material_cost) as total_material_cost,
                     SUM(pt.labor_cost) as total_labor_cost,
                     SUM(pt.overhead_cost) as total_overhead_cost,
@@ -258,7 +258,7 @@ class CostCenterService {
   static async getCostReport(filters = {}) {
     try {
       let sql = `
-                SELECT 
+                SELECT
                     cc.id,
                     cc.code,
                     cc.name,
@@ -344,22 +344,22 @@ class CostCenterService {
 
       const [rows] = await db.pool.execute(
         `
-                SELECT 
+                SELECT
                     pt.id,
                     pt.code as task_code,
                     m.name as product_name,
                     cc.name as cost_center_name,
                     pt.quantity,
                     COALESCE(
-                        (SELECT SUM(ptd.standard_hours) 
-                         FROM process_templates pt2 
-                         JOIN process_template_details ptd ON pt2.id = ptd.template_id 
+                        (SELECT SUM(ptd.standard_hours)
+                         FROM process_templates pt2
+                         JOIN process_template_details ptd ON pt2.id = ptd.template_id
                          WHERE pt2.product_id = pt.product_id AND pt2.status = 1),
                         0
                     ) * pt.quantity as standard_hours,
                     COALESCE(
                         (SELECT SUM(TIMESTAMPDIFF(MINUTE, pp.actual_start_time, pp.actual_end_time) / 60)
-                         FROM production_processes pp 
+                         FROM production_processes pp
                          WHERE pp.task_id = pt.id AND pp.actual_end_time IS NOT NULL),
                         0
                     ) as actual_hours

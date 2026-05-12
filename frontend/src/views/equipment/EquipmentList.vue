@@ -17,12 +17,12 @@
         </div>
         <div class="header-actions">
           <el-button type="success" :icon="Download" @click="downloadTemplate">下载模板</el-button>
-          <el-button type="warning" :icon="Upload" @click="showImportDialog" v-permission="'equipment:list:import'">批量导入</el-button>
-          <el-button type="primary" :icon="Plus" @click="openDialog(false)" v-permission="'equipment:list:create'">添加设备</el-button>
+          <el-button type="warning" :icon="Upload" @click="showImportDialog" v-permission="'production:equipment:create'">批量导入</el-button>
+          <el-button type="primary" :icon="Plus" @click="openDialog(false)" v-permission="'production:equipment:create'">添加设备</el-button>
         </div>
       </div>
     </el-card>
-    
+
     <!-- 搜索区域 -->
     <el-card class="search-card">
       <el-form :inline="true" class="search-form" :model="searchForm">
@@ -46,7 +46,7 @@
         </el-form-item>
       </el-form>
     </el-card>
-    
+
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -70,7 +70,7 @@
         <div class="stat-label">已报废</div>
       </el-card>
     </div>
-    
+
     <!-- 表格区域 -->
     <el-card class="data-card">
       <el-table
@@ -113,9 +113,9 @@
         <el-table-column label="操作" min-width="200" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="viewEquipment(scope.row)">查看</el-button>
-            <el-button 
-              size="small" 
-              type="primary" 
+            <el-button
+              size="small"
+              type="primary"
               @click="openDialog(true, scope.row)"
               v-permission="'production:equipment:update'">
               编辑
@@ -127,9 +127,9 @@
               v-if="canDelete"
             >
               <template #reference>
-                <el-button 
-                  size="small" 
-                  type="danger" 
+                <el-button
+                  size="small"
+                  type="danger"
                   v-permission="'production:equipment:delete'">
                   删除
                 </el-button>
@@ -138,7 +138,7 @@
           </template>
         </el-table-column>
       </el-table>
-      
+
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
@@ -155,7 +155,7 @@
         />
       </div>
     </el-card>
-    
+
     <!-- 添加/编辑设备对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -182,7 +182,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="型号" prop="model">
@@ -195,7 +195,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="购买日期" prop="purchase_date">
@@ -218,7 +218,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="下次检验日期" prop="next_inspection_date">
@@ -234,7 +234,7 @@
 
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="设备位置" prop="location">
@@ -245,7 +245,7 @@
 
           </el-col>
         </el-row>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="责任人" prop="responsible_person">
@@ -263,11 +263,11 @@
             </el-form-item>
           </el-col>
         </el-row>
-        
+
         <el-form-item label="设备规格" prop="specs">
           <el-input v-model="form.specs" type="textarea" :rows="3" placeholder="请输入设备规格"></el-input>
         </el-form-item>
-        
+
         <el-form-item label="备注" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入备注"></el-input>
         </el-form-item>
@@ -279,7 +279,7 @@
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 查看设备详情对话框 -->
     <el-dialog
       v-model="viewDialogVisible"
@@ -305,7 +305,7 @@
         <el-descriptions-item label="设备规格" :span="2">{{ currentEquipment.specs }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ currentEquipment.description }}</el-descriptions-item>
       </el-descriptions>
-      
+
       <el-tabs v-model="activeTab" class="detail-tabs">
         <el-tab-pane label="维护记录" name="maintenance">
           <el-empty v-if="!currentEquipment.maintenanceRecords || currentEquipment.maintenanceRecords.length === 0" description="暂无维护记录" />
@@ -461,7 +461,7 @@ import { useAuthStore } from '@/stores/auth'
 const authStore = useAuthStore()
 
 // 权限计算属性（修复：之前未定义导致运行时 TypeError）
-const canDelete = computed(() => authStore.hasPermission('equipment:list:delete'));
+const canDelete = computed(() => authStore.hasPermission('production:equipment:delete'));
 
 // 数据加载状态
 const loading = ref(false)
@@ -588,7 +588,7 @@ const resetSearch = () => {
 const openDialog = (edit, row) => {
   isEdit.value = edit
   dialogTitle.value = edit ? '编辑设备' : '新增设备'
-  
+
   if (edit && row) {
     Object.keys(form).forEach(key => {
       form[key] = row[key] !== undefined ? row[key] : ''
@@ -598,14 +598,14 @@ const openDialog = (edit, row) => {
       form[key] = key === 'status' ? 'normal' : ''
     })
   }
-  
+
   dialogVisible.value = true
 }
 
 // 提交表单
 const submitForm = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       try {
@@ -1064,4 +1064,4 @@ const downloadTemplate = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

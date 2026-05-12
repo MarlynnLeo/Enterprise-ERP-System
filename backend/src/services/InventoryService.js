@@ -329,7 +329,7 @@ class InventoryService {
         await connection.execute(
           `INSERT INTO inventory_ledger (
             material_id, location_id, transaction_type, transaction_no, reference_no, reference_type,
-            quantity, before_quantity, after_quantity, unit_id, 
+            quantity, before_quantity, after_quantity, unit_id,
             batch_number, supplier_id, supplier_name, production_date, expiry_date, warehouse_name,
             operator, remark, issue_reason, is_excess, bom_required_qty, total_issued_qty, created_at,
             unit_cost, total_value, purchase_order_id, purchase_order_no, receipt_id, receipt_no
@@ -494,7 +494,7 @@ class InventoryService {
     const [outLedger] = await connection.execute(
       `SELECT batch_number, ABS(quantity) as qty
        FROM inventory_ledger
-       WHERE material_id = ? AND location_id = ? 
+       WHERE material_id = ? AND location_id = ?
          AND reference_no = ? AND transaction_type = 'transfer_out'
          AND batch_number IS NOT NULL AND batch_number != ''
        ORDER BY id ASC`,
@@ -708,8 +708,8 @@ class InventoryService {
 
     try {
       const [result] = await conn.execute(
-        `SELECT COALESCE(SUM(reserved_quantity), 0) as reserved 
-         FROM inventory_reservations 
+        `SELECT COALESCE(SUM(reserved_quantity), 0) as reserved
+         FROM inventory_reservations
          WHERE material_id = ? AND location_id = ?`,
         [materialId, locationId]
       );

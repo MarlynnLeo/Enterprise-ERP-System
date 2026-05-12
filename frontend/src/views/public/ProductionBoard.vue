@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="production-board">
     <!-- 头部 -->
     <div class="board-header">
@@ -146,8 +146,8 @@
           生产流程进度
         </h2>
         <div class="flow-steps">
-          <div 
-            v-for="(step, index) in flowSteps" 
+          <div
+            v-for="(step, index) in flowSteps"
             :key="step.status"
             class="flow-step"
             :class="{ 'has-data': getStepCount(step.status) > 0 }"
@@ -289,7 +289,7 @@ import {
   DataBoard, Clock, Loading, Document, List, Setting, CircleCheck,
   TrendCharts, Right, Tickets, Rank
 } from '@element-plus/icons-vue'
-import axios from 'axios'
+import api from '@/services/api'
 import { PRODUCTION_FLOW_STEPS } from '@/constants/systemConstants'
 // 数据
 const loading = ref(true)
@@ -428,15 +428,15 @@ const flowSteps = PRODUCTION_FLOW_STEPS
 // 获取看板数据
 const fetchBoardData = async () => {
   try {
-    // 直接使用相对路径，因为 axios.defaults.baseURL 已经设置为 '/api'
-    const response = await axios.get('/public/production-board', {
+    // 使用封装层 api（自动附带 Token、错误拦截）
+    const response = await api.get('/public/production-board', {
       params: { limit: recentPlansLimit.value }
     })
-    // 原生axios，response.data是完整响应 { success, message, data, timestamp }
-    // 真正的业务数据在 response.data.data 中
-    if (response.data && response.data.success && response.data.data) {
-      boardData.value = response.data.data
-      updateTime.value = new Date(response.data.data.updatedAt).toLocaleString('zh-CN')
+    // 封装层已剥离外层 wrapper，response.data 即为业务数据
+    const resData = response.data?.data || response.data
+    if (resData) {
+      boardData.value = resData
+      updateTime.value = new Date(resData.updatedAt).toLocaleString('zh-CN')
     }
   } catch (error) {
     console.error('获取看板数据失败:', error)

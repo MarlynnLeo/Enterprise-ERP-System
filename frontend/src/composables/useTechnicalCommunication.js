@@ -32,7 +32,7 @@ export function useCommunicationList() {
   const loading = ref(false);
   const communicationList = ref([]);
   const total = ref(0);
-  
+
   const pagination = reactive({
     page: 1,
     pageSize: 10
@@ -55,7 +55,7 @@ export function useCommunicationList() {
         pageSize: pagination.pageSize,
         ...filters
       };
-      
+
       const res = await technicalCommunicationApi.getCommunications(params);
       // 使用统一解析器
       communicationList.value = parseListData(res, { enableLog: false });
@@ -137,7 +137,7 @@ export function useCommunicationDetail() {
       // axios拦截器已自动解包ResponseHandler格式
       detail.value = res.data.communication || null;
       comments.value = res.data.comments || [];
-      
+
       return detail.value;
     } catch {
       ElMessage.error('加载详情失败');
@@ -267,7 +267,7 @@ export function useCommunicationForm() {
         await technicalCommunicationApi.createCommunication(submitData);
         ElMessage.success('创建成功');
       }
-      
+
       return true;
     } catch {
       ElMessage.error(form.id ? '更新失败' : '创建失败');
@@ -321,7 +321,7 @@ export function useCommunicationInteraction() {
       // axios拦截器已自动解包ResponseHandler格式
       liked.value = res.data.liked;
       ElMessage.success(liked.value ? '点赞成功' : '已取消点赞');
-      
+
       return liked.value;
     } catch {
       ElMessage.error('操作失败');
@@ -341,7 +341,7 @@ export function useCommunicationInteraction() {
       // axios拦截器已自动解包ResponseHandler格式
       favorited.value = res.data.favorited;
       ElMessage.success(favorited.value ? '收藏成功' : '已取消收藏');
-      
+
       return favorited.value;
     } catch {
       ElMessage.error('操作失败');

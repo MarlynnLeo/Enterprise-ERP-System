@@ -17,16 +17,16 @@ const toRows = (result) => (Array.isArray(result.rows) ? result.rows : (result.r
 
 const getBatchDetailsData = async (materialCode, batchNumber) => {
   const batchQuery = `
-    SELECT 
+    SELECT
       il.location_id,
       il.material_id,
       il.batch_number,
       SUM(il.quantity) as current_quantity,
       SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as original_quantity,
       MIN(il.created_at) as created_at,
-      m.code as material_code, 
-      m.name as material_name, 
-      u.name as unit, 
+      m.code as material_code,
+      m.name as material_name,
+      u.name as unit,
       NULL as supplier_name,
       'active' as status
     FROM inventory_ledger il
@@ -67,12 +67,12 @@ const batchTraceabilityController = {
       const { materialCode, batchNumber } = req.query;
 
       if (!materialCode) {
-        return ResponseHandler.error(res, '物料编码不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料编码不能为空', 'VALIDATION_ERROR', 400);
       }
 
       // 单表架构：统一查询 traceability 表（原材料/成品均在此表中）
       if (!batchNumber) {
-        return ResponseHandler.error(res, '请提供批次号查询追溯', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '请提供批次号查询追溯', 'VALIDATION_ERROR', 400);
       }
 
       // 查询原材料批次信息
@@ -87,10 +87,10 @@ const batchTraceabilityController = {
           m.name as material_name,
           m.specs as specification,
           u.name as unit,
-          (SELECT COALESCE(NULLIF(il2.supplier_name, ''), s.name) 
-           FROM inventory_ledger il2 
+          (SELECT COALESCE(NULLIF(il2.supplier_name, ''), s.name)
+           FROM inventory_ledger il2
            LEFT JOIN suppliers s ON il2.supplier_id = s.id
-           WHERE il2.material_id = il.material_id AND il2.batch_number = il.batch_number 
+           WHERE il2.material_id = il.material_id AND il2.batch_number = il.batch_number
              AND il2.quantity > 0
            ORDER BY il2.created_at ASC LIMIT 1) as supplier_name,
           'active' as status
@@ -182,7 +182,7 @@ const batchTraceabilityController = {
           // 原材料：正向追溯查询生产去向及最终客户
           const traceChainResult = await db.pool.execute(
             `
-            SELECT 
+            SELECT
               m2.code as product_code,
               m2.name as product_name,
               m2.specs as product_specification,
@@ -195,7 +195,7 @@ const batchTraceabilityController = {
               pst.created_at as sales_created_at,
               br.consumed_quantity
             FROM batch_relationships br
-            LEFT JOIN v_batch_stock target_vbs ON br.child_batch_number = target_vbs.batch_number  
+            LEFT JOIN v_batch_stock target_vbs ON br.child_batch_number = target_vbs.batch_number
             LEFT JOIN materials m2 ON target_vbs.material_id = m2.id
             LEFT JOIN product_sales_traceability pst ON br.child_batch_number = pst.product_batch_number
             WHERE br.parent_batch_number = ? AND br.relationship_type = 'consume'
@@ -241,9 +241,9 @@ const batchTraceabilityController = {
       // 不管是原料还是成品，尝试查询它是否有 BOM 配方（它可能是一个半成品）
       try {
         const [bomMasters] = await db.pool.execute(
-          `SELECT id FROM bom_masters 
+          `SELECT id FROM bom_masters
            WHERE product_id = (SELECT id FROM materials WHERE code = ?)
-           ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END, created_at DESC 
+           ORDER BY CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END, created_at DESC
            LIMIT 1`,
           [materialCode]
         );
@@ -313,7 +313,7 @@ const batchTraceabilityController = {
               : new Date();
 
             const [bomDetails] = await db.pool.execute(
-              `SELECT 
+              `SELECT
                  m.code as raw_material_code,
                  m.name as raw_material_name,
                  m.specs as specification,
@@ -378,11 +378,11 @@ const batchTraceabilityController = {
       const { materialCode, batchNumber, direction = 'forward' } = req.query;
 
       if (!materialCode || !batchNumber) {
-        return ResponseHandler.error(res, '物料编码和批次号不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料编码和批次号不能为空', 'VALIDATION_ERROR', 400);
       }
 
       if (!['forward', 'backward'].includes(direction)) {
-        return ResponseHandler.error(res, '追溯方向只能是 forward 或 backward', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '追溯方向只能是 forward 或 backward', 'VALIDATION_ERROR', 400);
       }
 
       const traceabilityChain = await InventoryTraceabilityService.getBatchTraceabilityChain(
@@ -406,12 +406,12 @@ const batchTraceabilityController = {
       const { materialCode, batchNumber } = req.params;
 
       if (!materialCode || !batchNumber) {
-        return ResponseHandler.error(res, '物料编码和批次号不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料编码和批次号不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const batchDetails = await getBatchDetailsData(materialCode, batchNumber);
       if (!batchDetails) {
-        return res.status(404).json({ success: false, message: `未找到批次: ${materialCode} - ${batchNumber}` });
+        return ResponseHandler.error(res, `未找到批次: ${materialCode} - ${batchNumber}`, 'NOT_FOUND', 404);
       }
       ResponseHandler.success(res, batchDetails, '操作成功');
     } catch (error) {
@@ -428,18 +428,15 @@ const batchTraceabilityController = {
       const { materialCode, batchNumber } = req.query;
 
       if (!materialCode || !batchNumber) {
-        return ResponseHandler.error(res, '物料编码和批次号不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料编码和批次号不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const batchDetails = await getBatchDetailsData(materialCode, batchNumber);
       if (!batchDetails) {
-        return res.status(404).json({ success: false, message: `未找到批次: ${materialCode} - ${batchNumber}` });
+        return ResponseHandler.error(res, `未找到批次: ${materialCode} - ${batchNumber}`, 'NOT_FOUND', 404);
       }
 
-      res.json({
-        success: true,
-        data: batchDetails,
-      });
+      return ResponseHandler.success(res, batchDetails);
     } catch (error) {
       logger.error('获取批次详细信息失败:', error);
       ResponseHandler.error(res, '获取批次详细信息失败', 'SERVER_ERROR', 500, error);
@@ -454,7 +451,7 @@ const batchTraceabilityController = {
       const { materialId, requiredQuantity } = req.query;
 
       if (!materialId || !requiredQuantity) {
-        return ResponseHandler.error(res, '物料ID和需要数量不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料ID和需要数量不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const preview = await FIFOOutboundService.getFIFOOutboundPreview(
@@ -477,7 +474,7 @@ const batchTraceabilityController = {
       const { materials } = req.body;
 
       if (!materials || !Array.isArray(materials) || materials.length === 0) {
-        return ResponseHandler.error(res, '物料列表不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料列表不能为空', 'VALIDATION_ERROR', 400);
       }
 
       // 验证物料数据格式
@@ -486,7 +483,7 @@ const batchTraceabilityController = {
           return ResponseHandler.error(
             res,
             '每个物料必须包含 material_id 和 required_quantity',
-            'BAD_REQUEST',
+            'VALIDATION_ERROR',
             400
           );
         }
@@ -509,7 +506,7 @@ const batchTraceabilityController = {
       const { materials } = req.body;
 
       if (!materials || !Array.isArray(materials) || materials.length === 0) {
-        return ResponseHandler.error(res, '物料列表不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料列表不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const availability = await FIFOOutboundService.checkInventoryAvailability(materials);
@@ -529,7 +526,7 @@ const batchTraceabilityController = {
       const { materialId, daysThreshold = 30 } = req.query;
 
       if (!materialId) {
-        return ResponseHandler.error(res, '物料ID不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料ID不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const report = await FIFOOutboundService.getBatchAgingReport(
@@ -557,7 +554,7 @@ const batchTraceabilityController = {
         !outboundData.materials ||
         !Array.isArray(outboundData.materials)
       ) {
-        return ResponseHandler.error(res, '生产任务ID和物料列表不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '生产任务ID和物料列表不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const result = await FIFOOutboundService.processProductionOutbound(outboundData);
@@ -582,7 +579,7 @@ const batchTraceabilityController = {
         !outboundData.products ||
         !Array.isArray(outboundData.products)
       ) {
-        return ResponseHandler.error(res, '销售订单ID和产品列表不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '销售订单ID和产品列表不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const result = await FIFOOutboundService.processSalesOutbound(outboundData);
@@ -603,7 +600,7 @@ const batchTraceabilityController = {
 
       // 验证必要字段
       if (!receiptData.receipt_id || !receiptData.items || !Array.isArray(receiptData.items)) {
-        return ResponseHandler.error(res, '入库单ID和物料项目不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '入库单ID和物料项目不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const result = await InventoryTraceabilityService.handlePurchaseReceipt(receiptData);
@@ -631,7 +628,7 @@ const batchTraceabilityController = {
         return ResponseHandler.error(
           res,
           '生产任务ID、产品编码和消耗物料不能为空',
-          'BAD_REQUEST',
+          'VALIDATION_ERROR',
           400
         );
       }
@@ -654,7 +651,7 @@ const batchTraceabilityController = {
 
       // 验证必要字段
       if (!reserveData.material_id || !reserveData.required_quantity) {
-        return ResponseHandler.error(res, '物料ID和需要数量不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料ID和需要数量不能为空', 'VALIDATION_ERROR', 400);
       }
 
       const result = await BatchManagementService.reserveBatch(reserveData);
@@ -674,7 +671,7 @@ const batchTraceabilityController = {
       const { materialCode, batchNumber, direction = 'forward' } = req.query;
 
       if (!materialCode || !batchNumber) {
-        return ResponseHandler.error(res, '物料编码和批次号不能为空', 'BAD_REQUEST', 400);
+        return ResponseHandler.error(res, '物料编码和批次号不能为空', 'VALIDATION_ERROR', 400);
       }
 
       // 获取批次详情
@@ -683,10 +680,7 @@ const batchTraceabilityController = {
         batchNumber
       );
       if (!batches || batches.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: `未找到批次: ${materialCode} - ${batchNumber}`,
-        });
+        return ResponseHandler.error(res, `未找到批次: ${materialCode} - ${batchNumber}`, 'NOT_FOUND', 404);
       }
       const batch = batches[0];
 
@@ -701,7 +695,7 @@ const batchTraceabilityController = {
       const transactionQuery = `
         SELECT
           transaction_type, quantity, unit_id, before_quantity, after_quantity,
-          reference_type, reference_no, operator, remark as remarks, 
+          reference_type, reference_no, operator, remark as remarks,
           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as formatted_date
         FROM inventory_ledger
         WHERE batch_number = ?
@@ -867,7 +861,7 @@ const batchTraceabilityController = {
         LEFT JOIN materials m ON vbs.material_id = m.id
         WHERE vbs.batch_number IS NOT NULL AND vbs.batch_number != ''
         ORDER BY created_at DESC
-        LIMIT ${safeLimit}
+        LIMIT ${Math.max(1,Math.min(Math.floor(Number(safeLimit))||20,500))}
       `;
 
       const result = await db.query(query);

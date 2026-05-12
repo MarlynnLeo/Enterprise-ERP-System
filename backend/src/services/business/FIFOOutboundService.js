@@ -316,7 +316,7 @@ class FIFOOutboundService {
   static async getBatchAgingReport(materialId, daysThreshold = 30) {
     try {
       const query = `
-        SELECT 
+        SELECT
           NULL as id,
           batch_number,
           current_quantity,
@@ -328,13 +328,13 @@ class FIFOOutboundService {
           unit_cost,
           (current_quantity * unit_cost) as total_cost,
           DATEDIFF(CURDATE(), receipt_date) as aging_days,
-          CASE 
+          CASE
             WHEN expiry_date IS NOT NULL AND expiry_date < CURDATE() THEN 'expired'
             WHEN DATEDIFF(CURDATE(), receipt_date) > ? THEN 'aging'
             ELSE 'normal'
           END as aging_status
         FROM v_batch_stock
-        WHERE material_id = ? 
+        WHERE material_id = ?
           AND current_quantity > 0
         ORDER BY receipt_date ASC
       `;

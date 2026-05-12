@@ -2,7 +2,7 @@
  * useFormKeyboardNav.js
  * @description 表单键盘导航组合式函数
  * 实现：Enter 键自动跳转到下一个输入框，最后一个字段 Enter 触发提交
- * 
+ *
  * 使用方式：
  *   const { onFormKeydown } = useFormKeyboardNav(submitFn)
  *   <el-form @keydown="onFormKeydown"> ... </el-form>
@@ -26,7 +26,7 @@ export function useFormKeyboardNav(submitFn = null) {
       '.el-input-number .el-input__inner:not([disabled])',
       '.el-date-editor .el-input__inner:not([disabled])',
     ].join(', ')
-    
+
     return Array.from(formEl.querySelectorAll(selectors)).filter(el => {
       // 排除 textarea
       if (el.tagName === 'TEXTAREA') return false
@@ -46,17 +46,17 @@ export function useFormKeyboardNav(submitFn = null) {
     if (event.key !== 'Enter') return
 
     const target = event.target
-    
+
     // textarea 中的 Enter 不拦截（允许换行）
     if (target.tagName === 'TEXTAREA') return
-    
+
     // el-select 下拉展开时的 Enter 不拦截（让 el-select 自行处理选择）
     const selectWrapper = target.closest('.el-select')
     if (selectWrapper) {
       // 在 Element Plus 中，下拉展开时其内部 wrapper 会有 aria-expanded="true"
       const expandedEl = target.closest('[aria-expanded="true"]')
       if (expandedEl) return
-      
+
       const selectInner = target.closest('.el-select__wrapper') || target.closest('.el-input')
       if (selectInner && selectInner.getAttribute('aria-expanded') === 'true') return
     }

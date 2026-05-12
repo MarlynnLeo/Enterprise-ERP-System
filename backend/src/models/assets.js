@@ -173,11 +173,11 @@ const assetsModel = {
 
       // 插入固定资产
       const [result] = await connection.query(
-        `INSERT INTO fixed_assets 
-        (asset_code, asset_name, asset_type, category_id, acquisition_date, 
-         acquisition_cost, depreciation_method, useful_life, salvage_value, 
-         current_value, net_value, accumulated_depreciation, location_id, department_id, 
-         custodian, status, notes) 
+        `INSERT INTO fixed_assets
+        (asset_code, asset_name, asset_type, category_id, acquisition_date,
+         acquisition_cost, depreciation_method, useful_life, salvage_value,
+         current_value, net_value, accumulated_depreciation, location_id, department_id,
+         custodian, status, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           assetData.asset_code,
@@ -277,7 +277,7 @@ const assetsModel = {
     });
 
     const [assets] = await db.pool.query(
-      `SELECT a.* 
+      `SELECT a.*
        FROM fixed_assets a
        WHERE a.id = ?`,
       [id]
@@ -705,9 +705,9 @@ const assetsModel = {
       try {
         // 插入折旧记录
         const [depResult] = await connection.query(
-          `INSERT INTO asset_depreciation 
-          (asset_id, period_id, depreciation_date, depreciation_amount, 
-           book_value_before, book_value_after, is_posted, notes) 
+          `INSERT INTO asset_depreciation
+          (asset_id, period_id, depreciation_date, depreciation_amount,
+           book_value_before, book_value_after, is_posted, notes)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             params.assetId,
@@ -1543,7 +1543,7 @@ const assetsModel = {
 
       // 构建查询
       let query = `
-        SELECT c.*, 
+        SELECT c.*,
                (SELECT COUNT(*) FROM fixed_assets a WHERE a.category_id = c.id) AS asset_count
         FROM asset_categories c
       `;
@@ -1582,7 +1582,7 @@ const assetsModel = {
   getAssetCategoryById: async (id) => {
     try {
       const [categories] = await db.pool.execute(
-        `SELECT c.*, 
+        `SELECT c.*,
                 (SELECT COUNT(*) FROM fixed_assets a WHERE a.category_id = c.id) AS asset_count
          FROM asset_categories c
          WHERE c.id = ?`,
@@ -1601,8 +1601,8 @@ const assetsModel = {
   createAssetCategory: async (categoryData) => {
     try {
       const [result] = await db.pool.execute(
-        `INSERT INTO asset_categories 
-        (name, code, default_useful_life, default_depreciation_method, default_salvage_rate, description) 
+        `INSERT INTO asset_categories
+        (name, code, default_useful_life, default_depreciation_method, default_salvage_rate, description)
         VALUES (?, ?, ?, ?, ?, ?)`,
         [
           categoryData.name,
@@ -1626,12 +1626,12 @@ const assetsModel = {
   updateAssetCategory: async (id, categoryData) => {
     try {
       const [result] = await db.pool.execute(
-        `UPDATE asset_categories 
-         SET name = ?, 
-             code = ?, 
-             default_useful_life = ?, 
-             default_depreciation_method = ?, 
-             default_salvage_rate = ?, 
+        `UPDATE asset_categories
+         SET name = ?,
+             code = ?,
+             default_useful_life = ?,
+             default_depreciation_method = ?,
+             default_salvage_rate = ?,
              description = ?
          WHERE id = ?`,
         [
@@ -1741,7 +1741,7 @@ const assetsModel = {
 
         for (const category of categoryData) {
           const [result] = await conn.query(
-            `INSERT INTO asset_categories (name, code, default_useful_life, default_depreciation_method, default_salvage_rate, description) 
+            `INSERT INTO asset_categories (name, code, default_useful_life, default_depreciation_method, default_salvage_rate, description)
              VALUES (?, ?, ?, ?, ?, ?)`,
             [
               category.name,
@@ -1787,7 +1787,7 @@ const assetsModel = {
 
         const [result] = await conn.query(
           `INSERT INTO fixed_assets (
-            asset_code, asset_name, asset_type, category_id, acquisition_date, 
+            asset_code, asset_name, asset_type, category_id, acquisition_date,
             acquisition_cost, depreciation_method, useful_life, salvage_value,
             current_value, net_value, accumulated_depreciation, status, notes
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1855,9 +1855,9 @@ const assetsModel = {
 
       // 1. 更新资产表中的部门、责任人和存放地点
       const updateResult = await connection.query(
-        `UPDATE fixed_assets 
-         SET department_id = ?, 
-             custodian = ?, 
+        `UPDATE fixed_assets
+         SET department_id = ?,
+             custodian = ?,
              location_id = ?
          WHERE id = ?`,
         [
@@ -1886,8 +1886,8 @@ const assetsModel = {
         // 插入调拨记录
         const [insertResult] = await connection.query(
           `INSERT INTO asset_transfers
-           (asset_id, transfer_date, from_department_id, to_department_id, 
-            from_responsible, to_responsible, from_location, to_location, 
+           (asset_id, transfer_date, from_department_id, to_department_id,
+            from_responsible, to_responsible, from_location, to_location,
             reason, notes)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
@@ -2064,7 +2064,7 @@ const assetsModel = {
 
       // 1. 插入减值记录
       const [insertResult] = await connection.query(
-        `INSERT INTO asset_impairments 
+        `INSERT INTO asset_impairments
          (asset_id, impairment_date, impairment_amount, reason, handled_by)
          VALUES (?, ?, ?, ?, ?)`,
         [
@@ -2078,7 +2078,7 @@ const assetsModel = {
 
       // 2. 更新固定资产表：增加 impairment_amount，且降低 current_value
       await connection.query(
-        `UPDATE fixed_assets 
+        `UPDATE fixed_assets
          SET impairment_amount = impairment_amount + ?,
              current_value = ?,
              net_value = ?
@@ -2089,7 +2089,7 @@ const assetsModel = {
       // 3. 记录变更日志
       const changeNotes = `计提减值准备：金额 ${amount}。原因：${impairmentData.reason || '无'}`;
       await connection.query(
-        `INSERT INTO asset_change_logs 
+        `INSERT INTO asset_change_logs
          (asset_id, change_type, changed_by, field_name, old_value, new_value, remarks)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -2223,7 +2223,7 @@ const assetsModel = {
       const [assets] = await db.pool.query(
         `SELECT id, asset_name, acquisition_cost, current_value, accumulated_depreciation,
                 impairment_amount, useful_life, salvage_value, depreciation_method, status
-         FROM fixed_assets 
+         FROM fixed_assets
          WHERE status = '在用' AND audit_status = 'approved' AND current_value > 0`
       );
 
@@ -2277,7 +2277,7 @@ const assetsModel = {
     try {
       // 1. 按状态分类统计
       const [statusStats] = await db.pool.query(
-        `SELECT status, COUNT(*) as count, SUM(acquisition_cost) as total_value 
+        `SELECT status, COUNT(*) as count, SUM(acquisition_cost) as total_value
          FROM fixed_assets GROUP BY status`
       );
 
@@ -2292,7 +2292,7 @@ const assetsModel = {
       // 3. 近12个月新增资产趋势
       const [trendStats] = await db.pool.query(
         `SELECT DATE_FORMAT(acquisition_date, '%Y-%m') as month, COUNT(*) as count, SUM(acquisition_cost) as total_value
-         FROM fixed_assets 
+         FROM fixed_assets
          WHERE acquisition_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
          GROUP BY month ORDER BY month ASC`
       );
@@ -2358,11 +2358,11 @@ const assetsModel = {
 
       // 2. 创建新资产 (被拆分出来的新部分)
       const [insertResult] = await connection.query(
-        `INSERT INTO fixed_assets 
-        (asset_code, asset_name, asset_type, category_id, acquisition_date, 
-         acquisition_cost, depreciation_method, useful_life, salvage_value, 
-         current_value, net_value, accumulated_depreciation, impairment_amount, location_id, department_id, 
-         custodian, status, notes) 
+        `INSERT INTO fixed_assets
+        (asset_code, asset_name, asset_type, category_id, acquisition_date,
+         acquisition_cost, depreciation_method, useful_life, salvage_value,
+         current_value, net_value, accumulated_depreciation, impairment_amount, location_id, department_id,
+         custodian, status, notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           newAssetCode,
@@ -2390,7 +2390,7 @@ const assetsModel = {
 
       // 3. 更新原资产 (扣除拆分部分)
       await connection.query(
-        `UPDATE fixed_assets 
+        `UPDATE fixed_assets
          SET acquisition_cost = ?,
              accumulated_depreciation = ?,
              impairment_amount = ?,
@@ -2405,7 +2405,7 @@ const assetsModel = {
 
       // 原资产变更日志
       await connection.query(
-        `INSERT INTO asset_change_logs 
+        `INSERT INTO asset_change_logs
          (asset_id, change_type, changed_by, field_name, old_value, new_value, remarks)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -2421,7 +2421,7 @@ const assetsModel = {
 
       // 新资产创建日志
       await connection.query(
-        `INSERT INTO asset_change_logs 
+        `INSERT INTO asset_change_logs
          (asset_id, change_type, changed_by, field_name, old_value, new_value, remarks)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [

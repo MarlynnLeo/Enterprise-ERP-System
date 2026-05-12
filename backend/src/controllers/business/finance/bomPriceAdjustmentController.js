@@ -24,7 +24,7 @@ exports.getAdjustments = async (req, res) => {
 
     const [adjustments] = await connection.query(
       `
-            SELECT 
+            SELECT
                 a.*,
                 m.code as material_code,
                 m.name as material_name,
@@ -59,7 +59,7 @@ exports.saveAdjustment = async (req, res) => {
 
     // 参数验证
     if (!product_id || !bom_id || !material_id) {
-      return ResponseHandler.error(res, '产品ID、BOM ID和物料ID不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '产品ID、BOM ID和物料ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
     let originalPrice;
@@ -68,11 +68,11 @@ exports.saveAdjustment = async (req, res) => {
       originalPrice = parseNonNegativeAmount(original_price, 'original_price');
       adjustedPrice = parseNonNegativeAmount(adjusted_price, 'adjusted_price');
     } catch (validationError) {
-      return ResponseHandler.error(res, validationError.message, 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, validationError.message, 'VALIDATION_ERROR', 400);
     }
 
     if (!adjustment_reason || adjustment_reason.trim() === '') {
-      return ResponseHandler.error(res, '调整原因不能为空', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, '调整原因不能为空', 'VALIDATION_ERROR', 400);
     }
 
     connection = await getConnection();
@@ -92,13 +92,13 @@ exports.saveAdjustment = async (req, res) => {
 
     if (bomRows.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, 'BOM物料不属于该产品，不能保存价格调整', 'BAD_REQUEST', 400);
+      return ResponseHandler.error(res, 'BOM物料不属于该产品，不能保存价格调整', 'VALIDATION_ERROR', 400);
     }
 
     // 查询当前是否已有生效的调整记录
     const [existing] = await connection.query(
       `
-            SELECT * FROM bom_material_price_adjustments 
+            SELECT * FROM bom_material_price_adjustments
             WHERE product_id = ? AND material_id = ? AND is_active = 1
         `,
       [product_id, material_id]
@@ -110,8 +110,8 @@ exports.saveAdjustment = async (req, res) => {
       // 如果已有调整记录,将其标记为历史
       await connection.query(
         `
-                UPDATE bom_material_price_adjustments 
-                SET is_active = 0 
+                UPDATE bom_material_price_adjustments
+                SET is_active = 0
                 WHERE product_id = ? AND material_id = ? AND is_active = 1
             `,
         [product_id, material_id]
@@ -123,7 +123,7 @@ exports.saveAdjustment = async (req, res) => {
     // 插入新的调整记录
     const [result] = await connection.query(
       `
-            INSERT INTO bom_material_price_adjustments 
+            INSERT INTO bom_material_price_adjustments
             (product_id, bom_id, material_id, original_price, adjusted_price, adjustment_reason, version, is_active, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
         `,
@@ -181,7 +181,7 @@ exports.getAdjustmentHistory = async (req, res) => {
 
     const [history] = await connection.query(
       `
-            SELECT 
+            SELECT
                 a.*,
                 u.username as created_by_name
             FROM bom_material_price_adjustments a
@@ -231,8 +231,8 @@ exports.deleteAdjustment = async (req, res) => {
     if (record.version > 1) {
       await connection.query(
         `
-                UPDATE bom_material_price_adjustments 
-                SET is_active = 1 
+                UPDATE bom_material_price_adjustments
+                SET is_active = 1
                 WHERE product_id = ? AND material_id = ? AND version = ?
             `,
         [record.product_id, record.material_id, record.version - 1]

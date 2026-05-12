@@ -163,21 +163,19 @@ async function syncPlanStatus(planId, connection) {
   return { updated: false, from: currentPlanStatus, to: currentPlanStatus };
 }
 
-// ===================== 3. 批次号生成 =====================
 /**
  * 生成有业务意义的批次号
- * 格式: B-{任务编号}-{YYMMDD}-{3位序号}
- * 例如: B-PT20260428001-260428-001
+ * 格式: B-{任务编号}
+ * 例如: B-PT202605110001
  *
- * 同一任务的所有检验单、追溯记录应共用同一个批次号
+ * 同一任务的所有检验单、追溯记录共用同一个批次号
  *
- * @param {string} taskCode - 任务编号（如 PT-20260428-001）
+ * @param {string} taskCode - 任务编号（如 PT-20260511-0001）
  * @param {Object} [connection] - 可选数据库连接
  * @returns {Promise<string>} 批次号
  */
 async function generateBatchNo(taskCode, connection) {
   const conn = connection || pool;
-  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
   const shortCode = taskCode.replace(/[-]/g, '');
 
   // 查询该任务是否已有批次号
@@ -191,14 +189,7 @@ async function generateBatchNo(taskCode, connection) {
     return existing[0].batch_no;
   }
 
-  // 生成新批次号
-  const [seqRows] = await conn.query(
-    "SELECT COUNT(*) as cnt FROM quality_inspections WHERE batch_no LIKE ? AND reference_no = ?",
-    [`B-${shortCode}-%`, taskCode]
-  );
-  const seq = String((seqRows[0]?.cnt || 0) + 1).padStart(3, '0');
-
-  return `B-${shortCode}-${dateStr}-${seq}`;
+  return `B${shortCode}`;
 }
 
 module.exports = {

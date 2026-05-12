@@ -1,4 +1,5 @@
 import { api, fastApi } from '../services/axiosInstance';
+import { baseDataApi } from './baseData';
 import { parseListData } from '../utils/responseParser';
 
 export const purchaseApi = {
@@ -212,7 +213,7 @@ export const purchaseApi = {
                 status: data.status || 'draft',
                 orderId: data.orderId,
                 receiptDate: data.receiptDate,
-                warehouseId: warehouseId, 
+                warehouseId: warehouseId,
                 operator: data.receiver,
                 receiver: data.receiver,
                 inspectionId: data.inspectionId || null,
@@ -315,7 +316,6 @@ export const purchaseApi = {
             throw error;
         }
     },
-    deleteReceipt: (id) => api.delete(`/purchase/receipts/${id}`),
     updateReceiptStatus: async (id, data) => {
         try {
             // 处理status参数格式，确保与后端API期望的格式一致
@@ -344,19 +344,6 @@ export const purchaseApi = {
     // 获取采购综合统计数据（用于数据概览）
     getDashboardStatistics: () => api.get('/purchase/dashboard-statistics'),
 
-    // 供应商 - 直接调用API避免循环引用
-    getSuppliers: async (params = {}) => {
-        try {
-            const response = await api.get('/baseData/suppliers', {
-                params: params || {},
-                headers: {
-                    'Cache-Control': 'no-cache, no-store',
-                    'Pragma': 'no-cache'
-                }
-            });
-            return response;
-        } catch (error) {
-            throw error;
-        }
-    }
+    // 供应商基础数据统一走 baseDataApi 契约
+    getSuppliers: (params = {}) => baseDataApi.getSuppliers(params || {})
 };
