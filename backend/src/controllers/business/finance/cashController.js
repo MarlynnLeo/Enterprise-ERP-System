@@ -1461,6 +1461,8 @@ const cashController = {
             id,
             status,
             newBalance: status === 'approved' ? success.newBalance : undefined,
+            entryId: status === 'approved' ? success.entryId : undefined,
+            entryNumber: status === 'approved' ? success.entryNumber : undefined,
           },
           '审核操作成功'
         );
@@ -1999,7 +2001,7 @@ const cashController = {
    */
   recalculateBankAccountBalances: async (req, res) => {
     try {
-      const result = await BankAccountModel.recalculateAllBankAccountBalances();
+      const result = await cash.recalculateAllBankAccountBalances();
       ResponseHandler.success(res, result, result.message || '重新计算余额成功');
     } catch (error) {
       logger.error('重新计算银行账户余额失败:', error);

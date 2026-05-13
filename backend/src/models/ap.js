@@ -959,8 +959,8 @@ const apModel = {
         bankTransactionId = bankTransactionResult.insertId;
 
         await connection.execute(
-          'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?',
-          [totalPaid, paymentData.bank_account_id]
+          'UPDATE bank_accounts SET current_balance = current_balance - ?, last_transaction_date = ? WHERE id = ?',
+          [totalPaid, paymentData.payment_date, paymentData.bank_account_id]
         );
 
         logger.info(`[AP付款] 银行账户余额已更新: ${bankAccount.account_name}`);
@@ -1407,8 +1407,8 @@ const apModel = {
 
             // 更新银行账户余额（增加余额）
             await connection.execute(
-              'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?',
-              [payment.total_amount, payment.bank_account_id]
+              'UPDATE bank_accounts SET current_balance = current_balance + ?, last_transaction_date = ? WHERE id = ?',
+              [payment.total_amount, reversalDate, payment.bank_account_id]
             );
 
             logger.info('[作废付款] 已创建冲销银行交易并更新账户余额');

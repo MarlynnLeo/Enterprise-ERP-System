@@ -3315,8 +3315,13 @@ class CostAccountingService {
    */
   static parsePeriodRange(period) {
     const now = new Date();
-    const year = period ? period.split('-')[0] : String(now.getFullYear());
-    const month = period ? period.split('-')[1] : String(now.getMonth() + 1).padStart(2, '0');
+    const periodText = String(period || '');
+    const [inputYear, inputMonth] = periodText.split('-').map(Number);
+    const normalizedPeriod =
+      /^\d{4}-\d{2}$/.test(periodText) && inputMonth >= 1 && inputMonth <= 12
+        ? `${inputYear}-${String(inputMonth).padStart(2, '0')}`
+        : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const [year, month] = normalizedPeriod.split('-');
     const startDate = `${year}-${month}-01`;
     const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
     const endDate = `${year}-${month}-${lastDay}`;
@@ -3324,8 +3329,8 @@ class CostAccountingService {
   }
 
   /**
-   * 获取指定期间的成本汇总数据（3层Fallback逻辑集中在此）
-   * 优先级: actual_costs -> wip_snapshots(同期) -> wip_snapshots(最新)
+   * 获取指定期间的成本汇总数据
+   * 优先级: actual_costs -> wip_snapshots(同期)
    * @param {string} startDate 开始日期
    * @param {string} endDate 结束日期
    * @param {string[]} fields 查询字段列表
@@ -3363,15 +3368,6 @@ class CostAccountingService {
       if (fields.some(f => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
     } catch { /* 降级 */ }
 
-    // 3. 兜底：获取最新的 wip_snapshots 汇总
-    try {
-      const [latestWIP] = await db.pool.execute(
-        `SELECT ${selectClause} FROM wip_snapshots WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM wip_snapshots)`
-      );
-      const row = latestWIP[0];
-      if (fields.some(f => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
-    } catch { /* 全部失败 */ }
-
     return defaultResult;
   }
 
@@ -3403,4 +3399,3 @@ class CostAccountingService {
 }
 
 module.exports = CostAccountingService;
-

@@ -947,7 +947,7 @@ exports.up = async function(knex) {
   UNIQUE KEY uk_parent_child (parent_bom_id, child_bom_id),
   INDEX idx_parent_bom_id (parent_bom_id),
   INDEX idx_child_bom_id (child_bom_id),
-  INDEX idx_child_material_id (child_material_id),
+  INDEX idx_child_material_id (child_material_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='BOM引用关系表';`);
 
   // --- technical_communication_recipients ---

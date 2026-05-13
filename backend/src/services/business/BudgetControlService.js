@@ -9,6 +9,10 @@
 const budgetModel = require('../../models/budget');
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
+const {
+  budgetDepartmentExpression,
+  budgetDetailActualAmountSql,
+} = require('../../utils/finance/budgetUsageSql');
 
 class BudgetControlService {
   /**
@@ -46,8 +50,21 @@ class BudgetControlService {
    * @param {Date} date - 日期
    * @returns {Promise<Object>} 检查结果
    */
-  static async checkBudgetAvailability(accountId, departmentId, amount, date) {
+  static async checkBudgetAvailability(accountId, departmentId, amount, date, connection = null) {
     try {
+      const conn = connection || db.pool;
+      const requestedAmount = Number.parseFloat(amount);
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+        return {
+          available: false,
+          reason: '预算占用金额必须大于0',
+          budget: null,
+        };
+      }
+
+      const normalizedDepartmentId = departmentId ? Number.parseInt(departmentId, 10) : null;
+      const departmentExpr = budgetDepartmentExpression('b', 'bd');
+
       // 查找适用的预算
       let query = `
         SELECT
@@ -56,9 +73,11 @@ class BudgetControlService {
           b.budget_name,
           bd.id as detail_id,
           bd.budget_amount,
-          bd.used_amount,
-          bd.remaining_amount,
-          bd.warning_threshold
+          bd.used_amount as cached_used_amount,
+          bd.remaining_amount as cached_remaining_amount,
+          bd.warning_threshold,
+          ${departmentExpr} as effective_department_id,
+          ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used
         FROM budgets b
         JOIN budget_details bd ON b.id = bd.budget_id
         WHERE b.status IN ('已审批', '执行中')
@@ -69,14 +88,19 @@ class BudgetControlService {
 
       const params = [accountId, date, date];
 
-      if (departmentId) {
-        query += ' AND (bd.department_id = ? OR bd.department_id IS NULL)';
-        params.push(departmentId);
+      if (normalizedDepartmentId) {
+        query += ` AND (${departmentExpr} = ? OR ${departmentExpr} IS NULL)`;
+        params.push(normalizedDepartmentId);
+      } else {
+        query += ` AND ${departmentExpr} IS NULL`;
       }
 
-      query += ' ORDER BY bd.department_id DESC, b.budget_year DESC LIMIT 1';
+      query += ` ORDER BY
+        CASE WHEN ${departmentExpr} IS NULL THEN 1 ELSE 0 END,
+        b.budget_year DESC
+        LIMIT 1`;
 
-      const [budgets] = await db.pool.execute(query, params);
+      const [budgets] = await conn.execute(query, params);
 
       if (budgets.length === 0) {
         return {
@@ -87,19 +111,24 @@ class BudgetControlService {
       }
 
       const budget = budgets[0];
+      const budgetAmount = Number.parseFloat(budget.budget_amount) || 0;
+      const usedAmount = Number.parseFloat(budget.actual_used) || 0;
+      const remainingAmount = budgetAmount - usedAmount;
+      budget.used_amount = usedAmount;
+      budget.remaining_amount = remainingAmount;
 
       // 检查剩余金额是否充足
-      if (budget.remaining_amount < amount) {
+      if (budget.remaining_amount < requestedAmount) {
         return {
           available: false,
           reason: '预算余额不足',
           budget: budget,
-          shortage: amount - budget.remaining_amount,
+          shortage: requestedAmount - budget.remaining_amount,
         };
       }
 
       // 检查是否接近预警阈值
-      const usageRate = ((budget.used_amount + amount) / budget.budget_amount) * 100;
+      const usageRate = ((budget.used_amount + requestedAmount) / budget.budget_amount) * 100;
       const warningLevel =
         usageRate >= budget.warning_threshold
           ? 'high'
@@ -145,7 +174,13 @@ class BudgetControlService {
       } = params;
 
       // 检查预算可用性
-      const checkResult = await this.checkBudgetAvailability(accountId, departmentId, amount, date);
+      const checkResult = await this.checkBudgetAvailability(
+        accountId,
+        departmentId,
+        amount,
+        date,
+        connection
+      );
 
       if (!checkResult.available) {
         throw new Error(checkResult.reason);

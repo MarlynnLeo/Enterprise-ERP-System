@@ -204,7 +204,7 @@ const enhancedReportsController = {
 
       // 获取所有银行账户
       const [accounts] = await db.pool.execute(
-        `SELECT id, account_name, bank_name, current_balance
+        `SELECT id, account_name, bank_name, current_balance, opening_balance
          FROM bank_accounts
          WHERE is_active = 1
          ORDER BY bank_name, account_name`
@@ -219,6 +219,7 @@ const enhancedReportsController = {
       const ph = accountIds.map(() => '?').join(',');
       const incomeTypes = "('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')";
       const expenseTypes = "('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')";
+      const effectiveTransactionStatus = "(status IS NULL OR status = 'approved')";
 
       // 一次性查出本月收入
       const [incomeRows] = await db.pool.execute(
@@ -226,6 +227,7 @@ const enhancedReportsController = {
          FROM bank_transactions
          WHERE bank_account_id IN (${ph}) AND transaction_date BETWEEN ? AND ?
            AND transaction_type IN ${incomeTypes}
+           AND ${effectiveTransactionStatus}
          GROUP BY bank_account_id`,
         [...accountIds, startDate, endDate]
       );
@@ -237,6 +239,7 @@ const enhancedReportsController = {
          FROM bank_transactions
          WHERE bank_account_id IN (${ph}) AND transaction_date BETWEEN ? AND ?
            AND transaction_type IN ${expenseTypes}
+           AND ${effectiveTransactionStatus}
          GROUP BY bank_account_id`,
         [...accountIds, startDate, endDate]
       );
@@ -248,6 +251,7 @@ const enhancedReportsController = {
          FROM bank_transactions
          WHERE bank_account_id IN (${ph}) AND transaction_date < ?
            AND transaction_type IN ${incomeTypes}
+           AND ${effectiveTransactionStatus}
          GROUP BY bank_account_id`,
         [...accountIds, startDate]
       );
@@ -259,6 +263,7 @@ const enhancedReportsController = {
          FROM bank_transactions
          WHERE bank_account_id IN (${ph}) AND transaction_date < ?
            AND transaction_type IN ${expenseTypes}
+           AND ${effectiveTransactionStatus}
          GROUP BY bank_account_id`,
         [...accountIds, startDate]
       );
@@ -270,7 +275,8 @@ const enhancedReportsController = {
         const currentExpense = expenseMap.get(account.id) || 0;
         const histIncome = histIncomeMap.get(account.id) || 0;
         const histExpense = histExpenseMap.get(account.id) || 0;
-        const lastBalance = histIncome - histExpense;
+        const openingBalance = parseFloat(account.opening_balance || 0);
+        const lastBalance = openingBalance + histIncome - histExpense;
         const currentBalance = lastBalance + currentIncome - currentExpense;
 
         reportData.push({

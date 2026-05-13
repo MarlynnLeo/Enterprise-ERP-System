@@ -173,7 +173,7 @@ class CashTransactionModel {
    */
   static async getCashTransactionStats(filters = {}) {
     try {
-      let whereClause = 'WHERE 1=1';
+      let whereClause = "WHERE (status IS NULL OR status = 'approved')";
       const params = [];
 
       // 添加筛选条件

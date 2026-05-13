@@ -8,6 +8,57 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const CostAccountingService = require('./CostAccountingService');
 const { softDelete } = require('../../utils/softDelete');
+const SystemConfigService = require('../system/SystemConfigService');
+
+const DEFAULT_STANDARD_DAILY_HOURS = 8;
+
+function toDateString(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getMonthDateRange(monthValue) {
+  const now = new Date();
+  const normalizedMonth = /^\d{4}-\d{2}$/.test(String(monthValue || ''))
+    ? String(monthValue)
+    : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [year, month] = normalizedMonth.split('-').map(Number);
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 0));
+
+  return {
+    month: normalizedMonth,
+    startDate: toDateString(start),
+    endDate: `${toDateString(end)} 23:59:59`,
+    start,
+    end,
+  };
+}
+
+function countWeekdays(start, end) {
+  let days = 0;
+  const cursor = new Date(start.getTime());
+  while (cursor <= end) {
+    const day = cursor.getUTCDay();
+    if (day >= 1 && day <= 5) days += 1;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
+}
+
+async function getStandardCapacityHours(monthRange) {
+  const monthlyOverride = Number(
+    await SystemConfigService.get('finance.cost.standard_monthly_capacity_hours', 0)
+  );
+  if (Number.isFinite(monthlyOverride) && monthlyOverride > 0) return monthlyOverride;
+
+  const dailyHours = Number(
+    await SystemConfigService.get('finance.cost.standard_daily_hours', DEFAULT_STANDARD_DAILY_HOURS)
+  );
+  const effectiveDailyHours =
+    Number.isFinite(dailyHours) && dailyHours > 0 ? dailyHours : DEFAULT_STANDARD_DAILY_HOURS;
+
+  return countWeekdays(monthRange.start, monthRange.end) * effectiveDailyHours;
+}
 
 class CostCenterService {
   /**
@@ -408,12 +459,9 @@ class CostCenterService {
    */
   static async getCapacityUtilization(filters = {}) {
     try {
-      const month = filters.month || new Date().toISOString().slice(0, 7);
-      const startDate = month + '-01';
-      const endDate = month + '-31 23:59:59';
-
-      // 假设每个成本中心每月标准产能: 22天 * 8小时 = 176小时
-      const standardCapacityPerCenter = 176;
+      const monthRange = getMonthDateRange(filters.month);
+      const { month, startDate, endDate } = monthRange;
+      const standardCapacityPerCenter = await getStandardCapacityHours(monthRange);
 
       // 先获取所有生产类型的成本中心
       const [centers] = await db.pool.execute(`
@@ -475,4 +523,3 @@ class CostCenterService {
 }
 
 module.exports = CostCenterService;
-

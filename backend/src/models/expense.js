@@ -852,8 +852,8 @@ const expenseModel = {
       // 5. 更新银行账户余额
       const newBalance = parseFloat(bankAccount.current_balance) - expenseAmount;
       await connection.execute(
-        'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?',
-        [expenseAmount, paymentData.bank_account_id]
+        'UPDATE bank_accounts SET current_balance = current_balance - ?, last_transaction_date = ? WHERE id = ?',
+        [expenseAmount, paymentDate, paymentData.bank_account_id]
       );
 
       // 6. 更新费用状态
@@ -1197,4 +1197,3 @@ const expenseModel = {
 };
 
 module.exports = expenseModel;
-

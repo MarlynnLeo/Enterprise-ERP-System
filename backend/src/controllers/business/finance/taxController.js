@@ -76,6 +76,73 @@ function ensureTaxInvoiceDocumentTypeMatches(invoice, documentType) {
   }
 }
 
+function getMonthRangeFromReturnPeriod(returnPeriod) {
+  const period = String(returnPeriod || '');
+  if (!/^\d{4}-\d{2}$/.test(period)) {
+    throw new Error('增值税申报期间必须使用 YYYY-MM 格式');
+  }
+
+  const [year, month] = period.split('-').map(Number);
+  if (month < 1 || month > 12) {
+    throw new Error('增值税申报期间月份无效');
+  }
+
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return {
+    startDate: `${year}-${String(month).padStart(2, '0')}-01`,
+    endDate: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+async function calculateVATReturnData(returnPeriod) {
+  const { startDate, endDate } = getMonthRangeFromReturnPeriod(returnPeriod);
+
+  const [salesRows] = await db.pool.execute(
+    `SELECT
+       COALESCE(SUM(amount_excluding_tax), 0) AS sales_amount,
+       COALESCE(SUM(tax_amount), 0) AS sales_output_tax
+     FROM tax_invoices
+     WHERE invoice_type = '销项'
+       AND status IN ('已认证', '已抵扣')
+       AND invoice_date BETWEEN ? AND ?`,
+    [startDate, endDate]
+  );
+
+  const [purchaseRows] = await db.pool.execute(
+    `SELECT
+       COALESCE(SUM(amount_excluding_tax), 0) AS purchase_amount,
+       COALESCE(SUM(tax_amount), 0) AS purchase_input_tax
+     FROM tax_invoices
+     WHERE invoice_type = '进项'
+       AND status IN ('已认证', '已抵扣')
+       AND invoice_date BETWEEN ? AND ?`,
+    [startDate, endDate]
+  );
+
+  const [deductionRows] = await db.pool.execute(
+    `SELECT COALESCE(SUM(tax_amount), 0) AS input_tax_deduction
+     FROM tax_invoices
+     WHERE invoice_type = '进项'
+       AND status = '已抵扣'
+       AND deduction_date BETWEEN ? AND ?`,
+    [startDate, endDate]
+  );
+
+  const sales = salesRows[0] || {};
+  const purchase = purchaseRows[0] || {};
+  const inputTaxDeduction = Number(deductionRows[0]?.input_tax_deduction || 0);
+  const salesOutputTax = Number(sales.sales_output_tax || 0);
+
+  return {
+    sales_amount: Number(sales.sales_amount || 0),
+    sales_output_tax: salesOutputTax,
+    purchase_amount: Number(purchase.purchase_amount || 0),
+    purchase_input_tax: Number(purchase.purchase_input_tax || 0),
+    input_tax_deduction: inputTaxDeduction,
+    tax_payable: Math.max(salesOutputTax - inputTaxDeduction, 0),
+  };
+}
+
 const taxController = {
   /**
    * 创建税务发票
@@ -350,6 +417,10 @@ const taxController = {
         return ResponseHandler.error(res, '无效的申报税种', 'VALIDATION_ERROR', 400);
       }
 
+      if (returnData.return_type === '增值税' && returnData.auto_calculate !== false) {
+        Object.assign(returnData, await calculateVATReturnData(returnData.return_period));
+      }
+
       // 创建税务申报
       const returnId = await taxModel.createTaxReturn(returnData);
 
@@ -532,8 +603,8 @@ const taxController = {
         bankTransactionId = bankTransactionResult.insertId;
 
         await connection.execute(
-          'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?',
-          [payableAmount, bank_account_id]
+          'UPDATE bank_accounts SET current_balance = current_balance - ?, last_transaction_date = ? WHERE id = ?',
+          [payableAmount, paymentDate, bank_account_id]
         );
 
         entryInfo = await TaxAccountingService.generateVATReturnEntry(

@@ -1064,8 +1064,8 @@ const arModel = {
         bankTransactionId = bankTransactionResult.insertId;
 
         await connection.execute(
-          'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?',
-          [totalPaid, receiptData.bank_account_id]
+          'UPDATE bank_accounts SET current_balance = current_balance + ?, last_transaction_date = ? WHERE id = ?',
+          [totalPaid, receiptData.receipt_date, receiptData.bank_account_id]
         );
 
         logger.info(`[AR收款] 银行账户余额已更新: ${bankAccount.account_name}`);
@@ -1534,8 +1534,8 @@ const arModel = {
 
             // 更新银行账户余额（减少余额）
             await connection.execute(
-              'UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?',
-              [receipt.total_amount, receipt.bank_account_id]
+              'UPDATE bank_accounts SET current_balance = current_balance - ?, last_transaction_date = ? WHERE id = ?',
+              [receipt.total_amount, reversalDate, receipt.bank_account_id]
             );
 
             logger.info('[作废收款] 已创建冲销银行交易并更新账户余额');

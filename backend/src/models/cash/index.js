@@ -34,7 +34,9 @@ const extraMethods = {
       await connection.beginTransaction();
 
       // 获取所有银行账户
-      const [accounts] = await connection.execute('SELECT id, account_name FROM bank_accounts');
+      const [accounts] = await connection.execute(
+        'SELECT id, account_name, opening_balance FROM bank_accounts'
+      );
 
       logger.info(`开始重新计算 ${accounts.length} 个银行账户的余额...`);
 
@@ -43,23 +45,27 @@ const extraMethods = {
         const [balanceResult] = await connection.execute(
           `
           SELECT COALESCE(SUM(CASE
-            WHEN transaction_type IN ('存款', '转入', '利息') THEN amount
-            WHEN transaction_type IN ('取款', '转出', '费用') THEN -amount
+            WHEN transaction_type IN ('存款', '转入', '利息', '收入', 'income', 'deposit', 'transfer_in', 'interest') THEN amount
+            WHEN transaction_type IN ('取款', '转出', '费用', '支出', 'expense', 'withdrawal', 'transfer_out', 'fee') THEN -amount
             ELSE 0
-          END), 0) as correct_balance
+          END), 0) as correct_balance,
+          MAX(transaction_date) as last_transaction_date
           FROM bank_transactions
           WHERE bank_account_id = ?
+            AND (status IS NULL OR status = 'approved')
         `,
           [account.id]
         );
 
-        const correctBalance = parseFloat(balanceResult[0].correct_balance) || 0;
+        const correctBalance =
+          (parseFloat(account.opening_balance) || 0) +
+          (parseFloat(balanceResult[0].correct_balance) || 0);
 
         // 更新账户余额
-        await connection.execute('UPDATE bank_accounts SET current_balance = ? WHERE id = ?', [
-          correctBalance,
-          account.id,
-        ]);
+        await connection.execute(
+          'UPDATE bank_accounts SET current_balance = ?, last_transaction_date = ? WHERE id = ?',
+          [correctBalance, balanceResult[0].last_transaction_date || null, account.id]
+        );
 
         logger.info(
           `账户 ${account.account_name} (ID: ${account.id}) 余额已更新为: ${correctBalance}`

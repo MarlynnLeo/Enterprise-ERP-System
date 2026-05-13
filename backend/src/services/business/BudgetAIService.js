@@ -19,6 +19,9 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { assertOllamaConfigured, getOllamaConfig } = require('../../config/aiConfig');
+const {
+    budgetDetailActualAmountSql,
+} = require('../../utils/finance/budgetUsageSql');
 const crypto = require('crypto');
 
 // 本地 Ollama AI 配置（OpenAI 兼容 API）
@@ -261,15 +264,17 @@ class BudgetAIService {
                 FROM gl_entry_items gei
                 JOIN gl_entries ge ON gei.entry_id = ge.id
                 JOIN gl_accounts ga ON gei.account_id = ga.id
+                LEFT JOIN cost_centers cc_budget_ai ON cc_budget_ai.id = gei.cost_center_id
                 WHERE YEAR(ge.entry_date) >= ? AND YEAR(ge.entry_date) < ?
-                    AND ga.account_type IN ('费用', '成本')
+                    AND ga.account_type IN ('费用', '成本', 'expense', 'cost')
                     AND ga.is_active = true
+                    AND ge.is_posted = 1
             `;
             const params = [startYear, targetYear];
 
             if (departmentId) {
-                historicalQuery += ' AND ge.department_id = ?';
-                params.push(departmentId);
+                historicalQuery += ' AND (gei.cost_center_id = ? OR cc_budget_ai.department_id = ?)';
+                params.push(departmentId, departmentId);
             }
 
             historicalQuery += ' GROUP BY ga.id, ga.account_code, ga.account_name, YEAR(ge.entry_date) ORDER BY ga.account_code, year';
@@ -403,10 +408,12 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
                 SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
+                    ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used,
                     CASE WHEN bd.budget_amount > 0
-                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2)
+                        THEN ROUND((${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} / bd.budget_amount) * 100, 2)
                         ELSE 0 END as execution_rate
                 FROM budget_details bd
+                JOIN budgets b ON b.id = bd.budget_id
                 LEFT JOIN gl_accounts ga ON bd.account_id = ga.id
                 LEFT JOIN departments d ON bd.department_id = d.id
                 WHERE bd.budget_id = ?
@@ -435,8 +442,8 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
                 name: d.account_name,
                 department: d.department_name || '全公司',
                 budget: parseFloat(d.budget_amount),
-                used: parseFloat(d.used_amount),
-                remaining: parseFloat(d.remaining_amount),
+                used: parseFloat(d.actual_used),
+                remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
                 rate: parseFloat(d.execution_rate),
             }));
 
@@ -545,10 +552,12 @@ ${JSON.stringify(executionData, null, 2)}
                 SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
+                    ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used,
                     CASE WHEN bd.budget_amount > 0
-                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2)
+                        THEN ROUND((${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} / bd.budget_amount) * 100, 2)
                         ELSE 0 END as execution_rate
                 FROM budget_details bd
+                JOIN budgets b ON b.id = bd.budget_id
                 LEFT JOIN gl_accounts ga ON bd.account_id = ga.id
                 LEFT JOIN departments d ON bd.department_id = d.id
                 WHERE bd.budget_id = ?
@@ -577,8 +586,8 @@ ${JSON.stringify(executionData, null, 2)}
                 name: d.account_name,
                 department: d.department_name || '全公司',
                 budget: parseFloat(d.budget_amount),
-                used: parseFloat(d.used_amount),
-                remaining: parseFloat(d.remaining_amount),
+                used: parseFloat(d.actual_used),
+                remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
                 rate: parseFloat(d.execution_rate),
             }));
 
@@ -858,9 +867,10 @@ ${JSON.stringify(executionData, null, 2)}
                 SELECT
                     b.budget_year,
                     ga.account_code, ga.account_name,
-                    bd.budget_amount, bd.used_amount,
+                    bd.budget_amount,
+                    ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used,
                     CASE WHEN bd.budget_amount > 0
-                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2)
+                        THEN ROUND((${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} / bd.budget_amount) * 100, 2)
                         ELSE 0 END as execution_rate
                 FROM budget_details bd
                 JOIN budgets b ON bd.budget_id = b.id
@@ -888,7 +898,7 @@ ${JSON.stringify(executionData, null, 2)}
                 }
                 const prefix = String(row.budget_year) === String(year1) ? 'y1' : 'y2';
                 comparisonMap[key][`${prefix}_budget`] = parseFloat(row.budget_amount);
-                comparisonMap[key][`${prefix}_used`] = parseFloat(row.used_amount);
+                comparisonMap[key][`${prefix}_used`] = parseFloat(row.actual_used);
                 comparisonMap[key][`${prefix}_rate`] = parseFloat(row.execution_rate);
             });
 
@@ -985,10 +995,12 @@ ${JSON.stringify(comparisonData, null, 2)}
                 SELECT
                     bd.*, ga.account_code, ga.account_name,
                     d.name as department_name,
+                    ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used,
                     CASE WHEN bd.budget_amount > 0
-                        THEN ROUND((bd.used_amount / bd.budget_amount) * 100, 2)
+                        THEN ROUND((${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} / bd.budget_amount) * 100, 2)
                         ELSE 0 END as execution_rate
                 FROM budget_details bd
+                JOIN budgets b ON b.id = bd.budget_id
                 LEFT JOIN gl_accounts ga ON bd.account_id = ga.id
                 LEFT JOIN departments d ON bd.department_id = d.id
                 WHERE bd.budget_id = ?
@@ -1009,8 +1021,8 @@ ${JSON.stringify(comparisonData, null, 2)}
                 name: d.account_name,
                 department: d.department_name || '全公司',
                 budget: parseFloat(d.budget_amount),
-                used: parseFloat(d.used_amount),
-                remaining: parseFloat(d.remaining_amount),
+                used: parseFloat(d.actual_used),
+                remaining: parseFloat(d.budget_amount) - parseFloat(d.actual_used),
                 rate: parseFloat(d.execution_rate),
             }));
 

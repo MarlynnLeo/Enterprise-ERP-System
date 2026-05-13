@@ -8,6 +8,9 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const {
+  budgetDetailActualAmountSql,
+} = require('../../utils/finance/budgetUsageSql');
 
 class BudgetAnalysisService {
   /**
@@ -39,35 +42,19 @@ class BudgetAnalysisService {
           a.account_code as account_code,
           a.account_name as account_name,
           d.name as department_name,
-          COALESCE(
-            (
-              SELECT SUM(gei.debit_amount - gei.credit_amount)
-              FROM gl_entry_items gei
-              JOIN gl_entries ge ON gei.entry_id = ge.id
-              WHERE gei.account_id = bd.account_id
-              AND ge.entry_date BETWEEN ? AND ?
-              AND ge.is_posted = 1
-            ), 0
-          ) as actual_used,
+          ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used,
           ROUND(
-            COALESCE(
-              (
-                SELECT SUM(gei.debit_amount - gei.credit_amount)
-                FROM gl_entry_items gei
-                JOIN gl_entries ge ON gei.entry_id = ge.id
-                WHERE gei.account_id = bd.account_id
-                AND ge.entry_date BETWEEN ? AND ?
-                AND ge.is_posted = 1
-              ), 0
-            ) / NULLIF(bd.budget_amount, 0) * 100, 2
+            ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })}
+            / NULLIF(bd.budget_amount, 0) * 100, 2
           ) as execution_rate
         FROM budget_details bd
+        JOIN budgets b ON b.id = bd.budget_id
         LEFT JOIN gl_accounts a ON bd.account_id = a.id
         LEFT JOIN departments d ON bd.department_id = d.id
         WHERE bd.budget_id = ?
         ORDER BY execution_rate DESC
       `,
-        [budget.start_date, budget.end_date, budget.start_date, budget.end_date, budgetId]
+        [budgetId]
       );
 
       // 用实时数据覆盖used_amount
@@ -129,22 +116,14 @@ class BudgetAnalysisService {
           a.account_code as account_code,
           a.account_name as account_name,
           d.name as department_name,
-          COALESCE(
-            (
-              SELECT SUM(gei.debit_amount - gei.credit_amount)
-              FROM gl_entry_items gei
-              JOIN gl_entries ge ON gei.entry_id = ge.id
-              WHERE gei.account_id = bd.account_id
-              AND ge.entry_date BETWEEN ? AND ?
-              AND ge.is_posted = 1
-            ), 0
-          ) as actual_used
+          ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used
         FROM budget_details bd
+        JOIN budgets b ON b.id = bd.budget_id
         LEFT JOIN gl_accounts a ON bd.account_id = a.id
         LEFT JOIN departments d ON bd.department_id = d.id
         WHERE bd.budget_id = ?
       `,
-        [budget.start_date, budget.end_date, budgetId]
+        [budgetId]
       );
 
       // 批量获取所有明细的执行情况（消除 N+1）
@@ -213,9 +192,13 @@ class BudgetAnalysisService {
           d.id,
           d.name as department_name,
           SUM(bd.budget_amount) as total_budget,
-          SUM(bd.used_amount) as total_used,
-          SUM(bd.remaining_amount) as total_remaining,
-          ROUND(SUM(bd.used_amount) / SUM(bd.budget_amount) * 100, 2) as execution_rate
+          SUM(${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })}) as total_used,
+          SUM(bd.budget_amount - ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })}) as total_remaining,
+          ROUND(
+            SUM(${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })})
+            / NULLIF(SUM(bd.budget_amount), 0) * 100,
+            2
+          ) as execution_rate
         FROM departments d
         LEFT JOIN budget_details bd ON d.id = bd.department_id
         LEFT JOIN budgets b ON bd.budget_id = b.id
@@ -249,8 +232,12 @@ class BudgetAnalysisService {
         SELECT
           b.budget_year,
           SUM(bd.budget_amount) as budget_amount,
-          SUM(bd.used_amount) as used_amount,
-          ROUND(SUM(bd.used_amount) / SUM(bd.budget_amount) * 100, 2) as execution_rate
+          SUM(${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })}) as used_amount,
+          ROUND(
+            SUM(${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })})
+            / NULLIF(SUM(bd.budget_amount), 0) * 100,
+            2
+          ) as execution_rate
         FROM budgets b
         JOIN budget_details bd ON b.id = bd.budget_id
         WHERE bd.account_id = ?

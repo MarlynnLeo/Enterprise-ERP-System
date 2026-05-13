@@ -6,6 +6,10 @@
 
 const db = require('../config/db');
 const { logger } = require('../utils/logger');
+const {
+  budgetDetailActualAmountSql,
+  budgetTotalActualAmountSql,
+} = require('../utils/finance/budgetUsageSql');
 
 const BUDGET_STATUS = {
   DRAFT: '草稿',
@@ -68,6 +72,7 @@ function validateBudgetDateRange(startDate, endDate) {
 
 function normalizeBudgetDetails(details = []) {
   if (!Array.isArray(details)) return [];
+  const seenDetailKeys = new Set();
 
   return details.map((detail, index) => {
     const accountId = Number.parseInt(detail.account_id, 10);
@@ -85,9 +90,16 @@ function normalizeBudgetDetails(details = []) {
       throw createBudgetError(`第${index + 1}行预警阈值必须在0到100之间`);
     }
 
+    const departmentId = detail.department_id || null;
+    const detailKey = `${accountId}:${departmentId || 'all'}`;
+    if (seenDetailKeys.has(detailKey)) {
+      throw createBudgetError(`第${index + 1}行预算明细和前面行的科目/部门重复`);
+    }
+    seenDetailKeys.add(detailKey);
+
     return {
       account_id: accountId,
-      department_id: detail.department_id || null,
+      department_id: departmentId,
       budget_amount: Math.round(budgetAmount * 100) / 100,
       warning_threshold: Math.round(warningThreshold * 100) / 100,
       description: detail.description || null,
@@ -224,16 +236,7 @@ const budgetModel = {
           b.*,
           d.name as department_name,
           u.real_name as creator_name,
-          COALESCE(
-            (
-              SELECT SUM(gei.debit_amount - gei.credit_amount)
-              FROM gl_entry_items gei
-              JOIN gl_entries ge ON gei.entry_id = ge.id
-              JOIN budget_details bd ON bd.budget_id = b.id AND bd.account_id = gei.account_id
-              WHERE ge.entry_date BETWEEN b.start_date AND b.end_date
-              AND ge.is_posted = 1
-            ), 0
-          ) as real_used_amount
+          ${budgetTotalActualAmountSql({ budgetAlias: 'b' })} as real_used_amount
         FROM budgets b
         LEFT JOIN departments d ON b.department_id = d.id
         LEFT JOIN users u ON b.created_by = u.id
@@ -258,8 +261,14 @@ const budgetModel = {
       }
 
       if (filters.department_id) {
-        query += ' AND b.department_id = ?';
-        params.push(filters.department_id);
+        query += ` AND (
+          b.department_id = ?
+          OR EXISTS (
+            SELECT 1 FROM budget_details bd_filter
+            WHERE bd_filter.budget_id = b.id AND bd_filter.department_id = ?
+          )
+        )`;
+        params.push(filters.department_id, filters.department_id);
       }
 
       if (filters.keyword) {
@@ -319,8 +328,14 @@ const budgetModel = {
       }
 
       if (filters.department_id) {
-        query += ' AND department_id = ?';
-        params.push(filters.department_id);
+        query += ` AND (
+          department_id = ?
+          OR EXISTS (
+            SELECT 1 FROM budget_details bd_filter
+            WHERE bd_filter.budget_id = budgets.id AND bd_filter.department_id = ?
+          )
+        )`;
+        params.push(filters.department_id, filters.department_id);
       }
 
       if (filters.keyword) {
@@ -372,23 +387,15 @@ const budgetModel = {
           a.account_code,
           a.account_name,
           d.name as department_name,
-          COALESCE(
-            (
-              SELECT SUM(gei.debit_amount - gei.credit_amount)
-              FROM gl_entry_items gei
-              JOIN gl_entries ge ON gei.entry_id = ge.id
-              WHERE gei.account_id = bd.account_id
-              AND ge.entry_date BETWEEN ? AND ?
-              AND ge.is_posted = 1
-            ), 0
-          ) as actual_amount
+          ${budgetDetailActualAmountSql({ budgetAlias: 'b2', detailAlias: 'bd' })} as actual_amount
         FROM budget_details bd
+        JOIN budgets b2 ON b2.id = bd.budget_id
         LEFT JOIN gl_accounts a ON bd.account_id = a.id
         LEFT JOIN departments d ON bd.department_id = d.id
         WHERE bd.budget_id = ?
         ORDER BY bd.id
       `,
-        [budget.start_date, budget.end_date, id]
+        [id]
       );
 
       // 用实时数据覆盖used_amount和remaining_amount
@@ -870,21 +877,13 @@ const budgetModel = {
           bd.*,
           a.account_code,
           a.account_name,
-          COALESCE(
-            (
-              SELECT SUM(gei.debit_amount - gei.credit_amount)
-              FROM gl_entry_items gei
-              JOIN gl_entries ge ON gei.entry_id = ge.id
-              WHERE gei.account_id = bd.account_id
-              AND ge.entry_date BETWEEN ? AND ?
-              AND ge.is_posted = 1
-            ), 0
-          ) as actual_amount_calc
+          ${budgetDetailActualAmountSql({ budgetAlias: 'b2', detailAlias: 'bd' })} as actual_amount_calc
         FROM budget_details bd
+        JOIN budgets b2 ON b2.id = bd.budget_id
         LEFT JOIN gl_accounts a ON bd.account_id = a.id
         WHERE bd.budget_id = ?
       `,
-        [budget.start_date, budget.end_date, budgetId]
+        [budgetId]
       );
 
       // 3. 处理数据，计算差异和执行率

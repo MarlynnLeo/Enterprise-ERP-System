@@ -148,7 +148,7 @@ class CashReportsModel {
   static async getTransactionStatistics(filters = {}) {
     try {
       const params = [];
-      let whereClause = '';
+      let whereClause = " AND (t.status IS NULL OR t.status = 'approved')";
 
       // 构建WHERE子句
       if (filters.startDate && filters.endDate) {
@@ -289,15 +289,16 @@ class CashReportsModel {
         `
         SELECT
           SUM(CASE
-            WHEN transaction_type IN ('存款', '转入', '利息') THEN amount
+            WHEN transaction_type IN ('存款', '转入', '利息', '收入', 'income', 'deposit', 'transfer_in', 'interest') THEN amount
             ELSE 0
           END) as total_in_month,
           SUM(CASE
-            WHEN transaction_type IN ('取款', '转出', '费用') THEN amount
+            WHEN transaction_type IN ('取款', '转出', '费用', '支出', 'expense', 'withdrawal', 'transfer_out', 'fee') THEN amount
             ELSE 0
           END) as total_out_month
         FROM bank_transactions
         WHERE transaction_date BETWEEN ? AND ?
+          AND (status IS NULL OR status = 'approved')
       `,
         [firstDayOfMonth, lastDayOfMonth]
       );
@@ -344,7 +345,7 @@ class CashReportsModel {
    */
   static async getCashTransactionCategoryStats(filters = {}) {
     try {
-      let whereClause = 'WHERE 1=1';
+      let whereClause = "WHERE (status IS NULL OR status = 'approved')";
       const params = [];
 
       if (filters.startDate) {

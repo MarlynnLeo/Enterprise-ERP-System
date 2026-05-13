@@ -8,7 +8,9 @@
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
 const financeModel = require('../finance');
+const { accountingConfig } = require('../../config/accountingConfig');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
+const DocumentLinkService = require('../../services/business/DocumentLinkService');
 
 function requirePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(value, 10);
@@ -20,8 +22,26 @@ function requirePositiveInteger(value, fieldName) {
 
 const EDITABLE_BANK_STATUSES = new Set(['draft', 'rejected']);
 const AUDITABLE_BANK_STATUSES = new Set(['pending', 'reviewed']);
-const BANK_INFLOW_TYPES = new Set(['存款', '转入', '利息', '收入', 'income', 'deposit', 'transfer_in', 'interest']);
-const BANK_OUTFLOW_TYPES = new Set(['取款', '转出', '费用', '支出', 'expense', 'withdrawal', 'transfer_out', 'fee']);
+const BANK_INFLOW_TYPES = new Set([
+  '存款',
+  '转入',
+  '利息',
+  '收入',
+  'income',
+  'deposit',
+  'transfer_in',
+  'interest',
+]);
+const BANK_OUTFLOW_TYPES = new Set([
+  '取款',
+  '转出',
+  '费用',
+  '支出',
+  'expense',
+  'withdrawal',
+  'transfer_out',
+  'fee',
+]);
 
 function normalizeStatus(status) {
   return status || 'draft';
@@ -45,6 +65,7 @@ function getBankBalanceDelta(transactionType, amount) {
 async function applyApprovedTransactionToBalance(connection, transaction) {
   const amount = normalizePositiveAmount(transaction.amount, 'amount');
   const delta = getBankBalanceDelta(transaction.transaction_type, amount);
+  const transactionDate = formatDateOnly(transaction.transaction_date);
 
   const [accounts] = await connection.execute(
     'SELECT id, current_balance FROM bank_accounts WHERE id = ? AND is_active = 1 FOR UPDATE',
@@ -62,8 +83,8 @@ async function applyApprovedTransactionToBalance(connection, transaction) {
   }
 
   await connection.execute(
-    'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?',
-    [delta, transaction.bank_account_id]
+    'UPDATE bank_accounts SET current_balance = current_balance + ?, last_transaction_date = ? WHERE id = ?',
+    [delta, transactionDate, transaction.bank_account_id]
   );
 
   const [updatedAccount] = await connection.execute(
@@ -71,6 +92,254 @@ async function applyApprovedTransactionToBalance(connection, transaction) {
     [transaction.bank_account_id]
   );
   return Number.parseFloat(updatedAccount[0]?.current_balance || 0);
+}
+
+function formatDateOnly(value) {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    throw new Error('银行交易日期格式不正确');
+  }
+  return text;
+}
+
+async function getOpenAccountingPeriodId(connection, accountingDate) {
+  const [periods] = await connection.execute(
+    `SELECT id, period_name
+     FROM gl_periods
+     WHERE start_date <= ?
+       AND end_date >= ?
+       AND is_closed = 0
+     ORDER BY start_date DESC
+     LIMIT 1
+     FOR UPDATE`,
+    [accountingDate, accountingDate]
+  );
+
+  if (periods.length === 0) {
+    throw new Error(`日期 ${accountingDate} 没有可用的开放会计期间，请先维护会计期间`);
+  }
+
+  return periods[0].id;
+}
+
+async function getActiveGlAccountId(connection, accountCode, accountLabel) {
+  if (!accountCode) {
+    throw new Error(`${accountLabel}科目编码未配置`);
+  }
+
+  const [accounts] = await connection.execute(
+    'SELECT id FROM gl_accounts WHERE account_code = ? AND (is_active = 1 OR is_active IS NULL) LIMIT 1',
+    [accountCode]
+  );
+
+  if (accounts.length === 0) {
+    throw new Error(`${accountLabel}科目 ${accountCode} 不存在或未启用`);
+  }
+
+  return accounts[0].id;
+}
+
+function getManualBankContraAccountKey(transaction) {
+  const type = transaction.transaction_type;
+  const category = transaction.category || '';
+
+  if (type === '利息' || type === 'interest' || category === 'interest_income') {
+    return 'OTHER_REVENUE';
+  }
+
+  if (category === 'sales_income') {
+    return 'SALES_REVENUE';
+  }
+
+  if (BANK_INFLOW_TYPES.has(type)) {
+    return 'OTHER_REVENUE';
+  }
+
+  if (category === 'purchase_expense') {
+    return 'PURCHASE_COST';
+  }
+
+  if (type === '费用' || type === 'fee') {
+    return 'FINANCE_EXPENSE';
+  }
+
+  if (BANK_OUTFLOW_TYPES.has(type)) {
+    return 'ADMIN_EXPENSE';
+  }
+
+  throw new Error(`不支持的交易类型: ${type}`);
+}
+
+function getManualBankDocumentType(transactionType) {
+  if (transactionType === '利息' || transactionType === 'interest') {
+    return DOCUMENT_TYPE_MAPPING.BANK_DEPOSIT;
+  }
+  if (BANK_INFLOW_TYPES.has(transactionType)) {
+    return DOCUMENT_TYPE_MAPPING.BANK_DEPOSIT;
+  }
+  if (BANK_OUTFLOW_TYPES.has(transactionType)) {
+    return DOCUMENT_TYPE_MAPPING.BANK_WITHDRAWAL;
+  }
+  return DOCUMENT_TYPE_MAPPING.BANK_TRANSFER;
+}
+
+function resolveProvidedAccountId(glEntry, ...keys) {
+  if (!glEntry || typeof glEntry !== 'object') return null;
+  for (const key of keys) {
+    const value = Number.parseInt(glEntry[key], 10);
+    if (Number.isInteger(value) && value > 0) return value;
+  }
+  return null;
+}
+
+async function createApprovedBankTransactionGlEntry(connection, transaction, operatorId) {
+  if (transaction.gl_entry_id) {
+    const [existing] = await connection.execute(
+      'SELECT id, entry_number FROM gl_entries WHERE id = ? LIMIT 1',
+      [transaction.gl_entry_id]
+    );
+    if (existing.length > 0) {
+      return { entryId: existing[0].id, entryNumber: existing[0].entry_number };
+    }
+  }
+
+  const transactionNumber = String(transaction.transaction_number || '').trim();
+  if (!transactionNumber) {
+    throw new Error('银行交易缺少交易编号，无法生成会计凭证');
+  }
+
+  const amount = normalizePositiveAmount(transaction.amount, 'amount');
+  const transactionDate = formatDateOnly(transaction.transaction_date);
+  const documentType = getManualBankDocumentType(transaction.transaction_type);
+
+  const [existingEntries] = await connection.execute(
+    `SELECT id, entry_number
+     FROM gl_entries
+     WHERE document_type = ?
+       AND document_number = ?
+       AND (is_reversed IS NULL OR is_reversed = 0)
+     LIMIT 1
+     FOR UPDATE`,
+    [documentType, transactionNumber]
+  );
+  if (existingEntries.length > 0) {
+    await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [
+      existingEntries[0].id,
+      transaction.id,
+    ]);
+    await DocumentLinkService.tryAutoLink(
+      'bank_transaction',
+      transaction.id,
+      transactionNumber,
+      'finance_voucher',
+      existingEntries[0].id,
+      existingEntries[0].entry_number,
+      operatorId || transaction.created_by || null,
+      connection
+    );
+    return { entryId: existingEntries[0].id, entryNumber: existingEntries[0].entry_number };
+  }
+
+  await accountingConfig.loadFromDatabase(db);
+  const providedGlEntry =
+    transaction.gl_entry && typeof transaction.gl_entry === 'object' ? transaction.gl_entry : {};
+  const periodId =
+    resolveProvidedAccountId(providedGlEntry, 'period_id') ||
+    (await getOpenAccountingPeriodId(connection, transactionDate));
+  const bankGlAccountId =
+    resolveProvidedAccountId(providedGlEntry, 'bank_gl_account_id', 'bank_account_id') ||
+    (await getActiveGlAccountId(
+      connection,
+      accountingConfig.getAccountCode('BANK_DEPOSIT') || '1002',
+      '银行存款'
+    ));
+
+  const contraAccountKey = getManualBankContraAccountKey(transaction);
+  const contraAccountId =
+    resolveProvidedAccountId(
+      providedGlEntry,
+      'contra_account_id',
+      'counterparty_account_id',
+      'interest_account_id',
+      'expense_account_id'
+    ) ||
+    (await getActiveGlAccountId(
+      connection,
+      accountingConfig.getAccountCode(contraAccountKey),
+      contraAccountKey
+    ));
+
+  const isInflow = BANK_INFLOW_TYPES.has(transaction.transaction_type);
+  const entryItems = isInflow
+    ? [
+      {
+        account_id: bankGlAccountId,
+        debit_amount: amount,
+        credit_amount: 0,
+        description: `银行收款 - ${transaction.description || transactionNumber}`,
+      },
+      {
+        account_id: contraAccountId,
+        debit_amount: 0,
+        credit_amount: amount,
+        description: `银行收款对方 - ${transaction.related_party || transaction.category || ''}`,
+      },
+    ]
+    : [
+      {
+        account_id: contraAccountId,
+        debit_amount: amount,
+        credit_amount: 0,
+        description: `银行付款对方 - ${transaction.related_party || transaction.category || ''}`,
+      },
+      {
+        account_id: bankGlAccountId,
+        debit_amount: 0,
+        credit_amount: amount,
+        description: `银行付款 - ${transaction.description || transactionNumber}`,
+      },
+    ];
+
+  const entryId = await financeModel.createEntry(
+    {
+      entry_number: providedGlEntry.entry_number,
+      entry_date: transactionDate,
+      posting_date: transactionDate,
+      document_type: documentType,
+      document_number: transactionNumber,
+      period_id: periodId,
+      description: transaction.description || `银行交易: ${transaction.transaction_type}`,
+      created_by: providedGlEntry.created_by || operatorId || transaction.created_by,
+      status: 'posted',
+      is_posted: 1,
+    },
+    entryItems,
+    connection
+  );
+
+  const [entries] = await connection.execute(
+    'SELECT entry_number FROM gl_entries WHERE id = ?',
+    [entryId]
+  );
+  const entryNumber = entries[0]?.entry_number || providedGlEntry.entry_number || null;
+
+  await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [
+    entryId,
+    transaction.id,
+  ]);
+  await DocumentLinkService.tryAutoLink(
+    'bank_transaction',
+    transaction.id,
+    transactionNumber,
+    'finance_voucher',
+    entryId,
+    entryNumber,
+    operatorId || transaction.created_by || null,
+    connection
+  );
+
+  return { entryId, entryNumber };
 }
 
 function appendTransactionTypeFilter(whereParts, params, alias, transactionType) {
@@ -170,149 +439,25 @@ class BankTransactionModel {
         });
       }
 
-      // 如果提供了会计分录信息，创建相应的会计分录
-      if (initialStatus === 'approved' && transactionData.gl_entry && typeof transactionData.gl_entry === 'object') {
-        logger.info('处理会计分录数据:', transactionData.gl_entry);
-
-        const entryData = {
-          entry_number: transactionData.gl_entry.entry_number,
-          entry_date: transactionData.transaction_date,
-          posting_date: transactionData.transaction_date,
-          document_type: DOCUMENT_TYPE_MAPPING.BANK_TRANSFER,
-          document_number: transactionData.transaction_number,
-          period_id: transactionData.gl_entry.period_id,
-          description:
-            transactionData.description || `银行交易: ${transactionData.transaction_type}`,
-          created_by: transactionData.gl_entry.created_by,
-        };
-
-        // 根据交易类型创建不同的分录明细
-        let entryItems = [];
-
-        switch (transactionData.transaction_type) {
-          case '存款':
-          case '转入':
-            // 借：银行账户
-            entryItems = [
-              {
-                account_id: transactionData.gl_entry.bank_account_id,
-                debit_amount: amount,
-                credit_amount: 0,
-                description: `银行${transactionData.transaction_type} - ${bankAccount.bank_name} ${bankAccount.account_name}`,
-              },
-              // 贷：来源账户（如现金、其他银行等）
-              {
-                account_id: transactionData.gl_entry.contra_account_id,
-                debit_amount: 0,
-                credit_amount: amount,
-                description: `银行${transactionData.transaction_type}来源 - ${transactionData.related_party || ''}`,
-              },
-            ];
-            break;
-
-          case '取款':
-          case '转出':
-            // 借：目标账户（如现金、其他银行等）
-            entryItems = [
-              {
-                account_id: transactionData.gl_entry.contra_account_id,
-                debit_amount: amount,
-                credit_amount: 0,
-                description: `银行${transactionData.transaction_type}目标 - ${transactionData.related_party || ''}`,
-              },
-              // 贷：银行账户
-              {
-                account_id: transactionData.gl_entry.bank_account_id,
-                debit_amount: 0,
-                credit_amount: amount,
-                description: `银行${transactionData.transaction_type} - ${bankAccount.bank_name} ${bankAccount.account_name}`,
-              },
-            ];
-            break;
-
-          case '利息':
-            // 借：银行账户
-            entryItems = [
-              {
-                account_id: transactionData.gl_entry.bank_account_id,
-                debit_amount: amount,
-                credit_amount: 0,
-                description: `银行利息 - ${bankAccount.bank_name} ${bankAccount.account_name}`,
-              },
-              // 贷：利息收入
-              {
-                account_id: transactionData.gl_entry.interest_account_id,
-                debit_amount: 0,
-                credit_amount: amount,
-                description: '银行利息收入',
-              },
-            ];
-            break;
-
-          case '费用':
-            // 借：银行费用
-            entryItems = [
-              {
-                account_id: transactionData.gl_entry.expense_account_id,
-                debit_amount: amount,
-                credit_amount: 0,
-                description: `银行费用 - ${bankAccount.bank_name} ${bankAccount.account_name}`,
-              },
-              // 贷：银行账户
-              {
-                account_id: transactionData.gl_entry.bank_account_id,
-                debit_amount: 0,
-                credit_amount: amount,
-                description: '银行费用支出',
-              },
-            ];
-            break;
-
-          default:
-            // 自定义或其他类型交易
-            if (parseFloat(amount) >= 0) {
-              entryItems = [
-                {
-                  account_id: transactionData.gl_entry.bank_account_id,
-                  debit_amount: Math.abs(amount),
-                  credit_amount: 0,
-                  description: `银行交易 - ${bankAccount.bank_name} ${bankAccount.account_name}`,
-                },
-                {
-                  account_id: transactionData.gl_entry.contra_account_id,
-                  debit_amount: 0,
-                  credit_amount: Math.abs(amount),
-                  description: `银行交易对方 - ${transactionData.related_party || ''}`,
-                },
-              ];
-            } else {
-              entryItems = [
-                {
-                  account_id: transactionData.gl_entry.contra_account_id,
-                  debit_amount: Math.abs(amount),
-                  credit_amount: 0,
-                  description: `银行交易对方 - ${transactionData.related_party || ''}`,
-                },
-                {
-                  account_id: transactionData.gl_entry.bank_account_id,
-                  debit_amount: 0,
-                  credit_amount: Math.abs(amount),
-                  description: `银行交易 - ${bankAccount.bank_name} ${bankAccount.account_name}`,
-                },
-              ];
-            }
-        }
-
-        try {
-          // 创建会计分录
-          await financeModel.createEntry(entryData, entryItems, connection);
-          logger.info('会计分录创建成功');
-        } catch (entryError) {
-          logger.error('创建会计分录失败:', entryError);
-          throw new Error(`Bank transaction GL entry creation failed: ${entryError.message}`, {
-            cause: entryError,
-          });
-        }
+      if (initialStatus === 'approved') {
+        await createApprovedBankTransactionGlEntry(
+          connection,
+          {
+            id: transactionId,
+            transaction_number: transactionData.transaction_number,
+            bank_account_id: bankAccountId,
+            transaction_date: transactionData.transaction_date,
+            transaction_type: transactionData.transaction_type,
+            amount,
+            description: transactionData.description,
+            related_party: transactionData.related_party,
+            category: transactionData.category,
+            payment_method: transactionData.payment_method,
+            created_by: createdBy,
+            gl_entry: transactionData.gl_entry,
+          },
+          createdBy
+        );
       }
 
       await connection.commit();
@@ -656,7 +801,9 @@ class BankTransactionModel {
       await connection.beginTransaction();
 
       const [transactions] = await connection.execute(
-        `SELECT id, bank_account_id, transaction_type, amount, status, is_reconciled
+        `SELECT id, transaction_number, bank_account_id, transaction_date, transaction_type,
+                amount, description, related_party, category, payment_method,
+                created_by, status, is_reconciled, gl_entry_id
          FROM bank_transactions
          WHERE id = ?
          FOR UPDATE`,
@@ -673,6 +820,11 @@ class BankTransactionModel {
       }
 
       const newBalance = await applyApprovedTransactionToBalance(connection, transaction);
+      const entryInfo = await createApprovedBankTransactionGlEntry(
+        connection,
+        transaction,
+        userId
+      );
 
       const [result] = await connection.execute(
         `UPDATE bank_transactions
@@ -687,7 +839,7 @@ class BankTransactionModel {
 
       await connection.commit();
       logger.info(`银行交易 ${id} 审核通过`);
-      return { success: true, newBalance };
+      return { success: true, newBalance, ...entryInfo };
     } catch (error) {
       await connection.rollback();
       logger.error('审核通过失败:', error);
