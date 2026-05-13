@@ -12,6 +12,7 @@ const financeModel = require('../../../models/finance');
 const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { accountingConfig } = require('../../../config/accountingConfig');
 
 /**
  * 财务总账控制器
@@ -452,7 +453,12 @@ const financeController = {
       // ===== 收/付凭证科目校验 =====
       // 收款凭证: 必须有借方现金或银行科目
       // 付款凭证: 必须有贷方现金或银行科目
-      const cashBankCodes = ['1001', '1002']; // 现金、银行存款科目编码前缀
+      await accountingConfig.loadFromDatabase(db);
+      const cashBankCodes = [
+        accountingConfig.getAccountCode('CASH'),
+        accountingConfig.getAccountCode('BANK_DEPOSIT'),
+        accountingConfig.getAccountCode('OTHER_MONETARY_ASSETS'),
+      ].filter(Boolean);
 
       // 获取所有涉及的科目编码
       const accountIds = items.map((item) => item.account_id);

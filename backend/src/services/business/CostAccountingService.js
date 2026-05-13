@@ -1855,14 +1855,9 @@ class CostAccountingService {
       // 1. 获取该期间内尚未完工的任务，或者在该期间结束时尚未完工的历史任务
       // 逻辑：任务创建早于等于期间结束日，且 (未完工 OR 完工日期晚于期间结束日)
 
-      let endDate;
-      if (period) {
-        const [year, month] = period.split('-');
-        endDate = new Date(year, month, 0); // 月末
-      } else {
-        endDate = new Date();
-      }
-      const endDateStr = endDate.toISOString().split('T')[0];
+      const endDateStr = period
+        ? this.parsePeriodRange(period).endDate
+        : new Date().toISOString().split('T')[0];
 
       const [wipTasks] = await connection.execute(
         `
@@ -2003,14 +1998,9 @@ class CostAccountingService {
   static async calculateOutsourcedWIP(period) {
     const connection = await db.pool.getConnection();
     try {
-      let endDate;
-      if (period) {
-        const [year, month] = period.split('-');
-        endDate = new Date(year, month, 0);
-      } else {
-        endDate = new Date();
-      }
-      const endDateStr = endDate.toISOString().split('T')[0];
+      const endDateStr = period
+        ? this.parsePeriodRange(period).endDate
+        : new Date().toISOString().split('T')[0];
 
       // 查询已确认但未完成的委外加工单
       const [wipOrders] = await connection.execute(
@@ -2687,6 +2677,7 @@ class CostAccountingService {
       if (!actualPeriodId) {
         actualPeriodId = await GLService.getPeriodIdByDate(snapDate);
       }
+      await this.assertOpenPeriod(connection, actualPeriodId);
 
       // 查询所有未完工任务（状态不是 completed/cancelled）
       const [wipTasks] = await connection.execute(`
@@ -2917,6 +2908,7 @@ class CostAccountingService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await this.assertOpenPeriod(connection, periodId);
 
       // 获取该期间的 WIP 汇总
       const [wipSummary] = await connection.execute(
@@ -3028,6 +3020,7 @@ class CostAccountingService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await this.assertOpenPeriod(connection, periodId);
 
       // 获取本期完工产品及其成本
       const [completedProducts] = await connection.execute(
@@ -3294,6 +3287,27 @@ class CostAccountingService {
     const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
     const endDate = `${year}-${month}-${lastDay}`;
     return { year, month, startDate, endDate };
+  }
+
+  static async assertOpenPeriod(connection, periodId) {
+    if (!periodId) {
+      throw new Error('缺少会计期间');
+    }
+
+    const [periods] = await connection.execute(
+      'SELECT id, period_name, is_closed FROM gl_periods WHERE id = ? FOR UPDATE',
+      [periodId]
+    );
+
+    if (periods.length === 0) {
+      throw new Error('会计期间不存在');
+    }
+
+    if (Number(periods[0].is_closed) === 1 || periods[0].is_closed === true) {
+      throw new Error(`会计期间 ${periods[0].period_name || periodId} 已关闭，不能执行成本期末动作`);
+    }
+
+    return periods[0];
   }
 
   /**
