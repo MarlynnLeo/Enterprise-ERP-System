@@ -372,9 +372,12 @@ const taxController = {
         return ResponseHandler.error(res, '只有进项发票可以抵扣', 'VALIDATION_ERROR', 400);
       }
 
+      const deductionDate = validateBusinessDate(deduction_date, '抵扣日期');
+      await TaxAccountingService.getCurrentPeriodId(deductionDate, connection);
+
       await connection.execute(
         'UPDATE tax_invoices SET status = ?, deduction_date = ? WHERE id = ?',
-        ['已抵扣', deduction_date || new Date().toISOString().split('T')[0], id]
+        ['已抵扣', deductionDate, id]
       );
 
       await connection.commit();
@@ -427,7 +430,14 @@ const taxController = {
       return ResponseHandler.success(res, { id: returnId }, '税务申报创建成功', 201);
     } catch (error) {
       logger.error('创建税务申报失败:', error);
-      return ResponseHandler.error(res, '创建税务申报失败', 'SERVER_ERROR', 500, error);
+      const isBusinessError = /申报期间|税种|YYYY-MM/.test(error.message || '');
+      return ResponseHandler.error(
+        res,
+        isBusinessError ? error.message : '创建税务申报失败',
+        isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isBusinessError ? 400 : 500,
+        error
+      );
     }
   },
 

@@ -1177,8 +1177,20 @@ exports.up = async function(knex) {
 
   // --- finance_account_mapping ---
   await knex.raw(`CREATE TABLE IF NOT EXISTS finance_account_mapping (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        business_type VARCHAR(50);`);
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    business_type VARCHAR(50) NOT NULL COMMENT '业务类型',
+    debit_account_id INT COMMENT '借方科目ID',
+    credit_account_id INT COMMENT '贷方科目ID',
+    supplier_category_id INT COMMENT '供应商分类ID',
+    material_category_id INT COMMENT '物料分类ID',
+    description VARCHAR(200) COMMENT '说明',
+    is_default BOOLEAN DEFAULT FALSE COMMENT '是否默认配置',
+    status BOOLEAN DEFAULT TRUE COMMENT '启用状态',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_business_type (business_type),
+    INDEX idx_is_default (is_default, business_type)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='财务科目映射配置表'`);
 
   // === 种子数据 ===
 

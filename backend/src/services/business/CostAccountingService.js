@@ -556,38 +556,6 @@ class CostAccountingService {
 
       // ========== GL Integration (生成凭证) ==========
 
-      // 幂等性校验：检查是否已经生成过该任务的完工入库凭证
-      const [existingEntries] = await connection.execute(
-        `SELECT id FROM gl_entries
-         WHERE transaction_type = 'PRODUCTION_COMPLETE'
-         AND (transaction_id = ? OR document_number IN (?, ?)) LIMIT 1`,
-        [productionOrderId, order.code, `${String(order.code).slice(0, 30)}-COMPLETE`]
-      );
-
-      if (existingEntries && existingEntries.length > 0) {
-        logger.info(`生产任务 ${productionOrderId} 的完工总账凭证已存在，跳过重复生成以防复数记账`);
-        if (!isExternalConn) await connection.commit();
-        if (!isExternalConn) connection.release(); // 提前返回前必须释放连接
-        return {
-          productionOrderId,
-          productId: order.product_id,
-          quantity: order.quantity,
-          actualCost: {
-            materialCost: materialCost.totalCost,
-            laborCost: laborCost.totalCost,
-            overheadCost: overheadCost.totalCost,
-            totalCost: totalActualCost,
-            unitCost: totalActualCost / order.quantity,
-          },
-          details: {
-            materials: materialCost.details,
-            labor: laborCost.details,
-            overhead: overheadCost.details,
-          },
-          duplicateSkipped: true, // 标识由于等幂性已跳过发凭证
-        };
-      }
-
       // 1. 获取所有需要的科目映射 (纯净的 SSOT 节点提取，杜绝防呆字面量)
       const config = globalConfigManager.getConfig();
       const accountCodes = [

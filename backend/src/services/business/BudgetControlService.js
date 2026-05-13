@@ -77,7 +77,15 @@ class BudgetControlService {
           bd.remaining_amount as cached_remaining_amount,
           bd.warning_threshold,
           ${departmentExpr} as effective_department_id,
-          ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used
+          ${budgetDetailActualAmountSql({ budgetAlias: 'b', detailAlias: 'bd' })} as actual_used,
+          COALESCE(
+            (
+              SELECT SUM(be.execution_amount)
+              FROM budget_execution be
+              WHERE be.budget_detail_id = bd.id
+                AND be.gl_entry_id IS NULL
+            ), 0
+          ) as reserved_amount
         FROM budgets b
         JOIN budget_details bd ON b.id = bd.budget_id
         WHERE b.status IN ('已审批', '执行中')
@@ -99,6 +107,9 @@ class BudgetControlService {
         CASE WHEN ${departmentExpr} IS NULL THEN 1 ELSE 0 END,
         b.budget_year DESC
         LIMIT 1`;
+      if (connection) {
+        query += ' FOR UPDATE';
+      }
 
       const [budgets] = await conn.execute(query, params);
 
@@ -112,7 +123,9 @@ class BudgetControlService {
 
       const budget = budgets[0];
       const budgetAmount = Number.parseFloat(budget.budget_amount) || 0;
-      const usedAmount = Number.parseFloat(budget.actual_used) || 0;
+      const usedAmount =
+        (Number.parseFloat(budget.actual_used) || 0)
+        + (Number.parseFloat(budget.reserved_amount) || 0);
       const remainingAmount = budgetAmount - usedAmount;
       budget.used_amount = usedAmount;
       budget.remaining_amount = remainingAmount;
