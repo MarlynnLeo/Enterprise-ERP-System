@@ -7,29 +7,36 @@
  */
 -->
 <template>
-  <div class="purchase-requisitions-container">
+  <div class="module-page purchase-requisitions-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
           <h2>采购申请管理</h2>
           <p class="subtitle">管理采购需求与申请</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="showCreateDialog">新建采购申请</el-button>
+        <el-button type="primary" :icon="Plus" v-permission="'purchase:requisitions:create'" @click="showCreateDialog">新建采购申请</el-button>
       </div>
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="申请号/合同编码">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="loadRequisitions(1)"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="申请单号或合同编码"
+            placeholder="物料名称"
             clearable
             @clear="loadRequisitions(1)"
             @keyup.enter="loadRequisitions(1)"
           ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="状态">
           <el-select
             v-model="searchForm.status"
@@ -71,16 +78,8 @@
             @change="loadRequisitions(1)"
           ></el-date-picker>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadRequisitions(1)">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -145,7 +144,7 @@
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button
               size="small"
@@ -194,6 +193,7 @@
               v-if="row.status === 'submitted'"
               size="small"
               type="warning"
+              v-permission="'purchase:requisitions:update'"
               @click="openApprovalDialog(row)"
             >
               审批
@@ -257,7 +257,7 @@
         <el-divider content-position="center">申请物料</el-divider>
         <div class="materials-list">
           <el-table :data="requisitionForm.materials" border style="width: 100%">
-            <el-table-column label="序号" type="index" width="55" align="center"></el-table-column>
+            <el-table-column label="序号" type="index" width="55"></el-table-column>
             <el-table-column label="物料编码" width="150" show-overflow-tooltip>
               <template #default="{ row, $index }">
                 <el-autocomplete
@@ -307,14 +307,14 @@
                 ></el-input>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="60" fixed="right">
+            <el-table-column label="操作" width="60" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ $index }">
                 <el-button
                   link
                   type="danger"
                   size="small"
                   @click="removeMaterial($index)"
-                  v-permission="'purchase:requisitions:update'"
+                  v-permission="requisitionDialog.isEdit ? 'purchase:requisitions:update' : 'purchase:requisitions:create'"
                 >
                   删除
                 </el-button>
@@ -322,7 +322,7 @@
             </el-table-column>
           </el-table>
           <div class="add-material" style="margin-top: 10px;">
-            <el-button type="primary" @click="addMaterialRow">
+            <el-button type="primary" v-permission="requisitionDialog.isEdit ? 'purchase:requisitions:update' : 'purchase:requisitions:create'" @click="addMaterialRow">
               <el-icon><Plus /></el-icon>添加物料
             </el-button>
           </div>
@@ -331,7 +331,7 @@
       </div>
       <template #footer>
         <el-button @click="requisitionDialog.visible = false" :disabled="requisitionDialog.loading">取消</el-button>
-        <el-button v-permission="'purchase:requisitions:update'" type="primary" @click="submitForm" :loading="requisitionDialog.loading">保存</el-button>
+        <el-button v-permission="requisitionDialog.isEdit ? 'purchase:requisitions:update' : 'purchase:requisitions:create'" type="primary" @click="submitForm" :loading="requisitionDialog.loading">保存</el-button>
       </template>
     </el-dialog>
     <!-- 采购申请详情对话框 -->
@@ -456,18 +456,25 @@
   </div>
 </template>
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, onActivated, nextTick, computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api, purchaseApi, baseDataApi } from '@/services/api';
+import { purchaseApi, baseDataApi } from '@/services/api';
 import { workflowApi } from '@/api/workflow';
-import { Plus, Search, Refresh, Select, Promotion, Close } from '@element-plus/icons-vue';
+import { Plus, Select, Promotion, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { searchMaterials } from '@/utils/searchConfig';
+import { parseDataObject, parsePaginatedData } from '@/utils/responseParser';
+import { loadUserListOptions } from '@/utils/optionLoaders';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import printService from '@/services/printService'
 // 初始化 authStore
+
 const authStore = useAuthStore();
+const route = useRoute();
 // 搜索表单
+
 const searchForm = reactive({
   keyword: '',  // 申请单号或合同编码关键字
   status: '',
@@ -475,35 +482,41 @@ const searchForm = reactive({
   dateRange: null
 });
 // 分页设置
+
 const pagination = reactive({
   page: 1,
   pageSize: 10,
   total: 0
 });
 // 申请单列表
+
 const requisitions = ref([]);
 const loading = ref(false);
 const operators = ref([]);  // 操作人列表
 // 批量操作相关
+
 const requisitionTableRef = ref(null);
 const selectedRequisitions = ref([]);
 const batchLoading = ref(false);
 // 申请单对话框
+
 const requisitionDialog = reactive({
   visible: false,
   isEdit: false,
   loading: false
 });
 // 申请单表单
+
 const requisitionFormRef = ref(null);
 const requisitionForm = reactive({
   id: null,
-  requestDate: new Date().toISOString().split('T')[0],
+  requestDate: formatLocalDate(new Date()),
   contractCode: '',  // 合同编码（选填）
   remarks: '',
   materials: []
 });
 // 申请单表单验证规则
+
 const requisitionRules = {
   requestDate: [{ required: true, message: '请选择申请日期', trigger: 'change' }],
   materials: [
@@ -517,11 +530,13 @@ const requisitionRules = {
   ]
 };
 // 查看详情对话框
+
 const viewDialog = reactive({
   visible: false,
   loading: false
 });
 // 查看详情数据
+
 const viewData = reactive({
   requisition_number: '',
   request_date: '',
@@ -533,6 +548,7 @@ const viewData = reactive({
   materials: []
 });
 // 状态更新对话框
+
 const statusDialog = reactive({
   visible: false,
   loading: false,
@@ -542,6 +558,7 @@ const statusDialog = reactive({
   newStatus: ''
 });
 // 申请单统计数据
+
 const requisitionStats = ref({
   total: 0,
   draftCount: 0,
@@ -550,6 +567,7 @@ const requisitionStats = ref({
   rejectedCount: 0
 });
 // 审批对话框
+
 const approvalDialog = reactive({
   visible: false,
   loading: false,
@@ -559,6 +577,7 @@ const approvalDialog = reactive({
   nodeId: null
 });
 // 加载申请单列表
+
 const loadRequisitions = async (page = pagination.page) => {
   loading.value = true;
   try {
@@ -573,24 +592,26 @@ const loadRequisitions = async (page = pagination.page) => {
       params.startDate = searchForm.dateRange[0];
       params.endDate = searchForm.dateRange[1];
     }
-    let response;
+    let pageData;
     try {
-      response = await purchaseApi.getRequisitions(params);
+      const response = await purchaseApi.getRequisitions(params);
+      pageData = parsePaginatedData(response, { enableLog: false });
     } catch (err) {
       console.error('API调用失败:', err);
       // API调用失败时返回空数据
-      response = {
-        items: [],
+      pageData = {
+        list: [],
         total: 0,
         page: 1,
-        pageSize: 10,
+        pageSize: pagination.pageSize,
         totalPages: 0
       };
     }
 
-    requisitions.value = response.items || [];
-    pagination.total = Number(response.total ?? 0);
-    pagination.page = Number(response.page ?? 1);
+    requisitions.value = pageData.list;
+    pagination.total = Number(pageData.total ?? 0);
+    pagination.page = Number(pageData.page ?? 1);
+    pagination.pageSize = Number(pageData.pageSize ?? pagination.pageSize);
 
 
     await loadRequisitionStats();
@@ -610,6 +631,7 @@ const loadRequisitions = async (page = pagination.page) => {
   }
 };
 // 搜索重置
+
 const resetSearch = () => {
   searchForm.keyword = '';
   searchForm.status = '';
@@ -618,33 +640,28 @@ const resetSearch = () => {
   loadRequisitions(1);
 };
 // 加载操作人列表
+
 const loadOperators = async () => {
   try {
-    const res = await api.get('/system/users/list');
-    // 处理不同格式的响应数据
-    if (res.data && Array.isArray(res.data)) {
-      operators.value = res.data;
-    } else if (res.data && res.data.data && Array.isArray(res.data.data)) {
-      operators.value = res.data.data;
-    } else {
-      console.error('未能识别的用户数据格式:', res.data);
-      operators.value = [];
-    }
+    operators.value = await loadUserListOptions();
   } catch (error) {
     console.error('加载操作人列表失败:', error);
     operators.value = [];
   }
 };
 // 分页大小变更处理
+
 const handleSizeChange = (newSize) => {
   pagination.pageSize = newSize;
   loadRequisitions(1);
 };
 // 页码变更处理
+
 const handleCurrentChange = (newPage) => {
   loadRequisitions(newPage);
 };
 // 获取状态文本
+
 const getStatusText = (status) => {
   const statusMap = {
     draft: '草稿',
@@ -656,6 +673,7 @@ const getStatusText = (status) => {
   return statusMap[status] || status;
 };
 // 获取状态类型（用于标签样式）
+
 const getStatusType = (status) => {
   const statusTypeMap = {
     draft: 'info',
@@ -667,30 +685,61 @@ const getStatusType = (status) => {
   return statusTypeMap[status] || 'info';
 };
 // 显示创建对话框
+
 const showCreateDialog = () => {
   requisitionDialog.isEdit = false;
   requisitionForm.id = null;
-  requisitionForm.requestDate = new Date().toISOString().split('T')[0];
+  requisitionForm.requestDate = formatLocalDate(new Date());
   requisitionForm.remarks = '';
   requisitionForm.materials = [];
   // 自动添加一行空的物料
   addMaterialRow();
   requisitionDialog.visible = true;
 };
+
+const firstQueryValue = (value) => Array.isArray(value) ? value[0] : value;
+
+const openQuickPurchaseDialogFromQuery = () => {
+  if (firstQueryValue(route.query.source) !== 'quick_purchase') return;
+
+  const materialId = firstQueryValue(route.query.material_id);
+  const materialCode = firstQueryValue(route.query.material_code);
+  const materialName = firstQueryValue(route.query.material_name);
+  if (!materialId && !materialCode && !materialName) return;
+
+  const currentStock = Number(firstQueryValue(route.query.current_stock));
+  const minStock = Number(firstQueryValue(route.query.min_stock));
+  const shortageQty = Number.isFinite(currentStock) && Number.isFinite(minStock)
+    ? Math.max(minStock - currentStock, 1)
+    : 1;
+
+  showCreateDialog();
+  requisitionForm.remarks = '库存快速申购';
+  Object.assign(requisitionForm.materials[0], {
+    materialId: materialId ? Number(materialId) : null,
+    materialCode: materialCode || '',
+    materialName: materialName || '',
+    unit: firstQueryValue(route.query.unit) || '',
+    quantity: Number(shortageQty.toFixed(2))
+  });
+};
 // 编辑申请单
+
 const editRequisition = async (row) => {
   requisitionDialog.isEdit = true;
   requisitionDialog.visible = true;
   requisitionDialog.loading = true;
   try {
     const response = await purchaseApi.getRequisition(row.id);
+    const detail = parseDataObject(response, { enableLog: false }) || {};
 
-    requisitionForm.id = response.id;
-    requisitionForm.requestDate = response.request_date;
-    requisitionForm.remarks = response.remarks;
+    requisitionForm.id = detail.id;
+    requisitionForm.requestDate = detail.request_date;
+    requisitionForm.contractCode = detail.contract_code || detail.contractCode || '';
+    requisitionForm.remarks = detail.remarks;
 
     // 转换材料格式
-    requisitionForm.materials = response.materials.map(item => ({
+    requisitionForm.materials = (detail.materials || []).map(item => ({
       materialId: item.material_id,
       materialCode: item.material_code,
       materialName: item.material_name,
@@ -710,6 +759,7 @@ const editRequisition = async (row) => {
   }
 };
 // 提交表单
+
 const submitForm = async () => {
   if (!requisitionFormRef.value) return;
 
@@ -726,6 +776,7 @@ const submitForm = async () => {
       }
 
       // 确保物料数据格式正确
+
       const processedMaterials = requisitionForm.materials.map(material => ({
         materialId: material.materialId || null,
         materialCode: material.materialCode || '',
@@ -767,10 +818,12 @@ const submitForm = async () => {
   });
 };
 // 移除物料
+
 const removeMaterial = (index) => {
   requisitionForm.materials.splice(index, 1);
 };
 // 添加物料行
+
 const addMaterialRow = () => {
   requisitionForm.materials.push({
     materialId: null,
@@ -783,24 +836,29 @@ const addMaterialRow = () => {
   });
 };
 // 过滤物料
+
 const _materialsLoading = ref(false);
 const filteredProducts = ref([]);
 // 组件引用管理
+
 const materialSelectRefs = ref({});
 const quantityInputRefs = ref({});
 // 设置物料选择框引用
+
 const setMaterialSelectRef = (el, index) => {
   if (el) {
     materialSelectRefs.value[index] = el;
   }
 };
 // 设置数量输入框引用
+
 const setQuantityInputRef = (el, index) => {
   if (el) {
     quantityInputRefs.value[index] = el;
   }
 };
 // 获取物料建议 - 使用统一搜索函数
+
 const fetchMaterialSuggestions = async (query, callback) => {
   if (!query || query.length < 1) {
     callback([]);
@@ -808,11 +866,12 @@ const fetchMaterialSuggestions = async (query, callback) => {
   }
   try {
     // 使用统一的搜索函数
+
     const searchResults = await searchMaterials(baseDataApi, query.trim(), {
-      pageSize: 500,
       includeAll: true
     });
     // 格式化数据供自动完成使用
+
     const suggestions = searchResults.map(item => ({
       value: item.code || '无编码',
       code: item.code || '无编码',
@@ -832,6 +891,7 @@ const fetchMaterialSuggestions = async (query, callback) => {
   }
 };
 // 处理自动完成选择
+
 const handleMaterialSelect = (item, index) => {
   requisitionForm.materials[index].materialId = item.id;
   requisitionForm.materials[index].materialCode = item.code;
@@ -849,6 +909,7 @@ const handleMaterialSelect = (item, index) => {
   });
 };
 // 处理物料选择（保留兼容性）
+
 const _handleMaterialChange = (materialCode, index) => {
   if (!materialCode) {
     // 清空物料信息
@@ -861,6 +922,7 @@ const _handleMaterialChange = (materialCode, index) => {
   }
 
   // 从过滤结果中找到选中的物料
+
   const selectedMaterial = filteredProducts.value.find(m =>
     m.code === materialCode
   );
@@ -869,6 +931,7 @@ const _handleMaterialChange = (materialCode, index) => {
   }
 };
 // 处理物料编码Enter键
+
 const handleMaterialEnter = (index) => {
   // 如果有搜索结果，自动选择第一个
   if (filteredProducts.value.length > 0) {
@@ -877,6 +940,7 @@ const handleMaterialEnter = (index) => {
   }
 };
 // 处理数量Enter键
+
 const handleQuantityEnter = (_index) => {
   // 添加新的物料行
   addMaterialRow();
@@ -891,6 +955,7 @@ const handleQuantityEnter = (_index) => {
   });
 };
 // 查看采购申请详情
+
 const viewRequisition = async (row) => {
   viewDialog.visible = true;
   viewDialog.loading = true;
@@ -919,7 +984,9 @@ const viewRequisition = async (row) => {
     });
 
     // 填充新数据
-    Object.assign(viewData, response);
+
+    const detail = parseDataObject(response, { enableLog: false }) || {};
+    Object.assign(viewData, detail);
 
 
   } catch (error) {
@@ -931,11 +998,13 @@ const viewRequisition = async (row) => {
   }
 };
 // 批量操作相关计算属性
+
 const canBatchSubmit = computed(() => {
   if (selectedRequisitions.value.length === 0) return false;
   return selectedRequisitions.value.every(req => req.status === 'draft');
 });
 // 批量操作方法
+
 const handleSelectionChange = (selection) => {
   selectedRequisitions.value = selection;
 };
@@ -984,6 +1053,7 @@ const handleBatchSubmit = async () => {
   }
 };
 // 处理下拉菜单命令
+
 const handleCommand = (command, row) => {
   switch (command) {
     case 'submit':
@@ -998,6 +1068,7 @@ const handleCommand = (command, row) => {
   }
 };
 // 显示状态更新对话框
+
 const showStatusDialog = (id, newStatus, title, description) => {
   statusDialog.requisitionId = id;
   statusDialog.newStatus = newStatus;
@@ -1006,6 +1077,7 @@ const showStatusDialog = (id, newStatus, title, description) => {
   statusDialog.visible = true;
 };
 // 更新状态
+
 const updateStatus = async () => {
   statusDialog.loading = true;
   try {
@@ -1045,6 +1117,7 @@ const updateStatus = async () => {
   }
 };
 // 打开审批弹窗
+
 const openApprovalDialog = async (row) => {
   approvalDialog.row = row;
   approvalDialog.comment = '';
@@ -1052,6 +1125,7 @@ const openApprovalDialog = async (row) => {
   approvalDialog.visible = true;
   try {
     // 查询该采购申请关联的审批实例
+
     const res = await workflowApi.getByBusiness('purchase_requisition', row.id);
     const instance = res.data || res;
     if (!instance || !instance.id) {
@@ -1061,6 +1135,7 @@ const openApprovalDialog = async (row) => {
     }
     approvalDialog.instanceId = instance.id;
     // 找到当前 in_progress 的审批节点
+
     const currentNode = (instance.nodes || []).find(n => n.status === 'in_progress' && n.node_type === 'approval');
     if (!currentNode) {
       ElMessage.warning('当前没有待审批的节点');
@@ -1077,6 +1152,7 @@ const openApprovalDialog = async (row) => {
   }
 };
 // 执行审批操作
+
 const handleApproval = async (action) => {
   approvalDialog.loading = true;
   try {
@@ -1109,6 +1185,7 @@ const handleApproval = async (action) => {
   }
 };
 // 确认删除
+
 const confirmDelete = (row) => {
   ElMessageBox.confirm(
     '确定要删除此采购申请吗？此操作无法撤销。',
@@ -1134,9 +1211,11 @@ const confirmDelete = (row) => {
 // 格式化日期
 // formatDate: 使用公共实现
 // 加载申请单统计数据
+
 const loadRequisitionStats = async () => {
   try {
     // 从当前列表数据计算统计信息
+
     const total = requisitions.value.length;
     const draftCount = requisitions.value.filter(item => item.status === 'draft').length;
     const submittedCount = requisitions.value.filter(item => item.status === 'submitted').length;
@@ -1168,6 +1247,7 @@ onMounted(async () => {
       loadOperators(),
       authStore.fetchUserProfile(false) // 不获取权限信息，提高速度
     ]);
+    openQuickPurchaseDialogFromQuery();
   } catch (error) {
     console.error('页面初始化失败:', error);
   } finally {
@@ -1187,6 +1267,7 @@ onActivated(async () => {
   }
 });
 // ========== 打印功能 ==========
+
 const printLoading = ref(false)
 const handlePrintRequisition = async () => {
   printLoading.value = true
@@ -1239,60 +1320,6 @@ const handlePrintRequisition = async () => {
 .search-form {
   display: flex;
   flex-wrap: wrap;
-}
-/* 浮动批量操作栏样式 */
-.floating-batch-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4), 0 4px 16px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  gap: 32px;
-  min-width: 400px;
-}
-.floating-batch-bar .batch-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-on-primary, #fff);
-  font-size: 14px;
-}
-.floating-batch-bar .batch-info .el-icon {
-  font-size: 20px;
-}
-.floating-batch-bar .batch-info strong {
-  color: #ffd700;
-  font-size: 18px;
-  margin: 0 2px;
-}
-.floating-batch-bar .batch-buttons {
-  display: flex;
-  gap: 12px;
-}
-.floating-batch-bar .batch-buttons .el-button {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-}
-.floating-batch-bar .batch-buttons .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-/* 浮动栏进入/离开动画 */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
-}
-.slide-up-enter-from,
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 100%);
 }
 .materials-list {
   margin-top: var(--spacing-base);

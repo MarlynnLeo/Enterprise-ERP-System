@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="report-container">
+  <div class="module-page report-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -23,8 +23,15 @@
     </el-card>
 
     <!-- 查询条件区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="queryParams" class="search-form">
+    <FinanceQueryCard
+      :model="queryParams"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="generateReport"
+      @reset="resetQuery"
+    >
+      <template #basic>
         <el-form-item label="开始日期" required>
           <el-date-picker
             v-model="queryParams.startDate"
@@ -45,6 +52,8 @@
 
           ></el-date-picker>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="比较期间">
           <el-checkbox v-model="queryParams.enableCompare">启用比较</el-checkbox>
         </el-form-item>
@@ -75,8 +84,8 @@
             <el-option label="万元" :value="10000"></el-option>
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 报表区域 -->
     <el-card class="data-card" v-loading="loading">
@@ -97,42 +106,29 @@
           :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
         >
           <el-table-column prop="name" label="项目" width="280"></el-table-column>
-          <el-table-column label="行次" width="60" align="center">
+          <el-table-column label="行次" width="60">
             <template #default="scope">
               {{ scope.row.rowNum }}
             </template>
           </el-table-column>
-          <el-table-column prop="amount" :label="formatDateRange(queryParams.startDate, queryParams.endDate)" align="right">
+          <el-table-column prop="amount" :label="formatDateRange(queryParams.startDate, queryParams.endDate)">
             <template #default="scope">
               {{ formatAmount(scope.row.amount) }}
             </template>
           </el-table-column>
-          <el-table-column
-            prop="compareAmount"
-            :label="formatDateRange(queryParams.compareStartDate, queryParams.compareEndDate)"
-            align="right"
-            v-if="queryParams.enableCompare"
-          >
+          <el-table-column prop="compareAmount" :label="formatDateRange(queryParams.compareStartDate, queryParams.compareEndDate)" v-if="queryParams.enableCompare">
             <template #default="scope">
               {{ formatAmount(scope.row.compareAmount) }}
             </template>
           </el-table-column>
-          <el-table-column
-            label="变动"
-            align="right"
-            v-if="queryParams.enableCompare"
-          >
+          <el-table-column label="变动" v-if="queryParams.enableCompare">
             <template #default="scope">
               <span :class="getChangeClass(scope.row.amount - scope.row.compareAmount)">
                 {{ formatAmount(scope.row.amount - scope.row.compareAmount) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="变动率(%)"
-            align="right"
-            v-if="queryParams.enableCompare"
-          >
+          <el-table-column label="变动率(%)" v-if="queryParams.enableCompare">
             <template #default="scope">
               <span :class="getChangeClass(scope.row.amount - scope.row.compareAmount)">
                 {{ calculateChangeRate(scope.row.amount, scope.row.compareAmount) }}
@@ -151,17 +147,18 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ReportHelper } from '@/utils/commonHelpers'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import printService from '@/services/printService';
-import ExcelJS from 'exceljs';
+import { loadExcelJS } from '@/utils/lazyVendors';
 // 查询参数
 const queryParams = reactive({
-  startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10), // 默认为当月1日
-  endDate: new Date().toISOString().slice(0, 10), // 默认为今天
+  startDate: formatLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)), // 默认为当月1日
+  endDate: formatLocalDate(new Date()), // 默认为今天
   enableCompare: false,
   compareStartDate: '',
   compareEndDate: '',
@@ -171,6 +168,7 @@ const queryParams = reactive({
 // 报表数据
 const reportData = ref([]);
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 
 // 计算金额单位显示文本（使用公共工具函数）
 const unitText = computed(() => ReportHelper.getUnitText(queryParams.unit));
@@ -215,6 +213,16 @@ const generateReport = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const resetQuery = () => {
+  queryParams.startDate = formatLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  queryParams.endDate = formatLocalDate(new Date());
+  queryParams.enableCompare = false;
+  queryParams.compareStartDate = '';
+  queryParams.compareEndDate = '';
+  queryParams.unit = 1;
+  reportData.value = [];
 };
 
 const flattenIncomeRows = (rows, level = 0, result = []) => {
@@ -264,6 +272,7 @@ const printReport = async () => {
 
 // 导出Excel
 const exportExcel = async () => {
+  const ExcelJS = await loadExcelJS();
   // 创建工作簿
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('利润表');
@@ -419,7 +428,6 @@ onMounted(() => {
   gap: 10px;
 }
 
-/* 使用全局common-styles.css中的样式，无需重复定义 */
 /* .filter-card 和 .report-card 已在全局定义 */
 
 .report-title {

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * FinalDetail.vue
  * @description 成品检验详情页面
@@ -118,6 +118,7 @@
     showConfirmDialog
   } from 'vant'
   import { qualityApi } from '@/services/api'
+  import { extractApiData } from '@/utils/apiHelper'
 
   const router = useRouter()
   const route = useRoute()
@@ -206,7 +207,7 @@
   const loadFromApi = async () => {
     try {
       const response = await qualityApi.getFinalInspection(route.params.id)
-      const data = response?.data?.data || response?.data || response
+      const data = extractApiData(response, null)
       if (data?.id) {
         inspection.value = data
         inspectForm.qualified_quantity =
@@ -276,9 +277,9 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--van-background-2);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-bottom-space);
   }
   .content-container {
     padding: 12px 0;

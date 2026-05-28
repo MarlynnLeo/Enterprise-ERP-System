@@ -9,8 +9,9 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const request = require('supertest');
 
-// 缓存登录 token，避免每个测试重复登录
-let cachedToken = null;
+// Cache an authenticated cookie agent so tests follow the production auth mode.
+let cachedAgent = null;
+let cachedCsrfToken = null;
 let appInstance = null;
 
 /**
@@ -28,24 +29,36 @@ function getApp() {
 }
 
 /**
- * 获取已认证的管理员 token
- * @returns {Promise<string>} Bearer token
+ * 获取已认证的管理员请求代理
+ * @returns {Promise<import('supertest').SuperAgentTest>}
  */
-async function getAdminToken() {
-  if (cachedToken) return cachedToken;
+async function getAdminAgent() {
+  if (cachedAgent) return cachedAgent;
 
   const app = getApp();
-  const res = await request(app)
+  const agent = request.agent(app);
+  const res = await agent
     .post('/api/auth/login')
     .send({ username: 'admin', password: '123456' })
     .expect(200);
 
-  // 兼容不同的响应格式
-  cachedToken = res.body.data?.token || res.body.token;
-  if (!cachedToken) {
-    throw new Error('登录失败，无法获取 token: ' + JSON.stringify(res.body));
+  if (!res.body.data?.user && !res.body.user) {
+    throw new Error('登录失败，无法获取用户信息: ' + JSON.stringify(res.body));
   }
-  return cachedToken;
+
+  cachedAgent = agent;
+  return cachedAgent;
+}
+
+async function getCsrfToken(agent) {
+  if (cachedCsrfToken) return cachedCsrfToken;
+
+  const res = await agent.get('/api/csrf-token').expect(200);
+  cachedCsrfToken = res.body.csrfToken || res.body.token || res.body.data?.csrfToken;
+  if (!cachedCsrfToken) {
+    throw new Error('无法获取 CSRF token: ' + JSON.stringify(res.body));
+  }
+  return cachedCsrfToken;
 }
 
 /**
@@ -53,17 +66,19 @@ async function getAdminToken() {
  * @returns {Promise<{get, post, put, patch, delete}>} 封装好认证头的请求方法
  */
 async function authRequest() {
-  const app = getApp();
-  const token = await getAdminToken();
-  const agent = request(app);
+  const agent = await getAdminAgent();
+  const csrfToken = await getCsrfToken(agent);
 
-  // 返回带认证头的请求方法
+  // 返回带 Cookie 会话和 CSRF 头的请求方法
   const methods = {};
   for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
-    methods[method] = (url) =>
-      agent[method](url)
-        .set('Authorization', `Bearer ${token}`)
-        .set('Content-Type', 'application/json');
+    methods[method] = (url) => {
+      const req = agent[method](url).set('Content-Type', 'application/json');
+      if (['post', 'put', 'patch', 'delete'].includes(method)) {
+        req.set('X-CSRF-Token', csrfToken);
+      }
+      return req;
+    };
   }
   return methods;
 }
@@ -72,12 +87,13 @@ async function authRequest() {
  * 清除缓存（在 afterAll 中调用）
  */
 function clearCache() {
-  cachedToken = null;
+  cachedAgent = null;
+  cachedCsrfToken = null;
 }
 
 module.exports = {
   getApp,
-  getAdminToken,
+  getAdminAgent,
   authRequest,
   clearCache,
 };

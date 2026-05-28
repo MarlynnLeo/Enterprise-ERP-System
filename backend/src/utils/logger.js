@@ -5,7 +5,6 @@
  * @date 2025-08-28
  */
 
-// const logger = require('logger'); // 错误的导入，已注释
 const fs = require('fs');
 const path = require('path');
 
@@ -24,7 +23,8 @@ const LOG_LEVELS = {
 };
 
 // 当前日志级别（从环境变量读取，默认为 INFO）
-const currentLogLevel = LOG_LEVELS[process.env.LOG_LEVEL] || LOG_LEVELS.INFO;
+const configuredLogLevel = String(process.env.LOG_LEVEL || 'INFO').toUpperCase();
+const currentLogLevel = LOG_LEVELS[configuredLogLevel] ?? LOG_LEVELS.INFO;
 
 // 格式化时间
 const formatTime = () => {
@@ -109,11 +109,6 @@ const log = (level, message, meta = {}) => {
 
   // 写入文件
   writeToFile(level, formattedMessage);
-
-  // 错误级别同时写入错误文件
-  if (level === 'ERROR') {
-    writeToFile('error', formattedMessage);
-  }
 };
 
 // 导出的日志方法

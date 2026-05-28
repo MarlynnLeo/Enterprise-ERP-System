@@ -1,9 +1,18 @@
 import { api } from '../services/axiosInstance';
 
+const normalizeUserParams = (params = {}) => {
+    const next = { ...(params?.params || params || {}) };
+    if (next.pageSize !== undefined && next.limit === undefined) {
+        next.limit = next.pageSize;
+    }
+    return next;
+};
+
 // 系统相关API
 export const systemApi = {
     // 角色管理
     getRoles: (params) => api.get('/system/roles', { params }),
+    getRolesList: () => api.get('/system/roles/list'),
     getRole: (id) => api.get(`/system/roles/${id}`),
     createRole: (data) => api.post('/system/roles', data),
     updateRole: (id, data) => api.put(`/system/roles/${id}`, data),
@@ -31,7 +40,7 @@ export const systemApi = {
     deleteDepartment: (id) => api.delete(`/system/departments/${id}`),
 
     // 用户管理
-    getUsers: (params) => api.get('/system/users', { params }),
+    getUsers: (params) => api.get('/system/users', { params: normalizeUserParams(params) }),
     getUsersList: () => api.get('/system/users/list'),
     getUser: (id) => api.get(`/system/users/${id}`),
     createUser: (data) => api.post('/system/users', data),

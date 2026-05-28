@@ -1,27 +1,25 @@
 <template>
   <div class="app-container">
-    <!-- 头部区域 -->
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
           <h2>期末结转</h2>
-          <p class="subtitle">期末损益结转与会计期间关账</p>
+          <p class="subtitle">执行损益结转、关账前校验和结转历史追踪</p>
         </div>
       </div>
     </el-card>
 
     <el-card class="box-card mb-4">
-      <el-steps :active="activeStep" finish-status="success" simple style="margin-bottom: 20px">
+      <el-steps :active="activeStep" finish-status="success" simple class="closing-steps">
         <el-step title="选择期间" />
         <el-step title="结转预览" />
         <el-step title="执行结转" />
       </el-steps>
 
-      <!-- 步骤1: 选择期间 -->
       <div v-if="activeStep === 0" class="step-content">
-        <el-form :inline="true" class="search-form demo-form-inline">
+        <el-form :inline="true" class="search-form">
           <el-form-item label="待结转期间">
-            <el-select v-model="selectedPeriodId" placeholder="选择会计期间">
+            <el-select v-model="selectedPeriodId" placeholder="选择会计期间" filterable style="width: 240px">
               <el-option
                 v-for="period in openPeriods"
                 :key="period.id"
@@ -31,24 +29,23 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="fetchPreview" :disabled="!selectedPeriodId">
+            <el-button type="primary" :disabled="!selectedPeriodId" :loading="previewLoading" @click="fetchPreview">
               下一步
             </el-button>
           </el-form-item>
         </el-form>
 
         <el-alert
-          title="说明"
+          title="结转说明"
           type="info"
           :closable="false"
           class="mt-4"
-          description="期末结转将把所有损益类科目（收入、费用、成本）的余额转入本年利润科目。结转后，该会计期间将被关闭。"
+          description="系统会先校验未过账凭证、前序期间、试算平衡与本年利润科目配置；校验通过后才允许生成损益结转凭证并关闭当前会计期间。"
         />
       </div>
 
-      <!-- 步骤2: 结转预览 -->
       <div v-if="activeStep === 1" class="step-content">
-        <div v-if="previewData">
+        <template v-if="previewData">
           <el-alert
             v-if="!previewData.canClose"
             title="无法关账：预检查未通过"
@@ -62,23 +59,17 @@
 
           <el-alert
             v-if="previewData.hasExistingClosing"
-            title="该期间已有损益结转凭证"
+            title="该期间已存在损益结转凭证"
             type="warning"
             :closable="false"
             show-icon
             class="mb-4"
-            description="系统会按当前已过账数据重新判断是否仍需生成结转凭证；如存在未过账的旧结转凭证，请先处理后再关账。"
+            description="为避免重复结转，系统会阻止重复生成结转凭证。请先核对历史凭证或重新打开期间后处理。"
           />
 
-          <el-table
-            v-if="previewData.checks?.length"
-            :data="previewData.checks"
-            border
-            class="mb-4"
-            style="width: 100%"
-          >
-            <el-table-column label="检查项" prop="name" width="180" />
-            <el-table-column label="状态" width="100" align="center">
+          <el-table v-if="previewData.checks?.length" :data="previewData.checks" border class="mb-4">
+            <el-table-column label="检查项" prop="name" width="220" />
+            <el-table-column label="状态" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.passed ? 'success' : 'danger'">
                   {{ row.passed ? '通过' : '未通过' }}
@@ -93,66 +84,65 @@
           </el-table>
 
           <el-descriptions title="结转摘要" :column="3" border class="mb-4">
-            <el-descriptions-item label="会计期间">{{
-              previewData.period.period_name
-            }}</el-descriptions-item>
-            <el-descriptions-item label="总收入">{{
-              formatCurrency(previewData.summary.totalIncome)
-            }}</el-descriptions-item>
-            <el-descriptions-item label="总费用">{{
-              formatCurrency(previewData.summary.totalExpense)
-            }}</el-descriptions-item>
+            <el-descriptions-item label="会计期间">
+              {{ previewData.period?.period_name || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="总收入">
+              {{ formatMoney(previewData.summary?.totalIncome) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="总费用">
+              {{ formatMoney(previewData.summary?.totalExpense) }}
+            </el-descriptions-item>
             <el-descriptions-item label="本期净利润">
-              <span :class="previewData.summary.netProfit >= 0 ? 'text-green-600' : 'text-red-600'">
-                {{ formatCurrency(previewData.summary.netProfit) }}
+              <span :class="toNumber(previewData.summary?.netProfit) >= 0 ? 'text-success' : 'text-danger'">
+                {{ formatMoney(previewData.summary?.netProfit) }}
               </span>
             </el-descriptions-item>
           </el-descriptions>
 
-          <el-table :data="previewData.closingItems" border style="width: 100%" height="400">
+          <el-table :data="previewData.closingItems || []" border style="width: 100%" height="400">
             <el-table-column prop="account_code" label="科目编码" width="120" />
-            <el-table-column prop="account_name" label="科目名称" width="200" />
+            <el-table-column prop="account_name" label="科目名称" min-width="200" />
             <el-table-column prop="account_type" label="类型" width="100" />
-            <el-table-column prop="total_debit" label="借方发生" align="right">
+            <el-table-column prop="total_debit" label="借方发生">
               <template #default="{ row }">
-                {{ formatCurrency(row.total_debit) }}
+                {{ formatMoney(row.total_debit) }}
               </template>
             </el-table-column>
-            <el-table-column prop="total_credit" label="贷方发生" align="right">
+            <el-table-column prop="total_credit" label="贷方发生">
               <template #default="{ row }">
-                {{ formatCurrency(row.total_credit) }}
+                {{ formatMoney(row.total_credit) }}
               </template>
             </el-table-column>
-            <el-table-column prop="closing_amount" label="结转金额" align="right">
+            <el-table-column prop="closing_amount" label="结转金额">
               <template #default="{ row }">
-                {{ formatCurrency(row.closing_amount) }}
+                {{ formatMoney(row.closing_amount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="closing_direction" label="结转方向" width="100" align="center">
+            <el-table-column prop="closing_direction" label="结转方向" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.closing_direction === '借方' ? 'success' : 'warning'">
-                  {{ row.closing_direction }}
+                  {{ row.closing_direction || '-' }}
                 </el-tag>
               </template>
             </el-table-column>
           </el-table>
 
-          <div class="mt-4 flex justify-end">
+          <div class="mt-4 actions-row">
             <el-button @click="activeStep = 0">上一步</el-button>
             <el-button
+              v-permission="'finance:closing:execute'"
               type="primary"
-              @click="executeClosing"
               :disabled="!previewData.canClose"
               :loading="closingLoading"
-              v-permission="'finance:closing:execute'"
+              @click="executeClosing"
             >
               确认并执行结转
             </el-button>
           </div>
-        </div>
+        </template>
       </div>
 
-      <!-- 步骤3: 完成 -->
       <div v-if="activeStep >= 2" class="step-content text-center py-8">
         <el-result
           icon="success"
@@ -167,7 +157,6 @@
       </div>
     </el-card>
 
-    <!-- 结转历史记录 -->
     <el-card ref="historyCardRef" class="box-card">
       <template #header>
         <div class="card-header">
@@ -179,6 +168,8 @@
           v-model="historyPeriodId"
           placeholder="选择会计期间"
           clearable
+          filterable
+          style="width: 240px"
           @change="fetchHistory"
         >
           <el-option
@@ -190,6 +181,9 @@
         </el-select>
       </div>
       <el-table :data="historyList" border style="width: 100%">
+        <template #empty>
+          <el-empty description="暂无结转历史" />
+        </template>
         <el-table-column prop="entry_number" label="凭证编号" width="180" />
         <el-table-column prop="entry_date" label="结转日期" width="120">
           <template #default="{ row }">
@@ -209,146 +203,134 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import request from '@/utils/request';
-import { formatCurrency, formatDate, formatDateTime } from '@/utils/format';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { computed, onMounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { api } from '@/services/axiosInstance'
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
+import { parseDataObject } from '@/utils/responseParser'
+import { useRoute } from 'vue-router'
 
-const activeStep = ref(0);
-const periods = ref([]);
-const selectedPeriodId = ref('');
-const previewData = ref(null);
-const closingLoading = ref(false);
-const historyList = ref([]);
-const historyPeriodId = ref('');
-const historyCardRef = ref(null);
+const activeStep = ref(0)
+const periods = ref([])
+const selectedPeriodId = ref('')
+const previewData = ref(null)
+const previewLoading = ref(false)
+const closingLoading = ref(false)
+const historyList = ref([])
+const historyPeriodId = ref('')
+const historyCardRef = ref(null)
+const route = useRoute()
 
-// 计算未关闭的期间
-const openPeriods = computed(() => {
-  return periods.value.filter((p) => !p.is_closed);
-});
+const openPeriods = computed(() => periods.value.filter(period => !period.is_closed))
+const toNumber = value => Number.parseFloat(value) || 0
+const formatMoney = value => formatCurrency(value, '¥')
 
-// 获取会计期间列表
+const selectDefaultOpenPeriod = () => {
+  const now = new Date()
+  const currentPeriodKeyword = `${now.getFullYear()}年${now.getMonth() + 1}月`
+
+  return openPeriods.value.find(period => period.period_name?.includes(currentPeriodKeyword))
+    || openPeriods.value[0]
+}
+
 const fetchPeriods = async () => {
   try {
-    const res = await request.get('/finance/periods');
-    periods.value = res.data.periods;
+    const res = await api.get('/finance/periods')
+    const data = parseDataObject(res, { enableLog: false }) || {}
+    periods.value = data.periods || data.list || []
 
-    // 智能默认期间：优先匹配当前系统月份对应的期间
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    const currentPeriodKeyword = `${currentYear}年${currentMonth}月`;
+    const requestedPeriodId = Number.parseInt(route.query.periodId, 10)
+    const requestedPeriod = periods.value.find(period => Number(period.id) === requestedPeriodId)
+    const defaultPeriod = requestedPeriod || selectDefaultOpenPeriod()
+    selectedPeriodId.value = defaultPeriod?.id || ''
 
-    if (openPeriods.value.length > 0) {
-      // 1. 优先找当前月份的未关闭期间
-      let bestPeriod = openPeriods.value.find(
-        (p) => p.period_name && p.period_name.includes(currentPeriodKeyword)
-      );
-
-      // 2. 若当前月份已关闭，则取下一个按时间排序最早的未关闭月度期间
-      if (!bestPeriod) {
-        bestPeriod = openPeriods.value
-          .filter((p) => p.period_name && /年\d+月$/.test(p.period_name))
-          .sort((a, b) => a.id - b.id)[0];
-      }
-
-      // 3. 最终 fallback：取第一个未关闭期间
-      if (!bestPeriod) {
-        bestPeriod = openPeriods.value[0];
-      }
-
-      selectedPeriodId.value = bestPeriod.id;
-    }
-
-    // 加载最近期间的历史记录
     if (periods.value.length > 0) {
-      historyPeriodId.value = periods.value[0].id;
-      fetchHistory();
+      historyPeriodId.value = selectedPeriodId.value || periods.value[0].id
+      await fetchHistory()
+    }
+
+    if (requestedPeriod && !requestedPeriod.is_closed) {
+      await fetchPreview()
     }
   } catch (error) {
-    console.error('获取会计期间失败', error);
+    console.error('获取会计期间失败:', error)
+    ElMessage.error(error.message || '获取会计期间失败')
   }
-};
+}
 
-// 获取结转预览
 const fetchPreview = async () => {
-  if (!selectedPeriodId.value) return;
+  if (!selectedPeriodId.value) return
 
+  previewLoading.value = true
   try {
-    const res = await request.get(`/finance/gl/closing/preview/${selectedPeriodId.value}`);
-    previewData.value = res.data;
-    activeStep.value = 1;
+    const res = await api.get(`/finance/gl/closing/preview/${selectedPeriodId.value}`)
+    previewData.value = parseDataObject(res, { enableLog: false }) || {}
+    activeStep.value = 1
   } catch (error) {
-    console.error('获取预览失败', error);
-    ElMessage.error(error.message || '获取预览失败');
+    console.error('获取结转预览失败:', error)
+    ElMessage.error(error.message || '获取结转预览失败')
+  } finally {
+    previewLoading.value = false
   }
-};
+}
 
-// 执行结转
 const executeClosing = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要执行期末结转吗？此操作将生成结转凭证并关闭当前会计期间，且不可撤销（除非重新开启期间）。',
+      '确定要执行期末结转吗？该操作会生成结转凭证并关闭当前会计期间。',
       '确认结转',
       {
         confirmButtonText: '确定执行',
         cancelButtonText: '取消',
-        type: 'warning',
+        type: 'warning'
       }
-    );
+    )
 
-    closingLoading.value = true;
-    const res = await request.post(`/finance/gl/closing/execute/${selectedPeriodId.value}`);
+    closingLoading.value = true
+    const res = await api.post(`/finance/gl/closing/execute/${selectedPeriodId.value}`)
+    ElMessage.success(res._message || '期末结转执行成功')
+    activeStep.value = 3
 
-    // 显示成功消息（ResponseHandler返回格式：{success, message, data}）
-    ElMessage.success(res.message || '期末结转执行成功');
-
-    // 更新步骤到完成状态（设置为3使所有步骤显示为完成）
-    activeStep.value = 3;
-
-    // 刷新期间状态和历史
-    await fetchPeriods();
-    await fetchHistory();
+    await fetchPeriods()
+    await fetchHistory()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('结转失败', error);
-      ElMessage.error(error.message || '结转失败');
+      console.error('结转失败:', error)
+      ElMessage.error(error.message || '结转失败')
     }
   } finally {
-    closingLoading.value = false;
+    closingLoading.value = false
   }
-};
+}
 
-// 获取历史记录
 const fetchHistory = async () => {
-  if (!historyPeriodId.value) return;
+  if (!historyPeriodId.value) {
+    historyList.value = []
+    return
+  }
 
   try {
-    const res = await request.get(`/finance/gl/closing/history/${historyPeriodId.value}`);
-    historyList.value = res.data.entries;
+    const res = await api.get(`/finance/gl/closing/history/${historyPeriodId.value}`)
+    const data = parseDataObject(res, { enableLog: false }) || {}
+    historyList.value = data.entries || data.list || []
   } catch (error) {
-    console.error('获取历史记录失败', error);
+    console.error('获取结转历史失败:', error)
   }
-};
+}
 
 const resetWizard = () => {
-  activeStep.value = 0;
-  selectedPeriodId.value = '';
-  previewData.value = null;
-  // 重新选择一个未关闭的期间
-  if (openPeriods.value.length > 0) {
-    selectedPeriodId.value = openPeriods.value[0].id;
-  }
-};
+  activeStep.value = 0
+  previewData.value = null
+  selectedPeriodId.value = selectDefaultOpenPeriod()?.id || ''
+}
 
 const scrollToHistory = () => {
-  historyCardRef.value?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-};
+  historyCardRef.value?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 onMounted(() => {
-  fetchPeriods();
-});
+  fetchPeriods()
+})
 </script>
 
 <style scoped>
@@ -356,7 +338,8 @@ onMounted(() => {
   padding: 20px;
 }
 
-.header-card {
+.header-card,
+.mb-4 {
   margin-bottom: 20px;
 }
 
@@ -367,7 +350,7 @@ onMounted(() => {
 }
 
 .title-section h2 {
-  margin: 0 0 5px 0;
+  margin: 0 0 5px;
   font-size: 20px;
   color: var(--color-text-primary);
 }
@@ -378,29 +361,34 @@ onMounted(() => {
   color: var(--color-text-secondary);
 }
 
-.mb-4 {
-  margin-bottom: 16px;
+.closing-steps {
+  margin-bottom: 20px;
 }
+
 .mt-4 {
   margin-top: 16px;
 }
+
 .py-8 {
   padding-top: 2rem;
   padding-bottom: 2rem;
 }
+
 .text-center {
   text-align: center;
 }
-.flex {
+
+.actions-row {
   display: flex;
-}
-.justify-end {
   justify-content: flex-end;
+  gap: 12px;
 }
-.text-green-600 {
-  color: #059669;
+
+.text-success {
+  color: var(--color-success);
 }
-.text-red-600 {
-  color: #dc2626;
+
+.text-danger {
+  color: var(--color-danger);
 }
 </style>

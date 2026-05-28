@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="production-process-container">
+  <div class="module-page production-process-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -18,16 +18,22 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="查询">
+    <FinanceQueryCard
+      :model="searchForm"
+      @search="handleSearch"
+      @reset="handleRefresh"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="请输入"
+            placeholder="物料名称"
             clearable
 
           />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="时间范围">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -51,16 +57,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="handleRefresh" style="margin-left: 12px;">
-            <el-icon><Refresh /></el-icon> 刷新
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -131,22 +129,22 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" min-width="220" fixed="right">
+                <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                   <template #default="scope">
                     <el-button
-                      v-if="scope.row.status === 'pending'"
+                      v-if="scope.row.status === 'pending' && canStartProcess(props.row)"
                       size="small"
                       type="success"
-                      @click="handleQuickStart(scope.row)"
+                      @click="handleQuickStart(scope.row, props.row)"
                       v-permission="'production:process:update'"
                     >
                       开始
                     </el-button>
                     <el-button
-                      v-if="scope.row.status === 'in_progress' || scope.row.status === 'inProgress'"
+                      v-if="(scope.row.status === 'in_progress' || scope.row.status === 'inProgress') && canCompleteProcess(props.row)"
                       size="small"
                       type="success"
-                      @click="handleQuickComplete(scope.row)"
+                      @click="handleQuickComplete(scope.row, props.row)"
                       v-permission="'production:process:update'"
                     >
                       完成
@@ -154,7 +152,7 @@
                     <el-button
                       size="small"
                       type="primary"
-                      @click="showUpdateModal(scope.row)"
+                      @click="showUpdateModal(scope.row, props.row)"
                       v-permission="'production:process:update'"
                     >
                       更新
@@ -223,7 +221,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="220" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               v-if="scope.row.status === 'material_issued' || scope.row.status === 'material_partial_issued'"
@@ -308,7 +306,7 @@
               {{ scope.row.uploadTime ? dayjs(scope.row.uploadTime).format('YYYY-MM-DD HH:mm') : '-' }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100">
+          <el-table-column label="操作" width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button size="small" type="primary" @click="openInstructionDoc(scope.row)">
                 查看
@@ -340,7 +338,7 @@
               {{ scope.row.uploadTime ? dayjs(scope.row.uploadTime).format('YYYY-MM-DD HH:mm') : '-' }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100">
+          <el-table-column label="操作" width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button size="small" type="primary" @click="openInstructionDoc(scope.row)">
                 查看
@@ -724,7 +722,7 @@
             </el-table-column>
           </el-table>
           <el-empty v-else description="该任务无BOM数据" :image-size="40" />
-          <div v-if="returnItems.length > 0" style="margin-top: 8px; color: #67C23A; font-size: 13px;">
+          <div v-if="returnItems.length > 0" style="margin-top: 8px; color: var(--color-success); font-size: 13px;">
             已选择 {{ returnItems.length }} 种物料退料
           </div>
         </el-form-item>
@@ -754,7 +752,7 @@
 <script setup>
 import { defineAsyncComponent, ref, onMounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh } from '@element-plus/icons-vue'
+
 import dayjs from 'dayjs'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 // 格式化数量：去除尾零，整数不显示小数点
@@ -764,11 +762,10 @@ const formatQuantity = (val) => {
   if (isNaN(num)) return val
   return num % 1 === 0 ? num.toFixed(0) : parseFloat(num.toFixed(2)).toString()
 }
-import axios from '@/services/api'
-import { baseDataApi } from '@/services/api'
+import { api, baseDataApi, financeApi, inventoryApi, productionApi } from '@/services/api'
 import { parseDataObject, parseListData } from '@/utils/responseParser'
 import { useAuthStore } from '@/stores/auth'
-
+import { buildResourceUrl } from '@/config/app'
 // 权限store
 const authStore = useAuthStore()
 
@@ -821,6 +818,7 @@ const formData = ref({
   processName: '',
   status: '',
   progress: 0,
+  taskStatus: '',
   actualStartTime: null,
   actualEndTime: null,
   remarks: ''
@@ -881,7 +879,7 @@ const warehouseList = ref([])
 // 加载仓库列表并通过仓库类型变量自动匹配隔离区
 const fetchWarehouseList = async () => {
   try {
-    const res = await baseDataApi.getLocations({ page: 1, pageSize: 200 })
+    const res = await baseDataApi.getLocations({ page: 1, pageSize: 50 })
     // axios 拦截器已解包，res.data 直接是业务数据
     const items = parseListData(res, { enableLog: false })
     warehouseList.value = items
@@ -939,10 +937,8 @@ const supplementReasonOptions = ref([])
 // 获取补料原因
 const fetchSupplementReasons = async () => {
     try {
-        const res = await axios.get('/finance-enhancement/cost/supplement-reasons')
-        if (res.data) {
-            supplementReasonOptions.value = Array.isArray(res.data) ? res.data : (res.data.data || []);
-        }
+        const res = await financeApi.getCostSupplementReasons()
+        supplementReasonOptions.value = parseListData(res, { enableLog: false })
     } catch (error) {
         console.error('获取补料原因失败', error)
     }
@@ -957,12 +953,8 @@ const fetchTaskBom = async (taskId) => {
   try {
     bomLoading.value = true
     bomList.value = []
-    const res = await axios.get(`/production/tasks/${taskId}/bom`)
-    if (res.data && res.data.data) {
-      bomList.value = res.data.data
-    } else if (Array.isArray(res.data)) {
-      bomList.value = res.data
-    }
+    const res = await productionApi.getTaskBom(taskId)
+    bomList.value = parseListData(res, { enableLog: false })
   } catch (error) {
     console.error('获取BOM失败', error)
     // 不报错，只是列表为空
@@ -1063,7 +1055,7 @@ const submitApplyParts = async () => {
           ]
         }
 
-        await axios.post('/inventory/outbound', payload)
+        await inventoryApi.createOutbound(payload)
 
         let successMsg = '补料申请已提交，生成的出库单为草稿状态，请联系仓库审核。'
 
@@ -1093,7 +1085,7 @@ const submitApplyParts = async () => {
               ]
             }
 
-            await axios.post('/inventory/inbound', inboundPayload)
+            await inventoryApi.createInbound(inboundPayload)
 
             // 新流程：此步骤仅发起退回隔离区的入库单草稿，不越权直接生成 NCP
             // 等待库管确认收货后，由后端服务自动抛出进料检验单(IQA)，再由检验定性抛出 NCP。
@@ -1140,7 +1132,7 @@ const fetchTaskList = async () => {
       params.endDate = searchForm.value.dateRange[1]
     }
 
-    const response = await axios.get('/production/tasks', { params })
+    const response = await productionApi.getProductionTasks(params)
 
     // 使用统一解析器处理数据
     const tasks = parseListData(response, { enableLog: false })
@@ -1172,7 +1164,6 @@ const fetchTaskList = async () => {
 }
 
 import { getProductionStatusColor } from '@/constants/systemConstants'
-
 // 统一状态颜色（工序和任务共用）
 const getStatusType = (status) => {
   return getProductionStatusColor(status)
@@ -1267,11 +1258,11 @@ const getCountdown = (expectedEndDate, status) => {
 const getCountdownColor = (expectedEndDate, status) => {
   // 如果任务已完成或已取消，使用灰色
   if (status === 'completed' || status === 'done' || status === 'cancelled' || status === 'cancel') {
-    return '#909399'
+    return 'var(--color-text-secondary)'
   }
 
   if (!expectedEndDate) {
-    return '#909399'
+    return 'var(--color-text-secondary)'
   }
 
   const now = new Date()
@@ -1280,7 +1271,7 @@ const getCountdownColor = (expectedEndDate, status) => {
 
   // 已逾期 - 红色
   if (diff < 0) {
-    return '#F56C6C'
+    return 'var(--color-danger)'
   }
 
   // 计算剩余天数
@@ -1288,22 +1279,22 @@ const getCountdownColor = (expectedEndDate, status) => {
 
   // 剩余1天以内 - 橙色
   if (days < 1) {
-    return '#E6A23C'
+    return 'var(--color-warning)'
   }
 
   // 剩余3天以内 - 黄色
   if (days < 3) {
-    return '#F59A23'
+    return 'var(--color-warning-dark, var(--color-warning))'
   }
 
   // 正常 - 绿色
-  return '#67C23A'
+  return 'var(--color-success)'
 }
 
 // 获取负责人列表
 const fetchManagers = async () => {
   try {
-    const response = await axios.get('/production/tasks/managers')
+    const response = await productionApi.getTaskManagers()
     // 拦截器已解包，response.data 就是业务数据
     managers.value = response.data || []
   } catch (error) {
@@ -1342,12 +1333,13 @@ const handleCurrentChange = (val) => {
   fetchTaskList()
 }
 
-const showUpdateModal = (record) => {
+const showUpdateModal = (record, task) => {
   formData.value = {
     id: record.id,
     processName: record.processName,
     status: record.status,
     progress: record.progress,
+    taskStatus: task?.status || '',
     actualStartTime: record.actualStartTime ? dayjs(record.actualStartTime).toDate() : null,
     actualEndTime: record.actualEndTime ? dayjs(record.actualEndTime).toDate() : null,
     remarks: ''
@@ -1456,11 +1448,16 @@ const viewTaskInstructionDocs = async (task) => {
 }
 
 // 快捷开始工序
-const handleQuickStart = async (row) => {
+const handleQuickStart = async (row, task) => {
+  if (!canStartProcess(task)) {
+    ElMessage.warning('任务必须先完成发料，才能开始工序')
+    return
+  }
+
   try {
     loading.value = true
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
-    await axios.put(`/production/processes/${row.id}`, {
+    await productionApi.updateProductionProcess(row.id, {
       status: 'in_progress',
       actualStartTime: now,
       progress: 0
@@ -1476,11 +1473,16 @@ const handleQuickStart = async (row) => {
 }
 
 // 快捷完成工序
-const handleQuickComplete = async (row) => {
+const handleQuickComplete = async (row, task) => {
+  if (!canCompleteProcess(task)) {
+    ElMessage.warning('任务必须处于生产中，才能完成工序')
+    return
+  }
+
   try {
     loading.value = true
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
-    await axios.put(`/production/processes/${row.id}`, {
+    await productionApi.updateProductionProcess(row.id, {
       status: 'completed',
       progress: 100,
       actualEndTime: now
@@ -1509,9 +1511,7 @@ const openInstructionDoc = (doc) => {
     // 处理文件URL：如果是相对路径，添加API基础路径
     let fileUrl = doc.url
     if (!fileUrl.startsWith('http')) {
-      fileUrl = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`
-      const baseURL = import.meta.env.VITE_API_URL || ''
-      fileUrl = `${baseURL}${fileUrl}`
+      fileUrl = buildResourceUrl(fileUrl)
     }
 
     originalFileUrl.value = fileUrl
@@ -1532,7 +1532,7 @@ const downloadFile = async () => {
     const fileUrl = originalFileUrl.value || previewFileUrl.value
     if (!fileUrl) return
 
-    const response = await axios.get(fileUrl, {
+    const response = await api.get(fileUrl, {
       responseType: 'blob'
     })
 
@@ -1572,6 +1572,10 @@ const hasInstructionDocs = (task) => {
   return !!(task.product_id || task.productId)
 }
 
+const processStartableTaskStatuses = new Set(['material_issued', 'material_partial_issued', 'in_progress'])
+const canStartProcess = (task) => processStartableTaskStatuses.has(task?.status)
+const canCompleteProcess = (task) => task?.status === 'in_progress'
+
 const handleModalOk = async () => {
   try {
     await formRef.value.validate()
@@ -1584,6 +1588,16 @@ const handleModalOk = async () => {
 
     if (formData.value.status === 'pending' && formData.value.progress > 0) {
       ElMessage.warning('未开始状态下进度必须为0%')
+      return
+    }
+
+    if (formData.value.status === 'in_progress' && !processStartableTaskStatuses.has(formData.value.taskStatus)) {
+      ElMessage.warning('任务必须先完成发料，才能开始工序')
+      return
+    }
+
+    if (formData.value.status === 'completed' && formData.value.taskStatus !== 'in_progress') {
+      ElMessage.warning('任务必须处于生产中，才能完成工序')
       return
     }
 
@@ -1600,7 +1614,7 @@ const handleModalOk = async () => {
       remarks: formData.value.remarks
     }
 
-    await axios.put(`/production/processes/${formData.value.id}`, data)
+    await productionApi.updateProductionProcess(formData.value.id, data)
     ElMessage.success('进度更新成功')
     modalVisible.value = false
     fetchTaskList()
@@ -1636,7 +1650,7 @@ const handleStartTask = async (row) => {
 
   try {
     // 异步更新后端，不阻塞UI
-    const updatePromise = axios.put(`/production/tasks/${row.id}/status`, { status: 'in_progress' })
+    const updatePromise = productionApi.updateProductionTaskStatus(row.id, { status: 'in_progress' })
 
     // 显示成功消息
     ElMessage.success('任务已开始')
@@ -1696,7 +1710,7 @@ const submitCompletion = async () => {
 
   try {
     // 调用后端完工API，传入本次完工数量
-    await axios.post(`/production/tasks/${completionForm.value.taskId}/complete`, {
+    await productionApi.completeTask(completionForm.value.taskId, {
       quantity: completionForm.value.quantity,
       remark: completionForm.value.remark
     })
@@ -1754,9 +1768,8 @@ const handleReturnMaterial = async (row) => {
   returnMaterialVisible.value = true
 
   try {
-    const bomRes = await axios.get(`/production/tasks/${row.id}/bom`)
-    const bomData = bomRes.data
-    const list = Array.isArray(bomData) ? bomData : (bomData?.data || [])
+    const bomRes = await productionApi.getTaskBom(row.id)
+    const list = parseListData(bomRes, { enableLog: false })
     returnBomList.value = list.map(item => ({ ...item, returnQty: 0 }))
   } catch (err) {
     console.error('加载BOM数据失败:', err)
@@ -1817,7 +1830,7 @@ const submitReturnMaterial = async () => {
       }))
     }
 
-    await axios.post('/inventory/inbound', payload)
+    await inventoryApi.createInbound(payload)
     ElMessage.success(`退料入库单已创建（${validItems.length} 种物料），请通知仓库确认入库。`)
     returnMaterialVisible.value = false
   } catch (error) {
@@ -1928,21 +1941,22 @@ onMounted(() => {
 /* 自定义状态标签颜色 */
 /* 生产中 - 深蓝色 */
 .status-in-progress {
-  --el-tag-bg-color: #1e40af !important;
-  --el-tag-border-color: #1e40af !important;
-  --el-tag-text-color: #ffffff !important;
-  background-color: #1e40af !important;
-  border-color: #1e40af !important;
-  color: #ffffff !important;
+  --el-tag-bg-color: var(--color-primary) !important;
+  --el-tag-border-color: var(--color-primary) !important;
+  --el-tag-text-color: var(--color-on-primary) !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 /* 待检验 - 紫色 */
 .status-inspection {
-  --el-tag-bg-color: #7c3aed !important;
-  --el-tag-border-color: #7c3aed !important;
-  --el-tag-text-color: #ffffff !important;
-  background-color: #7c3aed !important;
-  border-color: #7c3aed !important;
-  color: #ffffff !important;
+  --inspection-status-color: color-mix(in srgb, var(--color-primary) 60%, var(--color-danger));
+  --el-tag-bg-color: var(--inspection-status-color) !important;
+  --el-tag-border-color: var(--inspection-status-color) !important;
+  --el-tag-text-color: var(--color-on-primary) !important;
+  background-color: var(--inspection-status-color) !important;
+  border-color: var(--inspection-status-color) !important;
+  color: var(--color-on-primary) !important;
 }
 </style>

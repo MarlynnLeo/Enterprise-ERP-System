@@ -13,9 +13,10 @@ const logger = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const db = require('../../../config/db');
+const { currentDateString } = require('../../../utils/dateUtils');
 
 function validateBusinessDate(value, fieldName) {
-  const dateString = value ? String(value).slice(0, 10) : new Date().toISOString().split('T')[0];
+  const dateString = value ? String(value).slice(0, 10) : currentDateString();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     throw new Error(`${fieldName}格式不正确，请使用YYYY-MM-DD`);
   }
@@ -203,7 +204,8 @@ const taxController = {
         await connection.rollback();
       }
       logger.error('创建税务发票失败:', error);
-      const isBusinessError = /未配置|会计科目|期间|分录|借贷|不存在/.test(error.message || '');
+      const isBusinessError = error.code === 'VALIDATION_ERROR'
+        || /未配置|会计科目|期间|分录|借贷|不存在/.test(error.message || '');
       return ResponseHandler.error(
         res,
         isBusinessError ? error.message : '创建税务发票失败',
@@ -293,7 +295,7 @@ const taxController = {
         return ResponseHandler.error(res, '发票状态不正确，无法认证', 'VALIDATION_ERROR', 400);
       }
 
-      const certifiedDate = certification_date || new Date().toISOString().split('T')[0];
+      const certifiedDate = certification_date || currentDateString();
       await connection.execute(
         'UPDATE tax_invoices SET status = ?, certification_date = ? WHERE id = ?',
         ['已认证', certifiedDate, id]
@@ -327,7 +329,8 @@ const taxController = {
     } catch (error) {
       await connection.rollback();
       logger.error('认证税务发票失败:', error);
-      const isBusinessError = /未配置|会计科目|期间|分录|借贷|不存在|状态/.test(error.message || '');
+      const isBusinessError = error.code === 'VALIDATION_ERROR'
+        || /未配置|会计科目|期间|分录|借贷|不存在|状态/.test(error.message || '');
       return ResponseHandler.error(
         res,
         isBusinessError ? error.message : '认证税务发票失败',

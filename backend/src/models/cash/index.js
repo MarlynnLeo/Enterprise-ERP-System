@@ -11,19 +11,10 @@ const Transfer = require('./Transfer');
 const Reconciliation = require('./Reconciliation');
 const Reports = require('./Reports');
 const CashTransaction = require('./CashTransaction');
-const SequelizeModels = require('./SequelizeModels');
 const logger = require('../../utils/logger');
 
 // 额外的辅助方法
 const extraMethods = {
-  /**
-   * @deprecated 银行账户表结构已迁移至 Knex 迁移文件 20260312000008 管理，此函数保留为空操作
-   */
-  initializeBankTables: async () => {
-    // 表结构由 migrations/20260312000008_baseline_asset_bank_tables.js 管理
-    return true;
-  },
-
   /**
    * 重新计算并修复所有银行账户余额
    */
@@ -128,8 +119,4 @@ module.exports = {
   submitForAudit: CashTransaction.submitForAudit,
   approveTransaction: CashTransaction.approveTransaction,
   rejectTransaction: CashTransaction.rejectTransaction,
-  // Sequelize模型
-  Transaction: SequelizeModels.Transaction,
-  Reconciliation: SequelizeModels.Reconciliation,
-  ReconciliationItem: SequelizeModels.ReconciliationItem,
 };

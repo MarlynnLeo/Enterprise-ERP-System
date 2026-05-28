@@ -144,11 +144,7 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="title" :label="$t('common.title')" min-width="100" show-overflow-tooltip />
-                <el-table-column
-                  prop="date"
-                  :label="activeTodoTab === 'pending' ? $t('common.deadline') : $t('common.updateTime')"
-                  width="112"
-                />
+                <el-table-column prop="date" :label="activeTodoTab === 'pending' ? $t('common.deadline') : $t('common.updateTime')" width="112" />
                 <el-table-column :label="$t('common.status')" width="80">
                   <template #default="{ row }">
                     <span :class="activeTodoTab === 'completed' ? 'status-completed' : getStatusClass(row.status)">
@@ -156,7 +152,7 @@
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column :label="$t('common.action')" width="68" align="center">
+                <el-table-column :label="$t('common.action')" width="68" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                   <template #default="{ row }">
                     <el-button
                       :type="activeTodoTab === 'pending' ? 'primary' : 'info'"
@@ -183,105 +179,12 @@
 
         <el-col :xs="24" :sm="24" :md="8">
           <div class="chart-container ranking-container">
-            <div class="chart-header">
-              <div class="tab-group">
-                <div class="tab active">在线时长排行榜</div>
-              </div>
-            </div>
-            <div class="chart-body">
-              <div class="ranking-content">
-                <!-- 排行榜显示 - 新设计 -->
-                <div class="ranking-podium" v-if="!rankingLoading">
-                  <div
-                    v-for="config in podiumCardConfigs"
-                    :key="config.rankClass"
-                    class="podium-item"
-                    :class="[config.rankClass, { 'no-data': !onlineTimeRanking[config.dataIndex], 'flipped': flippedCards[config.dataIndex] }]"
-                    @click="toggleFlip(config.dataIndex)"
-                  >
-                    <div class="flipper">
-                      <div class="front">
-                        <template v-if="onlineTimeRanking[config.dataIndex]">
-                          <div class="crown-icon" :class="{ champion: config.isChampion }"><el-icon><Trophy /></el-icon></div>
-                          <!-- 头像+特效容器：固定尺寸的相对定位盒子 -->
-                          <div
-                            class="ranking-avatar-box"
-                            :style="{ '--avatar-size': `${config.iconSize}px` }"
-                          >
-                            <!-- 特效层：绝对铺满 + flex 居中 -->
-                            <div class="ranking-effect-layer">
-                              <Vue3Lottie
-                                v-if="onlineTimeRanking[config.dataIndex].avatarFrame && getLottieAnimation(onlineTimeRanking[config.dataIndex].avatarFrame)"
-                                :animationData="getLottieAnimation(onlineTimeRanking[config.dataIndex].avatarFrame)"
-                                :height="config.iconSize * 1.6"
-                                :width="config.iconSize * 1.6"
-                              />
-                            </div>
-                            <!-- 头像层：绝对铺满 + flex 居中（与特效层完全对称） -->
-                            <div class="ranking-avatar-layer">
-                              <div class="ranking-avatar-frame" :class="{ champion: config.isChampion }">
-                                <img
-                                  :src="onlineTimeRanking[config.dataIndex].avatar || '/default-avatar.webp'"
-                                  alt="头像"
-                                  class="ranking-avatar-img"
-                                  @error="e => e.target.src = '/default-avatar.webp'"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                          <div class="rank-badge">{{ config.badgeText }}</div>
-                          <div class="user-name">{{ onlineTimeRanking[config.dataIndex].realName }}</div>
-                          <div class="time-value">{{ onlineTimeRanking[config.dataIndex].displayTime }}</div>
-                        </template>
-                        <template v-else>
-                          <div class="crown-icon muted" :class="{ champion: config.isChampion }"><el-icon><Trophy /></el-icon></div>
-                          <!-- 暂无数据头像容器 -->
-                          <div
-                            class="ranking-avatar-box"
-                            :style="{
-                              '--avatar-size': `${config.iconSize}px`,
-                              '--empty-icon-size': `${config.isChampion ? 30 : 24}px`
-                            }"
-                          >
-                            <div class="ranking-avatar-layer">
-                              <div class="ranking-avatar-frame empty">
-                                <el-icon class="ranking-empty-icon"><UserFilled /></el-icon>
-                              </div>
-                            </div>
-                          </div>
-                          <div class="rank-badge muted">{{ config.badgeText }}</div>
-                          <div class="user-name muted">暂无数据</div>
-                          <div class="time-value muted">--</div>
-                        </template>
-                      </div>
-                      <div class="back">
-                        <div class="bio-content">
-                          <el-icon class="quote-icon"><ChatLineSquare /></el-icon>
-                          <p class="bio-text">{{ onlineTimeRanking[config.dataIndex]?.bio || '暂无个性签名' }}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 加载状态 - 优化的骨架屏 -->
-                <div v-if="rankingLoading" class="ranking-loading">
-                  <div class="ranking-podium-skeleton">
-                    <div v-for="config in podiumCardConfigs" :key="`skeleton-${config.rankClass}`" class="podium-item-skeleton" :class="config.rankClass">
-                      <div class="skeleton-crown"></div>
-                      <div class="skeleton-avatar"></div>
-                      <div class="skeleton-badge"></div>
-                      <div class="skeleton-name"></div>
-                      <div class="skeleton-time"></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="last-update" v-if="rankingDate">
-                  统计日期: {{ rankingDate }}
-                </div>
-              </div>
-            </div>
+            <OnlineTimeRanking
+              :rankings="onlineTimeRanking"
+              :loading="rankingLoading"
+              :date="rankingDate"
+              @refresh="fetchOnlineTimeRanking(true)"
+            />
           </div>
         </el-col>
 
@@ -318,7 +221,7 @@
                         {{ formatChange(metal.changePercent) }}%
                       </span>
                     </div>
-                    <div class="price-value">¥{{ formatPrice(metal.price) }}</div>
+                    <div class="price-value">{{ formatPrice(metal.price) }}</div>
                     <div class="price-unit">{{ metal.unit }}</div>
                     <div class="price-trend">
                       <div class="mini-chart" :ref="el => setMetalMiniChartRef(key, el)"></div>
@@ -378,18 +281,18 @@
                 :empty-text="'暂无生产计划'"
                 class="dashboard-table production-table"
               >
-                <el-table-column prop="studentId" label="计划编号" min-width="120" align="center" />
-                <el-table-column prop="name" label="产品名称" min-width="120" align="left" />
-                <el-table-column prop="studentType" label="产品规格" min-width="120" align="left" show-overflow-tooltip />
-                <el-table-column prop="protectionId" label="计划数量" min-width="100" align="center" />
-                <el-table-column label="状态" min-width="80" align="center">
+                <el-table-column prop="studentId" label="计划编号" min-width="120" />
+                <el-table-column prop="name" label="产品名称" min-width="120" />
+                <el-table-column prop="studentType" label="产品规格" min-width="120" show-overflow-tooltip />
+                <el-table-column prop="protectionId" label="计划数量" min-width="100" />
+                <el-table-column label="状态" min-width="80">
                   <template #default="{ row }">
                     <el-tag :type="getWarningTagType(row.status)" size="small" effect="light">
                       {{ row.warningType }}
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" min-width="80" align="center" fixed="right">
+                <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                   <template #default="{ row }">
                     <el-button type="primary" size="small" class="warning-action-btn" @click="viewProductionPlan(row.id)" :disabled="row.id === 0">查看</el-button>
                   </template>
@@ -445,22 +348,9 @@
 <script setup>
 import { ref, onMounted, computed, onActivated, watch, onUnmounted, nextTick } from 'vue'
 import { useAuthStore } from '../../stores/auth'
-import { getLottieAnimation } from '../../assets/lottie'
+import { systemApi, documentApi } from '../../services/api'
 // 权限store
 const authStore = useAuthStore()
-import * as echarts from 'echarts/core'
-import {
-  BarChart,
-  LineChart
-} from 'echarts/charts'
-import {
-  TitleComponent,
-  TooltipComponent,
-  GridComponent,
-  LegendComponent,
-  DataZoomComponent
-} from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
 import {
   UserFilled,
   Bell,
@@ -477,23 +367,10 @@ import {
   Sunny,
   Cloudy,
   PartlyCloudy,
-  ChatLineSquare,
   Refresh,
-  Trophy,
   WindPower
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-// 注册ECharts组件
-echarts.use([
-  BarChart,
-  LineChart,
-  TitleComponent,
-  TooltipComponent,
-  GridComponent,
-  LegendComponent,
-  DataZoomComponent,
-  CanvasRenderer
-])
 // ========== 组合式函数导入 ==========
 import { useWeather } from './composables/useWeather'
 import { useExchangeRate } from './composables/useExchangeRate'
@@ -501,6 +378,8 @@ import { useMetalPrices } from './composables/useMetalPrices'
 import { useTodos } from './composables/useTodos'
 import { useOnlineRanking } from './composables/useOnlineRanking'
 import { useProductionPlans } from './composables/useProductionPlans'
+import OnlineTimeRanking from './components/OnlineTimeRanking.vue'
+import { parseResponseData } from '@/utils/responseParser'
 // ========== 解构组合式函数 ==========
 const { weather, fetchWeatherData } = useWeather()
 const {
@@ -543,9 +422,6 @@ const {
   onlineTimeRanking,
   rankingLoading,
   rankingDate,
-  flippedCards,
-  toggleFlip,
-  podiumCardConfigs,
   fetchOnlineTimeRanking
 } = useOnlineRanking()
 const {
@@ -602,6 +478,7 @@ const showScrollIndicator = ref(true)
 // 定时器管理
 let userDataTimer = null
 let exchangeRateTimer = null
+let dashboardRefreshPromise = null
 // === 全局状态常量映射字典（仅模板直接引用的保留在此） ===
 const EVENT_TYPE_MAP = {
   '英语变更': 'event-english',
@@ -683,13 +560,32 @@ const updateWarningStats = (count) => {
 const updateTaskStats = () => {
   statistics.value.todoItems = getTodoCount()
 }
+const getTotalFromResponse = (response) => {
+  const data = parseResponseData(response, {})
+  return Number(data.total ?? data.totalCount ?? data.pagination?.total ?? data.meta?.total ?? (Array.isArray(data) ? data.length : 0)) || 0
+}
+const loadDashboardStats = async () => {
+  const [usersResult, documentsResult] = await Promise.allSettled([
+    systemApi.getUsers({ page: 1, pageSize: 1 }),
+    documentApi.getList({ page: 1, pageSize: 1 })
+  ])
+
+  if (usersResult.status === 'fulfilled') {
+    statistics.value.managedUsers = getTotalFromResponse(usersResult.value)
+  }
+  if (documentsResult.status === 'fulfilled') {
+    statistics.value.documentCount = getTotalFromResponse(documentsResult.value)
+  }
+}
 // 格式化价格显示（添加千分位分隔符）
 const formatPrice = (price) => {
-  if (!price || price === '--') return '--'
-  return Number(price).toLocaleString('zh-CN', {
+  if (price === null || price === undefined || price === '' || price === '--') return '--'
+  const value = Number(price)
+  if (Number.isNaN(value)) return '--'
+  return `¥${value.toLocaleString('zh-CN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  })
+  })}`
 }
 // 格式化变化值
 const formatChange = (change) => {
@@ -722,19 +618,40 @@ const refreshAllPrices = async () => {
 }
 // 刷新仪表盘核心数据，并同步顶部统计
 const refreshDashboardData = async (forceProfile = false) => {
-  const [, , planCount] = await Promise.all([
-    loadUserProfile(forceProfile),
-    loadUserTodos(),
-    loadProductionPlans(),
-    fetchOnlineTimeRanking()
-  ])
+  if (dashboardRefreshPromise) {
+    return dashboardRefreshPromise
+  }
 
-  updateTaskStats()
-  updateWarningStats(planCount || 0)
+  dashboardRefreshPromise = (async () => {
+    const [, , planCount] = await Promise.all([
+      loadUserProfile(forceProfile),
+      loadUserTodos(),
+      loadProductionPlans(),
+      fetchOnlineTimeRanking(forceProfile),
+      loadDashboardStats()
+    ])
+
+    updateTaskStats()
+    updateWarningStats(planCount || 0)
+  })()
+
+  try {
+    return await dashboardRefreshPromise
+  } finally {
+    dashboardRefreshPromise = null
+  }
+}
+
+const handleUserProfileUpdated = async () => {
+  await Promise.all([
+    loadUserProfile(true),
+    fetchOnlineTimeRanking(true)
+  ])
 }
 // ========== 生命周期钩子 ==========
 // 组件挂载时加载数据
 onMounted(async () => {
+  window.addEventListener('erp:user-profile-updated', handleUserProfileUpdated)
   // 初始化加载状态
   isLoadingStats.value = true
   // === 第一阶段：核心业务数据并行加载 ===
@@ -764,6 +681,7 @@ onMounted(async () => {
 })
 // 组件卸载时清除定时器和图表
 onUnmounted(() => {
+  window.removeEventListener('erp:user-profile-updated', handleUserProfileUpdated)
   if (userDataTimer) {
     clearInterval(userDataTimer)
     userDataTimer = null
@@ -862,13 +780,12 @@ watch(() => currentDate.value, (newValue) => {
   background: var(--color-bg-base) !important;
   border: 1px solid var(--color-border-lighter) !important;
   border-radius: 10px !important;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05) !important;
-  transition: all var(--transition-base) ease !important;
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent) !important;
+  transition: border-color var(--transition-base) ease, background-color var(--transition-base) ease !important;
 }
 .stat-card:hover {
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1) !important;
   border-color: var(--color-border-light) !important;
-  transform: translateY(-2px) !important;
+  background: var(--color-bg-section) !important;
 }
 /* 统计卡片加载状态 */
 .stat-card-loading {
@@ -882,7 +799,7 @@ watch(() => currentDate.value, (newValue) => {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ds-white) 30%, transparent), transparent);
   animation: shimmer 1.5s infinite;
 }
 @keyframes shimmer {
@@ -896,7 +813,7 @@ watch(() => currentDate.value, (newValue) => {
 /* 数字动画效果 */
 .animated-number {
   display: inline-block;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
 }
 /* 更新指示器 */
 .update-indicator {
@@ -927,62 +844,36 @@ watch(() => currentDate.value, (newValue) => {
   margin-left: 12px;
 }
 .purple {
-  background-color: #9254DE;
+  background-color: var(--color-info);
 }
 .icon-container {
-  width: 35px;
-  height: 35px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 12px;
   position: relative;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-.icon-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 50%;
-  background: inherit;
-  opacity: 0.3;
-  transform: scale(1);
-  transition: all 0.3s ease;
-}
-.stat-card:hover .icon-container::before {
-  transform: scale(1.3);
-  opacity: 0;
-}
-.stat-card:hover .icon-container {
-  transform: rotate(10deg) scale(1.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 .blue {
-  background: linear-gradient(135deg, #4B9EFF 0%, #667eea 100%);
+  background: var(--ds-blue);
 }
 .red {
-  background: linear-gradient(135deg, #FF5050 0%, #f5576c 100%);
+  background: var(--ds-red);
 }
 .green {
-  background: linear-gradient(135deg, #50DEFF 0%, #00f2fe 100%);
+  background: var(--color-success);
 }
 .purple {
-  background: linear-gradient(135deg, #9254DE 0%, #764ba2 100%);
+  background: var(--color-info);
 }
 .icon-container .el-icon {
   font-size: 20px;
-  color: var(--color-on-primary, #fff);
+  color: var(--color-on-primary);
   position: relative;
   z-index: 1;
-  transition: all 0.3s ease;
-}
-.stat-card:hover .icon-container .el-icon {
-  transform: scale(1.1);
 }
 .number {
   font-size: 24px;
@@ -996,16 +887,16 @@ watch(() => currentDate.value, (newValue) => {
 }
 /* 整合的个人信息与天气卡片 - 统一卡片风格 */
 .combined-info-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--theme-feature-card-bg);
   border-radius: 10px;
   padding: 15px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  box-shadow: var(--theme-feature-card-shadow);
   margin-bottom: var(--spacing-lg);
   height: 90px;
   position: relative;
   overflow: hidden;
-  transition: all var(--transition-base) ease;
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  transition: border-color var(--transition-base) ease, box-shadow var(--transition-base) ease, background-color var(--transition-base) ease;
+  border: 1px solid var(--theme-feature-card-border);
 }
 .combined-info-card::before {
   content: '';
@@ -1014,7 +905,7 @@ watch(() => currentDate.value, (newValue) => {
   right: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  background: var(--theme-feature-card-decor);
   animation: rotate 20s linear infinite;
 }
 @keyframes rotate {
@@ -1026,9 +917,9 @@ watch(() => currentDate.value, (newValue) => {
   }
 }
 .combined-info-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
-  border-color: rgba(102, 126, 234, 0.5);
+  transform: none;
+  box-shadow: var(--theme-feature-card-hover-shadow);
+  border-color: var(--theme-feature-card-border);
 }
 .loading-section {
   height: 100%;
@@ -1043,7 +934,7 @@ watch(() => currentDate.value, (newValue) => {
   align-items: center;
   justify-content: space-between;
   gap: 15px;
-  color: var(--color-on-primary, #fff);
+  color: var(--theme-feature-card-color);
 }
 /* 左侧个人信息 */
 .left-info {
@@ -1100,15 +991,14 @@ watch(() => currentDate.value, (newValue) => {
   height: 60px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+  border: 2px solid color-mix(in srgb, var(--ds-white) 50%, transparent);
+  box-shadow: 0 0 15px color-mix(in srgb, var(--ds-white) 30%, transparent);
   z-index: 2;
-  transition: all var(--transition-base) ease;
+  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
 }
 .center-avatar .avatar:hover {
-  transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+  border-color: color-mix(in srgb, var(--ds-white) 80%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--ds-white) 50%, transparent);
 }
 /* 右侧天气信息 */
 .right-weather {
@@ -1152,16 +1042,16 @@ watch(() => currentDate.value, (newValue) => {
   font-size: 28px;
 }
 .weather-icon-sunny {
-  color: #ffd54f;
+  color: var(--ds-yellow-strong);
 }
 .weather-icon-partly-cloudy {
-  color: #fff9c4;
+  color: var(--ds-yellow-bg);
 }
 .weather-icon-cloudy {
-  color: #e0e0e0;
+  color: var(--color-border-lighter);
 }
 .weather-icon-rainy {
-  color: #90caf9;
+  color: var(--ds-blue-strong);
 }
 .weather-desc-compact {
   font-size: 12px;
@@ -1195,7 +1085,7 @@ watch(() => currentDate.value, (newValue) => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(75, 158, 255, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--ds-blue) 30%, transparent) 0%, transparent 70%);
   animation: glowPulse 3s ease-in-out infinite;
   z-index: 0;
 }
@@ -1221,12 +1111,13 @@ watch(() => currentDate.value, (newValue) => {
 }
 /* 粒子特效 */
 .particle {
+  --i: 0;
   position: absolute;
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: linear-gradient(45deg, #4B9EFF, #50DEFF);
-  box-shadow: 0 0 6px rgba(75, 158, 255, 0.8);
+  background: linear-gradient(45deg, var(--ds-blue), var(--ds-cyan-strong));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ds-blue) 80%, transparent);
   top: 50%;
   left: 50%;
   animation: particleOrbit 4s linear infinite;
@@ -1256,10 +1147,10 @@ watch(() => currentDate.value, (newValue) => {
   height: 50px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid rgba(75, 158, 255, 0.3);
-  box-shadow: 0 0 15px rgba(75, 158, 255, 0.4);
+  border: 2px solid color-mix(in srgb, var(--ds-blue) 30%, transparent);
+  box-shadow: 0 0 15px color-mix(in srgb, var(--ds-blue) 40%, transparent);
   z-index: 1;
-  transition: all var(--transition-base) ease;
+  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
 }
 /* 注意：整合卡片的头像悬停效果由 .center-avatar .avatar:hover 控制 */
 .info {
@@ -1297,7 +1188,7 @@ watch(() => currentDate.value, (newValue) => {
 .warning-container {
   background: var(--color-bg-base);
   border-radius: 10px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
   margin-bottom: var(--spacing-lg);
   overflow: hidden;
   border: 1px solid var(--color-border-lighter);
@@ -1305,7 +1196,7 @@ watch(() => currentDate.value, (newValue) => {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  transition: all var(--transition-base) ease;
+  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
 }
 /* 卡片悬停效果 */
 .list-container:hover,
@@ -1313,9 +1204,8 @@ watch(() => currentDate.value, (newValue) => {
 .calendar-container:hover,
 .calendar-wrapper:hover,
 .warning-container:hover {
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px 0 color-mix(in srgb, var(--ds-black) 10%, transparent);
   border-color: var(--color-border-light);
-  transform: translateY(-2px);
 }
 .list-header {
   padding: 0;
@@ -1336,12 +1226,12 @@ watch(() => currentDate.value, (newValue) => {
   cursor: pointer;
   color: var(--color-text-regular);
   font-size: 14px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
 }
 .tab:hover {
   color: var(--color-primary);
-  background-color: rgba(75, 158, 255, 0.05);
+  background-color: color-mix(in srgb, var(--ds-blue) 5%, transparent);
 }
 .tab.active {
   color: var(--color-primary);
@@ -1356,7 +1246,7 @@ watch(() => currentDate.value, (newValue) => {
   height: 3px;
   background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-dark-2) 100%);
   animation: slideIn 0.3s ease-out;
-  box-shadow: 0 2px 4px rgba(75, 158, 255, 0.3);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--ds-blue) 30%, transparent);
 }
 @keyframes slideIn {
   from {
@@ -1408,12 +1298,10 @@ watch(() => currentDate.value, (newValue) => {
   min-height: 200px;
 }
 .dashboard-table :deep(.el-table__row) {
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
 }
 .dashboard-table :deep(.el-table__row:hover) {
   background-color: var(--color-bg-hover) !important;
-  transform: scale(1.01);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 .production-table :deep(.el-table__row) {
   cursor: pointer;
@@ -1466,7 +1354,7 @@ watch(() => currentDate.value, (newValue) => {
   font-size: 12px;
   height: 22px;
   min-width: 40px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
 }
@@ -1478,7 +1366,7 @@ watch(() => currentDate.value, (newValue) => {
   width: 0;
   height: 0;
   border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.5);
+  background-color: color-mix(in srgb, var(--ds-white) 50%, transparent);
   transform: translate(-50%, -50%);
   transition: width 0.6s, height 0.6s;
 }
@@ -1487,18 +1375,17 @@ watch(() => currentDate.value, (newValue) => {
   height: 200px;
 }
 .action-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+  box-shadow: none;
 }
 /* 表格样式 */
 :deep(.el-table) {
   --el-table-border-color: transparent;
-  --el-table-header-bg-color: rgba(245, 247, 250, 0.5);
-  --el-table-row-hover-bg-color: rgba(245, 247, 250, 0.5);
+  --el-table-header-bg-color: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
+  --el-table-row-hover-bg-color: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
   background-color: transparent !important;
 }
 :deep(.el-table th) {
-  background-color: rgba(245, 247, 250, 0.5);
+  background-color: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
   font-weight: normal;
   color: var(--color-text-regular);
   font-size: 13px;
@@ -1512,7 +1399,7 @@ watch(() => currentDate.value, (newValue) => {
   background-color: transparent !important;
 }
 :deep(.el-table--enable-row-hover .el-table__body tr:hover > td) {
-  background-color: rgba(245, 247, 250, 0.5);
+  background-color: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
 }
 :deep(.el-table__inner-wrapper::before) {
   display: none;
@@ -1522,8 +1409,8 @@ watch(() => currentDate.value, (newValue) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
-  border: 2px dashed #dcdfe6;
+  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-light) 100%);
+  border: 2px dashed var(--color-border-base);
 }
 /* 图表样式（特殊配置已在公共样式中） */
 .chart-header {
@@ -1575,7 +1462,7 @@ watch(() => currentDate.value, (newValue) => {
   margin-bottom: 10px;
   font-size: 14px;
   font-weight: bold;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--ds-black) 5%, transparent);
   box-sizing: border-box; /* ✨ 统一box-sizing */
 }
 .calendar-content {
@@ -1614,34 +1501,33 @@ watch(() => currentDate.value, (newValue) => {
   justify-content: center;
   align-items: center;
   border-radius: 50%;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   position: relative;
 }
 .day-number:hover {
   background-color: var(--color-primary-light-9);
-  transform: scale(1.1);
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+  box-shadow: none;
 }
 .day-number.current {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: var(--color-on-primary, #fff);
+  background: var(--theme-feature-card-bg);
+  color: var(--theme-feature-card-color);
   font-weight: bold;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--theme-feature-card-shadow);
   animation: currentDayPulse 2s ease-in-out infinite;
 }
 @keyframes currentDayPulse {
   0%, 100% {
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: var(--theme-feature-card-shadow);
   }
   50% {
-    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.6);
+    box-shadow: var(--theme-feature-card-hover-shadow);
   }
 }
 .day-number.has-events {
-  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
-  color: var(--color-on-primary, #fff);
-  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+  background: linear-gradient(135deg, var(--module-red) 0%, var(--ds-orange-strong) 100%);
+  color: var(--color-on-primary);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--module-red) 30%, transparent);
 }
 .day-number.has-events::after {
   content: '';
@@ -1649,7 +1535,7 @@ watch(() => currentDate.value, (newValue) => {
   bottom: 2px;
   width: 4px;
   height: 4px;
-  background-color: var(--color-on-primary, #fff);
+  background-color: var(--color-on-primary);
   border-radius: 50%;
 }
 .day-number.other-month {
@@ -1746,8 +1632,8 @@ watch(() => currentDate.value, (newValue) => {
 .price-card {
   border-radius: var(--radius-md);
   padding: 12px;
-  transition: all var(--transition-base) ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--ds-black) 5%, transparent);
   position: relative;
   overflow: hidden;
   animation: cardFadeIn 0.6s ease-out;
@@ -1764,47 +1650,43 @@ watch(() => currentDate.value, (newValue) => {
 }
 /* 黄金卡片 - 金色主题 */
 .price-card-gold {
-  background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
-  border: 1px solid #ffc107;
+  background: linear-gradient(135deg, var(--ds-yellow-bg) 0%, var(--ds-yellow-strong) 100%);
+  border: 1px solid var(--ds-yellow);
   animation-delay: 0.1s;
 }
 .price-card-gold:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
-  border-color: #ff8f00;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-yellow) 30%, transparent);
+  border-color: var(--ds-orange);
 }
 /* 白金卡片 - 银白色主题 */
 .price-card-platinum {
-  background: linear-gradient(135deg, #f5f5f5 0%, #e8eaf6 100%);
-  border: 1px solid #9e9e9e;
+  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--ds-gray-bg) 100%);
+  border: 1px solid var(--ds-gray);
   animation-delay: 0.2s;
 }
 .price-card-platinum:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(158, 158, 158, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-gray) 30%, transparent);
   border-color: var(--color-text-regular);
 }
 /* 铝卡片 - 蓝色主题 */
 .price-card-aluminum {
-  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-  border: 1px solid #2196f3;
+  background: linear-gradient(135deg, var(--ds-blue-bg) 0%, var(--ds-blue-strong) 100%);
+  border: 1px solid var(--ds-blue);
   animation-delay: 0.3s;
 }
 .price-card-aluminum:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
-  border-color: #1976d2;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-blue) 30%, transparent);
+  border-color: var(--color-primary-dark-2, var(--color-primary));
 }
 /* 铜卡片 - 橙红色主题 */
 .price-card-copper {
-  background: linear-gradient(135deg, #fff3e0 0%, #ffcc80 100%);
-  border: 1px solid #ff9800;
+  background: linear-gradient(135deg, var(--ds-orange-bg) 0%, var(--ds-orange-strong) 100%);
+  border: 1px solid var(--ds-orange);
   animation-delay: 0.4s;
 }
 .price-card-copper:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
-  border-color: #f57c00;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-orange) 30%, transparent);
+  border-color: var(--ds-orange);
 }
 .price-card-header {
   display: flex;
@@ -1822,34 +1704,24 @@ watch(() => currentDate.value, (newValue) => {
   height: 16px;
   border-radius: 50%;
   display: inline-block;
-  animation: iconPulse 2s ease-in-out infinite;
-}
-@keyframes iconPulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.1);
-    opacity: 0.8;
-  }
+  animation: none;
 }
 /* 不同金属的图标颜色 */
 .metal-icon-gold {
-  background: linear-gradient(45deg, #ffd700, #ffb300);
-  box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
+  background: var(--ds-yellow);
+  box-shadow: none;
 }
 .metal-icon-platinum {
-  background: linear-gradient(45deg, #c0c0c0, #808080);
-  box-shadow: 0 2px 4px rgba(192, 192, 192, 0.3);
+  background: var(--ds-gray);
+  box-shadow: none;
 }
 .metal-icon-aluminum {
-  background: linear-gradient(45deg, #2196f3, #1976d2);
-  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+  background: var(--ds-blue);
+  box-shadow: none;
 }
 .metal-icon-copper {
-  background: linear-gradient(45deg, #ff9800, #f57c00);
-  box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+  background: var(--ds-orange);
+  box-shadow: none;
 }
 .metal-name {
   font-weight: 600;
@@ -1857,16 +1729,16 @@ watch(() => currentDate.value, (newValue) => {
 }
 /* 不同金属名称的颜色 */
 .price-card-gold .metal-name {
-  color: #ff8f00;
+  color: var(--ds-orange);
 }
 .price-card-platinum .metal-name {
   color: var(--color-text-regular);
 }
 .price-card-aluminum .metal-name {
-  color: #1976d2;
+  color: var(--color-primary);
 }
 .price-card-copper .metal-name {
-  color: #f57c00;
+  color: var(--ds-orange);
 }
 .price-change {
   font-size: 12px;
@@ -1876,15 +1748,15 @@ watch(() => currentDate.value, (newValue) => {
 }
 .price-change.positive {
   color: var(--color-success);
-  background-color: rgba(103, 194, 58, 0.1);
+  background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
 }
 .price-change.negative {
   color: var(--color-danger);
-  background-color: rgba(245, 108, 108, 0.1);
+  background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
 }
 .price-change.neutral {
   color: var(--color-text-secondary);
-  background-color: rgba(144, 147, 153, 0.1);
+  background-color: color-mix(in srgb, var(--ds-gray) 10%, transparent);
 }
 .price-value {
   font-size: 18px;
@@ -1893,24 +1765,24 @@ watch(() => currentDate.value, (newValue) => {
   background: linear-gradient(135deg, currentColor 0%, currentColor 100%);
   -webkit-background-clip: text;
   background-clip: text;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
 }
 /* 不同金属价格的颜色 */
 .price-card-gold .price-value {
-  color: #ff8f00;
-  text-shadow: 0 2px 4px rgba(255, 143, 0, 0.2);
+  color: var(--ds-orange);
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-orange) 20%, transparent);
 }
 .price-card-platinum .price-value {
   color: var(--color-text-regular);
-  text-shadow: 0 2px 4px rgba(97, 97, 97, 0.2);
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-gray) 20%, transparent);
 }
 .price-card-aluminum .price-value {
-  color: #1976d2;
-  text-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
+  color: var(--color-primary);
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 .price-card-copper .price-value {
-  color: #f57c00;
-  text-shadow: 0 2px 4px rgba(245, 124, 0, 0.2);
+  color: var(--ds-orange);
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-orange) 20%, transparent);
 }
 .price-unit {
   font-size: 11px;
@@ -1961,14 +1833,15 @@ watch(() => currentDate.value, (newValue) => {
   margin-bottom: var(--spacing-lg);
 }
 .rate-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--theme-feature-card-bg);
   border-radius: var(--radius-lg);
   padding: 12px;
-  color: var(--color-on-primary, #fff);
+  color: var(--theme-feature-card-color);
   position: relative;
   overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--theme-feature-card-shadow);
+  border: 1px solid var(--theme-feature-card-border);
   min-height: 120px;
   display: flex;
   flex-direction: column;
@@ -1992,25 +1865,31 @@ watch(() => currentDate.value, (newValue) => {
   right: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  background: var(--theme-feature-card-decor);
   animation: rotate 15s linear infinite;
   pointer-events: none;
 }
 .rate-card:hover {
-  transform: translateY(-5px) scale(1.02);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  transform: none;
+  box-shadow: var(--theme-feature-card-hover-shadow);
 }
 .rate-card:nth-child(1) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--theme-feature-card-bg);
 }
 .rate-card:nth-child(2) {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: var(--theme-status-danger-bg);
+  border-color: var(--theme-status-danger-border);
+  color: var(--theme-status-danger-color);
 }
 .rate-card:nth-child(3) {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: var(--theme-status-primary-bg);
+  border-color: var(--theme-status-primary-border);
+  color: var(--theme-status-primary-color);
 }
 .rate-card:nth-child(4) {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  background: var(--theme-status-success-bg);
+  border-color: var(--theme-status-success-border);
+  color: var(--theme-status-success-color);
 }
 .rate-card-header {
   display: flex;
@@ -2031,7 +1910,7 @@ watch(() => currentDate.value, (newValue) => {
   font-size: 18px;
   font-weight: bold;
   margin-bottom: 6px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--ds-black) 10%, transparent);
   flex: 1;
   display: flex;
   align-items: center;
@@ -2049,7 +1928,7 @@ watch(() => currentDate.value, (newValue) => {
   border-radius: var(--radius-lg);
   padding: 12px;
   margin-bottom: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 10%, transparent);
 }
 .exchange-rate-chart-canvas {
   width: 100%;
@@ -2060,24 +1939,24 @@ watch(() => currentDate.value, (newValue) => {
   font-weight: 600;
   padding: 4px 8px;
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.2);
+  background: color-mix(in srgb, var(--ds-white) 20%, transparent);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid color-mix(in srgb, var(--ds-white) 30%, transparent);
 }
 .rate-change.positive {
-  color: var(--color-on-primary, #fff);
-  background: rgba(76, 175, 80, 0.3);
-  border-color: rgba(76, 175, 80, 0.5);
+  color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--ds-green) 30%, transparent);
+  border-color: color-mix(in srgb, var(--ds-green) 50%, transparent);
 }
 .rate-change.negative {
-  color: var(--color-on-primary, #fff);
-  background: rgba(244, 67, 54, 0.3);
-  border-color: rgba(244, 67, 54, 0.5);
+  color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--ds-red) 30%, transparent);
+  border-color: color-mix(in srgb, var(--ds-red) 50%, transparent);
 }
 .rate-change.neutral {
-  color: var(--color-on-primary, #fff);
-  background: rgba(158, 158, 158, 0.3);
-  border-color: rgba(158, 158, 158, 0.5);
+  color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--ds-gray) 30%, transparent);
+  border-color: color-mix(in srgb, var(--ds-gray) 50%, transparent);
 }
 /* 滚动指示器样式 */
 .scroll-indicator {
@@ -2085,8 +1964,8 @@ watch(() => currentDate.value, (newValue) => {
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(64, 158, 255, 0.9);
-  color: var(--color-on-primary, #fff);
+  background: color-mix(in srgb, var(--color-primary) 90%, transparent);
+  color: var(--color-on-primary);
   padding: 8px 16px;
   border-radius: 20px;
   font-size: 12px;
@@ -2095,16 +1974,16 @@ watch(() => currentDate.value, (newValue) => {
   gap: 6px;
   animation: bounce 2s infinite;
   backdrop-filter: blur(10px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-black) 15%, transparent);
   z-index: 10;
   cursor: pointer;
-  transition: all var(--transition-base) ease;
+  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
   user-select: none;
 }
 .scroll-indicator:hover {
-  background: rgba(64, 158, 255, 1);
-  transform: translateX(-50%) scale(1.05);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  background: color-mix(in srgb, var(--color-primary) 100%, transparent);
+  transform: translateX(-50%);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--ds-black) 20%, transparent);
 }
 .scroll-indicator i {
   font-size: 14px;
@@ -2126,428 +2005,8 @@ watch(() => currentDate.value, (newValue) => {
   color: var(--color-text-secondary);
   font-weight: normal;
 }
-/* 排行榜容器样式 - 新设计 */
 .ranking-container {
-  overflow: visible;
-}
-.ranking-content {
-  padding: 10px 8px;
-}
-.ranking-podium {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  padding: 20px 0 10px;
-  animation: fadeInUp 0.5s ease-out;
-}
-.podium-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0;
-  border-radius: var(--radius-lg);
-  position: relative;
-  z-index: 1;
-  perspective: 1200px;
-  transition: z-index 0s 0.3s;
-  cursor: pointer;
-  background: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  animation: fadeInUp 0.6s ease-out;
-}
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.podium-item:nth-child(1) {
-  animation-delay: 0.1s;
-}
-.podium-item:nth-child(2) {
-  animation-delay: 0s;
-}
-.podium-item:nth-child(3) {
-  animation-delay: 0.2s;
-}
-.podium-item:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-/* 王冠图标 */
-.crown-icon {
-  font-size: 16px;
-  margin-bottom: 6px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-  animation: float 3s ease-in-out infinite;
-}
-.crown-icon.champion {
-  font-size: 20px;
-  margin-bottom: 8px;
-}
-.crown-icon.muted {
-  opacity: 0.2;
-}
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-/* 头像特效已移至全局 avatar-effects.css */
-.ranking-avatar-box {
-  position: relative;
-  width: var(--avatar-size);
-  height: var(--avatar-size);
-  margin: 10px auto 8px;
-}
-.ranking-effect-layer,
-.ranking-avatar-layer {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ranking-effect-layer {
-  pointer-events: none;
-  z-index: 2;
-}
-.ranking-avatar-layer {
-  z-index: 1;
-}
-.ranking-avatar-frame {
-  width: var(--avatar-size);
-  height: var(--avatar-size);
-  border-radius: 50%;
   overflow: hidden;
-  border: 2px solid #fff;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-  flex-shrink: 0;
-}
-.ranking-avatar-frame.champion {
-  border-width: 3px;
-  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
-}
-.ranking-avatar-frame.empty {
-  border-color: #f0f0f0;
-  background: #fafafa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ranking-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.ranking-empty-icon {
-  font-size: var(--empty-icon-size, 24px);
-  color: var(--color-border-base);
-}
-/* 排名徽章 */
-.rank-badge {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 4px;
-  letter-spacing: 0.5px;
-}
-.rank-badge.muted {
-  opacity: 0.5;
-}
-.user-name.muted,
-.time-value.muted {
-  opacity: 0.4;
-  color: var(--color-text-secondary);
-}
-.podium-item.flipped {
-  z-index: 100;
-  transition: z-index 0s 0s;
-}
-.flipper {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  transform-style: preserve-3d;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-/* 3D弹出效果：向前飞出 + 放大 + 轻微旋转 */
-.podium-item.flipped .flipper {
-  transform: translateZ(80px) scale(1.15) rotateX(-5deg);
-}
-.front, .back {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 18px 8px 14px;
-  box-sizing: border-box;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.front {
-  position: relative;
-  z-index: 2;
-  backface-visibility: visible;
-}
-/* 弹出时正面淡出 */
-.podium-item.flipped .front {
-  opacity: 0;
-  transform: scale(0.8);
-}
-.back {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 15px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  box-shadow: 0 20px 60px rgba(102, 126, 234, 0.4),
-              0 0 0 1px rgba(255, 255, 255, 0.2) inset;
-  opacity: 0;
-  transform: scale(0.8) translateZ(-20px);
-  z-index: 1;
-}
-/* 弹出时背面飞入 */
-.podium-item.flipped .back {
-  opacity: 1;
-  transform: scale(1) translateZ(0);
-  z-index: 3;
-}
-/* 重写原来的样式以适应新的结构 */
-.rank-1 .front {
-  background: linear-gradient(135deg, #fff9e6 0%, #fffbf0 100%);
-  box-shadow: 0 8px 24px rgba(255, 193, 7, 0.25);
-  border: 2px solid #ffe58f;
-}
-.rank-2 .front {
-  background: linear-gradient(135deg, #fff3f3 0%, #fff8f8 100%);
-  box-shadow: 0 6px 18px rgba(255, 152, 152, 0.2);
-  border: 2px solid #ffd4d4;
-}
-.rank-3 .front {
-  background: linear-gradient(135deg, #fff8ed 0%, #fffbf5 100%);
-  box-shadow: 0 6px 18px rgba(255, 193, 122, 0.2);
-  border: 2px solid #ffe4c4;
-}
-/* 个性签名样式 */
-.bio-content {
-  text-align: center;
-  width: 100%;
-}
-.quote-icon {
-  font-size: 24px;
-  color: var(--color-text-secondary);
-  margin-bottom: 8px;
-  opacity: 0.5;
-}
-.bio-text {
-  font-size: 14px;
-  color: var(--color-text-regular);
-  line-height: 1.5;
-  font-style: italic;
-  word-break: break-all;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  /* autoprefixer: ignore next */
-  -webkit-box-orient: vertical;
-  line-clamp: 4;
-}
-/* 第一名背面特殊样式 - 金色主题 */
-.rank-1 .back {
-  background: linear-gradient(135deg, #f6d365 0%, #fda085 50%, #f6d365 100%);
-  box-shadow: 0 25px 70px rgba(246, 211, 101, 0.5),
-              0 0 0 1px rgba(255, 255, 255, 0.3) inset,
-              0 0 40px rgba(253, 160, 133, 0.3);
-}
-.rank-1 .bio-text {
-  color: var(--color-on-primary, #fff);
-  font-weight: 600;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-.rank-1 .quote-icon {
-  color: rgba(255, 255, 255, 0.9);
-  opacity: 1;
-}
-/* 第二名背面特殊样式 - 银色主题 */
-.rank-2 .back {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 20px 60px rgba(102, 126, 234, 0.4),
-              0 0 0 1px rgba(255, 255, 255, 0.2) inset;
-}
-.rank-2 .bio-text {
-  color: var(--color-on-primary, #fff);
-  font-weight: 500;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-.rank-2 .quote-icon {
-  color: rgba(255, 255, 255, 0.85);
-}
-/* 第三名背面特殊样式 - 青铜主题 */
-.rank-3 .back {
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  box-shadow: 0 20px 60px rgba(17, 153, 142, 0.4),
-              0 0 0 1px rgba(255, 255, 255, 0.2) inset;
-}
-.rank-3 .bio-text {
-  color: var(--color-on-primary, #fff);
-  font-weight: 500;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-.rank-3 .quote-icon {
-  color: rgba(255, 255, 255, 0.85);
-}
-/* 用户名 */
-.user-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--color-text-primary);
-  margin-bottom: 4px;
-  text-align: center;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* 时间值 */
-.time-value {
-  font-size: 11px;
-  color: var(--color-text-regular);
-  text-align: center;
-}
-.rank-1 .rank-badge {
-  color: #ff9800;
-  text-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
-}
-/* 第二名特殊样式 - 领奖台较低 */
-.podium-item.rank-2 {
-  margin-top: 20px;
-}
-.rank-2 .rank-badge {
-  color: #ff6b6b;
-  text-shadow: 0 2px 4px rgba(255, 107, 107, 0.3);
-}
-/* 第三名特殊样式 - 领奖台最低 */
-.podium-item.rank-3 {
-  margin-top: 30px;
-}
-.rank-3 .rank-badge {
-  color: #ffa940;
-  text-shadow: 0 2px 4px rgba(255, 169, 64, 0.3);
-}
-/* 暂无数据状态样式 */
-.podium-item.no-data {
-  opacity: 0.15;
-  cursor: default;
-  background: transparent !important;
-  box-shadow: none !important;
-  border: 1px dashed var(--color-border-base) !important;
-}
-.podium-item.no-data:hover {
-  transform: none;
-}
-/* 排行榜加载状态样式 */
-.ranking-loading {
-  padding: 20px 0;
-}
-/* 排行榜骨架屏样式 */
-.ranking-podium-skeleton {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 10px 5px;
-  min-height: 220px;
-}
-.podium-item-skeleton {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  transition: all var(--transition-base) ease;
-}
-.podium-item-skeleton.rank-1 {
-  order: 2;
-  padding-bottom: 0;
-}
-.podium-item-skeleton.rank-2 {
-  order: 1;
-  padding-bottom: 15px;
-}
-.podium-item-skeleton.rank-3 {
-  order: 3;
-  padding-bottom: 20px;
-}
-/* 骨架屏动画 */
-@keyframes skeletonLoading {
-  0% {
-    background-position: -200px 0;
-  }
-  100% {
-    background-position: calc(200px + 100%) 0;
-  }
-}
-.skeleton-crown,
-.skeleton-avatar,
-.skeleton-badge,
-.skeleton-name,
-.skeleton-time {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200px 100%;
-  animation: skeletonLoading 1.5s ease-in-out infinite;
-  border-radius: var(--radius-sm);
-}
-.skeleton-crown {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  margin-bottom: 4px;
-}
-.podium-item-skeleton.rank-1 .skeleton-crown {
-  width: 24px;
-  height: 24px;
-}
-.skeleton-avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  margin-bottom: 6px;
-}
-.podium-item-skeleton.rank-1 .skeleton-avatar {
-  width: 60px;
-  height: 60px;
-}
-.skeleton-badge {
-  width: 45px;
-  height: 20px;
-  border-radius: 10px;
-  margin-bottom: 4px;
-}
-.skeleton-name {
-  width: 60px;
-  height: 14px;
-  border-radius: 7px;
-  margin-bottom: 4px;
-}
-.skeleton-time {
-  width: 70px;
-  height: 12px;
-  border-radius: var(--radius-base);
 }
 /* 分节标题样式 */
 .section-title {
@@ -2561,7 +2020,7 @@ watch(() => currentDate.value, (newValue) => {
 /* 分节分隔线 */
 .section-divider {
   height: 1px;
-  background: linear-gradient(90deg, rgba(64, 158, 255, 0.2) 0%, rgba(64, 158, 255, 0) 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 20%, transparent) 0%, transparent 100%);
   margin: 20px 0;
 }
 </style>

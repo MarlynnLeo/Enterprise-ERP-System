@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Reconciliation.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="reconciliation-container">
+  <div class="module-page reconciliation-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -22,12 +22,14 @@
     </el-card>
 
     <!-- 账户选择 -->
-    <el-card class="select-account-card">
-      <div class="card-header">
-        <span>选择对账账户</span>
-      </div>
-      <div class="account-selection">
-        <el-form :inline="true" class="search-form" >
+    <FinanceQueryCard
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="searchReconciliation"
+      @reset="resetSearch"
+    >
+      <template #basic>
           <el-form-item label="选择账户">
             <el-select v-model="selectedAccount" placeholder="请选择银行账户" @change="handleAccountChange">
               <el-option
@@ -38,6 +40,8 @@
               ></el-option>
             </el-select>
           </el-form-item>
+      </template>
+      <template #advanced>
           <el-form-item label="对账期间">
             <el-date-picker
               v-model="dateRange"
@@ -50,12 +54,8 @@
               :disabled="!selectedAccount"
             ></el-date-picker>
           </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="searchReconciliation" :disabled="!selectedAccount || !dateRange">查询</el-button>
-          </el-form-item>
-        </el-form>
-      </div>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <div v-if="isReconciling" class="reconciliation-content">
       <!-- 银行对账统计 -->
@@ -132,7 +132,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="amount" label="金额" width="120" align="right">
+            <el-table-column prop="amount" label="金额" width="120">
               <template #default="scope">
                 <span :class="getAmountClass(scope.row.type)">
                   {{ formatCurrency(scope.row.amount) }}
@@ -142,7 +142,7 @@
             <el-table-column prop="counterparty" label="交易对方" min-width="120" show-overflow-tooltip></el-table-column>
             <el-table-column prop="description" label="交易描述" min-width="180" show-overflow-tooltip></el-table-column>
             <el-table-column prop="referenceNumber" label="参考号" width="110" show-overflow-tooltip></el-table-column>
-            <el-table-column label="操作" width="100" fixed="right">
+            <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button v-permission="'finance:cash:reconcile'" type="primary" size="small" @click="markAsReconciled(scope.row)">对账</el-button>
               </template>
@@ -195,7 +195,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="amount" label="金额" width="120" align="right">
+            <el-table-column prop="amount" label="金额" width="120">
               <template #default="scope">
                 <span :class="[scope.row.type === 'income' ? 'positive-value' : 'negative-value']">
                   {{ formatCurrency(scope.row.amount) }}
@@ -203,7 +203,7 @@
               </template>
             </el-table-column>
             <el-table-column prop="summary" label="摘要" min-width="200"></el-table-column>
-            <el-table-column prop="balance" label="余额" width="120" align="right">
+            <el-table-column prop="balance" label="余额" width="120">
               <template #default="scope">
                 {{ formatCurrency(scope.row.balance) }}
               </template>
@@ -215,7 +215,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="180" fixed="right">
+            <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   v-permission="'finance:cash:reconcile'"
@@ -242,7 +242,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="amount" label="金额" width="120" align="right">
+            <el-table-column prop="amount" label="金额" width="120">
               <template #default="scope">
                 <span :class="[scope.row.type === 'income' ? 'positive-value' : 'negative-value']">
                   {{ formatCurrency(scope.row.amount) }}
@@ -252,7 +252,7 @@
             <el-table-column prop="counterparty" label="交易对方" min-width="150"></el-table-column>
             <el-table-column prop="description" label="交易描述" min-width="200"></el-table-column>
             <el-table-column prop="reconciliationDate" label="对账日期" width="120"></el-table-column>
-            <el-table-column label="操作" min-width="180" fixed="right">
+            <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button v-permission="'finance:cash:reconcile'" type="warning" size="small" @click="cancelReconciliation(scope.row)">取消对账</el-button>
               </template>
@@ -309,7 +309,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="amount" label="金额" width="120" align="right">
+            <el-table-column prop="amount" label="金额" width="120">
               <template #default="scope">
                 <span :class="[scope.row.type === 'income' ? 'positive-value' : 'negative-value']">
                   {{ formatCurrency(scope.row.amount) }}
@@ -333,19 +333,20 @@
 
 <script setup>
 
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Check } from '@element-plus/icons-vue'
 
-import { api } from '@/services/api';
+import { financeApi } from '@/api/finance';
 // 权限计算属性
 
 // 账户选择
 const selectedAccount = ref(null);
 const accountOptions = ref([]);
 const dateRange = ref(null);
+const showAdvancedSearch = ref(false);
 
 // 对账状态
 const isReconciling = ref(false);
@@ -426,15 +427,13 @@ const batchMarkReconciled = async () => {
     );
 
     loading.value = true;
-    const reconciliationDate = new Date().toISOString().split('T')[0];
+    const reconciliationDate = formatLocalDate(new Date());
 
-    // 逐条对账
-    for (const item of selectedUnreconciled.value) {
-      await api.patch(`/finance/bank-transactions/${item.id}/reconcile`, {
-        is_reconciled: true,
-        reconciliation_date: reconciliationDate
-      });
-    }
+    await financeApi.reconciliation.batchMarkReconciled({
+      transactionIds: selectedUnreconciled.value.map(item => item.id),
+      accountId: selectedAccount.value,
+      reconciliationDate
+    });
 
     ElMessage.success(`成功对账 ${selectedUnreconciled.value.length} 条交易`);
     selectedUnreconciled.value = [];
@@ -454,9 +453,7 @@ const batchMarkReconciled = async () => {
 // 加载账户选项
 const loadAccountOptions = async () => {
   try {
-    const response = await api.get('/finance/bank-accounts', {
-      params: { status: 'active' }
-    });
+    const response = await financeApi.getBankAccountsList({ status: 'active' });
     // 拦截器已解包，response.data 就是业务数据
     accountOptions.value = response.data?.list || [];
   } catch (error) {
@@ -472,6 +469,18 @@ const handleAccountChange = () => {
   importedStatement.value = [];
   unreconciledItems.value = [];
   reconciledItems.value = [];
+  unreconciledPage.value = 1;
+  reconciledPage.value = 1;
+};
+
+const resetSearch = () => {
+  selectedAccount.value = null;
+  dateRange.value = null;
+  isReconciling.value = false;
+  importedStatement.value = [];
+  unreconciledItems.value = [];
+  reconciledItems.value = [];
+  selectedUnreconciled.value = [];
   unreconciledPage.value = 1;
   reconciledPage.value = 1;
 };
@@ -492,14 +501,12 @@ const searchReconciliation = async () => {
     };
 
     // 加载未对账项目 - 使用bank-transactions API
-    const unreconciledResponse = await api.get('/finance/bank-transactions', {
-      params: {
-        ...params,
-        isReconciled: false,
-        status: 'approved',
-        page: unreconciledPage.value,
-        limit: unreconciledPageSize.value
-      }
+    const unreconciledResponse = await financeApi.bankTransactions.getList({
+      ...params,
+      isReconciled: false,
+      status: 'approved',
+      page: unreconciledPage.value,
+      limit: unreconciledPageSize.value
     });
     const unreconciledData = unreconciledResponse.data?.list || unreconciledResponse.data?.transactions || unreconciledResponse.data || [];
     unreconciledTotal.value = unreconciledResponse.data?.pagination?.total || unreconciledResponse.data?.total || unreconciledData.length || 0;
@@ -514,13 +521,11 @@ const searchReconciliation = async () => {
     }));
 
     // 加载已对账项目
-    const reconciledResponse = await api.get('/finance/bank-transactions', {
-      params: {
-        ...params,
-        isReconciled: true,
-        page: reconciledPage.value,
-        limit: reconciledPageSize.value
-      }
+    const reconciledResponse = await financeApi.bankTransactions.getList({
+      ...params,
+      isReconciled: true,
+      page: reconciledPage.value,
+      limit: reconciledPageSize.value
     });
     const reconciledData = reconciledResponse.data?.list || reconciledResponse.data?.transactions || reconciledResponse.data || [];
     reconciledTotal.value = reconciledResponse.data?.pagination?.total || reconciledResponse.data?.total || reconciledData.length || 0;
@@ -578,8 +583,8 @@ const startReconciliation = () => {
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
   dateRange.value = [
-    firstDay.toISOString().slice(0, 10),
-    lastDay.toISOString().slice(0, 10)
+    formatLocalDate(firstDay),
+    formatLocalDate(lastDay)
   ];
 
   unreconciledPage.value = 1;
@@ -617,22 +622,16 @@ const uploadFile = async () => {
     formData.append('startDate', dateRange.value[0]);
     formData.append('endDate', dateRange.value[1]);
 
-    const response = await api.post('/finance/cash/reconciliation/import-statement', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    const response = await financeApi.reconciliation.importStatement(formData);
 
     importedStatement.value = response.data || [];
     ElMessage.success('对账单导入成功');
 
     // 更新对账统计
-    const statsResponse = await api.get('/finance/cash/reconciliation/stats', {
-      params: {
-        accountId: selectedAccount.value,
-        startDate: dateRange.value[0],
-        endDate: dateRange.value[1]
-      }
+    const statsResponse = await financeApi.reconciliation.getStats({
+      accountId: selectedAccount.value,
+      startDate: dateRange.value[0],
+      endDate: dateRange.value[1]
     });
     Object.assign(reconciliationStats, statsResponse.data);
   } catch (error) {
@@ -646,9 +645,9 @@ const uploadFile = async () => {
 // 标记为已对账
 const markAsReconciled = async (transaction) => {
   try {
-    await api.patch(`/finance/bank-transactions/${transaction.id}/reconcile`, {
+    await financeApi.bankTransactions.reconcile(transaction.id, {
       is_reconciled: true,
-      reconciliation_date: new Date().toISOString().split('T')[0]
+      reconciliation_date: formatLocalDate(new Date())
     });
 
     ElMessage.success('已标记为对账');
@@ -664,7 +663,7 @@ const markAsReconciled = async (transaction) => {
 // 取消对账
 const cancelReconciliation = async (transaction) => {
   try {
-    await api.patch(`/finance/bank-transactions/${transaction.id}/reconcile`, {
+    await financeApi.bankTransactions.reconcile(transaction.id, {
       is_reconciled: false,
       reconciliation_date: null
     });
@@ -686,10 +685,8 @@ const matchTransaction = async (statementItem) => {
   if (statementItem.status === 'matched') {
     // 查看已匹配的交易
     try {
-      const response = await api.get('/finance/cash/reconciliation/matched-transaction', {
-        params: {
-          statementItemId: statementItem.id
-        }
+      const response = await financeApi.reconciliation.getMatchedTransaction({
+        statementItemId: statementItem.id
       });
 
       matchingTransactions.value = response.data || [];
@@ -701,11 +698,9 @@ const matchTransaction = async (statementItem) => {
   } else {
     // 查找可能匹配的交易
     try {
-      const response = await api.get('/finance/cash/reconciliation/possible-matches', {
-        params: {
-          statementItemId: statementItem.id,
-          accountId: selectedAccount.value
-        }
+      const response = await financeApi.reconciliation.getPossibleMatches({
+        statementItemId: statementItem.id,
+        accountId: selectedAccount.value
       });
 
       matchingTransactions.value = response.data || [];
@@ -736,7 +731,7 @@ const confirmMatch = async () => {
   }
 
   try {
-    await api.post('/finance/cash/reconciliation/confirm-match', {
+    await financeApi.reconciliation.confirmMatch({
       statementItemId: selectedStatementItem.value.id,
       transactionIds: selectedTransactions.value.map(t => t.id),
       accountId: selectedAccount.value
@@ -860,7 +855,7 @@ onMounted(() => {
   background: var(--color-bg-base);
   padding: 16px;
   border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 10%, transparent);
 }
 
 .start-guide {
@@ -906,7 +901,7 @@ onMounted(() => {
   gap: 16px;
   margin-bottom: 12px;
   padding: 12px 16px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
+  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-lighter) 100%);
   border-radius: 6px;
 }
 

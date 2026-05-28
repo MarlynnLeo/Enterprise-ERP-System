@@ -326,7 +326,7 @@ const expenseController = {
   async payExpense(req, res) {
     try {
       const { id } = req.params;
-      const { bank_account_id, transaction_id, payment_date } = req.body;
+      const { bank_account_id, transaction_id, payment_date, cost_center_id } = req.body;
 
       if (!bank_account_id) {
         return ResponseHandler.error(res, '请选择付款账户', 'VALIDATION_ERROR', 400);
@@ -341,6 +341,7 @@ const expenseController = {
         bank_account_id,
         transaction_id,
         payment_date,
+        cost_center_id,
         created_by: getAuthenticatedUserId(req),
       });
       ResponseHandler.success(res, result, '付款成功，已自动生成会计凭证');

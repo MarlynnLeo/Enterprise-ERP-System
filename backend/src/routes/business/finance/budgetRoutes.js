@@ -9,9 +9,16 @@ const router = express.Router();
 const budgetController = require('../../../controllers/business/finance/budgetController');
 const { authenticateToken } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/requirePermission');
+const { PRICE_UPDATE_PERMISSIONS } = require('../../../utils/desensitizer');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../../../middleware/priceAccessControl');
 
 // 应用认证中间件
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // ==================== 预算主表操作 ====================
 
@@ -20,7 +27,7 @@ router.use(authenticateToken);
  * @desc    创建预算
  * @access  Private
  */
-router.post('/', requirePermission('finance:budgets:create'), budgetController.createBudget);
+router.post('/', requirePermission('finance:budgets:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.createBudget);
 
 /**
  * @route   GET /api/finance/budgets
@@ -75,7 +82,7 @@ router.get('/ai/recommendation', requirePermission('finance:budgets:view'), budg
  * @desc    从 AI 建议创建预算
  * @access  Private
  */
-router.post('/ai/create-from-ai', requirePermission('finance:budgets:create'), budgetController.createBudgetFromAI);
+router.post('/ai/create-from-ai', requirePermission('finance:budgets:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.createBudgetFromAI);
 
 /**
  * @route   GET /api/finance/budgets/ai/year-comparison
@@ -103,7 +110,7 @@ router.get('/:id', requirePermission('finance:budgets:view'), budgetController.g
  * @desc    更新预算
  * @access  Private
  */
-router.put('/:id', requirePermission('finance:budgets:update'), budgetController.updateBudget);
+router.put('/:id', requirePermission('finance:budgets:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.updateBudget);
 
 /**
  * @route   DELETE /api/finance/budgets/:id
@@ -126,21 +133,21 @@ router.post('/:id/submit', requirePermission('finance:budgets:update'), budgetCo
  * @desc    审批预算
  * @access  Private
  */
-router.post('/:id/approve', requirePermission('finance:budgets:approve'), budgetController.approveBudget);
+router.post('/:id/approve', requirePermission('finance:budgets:approve'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.approveBudget);
 
 /**
  * @route   POST /api/finance/budgets/:id/start
  * @desc    启动预算执行
  * @access  Private
  */
-router.post('/:id/start', requirePermission('finance:budgets:update'), budgetController.startBudgetExecution);
+router.post('/:id/start', requirePermission('finance:budgets:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.startBudgetExecution);
 
 /**
  * @route   POST /api/finance/budgets/:id/close
  * @desc    关闭预算
  * @access  Private
  */
-router.post('/:id/close', requirePermission('finance:budgets:update'), budgetController.closeBudget);
+router.post('/:id/close', requirePermission('finance:budgets:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), budgetController.closeBudget);
 
 // ==================== 预算执行 ====================
 

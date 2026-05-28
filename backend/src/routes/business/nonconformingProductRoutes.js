@@ -3,9 +3,15 @@ const router = express.Router();
 const ncpController = require('../../controllers/business/quality/nonconformingProductController');
 const { authenticateToken } = require('../../middleware/auth');
 const { requirePermission } = require('../../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../../middleware/priceAccessControl');
 
 // 所有路由需要认证
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // 获取不合格品列表
 router.get('/', requirePermission('quality:nonconforming:view'), ncpController.getList);

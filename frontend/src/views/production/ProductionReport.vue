@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ProductionReport.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="production-report-container">
+  <div class="module-page production-report-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -26,8 +26,24 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-select  v-model="searchForm.taskId" placeholder="选择生产任务" clearable>
+            <el-option
+              v-for="task in taskList"
+              :key="task.id"
+              :label="`${task.code} - ${task.productName}`"
+              :value="task.id"
+            />
+          </el-select>
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="时间范围">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -40,26 +56,13 @@
             @change="handleDateRangeChange"
           />
         </el-form-item>
-        <el-form-item label="生产任务">
-          <el-select  v-model="searchForm.taskId" placeholder="选择生产任务" clearable>
-            <el-option
-              v-for="task in taskList"
-              :key="task.id"
-              :label="`${task.code} - ${task.productName}`"
-              :value="task.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查 询
-          </el-button>
+      </template>
+      <template #actions>
           <el-button type="warning" @click="handleExport">
             <el-icon><Download /></el-icon> 导 出
           </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -112,18 +115,18 @@
             </el-table-column>
 
             <el-table-column prop="productName" label="产品名称" min-width="180" />
-            <el-table-column prop="plannedQuantity" label="计划数量" width="100" align="center" />
-            <el-table-column prop="actualQuantity" label="完成数量" width="100" align="center" />
-            <el-table-column prop="completionRate" label="完成率" width="100" align="center">
+            <el-table-column prop="plannedQuantity" label="计划数量" width="100" />
+            <el-table-column prop="actualQuantity" label="完成数量" width="100" />
+            <el-table-column prop="completionRate" label="完成率" width="100">
               <template #default="scope">
                 {{ typeof scope.row.completionRate === 'number' ?
                   (scope.row.completionRate * 100).toFixed(2) + '%' :
                   scope.row.completionRate }}
               </template>
             </el-table-column>
-            <el-table-column prop="qualifiedQuantity" label="合格数量" width="100" align="center" />
-            <el-table-column prop="unqualifiedQuantity" label="不合格数量" width="100" align="center" />
-            <el-table-column prop="qualificationRate" label="合格率" width="100" align="center" />
+            <el-table-column prop="qualifiedQuantity" label="合格数量" width="100" />
+            <el-table-column prop="unqualifiedQuantity" label="不合格数量" width="100" />
+            <el-table-column prop="qualificationRate" label="合格率" width="100" />
           </el-table>
         </el-tab-pane>
 
@@ -165,16 +168,16 @@
             <el-table-column prop="taskCode" label="任务编号" min-width="150" />
             <el-table-column prop="productName" label="产品名称" min-width="180" />
             <el-table-column prop="processName" label="工序名称" min-width="150" />
-            <el-table-column prop="reportDate" label="报工日期" width="120" align="center" />
-            <el-table-column prop="completedQuantity" label="完成数量" width="100" align="center" />
-            <el-table-column prop="qualifiedQuantity" label="合格数量" width="100" align="center" />
-            <el-table-column label="合格率" width="100" align="center">
+            <el-table-column prop="reportDate" label="报工日期" width="120" />
+            <el-table-column prop="completedQuantity" label="完成数量" width="100" />
+            <el-table-column prop="qualifiedQuantity" label="合格数量" width="100" />
+            <el-table-column label="合格率" width="100">
               <template #default="scope">
                 {{ calculateQualifiedRate(scope.row.qualifiedQuantity, scope.row.completedQuantity) }}
               </template>
             </el-table-column>
             <el-table-column prop="reporter" label="报工人" width="120" />
-            <el-table-column label="操作" min-width="200" fixed="right" align="center">
+            <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   v-if="canView"
@@ -313,7 +316,7 @@
                   <el-divider direction="vertical" />
                   <span>已报工: <b>{{ taskReportStats.reported_quantity }}</b></span>
                   <el-divider direction="vertical" />
-                  <span>剩余: <b style="color: #E6A23C">{{ taskReportStats.remaining_quantity }}</b></span>
+                  <span>剩余: <b style="color: var(--color-warning)">{{ taskReportStats.remaining_quantity }}</b></span>
                   <el-divider direction="vertical" />
                   <span>完成率: <b>{{ taskReportStats.completion_rate }}</b></span>
                   <el-divider direction="vertical" />
@@ -454,10 +457,9 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Download, Plus } from '@element-plus/icons-vue'
+import { Download, Plus } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
-import axios from '@/services/api'
-import { parseListData } from '@/utils/responseParser'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 import { productionApi } from '@/api/production'
 import { useAuthStore } from '@/stores/auth'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
@@ -553,10 +555,8 @@ const rules = {
 // 获取任务列表
 const fetchTaskList = async () => {
   try {
-    // 报工可选择分配中、生产中和已发料的任务
-    const response = await axios.get('/production/tasks', {
-      params: { status: 'in_progress,allocated,material_issued' }
-    })
+    // 报工只允许选择已发料或生产中的任务，避免绕过发料/开工流转
+    const response = await productionApi.getProductionTasks({ status: 'in_progress' })
     // 使用统一解析器
     taskList.value = parseListData(response, { enableLog: false })
   } catch (error) {
@@ -580,8 +580,8 @@ const fetchSummaryData = async () => {
       taskId: searchForm.value.taskId
     }
 
-    const response = await axios.get('/production/reports/summary', { params })
-    const rawData = response.data || []
+    const response = await productionApi.getProductionReportSummary(params)
+    const rawData = parseListData(response, { enableLog: false })
 
     // 处理汇总数据，添加计算字段
     summaryData.value = rawData.map(item => {
@@ -635,39 +635,35 @@ const fetchDetailData = async () => {
       pageSize: pageSize.value
     }
 
-    const response = await axios.get('/production/reports/detail', { params })
-    if (response.data) {
-      // 使用统一解析器处理明细数据
-      const rawItems = parseListData(response, { enableLog: false })
-      detailData.value = rawItems.map(item => ({
-        id: item.id,
-        task_id: item.task_id,
-        process_id: item.process_id,
-        taskCode: item.task_code,
-        productName: item.product_name,
-        processName: item.process_name || '-',
-        reportDate: dayjs(item.report_time).format('YYYY-MM-DD'),
-        plannedQuantity: item.report_quantity || 0,
-        completedQuantity: item.completed_quantity || 0,
-        qualifiedQuantity: item.qualified_quantity || 0,
-        unqualifiedQuantity: item.unqualified_quantity || item.defective_quantity || 0,
-        workHours: item.work_hours || 0,
-        reporter: item.operator_name || '-',
-        remarks: item.remarks || '',
-        report_time: item.report_time,
-        operator_name: item.operator_name,
-        report_quantity: item.report_quantity,
-        qualified_quantity: item.qualified_quantity,
-        work_hours: item.work_hours
-      }))
-      total.value = response.data.total || 0
-    }
+    const response = await productionApi.getProductionReportDetail(params)
+    const responseData = parseResponseData(response, {})
+    const rawItems = parseListData(response, { enableLog: false })
+    detailData.value = rawItems.map(item => ({
+      id: item.id,
+      task_id: item.task_id,
+      process_id: item.process_id,
+      taskCode: item.task_code,
+      productName: item.product_name,
+      processName: item.process_name || '-',
+      reportDate: dayjs(item.report_time).format('YYYY-MM-DD'),
+      plannedQuantity: item.report_quantity || 0,
+      completedQuantity: item.completed_quantity || 0,
+      qualifiedQuantity: item.qualified_quantity || 0,
+      unqualifiedQuantity: item.unqualified_quantity || item.defective_quantity || 0,
+      workHours: item.work_hours || 0,
+      reporter: item.operator_name || '-',
+      remarks: item.remarks || '',
+      report_time: item.report_time,
+      operator_name: item.operator_name,
+      report_quantity: item.report_quantity,
+      qualified_quantity: item.qualified_quantity,
+      work_hours: item.work_hours
+    }))
+    total.value = Number(responseData.total) || rawItems.length
 
-    // 计算统计数据
     await calculateReportStats()
   } catch (error) {
-    console.error('获取生产明细数据失败:', error)
-    // 不显示错误提示，静默处理
+    console.error('获取报工明细失败:', error)
     detailData.value = []
     total.value = 0
     reportStats.value = {
@@ -697,7 +693,7 @@ const calculateReportStats = async () => {
     const params = { startDate, endDate }
 
     const response = await productionApi.getProductionReportStatistics(params)
-    const stats = response.data?.data || response.data || {}
+    const stats = parseResponseData(response, {})
 
     reportStats.value = {
       total: stats.total || 0,
@@ -738,10 +734,7 @@ const handleExport = async () => {
       taskId: searchForm.value.taskId
     }
 
-    const response = await axios.get('/production/reports/export', {
-      params,
-      responseType: 'blob'
-    })
+    const response = await productionApi.exportProductionReports(params)
 
     const blob = new Blob([response.data], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -793,7 +786,7 @@ const handleDeleteReport = async (record) => {
       type: 'warning'
     })
 
-    await axios.delete(`/production/reports/${record.id}`)
+    await productionApi.deleteProductionReport(record.id)
     ElMessage.success('删除成功')
 
     // 刷新数据
@@ -834,7 +827,7 @@ const handleTaskFormChange = async (taskId) => {
     // 获取任务的报工统计
     try {
       const statsRes = await productionApi.getTaskReportStats(taskId)
-      const stats = statsRes.data?.data || statsRes.data || {}
+      const stats = parseResponseData(statsRes, {})
       taskReportStats.value = stats
 
       // 设置默认完成数量为剩余数量
@@ -860,7 +853,7 @@ const handleTaskFormChange = async (taskId) => {
     // 获取工序列表
     try {
       const processRes = await productionApi.getTaskProcesses(taskId)
-      processList.value = processRes.data?.data || processRes.data || []
+      processList.value = parseResponseData(processRes, [])
       // 清空工序选择
       formData.value.processId = undefined
       formData.value.processName = ''
@@ -922,11 +915,11 @@ const handleReportSubmit = async () => {
     // 判断是新增还是编辑
     if (formData.value.id) {
       // 编辑模式
-      await axios.put(`/production/reports/${formData.value.id}`, reportData)
+      await productionApi.updateProductionReport(formData.value.id, reportData)
       ElMessage.success('报工更新成功')
     } else {
       // 新增模式
-      await axios.post('/production/reports', reportData)
+      await productionApi.createProductionReport(reportData)
       ElMessage.success('报工提交成功')
     }
 
@@ -949,6 +942,14 @@ const handleDateRangeChange = () => {
 const handleSearch = () => {
   currentPage.value = 1
   fetchData()
+}
+
+const handleReset = () => {
+  searchForm.value = {
+    dateRange: [dayjs().subtract(30, 'day').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')],
+    taskId: undefined
+  }
+  handleSearch()
 }
 
 const handleSizeChange = (val) => {
@@ -1047,7 +1048,7 @@ const printReport = async () => {
 
 .report-detail {
   padding: 20px;
-  background-color: #f9f9f9;
+  background-color: var(--color-bg-hover);
 }
 
 .report-form .el-form-item {
@@ -1057,7 +1058,7 @@ const printReport = async () => {
 .remarks-content {
   padding: 10px;
   min-height: 60px;
-  background-color: #f9f9f9;
+  background-color: var(--color-bg-hover);
   border-radius: var(--radius-sm);
 }
 

@@ -11,6 +11,7 @@ const financeModel = require('../finance');
 const { accountingConfig } = require('../../config/accountingConfig');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const { toLocalDateString } = require('../../utils/dateUtils');
 
 function requirePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(value, 10);
@@ -95,8 +96,7 @@ async function applyApprovedTransactionToBalance(connection, transaction) {
 }
 
 function formatDateOnly(value) {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  const text = String(value || '').slice(0, 10);
+  const text = toLocalDateString(value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     throw new Error('银行交易日期格式不正确');
   }
@@ -251,7 +251,7 @@ async function createApprovedBankTransactionGlEntry(connection, transaction, ope
     resolveProvidedAccountId(providedGlEntry, 'bank_gl_account_id', 'bank_account_id') ||
     (await getActiveGlAccountId(
       connection,
-      accountingConfig.getAccountCode('BANK_DEPOSIT') || '1002',
+      accountingConfig.getAccountCode('BANK_DEPOSIT'),
       '银行存款'
     ));
 
@@ -500,8 +500,11 @@ class BankTransactionModel {
    */
   static async getBankTransactions(filters = {}, page = 1, pageSize = 20) {
     try {
-      const pageInt = parseInt(page, 10);
-      const pageSizeInt = parseInt(pageSize, 10);
+      const noPagination = filters.noPagination === true;
+      const pageInt = Math.max(parseInt(page, 10) || 1, 1);
+      const pageSizeInt = noPagination
+        ? null
+        : Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
       const fromClause = `
         FROM bank_transactions t
@@ -569,11 +572,14 @@ class BankTransactionModel {
         params.push(`%${filters.related_party}%`);
       }
 
-      const countQuery = `SELECT COUNT(*) as total ${fromClause} ${whereClause}`;
-      const [countResult] = await db.pool.execute(countQuery, params);
-      const total = countResult[0].total;
+      let total = 0;
+      if (!noPagination) {
+        const countQuery = `SELECT COUNT(*) as total ${fromClause} ${whereClause}`;
+        const [countResult] = await db.pool.execute(countQuery, params);
+        total = countResult[0].total;
+      }
 
-      const offset = (pageInt - 1) * pageSizeInt;
+      const offset = noPagination ? 0 : (pageInt - 1) * pageSizeInt;
       const dataQuery = `
         SELECT t.*,
                b.account_name,
@@ -591,17 +597,17 @@ class BankTransactionModel {
         ${fromClause}
         ${whereClause}
         ORDER BY t.transaction_date DESC, t.id DESC
-        LIMIT ${pageSizeInt} OFFSET ${offset}`;
+        ${noPagination ? '' : `LIMIT ${pageSizeInt} OFFSET ${offset}`}`;
 
       const [transactions] = await db.pool.query(dataQuery, params);
 
       return {
         transactions,
         pagination: {
-          total,
+          total: noPagination ? transactions.length : total,
           page: pageInt,
-          pageSize: pageSizeInt,
-          totalPages: Math.ceil(total / pageSizeInt),
+          pageSize: noPagination ? transactions.length : pageSizeInt,
+          totalPages: noPagination ? 1 : Math.ceil(total / pageSizeInt),
         },
       };
     } catch (error) {
@@ -741,52 +747,46 @@ class BankTransactionModel {
    * @param {number} userId 提交人ID
    */
   static async submitForAudit(id) {
+    const connection = await db.pool.getConnection();
     try {
-      // status 及审核相关字段由 migrations/20260312000010 管理
+      await connection.beginTransaction();
 
-
-      // 检查当前状态
-      const [current] = await db.pool.execute('SELECT status, is_reconciled FROM bank_transactions WHERE id = ?', [
-        id,
-      ]);
-
+      const [current] = await connection.execute(
+        'SELECT status, is_reconciled FROM bank_transactions WHERE id = ? FOR UPDATE',
+        [id]
+      );
       if (current.length === 0) {
-        throw new Error('银行交易不存在');
+        throw new Error('Bank transaction does not exist');
       }
 
       const currentStatus = normalizeStatus(current[0].status);
       if (!EDITABLE_BANK_STATUSES.has(currentStatus)) {
-        throw new Error(`交易当前状态为 ${currentStatus}，无法重复提交审核`);
+        throw new Error(`Bank transaction status ${currentStatus} cannot be submitted`);
       }
-
-      // 更新状态为待审核
       if (current[0].is_reconciled === true || current[0].is_reconciled === 1 || current[0].is_reconciled === '1') {
         throw new Error('Reconciled bank transactions cannot be submitted for audit');
       }
 
-      const [result] = await db.pool.execute(
+      const [result] = await connection.execute(
         `UPDATE bank_transactions
-                 SET status = 'pending', approved_by = NULL, approved_at = NULL, reject_reason = NULL
-                 WHERE id = ? AND (status IS NULL OR status IN ('draft', 'rejected'))`,
+         SET status = 'pending', approved_by = NULL, approved_at = NULL, reject_reason = NULL
+         WHERE id = ? AND (status IS NULL OR status IN ('draft', 'rejected'))`,
         [id]
       );
 
       if (result.affectedRows === 0) {
-        const [current] = await db.pool.execute(
-          'SELECT status FROM bank_transactions WHERE id = ?',
-          [id]
-        );
-        if (current.length > 0) {
-          ensureAuditableTransaction(current[0]);
-        }
-        throw new Error('银行交易不存在');
+        throw new Error('Bank transaction status changed during submit');
       }
 
-      logger.info(`银行交易 ${id} 已提交审核`);
+      await connection.commit();
+      logger.info(`Bank transaction ${id} submitted for audit`);
       return true;
     } catch (error) {
-      logger.error('提交审核失败:', error);
+      await connection.rollback();
+      logger.error('Submit bank transaction audit failed:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
@@ -856,24 +856,40 @@ class BankTransactionModel {
    * @param {string} reason 拒绝原因
    */
   static async rejectTransaction(id, userId, reason) {
+    const connection = await db.pool.getConnection();
     try {
-      const [result] = await db.pool.execute(
+      await connection.beginTransaction();
+
+      const [current] = await connection.execute(
+        'SELECT status FROM bank_transactions WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (current.length === 0) {
+        throw new Error('Bank transaction does not exist');
+      }
+      ensureAuditableTransaction(current[0]);
+
+      const [result] = await connection.execute(
         `UPDATE bank_transactions
-                 SET status = 'rejected', approved_by = ?, approved_at = NOW(),
-                     reject_reason = ?
-                 WHERE id = ? AND status IN ('pending', 'reviewed')`,
+         SET status = 'rejected', approved_by = ?, approved_at = NOW(),
+             reject_reason = ?
+         WHERE id = ? AND status IN ('pending', 'reviewed')`,
         [userId, reason, id]
       );
 
       if (result.affectedRows === 0) {
-        throw new Error('银行交易不存在');
+        throw new Error('Bank transaction status changed during rejection');
       }
 
-      logger.info(`银行交易 ${id} 审核拒绝: ${reason}`);
+      await connection.commit();
+      logger.info(`Bank transaction ${id} rejected: ${reason || ''}`);
       return true;
     } catch (error) {
-      logger.error('审核拒绝失败:', error);
+      await connection.rollback();
+      logger.error('Reject bank transaction audit failed:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 }

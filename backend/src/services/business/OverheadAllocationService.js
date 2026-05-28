@@ -8,6 +8,7 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const BusinessError = require('../../utils/BusinessError');
 const { softDelete } = require('../../utils/softDelete');
+const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
 
 class OverheadAllocationService {
   // 分摊基础枚举
@@ -189,7 +190,7 @@ class OverheadAllocationService {
    */
   static async calculateOverhead(params) {
     try {
-      const calcDate = params.date || new Date().toISOString().split('T')[0];
+      const calcDate = toLocalDateString(params.date || currentDateString());
 
       // 1. 查找适用的分摊配置（按优先级排序）
       let sql = `
@@ -234,7 +235,7 @@ class OverheadAllocationService {
         // SSOT 强校验：没有分摊规则时拒绝计算，绝不能通过妥协参数虚构成本
         throw new BusinessError(
           '系统未找到适用于当前条件（成本中心、产品大类）的制造费用分摊配置',
-          { route: '/finance/cost/overhead', buttonText: '配置分摊费率' }
+          { route: '/finance/cost/settings', buttonText: '配置分摊费率' }
         );
       }
 
@@ -261,7 +262,7 @@ class OverheadAllocationService {
         default:
           throw new BusinessError(
             `遇到未受支持的费用分摊计算基准: ${config.allocation_base}`,
-            { route: '/finance/cost/overhead', buttonText: '修改基准设定' }
+            { route: '/finance/cost/settings', buttonText: '修改基准设定' }
           );
       }
 

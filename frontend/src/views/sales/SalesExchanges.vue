@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesExchanges.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="outbound-container">
+  <div class="module-page outbound-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -15,21 +15,26 @@
           <h2>销售换货管理</h2>
           <p class="subtitle">管理销售换货与处理</p>
         </div>
-        <el-button v-permission="'sales:returns:create'" type="primary" :icon="Plus" @click="handleCreate">新增换货单</el-button>
+        <el-button v-permission="'sales:exchanges:create'" type="primary" :icon="Plus" @click="handleCreate">新增换货单</el-button>
       </div>
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="换货单号/客户">
+    <FinanceQueryCard
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchQuery"
-            placeholder="换货单号/订单号/客户名称"
+            placeholder="物料名称"
             @keyup.enter="handleSearch"
             clearable ></el-input>
         </el-form-item>
-
+      </template>
+      <template #advanced>
         <el-form-item label="换货状态">
           <el-select v-model="statusFilter" placeholder="换货状态" clearable @change="handleSearch" style="width: 100%">
             <el-option
@@ -51,17 +56,8 @@
             @change="handleSearch"
           />
         </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -103,20 +99,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="reason" label="换货原因" min-width="150" />
-        <el-table-column label="退回金额" width="110" align="right">
+        <el-table-column label="退回金额" width="110">
           <template #default="scope">
-            <span style="color: var(--color-success);">¥{{ (parseFloat(scope.row.returnAmount || 0)).toFixed(2) }}</span>
+            <span style="color: var(--color-success);">{{ formatCurrency(scope.row.returnAmount) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="换出金额" width="110" align="right">
+        <el-table-column label="换出金额" width="110">
           <template #default="scope">
-            <span style="color: var(--color-primary);">¥{{ (parseFloat(scope.row.newAmount || 0)).toFixed(2) }}</span>
+            <span style="color: var(--color-primary);">{{ formatCurrency(scope.row.newAmount) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="差价" width="110" align="right">
+        <el-table-column label="差价" width="110">
           <template #default="scope">
-            <span :style="{ color: scope.row.differenceAmount > 0 ? '#f56c6c' : scope.row.differenceAmount < 0 ? '#67c23a' : '#909399', fontWeight: 'bold' }">
-              {{ scope.row.differenceAmount > 0 ? '+' : '' }}¥{{ (parseFloat(scope.row.differenceAmount || 0)).toFixed(2) }}
+            <span :style="{ color: scope.row.differenceAmount > 0 ? 'var(--color-danger)' : scope.row.differenceAmount < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)', fontWeight: 'bold' }">
+              {{ formatSignedCurrency(scope.row.differenceAmount) }}
             </span>
           </template>
         </el-table-column>
@@ -125,7 +121,7 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ scope.row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -138,6 +134,7 @@
               v-if="scope.row.status === '待处理'"
               size="small"
               type="primary"
+              v-permission="'sales:exchanges:update'"
               @click="handleProcess(scope.row)"
             >
               开始处理
@@ -147,6 +144,7 @@
               <el-button
                 size="small"
                 type="success"
+                v-permission="'sales:exchanges:update'"
                 @click="handleComplete(scope.row)"
               >
                 完成
@@ -154,6 +152,7 @@
               <el-button
                 size="small"
                 type="danger"
+                v-permission="'sales:exchanges:update'"
                 @click="handleReject(scope.row)"
               >
                 拒绝
@@ -165,7 +164,7 @@
               size="small"
               @click="handleEdit(scope.row)"
 
-              v-permission="'sales:exchanges'">
+              v-permission="'sales:exchanges:update'">
               编辑
             </el-button>
           </template>
@@ -280,12 +279,12 @@
             </el-table-column>
             <el-table-column label="单价" width="100">
               <template #default="scope">
-                <span style="color: var(--color-text-secondary);">¥{{ (parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
+                <span style="color: var(--color-text-secondary);">{{ formatCurrency(scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="金额" width="110">
               <template #default="scope">
-                <span style="color: var(--color-success);">¥{{ (parseFloat(scope.row.returnQuantity || 0) * parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
+                <span style="color: var(--color-success);">{{ formatExchangeLineAmount(scope.row.returnQuantity, scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="returnReason" label="退回原因" min-width="150">
@@ -296,14 +295,14 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80">
+            <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   size="small"
                   type="danger"
                   @click="removeReturnItem(scope.$index)"
 
-                  v-permission="'sales:exchanges'">
+                  v-permission="isEdit ? 'sales:exchanges:update' : 'sales:exchanges:create'">
                   删除
                 </el-button>
               </template>
@@ -332,12 +331,12 @@
             </el-table-column>
             <el-table-column label="单价" width="100">
               <template #default="scope">
-                <span style="color: var(--color-text-secondary);">¥{{ (parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
+                <span style="color: var(--color-text-secondary);">{{ formatCurrency(scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="金额" width="110">
               <template #default="scope">
-                <span style="color: var(--color-primary);">¥{{ (parseFloat(scope.row.newQuantity || 0) * parseFloat(scope.row.unitPrice || 0)).toFixed(2) }}</span>
+                <span style="color: var(--color-primary);">{{ formatExchangeLineAmount(scope.row.newQuantity, scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="newReason" label="换出说明" min-width="150">
@@ -348,14 +347,14 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80">
+            <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   size="small"
                   type="danger"
                   @click="removeNewItem(scope.$index)"
 
-                  v-permission="'sales:exchanges'">
+                  v-permission="isEdit ? 'sales:exchanges:update' : 'sales:exchanges:create'">
                   删除
                 </el-button>
               </template>
@@ -365,10 +364,10 @@
         <!-- 金额汇总 -->
         <el-form-item label="金额汇总">
           <div style="display: flex; gap: 24px; align-items: center; padding: 8px 0;">
-            <span>退回总价: <span style="color: var(--color-success); font-weight: bold;">¥{{ calcReturnTotal() }}</span></span>
-            <span>换出总价: <span style="color: var(--color-primary); font-weight: bold;">¥{{ calcNewTotal() }}</span></span>
-            <span>差价: <span :style="{ color: calcDifference() > 0 ? '#f56c6c' : calcDifference() < 0 ? '#67c23a' : '#909399', fontWeight: 'bold', fontSize: '16px' }">
-              {{ calcDifference() > 0 ? '+' : '' }}¥{{ calcDifference().toFixed(2) }}
+            <span>退回总价: <span style="color: var(--color-success); font-weight: bold;">{{ formatCurrency(calcReturnTotal()) }}</span></span>
+            <span>换出总价: <span style="color: var(--color-primary); font-weight: bold;">{{ formatCurrency(calcNewTotal()) }}</span></span>
+            <span>差价: <span :style="{ color: calcDifference() > 0 ? 'var(--color-danger)' : calcDifference() < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)', fontWeight: 'bold', fontSize: '16px' }">
+              {{ formatSignedCurrency(calcDifference()) }}
             </span></span>
             <el-tag v-if="calcDifference() === 0" type="success" size="small">等值换货</el-tag>
             <el-tag v-else-if="calcDifference() > 0" type="danger" size="small">客户需补差价</el-tag>
@@ -388,7 +387,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleDialogClose">取消</el-button>
-          <el-button v-permission="'sales:returns:update'" type="primary" @click="handleSubmit" :loading="submitLoading">保存</el-button>
+          <el-button v-permission="isEdit ? 'sales:exchanges:update' : 'sales:exchanges:create'" type="primary" @click="handleSubmit" :loading="submitLoading">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -410,14 +409,14 @@
         </el-descriptions-item>
         <el-descriptions-item label="换货原因" :span="3">{{ currentExchange.reason || currentExchange.exchange_reason || '-' }}</el-descriptions-item>
         <el-descriptions-item label="退回金额">
-          <span style="color: var(--color-success); font-weight: bold;">¥{{ (parseFloat(currentExchange.returnAmount || currentExchange.return_amount || 0)).toFixed(2) }}</span>
+          <span style="color: var(--color-success); font-weight: bold;">{{ formatCurrency(currentExchange.returnAmount ?? currentExchange.return_amount) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="换出金额">
-          <span style="color: var(--color-primary); font-weight: bold;">¥{{ (parseFloat(currentExchange.newAmount || currentExchange.new_amount || 0)).toFixed(2) }}</span>
+          <span style="color: var(--color-primary); font-weight: bold;">{{ formatCurrency(currentExchange.newAmount ?? currentExchange.new_amount) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="差价">
-          <span :style="{ color: (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) > 0 ? '#f56c6c' : (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) < 0 ? '#67c23a' : '#909399', fontWeight: 'bold' }">
-            {{ (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) > 0 ? '+' : '' }}¥{{ (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)).toFixed(2) }}
+          <span :style="{ color: (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) > 0 ? 'var(--color-danger)' : (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)', fontWeight: 'bold' }">
+            {{ formatSignedCurrency(currentExchange.differenceAmount ?? currentExchange.difference_amount) }}
           </span>
         </el-descriptions-item>
         <el-descriptions-item label="备注" :span="3">{{ currentExchange.remark || currentExchange.remarks || '-' }}</el-descriptions-item>
@@ -447,14 +446,14 @@
               <span class="return-quantity">{{ formatQuantity(scope.row.exchange_quantity) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="100" align="right">
+          <el-table-column label="单价" width="100">
             <template #default="scope">
-              ¥{{ (parseFloat(scope.row.unit_price || 0)).toFixed(2) }}
+              {{ formatCurrency(scope.row.unit_price) }}
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="110" align="right">
+          <el-table-column label="金额" width="110">
             <template #default="scope">
-              <span style="color: var(--color-success);">¥{{ (parseFloat(scope.row.amount || 0)).toFixed(2) }}</span>
+              <span style="color: var(--color-success);">{{ formatCurrency(scope.row.amount) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="exchange_reason" label="退回原因" min-width="150" />
@@ -481,14 +480,14 @@
               <span class="exchange-quantity">{{ formatQuantity(scope.row.exchange_quantity) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="100" align="right">
+          <el-table-column label="单价" width="100">
             <template #default="scope">
-              ¥{{ (parseFloat(scope.row.unit_price || 0)).toFixed(2) }}
+              {{ formatCurrency(scope.row.unit_price) }}
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="110" align="right">
+          <el-table-column label="金额" width="110">
             <template #default="scope">
-              <span style="color: var(--color-primary);">¥{{ (parseFloat(scope.row.amount || 0)).toFixed(2) }}</span>
+              <span style="color: var(--color-primary);">{{ formatCurrency(scope.row.amount) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="exchange_reason" label="换出原因" min-width="150" />
@@ -530,7 +529,7 @@
         <el-table-column prop="unit_name" label="单位" width="80" />
         <el-table-column prop="stock_quantity" label="库存数量" width="100">
           <template #default>
-            <span :style="{ color: row.stock_quantity > 0 ? '#67c23a' : '#f56c6c' }">
+            <span :style="{ color: row.stock_quantity > 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
               {{ row.stock_quantity }}
             </span>
           </template>
@@ -578,7 +577,7 @@
             <el-tag type="success">已完成</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" type="primary" @click="selectOrder(row)">选择</el-button>
           </template>
@@ -606,11 +605,12 @@
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { formatCurrency } from '@/utils/helpers/formatters'
 import 'dayjs'
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, inventoryApi, baseDataApi } from '@/services/api'
-import { Search, Refresh, Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
+import { Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 const loading = ref(false)
 const exchangeRecords = ref([])
 const currentPage = ref(1)
@@ -619,6 +619,23 @@ const total = ref(0)
 const searchQuery = ref('')
 const statusFilter = ref('')
 const dateRange = ref([])
+const isBlankAmount = (value) => value === null || value === undefined || value === ''
+const toMoneyNumber = (value) => {
+  if (isBlankAmount(value)) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+const formatSignedCurrency = (value) => {
+  const number = toMoneyNumber(value)
+  if (number === null) return '-'
+  return `${number > 0 ? '+' : ''}${formatCurrency(number)}`
+}
+const formatExchangeLineAmount = (quantity, unitPrice) => {
+  const qty = toMoneyNumber(quantity)
+  const price = toMoneyNumber(unitPrice)
+  if (qty === null || price === null) return '-'
+  return formatCurrency(qty * price)
+}
 // 对话框相关
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
@@ -707,18 +724,18 @@ const _getStatusText = (status) => {
 // 计算退回商品总价
 const calcReturnTotal = () => {
   return (exchangeForm.value.returnItems || []).reduce((sum, item) => {
-    return sum + parseFloat(item.returnQuantity || 0) * parseFloat(item.unitPrice || 0)
-  }, 0).toFixed(2)
+    return sum + (toMoneyNumber(item.returnQuantity) || 0) * (toMoneyNumber(item.unitPrice) || 0)
+  }, 0)
 }
 // 计算换出商品总价
 const calcNewTotal = () => {
   return (exchangeForm.value.newItems || []).reduce((sum, item) => {
-    return sum + parseFloat(item.newQuantity || 0) * parseFloat(item.unitPrice || 0)
-  }, 0).toFixed(2)
+    return sum + (toMoneyNumber(item.newQuantity) || 0) * (toMoneyNumber(item.unitPrice) || 0)
+  }, 0)
 }
 // 计算差价
 const calcDifference = () => {
-  return parseFloat(calcNewTotal()) - parseFloat(calcReturnTotal())
+  return calcNewTotal() - calcReturnTotal()
 }
 // 计算统计数据
 const calculateExchangeStats = () => {
@@ -777,9 +794,9 @@ const fetchData = async () => {
         reason: item.exchange_reason || item.reason,
         status: item.status,
         remark: item.remarks || item.remark,
-        returnAmount: item.return_amount || item.returnAmount || 0,
-        newAmount: item.new_amount || item.newAmount || 0,
-        differenceAmount: item.difference_amount || item.differenceAmount || 0,
+        returnAmount: isBlankAmount(item.return_amount ?? item.returnAmount) ? null : (item.return_amount ?? item.returnAmount),
+        newAmount: isBlankAmount(item.new_amount ?? item.newAmount) ? null : (item.new_amount ?? item.newAmount),
+        differenceAmount: isBlankAmount(item.difference_amount ?? item.differenceAmount) ? null : (item.difference_amount ?? item.differenceAmount),
         items: item.items || []
       }))
       total.value = response.data.total || exchangeRecords.value.length
@@ -839,7 +856,8 @@ const handleEdit = async (row) => {
         specification: item.specification || '',
         originalQuantity: item.original_quantity || item.originalQuantity || 0,
         returnQuantity: item.return_quantity || item.returnQuantity || item.quantity || 0,
-        returnReason: item.return_reason || item.returnReason || ''
+        returnReason: item.return_reason || item.returnReason || '',
+        unitPrice: isBlankAmount(item.unit_price ?? item.unitPrice ?? item.price) ? null : (item.unit_price ?? item.unitPrice ?? item.price)
       }))
     exchangeForm.value.newItems = (exchangeData.items || [])
       .filter(item => item.item_type === 'new')
@@ -848,7 +866,8 @@ const handleEdit = async (row) => {
         productName: item.product_name || item.productName,
         specification: item.specification || '',
         newQuantity: item.new_quantity || item.newQuantity || item.quantity || 0,
-        newReason: item.new_reason || item.newReason || ''
+        newReason: item.new_reason || item.newReason || '',
+        unitPrice: isBlankAmount(item.unit_price ?? item.unitPrice ?? item.price) ? null : (item.unit_price ?? item.unitPrice ?? item.price)
       }))
   } catch (error) {
     console.error('获取换货单详情失败:', error)
@@ -1109,7 +1128,7 @@ const selectOrder = async (row) => {
           returnQuantity: 1,
           returnReason: '',
           unitName: item.unit || item.unit_name || item.unitName,
-          unitPrice: parseFloat(item.unit_price || item.price || 0)
+          unitPrice: isBlankAmount(item.unit_price ?? item.price) ? null : (item.unit_price ?? item.price)
         }))
       }
     }
@@ -1161,7 +1180,7 @@ const loadProducts = async () => {
       unit_name: item.unit_name || '个',
       stock_quantity: item.quantity || item.stock_quantity || 0,
       location_name: item.location_name || '',
-      price: item.price || item.unit_price || 0
+      price: isBlankAmount(item.price ?? item.unit_price) ? null : (item.price ?? item.unit_price)
     }))
     productDialog.value.total = parseInt(data.total) || items.length
   } catch (error) {
@@ -1216,7 +1235,7 @@ const confirmProductSelection = () => {
         unitName: product.unit_name,
         newQuantity: 1,
         newReason: '',
-        unitPrice: parseFloat(product.price || 0)
+        unitPrice: isBlankAmount(product.price) ? null : product.price
       })
     }
   })
@@ -1353,21 +1372,21 @@ const getExchangeItems = (items) => {
 }
 .return-title {
   background-color: var(--color-primary-light-9);
-  color: #0369a1;
-  border-left: 4px solid #0ea5e9;
+  color: var(--ds-blue);
+  border-left: 4px solid var(--ds-blue-strong);
 }
 .exchange-title {
-  background-color: #fef3f2;
-  color: #dc2626;
-  border-left: 4px solid #ef4444;
+  background-color: var(--ds-red-bg);
+  color: var(--ds-red-strong);
+  border-left: 4px solid var(--ds-red);
 }
 /* 数量样式 */
 .return-quantity {
-  color: #059669;
+  color: var(--ds-green);
   font-weight: 600;
 }
 .exchange-quantity {
-  color: #dc2626;
+  color: var(--ds-red-strong);
   font-weight: 600;
 }
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */

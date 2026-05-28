@@ -1,5 +1,5 @@
 <template>
-  <div class="year-end-container">
+  <div class="module-page year-end-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -27,6 +27,9 @@
           <el-button type="primary" @click="fetchStatus" :loading="statusLoading">
             查询状态
           </el-button>
+          <el-button @click="handlePreview" :loading="previewLoading">
+            预览结存
+          </el-button>
           <el-button type="success" @click="handleExecute" :disabled="statusInfo.isFrozen" :loading="executeLoading"
             v-permission="'inventory:stock:adjust'">
             执行结存
@@ -34,6 +37,10 @@
           <el-button type="warning" @click="handleFreeze" :disabled="!statusInfo.hasRecords || statusInfo.isFrozen" :loading="freezeLoading"
             v-permission="'inventory:stock:adjust'">
             冻结结存
+          </el-button>
+          <el-button type="danger" plain @click="handleUnfreeze" :disabled="!statusInfo.isFrozen" :loading="unfreezeLoading"
+            v-permission="'inventory:stock:adjust'">
+            反冻结
           </el-button>
           <el-button type="info" @click="handleExport" :disabled="!statusInfo.hasRecords"
             v-permission="'inventory:stock:adjust'">
@@ -103,7 +110,7 @@
         <el-table-column prop="specification" label="规格" width="200" />
         <el-table-column prop="unit_name" label="单位" width="60" />
         <el-table-column prop="location_name" label="仓库" width="100" />
-        <el-table-column label="期初" align="center">
+        <el-table-column label="期初">
           <el-table-column prop="opening_quantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.opening_quantity) }}
@@ -115,7 +122,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="入库" align="center">
+        <el-table-column label="入库">
           <el-table-column prop="inbound_quantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.inbound_quantity) }}
@@ -127,7 +134,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="出库" align="center">
+        <el-table-column label="出库">
           <el-table-column prop="outbound_quantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.outbound_quantity) }}
@@ -139,7 +146,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="期末" align="center">
+        <el-table-column label="期末">
           <el-table-column prop="closing_quantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.closing_quantity) }}
@@ -174,6 +181,66 @@
         />
       </div>
     </el-card>
+
+    <el-dialog v-model="showPreviewDialog" title="年度库存结存预览" width="900px">
+      <template v-if="previewData">
+        <el-table :data="previewData.checks || []" border size="small" class="preview-checks">
+          <el-table-column prop="name" label="检查项" width="180" />
+          <el-table-column label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.passed ? 'success' : 'danger'" size="small">
+                {{ row.passed ? '通过' : '未通过' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="message" label="说明" />
+        </el-table>
+
+        <el-descriptions :column="4" border size="small" class="preview-summary">
+          <el-descriptions-item label="记录数">{{ previewData.summary?.totalRecords || 0 }}</el-descriptions-item>
+          <el-descriptions-item label="期初数量">{{ formatNumber(previewData.summary?.openingQuantity) }}</el-descriptions-item>
+          <el-descriptions-item label="入库数量">{{ formatNumber(previewData.summary?.inboundQuantity) }}</el-descriptions-item>
+          <el-descriptions-item label="出库数量">{{ formatNumber(previewData.summary?.outboundQuantity) }}</el-descriptions-item>
+          <el-descriptions-item label="期末数量">{{ formatNumber(previewData.summary?.closingQuantity) }}</el-descriptions-item>
+          <el-descriptions-item label="期末金额">{{ formatCurrency(previewData.summary?.closingValue) }}</el-descriptions-item>
+          <el-descriptions-item label="已有结存">{{ previewData.hasExistingRecords ? '是' : '否' }}</el-descriptions-item>
+          <el-descriptions-item label="可执行">{{ previewData.canExecute ? '是' : '否' }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-table :data="previewData.rows || []" border height="320" size="small">
+          <el-table-column prop="material_code" label="物料编码" width="120" />
+          <el-table-column prop="material_name" label="物料名称" min-width="160" />
+          <el-table-column prop="location_name" label="仓库" width="120" />
+          <el-table-column prop="openingQuantity" label="期初" width="100">
+            <template #default="{ row }">{{ formatNumber(row.openingQuantity) }}</template>
+          </el-table-column>
+          <el-table-column prop="inboundQuantity" label="入库" width="100">
+            <template #default="{ row }">{{ formatNumber(row.inboundQuantity) }}</template>
+          </el-table-column>
+          <el-table-column prop="outboundQuantity" label="出库" width="100">
+            <template #default="{ row }">{{ formatNumber(row.outboundQuantity) }}</template>
+          </el-table-column>
+          <el-table-column prop="closingQuantity" label="期末" width="100">
+            <template #default="{ row }">{{ formatNumber(row.closingQuantity) }}</template>
+          </el-table-column>
+          <el-table-column prop="closingValue" label="期末金额" width="120">
+            <template #default="{ row }">{{ formatCurrency(row.closingValue) }}</template>
+          </el-table-column>
+        </el-table>
+      </template>
+      <template #footer>
+        <el-button @click="showPreviewDialog = false">关闭</el-button>
+        <el-button
+          type="success"
+          :disabled="!previewData?.canExecute || statusInfo.isFrozen"
+          :loading="executeLoading"
+          @click="handleExecute"
+          v-permission="'inventory:stock:adjust'"
+        >
+          执行结存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -181,8 +248,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { api as axios } from '@/services/api'
+import { inventoryApi } from '@/api/inventory'
 import { formatCurrency, formatNumber } from '@/utils/format'
+import { parseResponseData } from '@/utils/responseParser'
 
 // 页面状态
 const selectedYear = ref(dayjs().format('YYYY'))
@@ -190,7 +258,11 @@ const statusLoading = ref(false)
 const statusLoaded = ref(false)
 const executeLoading = ref(false)
 const freezeLoading = ref(false)
+const previewLoading = ref(false)
+const unfreezeLoading = ref(false)
 const listLoading = ref(false)
+const showPreviewDialog = ref(false)
+const previewData = ref(null)
 
 // 结存状态信息
 const statusInfo = ref({
@@ -221,8 +293,8 @@ const fetchStatus = async () => {
   }
   statusLoading.value = true
   try {
-    const response = await axios.get(`/inventory/year-end/status/${selectedYear.value}`)
-    statusInfo.value = response.data?.data || response.data || {}
+    const response = await inventoryApi.getYearEndStatus(selectedYear.value)
+    statusInfo.value = parseResponseData(response, {})
     statusLoaded.value = true
 
     // 如果有记录，加载明细
@@ -241,14 +313,12 @@ const fetchStatus = async () => {
 const fetchBalanceList = async () => {
   listLoading.value = true
   try {
-    const response = await axios.get('/inventory/year-end/list', {
-      params: {
-        year: selectedYear.value,
-        page: pagination.currentPage,
-        pageSize: pagination.pageSize
-      }
+    const response = await inventoryApi.getYearEndList({
+      year: selectedYear.value,
+      page: pagination.currentPage,
+      pageSize: pagination.pageSize
     })
-    const data = response.data?.data || response.data || {}
+    const data = parseResponseData(response, {})
     balanceList.value = data.list || []
     pagination.total = data.total || 0
   } catch (error) {
@@ -260,6 +330,30 @@ const fetchBalanceList = async () => {
 }
 
 // 执行年度结存
+const handlePreview = async (openDialog = true) => {
+  if (!selectedYear.value) {
+    ElMessage.warning('请选择会计年度')
+    return null
+  }
+
+  previewLoading.value = true
+  try {
+    const response = await inventoryApi.previewYearEnd(selectedYear.value)
+    const data = parseResponseData(response, {})
+    previewData.value = data
+    if (openDialog) {
+      showPreviewDialog.value = true
+    }
+    return data
+  } catch (error) {
+    console.error('获取年度库存结存预览失败:', error)
+    ElMessage.error(error.response?.data?.message || error.message || '获取年度库存结存预览失败')
+    return null
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 const handleExecute = async () => {
   if (!selectedYear.value) {
     ElMessage.warning('请选择会计年度')
@@ -267,6 +361,17 @@ const handleExecute = async () => {
   }
 
   try {
+    const preview =
+      previewData.value?.year === parseInt(selectedYear.value)
+        ? previewData.value
+        : await handlePreview(false)
+
+    if (!preview?.canExecute) {
+      showPreviewDialog.value = true
+      ElMessage.warning('预览检查未通过，请先处理后再执行')
+      return
+    }
+
     await ElMessageBox.confirm(
       `确定要执行 ${selectedYear.value} 年度的库存结存吗？这将根据当年的出入库记录计算各物料的期初、收发、期末数据。`,
       '执行年度结存',
@@ -274,10 +379,12 @@ const handleExecute = async () => {
     )
 
     executeLoading.value = true
-    const response = await axios.post('/inventory/year-end/execute', {
+    const response = await inventoryApi.executeYearEnd({
       year: parseInt(selectedYear.value)
     })
-    const result = response.data?.data || response.data || {}
+    const result = parseResponseData(response, {})
+    showPreviewDialog.value = false
+    await fetchStatus()
     ElMessage.success(result.message || '年度结存执行成功')
 
     // 刷新状态
@@ -302,10 +409,11 @@ const handleFreeze = async () => {
     )
 
     freezeLoading.value = true
-    const response = await axios.post('/inventory/year-end/freeze', {
+    const response = await inventoryApi.freezeYearEnd({
       year: parseInt(selectedYear.value)
     })
-    const result = response.data?.data || response.data || {}
+    await fetchStatus()
+    const result = parseResponseData(response, {})
     ElMessage.success(result.message || '年度结存已冻结')
 
     // 刷新状态
@@ -321,10 +429,40 @@ const handleFreeze = async () => {
 }
 
 // 导出报表
+const handleUnfreeze = async () => {
+  if (!selectedYear.value) {
+    ElMessage.warning('请选择会计年度')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要反冻结 ${selectedYear.value} 年度库存结存吗？反冻结后该年度库存单据可继续调整。`,
+      '反冻结年度库存结存',
+      { type: 'warning', confirmButtonText: '确认反冻结', cancelButtonText: '取消' }
+    )
+
+    unfreezeLoading.value = true
+    const response = await inventoryApi.unfreezeYearEnd({
+      year: parseInt(selectedYear.value)
+    })
+    const result = parseResponseData(response, {})
+    ElMessage.success(result.message || '年度库存结存已反冻结')
+    await fetchStatus()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('反冻结年度库存结存失败:', error)
+      ElMessage.error(error.response?.data?.message || error.message || '反冻结年度库存结存失败')
+    }
+  } finally {
+    unfreezeLoading.value = false
+  }
+}
+
 const handleExport = async () => {
   try {
-    const response = await axios.get(`/inventory/year-end/export/${selectedYear.value}`)
-    const data = response.data?.data || response.data || []
+    const response = await inventoryApi.exportYearEnd(selectedYear.value)
+    const data = parseResponseData(response, [])
 
     if (!data || data.length === 0) {
       ElMessage.warning('没有可导出的数据')
@@ -359,6 +497,8 @@ const handleExport = async () => {
 const handleYearChange = () => {
   statusLoaded.value = false
   statusInfo.value = { hasRecords: false, totalRecords: 0, isFrozen: false, summary: {} }
+  previewData.value = null
+  showPreviewDialog.value = false
   balanceList.value = []
   pagination.currentPage = 1
   pagination.total = 0
@@ -483,5 +623,10 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.preview-checks,
+.preview-summary {
+  margin-bottom: 16px;
 }
 </style>

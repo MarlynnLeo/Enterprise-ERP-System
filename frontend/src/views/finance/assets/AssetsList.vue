@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * AssetsList.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="assets-container">
+  <div class="module-page assets-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,14 +19,23 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="searchAssets"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="资产编号">
           <el-input  v-model="searchForm.assetCode" placeholder="输入资产编号" clearable ></el-input>
         </el-form-item>
         <el-form-item label="资产名称">
           <el-input  v-model="searchForm.assetName" placeholder="输入资产名称" clearable ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="类别">
           <el-select  v-model="searchForm.categoryId" placeholder="选择类别" clearable>
             <el-option
@@ -45,12 +54,8 @@
             <el-option label="报废" value="disposed"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchAssets">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -63,7 +68,7 @@
         <div class="stat-label">资产原值合计</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value value-text">{{ formatCurrency(assetStats.totalNetValue || 0) }}</div>
+        <div class="stat-value value-text">{{ formatCurrency(assetStats.totalNetValue) }}</div>
         <div class="stat-label">资产净值合计</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
@@ -100,12 +105,12 @@
             {{ formatDate(scope.row.purchaseDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="originalValue" label="原值" width="120" align="right">
+        <el-table-column prop="originalValue" label="原值" width="120">
           <template #default="scope">
             {{ formatCurrency(scope.row.originalValue) }}
           </template>
         </el-table-column>
-        <el-table-column prop="netValue" label="净值" width="120" align="right">
+        <el-table-column prop="netValue" label="净值" width="120">
           <template #default="scope">
             {{ formatCurrency(scope.row.netValue) }}
           </template>
@@ -120,13 +125,13 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="审核" width="100" align="center" fixed="right">
+        <el-table-column label="审核" width="100" fixed="right">
           <template #default="scope">
             <el-tag v-if="scope.row.auditStatus === 'approved'" type="success" effect="dark" size="small">已审核</el-tag>
             <el-tag v-else type="info" effect="plain" size="small">待审核</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button type="primary" size="small" @click="handleEdit(scope.row)" v-if="!isDisposed(scope.row.status) && scope.row.auditStatus !== 'approved'"
               v-permission="'finance:assets:update'">编辑</el-button>
@@ -398,7 +403,7 @@
             <el-option
               v-for="account in bankAccountOptions"
               :key="account.id"
-              :label="`${account.accountName || account.account_name}（余额 ${formatCurrency(account.balance ?? account.current_balance ?? 0)}）`"
+              :label="`${account.accountName || account.account_name}（余额 ${formatCurrency(account.balance ?? account.current_balance)}）`"
               :value="account.id"
             />
           </el-select>
@@ -518,19 +523,22 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, ArrowDown } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { financeApi } from '@/services/api';
 import { formatDate, formatCurrency } from '@/utils/helpers/formatters';
+import { loadDepartmentOptions as loadCachedDepartmentOptions } from '@/utils/optionLoaders';
 
 const router = useRouter();
 
 // 数据加载状态
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 const saveLoading = ref(false);
 const transferLoading = ref(false);
 
@@ -774,7 +782,7 @@ const loadAssets = async () => {
       status: searchForm.status
     };
 
-    const response = await api.get('/finance/assets', { params });
+    const response = await financeApi.getAssets(params);
 
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
@@ -816,7 +824,7 @@ const loadAssets = async () => {
 // 加载资产类别选项
 const loadCategoryOptions = async () => {
   try {
-    const response = await api.get('/finance/assets/categories');
+    const response = await financeApi.getAssetCategories();
     // 使用统一的列表解析工具
     categoryOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
@@ -829,9 +837,7 @@ const loadCategoryOptions = async () => {
 // 加载部门选项
 const loadDepartmentOptions = async () => {
   try {
-    const response = await api.get('/system/departments/list');
-    // 使用统一的列表解析工具
-    departmentOptions.value = parseListData(response, { enableLog: false });
+    departmentOptions.value = await loadCachedDepartmentOptions();
   } catch (error) {
     console.error('加载部门列表失败:', error);
     ElMessage.error('加载部门列表失败');
@@ -841,7 +847,7 @@ const loadDepartmentOptions = async () => {
 
 const loadBankAccountOptions = async () => {
   try {
-    const response = await api.get('/finance/bank-accounts');
+    const response = await financeApi.getBankAccountsList();
     bankAccountOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
     console.error('加载银行账户失败:', error);
@@ -852,7 +858,7 @@ const loadBankAccountOptions = async () => {
 // 加载资产统计信息
 const loadAssetStats = async () => {
   try {
-    const response = await api.get('/finance/assets/stats');
+    const response = await financeApi.getAssetStats();
     const statsData = parseDataObject(response, { enableLog: false });
     if (statsData) {
       Object.assign(assetStats, statsData);
@@ -919,7 +925,7 @@ const onCategoryChange = () => {
 const generateCode = async () => {
   try {
     const params = assetForm.categoryId ? { categoryId: assetForm.categoryId } : {};
-    const res = await api.get('/finance/assets/generate-code', { params });
+    const res = await financeApi.generateAssetCode(params);
     if (res.data && res.data.code) {
       assetForm.assetCode = res.data.code;
       ElMessage.success('自动生成编号成功');
@@ -939,7 +945,7 @@ const handleEdit = async (row) => {
   dialogTitle.value = '编辑固定资产';
 
   try {
-    const response = await api.get(`/finance/assets/${row.id}`);
+    const response = await financeApi.getAsset(row.id);
     const asset = response.data;
 
     resetAssetForm();
@@ -1005,7 +1011,7 @@ const handleAudit = async (row, action) => {
   }
 
   try {
-    await api.post(`/finance/assets/${row.id}/audit`, { action });
+    await financeApi.auditAsset(row.id, { action });
     ElMessage.success(`${row.assetName} ${actionText}成功`);
     loadAssets();
   } catch (error) {
@@ -1046,7 +1052,7 @@ const submitTransfer = async () => {
     if (valid) {
       transferLoading.value = true;
       try {
-        await api.post(`/finance/assets/${transferForm.assetId}/transfer`, transferForm);
+        await financeApi.transferAsset(transferForm.assetId, transferForm);
         ElMessage.success('资产调拨成功');
         transferDialogVisible.value = false;
         loadAssets(); // 重新加载资产列表
@@ -1088,7 +1094,7 @@ const submitSplit = async () => {
     if (valid) {
       splitLoading.value = true;
       try {
-        await api.post(`/finance/assets/${splitForm.assetId}/split`, splitForm);
+        await financeApi.splitAsset(splitForm.assetId, splitForm);
         ElMessage.success('资产拆分成功');
         splitDialogVisible.value = false;
         loadAssets(); // 重新加载资产列表
@@ -1111,7 +1117,7 @@ const handleImpairment = (row) => {
   impairmentForm.assetId = row.id;
   impairmentForm.netValue = row.netValue || 0;
   impairmentForm.impairment_amount = 0;
-  impairmentForm.impairment_date = new Date().toISOString().split('T')[0];
+  impairmentForm.impairment_date = formatLocalDate(new Date());
   impairmentForm.reason = '';
 
   impairmentDialogVisible.value = true;
@@ -1130,7 +1136,7 @@ const submitImpairment = async () => {
 
       submitImpairmentLoading.value = true;
       try {
-        await api.post(`/finance/assets/${impairmentForm.assetId}/impairments`, impairmentForm);
+        await financeApi.impairAsset(impairmentForm.assetId, impairmentForm);
         ElMessage.success('减值计提成功');
         impairmentDialogVisible.value = false;
         loadAssets(); // 重新加载资产列表
@@ -1191,7 +1197,7 @@ const submitDispose = async () => {
       disposalDate: disposeForm.disposeDate,
       disposalReason: disposeForm.reason,
     };
-    await api.post(`/finance/assets/${disposeForm.assetId}/dispose`, payload);
+    await financeApi.disposeAsset(disposeForm.assetId, payload);
     ElMessage.success('资产处置成功');
     disposeDialogVisible.value = false;
     loadAssets(); // 重新加载资产列表
@@ -1222,11 +1228,11 @@ const saveAsset = async () => {
 
         if (assetForm.id) {
           // 更新
-          await api.put(`/finance/assets/${assetForm.id}`, data);
+          await financeApi.updateAsset(assetForm.id, data);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          await api.post('/finance/assets', data);
+          await financeApi.createAsset(data);
           ElMessage.success('添加成功');
         }
         dialogVisible.value = false;

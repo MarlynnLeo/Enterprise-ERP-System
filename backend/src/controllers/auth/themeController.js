@@ -8,6 +8,11 @@
 const { pool } = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const {
+  getDefaultThemeSettings,
+  normalizeThemeSettings,
+  validateThemeSettings,
+} = require('../../config/themeConfig');
 
 /**
  * 获取用户主题设置
@@ -22,15 +27,11 @@ exports.getUserTheme = async (req, res) => {
       return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
     }
 
-    // 默认主题配置
-    const defaultTheme = {
-      theme: 'light',
-      preset: 'kacon',
-      primaryColor: '#00A896',
-      fontSize: 14,
-    };
+    const themeSettings = rows[0].theme_settings
+      ? normalizeThemeSettings(rows[0].theme_settings)
+      : getDefaultThemeSettings();
 
-    return ResponseHandler.success(res, rows[0].theme_settings || defaultTheme, '获取主题设置成功');
+    return ResponseHandler.success(res, themeSettings, '获取主题设置成功');
   } catch (error) {
     logger.error('获取主题设置失败:', error.message);
     return ResponseHandler.error(res, '获取主题设置失败', 'SERVER_ERROR', 500);
@@ -45,31 +46,20 @@ exports.saveUserTheme = async (req, res) => {
     const userId = req.user.id;
     const themeSettings = req.body;
 
-    // 基本验证
-    if (!themeSettings || typeof themeSettings !== 'object') {
-      return ResponseHandler.error(res, '主题设置格式错误', 'VALIDATION_ERROR', 400);
+    const validationErrors = validateThemeSettings(themeSettings);
+    if (Object.keys(validationErrors).length > 0) {
+      return ResponseHandler.validationError(res, '主题设置验证失败', validationErrors);
     }
 
-    // 验证必需字段
-    const requiredFields = ['theme', 'preset', 'primaryColor', 'fontSize'];
-    const missingFields = requiredFields.filter((field) => !(field in themeSettings));
-
-    if (missingFields.length > 0) {
-      return ResponseHandler.error(
-        res,
-        `缺少必需字段: ${missingFields.join(', ')}`,
-        'VALIDATION_ERROR',
-        400
-      );
-    }
+    const normalizedThemeSettings = normalizeThemeSettings(themeSettings);
 
     // 保存到数据库
     await pool.execute('UPDATE users SET theme_settings = ?, updated_at = NOW() WHERE id = ?', [
-      JSON.stringify(themeSettings),
+      JSON.stringify(normalizedThemeSettings),
       userId,
     ]);
 
-    return ResponseHandler.success(res, themeSettings, '保存主题设置成功');
+    return ResponseHandler.success(res, normalizedThemeSettings, '保存主题设置成功');
   } catch (error) {
     logger.error('保存主题设置失败:', error.message);
     return ResponseHandler.error(res, '保存主题设置失败', 'SERVER_ERROR', 500);
@@ -83,12 +73,7 @@ exports.resetUserTheme = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const defaultTheme = {
-      theme: 'light',
-      preset: 'kacon',
-      primaryColor: '#00A896',
-      fontSize: 14,
-    };
+    const defaultTheme = getDefaultThemeSettings();
 
     await pool.execute('UPDATE users SET theme_settings = ?, updated_at = NOW() WHERE id = ?', [
       JSON.stringify(defaultTheme),

@@ -459,6 +459,10 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
+.content-container {
+  padding-bottom: var(--app-fixed-control-space);
+}
+
 .material-list-container {
   margin-top: 12px;
 }
@@ -551,6 +555,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   padding: 12px;
+  padding-bottom: var(--app-fixed-control-padding-bottom);
   background-color: var(--bg-primary);
   box-shadow: none;
   z-index: 10;

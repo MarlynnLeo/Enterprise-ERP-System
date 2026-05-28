@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -12,13 +12,16 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="搜索">
-          <el-input v-model="keyword" placeholder="文档名称/编号" clearable @keyup.enter="fetchList">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
+    <FinanceQueryCard
+      @search="fetchList"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="文档名称">
+          <el-input v-model="keyword" placeholder="文档名称" clearable @keyup.enter="fetchList" />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="分类">
           <el-select v-model="filterCategory" placeholder="全部" clearable @change="fetchList">
             <el-option label="合同" value="contract" /><el-option label="图纸" value="drawing" />
@@ -26,11 +29,8 @@
             <el-option label="证书" value="certificate" /><el-option label="手册" value="manual" /><el-option label="其他" value="other" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchList">查询</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 数据表格 -->
     <el-card class="data-card">
@@ -40,14 +40,14 @@
         <template #default="{ row }">{{ catLabel[row.category] || row.category }}</template>
       </el-table-column>
       <el-table-column prop="file_name" label="文件名" width="180" show-overflow-tooltip />
-      <el-table-column prop="version" label="版本" width="60" align="center" />
-      <el-table-column prop="file_size" label="大小" width="80" align="right">
+      <el-table-column prop="version" label="版本" width="60" />
+      <el-table-column prop="file_size" label="大小" width="80">
         <template #default="{ row }">{{ (row.file_size / 1024).toFixed(0) }}KB</template>
       </el-table-column>
-      <el-table-column prop="download_count" label="下载" width="60" align="center" />
+      <el-table-column prop="download_count" label="下载" width="60" />
       <el-table-column prop="created_by_name" label="上传人" width="100" />
       <el-table-column prop="created_at" label="上传时间" width="160" />
-      <el-table-column label="操作" width="140">
+      <el-table-column label="操作" width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button link type="primary" v-permission="'system:documents:view'" @click="handleDownload(row)">下载</el-button>
           <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
@@ -89,7 +89,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
 import { documentApi } from '@/api/enhanced'
 import { api } from '@/services/axiosInstance'
 
@@ -117,6 +116,13 @@ const fetchList = async () => {
   finally { loading.value = false }
 }
 
+const resetSearch = () => {
+  keyword.value = ''
+  filterCategory.value = ''
+  page.value = 1
+  fetchList()
+}
+
 const openForm = () => { form.value = { name: '', category: 'other', version: '1.0', description: '' }; fileList.value = []; formVis.value = true }
 
 const onFileChange = (file) => {
@@ -135,7 +141,7 @@ const handleSave = async () => {
     if (form.value._file) {
       const fd = new FormData()
       fd.append('file', form.value._file)
-      const uploadRes = await api.post('/api/upload/file', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const uploadRes = await api.post('/upload/file', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       fileUrl = uploadRes.data?.url || uploadRes.data?.filePath || ''
     }
     await documentApi.create({ ...form.value, file_url: fileUrl || 'manual' })
@@ -162,5 +168,4 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
-/* 页面专属样式已由 common-styles.css 统一提供 */
 </style>

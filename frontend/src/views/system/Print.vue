@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="print-templates-container">
+  <div class="module-page print-templates-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -32,11 +32,18 @@
     <!-- 打印模板管理 -->
     <template v-if="activeTab === 'templates'">
       <!-- 搜索区域 -->
-      <el-card class="search-card">
-      <el-form :inline="true" :model="templatesQuery" class="search-form">
+      <FinanceQueryCard
+        :model="templatesQuery"
+        :loading="loadingTemplates"
+        @search="fetchPrintTemplates"
+        @reset="resetTemplatesQuery"
+      >
+        <template #basic>
         <el-form-item label="模板名称">
           <el-input  v-model="templatesQuery.name" placeholder="输入模板名称" clearable ></el-input>
         </el-form-item>
+        </template>
+        <template #advanced>
         <el-form-item label="所属模块">
           <el-select v-model="templatesQuery.module" placeholder="选择模块" clearable>
             <el-option
@@ -57,12 +64,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchPrintTemplates">查询</el-button>
-          <el-button @click="resetTemplatesQuery">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+        </template>
+      </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
@@ -92,7 +95,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" min-width="375" fixed="right">
+        <el-table-column label="操作" min-width="375" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-buttons">
               <el-button type="primary" size="small" @click="openTemplateDialog(scope.row)" v-permission="'system:print:update'">编辑</el-button>
@@ -341,7 +344,7 @@
       <div class="preview-container">
         <iframe
           ref="previewIframe"
-          style="width: 100%; height: 500px; border: none; background: white;"
+          style="width: 100%; height: 500px; border: none; background: var(--color-bg-base);"
         ></iframe>
       </div>
 
@@ -357,9 +360,8 @@
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-
 import { api } from '../../services/api'
-
+import { parsePaginatedData } from '@/utils/responseParser'
 // 导入常量和工具函数
 import {
   MODULE_OPTIONS,
@@ -380,12 +382,21 @@ import MarginInputs from '../../components/ui/print/MarginInputs.vue'
 import PaperSizeSelect from '../../components/ui/print/PaperSizeSelect.vue'
 import { sanitizeHtml, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 import { useAuthStore } from '@/stores/auth'
-
+import { getCssTokenValue } from '@/utils/designTokens'
 const authStore = useAuthStore()
 const canReadCompanySettings = computed(() =>
   authStore.hasPermission('system:settings:read') || authStore.hasPermission('system:settings:write')
 )
 const canWriteCompanySettings = computed(() => authStore.hasPermission('system:settings:write'))
+
+const getPrintTokens = () => ({
+  border: getCssTokenValue('border'),
+  tableHeader: getCssTokenValue('page'),
+  variableBg: getCssTokenValue('page'),
+  variableBorder: getCssTokenValue('primary'),
+  heading: getCssTokenValue('textPrimary'),
+  muted: getCssTokenValue('textSecondary')
+})
 
 const templateMargins = computed({
   get() {
@@ -530,32 +541,9 @@ const fetchPrintTemplates = async () => {
   try {
     const response = await api.get('/print/templates', { params: templatesQuery })
 
-    // 适配多种返回格式
-    let templateData = []
-    let total = 0
-
-    if (response.data) {
-      // 如果 response.data 是对象且有 list 属性
-      if (response.data.list && Array.isArray(response.data.list)) {
-        templateData = response.data.list
-        total = response.data.total || templateData.length
-      }
-      // 如果 response.data 是对象且有 data 属性 (嵌套结构)
-      else if (response.data.data && Array.isArray(response.data.data)) {
-        templateData = response.data.data
-        total = response.data.total || templateData.length
-      }
-      // 如果 response.data 直接是数组
-      else if (Array.isArray(response.data)) {
-        templateData = response.data
-        total = templateData.length
-      }
-    }
-    // 如果 response 直接是数组
-    else if (Array.isArray(response)) {
-      templateData = response
-      total = templateData.length
-    }
+    const parsed = parsePaginatedData(response, { enableLog: false })
+    const templateData = parsed.list
+    const total = parsed.total || templateData.length
 
     printTemplates.value = templateData.map(template => ({
       ...template,
@@ -660,6 +648,7 @@ const deletePrintTemplate = (id) => {
 
 const previewTemplate = (template) => {
   let content = processTemplatePreview(template);
+  const printTokens = getPrintTokens()
 
   // 如果内容不包含完整的 HTML 结构，则包装它
   if (!content.includes('<html>') && !content.includes('<!DOCTYPE')) {
@@ -679,12 +668,12 @@ const previewTemplate = (template) => {
             width: 100%;
           }
           th, td {
-            border: 1px solid #ddd;
+            border: 1px solid ${printTokens.border};
             padding: 8px;
             text-align: left;
           }
           th {
-            background-color: #f2f2f2;
+            background-color: ${printTokens.tableHeader};
           }
         </style>
       </head>
@@ -744,6 +733,7 @@ const updatePreview = () => {
 
 const insertVariable = (variable) => {
   const variableText = `{{${variable}}}`
+  const printTokens = getPrintTokens()
   if (editMode.value === 'visual' && visualEditor.value) {
     // 在可视化编辑器中插入变量
     const selection = window.getSelection()
@@ -752,10 +742,10 @@ const insertVariable = (variable) => {
       const span = document.createElement('span')
       span.className = 'template-variable'
       span.textContent = variableText
-      span.style.backgroundColor = '#e6f7ff'
+      span.style.backgroundColor = printTokens.variableBg
       span.style.padding = '2px 4px'
       span.style.borderRadius = '3px'
-      span.style.border = '1px solid #91d5ff'
+      span.style.border = `1px solid ${printTokens.variableBorder}`
       range.insertNode(span)
       range.collapse(false)
       onVisualEditorInput()
@@ -768,22 +758,23 @@ const insertVariable = (variable) => {
 }
 
 const insertTable = () => {
+  const printTokens = getPrintTokens()
   const tableHtml = `
 <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
   <thead>
-    <tr style="background-color: #f5f5f5;">
-      <th style="border: 1px solid #ddd; padding: 8px;">项目</th>
-      <th style="border: 1px solid #ddd; padding: 8px;">数量</th>
-      <th style="border: 1px solid #ddd; padding: 8px;">单价</th>
-      <th style="border: 1px solid #ddd; padding: 8px;">金额</th>
+    <tr style="background-color: ${printTokens.tableHeader};">
+      <th style="border: 1px solid ${printTokens.border}; padding: 8px;">项目</th>
+      <th style="border: 1px solid ${printTokens.border}; padding: 8px;">数量</th>
+      <th style="border: 1px solid ${printTokens.border}; padding: 8px;">单价</th>
+      <th style="border: 1px solid ${printTokens.border}; padding: 8px;">金额</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td style="border: 1px solid #ddd; padding: 8px;">{{item_name}}</td>
-      <td style="border: 1px solid #ddd; padding: 8px;">{{quantity}}</td>
-      <td style="border: 1px solid #ddd; padding: 8px;">{{price}}</td>
-      <td style="border: 1px solid #ddd; padding: 8px;">{{amount}}</td>
+      <td style="border: 1px solid ${printTokens.border}; padding: 8px;">{{item_name}}</td>
+      <td style="border: 1px solid ${printTokens.border}; padding: 8px;">{{quantity}}</td>
+      <td style="border: 1px solid ${printTokens.border}; padding: 8px;">{{price}}</td>
+      <td style="border: 1px solid ${printTokens.border}; padding: 8px;">{{amount}}</td>
     </tr>
   </tbody>
 </table>`
@@ -792,18 +783,20 @@ const insertTable = () => {
 }
 
 const insertHeader = () => {
+  const printTokens = getPrintTokens()
   const headerHtml = `
 <div style="text-align: center; margin-bottom: 20px;">
-  <h1 style="margin: 0; font-size: 24px; color: #333;">{{company_name}}</h1>
-  <h2 style="margin: 10px 0; font-size: 18px; color: #666;">销售出库单</h2>
+  <h1 style="margin: 0; font-size: 24px; color: ${printTokens.heading};">{{company_name}}</h1>
+  <h2 style="margin: 10px 0; font-size: 18px; color: ${printTokens.muted};">销售出库单</h2>
 </div>`
 
   insertContent(headerHtml)
 }
 
 const insertFooter = () => {
+  const printTokens = getPrintTokens()
   const footerHtml = `
-<div style="margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px;">
+<div style="margin-top: 30px; border-top: 1px solid ${printTokens.border}; padding-top: 10px;">
   <div style="display: flex; justify-content: space-between;">
     <div>制单人：_____________</div>
     <div>审核人：_____________</div>
@@ -876,7 +869,7 @@ watch(editMode, (newMode) => {
 }
 
 .preview-container {
-  background: #f5f5f5;
+  background: var(--color-bg-hover);
   padding: 10px;
   border-radius: var(--radius-sm);
 }
@@ -966,7 +959,7 @@ watch(editMode, (newMode) => {
   font-size: 14px;
   line-height: 1.6;
   overflow-y: auto;
-  background: white;
+  background: var(--color-bg-base);
 }
 
 .visual-editor:focus {
@@ -992,17 +985,17 @@ watch(editMode, (newMode) => {
   flex: 1;
   padding: 15px;
   overflow-y: auto;
-  background: white;
+  background: var(--color-bg-base);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   line-height: 1.6;
 }
 
 .template-variable {
-  background-color: #e6f7ff !important;
+  background-color: var(--ds-blue-bg) !important;
   padding: 2px 4px !important;
   border-radius: 3px !important;
-  border: 1px solid #91d5ff !important;
+  border: 1px solid var(--ds-blue-strong) !important;
   font-family: 'Courier New', monospace !important;
   font-size: 12px !important;
 }
@@ -1014,13 +1007,13 @@ watch(editMode, (newMode) => {
 }
 
 .template-tip {
-  background: #f0f9ff;
-  border: 1px solid #bae7ff;
+  background: var(--ds-blue-bg);
+  border: 1px solid var(--ds-blue-strong);
   border-radius: var(--radius-sm);
   padding: 10px;
   margin-bottom: 10px;
   font-size: 13px;
-  color: #1890ff;
+  color: var(--ds-blue);
 }
 
 .template-buttons {
@@ -1038,13 +1031,13 @@ watch(editMode, (newMode) => {
 
 .live-preview th,
 .live-preview td {
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-border-base);
   padding: 8px;
   text-align: left;
 }
 
 .live-preview th {
-  background-color: #f5f5f5;
+  background-color: var(--color-bg-hover);
   font-weight: 500;
 }
 </style>

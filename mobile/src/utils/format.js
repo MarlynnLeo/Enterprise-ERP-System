@@ -22,8 +22,9 @@ export const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
  * @returns {String} 带有两位小数的字符串
  */
 export const formatAmount = (amount) => {
+  if (amount === null || amount === undefined || amount === '') return '--'
   const num = Number(amount)
-  if (isNaN(num)) return '0.00'
+  if (isNaN(num)) return '--'
   return num.toFixed(2)
 }
 

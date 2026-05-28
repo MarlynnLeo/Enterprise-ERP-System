@@ -12,8 +12,10 @@ const db = require('../../../config/db');
 const purchaseModel = require('../../../models/purchase');
 const { desensitizeData, hasFinancePermission } = require('../../../utils/desensitizer');
 const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
+const PurchasePriceService = require('../../../services/business/PurchasePriceService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const DLQService = require('../../../services/business/DLQService');
+const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../../utils/money');
 
 // 状态常量
 const STATUS = {
@@ -41,7 +43,7 @@ const getReceipts = async (req, res) => {
     } = req.query;
 
     // 转换为数字类型
-    const actualPageSize = parseInt(limit || pageSize, 10);
+    const actualPageSize = Math.min(Math.max(parseInt(limit || pageSize, 10) || 20, 1), 100);
     const actualPage = parseInt(page, 10);
     // 验证参数
     if (isNaN(actualPage) || isNaN(actualPageSize) || actualPage < 1 || actualPageSize < 1) {
@@ -104,7 +106,7 @@ const getReceipts = async (req, res) => {
         LEFT JOIN locations l ON r.warehouse_id = l.id
         LEFT JOIN users u ON u.username = r.operator
         ${whereClause}
-        ORDER BY r.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+        ORDER BY r.created_at DESC LIMIT ${actualPageSize} OFFSET ${offset}
       `;
       const [result] = await connection.query(dataQuery, queryParams);
 
@@ -330,8 +332,17 @@ const createReceipt = async (req, res) => {
       only_inspection_material = false, // 标记是否只包含检验物料，不获取订单中其他物料
     } = req.body;
 
-    // 兼容两种命名方式
-    const isFromInspection = from_inspection || fromInspection || false;
+    const inspectionId = req.body.inspectionId || req.body.inspection_id || null;
+    let inspectionContext = null;
+
+    // 兼容两种命名方式；只要带 inspection_id，就按质检来源处理，避免前端漏传标记时绕过去重与校验
+    const isFromInspection = Boolean(from_inspection || fromInspection || inspectionId);
+    const createValidationError = (message) => {
+      const error = new Error(message);
+      error.statusCode = 400;
+      error.code = 'VALIDATION_ERROR';
+      return error;
+    };
 
     // 强制转换items为数组
     let items = Array.isArray(rawItems) ? rawItems : [];
@@ -344,6 +355,7 @@ const createReceipt = async (req, res) => {
       receiver,
       remarks,
       isFromInspection,
+      inspectionId,
       material_id,
       only_inspection_material,
       items类型: typeof items,
@@ -387,10 +399,53 @@ const createReceipt = async (req, res) => {
       // ========== 防重复建单（基于实际业务关系，非订单级暴力阻击） ==========
       // 业务事实：一个采购订单允许多次到货、多次检验、多次收货（分批收货）
       // 防重复的维度应该是：同一张检验单不能重复建单 / 手动建单防连击
-      const inspectionId = req.body.inspectionId || req.body.inspection_id || null;
+      if (inspectionId) {
+        const [inspectionRows] = await client.query(
+          `SELECT id, inspection_no, inspection_type, reference_id,
+                  COALESCE(material_id, product_id) AS material_id,
+                  status, qualified_quantity, batch_no
+           FROM quality_inspections
+           WHERE id = ? AND deleted_at IS NULL
+           FOR UPDATE`,
+          [inspectionId]
+        );
 
-      if (isFromInspection && inspectionId) {
-        // 场景A：来自检验单的自动建单 → 基于 inspection_id 精确去重
+        if (!inspectionRows || inspectionRows.length === 0) {
+          await client.rollback();
+          return ResponseHandler.notFound(res, '来料检验单不存在');
+        }
+
+        inspectionContext = inspectionRows[0];
+        const inspectionOrderId = Number(inspectionContext.reference_id);
+        const cleanOrderId = Number(orderId);
+        const qualifiedQuantity = parseFloat(inspectionContext.qualified_quantity) || 0;
+
+        if (inspectionContext.inspection_type !== 'incoming') {
+          await client.rollback();
+          return ResponseHandler.error(res, '只能引用来料检验单创建采购入库单', 'VALIDATION_ERROR', 400);
+        }
+
+        if (inspectionOrderId !== cleanOrderId) {
+          await client.rollback();
+          return ResponseHandler.error(res, '来料检验单与采购订单不匹配，不能创建入库单', 'VALIDATION_ERROR', 400);
+        }
+
+        if (!['passed', 'partial', 'completed'].includes(inspectionContext.status)) {
+          await client.rollback();
+          return ResponseHandler.error(
+            res,
+            `来料检验单状态为 ${inspectionContext.status}，只有合格、部分合格或已完成才能创建入库单`,
+            'VALIDATION_ERROR',
+            400
+          );
+        }
+
+        if (qualifiedQuantity <= 0) {
+          await client.rollback();
+          return ResponseHandler.error(res, '来料检验单合格数量必须大于0，不能创建入库单', 'VALIDATION_ERROR', 400);
+        }
+
+        // 场景A：来自检验单的自动/手动建单 → 基于 inspection_id 精确去重
         const dupQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE inspection_id = ? AND status != 'cancelled' LIMIT 1`;
         const [dupReceipts] = await client.query(dupQuery, [inspectionId]);
         if (dupReceipts.length > 0) {
@@ -473,7 +528,7 @@ const createReceipt = async (req, res) => {
 
     let receiptNo;
     try {
-      receiptNo = await purchaseModel.generateReceiptNo();
+      receiptNo = await purchaseModel.generateReceiptNo(client);
     } catch (genError) {
       logger.error('生成入库单号失败:', genError);
       await client.rollback();
@@ -514,7 +569,7 @@ const createReceipt = async (req, res) => {
       remarks || '', // 使用空字符串替代undefined
       'draft',
       isFromInspection ? 1 : 0, // 转换布尔值为0/1
-      req.body.inspectionId || req.body.inspection_id || null, // 关联的检验单ID
+      inspectionId, // 关联的检验单ID
     ];
 
     // 检查任何参数是否为undefined
@@ -546,12 +601,10 @@ const createReceipt = async (req, res) => {
 
     // 获取检验单批次号（如果来自检验单）
     const inspectionBatchMap = new Map(); // 物料ID -> 批次号的映射
-    const inspectionId = req.body.inspectionId || req.body.inspection_id;
-
     if (isFromInspection && inspectionId) {
       try {
         const inspectionQuery = `
-          SELECT material_id, batch_no
+          SELECT COALESCE(material_id, product_id) AS material_id, batch_no
           FROM quality_inspections
           WHERE id = ? AND batch_no IS NOT NULL
         `;
@@ -560,7 +613,7 @@ const createReceipt = async (req, res) => {
         if (inspections && inspections.length > 0) {
           inspections.forEach((insp) => {
             if (insp.material_id && insp.batch_no) {
-              inspectionBatchMap.set(insp.material_id, insp.batch_no);
+              inspectionBatchMap.set(Number(insp.material_id), insp.batch_no);
             }
           });
           logger.info(
@@ -571,7 +624,7 @@ const createReceipt = async (req, res) => {
         }
       } catch (inspectionError) {
         logger.error('获取检验单批次号失败:', inspectionError);
-        // 不中断流程
+        throw inspectionError;
       }
     } else {
       logger.info(
@@ -580,9 +633,12 @@ const createReceipt = async (req, res) => {
     }
 
     // 创建采购入库物料项目
+    let receiptTotalAmount = 0;
+    let receiptTaxAmount = 0;
+
     if (items && Array.isArray(items) && items.length > 0) {
       // 如果来自检验且只使用检验物料，则过滤物料列表，只保留检验物料
-      if (from_inspection && only_inspection_material && material_id) {
+      if (isFromInspection && only_inspection_material && material_id) {
         const filteredItems = items.filter((item) => {
           const itemMatId = item.materialId || item.material_id;
           return String(itemMatId) === String(material_id);
@@ -597,38 +653,96 @@ const createReceipt = async (req, res) => {
       const insertItemsQuery = `
         INSERT INTO purchase_receipt_items
         (receipt_id, material_id, material_code, material_name,
-         specification, unit_id, ordered_quantity, quantity, received_quantity, qualified_quantity, batch_number, price, remarks, from_inspection)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         specification, unit_id, ordered_quantity, quantity, received_quantity, qualified_quantity,
+         batch_number, price, tax_rate, amount_excluding_tax, tax_amount, total_amount, remarks, from_inspection)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
+      const receiptMaterialIds = [...new Set(
+        items
+          .map((item) => Number(item?.materialId || item?.material_id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      )];
+      const materialInfoMap = new Map();
+      const orderContextMap = new Map();
+
+      if (receiptMaterialIds.length > 0) {
+        const materialPlaceholders = receiptMaterialIds.map(() => '?').join(',');
+        const [materials] = await client.query(
+          `SELECT id, code, name FROM materials WHERE id IN (${materialPlaceholders})`,
+          receiptMaterialIds
+        );
+        materials.forEach((material) => {
+          materialInfoMap.set(Number(material.id), material);
+        });
+
+        if (orderId) {
+          const [orderPrices] = await client.query(
+            `SELECT material_id, price, tax_rate
+             FROM purchase_order_items
+             WHERE order_id = ? AND material_id IN (${materialPlaceholders}) AND price > 0
+             ORDER BY id DESC`,
+            [orderId, ...receiptMaterialIds]
+          );
+          orderPrices.forEach((row) => {
+            const key = Number(row.material_id);
+            if (!orderContextMap.has(key)) {
+              orderContextMap.set(key, {
+                price: parseFloat(row.price) || 0,
+                taxRate: normalizeTaxRate(row.tax_rate, 0.13),
+              });
+            }
+          });
+        }
+      }
+
+      const resolvedReceiptPrices = await PurchasePriceService.resolvePurchasePrices(
+        client,
+        items.map((item) => ({
+          materialId: item?.materialId || item?.material_id,
+          materialCode: item?.materialCode || item?.material_code,
+          supplierId,
+        }))
+      );
+
+      let insertedItemCount = 0;
       for (let i = 0; i < items.length; i++) {
         try {
           const item = items[i];
 
           // 检查item是否是一个有效的对象
           if (!item || typeof item !== 'object') {
-            continue;
+            throw new Error(`第${i + 1}个物料项无效`);
           }
 
           // 如果缺少物料编码，从数据库获取
           let materialCode = item.materialCode || item.material_code || '';
           let materialName = item.materialName || item.material_name || '';
-          const currentMaterialId = item.materialId || item.material_id || null;
+          const currentMaterialId = Number(item.materialId || item.material_id) || null;
 
           if ((!materialCode || !materialName) && currentMaterialId) {
-            try {
-              const [materials] = await client.query(
-                'SELECT code, name FROM materials WHERE id = ?',
-                [currentMaterialId]
-              );
-
-              if (materials && materials.length > 0) {
-                materialCode = materialCode || materials[0].code || '';
-                materialName = materialName || materials[0].name || '';
-              }
-            } catch (materialError) {
-              logger.error('获取物料信息失败:', materialError);
+            const materialInfo = materialInfoMap.get(currentMaterialId);
+            if (materialInfo) {
+              materialCode = materialCode || materialInfo.code || '';
+              materialName = materialName || materialInfo.name || '';
             }
+          }
+
+          if (!currentMaterialId) {
+            throw new Error(`第${i + 1}个物料项缺少物料ID`);
+          }
+
+          if (
+            inspectionContext &&
+            String(currentMaterialId) !== String(inspectionContext.material_id)
+          ) {
+            throw createValidationError(
+              `第${i + 1}个物料项不属于所引用的来料检验单，不能混入其他物料`
+            );
+          }
+
+          if (!materialCode || !materialName) {
+            throw new Error(`第${i + 1}个物料项基础资料不完整`);
           }
 
           // 获取批次号：优先使用检验单的批次号，其次使用传入的批次号
@@ -645,47 +759,64 @@ const createReceipt = async (req, res) => {
             logger.info(`物料 ${materialCode} 使用传入批次号: ${batchNumber}`);
           }
           // 3. 如果都没有，记录警告但不自动生成
-          else {
+          else if (isFromInspection) {
+            throw createValidationError(
+              `来自质检单的物料 ${materialCode} 缺少批次号，不能创建入库单`
+            );
+          } else {
             logger.warn(`物料 ${materialCode} 没有批次号，将不记录批次信息`);
           }
 
-          // 获取价格：优先使用传入的价格，其次从采购订单获取，最后从物料主数据获取
-          let itemPrice = parseFloat(item.price) || 0;
+          // 获取价格：优先使用传入价格，其次从本采购订单获取，最后走统一采购取价服务
+          let itemPrice = parseFloat(item.price ?? item.unit_price) || 0;
           if (itemPrice <= 0 && currentMaterialId) {
-            try {
-              // 尝试从采购订单明细获取价格
-              if (orderId) {
-                const [orderPriceData] = await client.query(
-                  'SELECT price FROM purchase_order_items WHERE order_id = ? AND material_id = ? LIMIT 1',
-                  [orderId, currentMaterialId]
-                );
-                if (orderPriceData && orderPriceData.length > 0 && orderPriceData[0].price > 0) {
-                  itemPrice = parseFloat(orderPriceData[0].price);
-                  logger.info(`物料 ${materialCode} 从采购订单获取价格: ${itemPrice}`);
-                }
-              }
-              // 如果采购订单也没有价格，尝试从物料主数据获取
-              if (itemPrice <= 0) {
-                const [materialPriceData] = await client.query(
-                  'SELECT cost_price, price FROM materials WHERE id = ? LIMIT 1',
-                  [currentMaterialId]
-                );
-                if (materialPriceData && materialPriceData.length > 0) {
-                  itemPrice =
-                    parseFloat(materialPriceData[0].cost_price) ||
-                    parseFloat(materialPriceData[0].price) ||
-                    0;
-                  if (itemPrice > 0) {
-                    logger.info(`物料 ${materialCode} 从物料主数据获取价格: ${itemPrice}`);
-                  }
-                }
-              }
-            } catch (priceError) {
-              logger.warn(`获取物料 ${materialCode} 价格失败:`, priceError);
+            itemPrice = orderContextMap.get(currentMaterialId)?.price || 0;
+            if (itemPrice > 0) {
+              logger.info(`物料 ${materialCode} 从采购订单获取价格: ${itemPrice}`);
+            }
+          }
+          if (itemPrice <= 0 && currentMaterialId) {
+            const priceInfo = resolvedReceiptPrices[i] || {};
+            itemPrice = parseFloat(priceInfo.price) || 0;
+            if (itemPrice > 0) {
+              logger.info(`物料 ${materialCode} 从统一采购取价服务获取价格: ${itemPrice}`);
+            }
+          }
+
+          const receiptQuantity = parseFloat(
+            item.quantity || item.receivedQuantity || item.received_quantity
+          ) || 0;
+          if (receiptQuantity <= 0) {
+            throw new Error(`物料 ${materialCode} 入库数量必须大于0`);
+          }
+
+          const qualifiedQuantity = parseFloat(
+            item.qualifiedQuantity || item.qualified_quantity
+          ) || 0;
+          if (inspectionContext) {
+            const inspectionQualifiedQuantity =
+              parseFloat(inspectionContext.qualified_quantity) || 0;
+            if (qualifiedQuantity <= 0) {
+              throw createValidationError(`物料 ${materialCode} 合格数量必须大于0`);
+            }
+            if (qualifiedQuantity > inspectionQualifiedQuantity + 0.0001) {
+              throw createValidationError(
+                `物料 ${materialCode} 合格入库数量超过检验合格数量: 检验合格=${inspectionQualifiedQuantity}, 本次=${qualifiedQuantity}`
+              );
             }
           }
 
           // 确保所有参数都不是undefined
+          const taxRate = normalizeTaxRate(
+            item.tax_rate ?? item.taxRate ?? orderContextMap.get(currentMaterialId)?.taxRate,
+            0.13
+          );
+          const amountExcludingTax = lineAmount(receiptQuantity, itemPrice);
+          const itemTaxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
+          const itemTotalAmount = roundMoney(amountExcludingTax + itemTaxAmount);
+          receiptTaxAmount = roundMoney(receiptTaxAmount + itemTaxAmount);
+          receiptTotalAmount = roundMoney(receiptTotalAmount + itemTotalAmount);
+
           const itemParams = [
             receiptId,
             currentMaterialId,
@@ -694,13 +825,17 @@ const createReceipt = async (req, res) => {
             item.specification || item.specs || '',
             item.unitId || item.unit_id || null,
             parseFloat(item.orderedQuantity || item.ordered_quantity) || 0,
-            parseFloat(item.quantity || item.receivedQuantity || item.received_quantity) || 0, // 使用receivedQuantity作为quantity
+            receiptQuantity, // 使用receivedQuantity作为quantity
             parseFloat(item.receivedQuantity || item.received_quantity) || 0,
-            parseFloat(item.qualifiedQuantity || item.qualified_quantity) || 0,
+            qualifiedQuantity,
             batchNumber,
             itemPrice,
+            taxRate,
+            amountExcludingTax,
+            itemTaxAmount,
+            itemTotalAmount,
             item.remarks || item.remark || '',
-            item.from_inspection === true || from_inspection === true ? 1 : 0, // 标记是否来自检验
+            item.from_inspection === true || isFromInspection ? 1 : 0, // 标记是否来自检验
           ];
 
           // 检查任何参数是否为undefined
@@ -711,22 +846,33 @@ const createReceipt = async (req, res) => {
                 .map((param, index) => (param === undefined ? index : null))
                 .filter((i) => i !== null)
             );
-            continue; // 跳过这个物料项
+            throw new Error(`第${i + 1}个物料项参数不完整`);
           }
 
           // 使用正确的查询方式，不解构结果
           await client.query(insertItemsQuery, itemParams);
+          insertedItemCount += 1;
         } catch (itemError) {
           logger.error(`插入第${i + 1}个物料项失败:`, itemError);
-          // 继续处理下一个物料项，不中断流程
+          throw itemError;
         }
       }
+
+      if (insertedItemCount === 0) {
+        throw new Error('入库单必须包含至少一条有效明细');
+      }
+    } else {
+      throw new Error('入库单必须包含至少一条有效明细');
     }
 
-    // 提交事务
-    await client.commit();
-
     // 获取完整的入库单数据
+    await client.query(
+      `UPDATE purchase_receipts
+       SET total_amount = ?, total_tax_amount = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [receiptTotalAmount, receiptTaxAmount, receiptId]
+    );
+
     const getReceiptQuery = `
       SELECT r.*, ri.*, m.code as material_code, m.name as material_name
       FROM purchase_receipts r
@@ -744,6 +890,9 @@ const createReceipt = async (req, res) => {
 
     // 生成追溯链路记录
     // 追溯链路创建已移除
+
+    // 提交事务
+    await client.commit();
 
     ResponseHandler.success(
       res,
@@ -773,7 +922,10 @@ const createReceipt = async (req, res) => {
     logger.error('错误类型:', error.constructor.name);
     logger.error('错误消息:', error.message);
     logger.error('错误栈:', error.stack);
-    ResponseHandler.error(res, '创建采购入库单失败', 'SERVER_ERROR', 500, error);
+    const statusCode = error.statusCode || 500;
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+    const message = statusCode === 400 ? error.message : '创建采购入库单失败';
+    ResponseHandler.error(res, message, errorCode, statusCode, error);
   } finally {
     if (client) {
       try {
@@ -892,18 +1044,36 @@ const updateReceipt = async (req, res) => {
         const qualifiedQty = item.qualifiedQuantity || item.qualified_quantity;
 
         if (!item.id || receivedQty === undefined || receivedQty === null) {
-          continue;
+          throw new Error('采购入库单明细缺少ID或收货数量');
         }
 
         const updateItemQuery = `
           UPDATE purchase_receipt_items
-          SET received_quantity = ?, qualified_quantity = ?, updated_at = CURRENT_TIMESTAMP
+          SET received_quantity = ?,
+              qualified_quantity = ?,
+              amount_excluding_tax = ROUND(? * COALESCE(price, 0), 2),
+              tax_amount = ROUND(
+                ROUND(? * COALESCE(price, 0), 2) *
+                (CASE WHEN COALESCE(tax_rate, 0) > 1 THEN COALESCE(tax_rate, 0) / 100 ELSE COALESCE(tax_rate, 0) END),
+                2
+              ),
+              total_amount = ROUND(? * COALESCE(price, 0), 2) + ROUND(
+                ROUND(? * COALESCE(price, 0), 2) *
+                (CASE WHEN COALESCE(tax_rate, 0) > 1 THEN COALESCE(tax_rate, 0) / 100 ELSE COALESCE(tax_rate, 0) END),
+                2
+              ),
+              updated_at = CURRENT_TIMESTAMP
           WHERE receipt_id = ? AND id = ?
         `;
 
+        const numericReceivedQty = parseFloat(receivedQty) || 0;
         const itemParams = [
-          parseFloat(receivedQty) || 0,
+          numericReceivedQty,
           parseFloat(qualifiedQty) || 0,
+          numericReceivedQty,
+          numericReceivedQty,
+          numericReceivedQty,
+          numericReceivedQty,
           id,
           item.id,
         ];
@@ -916,11 +1086,28 @@ const updateReceipt = async (req, res) => {
               .map((param, index) => (param === undefined ? index : null))
               .filter((i) => i !== null)
           );
-          continue; // 跳过这个物料项
+          throw new Error('采购入库单明细参数不完整');
         }
 
         await client.query(updateItemQuery, itemParams);
       }
+
+      await client.query(
+        `UPDATE purchase_receipts pr
+         JOIN (
+           SELECT receipt_id,
+                  ROUND(SUM(COALESCE(total_amount, 0)), 2) AS total_amount,
+                  ROUND(SUM(COALESCE(tax_amount, 0)), 2) AS total_tax_amount
+           FROM purchase_receipt_items
+           WHERE receipt_id = ?
+           GROUP BY receipt_id
+         ) x ON x.receipt_id = pr.id
+         SET pr.total_amount = x.total_amount,
+             pr.total_tax_amount = x.total_tax_amount,
+             pr.updated_at = CURRENT_TIMESTAMP
+         WHERE pr.id = ?`,
+        [id, id]
+      );
     }
 
     // 使用普通查询提交事务
@@ -966,8 +1153,10 @@ const updateReceiptStatus = async (req, res) => {
     }
 
     // 检查入库单是否存在
+    let currentStatus = null;
+
     try {
-      const checkQuery = 'SELECT status FROM purchase_receipts WHERE id = ?';
+      const checkQuery = 'SELECT status FROM purchase_receipts WHERE id = ? FOR UPDATE';
       const [checkRows] = await client.query(checkQuery, [id]);
 
       if (!checkRows || checkRows.length === 0) {
@@ -975,7 +1164,7 @@ const updateReceiptStatus = async (req, res) => {
         return ResponseHandler.notFound(res, '采购入库单不存在');
       }
 
-      const currentStatus = checkRows[0].status;
+      currentStatus = checkRows[0].status;
 
       // 验证状态变更是否有效
       if (!isValidStatusTransition(currentStatus, status)) {
@@ -1020,6 +1209,33 @@ const updateReceiptStatus = async (req, res) => {
     // 以避免双重扣减和数据库死锁
 
     // 如果状态更新为completed，调用批次管理和追溯链路服务
+    if (
+      currentStatus === STATUS.PURCHASE_RECEIPT.DRAFT &&
+      [STATUS.PURCHASE_RECEIPT.CONFIRMED, STATUS.PURCHASE_RECEIPT.COMPLETED].includes(status)
+    ) {
+      const [receivedItems] = await client.query(
+        `SELECT r.order_id,
+                ri.material_id,
+                COALESCE(NULLIF(ri.received_quantity, 0), ri.quantity, ri.qualified_quantity, 0) AS received_qty
+         FROM purchase_receipts r
+         JOIN purchase_receipt_items ri ON r.id = ri.receipt_id
+         WHERE r.id = ?`,
+        [id]
+      );
+
+      for (const item of receivedItems) {
+        const receivedQty = parseFloat(item.received_qty) || 0;
+        if (item.order_id && item.material_id && receivedQty > 0) {
+          await PurchaseOrderStatusService.updateOrderItemReceivedQuantity(
+            item.order_id,
+            item.material_id,
+            receivedQty,
+            client
+          );
+        }
+      }
+    }
+
     if (status === STATUS.PURCHASE_RECEIPT.COMPLETED) {
       try {
         // 引入服务
@@ -1160,15 +1376,17 @@ const updateReceiptStatus = async (req, res) => {
             } catch (orderError) {
               logger.error('更新采购订单状态失败:', orderError);
               logger.error('错误堆栈:', orderError.stack);
-              // 不因为订单更新失败而影响收货单完成
+              throw orderError;
             }
           } else {
-            logger.warn('入库单没有关联采购订单ID，跳过更新采购订单');
+            throw new Error('采购入库单没有关联采购订单ID，不能完成入库');
           }
+        } else {
+          throw new Error(`采购入库单 ${id} 没有明细，不能完成入库`);
         }
       } catch (traceError) {
         logger.error('更新追溯链路失败:', traceError);
-        // 不因为追溯失败而影响收货单的完成
+        throw traceError;
       }
 
       // (原 sales_orders 自动推进逻辑已迁移至 InventoryService.updateStock 统一收口)
@@ -1289,7 +1507,7 @@ function isValidStatusTransition(currentStatus, newStatus) {
   const validTransitions = {
     draft: ['confirmed', 'completed', 'cancelled'], // 允许草稿直接跳转到完成状态
     confirmed: ['completed', 'cancelled'],
-    completed: ['cancelled'],
+    completed: [],
     cancelled: [],
   };
 
@@ -1392,7 +1610,7 @@ const getMaterialPurchaseHistory = async (req, res) => {
 
     // 确保分页参数是有效的数字
     const actualPage = Math.max(1, parseInt(page, 10) || 1);
-    const actualPageSize = Math.max(1, Math.min(10000, parseInt(pageSize, 10) || 10));
+    const actualPageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
     const offset = (actualPage - 1) * actualPageSize;
 
     const client = await db.getClient();
@@ -1474,7 +1692,7 @@ const getMaterialPurchaseHistory = async (req, res) => {
         LEFT JOIN suppliers s ON pr.supplier_id = s.id
         ${whereClause}
         ORDER BY pr.receipt_date DESC, pr.created_at DESC
-        LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+        LIMIT ${actualPageSize} OFFSET ${offset}
       `;
 
       const dataParams = queryParams;
@@ -1526,7 +1744,7 @@ const getPurchaseHistoryItems = async (req, res) => {
     const { page = 1, pageSize = 20, materialCode, materialName, supplierId, startDate, endDate } = req.query;
 
     const actualPage = Math.max(1, parseInt(page, 10) || 1);
-    const actualPageSize = Math.max(1, Math.min(1000, parseInt(pageSize, 10) || 20));
+    const actualPageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 20));
     const offset = (actualPage - 1) * actualPageSize;
 
     const client = await db.getClient();
@@ -1608,7 +1826,7 @@ const getPurchaseHistoryItems = async (req, res) => {
         LEFT JOIN suppliers s ON pr.supplier_id = s.id
         ${whereClause}
         ORDER BY pr.receipt_date DESC, pr.id DESC
-        LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+        LIMIT ${actualPageSize} OFFSET ${offset}
       `;
 
       const dataResult = await client.query(dataQuery, queryParams);

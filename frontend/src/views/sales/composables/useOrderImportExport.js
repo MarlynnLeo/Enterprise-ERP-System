@@ -10,9 +10,7 @@ import dayjs from 'dayjs'
 export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilter, operatorFilter, dateRange) {
   // 导入对话框控制
   const importDialogVisible = ref(false)
-  const importMethod = ref('template')
   const uploadRef = ref(null)
-  const importJsonData = ref('')
   const importing = ref(false)
   const importResult = ref(null)
 
@@ -22,8 +20,6 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
   // 导入操作
   const handleImport = () => {
     importDialogVisible.value = true
-    importMethod.value = 'template'
-    importJsonData.value = ''
     importResult.value = null
     if (uploadRef.value) uploadRef.value.clearFiles()
   }
@@ -83,11 +79,7 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
 
   // 提交导入
   const submitImport = async () => {
-    if (importMethod.value === 'template') {
-      if (!importFile) { ElMessage.error('请先选择要导入的文件'); return }
-    } else {
-      ElMessage.error('暂不支持JSON格式直导'); return
-    }
+    if (!importFile) { ElMessage.error('请先选择要导入的文件'); return }
     importing.value = true
     importResult.value = null
     try {
@@ -144,7 +136,7 @@ export function useOrderImportExport(fetchDataCallback, searchQuery, statusFilte
   }
 
   return {
-    importDialogVisible, importMethod, uploadRef, importJsonData,
+    importDialogVisible, uploadRef,
     importing, importResult,
     handleImport, closeImportDialog, downloadTemplate,
     handleFileChange, submitImport, handleExport

@@ -1,7 +1,14 @@
 ﻿<template>
   <div class="tax-returns-container">
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
         <el-form-item label="申报类型">
           <el-select v-model="searchForm.return_type" placeholder="请选择" clearable>
             <el-option label="增值税" value="增值税" />
@@ -9,7 +16,8 @@
             <el-option label="个人所得税" value="个人所得税" />
           </el-select>
         </el-form-item>
-
+      </template>
+      <template #advanced>
         <el-form-item label="申报状态">
           <el-select v-model="searchForm.status" placeholder="请选择" clearable>
             <el-option label="草稿" value="草稿" />
@@ -28,16 +36,16 @@
 
           />
         </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :icon="Search">查询</el-button>
-          <el-button @click="handleReset" :icon="Refresh">重置</el-button>
-          <el-button v-permission="'finance:tax:create'" type="success" @click="handleCreate" :icon="Plus">新增申报</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <el-card class="table-card">
+      <template #header>
+        <div class="card-header">
+          <span>纳税申报列表</span>
+          <el-button v-permission="'finance:tax:create'" type="primary" @click="handleCreate" :icon="Plus">新增申报</el-button>
+        </div>
+      </template>
       <el-table
         :data="tableData"
         v-loading="loading"
@@ -46,9 +54,9 @@
         style="width: 100%"
         :height="tableHeight"
       >
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="return_period" label="申报期间" width="120" align="center" />
-        <el-table-column prop="return_type" label="申报类型" width="120" align="center">
+        <el-table-column type="index" label="序号" width="60" />
+        <el-table-column prop="return_period" label="申报期间" width="120" />
+        <el-table-column prop="return_type" label="申报类型" width="120">
           <template #default="{ row }">
             <el-tag :type="getReturnTypeColor(row.return_type)">
               {{ row.return_type }}
@@ -57,41 +65,36 @@
         </el-table-column>
 
         <!-- 增值税相关列 -->
-        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type"
-          prop="sales_amount" label="销售额" width="120" align="right">
+        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type" prop="sales_amount" label="销售额" width="120">
           <template #default="{ row }">
             {{ row.return_type === '增值税' ? formatAmount(row.sales_amount) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type"
-          prop="sales_output_tax" label="销项税额" width="120" align="right">
+        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type" prop="sales_output_tax" label="销项税额" width="120">
           <template #default="{ row }">
             {{ row.return_type === '增值税' ? formatAmount(row.sales_output_tax) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type"
-          prop="purchase_input_tax" label="进项税额" width="120" align="right">
+        <el-table-column v-if="searchForm.return_type === '增值税' || !searchForm.return_type" prop="purchase_input_tax" label="进项税额" width="120">
           <template #default="{ row }">
             {{ row.return_type === '增值税' ? formatAmount(row.purchase_input_tax) : '-' }}
           </template>
         </el-table-column>
 
         <!-- 企业所得税相关列 -->
-        <el-table-column v-if="searchForm.return_type === '企业所得税' || !searchForm.return_type"
-          prop="total_revenue" label="营业收入" width="120" align="right">
+        <el-table-column v-if="searchForm.return_type === '企业所得税' || !searchForm.return_type" prop="total_revenue" label="营业收入" width="120">
           <template #default="{ row }">
             {{ row.return_type === '企业所得税' ? formatAmount(row.total_revenue) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column v-if="searchForm.return_type === '企业所得税' || !searchForm.return_type"
-          prop="taxable_income" label="应纳税所得额" width="140" align="right">
+        <el-table-column v-if="searchForm.return_type === '企业所得税' || !searchForm.return_type" prop="taxable_income" label="应纳税所得额" width="140">
           <template #default="{ row }">
             {{ row.return_type === '企业所得税' ? formatAmount(row.taxable_income) : '-' }}
           </template>
         </el-table-column>
 
         <!-- 通用列 -->
-        <el-table-column prop="tax_payable" label="应纳税额" width="120" align="right">
+        <el-table-column prop="tax_payable" label="应纳税额" width="120">
           <template #default="{ row }">
             <span style="color: var(--color-danger); font-weight: bold;">
               {{ formatAmount(row.return_type === '增值税' ? row.tax_payable : row.income_tax_payable) }}
@@ -99,7 +102,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
               {{ row.status }}
@@ -107,11 +110,11 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="declaration_date" label="申报日期" width="120" align="center" />
-        <el-table-column prop="payment_date" label="缴纳日期" width="120" align="center" />
-        <el-table-column prop="creator_name" label="创建人" width="100" align="center" />
+        <el-table-column prop="declaration_date" label="申报日期" width="120" />
+        <el-table-column prop="payment_date" label="缴纳日期" width="120" />
+        <el-table-column prop="creator_name" label="创建人" width="100" />
 
-        <el-table-column label="操作" width="280" align="center" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleView(row)" :icon="View">查看</el-button>
 
@@ -284,14 +287,14 @@
         <el-form-item label="缴纳金额">
           <strong>{{ formatAmount(payAmount) }}</strong>
         </el-form-item>
-        <el-form-item v-if="payAmount > 0" label="付款账户" required>
+        <el-form-item v-if="payAmount !== null && payAmount > 0" label="付款账户" required>
           <el-select v-model="payForm.bank_account_id" placeholder="请选择银行账户" filterable style="width: 100%">
             <el-option
               v-for="account in bankAccounts"
               :key="account.id"
               :label="`${account.account_name}（余额 ${formatAmount(account.current_balance)}）`"
               :value="account.id"
-              :disabled="Number(account.current_balance || 0) < Number(payAmount || 0)"
+              :disabled="numericAmount(account.current_balance) === null || numericAmount(payAmount) === null || numericAmount(account.current_balance) < numericAmount(payAmount)"
             />
           </el-select>
         </el-form-item>
@@ -341,7 +344,7 @@
           <el-descriptions-item label="营业成本">{{ formatAmount(viewData.total_cost) }}</el-descriptions-item>
           <el-descriptions-item label="期间费用">{{ formatAmount(viewData.total_expense) }}</el-descriptions-item>
           <el-descriptions-item label="应纳税所得额">{{ formatAmount(viewData.taxable_income) }}</el-descriptions-item>
-          <el-descriptions-item label="税率">{{ viewData.income_tax_rate }}%</el-descriptions-item>
+          <el-descriptions-item label="税率">{{ formatTaxRate(viewData.income_tax_rate) }}</el-descriptions-item>
           <el-descriptions-item label="应纳所得税额">
             <span style="color: var(--color-danger); font-weight: bold;">{{ formatAmount(viewData.income_tax_payable) }}</span>
           </el-descriptions-item>
@@ -366,8 +369,8 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { formatAmount } from '@/utils/format'
-import { Search, Refresh, Plus, View, Check, Money, Delete } from '@element-plus/icons-vue';
+import { formatAmount, formatLocalDate } from '@/utils/format'
+import { Plus, View, Check, Money, Delete } from '@element-plus/icons-vue';
 import { api } from '@/services/axiosInstance';
 
 // 搜索表单
@@ -378,6 +381,7 @@ const searchForm = reactive({
 });
 
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 const createLoading = ref(false);
 const tableData = ref([]);
 
@@ -430,18 +434,28 @@ const payForm = reactive({
   payment_date: ''
 });
 const payAmount = computed(() => {
-  if (!currentPayRow.value) return 0;
-  return Number(
+  if (!currentPayRow.value) return null;
+  return numericAmount(
     currentPayRow.value.return_type === '增值税'
       ? currentPayRow.value.tax_payable
       : currentPayRow.value.income_tax_payable
-  ) || 0;
+  );
 });
 
 // 表格高度
 const tableHeight = computed(() => window.innerHeight - 320);
 
 // 格式化金额 - 已统一使用 @/utils/format 导入
+const isBlankAmount = (value) => value === null || value === undefined || value === '';
+const numericAmount = (value) => {
+  if (isBlankAmount(value)) return null;
+  const number = Number(value);
+  return Number.isNaN(number) ? null : number;
+};
+const formatTaxRate = (value) => {
+  const number = numericAmount(value);
+  return number === null ? '-' : `${number}%`;
+};
 
 // 获取申报类型颜色
 const getReturnTypeColor = (type) => {
@@ -615,7 +629,7 @@ const handleSubmit = async (row) => {
     );
 
     await api.post(`/finance/tax/returns/${row.id}/submit`, {
-      declaration_date: new Date().toISOString().split('T')[0]
+      declaration_date: formatLocalDate(new Date())
     });
 
     ElMessage.success('申报提交成功');
@@ -638,14 +652,22 @@ const loadBankAccounts = async () => {
 const handlePay = async (row) => {
   try {
     currentPayRow.value = row;
-    payForm.payment_date = new Date().toISOString().split('T')[0];
+    payForm.payment_date = formatLocalDate(new Date());
     payForm.bank_account_id = null;
 
     if (bankAccounts.value.length === 0) {
       await loadBankAccounts();
     }
 
-    const availableAccount = bankAccounts.value.find(account => Number(account.current_balance || 0) >= payAmount.value);
+    if (payAmount.value === null) {
+      ElMessage.warning('当前用户无权查看税额，无法执行缴税');
+      return;
+    }
+
+    const availableAccount = bankAccounts.value.find(account => {
+      const balance = numericAmount(account.current_balance);
+      return balance !== null && balance >= payAmount.value;
+    });
     payForm.bank_account_id = availableAccount?.id || null;
     payDialogVisible.value = true;
   } catch (error) {
@@ -656,6 +678,10 @@ const handlePay = async (row) => {
 
 const confirmPay = async () => {
   if (!currentPayRow.value) return;
+  if (payAmount.value === null) {
+    ElMessage.warning('当前用户无权查看税额，无法执行缴税');
+    return;
+  }
   if (payAmount.value > 0 && !payForm.bank_account_id) {
     ElMessage.warning('请选择付款账户');
     return;
@@ -755,4 +781,3 @@ onMounted(() => {
   background: var(--color-bg-base);
 }
 </style>
-

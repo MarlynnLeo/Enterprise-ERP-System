@@ -602,8 +602,17 @@ class DingtalkService {
     const { token } = this.config.callback;
 
     if (!token) {
-      logger.warn('[Dingtalk] 回调Token未配置，跳过签名验证');
+      if (process.env.NODE_ENV === 'production') {
+        logger.error('[Dingtalk] Callback token is not configured; rejecting callback in production');
+        return false;
+      }
+      logger.warn('[Dingtalk] Callback token is not configured; skipping signature verification outside production');
       return true;
+    }
+
+    if (!signature || !timestamp || !nonce || !encrypt) {
+      logger.warn('[Dingtalk] Callback signature parameters are incomplete');
+      return false;
     }
 
     const arr = [token, timestamp, nonce, encrypt].sort();

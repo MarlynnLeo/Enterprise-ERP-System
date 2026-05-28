@@ -8,6 +8,7 @@
 const logger = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 const Locations = {
   // 获取所有仓库列表
@@ -60,9 +61,10 @@ const Locations = {
   getAll: async (queryParams = {}, page = 1, pageSize = 10) => {
     try {
       // 确保页码和分页大小是数字
-      const pageNum = Number(page);
-      const pageSizeNum = Number(pageSize);
-      const offset = (pageNum - 1) * pageSizeNum;
+      const pagination = parsePagination(page, pageSize, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
 
       // 处理查询参数
 
@@ -99,8 +101,7 @@ const Locations = {
       // 构建查询语句
       let query = 'SELECT * FROM locations WHERE ' + conditions.join(' AND ');
       // 使用参数化LIMIT，顺序: LIMIT offset, count
-      query += ' ORDER BY id DESC LIMIT ?, ?';
-      params.push(offset, pageSizeNum);
+      query = appendPaginationSQL(query + ' ORDER BY id DESC', pagination.limit, pagination.offset);
 
       // 执行查询
       const [rows] = await db.pool.query(query, params);
@@ -109,7 +110,7 @@ const Locations = {
       const countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
 
       // 移除分页参数
-      const countParams = params.slice(0, -2);
+      const countParams = params;
 
       // 获取总数
       const [countResult] = await db.pool.query(countQuery, countParams);

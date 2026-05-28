@@ -24,11 +24,11 @@
             <div class="history-content">
               <div class="price-row">
                 <span class="label">原始价格:</span>
-                <span class="value">¥{{ formatNumber(item.original_price) }}</span>
+                <span class="value">{{ formatPrice(item.original_price) }}</span>
               </div>
               <div class="price-row">
                 <span class="label">调整价格:</span>
-                <span class="value adjusted">¥{{ formatNumber(item.adjusted_price) }}</span>
+                <span class="value adjusted">{{ formatPrice(item.adjusted_price) }}</span>
               </div>
               <div class="reason-row">
                 <span class="label">调整原因:</span>
@@ -52,7 +52,6 @@
 
 <script setup>
 import { computed } from 'vue';
-import 'dayjs';
 import { formatDateTime as _formatDateTime } from '@/utils/helpers/dateUtils'
 
 const props = defineProps({
@@ -74,7 +73,15 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 });
 
-const formatNumber = (num) => Number(num || 0).toFixed(2);
+const formatNumber = (num) => {
+  if (num === null || num === undefined || num === '') return '-';
+  const value = Number(num);
+  return Number.isNaN(value) ? '-' : value.toFixed(2);
+};
+const formatPrice = (num) => {
+  const formatted = formatNumber(num);
+  return formatted === '-' ? '-' : `¥${formatted}`;
+};
 const formatDateTime = (date) => _formatDateTime(date, 'YYYY-MM-DD HH:mm');
 </script>
 

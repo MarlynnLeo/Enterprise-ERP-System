@@ -9,6 +9,7 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const financeModel = require('../../models/finance');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
+const { accountingConfig } = require('../../config/accountingConfig');
 
 /**
  * 期末处理服务
@@ -21,6 +22,26 @@ class PeriodEndService {
 
   static isClosed(value) {
     return value === true || value === 1 || value === '1';
+  }
+
+  static async getAccountIdByConfigKey(connection, configKey, accountLabel) {
+    await accountingConfig.loadFromDatabase(db);
+    const accountCode = accountingConfig.getAccountCode(configKey);
+
+    if (!accountCode) {
+      throw new Error(`未配置${accountLabel}科目(${configKey})，无法生成期末结转凭证`);
+    }
+
+    const [accounts] = await connection.execute(
+      'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = 1 LIMIT 1',
+      [accountCode]
+    );
+
+    if (accounts.length === 0) {
+      throw new Error(`未找到${accountLabel}科目(${accountCode})，无法生成期末结转凭证`);
+    }
+
+    return accounts[0].id;
   }
 
   static async findPriorOpenPeriod(connection, periodId, period, lock = false) {
@@ -108,9 +129,15 @@ class PeriodEndService {
         [periodId, DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER]
       );
 
-      const [profitAccounts] = await connection.execute(
-        "SELECT id FROM gl_accounts WHERE account_code = '3103' LIMIT 1"
-      );
+      await accountingConfig.loadFromDatabase(db);
+      const currentYearProfitCode = accountingConfig.getAccountCode('CURRENT_YEAR_PROFIT');
+      let profitAccounts = [];
+      if (currentYearProfitCode) {
+        [profitAccounts] = await connection.execute(
+          'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = 1 LIMIT 1',
+          [currentYearProfitCode]
+        );
+      }
 
       const [closingRows] = await connection.execute(
         `
@@ -229,7 +256,7 @@ class PeriodEndService {
           passed: profitAccounts.length > 0 || Math.abs(netProfit) < 0.01,
           message:
             profitAccounts.length === 0 && Math.abs(netProfit) >= 0.01
-              ? '未配置本年利润科目(3103)'
+              ? `未配置本年利润科目(${currentYearProfitCode || 'CURRENT_YEAR_PROFIT'})`
               : null,
         },
       ];
@@ -276,9 +303,10 @@ class PeriodEndService {
       const { period_id, closed_by, closing_date } = periodData;
 
       // 检查期间状态
-      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ? FOR UPDATE', [
-        period_id,
-      ]);
+      const [periodInfo] = await connection.execute(
+        'SELECT * FROM gl_periods WHERE id = ? FOR UPDATE',
+        [period_id]
+      );
 
       if (periodInfo.length === 0) {
         throw new Error('会计期间不存在');
@@ -426,17 +454,7 @@ class PeriodEndService {
       };
     }
 
-    // 获取本年利润科目
-    const [profitAccount] = await connection.execute(
-      'SELECT id FROM gl_accounts WHERE account_code = ? OR account_name = ?',
-      ['3103', '本年利润']
-    );
-
-    if (profitAccount.length === 0) {
-      throw new Error('找不到本年利润科目，请先创建');
-    }
-
-    const profitAccountId = profitAccount[0].id;
+    const profitAccountId = await this.getCurrentYearProfitAccountId(connection);
 
     // 生成结转分录
     const periodName = period.period_name || `期间${periodId}`;
@@ -586,9 +604,10 @@ class PeriodEndService {
       const { period_id, reopened_by } = periodData;
 
       // 检查期间状态
-      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ? FOR UPDATE', [
-        period_id,
-      ]);
+      const [periodInfo] = await connection.execute(
+        'SELECT * FROM gl_periods WHERE id = ? FOR UPDATE',
+        [period_id]
+      );
 
       if (periodInfo.length === 0) {
         throw new Error('会计期间不存在');
@@ -629,10 +648,7 @@ class PeriodEndService {
         );
 
         // 删除损益结转分录，明细由外键级联删除
-        await connection.query(
-          `DELETE FROM gl_entries WHERE id IN (${placeholders})`,
-          entryIds
-        );
+        await connection.query(`DELETE FROM gl_entries WHERE id IN (${placeholders})`, entryIds);
       }
 
       // 删除期末余额
@@ -815,9 +831,20 @@ class PeriodEndService {
 
       // 3. 检查是否已经执行过年度结转
       const [existingTransfer] = await connection.execute(
-        `SELECT COUNT(*) as count FROM gl_entries
-         WHERE document_type = ? AND YEAR(entry_date) = ?`,
-        [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year]
+        `SELECT
+           (
+             SELECT COUNT(*)
+             FROM gl_entries
+             WHERE document_type = ? AND YEAR(entry_date) = ?
+           ) + (
+             SELECT COUNT(*)
+             FROM operation_logs
+             WHERE module = 'finance'
+               AND operation = 'year_end_transfer'
+               AND JSON_VALID(request_data)
+               AND JSON_UNQUOTE(JSON_EXTRACT(request_data, '$.year')) = ?
+           ) as count`,
+        [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year, String(year)]
       );
 
       if (existingTransfer[0].count > 0) {
@@ -841,7 +868,7 @@ class PeriodEndService {
 
       // 5. 获取最后一个期间ID用于记录分录
       const [lastPeriod] = await connection.execute(
-        'SELECT id FROM gl_periods WHERE fiscal_year = ? ORDER BY end_date DESC LIMIT 1',
+        'SELECT id, end_date FROM gl_periods WHERE fiscal_year = ? ORDER BY end_date DESC LIMIT 1',
         [year]
       );
 
@@ -850,6 +877,14 @@ class PeriodEndService {
       }
 
       const periodId = lastPeriod[0].id;
+      const [laterClosedPeriods] = await connection.execute(
+        'SELECT COUNT(*) as count FROM gl_periods WHERE start_date > ? AND is_closed = true',
+        [lastPeriod[0].end_date]
+      );
+
+      if ((parseInt(laterClosedPeriods[0].count, 10) || 0) > 0) {
+        throw new Error('存在已关闭的后续会计期间，不能再执行上一年度结转');
+      }
 
       // 6. 创建年度结转分录
       const entryNumber = await this.generateYearEndEntryNumber(year);
@@ -864,6 +899,9 @@ class PeriodEndService {
         period_id: periodId,
         description: `${year}年度利润结转`,
         created_by: transferred_by || 'system',
+        status: 'posted',
+        is_posted: 1,
+        allow_closed_period: true,
       };
 
       const entryItems = [];
@@ -903,10 +941,10 @@ class PeriodEndService {
           );
         }
 
-        // 创建并过账分录
-        const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-        // 年度结转凭证在同一事务中立即过账（年度期间关闭状态已在事务开头校验）
-        await connection.execute("UPDATE gl_entries SET is_posted = 1, status = 'posted' WHERE id = ?", [entryId]);
+        await financeModel.createEntry(entryData, entryItems, connection);
+        await this.calculatePeriodEndBalances(connection, periodId, {
+          end_date: lastPeriod[0].end_date,
+        });
       }
 
       // 7. 记录年度结转日志
@@ -962,17 +1000,34 @@ class PeriodEndService {
 
       // 检查是否已执行年度结转
       const [transfers] = await db.pool.execute(
-        `SELECT COUNT(*) as count FROM gl_entries
-         WHERE document_type = ? AND YEAR(entry_date) = ?`,
-        [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year]
+        `SELECT
+           (
+             SELECT COUNT(*)
+             FROM gl_entries
+             WHERE document_type = ? AND YEAR(entry_date) = ?
+           ) + (
+             SELECT COUNT(*)
+             FROM operation_logs
+             WHERE module = 'finance'
+               AND operation = 'year_end_transfer'
+               AND JSON_VALID(request_data)
+               AND JSON_UNQUOTE(JSON_EXTRACT(request_data, '$.year')) = ?
+           ) as count`,
+        [DOCUMENT_TYPE_MAPPING.YEAR_END_TRANSFER, year, String(year)]
       );
 
       const isTransferred = transfers[0].count > 0;
 
       // 获取本年利润余额
-      const [profitAccounts] = await db.pool.execute(
-        "SELECT id FROM gl_accounts WHERE account_code = '3103' LIMIT 1"
-      );
+      await accountingConfig.loadFromDatabase(db);
+      const currentYearProfitCode = accountingConfig.getAccountCode('CURRENT_YEAR_PROFIT');
+      let profitAccounts = [];
+      if (currentYearProfitCode) {
+        [profitAccounts] = await db.pool.execute(
+          'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = 1 LIMIT 1',
+          [currentYearProfitCode]
+        );
+      }
       if (profitAccounts.length === 0) {
         // 科目不存在时直接返回，而不是用错误的兜底 id
         return {
@@ -983,7 +1038,7 @@ class PeriodEndService {
           allPeriodsClosed: closedCount === totalCount && totalCount > 0,
           isTransferred,
           netProfit: 0,
-          warning: '未找到本年利润科目(3103)，无法计算年度利润',
+          warning: `未找到本年利润科目(${currentYearProfitCode || 'CURRENT_YEAR_PROFIT'})，无法计算年度利润`,
         };
       }
       const profitAccountId = profitAccounts[0].id;
@@ -1031,326 +1086,17 @@ class PeriodEndService {
   }
 
   /**
-   * 初始化期末处理相关表
-   * @deprecated 表结构已迁移至 Knex migration 文件管理，此方法保留为空操作以兼容旧调用
-   */
-  static async initializePeriodEndTables() {
-    logger.info('[PeriodEndService] 期末处理表已由 Knex migration 管理，跳过运行时创建');
-  }
-
-  /**
-   * 结转收入类科目
-   */
-  static async closeRevenueAccounts(connection, periodId) {
-    // 获取收入类科目余额（6开头的科目）
-    const [revenueAccounts] = await connection.execute(
-      `
-      SELECT
-        ga.id,
-        ga.account_code,
-        ga.account_name,
-        COALESCE(SUM(gei.credit_amount - gei.debit_amount), 0) as balance
-      FROM gl_accounts ga
-      LEFT JOIN gl_entry_items gei ON ga.id = gei.account_id
-      LEFT JOIN gl_entries ge ON gei.entry_id = ge.id
-      WHERE (ga.account_type = '收入' OR ga.account_code LIKE '6%')
-        AND ga.is_active = true
-        AND (ge.period_id = ? OR ge.period_id IS NULL)
-      GROUP BY ga.id, ga.account_code, ga.account_name
-      HAVING balance != 0
-    `,
-      [periodId]
-    );
-
-    if (revenueAccounts.length === 0) {
-      return;
-    }
-
-    // 生成结转分录
-    const entryNumber = await this.generateEntryNumber('CLOSE');
-    const entryData = {
-      entry_number: entryNumber,
-      entry_date: new Date().toISOString().split('T')[0],
-      posting_date: new Date().toISOString().split('T')[0],
-      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
-      document_number: `CLOSE-${periodId}`,
-      period_id: periodId,
-      description: '期末结转收入类科目',
-      created_by: 'system',
-    };
-
-    const entryItems = [];
-    let totalRevenue = 0;
-
-    // 借记各收入科目（冲销余额）
-    for (const account of revenueAccounts) {
-      if (account.balance > 0) {
-        entryItems.push({
-          account_id: account.id,
-          debit_amount: account.balance,
-          credit_amount: 0,
-          description: `结转${account.account_name}`,
-        });
-        totalRevenue += account.balance;
-      }
-    }
-
-    // 贷记本年利润
-    if (totalRevenue > 0) {
-      const profitAccountId = await this.getCurrentYearProfitAccountId(connection);
-      entryItems.push({
-        account_id: profitAccountId,
-        debit_amount: 0,
-        credit_amount: totalRevenue,
-        description: '结转收入至本年利润',
-      });
-
-      await financeModel.createEntry(entryData, entryItems, connection);
-    }
-  }
-
-  /**
-   * 结转费用类科目
-   */
-  static async closeExpenseAccounts(connection, periodId) {
-    // 获取费用类科目余额（6开头的科目，但排除收入类）
-    const [expenseAccounts] = await connection.execute(
-      `
-      SELECT
-        ga.id,
-        ga.account_code,
-        ga.account_name,
-        COALESCE(SUM(gei.debit_amount - gei.credit_amount), 0) as balance
-      FROM gl_accounts ga
-      LEFT JOIN gl_entry_items gei ON ga.id = gei.account_id
-      LEFT JOIN gl_entries ge ON gei.entry_id = ge.id
-      WHERE (ga.account_type = '费用' OR (ga.account_code LIKE '6%' AND ga.account_type != '收入'))
-        AND ga.is_active = true
-        AND (ge.period_id = ? OR ge.period_id IS NULL)
-      GROUP BY ga.id, ga.account_code, ga.account_name
-      HAVING balance != 0
-    `,
-      [periodId]
-    );
-
-    if (expenseAccounts.length === 0) {
-      return;
-    }
-
-    // 生成结转分录
-    const entryNumber = await this.generateEntryNumber('CLOSE');
-    const entryData = {
-      entry_number: entryNumber,
-      entry_date: new Date().toISOString().split('T')[0],
-      posting_date: new Date().toISOString().split('T')[0],
-      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
-      document_number: `CLOSE-${periodId}`,
-      period_id: periodId,
-      description: '期末结转费用类科目',
-      created_by: 'system',
-    };
-
-    const entryItems = [];
-    let totalExpense = 0;
-
-    // 贷记各费用科目（冲销余额）
-    for (const account of expenseAccounts) {
-      if (account.balance > 0) {
-        entryItems.push({
-          account_id: account.id,
-          debit_amount: 0,
-          credit_amount: account.balance,
-          description: `结转${account.account_name}`,
-        });
-        totalExpense += account.balance;
-      }
-    }
-
-    // 借记本年利润
-    if (totalExpense > 0) {
-      const profitAccountId = await this.getCurrentYearProfitAccountId(connection);
-      entryItems.push({
-        account_id: profitAccountId,
-        debit_amount: totalExpense,
-        credit_amount: 0,
-        description: '结转费用至本年利润',
-      });
-
-      await financeModel.createEntry(entryData, entryItems, connection);
-    }
-  }
-
-  /**
-   * 结转成本类科目
-   */
-  static async closeCostAccounts(connection, periodId) {
-    // 获取成本类科目余额（5开头的科目）
-    const [costAccounts] = await connection.execute(
-      `
-      SELECT
-        ga.id,
-        ga.account_code,
-        ga.account_name,
-        COALESCE(SUM(gei.debit_amount - gei.credit_amount), 0) as balance
-      FROM gl_accounts ga
-      LEFT JOIN gl_entry_items gei ON ga.id = gei.account_id
-      LEFT JOIN gl_entries ge ON gei.entry_id = ge.id
-      WHERE (ga.account_type = '成本' OR ga.account_code LIKE '5%')
-        AND ga.is_active = true
-        AND (ge.period_id = ? OR ge.period_id IS NULL)
-      GROUP BY ga.id, ga.account_code, ga.account_name
-      HAVING balance != 0
-    `,
-      [periodId]
-    );
-
-    if (costAccounts.length === 0) {
-      return;
-    }
-
-    // 生成结转分录
-    const entryNumber = await this.generateEntryNumber('CLOSE');
-    const entryData = {
-      entry_number: entryNumber,
-      entry_date: new Date().toISOString().split('T')[0],
-      posting_date: new Date().toISOString().split('T')[0],
-      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
-      document_number: `CLOSE-${periodId}`,
-      period_id: periodId,
-      description: '期末结转成本类科目',
-      created_by: 'system',
-    };
-
-    const entryItems = [];
-    let totalCost = 0;
-
-    // 贷记各成本科目（冲销余额）
-    for (const account of costAccounts) {
-      if (account.balance > 0) {
-        entryItems.push({
-          account_id: account.id,
-          debit_amount: 0,
-          credit_amount: account.balance,
-          description: `结转${account.account_name}`,
-        });
-        totalCost += account.balance;
-      }
-    }
-
-    // 借记本年利润
-    if (totalCost > 0) {
-      const profitAccountId = await this.getCurrentYearProfitAccountId(connection);
-      entryItems.push({
-        account_id: profitAccountId,
-        debit_amount: totalCost,
-        credit_amount: 0,
-        description: '结转成本至本年利润',
-      });
-
-      await financeModel.createEntry(entryData, entryItems, connection);
-    }
-  }
-
-  /**
-   * 结转本年利润
-   */
-  static async closeNetIncomeAccount(connection, periodId) {
-    // 获取本年利润科目余额
-    const profitAccountId = await this.getCurrentYearProfitAccountId(connection);
-    const [profitBalance] = await connection.execute(
-      `
-      SELECT COALESCE(SUM(gei.credit_amount - gei.debit_amount), 0) as balance
-      FROM gl_entry_items gei
-      LEFT JOIN gl_entries ge ON gei.entry_id = ge.id
-      WHERE gei.account_id = ? AND ge.period_id = ?
-    `,
-      [profitAccountId, periodId]
-    );
-
-    const netIncome = profitBalance[0].balance;
-
-    if (Math.abs(netIncome) < 0.01) {
-      return;
-    }
-
-    // 结转到利润分配-未分配利润
-    const retainedEarningsAccountId = await this.getRetainedEarningsAccountId(connection);
-
-    const entryNumber = await this.generateEntryNumber('CLOSE');
-    const entryData = {
-      entry_number: entryNumber,
-      entry_date: new Date().toISOString().split('T')[0],
-      posting_date: new Date().toISOString().split('T')[0],
-      document_type: DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER,
-      document_number: `CLOSE-${periodId}`,
-      period_id: periodId,
-      description: '结转本年利润',
-      created_by: 'system',
-    };
-
-    const entryItems = [];
-
-    if (netIncome > 0) {
-      // 盈利：借记本年利润，贷记利润分配
-      entryItems.push(
-        {
-          account_id: profitAccountId,
-          debit_amount: netIncome,
-          credit_amount: 0,
-          description: '结转本年利润',
-        },
-        {
-          account_id: retainedEarningsAccountId,
-          debit_amount: 0,
-          credit_amount: netIncome,
-          description: '转入未分配利润',
-        }
-      );
-    } else {
-      // 亏损：借记利润分配，贷记本年利润
-      entryItems.push(
-        {
-          account_id: retainedEarningsAccountId,
-          debit_amount: Math.abs(netIncome),
-          credit_amount: 0,
-          description: '转入未分配利润（亏损）',
-        },
-        {
-          account_id: profitAccountId,
-          debit_amount: 0,
-          credit_amount: Math.abs(netIncome),
-          description: '结转本年利润（亏损）',
-        }
-      );
-    }
-
-    await financeModel.createEntry(entryData, entryItems, connection);
-  }
-
-  /**
    * 获取本年利润科目ID
    */
   static async getCurrentYearProfitAccountId(connection) {
-    const [accounts] = await connection.execute(
-      "SELECT id FROM gl_accounts WHERE account_code = '3103' LIMIT 1" // 本年利润
-    );
-    if (accounts.length === 0) {
-      throw new Error('未配置本年利润科目(3103)，无法生成期末结转凭证');
-    }
-    return accounts[0].id;
+    return this.getAccountIdByConfigKey(connection, 'CURRENT_YEAR_PROFIT', '本年利润');
   }
 
   /**
    * 获取利润分配-未分配利润科目ID
    */
   static async getRetainedEarningsAccountId(connection) {
-    const [accounts] = await connection.execute(
-      "SELECT id FROM gl_accounts WHERE account_code = '3104' LIMIT 1" // 利润分配-未分配利润
-    );
-    if (accounts.length === 0) {
-      throw new Error('未配置利润分配-未分配利润科目(3104)，无法生成期末结转凭证');
-    }
-    return accounts[0].id;
+    return this.getAccountIdByConfigKey(connection, 'RETAINED_EARNINGS', '利润分配-未分配利润');
   }
 
   /**

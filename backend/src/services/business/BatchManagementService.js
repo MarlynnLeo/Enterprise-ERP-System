@@ -42,16 +42,25 @@ class BatchManagementService {
         purchase_order_no,
         receipt_id,
         receipt_no,
+        transaction_type,
+        transactionType,
+        reference_type,
+        referenceType,
+        reference_no,
+        referenceNo,
+        transaction_date,
+        transactionDate,
         created_by,
       } = batchData;
 
       // 写入 inventory_ledger 台账
       // 优先使用业务上下文判断交易类型，避免依赖单号前缀造成 RCV/GR 等编码规则差异断链。
-      const refNo = receipt_no || `BATCH-${batch_number}`;
-      let txType = 'inbound';
-      if (receipt_id || receipt_no || purchase_order_id || purchase_order_no) {
+      const refNo = reference_no || referenceNo || receipt_no || `BATCH-${batch_number}`;
+      const refType = reference_type || referenceType || 'batch_create';
+      let txType = transaction_type || transactionType || 'inbound';
+      if (!transaction_type && !transactionType && (receipt_id || receipt_no || purchase_order_id || purchase_order_no)) {
         txType = 'purchase_inbound';
-      } else if (refNo.startsWith('PR')) {
+      } else if (!transaction_type && !transactionType && refNo.startsWith('PR')) {
         txType = 'production_inbound';
       }
 
@@ -62,7 +71,7 @@ class BatchManagementService {
           quantity: original_quantity,
           transactionType: txType,
           referenceNo: refNo,
-          referenceType: 'batch_create',
+          referenceType: refType,
           operator: created_by || 'system',
           remark: `批次入库: ${batch_number}`,
           unitId: unit ? await this._getUnitId(connection, unit) : null,
@@ -76,7 +85,8 @@ class BatchManagementService {
           purchaseOrderId: purchase_order_id, // ✅ 原生批次追踪属性透传
           purchaseOrderNo: purchase_order_no,
           receiptId: receipt_id,
-          receiptNo: receipt_no
+          receiptNo: receipt_no,
+          transactionDate: transaction_date || transactionDate || receipt_date,
         },
         connection
       );

@@ -1,64 +1,69 @@
 import { defineStore } from 'pinia'
-import request from '@/utils/request'
+import { api } from '@/services/axiosInstance'
+
+const DEFAULT_VAT_RATES = [0, 0.03, 0.06, 0.09, 0.13]
+const DEFAULT_PAYMENT_TERMS = [0, 7, 15, 30, 45, 60, 90]
+const DEFAULT_PAGINATION = { defaultPageSize: 20, pageSizeOptions: [10, 20, 50, 100] }
 
 export const useFinanceStore = defineStore('finance', {
-    state: () => ({
-        vatRateOptions: [0, 0.03, 0.06, 0.09, 0.13],
-        defaultVATRate: 0.13,
-        currencySymbol: '¥',
-        paymentTermOptions: [0, 7, 15, 30, 45, 60, 90],
-        defaultPaymentTermDays: 30,
-        pagination: { defaultPageSize: 20, pageSizeOptions: [10, 20, 50, 100] },
-        // 新增配置
-        taxConfig: { returnTypes: [], returnStatuses: [], invoiceTypes: [], invoiceStatuses: [] },
-        bankConfig: { transactionTypes: [], paymentMethods: [], transactionCategories: {} },
-        glConfig: { documentTypes: [], entryStatuses: [] },
-        isLoaded: false
-    }),
-    actions: {
-        async loadSettings() {
-            if (this.isLoaded) return
-            try {
-                const res = await request.get('/finance/settings')
-                if (res.success && res.data) {
-                    if (res.data.tax) {
-                        this.vatRateOptions = res.data.tax.vatRateOptions || [0, 0.03, 0.06, 0.09, 0.13]
-                        this.defaultVATRate = res.data.tax.defaultVATRate !== undefined ? res.data.tax.defaultVATRate : 0.13
-                    }
-                    if (res.data.currency) {
-                        this.currencySymbol = res.data.currency.symbol || '¥'
-                    }
-                    if (res.data.invoice) {
-                        this.paymentTermOptions = res.data.invoice.paymentTermOptions || [0, 7, 15, 30, 45, 60, 90]
-                        this.defaultPaymentTermDays = res.data.invoice.defaultPaymentTermDays || 30
-                        this.pagination = res.data.invoice.pagination || { defaultPageSize: 20, pageSizeOptions: [10, 20, 50, 100] }
-                    }
-                    // 加载新增配置
-                    if (res.data.tax) {
-                        this.taxConfig = {
-                            returnTypes: res.data.tax.returnTypes || [],
-                            returnStatuses: res.data.tax.returnStatuses || [],
-                            invoiceTypes: res.data.tax.invoiceTypes || [],
-                            invoiceStatuses: res.data.tax.invoiceStatuses || []
-                        }
-                    }
-                    if (res.data.bank) {
-                        this.bankConfig = res.data.bank || { transactionTypes: [], paymentMethods: [], transactionCategories: {} }
-                    }
-                    if (res.data.gl) {
-                        this.glConfig = res.data.gl || { documentTypes: [], entryStatuses: [] }
-                    }
-                }
-                this.isLoaded = true
-            } catch (error) {
-                console.error('加载财务配置失败:', error)
-            }
-        },
+  state: () => ({
+    vatRateOptions: DEFAULT_VAT_RATES,
+    defaultVATRate: 0.13,
+    currencySymbol: '¥',
+    paymentTermOptions: DEFAULT_PAYMENT_TERMS,
+    defaultPaymentTermDays: 30,
+    pagination: DEFAULT_PAGINATION,
+    taxConfig: { returnTypes: [], returnStatuses: [], invoiceTypes: [], invoiceStatuses: [] },
+    bankConfig: { transactionTypes: [], paymentMethods: [], transactionCategories: {} },
+    glConfig: { documentTypes: [], entryStatuses: [] },
+    isLoaded: false
+  }),
+  actions: {
+    async loadSettings() {
+      if (this.isLoaded) return
 
-        // 格式化税率
-        formatTaxRate(rate) {
-            if (rate === 0) return '0%'
-            return `${(rate * 100).toFixed(0)}%`
+      try {
+        const response = await api.get('/finance/settings')
+        const data = response.data || {}
+
+        if (data.tax) {
+          this.vatRateOptions = data.tax.vatRateOptions || DEFAULT_VAT_RATES
+          this.defaultVATRate = data.tax.defaultVATRate ?? 0.13
+          this.taxConfig = {
+            returnTypes: data.tax.returnTypes || [],
+            returnStatuses: data.tax.returnStatuses || [],
+            invoiceTypes: data.tax.invoiceTypes || [],
+            invoiceStatuses: data.tax.invoiceStatuses || []
+          }
         }
+
+        if (data.currency) {
+          this.currencySymbol = data.currency.symbol || '¥'
+        }
+
+        if (data.invoice) {
+          this.paymentTermOptions = data.invoice.paymentTermOptions || DEFAULT_PAYMENT_TERMS
+          this.defaultPaymentTermDays = data.invoice.defaultPaymentTermDays || 30
+          this.pagination = data.invoice.pagination || DEFAULT_PAGINATION
+        }
+
+        if (data.bank) {
+          this.bankConfig = data.bank
+        }
+
+        if (data.gl) {
+          this.glConfig = data.gl
+        }
+
+        this.isLoaded = true
+      } catch (error) {
+        console.error('加载财务配置失败:', error)
+      }
+    },
+
+    formatTaxRate(rate) {
+      if (rate === 0) return '0%'
+      return `${(rate * 100).toFixed(0)}%`
     }
+  }
 })

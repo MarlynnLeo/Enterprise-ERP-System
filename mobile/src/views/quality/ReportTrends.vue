@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="page-container">
     <NavBar title="质量趋势" left-arrow @click-left="$router.go(-1)" />
     <div class="page-body">
@@ -58,8 +58,8 @@
 </script>
 
 <style lang="scss" scoped>
-  .page-container { min-height: 100vh; background: var(--bg-primary); }
-  .page-body { padding: 12px; }
+  .page-container { min-height: 100%; background: var(--bg-primary); }
+  .page-body { padding: 0 12px var(--app-bottom-space); }
 
   .group-tabs {
     display: flex; gap: 8px; margin-bottom: 12px;
@@ -67,7 +67,7 @@
   .group-tab {
     flex: 1; text-align: center; padding: 8px 0; border-radius: 8px;
     background: var(--van-background); border: 1px solid var(--van-border-color);
-    font-size: 0.8125rem; color: var(--text-secondary); transition: all 0.2s;
+    font-size: 0.8125rem; color: var(--text-secondary); transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s;
     &.active { background: var(--color-primary); color: var(--color-on-primary, #fff); border-color: var(--color-primary); }
   }
 

@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="page-container">
+  <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -38,15 +38,15 @@
           <el-table-column prop="category" label="分类" width="100">
             <template #default="{ row }">{{ catLabel[row.category] || row.category }}</template>
           </el-table-column>
-          <el-table-column prop="weight" label="权重(%)" width="90" align="center" />
-          <el-table-column prop="target_value" label="目标值" width="100" align="center" />
+          <el-table-column prop="weight" label="权重(%)" width="90" />
+          <el-table-column prop="target_value" label="目标值" width="100" />
           <el-table-column prop="scoring_method" label="评分方式" width="100">
             <template #default="{ row }">{{ row.scoring_method === 'manual' ? '手动' : row.scoring_method === 'auto' ? '自动' : '公式' }}</template>
           </el-table-column>
           <el-table-column prop="is_active" label="状态" width="80">
             <template #default="{ row }"><el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag></template>
           </el-table-column>
-          <el-table-column label="操作" width="140">
+          <el-table-column label="操作" width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button link type="primary" @click="openIndicatorForm(row)">编辑</el-button>
               <el-popconfirm title="确定删除？" @confirm="delIndicator(row.id)">
@@ -71,7 +71,7 @@
               <el-tag :type="periodStatusTag[row.status]" size="small">{{ periodStatusLabel[row.status] }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200">
+          <el-table-column label="操作" width="200" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button v-if="row.status === 'draft'" link type="primary" @click="updatePeriodStatus(row.id, 'in_progress')">开始</el-button>
               <el-button v-if="row.status === 'in_progress'" link type="success" @click="updatePeriodStatus(row.id, 'scoring')">评分</el-button>
@@ -86,17 +86,17 @@
         <el-table :data="tableData" v-loading="loading" border stripe>
           <el-table-column prop="employee_name" label="员工" width="120" />
           <el-table-column prop="period_name" label="考核周期" min-width="180" />
-          <el-table-column prop="total_score" label="总分" width="80" align="center">
+          <el-table-column prop="total_score" label="总分" width="80">
             <template #default="{ row }"><span :style="{ color: row.total_score >= 80 ? 'var(--color-success)' : row.total_score >= 60 ? 'var(--color-warning)' : 'var(--color-danger)', fontWeight: 'bold' }">{{ row.total_score || '--' }}</span></template>
           </el-table-column>
-          <el-table-column prop="grade" label="等级" width="60" align="center">
+          <el-table-column prop="grade" label="等级" width="60">
             <template #default="{ row }"><el-tag v-if="row.grade" :type="gradeTag[row.grade] || 'info'" size="small">{{ row.grade }}</el-tag></template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="100">
             <template #default="{ row }"><el-tag :type="evalStatusTag[row.status] || 'info'" size="small">{{ evalStatusLabel[row.status] || row.status }}</el-tag></template>
           </el-table-column>
           <el-table-column prop="evaluator_name" label="考核人" width="100" />
-          <el-table-column label="操作" width="120">
+          <el-table-column label="操作" width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button link type="primary" @click="viewEval(row)">{{ row.status === 'completed' ? '查看' : '评分' }}</el-button>
             </template>
@@ -235,5 +235,4 @@ onMounted(fetchData)
 </script>
 
 <style scoped>
-/* 页面专属样式已由 common-styles.css 统一提供 */
 </style>

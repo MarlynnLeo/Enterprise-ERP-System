@@ -310,7 +310,7 @@
 
 <style lang="scss" scoped>
   .create-page {
-    height: 100vh;
+    height: 100%;
     background: var(--bg-primary);
     display: flex;
     flex-direction: column;
@@ -332,7 +332,7 @@
       font-size: 0.95rem;
       font-weight: 600;
       color: var(--text-primary);
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--surface-border, var(--border-subtle));
       display: flex;
       align-items: center;
       gap: 6px;

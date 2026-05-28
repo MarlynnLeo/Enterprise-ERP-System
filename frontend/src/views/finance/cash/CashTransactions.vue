@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="transactions-container">
+  <div class="module-page transactions-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -24,8 +24,12 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      @search="loadTransactions"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="交易日期">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -54,12 +58,8 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item>
-          <el-button type="primary" @click="loadTransactions">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计卡片 - 使用全局样式，与bank-transactions一致 -->
     <div class="statistics-row">
@@ -119,14 +119,14 @@
         <el-table-column prop="counterparty" label="交易对方" width="150" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column prop="referenceNumber" label="凭证号" width="120" />
-        <el-table-column label="审核状态" width="100" align="center">
+        <el-table-column label="审核状态" width="100">
           <template #default="scope">
             <el-tag :type="getAuditStatusType(scope.row.status)" size="small">
               {{ getAuditStatusText(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="240" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-buttons">
               <!-- 查看按钮：始终显示 -->
@@ -297,7 +297,7 @@
     >
       <el-upload
         ref="uploadRef"
-        class="upload-demo"
+        class="import-upload"
         drag
         action="#"
         :auto-upload="false"
@@ -372,14 +372,13 @@
 </template>
 
 <script setup>
-import '@/utils/apiAdapter';
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { UploadFilled, Plus } from '@element-plus/icons-vue'
-import { api } from '@/services/api';
+import { financeApi } from '@/api/finance';
 import printService from '@/services/printService'
 
 // 数据加载状态
@@ -429,7 +428,7 @@ const searchForm = reactive({
 const transactionForm = reactive({
   id: null,
   type: 'income',
-  transactionDate: new Date().toISOString().slice(0, 10),
+  transactionDate: formatLocalDate(new Date()),
   amount: 0,
   category: '',
   counterparty: '',
@@ -534,7 +533,7 @@ const showAddDialog = () => {
 const resetTransactionForm = () => {
   transactionForm.id = null;
   transactionForm.type = 'income';
-  transactionForm.transactionDate = new Date().toISOString().slice(0, 10);
+  transactionForm.transactionDate = formatLocalDate(new Date());
   transactionForm.amount = 0;
   transactionForm.category = '';
   transactionForm.counterparty = '';
@@ -572,7 +571,7 @@ const submitForAudit = async (row) => {
       }
     );
 
-    await api.put(`/finance/cash-transactions/${row.id}/submit`);
+    await financeApi.cashTransactions.submit(row.id);
     ElMessage.success('已提交审核');
     loadTransactions();
   } catch (error) {
@@ -604,10 +603,10 @@ const handleAudit = (row) => {
         instance.cancelButtonLoading = true;
 
         if (isApprove) {
-          await api.put(`/finance/cash-transactions/${row.id}/approve`, { remark });
+          await financeApi.cashTransactions.approve(row.id, { remark });
           ElMessage.success('审核通过');
         } else {
-          await api.put(`/finance/cash-transactions/${row.id}/reject`, { remark });
+          await financeApi.cashTransactions.reject(row.id, { remark });
           ElMessage.warning('已驳回');
         }
 
@@ -637,10 +636,10 @@ const saveTransaction = async () => {
     const data = { ...transactionForm };
 
     if (data.id) {
-      await api.put(`/finance/cash-transactions/${data.id}`, data);
+      await financeApi.cashTransactions.update(data.id, data);
       ElMessage.success('交易更新成功');
     } else {
-      await api.post('/finance/cash-transactions', data);
+      await financeApi.cashTransactions.create(data);
       ElMessage.success('交易创建成功');
     }
 
@@ -667,7 +666,7 @@ const deleteTransaction = async (row) => {
       }
     );
 
-    await api.delete(`/finance/cash-transactions/${row.id}`);
+    await financeApi.cashTransactions.delete(row.id);
     ElMessage.success('交易删除成功');
     loadTransactions();
   } catch (error) {
@@ -693,7 +692,7 @@ const loadTransactions = async () => {
       params.endDate = searchForm.dateRange[1];
     }
 
-    const response = await api.get('/finance/cash-transactions', { params });
+    const response = await financeApi.cashTransactions.getList(params);
     // axios拦截器已自动解包ResponseHandler格式
     transactionList.value = response.data.transactions || [];
     total.value = parseInt(response.data.total) || 0;
@@ -717,7 +716,7 @@ const loadTransactionsStats = async () => {
       params.endDate = searchForm.dateRange[1];
     }
 
-    const response = await api.get('/finance/cash-transactions/stats', { params });
+    const response = await financeApi.cashTransactions.getStats(params);
     // axios拦截器已自动解包ResponseHandler格式
     Object.assign(transactionStats, response.data);
   } catch (error) {
@@ -734,10 +733,7 @@ const exportTransactions = async () => {
       params.endDate = searchForm.dateRange[1];
     }
 
-    const response = await api.get('/finance/cash-transactions/export', {
-      params,
-      responseType: 'blob'
-    });
+    const response = await financeApi.cashTransactions.export(params);
 
     const blob = new Blob([response.data], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -745,7 +741,7 @@ const exportTransactions = async () => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `现金交易记录_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.download = `现金交易记录_${formatLocalDate(new Date())}.xlsx`;
     link.click();
     window.URL.revokeObjectURL(url);
 
@@ -785,11 +781,7 @@ const importTransactions = async () => {
     const formData = new FormData();
     formData.append('file', importFileList.value[0].raw);
 
-    const response = await api.post('/finance/cash-transactions/import', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    const response = await financeApi.cashTransactions.import(formData);
 
     // axios拦截器已自动解包ResponseHandler格式
     ElMessage.success(`导入成功，共导入 ${response.data.count || 0} 条记录`);
@@ -809,8 +801,7 @@ const printCashStatement = async () => {
 
     // 获取当前筛选条件下的所有交易数据
     const params = {
-      page: 1,
-      pageSize: 1000 // 获取大量数据用于打印
+      print: true
     };
 
     // 只有当筛选条件不为空时才添加到参数中
@@ -825,7 +816,7 @@ const printCashStatement = async () => {
       params.endDate = searchForm.dateRange[1];
     }
 
-    const response = await api.get('/finance/cash-transactions', { params });
+    const response = await financeApi.cashTransactions.getPrintData(params);
     // axios拦截器已自动解包ResponseHandler格式
     const printData = response.data.transactions || [];
 
@@ -923,7 +914,6 @@ onMounted(() => {
   gap: 10px;
 }
 
-/* 使用全局common-styles.css中的.statistics-row和.stat-card样式 */
 /* 统计卡片现在与bank-transactions完全一致，无图标，纵向居中布局 */
 
 .table-section {
@@ -947,7 +937,7 @@ onMounted(() => {
   text-align: right;
 }
 
-.upload-demo {
+.import-upload {
   text-align: center;
 }
 

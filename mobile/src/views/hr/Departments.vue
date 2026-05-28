@@ -10,9 +10,11 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { showToast } from 'vant'
+  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { systemApi } from '@/services/api'
+
+  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '部门管理',
@@ -32,7 +34,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '新增部门', action: 'create', handler: () => showToast('手机端暂未开放部门新建') }
+      { icon: 'plus', label: '新增部门', action: 'create', handler: () => router.push('/hr/departments/create') }
     ]
   }))
 

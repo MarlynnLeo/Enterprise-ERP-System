@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="users-container">
+  <div class="module-page users-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,13 +19,20 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="用户名">
-          <el-input  v-model="searchForm.username" placeholder="输入用户名" clearable ></el-input>
-        </el-form-item>
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="searchUsers"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="姓名">
           <el-input  v-model="searchForm.name" placeholder="输入姓名" clearable ></el-input>
+        </el-form-item>
+      </template>
+      <template #advanced>
+        <el-form-item label="用户名">
+          <el-input  v-model="searchForm.username" placeholder="输入用户名" clearable ></el-input>
         </el-form-item>
         <el-form-item label="部门">
           <el-select v-model="searchForm.department_id" placeholder="选择部门" clearable>
@@ -43,12 +50,8 @@
             <el-option label="禁用" :value="0"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchUsers" :loading="loading">查询</el-button>
-          <el-button @click="resetSearch" :loading="loading">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
@@ -75,7 +78,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div style="display: flex; gap: 5px; flex-wrap: wrap;">
               <el-popconfirm
@@ -229,7 +232,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Check, Close, View, Edit, Key } from '@element-plus/icons-vue';
-import { api } from '../../services/api';
+import { systemApi } from '../../services/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';
 // 权限计算属性
 
@@ -328,7 +331,7 @@ const loadUsers = async () => {
       status: searchForm.status
     };
 
-    const response = await api.get(`/api/system/users`, { params });
+    const response = await systemApi.getUsers(params);
     // axios 拦截器已自动解包，response.data 直接是分页数据对象
     const responseData = response.data;
     // 提取用户列表数据，适配不同格式
@@ -362,7 +365,7 @@ const loadUsers = async () => {
 // 加载部门选项
 const loadDepartmentOptions = async () => {
   try {
-    const response = await api.get(`/api/system/departments/list`);
+    const response = await systemApi.getDepartmentsList();
     // 拦截器已解包，response.data 就是业务数据
     let deptsData = [];
 
@@ -404,7 +407,7 @@ const loadDepartmentOptions = async () => {
 // 加载角色选项
 const loadRoleOptions = async () => {
   try {
-    const response = await api.get(`/api/system/roles/list`);
+    const response = await systemApi.getRolesList();
     // 拦截器已解包，response.data 就是业务数据
     let rolesData = [];
 
@@ -429,9 +432,6 @@ const loadRoleOptions = async () => {
       description: role.description || ''
     }));
 
-    // 仅在开发环境下显示角色信息
-    if (process.env.NODE_ENV === 'development') {
-      }
   } catch (error) {
     console.error('加载角色列表失败:', error);
     roleOptions.value = []; // 确保出错时也是空数组
@@ -486,7 +486,7 @@ const loadUserDataForDialog = async (row, displayTitle) => {
   resetUserForm();
 
   try {
-    const response = await api.get(`/api/system/users/${row.id}`);
+    const response = await systemApi.getUser(row.id);
     // 拦截器已解包，response.data 就是业务数据
     const user = response.data;
 
@@ -540,7 +540,7 @@ const handleToggleStatus = (row) => {
     }
   ).then(async () => {
     try {
-      await api.put(`/api/system/users/${row.id}/status`, { status: newStatus })
+      await systemApi.updateUserStatus(row.id, { status: newStatus })
       ElMessage.success(`${statusText}成功`)
       // 直接更新本地状态，不重新加载列表
       row.status = newStatus
@@ -579,7 +579,7 @@ const handleResetPassword = (row) => {
     }
   ).then(async ({ value }) => {
     try {
-      await api.put(`/api/system/users/${row.id}/password/reset`, { password: value })
+      await systemApi.resetUserPassword(row.id, { password: value })
       ElMessage.success('密码重置成功')
     } catch (error) {
       console.error('密码重置失败:', error)
@@ -639,11 +639,11 @@ const saveUser = async () => {
 
     if (userData.id) {
       // 更新用户
-      await api.put(`/api/system/users/${userData.id}`, userData)
+      await systemApi.updateUser(userData.id, userData)
       ElMessage.success('更新成功')
     } else {
       // 新增用户
-      await api.post(`/api/system/users`, userData)
+      await systemApi.createUser(userData)
       ElMessage.success('添加成功')
     }
 

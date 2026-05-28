@@ -135,7 +135,7 @@ const getDefectItems = async (req, res) => {
 
     const pagination = parsePagination(page, pageSize, {
       defaultPageSize: 10,
-      maxPageSize: 200,
+      maxPageSize: 100,
     });
     const [rows] = await pool.query(
       appendPaginationSQL(`SELECT DISTINCT qi.id, qi.inspection_no as inspectionNo, qi.inspection_type as inspectionType,

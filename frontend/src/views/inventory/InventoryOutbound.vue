@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryOutbound.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inventory-outbound-container">
+  <div class="module-page inventory-outbound-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,13 +19,17 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="搜索">
-          <el-input v-model="searchKeyword" placeholder="搜索" clearable @keyup.enter="handleSearch"
- />
+    <FinanceQueryCard
+      :loading="loading"
+      @search="handleSearch"
+      @reset="handleResetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input v-model="searchKeyword" placeholder="物料名称" clearable @keyup.enter="handleSearch" />
         </el-form-item>
-
+      </template>
+      <template #advanced>
         <el-form-item label="生产组">
           <el-select v-model="productionGroupFilter" placeholder="生产组" clearable>
             <el-option v-for="group in productionGroupList" :key="group.id" :label="group.name" :value="group.id" />
@@ -46,20 +50,8 @@
           <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期"
             end-placeholder="结束日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" clearable />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading">
-              <SearchIcon />
-            </el-icon> 查询
-          </el-button>
-          <el-button @click="handleResetSearch" :loading="loading">
-            <el-icon v-if="!loading">
-              <Refresh />
-            </el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -163,7 +155,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" @click="handleView(scope.row)">
               查看
@@ -219,7 +211,7 @@
     <!-- 新增/编辑/补发出库单对话框 -->
     <el-dialog v-model="dialogVisible"
       :title="dialogType === 'add' ? '新增出库单' : dialogType === 'supplement' ? '补发出库单' : '编辑出库单'" width="55%"
-      v-if="dialogType !== 'view'">
+      destroy-on-close>
       <div v-loading="editLoading" style="min-height: 100px;">
       <el-form ref="outboundFormRef" :model="outboundForm" :rules="outboundRules" label-width="120px">
         <el-row :gutter="20">
@@ -372,7 +364,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="80" fixed="right" v-if="dialogType !== 'view'">
+          <el-table-column label="操作" width="80" fixed="right" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button v-if="!scope.row.isSubstitute && !scope.row.is_from_plan" type="danger" size="small"
                 @click="handleRemoveItem(scope.row.originalIndex)"
@@ -605,22 +597,20 @@
 <script>
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search as SearchIcon, Plus, Printer, Refresh, Select as SelectIcon, Close } from '@element-plus/icons-vue'
-import api, { productionApi, inventoryApi, baseDataApi } from '@/services/api'
+import { Search as SearchIcon, Plus, Printer, Select as SelectIcon, Close } from '@element-plus/icons-vue'
+import { productionApi, inventoryApi, baseDataApi, systemApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import printService from '@/services/printService'
 import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
-import { parseListData, parsePaginatedData } from '@/utils/responseParser'
+import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 export default {
   name: 'InventoryOutbound',
   components: {
     SearchIcon,
     Plus,
     Printer,
-    Refresh,
     SelectIcon,
     Close,
   },
@@ -808,7 +798,7 @@ export default {
           include_location: true  // 包含物料的默认库位信息
         }
 
-        const res = await api.get('/inventory/materials-with-stock', { params })
+        const res = await inventoryApi.getMaterialsWithStock(params)
 
         // 确保每个物料都有正确的库存数量和ID，以及默认库位信息
         materialList.value = res.data.map(item => {
@@ -937,7 +927,7 @@ export default {
           params.endDate = dateRange.value[1]
         }
 
-        const res = await api.get('/inventory/outbound', { params })
+        const res = await inventoryApi.getOutboundList(params)
 
         // 使用统一解析器处理分页数据
         const { list, total: totalCount, statistics } = parsePaginatedData(res, { enableLog: false })
@@ -977,10 +967,10 @@ export default {
       viewDialogVisible.value = true
       viewLoading.value = true
       try {
-        const res = await api.get(`/inventory/outbound/${row.id}`)
+        const res = await inventoryApi.getOutbound(row.id)
 
-        // 后端使用 ResponseHandler.success 返回，数据在 res.data.data 中
-        const outboundData = res.data?.data || res.data
+        // 后端使用 ResponseHandler.success 返回，统一由 parser 解包
+        const outboundData = parseResponseData(res)
 
         // 设置查看数据
         Object.assign(currentOutbound, outboundData)
@@ -1031,10 +1021,10 @@ export default {
 
       try {
         // 获取出库单详情
-        const res = await api.get(`/inventory/outbound/${row.id}`)
+        const res = await inventoryApi.getOutbound(row.id)
 
-        // 后端使用 ResponseHandler.success 返回，数据在 res.data.data 中
-        const outboundData = res.data?.data || res.data
+        // 后端使用 ResponseHandler.success 返回，统一由 parser 解包
+        const outboundData = parseResponseData(res)
 
         // 检查是否有缺料记录
         if (!outboundData.items || outboundData.items.length === 0) {
@@ -1089,9 +1079,9 @@ export default {
       editLoading.value = true
 
       try {
-        const res = await api.get(`/inventory/outbound/${id}`)
+        const res = await inventoryApi.getOutbound(id)
 
-        const outboundData = res.data?.data || res.data
+        const outboundData = parseResponseData(res)
 
         Object.assign(outboundForm, outboundData)
 
@@ -1108,7 +1098,7 @@ export default {
     // 处理删除
     const handleDelete = async (row) => {
       try {
-        await api.delete(`/inventory/outbound/${row.id}`)
+        await inventoryApi.deleteOutbound(row.id)
         ElMessage.success('删除成功')
         fetchOutboundList()
       } catch (error) {
@@ -1128,8 +1118,8 @@ export default {
       // [M-8] 完成出库时前端预检库存充足性
       if (newStatus === 'completed') {
         try {
-          const detailRes = await api.get(`/inventory/outbound/${row.id}`)
-          const detail = detailRes.data?.data || detailRes.data || {}
+          const detailRes = await inventoryApi.getOutbound(row.id)
+          const detail = parseResponseData(detailRes, {})
           const items = detail.items || []
           const insufficientList = []
 
@@ -1162,7 +1152,7 @@ export default {
         type: 'warning'
       }).then(async () => {
         try {
-          await api.put(`/inventory/outbound/${row.id}/status`, { newStatus })
+          await inventoryApi.updateOutboundStatus(row.id, newStatus)
           ElMessage.success(`${statusText[newStatus]}成功`)
           fetchOutboundList()
         } catch (error) {
@@ -1177,8 +1167,8 @@ export default {
     // 撤销重发 - 冲回库存并按最新BOM生成新的草稿出库单
     const executeCancelOutbound = async (row, force = false) => {
       try {
-        const res = await api.post(`/inventory/outbound/${row.id}/cancel`, { force })
-        const data = res.data?.data || res.data || {}
+        const res = await inventoryApi.cancelOutbound(row.id, { force })
+        const data = parseResponseData(res, {})
         const reissueNo = data.reissueOutbound?.outbound_no
         const financeErrors = data.financeReversal?.errors || []
 
@@ -1285,7 +1275,6 @@ export default {
 
       try {
         const searchResults = await searchMaterials(baseDataApi, queryString.trim(), {
-          pageSize: 500,
           includeAll: true
         })
 
@@ -1342,13 +1331,12 @@ export default {
           location_id: item.location_id
         })
 
-        const stockQuantity = stockRes.data?.data?.quantity !== undefined && stockRes.data?.data?.quantity !== null
-          ? parseFloat(stockRes.data.data.quantity)
-          : (stockRes.data?.quantity !== undefined && stockRes.data?.quantity !== null)
-            ? parseFloat(stockRes.data.quantity)
-            : (stockRes.data?.stock_quantity !== undefined && stockRes.data?.stock_quantity !== null)
-              ? parseFloat(stockRes.data.stock_quantity)
-              : 0
+        const stockData = parseResponseData(stockRes, {})
+        const stockQuantity = stockData.quantity !== undefined && stockData.quantity !== null
+          ? parseFloat(stockData.quantity)
+          : (stockData.stock_quantity !== undefined && stockData.stock_quantity !== null)
+            ? parseFloat(stockData.stock_quantity)
+            : 0
 
         // 更新物料信息
         outboundForm.items[index].material_id = materialId
@@ -1526,7 +1514,7 @@ export default {
         if (dialogType.value === 'add') {
           // 根据是否关联生产任务自动标记出库类型
           dataToSubmit.outbound_type = dataToSubmit.production_task_id ? 'bom_issue' : 'manual'
-          await api.post('/inventory/outbound', dataToSubmit)
+          await inventoryApi.createOutbound(dataToSubmit)
           ElMessage.success('创建出库单成功')
         } else if (dialogType.value === 'supplement') {
           // 补发模式：调用补发API
@@ -1540,10 +1528,10 @@ export default {
               outbound_item_id: item.id // 原出库单明细ID
             }))
           }
-          await api.post(`/inventory/outbound/${dataToSubmit.id}/supplement`, supplementData)
+          await inventoryApi.supplementOutbound(dataToSubmit.id, supplementData)
           ElMessage.success('补发成功')
         } else {
-          await api.put(`/inventory/outbound/${dataToSubmit.id}`, dataToSubmit)
+          await inventoryApi.updateOutbound(dataToSubmit)
           ElMessage.success('更新出库单成功')
         }
 
@@ -1636,11 +1624,7 @@ export default {
     // 加载生产组列表
     const loadProductionGroups = async () => {
       try {
-        const res = await api.get('/system/departments', {
-          params: {
-            status: 1
-          }
-        })
+        const res = await systemApi.getDepartments({ status: 1 })
 
         // 使用统一解析器
         const groups = parseListData(res, { enableLog: false })
@@ -1671,10 +1655,10 @@ export default {
     // 处理打印
     const handlePrint = async (row) => {
       try {
-        const res = await api.get(`/inventory/outbound/${row.id}`)
+        const res = await inventoryApi.getOutbound(row.id)
 
-        // 后端使用 ResponseHandler.success 返回，数据在 res.data.data 中
-        printData.value = res.data?.data || res.data
+        // 后端使用 ResponseHandler.success 返回，统一由 parser 解包
+        printData.value = parseResponseData(res)
 
         // 只展示已落表的真实出库明细
         if (printData.value.items?.length > 0) {
@@ -2076,7 +2060,6 @@ export default {
       SearchIcon,
       Plus,
       Printer,
-      Refresh,
       SelectIcon,
       Close,
       // 数据
@@ -2190,9 +2173,7 @@ export default {
   gap: 10px;
 }
 
-/* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
 
-/* 使用全局 common-styles.css 中的 .stat-value 和 .stat-label */
 
 .material-search {
   margin-bottom: 15px;
@@ -2282,69 +2263,6 @@ export default {
   -webkit-appearance: none;
   appearance: none;
   margin: 0;
-}
-
-/* 浮动批量操作栏样式 */
-.floating-batch-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4), 0 4px 16px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  gap: 32px;
-  min-width: 400px;
-}
-
-.floating-batch-bar .batch-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-on-primary, #fff);
-  font-size: 14px;
-}
-
-.floating-batch-bar .batch-info .el-icon {
-  font-size: 20px;
-}
-
-.floating-batch-bar .batch-info strong {
-  color: #ffd700;
-  font-size: 18px;
-  margin: 0 2px;
-}
-
-.floating-batch-bar .batch-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.floating-batch-bar .batch-buttons .el-button {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-}
-
-.floating-batch-bar .batch-buttons .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-/* 浮动栏进入/离开动画 */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-up-enter-from,
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 100%);
 }
 
 /* 操作列样式 - 与采购申请页面保持一致 */

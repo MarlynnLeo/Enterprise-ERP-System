@@ -28,9 +28,9 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" show-overflow-tooltip></el-table-column>
-      <el-table-column label="操作" min-width="180" fixed="right">
+      <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="scope">
-          <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+          <div class="table-actions">
             <el-popconfirm
               v-if="canUpdate && String(scope.row.status) !== '1'"
               title="确定要启用该物料吗？"
@@ -141,11 +141,3 @@ const emit = defineEmits([
   'update:pageSize'
 ])
 </script>
-
-<style scoped>
-.pagination-container {
-  margin-top: 15px;
-  display: flex;
-  justify-content: flex-end;
-}
-</style>

@@ -10,9 +10,12 @@ const router = express.Router();
 const FinanceAutomationController = require('../../../controllers/business/finance/financeAutomationController');
 const { authenticateToken } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/requirePermission');
+const { desensitizeSensitiveResponse } = require('../../../middleware/priceAccessControl');
+const { PRICE_UPDATE_PERMISSIONS } = require('../../../utils/desensitizer');
 
 // 所有路由需要认证
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
 
 /**
  * 财务自动化路由
@@ -23,23 +26,21 @@ router.use(authenticateToken);
 router.post(
   '/production/cost-entry/:taskId',
   requirePermission('finance:automation:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FinanceAutomationController.generateProductionCostEntry
-);
-router.post(
-  '/production/material-issue-entry',
-  requirePermission('finance:automation:execute'),
-  FinanceAutomationController.generateMaterialIssueEntry
 );
 
 // 期末结转自动化
 router.post(
   '/period-end/auto-closing/:periodId',
   requirePermission('finance:automation:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FinanceAutomationController.executePeriodEndClosing
 );
 router.post(
   '/period-end/manual-closing/:periodId',
   requirePermission('finance:automation:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FinanceAutomationController.executePeriodEndManually
 );
 
@@ -47,11 +48,13 @@ router.post(
 router.post(
   '/depreciation/monthly/:periodMonth',
   requirePermission('finance:automation:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FinanceAutomationController.calculateMonthlyDepreciation
 );
 router.post(
   '/depreciation/manual/:periodMonth',
   requirePermission('finance:automation:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FinanceAutomationController.executeDepreciationManually
 );
 
@@ -63,13 +66,13 @@ router.post('/scheduled-tasks/restart/:taskName', requirePermission('finance:aut
 
 // ==================== 成本闭环模块 ====================
 // 在制品成本
-router.get('/wip/calculate', requirePermission('finance:cost:view'), FinanceAutomationController.calculateWIPCost);
-router.post('/wip/voucher/:periodId', requirePermission('finance:automation:execute'), FinanceAutomationController.generateWIPVoucher);
+router.post('/wip/calculate', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceAutomationController.calculateWIPCost);
+router.post('/wip/voucher/:periodId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceAutomationController.generateWIPVoucher);
 
 // 成本差异分摊
-router.post('/variance/:periodId', requirePermission('finance:automation:execute'), FinanceAutomationController.allocateVariance);
+router.post('/variance/:periodId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceAutomationController.allocateVariance);
 
 // 月末成本结转（一键执行 WIP计算 + WIP凭证 + 差异分摊）
-router.post('/cost-closing/:periodId', requirePermission('finance:automation:execute'), FinanceAutomationController.executeCostClosing);
+router.post('/cost-closing/:periodId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceAutomationController.executeCostClosing);
 
 module.exports = router;

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryTransaction.vue
  * @description 前端界面组件文件
@@ -11,7 +11,7 @@
   <div v-if="!isComponentReady" class="loading-container" v-loading="true" element-loading-text="正在初始化组件...">
     <div style="height: 200px; width: 100%;"></div>
   </div>
-  <div class="inventory-transaction-container" v-else>
+  <div class="module-page inventory-transaction-container" v-else>
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -24,8 +24,18 @@
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card" v-if="searchForm">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      v-if="searchForm"
+      :model="searchForm"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input v-model="searchForm.materialName" placeholder="物料名称" clearable @keyup.enter="handleSearch" />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="时间范围">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -36,9 +46,6 @@
             :shortcuts="dateShortcuts"
             value-format="YYYY-MM-DD"
           />
-        </el-form-item>
-        <el-form-item label="物料编码">
-          <el-input v-model="searchForm.materialName" placeholder="输入物料编码" clearable />
         </el-form-item>
         <el-form-item label="流水类型">
           <el-select v-model="searchForm.transactionType" placeholder="选择流水类型" clearable>
@@ -65,16 +72,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row" v-if="statistics">
@@ -91,7 +90,7 @@
         <div class="stat-label">出库数</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ formatCurrency(statistics?.totalAmount || 0) }}</div>
+        <div class="stat-value">{{ formatCurrency(statistics?.totalAmount) }}</div>
         <div class="stat-label">交易总金额</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
@@ -142,29 +141,17 @@
               </template>
             </el-table-column>
             <el-table-column prop="unitName" label="单位" width="60" />
-            <el-table-column
-              prop="beforeQuantity"
-              label="变动前数量"
-              width="110"
-              align="right">
+            <el-table-column prop="beforeQuantity" label="变动前数量" width="110">
               <template #default="scope">
                 {{ formatNumber(scope.row.beforeQuantity) }}
               </template>
             </el-table-column>
-            <el-table-column
-              prop="afterQuantity"
-              label="变动后数量"
-              width="110"
-              align="right">
+            <el-table-column prop="afterQuantity" label="变动后数量" width="110">
               <template #default="scope">
                 {{ formatNumber(scope.row.afterQuantity) }}
               </template>
             </el-table-column>
-            <el-table-column
-              prop="amount"
-              label="金额"
-              width="120"
-              align="right">
+            <el-table-column prop="amount" label="金额" width="120">
               <template #default="scope">
                 {{ formatCurrency(scope.row.amount) }}
               </template>
@@ -176,7 +163,7 @@
                 {{ scope.row.remarks || '-' }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="80" fixed="right">
+            <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button size="small" @click.stop="showTransactionDetail(scope.row)">查看</el-button>
               </template>
@@ -266,31 +253,18 @@
   </div>
 </template>
 <script setup>
-import { parseListData } from '@/utils/responseParser';
 import { inventoryApi } from '@/api/inventory';
+import { loadLocationOptions } from '@/utils/optionLoaders';
 import { formatCurrency, formatNumber } from '@/utils/format'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { ref, onMounted, onUnmounted, nextTick, reactive, computed } from 'vue'
 import { debounce } from 'lodash-es'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Download, TrendCharts, PieChart, Histogram } from '@element-plus/icons-vue'
-import * as echarts from 'echarts/core'
-import { BarChart, LineChart, PieChart as EchartsPie } from 'echarts/charts'
-import { TooltipComponent, LegendComponent, GridComponent, TitleComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
+import { Download, TrendCharts, PieChart, Histogram } from '@element-plus/icons-vue'
+import { echarts } from '@/utils/echartsCore'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
+import { getCssTokenValue } from '@/utils/designTokens'
 import dayjs from 'dayjs'
-// 注册 ECharts 组件
-echarts.use([
-  BarChart,
-  LineChart,
-  EchartsPie,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent,
-  TitleComponent,
-  CanvasRenderer
-])
 // 页面数据
 const loading = ref(false)
 const transactionList = ref([])
@@ -582,10 +556,7 @@ const fetchStatsData = async () => {
 // 获取基础数据
 const fetchBaseData = async () => {
   try {
-    // 获取仓库位置
-    const locationResponse = await inventoryApi.getLocations()
-    // 使用统一解析器
-    locationOptions.value = parseListData(locationResponse, { enableLog: false })
+    locationOptions.value = await loadLocationOptions()
   } catch (error) {
     console.error('获取基础数据失败:', error)
   }
@@ -620,7 +591,7 @@ const initCharts = async () => {
           avoidLabelOverlap: false,
           itemStyle: {
             borderRadius: 10,
-            borderColor: '#fff',
+            borderColor: getCssTokenValue('surface'),
             borderWidth: 2
           },
           label: {
@@ -1028,7 +999,6 @@ const _sanitizeHtml = (html) => {
   display: flex;
   flex-wrap: wrap;
 }
-/* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
 .chart-container {
   padding: 15px 0;
 }

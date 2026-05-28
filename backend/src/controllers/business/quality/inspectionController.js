@@ -19,8 +19,7 @@ const STATUS = {
     QUALITY: businessConfig.status.inspection,
 };
 
-// 采购入库单服务（免检自动入库等）
-const PurchaseReceiptService = require('../../../services/quality/PurchaseReceiptService');
+const InspectionClosureService = require('../../../services/quality/InspectionClosureService');
 
 /**
  * [内部] 通用检验列表查询方法
@@ -32,30 +31,55 @@ const PurchaseReceiptService = require('../../../services/quality/PurchaseReceip
 async function _getInspectionsByType(type, req, res, extraFilters = {}) {
     try {
         const {
-            page = 1, limit = 20, pageSize = 20,
+            page = 1,
             keyword, status, startDate, endDate,
         } = req.query;
 
         const filters = { keyword, status, startDate, endDate, ...extraFilters };
 
-        const actualPageSize = db.ensureNumber(limit || pageSize, 20);
-        const actualPage = db.ensureNumber(page, 1);
-
-        if (actualPage < 1 || actualPageSize < 1 || actualPageSize > 1000) {
-            return ResponseHandler.error(res, '页码或每页条数参数无效', 'VALIDATION_ERROR', 400);
-        }
-
-        const result = await QualityInspection.getInspections(type, filters, actualPage, actualPageSize);
+        const pagination = parsePagination(page, req.query.limit ?? req.query.pageSize, {
+            defaultPageSize: 20,
+            maxPageSize: 100,
+        });
+        const result = await QualityInspection.getInspections(type, filters, pagination.page, pagination.pageSize);
 
         const safeResult = {
             rows: result?.rows || [],
             total: result?.total || 0,
         };
 
-        ResponseHandler.paginated(res, safeResult.rows, safeResult.total, actualPage, actualPageSize);
+        ResponseHandler.paginated(res, safeResult.rows, safeResult.total, pagination.page, pagination.pageSize);
     } catch (error) {
         logger.error(`获取${type}检验列表失败:`, error);
         ResponseHandler.error(res, `获取检验列表失败`, 'SERVER_ERROR', 500, error);
+    }
+}
+
+async function _getInspectionStatsByType(type, req, res) {
+    try {
+        const [rows] = await db.pool.query(
+            `SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) as passed,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+                SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END) as partial,
+                SUM(CASE WHEN status = 'review' THEN 1 ELSE 0 END) as review,
+                SUM(CASE WHEN status = 'rework' THEN 1 ELSE 0 END) as rework
+             FROM quality_inspections
+             WHERE inspection_type = ?`,
+            [type]
+        );
+
+        const stats = rows[0] || {};
+        Object.keys(stats).forEach((key) => {
+            stats[key] = Number(stats[key]) || 0;
+        });
+
+        ResponseHandler.success(res, stats, 'OK');
+    } catch (error) {
+        logger.error(`get ${type} inspection stats failed:`, error);
+        ResponseHandler.error(res, '获取检验统计失败', 'SERVER_ERROR', 500, error);
     }
 }
 
@@ -72,6 +96,10 @@ const inspectionController = {
         });
     },
 
+    async getIncomingInspectionStats(req, res) {
+        return _getInspectionStatsByType('incoming', req, res);
+    },
+
     /**
      * 获取过程检验列表
      */
@@ -79,11 +107,19 @@ const inspectionController = {
         return _getInspectionsByType('process', req, res);
     },
 
+    async getProcessInspectionStats(req, res) {
+        return _getInspectionStatsByType('process', req, res);
+    },
+
     /**
      * 获取成品检验列表
      */
     async getFinalInspections(req, res) {
         return _getInspectionsByType('final', req, res);
+    },
+
+    async getFinalInspectionStats(req, res) {
+        return _getInspectionStatsByType('final', req, res);
     },
 
     /**
@@ -117,6 +153,7 @@ const inspectionController = {
      * 创建检验单
      */
     async createInspection(req, res) {
+        let connection;
         try {
             const inspection = req.body;
 
@@ -138,46 +175,41 @@ const inspectionController = {
                 );
             }
 
-            const result = await QualityInspection.createInspection(inspection);
+            connection = await db.pool.getConnection();
+            await connection.beginTransaction();
 
-            // 【免检逻辑】如果被系统自动通过（免检来料），同步采购订单状态 + 自动创建入库单
+            const result = await QualityInspection.createInspection(inspection, connection);
+
+            // 【免检逻辑】如果被系统自动通过（免检来料），统一走质检闭环
             if (result.is_exempt && result.inspection_type === 'incoming') {
-                const referenceId = result.reference_id || inspection.reference_id;
-                const materialId = result.material_id || inspection.material_id;
-                const qty = result.quantity || inspection.quantity;
-
-                // 1. 回写采购订单QC数量
-                try {
-                    const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
-                    await PurchaseOrderStatusService.handleInspectionComplete({
-                        reference_type: 'purchase_order',
-                        reference_id: referenceId,
-                        material_id: materialId,
-                        quantity: qty,
-                        qualified_quantity: qty,
-                        unqualified_quantity: 0
-                    });
-                    logger.info(`✅ 免检单 ${result.inspection_no} 已自动回写采购订单 QC数量`);
-                } catch (serviceErr) {
-                    logger.warn(`⚠️ 免检单 ${result.inspection_no} 回写采购订单QC数量失败:`, serviceErr.message);
-                }
-
-                // 2. 自动创建采购入库单（与前端手动检验合格后点击"创建入库单"效果一致）
-                try {
-                    await PurchaseReceiptService.autoCreateFromInspection(result, inspection);
-                    logger.info(`✅ 免检单 ${result.inspection_no} 已自动创建采购入库单`);
-                } catch (receiptErr) {
-                    logger.warn(`⚠️ 免检单 ${result.inspection_no} 自动创建采购入库单失败:`, receiptErr.message);
-                }
+                const closureResult = await InspectionClosureService.closeIfTerminal(
+                    result,
+                    {
+                        id: result.id,
+                        status: STATUS.QUALITY.PASSED,
+                        qualified_quantity: result.quantity || inspection.quantity,
+                        unqualified_quantity: 0,
+                    },
+                    connection
+                );
+                Object.assign(result, closureResult);
             }
 
+            await connection.commit();
             ResponseHandler.success(res, result, result.is_exempt ? '系统检测到免检验属性，成功自动放行！' : '检验单创建成功');
         } catch (error) {
+            if (connection) {
+                await connection.rollback();
+            }
             logger.error('创建检验单失败:', error);
             const statusCode = error.statusCode || 500;
             const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
             const message = statusCode === 400 ? error.message : '创建检验单失败';
             ResponseHandler.error(res, message, errorCode, statusCode, error);
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     },
 
@@ -185,14 +217,30 @@ const inspectionController = {
      * 更新检验单
      */
     async updateInspection(req, res) {
+        let connection;
         try {
             const { id } = req.params;
             const data = req.body;
 
-            const inspection = await QualityInspection.getInspectionById(parseInt(id));
-            if (!inspection) {
+            connection = await db.pool.getConnection();
+            await connection.beginTransaction();
+
+            const [inspectionRows] = await connection.query(
+                'SELECT * FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+                [parseInt(id)]
+            );
+
+            if (!inspectionRows || inspectionRows.length === 0) {
+                await connection.rollback();
                 return ResponseHandler.error(res, '检验单不存在', 'NOT_FOUND', 404);
             }
+
+            const inspection = inspectionRows[0];
+            const [items] = await connection.query(
+                'SELECT * FROM quality_inspection_items WHERE inspection_id = ? ORDER BY id',
+                [parseInt(id)]
+            );
+            inspection.items = items;
 
             // 如果状态从待检验变为其他状态，设置实际检验日期
             if (
@@ -203,65 +251,43 @@ const inspectionController = {
             ) {
                 data.actual_date = new Date();
             }
+            const result = await QualityInspection.updateInspection(parseInt(id), data, connection);
 
-            const result = await QualityInspection.updateInspection(parseInt(id), data);
+            const needsClosure =
+                (data.status && InspectionClosureService.isTerminalStatus(data.status)) ||
+                (
+                    InspectionClosureService.isTerminalStatus(inspection.status) &&
+                    (
+                        Object.prototype.hasOwnProperty.call(data, 'quantity') ||
+                        Object.prototype.hasOwnProperty.call(data, 'qualified_quantity') ||
+                        Object.prototype.hasOwnProperty.call(data, 'unqualified_quantity')
+                    )
+                );
 
-            // 如果检验状态变为终态，触发不合格品自动创建与合格品的流转
-            if (
-                data.status &&
-                (data.status === STATUS.QUALITY.COMPLETED ||
-                    data.status === STATUS.QUALITY.PASSED ||
-                    data.status === STATUS.QUALITY.FAILED ||
-                    data.status === STATUS.QUALITY.PARTIAL)
-            ) {
-                const updatedInspection = { ...inspection, ...data };
-
-                // 1. 如果有不合格品，自动创建不合格品记录（已内置幂等校验）
-                if (data.unqualified_quantity && data.unqualified_quantity > 0) {
-                    try {
-                        const NonconformingProductService = require('../../../services/business/NonconformingProductService');
-                        await NonconformingProductService.autoCreateFromInspection(updatedInspection);
-                        logger.info(`Auto-created NCP for inspection ${inspection.inspection_no}`);
-                    } catch (ncpError) {
-                        logger.error('Failed to auto-create NCP:', ncpError);
-                    }
-                }
-
-                // 2. [业务闭环修复] 如果是来料检验且有合格品，需打通采购域
-                if (
-                    inspection.inspection_type === 'incoming' &&
-                    ['passed', 'partial', 'completed'].includes(data.status) &&
-                    data.qualified_quantity > 0
-                ) {
-                    try {
-                        // 回写采购订单 QC 数量
-                        const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
-                        await PurchaseOrderStatusService.handleInspectionComplete({
-                            reference_type: 'purchase_order',
-                            reference_id: inspection.reference_id,
-                            material_id: inspection.material_id,
-                            quantity: inspection.quantity,
-                            qualified_quantity: data.qualified_quantity || 0,
-                            unqualified_quantity: data.unqualified_quantity || 0
-                        });
-                        logger.info(`✅ 来料检验单 ${inspection.inspection_no} 已自动回写采购订单 QC数量`);
-
-                        // 自动创建采购入库单
-                        const PurchaseReceiptService = require('../../../services/quality/PurchaseReceiptService');
-                        await PurchaseReceiptService.autoCreateFromInspection(updatedInspection, inspection);
-                        logger.info(`✅ 来料检验单 ${inspection.inspection_no} 已自动创建采购入库单`);
-                        result.receipt_auto_created = true;
-                    } catch (loopError) {
-                        logger.warn(`⚠️ 来料检验单 ${inspection.inspection_no} 业务闭环联动失败:`, loopError.message);
-                        result.receipt_auto_created = false;
-                    }
-                }
+            if (needsClosure) {
+                const closureResult = await InspectionClosureService.closeIfTerminal(
+                    inspection,
+                    { ...data, id: parseInt(id) },
+                    connection
+                );
+                Object.assign(result, closureResult);
             }
 
+            await connection.commit();
             ResponseHandler.success(res, result, '检验单更新成功');
         } catch (error) {
+            if (connection) {
+                await connection.rollback();
+            }
             logger.error('更新检验单失败:', error);
-            ResponseHandler.error(res, '更新检验单失败', 'SERVER_ERROR', 500, error);
+            const statusCode = error.statusCode || 500;
+            const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+            const message = statusCode === 400 ? error.message : '更新检验单失败';
+            ResponseHandler.error(res, message, errorCode, statusCode, error);
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     },
 
@@ -385,7 +411,10 @@ const inspectionController = {
             return ResponseHandler.success(res, serviceResult.updatedData, '检验单状态更新成功');
         } catch (error) {
             logger.error('更新检验单状态失败:', error);
-            ResponseHandler.error(res, '更新检验单状态失败', 'SERVER_ERROR', 500, error);
+            const statusCode = error.statusCode || 500;
+            const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+            const message = statusCode === 400 ? error.message : '更新检验单状态失败';
+            ResponseHandler.error(res, message, errorCode, statusCode, error);
         }
     },
 
@@ -416,7 +445,7 @@ const inspectionController = {
 
             const pagination = parsePagination(page, pageSize, {
                 defaultPageSize: 20,
-                maxPageSize: 200,
+                maxPageSize: 100,
             });
 
             const countQuery = `

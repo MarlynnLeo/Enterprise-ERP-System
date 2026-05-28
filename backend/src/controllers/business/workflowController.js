@@ -5,12 +5,7 @@
 
 const WorkflowService = require('../../services/business/WorkflowService');
 const { logger } = require('../../utils/logger');
-
-const ResponseHandler = {
-  success: (res, data, msg) => res.json({ success: true, data, message: msg || '操作成功' }),
-  error: (res, msg, code = 500) => res.status(code).json({ success: false, message: msg }),
-  notFound: (res, msg) => res.status(404).json({ success: false, message: msg || '未找到' }),
-};
+const { ResponseHandler } = require('../../utils/responseHandler');
 
 module.exports = {
   // ========== 模板管理 ==========
@@ -86,7 +81,7 @@ module.exports = {
     try {
       const userId = req.user?.userId || req.user?.id;
       if (!(await WorkflowService.canAccessInstance(req.params.id, userId))) {
-        return ResponseHandler.error(res, '无权访问该审批实例', 403);
+        return ResponseHandler.error(res, '无权访问该审批实例', 'FORBIDDEN', 403);
       }
       const data = await WorkflowService.getInstanceById(req.params.id);
       if (!data) return ResponseHandler.notFound(res);
@@ -116,7 +111,7 @@ module.exports = {
       if (data) {
         const userId = req.user?.userId || req.user?.id;
         if (!(await WorkflowService.canAccessInstance(data.id, userId))) {
-          return ResponseHandler.error(res, '无权访问该业务审批状态', 403);
+          return ResponseHandler.error(res, '无权访问该业务审批状态', 'FORBIDDEN', 403);
         }
       }
       ResponseHandler.success(res, data);

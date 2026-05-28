@@ -8,6 +8,7 @@ const { triggerOverdueCheck } = require('../../../services/scheduler');
 const arModel = require('../../../models/ar');
 const apModel = require('../../../models/ap');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { currentDateString } = require('../../../utils/dateUtils');
 
 function isBusinessError(error) {
   return /不存在|已经|状态|无法|不能|期间|科目|余额|原因|positive integer|作废|冲销/.test(
@@ -44,7 +45,7 @@ const checkOverdueInvoices = async (req, res) => {
  */
 const getOverdueARInvoices = async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = currentDateString();
     const invoices = await arModel.getOverdueInvoices(today);
 
     ResponseHandler.success(res, { data: invoices, total: invoices.length }, '获取逾期应收发票成功');
@@ -60,7 +61,7 @@ const getOverdueARInvoices = async (req, res) => {
  */
 const getOverdueAPInvoices = async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = currentDateString();
     const invoices = await apModel.getOverdueInvoices(today);
 
     ResponseHandler.success(res, { data: invoices, total: invoices.length }, '获取逾期应付发票成功');

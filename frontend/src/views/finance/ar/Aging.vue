@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Aging.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="aging-container">
+  <div class="module-page aging-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -23,8 +23,15 @@
     </el-card>
 
     <!-- 搜索条件区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="queryParams" class="search-form">
+    <FinanceQueryCard
+      :model="queryParams"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="generateReport"
+      @reset="resetQuery"
+    >
+      <template #basic>
         <el-form-item label="截止日期" required>
           <el-date-picker
             v-model="queryParams.reportDate"
@@ -34,6 +41,8 @@
             value-format="YYYY-MM-DD"
           ></el-date-picker>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="客户分类">
           <el-select v-model="queryParams.customerType" placeholder="选择客户分类" clearable>
             <el-option label="全部" value=""></el-option>
@@ -45,8 +54,8 @@
         <el-form-item label="客户名称">
           <el-input v-model="queryParams.customerName" placeholder="输入客户名称" clearable></el-input>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 报表区域 -->
     <el-card class="data-card" v-loading="loading">
@@ -70,37 +79,37 @@
               {{ getCustomerTypeText(scope.row.customerType) }}
             </template>
           </el-table-column>
-          <el-table-column prop="totalAmount" label="应收金额" width="120" align="right">
+          <el-table-column prop="totalAmount" label="应收金额" width="120">
             <template #default="scope">
               {{ formatAmount(scope.row.totalAmount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="currentAmount" label="未逾期" width="120" align="right">
+          <el-table-column prop="currentAmount" label="未逾期" width="120">
             <template #default="scope">
               {{ formatAmount(scope.row.currentAmount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="within30Days" label="1-30天" width="120" align="right">
+          <el-table-column prop="within30Days" label="1-30天" width="120">
             <template #default="scope">
               {{ formatAmount(scope.row.within30Days) }}
             </template>
           </el-table-column>
-          <el-table-column prop="within60Days" label="31-60天" width="120" align="right">
+          <el-table-column prop="within60Days" label="31-60天" width="120">
             <template #default="scope">
               {{ formatAmount(scope.row.within60Days) }}
             </template>
           </el-table-column>
-          <el-table-column prop="within90Days" label="61-90天" width="120" align="right">
+          <el-table-column prop="within90Days" label="61-90天" width="120">
             <template #default="scope">
               {{ formatAmount(scope.row.within90Days) }}
             </template>
           </el-table-column>
-          <el-table-column prop="over90Days" label="90天以上" width="120" align="right">
+          <el-table-column prop="over90Days" label="90天以上" width="120">
             <template #default="scope">
               {{ formatAmount(scope.row.over90Days) }}
             </template>
           </el-table-column>
-          <el-table-column label="逾期比例" width="120" align="right">
+          <el-table-column label="逾期比例" width="120">
             <template #default="scope">
               {{ calculateOverduePercentage(scope.row) }}
             </template>
@@ -131,25 +140,27 @@
   </div>
 </template>
 <script setup>
-import { formatAmount } from '@/utils/format';
+import { formatAmount, formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
 // 版本标识 - 强制刷新缓存 v3.0 - 使用安全数据访问器
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import { parseListData } from '@/utils/responseParser';
 import printService from '@/services/printService';
-import * as echarts from 'echarts';
+import { echarts } from '@/utils/echartsCore';
+import { loadExcelJS } from '@/utils/lazyVendors';
 // 权限计算属性
-import ExcelJS from 'exceljs';
 // 查询参数
 const queryParams = reactive({
-  reportDate: new Date().toISOString().slice(0, 10), // 默认为今天
+  reportDate: formatLocalDate(new Date()), // 默认为今天
   customerType: '',
   customerName: ''
 });
 // 报表数据 - 使用响应式数据，确保始终是数组
 const reportData = ref([]);
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 // 创建一个安全的数据访问器
 const safeReportData = computed(() => {
   const data = reportData.value;
@@ -174,6 +185,13 @@ const hasData = computed(() => {
     return false;
   }
 });
+
+const resetQuery = () => {
+  queryParams.reportDate = formatLocalDate(new Date());
+  queryParams.customerType = '';
+  queryParams.customerName = '';
+  reportData.value = [];
+};
 // 图表实例
 let pieChartInstance = null;
 let barChartInstance = null;
@@ -285,16 +303,10 @@ const generateReport = async () => {
         customerName: queryParams.customerName
       }
     });
-    // 拦截器已解包，response.data 就是业务数据
-    // 后端返回格式：{ data: [...], reportDate: '...' }
-    if (Array.isArray(response.data)) {
-      reportData.value = response.data;
-    } else if (response.data?.data && Array.isArray(response.data.data)) {
-      // 处理嵌套的 data 结构
-      reportData.value = response.data.data;
-    } else {
-      ElMessage.error('获取数据格式异常');
-      reportData.value = [];
+    const list = parseListData(response, { enableLog: false });
+    reportData.value = list;
+    if (list.length === 0) {
+      ElMessage.info('暂无符合条件的应收账款数据');
     }
 
     // 更新图表
@@ -515,6 +527,7 @@ const exportExcel = async () => {
     ElMessage.warning('没有数据可以导出');
     return;
   }
+  const ExcelJS = await loadExcelJS();
   // 创建工作簿
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('应收账款账龄分析');

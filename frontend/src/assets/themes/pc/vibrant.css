@@ -140,149 +140,32 @@
   --z-index-tooltip: 1070;
 }
 
-/* ========== 活力主题特效 ========== */
-
-/* 渐变背景 */
-.vibrant-gradient {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-pink) 100%);
-}
-
-/* 活力卡片 */
-.vibrant-card {
-  background: var(--color-bg-base);
-  border: 2px solid transparent;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-  position: relative;
-  overflow: hidden;
-}
-
-.vibrant-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-pink), var(--color-purple));
-}
-
-.vibrant-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--color-primary);
-}
-
-/* 活力按钮 */
-.vibrant-button {
-  padding: var(--spacing-md) var(--spacing-xl);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-pink));
-  color: white;
-  border: none;
-  border-radius: var(--radius-round);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: all var(--transition-base);
-  box-shadow: var(--shadow-sm);
-}
-
-.vibrant-button:hover {
-  transform: scale(1.05);
-  box-shadow: var(--shadow-md);
-}
-
-.vibrant-button:active {
-  transform: scale(0.98);
-}
-
-/* 彩虹边框 */
-.vibrant-rainbow-border {
-  position: relative;
-  border-radius: var(--radius-md);
-  padding: 2px;
-  background: linear-gradient(
-    45deg,
-    var(--color-primary),
-    var(--color-pink),
-    var(--color-purple),
-    var(--color-info)
-  );
-  background-size: 300% 300%;
-  animation: vibrant-rainbow 3s ease infinite;
-}
-
-@keyframes vibrant-rainbow {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.vibrant-rainbow-border > * {
-  background: var(--color-bg-base);
-  border-radius: calc(var(--radius-md) - 2px);
-}
-
-/* 跳动动画 */
-.vibrant-bounce {
-  animation: vibrant-bounce-animation 1s ease infinite;
-}
-
-@keyframes vibrant-bounce-animation {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-/* 脉冲效果 */
-.vibrant-pulse {
-  animation: vibrant-pulse-animation 2s ease-in-out infinite;
-}
-
-@keyframes vibrant-pulse-animation {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.05);
-  }
-}
-
 /* ========== 活力主题全局样式覆盖 ========== */
 
 /* 整体页面 */
 [data-theme="vibrant"] body,
 [data-theme="vibrant"] .layout-container {
-  background: linear-gradient(135deg, #FFF5F5 0%, #FFE5E5 100%) !important;
+  background: linear-gradient(135deg, var(--color-bg-page) 0%, var(--color-bg-hover) 100%) !important;
 }
 
 /* 侧边栏活力化 */
 [data-theme="vibrant"] .sidebar,
-[data-theme="vibrant"] .el-aside {
-  background: linear-gradient(180deg, #FF6B6B 0%, #FF8E8E 100%) !important;
-  border-right: 3px solid #FF6B9D !important;
-  box-shadow: 4px 0 30px rgba(255, 107, 107, 0.3) !important;
+[data-theme="vibrant"] .app-sidebar {
+  background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-light-3) 100%) !important;
+  border-right: 3px solid var(--color-pink) !important;
+  box-shadow: 4px 0 30px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
 }
 
 [data-theme="vibrant"] .logo-container {
-  background: rgba(255, 255, 255, 0.2) !important;
-  border-bottom: 3px solid rgba(255, 255, 255, 0.5) !important;
+  background: color-mix(in srgb, var(--ds-white) 20%, transparent) !important;
+  border-bottom: 3px solid color-mix(in srgb, var(--ds-white) 50%, transparent) !important;
   backdrop-filter: blur(10px);
 }
 
 [data-theme="vibrant"] .logo-container .title {
-  color: #FFFFFF !important;
+  color: var(--color-on-primary) !important;
   font-weight: 800 !important;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2) !important;
+  text-shadow: 0 2px 10px color-mix(in srgb, var(--ds-black) 20%, transparent) !important;
 }
 
 /* 菜单样式 */
@@ -293,65 +176,69 @@
 /* 侧边栏菜单项默认颜色 - 深粉红色 */
 [data-theme="vibrant"] .sidebar .el-menu-item,
 [data-theme="vibrant"] .sidebar .el-sub-menu__title,
-[data-theme="vibrant"] .el-aside .el-menu-item,
-[data-theme="vibrant"] .el-aside .el-sub-menu__title {
-  color: #D81B60 !important;
+[data-theme="vibrant"] .app-sidebar .el-menu-item,
+[data-theme="vibrant"] .app-sidebar .el-sub-menu__title {
+  color: var(--color-primary-dark-2) !important;
   font-weight: 500 !important;
   border-left: 4px solid transparent !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition:
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 /* 侧边栏菜单项文字 - 深粉红色 */
 [data-theme="vibrant"] .sidebar .el-menu-item span,
 [data-theme="vibrant"] .sidebar .el-sub-menu__title span,
-[data-theme="vibrant"] .el-aside .el-menu-item span,
-[data-theme="vibrant"] .el-aside .el-sub-menu__title span {
-  color: #D81B60 !important;
+[data-theme="vibrant"] .app-sidebar .el-menu-item span,
+[data-theme="vibrant"] .app-sidebar .el-sub-menu__title span {
+  color: var(--color-primary-dark-2) !important;
 }
 
 /* 悬停状态 */
 [data-theme="vibrant"] .sidebar .el-menu-item:hover,
 [data-theme="vibrant"] .sidebar .el-sub-menu__title:hover,
-[data-theme="vibrant"] .el-aside .el-menu-item:hover,
-[data-theme="vibrant"] .el-aside .el-sub-menu__title:hover {
-  background: rgba(255, 107, 157, 0.2) !important;
-  border-left-color: #FF6B9D !important;
-  color: #D81B60 !important;
-  transform: translateX(4px);
+[data-theme="vibrant"] .app-sidebar .el-menu-item:hover,
+[data-theme="vibrant"] .app-sidebar .el-sub-menu__title:hover {
+  background: color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
+  border-left-color: var(--color-pink) !important;
+  color: var(--color-primary-dark-2) !important;
+  transform: none;
 }
 
 [data-theme="vibrant"] .sidebar .el-menu-item:hover span,
 [data-theme="vibrant"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="vibrant"] .el-aside .el-menu-item:hover span,
-[data-theme="vibrant"] .el-aside .el-sub-menu__title:hover span {
-  color: #D81B60 !important;
+[data-theme="vibrant"] .app-sidebar .el-menu-item:hover span,
+[data-theme="vibrant"] .app-sidebar .el-sub-menu__title:hover span {
+  color: var(--color-primary-dark-2) !important;
 }
 
 /* 当前活动页状态 */
 [data-theme="vibrant"] .sidebar .el-menu-item.is-active,
-[data-theme="vibrant"] .el-aside .el-menu-item.is-active {
-  background: rgba(255, 107, 157, 0.3) !important;
-  border-left-color: #FF6B9D !important;
-  color: #FFB3D9 !important;
+[data-theme="vibrant"] .app-sidebar .el-menu-item.is-active {
+  background: color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
+  border-left-color: var(--color-pink) !important;
+  color: var(--color-on-primary) !important;
   font-weight: 700 !important;
-  box-shadow: inset 0 0 20px rgba(255, 107, 157, 0.3);
+  box-shadow: inset 0 0 20px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent);
 }
 
 [data-theme="vibrant"] .sidebar .el-menu-item.is-active span,
-[data-theme="vibrant"] .el-aside .el-menu-item.is-active span {
-  color: #FFB3D9 !important;
+[data-theme="vibrant"] .app-sidebar .el-menu-item.is-active span {
+  color: var(--color-on-primary) !important;
 }
 
 /* 顶部导航栏活力化 */
 [data-theme="vibrant"] .header, [data-theme="vibrant"] .el-header {
-  background: #FFFFFF !important;
-  border-bottom: 3px solid #FF6B6B !important;
-  box-shadow: 0 2px 10px rgba(255, 107, 107, 0.15) !important;
-  color: #FF6B6B !important;
+  background: var(--color-bg-base) !important;
+  border-bottom: 3px solid var(--color-primary) !important;
+  box-shadow: 0 2px 10px var(--color-bg-overlay) !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="vibrant"] .header *, [data-theme="vibrant"] .el-header * {
-  color: #FF6B6B !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="vibrant"] .header span,
@@ -360,144 +247,64 @@
 [data-theme="vibrant"] .el-header .username,
 [data-theme="vibrant"] .header .user-info,
 [data-theme="vibrant"] .el-header .user-info {
-  color: #FF6B6B !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="vibrant"] .header .el-icon,
 [data-theme="vibrant"] .el-header .el-icon {
-  color: #FF6B9D !important;
+  color: var(--color-pink) !important;
 }
 
 /* 菜单样式 */
 [data-theme="vibrant"] .header .el-menu-item,
 [data-theme="vibrant"] .el-header .el-menu-item {
-  color: #FF6B6B !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="vibrant"] .header .el-menu-item:hover,
 [data-theme="vibrant"] .el-header .el-menu-item:hover {
-  color: #FF6B9D !important;
-  background: rgba(255, 107, 107, 0.1) !important;
+  color: var(--color-pink) !important;
+  background: color-mix(in srgb, var(--color-bg-overlay) 10%, transparent) !important;
 }
 
 [data-theme="vibrant"] .header .el-menu-item.is-active,
 [data-theme="vibrant"] .el-header .el-menu-item.is-active {
-  color: #FF6B9D !important;
-  background: rgba(255, 107, 107, 0.15) !important;
-}
-
-/* 卡片活力?*/
-[data-theme="vibrant"] .el-card,
-[data-theme="vibrant"] .stat-card,
-[data-theme="vibrant"] .dashboard-card {
-  background: #FFFFFF !important;
-  border: 3px solid transparent !important;
-  border-radius: 16px !important;
-  box-shadow: 0 8px 24px rgba(255, 107, 107, 0.15) !important;
-  background-image: linear-gradient(#FFFFFF, #FFFFFF),
-                    linear-gradient(135deg, #FF6B6B, #FF6B9D, #CC5DE8) !important;
-  background-origin: border-box !important;
-  background-clip: padding-box, border-box !important;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-[data-theme="vibrant"] .el-card:hover,
-[data-theme="vibrant"] .stat-card:hover {
-  transform: translateY(-8px) scale(1.02) !important;
-  box-shadow: 0 12px 40px rgba(255, 107, 107, 0.3) !important;
-}
-
-/* 按钮组件 - 通用样式 */
-[data-theme="vibrant"] .el-button {
-  border-radius: 20px !important;
-  padding: 8px 16px !important;
-  font-weight: 600 !important;
-}
-
-/* 小号按钮 */
-[data-theme="vibrant"] .el-button--small {
-  padding: 5px 10px !important;
-  font-size: 13px !important;
-  border-radius: 16px !important;
-}
-
-/* 主要按钮 */
-[data-theme="vibrant"] .el-button--primary {
-  background: linear-gradient(135deg, #FF6B6B 0%, #FF6B9D 100%) !important;
-  border: none !important;
-  color: #FFFFFF !important;
-  font-weight: 700 !important;
-  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4) !important;
-}
-
-[data-theme="vibrant"] .el-button--primary:hover {
-  background: linear-gradient(135deg, #FF8E8E 0%, #FF8EAF 100%) !important;
-  box-shadow: 0 6px 25px rgba(255, 107, 107, 0.5) !important;
-  transform: translateY(-2px) scale(1.05);
-}
-
-/* 成功按钮 */
-[data-theme="vibrant"] .el-button--success {
-  background: linear-gradient(135deg, #51CF66 0%, #69DB7C 100%) !important;
-  border: none !important;
-  color: #FFFFFF !important;
-  box-shadow: 0 4px 15px rgba(81, 207, 102, 0.4) !important;
-}
-
-/* 危险/删除按钮 */
-[data-theme="vibrant"] .el-button--danger {
-  background: linear-gradient(135deg, #FF6B6B 0%, #FF8787 100%) !important;
-  border: none !important;
-  color: #FFFFFF !important;
-  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4) !important;
+  color: var(--color-pink) !important;
+  background: var(--color-bg-overlay) !important;
 }
 
 /* 表格组件 */
 [data-theme="vibrant"] .el-table {
-  background: #FFFFFF !important;
-  border: 2px solid #FFE5E5 !important;
+  background: var(--color-bg-base) !important;
+  border: 2px solid var(--color-border-light) !important;
   border-radius: 12px !important;
   overflow: hidden;
 }
 
 [data-theme="vibrant"] .el-table th {
-  background: linear-gradient(135deg, #FF6B6B 0%, #FF6B9D 100%) !important;
-  color: #FFFFFF !important;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-pink) 100%) !important;
+  color: var(--color-on-primary) !important;
   font-weight: 700 !important;
   border: none !important;
 }
 
 [data-theme="vibrant"] .el-table tbody tr:hover {
-  background: linear-gradient(90deg, #FFF5F5 0%, #FFE5E5 100%) !important;
+  background: linear-gradient(90deg, var(--color-bg-page) 0%, var(--color-bg-hover) 100%) !important;
 }
 
 /* 输入框活力化 */
 [data-theme="vibrant"] .el-input__wrapper {
-  background: #FFFFFF !important;
-  border: 2px solid #FFE5E5 !important;
+  background: var(--color-bg-base) !important;
+  border: 2px solid var(--color-border-light) !important;
   border-radius: 12px !important;
-  transition: all 0.3s ease !important;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease !important;
 }
 
 [data-theme="vibrant"] .el-input__wrapper:hover,
 [data-theme="vibrant"] .el-input__wrapper.is-focus {
-  border-color: #FF6B6B !important;
-  box-shadow: 0 0 15px rgba(255, 107, 107, 0.3) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 15px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
 }
-
-/* 统计卡片图标 */
-[data-theme="vibrant"] .stat-card .icon-container {
-  background: linear-gradient(135deg, #FF6B6B 0%, #FF6B9D 100%) !important;
-  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4) !important;
-  animation: vibrant-pulse-icon 2s ease-in-out infinite;
-}
-
-@keyframes vibrant-pulse-icon {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-}
-

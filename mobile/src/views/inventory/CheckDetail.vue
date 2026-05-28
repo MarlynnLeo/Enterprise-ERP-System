@@ -304,23 +304,25 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-fixed-control-space);
   }
   .content-wrapper {
-    padding: 0 12px 12px;
+    padding: 0 12px var(--app-fixed-control-space);
   }
 
   .status-banner {
     display: flex;
     align-items: center;
     gap: 12px;
+    min-height: 72px;
     background: var(--bg-secondary);
     border-radius: 12px;
-    padding: 14px 16px;
-    margin: 8px 0;
-    border: 1px solid var(--glass-border);
+    padding: 14px;
+    margin: 8px 0 12px;
+    border: 1px solid var(--surface-border, var(--border-subtle));
+    box-shadow: none;
   }
   .status-icon-wrap {
     width: 48px;
@@ -417,7 +419,7 @@
     background: var(--bg-secondary);
     border-radius: 12px;
     padding: 4px 0;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .info-row {
     display: flex;
@@ -425,7 +427,7 @@
     align-items: flex-start;
     padding: 10px 16px;
     &:not(:last-child) {
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--surface-border, var(--border-subtle));
     }
   }
   .info-label {
@@ -464,7 +466,7 @@
     border-radius: 12px;
     margin-bottom: 10px;
     overflow: hidden;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     animation: fadeInUp 0.35s ease-out both;
   }
   @keyframes fadeInUp {
@@ -547,7 +549,7 @@
     grid-template-columns: 1fr 1fr;
     gap: 6px;
     padding-top: 8px;
-    border-top: 1px solid var(--glass-border);
+    border-top: 1px solid var(--surface-border, var(--border-subtle));
   }
   .detail-cell {
     display: flex;
@@ -570,7 +572,7 @@
   .mat-remark {
     margin-top: 6px;
     padding-top: 6px;
-    border-top: 1px dashed var(--glass-border);
+    border-top: 1px dashed var(--surface-border, var(--border-subtle));
     font-size: 0.6875rem;
     color: var(--text-tertiary);
     .remark-label {
@@ -593,9 +595,9 @@
     left: 0;
     right: 0;
     padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--app-fixed-control-padding-bottom);
     background: var(--bg-secondary);
-    border-top: 1px solid var(--glass-border);
+    border-top: 1px solid var(--surface-border, var(--border-subtle));
     z-index: 40;
     display: flex;
     gap: 8px;

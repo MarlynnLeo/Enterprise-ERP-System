@@ -6,6 +6,27 @@
 
 const prometheusService = require('../services/monitoring/PrometheusService');
 
+const normalizeRouteLabel = (req) => {
+  const rawPath = String(req.originalUrl || req.url || req.path || 'unknown').split('?')[0];
+  if (!rawPath || rawPath === '/') {
+    return rawPath || 'unknown';
+  }
+
+  return rawPath
+    .split('/')
+    .map((segment) => {
+      if (!segment) return segment;
+      if (/^\d+$/.test(segment)) return ':id';
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)) {
+        return ':id';
+      }
+      if (/^[0-9a-f]{16,}$/i.test(segment)) return ':id';
+      if (segment.length >= 18 && /\d/.test(segment)) return ':id';
+      return segment;
+    })
+    .join('/');
+};
+
 /**
  * Prometheus 监控中间件
  * 记录每个 HTTP 请求的指标
@@ -17,7 +38,7 @@ const prometheusMiddleware = (req, res, next) => {
   res.on('finish', () => {
     const duration = (Date.now() - startTime) / 1000; // 转换为秒
     const method = req.method;
-    const route = req.route ? req.route.path : req.path;
+    const route = normalizeRouteLabel(req);
     const statusCode = res.statusCode;
 
     // 记录 HTTP 请求指标

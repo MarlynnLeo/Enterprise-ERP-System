@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="purchase-requisitions-container">
+  <div class="module-page base-data-list-page">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,13 +19,20 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item :label="$t('page.baseData.customers.customerCode')">
-          <el-input  v-model="searchForm.code" :placeholder="$t('page.baseData.customers.customerCodePlaceholder')" clearable ></el-input>
-        </el-form-item>
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item :label="$t('page.baseData.customers.customerName')">
           <el-input  v-model="searchForm.name" :placeholder="$t('page.baseData.customers.customerNamePlaceholder')" clearable ></el-input>
+        </el-form-item>
+      </template>
+      <template #advanced>
+        <el-form-item :label="$t('page.baseData.customers.customerCode')">
+          <el-input  v-model="searchForm.code" :placeholder="$t('page.baseData.customers.customerCodePlaceholder')" clearable ></el-input>
         </el-form-item>
         <el-form-item label="客户类型">
           <el-select v-model="searchForm.customer_type" placeholder="全部类型" clearable>
@@ -40,19 +47,13 @@
             <el-option :value="'inactive'" :label="$t('page.baseData.materials.disabled')"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> {{ $t('common.search') }}
-          </el-button>
-          <el-button @click="resetSearch" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> {{ $t('common.reset') }}
-          </el-button>
+      </template>
+      <template #actions>
           <el-button v-if="canExport" type="success" @click="handleExport">
             <el-icon><Download /></el-icon> {{ $t('common.export') }}
           </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -135,7 +136,7 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="230" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-popconfirm
               v-if="canUpdate"
@@ -202,15 +203,14 @@
 </template>
 
 <script setup>
-import { parsePaginatedData } from '@/utils/responseParser'
+import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import CustomerFormDialog from './components/CustomerFormDialog.vue';
 
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
-import { Plus, Edit, Delete, Search, Refresh, Download, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
-
 // 权限store
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:customers:create'));
@@ -285,7 +285,7 @@ const handleExport = async () => {
 const fetchStats = async () => {
   try {
     const response = await baseDataApi.getCustomerStats();
-    const data = response.data?.data || response.data || {};
+    const data = parseResponseData(response, {});
     stats.total = data.total || 0;
     stats.active = data.active || 0;
     stats.inactive = data.inactive || 0;
@@ -426,33 +426,6 @@ const handleToggleStatus = async (row) => {
 </script>
 
 <style scoped>
-.header-card {
-  margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-}
-
 .ellipsis-cell {
   display: block;
   white-space: nowrap;
@@ -465,10 +438,5 @@ const handleToggleStatus = async (row) => {
 :deep(.el-table .cell) {
   word-break: break-word;
   line-height: 1.5;
-}
-
-/* 操作列样式 - 与库存出库页面保持一致 */
-.el-table .el-button + .el-button {
-  margin-left: 8px;
 }
 </style>

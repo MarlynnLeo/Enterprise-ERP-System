@@ -76,12 +76,9 @@ export const permission = {
         }
       }
 
-      // ✅ 修复闪烁问题: 采用"先显示,后隐藏"策略
-      // 如果权限还没加载，监听权限加载完成
       if (!authStore.permissionsLoaded) {
-        // ⚠️ 不再先隐藏元素,而是先显示,等权限加载完成后再决定是否隐藏
-        // 这样可以避免"一闪而过"的问题
         el.setAttribute('data-permission-pending', 'true')
+        hideElement(el)
 
         // 监听权限加载完成
         const stopWatch = watch(
@@ -113,7 +110,6 @@ export const permission = {
     const permission = binding.value
 
     if (permission) {
-      // 如果权限已加载，检查权限并更新显示状态
       if (authStore.permissionsLoaded) {
         const hasPermission = checkPermission(authStore, permission)
 
@@ -124,6 +120,9 @@ export const permission = {
           showElement(el)
           el.removeAttribute('data-permission-pending')
         }
+      } else {
+        el.setAttribute('data-permission-pending', 'true')
+        hideElement(el)
       }
     }
   },

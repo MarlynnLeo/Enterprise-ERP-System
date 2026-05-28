@@ -7,10 +7,55 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
+
+const toNullableInteger = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeSourceInfo = (body = {}) => {
+  const sourceType = body.source_type || body.sourceType || null;
+  const sourceId = toNullableInteger(body.source_id ?? body.sourceId);
+  const sourceMaterialId = toNullableInteger(
+    body.source_material_id ?? body.sourceMaterialId ?? body.material_id ?? body.materialId
+  );
+
+  if (!sourceType || !sourceId || !sourceMaterialId) {
+    return null;
+  }
+
+  return {
+    sourceType,
+    sourceId,
+    sourceMaterialId,
+  };
+};
+
+const fetchExistingSourceRequisition = async (connection, sourceInfo, lock = false) => {
+  if (!sourceInfo) return null;
+
+  const lockSql = lock ? ' FOR UPDATE' : '';
+  const [rows] = await connection.execute(
+    `SELECT id
+     FROM purchase_requisitions
+     WHERE source_type = ?
+       AND source_id = ?
+       AND source_material_id = ?
+       AND status NOT IN ('cancelled', 'rejected')
+       AND deleted_at IS NULL
+     ORDER BY id DESC
+     LIMIT 1${lockSql}`,
+    [sourceInfo.sourceType, sourceInfo.sourceId, sourceInfo.sourceMaterialId]
+  );
+
+  return rows[0] || null;
+};
 
 // 获取采购申请列表
 const getRequisitions = async (req, res) => {
@@ -26,7 +71,7 @@ const getRequisitions = async (req, res) => {
       endDate,
       status,
     } = req.query;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
     let query = `
       SELECT r.*, u.real_name as user_real_name, COUNT(*) OVER() as total_count
@@ -92,9 +137,9 @@ const getRequisitions = async (req, res) => {
     }
 
     // 直接在查询字符串中嵌入LIMIT和OFFSET值
-    const limitValue = Number(pageSize);
-    const offsetValue = Number(offset);
-    query += ` ORDER BY r.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(limitValue))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offsetValue))||0)}`;
+    const limitValue = pagination.limit;
+    const offsetValue = pagination.offset;
+    query += ` ORDER BY r.created_at DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
 
     const [rows] = await db.pool.execute(query, queryParams);
 
@@ -179,9 +224,9 @@ const getRequisitions = async (req, res) => {
     const responseData = {
       items: requisitions,
       total: totalCount,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
-      totalPages: Math.ceil(totalCount / pageSize),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalPages: Math.ceil(totalCount / pagination.pageSize),
     };
 
     return ResponseHandler.success(res, responseData);
@@ -242,9 +287,76 @@ const getRequisition = async (req, res) => {
   }
 };
 
+const getProductionPlanRequisitionStatus = async (req, res) => {
+  try {
+    const planId = toNullableInteger(req.query.planId || req.query.plan_id);
+    if (!planId) {
+      return ResponseHandler.error(res, '缺少生产计划ID', 'VALIDATION_ERROR', 400);
+    }
+
+    const materialIds = String(req.query.materialIds || req.query.material_ids || '')
+      .split(',')
+      .map((id) => toNullableInteger(id))
+      .filter(Boolean);
+
+    const queryParams = ['production_plan', planId];
+    let materialFilter = '';
+    if (materialIds.length > 0) {
+      materialFilter = `AND r.source_material_id IN (${materialIds.map(() => '?').join(',')})`;
+      queryParams.push(...materialIds);
+    }
+
+    const [rows] = await db.pool.execute(
+      `SELECT
+         r.id,
+         r.requisition_number,
+         r.status,
+         r.source_material_id,
+         r.created_at,
+         po.id AS order_id,
+         po.order_no,
+         po.status AS order_status
+       FROM purchase_requisitions r
+       LEFT JOIN purchase_orders po
+         ON po.requisition_id = r.id
+        AND po.deleted_at IS NULL
+       WHERE r.source_type = ?
+         AND r.source_id = ?
+         AND r.source_material_id IS NOT NULL
+         AND r.status NOT IN ('cancelled', 'rejected')
+         AND r.deleted_at IS NULL
+         ${materialFilter}
+       ORDER BY r.created_at DESC`,
+      queryParams
+    );
+
+    const statusMap = {};
+    for (const row of rows) {
+      const key = String(row.source_material_id);
+      if (statusMap[key]) continue;
+      statusMap[key] = {
+        requested: true,
+        requisitionId: row.id,
+        requestNumber: row.requisition_number,
+        requisitionStatus: row.status,
+        requestTime: row.created_at,
+        orderId: row.order_id || null,
+        orderNo: row.order_no || null,
+        orderStatus: row.order_status || null,
+      };
+    }
+
+    return ResponseHandler.success(res, statusMap);
+  } catch (error) {
+    logger.error('获取生产计划采购申请状态失败:', error);
+    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+  }
+};
+
 // 创建采购申请
 const createRequisition = async (req, res) => {
   let connection;
+  let sourceInfo = null;
 
   try {
     // 记录请求体
@@ -285,9 +397,21 @@ const createRequisition = async (req, res) => {
 
     // 合同编码（支持两种命名格式）
     const finalContractCode = contractCode || contract_code || null;
+    sourceInfo = normalizeSourceInfo(req.body);
 
     // 采购相关表由 migrations/20260312000007 管理，无需运行时建表
 
+    const existingSourceRequisition = await fetchExistingSourceRequisition(
+      connection,
+      sourceInfo,
+      true
+    );
+    if (existingSourceRequisition) {
+      await connection.commit();
+      const requisition = await getRequisitionById(existingSourceRequisition.id);
+      requisition.already_exists = true;
+      return ResponseHandler.success(res, requisition, '采购申请已存在');
+    }
 
     // 生成申请单号
     const requisitionNo = await purchaseModel.generateRequisitionNo(connection);
@@ -329,8 +453,9 @@ const createRequisition = async (req, res) => {
     // 创建采购申请（添加合同编码字段）
     const createQuery = `
       INSERT INTO purchase_requisitions
-      (requisition_number, request_date, requester, contract_code, real_name, remarks, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      (requisition_number, request_date, requester, contract_code, real_name, remarks, status,
+       source_type, source_id, source_material_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `;
 
     const [result] = await connection.execute(createQuery, [
@@ -340,6 +465,9 @@ const createRequisition = async (req, res) => {
       finalContractCode,
       finalRealName,
       finalRemarks,
+      sourceInfo?.sourceType || null,
+      sourceInfo?.sourceId || null,
+      sourceInfo?.sourceMaterialId || null,
     ]);
 
     const requisitionId = result.insertId;
@@ -448,6 +576,14 @@ const createRequisition = async (req, res) => {
     ResponseHandler.success(res, createdRequisition, '创建成功', 201);
   } catch (error) {
     if (connection) await connection.rollback();
+    if (sourceInfo && error?.code === 'ER_DUP_ENTRY') {
+      const existing = await fetchExistingSourceRequisition(db.pool, sourceInfo);
+      if (existing) {
+        const requisition = await getRequisitionById(existing.id);
+        requisition.already_exists = true;
+        return ResponseHandler.success(res, requisition, '采购申请已存在');
+      }
+    }
     logger.error('创建采购申请失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
   } finally {
@@ -488,7 +624,7 @@ const updateRequisition = async (req, res) => {
     const finalContractCode = contractCode || contract_code || null;
 
     // 检查申请单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ?';
+    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -613,7 +749,7 @@ const deleteRequisition = async (req, res) => {
     const { id } = req.params;
 
     // 检查申请单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ?';
+    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -662,7 +798,7 @@ const updateRequisitionStatus = async (req, res) => {
     }
 
     // 检查申请单是否存在
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ?';
+    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -1040,6 +1176,7 @@ const deleteRequisitionItem = async (req, res) => {
 module.exports = {
   getRequisitions,
   getRequisition,
+  getProductionPlanRequisitionStatus,
   createRequisition,
   updateRequisition,
   deleteRequisition,

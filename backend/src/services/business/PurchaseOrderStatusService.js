@@ -7,6 +7,9 @@
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 
+const QUANTITY_EPSILON = 0.0001;
+const TERMINAL_INSPECTION_STATUSES = ['passed', 'failed', 'partial', 'completed'];
+
 class PurchaseOrderStatusService {
   /**
    * 更新采购订单项目的已收货数量
@@ -14,14 +17,12 @@ class PurchaseOrderStatusService {
    * @param {number} orderId - 采购订单ID
    * @param {number} materialId - 物料ID
    * @param {number} receivedQuantity - 收货数量
-   * @param {number} qualifiedQuantity - 合格数量(已废弃,保留参数以兼容旧代码)
    * @param {Object} connection - 数据库连接（可选）
    */
   static async updateOrderItemReceivedQuantity(
     orderId,
     materialId,
     receivedQuantity,
-    qualifiedQuantity,
     connection = null
   ) {
     const client = connection || db.pool;
@@ -71,7 +72,10 @@ class PurchaseOrderStatusService {
 
       const params = [newReceivedQty, orderId, materialId];
 
-      await client.execute(updateQuery, params);
+      const [updateResult] = await client.execute(updateQuery, params);
+      if (!updateResult || updateResult.affectedRows === 0) {
+        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
+      }
 
       logger.info('[PurchaseOrderStatusService] 收货数量更新完成');
 
@@ -84,17 +88,9 @@ class PurchaseOrderStatusService {
     }
   }
 
-  /**
-   * 计算并更新采购订单的完成状态
-   * @param {number} orderId - 采购订单ID
-   * @param {Object} connection - 数据库连接（可选）
-   */
-  static async updateOrderStatus(orderId, connection = null) {
+  static async getOrderQuantityStats(orderId, connection = null) {
     const client = connection || db.pool;
-
-    try {
-      // 获取订单项目的完成情况
-      const itemsQuery = `
+    const itemsQuery = `
         SELECT
           SUM(quantity) as total_quantity,
           SUM(received_quantity) as total_received,
@@ -108,25 +104,112 @@ class PurchaseOrderStatusService {
         WHERE order_id = ?
       `;
 
-      const [itemsResult] = await client.execute(itemsQuery, [orderId]);
+    const [itemsResult] = await client.execute(itemsQuery, [orderId]);
+    const stats = itemsResult && itemsResult[0];
+    const itemCount = parseInt(stats?.item_count, 10) || 0;
 
-      if (!itemsResult || itemsResult.length === 0) {
-        logger.warn(`[PurchaseOrderStatusService] 订单${orderId}没有项目数据`);
-        return;
+    if (!stats || itemCount === 0) {
+      logger.warn(`[PurchaseOrderStatusService] 订单${orderId}没有项目数据`);
+      return null;
+    }
+
+    const totalQuantity = parseFloat(stats.total_quantity) || 0;
+    const totalReceived = parseFloat(stats.total_received) || 0;
+    const totalInspected = parseFloat(stats.total_inspected) || 0;
+    const totalQualified = parseFloat(stats.total_qualified) || 0;
+    const totalUnqualified = parseFloat(stats.total_unqualified) || 0;
+    const totalWarehoused = parseFloat(stats.total_warehoused) || 0;
+    const completedItems = parseInt(stats.completed_items, 10) || 0;
+    const completionPercentage = totalQuantity > 0 ? (totalWarehoused / totalQuantity) * 100 : 0;
+    const canComplete =
+      totalQuantity > 0 && totalWarehoused + QUANTITY_EPSILON >= totalQuantity;
+
+    return {
+      orderId,
+      totalQuantity,
+      totalReceived,
+      totalInspected,
+      totalQualified,
+      totalUnqualified,
+      totalWarehoused,
+      itemCount,
+      completedItems,
+      completionPercentage,
+      canComplete,
+    };
+  }
+
+  static deriveStatusFromQuantityStats(currentStatus, stats) {
+    if (currentStatus === 'cancelled' || !stats) {
+      return currentStatus;
+    }
+
+    if (stats.canComplete) {
+      return 'completed';
+    }
+
+    if (stats.totalWarehoused > 0) {
+      return 'warehousing';
+    }
+
+    if (stats.totalInspected > 0) {
+      return stats.totalInspected + QUANTITY_EPSILON >= stats.totalReceived
+        ? 'inspected'
+        : 'inspecting';
+    }
+
+    if (stats.totalReceived > 0) {
+      return stats.totalReceived + QUANTITY_EPSILON >= stats.totalQuantity
+        ? 'received'
+        : 'partial_received';
+    }
+
+    if (currentStatus === 'completed') {
+      return 'approved';
+    }
+
+    return currentStatus;
+  }
+
+  static async assertOrderCanComplete(orderId, connection = null) {
+    const stats = await this.getOrderQuantityStats(orderId, connection);
+
+    if (!stats || !stats.canComplete) {
+      const totalQuantity = stats ? stats.totalQuantity : 0;
+      const totalWarehoused = stats ? stats.totalWarehoused : 0;
+      throw new Error(
+        `采购订单尚未全部入库，不能设置为已完成: 订单数量=${totalQuantity}, 已入库=${totalWarehoused}`
+      );
+    }
+
+    return stats;
+  }
+
+  /**
+   * 计算并更新采购订单的完成状态
+   * @param {number} orderId - 采购订单ID
+   * @param {Object} connection - 数据库连接（可选）
+   */
+  static async updateOrderStatus(orderId, connection = null) {
+    const client = connection || db.pool;
+
+    try {
+      const stats = await this.getOrderQuantityStats(orderId, client);
+      if (!stats) {
+        return null;
       }
 
-      const stats = itemsResult[0];
-      const totalQuantity = parseFloat(stats.total_quantity) || 0;
-      const totalReceived = parseFloat(stats.total_received) || 0;
-      const totalInspected = parseFloat(stats.total_inspected) || 0;
-      const totalQualified = parseFloat(stats.total_qualified) || 0;
-      const totalUnqualified = parseFloat(stats.total_unqualified) || 0;
-      const totalWarehoused = parseFloat(stats.total_warehoused) || 0;
-      const itemCount = parseInt(stats.item_count) || 0;
-      const completedItems = parseInt(stats.completed_items) || 0;
-
-      // 计算完成百分比(基于入库数量)
-      const completionPercentage = totalQuantity > 0 ? (totalWarehoused / totalQuantity) * 100 : 0;
+      const {
+        totalQuantity,
+        totalReceived,
+        totalInspected,
+        totalQualified,
+        totalUnqualified,
+        totalWarehoused,
+        itemCount,
+        completedItems,
+        completionPercentage,
+      } = stats;
 
       // 获取当前订单状态
       const [currentOrder] = await client.execute(
@@ -136,42 +219,16 @@ class PurchaseOrderStatusService {
       const currentStatus =
         currentOrder && currentOrder.length > 0 ? currentOrder[0].status : 'draft';
 
-      // ✅ 优化后的状态流转逻辑
-      let newStatus = currentStatus;
-
-      // 如果已完成或已取消,不再改变状态
-      if (['completed', 'cancelled'].includes(currentStatus)) {
+      if (currentStatus === 'cancelled') {
         logger.info(`[PurchaseOrderStatusService] 订单${orderId}状态为${currentStatus},不更新`);
-        return;
+        return {
+          ...stats,
+          status: currentStatus,
+          skipped: true,
+        };
       }
 
-      // 根据数量情况确定状态
-      if (completionPercentage >= 100) {
-        // 全部入库完成
-        newStatus = 'completed';
-      } else if (totalWarehoused > 0) {
-        // 部分入库
-        newStatus = 'warehousing';
-      } else if (totalInspected > 0) {
-        // 已检验但未入库
-        if (totalInspected >= totalReceived) {
-          newStatus = 'inspected';
-        } else {
-          newStatus = 'inspecting';
-        }
-      } else if (totalReceived > 0) {
-        // ✅ 修复：区分部分收货和全部收货
-        if (totalReceived >= totalQuantity) {
-          // 全部收货完成
-          newStatus = 'received';
-        } else {
-          // 部分收货
-          newStatus = 'partial_received';
-        }
-      } else if (['approved', 'pending', 'draft'].includes(currentStatus)) {
-        // 保持原状态
-        newStatus = currentStatus;
-      }
+      const newStatus = this.deriveStatusFromQuantityStats(currentStatus, stats);
 
       logger.info(
         `[PurchaseOrderStatusService] 订单${orderId}状态: ${currentStatus} -> ${newStatus}, 完成度: ${completionPercentage.toFixed(2)}%`
@@ -255,7 +312,10 @@ class PurchaseOrderStatusService {
         materialId,
       ];
 
-      await client.execute(updateQuery, params);
+      const [updateResult] = await client.execute(updateQuery, params);
+      if (!updateResult || updateResult.affectedRows === 0) {
+        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
+      }
 
       logger.info('[PurchaseOrderStatusService] 检验数量更新完成');
 
@@ -268,11 +328,83 @@ class PurchaseOrderStatusService {
     }
   }
 
+  static async syncOrderItemInspectionQuantityFromInspections(
+    orderId,
+    materialId,
+    connection = null
+  ) {
+    const client = connection || db.pool;
+
+    try {
+      const [orderItem] = await client.execute(
+        'SELECT quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
+        [orderId, materialId]
+      );
+
+      if (orderItem.length === 0) {
+        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
+      }
+
+      const orderQuantity = parseFloat(orderItem[0].quantity) || 0;
+      const [inspectionRows] = await client.execute(
+        `SELECT
+           COALESCE(SUM(quantity), 0) AS inspected_quantity,
+           COALESCE(SUM(qualified_quantity), 0) AS qualified_quantity,
+           COALESCE(SUM(unqualified_quantity), 0) AS unqualified_quantity
+         FROM quality_inspections
+         WHERE deleted_at IS NULL
+           AND inspection_type = 'incoming'
+           AND reference_id = ?
+           AND material_id = ?
+           AND status IN (?, ?, ?, ?)`,
+        [orderId, materialId, ...TERMINAL_INSPECTION_STATUSES]
+      );
+
+      const stats = inspectionRows[0] || {};
+      const inspectedQuantity = parseFloat(stats.inspected_quantity) || 0;
+      const qualifiedQuantity = parseFloat(stats.qualified_quantity) || 0;
+      const unqualifiedQuantity = parseFloat(stats.unqualified_quantity) || 0;
+
+      if (inspectedQuantity > orderQuantity + QUANTITY_EPSILON) {
+        throw new Error(
+          `检验数量超过采购订单数量: 订单数量=${orderQuantity}, 已终态检验=${inspectedQuantity}`
+        );
+      }
+
+      const [updateResult] = await client.execute(
+        `UPDATE purchase_order_items
+         SET inspected_quantity = ?,
+             qualified_quantity = ?,
+             unqualified_quantity = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE order_id = ? AND material_id = ?`,
+        [inspectedQuantity, qualifiedQuantity, unqualifiedQuantity, orderId, materialId]
+      );
+
+      if (!updateResult || updateResult.affectedRows === 0) {
+        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
+      }
+
+      await this.updateOrderStatus(orderId, client);
+
+      return {
+        orderId,
+        materialId,
+        inspectedQuantity,
+        qualifiedQuantity,
+        unqualifiedQuantity,
+      };
+    } catch (error) {
+      logger.error('同步采购订单项目检验数量失败:', error);
+      throw error;
+    }
+  }
+
   /**
    * 处理质检完成后的订单更新
    * @param {Object} inspectionData - 质检数据
    */
-  static async handleInspectionComplete(inspectionData) {
+  static async handleInspectionComplete(inspectionData, connection = null) {
     try {
       logger.info('[PurchaseOrderStatusService] 处理检验完成:', inspectionData);
 
@@ -284,23 +416,38 @@ class PurchaseOrderStatusService {
         const qualifiedQuantity = parseFloat(inspectionData.qualified_quantity) || 0;
         const unqualifiedQuantity = parseFloat(inspectionData.unqualified_quantity) || 0;
 
-        if (orderId && materialId && inspectedQuantity > 0) {
-          // ✅ 检验完成时只更新检验相关数量,不更新warehoused_quantity
-          // warehoused_quantity应该在入库单完成时更新
+        if (!materialId) {
+          throw new Error(`质检单缺少物料ID，无法回写采购订单: 订单ID=${orderId}`);
+        }
+
+        if (inspectedQuantity <= 0) {
+          throw new Error(`质检数量必须大于0，无法回写采购订单: 订单ID=${orderId}, 物料ID=${materialId}`);
+        }
+
+        if (inspectionData.inspection_id) {
+          await this.syncOrderItemInspectionQuantityFromInspections(
+            orderId,
+            materialId,
+            connection
+          );
+        } else {
           await this.updateOrderItemInspectionQuantity(
             orderId,
             materialId,
             inspectedQuantity,
             qualifiedQuantity,
-            unqualifiedQuantity
+            unqualifiedQuantity,
+            connection
           );
-
-          logger.info(`[PurchaseOrderStatusService] 订单${orderId}物料${materialId}检验数量已更新`);
         }
+
+        logger.info(`[PurchaseOrderStatusService] 订单${orderId}物料${materialId}检验数量已更新`);
+      } else if (inspectionData.reference_type === 'purchase_order') {
+        throw new Error('质检单缺少采购订单引用ID，无法回写采购订单');
       }
     } catch (error) {
       logger.error('处理质检完成后的采购订单更新失败:', error);
-      // 不抛出错误，避免影响质检流程
+      throw error;
     }
   }
 
@@ -330,16 +477,18 @@ class PurchaseOrderStatusService {
         [orderId, materialId]
       );
 
-      if (orderItem.length > 0) {
-        const maxAllowed = parseFloat(orderItem[0].qualified_quantity || orderItem[0].received_quantity || orderItem[0].quantity) || 0;
-        const currentWarehoused = parseFloat(orderItem[0].warehoused_quantity) || 0;
-        const newWarehousingQty = parseFloat(warehousingQuantity) || 0;
+      if (orderItem.length === 0) {
+        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
+      }
 
-        if (currentWarehoused + newWarehousingQty > maxAllowed + 0.001) {
-          const errorMsg = `入库数量超额: 允许上限=${maxAllowed}, 已入库=${currentWarehoused}, 本次入库=${newWarehousingQty}`;
-          logger.error(`[PurchaseOrderStatusService] ${errorMsg}`);
-          throw new Error(errorMsg);
-        }
+      const maxAllowed = parseFloat(orderItem[0].qualified_quantity || orderItem[0].received_quantity || orderItem[0].quantity) || 0;
+      const currentWarehoused = parseFloat(orderItem[0].warehoused_quantity) || 0;
+      const newWarehousingQty = parseFloat(warehousingQuantity) || 0;
+
+      if (currentWarehoused + newWarehousingQty > maxAllowed + 0.001) {
+        const errorMsg = `入库数量超额: 允许上限=${maxAllowed}, 已入库=${currentWarehoused}, 本次入库=${newWarehousingQty}`;
+        logger.error(`[PurchaseOrderStatusService] ${errorMsg}`);
+        throw new Error(errorMsg);
       }
 
       // 更新采购订单项目的已入库数量
@@ -353,7 +502,10 @@ class PurchaseOrderStatusService {
 
       const params = [parseFloat(warehousingQuantity) || 0, orderId, materialId];
 
-      await client.execute(updateQuery, params);
+      const [updateResult] = await client.execute(updateQuery, params);
+      if (!updateResult || updateResult.affectedRows === 0) {
+        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
+      }
 
       logger.info('[PurchaseOrderStatusService] 入库数量更新完成');
 
@@ -371,10 +523,10 @@ class PurchaseOrderStatusService {
    */
   static async updateAllOrderStatuses() {
     try {
-      // 获取所有未完成的采购订单
+      // 获取所有非取消的采购订单，已完成订单也需要重算以纠正异常状态
       const ordersQuery = `
         SELECT id FROM purchase_orders
-        WHERE status NOT IN ('completed', 'cancelled')
+        WHERE status <> 'cancelled'
       `;
 
       const [orders] = await db.pool.execute(ordersQuery);

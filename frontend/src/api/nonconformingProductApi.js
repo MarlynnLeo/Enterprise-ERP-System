@@ -1,121 +1,80 @@
-import request from '@/utils/request'
+import { api } from '@/services/axiosInstance'
 
 /**
  * Get NCP list
  */
 export function getList(params) {
-  return request({
-    url: '/nonconforming-products',
-    method: 'get',
-    params
-  })
+  return api.get('/quality/nonconforming-products', { params })
 }
 
 /**
  * Get NCP details
  */
 export function getDetails(id) {
-  return request({
-    url: `/nonconforming-products/${id}`,
-    method: 'get'
-  })
+  return api.get(`/quality/nonconforming-products/${id}`)
 }
 
 /**
  * Get NCPs by inspection ID
  */
 export function getByInspectionId(inspectionId) {
-  return request({
-    url: `/nonconforming-products/inspection/${inspectionId}`,
-    method: 'get'
-  })
+  return api.get(`/quality/nonconforming-products/inspection/${inspectionId}`)
 }
 
 /**
  * Create NCP
  */
 export function create(data) {
-  return request({
-    url: '/nonconforming-products',
-    method: 'post',
-    data
-  })
+  return api.post('/quality/nonconforming-products', data)
 }
 
 /**
  * Update NCP
  */
 export function update(id, data) {
-  return request({
-    url: `/nonconforming-products/${id}`,
-    method: 'put',
-    data
-  })
+  return api.put(`/quality/nonconforming-products/${id}`, data)
 }
 
 /**
  * Update disposition
  */
 export function updateDisposition(id, data) {
-  return request({
-    url: `/nonconforming-products/${id}/disposition`,
-    method: 'put',
-    data
-  })
+  return api.put(`/quality/nonconforming-products/${id}/disposition`, data)
 }
 
 /**
  * Complete handling
  */
 export function completeHandling(id, data) {
-  return request({
-    url: `/nonconforming-products/${id}/complete`,
-    method: 'put',
-    data
-  })
+  return api.put(`/quality/nonconforming-products/${id}/complete`, data)
 }
 
 /**
  * Apply concession handling
  */
 export function applyConcession(id, data) {
-  return request({
-    url: `/quality/ncp/${id}/concession/apply`,
-    method: 'post',
-    data
-  })
+  return api.post(`/quality/ncp/${id}/concession/apply`, data)
 }
 
 /**
  * Approve or reject concession handling
  */
 export function approveConcession(id, data) {
-  return request({
-    url: `/quality/ncp/${id}/concession/approve`,
-    method: 'post',
-    data
-  })
+  return api.post(`/quality/ncp/${id}/concession/approve`, data)
 }
 
 /**
  * Delete NCP
  */
 export function deleteNcp(id) {
-  return request({
-    url: `/nonconforming-products/${id}`,
-    method: 'delete'
-  })
+  return api.delete(`/quality/nonconforming-products/${id}`)
 }
 
 /**
  * Get statistics
  */
 export function getStatistics(params) {
-  return request({
-    url: '/nonconforming-products/statistics',
-    method: 'get',
-    params
-  })
+  return api.get('/quality/nonconforming-products/statistics', { params })
 }
 
 export default {
@@ -131,4 +90,3 @@ export default {
   deleteNcp,
   getStatistics
 }
-

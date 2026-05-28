@@ -410,7 +410,7 @@ const viewMessage = (message) => {
   }
 
   // 跳转到详情页或相关页面
-  router.push(`/notifications/${message.id}`);
+  router.push(`/system/notifications/${message.id}`);
 };
 
 const handleAction = async (message, action) => {
@@ -531,7 +531,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .notifications-page {
-  min-height: 100vh;
+  min-height: 100%;
   background-color: var(--bg-primary);
 }
 
@@ -600,12 +600,15 @@ onMounted(() => {
   padding: 6px 14px;
   border-radius: 20px;
   background: var(--bg-secondary);
-  border: 1.5px solid var(--glass-border);
+  border: 1.5px solid var(--surface-border, var(--border-subtle));
   white-space: nowrap;
   flex-shrink: 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
-  transition: all 0.25s ease;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
   cursor: pointer;
   .chip-text { font-weight: 500; }
   &.active {
@@ -639,7 +642,7 @@ onMounted(() => {
     padding: 16px;
     margin-bottom: 8px;
     box-shadow: none;
-    transition: all 0.2s;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
 
     &.unread {
       border-left: 3px solid var(--color-primary);

@@ -41,22 +41,22 @@
         <el-table-column prop="account_code" label="科目代码" width="120" />
         <el-table-column prop="account_name" label="科目名称" width="180" />
         <el-table-column prop="department_name" label="部门" width="120" />
-        <el-table-column prop="budget_amount" label="预算金额" width="120" align="right">
+        <el-table-column prop="budget_amount" label="预算金额" width="120">
           <template #default="{ row }">
             {{ formatAmount(row.budget_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="used_amount" label="已使用" width="120" align="right">
+        <el-table-column prop="used_amount" label="已使用" width="120">
           <template #default="{ row }">
             {{ formatAmount(row.used_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="remaining_amount" label="剩余金额" width="120" align="right">
+        <el-table-column prop="remaining_amount" label="剩余金额" width="120">
           <template #default="{ row }">
             {{ formatAmount(row.remaining_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="执行率" width="120" align="center">
+        <el-table-column label="执行率" width="120">
           <template #default="{ row }">
             <el-progress
               :percentage="calculateDetailExecutionRate(row)"
@@ -65,7 +65,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="warning_threshold" label="预警阈值" width="100" align="center">
+        <el-table-column prop="warning_threshold" label="预警阈值" width="100">
           <template #default="{ row }">
             {{ row.warning_threshold }}%
           </template>
@@ -143,9 +143,9 @@ const calculateDetailExecutionRate = (row) => {
 
 // 获取进度条颜色
 const getProgressColor = (percentage) => {
-  if (percentage >= 100) return '#f56c6c';
-  if (percentage >= 80) return '#e6a23c';
-  return '#67c23a';
+  if (percentage >= 100) return 'var(--color-danger)';
+  if (percentage >= 80) return 'var(--color-warning)';
+  return 'var(--color-success)';
 };
 
 // 获取状态类型

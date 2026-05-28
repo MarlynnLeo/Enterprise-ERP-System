@@ -7,8 +7,10 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { validateRequiredFields } = require('../../../utils/validationHelper');
+const dayjs = require('dayjs');
 
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
@@ -61,7 +63,7 @@ const getStockList = async (req, res) => {
       sort_field = 'updated_at', // 排序字段
       sort_order = 'DESC', // 排序方向: ASC, DESC
     } = req.query;
-    const offset = (page - 1) * limit;
+    const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
 
     // 构建WHERE条件
     const whereConditions = [];
@@ -174,8 +176,8 @@ const getStockList = async (req, res) => {
         current_stock.location_id as location_id,
         l.name as location_name,
         current_stock.quantity as quantity,
-        IFNULL(m.price, 0) as unit_price,
-        current_stock.quantity * IFNULL(m.price, 0) as total_amount,
+        IFNULL(m.cost_price, 0) as unit_price,
+        current_stock.quantity * IFNULL(m.cost_price, 0) as total_amount,
         current_stock.last_updated as updated_at,
         IFNULL(m.min_stock, 0) as min_stock,
         IFNULL(m.max_stock, 0) as max_stock
@@ -191,7 +193,7 @@ const getStockList = async (req, res) => {
       LEFT JOIN locations l ON current_stock.location_id = l.id
       ${whereClause}
       ${orderByClause}
-      LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     const countQuery = `
@@ -220,8 +222,8 @@ const getStockList = async (req, res) => {
       res,
       stocks,
       total,
-      parseInt(page),
-      parseInt(limit),
+      pagination.page,
+      pagination.pageSize,
       '获取库存列表成功'
     );
   } catch (error) {
@@ -359,24 +361,61 @@ const getStockRecords = async (req, res) => {
 
 const getLocations = async (req, res) => {
   try {
-    const query = `
+    const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+      defaultPageSize: 50,
+      maxPageSize: 100,
+    });
+    const keyword = String(req.query.keyword || req.query.search || '').trim();
+    const code = String(req.query.code || '').trim();
+    const name = String(req.query.name || '').trim();
+    const status = req.query.status;
+    const conditions = ['deleted_at IS NULL'];
+    const params = [];
+
+    if (code) {
+      conditions.push('code = ?');
+      params.push(code);
+    } else if (keyword) {
+      conditions.push('(code LIKE ? OR name LIKE ? OR warehouse_name LIKE ?)');
+      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    }
+
+    if (name) {
+      conditions.push('name LIKE ?');
+      params.push(`%${name}%`);
+    }
+
+    if (status !== undefined && status !== null && status !== '' && !Number.isNaN(Number(status))) {
+      conditions.push('status = ?');
+      params.push(Number(status));
+    }
+
+    const whereClause = conditions.join(' AND ');
+    const query = appendPaginationSQL(`
       SELECT
         id,
         name,
-        code
+        code,
+        warehouse_name,
+        status
       FROM locations
+      WHERE ${whereClause}
       ORDER BY name
-    `;
+    `, pagination.limit, pagination.offset);
 
-    const [locations] = await db.pool.execute(query);
+    const [locations] = await db.pool.execute(query, params);
+    const [countRows] = await db.pool.execute(
+      `SELECT COUNT(*) as total FROM locations WHERE ${whereClause}`,
+      params
+    );
+    const total = countRows[0]?.total || 0;
 
-    // 返回符合前端期望的格式
     ResponseHandler.paginated(
       res,
       locations,
-      locations.length,
-      1,
-      locations.length,
+      total,
+      pagination.page,
+      pagination.pageSize,
       '获取库位列表成功'
     );
   } catch (error) {
@@ -390,7 +429,10 @@ const getLocations = async (req, res) => {
 const getMaterialsWithStock = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
-    const { keyword = '' } = req.query;
+    const { keyword = '', codes = '' } = req.query;
+    const materialCodes = typeof codes === 'string'
+      ? codes.split(',').map(code => code.trim()).filter(Boolean).slice(0, 100)
+      : [];
 
     // 构建查询，获取物料及其默认库位的库存信息
     const query = `
@@ -421,7 +463,7 @@ const getMaterialsWithStock = async (req, res) => {
         ) s ON m.id = s.material_id AND s.location_id = m.location_id
       WHERE
         m.status = 1
-        ${keyword ? 'AND (m.code LIKE ? OR m.name LIKE ?)' : ''}
+        ${materialCodes.length > 0 ? 'AND m.code IN (?)' : keyword ? 'AND (m.code LIKE ? OR m.name LIKE ?)' : ''}
       ORDER BY
         m.code
       LIMIT 50
@@ -429,7 +471,9 @@ const getMaterialsWithStock = async (req, res) => {
 
     // 构建参数数组
     const params = [];
-    if (keyword) {
+    if (materialCodes.length > 0) {
+      params.push(materialCodes);
+    } else if (keyword) {
       params.push(`%${keyword}%`, `%${keyword}%`);
     }
 
@@ -483,7 +527,7 @@ const getMaterialsList = async (req, res) => {
         c.name as category_name,
         m.unit_id,
         u.name as unit_name,
-        m.price,
+        m.cost_price as price,
         COALESCE(s.location_id, 1) as location_id,
         COALESCE(l.name, '默认仓库') as location_name
       FROM
@@ -558,10 +602,12 @@ const adjustStock = async (req, res) => {
       // 检查库存不足
       if (afterQuantity < 0) {
         await connection.rollback();
-        return res.status(400).json({
-          success: false,
-          message: `库存不足，当前库存: ${beforeQuantity}，需要: ${Math.abs(changeQuantity)}`,
-        });
+        return ResponseHandler.error(
+          res,
+          `库存不足，当前库存: ${beforeQuantity}，需要: ${Math.abs(changeQuantity)}`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
     } else {
       // 调整入库：增加库存
@@ -674,8 +720,8 @@ const getMaterialRecords = async (req, res) => {
       ...req.query,
       materialId: id,
       locationId: locationIdParam, // 透传仓库过滤条件
-      page: 1,
-      pageSize: 1000, // 获取所有记录
+      page: Math.max(parseInt(req.query.page, 10) || 1, 1),
+      pageSize: Math.min(Math.max(parseInt(req.query.pageSize || req.query.limit, 10) || 100, 1), 100),
       startDate: '1900-01-01', // 获取所有历史记录
       endDate: '2099-12-31',
     };
@@ -860,7 +906,7 @@ const getMaterialStockDetail = async (req, res) => {
 const getLowStock = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
+    const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
 
     // 获取低库存物料（库存量小于最小库存量的物料）
     const query = `
@@ -904,7 +950,7 @@ const getLowStock = async (req, res) => {
           ELSE 2
         END,
         (m.min_stock - COALESCE(stock.current_quantity, 0)) DESC
-      LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     const [rows] = await db.pool.execute(query);
@@ -935,10 +981,10 @@ const getLowStock = async (req, res) => {
       {
         data: rows,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pagination.page,
+          limit: pagination.pageSize,
           total: countResult[0].total,
-          pages: Math.ceil(countResult[0].total / limit),
+          pages: Math.ceil(countResult[0].total / pagination.pageSize),
         },
       },
       '获取低库存预警成功'
@@ -1472,7 +1518,6 @@ const exportStockData = async (req, res) => {
 
     // ========== 5. ExcelJS 渲染 ==========
     const ExcelJS = require('exceljs');
-    const moment = require('moment');
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('库存明细及状态');
 
@@ -1515,7 +1560,7 @@ const exportStockData = async (req, res) => {
         quantity: qty,
         unit_name: item.unit_name,
         status: statusText,
-        updated_at: item.updated_at ? moment(item.updated_at).format('YYYY-MM-DD HH:mm:ss') : '-'
+        updated_at: item.updated_at ? dayjs(item.updated_at).format('YYYY-MM-DD HH:mm:ss') : '-'
       });
 
       // 主行样式
@@ -1565,7 +1610,7 @@ const exportStockData = async (req, res) => {
             quantity: parseFloat(rec.quantity) || 0,
             unit_name: parseFloat(rec.before_quantity) || 0,
             status: parseFloat(rec.after_quantity) || 0,
-            updated_at: rec.created_at ? moment(rec.created_at).format('YYYY-MM-DD HH:mm:ss') : '-'
+            updated_at: rec.created_at ? dayjs(rec.created_at).format('YYYY-MM-DD HH:mm:ss') : '-'
           });
 
           recRow.eachCell({ includeEmpty: true }, cell => {

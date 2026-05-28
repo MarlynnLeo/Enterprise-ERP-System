@@ -10,9 +10,11 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { showToast } from 'vant'
+  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { equipmentApi } from '@/services/api'
+
+  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '保养计划',
@@ -54,7 +56,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '制定计划', action: 'create', handler: () => showToast('手机端暂未开放保养计划新建') }
+      { icon: 'plus', label: '制定计划', action: 'create', handler: () => router.push('/equipment/maintenance/create') }
     ]
   }))
 

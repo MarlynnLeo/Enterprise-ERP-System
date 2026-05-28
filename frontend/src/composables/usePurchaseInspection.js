@@ -1,3 +1,4 @@
+import { formatLocalDate } from '@/utils/format';
 /**
  * usePurchaseInspection.js
  * @description 采购检验相关的组合式函数
@@ -12,7 +13,7 @@ import {
   getGeneralTemplateQueryParams
 } from '@/constants/inspection';
 import { parseListData, isResponseSuccess } from '@/utils/responseParser';
-import { createLogger } from '@/utils/devLogger';
+import { createLogger } from '@/utils/logger';
 // 创建日志工具
 const logger = createLogger('🔍 采购检验');
 /**
@@ -235,7 +236,7 @@ export const usePurchaseInspection = () => {
           reference_no: orderData.order_no,
           unit: item.unit_name || item.unit || '个',
           unit_id: item.unit_id,
-          planned_date: new Date().toISOString().split('T')[0],
+          planned_date: formatLocalDate(new Date()),
           actual_date: null,
           status: 'pending',
           note: `自动创建的来料检验单 - 供应商: ${orderData.supplier_name}`,

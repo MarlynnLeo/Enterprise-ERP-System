@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="receipts-container">
+  <div class="module-page receipts-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,25 +19,22 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="searchReceipts"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="收款编号">
           <el-input  v-model="searchForm.receiptNumber" placeholder="输入收款编号" clearable ></el-input>
         </el-form-item>
         <el-form-item label="客户名称">
           <el-input  v-model="searchForm.customerName" placeholder="输入客户名称" clearable ></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchReceipts">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-          <el-button class="advanced-search-btn" @click="showAdvancedSearch = !showAdvancedSearch">
-            {{ showAdvancedSearch ? '收起筛选' : '高级搜索' }}
-            <el-icon style="margin-left: 4px;"><ArrowUp v-if="showAdvancedSearch" /><ArrowDown v-else /></el-icon>
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <!-- 高级搜索区域 -->
-      <el-form :inline="true" :model="searchForm" class="search-form" v-show="showAdvancedSearch" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dcdfe6;">
+      </template>
+      <template #advanced>
         <el-form-item label="收款日期">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -64,8 +61,8 @@
             <el-option label="已作废" value="void"></el-option>
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 过滤提示条 - 当通过发票跳转时显示 -->
     <el-alert
@@ -102,7 +99,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="total_amount" label="收款金额" width="130" align="right">
+        <el-table-column prop="total_amount" label="收款金额" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.total_amount) }}
           </template>
@@ -120,7 +117,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" min-width="230" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button type="info" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
             <el-button v-permission="'finance:ar:update'"
@@ -333,15 +330,15 @@
 
 <script setup>
 import { DateFormatter, NumberFormatter } from '@/utils/commonHelpers'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import PrintDialog from '@/components/common/PrintDialog.vue';
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { Plus } from '@element-plus/icons-vue';
+import { financeApi } from '@/api/finance';
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { useAuthStore } from '@/stores/auth'
 
@@ -434,7 +431,7 @@ const receiptForm = reactive({
   paidAmount: '',
   balance: '',
   balanceValue: 0,
-  receiptDate: new Date().toISOString().slice(0, 10),
+  receiptDate: formatLocalDate(new Date()),
   amount: 0,
   paymentMethod: 'bank_transfer',
   bankAccountId: null,  // 新增：银行账户ID
@@ -491,7 +488,7 @@ const loadReceipts = async () => {
       invoiceNumber: currentInvoiceFilter.value || ''  // 使用状态变量，支持清除过滤
     };
 
-    const response = await api.get('/finance/ar/receipts', { params });
+    const response = await financeApi.getReceipts(params);
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
     receiptList.value = list;
@@ -509,7 +506,7 @@ const loadReceipts = async () => {
 // 加载银行账户列表
 const loadBankAccounts = async () => {
   try {
-    const response = await api.get('/finance/baseData/bankAccounts');
+    const response = await financeApi.getBankAccounts();
     const accounts = parseListData(response, { enableLog: false });
     bankAccounts.value = accounts.map(acc => ({
       id: acc.id,
@@ -527,7 +524,7 @@ const loadBankAccounts = async () => {
 // 加载未付清的发票选项
 const loadInvoiceOptions = async () => {
   try {
-    const response = await api.get('/finance/ar/receipts/unpaid-invoices');
+    const response = await financeApi.getUnpaidReceiptInvoices();
 
     // 使用统一的列表解析工具
     const invoiceList = parseListData(response, { enableLog: false });
@@ -565,7 +562,7 @@ const handleInvoiceChange = async () => {
   }
 
   try {
-    const response = await api.get(`/finance/ar/invoices/${receiptForm.invoiceId}`);
+    const response = await financeApi.getARInvoice(receiptForm.invoiceId);
     const invoice = response.data;
 
     const amount = parseFloat(invoice.amount ?? invoice.total_amount ?? 0);
@@ -630,7 +627,7 @@ const getStatusText = (status) => {
 // 查看详情
 const handleViewDetail = async (row) => {
   try {
-    const response = await api.get(`/finance/ar/receipts/${row.id}`);
+    const response = await financeApi.getReceipt(row.id);
     detailData.value = response.data;
     detailDialogVisible.value = true;
   } catch (error) {
@@ -663,7 +660,7 @@ const confirmVoid = async () => {
     if (valid) {
       voidLoading.value = true;
       try {
-        await api.post(`/finance/ar/receipts/${voidForm.id}/void`, {
+        await financeApi.voidReceipt(voidForm.id, {
           void_reason: voidForm.voidReason
         });
 
@@ -708,7 +705,7 @@ const showAddDialog = async () => {
 
   // 自动生成收款编号
   try {
-    const response = await api.get('/finance/ar/receipts/generate-number');
+    const response = await financeApi.generateReceiptNumber();
     receiptForm.receiptNumber = response.data.receiptNumber;
   } catch (error) {
     console.error('生成收款编号失败:', error);
@@ -728,7 +725,7 @@ const printData = ref({});
 const handlePrint = async (row) => {
   try {
     // 获取完整详情以包含银行账户等信息
-    const response = await api.get(`/finance/ar/receipts/${row.id}`);
+    const response = await financeApi.getReceipt(row.id);
     const data = response.data;
 
     const operatorName =
@@ -783,7 +780,7 @@ const saveReceipt = async () => {
           notes: receiptForm.notes
         };
 
-        await api.post('/finance/ar/receipts', data);
+        await financeApi.createReceipt(data);
         ElMessage.success('添加成功');
         dialogVisible.value = false;
         loadReceipts();
@@ -808,7 +805,7 @@ const resetReceiptForm = () => {
   receiptForm.paidAmount = '';
   receiptForm.balance = '';
   receiptForm.balanceValue = 0;
-  receiptForm.receiptDate = new Date().toISOString().slice(0, 10);
+  receiptForm.receiptDate = formatLocalDate(new Date());
   receiptForm.amount = 0;
   receiptForm.paymentMethod = 'bank_transfer';
   receiptForm.bankAccountId = null;  // 新增：重置银行账户

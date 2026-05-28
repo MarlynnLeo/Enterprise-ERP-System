@@ -1,29 +1,25 @@
 ﻿<template>
   <div class="replacement-orders-container">
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="fetchData"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input  v-model="searchForm.materialCode" placeholder="物料名称/编码" clearable @keyup.enter="fetchData" />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="换货单号">
           <el-input  v-model="searchForm.replacementNo" placeholder="请输入换货单号" clearable @keyup.enter="fetchData" />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchData">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-          <el-button class="advanced-search-btn" @click="showAdvancedSearch = !showAdvancedSearch">
-            {{ showAdvancedSearch ? '收起筛选' : '高级搜索' }}
-            <el-icon style="margin-left: 4px;"><ArrowUp v-if="showAdvancedSearch" /><ArrowDown v-else /></el-icon>
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <!-- 高级搜索区域 -->
-      <el-form :inline="true" :model="searchForm" class="search-form" v-show="showAdvancedSearch" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dcdfe6;">
         <el-form-item label="不合格品编号">
           <el-input  v-model="searchForm.ncpNo" placeholder="请输入不合格品编号" clearable @keyup.enter="fetchData" />
         </el-form-item>
         <el-form-item label="供应商">
           <el-input  v-model="searchForm.supplierName" placeholder="请输入供应商名称" clearable @keyup.enter="fetchData" />
-        </el-form-item>
-        <el-form-item label="物料编码">
-          <el-input  v-model="searchForm.materialCode" placeholder="请输入物料编码" clearable @keyup.enter="fetchData" />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
@@ -40,8 +36,8 @@
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="stats-row">
@@ -82,19 +78,19 @@
     <!-- 数据表格 -->
     <el-card class="table-card">
       <el-table :data="tableData" border stripe v-loading="loading">
-        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="replacement_no" label="换货单号" width="140" />
         <el-table-column prop="ncp_no" label="不合格品编号" width="140" />
         <el-table-column prop="return_no" label="退货单号" width="140" />
         <el-table-column prop="supplier_name" label="供应商" width="150" show-overflow-tooltip />
         <el-table-column prop="material_code" label="物料编码" width="120" />
         <el-table-column prop="material_name" label="物料名称" width="150" show-overflow-tooltip />
-        <el-table-column label="换货数量" width="100" align="right">
+        <el-table-column label="换货数量" width="100">
           <template #default="{ row }">
             {{ row.quantity }}
           </template>
         </el-table-column>
-        <el-table-column label="已收货数量" width="110" align="right">
+        <el-table-column label="已收货数量" width="110">
           <template #default="{ row }">
             <span :class="{ 'text-success': row.received_quantity >= row.quantity }">
               {{ row.received_quantity || 0 }}
@@ -103,7 +99,7 @@
         </el-table-column>
         <el-table-column prop="expected_date" label="预计到货日期" width="120" />
         <el-table-column prop="actual_date" label="实际到货日期" width="120" />
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
               {{ getStatusLabel(row.status) }}
@@ -111,7 +107,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" min-width="200" fixed="right" align="center">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
             <el-button
@@ -252,11 +248,12 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/services/api'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'
+import { parseResponseData } from '@/utils/responseParser'
 // 搜索表单
 const searchForm = reactive({
   replacementNo: '',
@@ -269,8 +266,6 @@ const searchForm = reactive({
 const dateRange = ref([])
 const loading = ref(false)
 const tableData = ref([])
-const showAdvancedSearch = ref(false)
-
 // 分页
 const pagination = reactive({
   current: 1,
@@ -324,7 +319,7 @@ const fetchData = async () => {
       params.endDate = dateRange.value[1]
     }
 
-    const response = await api.get('/replacement-orders', { params })
+    const response = await api.get('/quality/replacement-orders', { params })
     const pageData = normalizePaginationData(response)
     tableData.value = pageData.items
     pagination.total = pageData.total
@@ -347,9 +342,9 @@ const fetchStatistics = async () => {
       params.startDate = dateRange.value[0]
       params.endDate = dateRange.value[1]
     }
-    const response = await api.get('/replacement-orders/statistics', { params })
+    const response = await api.get('/quality/replacement-orders/statistics', { params })
     // 后端 ResponseHandler 返回格式: { success, data, message }
-    statistics.value = response.data?.data || response.data || {}
+    statistics.value = parseResponseData(response, {})
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
@@ -368,9 +363,9 @@ const resetSearch = () => {
 // 查看详情
 const viewDetail = async (row) => {
   try {
-    const response = await api.get(`/replacement-orders/${row.id}`)
+    const response = await api.get(`/quality/replacement-orders/${row.id}`)
     // 后端 ResponseHandler 返回格式: { success, data, message }
-    detailData.value = response.data?.data || response.data
+    detailData.value = parseResponseData(response)
     detailDialogVisible.value = true
   } catch (error) {
     console.error('获取换货单详情失败:', error)
@@ -382,7 +377,7 @@ const viewDetail = async (row) => {
 const confirmReceipt = (row) => {
   currentRow.value = row
   receiptForm.received_quantity = row.quantity - (row.received_quantity || 0)
-  receiptForm.actual_date = new Date().toISOString().slice(0, 10)
+  receiptForm.actual_date = formatLocalDate(new Date())
   receiptForm.note = ''
   receiptDialogVisible.value = true
 }
@@ -390,7 +385,7 @@ const confirmReceipt = (row) => {
 // 提交收货
 const submitReceipt = async () => {
   try {
-    await api.post(`/replacement-orders/${currentRow.value.id}/confirm-receipt`, receiptForm)
+    await api.post(`/quality/replacement-orders/${currentRow.value.id}/confirm-receipt`, receiptForm)
     ElMessage.success('收货确认成功')
     receiptDialogVisible.value = false
     fetchData()
@@ -411,7 +406,7 @@ const editOrder = (row) => {
 // 提交编辑
 const submitEdit = async () => {
   try {
-    await api.put(`/replacement-orders/${currentRow.value.id}`, editForm)
+    await api.put(`/quality/replacement-orders/${currentRow.value.id}`, editForm)
     ElMessage.success('更新成功')
     editDialogVisible.value = false
     fetchData()
@@ -463,24 +458,26 @@ onMounted(() => {
 
 .stat-card {
   cursor: pointer;
-  transition: all 0.3s;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: none;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  background: var(--color-bg-section);
 }
 
 .stat-card.pending {
-  border-left: 4px solid #e6a23c;
+  border-left: 4px solid var(--color-warning);
 }
 
 .stat-card.partial {
-  border-left: 4px solid #409eff;
+  border-left: 4px solid var(--color-primary);
 }
 
 .stat-card.completed {
-  border-left: 4px solid #67c23a;
+  border-left: 4px solid var(--color-success);
 }
 
 .stat-content {
@@ -514,4 +511,3 @@ onMounted(() => {
   font-weight: bold;
 }
 </style>
-

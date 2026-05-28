@@ -6,7 +6,10 @@ const DLQService = require('./business/DLQService');
 const bomService = {
   async getAllBoms(page = 1, pageSize = 10, filters = {}) {
     try {
-      const offset = (page - 1) * pageSize;
+      const noPagination = pageSize === null || pageSize === undefined;
+      const safePage = Math.max(parseInt(page, 10) || 1, 1);
+      const safePageSize = noPagination ? null : Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 100);
+      const offset = noPagination ? 0 : (safePage - 1) * safePageSize;
 
       // 构建WHERE子句
       let whereClause = 'bm.deleted_at IS NULL';
@@ -73,7 +76,8 @@ const bomService = {
         FROM bom_masters bm
         LEFT JOIN materials m ON bm.product_id = m.id
         WHERE ${whereClause}
-        ORDER BY bm.id DESC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}
+        ORDER BY bm.id DESC
+        ${noPagination ? '' : `LIMIT ${safePageSize} OFFSET ${offset}`}
       `;
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       const [bomMasters] = await pool.query(dataSql, params);
@@ -122,9 +126,9 @@ const bomService = {
         data: dataWithDetails,
         pagination: {
           total,
-          page: parseInt(page),
-          pageSize: parseInt(pageSize),
-          totalPages: Math.ceil(total / pageSize),
+          page: safePage,
+          pageSize: noPagination ? dataWithDetails.length : safePageSize,
+          totalPages: noPagination ? 1 : Math.ceil(total / safePageSize),
         },
       };
     } catch (error) {

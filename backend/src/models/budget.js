@@ -124,7 +124,7 @@ function getBudgetTotalAmount(totalAmount, normalizedDetails) {
 function parseLimit(value, defaultValue = 20) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed <= 0) return defaultValue;
-  return Math.min(parsed, 200);
+  return Math.min(parsed, 100);
 }
 
 function parseOffset(value) {
@@ -639,10 +639,10 @@ const budgetModel = {
         `
         UPDATE budget_details
         SET used_amount = used_amount + ?,
-            remaining_amount = budget_amount - (used_amount + ?)
+            remaining_amount = budget_amount - used_amount
         WHERE id = ?
       `,
-        [amount, amount, detailId]
+        [amount, detailId]
       );
 
       logger.info('预算明细已使用金额更新成功', { detailId, amount });
@@ -776,12 +776,13 @@ const budgetModel = {
    * @param {Object} warningData - 预警数据
    * @returns {Promise<number>} 预警ID
    */
-  createBudgetWarning: async (warningData) => {
+  createBudgetWarning: async (warningData, connection = null) => {
+    const conn = connection || db.pool;
     try {
       const { budget_id, budget_detail_id, warning_type, warning_level, warning_message } =
         warningData;
 
-      const [result] = await db.pool.execute(
+      const [result] = await conn.execute(
         `
         INSERT INTO budget_warnings (
           budget_id, budget_detail_id, warning_type, warning_level, warning_message

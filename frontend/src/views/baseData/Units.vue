@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="purchase-requisitions-container">
+  <div class="module-page base-data-list-page">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,30 +19,31 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="单位名称">
           <el-input  v-model="searchForm.name" placeholder="请输入单位名称" clearable ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="状态">
           <el-select  v-model="searchForm.status" placeholder="请选择状态" clearable>
             <el-option :value="1" label="启用"></el-option>
             <el-option :value="0" label="禁用"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
+      </template>
+      <template #actions>
           <el-button type="success" @click="handleExport">
             <el-icon><Download /></el-icon> 导出
           </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -81,7 +82,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注"></el-table-column>
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-popconfirm
               v-if="canUpdate && String(scope.row.status) !== '1'"
@@ -180,14 +181,12 @@
 </template>
 
 <script setup>
-import { parsePaginatedData } from '@/utils/responseParser';
-
+import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
-import { Plus, Edit, Delete, Search, Refresh, Download, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
-
 // 权限store
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:units:create'));
@@ -199,7 +198,8 @@ const canDelete = computed(() => authStore.hasPermission('basedata:units:delete'
 // ==================== 通用工具函数 ====================
 
 // 使用统一响应解析器，保持向后兼容的返回格式
-const parseResponseData = (response) => {
+
+const parsePagedResponse = (response) => {
   const { list, total } = parsePaginatedData(response);
   return { data: list, total };
 };
@@ -207,6 +207,7 @@ const parseResponseData = (response) => {
 // ==================== 响应式数据 ====================
 
 // 数据加载状态
+
 const loading = ref(false);
 
 // 表格数据
@@ -273,11 +274,12 @@ const handleExport = async () => {
     ElMessage.success('导出成功');
   } catch {
     ElMessage.error('导出失败');
+    calculateStatsFallback(tableData.value);
   }
 };
 
 // 计算统计数据
-const calculateStats = (data) => {
+const calculateStatsFallback = (data) => {
   const items = Array.isArray(data) ? data : [];
   stats.total = items.length;
   stats.active = items.filter(item => String(item.status) === '1').length;
@@ -287,9 +289,11 @@ const calculateStats = (data) => {
 // 获取全量统计数据
 const fetchStats = async () => {
   try {
-    const response = await baseDataApi.getUnits({ page: 1, pageSize: 100000 });
-    const { data } = parseResponseData(response);
-    calculateStats(data);
+    const response = await baseDataApi.getUnitStats();
+    const statsData = parseResponseData(response, {});
+    stats.total = Number(statsData.total) || 0;
+    stats.active = Number(statsData.active) || 0;
+    stats.inactive = Number(statsData.inactive) || 0;
   } catch (error) {
     console.error('获取单位统计数据失败:', error);
   }
@@ -307,6 +311,7 @@ const fetchData = async () => {
     };
 
     // 移除空值参数
+
     Object.keys(params).forEach(key => {
       if (params[key] === '' || params[key] === null || params[key] === undefined) {
         delete params[key];
@@ -314,7 +319,7 @@ const fetchData = async () => {
     });
 
     const response = await baseDataApi.getUnits(params);
-    const { data, total: totalCount } = parseResponseData(response);
+    const { data, total: totalCount } = parsePagedResponse(response);
 
     tableData.value = data;
     total.value = totalCount || data.length;
@@ -442,37 +447,3 @@ const submitForm = () => {
   });
 };
 </script>
-
-<style scoped>
-.header-card {
-  margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-/* 操作列样式 - 与库存出库页面保持一致 */
-.el-table .el-button + .el-button {
-  margin-left: 8px;
-}
-</style>

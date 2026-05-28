@@ -88,7 +88,7 @@
           >
             <div
               v-for="(item, index) in filteredItems"
-              :key="item[config.fields.id]"
+              :key="getItemKey(item, index)"
               class="list-card"
               :style="{ animationDelay: `${index * 0.03}s` }"
               @click="handleItemClick(item)"
@@ -163,17 +163,18 @@
 </template>
 
 <script setup>
-  import { ref, computed, watch, onMounted } from 'vue'
+  import { ref, computed, watch, onMounted, getCurrentInstance } from 'vue'
   import { useRouter } from 'vue-router'
   import { showToast, NavBar, Search, PullRefresh, List, Empty, BackTop } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import dayjs from 'dayjs'
   import { useDebouncedRef } from '@/composables/useDebounce'
+  import { extractApiPaginated } from '@/utils/apiHelper'
 
   const props = defineProps({
     config: { type: Object, required: true },
     apiFunction: { type: Function, required: true },
-    showAdd: { type: Boolean, default: true },
+    showAdd: { type: Boolean, default: undefined },
     addPermission: { type: String, default: '' },
     showFilter: { type: Boolean, default: false },
     listTitle: { type: String, default: '' }
@@ -181,6 +182,7 @@
 
   const emit = defineEmits(['add', 'filter', 'item-click', 'item-more', 'header-action'])
 
+  const instance = getCurrentInstance()
   const router = useRouter()
   const searchValue = ref('')
   const debouncedSearch = useDebouncedRef(searchValue, 300)  // 搜索防抖 300ms
@@ -196,14 +198,18 @@
   const PAGE_SIZE = 20
   const currentPage = ref(1)
   const totalCount = ref(0)
+  const requesting = ref(false)
+  const pendingRefresh = ref(false)
 
   // 筛选标签 — 优先使用 config.filterTabs，其次 config.tags
   const filterTabs = computed(() => props.config.filterTabs || props.config.tags || [])
+  const showDefaultAdd = computed(() => props.showAdd ?? Boolean(instance?.vnode?.props?.onAdd))
+  const hasItemClickListener = computed(() => Boolean(instance?.vnode?.props?.onItemClick))
 
   const headerActions = computed(() => {
     const configuredActions = props.config.headerActions || []
     if (configuredActions.length > 0) return configuredActions
-    if (!props.showAdd) return []
+    if (!showDefaultAdd.value) return []
     return [
       {
         icon: 'plus',
@@ -269,7 +275,13 @@
   // 获取字段值
   const getFieldValue = (item, field) => {
     if (typeof field === 'function') return field(item)
-    return item[field] || ''
+    return item?.[field] ?? ''
+  }
+
+  const getItemKey = (item, index) => {
+    const idField = props.config.fields.id
+    const id = idField ? item?.[idField] : undefined
+    return id ?? item?.id ?? item?._id ?? `${currentPage.value}-${index}`
   }
 
   // 获取图标名称
@@ -425,49 +437,14 @@
     return 'low'
   }
 
-  // ==================== 数据提取工具 ====================
-
-  // 从响应中提取数据数组
-  const extractDataFromResponse = (response) => {
-    let data = []
-    let responseData = response
-    if (response.data !== undefined) responseData = response.data
-
-    if (responseData.list && Array.isArray(responseData.list)) data = responseData.list
-    else if (responseData.items && Array.isArray(responseData.items)) data = responseData.items
-    else if (
-      responseData.data &&
-      responseData.data.items &&
-      Array.isArray(responseData.data.items)
-    )
-      data = responseData.data.items
-    else if (responseData.data && responseData.data.list && Array.isArray(responseData.data.list))
-      data = responseData.data.list
-    else if (responseData.data && Array.isArray(responseData.data)) data = responseData.data
-    else if (Array.isArray(responseData)) data = responseData
-    else if (responseData.data && typeof responseData.data === 'object') {
-      const innerData = responseData.data
-      const arrayKey = Object.keys(innerData).find((k) => Array.isArray(innerData[k]))
-      if (arrayKey) data = innerData[arrayKey]
-    } else if (typeof responseData === 'object' && responseData !== null) {
-      const arrayKey = Object.keys(responseData).find((k) => Array.isArray(responseData[k]))
-      if (arrayKey) data = responseData[arrayKey]
-    }
-
-    return { data, responseData }
-  }
-
-  // 从响应中提取 total 总数
-  const extractTotal = (responseData) => {
-    if (responseData.total !== undefined) return Number(responseData.total)
-    if (responseData.data && responseData.data.total !== undefined) return Number(responseData.data.total)
-    if (responseData.pagination && responseData.pagination.total !== undefined) return Number(responseData.pagination.total)
-    if (responseData.count !== undefined) return Number(responseData.count)
-    return -1  // 未知总数
-  }
-
   // ==================== 核心加载逻辑（支持无限滚动分页） ====================
   const loadData = async (isRefresh = false) => {
+    if (requesting.value) {
+      if (isRefresh) pendingRefresh.value = true
+      return
+    }
+    requesting.value = true
+
     if (isRefresh) {
       items.value = []
       currentPage.value = 1
@@ -482,12 +459,14 @@
         page: currentPage.value,
         pageSize: PAGE_SIZE,
         limit: PAGE_SIZE,
-        search: searchValue.value || undefined,
+        search: debouncedSearch.value || undefined,
         status: activeTag.value !== 'all' && !hasFilterAlias ? activeTag.value : undefined
       }
 
       const response = await props.apiFunction(params)
-      const { data, responseData } = extractDataFromResponse(response)
+      const { list: data, total, payload: responseData } = extractApiPaginated(response, {
+        totalFallback: -1
+      })
 
       if (isRefresh || currentPage.value === 1) {
         // 首次加载或刷新：替换数据
@@ -500,7 +479,6 @@
       }
 
       // 判断是否还有更多数据
-      const total = extractTotal(responseData)
       if (total >= 0) {
         totalCount.value = total
         finished.value = items.value.length >= total
@@ -519,9 +497,14 @@
       showToast('加载失败，请重试')
       finished.value = true  // 出错时停止继续加载
     } finally {
+      requesting.value = false
       loading.value = false
       refreshing.value = false
       initialLoading.value = false
+      if (pendingRefresh.value) {
+        pendingRefresh.value = false
+        loadData(true)
+      }
     }
   }
 
@@ -568,22 +551,39 @@
     emit('header-action', action)
   }
   const handleItemClick = (item) => {
+    if (hasItemClickListener.value) {
+      emit('item-click', item)
+      return
+    }
+
     if (props.config.detailRoute) {
-      const route = props.config.detailRoute.replace(':id', item[props.config.fields.id])
-      router.push(route)
+      const idField = props.config.fields.id
+      const id = idField ? item?.[idField] : undefined
+      const routeId = id ?? item?.id ?? item?._id
+      if (routeId !== undefined && routeId !== null) {
+        const route = props.config.detailRoute.replace(':id', routeId)
+        router.push(route)
+      }
     }
     emit('item-click', item)
   }
 
   // Vant List 组件触发加载更多
   const onLoad = () => {
-    if (!finished.value) {
-      loading.value = true
-      loadData()
+    if (finished.value || requesting.value) {
+      loading.value = false
+      return
     }
+    loading.value = true
+    loadData()
   }
   // 下拉刷新
   const onRefresh = () => {
+    if (requesting.value) {
+      pendingRefresh.value = true
+      refreshing.value = false
+      return
+    }
     refreshing.value = true
     loadData(true)
   }
@@ -593,12 +593,12 @@
 
 <style lang="scss" scoped>
   .universal-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: 0;
   }
   .page-body {
-    padding: 0 12px 12px;
+    padding: 0 12px var(--app-bottom-space);
   }
 
   .nav-actions {
@@ -623,9 +623,10 @@
     justify-content: space-around;
     background: var(--bg-secondary);
     border-radius: 12px;
-    padding: 14px 8px;
-    margin: 8px 0;
-    border: 1px solid var(--glass-border);
+    min-height: 74px;
+    padding: 12px 8px;
+    margin: 8px 0 12px;
+    border: 1px solid var(--surface-border, var(--border-subtle));
     box-shadow: none;
   }
   .stat-item {
@@ -639,22 +640,22 @@
     font-weight: 800;
     color: var(--text-primary);
     &.bg-blue {
-      color: #3b82f6;
+      color: var(--ds-blue);
     }
     &.bg-purple {
-      color: #a855f7;
+      color: var(--ds-purple);
     }
     &.bg-green {
-      color: #34d399;
+      color: var(--ds-green-strong);
     }
     &.bg-red {
-      color: #ef4444;
+      color: var(--ds-red);
     }
     &.bg-yellow {
-      color: #fbbf24;
+      color: var(--ds-yellow-strong);
     }
     &.bg-orange {
-      color: #f97316;
+      color: var(--ds-orange);
     }
   }
   .stat-label {
@@ -664,7 +665,7 @@
   .stat-divider {
     width: 1px;
     height: 28px;
-    background: var(--glass-border);
+    background: var(--van-border-color, var(--surface-border));
   }
 
   // ========== 搜索 ==========
@@ -694,12 +695,15 @@
     padding: 6px 14px;
     border-radius: 20px;
     background: var(--bg-secondary);
-    border: 1.5px solid var(--glass-border);
+    border: 1.5px solid var(--surface-border);
     white-space: nowrap;
     flex-shrink: 0;
     font-size: 0.8125rem;
     color: var(--text-secondary);
-    transition: all 0.25s;
+    transition:
+      color var(--transition-base),
+      background-color var(--transition-base),
+      border-color var(--transition-base);
     cursor: pointer;
     .chip-text {
       font-weight: 500;
@@ -712,17 +716,17 @@
       font-size: 0.625rem;
       font-weight: 700;
       border-radius: 9px;
-      background: var(--glass-border);
+      background: var(--surface-border);
       color: var(--text-secondary);
       padding: 0 4px;
     }
     &.active {
-      background: var(--color-accent-bg, rgba(59, 130, 246, 0.1));
-      border-color: var(--color-accent, #3b82f6);
-      color: var(--color-accent, #3b82f6);
+      background: var(--color-accent-bg, var(--ds-blue-bg));
+      border-color: var(--color-accent, var(--ds-blue));
+      color: var(--color-accent, var(--ds-blue));
       .chip-badge {
-        background: var(--color-accent, #3b82f6);
-        color: #fff;
+        background: var(--color-accent, var(--ds-blue));
+        color: var(--color-on-primary);
       }
     }
   }
@@ -737,9 +741,12 @@
     border-radius: 10px;
     margin-bottom: 8px;
     overflow: hidden;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border);
     box-shadow: none;
-    transition: all 0.2s;
+    transition:
+      transform var(--transition-base),
+      border-color var(--transition-base),
+      box-shadow var(--transition-base);
     animation: fadeInUp 0.35s ease-out both;
     cursor: pointer;
     &:active {
@@ -763,22 +770,22 @@
     width: 3px;
     flex-shrink: 0;
     &.accent-blue {
-      background: linear-gradient(180deg, #3b82f6, #60a5fa);
+      background: linear-gradient(180deg, var(--ds-blue), var(--ds-blue-strong));
     }
     &.accent-green {
-      background: linear-gradient(180deg, #10b981, #34d399);
+      background: linear-gradient(180deg, var(--ds-green), var(--ds-green-strong));
     }
     &.accent-yellow {
-      background: linear-gradient(180deg, #f59e0b, #fbbf24);
+      background: linear-gradient(180deg, var(--ds-yellow), var(--ds-yellow-strong));
     }
     &.accent-red {
-      background: linear-gradient(180deg, #ef4444, #f87171);
+      background: linear-gradient(180deg, var(--ds-red), var(--ds-red-strong));
     }
     &.accent-gray {
-      background: linear-gradient(180deg, #94a3b8, #cbd5e1);
+      background: linear-gradient(180deg, var(--ds-gray), var(--ds-gray-strong));
     }
     &.accent-purple {
-      background: linear-gradient(180deg, #a855f7, #c084fc);
+      background: linear-gradient(180deg, var(--ds-purple), var(--ds-purple-strong));
     }
   }
 
@@ -810,28 +817,28 @@
     justify-content: center;
     flex-shrink: 0;
     &.accent-blue {
-      background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
+      background: var(--ds-blue-bg);
+      color: var(--ds-blue);
     }
     &.accent-green {
-      background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      background: var(--ds-green-bg);
+      color: var(--ds-green);
     }
     &.accent-yellow {
-      background: rgba(245, 158, 11, 0.1);
-      color: #f59e0b;
+      background: var(--ds-yellow-bg);
+      color: var(--ds-yellow);
     }
     &.accent-red {
-      background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      background: var(--ds-red-bg);
+      color: var(--ds-red);
     }
     &.accent-gray {
-      background: rgba(148, 163, 184, 0.1);
-      color: #94a3b8;
+      background: var(--ds-gray-bg);
+      color: var(--ds-gray);
     }
     &.accent-purple {
-      background: rgba(168, 85, 247, 0.1);
-      color: #a855f7;
+      background: var(--ds-purple-bg);
+      color: var(--ds-purple);
     }
   }
   .item-title {
@@ -853,8 +860,8 @@
     &.st-draft,
     &.st-pending,
     &.tag-default {
-      background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      background: var(--ds-gray-bg);
+      color: var(--ds-gray);
     }
     &.st-confirmed,
     &.st-allocated,
@@ -862,8 +869,8 @@
     &.st-partial_shipped,
     &.st-shipped,
     &.tag-info {
-      background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
+      background: var(--ds-blue-bg);
+      color: var(--ds-blue);
     }
     &.st-preparing,
     &.st-material_issuing,
@@ -873,25 +880,25 @@
     &.st-in_procurement,
     &.st-processing,
     &.tag-warning {
-      background: rgba(245, 158, 11, 0.12);
-      color: #f59e0b;
+      background: var(--ds-yellow-bg);
+      color: var(--ds-yellow);
     }
     &.st-inspection,
     &.st-warehousing {
-      background: rgba(168, 85, 247, 0.12);
-      color: #a855f7;
+      background: var(--ds-purple-bg);
+      color: var(--ds-purple);
     }
     &.st-completed,
     &.st-delivered,
     &.tag-success,
     &.st-active {
-      background: rgba(16, 185, 129, 0.12);
-      color: #10b981;
+      background: var(--ds-green-bg);
+      color: var(--ds-green);
     }
     &.st-cancelled,
     &.st-inactive {
-      background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      background: var(--ds-gray-bg);
+      color: var(--ds-gray);
     }
     &.st-paused,
     &.st-shortage,
@@ -899,21 +906,21 @@
     &.st-overdue,
     &.st-failed,
     &.tag-danger {
-      background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      background: var(--ds-red-bg);
+      color: var(--ds-red);
     }
     &.st-approved,
     &.st-posted,
     &.st-received,
     &.st-passed,
     &.tag-primary {
-      background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
+      background: var(--ds-blue-bg);
+      color: var(--ds-blue);
     }
     &.st-voided,
     &.st-closed {
-      background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
+      background: var(--ds-gray-bg);
+      color: var(--ds-gray);
     }
   }
 
@@ -934,7 +941,7 @@
   .progress-bar {
     flex: 1;
     height: 6px;
-    background: var(--glass-border);
+    background: var(--surface-border);
     border-radius: 3px;
     overflow: hidden;
   }
@@ -943,13 +950,13 @@
     border-radius: 3px;
     transition: width 0.3s;
     &.fill-good {
-      background: linear-gradient(90deg, #10b981, #34d399);
+      background: linear-gradient(90deg, var(--ds-green), var(--ds-green-strong));
     }
     &.fill-medium {
-      background: linear-gradient(90deg, #f59e0b, #fbbf24);
+      background: linear-gradient(90deg, var(--ds-yellow), var(--ds-yellow-strong));
     }
     &.fill-low {
-      background: linear-gradient(90deg, #ef4444, #f87171);
+      background: linear-gradient(90deg, var(--ds-red), var(--ds-red-strong));
     }
   }
   .progress-text {
@@ -968,7 +975,7 @@
     gap: 4px 16px;
     margin-top: 4px;
     padding-top: 6px;
-    border-top: 1px solid var(--glass-border);
+    border-top: 1px solid var(--surface-border);
   }
   .detail-item {
     display: flex;
@@ -997,12 +1004,12 @@
     background: var(--bg-secondary);
     border-radius: 10px;
     overflow: hidden;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border);
   }
   .skeleton-accent {
     width: 3px;
     flex-shrink: 0;
-    background: var(--glass-border);
+    background: var(--surface-border);
   }
   .skeleton-body {
     flex: 1;
@@ -1016,9 +1023,9 @@
     border-radius: 6px;
     background: linear-gradient(
       90deg,
-      var(--bg-tertiary, #e8eaed) 25%,
-      var(--bg-secondary, #f8f9fa) 50%,
-      var(--bg-tertiary, #e8eaed) 75%
+      var(--bg-tertiary) 25%,
+      var(--bg-secondary, var(--color-bg-hover)) 50%,
+      var(--bg-tertiary) 75%
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite ease-in-out;

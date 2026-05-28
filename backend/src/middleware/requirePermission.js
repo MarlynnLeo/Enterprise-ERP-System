@@ -7,6 +7,7 @@
 const { logger } = require('../utils/logger');
 const PermissionService = require('../services/PermissionService');
 const { PermissionUtils } = require('../utils/authUtils');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 /**
  * 权限检查中间件
@@ -19,12 +20,7 @@ function requirePermission(permissions, mode = 'any') {
     try {
       // 1. 检查用户信息是否存在
       if (!req.user || !req.user.id) {
-        return res.status(401).json({
-          code: 401,
-          message: '未授权：用户信息缺失',
-          data: null,
-          timestamp: new Date().toISOString(),
-        });
+        return ResponseHandler.unauthorized(res, '未授权：用户信息缺失');
       }
 
       // ✅ 修复: 不再基于JWT快速检查管理员
@@ -47,12 +43,7 @@ function requirePermission(permissions, mode = 'any') {
 
       if (!hasPermission) {
         logger.warn(`[权限检查] 用户 ${req.user.username} 权限不足，需要: ${permArray.join(', ')}`);
-        return res.status(403).json({
-          code: 403,
-          message: `权限不足，需要权限: ${permArray.join(', ')}`,
-          data: null,
-          timestamp: new Date().toISOString(),
-        });
+        return ResponseHandler.forbidden(res, `权限不足，需要权限: ${permArray.join(', ')}`);
       }
 
       // 4. 权限检查通过，将用户权限附加到请求对象
@@ -61,12 +52,7 @@ function requirePermission(permissions, mode = 'any') {
       next();
     } catch (error) {
       logger.error('[权限检查] 系统错误:', error);
-      res.status(500).json({
-        code: 500,
-        message: '权限检查服务异常，请稍后重试',
-        data: null,
-        timestamp: new Date().toISOString(),
-      });
+      ResponseHandler.error(res, '权限检查服务异常，请稍后重试', 'SERVER_ERROR', 500, error);
     }
   };
 }

@@ -5,6 +5,7 @@
  */
 
 const { pool } = require('../../config/db');
+const { PermissionUtils } = require('../../utils/authUtils');
 
 // 业务类型中文映射
 const TYPE_LABELS = {
@@ -44,6 +45,7 @@ const TYPE_LABELS = {
   ar_receipt: '收款单',
   bank_transfer: '资金调拨单',
   bank_transaction: '银行流水',
+  cash_transaction: '现金流水',
   outsourced_processing: '外委加工单',
   outsourced_receipt: '外委加工入库单',
   contract: '合同',
@@ -55,7 +57,69 @@ const TYPE_LABELS = {
 
 const ALLOWED_LINK_TYPES = new Set(['generate', 'reference', 'related']);
 
+const DOCUMENT_LINK_TYPE_PERMISSIONS = Object.freeze({
+  purchase_requisition: ['purchase:requisitions:view'],
+  purchase_order: ['purchase:orders:view'],
+  purchase_receipt: ['purchase:receipts:view'],
+  purchase_return: ['purchase:returns:view'],
+  sales_quotation: ['sales:quotations:view'],
+  sales_order: ['sales:orders:view'],
+  sales_outbound: ['sales:outbound:view'],
+  sales_return: ['sales:returns:view'],
+  sales_exchange: ['sales:exchanges:view', 'sales:returns:view'],
+  inventory_inbound: ['inventory:inbound:view'],
+  inventory_outbound: ['inventory:outbound:view'],
+  inventory_transfer: ['inventory:transfer:view'],
+  inventory_check: ['inventory:check:view'],
+  production_plan: ['production:plans:view'],
+  production_task: ['production:tasks:view'],
+  quality_inspection: ['quality:inspections:view'],
+  nonconforming_product: ['quality:nonconforming:view'],
+  eight_d_report: ['quality:8d:view'],
+  rework_task: ['quality:rework:view'],
+  scrap_record: ['quality:scrap:view'],
+  replacement_order: ['quality:replacement:view'],
+  finance_voucher: ['finance:entries:view'],
+  asset: ['finance:assets:view'],
+  cip_project: ['finance:assets:view'],
+  asset_transfer: ['finance:assets:view'],
+  asset_depreciation: ['finance:assets:view'],
+  asset_disposal: ['finance:assets:view'],
+  asset_impairment: ['finance:assets:view'],
+  ap_invoice: ['finance:ap:view'],
+  ar_invoice: ['finance:ar:view'],
+  tax_invoice: ['finance:tax:view'],
+  tax_return: ['finance:tax:view'],
+  ap_payment: ['finance:ap:view'],
+  ar_receipt: ['finance:ar:view'],
+  bank_transfer: ['finance:cash:view'],
+  bank_transaction: ['finance:cash:view'],
+  cash_transaction: ['finance:cash:view'],
+  outsourced_processing: ['purchase:processing:view'],
+  outsourced_receipt: ['purchase:processing-receipts:view'],
+  contract: ['contract:view'],
+  expense: ['finance:expenses:view'],
+  ecn: ['basedata:ecn:view'],
+  bom: ['basedata:boms:view'],
+  material: ['basedata:materials:view'],
+});
+
 class DocumentLinkService {
+  getViewPermissionsForType(businessType) {
+    return DOCUMENT_LINK_TYPE_PERMISSIONS[String(businessType || '').trim()] || [];
+  }
+
+  canViewBusinessType(businessType, userPermissions) {
+    const permissions = this.getViewPermissionsForType(businessType);
+    return permissions.length > 0 && PermissionUtils.hasAnyPermission(userPermissions, permissions);
+  }
+
+  filterLinksByPermissions(links, userPermissions) {
+    if (!Array.isArray(userPermissions) || userPermissions.includes('*')) {
+      return links;
+    }
+    return links.filter((link) => this.canViewBusinessType(link.related_type, userPermissions));
+  }
 
   /**
    * 创建单据关联
@@ -85,7 +149,7 @@ class DocumentLinkService {
   /**
    * 获取某单据的所有关联（正向+反向）
    */
-  async getLinks(businessType, businessId) {
+  async getLinks(businessType, businessId, options = {}) {
     // 正向关联（本单据作为源）
     const [forward] = await pool.query(
       `SELECT *, 'forward' AS direction FROM document_links
@@ -133,24 +197,31 @@ class DocumentLinkService {
       });
     }
 
-    return links;
+    return this.filterLinksByPermissions(links, options.userPermissions);
   }
 
   /**
    * 获取完整单据链（递归追溯）
    */
-  async getFullChain(businessType, businessId, visited = new Set()) {
+  async getFullChain(businessType, businessId, optionsOrVisited = {}, maybeVisited = new Set()) {
+    const options = optionsOrVisited instanceof Set ? {} : optionsOrVisited;
+    const visited = optionsOrVisited instanceof Set ? optionsOrVisited : maybeVisited;
+
+    if (Array.isArray(options.userPermissions) && !this.canViewBusinessType(businessType, options.userPermissions)) {
+      return [];
+    }
+
     const key = `${businessType}:${businessId}`;
     if (visited.has(key)) return [];
     visited.add(key);
 
-    const links = await this.getLinks(businessType, businessId);
+    const links = await this.getLinks(businessType, businessId, options);
     const chain = [{ type: businessType, type_label: TYPE_LABELS[businessType] || businessType, id: businessId, links }];
 
     // 递归（限深度防循环）
     if (visited.size < 20) {
       for (const link of links) {
-        const subChain = await this.getFullChain(link.related_type, link.related_id, visited);
+        const subChain = await this.getFullChain(link.related_type, link.related_id, options, visited);
         chain.push(...subChain);
       }
     }

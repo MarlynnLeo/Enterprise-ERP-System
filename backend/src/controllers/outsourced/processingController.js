@@ -14,7 +14,7 @@ const FinanceIntegrationService = require('../../services/external/FinanceIntegr
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
 const InventoryService = require('../../services/InventoryService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
-const { appendPaginationSQL } = require('../../utils/safePagination');
+const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 
 // 状态常量
 const STATUS = {
@@ -50,8 +50,6 @@ const getProcessings = async (req, res) => {
   try {
     const {
       page = 1,
-      pageSize = 10,
-      limit = 10,
       processing_no = '',
       supplier_name = '',
       status = '',
@@ -60,7 +58,11 @@ const getProcessings = async (req, res) => {
     } = req.query;
 
     // 统一使用pageSize，兼容limit参数
-    const actualPageSize = parseInt(pageSize || limit, 10);
+    const pagination = parsePagination(page, req.query.pageSize ?? req.query.limit, {
+      defaultPageSize: 10,
+      maxPageSize: 100,
+    });
+    const actualPageSize = pagination.pageSize;
 
     let query = `
       SELECT * FROM outsourced_processings
@@ -98,8 +100,8 @@ const getProcessings = async (req, res) => {
     const total = countResult[0].total;
 
     // 转换分页参数为整数
-    const pageInt = parseInt(page, 10);
-    const offset = (pageInt - 1) * actualPageSize;
+    const pageInt = pagination.page;
+    const offset = pagination.offset;
 
     // 使用统一分页工具追加 LIMIT/OFFSET
     query = appendPaginationSQL(query + ' ORDER BY id DESC', actualPageSize, offset);
@@ -655,8 +657,6 @@ const getReceipts = async (req, res) => {
   try {
     const {
       page = 1,
-      pageSize = 10,
-      limit = 10,
       receipt_no = '',
       processing_no = '',
       supplier_name = '',
@@ -666,7 +666,11 @@ const getReceipts = async (req, res) => {
     } = req.query;
 
     // 统一使用pageSize，兼容limit参数
-    const actualPageSize = parseInt(pageSize || limit, 10);
+    const pagination = parsePagination(page, req.query.pageSize ?? req.query.limit, {
+      defaultPageSize: 10,
+      maxPageSize: 100,
+    });
+    const actualPageSize = pagination.pageSize;
 
     let query = `
       SELECT * FROM outsourced_processing_receipts
@@ -709,8 +713,8 @@ const getReceipts = async (req, res) => {
     const total = countResult[0].total;
 
     // 转换分页参数为整数
-    const pageInt = parseInt(page, 10);
-    const offset = (pageInt - 1) * actualPageSize;
+    const pageInt = pagination.page;
+    const offset = pagination.offset;
 
     // 使用统一分页工具追加 LIMIT/OFFSET
     query = appendPaginationSQL(query + ' ORDER BY id DESC', actualPageSize, offset);

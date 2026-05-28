@@ -12,6 +12,41 @@
 
 const db = require('../config/db');
 const { logger } = require('../utils/logger');
+const { roundMoney } = require('../utils/money');
+
+function validationError(message) {
+  const error = new Error(message);
+  error.code = 'VALIDATION_ERROR';
+  return error;
+}
+
+function toCents(value) {
+  return Math.round(roundMoney(value) * 100);
+}
+
+function validateTaxInvoiceAmounts(invoiceData) {
+  const amountExcludingTaxCents = toCents(invoiceData.amount_excluding_tax);
+  const taxAmountCents = toCents(invoiceData.tax_amount);
+  const totalAmountCents = toCents(invoiceData.total_amount);
+
+  if (amountExcludingTaxCents < 0 || taxAmountCents < 0 || totalAmountCents < 0) {
+    throw validationError('发票金额不能为负数');
+  }
+
+  if (totalAmountCents <= 0) {
+    throw validationError('发票价税合计必须大于0');
+  }
+
+  if (amountExcludingTaxCents + taxAmountCents !== totalAmountCents) {
+    throw validationError('发票金额不平衡：不含税金额 + 税额必须等于价税合计');
+  }
+
+  return {
+    amount_excluding_tax: amountExcludingTaxCents / 100,
+    tax_amount: taxAmountCents / 100,
+    total_amount: totalAmountCents / 100,
+  };
+}
 
 const taxModel = {
   /**
@@ -33,16 +68,14 @@ const taxModel = {
         customer_id,
         supplier_or_customer_name,
         supplier_tax_number,
-        amount_excluding_tax,
         tax_rate,
-        tax_amount,
-        total_amount,
         status = '未认证',
         related_document_type,
         related_document_id,
         remark,
         created_by,
       } = invoiceData;
+      const normalizedAmounts = validateTaxInvoiceAmounts(invoiceData);
 
       const [result] = await conn.execute(
         `
@@ -62,10 +95,10 @@ const taxModel = {
           customer_id ?? null,
           supplier_or_customer_name ?? null,
           supplier_tax_number ?? null,
-          amount_excluding_tax,
+          normalizedAmounts.amount_excluding_tax,
           tax_rate,
-          tax_amount,
-          total_amount,
+          normalizedAmounts.tax_amount,
+          normalizedAmounts.total_amount,
           status,
           related_document_type ?? null,
           related_document_id ?? null,
@@ -176,7 +209,7 @@ const taxModel = {
       }
 
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
       const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
       query += ` ORDER BY ti.invoice_date DESC, ti.id DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
@@ -336,21 +369,29 @@ const taxModel = {
         taxable_income = 0,
         income_tax_rate = 25.0,
         income_tax_payable = 0,
+        tax_paid = 0,
         status = '草稿',
         remark,
         created_by,
       } = returnData;
+
+      const payableAmount =
+        return_type === '增值税'
+          ? Number(tax_payable || 0)
+          : Number(income_tax_payable || tax_payable || 0);
+      const paidAmount = status === '已缴纳' ? payableAmount : Number(tax_paid || 0);
+      const balanceAmount = status === '已缴纳' ? 0 : Math.max(payableAmount - paidAmount, 0);
 
       const [result] = await conn.execute(
         `
         INSERT INTO tax_returns (
           return_period, return_type,
           sales_amount, sales_output_tax, purchase_amount, purchase_input_tax,
-          input_tax_deduction, tax_payable,
+          input_tax_deduction, tax_payable, tax_paid, tax_balance,
           total_revenue, total_cost, total_expense, taxable_income,
           income_tax_rate, income_tax_payable,
           status, remark, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           return_period,
@@ -361,6 +402,8 @@ const taxModel = {
           purchase_input_tax,
           input_tax_deduction,
           tax_payable,
+          paidAmount,
+          balanceAmount,
           total_revenue,
           total_cost,
           total_expense,
@@ -417,7 +460,7 @@ const taxModel = {
       }
 
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
       const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
       query += ` ORDER BY tr.return_period DESC, tr.id DESC LIMIT ${limitNum} OFFSET ${offsetNum}`;
 
@@ -498,23 +541,35 @@ const taxModel = {
    * @returns {Promise<boolean>} 是否成功
    */
   deleteTaxReturn: async (id) => {
+    const connection = await db.pool.getConnection();
     try {
-      // 先检查状态
-      const taxReturn = await taxModel.getTaxReturnById(id);
-      if (!taxReturn) {
-        throw new Error('税务申报不存在');
+      await connection.beginTransaction();
+
+      const [rows] = await connection.execute(
+        'SELECT id, status FROM tax_returns WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (rows.length === 0) {
+        throw new Error('Tax return does not exist');
       }
-      if (taxReturn.status !== '草稿') {
-        throw new Error('只能删除草稿状态的申报');
+      if (rows[0].status !== '鑽夌') {
+        throw new Error('Only draft tax returns can be deleted');
       }
 
-      const [result] = await db.pool.execute('DELETE FROM tax_returns WHERE id = ? AND status = ?', [id, '草稿']);
+      const [result] = await connection.execute(
+        'DELETE FROM tax_returns WHERE id = ? AND status = ?',
+        [id, '鑽夌']
+      );
 
-      logger.info('税务申报删除成功', { id });
+      await connection.commit();
+      logger.info('Tax return deleted successfully', { id });
       return result.affectedRows > 0;
     } catch (error) {
-      logger.error('删除税务申报失败:', error);
+      await connection.rollback();
+      logger.error('Delete tax return failed:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -674,13 +729,14 @@ const taxModel = {
       throw new Error('无效的单据类型，仅支持 ap_invoice 或 ar_invoice');
     }
 
-    const sql = documentType === 'ap_invoice'
-      ? `SELECT ai.id, ai.invoice_number AS document_number, ai.total_amount, ai.status,
+    const sql =
+      documentType === 'ap_invoice'
+        ? `SELECT ai.id, ai.invoice_number AS document_number, ai.total_amount, ai.status,
                 s.name AS party_name
          FROM ap_invoices ai
          LEFT JOIN suppliers s ON ai.supplier_id = s.id
          WHERE ai.id = ?`
-      : `SELECT ai.id, ai.invoice_number AS document_number, ai.total_amount, ai.status,
+        : `SELECT ai.id, ai.invoice_number AS document_number, ai.total_amount, ai.status,
                 c.name AS party_name
          FROM ar_invoices ai
          LEFT JOIN customers c ON ai.customer_id = c.id
@@ -753,15 +809,6 @@ const taxModel = {
       logger.error('获取可关联单据失败:', error);
       throw error;
     }
-  },
-
-  /**
-   * 创建税务模块相关表
-   * @deprecated 表结构已迁移至 Knex migration 文件管理，此方法保留为空操作以兼容旧调用
-   */
-  createTables: async () => {
-    logger.info('税务系统表格已由 Knex migration 管理，跳过运行时创建');
-    return true;
   },
 };
 

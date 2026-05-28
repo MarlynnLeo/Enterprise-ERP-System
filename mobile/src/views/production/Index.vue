@@ -152,12 +152,16 @@
       const response = await productionApi.getDashboardStatistics()
       if (response.data) {
         const stats = response.data
-        statistics.value.totalPlans = stats.totalPlans || 0
-        statistics.value.totalTasks = stats.totalTasks || 0
-        statistics.value.inProgressTasks = stats.inProgressTasks || 0
-        statistics.value.completedTasks = stats.completedTasks || 0
-        if (stats.pendingTasks > 0) {
-          taskModules.value[0].badge = stats.pendingTasks
+        const planStats = stats.plans || {}
+        const taskStats = stats.tasks || {}
+        const pendingTasks = Number(taskStats.pending ?? stats.pendingTasks) || 0
+
+        statistics.value.totalPlans = Number(planStats.total ?? stats.totalPlans) || 0
+        statistics.value.totalTasks = Number(taskStats.total ?? stats.totalTasks) || 0
+        statistics.value.inProgressTasks = Number(taskStats.inProgress ?? stats.inProgressTasks) || 0
+        statistics.value.completedTasks = Number(taskStats.completed ?? stats.completedTasks) || 0
+        if (pendingTasks > 0) {
+          taskModules.value[0].badge = pendingTasks
         }
       }
     } catch (error) {

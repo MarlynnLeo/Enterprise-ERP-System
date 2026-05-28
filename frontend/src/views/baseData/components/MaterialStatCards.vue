@@ -32,28 +32,3 @@ defineProps({
   }
 })
 </script>
-
-<style scoped>
-.statistics-row {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  flex: 1;
-  text-align: center;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: var(--color-primary);
-  margin-bottom: 10px;
-}
-
-.stat-label {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-</style>

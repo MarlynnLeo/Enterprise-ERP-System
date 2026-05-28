@@ -89,6 +89,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePermissionStore } from '../../stores/permissionStore'
+import { buildMenuSearchOptions } from '../../utils/menuNavigation'
 import {
   Search, Menu, ArrowRight, Right
 } from '@element-plus/icons-vue'
@@ -101,49 +102,7 @@ const keyword = ref('')
 const activeIndex = ref(0)
 const inputRef = ref(null)
 
-// 从后端动态菜单树（permissionStore.menuTree）自动生成扁平化搜索列表
-// 不再需要手动维护硬编码菜单，新增菜单后搜索自动生效
-const menuOptions = computed(() => {
-  const options = []
-
-  const flattenMenuTree = (items, parentBreadcrumbs = []) => {
-    if (!Array.isArray(items)) return
-
-    items.forEach(item => {
-      // 跳过按钮权限（type=2）和无名称的项
-      if (item.type === 2 || !item.name) return
-
-      const currentBreadcrumbs = [...parentBreadcrumbs, item.name]
-
-      // 有 path 且是叶子菜单（无子菜单或子菜单都是按钮）才加入搜索
-      const visibleChildren = (item.children || []).filter(c => c.type !== 2 && c.name)
-
-      if (item.path && visibleChildren.length === 0) {
-        options.push({
-          path: item.path,
-          title: item.name,
-          breadcrumbs: currentBreadcrumbs,
-          icon: item.icon ? mapIconName(item.icon) : null
-        })
-      }
-
-      // 递归处理子菜单
-      if (visibleChildren.length > 0) {
-        flattenMenuTree(visibleChildren, currentBreadcrumbs)
-      }
-    })
-  }
-
-  flattenMenuTree(permissionStore.menuTree)
-  return options
-})
-
-// 图标名称转换（后端 icon-xxx 格式 → Element Plus 组件名）
-const mapIconName = (iconStr) => {
-  if (!iconStr) return null
-  // 'icon-data-analysis' → 'DataAnalysis'
-  return iconStr.replace(/^icon-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')
-}
+const menuOptions = computed(() => buildMenuSearchOptions(permissionStore.menuTree))
 
 // 过滤选项 — 支持菜单名称、路径、面包屑多维匹配
 const filteredOptions = computed(() => {
@@ -230,13 +189,13 @@ const handleGlobalKeydown = (e) => {
   cursor: pointer;
   border-radius: 8px;
   color: var(--el-text-color-regular);
-  transition: all 0.3s;
+  transition: background-color 0.3s, color 0.3s;
   margin-right: 12px;
 }
 
 .search-trigger:hover {
   background-color: var(--el-fill-color-light);
-  color: var(--tech-primary);
+  color: var(--shell-accent);
 }
 
 .search-icon {
@@ -246,7 +205,7 @@ const handleGlobalKeydown = (e) => {
 :deep(.search-dialog) {
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--ds-black) 20%, transparent);
 
   .el-dialog__header {
     display: none;
@@ -272,7 +231,7 @@ const handleGlobalKeydown = (e) => {
 
   &.is-focus {
     background-color: var(--el-bg-color);
-    box-shadow: 0 0 0 2px var(--tech-primary) !important;
+    box-shadow: 0 0 0 2px var(--shell-accent) !important;
   }
 }
 
@@ -289,7 +248,7 @@ const handleGlobalKeydown = (e) => {
   margin-bottom: 4px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s;
 
   &:hover, &.active {
     background-color: var(--el-fill-color);
@@ -297,7 +256,7 @@ const handleGlobalKeydown = (e) => {
 
   &.active {
     .item-title {
-      color: var(--tech-primary);
+      color: var(--shell-accent);
     }
     .item-action {
       opacity: 1;
@@ -369,7 +328,7 @@ const handleGlobalKeydown = (e) => {
   background-color: var(--el-bg-color);
   padding: 2px 6px;
   border-radius: 4px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-black) 10%, transparent);
   font-family: monospace;
   min-width: 16px;
   text-align: center;

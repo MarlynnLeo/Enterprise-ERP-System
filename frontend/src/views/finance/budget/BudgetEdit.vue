@@ -144,7 +144,7 @@
               <el-input v-model="row.description" placeholder="请输入说明" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" fixed="right">
+          <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
               <el-button v-permission="isEdit ? 'finance:budgets:update' : 'finance:budgets:create'" link type="danger" size="small" @click="handleDeleteDetail($index)">删除</el-button>
             </template>
@@ -167,6 +167,7 @@ import { ElMessage } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
 import api from '@/services/axiosInstance';
 import { formatAmount } from '@/utils/format'
+import { loadDepartmentOptions } from '@/utils/optionLoaders';
 
 const router = useRouter();
 const route = useRoute();
@@ -212,8 +213,7 @@ const totalAmount = computed(() => {
 // 获取部门列表
 const fetchDepartments = async () => {
   try {
-    const response = await api.get('/system/departments/list');
-    departments.value = response.data || [];
+    departments.value = await loadDepartmentOptions();
   } catch (error) {
     console.error('获取部门列表失败:', error);
   }

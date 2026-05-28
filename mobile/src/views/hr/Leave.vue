@@ -10,42 +10,48 @@
 
 <script setup>
   import { computed } from 'vue'
-  import dayjs from 'dayjs'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { hrApi } from '@/services/api'
-  import { filterByKeyword, getResponseList, toPagedResponse } from '@/utils/listResponse'
+
+  const statusMap = {
+    pending: { text: '待审批', color: 'warning' },
+    approved: { text: '已通过', color: 'success' },
+    rejected: { text: '已拒绝', color: 'danger' },
+    withdrawn: { text: '已撤回', color: 'default' }
+  }
 
   const pageConfig = computed(() => ({
     title: '请假记录',
-    searchPlaceholder: '搜索员工姓名或期间',
+    searchPlaceholder: '搜索员工、编号或部门',
 
     filterTabs: [
       { label: '全部', value: 'all' },
-      { label: '草稿', value: 'draft' },
-      { label: '已确认', value: 'confirmed' }
+      { label: '待审批', value: 'pending' },
+      { label: '已通过', value: 'approved' },
+      { label: '已拒绝', value: 'rejected' }
     ],
 
     fields: {
       id: 'id',
-      title: 'empName',
-      subtitle: 'period',
+      title: (item) => item.employee_name || item.applicant_name || '请假申请',
+      subtitle: (item) => `${item.start_date || '-'} 至 ${item.end_date || '-'}`,
       icon: 'notes-o',
-      status: 'status',
+      status: {
+        field: 'status',
+        map: statusMap
+      },
 
       details: [
-        { label: '部门', field: 'department' },
-        { label: '请假/缺勤', field: 'leaveDays', suffix: '天' },
-        { label: '年假', field: 'vacationDays', suffix: '天' }
+        { label: '请假类型', field: 'leave_type' },
+        { label: '请假天数', field: 'duration', suffix: '天' },
+        { label: '部门', field: 'department_name' }
       ],
 
       tags: [
         {
           field: 'status',
           type: 'status',
-          map: {
-            draft: { text: '草稿', color: 'warning' },
-            confirmed: { text: '已确认', color: 'success' }
-          }
+          map: statusMap
         }
       ]
     },
@@ -56,19 +62,6 @@
   }))
 
   const loadLeave = async (params = {}) => {
-    const response = await hrApi.getAttendance({ period: dayjs().format('YYYY-MM') })
-    const records = getResponseList(response)
-      .map((row) => ({
-        id: row.id,
-        empName: row.name || row.employee_name || '',
-        period: row.period || '',
-        department: row.department_name || '',
-        leaveDays: Number(row.leave_days ?? row.total_leave_days ?? 0),
-        vacationDays: Number(row.vacation_days ?? 0),
-        status: row.status || 'confirmed'
-      }))
-      .filter((row) => row.leaveDays > 0 || row.vacationDays > 0)
-
-    return toPagedResponse(filterByKeyword(records, params.search, ['empName', 'period', 'department']))
+    return await hrApi.getLeaveRequests(params)
   }
 </script>

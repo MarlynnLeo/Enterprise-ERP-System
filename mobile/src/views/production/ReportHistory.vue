@@ -168,7 +168,7 @@ const normalizeReport = (row) => ({
 
 const loadReports = async () => {
   try {
-    const params = { page: 1, pageSize: 200 }
+    const params = { page: 1, pageSize: 50 }
     const today = dayjs()
     if (activeDate.value === 'today') {
       params.startDate = today.format('YYYY-MM-DD')
@@ -226,7 +226,7 @@ onMounted(loadReports)
 
 <style lang="scss" scoped>
 .report-history-page {
-  min-height: 100vh;
+  min-height: 100%;
   background: var(--bg-primary);
 }
 
@@ -243,7 +243,7 @@ onMounted(loadReports)
 
 .filter-chip {
   flex: 0 0 auto;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--surface-border, var(--border-subtle));
   border-radius: 16px;
   padding: 6px 14px;
   background: var(--bg-secondary);

@@ -105,6 +105,19 @@ module.exports = (sequelize) => {
           name: 'todos_user_id_index',
           fields: ['userId'],
         },
+        {
+          name: 'idx_creator_id',
+          fields: ['creator_id'],
+        },
+        {
+          name: 'idx_parent_todo_id',
+          fields: ['parent_todo_id'],
+        },
+        {
+          name: 'uk_todos_user_parent',
+          unique: true,
+          fields: ['userId', 'parent_todo_id'],
+        },
       ],
     }
   );

@@ -1,30 +1,28 @@
 /**
- * 移动�?- 自然护眼主题
- * @description 清新绿色配色，缓解视觉疲�? * @version 1.0.0
- *
- * 色系来源：与 PC �?nature.css 对齐
- * 切换方式：html[data-theme="nature"] 激�? */
+ * Mobile nature theme.
+ * @description Green eye-comfort palette aligned with the PC nature theme.
+ * @version 1.0.0
+ */
 
 :root[data-theme="nature"] {
-  /* ==================== 背景�?==================== */
+  /* Background */
   --bg-primary: #F0FFF4;
   --bg-secondary: #FFFFFF;
   --bg-tertiary: #E8F5E9;
   --bg-header: #FFFFFF;
 
-  /* ==================== 边框与遮�?==================== */
+  /* Border and surfaces */
   --border-subtle: rgba(81, 207, 102, 0.15);
-  --border-card: transparent;
   --surface-hover: rgba(200, 230, 201, 0.5);
   --surface-active: rgba(129, 199, 132, 0.15);
 
-  --glass-bg: rgba(255, 255, 255, 1);
-  --glass-bg-hover: var(--surface-hover);
-  --glass-bg-active: var(--surface-active);
-  --glass-border: var(--border-subtle);
-  --glass-border-hover: var(--border-subtle);
+  --surface-elevated: rgba(255, 255, 255, 1);
+  --surface-elevated-hover: var(--surface-hover);
+  --surface-elevated-active: var(--surface-active);
+  --surface-border: var(--border-subtle);
+  --surface-border-hover: var(--border-subtle);
 
-  /* ==================== 文字�?==================== */
+  /* Text */
   --text-primary: #2E7D32;
   --text-secondary: #4CAF50;
   --text-tertiary: #81C784;
@@ -32,25 +30,20 @@
   --text-on-dark: #ffffff;
   --text-on-dark-secondary: rgba(255, 255, 255, 0.8);
 
-  /* ==================== 功能�?==================== */
+  /* Functional colors */
   --color-primary: #51CF66;
   --color-primary-bg: #E6F9E8;
-
   --color-success: #40C057;
   --color-success-bg: #E6F9E8;
-
   --color-warning: #FCC419;
   --color-warning-bg: #FFF3D4;
-
   --color-error: #FF6B6B;
   --color-error-bg: #FFE9E9;
-
   --color-info: #339AF0;
   --color-info-bg: #D4EBFC;
-
   --color-accent: #51CF66;
 
-  /* ==================== 模块�?==================== */
+  /* Module colors */
   --module-blue: #339AF0;
   --module-green: #51CF66;
   --module-red: #FF6B6B;
@@ -58,13 +51,13 @@
   --module-purple: #CC5DE8;
   --module-yellow: #FFC759;
 
-  /* ==================== 阴影 ==================== */
+  /* Shadows */
   --shadow-sm: 0 2px 6px rgba(81, 207, 102, 0.12);
   --shadow-md: 0 4px 14px rgba(81, 207, 102, 0.16);
   --shadow-lg: 0 8px 20px rgba(81, 207, 102, 0.18);
   --shadow-glow: 0 0 20px rgba(81, 207, 102, 0.15);
 
-  /* ==================== Vant 变量映射 ==================== */
+  /* Vant mappings */
   --van-primary-color: var(--color-primary);
   --van-success-color: var(--color-success);
   --van-danger-color: var(--color-error);
@@ -72,7 +65,7 @@
   --van-text-color: var(--text-primary);
   --van-text-color-2: var(--text-secondary);
   --van-text-color-3: var(--text-tertiary);
-  --van-active-color: var(--glass-bg-active);
+  --van-active-color: var(--surface-elevated-active);
   --van-background: var(--bg-secondary);
   --van-background-2: var(--bg-primary);
   --van-border-color: #C8E6C9;
@@ -80,18 +73,24 @@
   --van-nav-bar-background: var(--bg-header);
   --van-nav-bar-title-text-color: var(--text-primary);
   --van-nav-bar-icon-color: var(--text-secondary);
+  --van-nav-bar-text-color: var(--text-secondary);
   --van-search-background: var(--bg-primary);
   --van-search-content-background: #E8F5E9;
+  --van-search-action-text-color: var(--color-primary);
   --van-cell-background: var(--bg-secondary);
   --van-cell-text-color: var(--text-primary);
+  --van-cell-value-color: var(--text-secondary);
+  --van-cell-label-color: var(--text-tertiary);
   --van-cell-border-color: #C8E6C9;
+  --van-cell-active-color: var(--surface-elevated-active);
+  --van-cell-group-background: var(--bg-secondary);
   --van-popup-background: var(--bg-secondary);
   --van-dialog-background: var(--bg-secondary);
+  --van-picker-background: var(--bg-secondary);
   --van-tabbar-background: #ffffff;
   --van-tabbar-item-text-color: var(--text-secondary);
   --van-tabbar-item-active-color: var(--color-primary);
 
-  /* ״̬ɫ���� �� ������������Ӳ���� */
   --status-pending: #f59e0b;
   --status-in-progress: #3b82f6;
   --status-completed: #22c55e;

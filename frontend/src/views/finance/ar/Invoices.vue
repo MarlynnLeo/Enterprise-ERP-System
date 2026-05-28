@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="invoices-container">
+  <div class="module-page invoices-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -25,14 +25,23 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="searchInvoices"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="发票编号">
           <el-input  v-model="searchForm.invoiceNumber" placeholder="输入发票编号" clearable ></el-input>
         </el-form-item>
         <el-form-item label="客户名称">
           <el-input  v-model="searchForm.customerName" placeholder="输入客户名称" clearable ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="开票日期">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -54,18 +63,8 @@
             <el-option label="已取消" value="已取消"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchInvoices" :loading="loading">查询</el-button>
-          <el-button @click="resetSearch" :loading="loading">重置</el-button>
-          <el-button
-            type="success"
-            @click="showAddDialog"
-            v-permission="'finance:ar:create'">
-            新增
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
@@ -83,17 +82,17 @@
           <el-table-column prop="customer_name" label="客户名称" width="220"></el-table-column>
           <el-table-column prop="invoice_date" label="开票日期" width="120"></el-table-column>
           <el-table-column prop="due_date" label="到期日期" width="120"></el-table-column>
-          <el-table-column prop="total_amount" label="金额" width="160" align="right">
+          <el-table-column prop="total_amount" label="金额" width="160">
             <template #default="scope">
               {{ formatCurrency(scope.row.total_amount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="paid_amount" label="已付金额" width="160" align="right">
+          <el-table-column prop="paid_amount" label="已付金额" width="160">
             <template #default="scope">
               {{ formatCurrency(scope.row.paid_amount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="balance_amount" label="剩余金额" width="160" align="right">
+          <el-table-column prop="balance_amount" label="剩余金额" width="160">
             <template #default="scope">
               {{ formatCurrency(scope.row.balance_amount) }}
             </template>
@@ -105,7 +104,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" min-width="340" fixed="right">
+          <el-table-column label="操作" min-width="340" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-if="scope.row.status === '草稿'"
@@ -251,12 +250,12 @@
                   <el-input v-model="scope.row.unitPrice" placeholder="单价" size="small" @input="calculateItemAmount(scope.row)"></el-input>
                 </template>
               </el-table-column>
-              <el-table-column label="金额" width="100" align="right">
+              <el-table-column label="金额" width="100">
                 <template #default="scope">
                   {{ formatCurrency(scope.row.amount) }}
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="60" align="center" :resizable="false">
+              <el-table-column label="操作" width="60" :resizable="false" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="scope">
                   <el-button
                     type="danger"
@@ -434,13 +433,13 @@
               </template>
             </el-table-column>
             <el-table-column prop="description" label="描述" min-width="200"></el-table-column>
-            <el-table-column prop="quantity" label="数量" width="100" align="right"></el-table-column>
-            <el-table-column prop="unitPrice" label="单价" width="110" align="right">
+            <el-table-column prop="quantity" label="数量" width="100"></el-table-column>
+            <el-table-column prop="unitPrice" label="单价" width="110">
               <template #default="scope">
                 {{ formatCurrency(scope.row.unitPrice) }}
               </template>
             </el-table-column>
-            <el-table-column prop="amount" label="金额" width="110" align="right">
+            <el-table-column prop="amount" label="金额" width="110">
               <template #default="scope">
                 {{ formatCurrency(scope.row.amount) }}
               </template>
@@ -458,16 +457,17 @@
   </div>
 </template>
 <script setup>
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue';
-import { api, baseDataApi } from '@/services/api';
+import { baseDataApi } from '@/services/api';
+import { financeApi } from '@/api/finance';
+import { salesApi } from '@/api/sales';
 import { parseListData } from '@/utils/responseParser'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
-import '@/utils/request' // Import request utility
 import printService from '@/services/printService'
 const financeStore = useFinanceStore()
 const { vatRateOptions, defaultVATRate } = storeToRefs(financeStore)
@@ -481,6 +481,7 @@ const savePaymentLoading = ref(false);
 const total = ref(0);
 const pageSize = ref(10);
 const currentPage = ref(1);
+const showAdvancedSearch = ref(false);
 // 表单相关
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增销售发票');
@@ -525,7 +526,7 @@ const invoiceForm = reactive({
   id: null,
   invoice_number: '',
   customerId: null,
-  invoice_date: new Date().toISOString().slice(0, 10),
+  invoice_date: formatLocalDate(new Date()),
   due_date: '',
   items: [],
   notes: '',
@@ -540,7 +541,7 @@ const paymentForm = reactive({
   paid_amount: '',
   balance_amount: '',
   balanceValue: 0,
-  paymentDate: new Date().toISOString().slice(0, 10),
+  paymentDate: formatLocalDate(new Date()),
   amount: 0,
   paymentMethod: 'bank_transfer',
   bankAccountId: null,  // 添加银行账户ID字段
@@ -667,10 +668,7 @@ const loadInvoices = async () => {
 
     try {
       // 使用api对象发送请求，确保经过代理
-      const response = await api.get('/finance/ar/invoices', {
-        params,
-        signal: controller.signal
-      });
+      const response = await financeApi.getARInvoices(params, { signal: controller.signal });
 
       clearTimeout(timeoutId); // 清除超时控制
 
@@ -720,7 +718,7 @@ const loadCustomerOptions = async () => {
   try {
     // 首先尝试使用baseData API
     try {
-      const response = await baseDataApi.getCustomers({ pageSize: 1000 });
+      const response = await baseDataApi.getCustomers({ pageSize: 50 });
       const customers = parseListData(response, { enableLog: false });
       if (customers.length > 0) {
         customerOptions.value = customers;
@@ -730,7 +728,7 @@ const loadCustomerOptions = async () => {
       // baseData API失败，尝试销售API
     }
     // 如果baseData API失败，尝试销售API
-    const salesResponse = await api.get('/sales/customers-list');
+    const salesResponse = await salesApi.getCustomersList();
     customerOptions.value = salesResponse.data || [];
   } catch (error) {
     console.error('加载客户列表失败:', error);
@@ -743,7 +741,7 @@ const loadProductOptions = async () => {
   try {
     // 使用物料API加载产品数据
     const response = await baseDataApi.getMaterials({
-      pageSize: 100,
+      pageSize: 50,
       type: 'finished'
     });
     productOptions.value = parseListData(response, { enableLog: false });
@@ -782,7 +780,7 @@ const handleStatusChange = async (row, status) => {
       `${actionText}发票`,
       { type: status === '已确认' ? 'success' : 'warning' }
     );
-    await api.put(`/finance/ar/invoices/${row.id}/status`, { status });
+    await financeApi.updateARInvoiceStatus(row.id, { status });
     ElMessage.success(`发票已${status === '已确认' ? '确认' : '取消'}`);
     loadInvoices();
   } catch (error) {
@@ -796,7 +794,7 @@ const handleEdit = async (row) => {
 
   try {
     // 获取发票基本信息
-    const response = await api.get(`/finance/ar/invoices/${row.id}`);
+    const response = await financeApi.getARInvoice(row.id);
     const invoice = response.data;
 
     resetInvoiceForm();
@@ -867,7 +865,7 @@ const handleViewDetails = async (row) => {
 
     try {
       // 尝试从API获取详细数据
-      const response = await api.get(`/finance/ar/invoices/${row.id}`);
+      const response = await financeApi.getARInvoice(row.id);
       const invoice = response.data;
 
       // 限制数据量，只复制必要的字段
@@ -892,7 +890,7 @@ const handleViewDetails = async (row) => {
 
       // 获取收款记录
       try {
-        const paymentsResponse = await api.get(`/finance/ar/invoices/${row.id}/payments`);
+        const paymentsResponse = await financeApi.getARInvoicePayments(row.id);
         if (paymentsResponse.data && Array.isArray(paymentsResponse.data)) {
           // 只保留最多10个收款记录
           invoiceDetails.payments = paymentsResponse.data.slice(0, 10);
@@ -916,7 +914,7 @@ const handleViewDetails = async (row) => {
 // 加载银行账户列表
 const loadBankAccounts = async () => {
   try {
-    const response = await api.get('/finance/bank-accounts');
+    const response = await financeApi.getBankAccountsList();
     if (response.data?.list) {
       bankAccounts.value = response.data.list;
     } else if (Array.isArray(response.data)) {
@@ -1002,11 +1000,11 @@ const saveInvoice = async () => {
 
         if (invoiceForm.id) {
           // 更新
-          await api.put(`/finance/ar/invoices/${invoiceForm.id}`, data);
+          await financeApi.updateARInvoice(invoiceForm.id, data);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          await api.post('/finance/ar/invoices', data);
+          await financeApi.createARInvoice(data);
           ElMessage.success('添加成功');
         }
 
@@ -1040,7 +1038,7 @@ const savePayment = async () => {
         };
 
         // 发送请求
-        await api.post('/finance/ar/receipts', _data);
+        await financeApi.createReceipt(_data);
 
         ElMessage.success('收款记录已保存');
 
@@ -1062,7 +1060,7 @@ const resetInvoiceForm = () => {
   invoiceForm.id = null;
   invoiceForm.invoice_number = '';
   invoiceForm.customerId = null;
-  invoiceForm.invoice_date = new Date().toISOString().slice(0, 10);
+  invoiceForm.invoice_date = formatLocalDate(new Date());
   invoiceForm.due_date = '';
   invoiceForm.items = [];
   invoiceForm.notes = '';
@@ -1102,8 +1100,12 @@ const handlePrint = async () => {
   try {
     const items = (invoiceDetails.items || []).map((item, index) => {
       const qty = Number(item.quantity || 0);
-      const price = Number(item.unit_price || item.unitPrice || 0);
-      const amount = Number(item.amount || qty * price || 0);
+      const hasPrice = item.unit_price !== null && item.unit_price !== undefined && item.unit_price !== ''
+        || item.unitPrice !== null && item.unitPrice !== undefined && item.unitPrice !== '';
+      const price = hasPrice ? Number(item.unit_price ?? item.unitPrice) : null;
+      const amount = item.amount !== null && item.amount !== undefined && item.amount !== ''
+        ? Number(item.amount)
+        : (price === null ? null : qty * price);
 
       return {
         index: index + 1,
@@ -1111,13 +1113,15 @@ const handlePrint = async () => {
         item_name: item.product_name || item.productName || item.material_name || '-',
         specification: item.specification || item.specs || '',
         quantity: qty.toString(),
-        unit_price: price.toFixed(2),
-        tax_amount: Number(item.tax_amount || 0).toFixed(2),
-        amount: amount.toFixed(2)
+        unit_price: price === null || Number.isNaN(price) ? '-' : price.toFixed(2),
+        tax_amount: item.tax_amount === null || item.tax_amount === undefined || item.tax_amount === '' ? '-' : Number(item.tax_amount).toFixed(2),
+        amount: amount === null || Number.isNaN(amount) ? '-' : amount.toFixed(2)
       };
     });
-    const subtotal = items.reduce((sum, item) => sum + Number(String(item.amount).replace(/,/g, '')), 0);
-    const taxAmount = Number(invoiceDetails.tax_amount || 0);
+    const subtotal = items.every(item => item.amount !== '-')
+      ? items.reduce((sum, item) => sum + Number(String(item.amount).replace(/,/g, '')), 0)
+      : null;
+    const taxAmount = invoiceDetails.tax_amount;
 
     const html = await printService.generateByDefaultTemplate('finance', 'invoice', {
       invoice_number: invoiceDetails.invoice_number || '-',
@@ -1126,11 +1130,11 @@ const handlePrint = async () => {
       order_no: invoiceDetails.order_no || invoiceDetails.sales_order_no || '',
       tax_rate: invoiceDetails.tax_rate || '',
       status: getStatusText(invoiceDetails),
-      subtotal: formatCurrency(invoiceDetails.subtotal || subtotal),
+      subtotal: formatCurrency(invoiceDetails.subtotal ?? subtotal),
       tax_amount: formatCurrency(taxAmount),
-      total_amount: formatCurrency(invoiceDetails.total_amount || (subtotal + taxAmount)),
-      paid_amount: formatCurrency(invoiceDetails.paid_amount || 0),
-      balance_amount: formatCurrency(invoiceDetails.balance_amount || 0),
+      total_amount: formatCurrency(invoiceDetails.total_amount ?? (subtotal === null || taxAmount === null || taxAmount === undefined ? null : subtotal + Number(taxAmount))),
+      paid_amount: formatCurrency(invoiceDetails.paid_amount),
+      balance_amount: formatCurrency(invoiceDetails.balance_amount),
       notes: invoiceDetails.notes || '',
       print_time: new Date().toLocaleString(),
       items

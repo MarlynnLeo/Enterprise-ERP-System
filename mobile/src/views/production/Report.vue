@@ -197,9 +197,9 @@
 
 <style lang="scss" scoped>
   .report-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 120px;
+    padding-bottom: var(--app-bottom-space);
   }
   .content-wrapper {
     padding: 12px;
@@ -212,7 +212,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .section-title {
     font-size: 0.875rem;
@@ -256,7 +256,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   }
   .picker-title {
     font-size: 1rem;
@@ -272,8 +272,8 @@
     border-radius: 10px;
     margin-bottom: 6px;
     cursor: pointer;
-    border: 1px solid var(--glass-border);
-    transition: all 0.2s;
+    border: 1px solid var(--surface-border, var(--border-subtle));
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s;
     &:active {
       transform: scale(0.98);
     }

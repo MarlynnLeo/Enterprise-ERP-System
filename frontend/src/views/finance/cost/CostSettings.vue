@@ -175,6 +175,7 @@
               <template #default="scope">
                 <el-switch
                   v-model="scope.row.is_included_in_cost"
+                  :disabled="!canUpdateCost"
                   @change="handleReasonSwitchChange(scope.row)"
                 />
               </template>
@@ -184,7 +185,7 @@
                  <el-tag :type="scope.row.is_active ? 'success' : 'info'">{{ scope.row.is_active ? '启用' : '禁用' }}</el-tag>
                </template>
             </el-table-column>
-            <el-table-column label="操作" width="180">
+            <el-table-column label="操作" width="180" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button size="small" @click="openReasonDialog(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" size="small" type="danger" plain @click="handleDeleteReason(scope.row)">删除</el-button>
@@ -286,12 +287,12 @@
             <el-table-column prop="material_code" label="物料编码" width="120" />
             <el-table-column prop="material_name" label="物料名称" min-width="180" />
             <el-table-column prop="specs" label="规格" width="220" />
-            <el-table-column prop="current_cost_price" label="当前采购成本" width="120" align="right">
+            <el-table-column prop="current_cost_price" label="当前采购成本" width="120">
               <template #default="scope">
                 {{ scope.row.current_cost_price ? Number(scope.row.current_cost_price).toFixed(2) : '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="standard_price" label="标准成本" width="120" align="right">
+            <el-table-column prop="standard_price" label="标准成本" width="120">
               <template #default="scope">
                 <span style="color: var(--color-primary); font-weight: 600;">{{ scope.row.standard_price ? Number(scope.row.standard_price).toFixed(2) : '-' }}</span>
               </template>
@@ -300,14 +301,14 @@
             <el-table-column prop="expiry_date" label="失效日期" width="110">
               <template #default="scope">{{ scope.row.expiry_date || '长期有效' }}</template>
             </el-table-column>
-            <el-table-column prop="is_active" label="状态" width="80" align="center">
+            <el-table-column prop="is_active" label="状态" width="80">
               <template #default="scope">
                 <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
                   {{ scope.row.is_active ? '有效' : '失效' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="100" fixed="right">
+            <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button v-permission="'finance:cost:update'" size="small" link type="primary" @click="openEditStdCostDialog(scope.row)">调整</el-button>
               </template>
@@ -385,12 +386,12 @@
           </template>
 
           <el-table :data="allocationRules" border style="width: 100%" v-loading="allocationRulesLoading">
-            <el-table-column prop="priority" label="优先级" width="80" align="center" />
+            <el-table-column prop="priority" label="优先级" width="80" />
             <el-table-column prop="name" label="规则名称" min-width="150" />
             <el-table-column label="指定产品" min-width="150">
               <template #default="scope">
-                <span v-if="scope.row.product_id" style="color:#409eff;">{{ scope.row.product_name || scope.row.product_code || `ID:${scope.row.product_id}` }}</span>
-                <span v-else style="color:#909399;">全部产品</span>
+                <span v-if="scope.row.product_id" style="color:var(--color-primary);">{{ scope.row.product_name || scope.row.product_code || `ID:${scope.row.product_id}` }}</span>
+                <span v-else style="color:var(--color-text-secondary);">全部产品</span>
               </template>
             </el-table-column>
             <el-table-column prop="product_category" label="指定类别" width="120">
@@ -408,19 +409,19 @@
                 {{ getAllocationBaseLabel(scope.row.allocation_base) }}
               </template>
             </el-table-column>
-            <el-table-column prop="rate" label="费率" width="100" align="right">
+            <el-table-column prop="rate" label="费率" width="100">
               <template #default="scope">
                 {{ Number(scope.row.rate).toFixed(4) }}
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="80" align="center">
+            <el-table-column label="状态" width="80">
               <template #default="scope">
                 <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
                   {{ scope.row.is_active ? '启用' : '禁用' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="160" fixed="right">
+            <el-table-column label="操作" width="160" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button size="small" link type="primary" @click="openAllocationRuleDialog(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" size="small" link type="danger" @click="handleDeleteAllocationRule(scope.row)">删除</el-button>
@@ -498,10 +499,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { formatLocalDate } from '@/utils/format';
+import { computed, ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import api, { baseDataApi } from '@/services/api';
-import { parseListData } from '@/utils/responseParser';
+import { baseDataApi, financeApi } from '@/services/api';
+import { useAuthStore } from '@/stores/auth';
+import { parseListData, parseResponseData } from '@/utils/responseParser';
+
+const authStore = useAuthStore();
+const canCreateCost = computed(() => authStore.hasPermission('finance:cost:create'));
+const canUpdateCost = computed(() => authStore.hasPermission('finance:cost:update'));
 
 const saving = ref(false);
 const activeTab = ref('config');
@@ -543,8 +550,8 @@ const getMethodName = (method) => {
 // 加载设置
 const loadSettings = async () => {
   try {
-    const response = await api.get('/finance-enhancement/cost/settings');
-    const data = response.data?.data || response.data;
+    const response = await financeApi.cost.getSettings();
+    const data = parseResponseData(response);
 
     // 更新表单数据
     settingsForm.costingMethod = data.costingMethod || 'weighted_average';
@@ -573,7 +580,7 @@ const loadSettings = async () => {
 const saveSettings = async () => {
   saving.value = true;
   try {
-    await api.post('/finance-enhancement/cost/settings', {
+    await financeApi.cost.saveSettings({
       wagePaymentMethod: settingsForm.wagePaymentMethod,
       costingMethod: settingsForm.costingMethod,
       laborRate: settingsForm.laborRate,
@@ -616,10 +623,8 @@ const reasonForm = ref({
 const fetchSupplementReasons = async () => {
   reasonsLoading.value = true;
   try {
-    const res = await api.get('/finance-enhancement/cost/supplement-reasons');
-    if (res.data) {
-      supplementReasons.value = Array.isArray(res.data) ? res.data : (res.data.data || []);
-    }
+    const res = await financeApi.cost.getSupplementReasons();
+    supplementReasons.value = parseListData(res, { enableLog: false });
   } catch (error) {
     console.error('获取补料原因失败', error);
   } finally {
@@ -650,13 +655,24 @@ const saveReason = async () => {
     ElMessage.warning('请填写名称和代码');
     return;
   }
+
+  if (editingReasonId.value && !canUpdateCost.value) {
+    ElMessage.warning('缺少成本更新权限');
+    return;
+  }
+
+  if (!editingReasonId.value && !canCreateCost.value) {
+    ElMessage.warning('缺少成本新增权限');
+    return;
+  }
+
   savingReason.value = true;
   try {
     const payload = { ...reasonForm.value, id: editingReasonId.value };
     if (editingReasonId.value) {
-      await api.put(`/finance-enhancement/cost/supplement-reasons/${editingReasonId.value}`, payload);
+      await financeApi.cost.saveSupplementReason(payload);
     } else {
-      await api.post('/finance-enhancement/cost/supplement-reasons', payload);
+      await financeApi.cost.saveSupplementReason(payload);
     }
     ElMessage.success('保存成功');
     reasonDialogVisible.value = false;
@@ -671,7 +687,7 @@ const saveReason = async () => {
 // 删除原因
 const handleDeleteReason = async (row) => {
   try {
-    await api.delete(`/finance-enhancement/cost/supplement-reasons/${row.id}`);
+    await financeApi.cost.deleteSupplementReason(row.id);
     ElMessage.success('删除成功');
     fetchSupplementReasons();
   } catch {
@@ -681,9 +697,14 @@ const handleDeleteReason = async (row) => {
 
 // 列表开关直接更新
 const handleReasonSwitchChange = async (row) => {
+  if (!canUpdateCost.value) {
+    ElMessage.warning('缺少成本更新权限');
+    fetchSupplementReasons();
+    return;
+  }
+
   try {
-     await api.post('/finance-enhancement/cost/supplement-reasons', row);
-     ElMessage.success('状态更新成功');
+     await financeApi.cost.saveSupplementReason(row);
   } catch {
     ElMessage.error('更新失败');
     fetchSupplementReasons(); // 还原
@@ -697,22 +718,22 @@ const savingMappings = ref(false);
 
 const fetchGLAccounts = async () => {
   try {
-     const res = await api.get('/finance-enhancement/cost/gl-accounts');
-     glAccounts.value = res.data?.data || res.data || [];
+     const res = await financeApi.cost.getGLAccounts();
+     glAccounts.value = parseResponseData(res, []);
   } catch(e) { console.error('获取科目失败', e); }
 };
 
 const fetchGLMappings = async () => {
   try {
-     const res = await api.get('/finance-enhancement/cost/gl-mappings');
-     glMappings.value = res.data?.data || res.data || [];
+     const res = await financeApi.cost.getGLMappings();
+     glMappings.value = parseResponseData(res, []);
   } catch(e) { console.error('获取映射失败', e); }
 };
 
 const saveMappings = async () => {
   savingMappings.value = true;
   try {
-     await api.post('/finance-enhancement/cost/gl-mapping', { mappings: glMappings.value });
+     await financeApi.cost.saveGLMappings(glMappings.value);
      ElMessage.success('映射保存成功');
   } catch {
      ElMessage.error('映射保存失败');
@@ -768,8 +789,8 @@ const fetchMaterialStandardCosts = async () => {
       pageSize: stdCostPageSize.value,
       ...stdCostSearch
     };
-    const res = await api.get('/finance-enhancement/cost/material-standard-costs', { params });
-    const data = res.data?.data || res.data;
+    const res = await financeApi.cost.getMaterialStandardCosts(params);
+    const data = parseResponseData(res);
     materialStandardCosts.value = data.list || [];
     stdCostTotal.value = Number(data.total) || 0;
   } catch (error) {
@@ -783,7 +804,7 @@ const fetchMaterialStandardCosts = async () => {
 // 打开冻结对话框
 const openFreezeDialog = () => {
   // 默认使用今天作为生效日期
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
   freezeForm.effective_date = today;
   freezeForm.expiry_date = null;
   freezeDialogVisible.value = true;
@@ -797,12 +818,12 @@ const handleFreeze = async () => {
   }
   freezing.value = true;
   try {
-    const res = await api.post('/finance-enhancement/cost/material-standard-costs/freeze', {
+    const res = await financeApi.cost.freezeMaterialStandardCosts({
       effective_date: freezeForm.effective_date,
       expiry_date: freezeForm.expiry_date,
       source: 'cost_price'
     });
-    const data = res.data?.data || res.data;
+    const data = parseResponseData(res);
     ElMessage.success(`冻结完成！成功: ${data.frozenCount} 条，跳过: ${data.skippedCount} 条`);
     freezeDialogVisible.value = false;
     fetchMaterialStandardCosts();
@@ -834,7 +855,7 @@ const handleUpdateStdCost = async () => {
   }
   updatingStdCost.value = true;
   try {
-    await api.put(`/finance-enhancement/cost/material-standard-costs/${editStdCostForm.id}`, {
+    await financeApi.cost.updateMaterialStandardCost(editStdCostForm.id, {
       standard_price: editStdCostForm.standard_price,
       effective_date: editStdCostForm.effective_date,
       expiry_date: editStdCostForm.expiry_date,
@@ -870,7 +891,7 @@ const allocationRuleForm = ref({
   product_id: null,
   product_category: '',
   priority: 0,
-  effective_date: new Date().toISOString().split('T')[0],
+  effective_date: formatLocalDate(new Date()),
   expiry_date: null,
   is_active: true
 });
@@ -882,16 +903,16 @@ const getAllocationBaseLabel = (val) => {
 
 const fetchAllocationBases = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/overhead-allocation/bases');
-    allocationBases.value = res.data?.data || res.data || [];
+    const res = await financeApi.cost.getAllocationBases();
+    allocationBases.value = parseResponseData(res, []);
   } catch(e) { console.error('获取分摊基础失败', e); }
 };
 
 const fetchAllocationRules = async () => {
   allocationRulesLoading.value = true;
   try {
-    const res = await api.get('/finance-enhancement/cost/overhead-allocation');
-    allocationRules.value = res.data?.data || res.data || [];
+    const res = await financeApi.cost.getAllocationRules();
+    allocationRules.value = parseResponseData(res, []);
   } catch (error) {
     console.error('获取分摊规则失败', error);
   } finally {
@@ -917,8 +938,8 @@ const searchMaterials = async (query) => {
 
 const fetchCostCenters = async () => {
   try {
-    const res = await api.get('/finance/cost-centers');
-    costCenterOptions.value = res.data?.data || res.data || [];
+    const res = await financeApi.cost.getCostCenters();
+    costCenterOptions.value = parseResponseData(res, []);
   } catch(e) { console.error('获取成本中心失败', e); }
 };
 
@@ -948,7 +969,7 @@ const openAllocationRuleDialog = (row = null) => {
       product_id: null,
       product_category: '',
       priority: 0,
-      effective_date: new Date().toISOString().split('T')[0],
+      effective_date: formatLocalDate(new Date()),
       expiry_date: null,
       is_active: true
     };
@@ -970,9 +991,9 @@ const saveAllocationRule = async () => {
     if (!payload.product_category) payload.product_category = null;
 
     if (editingAllocationRuleId.value) {
-      await api.put(`/finance-enhancement/cost/overhead-allocation/${editingAllocationRuleId.value}`, payload);
+      await financeApi.cost.saveAllocationRule({ ...payload, id: editingAllocationRuleId.value });
     } else {
-      await api.post('/finance-enhancement/cost/overhead-allocation', payload);
+      await financeApi.cost.saveAllocationRule(payload);
     }
     ElMessage.success('保存规则成功');
     allocationRuleDialogVisible.value = false;
@@ -986,7 +1007,7 @@ const saveAllocationRule = async () => {
 
 const handleDeleteAllocationRule = async (row) => {
   try {
-    await api.delete(`/finance-enhancement/cost/overhead-allocation/${row.id}`);
+    await financeApi.cost.deleteAllocationRule(row.id);
     ElMessage.success('删除成功');
     fetchAllocationRules();
   } catch {
@@ -1035,9 +1056,9 @@ onMounted(() => {
 }
 
 .settings-tabs {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent);
   border: none;
   overflow: hidden;
 }
@@ -1053,15 +1074,15 @@ onMounted(() => {
   border-radius: 8px 8px 0 0;
   padding: 12px 24px;
   font-weight: 500;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
 .settings-tabs :deep(.el-tabs__item:hover) {
-  background: rgba(64, 158, 255, 0.05);
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
 }
 
 .settings-tabs :deep(.el-tabs__item.is-active) {
-  background: white;
+  background: var(--color-bg-base);
   color: var(--color-primary);
 }
 
@@ -1074,15 +1095,15 @@ onMounted(() => {
   border-radius: 12px;
   border: 1px solid var(--color-border-light);
   overflow: hidden;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
 .inner-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ds-black) 8%, transparent);
 }
 
 .inner-card :deep(.el-card__header) {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-lighter) 100%);
   color: var(--color-text-primary);
   font-weight: 600;
   padding: 14px 20px;
@@ -1118,12 +1139,12 @@ onMounted(() => {
 .settings-tabs :deep(.el-input__wrapper),
 .settings-tabs :deep(.el-input-number__wrapper) {
   border-radius: 8px;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
 .settings-tabs :deep(.el-input__wrapper:hover),
 .settings-tabs :deep(.el-input-number__wrapper:hover) {
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .settings-tabs :deep(.el-select__wrapper) {
@@ -1154,4 +1175,3 @@ onMounted(() => {
   overflow: hidden;
 }
 </style>
-

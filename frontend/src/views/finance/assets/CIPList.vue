@@ -1,8 +1,15 @@
 <template>
   <div class="cip-list-container">
     <!-- 搜索栏 -->
-    <el-card shadow="never" class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="工程编号">
           <el-input  v-model="searchForm.projectCode" placeholder="请输入工程编号" clearable
             @keyup.enter="handleSearch" />
@@ -11,20 +18,16 @@
           <el-input  v-model="searchForm.projectName" placeholder="请输入工程名称" clearable
             @keyup.enter="handleSearch" />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="状态">
           <el-select  v-model="searchForm.status" placeholder="全部状态" clearable>
             <el-option label="建设中" value="建设中" />
             <el-option label="已转固" value="已转固" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 搜索
-          </el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 操作栏 + 表格 -->
     <el-card shadow="never">
@@ -40,19 +43,19 @@
       <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%">
         <el-table-column prop="project_code" label="工程编号" width="140" />
         <el-table-column prop="project_name" label="工程名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="budget" label="预算金额" width="130" align="right">
+        <el-table-column prop="budget" label="预算金额" width="130">
           <template #default="{ row }">
             {{ formatMoney(row.budget) }}
           </template>
         </el-table-column>
-        <el-table-column prop="accumulated_amount" label="已归集成本" width="130" align="right">
+        <el-table-column prop="accumulated_amount" label="已归集成本" width="130">
           <template #default="{ row }">
             <span :class="{ 'over-budget': parseFloat(row.accumulated_amount) > parseFloat(row.budget) }">
               {{ formatMoney(row.accumulated_amount) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="执行率" width="100" align="center">
+        <el-table-column label="执行率" width="100">
           <template #default="{ row }">
             <el-progress
               :percentage="getProgressPercent(row)"
@@ -74,14 +77,14 @@
         </el-table-column>
         <el-table-column prop="responsible" label="负责人" width="100" />
         <el-table-column prop="department" label="部门" width="100" />
-        <el-table-column prop="status" label="状态" width="90" align="center">
+        <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === '建设中' ? 'primary' : 'success'" size="small">
               {{ row.status }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right" align="center">
+        <el-table-column label="操作" width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <template v-if="row.status === '建设中'">
               <el-button v-permission="'finance:assets:update'" type="primary" link size="small" @click="handleAddCost(row)">归集成本</el-button>
@@ -235,14 +238,16 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import { api } from '@/services/api'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 // ========== 数据 ==========
 const loading = ref(false)
+const showAdvancedSearch = ref(false)
 const submitting = ref(false)
 const tableData = ref([])
 const formDialogVisible = ref(false)
@@ -286,7 +291,7 @@ const formRules = {
 const transferForm = reactive({
   asset_code: '',
   asset_name: '',
-  acquisition_date: new Date().toISOString().split('T')[0],
+  acquisition_date: formatLocalDate(new Date()),
   useful_life: 5,
   depreciation_method: 'straight_line',
   salvage_value: 0,
@@ -454,7 +459,7 @@ const handleTransfer = (row) => {
   Object.assign(transferForm, {
     asset_code: '',
     asset_name: row.project_name,
-    acquisition_date: new Date().toISOString().split('T')[0],
+    acquisition_date: formatLocalDate(new Date()),
     useful_life: 5,
     depreciation_method: 'straight_line',
     salvage_value: 0,

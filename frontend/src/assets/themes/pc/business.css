@@ -133,94 +133,30 @@
   --z-index-tooltip: 1070;
 }
 
-/* ========== 商务主题特效 ========== */
-
-/* 专业卡片 */
-.business-card {
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-}
-
-.business-card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-primary);
-}
-
-/* 专业按钮 */
-.business-button {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--transition-base);
-}
-
-.business-button:hover {
-  background: #34495E;
-  box-shadow: var(--shadow-md);
-}
-
-/* 金色强调 */
-.business-accent {
-  color: var(--color-gold);
-  font-weight: var(--font-weight-semibold);
-}
-
-/* 专业表格 */
-.business-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--color-bg-base);
-}
-
-.business-table th {
-  background: var(--color-primary);
-  color: white;
-  padding: var(--spacing-md);
-  text-align: left;
-  font-weight: var(--font-weight-semibold);
-}
-
-.business-table td {
-  padding: var(--spacing-md);
-  border-bottom: 1px solid var(--color-border-lighter);
-}
-
-.business-table tr:hover {
-  background: var(--color-bg-page);
-}
-
 /* ========== 商务主题全局样式覆盖 ========== */
 
 /* 整体页面 */
 [data-theme="business"] body,
 [data-theme="business"] .layout-container {
-  background: #E8EAF6 !important;
+  background: var(--color-bg-page) !important;
 }
 
 /* 侧边栏商务化 */
 [data-theme="business"] .sidebar,
-[data-theme="business"] .el-aside {
-  background: linear-gradient(180deg, #1E3A5F 0%, #2C3E50 100%) !important;
-  border-right: 3px solid #D4AF37 !important;
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2) !important;
+[data-theme="business"] .app-sidebar {
+  background: linear-gradient(180deg, var(--color-bg-overlay) 0%, var(--color-primary) 100%) !important;
+  border-right: 3px solid var(--color-gold) !important;
+  box-shadow: 4px 0 20px color-mix(in srgb, var(--ds-black) 20%, transparent) !important;
 }
 
 [data-theme="business"] .logo-container {
-  background: rgba(212, 175, 55, 0.1) !important;
-  border-bottom: 3px solid #D4AF37 !important;
+  background: color-mix(in srgb, var(--color-gold) 10%, transparent) !important;
+  border-bottom: 3px solid var(--color-gold) !important;
   padding: 20px !important;
 }
 
 [data-theme="business"] .logo-container .title {
-  color: #D4AF37 !important;
+  color: var(--color-gold) !important;
   font-weight: 700 !important;
   letter-spacing: 2px !important;
   text-transform: uppercase !important;
@@ -234,129 +170,92 @@
 /* 侧边栏菜单项默认颜色 - 使用金色确保可见 */
 [data-theme="business"] .sidebar .el-menu-item,
 [data-theme="business"] .sidebar .el-sub-menu__title,
-[data-theme="business"] .el-aside .el-menu-item,
-[data-theme="business"] .el-aside .el-sub-menu__title {
-  color: #E8C468 !important;
+[data-theme="business"] .app-sidebar .el-menu-item,
+[data-theme="business"] .app-sidebar .el-sub-menu__title {
+  color: var(--color-text-placeholder) !important;
   font-weight: 500 !important;
   border-left: 4px solid transparent !important;
-  transition: all 0.3s ease !important;
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease !important;
 }
 
 /* 侧边栏菜单项文字 */
 [data-theme="business"] .sidebar .el-menu-item span,
 [data-theme="business"] .sidebar .el-sub-menu__title span,
-[data-theme="business"] .el-aside .el-menu-item span,
-[data-theme="business"] .el-aside .el-sub-menu__title span {
-  color: #E8C468 !important;
+[data-theme="business"] .app-sidebar .el-menu-item span,
+[data-theme="business"] .app-sidebar .el-sub-menu__title span {
+  color: var(--color-text-placeholder) !important;
 }
 
 [data-theme="business"] .sidebar .el-menu-item:hover,
 [data-theme="business"] .sidebar .el-sub-menu__title:hover,
-[data-theme="business"] .el-aside .el-menu-item:hover,
-[data-theme="business"] .el-aside .el-sub-menu__title:hover {
-  background: rgba(212, 175, 55, 0.1) !important;
-  border-left-color: #D4AF37 !important;
-  color: #D4AF37 !important;
+[data-theme="business"] .app-sidebar .el-menu-item:hover,
+[data-theme="business"] .app-sidebar .el-sub-menu__title:hover {
+  background: color-mix(in srgb, var(--color-gold) 10%, transparent) !important;
+  border-left-color: var(--color-gold) !important;
+  color: var(--color-gold) !important;
 }
 
 [data-theme="business"] .sidebar .el-menu-item:hover span,
 [data-theme="business"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="business"] .el-aside .el-menu-item:hover span,
-[data-theme="business"] .el-aside .el-sub-menu__title:hover span {
-  color: #D4AF37 !important;
+[data-theme="business"] .app-sidebar .el-menu-item:hover span,
+[data-theme="business"] .app-sidebar .el-sub-menu__title:hover span {
+  color: var(--color-gold) !important;
 }
 
 [data-theme="business"] .sidebar .el-menu-item.is-active,
-[data-theme="business"] .el-aside .el-menu-item.is-active {
-  background: rgba(212, 175, 55, 0.15) !important;
-  border-left-color: #D4AF37 !important;
-  color: #D4AF37 !important;
+[data-theme="business"] .app-sidebar .el-menu-item.is-active {
+  background: color-mix(in srgb, var(--color-gold) 15%, transparent) !important;
+  border-left-color: var(--color-gold) !important;
+  color: var(--color-gold) !important;
   font-weight: 600 !important;
 }
 
 [data-theme="business"] .sidebar .el-menu-item.is-active span,
-[data-theme="business"] .el-aside .el-menu-item.is-active span {
-  color: #D4AF37 !important;
+[data-theme="business"] .app-sidebar .el-menu-item.is-active span {
+  color: var(--color-gold) !important;
 }
 
 /* 顶部导航栏商务化 */
 [data-theme="business"] .header,
 [data-theme="business"] .el-header {
-  background: linear-gradient(90deg, #FFFFFF 0%, #F5F5F5 100%) !important;
-  border-bottom: 3px solid #D4AF37 !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
-}
-
-/* 卡片商务?*/
-[data-theme="business"] .el-card,
-[data-theme="business"] .stat-card,
-[data-theme="business"] .dashboard-card {
-  background: #FFFFFF !important;
-  border: 2px solid #E0E0E0 !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-  transition: all 0.3s ease !important;
-}
-
-[data-theme="business"] .el-card:hover,
-[data-theme="business"] .stat-card:hover {
-  border-color: #D4AF37 !important;
-  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.2) !important;
-  transform: translateY(-4px) !important;
-}
-
-/* 按钮商务?*/
-[data-theme="business"] .el-button--primary {
-  background: linear-gradient(135deg, #2C3E50 0%, #34495E 100%) !important;
-  border: 2px solid #D4AF37 !important;
-  color: #FFFFFF !important;
-  font-weight: 600 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 1px !important;
-}
-
-[data-theme="business"] .el-button--primary:hover {
-  background: linear-gradient(135deg, #34495E 0%, #2C3E50 100%) !important;
-  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4) !important;
-  transform: translateY(-2px);
+  background: linear-gradient(90deg, var(--color-bg-base) 0%, var(--color-bg-hover) 100%) !important;
+  border-bottom: 3px solid var(--color-gold) !important;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--ds-black) 10%, transparent) !important;
 }
 
 /* 表格组件 */
 [data-theme="business"] .el-table {
-  background: #FFFFFF !important;
-  border: 2px solid #E0E0E0 !important;
+  background: var(--color-bg-base) !important;
+  border: 2px solid var(--color-border-light) !important;
   border-radius: 8px !important;
 }
 
 [data-theme="business"] .el-table th {
-  background: linear-gradient(180deg, #F5F5F5 0%, #EEEEEE 100%) !important;
-  color: #2C3E50 !important;
+  background: linear-gradient(180deg, var(--color-bg-hover) 0%, var(--color-bg-page) 100%) !important;
+  color: var(--color-text-primary) !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 1px !important;
-  border-bottom: 3px solid #D4AF37 !important;
+  border-bottom: 3px solid var(--color-gold) !important;
 }
 
 [data-theme="business"] .el-table tbody tr:hover {
-  background: rgba(212, 175, 55, 0.05) !important;
+  background: color-mix(in srgb, var(--color-gold) 5%, transparent) !important;
 }
 
 /* 输入框商务化 */
 [data-theme="business"] .el-input__wrapper {
-  background: #FFFFFF !important;
-  border: 2px solid #E0E0E0 !important;
+  background: var(--color-bg-base) !important;
+  border: 2px solid var(--color-border-light) !important;
   border-radius: 6px !important;
 }
 
 [data-theme="business"] .el-input__wrapper:hover,
 [data-theme="business"] .el-input__wrapper.is-focus {
-  border-color: #D4AF37 !important;
-  box-shadow: 0 0 8px rgba(212, 175, 55, 0.2) !important;
+  border-color: var(--color-gold) !important;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-gold) 20%, transparent) !important;
 }
-
-/* 统计卡片图标 */
-[data-theme="business"] .stat-card .icon-container {
-  background: linear-gradient(135deg, #2C3E50 0%, #34495E 100%) !important;
-  border: 2px solid #D4AF37 !important;
-}
-

@@ -2,11 +2,11 @@
   <div>
     <!-- 基本信息 -->
     <div v-show="activeTab === 'basic'">
-      <el-card class="glass-card info-card" shadow="hover" :class="{'editing-mode': isEditing}">
+      <el-card class="profile-card info-card" shadow="hover" :class="{'editing-mode': isEditing}">
         <template #header>
           <div class="card-header">
             <div class="header-left">
-              <el-icon class="header-icon" color="#409EFF"><User /></el-icon>
+              <el-icon class="header-icon header-icon--primary"><User /></el-icon>
               <span class="header-title">个人信息</span>
             </div>
             <div class="header-actions">
@@ -32,27 +32,27 @@
               基本资料
             </div>
             <el-row :gutter="20">
-              <el-col :span="12">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="姓名" prop="name">
-                  <el-input :model-value="localUserForm.name" placeholder="请输入姓名" prefix-icon="User" @update:model-value="updateUserFormField('name', $event)" />
+                  <el-input :model-value="localUserForm.name" placeholder="请输入姓名" :prefix-icon="User" @update:model-value="updateUserFormField('name', $event)" />
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="邮箱" prop="email">
-                  <el-input :model-value="localUserForm.email" placeholder="请输入邮箱" prefix-icon="Message" @update:model-value="updateUserFormField('email', $event)" />
+                  <el-input :model-value="localUserForm.email" placeholder="请输入邮箱" :prefix-icon="Message" @update:model-value="updateUserFormField('email', $event)" />
                 </el-form-item>
               </el-col>
             </el-row>
 
             <el-row :gutter="20">
-              <el-col :span="12">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="手机号" prop="phone">
-                  <el-input :model-value="localUserForm.phone" placeholder="请输入手机号" prefix-icon="Phone" @update:model-value="updateUserFormField('phone', $event)" />
+                  <el-input :model-value="localUserForm.phone" placeholder="请输入手机号" :prefix-icon="Phone" @update:model-value="updateUserFormField('phone', $event)" />
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="角色">
-                  <el-input :model-value="localUserForm.role" disabled prefix-icon="Briefcase" />
+                  <el-input :model-value="localUserForm.role" disabled :prefix-icon="Briefcase" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -92,11 +92,11 @@
     </div>
     <!-- 密码修改 -->
     <div v-show="activeTab === 'password'">
-      <el-card class="glass-card password-card" shadow="hover">
+      <el-card class="profile-card password-card" shadow="hover">
         <template #header>
           <div class="card-header">
             <div class="header-left">
-              <el-icon class="header-icon" color="#F56C6C"><Lock /></el-icon>
+              <el-icon class="header-icon header-icon--danger"><Lock /></el-icon>
               <span class="header-title">修改密码</span>
             </div>
           </div>
@@ -124,7 +124,7 @@
               type="password"
               show-password
               placeholder="请输入当前密码"
-              prefix-icon="Lock"
+              :prefix-icon="Lock"
             />
           </el-form-item>
 
@@ -134,7 +134,7 @@
               type="password"
               show-password
               placeholder="请输入新密码（至少8位）"
-              prefix-icon="Lock"
+              :prefix-icon="Lock"
               @input="checkStrength"
             />
             <div v-if="passwordStrength > 0" class="password-strength">
@@ -156,7 +156,7 @@
               type="password"
               show-password
               placeholder="请再次输入新密码"
-              prefix-icon="Lock"
+              :prefix-icon="Lock"
             />
           </el-form-item>
 
@@ -177,7 +177,7 @@
 import { ref, reactive, watch } from 'vue'
 import {
   User, Check, Close, Edit, Location,
-  Lock, RefreshRight
+  Lock, RefreshRight, Message, Phone, Briefcase
 } from '@element-plus/icons-vue'
 const props = defineProps({
   activeTab: String,
@@ -285,13 +285,13 @@ const checkStrength = (value) => {
 
   if (score < 60) {
     passwordStrengthText.value = '弱'
-    passwordStrengthColor.value = '#F56C6C'
+    passwordStrengthColor.value = 'var(--el-color-danger)'
   } else if (score < 80) {
     passwordStrengthText.value = '中'
-    passwordStrengthColor.value = '#E6A23C'
+    passwordStrengthColor.value = 'var(--el-color-warning)'
   } else {
     passwordStrengthText.value = '强'
-    passwordStrengthColor.value = '#67C23A'
+    passwordStrengthColor.value = 'var(--el-color-success)'
   }
 }
 const submitPasswordChange = async () => {
@@ -318,16 +318,25 @@ const resetPasswordForm = () => {
 }
 </script>
 <style scoped>
-.glass-card {
-  border-radius: 16px;
+.profile-card {
+  border-radius: 12px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+}
+
+.profile-card :deep(.el-card__header) {
+  padding: 16px 18px;
+}
+
+.profile-card :deep(.el-card__body) {
+  padding: 22px;
 }
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  gap: 14px;
 }
 .header-left {
   display: flex;
@@ -335,15 +344,31 @@ const resetPasswordForm = () => {
   gap: 12px;
 }
 .header-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 20px;
-  background: var(--el-fill-color-light);
-  padding: 8px;
-  border-radius: 8px;
-  box-sizing: content-box;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: var(--el-color-primary);
+  color: var(--el-color-white);
+  border: none;
+}
+
+.header-icon--primary {
+  background: var(--el-color-primary);
+  color: var(--el-color-white);
+}
+
+.header-icon--danger {
+  background: var(--el-color-danger);
+  color: var(--el-color-white);
 }
 .header-title {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 800;
   color: var(--el-text-color-primary);
 }
 .header-actions {
@@ -351,7 +376,11 @@ const resetPasswordForm = () => {
   gap: 12px;
 }
 .form-section {
-  margin-bottom: 30px;
+  margin-bottom: 24px;
+  padding: 18px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-extra-light);
 }
 .section-title {
   display: flex;
@@ -360,13 +389,15 @@ const resetPasswordForm = () => {
   font-size: 15px;
   font-weight: 600;
   color: var(--el-text-color-primary);
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  margin-bottom: 18px;
+}
+
+.section-title .el-icon {
+  color: var(--el-color-primary);
 }
 .editing-mode {
-  border: 1px solid var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-blue) 8%, transparent);
 }
 .password-strength {
   display: flex;
@@ -386,5 +417,44 @@ const resetPasswordForm = () => {
   margin: 0;
   line-height: 1.8;
   font-size: 13px;
+}
+
+.password-card :deep(.el-alert) {
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.password-form {
+  padding: 18px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-extra-light);
+}
+
+@media (max-width: 768px) {
+  .profile-card :deep(.el-card__body) {
+    padding: 16px;
+  }
+
+  .card-header,
+  .header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header-actions {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .header-actions :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .form-section,
+  .password-form {
+    padding: 14px;
+  }
 }
 </style>

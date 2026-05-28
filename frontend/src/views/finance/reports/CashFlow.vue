@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="report-container">
+  <div class="module-page report-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -22,8 +22,15 @@
       </div>
     </el-card>
     <!-- 查询条件区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="queryParams" class="search-form">
+    <FinanceQueryCard
+      :model="queryParams"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="generateReport"
+      @reset="resetQuery"
+    >
+      <template #basic>
         <el-form-item label="报表年月" required>
           <el-date-picker
             v-model="queryParams.reportMonth"
@@ -33,6 +40,8 @@
             value-format="YYYY-MM"
           ></el-date-picker>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="单位">
           <el-select v-model="queryParams.unit" placeholder="选择金额单位">
             <el-option label="元" :value="1"></el-option>
@@ -40,8 +49,8 @@
             <el-option label="万元" :value="10000"></el-option>
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 报表统计信息 -->
     <div class="statistics-row" v-if="reportData.length">
       <el-card class="stat-card" shadow="hover">
@@ -127,16 +136,17 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import printService from '@/services/printService';
-import { formatCurrency } from '@/utils/format';
-import ExcelJS from 'exceljs';
+import { formatCurrency, formatLocalMonth } from '@/utils/format';
+import { loadExcelJS } from '@/utils/lazyVendors';
 // 查询参数
 const queryParams = reactive({
-  reportMonth: new Date().toISOString().slice(0, 7), // 默认为当前月份 YYYY-MM
+  reportMonth: formatLocalMonth(new Date()), // 默认为当前月份 YYYY-MM
   unit: 1 // 默认单位为元
 });
 // 报表数据
 const reportData = ref([]);
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 // 报表统计数据
 const reportStats = reactive({
   totalIncome: 0,
@@ -188,6 +198,12 @@ const generateReport = async () => {
     loading.value = false;
   }
 };
+
+const resetQuery = () => {
+  queryParams.reportMonth = formatLocalMonth(new Date());
+  queryParams.unit = 1;
+  reportData.value = [];
+};
 // 格式化报表期间
 const formatReportPeriod = (reportMonth) => {
   if (!reportMonth) return '';
@@ -229,6 +245,7 @@ const printReport = async () => {
 };
 // 导出Excel
 const exportExcel = async () => {
+  const ExcelJS = await loadExcelJS();
   // 创建工作簿
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('出纳月报表');
@@ -379,7 +396,7 @@ onMounted(async () => {
 }
 .cashier-table th,
 .cashier-table td {
-  border: 1px solid #000;
+  border: 1px solid var(--ds-black);
   padding: 8px;
   text-align: center;
   vertical-align: middle;
@@ -429,7 +446,7 @@ onMounted(async () => {
 .signature-line {
   width: 80px;
   height: 1px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--color-text-primary);
 }
 .empty-tip {
   padding: 40px 0;

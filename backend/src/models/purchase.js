@@ -9,13 +9,6 @@ const logger = require('../utils/logger');
 const db = require('../config/db');
 const { CodeGenerators } = require('../utils/codeGenerator');
 
-/**
- * @deprecated 采购相关表结构已迁移至 Knex 迁移文件 20260312000007 管理，此函数保留为空操作
- */
-const createPurchaseTablesIfNotExist = async () => {
-  // 表结构由 migrations/20260312000007_baseline_purchase_extended_tables.js 管理
-};
-
 // 生成采购申请单号
 const generateRequisitionNo = async (connection = null) => {
   try {
@@ -105,7 +98,6 @@ const generateProcessingReceiptNo = async () => {
 };
 
 module.exports = {
-  createPurchaseTablesIfNotExist,
   generateRequisitionNo,
   generateOrderNo,
   generateReceiptNo,

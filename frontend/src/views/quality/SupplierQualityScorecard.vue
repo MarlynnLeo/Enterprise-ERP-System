@@ -32,35 +32,35 @@
         :row-class-name="tableRowClassName" @row-click="handleRowClick">
         <el-table-column prop="supplier_name" label="供应商" width="300" show-overflow-tooltip />
         <el-table-column prop="period" label="月份" width="100" />
-        <el-table-column label="来料质量" align="center">
+        <el-table-column label="来料质量">
           <el-table-column prop="total_lots" label="批次数" width="100" />
           <el-table-column prop="lot_accept_rate" label="合格率(%)" width="100">
             <template #default="scope">
-              <span :style="{ color: scope.row.lot_accept_rate >= 95 ? '#67C23A' : scope.row.lot_accept_rate >= 80 ? '#E6A23C' : '#F56C6C', fontWeight: 'bold' }">
+              <span :style="{ color: scope.row.lot_accept_rate >= 95 ? 'var(--color-success)' : scope.row.lot_accept_rate >= 80 ? 'var(--color-warning)' : 'var(--color-danger)', fontWeight: 'bold' }">
                 {{ scope.row.lot_accept_rate }}%
               </span>
             </template>
           </el-table-column>
           <el-table-column prop="ppm" label="PPM" width="100">
             <template #default="scope">
-              <span :style="{ color: scope.row.ppm <= 500 ? '#67C23A' : scope.row.ppm <= 2000 ? '#E6A23C' : '#F56C6C' }">
+              <span :style="{ color: scope.row.ppm <= 500 ? 'var(--color-success)' : scope.row.ppm <= 2000 ? 'var(--color-warning)' : 'var(--color-danger)' }">
                 {{ scope.row.ppm }}
               </span>
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="交付" align="center">
+        <el-table-column label="交付">
           <el-table-column prop="delivery_rate" label="准时率(%)" width="135">
             <template #default="scope">
               <span :style="{ fontWeight: 'bold' }">{{ scope.row.delivery_rate }}%</span>
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="8D 响应" align="center">
+        <el-table-column label="8D 响应">
           <el-table-column prop="total_8d_reports" label="报告数" width="100" />
           <el-table-column prop="avg_8d_days" label="平均天数" width="100" />
         </el-table-column>
-        <el-table-column label="综合得分" align="center">
+        <el-table-column label="综合得分">
           <el-table-column prop="quality_score" label="质量(60%)" width="100">
             <template #default="scope">{{ scope.row.quality_score }}</template>
           </el-table-column>
@@ -98,7 +98,7 @@
     <!-- 排名弹窗 -->
     <el-dialog v-model="rankingVisible" :title="`${selectedPeriod || '当月'} 供应商质量排名`" width="700px">
       <el-table :data="rankingData" border>
-        <el-table-column prop="ranking" label="排名" width="70" align="center">
+        <el-table-column prop="ranking" label="排名" width="70">
           <template #default="scope">
             <span :class="{ 'rank-top': scope.row.ranking <= 3 }">
               {{ scope.row.ranking <= 3 ? ['①','②','③'][scope.row.ranking-1] : scope.row.ranking }}
@@ -111,7 +111,7 @@
             <span style="font-weight:bold" :style="{ color: gradeColor(scope.row.grade) }">{{ scope.row.total_score }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="grade" label="等级" width="80" align="center">
+        <el-table-column prop="grade" label="等级" width="80">
           <template #default="scope">
             <el-tag :type="gradeType(scope.row.grade)" effect="dark">{{ scope.row.grade }}</el-tag>
           </template>
@@ -173,7 +173,7 @@ const trendData = ref([]);
 const trendSupplierName = ref('');
 
 const gradeType = (g) => ({ A: 'success', B: '', C: 'warning', D: 'danger' }[g] || 'info');
-const gradeColor = (g) => ({ A: '#67C23A', B: '#409EFF', C: '#E6A23C', D: '#F56C6C' }[g] || '#909399');
+const gradeColor = (g) => ({ A: 'var(--color-success)', B: 'var(--color-primary)', C: 'var(--color-warning)', D: 'var(--color-danger)' }[g] || 'var(--color-text-secondary)');
 
 const tableRowClassName = ({ row }) => {
   if (row.grade === 'D') return 'row-danger';
@@ -233,6 +233,6 @@ onMounted(fetchScores);
 .pagination-container { margin-top: 20px; display: flex; justify-content: flex-end; }
 .rank-top { font-size: 20px; }
 
-:deep(.row-danger) { background-color: #FEF0F0 !important; }
-:deep(.row-success) { background-color: #F0F9EB !important; }
+:deep(.row-danger) { background-color: var(--ds-red-bg) !important; }
+:deep(.row-success) { background-color: var(--ds-green-bg) !important; }
 </style>

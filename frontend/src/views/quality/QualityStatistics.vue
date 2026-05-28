@@ -1,13 +1,12 @@
-﻿<template>
-  <div class="inspection-container">
+<template>
+  <div class="module-page inspection-container">
     <!-- 日期筛选 -->
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>质量统计报表</span>
-        </div>
-      </template>
-      <el-form :inline="true" class="search-form" >
+    <FinanceQueryCard
+      :model="{ dateRange }"
+      @search="fetchAllData"
+      @reset="resetDateRange"
+    >
+      <template #basic>
         <el-form-item label="统计周期">
           <el-date-picker
             v-model="dateRange"
@@ -19,12 +18,8 @@
             @change="fetchAllData"
           />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchAllData">刷新数据</el-button>
-          <el-button @click="resetDateRange">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 综合概览 - 使用统一的 stat-card 风格 -->
     <div class="statistics-row">
@@ -81,24 +76,24 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <div class="cost-item">
-                  <div class="cost-icon" style="background: rgba(64,158,255,0.1); color: var(--color-primary);">
+                  <div class="cost-icon" style="background: color-mix(in srgb, var(--color-primary) 10%, transparent); color: var(--color-primary);">
                     <el-icon :size="28"><Tools /></el-icon>
                   </div>
                   <div class="cost-info">
                     <div class="cost-label">返工成本</div>
-                    <div class="cost-value">¥{{ formatCost(costData.rework_cost) }}</div>
+                    <div class="cost-value">{{ formatCost(costData.rework_cost) }}</div>
                     <div class="cost-count">{{ costData.rework_count || 0 }} 次返工</div>
                   </div>
                 </div>
               </el-col>
               <el-col :span="12">
                 <div class="cost-item">
-                  <div class="cost-icon" style="background: rgba(245,108,108,0.1); color: var(--color-danger);">
+                  <div class="cost-icon" style="background: color-mix(in srgb, var(--color-danger) 10%, transparent); color: var(--color-danger);">
                     <el-icon :size="28"><Delete /></el-icon>
                   </div>
                   <div class="cost-info">
                     <div class="cost-label">报废成本</div>
-                    <div class="cost-value">¥{{ formatCost(costData.scrap_cost) }}</div>
+                    <div class="cost-value">{{ formatCost(costData.scrap_cost) }}</div>
                     <div class="cost-count">{{ costData.scrap_count || 0 }} 次报废</div>
                   </div>
                 </div>
@@ -107,7 +102,7 @@
             <el-divider />
             <div class="total-cost">
               <span>总质量成本</span>
-              <span class="total-value">¥{{ formatCost(costData.total_cost) }}</span>
+              <span class="total-value">{{ formatCost(costData.total_cost) }}</span>
             </div>
           </div>
         </el-card>
@@ -137,14 +132,14 @@
         </div>
       </template>
       <el-table :data="supplierData" border style="width: 100%;">
-        <el-table-column type="index" label="排名" width="60" align="center" />
+        <el-table-column type="index" label="排名" width="60" />
         <el-table-column prop="supplier_name" label="供应商名称" min-width="200" />
-        <el-table-column prop="ncp_count" label="不合格次数" width="120" align="right" sortable />
-        <el-table-column prop="total_defect_quantity" label="不合格数量" width="120" align="right" sortable />
-        <el-table-column prop="affected_materials" label="涉及物料数" width="120" align="right" sortable />
-        <el-table-column prop="return_count" label="退货次数" width="100" align="right" />
-        <el-table-column prop="replacement_count" label="换货次数" width="100" align="right" />
-        <el-table-column prop="scrap_count" label="报废次数" width="100" align="right" />
+        <el-table-column prop="ncp_count" label="不合格次数" width="120" sortable />
+        <el-table-column prop="total_defect_quantity" label="不合格数量" width="120" sortable />
+        <el-table-column prop="affected_materials" label="涉及物料数" width="120" sortable />
+        <el-table-column prop="return_count" label="退货次数" width="100" />
+        <el-table-column prop="replacement_count" label="换货次数" width="100" />
+        <el-table-column prop="scrap_count" label="报废次数" width="100" />
       </el-table>
     </el-card>
 
@@ -156,11 +151,11 @@
         </div>
       </template>
       <el-table :data="materialData" border style="width: 100%;">
-        <el-table-column type="index" label="排名" width="60" align="center" />
+        <el-table-column type="index" label="排名" width="60" />
         <el-table-column prop="material_code" label="物料编码" width="150" />
         <el-table-column prop="material_name" label="物料名称" min-width="200" />
-        <el-table-column prop="ncp_count" label="不合格次数" width="120" align="right" sortable />
-        <el-table-column prop="total_defect_quantity" label="不合格数量" width="120" align="right" sortable />
+        <el-table-column prop="ncp_count" label="不合格次数" width="120" sortable />
+        <el-table-column prop="total_defect_quantity" label="不合格数量" width="120" sortable />
         <el-table-column prop="defect_types" label="缺陷类型" min-width="200" show-overflow-tooltip />
       </el-table>
     </el-card>
@@ -168,10 +163,12 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, onMounted, nextTick, onBeforeUnmount } from 'vue'
-import * as echarts from 'echarts'
+import { echarts } from '@/utils/echartsCore'
 import { qualityStatisticsApi } from '@/api/quality'
 import { Tools, Delete } from '@element-plus/icons-vue'
+import { getCssTokenValue } from '@/utils/designTokens'
 
 const dateRange = ref([])
 const trendGroupBy = ref('day')
@@ -191,8 +188,10 @@ const trendChart = ref(null)
 
 // 格式化成本金额
 const formatCost = (val) => {
-  const num = parseFloat(val) || 0
-  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (val === null || val === undefined || val === '') return '-'
+  const num = Number(val)
+  if (Number.isNaN(num)) return '-'
+  return `¥${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 // 获取所有数据
@@ -297,7 +296,14 @@ const resetDateRange = () => {
 }
 
 // 系统主题色板
-const themeColors = ['#409eff', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#00b4d8']
+const themeColors = [
+  getCssTokenValue('primary'),
+  getCssTokenValue('success'),
+  getCssTokenValue('warning'),
+  getCssTokenValue('danger'),
+  getCssTokenValue('info'),
+  getCssTokenValue('cyan')
+]
 
 // 渲染处理方式分布图表
 const renderDispositionChart = () => {
@@ -330,7 +336,7 @@ const renderDispositionChart = () => {
       orient: 'vertical',
       right: 10,
       top: 'center',
-      textStyle: { color: 'var(--color-text-regular)' }
+      textStyle: { color: getCssTokenValue('textSecondary') }
     },
     color: themeColors,
     series: [
@@ -342,13 +348,13 @@ const renderDispositionChart = () => {
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 6,
-          borderColor: '#fff',
+          borderColor: getCssTokenValue('surface'),
           borderWidth: 2
         },
         label: {
           show: true,
           formatter: '{b}: {d}%',
-          color: 'var(--color-text-regular)'
+          color: getCssTokenValue('textSecondary')
         },
         emphasis: {
           label: {
@@ -381,7 +387,7 @@ const renderTrendChart = () => {
     },
     legend: {
       data: ['总数', '退货', '换货', '返工', '报废', '让步接收'],
-      textStyle: { color: 'var(--color-text-regular)' }
+      textStyle: { color: getCssTokenValue('textSecondary') }
     },
     grid: {
       left: '3%',
@@ -394,13 +400,13 @@ const renderTrendChart = () => {
       type: 'category',
       boundaryGap: false,
       data: chartData.map(item => item.period),
-      axisLabel: { color: 'var(--color-text-secondary)' },
-      axisLine: { lineStyle: { color: '#DCDFE6' } }
+      axisLabel: { color: getCssTokenValue('textMuted') },
+      axisLine: { lineStyle: { color: getCssTokenValue('border') } }
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: 'var(--color-text-secondary)' },
-      splitLine: { lineStyle: { color: '#EBEEF5' } }
+      axisLabel: { color: getCssTokenValue('textMuted') },
+      splitLine: { lineStyle: { color: getCssTokenValue('borderLight') } }
     },
     series: [
       {
@@ -459,8 +465,8 @@ onMounted(() => {
   const start = new Date()
   start.setDate(start.getDate() - 30)
   dateRange.value = [
-    start.toISOString().slice(0, 10),
-    end.toISOString().slice(0, 10)
+    formatLocalDate(start),
+    formatLocalDate(end)
   ]
 
   fetchAllData()

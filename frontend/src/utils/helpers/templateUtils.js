@@ -6,6 +6,13 @@
  */
 
 import { PREVIEW_DATA } from '../../constants/printConstants';
+import { getCssTokenValue } from '@/utils/designTokens';
+
+const templateTokens = {
+  heading: getCssTokenValue('textPrimary'),
+  border: getCssTokenValue('textPrimary'),
+  headerBg: getCssTokenValue('page')
+};
 
 /**
  * 获取预览数据
@@ -243,7 +250,7 @@ const BLANK_TEMPLATE = `<!DOCTYPE html>
     .header {
       text-align: center;
       margin-bottom: 20px;
-      border-bottom: 2px solid #333;
+      border-bottom: 2px solid ${templateTokens.heading};
       padding-bottom: 10px;
     }
     .header h1 {
@@ -256,12 +263,12 @@ const BLANK_TEMPLATE = `<!DOCTYPE html>
       margin: 15px 0;
     }
     th, td {
-      border: 1px solid #333;
+      border: 1px solid ${templateTokens.border};
       padding: 8px;
       text-align: left;
     }
     th {
-      background-color: #f0f0f0;
+      background-color: ${templateTokens.headerBg};
       font-weight: bold;
     }
     .footer {

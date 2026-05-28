@@ -7,9 +7,9 @@
  */
 -->
 <template>
-  <div class="finance-automation">
+  <div class="page-container finance-automation">
     <!-- 页面标题 -->
-    <div class="page-header">
+    <div class="page-header header-card">
       <h2>财务自动化管理</h2>
       <p>管理财务自动化任务的执行和监控</p>
     </div>
@@ -19,7 +19,7 @@
       <template #header>
         <div class="section-header">
           <div class="section-title">
-            <el-icon class="section-icon" color="#409EFF"><Refresh /></el-icon>
+            <el-icon class="section-icon" color="var(--color-primary)"><Refresh /></el-icon>
             <span>定时任务状态</span>
           </div>
           <div class="task-toolbar">
@@ -56,7 +56,7 @@
           <div class="status-card-header">
             <el-icon
               class="status-icon"
-              :color="taskStatus.monthlyDepreciation?.running ? '#67C23A' : '#909399'"
+              :color="taskStatus.monthlyDepreciation?.running ? 'var(--color-success)' : 'var(--color-text-secondary)'"
             >
               <Money />
             </el-icon>
@@ -76,7 +76,7 @@
           <div class="status-card-header">
             <el-icon
               class="status-icon"
-              :color="taskStatus.periodEndReminder?.running ? '#67C23A' : '#909399'"
+              :color="taskStatus.periodEndReminder?.running ? 'var(--color-success)' : 'var(--color-text-secondary)'"
             >
               <Document />
             </el-icon>
@@ -97,7 +97,7 @@
       <template #header>
         <div class="section-header">
           <div class="section-title">
-            <el-icon class="section-icon" color="#E6A23C"><Calendar /></el-icon>
+            <el-icon class="section-icon" color="var(--color-warning)"><Calendar /></el-icon>
             <span>月度结转任务</span>
           </div>
         </div>
@@ -106,7 +106,7 @@
         <el-col :xs="24" :sm="12">
           <div class="task-card">
             <div class="task-card-header">
-              <el-icon class="task-icon" color="#409EFF"><Money /></el-icon>
+              <el-icon class="task-icon" color="var(--color-primary)"><Money /></el-icon>
               <div class="task-info">
                 <h4>折旧计提</h4>
                 <p>计算固定资产月度折旧并生成分录</p>
@@ -142,7 +142,7 @@
         <el-col :xs="24" :sm="12">
           <div class="task-card">
             <div class="task-card-header">
-              <el-icon class="task-icon" color="#67C23A"><Document /></el-icon>
+              <el-icon class="task-icon" color="var(--color-success)"><Document /></el-icon>
               <div class="task-info">
                 <h4>期末关账</h4>
                 <p>统一执行预检查、损益结转与期间锁定</p>
@@ -161,7 +161,7 @@
       <template #header>
         <div class="section-header">
           <div class="section-title">
-            <el-icon class="section-icon" color="#F56C6C"><Lock /></el-icon>
+            <el-icon class="section-icon" color="var(--color-danger)"><Lock /></el-icon>
             <span>年度结存</span>
           </div>
         </div>
@@ -171,7 +171,7 @@
         <el-col :xs="24" :sm="12">
           <div class="task-card year-end-card">
             <div class="task-card-header">
-              <el-icon class="task-icon" color="#E6A23C"><Calendar /></el-icon>
+              <el-icon class="task-icon" color="var(--color-warning)"><Calendar /></el-icon>
               <div class="task-info">
                 <h4>财务年度结转</h4>
                 <p>将本年利润结转至未分配利润</p>
@@ -240,7 +240,7 @@
         <el-col :xs="24" :sm="12">
           <div class="task-card year-end-card">
             <div class="task-card-header">
-              <el-icon class="task-icon" color="#409EFF"><Box /></el-icon>
+              <el-icon class="task-icon" color="var(--color-primary)"><Box /></el-icon>
               <div class="task-info">
                 <h4>仓库年度结存</h4>
                 <p>生成库存年终结存报表</p>
@@ -273,7 +273,7 @@
                   <div class="status-row">
                     <span class="status-label">期末金额：</span>
                     <span class="text-success">
-                      ¥{{ (inventoryYearStatus.summary?.closingValue || 0).toFixed(2) }}
+                      {{ formatMoney(inventoryYearStatus.summary?.closingValue) }}
                     </span>
                   </div>
                   <div class="status-row" v-if="inventoryYearStatus.isFrozen">
@@ -318,7 +318,7 @@
       <template #header>
         <div class="section-header">
           <div class="section-title">
-            <el-icon class="section-icon" color="#909399"><Document /></el-icon>
+            <el-icon class="section-icon" color="var(--color-text-secondary)"><Document /></el-icon>
             <span>生产成本分录</span>
           </div>
         </div>
@@ -367,7 +367,7 @@
       <template #header>
         <div class="section-header">
           <div class="section-title">
-            <el-icon class="section-icon" color="#909399"><Document /></el-icon>
+            <el-icon class="section-icon" color="var(--color-text-secondary)"><Document /></el-icon>
             <span>执行历史</span>
           </div>
           <el-button type="primary" link @click="refreshHistory">
@@ -415,6 +415,13 @@ import {
   SwitchButton,
 } from '@element-plus/icons-vue';
 import { financeApi, api } from '@/services/api';
+import { parseResponseData } from '@/utils/responseParser';
+
+const formatMoney = (value) => {
+  if (value === null || value === undefined || value === '') return '-';
+  const amount = Number(value);
+  return Number.isNaN(amount) ? '-' : `¥${amount.toFixed(2)}`;
+};
 const router = useRouter();
 // 响应式数据
 const taskStatus = ref({});
@@ -696,7 +703,7 @@ const loadYearEndStatus = async () => {
 
   try {
     const response = await api.get(
-      `/finance-enhancement/period/year-end-status/${yearEndForm.year}`
+      `/finance/period/year-end-status/${yearEndForm.year}`
     );
     if (response?.data) {
       financeYearStatus.value = response.data;
@@ -727,7 +734,7 @@ const executeFinanceYearEnd = async () => {
 
     financeYearEndLoading.value = true;
 
-    const response = await api.post('/finance-enhancement/period/year-end-transfer', {
+    const response = await api.post('/finance/period/year-end-transfer', {
       year: yearEndForm.year,
     });
 
@@ -791,6 +798,18 @@ const executeInventoryYearEnd = async () => {
     );
 
     inventoryYearEndLoading.value = true;
+    const previewResponse = await api.get(`/inventory/year-end/preview/${inventoryYearEndForm.year}`);
+    const preview = parseResponseData(previewResponse, {});
+    if (!preview.canExecute) {
+      ElMessage.warning('库存结存预览检查未通过，请到库存年度结存页面处理');
+      addToHistory(
+        'inventoryYearEnd',
+        `${inventoryYearEndForm.year}年度`,
+        'failed',
+        '预览检查未通过'
+      );
+      return;
+    }
 
     const response = await api.post('/inventory/year-end/execute', {
       year: inventoryYearEndForm.year,
@@ -873,7 +892,7 @@ const freezeInventoryYearEnd = async () => {
 // 刷新执行历史
 const refreshHistory = async () => {
   try {
-    const response = await api.get('/finance-enhancement/automation/history', {
+    const response = await api.get('/finance/automation/history', {
       params: { page: 1, pageSize: 50 },
     });
     if (response?.data?.items) {
@@ -898,12 +917,13 @@ onMounted(() => {
 <style scoped>
 /* 页面容器 */
 .finance-automation {
-  padding: 16px;
+  padding: var(--spacing-lg);
 }
 
 /* 页面标题 */
 .page-header {
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-lg);
 }
 
 .page-header h2 {
@@ -922,8 +942,9 @@ onMounted(() => {
 /* 区块卡片 */
 .section-card {
   margin-bottom: 16px;
-  border-radius: 8px;
-  border: none;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: var(--shadow-sm);
 }
 
 .section-card :deep(.el-card__header) {
@@ -972,9 +993,9 @@ onMounted(() => {
 
 .status-card {
   padding: 16px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-bg-base) 100%);
   border: 1px solid var(--color-border-lighter);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .status-card-header {
@@ -1010,12 +1031,12 @@ onMounted(() => {
   padding: 20px;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-lighter);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: box-shadow 0.2s;
 }
 
 .task-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
 }
 
 .task-card-header {

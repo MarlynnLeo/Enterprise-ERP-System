@@ -17,6 +17,7 @@ const {
   resetPerformanceStats,
 } = require('../middleware/performanceMonitor');
 const { logger } = require('../utils/logger');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 const LOG_DIR = path.resolve(__dirname, '../../logs');
 const LOG_LEVELS = ['error', 'warn', 'info', 'debug'];
@@ -84,41 +85,7 @@ async function readRecentLogEntries(level, date, limit) {
   }
 }
 
-/**
- * @swagger
- * tags:
- *   name: 系统监控
- *   description: 系统性能监控和健康检查接口
- */
-
-/**
- * @swagger
- * /monitoring/health:
- *   get:
- *     summary: 系统健康检查
- *     tags: [系统监控]
- *     responses:
- *       200:
- *         description: 系统健康状态
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: healthy
- *                 timestamp:
- *                   type: string
- *                   format: date-time
- *                 uptime:
- *                   type: number
- *                   description: 系统运行时间（秒）
- *                 version:
- *                   type: string
- *                   description: 应用版本
- */
-router.get('/health', (req, res) => {
+router.get('/health', authenticateToken, requirePermission('system:monitor'), (req, res) => {
   try {
     const healthStatus = {
       status: 'healthy',
@@ -141,109 +108,26 @@ router.get('/health', (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /monitoring/metrics:
- *   get:
- *     summary: 获取系统性能指标
- *     tags: [系统监控]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: 系统性能指标
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 cpu:
- *                   type: object
- *                   description: CPU使用情况
- *                 memory:
- *                   type: object
- *                   description: 内存使用情况
- *                 uptime:
- *                   type: number
- *                   description: 系统运行时间
- */
 router.get('/metrics', authenticateToken, requirePermission('system:monitor'), (req, res) => {
   try {
     const metrics = getSystemMetrics();
-    res.json({
-      success: true,
-      data: metrics,
-    });
+    ResponseHandler.success(res, metrics, '获取系统指标成功');
   } catch (error) {
     logger.error('Failed to get system metrics:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取系统指标失败',
-    });
+    ResponseHandler.error(res, '获取系统指标失败', 'SERVER_ERROR', 500, error);
   }
 });
 
-/**
- * @swagger
- * /monitoring/performance:
- *   get:
- *     summary: 获取性能统计报告
- *     tags: [系统监控]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: 性能统计报告
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 requests:
- *                   type: object
- *                   description: 请求统计
- *                 system:
- *                   type: object
- *                   description: 系统指标
- *                 topEndpoints:
- *                   type: array
- *                   description: 热门端点
- *                 slowEndpoints:
- *                   type: array
- *                   description: 慢响应端点
- */
 router.get('/performance', authenticateToken, requirePermission('system:monitor'), (req, res) => {
   try {
     const report = getPerformanceReport();
-    res.json({
-      success: true,
-      data: report,
-    });
+    ResponseHandler.success(res, report, '获取性能报告成功');
   } catch (error) {
     logger.error('Failed to get performance report:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取性能报告失败',
-    });
+    ResponseHandler.error(res, '获取性能报告失败', 'SERVER_ERROR', 500, error);
   }
 });
 
-/**
- * @swagger
- * /monitoring/performance/reset:
- *   post:
- *     summary: 重置性能统计
- *     tags: [系统监控]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: 重置成功
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ApiResponse'
- */
 router.post(
   '/performance/reset',
   authenticateToken,
@@ -257,73 +141,25 @@ router.post(
         timestamp: new Date().toISOString(),
       });
 
-      res.json({
-        success: true,
-        message: '性能统计已重置',
-      });
+      ResponseHandler.success(res, null, '性能统计已重置');
     } catch (error) {
       logger.error('Failed to reset performance stats:', error);
-      res.status(500).json({
-        success: false,
-        message: '重置性能统计失败',
-      });
+      ResponseHandler.error(res, '重置性能统计失败', 'SERVER_ERROR', 500, error);
     }
   }
 );
 
-/**
- * @swagger
- * /monitoring/logs:
- *   get:
- *     summary: 获取系统日志
- *     tags: [系统监控]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: level
- *         schema:
- *           type: string
- *           enum: [error, warn, info, debug]
- *         description: 日志级别
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 100
- *         description: 返回条数限制
- *     responses:
- *       200:
- *         description: 系统日志
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- */
 router.get('/logs', authenticateToken, requirePermission('system:monitor'), async (req, res) => {
   try {
     const date = normalizeLogDate(req.query.date);
     if (!date) {
-      return res.status(400).json({
-        success: false,
-        message: '日志日期格式必须为 YYYY-MM-DD',
-      });
+      return ResponseHandler.error(res, '日志日期格式必须为 YYYY-MM-DD', 'VALIDATION_ERROR', 400);
     }
 
     const requestedLevel = String(req.query.level || 'all').toLowerCase();
     const levels = requestedLevel === 'all' ? LOG_LEVELS : [requestedLevel];
     if (levels.some((level) => !LOG_LEVELS.includes(level))) {
-      return res.status(400).json({
-        success: false,
-        message: '无效的日志级别',
-      });
+      return ResponseHandler.error(res, '无效的日志级别', 'VALIDATION_ERROR', 400);
     }
 
     const limit = clampLogLimit(req.query.limit);
@@ -336,21 +172,21 @@ router.get('/logs', authenticateToken, requirePermission('system:monitor'), asyn
       .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
       .slice(0, limit);
 
-    return res.json({
-      success: true,
-      data: logs,
-      meta: {
-        date,
-        level: requestedLevel,
-        limit,
+    return ResponseHandler.success(
+      res,
+      {
+        list: logs,
+        meta: {
+          date,
+          level: requestedLevel,
+          limit,
+        },
       },
-    });
+      '获取日志成功'
+    );
   } catch (error) {
     logger.error('Failed to get logs:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取日志失败',
-    });
+    ResponseHandler.error(res, '获取日志失败', 'SERVER_ERROR', 500, error);
   }
 });
 

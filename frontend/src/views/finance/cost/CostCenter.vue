@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="cost-center-container">
+  <div class="module-page cost-center-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -37,15 +37,15 @@
               </template>
             </el-table-column>
             <el-table-column prop="manager" label="负责人" width="120"></el-table-column>
-            <el-table-column prop="task_count" label="关联任务" width="100" align="center"></el-table-column>
-            <el-table-column prop="is_active" label="状态" width="80" align="center">
+            <el-table-column prop="task_count" label="关联任务" width="100"></el-table-column>
+            <el-table-column prop="is_active" label="状态" width="80">
               <template #default="scope">
                 <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
                   {{ scope.row.is_active ? '启用' : '停用' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="200" fixed="right">
+            <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button type="primary" size="small" @click="editCenter(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button type="info" size="small" @click="viewReport(scope.row)">成本报表</el-button>
@@ -70,21 +70,21 @@
                 <el-tag size="small" :type="getTypeColor(scope.row.type)">{{ getTypeName(scope.row.type) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="material_cost" label="材料成本" width="200" align="right">
+            <el-table-column prop="material_cost" label="材料成本" width="200">
               <template #default="scope">{{ formatCurrency(scope.row.material_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="labor_cost" label="人工成本" width="200" align="right">
+            <el-table-column prop="labor_cost" label="人工成本" width="200">
               <template #default="scope">{{ formatCurrency(scope.row.labor_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="overhead_cost" label="制造费用" width="200" align="right">
+            <el-table-column prop="overhead_cost" label="制造费用" width="200">
               <template #default="scope">{{ formatCurrency(scope.row.overhead_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="total_cost" label="总成本" width="200" align="right">
+            <el-table-column prop="total_cost" label="总成本" width="200">
               <template #default="scope">
                 <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="task_count" label="任务数" width="145" align="center"></el-table-column>
+            <el-table-column prop="task_count" label="任务数" width="145"></el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
@@ -133,6 +133,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, OfficeBuilding } from '@element-plus/icons-vue';
 import api from '@/services/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
+import { parseResponseData } from '@/utils/responseParser'
 const activeTab = ref('centers');
 const loading = ref(false);
 const reportLoading = ref(false);
@@ -172,7 +173,7 @@ const loadCostCenters = async () => {
   loading.value = true;
   try {
     const res = await api.get('/finance/cost-centers');
-    costCenters.value = res.data?.data || res.data || [];
+    costCenters.value = parseResponseData(res, []);
   } catch (error) {
     console.error('加载成本中心失败:', error);
     ElMessage.error('加载成本中心失败');
@@ -184,7 +185,7 @@ const loadCostCenters = async () => {
 const loadCenterOptions = async () => {
   try {
     const res = await api.get('/finance/cost-centers/options');
-    centerOptions.value = res.data?.data || res.data || [];
+    centerOptions.value = parseResponseData(res, []);
   } catch (error) {
     console.error('加载成本中心选项失败:', error);
   }
@@ -199,7 +200,7 @@ const loadCostReport = async () => {
       params.endDate = reportDateRange.value[1];
     }
     const res = await api.get('/finance/cost-centers/report', { params });
-    costReport.value = res.data?.data || res.data || [];
+    costReport.value = parseResponseData(res, []);
   } catch (error) {
     console.error('加载成本报表失败:', error);
     ElMessage.error('加载成本报表失败');

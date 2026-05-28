@@ -11,6 +11,8 @@ const expenseModel = require('../../models/expense');
 const { logger } = require('../../utils/logger');
 const { authenticateToken } = require('../../middleware/auth');
 const { requirePermission } = require('../../middleware/requirePermission');
+const { desensitizeSensitiveResponse } = require('../../middleware/priceAccessControl');
+const { ResponseHandler } = require('../../utils/responseHandler');
 
 /**
  * 钉钉事件订阅回调
@@ -125,6 +127,7 @@ async function handleApprovalStatusChange(callbackData) {
 router.post(
   '/sync/:instanceId',
   authenticateToken,
+  desensitizeSensitiveResponse('view'),
   requirePermission('finance:expenses:update'),
   async (req, res) => {
     try {
@@ -137,7 +140,7 @@ router.post(
       const expense = await expenseModel.getExpenseByDingtalkInstanceId(instanceId);
 
       if (!expense) {
-        return res.status(404).json({ success: false, message: '未找到对应的费用记录' });
+        return ResponseHandler.notFound(res, '未找到对应的费用记录');
       }
 
       // 更新状态
@@ -154,19 +157,19 @@ router.post(
         dingtalk_result: detail.result,
       });
 
-      res.json({
-        success: true,
-        message: '同步成功',
-        data: {
+      ResponseHandler.success(
+        res,
+        {
           expenseId: expense.id,
           dingtalkStatus: detail.status,
           dingtalkResult: detail.result,
           newStatus,
         },
-      });
+        '同步成功'
+      );
     } catch (error) {
       logger.error('[Dingtalk] 手动同步失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
   }
 );
@@ -181,6 +184,7 @@ router.post(
 router.post(
   '/import',
   authenticateToken,
+  desensitizeSensitiveResponse('view'),
   requirePermission('finance:expenses:update'),
   async (req, res) => {
     try {
@@ -193,14 +197,14 @@ router.post(
 
       const result = await dingtalkService.syncFromDingtalk({ startTime, endTime: now });
 
-      res.json({
-        success: true,
-        message: `导入完成: 新增${result.imported}, 更新${result.updated}, 跳过${result.skipped}`,
-        data: result,
-      });
+      ResponseHandler.success(
+        res,
+        result,
+        `导入完成: 新增${result.imported}, 更新${result.updated}, 跳过${result.skipped}`
+      );
     } catch (error) {
       logger.error('[Dingtalk] 从钉钉导入失败:', error);
-      res.status(500).json({ success: false, message: error.message });
+      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
   }
 );

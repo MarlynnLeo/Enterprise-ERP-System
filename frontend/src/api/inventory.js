@@ -5,6 +5,12 @@ import {  parseListData } from '../utils/responseParser';
 export const inventoryApi = {
     // 库存查询
     getStocks: (params) => api.get('/inventory/stock', { params }),
+    getStock: ({ material_id: materialId, location_id: locationId } = {}) => {
+        if (materialId && locationId) {
+            return api.get(`/inventory/stock/${materialId}/${locationId}`);
+        }
+        return api.get('/inventory/stock', { params: { material_id: materialId, location_id: locationId } });
+    },
     getStockRecords: (id) => api.get(`/inventory/stock/${id}/records`),
     // 添加通过物料ID获取库存记录的API
     getMaterialRecords: (materialId, params = {}) => api.get(`/inventory/materials/${materialId}/records`, { params }),
@@ -14,6 +20,8 @@ export const inventoryApi = {
     getBatchTransactions: (params) => api.get('/inventory/batch-transactions', { params }),
     // 库存报表API
     getInventoryReport: (params) => api.get('/inventory/report', { params }),
+    exportInventoryReport: (params) => api.get('/inventory/report/export', { params, responseType: 'blob' }),
+    exportInventoryLedger: (params) => api.get('/inventory/ledger/export', { params, responseType: 'blob' }),
     // 获取库存流水记录（收发结存明细）
     getTransactionList: (params) => api.get('/inventory/ledger', { params }),
     // 获取库存流水列表（流水报表页面使用）
@@ -27,6 +35,13 @@ export const inventoryApi = {
     }),
     // 获取看板聚合数据
     getDashboardSummary: () => api.get('/inventory/dashboard/summary'),
+    getYearEndStatus: (year) => api.get(`/inventory/year-end/status/${year}`),
+    previewYearEnd: (year) => api.get(`/inventory/year-end/preview/${year}`),
+    getYearEndList: (params) => api.get('/inventory/year-end/list', { params }),
+    executeYearEnd: (data) => api.post('/inventory/year-end/execute', data),
+    freezeYearEnd: (data) => api.post('/inventory/year-end/freeze', data),
+    unfreezeYearEnd: (data) => api.post('/inventory/year-end/unfreeze', data),
+    exportYearEnd: (year) => api.get(`/inventory/year-end/export/${year}`),
     // 库存统计API - 直接调用后端统计接口
     getStockStatistics: () => api.get('/inventory/stock/statistics'),
     exportStock: (data) => api.post('/inventory/stock/export', data, {
@@ -76,16 +91,14 @@ export const inventoryApi = {
      * @returns {Promise} response.data = { list: [], total, page, pageSize }
      * 注意：不再做二次封装，组件使用 parseListData 解析
      */
-    getAllMaterials: (params = {}) => baseDataApi.getMaterials({
-        ...params,
-        timestamp: Date.now()
-    }),
+    getAllMaterials: (params = {}) => baseDataApi.getMaterials(params),
 
     // 获取单位列表 - 与 baseDataApi.getUnits 保持一致
     getUnits: (params) => baseDataApi.getUnits(params),
 
     // 获取库位列表 - 与 baseDataApi.getLocations 保持一致
     getLocations: (params) => baseDataApi.getLocations(params),
+    getWarehouseLocations: () => api.get('/inventory/locations'),
 
     // 新增出库单
     createOutbound: (data) => api.post('/inventory/outbound', data),
@@ -96,6 +109,7 @@ export const inventoryApi = {
     // 获取出库单列表
     getOutboundList: (params) => api.get('/inventory/outbound', {
         params: {
+            ...params,
             page: params.page,
             pageSize: params.pageSize,
             outboundNo: params.outboundNo,
@@ -127,6 +141,8 @@ export const inventoryApi = {
 
     // 批量发料
     batchOutbound: (data) => api.post('/inventory/outbound/batch', data),
+    cancelOutbound: (id, data) => api.post(`/inventory/outbound/${id}/cancel`, data),
+    supplementOutbound: (id, data) => api.post(`/inventory/outbound/${id}/supplement`, data),
 
     // 获取物料库存
     getMaterialStock: async (materialId, warehouseId) => {
@@ -160,7 +176,7 @@ export const inventoryApi = {
                 }
             };
         } catch (error) {
-            if (process.env.NODE_ENV === 'development') {
+            if (import.meta.env.DEV) {
                 console.error(`获取物料库存失败 (物料ID: ${materialId}, 库位ID: ${warehouseId}):`, error);
             }
 
@@ -200,12 +216,16 @@ export const inventoryApi = {
 
     // 获取入库单列表
     getInboundList: (params) => api.get('/inventory/inbound', { params }),
+    getInboundStatistics: (params) => api.get('/inventory/inbound/statistics', { params }),
 
     // 获取入库单详情
     getInboundDetail: (id) => api.get(`/inventory/inbound/${id}`),
 
     // 创建入库单
     createInbound: (data) => api.post('/inventory/inbound', data),
+
+    // 更新未完成的入库单
+    updateInbound: (id, data) => api.put(`/inventory/inbound/${id}`, data),
 
     // 从质检单创建入库单
     createInboundFromQuality: (params) => api.post('/inventory/inbound/from-quality', params),
@@ -223,12 +243,13 @@ export const inventoryApi = {
     // 库存调拨相关API
     getTransferList: (params) => api.get('/inventory/transfer', { params }),
     getTransferDetail: (id) => api.get(`/inventory/transfer/${id}`),
+    getTransferDetails: (ids) => api.post('/inventory/transfers/details', { ids }),
     createTransfer: async (data) => {
         try {
             const response = await api.post('/inventory/transfer', data);
             return response;
         } catch (error) {
-            if (process.env.NODE_ENV === 'development') {
+            if (import.meta.env.DEV) {
                 console.error('调用创建调拨单API失败:', error);
             }
             throw error;

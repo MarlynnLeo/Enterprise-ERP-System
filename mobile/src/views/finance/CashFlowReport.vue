@@ -95,9 +95,9 @@
 
 <style lang="scss" scoped>
   .report-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-bottom-space);
   }
   .report-body {
     padding: 12px;
@@ -109,7 +109,7 @@
     background: var(--bg-secondary);
     border-radius: 12px;
     padding: 14px 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .date-range {
     display: flex;
@@ -131,7 +131,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 14px 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     &.total-row {
       border-color: var(--color-primary);
       background: rgba(59, 130, 246, 0.05);

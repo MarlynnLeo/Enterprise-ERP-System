@@ -3,6 +3,9 @@
  */
 
 import { formatCurrency, formatPercentage } from './dashboardUtils';
+import { alphaColor, getChartPalette, getCssTokenValue } from './designTokens';
+
+const chartPalette = getChartPalette();
 
 /**
  * 基础图表配置
@@ -22,14 +25,14 @@ export const baseChartConfig = {
           family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
           weight: '500'
         },
-        color: '#606266'
+        color: getCssTokenValue('textSecondary')
       }
     },
     tooltip: {
-      backgroundColor: 'rgba(25, 28, 34, 0.95)',
-      titleColor: '#F3F4F6',
-      bodyColor: '#D1D5DB',
-      borderColor: 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: alphaColor('textPrimary', 0.95),
+      titleColor: getCssTokenValue('surface'),
+      bodyColor: getCssTokenValue('borderLight'),
+      borderColor: alphaColor('surface', 0.1),
       borderWidth: 1,
       cornerRadius: 10,
       padding: 14,
@@ -61,13 +64,13 @@ export const createCartesianScales = () => ({
       font: {
         size: 11
       },
-      color: '#8A8F99'
+      color: getCssTokenValue('textMuted')
     }
   },
   y: {
     beginAtZero: true,
     grid: {
-      color: 'rgba(0, 0, 0, 0.04)',
+      color: alphaColor('textPrimary', 0.04),
       lineWidth: 1,
       borderDash: [5, 5]
     },
@@ -78,7 +81,7 @@ export const createCartesianScales = () => ({
       font: {
         size: 11
       },
-      color: '#8A8F99'
+      color: getCssTokenValue('textMuted')
     }
   }
 });
@@ -111,7 +114,7 @@ export const lineChartConfig = {
       radius: 0,
       hoverRadius: 8,
       borderWidth: 2,
-      backgroundColor: '#ffffff',
+      backgroundColor: getCssTokenValue('surface'),
       hoverBorderWidth: 3
     }
   },
@@ -126,7 +129,7 @@ export const pieChartConfig = {
   elements: {
       arc: {
           borderWidth: 3,
-          borderColor: '#ffffff'
+          borderColor: getCssTokenValue('surface')
       }
   },
   plugins: {
@@ -157,17 +160,41 @@ export const doughnutChartConfig = {
  * 颜色配置 (Tech/Modern Vibe)
  */
 export const chartColors = {
-  primary: ['#3A7AF2', '#14B8A6', '#6366F1', '#8B5CF6', '#F43F5E'],
-  success: ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0', '#D1FAE5'],
-  warning: ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FEF3C7'],
-  danger:  ['#EF4444', '#F87171', '#FCA5A5', '#FECACA', '#FEE2E2'],
-  info:    ['#6B7280', '#9CA3AF', '#D1D5DB', '#E5E7EB', '#F3F4F6'],
+  primary: chartPalette,
+  success: [
+    getCssTokenValue('success'),
+    alphaColor('success', 0.8),
+    alphaColor('success', 0.6),
+    alphaColor('success', 0.4),
+    alphaColor('success', 0.2)
+  ],
+  warning: [
+    getCssTokenValue('warning'),
+    alphaColor('warning', 0.8),
+    alphaColor('warning', 0.6),
+    alphaColor('warning', 0.4),
+    alphaColor('warning', 0.2)
+  ],
+  danger: [
+    getCssTokenValue('danger'),
+    alphaColor('danger', 0.8),
+    alphaColor('danger', 0.6),
+    alphaColor('danger', 0.4),
+    alphaColor('danger', 0.2)
+  ],
+  info: [
+    getCssTokenValue('info'),
+    alphaColor('info', 0.8),
+    alphaColor('info', 0.6),
+    alphaColor('info', 0.4),
+    alphaColor('info', 0.2)
+  ],
   gradient: [
-    'rgba(58, 122, 242, 0.8)',
-    'rgba(16, 185, 129, 0.8)',
-    'rgba(245, 158, 11, 0.8)',
-    'rgba(239, 68, 68, 0.8)',
-    'rgba(107, 114, 128, 0.8)'
+    alphaColor('primary', 0.8),
+    alphaColor('success', 0.8),
+    alphaColor('warning', 0.8),
+    alphaColor('danger', 0.8),
+    alphaColor('info', 0.8)
   ]
 };
 
@@ -217,7 +244,7 @@ export function createLineChartConfig(options = {}) {
 
   if (options.fill) {
     config.elements.line.fill = true;
-    config.elements.line.backgroundColor = options.fillColor || 'rgba(58, 122, 242, 0.15)';
+    config.elements.line.backgroundColor = options.fillColor || alphaColor('primary', 0.15);
   }
 
   return config;
@@ -270,7 +297,7 @@ export function createMixedChartConfig(options = {}) {
       font: {
         size: 11
       },
-      color: '#8A8F99'
+      color: getCssTokenValue('textMuted')
     }
   };
 
@@ -398,16 +425,16 @@ export function getResponsiveConfig(breakpoint) {
  */
 export const chartThemes = {
   light: {
-    backgroundColor: '#ffffff',
-    textColor: '#303133',
-    gridColor: 'rgba(0, 0, 0, 0.04)',
-    borderColor: 'rgba(0, 0, 0, 0.1)'
+    backgroundColor: getCssTokenValue('surface'),
+    textColor: getCssTokenValue('textPrimary'),
+    gridColor: alphaColor('textPrimary', 0.04),
+    borderColor: alphaColor('textPrimary', 0.1)
   },
   dark: {
-    backgroundColor: '#1d1e1f',
-    textColor: '#ffffff',
-    gridColor: 'rgba(255, 255, 255, 0.06)',
-    borderColor: 'rgba(255, 255, 255, 0.1)'
+    backgroundColor: getCssTokenValue('textPrimary'),
+    textColor: getCssTokenValue('surface'),
+    gridColor: alphaColor('surface', 0.06),
+    borderColor: alphaColor('surface', 0.1)
   }
 };
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container">
+  <div class="module-page app-container">
     <!-- 头部区域 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -11,10 +11,14 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
+    <FinanceQueryCard
+      :loading="loading"
+      @search="fetchAnalysis"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="选择预算">
-          <el-select v-model="selectedBudgetId" placeholder="请选择预算方案" @change="fetchAnalysis">
+          <el-select v-model="selectedBudgetId" placeholder="请选择预算方案" clearable>
             <el-option
               v-for="item in budgetList"
               :key="item.id"
@@ -23,13 +27,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchAnalysis" :disabled="!selectedBudgetId">
-            <el-icon><Search /></el-icon> 分析
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <div v-if="analysisData" v-loading="loading">
       <!-- 概览卡片 -->
@@ -103,17 +102,17 @@
         <el-table :data="analysisData.details" border style="width: 100%" stripe>
           <el-table-column prop="account_code" label="科目编码" width="120" sortable />
           <el-table-column prop="account_name" label="预算科目" min-width="150" />
-          <el-table-column prop="budget_amount" label="预算金额" align="right" width="150">
+          <el-table-column prop="budget_amount" label="预算金额" width="150">
             <template #default="{ row }">
               {{ formatCurrency(row.budget_amount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="actual_amount" label="实际金额" align="right" width="150">
+          <el-table-column prop="actual_amount" label="实际金额" width="150">
             <template #default="{ row }">
               {{ formatCurrency(row.actual_amount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="variance" label="差异 (结余)" align="right" width="150">
+          <el-table-column prop="variance" label="差异 (结余)" width="150">
             <template #default="{ row }">
               <span :class="row.variance >= 0 ? 'text-green' : 'text-red'">
                 {{ formatCurrency(row.variance) }}
@@ -129,7 +128,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="100" align="center">
+          <el-table-column prop="status" label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="getStatusType(row.status)">
                 {{ getStatusLabel(row.status) }}
@@ -149,8 +148,8 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '@/services/axiosInstance'
 import { formatCurrency } from '@/utils/format'
-import { Search } from '@element-plus/icons-vue'
-import Chart from 'chart.js/auto'
+import Chart from '@/utils/chartCore'
+import { alphaColor, getCssTokenValue } from '@/utils/designTokens'
 
 const route = useRoute()
 const loading = ref(false)
@@ -207,6 +206,21 @@ const fetchAnalysis = async () => {
   }
 }
 
+const resetSearch = () => {
+  selectedBudgetId.value = ''
+  analysisData.value = null
+  summary.value = {
+    total_budget: 0,
+    total_actual: 0,
+    total_variance: 0,
+    total_execution_rate: 0
+  }
+  if (chartInstance) {
+    chartInstance.destroy()
+    chartInstance = null
+  }
+}
+
 // 渲染图表
 const renderChart = (details) => {
   const ctx = document.getElementById('budgetChart')
@@ -227,15 +241,15 @@ const renderChart = (details) => {
         {
           label: '预算金额',
           data: sortedDetails.map(item => item.budget_amount),
-          backgroundColor: 'rgba(54, 162, 235, 0.5)',
-          borderColor: 'rgba(54, 162, 235, 1)',
+          backgroundColor: alphaColor('primary', 0.5),
+          borderColor: getCssTokenValue('primary'),
           borderWidth: 1
         },
         {
           label: '实际金额',
           data: sortedDetails.map(item => item.actual_amount),
-          backgroundColor: 'rgba(255, 99, 132, 0.5)',
-          borderColor: 'rgba(255, 99, 132, 1)',
+          backgroundColor: alphaColor('danger', 0.5),
+          borderColor: getCssTokenValue('danger'),
           borderWidth: 1
         }
       ]

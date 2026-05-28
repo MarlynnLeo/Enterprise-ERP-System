@@ -159,20 +159,28 @@ class ActivityCostService {
    * 设置产品的作业关联
    */
   async setProductActivities(productId, activities) {
-    // 先删除旧的关联
-    await db.query('DELETE FROM product_activities WHERE product_id = ?', [productId]);
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute('DELETE FROM product_activities WHERE product_id = ?', [productId]);
 
-    // 插入新的关联
-    for (const item of activities) {
-      if (item.activity_id && item.driver_quantity > 0) {
-        await db.query(
-          'INSERT INTO product_activities (product_id, activity_id, driver_quantity) VALUES (?, ?, ?)',
-          [productId, item.activity_id, item.driver_quantity]
-        );
+      for (const item of activities) {
+        if (item.activity_id && item.driver_quantity > 0) {
+          await connection.execute(
+            'INSERT INTO product_activities (product_id, activity_id, driver_quantity) VALUES (?, ?, ?)',
+            [productId, item.activity_id, item.driver_quantity]
+          );
+        }
       }
-    }
 
-    return { success: true };
+      await connection.commit();
+      return { success: true };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   /**

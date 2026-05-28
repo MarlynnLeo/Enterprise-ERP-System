@@ -2,7 +2,7 @@
  * 认证和权限验证工具类
  * 统一处理JWT验证和权限检查逻辑
  *
- * ✅ v2.0 重构: 移除了废弃的 isAdmin/isAdminAsync 方法和重复的 AuthMiddleware 类
+ * v2.0 重构: 管理员检查和权限中间件已统一到专用服务。
  * - 管理员检查请使用 PermissionService.isAdmin(userId)
  * - 权限中间件请使用 requirePermission.js
  */

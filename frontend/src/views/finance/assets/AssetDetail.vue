@@ -50,9 +50,9 @@
             <el-descriptions-item label="预计使用年限">{{ assetInfo.usefulLife }} 年</el-descriptions-item>
             <el-descriptions-item label="残值率">{{ assetInfo.salvageRate }}%</el-descriptions-item>
             <el-descriptions-item label="减值准备">
-              <span class="amount-text danger-text">{{ formatCurrency(assetInfo.impairment_amount || 0) }}</span>
+              <span class="amount-text danger-text">{{ formatCurrency(assetInfo.impairment_amount) }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="累计折旧"><span class="amount-text warning-text">{{ formatCurrency((assetInfo.originalValue - assetInfo.netValue) - (assetInfo.impairment_amount || 0)) }}</span></el-descriptions-item>
+            <el-descriptions-item label="累计折旧"><span class="amount-text warning-text">{{ formatCurrency(calculatedDepreciation) }}</span></el-descriptions-item>
           </el-descriptions>
         </el-card>
       </div>
@@ -92,18 +92,18 @@
                 <el-table-column prop="depreciation_date" label="折旧日期" width="100">
                   <template #default="scope">{{ formatDate(scope.row.depreciation_date) }}</template>
                 </el-table-column>
-                <el-table-column prop="depreciation_amount" label="折旧金额" align="right">
+                <el-table-column prop="depreciation_amount" label="折旧金额">
                   <template #default="scope">
                     <span class="amount-text">{{ formatCurrency(scope.row.depreciation_amount) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="book_value_after" label="折旧后净值" align="right">
+                <el-table-column prop="book_value_after" label="折旧后净值">
                   <template #default="scope">{{ formatCurrency(scope.row.book_value_after) }}</template>
                 </el-table-column>
                 <el-table-column prop="voucher_no" label="总账凭证号" width="180">
                   <template #default="scope">
                     <el-tag v-if="scope.row.voucher_no" type="success" size="small">{{ scope.row.voucher_no }}</el-tag>
-                    <span v-else style="color: #909399">-</span>
+                    <span v-else style="color: var(--color-text-secondary)">-</span>
                   </template>
                 </el-table-column>
               </el-table>
@@ -113,7 +113,7 @@
                 <el-table-column prop="impairment_date" label="减值日期" width="100">
                   <template #default="scope">{{ formatDate(scope.row.impairment_date) }}</template>
                 </el-table-column>
-                <el-table-column prop="impairment_amount" label="减值金额" align="right">
+                <el-table-column prop="impairment_amount" label="减值金额">
                   <template #default="scope">
                     <span class="amount-text danger-text">{{ formatCurrency(scope.row.impairment_amount) }}</span>
                   </template>
@@ -132,7 +132,7 @@
       <el-form :model="impairmentForm" :rules="impairmentRules" ref="impairmentFormRef" label-width="100px">
         <el-alert
           title="当前资产净值"
-          :description="'¥ ' + formatCurrency(assetInfo.netValue)"
+          :description="formatCurrency(assetInfo.netValue)"
           type="warning"
           :closable="false"
           style="margin-bottom: 20px"
@@ -158,7 +158,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { formatLocalDate } from '@/utils/format';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Back, Right } from '@element-plus/icons-vue';
@@ -218,6 +219,18 @@ const impairmentRules = {
   impairment_date: [{ required: true, message: '请选择减值日期', trigger: 'change' }],
   reason: [{ required: true, message: '请输入减值原因', trigger: 'blur' }]
 };
+const toMoneyNumber = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+const calculatedDepreciation = computed(() => {
+  const originalValue = toMoneyNumber(assetInfo.originalValue);
+  const netValue = toMoneyNumber(assetInfo.netValue);
+  const impairmentAmount = toMoneyNumber(assetInfo.impairment_amount) || 0;
+  if (originalValue === null || netValue === null) return null;
+  return originalValue - netValue - impairmentAmount;
+});
 
 // 状态处理
 const getStatusType = (status) => getAssetStatusColor(status);
@@ -313,7 +326,7 @@ const loadImpairmentHistory = async () => {
 
 const openImpairmentDialog = () => {
   impairmentForm.impairment_amount = 0;
-  impairmentForm.impairment_date = new Date().toISOString().split('T')[0];
+  impairmentForm.impairment_date = formatLocalDate(new Date());
   impairmentForm.reason = '';
   impairmentDialogVisible.value = true;
 };

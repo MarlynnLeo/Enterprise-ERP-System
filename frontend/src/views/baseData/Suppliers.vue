@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="purchase-requisitions-container">
+  <div class="module-page base-data-list-page">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,13 +19,20 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item :label="$t('page.baseData.suppliers.supplierCode')">
-          <el-input  v-model="searchForm.code" :placeholder="$t('page.baseData.suppliers.supplierCodePlaceholder')" clearable ></el-input>
-        </el-form-item>
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item :label="$t('page.baseData.suppliers.supplierName')">
           <el-input  v-model="searchForm.name" :placeholder="$t('page.baseData.suppliers.supplierNamePlaceholder')" clearable ></el-input>
+        </el-form-item>
+      </template>
+      <template #advanced>
+        <el-form-item :label="$t('page.baseData.suppliers.supplierCode')">
+          <el-input  v-model="searchForm.code" :placeholder="$t('page.baseData.suppliers.supplierCodePlaceholder')" clearable ></el-input>
         </el-form-item>
         <el-form-item :label="$t('common.status')">
           <el-select  v-model="searchForm.status" :placeholder="$t('page.baseData.materials.statusPlaceholder')" clearable>
@@ -33,22 +40,16 @@
             <el-option :value="0" :label="$t('page.baseData.materials.disabled')"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> {{ $t('common.search') }}
-          </el-button>
-          <el-button @click="resetSearch" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> {{ $t('common.reset') }}
-          </el-button>
+      </template>
+      <template #actions>
           <el-button v-if="canImport" type="warning" @click="handleImport">
             <el-icon><Upload /></el-icon> 导入
           </el-button>
           <el-button v-if="canExport" type="success" @click="handleExport">
             <el-icon><Download /></el-icon> {{ $t('common.export') }}
           </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -127,7 +128,7 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-buttons">
               <el-popconfirm
@@ -251,9 +252,8 @@ import SupplierFormDialog from './components/SupplierFormDialog.vue';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { supplierApi } from '@/api/supplier';
-import { Plus, Edit, Delete, Search, Refresh, Download, Upload, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Upload, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
-
 // 权限store
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:suppliers:create'));
@@ -504,33 +504,6 @@ const handleUpload = async () => {
 </script>
 
 <style scoped>
-.header-card {
-  margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-}
-
 .ellipsis-cell {
   display: block;
   white-space: nowrap;
@@ -543,10 +516,5 @@ const handleUpload = async () => {
 :deep(.el-table .cell) {
   word-break: break-word;
   line-height: 1.5;
-}
-
-/* 操作列样式 - 与库存出库页面保持一致 */
-.el-table .el-button + .el-button {
-  margin-left: 8px;
 }
 </style>

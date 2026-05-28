@@ -6,6 +6,12 @@
 
 const validator = require('validator');
 const { logger } = require('../utils/logger');
+const { ResponseHandler } = require('../utils/responseHandler');
+
+const sendInputError = (res, message, errorCode, statusCode = 400, details = null) => {
+  const error = details ? { details } : null;
+  return ResponseHandler.error(res, message, errorCode, statusCode, error);
+};
 
 /**
  * XSS防护 - 清理HTML标签
@@ -36,6 +42,8 @@ const SKIP_SANITIZE_FIELDS = [
   'specs',
   'specification',
   'model',
+  'standard',
+  'standard_value',
   'drawing_no',
   'color_code', // 物料规格相关字段
   // ✅ 安全修复: 移除 'name' — 过于宽泛，几乎所有实体都有 name 字段，跳过会导致 XSS 风险
@@ -132,11 +140,7 @@ const validateAndSanitizeInput = (req, res, next) => {
     next();
   } catch (error) {
     logger.error('输入验证失败:', error);
-    res.status(400).json({
-      success: false,
-      message: '输入数据格式错误',
-      code: 'INVALID_INPUT',
-    });
+    sendInputError(res, '输入数据格式错误', 'INVALID_INPUT');
   }
 };
 
@@ -156,12 +160,13 @@ const requireFields = (fields) => {
     }
 
     if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `缺少必需字段: ${missingFields.join(', ')}`,
-        code: 'MISSING_REQUIRED_FIELDS',
-        details: { missingFields },
-      });
+      return sendInputError(
+        res,
+        `缺少必需字段: ${missingFields.join(', ')}`,
+        'MISSING_REQUIRED_FIELDS',
+        400,
+        { missingFields }
+      );
     }
 
     next();
@@ -182,11 +187,7 @@ const validateEmail = (fieldName = 'email') => {
     }
 
     if (!validator.isEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: `${fieldName} 格式无效`,
-        code: 'INVALID_EMAIL',
-      });
+      return sendInputError(res, `${fieldName} 格式无效`, 'INVALID_EMAIL');
     }
 
     next();
@@ -210,11 +211,7 @@ const validatePhone = (fieldName = 'phone') => {
     const phoneRegex = /^1[3-9]\d{9}$/;
 
     if (!phoneRegex.test(phone)) {
-      return res.status(400).json({
-        success: false,
-        message: `${fieldName} 格式无效`,
-        code: 'INVALID_PHONE',
-      });
+      return sendInputError(res, `${fieldName} 格式无效`, 'INVALID_PHONE');
     }
 
     next();
@@ -238,22 +235,19 @@ const validateLength = (fieldName, options = {}) => {
     }
 
     if (typeof value !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: `${fieldName} 必须是字符串`,
-        code: 'INVALID_TYPE',
-      });
+      return sendInputError(res, `${fieldName} 必须是字符串`, 'INVALID_TYPE');
     }
 
     const length = value.length;
 
     if (length < min || length > max) {
-      return res.status(400).json({
-        success: false,
-        message: `${fieldName} 长度必须在 ${min} 到 ${max} 之间`,
-        code: 'INVALID_LENGTH',
-        details: { min, max, actual: length },
-      });
+      return sendInputError(
+        res,
+        `${fieldName} 长度必须在 ${min} 到 ${max} 之间`,
+        'INVALID_LENGTH',
+        400,
+        { min, max, actual: length }
+      );
     }
 
     next();
@@ -279,20 +273,17 @@ const validateRange = (fieldName, options = {}) => {
     const num = Number(value);
 
     if (isNaN(num)) {
-      return res.status(400).json({
-        success: false,
-        message: `${fieldName} 必须是数字`,
-        code: 'INVALID_NUMBER',
-      });
+      return sendInputError(res, `${fieldName} 必须是数字`, 'INVALID_NUMBER');
     }
 
     if (num < min || num > max) {
-      return res.status(400).json({
-        success: false,
-        message: `${fieldName} 必须在 ${min} 到 ${max} 之间`,
-        code: 'OUT_OF_RANGE',
-        details: { min, max, actual: num },
-      });
+      return sendInputError(
+        res,
+        `${fieldName} 必须在 ${min} 到 ${max} 之间`,
+        'OUT_OF_RANGE',
+        400,
+        { min, max, actual: num }
+      );
     }
 
     next();
@@ -313,11 +304,7 @@ const validateDate = (fieldName) => {
     }
 
     if (!validator.isISO8601(dateStr)) {
-      return res.status(400).json({
-        success: false,
-        message: `${fieldName} 日期格式无效，请使用ISO8601格式`,
-        code: 'INVALID_DATE',
-      });
+      return sendInputError(res, `${fieldName} 日期格式无效，请使用ISO8601格式`, 'INVALID_DATE');
     }
 
     next();
@@ -366,6 +353,28 @@ const containsSQLInjection = (input, relaxed = false) => {
  * SQL注入检测中间件
  */
 const detectSQLInjection = (req, res, next) => {
+  const pathLeaf = (path) => String(path || '').split('.').pop();
+  const isPathField = (path, fields) => fields.includes(pathLeaf(path));
+  const isBusinessNameField = (path) => {
+    const leaf = pathLeaf(path);
+    return (
+      leaf.endsWith('_name') ||
+      leaf.endsWith('Name') ||
+      ['name', 'reason_name', 'reasonName', 'display_name', 'displayName', 'label', 'title'].includes(leaf)
+    );
+  };
+  const relaxedTextFields = [
+    'remark',
+    'remarks',
+    'description',
+    'name',
+    'standard',
+    'standard_value',
+    'issue_reason',
+    'reason_name',
+    'reasonName',
+    'reason',
+  ];
   // 跳过富文本内容字段的检查（HTML内容可能包含类似SQL的模式）
   const shouldSkipPath = (path) => {
     // 打印模板API的HTML内容字段
@@ -380,7 +389,7 @@ const detectSQLInjection = (req, res, next) => {
       }
     }
     // 技术交流API的富文本内容字段
-    if (req.path.startsWith('/api/technical-communications')) {
+    if (req.path.startsWith('/api/system/technical-communications')) {
       if (path === 'content' || path === 'solution' || path === 'description') {
         return true;
       }
@@ -416,23 +425,13 @@ const detectSQLInjection = (req, res, next) => {
       'rule_value',
       'split_details',
     ];
-    if (technicalFields.some((field) => path.endsWith(field))) {
+    if (isPathField(path, technicalFields)) {
       return true;
     }
 
     // 业务文本字段 — 仅跳过分号和单引号检测（这些字段最常触发误报）
     // 但仍然保留对 DROP/UNION SELECT/OR 1=1 等高危模式的检测
-    const textFields = [
-      'remark',
-      'remarks',
-      'description',
-      'name',
-      'issue_reason',
-      'reason',
-    ];
-    if (textFields.some((field) => path.endsWith(field))) {
-      // 标记为半跳过，仅检测高危模式
-      req._sqlCheckTextFieldOnly = true;
+    if (isPathField(path, relaxedTextFields)) {
       return false; // 不跳过，让 checkInput 继续执行，但会使用宽松模式
     }
     return false;
@@ -450,11 +449,7 @@ const detectSQLInjection = (req, res, next) => {
         }
 
         // 根据字段类型选择检测模式：业务文本字段使用宽松模式
-        const isRelaxed = req._sqlCheckTextFieldOnly || false;
-        // 检测完毕后重置标记
-        if (req._sqlCheckTextFieldOnly) {
-          req._sqlCheckTextFieldOnly = false;
-        }
+        const isRelaxed = isPathField(currentPath, relaxedTextFields) || isBusinessNameField(currentPath);
 
         if (typeof value === 'string' && containsSQLInjection(value, isRelaxed)) {
           logger.warn('检测到可疑的SQL注入尝试', {
@@ -465,11 +460,7 @@ const detectSQLInjection = (req, res, next) => {
             mode: isRelaxed ? 'relaxed' : 'strict',
           });
 
-          return res.status(403).json({
-            success: false,
-            message: '检测到非法输入',
-            code: 'SUSPICIOUS_INPUT',
-          });
+          return sendInputError(res, '检测到非法输入', 'SUSPICIOUS_INPUT', 403);
         }
 
         if (typeof value === 'object' && value !== null) {

@@ -159,13 +159,13 @@
 </template>
 
 <script setup>
-
-import { parseListData } from '@/utils/responseParser';
+import { formatLocalDate } from '@/utils/format';
 
 import { ref, computed, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { api, baseDataApi } from '@/services/api';
+import { api } from '@/services/api';
 import { ensureValidId } from '@/utils/helpers/dataUtils'
+import { loadLocationOptions } from '@/utils/optionLoaders';
 
 
 const props = defineProps({
@@ -221,7 +221,7 @@ const receiptForm = reactive({
   supplier_name: '',
   warehouse_id: null,
   warehouse_name: '',
-  receipt_date: new Date().toISOString().slice(0, 10), // 当前日期
+  receipt_date: formatLocalDate(new Date()), // 当前日期
   operator: '',
   remarks: '',
   items: [] // 入库明细
@@ -250,10 +250,7 @@ const processing = ref(false);
 // 加载仓库数据
 const loadWarehouses = async () => {
   try {
-    const response = await baseDataApi.getLocations();
-    // 使用统一解析器
-    const locations = parseListData(response, { enableLog: false });
-    // 只过滤类型为warehouse的位置
+    const locations = await loadLocationOptions();
     warehouseOptions.value = locations.filter(item => item.type === 'warehouse');
     if (warehouseOptions.value.length === 0) {
       ElMessage.warning('仓库数据加载异常，请确认数据库中是否已添加仓库信息');
@@ -340,7 +337,7 @@ const loadReceiptDetail = async () => {
     receiptForm.supplier_name = data.supplier_name || '';
     receiptForm.warehouse_id = ensureValidId(data.warehouse_id);
     receiptForm.warehouse_name = data.warehouse_name || '';
-    receiptForm.receipt_date = data.receipt_date || new Date().toISOString().slice(0, 10);
+    receiptForm.receipt_date = data.receipt_date || formatLocalDate(new Date());
     receiptForm.operator = data.operator || '';
     receiptForm.remarks = data.remarks || '';
     receiptForm.items = data.items || [];
@@ -427,7 +424,7 @@ watch(() => props.visible, (newVal) => {
       supplier_name: '',
       warehouse_id: null,
       warehouse_name: '',
-      receipt_date: new Date().toISOString().slice(0, 10),
+      receipt_date: formatLocalDate(new Date()),
       operator: '',
       remarks: '',
       items: []

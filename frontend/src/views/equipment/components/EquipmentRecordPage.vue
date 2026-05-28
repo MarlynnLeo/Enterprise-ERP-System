@@ -27,13 +27,7 @@
       </div>
 
       <el-table v-loading="loading" :data="rows" border stripe>
-        <el-table-column
-          v-for="column in columns"
-          :key="column.prop"
-          :prop="column.prop"
-          :label="column.label"
-          :min-width="column.minWidth || 120"
-        >
+        <el-table-column v-for="column in columns" :key="column.prop" :prop="column.prop" :label="column.label" :min-width="column.minWidth || 120">
           <template #default="{ row }">
             <el-tag v-if="column.type === 'status'" :type="getStatusTag(row[column.prop])">
               {{ formatStatus(row[column.prop]) }}

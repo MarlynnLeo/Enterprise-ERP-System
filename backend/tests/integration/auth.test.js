@@ -5,7 +5,7 @@
  */
 
 const request = require('supertest');
-const { getApp, clearCache } = require('../testHelper');
+const { getApp, authRequest, clearCache } = require('../testHelper');
 
 let app;
 
@@ -19,17 +19,18 @@ afterAll(() => {
 
 describe('认证模块 /api/auth', () => {
   describe('POST /api/auth/login', () => {
-    test('正确的用户名密码应返回 200 和 token', async () => {
+    test('正确的用户名密码应返回 200、用户信息和 HttpOnly Cookie', async () => {
       const res = await request(app)
         .post('/api/auth/login')
         .send({ username: 'admin', password: '123456' });
 
       expect(res.status).toBe(200);
-      // 兼容 { token } 或 { data: { token } } 格式
-      const token = res.body.data?.token || res.body.token;
-      expect(token).toBeTruthy();
-      expect(typeof token).toBe('string');
-      expect(token.length).toBeGreaterThan(10);
+      expect(res.body.data?.user || res.body.user).toBeTruthy();
+      expect(res.body.data?.token || res.body.token).toBeFalsy();
+      expect(res.body.data?.accessToken || res.body.accessToken).toBeFalsy();
+      const cookies = res.headers['set-cookie'] || [];
+      expect(cookies.some((cookie) => cookie.includes('accessToken=') && cookie.includes('HttpOnly'))).toBe(true);
+      expect(cookies.some((cookie) => cookie.includes('refreshToken=') && cookie.includes('HttpOnly'))).toBe(true);
     });
 
     test('错误密码应返回 401', async () => {
@@ -58,22 +59,16 @@ describe('认证模块 /api/auth', () => {
   });
 
   describe('需要认证的接口', () => {
-    let token;
+    let api;
 
     beforeAll(async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({ username: 'admin', password: '123456' });
-      token = res.body.data?.token || res.body.token;
+      api = await authRequest();
     });
 
-    test('携带有效 Token 访问受保护接口应成功', async () => {
-      const res = await request(app)
-        .get('/api/auth/me')
-        .set('Authorization', `Bearer ${token}`);
+    test('携带有效 Cookie 会话访问受保护接口应成功', async () => {
+      const res = await api.get('/api/auth/profile');
 
-      // 200 或 404 都可接受（取决于是否有 /me 端点）
-      expect(res.status).not.toBe(401);
+      expect(res.status).toBe(200);
     });
 
     test('无 Token 访问受保护接口应返回 401', async () => {
@@ -92,12 +87,10 @@ describe('认证模块 /api/auth', () => {
     });
 
     test('GET /api/auth/permissions 应返回权限列表', async () => {
-      const res = await request(app)
-        .get('/api/auth/permissions')
-        .set('Authorization', `Bearer ${token}`);
+      const res = await api.get('/api/auth/permissions');
 
       // 权限列表可能返回 200 或有其他结构
-      expect([200, 404]).toContain(res.status);
+      expect(res.status).toBe(200);
     });
   });
 });

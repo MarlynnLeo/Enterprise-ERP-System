@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="transactions-container">
+  <div class="module-page transactions-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -24,8 +24,13 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="searchTransactions"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="交易日期">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -57,12 +62,8 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchTransactions" :loading="loading">查询</el-button>
-          <el-button @click="resetSearch" :loading="loading">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 交易统计信息 -->
     <div class="statistics-row">
@@ -116,7 +117,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="交易金额" width="120" align="right">
+        <el-table-column prop="amount" label="交易金额" width="120">
           <template #default="scope">
             <span :class="[scope.row.type === 'income' ? 'positive-value' : (scope.row.type === 'expense' ? 'negative-value' : '')]">
               {{ formatCurrency(scope.row.amount) }}
@@ -148,21 +149,21 @@
             {{ getPaymentMethodDisplayText(scope.row.paymentMethod) }}
           </template>
         </el-table-column>
-        <el-table-column label="对账状态" width="100" align="center">
+        <el-table-column label="对账状态" width="100">
           <template #default="scope">
             <el-tag :type="scope.row.isReconciled ? 'success' : 'info'" size="small">
               {{ scope.row.isReconciled ? '已对账' : '未对账' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="审核状态" width="100" align="center">
+        <el-table-column label="审核状态" width="100">
           <template #default="scope">
             <el-tag :type="getAuditStatusType(scope.row.status)" size="small">
               {{ getAuditStatusText(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="240" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-buttons">
               <!-- 查看按钮：始终显示 -->
@@ -490,17 +491,19 @@
   </div>
 </template>
 <script setup>
-import '@/utils/apiAdapter';
+import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue'
-import { api } from '@/services/api';
+import { Plus, UploadFilled } from '@element-plus/icons-vue'
+import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth';
 import { useFinanceStore } from '@/stores/finance';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import printService from '@/services/printService'
+import { buildApiUrl } from '@/config/app';
+import { loadExcelJS } from '@/utils/lazyVendors';
 // 权限store
 const authStore = useAuthStore()
 const financeStore = useFinanceStore()
@@ -550,7 +553,7 @@ const searchForm = reactive({
 const transactionForm = reactive({
   id: null,
   type: 'income',
-  transactionDate: new Date().toISOString().slice(0, 10),
+  transactionDate: formatLocalDate(new Date()),
   accountId: null,
   targetAccountId: null,
   amount: 0,
@@ -653,7 +656,7 @@ const formatDate = (dateStr) => {
   try {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
-    return date.toISOString().split('T')[0];
+    return formatLocalDate(date);
   } catch {
     return dateStr;
   }
@@ -672,7 +675,7 @@ const loadTransactions = async () => {
       params.startDate = searchForm.dateRange[0];
       params.endDate = searchForm.dateRange[1];
     }
-    const response = await api.get('/finance/bank-transactions', { params });
+    const response = await financeApi.bankTransactions.getList(params);
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
     transactionList.value = list.map(item => {
@@ -729,7 +732,7 @@ const loadTransactions = async () => {
 // 加载账户选项
 const loadAccountOptions = async () => {
   try {
-    const response = await api.get('/finance/bank-accounts');
+    const response = await financeApi.getBankAccountsList();
     // 使用统一的响应解析工具
     accountOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
@@ -752,7 +755,7 @@ const loadTransactionsStats = async () => {
     if (searchForm.type) {
       params.transactionType = searchForm.type;
     }
-    const response = await api.get('/finance/statistics/cash-flow', { params });
+    const response = await financeApi.getCashFlowStatistics(params);
     // 使用统一的响应解析工具
     const stats = parseDataObject(response, { enableLog: false });
     if (stats && stats.summary) {
@@ -814,7 +817,7 @@ const handleEdit = (row) => {
   dialogTitle.value = '编辑交易';
   resetTransactionForm();
   // 获取交易详情
-  api.get(`/finance/bank-transactions/${row.id}`)
+  financeApi.bankTransactions.getDetail(row.id)
     .then(response => {
       // 使用统一的响应解析工具
       const transaction = parseDataObject(response, { enableLog: false });
@@ -865,7 +868,7 @@ const handleEdit = (row) => {
 const resetTransactionForm = () => {
   transactionForm.id = null;
   transactionForm.type = 'income';
-  transactionForm.transactionDate = new Date().toISOString().slice(0, 10);
+  transactionForm.transactionDate = formatLocalDate(new Date());
   transactionForm.accountId = null;
   transactionForm.targetAccountId = null;
   transactionForm.amount = 0;
@@ -894,7 +897,7 @@ const handleDelete = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await api.delete(`/finance/bank-transactions/${row.id}`);
+      await financeApi.bankTransactions.delete(row.id);
       ElMessage.success('删除成功');
       loadTransactions();
     } catch (error) {
@@ -934,7 +937,7 @@ const saveTransaction = async () => {
         // 确保日期格式正确 (YYYY-MM-DD)
         let formattedDate = transactionForm.transactionDate;
         if (typeof formattedDate === 'object' && formattedDate instanceof Date) {
-          formattedDate = formattedDate.toISOString().split('T')[0];
+          formattedDate = formatLocalDate(formattedDate);
         } else if (typeof formattedDate === 'string' && formattedDate.includes('T')) {
           formattedDate = formattedDate.split('T')[0];
         }
@@ -958,7 +961,7 @@ const saveTransaction = async () => {
         // 对于编辑操作，保留原交易编号
         if (transactionForm.id) {
           try {
-            const response = await api.put(`/finance/bank-transactions/${transactionForm.id}`, data);
+            const response = await financeApi.bankTransactions.update(transactionForm.id, data);
             const responseData = parseDataObject(response, { enableLog: false });
             if (responseData && responseData.newBalance !== undefined) {
               ElMessage.success('更新成功，待审核通过后入账');
@@ -977,13 +980,13 @@ const saveTransaction = async () => {
             // 确保日期格式正确 (YYYY-MM-DD)
             const formattedDate = transactionForm.transactionDate;
             if (typeof formattedDate === 'object' && formattedDate instanceof Date) {
-              data.transaction_date = formattedDate.toISOString().split('T')[0];
+              data.transaction_date = formatLocalDate(formattedDate);
             } else if (typeof formattedDate === 'string' && formattedDate.includes('T')) {
               data.transaction_date = formattedDate.split('T')[0];
             }
 
             const response = transactionForm.type === 'transfer'
-              ? await api.post('/finance/bank-transactions/transfer', {
+              ? await financeApi.bankTransactions.createTransfer({
                 transaction_number: transactionNumber,
                 from_account_id: transactionForm.accountId,
                 to_account_id: transactionForm.targetAccountId,
@@ -992,7 +995,7 @@ const saveTransaction = async () => {
                 description: enhancedDescription.trim(),
                 reference_number: transactionForm.referenceNumber || ''
               })
-              : await api.post('/finance/bank-transactions', {
+              : await financeApi.bankTransactions.create({
                 ...data,
                 transaction_number: transactionNumber
               });
@@ -1108,7 +1111,7 @@ const submitForAudit = async (row) => {
     await ElMessageBox.confirm('确定要提交该交易进行审核吗?', '提交审核', {
       type: 'info'
     });
-    await api.post(`/finance/bank-transactions/${row.id}/submit`, {
+    await financeApi.bankTransactions.submit(row.id, {
       userId: authStore.user?.id || 0
     });
 
@@ -1141,7 +1144,7 @@ const handleAudit = (row) => {
         instance.confirmButtonLoading = true;
         instance.cancelButtonLoading = true;
 
-        const response = await api.post(`/finance/bank-transactions/${row.id}/audit`, {
+        const response = await financeApi.bankTransactions.audit(row.id, {
           status,
           remark,
           auditorId: authStore.user?.id || 0
@@ -1173,28 +1176,22 @@ const handleAudit = (row) => {
 // 导出交易数据
 const exportTransactions = () => {
   // 使用环境变量配置的API基础URL，默认为相对路径
-  const baseURL = import.meta.env.VITE_API_URL || '';
-  let url = `${baseURL}/api/finance/bank-transactions/export`;
-
-  const params = [];
+  const params = new URLSearchParams();
   if (searchForm.dateRange && searchForm.dateRange.length === 2) {
-    params.push(`startDate=${searchForm.dateRange[0]}`);
-    params.push(`endDate=${searchForm.dateRange[1]}`);
+    params.set('startDate', searchForm.dateRange[0]);
+    params.set('endDate', searchForm.dateRange[1]);
   }
 
   if (searchForm.accountId) {
-    params.push(`accountId=${searchForm.accountId}`);
+    params.set('accountId', searchForm.accountId);
   }
 
   if (searchForm.type) {
-    params.push(`transactionType=${searchForm.type}`);
+    params.set('transactionType', searchForm.type);
   }
 
-  if (params.length > 0) {
-    url += `?${params.join('&')}`;
-  }
-
-  window.open(url);
+  const query = params.toString();
+  window.open(buildApiUrl(`/finance/bank-transactions/export${query ? `?${query}` : ''}`));
 };
 // 显示导入对话框
 const showImportDialog = () => {
@@ -1223,11 +1220,7 @@ const handleImport = async () => {
   try {
     const formData = new FormData();
     formData.append('file', importFileList.value[0].raw);
-    const response = await api.post('/finance/bank-transactions/import', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    const response = await financeApi.bankTransactions.import(formData);
     // 拦截器已解包，response.data 就是业务数据
     // 如果业务失败，拦截器会抛出错误
     importResult.value = response.data;
@@ -1247,7 +1240,7 @@ const handleImport = async () => {
   }
 };
 // 下载模板
-const downloadTemplate = () => {
+const downloadTemplate = async () => {
   // 创建模板数据
   const templateData = [
     {
@@ -1270,7 +1263,8 @@ const downloadTemplate = () => {
     }
   ];
   // 使用动态导入 ExcelJS 库
-  import('exceljs').then(async ({ default: ExcelJS }) => {
+  try {
+    const ExcelJS = await loadExcelJS();
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('银行交易模板');
     // 设置列
@@ -1296,10 +1290,10 @@ const downloadTemplate = () => {
     link.download = '银行交易导入模板.xlsx';
     link.click();
     window.URL.revokeObjectURL(url);
-  }).catch(error => {
+  } catch (error) {
     console.error('下载模板失败:', error);
     ElMessage.error('下载模板失败');
-  });
+  }
 };
 // 打印银行存款日记账
 const printBankStatement = async () => {
@@ -1307,15 +1301,13 @@ const printBankStatement = async () => {
     // 获取当前筛选条件下的所有交易数据
     const params = {
       accountId: searchForm.accountId,
-      transactionType: searchForm.type,
-      page: 1,
-      limit: 1000 // 获取大量数据用于打印
+      transactionType: searchForm.type
     };
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
       params.startDate = searchForm.dateRange[0];
       params.endDate = searchForm.dateRange[1];
     }
-    const response = await api.get('/finance/bank-transactions', { params });
+    const response = await financeApi.bankTransactions.getPrintData(params);
     // 使用统一的响应解析工具
     const { list: printData } = parsePaginatedData(response, { enableLog: false });
     // 获取账户信息

@@ -755,13 +755,13 @@ const extractList = (response) => {
 
 const loadDepartmentOptions = async () => {
   if (departments.value.length) return;
-  const response = await systemApi.getDepartments({ page: 1, pageSize: 200 });
+  const response = await systemApi.getDepartments({ page: 1, pageSize: 100 });
   departments.value = extractList(response);
 };
 
 const loadRoleOptions = async () => {
   if (roles.value.length) return;
-  const response = await systemApi.getRoles({ page: 1, pageSize: 200 });
+  const response = await systemApi.getRoles({ page: 1, pageSize: 100 });
   roles.value = extractList(response);
 };
 
@@ -826,7 +826,7 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .users-page {
-  min-height: 100vh;
+  min-height: 100%;
   background-color: var(--bg-primary);
 }
 
@@ -857,12 +857,12 @@ onMounted(async () => {
   padding: 6px 14px;
   border-radius: 20px;
   background: var(--bg-secondary);
-  border: 1.5px solid var(--glass-border);
+  border: 1.5px solid var(--surface-border, var(--border-subtle));
   white-space: nowrap;
   flex-shrink: 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
-  transition: all 0.25s ease;
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
   cursor: pointer;
   .chip-text { font-weight: 500; }
   &.active {

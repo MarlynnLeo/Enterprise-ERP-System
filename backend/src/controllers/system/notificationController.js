@@ -7,6 +7,7 @@ const db = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
+const NotificationService = require('../../services/NotificationService');
 
 class NotificationController {
   /**
@@ -69,6 +70,30 @@ class NotificationController {
     } catch (error) {
       logger.error('获取通知列表失败:', error);
       ResponseHandler.error(res, '获取通知列表失败');
+    }
+  }
+
+  /**
+   * 获取单条通知详情
+   */
+  async getNotificationById(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+
+      const result = await db.query(
+        'SELECT * FROM notifications WHERE id = ? AND user_id = ?',
+        [id, userId]
+      );
+
+      if (!result.rows || result.rows.length === 0) {
+        return ResponseHandler.notFound(res, '通知不存在');
+      }
+
+      ResponseHandler.success(res, result.rows[0]);
+    } catch (error) {
+      logger.error('获取通知详情失败:', error);
+      ResponseHandler.error(res, '获取通知详情失败');
     }
   }
 
@@ -167,6 +192,32 @@ class NotificationController {
   }
 
   /**
+   * 批量删除通知
+   */
+  async batchDeleteNotifications(req, res) {
+    try {
+      const userId = req.user.id;
+      const { ids } = req.body || {};
+      const targetIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
+
+      if (targetIds.length === 0) {
+        return ResponseHandler.error(res, '请选择要删除的通知', 'INVALID_PARAMS', 400);
+      }
+
+      const placeholders = targetIds.map(() => '?').join(',');
+      const result = await db.query(
+        `DELETE FROM notifications WHERE id IN (${placeholders}) AND user_id = ?`,
+        [...targetIds, userId]
+      );
+
+      ResponseHandler.success(res, { deleted: result.affectedRows }, `成功删除 ${result.affectedRows} 条通知`);
+    } catch (error) {
+      logger.error('批量删除通知失败:', error);
+      ResponseHandler.error(res, '批量删除失败');
+    }
+  }
+
+  /**
    * 创建通知（系统内部调用）
    */
   async createNotification(req, res) {
@@ -183,25 +234,23 @@ class NotificationController {
         sourceId,
       } = req.body;
 
-      const result = await db.query(
-        `INSERT INTO notifications
-         (user_id, type, title, content, link, link_params, priority, source_type, source_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          userId,
+      const result = await NotificationService.notifyUsers(
+        [userId],
+        {
           type,
           title,
           content,
           link,
-          linkParams ? JSON.stringify(linkParams) : null,
+          linkParams,
           priority,
           sourceType,
           sourceId,
-          req.user?.id,
-        ]
+          createdBy: req.user?.id,
+        },
+        { dedupeBySource: true }
       );
 
-      ResponseHandler.success(res, { id: result.insertId }, '通知创建成功');
+      ResponseHandler.success(res, result, '通知创建成功');
     } catch (error) {
       logger.error('创建通知失败:', error);
       ResponseHandler.error(res, '创建通知失败');
@@ -219,27 +268,25 @@ class NotificationController {
         return ResponseHandler.error(res, '通知列表不能为空');
       }
 
-      const values = notifications.map((n) => [
-        n.userId,
-        n.type,
-        n.title,
-        n.content,
-        n.link,
-        n.linkParams ? JSON.stringify(n.linkParams) : null,
-        n.priority || 0,
-        n.sourceType,
-        n.sourceId,
-        req.user?.id,
-      ]);
-
-      await db.query(
-        `INSERT INTO notifications
-         (user_id, type, title, content, link, link_params, priority, source_type, source_id, created_by)
-         VALUES ?`,
-        [values]
+      const result = await NotificationService.notifyMany(
+        notifications.map((n) => ({
+          userIds: [n.userId],
+          notification: {
+            type: n.type,
+            title: n.title,
+            content: n.content,
+            link: n.link,
+            linkParams: n.linkParams,
+            priority: n.priority || 0,
+            sourceType: n.sourceType,
+            sourceId: n.sourceId,
+            createdBy: req.user?.id,
+          },
+        })),
+        { dedupeBySource: true }
       );
 
-      ResponseHandler.success(res, null, '批量通知创建成功');
+      ResponseHandler.success(res, result, '批量通知创建成功');
     } catch (error) {
       logger.error('批量创建通知失败:', error);
       ResponseHandler.error(res, '批量创建通知失败');
@@ -251,10 +298,12 @@ const controller = new NotificationController();
 
 module.exports = {
   getNotifications: controller.getNotifications.bind(controller),
+  getNotificationById: controller.getNotificationById.bind(controller),
   getUnreadCount: controller.getUnreadCount.bind(controller),
   markAsRead: controller.markAsRead.bind(controller),
   markAllAsRead: controller.markAllAsRead.bind(controller),
   deleteNotification: controller.deleteNotification.bind(controller),
+  batchDeleteNotifications: controller.batchDeleteNotifications.bind(controller),
   createNotification: controller.createNotification.bind(controller),
   createBatchNotifications: controller.createBatchNotifications.bind(controller),
 };

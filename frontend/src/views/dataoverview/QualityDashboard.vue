@@ -186,7 +186,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right">
+            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="primary"
@@ -220,11 +220,12 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, computed, onMounted, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import Chart from 'chart.js/auto';
+import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { qualityApi } from '@/services/api';
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig';
+import { alphaColor, getCssTokenValue } from '@/utils/designTokens';
 
 // 权限计算属性
 const router = useRouter();
@@ -485,7 +486,7 @@ async function initPassRateChart() {
               label: '来料检验',
               data: incomingData,
               borderColor: chartColors.primary[0],
-              backgroundColor: 'rgba(58, 122, 242, 0.1)',
+              backgroundColor: alphaColor('primary', 0.1),
               borderWidth: 2,
               ...config.elements.line,
               fill: false
@@ -494,7 +495,7 @@ async function initPassRateChart() {
               label: '过程检验',
               data: processData,
               borderColor: chartColors.success[0],
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              backgroundColor: alphaColor('success', 0.1),
               borderWidth: 2,
               ...config.elements.line,
               fill: false
@@ -503,7 +504,7 @@ async function initPassRateChart() {
               label: '成品检验',
               data: finalData,
               borderColor: chartColors.warning[0],
-              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              backgroundColor: alphaColor('warning', 0.1),
               borderWidth: 2,
               ...config.elements.line,
               fill: false
@@ -576,7 +577,7 @@ async function initDefectTypeChart() {
               data: defectCounts,
               backgroundColor: backgroundColors,
               borderWidth: config.elements?.arc?.borderWidth || 2,
-              borderColor: config.elements?.arc?.borderColor || '#ffffff'
+              borderColor: config.elements?.arc?.borderColor || getCssTokenValue('surface')
             }
           ]
         },

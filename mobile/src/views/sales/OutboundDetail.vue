@@ -1,4 +1,4 @@
-﻿<template>
+<template>
     <div class="page-container">
         <!-- 导航栏 -->
         <div class="nav-bar">
@@ -93,7 +93,7 @@
 
         <!-- 底部操作栏 -->
         <div
-            class="bottom-actions glass-panel"
+            class="bottom-actions"
             v-if="outboundOrder && ['draft', 'processing'].includes(outboundOrder.status)"
             v-permission="'sales:outbound:update'"
         >
@@ -245,9 +245,9 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .page-container {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-fixed-control-space);
     display: flex;
     flex-direction: column;
 }
@@ -256,9 +256,13 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem;
+    min-height: calc(48px + var(--safe-area-top, 0px));
+    margin: 0;
+    padding: var(--safe-area-top, 0px) 12px 0;
     background: var(--bg-secondary);
-    backdrop-filter: blur(20px);
+    border: 0;
+    border-bottom: 1px solid var(--van-border-color, var(--surface-border));
+    border-radius: 0;
     position: sticky;
     top: 0;
     z-index: 50;
@@ -274,8 +278,8 @@ onMounted(() => {
 }
 
 .page-title {
-    font-size: 1.125rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 700;
     color: var(--text-primary);
 }
 
@@ -284,8 +288,7 @@ onMounted(() => {
 }
 
 .content-scroll {
-    padding: 1rem;
-    padding-bottom: 6rem;
+    padding: 0 12px var(--app-fixed-control-space);
 }
 
 .status-section {
@@ -414,10 +417,13 @@ onMounted(() => {
     bottom: 0;
     left: 0;
     right: 0;
-    padding: 1rem;
+    margin: 0;
+    max-width: none;
+    padding: 12px 16px;
+    padding-bottom: var(--app-fixed-control-padding-bottom);
     background: var(--bg-secondary);
-    backdrop-filter: blur(20px);
     border-top: 1px solid var(--van-border-color);
+    border-radius: 0;
     z-index: 40;
 }
 
@@ -443,11 +449,11 @@ onMounted(() => {
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 8px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--surface-border, var(--border-subtle));
 }
 .item-title-row {
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   padding-bottom: 8px;
 }
 .item-title {

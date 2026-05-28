@@ -7,6 +7,7 @@
 
 const logger = require('../utils/logger');
 const db = require('../config/db');
+const { parsePagination } = require('../utils/safePagination');
 
 function requirePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(value, 10);
@@ -25,6 +26,10 @@ function toDateString(value) {
     return `${year}-${month}-${day}`;
   }
   return String(value).slice(0, 10);
+}
+
+function currentDateString() {
+  return toDateString(new Date());
 }
 
 function normalizeDateInput(value, fieldName) {
@@ -61,6 +66,152 @@ function isDateWithinPeriod(date, period) {
   const startDate = toDateString(period.start_date);
   const endDate = toDateString(period.end_date);
   return date >= startDate && date <= endDate;
+}
+
+function toCents(value) {
+  const amount = Number.parseFloat(value);
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round(amount * 100);
+}
+
+function fromCents(cents) {
+  return cents / 100;
+}
+
+function normalizeOpeningAmount(value, fieldName) {
+  const amount = value === undefined || value === null || value === '' ? 0 : Number.parseFloat(value);
+  if (!Number.isFinite(amount)) {
+    throw new Error(`${fieldName} must be a valid amount`);
+  }
+
+  const cents = Math.round(amount * 100);
+  if (cents < 0) {
+    throw new Error(`${fieldName} cannot be negative`);
+  }
+
+  return fromCents(cents);
+}
+
+function normalizeOpeningBalanceLine(balanceData, label = 'opening balance') {
+  const debit = normalizeOpeningAmount(balanceData.debit, `${label}.debit`);
+  const credit = normalizeOpeningAmount(balanceData.credit, `${label}.credit`);
+
+  if (toCents(debit) > 0 && toCents(credit) > 0) {
+    throw new Error(`${label} cannot have both debit and credit amounts`);
+  }
+
+  return { debit, credit };
+}
+
+async function assertOpeningBalancesEditable(connection) {
+  const [[postedEntries]] = await connection.execute(
+    'SELECT COUNT(*) AS count FROM gl_entries WHERE COALESCE(is_posted, 0) = 1'
+  );
+  if (Number(postedEntries.count || 0) > 0) {
+    throw new Error('Opening balances are locked after vouchers have been posted; use adjustment entries instead');
+  }
+
+  const [[closedPeriods]] = await connection.execute(
+    'SELECT COUNT(*) AS count FROM gl_periods WHERE COALESCE(is_closed, 0) = 1'
+  );
+  if (Number(closedPeriods.count || 0) > 0) {
+    throw new Error('Opening balances are locked after any accounting period has been closed');
+  }
+}
+
+async function assertAccountsAvailableForOpeningBalances(connection, accountIds) {
+  const uniqueIds = [...new Set(accountIds.map((id) => Number.parseInt(id, 10)))];
+  if (uniqueIds.length === 0) {
+    throw new Error('Opening balance list cannot be empty');
+  }
+  if (uniqueIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+    throw new Error('Opening balance accountId must be a positive integer');
+  }
+
+  const placeholders = uniqueIds.map(() => '?').join(',');
+  const [accounts] = await connection.execute(
+    `SELECT id, is_active FROM gl_accounts WHERE id IN (${placeholders}) FOR UPDATE`,
+    uniqueIds
+  );
+  const activeAccountIds = new Set(
+    accounts
+      .filter((account) => Number(account.is_active) === 1)
+      .map((account) => Number(account.id))
+  );
+  const missingIds = uniqueIds.filter((id) => !activeAccountIds.has(id));
+  if (missingIds.length > 0) {
+    throw new Error(`Opening balance accounts do not exist or are inactive: ${missingIds.join(', ')}`);
+  }
+}
+
+async function assertAccountCanBeDeactivated(connection, accountId) {
+  const normalizedAccountId = requirePositiveInteger(accountId, 'accountId');
+  const [[usage]] = await connection.execute(
+    `SELECT
+       COALESCE(MAX(ABS(COALESCE(a.opening_debit, 0)) + ABS(COALESCE(a.opening_credit, 0))), 0) AS opening_amount,
+       COUNT(ei.id) AS entry_line_count
+     FROM gl_accounts a
+     LEFT JOIN gl_entry_items ei ON ei.account_id = a.id
+     WHERE a.id = ?`,
+    [normalizedAccountId]
+  );
+
+  if (Number(usage.opening_amount || 0) > 0 || Number(usage.entry_line_count || 0) > 0) {
+    throw new Error('Accounts with opening balances or voucher history cannot be deactivated');
+  }
+}
+
+async function assertEntryCanBePosted(connection, entryId) {
+  const [items] = await connection.execute(
+    `SELECT
+       ei.id,
+       ei.line_number,
+       ei.account_id,
+       ei.debit_amount,
+       ei.credit_amount,
+       a.is_active
+     FROM gl_entry_items ei
+     LEFT JOIN gl_accounts a ON a.id = ei.account_id
+     WHERE ei.entry_id = ?
+     ORDER BY ei.line_number, ei.id
+     FOR UPDATE`,
+    [entryId]
+  );
+
+  if (items.length === 0) {
+    throw new Error('凭证没有明细，不能过账');
+  }
+
+  let totalDebit = 0;
+  let totalCredit = 0;
+
+  items.forEach((item, index) => {
+    const lineLabel = item.line_number || index + 1;
+    if (!item.account_id || item.is_active !== 1) {
+      throw new Error(`第${lineLabel}行会计科目不存在或未启用，不能过账`);
+    }
+
+    const debitCents = toCents(item.debit_amount);
+    const creditCents = toCents(item.credit_amount);
+    if (debitCents < 0 || creditCents < 0) {
+      throw new Error(`第${lineLabel}行借贷金额不能为负数`);
+    }
+    if (debitCents > 0 && creditCents > 0) {
+      throw new Error(`第${lineLabel}行不能同时填写借方和贷方金额`);
+    }
+    if (debitCents === 0 && creditCents === 0) {
+      throw new Error(`第${lineLabel}行借方和贷方金额不能同时为0`);
+    }
+
+    totalDebit += debitCents;
+    totalCredit += creditCents;
+  });
+
+  if (totalDebit !== totalCredit) {
+    throw new Error(
+      `借贷不平衡: 借方 ${(totalDebit / 100).toFixed(2)}, 贷方 ${(totalCredit / 100).toFixed(2)}`
+    );
+  }
 }
 
 async function resolveOpenPeriodForDates(connection, periodId, entryDate, postingDate) {
@@ -118,15 +269,6 @@ async function resolveOpenPeriodForDates(connection, periodId, entryDate, postin
  * 财务模块数据库操作
  */
 const financeModel = {
-  /**
-   * @deprecated 财务模块表结构已迁移至 Knex 迁移文件 20260312000003 管理
-   */
-  createFinanceTablesIfNotExist: async () => {
-    // 表结构由 migrations/20260312000003 管理
-    return true;
-  },
-
-
   // ===== 总账科目相关方法 =====
 
   /**
@@ -175,9 +317,13 @@ const financeModel = {
       const total = countResult[0].total;
 
       // 计算分页参数 - 确保是有效的数字
-      const pageNum = Math.max(1, parseInt(page) || 1);
-      const limitNum = Math.max(1, Math.min(1000, parseInt(limit) || 20));
-      const offset = (pageNum - 1) * limitNum;
+      const pagination = parsePagination(page, limit, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
+      const pageNum = pagination.page;
+      const limitNum = pagination.limit;
+      const offset = pagination.offset;
 
       // 验证参数类型
       if (isNaN(pageNum) || isNaN(limitNum) || isNaN(offset)) {
@@ -262,6 +408,9 @@ const financeModel = {
    */
   updateAccount: async (id, accountData) => {
     try {
+      if (accountData.is_active === false || accountData.is_active === 0 || accountData.is_active === '0') {
+        await assertAccountCanBeDeactivated(db.pool, id);
+      }
       const [result] = await db.pool.execute(
         'UPDATE gl_accounts SET account_name = ?, account_type = ?, parent_id = ?, is_debit = ?, is_active = ?, currency_code = ?, description = ?, has_customer = ?, has_supplier = ?, has_employee = ?, has_department = ?, has_project = ? WHERE id = ?',
         [
@@ -291,15 +440,22 @@ const financeModel = {
    * 删除会计科目（软删除，设置为非活跃）
    */
   deactivateAccount: async (id) => {
+    const connection = await db.pool.getConnection();
     try {
-      const [result] = await db.pool.execute(
+      await connection.beginTransaction();
+      await assertAccountCanBeDeactivated(connection, id);
+      const [result] = await connection.execute(
         'UPDATE gl_accounts SET is_active = false WHERE id = ?',
         [id]
       );
+      await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('停用会计科目失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -307,15 +463,24 @@ const financeModel = {
    * 更新会计科目状态
    */
   updateAccountStatus: async (id, isActive) => {
+    const connection = await db.pool.getConnection();
     try {
-      const [result] = await db.pool.execute('UPDATE gl_accounts SET is_active = ? WHERE id = ?', [
+      await connection.beginTransaction();
+      if (!isActive) {
+        await assertAccountCanBeDeactivated(connection, id);
+      }
+      const [result] = await connection.execute('UPDATE gl_accounts SET is_active = ? WHERE id = ?', [
         isActive,
         id,
       ]);
+      await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {
+      await connection.rollback();
       logger.error('更新会计科目状态失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   },
 
@@ -329,6 +494,15 @@ const financeModel = {
     try {
       await connection.beginTransaction();
       const setBy = requirePositiveInteger(balanceData.setBy, 'setBy');
+      const normalizedAccountId = requirePositiveInteger(accountId, 'accountId');
+      const normalized = normalizeOpeningBalanceLine(balanceData);
+      const balanceDate = normalizeDateInput(
+        balanceData.balanceDate || currentDateString(),
+        'balanceDate'
+      );
+
+      await assertOpeningBalancesEditable(connection);
+      await assertAccountsAvailableForOpeningBalances(connection, [normalizedAccountId]);
 
       // 更新科目期初余额
       await connection.execute(
@@ -339,12 +513,23 @@ const financeModel = {
           opening_balance_set = 1
         WHERE id = ?`,
         [
-          balanceData.debit || 0,
-          balanceData.credit || 0,
-          balanceData.balanceDate || new Date().toISOString().split('T')[0],
-          accountId,
+          normalized.debit,
+          normalized.credit,
+          balanceDate,
+          normalizedAccountId,
         ]
       );
+
+      const [[openingTotals]] = await connection.execute(
+        `SELECT
+           COALESCE(SUM(opening_debit), 0) AS total_debit,
+           COALESCE(SUM(opening_credit), 0) AS total_credit
+         FROM gl_accounts
+         WHERE is_active = 1`
+      );
+      if (toCents(openingTotals.total_debit) !== toCents(openingTotals.total_credit)) {
+        throw new Error('Opening balances must remain balanced after saving');
+      }
 
       // 记录历史
       await connection.execute(
@@ -352,17 +537,17 @@ const financeModel = {
           (account_id, opening_debit, opening_credit, balance_date, set_by, notes)
         VALUES (?, ?, ?, ?, ?, ?)`,
         [
-          accountId,
-          balanceData.debit || 0,
-          balanceData.credit || 0,
-          balanceData.balanceDate || new Date().toISOString().split('T')[0],
+          normalizedAccountId,
+          normalized.debit,
+          normalized.credit,
+          balanceDate,
           setBy,
           balanceData.notes || '设置期初余额',
         ]
       );
 
       await connection.commit();
-      logger.info(`期初余额设置成功: 科目ID=${accountId}`);
+      logger.info(`期初余额设置成功: 科目ID=${normalizedAccountId}`);
       return { success: true };
     } catch (error) {
       await connection.rollback();
@@ -378,12 +563,46 @@ const financeModel = {
    * @param {Array} balances - 余额数组 [{ accountId, debit, credit }]
    * @param {string} balanceDate - 余额日期
    */
-  setBatchOpeningBalance: async (balances, balanceDate) => {
+  setBatchOpeningBalance: async (balances, balanceDate, setBy = null) => {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
 
-      for (const item of balances) {
+      if (!Array.isArray(balances) || balances.length === 0) {
+        throw new Error('Opening balance list cannot be empty');
+      }
+
+      const normalizedBalanceDate = normalizeDateInput(
+        balanceDate || currentDateString(),
+        'balanceDate'
+      );
+      const normalizedSetBy = setBy ? requirePositiveInteger(setBy, 'setBy') : null;
+      const accountIds = balances.map((item) => item.accountId);
+      const uniqueAccountIds = new Set(accountIds.map((id) => Number.parseInt(id, 10)));
+      if (uniqueAccountIds.size !== accountIds.length) {
+        throw new Error('Opening balance list contains duplicate accounts');
+      }
+
+      await assertOpeningBalancesEditable(connection);
+      await assertAccountsAvailableForOpeningBalances(connection, accountIds);
+
+      const normalizedBalances = balances.map((item, index) => {
+        const accountId = requirePositiveInteger(item.accountId, `balances[${index}].accountId`);
+        return {
+          accountId,
+          ...normalizeOpeningBalanceLine(item, `balances[${index}]`),
+        };
+      });
+
+      const totalDebit = normalizedBalances.reduce((sum, item) => sum + toCents(item.debit), 0);
+      const totalCredit = normalizedBalances.reduce((sum, item) => sum + toCents(item.credit), 0);
+      if (totalDebit !== totalCredit) {
+        throw new Error(
+          `Opening balances are not balanced: debit ${fromCents(totalDebit).toFixed(2)}, credit ${fromCents(totalCredit).toFixed(2)}`
+        );
+      }
+
+      for (const item of normalizedBalances) {
         await connection.execute(
           `UPDATE gl_accounts SET
             opening_debit = ?,
@@ -391,13 +610,38 @@ const financeModel = {
             opening_balance_date = ?,
             opening_balance_set = 1
           WHERE id = ?`,
-          [item.debit || 0, item.credit || 0, balanceDate, item.accountId]
+          [item.debit, item.credit, normalizedBalanceDate, item.accountId]
+        );
+
+        await connection.execute(
+          `INSERT INTO gl_opening_balance_history
+            (account_id, opening_debit, opening_credit, balance_date, set_by, notes)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            item.accountId,
+            item.debit,
+            item.credit,
+            normalizedBalanceDate,
+            normalizedSetBy,
+            '批量设置期初余额',
+          ]
         );
       }
 
+      const [[openingTotals]] = await connection.execute(
+        `SELECT
+           COALESCE(SUM(opening_debit), 0) AS total_debit,
+           COALESCE(SUM(opening_credit), 0) AS total_credit
+         FROM gl_accounts
+         WHERE is_active = 1`
+      );
+      if (toCents(openingTotals.total_debit) !== toCents(openingTotals.total_credit)) {
+        throw new Error('Opening balances must remain balanced after batch saving');
+      }
+
       await connection.commit();
-      logger.info(`批量期初余额设置成功: ${balances.length}个科目`);
-      return { success: true, count: balances.length };
+      logger.info(`批量期初余额设置成功: ${normalizedBalances.length}个科目`);
+      return { success: true, count: normalizedBalances.length };
     } catch (error) {
       await connection.rollback();
       logger.error('批量设置期初余额失败:', error);
@@ -430,7 +674,7 @@ const financeModel = {
 
   /**
    * 创建会计分录（包含明细）
-   * @deprecated 应该使用 GLService.createEntry() 替代。保留此方法是为了兼容老代码。
+   * 兼容入口，内部统一委托 GLService.createEntry() 执行。
    *
    * @param {Object} entryData - 分录头数据
    * @param {Array} entryItems - 分录明细数组
@@ -497,7 +741,6 @@ const financeModel = {
 
       // gl_entries 表由 migrations/20260312000003 管理，无需运行时检查
 
-
       // 关联 gl_periods 表获取期间名称，关联 users 表获取创建人姓名
       let query = `
         SELECT
@@ -517,11 +760,19 @@ const financeModel = {
             WHERE source_entry.reversal_entry_id = e.id
             LIMIT 1
           ) AS reversal_of_entry_id,
-          (SELECT SUM(debit_amount) FROM gl_entry_items WHERE entry_id = e.id) as total_debit,
-          (SELECT SUM(credit_amount) FROM gl_entry_items WHERE entry_id = e.id) as total_credit
+          COALESCE(entry_totals.total_debit, 0) as total_debit,
+          COALESCE(entry_totals.total_credit, 0) as total_credit
         FROM gl_entries e
         LEFT JOIN gl_periods p ON e.period_id = p.id
         LEFT JOIN users u ON e.created_by = u.id
+        LEFT JOIN (
+          SELECT
+            entry_id,
+            SUM(debit_amount) as total_debit,
+            SUM(credit_amount) as total_credit
+          FROM gl_entry_items
+          GROUP BY entry_id
+        ) entry_totals ON entry_totals.entry_id = e.id
         WHERE 1=1
       `;
       const params = [];
@@ -566,8 +817,12 @@ const financeModel = {
 
       // 添加排序和分页（使用表别名 e）
       // 优先按会计期间、凭证字、凭证号排序，符合会计习惯
-      const limit = parseInt(pageSize);
-      const offset = (parseInt(page) - 1) * limit;
+      const pagination = parsePagination(page, pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
+      const limit = pagination.limit;
+      const offset = pagination.offset;
       query += ` ORDER BY e.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
       // 执行查询
@@ -698,7 +953,7 @@ const financeModel = {
         entries,
         pagination: {
           total,
-          page: parseInt(page),
+          page: pagination.page,
           pageSize: limit,
           totalPages: Math.ceil(total / limit),
         },
@@ -762,7 +1017,7 @@ const financeModel = {
 
       // 检查凭证状态
       const [entries] = await connection.execute(
-        'SELECT id, is_posted, is_reversed, entry_number FROM gl_entries WHERE id = ?',
+        'SELECT id, is_posted, is_reversed, entry_number FROM gl_entries WHERE id = ? FOR UPDATE',
         [id]
       );
 
@@ -808,10 +1063,12 @@ const financeModel = {
 
       // 获取凭证及其所属期间状态
       const [entries] = await connection.execute(
-        `SELECT e.id, e.is_posted, e.is_reversed, p.is_closed, p.period_name
+        `SELECT e.id, e.is_posted, e.is_reversed, e.entry_date, e.posting_date, e.period_id,
+                p.is_closed, p.period_name, p.start_date, p.end_date
          FROM gl_entries e
          LEFT JOIN gl_periods p ON e.period_id = p.id
-         WHERE e.id = ?`,
+         WHERE e.id = ?
+         FOR UPDATE`,
         [id]
       );
 
@@ -829,13 +1086,46 @@ const financeModel = {
         throw new Error('已冲销的凭证不能过账');
       }
 
-      if (entry.is_closed) {
+      const entryDate = normalizeDateInput(entry.entry_date, '记账日期');
+      const postingDate = normalizeDateInput(entry.posting_date || entry.entry_date, '过账日期');
+      let resolvedPeriodId = entry.period_id;
+
+      if (resolvedPeriodId) {
+        if (!isDateWithinPeriod(entryDate, entry) || !isDateWithinPeriod(postingDate, entry)) {
+          throw new Error(
+            `凭证日期 ${entryDate} 或过账日期 ${postingDate} 不在所属会计期间 [${entry.period_name}] 内`
+          );
+        }
+      } else {
+        const [periods] = await connection.execute(
+          `SELECT id, is_closed, period_name, start_date, end_date
+           FROM gl_periods
+           WHERE ? BETWEEN start_date AND end_date
+             AND ? BETWEEN start_date AND end_date
+           ORDER BY start_date DESC
+           LIMIT 1
+           FOR UPDATE`,
+          [entryDate, postingDate]
+        );
+
+        if (periods.length === 0) {
+          throw new Error(`凭证日期 ${entryDate} 和过账日期 ${postingDate} 未匹配到会计期间`);
+        }
+
+        resolvedPeriodId = periods[0].id;
+        entry.is_closed = periods[0].is_closed;
+        entry.period_name = periods[0].period_name;
+      }
+
+      if (isClosedFlag(entry.is_closed)) {
         throw new Error(`不能在已关闭的会计期间 [${entry.period_name}] 过账凭证`);
       }
 
+      await assertEntryCanBePosted(connection, id);
+
       const [result] = await connection.execute(
-        "UPDATE gl_entries SET is_posted = 1, status = 'posted' WHERE id = ?",
-        [id]
+        "UPDATE gl_entries SET is_posted = 1, status = 'posted', period_id = ? WHERE id = ?",
+        [resolvedPeriodId, id]
       );
 
       await connection.commit();
@@ -858,7 +1148,7 @@ const financeModel = {
       await connection.beginTransaction();
 
       // 获取原始分录及其明细
-      const [entries] = await connection.execute('SELECT * FROM gl_entries WHERE id = ?', [id]);
+      const [entries] = await connection.execute('SELECT * FROM gl_entries WHERE id = ? FOR UPDATE', [id]);
       if (entries.length === 0) {
         throw new Error('找不到要冲销的分录');
       }
@@ -897,7 +1187,7 @@ const financeModel = {
         postingDate
       );
 
-      const [items] = await connection.execute('SELECT * FROM gl_entry_items WHERE entry_id = ?', [
+      const [items] = await connection.execute('SELECT * FROM gl_entry_items WHERE entry_id = ? FOR UPDATE', [
         id,
       ]);
 
@@ -1000,7 +1290,11 @@ const financeModel = {
       const where = [];
       const params = [];
 
-      if (filters.fiscalYear !== undefined && filters.fiscalYear !== null && filters.fiscalYear !== '') {
+      if (
+        filters.fiscalYear !== undefined &&
+        filters.fiscalYear !== null &&
+        filters.fiscalYear !== ''
+      ) {
         const fiscalYear = Number.parseInt(filters.fiscalYear, 10);
         if (!Number.isInteger(fiscalYear)) {
           throw new Error('fiscalYear must be an integer');
@@ -1023,8 +1317,9 @@ const financeModel = {
 
       const page = Number.parseInt(filters.page, 10);
       const limit = Number.parseInt(filters.limit || filters.pageSize, 10);
-      const shouldPaginate = Number.isInteger(page) && page > 0 && Number.isInteger(limit) && limit > 0;
-      const safeLimit = shouldPaginate ? Math.min(limit, 500) : null;
+      const shouldPaginate =
+        Number.isInteger(page) && page > 0 && Number.isInteger(limit) && limit > 0;
+      const safeLimit = shouldPaginate ? Math.min(limit, 100) : null;
       const offset = shouldPaginate ? (page - 1) * safeLimit : null;
 
       let query = `SELECT *, is_closed FROM gl_periods ${whereClause} ORDER BY fiscal_year DESC, start_date DESC`;
@@ -1164,7 +1459,7 @@ const financeModel = {
       const result = await PeriodEndService.closePeriod({
         period_id: Number.parseInt(id, 10),
         closed_by: 'system',
-        closing_date: new Date().toISOString().slice(0, 10),
+        closing_date: currentDateString(),
       });
       return Boolean(result?.periodId);
     } catch (error) {
@@ -1228,8 +1523,8 @@ const financeModel = {
           a.account_type,
           a.is_debit,
 
-          -- 期初净额 (借-贷)
-          COALESCE(SUM(CASE
+          -- 期初净额 (借-贷)，包含科目期初余额和本期前已过账凭证
+          COALESCE(a.opening_debit, 0) - COALESCE(a.opening_credit, 0) + COALESCE(SUM(CASE
             WHEN e.is_posted = 1 AND ${periodStartDate ? 'e.entry_date < ?' : '1=0'} THEN (ei.debit_amount - ei.credit_amount)
             ELSE 0
           END), 0) as opening_net,
@@ -1249,14 +1544,15 @@ const financeModel = {
         LEFT JOIN gl_entry_items ei ON a.id = ei.account_id
         LEFT JOIN gl_entries e ON ei.entry_id = e.id
         WHERE a.is_active = 1
-        GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.is_debit
+        GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.is_debit,
+          a.opening_debit, a.opening_credit
         ORDER BY a.account_code
       `;
 
       // [M-3] 构建参数列表 — 按 SQL 中占位符顺序依次推入，避免参数错位
       // SQL 中占位符顺序: 1=opening_net(periodStartDate), 2-3=period_debit(start,end), 4-5=period_credit(start,end)
       if (periodStartDate) {
-        params.push(periodStartDate);       // 占位符1: opening_net 条件
+        params.push(periodStartDate); // 占位符1: opening_net 条件
       }
       if (periodStartDate && periodEndDate) {
         params.push(periodStartDate, periodEndDate); // 占位符2-3: period_debit 条件
@@ -1328,7 +1624,6 @@ const financeModel = {
   // 注意：期末结转的实际执行由 PeriodEndService.closePeriod() 负责
   // 以下仅保留结转历史查询方法
 
-
   /**
    * 获取期末结转历史
    * @param {number} periodId - 会计期间ID
@@ -1369,25 +1664,85 @@ const financeModel = {
     try {
       await conn.beginTransaction();
 
-      // 检查基本会计科目是否存在
-      const requiredAccounts = [
-        { id: 1001, code: '1001', name: '现金', type: '资产' },
-        { id: 1002, code: '1002', name: '银行存款', type: '资产' },
-        { id: 2202, code: '2202', name: '应付账款', type: '负债' },
+      const { accountingConfig } = require('../config/accountingConfig');
+      await accountingConfig.loadFromDatabase(db);
+
+      const accountDefinitions = [
+        { key: 'CASH', name: '库存现金', type: '资产', isDebit: true },
+        { key: 'BANK_DEPOSIT', name: '银行存款', type: '资产', isDebit: true },
+        { key: 'OTHER_MONETARY_ASSETS', name: '其他货币资金', type: '资产', isDebit: true },
+        { key: 'ACCOUNTS_RECEIVABLE', name: '应收账款', type: '资产', isDebit: true },
+        { key: 'PREPAYMENTS', name: '预付账款', type: '资产', isDebit: true },
+        { key: 'MATERIAL_PURCHASE', name: '材料采购', type: '资产', isDebit: true },
+        { key: 'RAW_MATERIALS', name: '原材料', type: '资产', isDebit: true },
+        { key: 'INVENTORY_GOODS', name: '库存商品', type: '资产', isDebit: true },
+        { key: 'FINISHED_GOODS', name: '产成品', type: '资产', isDebit: true },
+        { key: 'OUTSOURCED_MATERIALS', name: '委托加工物资', type: '资产', isDebit: true },
+        { key: 'FIXED_ASSETS', name: '固定资产', type: '资产', isDebit: true },
+        { key: 'ACCUMULATED_DEPRECIATION', name: '累计折旧', type: '资产', isDebit: false },
+        {
+          key: 'FIXED_ASSET_IMPAIRMENT_ALLOWANCE',
+          name: '固定资产减值准备',
+          type: '资产',
+          isDebit: false,
+        },
+        { key: 'CONSTRUCTION_IN_PROGRESS', name: '在建工程', type: '资产', isDebit: true },
+        { key: 'FIXED_ASSET_CLEARING', name: '固定资产清理', type: '资产', isDebit: true },
+        { key: 'INTANGIBLE_ASSETS', name: '无形资产', type: '资产', isDebit: true },
+        { key: 'ACCUMULATED_AMORTIZATION', name: '累计摊销', type: '资产', isDebit: false },
+        { key: 'SHORT_TERM_LOANS', name: '短期借款', type: '负债', isDebit: false },
+        { key: 'EMPLOYEE_PAYABLE', name: '应付职工薪酬', type: '负债', isDebit: false },
+        { key: 'ACCOUNTS_PAYABLE', name: '应付账款', type: '负债', isDebit: false },
+        { key: 'ADVANCE_RECEIPTS', name: '预收账款', type: '负债', isDebit: false },
+        { key: 'TAX_PAYABLE', name: '应交税费', type: '负债', isDebit: false },
+        { key: 'LONG_TERM_LOANS', name: '长期借款', type: '负债', isDebit: false },
+        { key: 'PAID_IN_CAPITAL', name: '实收资本', type: '所有者权益', isDebit: false },
+        { key: 'CAPITAL_RESERVE', name: '资本公积', type: '所有者权益', isDebit: false },
+        { key: 'SURPLUS_RESERVE', name: '盈余公积', type: '所有者权益', isDebit: false },
+        { key: 'CURRENT_YEAR_PROFIT', name: '本年利润', type: '所有者权益', isDebit: false },
+        { key: 'RETAINED_EARNINGS', name: '利润分配', type: '所有者权益', isDebit: false },
+        { key: 'SALES_REVENUE', name: '主营业务收入', type: '收入', isDebit: false },
+        { key: 'OTHER_REVENUE', name: '其他业务收入', type: '收入', isDebit: false },
+        { key: 'NON_OPERATING_INCOME', name: '营业外收入', type: '收入', isDebit: false },
+        { key: 'SALES_COST', name: '主营业务成本', type: '成本', isDebit: true },
+        { key: 'PRODUCTION_COST', name: '生产成本', type: '成本', isDebit: true },
+        { key: 'WORK_IN_PROCESS', name: '期末在制品', type: '资产', isDebit: true },
+        { key: 'MANUFACTURING_EXPENSE', name: '制造费用', type: '成本', isDebit: true },
+        { key: 'OTHER_COST', name: '其他业务成本', type: '成本', isDebit: true },
+        { key: 'SALES_EXPENSE', name: '销售费用', type: '费用', isDebit: true },
+        { key: 'ADMIN_EXPENSE', name: '管理费用', type: '费用', isDebit: true },
+        { key: 'FINANCE_EXPENSE', name: '财务费用', type: '费用', isDebit: true },
+        { key: 'DEPRECIATION_EXPENSE', name: '折旧费用', type: '费用', isDebit: true },
+        { key: 'NON_OPERATING_EXPENSE', name: '营业外支出', type: '费用', isDebit: true },
+        { key: 'ASSET_IMPAIRMENT_LOSS', name: '资产减值损失', type: '费用', isDebit: true },
       ];
+
+      const requiredAccounts = accountDefinitions
+        .map((account) => ({
+          ...account,
+          code: accountingConfig.getAccountCode(account.key),
+        }))
+        .filter((account) => account.code)
+        .filter(
+          (account, index, accounts) =>
+            accounts.findIndex((candidate) => candidate.code === account.code) === index
+        );
 
       logger.info('开始检查和创建基本会计科目...');
 
       for (const account of requiredAccounts) {
-        const [existingAccount] = await conn.execute('SELECT id FROM gl_accounts WHERE id = ?', [
-          account.id,
-        ]);
+        const [existingAccount] = await conn.execute(
+          'SELECT id FROM gl_accounts WHERE account_code = ?',
+          [account.code]
+        );
 
         if (existingAccount.length === 0) {
           logger.info(`创建会计科目: ${account.code} ${account.name}`);
           await conn.execute(
-            'INSERT INTO gl_accounts (id, account_code, account_name, account_type, is_active) VALUES (?, ?, ?, ?, ?)',
-            [account.id, account.code, account.name, account.type, true]
+            `INSERT INTO gl_accounts
+             (account_code, account_name, account_type, is_debit, is_active, currency_code)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [account.code, account.name, account.type, account.isDebit ? 1 : 0, true, 'CNY']
           );
         } else {
           logger.info(`会计科目已存在: ${account.code} ${account.name}`);
@@ -1418,15 +1773,6 @@ const financeModel = {
     } finally {
       conn.release();
     }
-  },
-
-  /**
-   * 创建财务系统所需的表格
-   * @deprecated 表结构已迁移至 Knex migration 文件管理，此方法保留为空操作以兼容旧调用
-   */
-  createTables: async () => {
-    logger.info('财务系统表格已由 Knex migration 管理，跳过运行时创建');
-    return true;
   },
 };
 

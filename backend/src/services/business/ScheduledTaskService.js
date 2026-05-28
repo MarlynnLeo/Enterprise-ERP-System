@@ -11,6 +11,7 @@ const DepreciationService = require('./DepreciationService');
 const PeriodEndService = require('./PeriodEndService');
 const InventoryConsistencyService = require('./InventoryConsistencyService');
 const InventoryAlertService = require('./InventoryAlertService');
+const NotificationService = require('../NotificationService');
 
 /**
  * 定时任务调度服务
@@ -208,13 +209,6 @@ class ScheduledTaskService {
             operator: 'system',
           });
 
-          if (result.requisitionCreated) {
-            await this.sendNotification(
-              '低库存自动采购申请',
-              `已自动创建采购申请 ${result.requisitionNo}，包含 ${result.itemCount} 个低库存物料`
-            );
-          }
-
           logger.info(`低库存预警检查完成: ${result.message}`);
         } catch (error) {
           logger.error('低库存预警检查任务失败:', error);
@@ -292,7 +286,15 @@ class ScheduledTaskService {
    */
   static async executeBusinessAlertCheck() {
     const { pool } = require('../../config/db');
-    const [alerts] = await pool.query('SELECT * FROM business_alerts WHERE is_active = 1');
+    const [alerts] = await pool.query(
+      `SELECT *
+       FROM business_alerts
+       WHERE is_active = 1
+         AND (
+           last_checked_at IS NULL
+           OR TIMESTAMPDIFF(MINUTE, last_checked_at, NOW()) >= COALESCE(check_interval_minutes, 60)
+         )`
+    );
     if (!alerts.length) return { checked: 0, triggered: 0 };
 
     let triggered = 0;
@@ -418,7 +420,14 @@ class ScheduledTaskService {
             try {
               const roleIds = JSON.parse(alert.notify_roles);
               if (roleIds.length) {
-                const [users] = await pool.query('SELECT DISTINCT user_id FROM user_roles WHERE role_id IN (?)', [roleIds]);
+                const [users] = await pool.query(
+                  `SELECT DISTINCT ur.user_id
+                   FROM user_roles ur
+                   JOIN users u ON u.id = ur.user_id AND u.status = 1
+                   JOIN roles r ON r.id = ur.role_id AND r.status = 1
+                   WHERE ur.role_id IN (?)`,
+                  [roleIds]
+                );
                 targetUserIds = users.map(u => u.user_id);
               }
             } catch { /* ignore */ }
@@ -439,16 +448,21 @@ class ScheduledTaskService {
           if (!targetUserIds.length) {
             logger.warn(`业务告警触发但未找到通知对象: [${alert.code}] ${alert.name}`);
           } else {
-            const priorityMap = { low: 0, medium: 1, high: 2, critical: 3 };
+            const priorityMap = { low: 0, info: 0, medium: 1, warning: 1, high: 2, critical: 2 };
             const prio = priorityMap[alert.severity] || 1;
-            for (const uid of targetUserIds) {
-              await pool.query(
-                `INSERT INTO notifications (user_id, title, content, type, priority, is_read, created_at)
-                 VALUES (?, ?, ?, 'business_alert', ?, 0, NOW())`,
-                [uid, `[${alert.severity.toUpperCase()}] ${alert.name}`, detail, prio]
-              );
-            }
-            logger.info(`业务告警触发: [${alert.code}] ${alert.name} — ${detail} → ${targetUserIds.length}人`);
+            const notifyResult = await NotificationService.notifyUsers(
+              targetUserIds,
+              {
+                type: 'business_alert',
+                title: `[${alert.severity.toUpperCase()}] ${alert.name}`,
+                content: detail,
+                priority: prio,
+                sourceType: 'business_alert',
+                sourceId: alert.id,
+              },
+              { dedupeByDay: true }
+            );
+            logger.info(`业务告警触发: [${alert.code}] ${alert.name} - ${detail} -> ${targetUserIds.length}人, inserted=${notifyResult.inserted}, updated=${notifyResult.updated}`);
           }
         }
         // 更新最后检查时间
@@ -547,14 +561,20 @@ class ScheduledTaskService {
    */
   static async sendNotification(title, message) {
     try {
-      // 这里可以集成邮件服务、短信服务或系统内通知
-
-      // 示例：保存到系统通知表
-      const db = require('../../config/db');
-      await db.pool.execute(
-        `INSERT INTO notifications (title, content, type, is_read, created_at)
-         VALUES (?, ?, 'finance_auto', 0, NOW())`,
-        [title, message]
+      const sourceId =
+        (String(title).split('').reduce((hash, ch) => ((hash << 5) - hash) + ch.charCodeAt(0), 0) >>> 0) %
+        2147483647;
+      await NotificationService.notifyByPermissions(
+        ['finance:automation:view'],
+        {
+          type: 'finance_auto',
+          title,
+          content: message,
+          priority: 1,
+          sourceType: 'scheduled_task',
+          sourceId,
+        },
+        { dedupeByDay: true }
       );
     } catch (error) {
       logger.error('发送通知失败:', error);
@@ -569,13 +589,20 @@ class ScheduledTaskService {
   static async sendErrorNotification(title, error) {
     try {
       logger.error(`错误通知: ${title} - ${error}`);
-
-      // 示例：保存到系统通知表
-      const db = require('../../config/db');
-      await db.pool.execute(
-        `INSERT INTO notifications (title, content, type, is_read, created_at)
-         VALUES (?, ?, 'finance_error', 0, NOW())`,
-        [title, error]
+      const sourceId =
+        (String(title).split('').reduce((hash, ch) => ((hash << 5) - hash) + ch.charCodeAt(0), 0) >>> 0) %
+        2147483647;
+      await NotificationService.notifyByPermissions(
+        ['finance:automation:view'],
+        {
+          type: 'finance_error',
+          title,
+          content: error,
+          priority: 2,
+          sourceType: 'scheduled_task_error',
+          sourceId,
+        },
+        { dedupeByDay: true }
       );
     } catch (err) {
       logger.error('发送错误通知失败:', err);

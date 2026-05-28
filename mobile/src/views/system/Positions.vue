@@ -17,16 +17,31 @@
   import { ref, onMounted } from 'vue'
   import { NavBar, CellGroup, Cell, Loading } from 'vant'
   import { systemApi } from '@/services/api'
-  import { extractApiData } from '@/utils/apiHelper'
+  import { extractApiPaginated } from '@/utils/apiHelper'
 
   const loading = ref(true)
   const positions = ref([])
+  const USER_PAGE_SIZE = 100
+
+  const loadAllUsers = async () => {
+    let page = 1
+    const users = []
+
+    while (true) {
+      const res = await systemApi.getUsers({ page, pageSize: USER_PAGE_SIZE })
+      const { list, total } = extractApiPaginated(res, { totalFallback: 0 })
+      users.push(...list)
+
+      if (!list.length || users.length >= total || list.length < USER_PAGE_SIZE) break
+      page += 1
+    }
+
+    return users
+  }
 
   const fetchData = async () => {
     try {
-      const res = await systemApi.getUsers({ pageSize: 200 })
-      const d = extractApiData(res)
-      const users = Array.isArray(d) ? d : (d.list || d.items || [])
+      const users = await loadAllUsers()
       // 按岗位聚合
       const posMap = {}
       users.forEach(u => {
@@ -42,6 +57,6 @@
 </script>
 
 <style lang="scss" scoped>
-  .page-container { min-height: 100vh; background: var(--bg-primary); }
-  .page-body { padding: 12px; }
+  .page-container { min-height: 100%; background: var(--bg-primary); }
+  .page-body { padding: 0 12px var(--app-bottom-space); }
 </style>

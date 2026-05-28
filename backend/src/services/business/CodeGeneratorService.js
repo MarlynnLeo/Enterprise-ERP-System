@@ -5,6 +5,7 @@
  */
 
 const { pool } = require('../../config/db');
+const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 
 const dayjs = require('dayjs');
 
@@ -75,6 +76,7 @@ class CodeGeneratorService {
 
   async getRules(params = {}) {
     const { keyword, page = 1, pageSize = 50 } = params;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 50, maxPageSize: 100 });
     let where = 'WHERE 1=1';
     const values = [];
 
@@ -84,10 +86,8 @@ class CodeGeneratorService {
     }
 
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM coding_rules cr ${where}`, values);
-    const offset = (page - 1) * pageSize;
-
     // 一次性 LEFT JOIN 序列表，避免前端逐条请求预览（消除 N+1）
-    const [rows] = await pool.query(
+    const listSql = appendPaginationSQL(
       `SELECT cr.*, cs.current_value AS _seq_current
        FROM coding_rules cr
        LEFT JOIN coding_sequences cs
@@ -100,9 +100,11 @@ class CodeGeneratorService {
              ELSE 'default'
            END
          )
-       ${where} ORDER BY cr.business_type LIMIT ? OFFSET ?`,
-      [...values, Number(pageSize), offset]
+       ${where} ORDER BY cr.business_type`,
+      pagination.limit,
+      pagination.offset
     );
+    const [rows] = await pool.query(listSql, values);
 
     // 在后端直接计算预览编号，前端无需再逐条请求
     for (const rule of rows) {
@@ -110,7 +112,7 @@ class CodeGeneratorService {
       rule._preview = this._formatCode(rule, nextVal);
     }
 
-    return { list: rows, total };
+    return { list: rows, total, page: pagination.page, pageSize: pagination.pageSize };
   }
 
   async getRuleById(id) {

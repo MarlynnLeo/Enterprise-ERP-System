@@ -9,6 +9,14 @@ const logger = require('../../utils/logger');
 const db = require('../../config/db');
 const Builder = require('./Builder');
 
+const buildInClause = (values) => {
+  const filteredValues = values.filter((value) => value !== undefined && value !== null && value !== '');
+  return {
+    placeholders: filteredValues.map(() => '?').join(','),
+    values: filteredValues,
+  };
+};
+
 class TraceabilityQuery {
   /**
    * 获取全链路追溯数据 - 从采购入库到成品出库
@@ -120,7 +128,7 @@ class TraceabilityQuery {
       // 3. 查询质检记录
       let qualityRecords = [];
       if (productionRecords.length > 0) {
-        const taskIds = productionRecords.map((record) => record.task_id).join(',');
+        const taskIdClause = buildInClause(productionRecords.map((record) => record.task_id));
 
         const qualityQuery = `
           SELECT
@@ -137,24 +145,23 @@ class TraceabilityQuery {
           FROM
             quality_inspections qi
           WHERE
-            qi.target_type = 'production_task' AND qi.target_id IN (${taskIds})
+            qi.target_type = 'production_task' AND qi.target_id IN (${taskIdClause.placeholders})
         `;
 
-        const qualityResult = await db.query(qualityQuery, []);
+        const qualityResult = await db.query(qualityQuery, taskIdClause.values);
         qualityRecords = qualityResult.rows || [];
       }
 
       // 4. 查询成品出库记录
       let outboundRecords = [];
       if (productionRecords.length > 0) {
-        const productCodes = productionRecords
-          .map((record) => `'${record.product_code}'`)
-          .join(',');
-        const productBatches = productionRecords
-          .map((record) => `'${record.product_batch}'`)
-          .join(',');
+        const productCodeClause = buildInClause(productionRecords.map((record) => record.product_code));
+        const productBatchClause = buildInClause(productionRecords.map((record) => record.product_batch));
 
-        const outboundQuery = `
+        if (productCodeClause.values.length === 0 || productBatchClause.values.length === 0) {
+          outboundRecords = [];
+        } else {
+          const outboundQuery = `
           SELECT
             io.id AS outbound_id,
             io.outbound_no,
@@ -172,11 +179,16 @@ class TraceabilityQuery {
           JOIN
             materials m ON ioi.material_id = m.id
           WHERE
-            m.code IN (${productCodes}) AND ioi.batch_number IN (${productBatches})
+            m.code IN (${productCodeClause.placeholders})
+            AND ioi.batch_number IN (${productBatchClause.placeholders})
         `;
 
-        const outboundResult = await db.query(outboundQuery, []);
-        outboundRecords = outboundResult.rows || [];
+          const outboundResult = await db.query(outboundQuery, [
+            ...productCodeClause.values,
+            ...productBatchClause.values,
+          ]);
+          outboundRecords = outboundResult.rows || [];
+        }
       }
 
       // 5. 构建完整的追溯链
@@ -279,7 +291,7 @@ class TraceabilityQuery {
       }
 
       // 3. 查询生产使用的物料(从出库记录中获取)
-      const taskIds = productionRecords.map((record) => record.task_id).join(',');
+      const taskIdClause = buildInClause(productionRecords.map((record) => record.task_id));
 
       const materialsQuery = `
         SELECT
@@ -303,23 +315,20 @@ class TraceabilityQuery {
           AND il.transaction_type = 'production_outbound'
         WHERE
           io.reference_type = 'production_task'
-          AND io.reference_id IN (${taskIds})
+          AND io.reference_id IN (${taskIdClause.placeholders})
           AND io.status = 'completed'
         GROUP BY oi.id, il.batch_number
       `;
 
-      const materialsResult = await db.query(materialsQuery, []);
+      const materialsResult = await db.query(materialsQuery, taskIdClause.values);
       const materialsRecords = materialsResult.rows || [];
 
       // 4. 查询采购记录
       let purchaseRecords = [];
       if (materialsRecords.length > 0) {
-        const materialBatches = materialsRecords
-          .filter((m) => m.batch_number)
-          .map((m) => `'${m.batch_number}'`)
-          .join(',');
+        const materialBatchClause = buildInClause(materialsRecords.map((m) => m.batch_number));
 
-        if (materialBatches) {
+        if (materialBatchClause.values.length > 0) {
           const purchaseQuery = `
             SELECT
               pr.id AS receipt_id,
@@ -341,10 +350,10 @@ class TraceabilityQuery {
             JOIN
               suppliers s ON pr.supplier_id = s.id
             WHERE
-              pri.batch_number IN (${materialBatches})
+              pri.batch_number IN (${materialBatchClause.placeholders})
           `;
 
-          const purchaseResult = await db.query(purchaseQuery, []);
+          const purchaseResult = await db.query(purchaseQuery, materialBatchClause.values);
           purchaseRecords = purchaseResult.rows || [];
         }
       }
@@ -365,10 +374,10 @@ class TraceabilityQuery {
         FROM
           quality_inspections qi
         WHERE
-          qi.target_type = 'production_task' AND qi.target_id IN (${taskIds})
+          qi.target_type = 'production_task' AND qi.target_id IN (${taskIdClause.placeholders})
       `;
 
-      const qualityResult = await db.query(qualityQuery, []);
+      const qualityResult = await db.query(qualityQuery, taskIdClause.values);
       const qualityRecords = qualityResult.rows || [];
 
       return {

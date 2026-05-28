@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="accounts-container">
+  <div class="module-page accounts-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -25,8 +25,13 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="searchAccounts"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="科目编码">
           <el-input  v-model="searchForm.account_code" placeholder="输入科目编码" clearable ></el-input>
         </el-form-item>
@@ -43,12 +48,8 @@
             <el-option label="费用" value="费用"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchAccounts" :loading="loading">查询</el-button>
-          <el-button @click="resetSearch" :loading="loading">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
@@ -88,7 +89,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="220" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-buttons">
               <el-button

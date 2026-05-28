@@ -52,6 +52,6 @@
 </script>
 
 <style lang="scss" scoped>
-  .page-container { min-height: 100vh; background: var(--bg-primary); }
-  .page-body { padding: 12px; }
+  .page-container { min-height: 100%; background: var(--bg-primary); }
+  .page-body { padding: 0 12px var(--app-bottom-space); }
 </style>

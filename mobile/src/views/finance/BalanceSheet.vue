@@ -119,9 +119,9 @@
 
 <style lang="scss" scoped>
   .report-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-bottom-space);
   }
   .report-body {
     padding: 12px;
@@ -137,7 +137,7 @@
     background: var(--bg-secondary);
     border-radius: 12px;
     padding: 14px 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .date-label {
     font-size: 0.8125rem;
@@ -158,7 +158,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .metric {
     display: flex;
@@ -189,14 +189,14 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .section-title {
     font-size: 0.875rem;
     font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 10px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
     padding-bottom: 8px;
   }
   .section-item {
@@ -228,7 +228,7 @@
     justify-content: space-between;
     padding: 8px 0 0;
     margin-top: 6px;
-    border-top: 1px dashed var(--glass-border);
+    border-top: 1px dashed var(--surface-border, var(--border-subtle));
     font-weight: 700;
     font-size: 0.875rem;
     color: var(--text-primary);

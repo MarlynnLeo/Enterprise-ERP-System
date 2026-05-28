@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * PurchaseOrders.vue
  * @description 前端界面组件文件
@@ -7,28 +7,35 @@
  */
 -->
 <template>
-  <div class="purchase-orders-container">
+  <div class="module-page purchase-orders-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
           <h2>{{ $t('page.purchase.orders.title') }}</h2>
           <p class="subtitle">管理采购订单与跟踪</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="openOrderDialog()">{{ $t('page.purchase.orders.add') }}</el-button>
+        <el-button type="primary" :icon="Plus" v-permission="'purchase:orders:create'" @click="openOrderDialog()">{{ $t('page.purchase.orders.add') }}</el-button>
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :model="searchForm" :inline="true" class="search-form">
-        <el-form-item label="查询">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="订单号或合同编码"
+            placeholder="物料名称"
             clearable
             @clear="handleSearch"
             @keyup.enter="handleSearch"
           ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item :label="$t('page.purchase.orders.status')">
           <el-select
             v-model="searchForm.status"
@@ -39,22 +46,6 @@
             <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch" style="margin-left: 8px;" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
-          <el-button @click="showAdvancedFilter = !showAdvancedFilter" style="margin-left: 8px;">
-            <el-icon><Filter /></el-icon> 高级筛选
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <!-- 高级筛选区域 -->
-      <el-collapse-transition>
-        <div v-show="showAdvancedFilter" class="advanced-filter" style="margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--color-border-base);">
-          <el-form :inline="true" class="search-form" >
             <el-form-item :label="$t('page.purchase.orders.supplier')">
               <el-select
                 v-model="searchForm.supplier_id"
@@ -97,10 +88,8 @@
                 @change="handleSearch"
               ></el-date-picker>
             </el-form-item>
-          </el-form>
-        </div>
-      </el-collapse-transition>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -109,7 +98,7 @@
         <div class="stat-label">订单总数</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ formatCurrency(orderStats.totalAmount || 0) }}</div>
+        <div class="stat-value">{{ formatCurrency(orderStats.totalAmount) }}</div>
         <div class="stat-label">订单总金额</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
@@ -160,7 +149,7 @@
         <el-table-column prop="supplier_name" label="供应商" min-width="240" show-overflow-tooltip></el-table-column>
         <el-table-column prop="total_amount" label="订单金额" width="120">
           <template #default="scope">
-            ¥{{ parseFloat(scope.row.total_amount).toFixed(2) }}
+            {{ formatCurrency(scope.row.total_amount) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="110">
@@ -186,7 +175,7 @@
             {{ row.contract_code || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="230" fixed="right">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -235,6 +224,7 @@
               v-if="scope.row.status === 'pending'"
               size="small"
               type="success"
+              v-permission="'purchase:orders:update'"
               @click="updateStatus(scope.row.id, 'confirmed')"
             >
               批准
@@ -243,6 +233,7 @@
               v-if="scope.row.status === 'pending'"
               size="small"
               type="warning"
+              v-permission="'purchase:orders:update'"
               @click="updateStatus(scope.row.id, 'draft')"
             >
               驳回
@@ -365,7 +356,7 @@
           <el-button @click="openRequisitionDialog">选择采购申请</el-button>
         </div>
         <el-table :data="orderForm.items" border style="width: 100%" max-height="350">
-          <el-table-column label="序号" type="index" width="55" align="center"></el-table-column>
+          <el-table-column label="序号" type="index" width="55"></el-table-column>
           <el-table-column label="物料" min-width="250">
             <template #default="scope">
               <el-autocomplete
@@ -393,7 +384,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="unit" label="单位" width="70" align="center">
+          <el-table-column prop="unit" label="单位" width="70">
             <template #default="scope">{{ scope.row.unit || scope.row.unit_name || '-' }}</template>
           </el-table-column>
           <el-table-column label="数量" width="110">
@@ -429,12 +420,12 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="100" align="right">
+          <el-table-column label="金额" width="100">
             <template #default="scope">
-              ¥{{ (scope.row.quantity * scope.row.price || 0).toFixed(2) }}
+              {{ formatOrderLineAmount(scope.row) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="70" align="center" fixed="right">
+          <el-table-column label="操作" width="70" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button type="danger" link size="small" @click="removeItem(scope.$index)">删除</el-button>
             </template>
@@ -445,13 +436,13 @@
         <div class="total-price" style="margin-top: 15px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
             <el-col :span="8" style="text-align: right;">
-              <span style="color: var(--color-text-regular);">小计: ￥{{ orderForm.subtotal?.toFixed(2) || '0.00' }}</span>
+              <span style="color: var(--color-text-regular);">小计: {{ formatCurrency(orderForm.subtotal) }}</span>
             </el-col>
             <el-col :span="8" style="text-align: right;">
-              <span style="color: var(--color-warning);">税额: ￥{{ orderForm.tax_amount?.toFixed(2) || '0.00' }}</span>
+              <span style="color: var(--color-warning);">税额: {{ formatCurrency(orderForm.tax_amount) }}</span>
             </el-col>
             <el-col :span="8" style="text-align: right;">
-              <span style="font-weight: bold; color: var(--color-primary); font-size: 16px;">订单总金额: ￥{{ calculateTotalAmount() }}</span>
+              <span style="font-weight: bold; color: var(--color-primary); font-size: 16px;">订单总金额: {{ formatCurrency(calculateTotalAmount()) }}</span>
             </el-col>
           </el-row>
         </div>
@@ -460,7 +451,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="orderDialog.visible = false">取消</el-button>
-          <el-button v-permission="'purchase:orders:update'" type="primary" @click="submitOrderForm">保存</el-button>
+          <el-button v-permission="orderDialog.isEdit ? 'purchase:orders:update' : 'purchase:orders:create'" type="primary" @click="submitOrderForm">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -527,7 +518,7 @@
             </el-text>
           </template>
         </el-table-column>
-        <el-table-column prop="quantity" label="数量" width="80" align="right">
+        <el-table-column prop="quantity" label="数量" width="80">
           <template #default="{ row }">
             {{ parseFloat(row.quantity || 0).toFixed(2) }}
           </template>
@@ -563,38 +554,38 @@
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(viewData.status)">{{ getStatusText(viewData.status) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="订单金额">¥{{ parseFloat(viewData.total_amount || 0).toFixed(2) }}</el-descriptions-item>
+          <el-descriptions-item label="订单金额">{{ formatCurrency(viewData.total_amount) }}</el-descriptions-item>
           <el-descriptions-item label="关联申请单" v-if="viewData.requisition_number">{{ viewData.requisition_number }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="viewData.requisition_number ? 1 : 2">{{ viewData.notes || '无' }}</el-descriptions-item>
         </el-descriptions>
         <el-divider content-position="center">订单明细</el-divider>
         <el-table :data="viewData.items || []" border style="width: 100%">
-          <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
+          <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
           <el-table-column prop="material_name" label="物料名称" min-width="150" show-overflow-tooltip></el-table-column>
           <el-table-column prop="specification" label="规格" min-width="150" show-overflow-tooltip></el-table-column>
           <el-table-column prop="unit" label="单位" width="70"></el-table-column>
-          <el-table-column label="数量" width="90" align="right">
+          <el-table-column label="数量" width="90">
             <template #default="scope">
               {{ parseFloat(scope.row.quantity || 0).toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column label="单价" width="100" align="right">
+          <el-table-column label="单价" width="100">
             <template #default="scope">
-              ¥{{ parseFloat(scope.row.price || 0).toFixed(2) }}
+              {{ formatCurrency(scope.row.price) }}
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="120" align="right">
+          <el-table-column label="金额" width="120">
             <template #default="scope">
-              ¥{{ parseFloat(scope.row.total_price || 0).toFixed(2) }}
+              {{ formatCurrency(scope.row.total_price) }}
             </template>
           </el-table-column>
-          <el-table-column label="已收货" width="80" align="right">
+          <el-table-column label="已收货" width="80">
             <template #default="scope">
               <el-text type="primary">{{ parseFloat(scope.row.received_quantity || 0).toFixed(1) }}</el-text>
             </template>
           </el-table-column>
-          <el-table-column label="已入库" width="80" align="right">
+          <el-table-column label="已入库" width="80">
             <template #default="scope">
               <el-text type="success">{{ parseFloat(scope.row.warehoused_quantity || 0).toFixed(1) }}</el-text>
             </template>
@@ -632,7 +623,7 @@
         </el-descriptions>
         <el-divider content-position="center">申请物料</el-divider>
         <el-table :data="requisitionViewData.materials || []" border style="width: 100%">
-          <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
+          <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" min-width="120">
             <template #default="scope">
               {{ scope.row.material_code || scope.row.materialCode || '-' }}
@@ -691,38 +682,38 @@
           style="width: 100%"
           max-height="400px"
         >
-          <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
+          <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" width="120"></el-table-column>
           <el-table-column prop="material_name" label="物料名称" min-width="120"></el-table-column>
           <el-table-column prop="specification" label="规格" width="200"></el-table-column>
           <el-table-column prop="unit" label="单位" width="55"></el-table-column>
-          <el-table-column label="订单" width="70" align="right">
+          <el-table-column label="订单" width="70">
             <template #default="scope">
               {{ parseFloat(scope.row.quantity || 0).toFixed(1) }}
             </template>
           </el-table-column>
-          <el-table-column label="已收货" width="70" align="right">
+          <el-table-column label="已收货" width="70">
             <template #default="scope">
               <el-text type="primary">
                 {{ parseFloat(scope.row.received_quantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="已检验" width="70" align="right">
+          <el-table-column label="已检验" width="70">
             <template #default="scope">
               <el-text type="warning">
                 {{ parseFloat(scope.row.inspected_quantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="合格" width="70" align="right">
+          <el-table-column label="合格" width="70">
             <template #default="scope">
               <el-text type="success">
                 {{ parseFloat(scope.row.qualified_quantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="不合格" width="70" align="right">
+          <el-table-column label="不合格" width="70">
             <template #default="scope">
               <el-text
                 v-if="parseFloat(scope.row.unqualified_quantity || 0) > 0"
@@ -733,14 +724,14 @@
               <el-text v-else type="info">0.0</el-text>
             </template>
           </el-table-column>
-          <el-table-column label="已入库" width="70" align="right">
+          <el-table-column label="已入库" width="70">
             <template #default="scope">
               <el-text type="success">
                 {{ parseFloat(scope.row.warehoused_quantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
-          <el-table-column label="待收货" width="70" align="right">
+          <el-table-column label="待收货" width="70">
             <template #default="scope">
               <el-text type="warning">
                 {{ (parseFloat(scope.row.quantity || 0) - parseFloat(scope.row.received_quantity || 0)).toFixed(1) }}
@@ -811,14 +802,14 @@
 <script setup>
 import { ref, reactive, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '@/services/api'
-import { Plus, Search, Refresh, Select, Promotion, CircleCheck, Close, Filter } from '@element-plus/icons-vue'
+import { purchaseApi } from '@/services/api'
+import { Plus, Select, Promotion, CircleCheck, Close } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { PURCHASE_STATUS_OPTIONS } from '@/constants/purchaseConstants'
 import { parseListData } from '@/utils/responseParser'
+import { loadUserListOptions } from '@/utils/optionLoaders'
 const _router = useRouter()
 const authStore = useAuthStore()
-const showAdvancedFilter = ref(false)
 // ========== 组合式函数导入 ==========
 import { usePurchaseOrderForm } from './composables/usePurchaseOrderForm'
 import { usePurchaseOrderActions } from './composables/usePurchaseOrderActions'
@@ -856,6 +847,13 @@ const {
   handleSelectionChange, clearSelection, handleBatchSubmit, handleBatchApprove
 } = usePurchaseOrderActions(loadOrders, orderList)
 // ========== 本地方法 ==========
+const isBlankAmount = (value) => value === null || value === undefined || value === ''
+const formatOrderLineAmount = (row) => {
+  if (!isBlankAmount(row?.total_price)) return formatCurrency(row.total_price)
+  if (isBlankAmount(row?.quantity) || isBlankAmount(row?.price)) return '-'
+  return formatCurrency(Number(row.quantity) * Number(row.price))
+}
+
 // 加载订单列表
 async function loadOrders() {
   loading.value = true
@@ -869,7 +867,7 @@ async function loadOrders() {
       params.startDate = searchForm.date_range[0]
       params.endDate = searchForm.date_range[1]
     }
-    const res = await api.get('/purchase/orders', { params })
+    const res = await purchaseApi.getOrders(params)
     if (res.data) {
       const orderItems = parseListData(res, { enableLog: false })
       const formattedOrders = orderItems.map(order => {
@@ -897,8 +895,7 @@ async function loadOrders() {
 // 加载操作人列表
 const loadOperators = async () => {
   try {
-    const res = await api.get('/system/users/list')
-    operators.value = parseListData(res, { logPrefix: '操作人', enableLog: false })
+    operators.value = await loadUserListOptions()
   } catch (error) { console.error('加载操作人列表失败:', error); operators.value = [] }
 }
 // 搜索
@@ -951,60 +948,6 @@ onActivated(async () => {
   display: flex;
   flex-wrap: wrap;
 }
-/* 浮动批量操作栏样式 */
-.floating-batch-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4), 0 4px 16px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  gap: 32px;
-  min-width: 400px;
-}
-.floating-batch-bar .batch-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-on-primary, #fff);
-  font-size: 14px;
-}
-.floating-batch-bar .batch-info .el-icon {
-  font-size: 20px;
-}
-.floating-batch-bar .batch-info strong {
-  color: #ffd700;
-  font-size: 18px;
-  margin: 0 2px;
-}
-.floating-batch-bar .batch-buttons {
-  display: flex;
-  gap: 12px;
-}
-.floating-batch-bar .batch-buttons .el-button {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-}
-.floating-batch-bar .batch-buttons .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-/* 浮动栏进入/离开动画 */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
-}
-.slide-up-enter-from,
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 100%);
-}
 /* 操作按钮样式 - 与库存出库页面保持一致 */
 .el-table .el-button + .el-button {
   margin-left: 8px;
@@ -1048,10 +991,10 @@ onActivated(async () => {
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 10%, transparent);
   z-index: 1000;
   max-height: 200px;
   overflow-y: auto;
@@ -1059,7 +1002,7 @@ onActivated(async () => {
 .quick-search-item {
   padding: 8px 12px;
   cursor: pointer;
-  border-bottom: 1px solid #f5f7fa;
+  border-bottom: 1px solid var(--color-bg-hover);
   transition: background-color 0.3s;
 }
 .quick-search-item:hover {
@@ -1105,6 +1048,6 @@ onActivated(async () => {
   font-weight: 500;
 }
 .delete-text-btn:hover {
-  color: #f78989 !important;
+  color: var(--ds-red-strong) !important;
 }
 </style>

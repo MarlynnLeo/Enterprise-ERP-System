@@ -36,6 +36,83 @@ const sendPagedEquipmentRecords = (res, rows, total, page, pageSize) => {
     });
 };
 
+const normalizeEquipmentTypeStatus = (status) => (status && status !== 'all' ? status : '');
+
+exports.getEquipmentTypes = async (req, res) => {
+  try {
+    const { page, pageSize, offset } = parsePagination(req.query);
+    const { search = '' } = req.query;
+    const status = normalizeEquipmentTypeStatus(req.query.status);
+    const conditions = [];
+    const params = [];
+
+    if (status) {
+      conditions.push('et.status = ?');
+      params.push(status);
+    }
+
+    if (search) {
+      conditions.push('(et.code LIKE ? OR et.name LIKE ? OR et.manufacturer LIKE ? OR et.description LIKE ?)');
+      const keyword = `%${search}%`;
+      params.push(keyword, keyword, keyword, keyword);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const [countResult] = await pool.query(
+      `SELECT COUNT(*) AS total FROM equipment_types et ${whereClause}`,
+      params
+    );
+    const [rows] = await pool.query(
+      `SELECT et.*, COUNT(e.id) AS count
+       FROM equipment_types et
+       LEFT JOIN equipment e ON e.model = et.name OR e.model = et.code
+       ${whereClause}
+       GROUP BY et.id
+       ORDER BY et.created_at DESC, et.id DESC
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      params
+    );
+
+    sendPagedEquipmentRecords(res, rows, countResult[0].total, page, pageSize);
+  } catch (error) {
+    handleDatabaseError(error, res);
+  }
+};
+
+exports.createEquipmentType = async (req, res) => {
+  try {
+    const code = String(req.body.code || '').trim().toUpperCase();
+    const name = String(req.body.name || '').trim();
+    const manufacturer = String(req.body.manufacturer || '').trim();
+    const description = String(req.body.description || '').trim();
+    const status = req.body.status || 'active';
+    const userId = req.user?.id || req.user?.userId || null;
+
+    if (!code || !name) {
+      return ResponseHandler.error(res, '类别编码和类别名称为必填项', 'VALIDATION_ERROR', 400);
+    }
+
+    const [existing] = await pool.query(
+      'SELECT id FROM equipment_types WHERE code = ? OR name = ? LIMIT 1',
+      [code, name]
+    );
+    if (existing.length > 0) {
+      return ResponseHandler.error(res, '设备类别编码或名称已存在', 'VALIDATION_ERROR', 400);
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO equipment_types
+       (code, name, manufacturer, description, status, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [code, name, manufacturer || null, description || null, status, userId, userId]
+    );
+
+    ResponseHandler.success(res, { id: result.insertId, code, name }, '设备类别创建成功', 201);
+  } catch (error) {
+    handleDatabaseError(error, res);
+  }
+};
+
 /**
  * 获取设备列表
  */
@@ -81,7 +158,7 @@ exports.getEquipmentList = async (req, res) => {
     // 查询分页数据
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(
-      `SELECT * FROM equipment ${whereClause} ORDER BY created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
+      `SELECT * FROM equipment ${whereClause} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
       params
     );
 
@@ -126,7 +203,7 @@ exports.getMaintenanceRecords = async (req, res) => {
        LEFT JOIN equipment e ON e.id = em.equipment_id
        ${whereClause}
        ORDER BY em.maintenance_date DESC, em.id DESC
-       LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
+       LIMIT ${pageSize} OFFSET ${offset}`,
       params
     );
 
@@ -171,7 +248,7 @@ exports.getFailureRecords = async (req, res) => {
        LEFT JOIN equipment e ON e.id = ef.equipment_id
        ${whereClause}
        ORDER BY ef.failure_date DESC, ef.id DESC
-       LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
+       LIMIT ${pageSize} OFFSET ${offset}`,
       params
     );
 
@@ -218,7 +295,7 @@ exports.getInspectionRecords = async (req, res) => {
        LEFT JOIN equipment e ON e.id = ei.equipment_id
        ${whereClause}
        ORDER BY ei.inspection_date DESC, ei.id DESC
-       LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
+       LIMIT ${pageSize} OFFSET ${offset}`,
       params
     );
 

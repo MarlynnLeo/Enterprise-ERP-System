@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../../stores/auth'
 import { todoApi } from '../../../services/api'
 import { ElMessage } from 'element-plus'
+import { parseListData } from '@/utils/responseParser'
 
 export function useTodos() {
   const router = useRouter()
@@ -78,15 +79,12 @@ export function useTodos() {
 
       const response = await todoApi.getAllTodos()
 
-      // axios拦截器已自动解包，response.data 就是实际数据
-      // 兼容多种数据格式
-      const todoData = response.data?.data || response.data || response || []
-      const todoList = Array.isArray(todoData) ? todoData : (todoData.list || todoData.items || [])
+      const todoList = parseListData(response, { enableLog: false })
 
       // 保存所有待办事项
       todos.value = todoList.map(todo => ({
         ...todo,
-        deadline: new Date(todo.deadline)
+        deadline: todo.deadline ? new Date(todo.deadline) : null
       }))
 
       // 转换为待办事项显示格式
@@ -95,7 +93,7 @@ export function useTodos() {
         .slice(0, 10) // 限制最多显示10个
         .map(todo => ({
           type: getPriorityType(todo.priority), // 根据优先级显示不同类型
-          sender: authStore.user?.real_name || '用户',
+          sender: getTodoSender(todo),
           date: formatDate(todo.deadline),
           status: isOverdue(todo) ? '已逾期' : isUpcoming(todo) ? '即将到期' : '待处理',
           title: todo.title,
@@ -108,8 +106,8 @@ export function useTodos() {
         .slice(0, 10) // 限制最多显示10个
         .map(todo => ({
           type: getPriorityType(todo.priority),
-          sender: authStore.user?.real_name || '用户',
-          date: formatDate(todo.completed_at || todo.updated_at || todo.deadline),
+          sender: getTodoSender(todo),
+          date: formatDate(todo.completedAt || todo.completed_at || todo.updatedAt || todo.updated_at || todo.deadline),
           status: '已完成',
           title: todo.title,
           id: todo.id
@@ -129,6 +127,11 @@ export function useTodos() {
   // 获取待办事项总数（可用于更新统计数据）
   const getTodoCount = () => {
     return todos.value.filter(todo => !todo.completed).length
+  }
+
+  const getTodoSender = (todo) => {
+    const creator = todo.creator
+    return creator?.real_name || creator?.username || authStore.user?.real_name || '用户'
   }
 
   // 跳转到待办页面

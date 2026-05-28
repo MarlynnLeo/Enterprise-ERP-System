@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Entries.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="entries-container">
+  <div class="module-page entries-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -25,22 +25,19 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="searchEntries"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="凭证编号">
           <el-input  v-model="searchForm.entryNumber" placeholder="输入凭证编号" clearable ></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchEntries">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-          <el-button class="advanced-search-btn" @click="showAdvancedSearch = !showAdvancedSearch">
-            {{ showAdvancedSearch ? '收起筛选' : '高级搜索' }}
-            <el-icon style="margin-left: 4px;"><ArrowUp v-if="showAdvancedSearch" /><ArrowDown v-else /></el-icon>
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <!-- 高级搜索区域 -->
-      <el-form :inline="true" :model="searchForm" class="search-form" v-show="showAdvancedSearch" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dcdfe6;">
+      </template>
+      <template #advanced>
         <el-form-item label="记账日期">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -81,8 +78,8 @@
             />
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -99,7 +96,7 @@
         <div class="stat-label">未过账</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ formatCurrency(statistics.totalAmount || 0) }}</div>
+        <div class="stat-value">{{ formatCurrency(statistics.totalAmount) }}</div>
         <div class="stat-label">总金额</div>
       </el-card>
     </div>
@@ -159,13 +156,13 @@
         <el-table-column prop="documentType" label="单据类型" width="90" show-overflow-tooltip></el-table-column>
         <el-table-column prop="documentNumber" label="单据编号" width="160" show-overflow-tooltip></el-table-column>
         <el-table-column prop="periodName" label="会计期间" width="110" show-overflow-tooltip></el-table-column>
-        <el-table-column label="借方合计" width="120" align="right">
+        <el-table-column label="借方合计" width="120">
           <template #default="scope">
             <span class="debit" v-if="scope.row.totalDebit">{{ scope.row.totalDebit.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="贷方合计" width="120" align="right">
+        <el-table-column label="贷方合计" width="120">
           <template #default="scope">
             <span class="credit" v-if="scope.row.totalCredit">{{ scope.row.totalCredit.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
             <span v-else>-</span>
@@ -191,7 +188,7 @@
         </el-table-column>
         <el-table-column prop="createdBy" label="创建人" width="120" show-overflow-tooltip></el-table-column>
         <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" min-width="220" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-buttons">
               <!-- 查看按钮：始终显示 -->
@@ -220,7 +217,7 @@
               >冲销</el-button>
 
               <!-- 删除按钮：只在未过账时显示 -->
-              <el-button v-permission="'finance:entries:update'"
+              <el-button v-permission="'finance:entries:delete'"
                 v-if="!scope.row.isPosted"
                 type="danger"
                 size="small"
@@ -332,7 +329,7 @@
         <el-descriptions-item label="原凭证">{{ reversingEntry.entryNumber }}</el-descriptions-item>
         <el-descriptions-item label="原期间">{{ reversingEntry.periodName }}</el-descriptions-item>
         <el-descriptions-item label="原日期">{{ reversingEntry.entryDate }}</el-descriptions-item>
-        <el-descriptions-item label="原金额">{{ formatCurrency(reversingEntry.totalDebit || 0) }}</el-descriptions-item>
+        <el-descriptions-item label="原金额">{{ formatCurrency(reversingEntry.totalDebit) }}</el-descriptions-item>
       </el-descriptions>
 
       <el-form :model="reversalForm" label-width="100px" class="reversal-form">
@@ -414,7 +411,7 @@ import { useRouter, useRoute } from 'vue-router';
 
 // Element Plus
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Printer, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
+import { Plus, Printer } from '@element-plus/icons-vue';
 
 // Pinia Stores
 import { useFinanceStore } from '@/stores/finance';
@@ -504,8 +501,8 @@ const handlePrint = async () => {
       period_name: entry.periodName || '',
       status: entry.isPosted ? '已过账' : '未过账',
       description: entry.description || '',
-      total_debit: formatCurrency(totalDebit.value || 0),
-      total_credit: formatCurrency(totalCredit.value || 0),
+      total_debit: formatCurrency(totalDebit.value),
+      total_credit: formatCurrency(totalCredit.value),
       created_by: entry.createdBy || '',
       print_time: new Date().toLocaleString(),
       items: currentEntryItems.value.map((item, index) => ({
@@ -1123,7 +1120,7 @@ watch(() => [props.fixedType, route.query.type], () => {
 /* 展开行样式 */
 .expanded-row {
   padding: 20px;
-  background-color: #f9f9f9;
+  background-color: var(--color-bg-hover);
 }
 
 .expanded-row-header {
@@ -1145,14 +1142,14 @@ watch(() => [props.fixedType, route.query.type], () => {
 
 .inner-table {
   margin-bottom: 15px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ds-black) 10%, transparent);
 }
 
 .expanded-row-footer {
   display: flex;
   justify-content: flex-end;
   padding-top: 15px;
-  border-top: 1px dashed #dcdfe6;
+  border-top: 1px dashed var(--color-border-base);
 }
 
 .expanded-row-footer .total-item {

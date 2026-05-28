@@ -1,20 +1,15 @@
 <template>
-  <div class="purchase-history tech-container">
-    <div class="tech-card">
+  <div class="purchase-history">
+    <div class="history-panel">
       <!-- 顶部搜索栏 -->
       <div class="search-bar">
-        <el-form :inline="true" :model="searchForm" class="tech-form">
-          <el-form-item label="部件编码">
-            <el-input
-              v-model="searchForm.materialCode"
-              placeholder="请输入部件编码"
-              clearable
-              @keyup.enter="handleSearch"
-            >
-              <template #prefix><el-icon><Monitor /></el-icon></template>
-            </el-input>
-          </el-form-item>
-
+        <FinanceQueryCard
+          :model="searchForm"
+          :loading="loading"
+          @search="handleSearch"
+          @reset="resetSearch"
+        >
+          <template #basic>
           <el-form-item label="零部件名称">
             <el-input
               v-model="searchForm.materialName"
@@ -25,7 +20,18 @@
               <template #prefix><el-icon><Goods /></el-icon></template>
             </el-input>
           </el-form-item>
-
+          </template>
+          <template #advanced>
+          <el-form-item label="部件编码">
+            <el-input
+              v-model="searchForm.materialCode"
+              placeholder="请输入部件编码"
+              clearable
+              @keyup.enter="handleSearch"
+            >
+              <template #prefix><el-icon><Monitor /></el-icon></template>
+            </el-input>
+          </el-form-item>
           <el-form-item label="入库日期">
             <el-date-picker
               v-model="dateRange"
@@ -34,31 +40,23 @@
               start-placeholder="开始日期"
               end-placeholder="结束日期"
               value-format="YYYY-MM-DD"
-              class="tech-datepicker"
+              class="history-datepicker"
               @change="handleSearch"
             ></el-date-picker>
           </el-form-item>
-
-          <el-form-item>
-            <el-button type="primary" class="tech-btn-primary" @click="handleSearch">
-              <el-icon><Search /></el-icon> 分析查询
-            </el-button>
-            <el-button class="tech-btn-plain" @click="resetSearch">
-              <el-icon><Refresh /></el-icon> 重置
-            </el-button>
-          </el-form-item>
-        </el-form>
+          </template>
+        </FinanceQueryCard>
       </div>
 
       <!-- 数据汇总统计 -->
       <div class="stats-overview" v-if="historyList.length > 0">
         <div class="stat-item">
           <span class="label">本页合计金额：</span>
-          <span class="value success-text">¥ {{ currentTotalAmount.toFixed(2) }}</span>
+          <span class="value success-text">{{ formatCurrency(currentTotalAmount) }}</span>
         </div>
         <div class="stat-item">
           <span class="label">本页总收货量：</span>
-          <span class="value tech-text">{{ currentTotalQty.toFixed(2) }}</span>
+          <span class="value">{{ currentTotalQty.toFixed(2) }}</span>
         </div>
       </div>
 
@@ -67,14 +65,14 @@
         <el-table
           v-loading="loading"
           :data="historyList"
-          class="tech-table glass-table"
+          class="history-table"
           stripe
           border
           height="100%"
         >
           <el-table-column prop="receipt_date" label="入库日期" width="120" sortable>
             <template #default="{ row }">
-              <span class="tech-text-info">{{ row.receipt_date }}</span>
+              <span class="muted-text">{{ row.receipt_date }}</span>
             </template>
           </el-table-column>
 
@@ -86,13 +84,13 @@
 
           <el-table-column prop="supplier_name" label="供应商" width="180" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="tech-text-primary">{{ row.supplier_name || '--' }}</span>
+              <span class="supplier-text">{{ row.supplier_name || '--' }}</span>
             </template>
           </el-table-column>
 
           <el-table-column prop="material_code" label="物料编码" width="150" show-overflow-tooltip>
              <template #default="{ row }">
-              <span class="tech-code">{{ row.material_code }}</span>
+              <span class="material-code">{{ row.material_code }}</span>
             </template>
           </el-table-column>
 
@@ -102,21 +100,21 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="quantity" label="收货数量" width="120" align="right">
+          <el-table-column prop="quantity" label="收货数量" width="120">
             <template #default="{ row }">
               <el-tag type="success" effect="dark" size="small">{{ row.quantity }} {{ row.unit }}</el-tag>
             </template>
           </el-table-column>
 
-          <el-table-column prop="unit_price" label="实采单价(元)" width="140" align="right">
+          <el-table-column prop="unit_price" label="实采单价(元)" width="140">
             <template #default="{ row }">
-              <span class="price-highlight">¥ {{ parseFloat(row.unit_price).toFixed(2) }}</span>
+              <span class="price-highlight">{{ formatCurrency(row.unit_price) }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column prop="total_amount" label="总金额(元)" width="140" align="right">
+          <el-table-column prop="total_amount" label="总金额(元)" width="140">
             <template #default="{ row }">
-              <span class="amount-highlight">¥ {{ parseFloat(row.total_amount || 0).toFixed(2) }}</span>
+              <span class="amount-highlight">{{ formatCurrency(row.total_amount) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -132,7 +130,7 @@
           :total="pagination.total"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
-          class="tech-pagination"
+          class="history-pagination"
         />
       </div>
     </div>
@@ -142,9 +140,10 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Search, Refresh, Monitor, Goods } from '@element-plus/icons-vue';
+import { Monitor, Goods } from '@element-plus/icons-vue';
 import { purchaseApi } from '@/api/purchase';
-
+import { formatCurrency } from '@/utils/format';
+import { parsePaginatedData } from '@/utils/responseParser';
 const loading = ref(false);
 const historyList = ref([]);
 const dateRange = ref([]);
@@ -165,7 +164,8 @@ const pagination = reactive({
 
 // 计算当前页面的合计
 const currentTotalAmount = computed(() => {
-  return historyList.value.reduce((sum, item) => sum + parseFloat(item.total_amount || 0), 0);
+  if (historyList.value.some(item => item.total_amount === null || item.total_amount === undefined || item.total_amount === '')) return null;
+  return historyList.value.reduce((sum, item) => sum + parseFloat(item.total_amount), 0);
 });
 
 const currentTotalQty = computed(() => {
@@ -193,25 +193,9 @@ const fetchHistory = async () => {
       endDate: searchForm.endDate
     });
 
-    // axiosInstance 已经自动解包过 responseData.data
-    // 如果存在 res.data.rows 则表明这是标准分页数据
-    if (res.data && Array.isArray(res.data.rows)) {
-      historyList.value = res.data.rows;
-      pagination.total = res.data.total || 0;
-    }
-    // 若未被正确拦截且返回原始 Axios 结构包含 data 的场景
-    else if (res.data && res.data.data && Array.isArray(res.data.data.rows)) {
-      historyList.value = res.data.data.rows;
-      pagination.total = res.data.data.total || 0;
-    }
-    // 直接返回结果的特殊场景
-    else if (Array.isArray(res.rows)) {
-      historyList.value = res.rows;
-      pagination.total = res.total || 0;
-    } else {
-      historyList.value = [];
-      pagination.total = 0;
-    }
+    const { list, total } = parsePaginatedData(res, { enableLog: false });
+    historyList.value = list;
+    pagination.total = total || 0;
   } catch (error) {
     console.error('获取采购历史失败:', error);
     ElMessage.error('获取历史记录失败: ' + (error.message || '未知网络错误'));
@@ -254,13 +238,13 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-.tech-card {
+.history-panel {
   height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--el-bg-color-overlay);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ds-black) 5%, transparent);
   padding: 20px;
   box-sizing: border-box;
 }
@@ -276,9 +260,9 @@ onMounted(() => {
   gap: 24px;
   margin-bottom: 12px;
   padding: 10px 16px;
-  background: rgba(0, 195, 255, 0.05);
+  background: color-mix(in srgb, var(--ds-cyan) 5%, transparent);
   border-radius: 4px;
-  border-left: 4px solid var(--tech-primary);
+  border-left: 4px solid var(--shell-accent);
 }
 
 .stats-overview .label {
@@ -309,13 +293,22 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.tech-code {
+.material-code {
   font-family: 'Consolas', monospace;
-  color: var(--tech-secondary);
-  background: rgba(30, 136, 229, 0.1);
+  color: var(--shell-accent-strong);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 13px;
+}
+
+.muted-text {
+  color: var(--el-text-color-secondary);
+}
+
+.supplier-text {
+  color: var(--shell-accent);
+  font-weight: 500;
 }
 
 .table-container {

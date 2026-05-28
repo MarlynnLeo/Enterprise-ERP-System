@@ -1,3 +1,4 @@
+import { formatLocalDate } from '@/utils/format';
 /**
  * 数据概览仪表盘公共工具函数
  */
@@ -84,7 +85,7 @@ export function formatQuantity(value, unit = '') {
  */
 export function getMonthStart() {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth(), 1));
 }
 
 /**
@@ -93,7 +94,7 @@ export function getMonthStart() {
  */
 export function getMonthEnd() {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 }
 
 /**
@@ -104,7 +105,7 @@ export function getMonthEnd() {
 export function getDateBefore(months) {
   const now = new Date();
   now.setMonth(now.getMonth() - months);
-  return now.toISOString().split('T')[0];
+  return formatLocalDate(now);
 }
 
 /**

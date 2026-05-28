@@ -1,5 +1,7 @@
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
+const { parsePagination } = require('../../utils/safePagination');
+const { currentDateString } = require('../../utils/dateUtils');
 
 function createReconciliationError(message, code = 'VALIDATION_ERROR', statusCode = 400) {
   const error = new Error(message);
@@ -18,6 +20,10 @@ function requirePositiveInteger(value, fieldName) {
 
 function toMoneyCents(value) {
   return Math.round((parseFloat(value) || 0) * 100);
+}
+
+function calculateBalanceDifference(bankStatementBalance, bookBalance) {
+  return (toMoneyCents(bankStatementBalance) - toMoneyCents(bookBalance)) / 100;
 }
 
 function getBankTransactionDirection(type) {
@@ -46,7 +52,7 @@ class ReconciliationModel {
          WHERE id = ?
            AND status = 'approved'
            AND (is_reconciled = 0 OR is_reconciled IS NULL)`,
-        [reconciliationData.reconciliation_date || new Date().toISOString().slice(0, 10), id]
+        [reconciliationData.reconciliation_date || currentDateString(), id]
       );
       if (result.affectedRows === 0) {
         const [current] = await db.pool.execute(
@@ -75,6 +81,53 @@ class ReconciliationModel {
 
   static async reconcileTransaction(id, reconciliationData) {
     return await this.reconcileBankTransaction(id, reconciliationData);
+  }
+
+  static async batchReconcileBankTransactions(ids, reconciliationData = {}) {
+    const transactionIds = [...new Set((ids || []).map((id) => Number.parseInt(id, 10)))]
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    if (transactionIds.length === 0) {
+      throw createReconciliationError('transactionIds must contain at least one valid id');
+    }
+
+    const placeholders = transactionIds.map(() => '?').join(',');
+    const [rows] = await db.pool.execute(
+      `SELECT id, status, is_reconciled
+       FROM bank_transactions
+       WHERE id IN (${placeholders})`,
+      transactionIds
+    );
+
+    if (rows.length !== transactionIds.length) {
+      const existingIds = new Set(rows.map((row) => Number(row.id)));
+      const missingIds = transactionIds.filter((id) => !existingIds.has(id));
+      throw createReconciliationError(`Bank transaction not found: ${missingIds.join(',')}`, 'NOT_FOUND', 404);
+    }
+
+    const notApproved = rows.filter((row) => row.status !== 'approved').map((row) => row.id);
+    if (notApproved.length > 0) {
+      throw createReconciliationError(`Only approved bank transactions can be reconciled: ${notApproved.join(',')}`);
+    }
+
+    const alreadyReconciled = rows.filter((row) => isReconciledFlag(row.is_reconciled)).map((row) => row.id);
+    if (alreadyReconciled.length > 0) {
+      throw createReconciliationError(`Bank transactions already reconciled: ${alreadyReconciled.join(',')}`);
+    }
+
+    const reconciliationDate = reconciliationData.reconciliation_date || currentDateString();
+    const [result] = await db.pool.execute(
+      `UPDATE bank_transactions
+       SET is_reconciled = 1, reconciliation_date = ?
+       WHERE id IN (${placeholders})`,
+      [reconciliationDate, ...transactionIds]
+    );
+
+    return {
+      count: result.affectedRows || 0,
+      transactionIds,
+      reconciliationDate,
+    };
   }
 
   static async cancelReconciliation(id) {
@@ -445,9 +498,10 @@ class ReconciliationModel {
         params.push(filters.status);
       }
 
-      const page = filters.page || 1;
-      const limit = filters.limit || 10;
-      const offset = (page - 1) * limit;
+      const pagination = parsePagination(filters.page, filters.limit, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
 
       const countQuery = `SELECT COUNT(*) as total FROM reconciliations WHERE 1=1 ${
         filters.accountId ? 'AND account_id = ?' : ''
@@ -455,7 +509,7 @@ class ReconciliationModel {
       const [countResult] = await db.pool.execute(countQuery, params.slice());
       const total = countResult[0].total;
 
-      query += ` ORDER BY reconciliation_date DESC LIMIT ${parseInt(limit, 10)} OFFSET ${parseInt(offset, 10)}`;
+      query += ` ORDER BY reconciliation_date DESC LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
       const [rows] = await db.pool.query(query, params);
 
       return {
@@ -463,9 +517,6 @@ class ReconciliationModel {
         total,
       };
     } catch (error) {
-      if (error.code === 'ER_NO_SUCH_TABLE') {
-        return { data: [], total: 0 };
-      }
       logger.error('Get reconciliation list failed:', error);
       throw error;
     }
@@ -476,7 +527,6 @@ class ReconciliationModel {
       const [rows] = await db.pool.execute('SELECT * FROM reconciliations WHERE id = ?', [id]);
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
-      if (error.code === 'ER_NO_SUCH_TABLE') return null;
       logger.error('Get reconciliation failed:', error);
       throw error;
     }
@@ -487,16 +537,22 @@ class ReconciliationModel {
     try {
       await connection.beginTransaction();
       const createdBy = requirePositiveInteger(data.created_by, 'created_by');
+      const difference = calculateBalanceDifference(
+        data.bank_statement_balance,
+        data.book_balance
+      );
 
       const [result] = await connection.execute(
         `INSERT INTO reconciliations
-          (account_id, reconciliation_date, bank_statement_balance, book_balance, status, notes, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (account_id, reconciliation_date, bank_statement_balance, book_balance,
+           difference, status, notes, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.account_id,
           data.reconciliation_date,
           data.bank_statement_balance,
           data.book_balance,
+          difference,
           data.status || 'draft',
           data.notes,
           createdBy,
@@ -518,6 +574,10 @@ class ReconciliationModel {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      const difference = calculateBalanceDifference(
+        data.bank_statement_balance,
+        data.book_balance
+      );
 
       const [result] = await connection.execute(
         `UPDATE reconciliations SET
@@ -525,6 +585,7 @@ class ReconciliationModel {
           reconciliation_date = ?,
           bank_statement_balance = ?,
           book_balance = ?,
+          difference = ?,
           status = ?,
           notes = ?
          WHERE id = ?`,
@@ -533,6 +594,7 @@ class ReconciliationModel {
           data.reconciliation_date,
           data.bank_statement_balance,
           data.book_balance,
+          difference,
           data.status,
           data.notes,
           id,

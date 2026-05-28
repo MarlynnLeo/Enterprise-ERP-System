@@ -18,9 +18,11 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { showToast } from 'vant'
+  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { purchaseApi } from '@/services/api'
+
+  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '外委入库',
@@ -61,7 +63,7 @@
     return response
   }
 
-  const handleItemClick = () => {
-    showToast('手机端暂未开放外委入库详情')
+  const handleItemClick = (item) => {
+    router.push(`/purchase/processing-receipts/${item.id}`)
   }
 </script>

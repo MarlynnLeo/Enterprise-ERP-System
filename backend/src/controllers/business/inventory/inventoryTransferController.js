@@ -50,8 +50,9 @@ const getTransferList = async (req, res) => {
       to_location_id = '',
       start_date = '',
       end_date = '',
+      materialName = '',
     } = req.query;
-    const pagination = parsePagination(page, limit, { maxPageSize: 200, defaultPageSize: 10 });
+    const pagination = parsePagination(page, limit, { maxPageSize: 100, defaultPageSize: 10 });
 
     let whereClause = 'WHERE 1=1';
     const params = [];
@@ -85,6 +86,17 @@ const getTransferList = async (req, res) => {
     } else if (end_date) {
       whereClause += ' AND t.transfer_date <= ?';
       params.push(end_date);
+    }
+
+    if (materialName) {
+      whereClause += ` AND EXISTS (
+        SELECT 1
+        FROM inventory_transfer_items ti_search
+        LEFT JOIN materials m_search ON ti_search.material_id = m_search.id
+        WHERE ti_search.transfer_id = t.id
+          AND (m_search.name LIKE ? OR m_search.code LIKE ? OR m_search.specs LIKE ?)
+      )`;
+      params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
     }
 
     // 获取总记录数
@@ -208,6 +220,95 @@ const getTransferDetail = async (req, res) => {
 };
 
 // 创建库存调拨单
+
+const getTransferDetails = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return ResponseHandler.error(res, '请提供有效的调拨单ID数组', 'VALIDATION_ERROR', 400);
+    }
+
+    const transferIds = [...new Set(ids.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (transferIds.length === 0) {
+      return ResponseHandler.error(res, '请提供有效的调拨单ID数组', 'VALIDATION_ERROR', 400);
+    }
+
+    if (transferIds.length > 100) {
+      return ResponseHandler.error(res, '批量查询数量不能超过100条', 'VALIDATION_ERROR', 400);
+    }
+
+    const placeholders = transferIds.map(() => '?').join(',');
+    const [transfers] = await db.pool.query(
+      `SELECT
+        t.id,
+        t.transfer_no,
+        t.transfer_date,
+        t.from_location_id,
+        t.to_location_id,
+        fl.name as from_location,
+        tl.name as to_location,
+        t.status,
+        t.remark,
+        t.creator,
+        t.created_at,
+        t.updated_at
+      FROM inventory_transfers t
+      LEFT JOIN locations fl ON t.from_location_id = fl.id
+      LEFT JOIN locations tl ON t.to_location_id = tl.id
+      WHERE t.id IN (${placeholders})`,
+      transferIds
+    );
+
+    if (transfers.length === 0) {
+      return ResponseHandler.error(res, '调拨单不存在', 'NOT_FOUND', 404);
+    }
+
+    const [items] = await db.pool.query(
+      `SELECT
+        i.id,
+        i.transfer_id,
+        i.material_id,
+        m.code as material_code,
+        m.name as material_name,
+        m.specs as specification,
+        i.quantity,
+        u.id as unit_id,
+        u.name as unit_name
+      FROM inventory_transfer_items i
+      LEFT JOIN materials m ON i.material_id = m.id
+      LEFT JOIN units u ON m.unit_id = u.id
+      WHERE i.transfer_id IN (${placeholders})`,
+      transferIds
+    );
+
+    const itemsByTransferId = new Map();
+    items.forEach((item) => {
+      const list = itemsByTransferId.get(item.transfer_id) || [];
+      list.push(item);
+      itemsByTransferId.set(item.transfer_id, list);
+    });
+
+    const transferById = new Map(
+      transfers.map((transfer) => [
+        transfer.id,
+        {
+          ...transfer,
+          items: itemsByTransferId.get(transfer.id) || [],
+        },
+      ])
+    );
+
+    const orderedTransfers = transferIds
+      .map((id) => transferById.get(id))
+      .filter(Boolean);
+
+    ResponseHandler.success(res, orderedTransfers, '批量获取调拨单详情成功');
+  } catch (error) {
+    logger.error('批量获取调拨单详情失败:', error);
+    ResponseHandler.error(res, '批量获取调拨单详情失败', 'SERVER_ERROR', 500, error);
+  }
+};
 
 const createTransfer = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -371,7 +472,7 @@ const updateTransfer = async (req, res) => {
 
     // 检查调拨单是否存在
     const [transferResult] = await connection.execute(
-      'SELECT status FROM inventory_transfers WHERE id = ?',
+      'SELECT status FROM inventory_transfers WHERE id = ? FOR UPDATE',
       [id]
     );
 
@@ -492,7 +593,7 @@ const deleteTransfer = async (req, res) => {
 
     // 检查调拨单是否存在
     const [transferResult] = await connection.execute(
-      'SELECT status FROM inventory_transfers WHERE id = ?',
+      'SELECT status FROM inventory_transfers WHERE id = ? FOR UPDATE',
       [id]
     );
 
@@ -553,7 +654,8 @@ const updateTransferStatus = async (req, res) => {
       FROM inventory_transfers t
       LEFT JOIN locations fl ON t.from_location_id = fl.id
       LEFT JOIN locations tl ON t.to_location_id = tl.id
-      WHERE t.id = ?`,
+      WHERE t.id = ?
+      FOR UPDATE`,
       [id]
     );
 
@@ -893,6 +995,7 @@ const batchDeleteTransfers = async (req, res) => {
 module.exports = {
   getTransferList,
   getTransferDetail,
+  getTransferDetails,
   createTransfer,
   updateTransfer,
   deleteTransfer,

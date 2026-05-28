@@ -1,4 +1,4 @@
-﻿/**
+/**
  * locationsController.js
  * @description 控制器文件
  * @date 2025-08-27
@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const Locations = require('../../../models/locations');
 
@@ -30,10 +31,12 @@ const locationsController = {
   // 获取所有库位
   getAll: async (req, res) => {
     try {
-      const page = parseInt(req.query.page, 10) || 1;
-      const pageSize = parseInt(req.query.pageSize, 10) || 10;
+      const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
       const search = req.query.search || '';
-      const result = await Locations.getAll(search, page, pageSize);
+      const result = await Locations.getAll(search, pagination.page, pagination.pageSize);
       return ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('Error getting locations:', error);

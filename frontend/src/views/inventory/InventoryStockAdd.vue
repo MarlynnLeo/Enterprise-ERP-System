@@ -309,7 +309,7 @@ const resetForm = () => {
 .material-code {
   color: var(--color-text-regular);
   font-size: 12px;
-  background: #f0f2f5;
+  background: var(--color-bg-hover);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
   min-width: 90px;

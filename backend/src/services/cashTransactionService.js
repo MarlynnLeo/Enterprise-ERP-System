@@ -131,8 +131,7 @@ class CashTransactionService {
   async exportCashTransactions(filters) {
     try {
       // 获取所有数据（不分页）
-      const exportFilters = { ...filters, page: 1, pageSize: 10000 };
-      const result = await CashTransactionModel.getCashTransactions(exportFilters);
+      const result = await CashTransactionModel.getCashTransactionsForExport(filters);
       const transactions = result.transactions || result.data || [];
 
       // 创建Excel工作簿

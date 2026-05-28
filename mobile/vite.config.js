@@ -6,14 +6,15 @@ import { resolve } from 'path';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const devPort = Number.parseInt(env.VITE_DEV_PORT || '3100', 10);
+  const devPort = Number.parseInt(env.VITE_DEV_PORT || '3001', 10);
   const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080';
+  const buildTime = env.VITE_BUILD_TIME || '';
 
   return {
     plugins: [
       vue(),
-      basicSsl()
-    ],
+      mode === 'development' ? basicSsl() : null
+    ].filter(Boolean),
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src'),
@@ -21,10 +22,10 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       // 注入构建时间供 About.vue 使用
-      'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString().slice(0, 10))
+      'import.meta.env.VITE_BUILD_TIME': JSON.stringify(buildTime)
     },
     server: {
-      port: Number.isNaN(devPort) ? 3100 : devPort,
+      port: Number.isNaN(devPort) ? 3001 : devPort,
       host: env.VITE_DEV_HOST || '0.0.0.0',
       // hmr config removed to let vite auto-detect
       headers: {
@@ -38,6 +39,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path
+        },
+        '/uploads': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
         },
         '/socket.io': {
           target: apiTarget,
@@ -63,6 +69,30 @@ export default defineConfig(({ mode }) => {
       assetsDir: 'assets',
       sourcemap: false,
       minify: true,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return undefined;
+            }
+
+            const normalizedId = id.replace(/\\/g, '/');
+            if (/\/node_modules\/(vue|vue-router|pinia)\//.test(normalizedId)) {
+              return 'vendor-vue';
+            }
+            if (normalizedId.includes('/node_modules/vant/')) {
+              return 'vendor-vant';
+            }
+            if (normalizedId.includes('/node_modules/html5-qrcode/')) {
+              return 'vendor-scan';
+            }
+            if (/\/node_modules\/(socket\.io-client|@socket\.io|engine\.io-client)\//.test(normalizedId)) {
+              return 'vendor-realtime';
+            }
+            return undefined;
+          },
+        },
+      },
     },
   };
 });

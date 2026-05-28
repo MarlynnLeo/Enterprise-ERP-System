@@ -1,5 +1,5 @@
 <template>
-  <div class="cost-version-manage">
+  <div class="module-page cost-version-manage">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -31,14 +31,14 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_by" label="发起人" width="100" />
-        <el-table-column prop="status" label="状态" width="120" align="center">
+        <el-table-column prop="status" label="状态" width="120">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)" effect="dark">
               {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <!-- 仅草稿状态允许操作智取底价和提交审批 -->
             <template v-if="scope.row.status === 'draft'">
@@ -93,11 +93,13 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh } from '@element-plus/icons-vue';
 import api from '@/services/api';
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { parseResponseData } from '@/utils/responseParser'
 
 const loading = ref(false);
 const saving = ref(false);
@@ -155,8 +157,8 @@ const fetchVersions = async () => {
       pageSize: pagination.pageSize,
       status: filterStatus.value || undefined
     };
-    const res = await api.get('/finance-enhancement/cost-versions', { params });
-    const data = res.data?.data || res.data;
+    const res = await api.get('/finance/cost-versions', { params });
+    const data = parseResponseData(res);
     versionList.value = data.list || [];
     pagination.total = Number(data.total) || 0;
   } catch {
@@ -170,7 +172,7 @@ const openCreateDialog = () => {
   if (formRef.value) formRef.value.resetFields();
   form.version_no = '';
   form.version_name = '';
-  form.effective_date = new Date().toISOString().split('T')[0];
+  form.effective_date = formatLocalDate(new Date());
   form.remark = '';
   dialogVisible.value = true;
 };
@@ -181,7 +183,7 @@ const saveVersion = async () => {
     if (valid) {
       saving.value = true;
       try {
-        await api.post('/finance-enhancement/cost-versions', form);
+        await api.post('/finance/cost-versions', form);
         ElMessage.success('版本创建成功');
         dialogVisible.value = false;
         fetchVersions();
@@ -200,8 +202,8 @@ const handleGenerate = async (row) => {
       type: 'warning'
     });
     operatingId.value = row.id;
-    const res = await api.post(`/finance-enhancement/cost-versions/${row.id}/generate`);
-    ElMessage.success((res.data?.data?.message) || '测算成功');
+    const res = await api.post(`/finance/cost-versions/${row.id}/generate`);
+    ElMessage.success(parseResponseData(res, {})?.message || '测算成功');
   } catch (error) {
     if (error !== 'cancel') ElMessage.error(error.response?.data?.message || '测算异常');
   } finally {
@@ -213,7 +215,7 @@ const handleSubmit = async (row) => {
   try {
     await ElMessageBox.confirm('确认已完成各项价格核算并提报审批？', '提审说明', { type: 'info' });
     operatingId.value = row.id;
-    await api.put(`/finance-enhancement/cost-versions/${row.id}/submit`);
+    await api.put(`/finance/cost-versions/${row.id}/submit`);
     ElMessage.success('提审成功');
     fetchVersions();
   } catch (error) {
@@ -231,7 +233,7 @@ const handleApprove = async (row) => {
       { type: 'error', confirmButtonText: '坚决执行', cancelButtonText: '再想想' }
     );
     operatingId.value = row.id;
-    await api.put(`/finance-enhancement/cost-versions/${row.id}/approve`);
+    await api.put(`/finance/cost-versions/${row.id}/approve`);
     ElMessage.success('新版本重锤生效！');
     fetchVersions();
   } catch (error) {

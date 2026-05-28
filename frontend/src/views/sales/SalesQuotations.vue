@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesQuotations.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="quotation-container">
+  <div class="module-page quotation-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -19,16 +19,21 @@
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="报价单号/客户">
+    <FinanceQueryCard
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
             <el-input
               v-model="searchQuery"
-              placeholder="报价单号/客户名称"
+              placeholder="物料名称"
               @keyup.enter="handleSearch"
               clearable ></el-input>
         </el-form-item>
-
+      </template>
+      <template #advanced>
         <el-form-item label="报价状态">
           <el-select v-model="statusFilter" placeholder="报价状态" clearable @change="handleSearch">
               <el-option
@@ -51,17 +56,8 @@
             value-format="YYYY-MM-DD"
             />
         </el-form-item>
-
-        <el-form-item>
-              <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-              </el-button>
-              <el-button @click="resetSearch" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-              </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover" @click="resetStatusFilter">
@@ -109,7 +105,7 @@
         </el-table-column>
         <el-table-column prop="total_amount" label="总金额" width="120">
           <template #default="scope">
-            ¥{{ Number(scope.row.total_amount).toFixed(2) }}
+            {{ formatCurrency(scope.row.total_amount) }}
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建日期" width="120">
@@ -127,7 +123,7 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusLabel(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="350" fixed="right">
+        <el-table-column label="操作" min-width="350" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" @click="handleView(scope.row)">
               查看
@@ -138,7 +134,7 @@
               type="primary"
               @click="handleEdit(scope.row)"
 
-              v-permission="'sales:quotations'">
+              v-permission="'sales:quotations:update'">
               编辑
             </el-button>
             <el-popconfirm
@@ -157,13 +153,14 @@
               @confirm="handleConfirm(scope.row)"
             >
               <template #reference>
-                <el-button size="small" type="success">确认</el-button>
+                <el-button size="small" type="success" v-permission="'sales:quotations:update'">确认</el-button>
               </template>
             </el-popconfirm>
             <el-button
               v-if="scope.row.status === 'accepted' && !scope.row.order_id"
               size="small"
               type="success"
+              v-permission="'sales:quotations:update'"
               @click="handleConvert(scope.row)"
             >
               转订单
@@ -194,12 +191,20 @@
       :title="dialogType === 'create' ? '创建报价单' : '编辑报价单'"
       width="1000px"
       destroy-on-close
-      v-if="dialogType !== 'view'"
     >
       <div v-loading="dialogLoading">
       <el-form :model="quotationForm" ref="quotationFormRef" :rules="rules" label-width="100px">
         <el-form-item label="客户" prop="customer_id">
-          <el-select v-model="quotationForm.customer_id" placeholder="请选择客户" style="width: 100%">
+          <el-select
+            v-model="quotationForm.customer_id"
+            placeholder="请选择客户"
+            filterable
+            remote
+            clearable
+            :remote-method="searchCustomers"
+            :loading="customerLoading"
+            style="width: 100%"
+          >
             <el-option
               v-for="customer in customers"
               :key="customer.id"
@@ -226,7 +231,10 @@
               v-model="selectedProductId"
               placeholder="选择产品BOM"
               filterable
+              remote
               clearable
+              :remote-method="searchProducts"
+              :loading="productLoading"
               :disabled="dialogType === 'view'"
               @change="handleProductBomChange"
               style="width: 100%"
@@ -270,7 +278,10 @@
                       v-model="row.product_id"
                       placeholder="选择产品"
                       filterable
+                      remote
                       clearable
+                      :remote-method="searchProducts"
+                      :loading="productLoading"
                       :disabled="dialogType === 'view'"
                       @change="() => handleProductChange($index)"
                       style="width: 100%"
@@ -325,11 +336,11 @@
 
               <el-table-column label="金额" width="120">
                   <template #default="{ row }">
-                    ¥{{ ((row.quantity || 0) * (row.unit_price || 0)).toFixed(2) }}
+                    {{ formatQuotationLineAmount(row) }}
                   </template>
                 </el-table-column>
 
-              <el-table-column label="操作" width="120" fixed="right">
+              <el-table-column label="操作" width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                   <template #default="{ $index }">
                     <el-button
                       type="danger"
@@ -337,7 +348,7 @@
                       @click="removeItem($index)"
                       v-if="dialogType !== 'view'"
 
-              v-permission="'sales:quotations'">
+              v-permission="dialogType === 'create' ? 'sales:quotations:create' : 'sales:quotations:update'">
                     删除
                     </el-button>
                   </template>
@@ -345,14 +356,14 @@
               </el-table>
 
             <div class="add-material" style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
-              <el-button type="primary" @click="addItem" v-if="dialogType !== 'view'">
+              <el-button type="primary" v-permission="dialogType === 'create' ? 'sales:quotations:create' : 'sales:quotations:update'" @click="addItem" v-if="dialogType !== 'view'">
                 <el-icon><Plus /></el-icon> 添加产品
               </el-button>
 
               <div style="font-size: 16px; font-weight: bold;" v-if="quotationForm.items.length > 0">
                 总计金额：
                 <span style="color: var(--color-danger); font-size: 18px; margin-left: 5px;">
-                  ¥{{ calculateTotalAmount().toFixed(2) }}
+                  {{ formatCurrency(calculateTotalAmount()) }}
                 </span>
               </div>
             </div>
@@ -370,7 +381,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-permission="'sales:quotations:update'" type="primary" @click="submitQuotation" :loading="dialogLoading">保存</el-button>
+          <el-button v-permission="dialogType === 'create' ? 'sales:quotations:create' : 'sales:quotations:update'" type="primary" @click="submitQuotation" :loading="dialogLoading">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -390,7 +401,7 @@
             {{ getStatusText(currentQuotation.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="总金额">¥{{ (currentQuotation.total_amount || 0).toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="总金额">{{ formatCurrency(currentQuotation.total_amount) }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatDateTime(currentQuotation.created_at) }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ currentQuotation.remarks || '无' }}</el-descriptions-item>
       </el-descriptions>
@@ -403,7 +414,7 @@
       <!-- 合计行 -->
       <div style="margin-top: 16px; text-align: right; padding: 12px; background-color: var(--color-bg-hover); border: 1px solid var(--color-border-base); border-radius: 4px;">
         <span style="font-size: 16px; font-weight: bold; color: var(--color-text-primary);">
-          合计：¥{{ (currentQuotation.total_amount || 0).toFixed(2) }}
+          合计：{{ formatCurrency(currentQuotation.total_amount) }}
         </span>
       </div>
       </div>
@@ -411,14 +422,22 @@
   </div>
 </template>
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { parseListData } from '@/utils/responseParser';
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
+import { formatCurrency } from '@/utils/helpers/formatters'
 import dayjs from 'dayjs'
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { baseDataApi, salesApi } from '@/services/api'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
+import {
+  loadCustomerOptions,
+  loadMaterialOptions,
+  searchCustomerOptions,
+  searchMaterialOptions,
+} from '@/utils/optionLoaders'
 // 销售报价功能 - 完善版
 // 支持报价单的创建、编辑、查看、删除和转为订单功能
 // 实现了与后端的真实API交互
@@ -443,6 +462,7 @@ const monthlyQuotations = ref(0)
 const monthlyAmount = ref(0)
 const conversionRate = ref(0)
 const customers = ref([])
+const customerLoading = ref(false)
 const dialogVisible = ref(false)
 const dialogLoading = ref(false)
 const dialogType = ref('create')
@@ -455,12 +475,25 @@ const currentQuotation = ref({
   customer_name: '',
   validity_date: '',
   status: '',
-  total_amount: 0,
+  total_amount: null,
   created_at: '',
   items: []
 })
+const isBlankAmount = (value) => value === null || value === undefined || value === ''
+const toMoneyNumber = (value) => {
+  if (isBlankAmount(value)) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+const formatQuotationLineAmount = (row) => {
+  const quantity = toMoneyNumber(row?.quantity)
+  const unitPrice = toMoneyNumber(row?.unit_price)
+  if (quantity === null || unitPrice === null) return '-'
+  return formatCurrency(quantity * unitPrice)
+}
 // 产品列表
 const products = ref([])
+const productLoading = ref(false)
 // BOM相关数据
 const selectedProductId = ref('') // 选中的产品ID
 const loadingBom = ref(false) // BOM加载状态
@@ -602,31 +635,76 @@ const fetchQuotationStats = async () => {
     console.error('获取报价单统计数据失败:', error)
   }
 }
+const normalizeCustomerOption = (customer) => ({
+  ...customer,
+  id: customer.id,
+  name: customer.name || customer.customer_name || '',
+  code: customer.code || customer.customer_code || '',
+})
+
+const normalizeProductOption = (product) => ({
+  ...product,
+  id: product.id,
+  code: product.code || product.material_code || '',
+  name: product.name || product.material_name || '',
+  specs: product.specs || product.specification || '',
+  unit_name: product.unit_name || product.unit || '',
+  price: product.price ?? product.sale_price ?? null,
+  sale_price: product.sale_price ?? product.price ?? null,
+})
+
 // 获取客户数据
 const fetchCustomers = async () => {
+  customerLoading.value = true
   try {
-    const response = await salesApi.getCustomers()
-    if (response && response.data) {
-      customers.value = response.data
-    }
+    customers.value = (await loadCustomerOptions()).map(normalizeCustomerOption)
   } catch (error) {
     console.error('获取客户数据失败:', error)
     ElMessage.error('获取客户数据失败')
+    customers.value = []
+  } finally {
+    customerLoading.value = false
   }
 }
+
+const searchCustomers = async (query) => {
+  const keyword = String(query || '').trim()
+  customerLoading.value = true
+  try {
+    const list = keyword ? await searchCustomerOptions(keyword) : await loadCustomerOptions()
+    customers.value = list.map(normalizeCustomerOption)
+  } catch (error) {
+    console.error('搜索客户失败:', error)
+    customers.value = []
+  } finally {
+    customerLoading.value = false
+  }
+}
+
 // 获取产品列表
 const fetchProducts = async () => {
+  productLoading.value = true
   try {
-    const response = await salesApi.getProductsList()
-    if (response && response.data) {
-      products.value = response.data
-    } else {
-      console.error('产品列表API返回格式异常:', response)
-      products.value = []
-    }
+    products.value = (await loadMaterialOptions()).map(normalizeProductOption)
   } catch (error) {
     console.error('获取产品列表失败:', error)
     products.value = []
+  } finally {
+    productLoading.value = false
+  }
+}
+
+const searchProducts = async (query) => {
+  const keyword = String(query || '').trim()
+  productLoading.value = true
+  try {
+    const list = keyword ? await searchMaterialOptions(keyword) : await loadMaterialOptions()
+    products.value = list.map(normalizeProductOption)
+  } catch (error) {
+    console.error('搜索产品失败:', error)
+    products.value = []
+  } finally {
+    productLoading.value = false
   }
 }
 // 根据产品ID获取产品信息
@@ -640,7 +718,7 @@ const handleProductChange = (index) => {
     const product = getProductById(item.product_id)
     if (product) {
       item.specification = product.specs || ''
-      item.unit_price = product.sale_price || product.price || 0
+      item.unit_price = isBlankAmount(product.sale_price ?? product.price) ? null : (product.sale_price ?? product.price)
       calculateItemAmount(index)
     }
   }
@@ -669,15 +747,17 @@ const removeItem = (index) => {
 const calculateItemAmount = (index) => {
   const item = quotationForm.value.items[index]
   if (item) {
-    const quantity = parseFloat(item.quantity) || 0
-    const unitPrice = parseFloat(item.unit_price) || 0
-    item.amount = quantity * unitPrice
+    const quantity = toMoneyNumber(item.quantity)
+    const unitPrice = toMoneyNumber(item.unit_price)
+    item.amount = quantity === null || unitPrice === null ? null : quantity * unitPrice
   }
 }
 // 计算总金额
 const calculateTotalAmount = () => {
   return quotationForm.value.items.reduce((sum, item) => {
-    return sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0))
+    const quantity = toMoneyNumber(item.quantity)
+    const unitPrice = toMoneyNumber(item.unit_price)
+    return sum + (quantity === null || unitPrice === null ? 0 : quantity * unitPrice)
   }, 0)
 }
 // 显示创建对话框
@@ -709,9 +789,16 @@ const submitQuotation = async () => {
       try {
         dialogLoading.value = true
 
+        const invalidPriceItem = quotationForm.value.items.find(item => toMoneyNumber(item.quantity) > 0 && toMoneyNumber(item.unit_price) === null)
+        if (invalidPriceItem) {
+          ElMessage.error(`产品 ${invalidPriceItem.product_name || invalidPriceItem.product_id || ''} 缺少有效单价，无法保存报价`)
+          dialogLoading.value = false
+          return
+        }
+
         // 计算总金额
         const totalAmount = quotationForm.value.items.reduce((sum, item) => {
-          return sum + (parseFloat(item.quantity) * parseFloat(item.unit_price))
+          return sum + ((toMoneyNumber(item.quantity) || 0) * (toMoneyNumber(item.unit_price) || 0))
         }, 0)
 
         // 构建提交数据
@@ -725,9 +812,9 @@ const submitQuotation = async () => {
           },
           items: quotationForm.value.items.map(item => ({
             product_id: item.product_id,
-            quantity: parseFloat(item.quantity) || 0,
-            unit_price: parseFloat(item.unit_price) || 0,
-            total_price: (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)
+            quantity: toMoneyNumber(item.quantity) || 0,
+            unit_price: toMoneyNumber(item.unit_price),
+            total_price: (toMoneyNumber(item.quantity) || 0) * (toMoneyNumber(item.unit_price) || 0)
           }))
         }
 
@@ -781,7 +868,7 @@ const handleConfirm = async (row) => {
       const updateData = {
         quotation: {
           customer_id: currentQuotation.customer_id,
-          total_amount: currentQuotation.total_amount || 0,
+          total_amount: currentQuotation.total_amount,
           validity_date: currentQuotation.validity_date,
           remarks: currentQuotation.remarks || '',
           status: 'accepted'
@@ -820,7 +907,7 @@ const handleView = async (row) => {
         customer_name: quotation.customer_name || '-',
         validity_date: quotation.validity_date || '',
         status: quotation.status || 'draft',
-        total_amount: Number(quotation.total_amount) || 0,
+        total_amount: isBlankAmount(quotation.total_amount) ? null : quotation.total_amount,
         created_at: quotation.created_at || quotation.created_time || new Date().toISOString(),
         remarks: quotation.remarks || '',
         items: quotation.items || []
@@ -883,6 +970,11 @@ const handleConvert = (row) => {
       }
 
       const quotationData = quotationResponse.data
+      const hasMaskedAmount = isBlankAmount(quotationData.total_amount) ||
+        (quotationData.items || []).some(item => isBlankAmount(item.unit_price))
+      if (hasMaskedAmount) {
+        throw new Error('报价金额或单价不可见，不能转换为销售订单')
+      }
 
       // 构建销售订单数据
       const orderData = {
@@ -894,11 +986,11 @@ const handleConvert = (row) => {
         order_date: formatDateToISOString(new Date()),
         status: 'pending',
         remarks: `由报价单 ${quotationData.quotation_no || row.quotation_no} 转换`,
-        total_amount: quotationData.total_amount || 0,
+        total_amount: quotationData.total_amount,
         items: (quotationData.items || []).map(item => ({
           material_id: item.product_id,
-          quantity: parseFloat(item.quantity) || 0,
-          unit_price: parseFloat(item.unit_price) || 0,
+          quantity: toMoneyNumber(item.quantity) || 0,
+          unit_price: toMoneyNumber(item.unit_price),
           specification: item.specification || '',
           notes: ''
         }))
@@ -906,7 +998,7 @@ const handleConvert = (row) => {
 
       // 日期格式化辅助函数
       function formatDateToISOString(date) {
-        return date.toISOString().split('T')[0];
+        return formatLocalDate(date);
       }
 
       // 创建销售订单

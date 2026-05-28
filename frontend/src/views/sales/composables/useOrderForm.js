@@ -1,3 +1,4 @@
+import { formatLocalDate } from '@/utils/format';
 /**
  * useOrderForm.js
  * @description 销售订单表单逻辑的组合式函数（从 SalesOrders.vue 抽取）
@@ -8,12 +9,25 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { searchMaterials } from '@/utils/searchConfig'
+import { loadCustomerOptions, searchCustomerOptions } from '@/utils/optionLoaders'
 import { checkInventory } from '@/composables/useInventoryCheck'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
 
 /** 默认交期天数 */
 const DEFAULT_DELIVERY_DAYS = 21
+const isBlankAmount = (value) => value === null || value === undefined || value === ''
+const toNumberOrNull = (value) => {
+  if (isBlankAmount(value)) return null
+  const normalized = typeof value === 'string' ? value.replace(/,/g, '') : value
+  const number = Number(normalized)
+  return Number.isNaN(number) ? null : number
+}
+const normalizeTaxRate = (rate, fallback = 0) => {
+  const number = toNumberOrNull(rate)
+  if (number === null) return fallback
+  return number > 1 ? number / 100 : number
+}
 
 export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   // 财务 store
@@ -86,8 +100,16 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   // ========== 金额计算 ==========
 
   const calculateTotalAmount = () => {
-    const subtotal = form.items.reduce((total, item) => total + (item.amount || 0), 0)
-    const taxAmount = form.items.reduce((total, item) => total + (item.tax_amount || 0), 0)
+    const materialItems = form.items.filter(item => item.material_id)
+    const hasUnknownAmount = materialItems.some(item => toNumberOrNull(item.unit_price) === null || toNumberOrNull(item.amount) === null)
+    if (hasUnknownAmount) {
+      form.subtotal = null
+      form.tax_amount = null
+      form.total_amount = null
+      return
+    }
+    const subtotal = materialItems.reduce((total, item) => total + (toNumberOrNull(item.amount) ?? 0), 0)
+    const taxAmount = materialItems.reduce((total, item) => total + (toNumberOrNull(item.tax_amount) ?? 0), 0)
     form.subtotal = subtotal
     form.tax_amount = taxAmount
     form.total_amount = subtotal + taxAmount
@@ -102,18 +124,20 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     const item = form.items[index]
     if (!item) return
 
-    let quantity = typeof item.quantity === 'string'
-      ? parseFloat(item.quantity.replace(/,/g, '') || 0) : Number(item.quantity || 0)
-    let unitPrice = typeof item.unit_price === 'string'
-      ? parseFloat(item.unit_price.replace(/,/g, '') || 0) : Number(item.unit_price || 0)
+    let quantity = toNumberOrNull(item.quantity)
+    const unitPrice = toNumberOrNull(item.unit_price)
 
-    if (isNaN(quantity)) quantity = 0
-    if (isNaN(unitPrice)) unitPrice = 0
-
+    if (quantity === null) quantity = 0
     item.quantity = quantity
+    if (unitPrice === null) {
+      item.amount = null
+      item.tax_amount = null
+      calculateTotalAmount()
+      return
+    }
     item.unit_price = unitPrice
     item.amount = quantity * unitPrice
-    const taxRate = item.tax_rate !== undefined ? item.tax_rate : 0
+    const taxRate = normalizeTaxRate(item.tax_rate, 0)
     item.tax_amount = item.amount * taxRate
     calculateTotalAmount()
   }
@@ -122,8 +146,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   const fetchCustomers = async () => {
     try {
-      const response = await baseDataApi.getCustomers({ status: 'active' })
-      const customersData = parseListData(response, { enableLog: false })
+      const customersData = await loadCustomerOptions()
       if (customersData.length > 0) {
         customers.value = customersData.map(customer => ({
           id: customer.id,
@@ -148,21 +171,28 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   const searchCustomers = (query) => {
     customerSearchLoading.value = true
-    setTimeout(() => {
+    const keyword = String(query || '').trim()
+    ;(async () => {
       if (query) {
-        filteredCustomers.value = customers.value.filter(customer => {
-          const searchText = query.toLowerCase()
-          return (
-            customer.code.toLowerCase().includes(searchText) ||
-            customer.name.toLowerCase().includes(searchText) ||
-            (customer.contact_person && customer.contact_person.toLowerCase().includes(searchText))
-          )
-        })
-      } else {
+        const remoteCustomers = await searchCustomerOptions(keyword)
+        customers.value = remoteCustomers.map(customer => ({
+          id: customer.id,
+          code: customer.code || customer.customer_code || `C${customer.id}`,
+          name: customer.name,
+          contact_person: customer.contact_person,
+          contact_phone: customer.contact_phone,
+          address: customer.address
+        }))
         filteredCustomers.value = [...customers.value]
+      } else {
+        await fetchCustomers()
       }
       customerSearchLoading.value = false
-    }, 300)
+    })().catch(error => {
+      console.error('搜索客户失败:', error)
+      filteredCustomers.value = []
+      customerSearchLoading.value = false
+    })
   }
 
   const handleCustomerChange = (customerId) => {
@@ -225,7 +255,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     }
     try {
       const searchResults = await searchMaterials(baseDataApi, query.trim(), {
-        pageSize: 500, includeAll: true
+        includeAll: true
       })
       const suggestions = searchResults.map(item => ({
         value: item.code || '无编码', code: item.code || '无编码',
@@ -233,7 +263,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         specs: item.specification || item.specs || '',
         stock_quantity: item.stock_quantity || 0, id: item.id,
         unit_name: item.unit_name || '个', unit_id: item.unit_id,
-        price: item.price || 0
+        price: item.price ?? null
       }))
       filteredProducts.value = suggestions
       callback(suggestions)
@@ -258,8 +288,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     form.items[index].specification = item.specs
     form.items[index].unit_name = item.unit_name
     form.items[index].unit_id = item.unit_id
-    const defaultPrice = parseFloat(item.price) || 0
-    if (defaultPrice > 0) {
+    const defaultPrice = toNumberOrNull(item.price)
+    if (defaultPrice !== null && defaultPrice > 0) {
       form.items[index].unit_price = defaultPrice
       const quantity = parseFloat(form.items[index].quantity) || 0
       form.items[index].amount = quantity * defaultPrice
@@ -356,6 +386,15 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       ElMessage.error(`第 ${incompleteItems.join(', ')} 行数量不正确，请检查后再提交`); return
     }
 
+    const missingPriceItems = []
+    form.items.forEach((item, index) => {
+      if (item.material_id && toNumberOrNull(item.unit_price) === null) missingPriceItems.push(index + 1)
+    })
+    if (missingPriceItems.length > 0) {
+      ElMessage.error(`第 ${missingPriceItems.join(', ')} 行销售单价缺失，请确认价格权限或维护售价后再提交`)
+      return
+    }
+
     try {
       const insufficientItems = await checkInventory(form.items)
       let orderStatus
@@ -396,17 +435,17 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         customer_id: form.customer_id,
         contract_code: form.contract_code || '',
         delivery_date: form.deliveryDate,
-        order_date: new Date().toISOString().split('T')[0],
+        order_date: formatLocalDate(new Date()),
         updated_at: new Date().toISOString(),
         status: orderStatus,
         should_generate_plans: shouldGeneratePlans,
-        subtotal: form.subtotal || 0,
-        total_amount: form.total_amount || 0,
+        subtotal: form.subtotal ?? 0,
+        total_amount: form.total_amount ?? 0,
         notes: form.remark || '',
         items: form.items.map(item => {
-          const quantity = parseFloat(item.quantity) || 0
-          const unitPrice = parseFloat(item.unit_price) || 0
-          const taxRate = item.tax_rate !== undefined ? item.tax_rate : defaultVATRate.value
+          const quantity = toNumberOrNull(item.quantity) ?? 0
+          const unitPrice = toNumberOrNull(item.unit_price)
+          const taxRate = normalizeTaxRate(item.tax_rate, defaultVATRate.value)
           const amount = quantity * unitPrice
           const taxAmount = amount * taxRate
           return {
@@ -458,7 +497,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       } else if (key === 'deliveryDate') {
         const today = new Date(); const deliveryDate = new Date(today)
         deliveryDate.setDate(today.getDate() + DEFAULT_DELIVERY_DAYS)
-        form[key] = deliveryDate.toISOString().split('T')[0]
+        form[key] = formatLocalDate(deliveryDate)
       } else if (key === 'taxRate') {
         form[key] = defaultVATRate.value
       } else if (key === 'subtotal' || key === 'tax_amount' || key === 'total_amount') {
@@ -477,7 +516,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     if (products.value.length === 0) {
       try {
         materialsLoading.value = true
-        const materialsRes = await baseDataApi.getMaterials({ limit: 100, pageSize: 100, page: 1 })
+        const materialsRes = await baseDataApi.getMaterials({ pageSize: 50, page: 1 })
         const resData = materialsRes.data
         const materialsData = Array.isArray(resData) ? resData
           : Array.isArray(resData?.list) ? resData.list
@@ -491,7 +530,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
           label: `${material.code || ''} - ${material.name || ''} ${material.specs ? `(${material.specs})` : ''} [库存:${material.stock_quantity || material.quantity || 0}]`,
           specification: material.specification || material.specs || '',
           unit_id: material.unit_id, unit_name: material.unit_name || '个',
-          price: material.price || 0
+          price: material.price ?? null
         })).filter(item => item.id)
         filteredProducts.value = [...products.value]
       } catch (error) {
@@ -530,10 +569,10 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       const orderItems = orderDetail.items || row.items || []
       if (Array.isArray(orderItems) && orderItems.length > 0) {
         form.items = orderItems.map(item => {
-          const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity.replace(/,/g, '') || 0) : Number(item.quantity || 0)
-          const unitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price.replace(/,/g, '') || 0) : Number(item.unit_price || 0)
-          let amount = typeof item.amount === 'string' ? parseFloat(item.amount.replace(/,/g, '') || 0) : Number(item.amount || 0)
-          if (isNaN(amount) || amount === 0) amount = quantity * unitPrice
+          const quantity = toNumberOrNull(item.quantity) ?? 0
+          const unitPrice = toNumberOrNull(item.unit_price)
+          let amount = toNumberOrNull(item.amount)
+          if (amount === null && unitPrice !== null) amount = quantity * unitPrice
           return {
             ...item,
             code: item.material_code || item.code || '',
@@ -544,37 +583,33 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
             quantity, unit_price: unitPrice,
             unit_name: item.unit_name || '个', unit_id: item.unit_id || '',
             amount,
-            tax_rate: item.tax_rate !== undefined ? item.tax_rate : (item.tax_percent !== undefined ? item.tax_percent : defaultVATRate.value),
-            tax_amount: item.tax_amount || parseFloat((amount * (item.tax_rate || item.tax_percent || 0)).toFixed(2)),
+            tax_rate: normalizeTaxRate(item.tax_rate !== undefined ? item.tax_rate : item.tax_percent, defaultVATRate.value),
+            tax_amount: toNumberOrNull(item.tax_amount) ?? (amount === null ? null : parseFloat((amount * normalizeTaxRate(item.tax_rate !== undefined ? item.tax_rate : item.tax_percent, defaultVATRate.value)).toFixed(2))),
             remark: item.remark || item.remarks || ''
           }
         })
         // 异步补充缺失的 material_id
-        const itemsNeedingMaterialId = form.items.filter(item => !item.material_id && item.code)
-        if (itemsNeedingMaterialId.length > 0) {
-          setTimeout(async () => {
-            for (let i = 0; i < form.items.length; i++) {
-              const item = form.items[i]
-              if (!item.material_id && item.code) {
-                try {
-                  const res = await baseDataApi.getMaterials({ keyword: item.code, page: 1, pageSize: 10 })
-                  const materials = parseListData(res, { enableLog: false })
-                  const exactMatch = materials.find(m =>
-                    (m.code || '').toLowerCase() === item.code.toLowerCase() ||
-                    (m.specs || m.specification || '').toLowerCase() === item.code.toLowerCase()
-                  )
-                  if (exactMatch) {
-                    form.items[i].material_id = exactMatch.id
-                    form.items[i].material_code = exactMatch.code || item.code
-                    form.items[i].material_name = exactMatch.name || item.material_name
-                    form.items[i].specification = exactMatch.specs || exactMatch.specification || item.specification
-                    form.items[i].unit_id = exactMatch.unit_id || item.unit_id
-                    form.items[i].unit_name = exactMatch.unit_name || item.unit_name
-                  }
-                } catch (error) { console.error(`查找物料 ${item.code} 失败:`, error) }
+        const missingMaterialCodes = [...new Set(form.items.filter(item => !item.material_id && item.code).map(item => item.code))]
+        if (missingMaterialCodes.length > 0) {
+          try {
+            const res = await baseDataApi.getMaterialsByCodes(missingMaterialCodes)
+            const materialsByCode = new Map(
+              parseListData(res, { enableLog: false })
+                .filter(material => material.code)
+                .map(material => [String(material.code).toLowerCase(), material])
+            )
+            form.items.forEach((item) => {
+              const exactMatch = materialsByCode.get(String(item.code || '').toLowerCase())
+              if (!item.material_id && exactMatch) {
+                item.material_id = exactMatch.id
+                item.material_code = exactMatch.code || item.code
+                item.material_name = exactMatch.name || item.material_name
+                item.specification = exactMatch.specs || exactMatch.specification || item.specification
+                item.unit_id = exactMatch.unit_id || item.unit_id
+                item.unit_name = exactMatch.unit_name || item.unit_name
               }
-            }
-          }, 500)
+            })
+          } catch (error) { console.error('批量补充物料ID失败:', error) }
         }
       }
     } catch (error) {

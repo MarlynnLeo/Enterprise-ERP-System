@@ -9,6 +9,7 @@ import {
   CircleCheck,
   Document,
 } from '@element-plus/icons-vue'
+import { cssVar } from './designTokens'
 
 /**
  * 获取通知类型对应的图标组件
@@ -18,9 +19,14 @@ export function getNotificationIcon(type) {
     system: InfoFilled,
     business: Document,
     warning: Warning,
+    business_alert: Warning,
     inventory_alert: Warning,
     inventory_warning: Warning,
+    batch_expiry: Warning,
     overdue_invoice: Warning,
+    finance_error: Warning,
+    finance_auto: Document,
+    purchase_return: Document,
     info: CircleCheck,
   }
   return iconMap[type] || InfoFilled
@@ -31,15 +37,20 @@ export function getNotificationIcon(type) {
  */
 export function getNotificationColor(type) {
   const colorMap = {
-    system: '#409EFF',
-    business: '#67C23A',
-    warning: '#F56C6C',
-    inventory_alert: '#F56C6C',
-    inventory_warning: '#E6A23C',
-    overdue_invoice: '#F56C6C',
-    info: '#909399',
+    system: cssVar('primary'),
+    business: cssVar('success'),
+    warning: cssVar('danger'),
+    business_alert: cssVar('warning'),
+    inventory_alert: cssVar('danger'),
+    inventory_warning: cssVar('warning'),
+    batch_expiry: cssVar('warning'),
+    overdue_invoice: cssVar('danger'),
+    finance_error: cssVar('danger'),
+    finance_auto: cssVar('success'),
+    purchase_return: cssVar('warning'),
+    info: cssVar('info'),
   }
-  return colorMap[type] || '#409EFF'
+  return colorMap[type] || cssVar('primary')
 }
 
 /**
@@ -50,9 +61,14 @@ export function getTypeTag(type) {
     system: 'primary',
     business: 'success',
     warning: 'danger',
+    business_alert: 'warning',
     inventory_alert: 'danger',
     inventory_warning: 'warning',
+    batch_expiry: 'warning',
     overdue_invoice: 'danger',
+    finance_error: 'danger',
+    finance_auto: 'success',
+    purchase_return: 'warning',
     info: 'info',
   }
   return tagMap[type] || 'info'
@@ -66,9 +82,14 @@ export function getTypeText(type) {
     system: '系统通知',
     business: '业务通知',
     warning: '预警通知',
+    business_alert: '业务告警',
     inventory_alert: '库存告警',
     inventory_warning: '库存预警',
+    batch_expiry: '批次预警',
     overdue_invoice: '逾期提醒',
+    finance_error: '财务异常',
+    finance_auto: '财务自动化',
+    purchase_return: '采购退货',
     info: '信息通知',
   }
   return textMap[type] || type
@@ -77,7 +98,7 @@ export function getTypeText(type) {
 /**
  * 预警相关通知类型列表（用于筛选）
  */
-export const WARNING_TYPES = 'warning,inventory_alert,inventory_warning,overdue_invoice'
+export const WARNING_TYPES = 'warning,business_alert,inventory_alert,inventory_warning,batch_expiry,overdue_invoice,finance_error'
 
 /**
  * 格式化通知时间为相对时间

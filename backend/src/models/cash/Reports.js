@@ -7,6 +7,7 @@
 
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
+const { toLocalDateString } = require('../../utils/dateUtils');
 
 function appendTransactionTypeFilter(whereParts, params, alias, transactionType) {
   if (!transactionType) return;
@@ -95,7 +96,7 @@ class CashReportsModel {
     const endDateObj = new Date(endDate);
 
     while (currentDate <= endDateObj) {
-      const dateStr = currentDate.toISOString().slice(0, 10);
+      const dateStr = toLocalDateString(currentDate);
       const dayFlows = cashFlows.filter((flow) => flow.date === dateStr);
 
       let inflow = 0;

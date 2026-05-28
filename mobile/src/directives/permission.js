@@ -59,6 +59,7 @@ export const permission = {
       // 如果权限还没加载完成，监听加载完成事件
       if (!authStore.permissionsLoaded) {
         el.setAttribute('data-permission-pending', 'true')
+        hideElement(el)
 
         const stopWatch = watch(
           () => authStore.permissionsLoaded,

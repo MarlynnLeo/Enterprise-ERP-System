@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="standard-cost-container">
+  <div class="module-page standard-cost-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -12,49 +12,49 @@
     </el-card>
 
     <!-- 搜索表单 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      @search="loadStandardCosts"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="产品名称">
           <el-input v-model="searchForm.productName" placeholder="请输入产品名称" clearable></el-input>
         </el-form-item>
         <el-form-item label="产品编码">
           <el-input v-model="searchForm.productCode" placeholder="请输入产品编码" clearable></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadStandardCosts">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="costList" border v-loading="loading" style="width: 100%">
         <el-table-column prop="product_code" label="产品编码" width="140"></el-table-column>
         <el-table-column prop="product_name" label="产品名称" width="350"></el-table-column>
-        <el-table-column label="材料成本" width="130" align="right">
+        <el-table-column label="材料成本" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.material_cost) }}
           </template>
         </el-table-column>
-        <el-table-column label="人工成本" width="130" align="right">
+        <el-table-column label="人工成本" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.labor_cost) }}
           </template>
         </el-table-column>
-        <el-table-column label="制造费用" width="130" align="right">
+        <el-table-column label="制造费用" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.overhead_cost) }}
           </template>
         </el-table-column>
-        <el-table-column label="总成本" width="130" align="right">
+        <el-table-column label="总成本" width="130">
           <template #default="scope">
             <span style="font-weight: bold; color: var(--color-primary);">
               {{ formatCurrency(scope.row.total_cost) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="单位成本" width="120" align="right">
+        <el-table-column label="单位成本" width="120">
           <template #default="scope">
             {{ formatCurrency(scope.row.unit_cost) }}
           </template>
@@ -67,7 +67,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button v-permission="'finance:cost:update'" type="info" size="small" @click="openOverheadConfig(scope.row)">配置专费</el-button>
             <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
@@ -134,14 +134,14 @@
             <el-table v-if="currentDetail.material_details?.length > 0" :data="currentDetail.material_details" border size="small">
               <el-table-column prop="materialCode" label="物料编码" width="120"></el-table-column>
               <el-table-column prop="materialName" label="物料名称"></el-table-column>
-              <el-table-column prop="quantity" label="用量" width="100" align="right">
+              <el-table-column prop="quantity" label="用量" width="100">
                 <template #default="{row}">{{ Number(row.quantity).toFixed(2) }}</template>
               </el-table-column>
-              <el-table-column prop="unitCost" label="单价" width="100" align="right">
-                <template #default="{row}">¥{{ Number(row.unitCost).toFixed(2) }}</template>
+              <el-table-column prop="unitCost" label="单价" width="100">
+                <template #default="{row}">{{ formatCurrency(row.unitCost) }}</template>
               </el-table-column>
-              <el-table-column prop="totalCost" label="小计" width="120" align="right">
-                <template #default="{row}">¥{{ Number(row.totalCost).toFixed(2) }}</template>
+              <el-table-column prop="totalCost" label="小计" width="120">
+                <template #default="{row}">{{ formatCurrency(row.totalCost) }}</template>
               </el-table-column>
             </el-table>
             <el-empty v-else description="暂无BOM材料数据，请先为该产品配置BOM" :image-size="60"></el-empty>
@@ -150,14 +150,14 @@
             <el-table v-if="currentDetail.labor_details?.length > 0" :data="currentDetail.labor_details" border size="small">
               <el-table-column prop="stepName" label="工序名称"></el-table-column>
               <el-table-column prop="department" label="部门" width="100"></el-table-column>
-              <el-table-column prop="standardHours" label="标准工时(小时)" width="130" align="right">
+              <el-table-column prop="standardHours" label="标准工时(小时)" width="130">
                 <template #default="{row}">{{ Number(row.standardHours).toFixed(2) }}</template>
               </el-table-column>
-              <el-table-column prop="hourlyRate" label="费率(元/时)" width="110" align="right">
-                <template #default="{row}">¥{{ Number(row.hourlyRate).toFixed(2) }}</template>
+              <el-table-column prop="hourlyRate" label="费率(元/时)" width="110">
+                <template #default="{row}">{{ formatCurrency(row.hourlyRate) }}</template>
               </el-table-column>
-              <el-table-column prop="totalCost" label="小计" width="120" align="right">
-                <template #default="{row}">¥{{ Number(row.totalCost).toFixed(2) }}</template>
+              <el-table-column prop="totalCost" label="小计" width="120">
+                <template #default="{row}">{{ formatCurrency(row.totalCost) }}</template>
               </el-table-column>
             </el-table>
             <el-empty v-else description="暂无工艺模板数据，请先为该产品配置工艺模板" :image-size="60"></el-empty>
@@ -169,21 +169,21 @@
                 <el-table-column label="分摊基础" width="140">
                   <template #default="{row}">{{ getAllocationBaseLabel(row.allocation_base || 'labor_cost') }}</template>
                 </el-table-column>
-                <el-table-column prop="base" label="基数数值" width="130" align="right">
+                <el-table-column prop="base" label="基数数值" width="130">
                   <template #default="{row}">{{ Number(row.base).toFixed(2) }}</template>
                 </el-table-column>
-                <el-table-column prop="rate" label="计算费率" width="120" align="right">
+                <el-table-column prop="rate" label="计算费率" width="120">
                   <template #default="{row}">{{ Number(row.rate || 0).toFixed(4) }}</template>
                 </el-table-column>
-                <el-table-column prop="cost" label="分摊金额" width="130" align="right">
+                <el-table-column prop="cost" label="分摊金额" width="130">
                   <template #default="{row}">
-                    <span style="color:#f56c6c; font-weight:bold;">¥{{ (Number(row.cost) || 0).toFixed(2) }}</span>
+                    <span style="color:var(--color-danger); font-weight:bold;">{{ formatCurrency(row.cost) }}</span>
                   </template>
                 </el-table-column>
               </el-table>
               <div style="margin-top: 16px; text-align: right; font-size: 15px;">
                 <span style="font-weight: bold; color: var(--color-text-primary); margin-right: 12px;">制造费用总计:</span>
-                <span style="font-size: 18px; font-weight: bold; color: var(--color-danger);">¥{{ formatCurrency(currentDetail.overhead_cost) }}</span>
+                <span style="font-size: 18px; font-weight: bold; color: var(--color-danger);">{{ formatCurrency(currentDetail.overhead_cost) }}</span>
               </div>
             </template>
             <el-empty v-else description="暂无制造费用明细" :image-size="60"></el-empty>
@@ -212,9 +212,9 @@
         <el-table-column label="分摊基础">
           <template #default="scope">{{ getAllocationBaseLabel(scope.row.allocation_base) }}</template>
         </el-table-column>
-        <el-table-column prop="rate" label="单品费率" align="right">
+        <el-table-column prop="rate" label="单品费率">
           <template #default="scope">
-            <span style="color:#f56c6c; font-weight:bold">{{ Number(scope.row.rate).toFixed(4) }}</span>
+            <span style="color:var(--color-danger); font-weight:bold">{{ Number(scope.row.rate).toFixed(4) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="effective_date" label="生效日期" width="100">
@@ -222,7 +222,7 @@
             {{ scope.row.effective_date ? scope.row.effective_date.substring(0, 10) : '' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="90" align="center">
+        <el-table-column label="操作" width="90" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" link type="danger" @click="deleteProductOverhead(scope.row)" v-permission="'finance:cost:delete'">删除</el-button>
           </template>
@@ -258,10 +258,12 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import api from '@/services/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
+import { parseResponseData } from '@/utils/responseParser'
 
 const loading = ref(false);
 const calculating = ref(false);
@@ -305,7 +307,7 @@ const globalOverheadTemplates = ref([]);
 const overheadForm = reactive({
   templateId: null,
   rate: 0,
-  effective_date: new Date().toISOString().split('T')[0]
+  effective_date: formatLocalDate(new Date())
 });
 
 const allocationBases = [
@@ -325,7 +327,7 @@ const getAllocationBaseLabel = (val) => {
 const loadStandardCosts = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/finance-enhancement/cost/standard-list', {
+    const response = await api.get('/finance/cost/standard-list', {
       params: {
         page: pagination.page,
         pageSize: pagination.pageSize,
@@ -369,7 +371,7 @@ const showCalculateDialog = () => {
 };
 
 const calculateAndPersistStandardCost = async (productId, quantity = 1) => {
-  return api.post(`/finance-enhancement/cost/standard/${productId}/calculate`, {
+  return api.post(`/finance/cost/standard/${productId}/calculate`, {
     quantity,
   });
 };
@@ -400,9 +402,9 @@ const viewDetail = async (row) => {
   try {
     // 如果有product_id，尝试获取真实的成本明细
     if (row.product_id) {
-      const response = await api.get(`/finance-enhancement/cost/standard/${row.product_id}`);
-      // ResponseHandler包装的数据在response.data.data中
-      const result = response.data?.data || response.data;
+      const response = await api.get(`/finance/cost/standard/${row.product_id}`);
+      // ResponseHandler包装的数据统一由 parser 解包
+      const result = parseResponseData(response);
 
       currentDetail.value = {
         ...row,
@@ -466,10 +468,10 @@ const resetSearch = () => {
 // 获取全局模板
 const fetchGlobalOverheadTemplates = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/overhead-allocation', {
+    const res = await api.get('/finance/cost/overhead-allocation', {
       params: { is_global: 1 }
     });
-    globalOverheadTemplates.value = res.data?.data || res.data || [];
+    globalOverheadTemplates.value = parseResponseData(res, []);
   } catch (error) {
     console.error('获取全局制费模板失败:', error);
   }
@@ -479,10 +481,10 @@ const fetchGlobalOverheadTemplates = async () => {
 const loadProductOverheads = async (productId) => {
   loadingOverheads.value = true;
   try {
-    const res = await api.get('/finance-enhancement/cost/overhead-allocation', {
+    const res = await api.get('/finance/cost/overhead-allocation', {
       params: { product_id: productId }
     });
-    productOverheads.value = res.data?.data || res.data || [];
+    productOverheads.value = parseResponseData(res, []);
   } catch (error) {
     console.error('获取单品专属记录失败', error);
     ElMessage.error('获取专属记录失败');
@@ -503,7 +505,7 @@ const openAddOverheadForm = async () => {
   await fetchGlobalOverheadTemplates();
   overheadForm.templateId = null;
   overheadForm.rate = 0;
-  overheadForm.effective_date = new Date().toISOString().split('T')[0];
+  overheadForm.effective_date = formatLocalDate(new Date());
   addOverheadFormVisible.value = true;
 };
 
@@ -540,7 +542,7 @@ const saveProductOverhead = async () => {
       is_active: true
     };
 
-    await api.post('/finance-enhancement/cost/overhead-allocation', payload);
+    await api.post('/finance/cost/overhead-allocation', payload);
     ElMessage.success('配置单品专属费率成功');
     addOverheadFormVisible.value = false;
     await loadProductOverheads(currentSelectedProduct.value.product_id);
@@ -560,7 +562,7 @@ const deleteProductOverhead = async (row) => {
     await ElMessageBox.confirm('确定要删除此专属费率吗？删除后将回退使用全局规则。', '提示', {
       type: 'warning'
     });
-    await api.delete(`/finance-enhancement/cost/overhead-allocation/${row.id}`);
+    await api.delete(`/finance/cost/overhead-allocation/${row.id}`);
     ElMessage.success('删除成功');
     await loadProductOverheads(currentSelectedProduct.value.product_id);
     await calculateAndPersistStandardCost(currentSelectedProduct.value.product_id);
@@ -623,4 +625,3 @@ onMounted(() => {
   justify-content: flex-end;
 }
 </style>
-

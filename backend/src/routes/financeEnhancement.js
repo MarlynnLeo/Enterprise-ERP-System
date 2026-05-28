@@ -10,31 +10,40 @@ const router = express.Router();
 const FinanceEnhancementController = require('../controllers/business/finance/financeEnhancementController');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
+const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../middleware/priceAccessControl');
 
 // 应用认证中间件
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // ==================== 自动化集成路由 ====================
 
 /**
- * @route POST /api/finance-enhancement/integration/ar-invoice/:salesOrderId
+ * @route POST /api/finance/integration/ar-invoice/:salesOrderId
  * @desc 从销售订单生成应收发票
  * @access Private
  */
 router.post(
   '/integration/ar-invoice/:salesOrderId',
   requirePermission('finance:ar:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FinanceEnhancementController.generateARInvoiceFromSalesOrder
 );
 
 /**
- * @route POST /api/finance-enhancement/integration/ap-invoice/:receiptId
+ * @route POST /api/finance/integration/ap-invoice/:receiptId
  * @desc 从采购入库单生成应付发票
  * @access Private
  */
 router.post(
   '/integration/ap-invoice/:receiptId',
   requirePermission('finance:ap:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FinanceEnhancementController.generateAPInvoiceFromPurchaseReceipt
 );
 
@@ -43,28 +52,28 @@ router.post(
 // ==================== 期末处理路由 ====================
 
 /**
- * @route GET /api/finance-enhancement/period/status/:periodId
+ * @route GET /api/finance/period/status/:periodId
  * @desc 获取期间结账状态
  * @access Private
  */
 router.get('/period/status/:periodId', requirePermission('finance:periodEnd:view'), FinanceEnhancementController.getPeriodClosingStatus);
 
 /**
- * @route GET /api/finance-enhancement/period/year-end-status/:year
+ * @route GET /api/finance/period/year-end-status/:year
  * @desc 获取年度结转状态
  * @access Private
  */
 router.get('/period/year-end-status/:year', requirePermission('finance:periodEnd:view'), FinanceEnhancementController.getYearEndStatus);
 
 /**
- * @route POST /api/finance-enhancement/period/year-end-transfer
+ * @route POST /api/finance/period/year-end-transfer
  * @desc 年度结转
  * @access Private
  */
 router.post('/period/year-end-transfer', requirePermission('finance:periodEnd:execute'), FinanceEnhancementController.yearEndTransfer);
 
 /**
- * @route GET /api/finance-enhancement/automation/history
+ * @route GET /api/finance/automation/history
  * @desc 获取自动化任务执行历史
  * @access Private
  */
@@ -76,35 +85,35 @@ const costController = require('../controllers/business/finance/costController')
 const overheadAllocationController = require('../controllers/business/finance/overheadAllocationController');
 
 /**
- * @route GET /api/finance-enhancement/cost/statistics
+ * @route GET /api/finance/cost/statistics
  * @desc 获取成本统计数据
  * @access Private
  */
 router.get('/cost/statistics', requirePermission('finance:cost:view'), costController.getCostStatistics);
 
 /**
- * @route GET /api/finance-enhancement/cost/trend
+ * @route GET /api/finance/cost/trend
  * @desc 获取成本趋势数据
  * @access Private
  */
 router.get('/cost/trend', requirePermission('finance:cost:view'), costController.getCostTrend);
 
 /**
- * @route GET /api/finance-enhancement/cost/composition
+ * @route GET /api/finance/cost/composition
  * @desc 获取成本构成数据
  * @access Private
  */
 router.get('/cost/composition', requirePermission('finance:cost:view'), costController.getCostComposition);
 
 /**
- * @route GET /api/finance-enhancement/cost/standard-list
+ * @route GET /api/finance/cost/standard-list
  * @desc 获取标准成本列表
  * @access Private
  */
 router.get('/cost/standard-list', requirePermission('finance:cost:view'), costController.getStandardCostList);
 
 /**
- * @route GET /api/finance-enhancement/cost/standard/:productId
+ * @route GET /api/finance/cost/standard/:productId
  * @desc 计算标准成本
  * @access Private
  */
@@ -112,32 +121,33 @@ router.get('/cost/standard/:productId', requirePermission('finance:cost:view'), 
 router.post(
   '/cost/standard/:productId/calculate',
   requirePermission('finance:cost:execute'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   costController.calculateAndSaveStandardCost
 );
 
 /**
- * @route GET /api/finance-enhancement/cost/settings
+ * @route GET /api/finance/cost/settings
  * @desc 获取成本设置
  * @access Private
  */
 router.get('/cost/settings', requirePermission('finance:cost:view'), costController.getCostSettings);
 
 /**
- * @route POST /api/finance-enhancement/cost/settings
+ * @route POST /api/finance/cost/settings
  * @desc 保存成本设置
  * @access Private
  */
-router.post('/cost/settings', requirePermission('finance:cost:update'), costController.saveCostSettings);
+router.post('/cost/settings', requirePermission('finance:cost:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.saveCostSettings);
 
 /**
- * @route GET /api/finance-enhancement/cost/supplement-reasons
+ * @route GET /api/finance/cost/supplement-reasons
  * @desc 获取补料原因配置
  * @access Private
  */
 router.get('/cost/supplement-reasons', requirePermission('finance:cost:view'), costController.getSupplementReasons);
 
 /**
- * @route POST /api/finance-enhancement/cost/supplement-reasons
+ * @route POST /api/finance/cost/supplement-reasons
  * @desc 保存补料原因配置
  * @access Private
  */
@@ -149,7 +159,7 @@ router.put(
 );
 
 /**
- * @route DELETE /api/finance-enhancement/cost/supplement-reasons/:id
+ * @route DELETE /api/finance/cost/supplement-reasons/:id
  * @desc 删除补料原因配置
  * @access Private
  */
@@ -158,21 +168,21 @@ router.delete('/cost/supplement-reasons/:id', requirePermission('finance:cost:de
 // ==================== GL Integration 路由 ====================
 
 /**
- * @route GET /api/finance-enhancement/cost/gl-accounts
+ * @route GET /api/finance/cost/gl-accounts
  * @desc 获取总账科目列表
  * @access Private
  */
 router.get('/cost/gl-accounts', requirePermission('finance:cost:view'), costController.getGLAccounts);
 
 /**
- * @route GET /api/finance-enhancement/cost/gl-mappings
+ * @route GET /api/finance/cost/gl-mappings
  * @desc 获取科目映射配置
  * @access Private
  */
 router.get('/cost/gl-mappings', requirePermission('finance:cost:view'), costController.getGLMappings);
 
 /**
- * @route POST /api/finance-enhancement/cost/gl-mapping
+ * @route POST /api/finance/cost/gl-mapping
  * @desc 保存科目映射
  * @access Private
  */
@@ -182,11 +192,11 @@ router.post('/cost/gl-mapping', requirePermission('finance:cost:update'), costCo
 // 制造费用分摊配置
 // ==========================================
 /**
- * @route GET /api/finance-enhancement/cost/overhead-allocation
- * @route POST /api/finance-enhancement/cost/overhead-allocation
- * @route PUT /api/finance-enhancement/cost/overhead-allocation/:id
- * @route DELETE /api/finance-enhancement/cost/overhead-allocation/:id
- * @route GET /api/finance-enhancement/cost/overhead-allocation/bases
+ * @route GET /api/finance/cost/overhead-allocation
+ * @route POST /api/finance/cost/overhead-allocation
+ * @route PUT /api/finance/cost/overhead-allocation/:id
+ * @route DELETE /api/finance/cost/overhead-allocation/:id
+ * @route GET /api/finance/cost/overhead-allocation/bases
  */
 router.get('/cost/overhead-allocation', requirePermission('finance:cost:view'), overheadAllocationController.getConfigs);
 router.post('/cost/overhead-allocation', requirePermission('finance:cost:create'), overheadAllocationController.createConfig);
@@ -196,16 +206,16 @@ router.get('/cost/overhead-allocation/bases', requirePermission('finance:cost:vi
 
 // ==================== 物料标准成本管理 ====================
 router.get('/cost/material-standard-costs', requirePermission('finance:cost:view'), costController.getMaterialStandardCosts);
-router.post('/cost/material-standard-costs/freeze', requirePermission('finance:cost:execute'), costController.freezeMaterialStandardCosts);
-router.put('/cost/material-standard-costs/:id', requirePermission('finance:cost:update'), costController.updateMaterialStandardCost);
+router.post('/cost/material-standard-costs/freeze', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.freezeMaterialStandardCosts);
+router.put('/cost/material-standard-costs/:id', requirePermission('finance:cost:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.updateMaterialStandardCost);
 
 // ==================== 成本版本管理系统 (Standard Cost Versions - V2) ====================
 const standardCostVersionController = require('../controllers/business/finance/standardCostVersionController');
 router.get('/cost-versions', requirePermission('finance:cost:view'), standardCostVersionController.getVersions);
-router.post('/cost-versions', requirePermission('finance:cost:execute'), standardCostVersionController.createVersion);
+router.post('/cost-versions', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), standardCostVersionController.createVersion);
 router.put('/cost-versions/:id/submit', requirePermission('finance:cost:update'), standardCostVersionController.submitVersion);
-router.put('/cost-versions/:id/approve', requirePermission('finance:cost:execute'), standardCostVersionController.approveVersion);
-router.post('/cost-versions/:id/generate', requirePermission('finance:cost:execute'), standardCostVersionController.generateCostsFromPurchase);
+router.put('/cost-versions/:id/approve', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), standardCostVersionController.approveVersion);
+router.post('/cost-versions/:id/generate', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), standardCostVersionController.generateCostsFromPurchase);
 
 // ==================== 成本中心路由 — 已统一到 costCenterRoutes.js ====================
 // 完整 CRUD + 报表由 /api/finance/cost-centers 路由负责
@@ -217,13 +227,13 @@ router.get('/cost/settings-by-date', requirePermission('finance:cost:view'), cos
 
 // ==================== 批量成本计算路由 ====================
 
-router.post('/cost/batch-calculate', requirePermission('finance:cost:execute'), costController.batchCalculateStandardCost);
+router.post('/cost/batch-calculate', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.batchCalculateStandardCost);
 
 // ==================== 成本冻结路由 ====================
 
-router.post('/cost/freeze/:productId', requirePermission('finance:cost:execute'), costController.freezeCost);
-router.post('/cost/unfreeze/:productId', requirePermission('finance:cost:execute'), costController.unfreezeCost);
-router.post('/cost/freeze-period', requirePermission('finance:cost:execute'), costController.freezePeriodCosts);
+router.post('/cost/freeze/:productId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.freezeCost);
+router.post('/cost/unfreeze/:productId', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.unfreezeCost);
+router.post('/cost/freeze-period', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.freezePeriodCosts);
 
 // ==================== 实际成本路由 ====================
 
@@ -253,37 +263,37 @@ router.get('/cost/yearly-comparison', requirePermission('finance:cost:view'), co
 
 // ==================== 成本报表导出路由 ====================
 
-router.get('/cost/export/ledger', requirePermission('finance:cost:export'), costController.exportCostLedger);
-router.get('/cost/export/variance', requirePermission('finance:cost:export'), costController.exportCostVariance);
+router.get('/cost/export/ledger', requirePermission('finance:cost:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), costController.exportCostLedger);
+router.get('/cost/export/variance', requirePermission('finance:cost:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), costController.exportCostVariance);
 
 // 注：原有的 /cost/actual/:productionOrderId 和 /cost/variance/:productionOrderId
 // 路由已整合到上面的新API中
 
 /**
- * @route POST /api/finance-enhancement/cost/recalculate-inventory
+ * @route POST /api/finance/cost/recalculate-inventory
  * @desc 重新计算库存成本
  * @access Private
  */
-router.post('/cost/recalculate-inventory', requirePermission('finance:cost:execute'), FinanceEnhancementController.recalculateInventoryCost);
+router.post('/cost/recalculate-inventory', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), FinanceEnhancementController.recalculateInventoryCost);
 
 // ==================== 高级报表路由 ====================
 
 /**
- * @route GET /api/finance-enhancement/reports/ratio-analysis
+ * @route GET /api/finance/reports/ratio-analysis
  * @desc 财务比率分析
  * @access Private
  */
 router.get('/reports/ratio-analysis', requirePermission('finance:reports:view'), FinanceEnhancementController.generateFinancialRatioAnalysis);
 
 /**
- * @route GET /api/finance-enhancement/reports/trend-analysis
+ * @route GET /api/finance/reports/trend-analysis
  * @desc 趋势分析
  * @access Private
  */
 router.get('/reports/trend-analysis', requirePermission('finance:reports:view'), FinanceEnhancementController.generateTrendAnalysis);
 
 /**
- * @route GET /api/finance-enhancement/reports/dashboard
+ * @route GET /api/finance/reports/dashboard
  * @desc 财务仪表板数据
  * @access Private
  */
@@ -292,7 +302,7 @@ router.get('/reports/dashboard', requirePermission('finance:reports:view'), Fina
 // ==================== 系统初始化路由 ====================
 
 /**
- * @route POST /api/finance-enhancement/system/initialize
+ * @route POST /api/finance/system/initialize
  * @desc 初始化财务增强功能相关表
  * @access Private (仅超级管理员)
  */

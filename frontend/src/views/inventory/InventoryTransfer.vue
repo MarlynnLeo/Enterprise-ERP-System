@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inventory-transfer-container">
+  <div class="module-page inventory-transfer-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,8 +19,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :model="searchForm" :inline="true" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input v-model="searchForm.materialName" placeholder="物料名称" clearable @keyup.enter="handleSearch"></el-input>
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="调拨单号">
           <el-input  v-model="searchForm.transfer_no" placeholder="请输入调拨单号" clearable ></el-input>
         </el-form-item>
@@ -39,18 +49,8 @@
             value-format="YYYY-MM-DD"
           ></el-date-picker>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-
-      <!-- 批量操作按钮 -->
-      <div class="batch-actions">
+      </template>
+      <template #actions>
         <el-dropdown @command="handleBatchCommand" v-permission="'inventory:transfer:update'">
           <el-button type="primary">
             批量操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -69,8 +69,8 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-      </div>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -121,7 +121,7 @@
         </el-table-column>
         <el-table-column prop="from_location" label="源库位" min-width="120" show-overflow-tooltip></el-table-column>
         <el-table-column prop="to_location" label="目标库位" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="item_count" label="物料种类" min-width="100" align="center"></el-table-column>
+        <el-table-column prop="item_count" label="物料种类" min-width="100"></el-table-column>
         <el-table-column prop="status" label="状态" min-width="100">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
@@ -132,7 +132,7 @@
             {{ scope.row.creator_name || scope.row.creator || '未知' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="250" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-btns">
               <el-dropdown
@@ -346,7 +346,7 @@
               <el-input v-model="row.remark" placeholder="请输入备注" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" fixed="right">
+          <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
               <el-button type="danger" link @click="removeTransferItem($index)" v-permission="'inventory:transfer:update'">
                 删除
@@ -407,7 +407,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Search, Refresh, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download } from '@element-plus/icons-vue';
+import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/services/api';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { formatDate } from '@/utils/helpers/formatters';
@@ -438,6 +438,7 @@ const getStatusText = (status) => {
 
 // 搜索表单
 const searchForm = reactive({
+  materialName: '',
   transfer_no: '',
   status: '',
   date_range: []
@@ -615,6 +616,7 @@ const handleSearch = async () => {
 
 // 重置搜索
 const resetSearch = async () => {
+  searchForm.materialName = '';
   searchForm.transfer_no = '';
   searchForm.status = '';
   searchForm.date_range = [];
@@ -843,7 +845,6 @@ let currentSearchId = 0;
 
 // 防抖函数
 import { debounce } from '@/utils/commonHelpers'
-
 const searchProducts = async (query) => {
   const searchId = ++currentSearchId;
   loadingMaterials.value = true;
@@ -929,6 +930,7 @@ const loadTransferList = async () => {
     const params = {
       page: pagination.current,
       limit: pagination.size,
+      materialName: searchForm.materialName,
       transfer_no: searchForm.transfer_no,
       status: searchForm.status
     };
@@ -1120,11 +1122,12 @@ const batchPrintTransfers = async () => {
   try {
     ElMessage.info('正在准备打印...');
 
-    const pages = [];
-    for (const transfer of selectedTransfers.value) {
-      const response = await inventoryApi.getTransferDetail(transfer.id);
-      const detail = response.data;
+    const ids = selectedTransfers.value.map(item => item.id);
+    const response = await inventoryApi.getTransferDetails(ids);
+    const transferDetails = parseListData(response, { enableLog: false });
 
+    const pages = [];
+    for (const detail of transferDetails) {
       const page = await printService.generateByDefaultTemplate('inventory', 'transfer', {
         ...detail,
         transfer_date: formatDate(detail.transfer_date) || '-',
@@ -1179,31 +1182,8 @@ const batchDeleteTransfers = async () => {
 
     const ids = deletableTransfers.map(item => item.id);
 
-    // 调用批量删除API（如果后端支持批量删除接口）
-    // 优先使用批量删除接口以提高性能
     try {
-      if (inventoryApi.batchDeleteTransfers) {
-        // 如果存在批量删除API，使用批量删除
-        await inventoryApi.batchDeleteTransfers(ids);
-      } else {
-        // 否则循环调用单个删除
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const id of ids) {
-          try {
-            await inventoryApi.deleteTransfer(id);
-            successCount++;
-          } catch (error) {
-            console.error(`删除调拨单 ${id} 失败:`, error);
-            failCount++;
-          }
-        }
-
-        if (failCount > 0) {
-          ElMessage.warning(`批量删除完成：成功 ${successCount} 个，失败 ${failCount} 个`);
-        }
-      }
+      await inventoryApi.batchDeleteTransfers(ids);
     } catch (error) {
       console.error('批量删除调拨单失败:', error);
       ElMessage.error('批量删除失败: ' + (error.response?.data?.message || error.message));
@@ -1251,7 +1231,6 @@ const batchDeleteTransfers = async () => {
   width: calc(100% - 120px);
 }
 
-/* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
 
 
 

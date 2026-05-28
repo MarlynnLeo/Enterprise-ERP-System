@@ -16,6 +16,8 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const { accountingConfig } = require('../../config/accountingConfig');
+const { toLocalDateString } = require('../../utils/dateUtils');
 
 /**
  * 企业级财务报表服务
@@ -45,13 +47,28 @@ class FinancialReportsService {
       connection = await db.pool.getConnection();
 
       // 获取指定类型的所有科目（优化查询，只获取必要字段）
+      const accountUsageEndDate = compareDate && compareDate > reportDate ? compareDate : reportDate;
       const [accounts] = await connection.execute(
         `SELECT id, account_code as code, account_name as name, account_type as type,
                 parent_id, is_debit, currency_code
          FROM gl_accounts
-         WHERE account_type = ? AND is_active = 1
+         WHERE account_type = ?
+           AND (
+             is_active = 1
+             OR COALESCE(opening_debit, 0) <> 0
+             OR COALESCE(opening_credit, 0) <> 0
+             OR EXISTS (
+               SELECT 1
+               FROM gl_entry_items gei
+               JOIN gl_entries ge ON ge.id = gei.entry_id
+               WHERE gei.account_id = gl_accounts.id
+                 AND ge.is_posted = 1
+                 AND ge.entry_date <= ?
+               LIMIT 1
+             )
+           )
          ORDER BY account_code`,
-        [accountType]
+        [accountType, accountUsageEndDate]
       );
 
       if (accounts.length === 0) {
@@ -137,8 +154,8 @@ class FinancialReportsService {
         isDebit: Boolean(account.is_debit),
         currencyCode: account.currency_code || 'CNY',
         currentBalance: this.roundAmount(currentBalance),
-        compareBalance: compareBalance ? this.roundAmount(compareBalance) : null,
-        change: compareBalance ? this.roundAmount(currentBalance - compareBalance) : null,
+        compareBalance: compareDate ? this.roundAmount(compareBalance) : null,
+        change: compareDate ? this.roundAmount(currentBalance - compareBalance) : null,
         changePercent: this.calculateChangePercent(currentBalance, compareBalance),
       });
     }
@@ -159,58 +176,76 @@ class FinancialReportsService {
 
     if (accountIds.length === 0) return result;
 
-    // 查询当期余额
+    // 查询当期余额。余额必须包含科目期初余额，且只累计已过账、日期不晚于报表日的凭证。
     const [currentBalances] = await connection.execute(
       `SELECT
-         ei.account_id,
          ga.is_debit,
-         COALESCE(SUM(ei.debit_amount), 0) as total_debit,
-         COALESCE(SUM(ei.credit_amount), 0) as total_credit
-       FROM gl_entry_items ei
-       JOIN gl_entries e ON ei.entry_id = e.id
-       JOIN gl_accounts ga ON ei.account_id = ga.id
-       WHERE ei.account_id IN (${accountIds.map(() => '?').join(',')})
-         AND e.entry_date <= ?
-         AND e.is_posted = 1
-       GROUP BY ei.account_id, ga.is_debit`,
-      [...accountIds, reportDate]
+         ga.account_type,
+         ga.id as account_id,
+         COALESCE(ga.opening_debit, 0) as opening_debit,
+         COALESCE(ga.opening_credit, 0) as opening_credit,
+         COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.debit_amount ELSE 0 END), 0) as total_debit,
+         COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.credit_amount ELSE 0 END), 0) as total_credit
+       FROM gl_accounts ga
+       LEFT JOIN gl_entry_items ei ON ga.id = ei.account_id
+       LEFT JOIN gl_entries e
+         ON ei.entry_id = e.id
+        AND e.entry_date <= ?
+        AND e.is_posted = 1
+       WHERE ga.id IN (${accountIds.map(() => '?').join(',')})
+       GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit`,
+      [reportDate, ...accountIds]
     );
 
     // 计算当期余额
     currentBalances.forEach((row) => {
-      const balance = row.is_debit
-        ? row.total_debit - row.total_credit
-        : row.total_credit - row.total_debit;
-      result.current[row.account_id] = balance;
+      result.current[row.account_id] = this.calculateSignedBalance(row);
     });
 
     // 查询对比期余额
     if (compareDate) {
       const [compareBalances] = await connection.execute(
         `SELECT
-           ei.account_id,
            ga.is_debit,
-           COALESCE(SUM(ei.debit_amount), 0) as total_debit,
-           COALESCE(SUM(ei.credit_amount), 0) as total_credit
-         FROM gl_entry_items ei
-         JOIN gl_entries e ON ei.entry_id = e.id
-         JOIN gl_accounts ga ON ei.account_id = ga.id
-         WHERE ei.account_id IN (${accountIds.map(() => '?').join(',')})
-           AND e.entry_date <= ?
-           AND e.is_posted = 1
-         GROUP BY ei.account_id, ga.is_debit`,
-        [...accountIds, compareDate]
+           ga.account_type,
+           ga.id as account_id,
+           COALESCE(ga.opening_debit, 0) as opening_debit,
+           COALESCE(ga.opening_credit, 0) as opening_credit,
+           COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.debit_amount ELSE 0 END), 0) as total_debit,
+           COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.credit_amount ELSE 0 END), 0) as total_credit
+         FROM gl_accounts ga
+         LEFT JOIN gl_entry_items ei ON ga.id = ei.account_id
+         LEFT JOIN gl_entries e
+           ON ei.entry_id = e.id
+          AND e.entry_date <= ?
+          AND e.is_posted = 1
+         WHERE ga.id IN (${accountIds.map(() => '?').join(',')})
+         GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit`,
+        [compareDate, ...accountIds]
       );
 
       compareBalances.forEach((row) => {
-        const balance = row.is_debit
-          ? row.total_debit - row.total_credit
-          : row.total_credit - row.total_debit;
-        result.compare[row.account_id] = balance;
+        result.compare[row.account_id] = this.calculateSignedBalance(row);
       });
     }
 
     return result;
+  }
+
+  static calculateSignedBalance(row) {
+    const openingNet = parseFloat(row.opening_debit || 0) - parseFloat(row.opening_credit || 0);
+    const movementNet = parseFloat(row.total_debit || 0) - parseFloat(row.total_credit || 0);
+    const netBalance = openingNet + movementNet;
+
+    if (['资产', '成本', '费用'].includes(row.account_type)) {
+      return netBalance;
+    }
+
+    if (['负债', '所有者权益', '收入'].includes(row.account_type)) {
+      return -netBalance;
+    }
+
+    return row.is_debit ? netBalance : -netBalance;
   }
 
   /**
@@ -225,23 +260,22 @@ class FinancialReportsService {
       const [result] = await connection.execute(
         `SELECT
            ga.is_debit,
-           COALESCE(SUM(ei.debit_amount), 0) as total_debit,
-           COALESCE(SUM(ei.credit_amount), 0) as total_credit
+           ga.account_type,
+           COALESCE(ga.opening_debit, 0) as opening_debit,
+           COALESCE(ga.opening_credit, 0) as opening_credit,
+           COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.debit_amount ELSE 0 END), 0) as total_debit,
+           COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN ei.credit_amount ELSE 0 END), 0) as total_credit
          FROM gl_accounts ga
          LEFT JOIN gl_entry_items ei ON ga.id = ei.account_id
          LEFT JOIN gl_entries e ON ei.entry_id = e.id AND e.entry_date <= ? AND e.is_posted = 1
          WHERE ga.id = ?
-         GROUP BY ga.id, ga.is_debit`,
+         GROUP BY ga.id, ga.is_debit, ga.account_type, ga.opening_debit, ga.opening_credit`,
         [date, accountId]
       );
 
       if (result.length === 0) return 0;
 
-      const { is_debit, total_debit, total_credit } = result[0];
-      const totalDebit = parseFloat(total_debit || 0);
-      const totalCredit = parseFloat(total_credit || 0);
-
-      return is_debit ? totalDebit - totalCredit : totalCredit - totalDebit;
+      return this.calculateSignedBalance(result[0]);
     } catch (error) {
       logger.error('获取科目余额失败:', { accountId, date, error: error.message });
       throw error;
@@ -332,6 +366,8 @@ class FinancialReportsService {
         isCalculated: true,
       });
 
+      const reportAccountGroups = await this.getReportAccountGroups();
+
       // 构建标准资产负债表结构
       const balanceSheet = {
         reportInfo: this.formatReportInfo({ reportDate, compareDate, unit }),
@@ -350,34 +386,42 @@ class FinancialReportsService {
           title: '资产',
           code: 'ASSETS',
           totalAmount: assetsTotal,
-          totalCompareAmount: assets.totalCompareBalance
+          totalCompareAmount: compareDate
             ? this.roundAmount(assets.totalCompareBalance / unit)
             : null,
           accountCount: assets.accountCount,
           items: this.formatAccountsForReport(assets.accounts, unit),
-          subCategories: this.categorizeAssets(assets.accounts, unit),
+          subCategories: this.categorizeAssets(assets.accounts, unit, reportAccountGroups),
         },
         liabilities: {
           title: '负债',
           code: 'LIABILITIES',
           totalAmount: liabilitiesTotal,
-          totalCompareAmount: liabilities.totalCompareBalance
+          totalCompareAmount: compareDate
             ? this.roundAmount(liabilities.totalCompareBalance / unit)
             : null,
           accountCount: liabilities.accountCount,
           items: this.formatAccountsForReport(liabilities.accounts, unit),
-          subCategories: this.categorizeLiabilities(liabilities.accounts, unit),
+          subCategories: this.categorizeLiabilities(
+            liabilities.accounts,
+            unit,
+            reportAccountGroups
+          ),
         },
         equity: {
           title: '所有者权益',
           code: 'EQUITY',
           totalAmount: equityTotal,
-          totalCompareAmount: equity.totalCompareBalance
+          totalCompareAmount: compareDate
             ? this.roundAmount((equity.totalCompareBalance + (compareYearProfit || 0)) / unit)
             : null,
           accountCount: equity.accountCount + 1, // 包含本年利润
           items: this.formatAccountsForReport(equityAccountsWithProfit, unit),
-          subCategories: this.categorizeEquity(equityAccountsWithProfit, unit),
+          subCategories: this.categorizeEquity(
+            equityAccountsWithProfit,
+            unit,
+            reportAccountGroups
+          ),
         },
       };
 
@@ -465,14 +509,17 @@ class FinancialReportsService {
 
       // 1. 营业收入部分
       const incomeItems = income.accounts
-        .filter((acc) => acc.currentAmount !== 0 || (acc.compareAmount && acc.compareAmount !== 0))
+        .filter(
+          (acc) =>
+            acc.currentAmount !== 0 || (acc.compareAmount !== null && acc.compareAmount !== 0)
+        )
         .map((acc) => ({
           id: `income-${acc.id}`,
           name: acc.name,
           code: acc.code,
           rowNum: rowNum++,
           amount: acc.currentAmount / unit,
-          compareAmount: acc.compareAmount ? acc.compareAmount / unit : null,
+          compareAmount: acc.compareAmount !== null ? acc.compareAmount / unit : null,
           level: 1,
         }));
 
@@ -483,7 +530,8 @@ class FinancialReportsService {
           code: 'INCOME',
           rowNum: rowNum++,
           amount: income.totalAmount / unit,
-          compareAmount: income.totalCompareAmount ? income.totalCompareAmount / unit : null,
+          compareAmount:
+            compareStartDate && compareEndDate ? income.totalCompareAmount / unit : null,
           level: 0,
           children: incomeItems.length > 0 ? incomeItems : undefined,
         });
@@ -491,14 +539,17 @@ class FinancialReportsService {
 
       // 2. 营业成本部分（新增）
       const costItems = cost.accounts
-        .filter((acc) => acc.currentAmount !== 0 || (acc.compareAmount && acc.compareAmount !== 0))
+        .filter(
+          (acc) =>
+            acc.currentAmount !== 0 || (acc.compareAmount !== null && acc.compareAmount !== 0)
+        )
         .map((acc) => ({
           id: `cost-${acc.id}`,
           name: acc.name,
           code: acc.code,
           rowNum: rowNum++,
           amount: -acc.currentAmount / unit, // 成本显示为负数
-          compareAmount: acc.compareAmount ? -acc.compareAmount / unit : null,
+          compareAmount: acc.compareAmount !== null ? -acc.compareAmount / unit : null,
           level: 1,
         }));
 
@@ -509,7 +560,8 @@ class FinancialReportsService {
           code: 'COST',
           rowNum: rowNum++,
           amount: -cost.totalAmount / unit, // 成本显示为负数
-          compareAmount: cost.totalCompareAmount ? -cost.totalCompareAmount / unit : null,
+          compareAmount:
+            compareStartDate && compareEndDate ? -cost.totalCompareAmount / unit : null,
           level: 0,
           children: costItems.length > 0 ? costItems : undefined,
         });
@@ -522,21 +574,24 @@ class FinancialReportsService {
         code: 'GROSS_PROFIT',
         rowNum: rowNum++,
         amount: grossProfit / unit,
-        compareAmount: compareGrossProfit ? compareGrossProfit / unit : null,
+        compareAmount: compareGrossProfit !== null ? compareGrossProfit / unit : null,
         level: 0,
         isCalculated: true,
       });
 
       // 4. 营业费用部分
       const expenseItems = expenses.accounts
-        .filter((acc) => acc.currentAmount !== 0 || (acc.compareAmount && acc.compareAmount !== 0))
+        .filter(
+          (acc) =>
+            acc.currentAmount !== 0 || (acc.compareAmount !== null && acc.compareAmount !== 0)
+        )
         .map((acc) => ({
           id: `expense-${acc.id}`,
           name: acc.name,
           code: acc.code,
           rowNum: rowNum++,
           amount: -acc.currentAmount / unit, // 费用显示为负数
-          compareAmount: acc.compareAmount ? -acc.compareAmount / unit : null,
+          compareAmount: acc.compareAmount !== null ? -acc.compareAmount / unit : null,
           level: 1,
         }));
 
@@ -547,7 +602,8 @@ class FinancialReportsService {
           code: 'EXPENSE',
           rowNum: rowNum++,
           amount: -expenses.totalAmount / unit, // 费用显示为负数
-          compareAmount: expenses.totalCompareAmount ? -expenses.totalCompareAmount / unit : null,
+          compareAmount:
+            compareStartDate && compareEndDate ? -expenses.totalCompareAmount / unit : null,
           level: 0,
           children: expenseItems.length > 0 ? expenseItems : undefined,
         });
@@ -560,7 +616,7 @@ class FinancialReportsService {
         code: 'NET_INCOME',
         rowNum: rowNum++,
         amount: netIncome / unit,
-        compareAmount: compareNetIncome ? compareNetIncome / unit : null,
+        compareAmount: compareNetIncome !== null ? compareNetIncome / unit : null,
         level: 0,
         isCalculated: true,
       });
@@ -593,12 +649,40 @@ class FinancialReportsService {
 
       try {
         // 获取指定类型的所有科目
+        const usageClauses = [
+          `EXISTS (
+            SELECT 1
+            FROM gl_entry_items gei
+            JOIN gl_entries ge ON ge.id = gei.entry_id
+            WHERE gei.account_id = gl_accounts.id
+              AND ge.is_posted = 1
+              AND ge.entry_date BETWEEN ? AND ?
+            LIMIT 1
+          )`,
+        ];
+        const usageParams = [startDate, endDate];
+        if (compareStartDate && compareEndDate) {
+          usageClauses.push(
+            `EXISTS (
+              SELECT 1
+              FROM gl_entry_items gei
+              JOIN gl_entries ge ON ge.id = gei.entry_id
+              WHERE gei.account_id = gl_accounts.id
+                AND ge.is_posted = 1
+                AND ge.entry_date BETWEEN ? AND ?
+              LIMIT 1
+            )`
+          );
+          usageParams.push(compareStartDate, compareEndDate);
+        }
+
         const [accounts] = await connection.execute(
           `SELECT id, account_code as code, account_name as name, account_type as type, is_debit
            FROM gl_accounts
-           WHERE account_type = ? AND is_active = true
+           WHERE account_type = ?
+             AND (is_active = true OR ${usageClauses.join(' OR ')})
            ORDER BY account_code`,
-          [accountType]
+          [accountType, ...usageParams]
         );
 
         logger.debug(
@@ -636,9 +720,9 @@ class FinancialReportsService {
             isDebit: account.is_debit,
             currentAmount,
             compareAmount,
-            change: compareAmount ? currentAmount - compareAmount : null,
+            change: compareAmount !== null ? currentAmount - compareAmount : null,
             changePercent:
-              compareAmount && compareAmount !== 0
+              compareAmount !== null && compareAmount !== 0
                 ? (((currentAmount - compareAmount) / Math.abs(compareAmount)) * 100).toFixed(2)
                 : null,
           });
@@ -652,9 +736,10 @@ class FinancialReportsService {
           compareEndDate,
           accounts: accountAmounts,
           totalAmount: accountAmounts.reduce((sum, acc) => sum + acc.currentAmount, 0),
-          totalCompareAmount: compareStartDate
-            ? accountAmounts.reduce((sum, acc) => sum + (acc.compareAmount || 0), 0)
-            : null,
+          totalCompareAmount:
+            compareStartDate && compareEndDate
+              ? accountAmounts.reduce((sum, acc) => sum + (acc.compareAmount || 0), 0)
+              : null,
         };
       } finally {
         connection.release();
@@ -705,7 +790,7 @@ class FinancialReportsService {
       // [M-7] 对于损益类科目，取净额而非单边发生额
       // 收入类(贷方科目) = 贷方 - 借方（冲销分录如销售退回记在借方，应被扣减）
       // 费用/成本类(借方科目) = 借方 - 贷方（费用冲回记在贷方，应被扣减）
-      return isDebitAccount ? (totalDebit - totalCredit) : (totalCredit - totalDebit);
+      return isDebitAccount ? totalDebit - totalCredit : totalCredit - totalDebit;
     } catch (error) {
       logger.error('获取科目期间发生额失败:', error);
       throw error;
@@ -723,17 +808,20 @@ class FinancialReportsService {
       id: account.id,
       code: account.code,
       name: account.name,
-      amount: account.currentBalance
-        ? account.currentBalance / unit
-        : account.currentAmount
-          ? account.currentAmount / unit
-          : 0,
-      compareAmount: account.compareBalance
-        ? account.compareBalance / unit
-        : account.compareAmount
-          ? account.compareAmount / unit
-          : null,
-      change: account.change ? account.change / unit : null,
+      amount:
+        account.currentBalance !== undefined && account.currentBalance !== null
+          ? account.currentBalance / unit
+          : account.currentAmount !== undefined && account.currentAmount !== null
+            ? account.currentAmount / unit
+            : 0,
+      compareAmount:
+        account.compareBalance !== undefined && account.compareBalance !== null
+          ? account.compareBalance / unit
+          : account.compareAmount !== undefined && account.compareAmount !== null
+            ? account.compareAmount / unit
+            : null,
+      change:
+        account.change !== undefined && account.change !== null ? account.change / unit : null,
       changePercent: account.changePercent,
     }));
   }
@@ -764,7 +852,7 @@ class FinancialReportsService {
    * @param {number} unit 金额单位
    * @returns {Object} 分类后的资产
    */
-  static categorizeAssets(assets, unit) {
+  static categorizeAssets(assets, unit, accountGroups = {}) {
     const categories = {
       currentAssets: { title: '流动资产', items: [], total: 0 },
       nonCurrentAssets: { title: '非流动资产', items: [], total: 0 },
@@ -776,16 +864,13 @@ class FinancialReportsService {
         code: asset.code,
         name: asset.name,
         amount,
-        compareAmount: asset.compareBalance ? this.roundAmount(asset.compareBalance / unit) : null,
+        compareAmount:
+          asset.compareBalance !== null && asset.compareBalance !== undefined
+            ? this.roundAmount(asset.compareBalance / unit)
+            : null,
       };
 
-      // 根据科目代码分类（简化分类逻辑）
-      if (
-        asset.code.startsWith('100') ||
-        asset.code.startsWith('110') ||
-        asset.code.startsWith('120') ||
-        asset.code.startsWith('130')
-      ) {
+      if (this.codeMatchesConfiguredPrefixes(asset.code, accountGroups.currentAssets)) {
         categories.currentAssets.items.push(item);
         categories.currentAssets.total += amount;
       } else {
@@ -803,7 +888,7 @@ class FinancialReportsService {
    * @param {number} unit 金额单位
    * @returns {Object} 分类后的负债
    */
-  static categorizeLiabilities(liabilities, unit) {
+  static categorizeLiabilities(liabilities, unit, accountGroups = {}) {
     const categories = {
       currentLiabilities: { title: '流动负债', items: [], total: 0 },
       nonCurrentLiabilities: { title: '非流动负债', items: [], total: 0 },
@@ -815,17 +900,13 @@ class FinancialReportsService {
         code: liability.code,
         name: liability.name,
         amount,
-        compareAmount: liability.compareBalance
-          ? this.roundAmount(liability.compareBalance / unit)
-          : null,
+        compareAmount:
+          liability.compareBalance !== null && liability.compareBalance !== undefined
+            ? this.roundAmount(liability.compareBalance / unit)
+            : null,
       };
 
-      // 根据科目代码分类
-      if (
-        liability.code.startsWith('200') ||
-        liability.code.startsWith('210') ||
-        liability.code.startsWith('220')
-      ) {
+      if (this.codeMatchesConfiguredPrefixes(liability.code, accountGroups.currentLiabilities)) {
         categories.currentLiabilities.items.push(item);
         categories.currentLiabilities.total += amount;
       } else {
@@ -843,7 +924,7 @@ class FinancialReportsService {
    * @param {number} unit 金额单位
    * @returns {Object} 分类后的权益
    */
-  static categorizeEquity(equity, unit) {
+  static categorizeEquity(equity, unit, accountGroups = {}) {
     const categories = {
       paidInCapital: { title: '实收资本', items: [], total: 0 },
       retainedEarnings: { title: '留存收益', items: [], total: 0 },
@@ -856,16 +937,19 @@ class FinancialReportsService {
         code: equityItem.code,
         name: equityItem.name,
         amount,
-        compareAmount: equityItem.compareBalance
-          ? this.roundAmount(equityItem.compareBalance / unit)
-          : null,
+        compareAmount:
+          equityItem.compareBalance !== null && equityItem.compareBalance !== undefined
+            ? this.roundAmount(equityItem.compareBalance / unit)
+            : null,
       };
 
-      // 根据科目代码分类
-      if (equityItem.code.startsWith('300') || equityItem.code.startsWith('310')) {
+      if (this.codeMatchesConfiguredPrefixes(equityItem.code, accountGroups.paidInCapital)) {
         categories.paidInCapital.items.push(item);
         categories.paidInCapital.total += amount;
-      } else if (equityItem.code.startsWith('320') || equityItem.code.startsWith('330')) {
+      } else if (
+        this.codeMatchesConfiguredPrefixes(equityItem.code, accountGroups.retainedEarnings) ||
+        equityItem.isCalculated
+      ) {
         categories.retainedEarnings.items.push(item);
         categories.retainedEarnings.total += amount;
       } else {
@@ -1043,6 +1127,103 @@ class FinancialReportsService {
     };
   }
 
+  static async getConfiguredAccountCodes(keys) {
+    await accountingConfig.loadFromDatabase(db);
+    return [
+      ...new Set(
+        keys
+          .map((key) => accountingConfig.getAccountCode(key))
+          .filter(Boolean)
+          .map((code) => String(code))
+      ),
+    ];
+  }
+
+  static async getCashFlowAccountCodes() {
+    return {
+      depreciation: await this.getConfiguredAccountCodes(['ACCUMULATED_DEPRECIATION']),
+      amortization: await this.getConfiguredAccountCodes(['ACCUMULATED_AMORTIZATION']),
+      receivables: await this.getConfiguredAccountCodes(['ACCOUNTS_RECEIVABLE']),
+      inventory: await this.getConfiguredAccountCodes([
+        'MATERIAL_PURCHASE',
+        'RAW_MATERIALS',
+        'INVENTORY_GOODS',
+        'FINISHED_GOODS',
+        'WORK_IN_PROCESS',
+        'WIP',
+        'OUTSOURCED_MATERIALS',
+        'INVENTORY',
+      ]),
+      payables: await this.getConfiguredAccountCodes(['ACCOUNTS_PAYABLE']),
+      fixedAssets: await this.getConfiguredAccountCodes(['FIXED_ASSETS']),
+      fixedAssetImpairment: await this.getConfiguredAccountCodes([
+        'FIXED_ASSET_IMPAIRMENT_ALLOWANCE',
+      ]),
+      intangibleAssets: await this.getConfiguredAccountCodes(['INTANGIBLE_ASSETS']),
+      shortLoans: await this.getConfiguredAccountCodes(['SHORT_TERM_LOANS']),
+      longLoans: await this.getConfiguredAccountCodes(['LONG_TERM_LOANS']),
+      paidInCapital: await this.getConfiguredAccountCodes(['PAID_IN_CAPITAL']),
+      cashEquivalents: await this.getConfiguredAccountCodes([
+        'CASH',
+        'BANK_DEPOSIT',
+        'OTHER_MONETARY_ASSETS',
+      ]),
+    };
+  }
+
+  static async getReportAccountGroups() {
+    return {
+      currentAssets: await this.getConfiguredAccountCodes([
+        'CASH',
+        'BANK_DEPOSIT',
+        'OTHER_MONETARY_ASSETS',
+        'ACCOUNTS_RECEIVABLE',
+        'PREPAYMENTS',
+        'MATERIAL_PURCHASE',
+        'RAW_MATERIALS',
+        'INVENTORY_GOODS',
+        'FINISHED_GOODS',
+        'WORK_IN_PROCESS',
+        'WIP',
+        'OUTSOURCED_MATERIALS',
+        'INVENTORY',
+        'PURCHASE_COST',
+      ]),
+      nonCurrentAssets: await this.getConfiguredAccountCodes([
+        'FIXED_ASSETS',
+        'ACCUMULATED_DEPRECIATION',
+        'FIXED_ASSET_IMPAIRMENT_ALLOWANCE',
+        'CONSTRUCTION_IN_PROGRESS',
+        'FIXED_ASSET_CLEARING',
+        'INTANGIBLE_ASSETS',
+        'ACCUMULATED_AMORTIZATION',
+      ]),
+      currentLiabilities: await this.getConfiguredAccountCodes([
+        'SHORT_TERM_LOANS',
+        'ACCOUNTS_PAYABLE',
+        'GR_IR',
+        'ADVANCE_RECEIPTS',
+        'EMPLOYEE_PAYABLE',
+        'TAX_PAYABLE',
+        'VAT_INPUT_TAX',
+        'VAT_OUTPUT_TAX',
+        'VAT_PAYABLE',
+      ]),
+      nonCurrentLiabilities: await this.getConfiguredAccountCodes(['LONG_TERM_LOANS']),
+      paidInCapital: await this.getConfiguredAccountCodes(['PAID_IN_CAPITAL', 'CAPITAL_RESERVE']),
+      retainedEarnings: await this.getConfiguredAccountCodes([
+        'SURPLUS_RESERVE',
+        'CURRENT_YEAR_PROFIT',
+        'RETAINED_EARNINGS',
+      ]),
+    };
+  }
+
+  static codeMatchesConfiguredPrefixes(code, prefixes = []) {
+    const accountCode = String(code || '');
+    return prefixes.some((prefix) => accountCode.startsWith(String(prefix)));
+  }
+
   /**
    * 生成标准现金流量表（间接法）
    * @param {string} startDate 开始日期 (YYYY-MM-DD)
@@ -1073,7 +1254,7 @@ class FinancialReportsService {
         // 1. 获取期初期末资产负债表数据用于计算变动
         const periodStartDate = new Date(startDate);
         periodStartDate.setDate(periodStartDate.getDate() - 1);
-        const periodStart = periodStartDate.toISOString().slice(0, 10);
+        const periodStart = toLocalDateString(periodStartDate);
 
         // 2. 计算净利润（从利润表）
         const incomeData = await this.calculatePeriodAmount('收入', startDate, endDate);
@@ -1082,73 +1263,73 @@ class FinancialReportsService {
         const netProfit = incomeData.totalAmount - costData.totalAmount - expenseData.totalAmount;
 
         // 3. 获取资产负债表项目的期初期末余额用于计算变动
-
+        const accountCodes = await this.getCashFlowAccountCodes();
 
         // 4. 计算各项目变动
         // 经营活动现金流项目
-        const depreciation = await this.getAccountChangeByCode(
+        const depreciation = await this.getAccountChangeByCodes(
           connection,
-          '1602',
+          accountCodes.depreciation,
           periodStart,
           endDate
         ); // 累计折旧
-        const amortization = await this.getAccountChangeByCode(
+        const amortization = await this.getAccountChangeByCodes(
           connection,
-          '1702',
+          accountCodes.amortization,
           periodStart,
           endDate
         ); // 累计摊销
-        const receivablesChange = await this.getAccountChangeByCode(
+        const receivablesChange = await this.getAccountChangeByCodes(
           connection,
-          '1122',
+          accountCodes.receivables,
           periodStart,
           endDate
         ); // 应收账款
-        const inventoryChange = await this.getAccountChangeByCode(
+        const inventoryChange = await this.getAccountChangeByCodes(
           connection,
-          '1403',
+          accountCodes.inventory,
           periodStart,
           endDate
         ); // 库存商品
-        const payablesChange = await this.getAccountChangeByCode(
+        const payablesChange = await this.getAccountChangeByCodes(
           connection,
-          '2202',
+          accountCodes.payables,
           periodStart,
           endDate
         ); // 应付账款
-         // 预付账款
-         // 预收账款
+        // 预付账款
+        // 预收账款
 
         // 投资活动现金流项目
-        const fixedAssetChange = await this.getAccountChangeByCode(
+        const fixedAssetChange = await this.getAccountChangeByCodes(
           connection,
-          '1601',
+          accountCodes.fixedAssets,
           periodStart,
           endDate
         ); // 固定资产
-        const intangibleAssetChange = await this.getAccountChangeByCode(
+        const intangibleAssetChange = await this.getAccountChangeByCodes(
           connection,
-          '1701',
+          accountCodes.intangibleAssets,
           periodStart,
           endDate
         ); // 无形资产
 
         // 筹资活动现金流项目
-        const shortLoanChange = await this.getAccountChangeByCode(
+        const shortLoanChange = await this.getAccountChangeByCodes(
           connection,
-          '2001',
+          accountCodes.shortLoans,
           periodStart,
           endDate
         ); // 短期借款
-        const longLoanChange = await this.getAccountChangeByCode(
+        const longLoanChange = await this.getAccountChangeByCodes(
           connection,
-          '2501',
+          accountCodes.longLoans,
           periodStart,
           endDate
         ); // 长期借款
-        const paidInCapitalChange = await this.getAccountChangeByCode(
+        const paidInCapitalChange = await this.getAccountChangeByCodes(
           connection,
-          '4001',
+          accountCodes.paidInCapital,
           periodStart,
           endDate
         ); // 实收资本
@@ -1361,7 +1542,7 @@ class FinancialReportsService {
         });
 
         // 获取期初现金余额
-        const beginningCash = await this.getCashBalance(connection, periodStart);
+        const beginningCash = await this.getCashBalance(connection, periodStart, accountCodes);
         reportData.push({
           id: 'cash-beginning',
           name: '加：期初现金及现金等价物余额',
@@ -1431,8 +1612,22 @@ class FinancialReportsService {
       const [accounts] = await connection.execute(
         `SELECT id, account_code, account_name, is_debit
          FROM gl_accounts
-         WHERE account_type = ? AND is_active = 1`,
-        [accountType]
+         WHERE account_type = ?
+           AND (
+             is_active = 1
+             OR COALESCE(opening_debit, 0) <> 0
+             OR COALESCE(opening_credit, 0) <> 0
+             OR EXISTS (
+               SELECT 1
+               FROM gl_entry_items gei
+               JOIN gl_entries ge ON ge.id = gei.entry_id
+               WHERE gei.account_id = gl_accounts.id
+                 AND ge.is_posted = 1
+                 AND ge.entry_date <= ?
+               LIMIT 1
+             )
+           )`,
+        [accountType, endDate]
       );
 
       let totalBeginBalance = 0;
@@ -1465,11 +1660,40 @@ class FinancialReportsService {
    * @returns {number} 余额变动
    */
   static async getAccountChangeByCode(connection, accountCode, beginDate, endDate) {
+    return this.getAccountChangeByCodes(connection, [accountCode], beginDate, endDate);
+  }
+
+  /**
+   * 根据科目代码集合获取余额变动
+   * @param {Object} connection 数据库连接
+   * @param {string[]} accountCodes 科目代码前缀
+   * @param {string} beginDate 期初日期
+   * @param {string} endDate 期末日期
+   * @returns {number} 余额变动
+   */
+  static async getAccountChangeByCodes(connection, accountCodes, beginDate, endDate) {
     try {
+      const codes = [...new Set((accountCodes || []).filter(Boolean).map((code) => String(code)))];
+      if (codes.length === 0) {
+        return 0;
+      }
+
       const [accounts] = await connection.execute(
         `SELECT id FROM gl_accounts
-         WHERE account_code LIKE ? AND is_active = 1`,
-        [accountCode + '%']
+         WHERE (${codes.map(() => 'account_code LIKE ?').join(' OR ')})
+           AND (
+             is_active = 1
+             OR EXISTS (
+               SELECT 1
+               FROM gl_entry_items gei
+               JOIN gl_entries ge ON ge.id = gei.entry_id
+               WHERE gei.account_id = gl_accounts.id
+                 AND ge.is_posted = 1
+                 AND ge.entry_date <= ?
+               LIMIT 1
+             )
+           )`,
+        [...codes.map((code) => `${code}%`), endDate]
       );
 
       if (accounts.length === 0) {
@@ -1485,7 +1709,7 @@ class FinancialReportsService {
 
       return totalChange;
     } catch (error) {
-      logger.error('获取科目变动失败:', { accountCode, error: error.message });
+      logger.error('获取科目变动失败:', { accountCodes, error: error.message });
       return 0;
     }
   }
@@ -1496,12 +1720,32 @@ class FinancialReportsService {
    * @param {string} date 日期
    * @returns {number} 现金余额
    */
-  static async getCashBalance(connection, date) {
+  static async getCashBalance(connection, date, preloadedCodes = null) {
     try {
-      // 获取现金类科目（1001库存现金，1002银行存款）
+      const accountCodes =
+        preloadedCodes?.cashEquivalents || (await this.getCashFlowAccountCodes()).cashEquivalents;
+
+      if (accountCodes.length === 0) {
+        return 0;
+      }
+
+      // 获取现金及现金等价物科目
       const [accounts] = await connection.execute(
         `SELECT id FROM gl_accounts
-         WHERE (account_code LIKE '1001%' OR account_code LIKE '1002%') AND is_active = 1`
+         WHERE (${accountCodes.map(() => 'account_code LIKE ?').join(' OR ')})
+           AND (
+             is_active = 1
+             OR EXISTS (
+               SELECT 1
+               FROM gl_entry_items gei
+               JOIN gl_entries ge ON ge.id = gei.entry_id
+               WHERE gei.account_id = gl_accounts.id
+                 AND ge.is_posted = 1
+                 AND ge.entry_date <= ?
+               LIMIT 1
+             )
+           )`,
+        [...accountCodes.map((code) => `${code}%`), date]
       );
 
       let totalCash = 0;

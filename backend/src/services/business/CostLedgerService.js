@@ -6,6 +6,7 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 
 class CostLedgerService {
   /**
@@ -23,9 +24,10 @@ class CostLedgerService {
    */
   static async getCostLedger(filters = {}) {
     try {
-      const page = parseInt(filters.page) || 1;
-      const pageSize = parseInt(filters.pageSize) || 20;
-      const offset = (page - 1) * pageSize;
+      const pagination = parsePagination(filters.page, filters.pageSize || filters.limit, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
       let whereClause = '1=1';
       const params = [];
@@ -59,7 +61,7 @@ class CostLedgerService {
       }
 
       // 查询明细
-      const sql = `
+      const sql = appendPaginationSQL(`
                 SELECT
                     pt.id as task_id,
                     pt.code as task_code,
@@ -82,8 +84,7 @@ class CostLedgerService {
                 LEFT JOIN cost_centers cc ON pt.cost_center_id = cc.id
                 WHERE ${whereClause} AND pt.status = 'completed'
                 ORDER BY pt.updated_at DESC
-                LIMIT ? OFFSET ?
-            `;
+            `, pagination.limit, pagination.offset);
 
       const countSql = `
                 SELECT COUNT(*) as total
@@ -91,15 +92,14 @@ class CostLedgerService {
                 WHERE ${whereClause} AND pt.status = 'completed'
             `;
 
-      // 将LIMIT和OFFSET参数转为字符串，避免mysql2参数类型问题
-      const [rows] = await db.pool.execute(sql, [...params, String(pageSize), String(offset)]);
+      const [rows] = await db.pool.execute(sql, params);
       const [countResult] = await db.pool.execute(countSql, params);
 
       return {
         list: rows,
         total: countResult[0].total,
-        page,
-        pageSize,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       };
     } catch (error) {
       logger.error('[CostLedger] 获取成本明细账失败:', error);
@@ -289,11 +289,11 @@ class CostLedgerService {
                     SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) as quantity,
                     SUM(
                         (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-                        * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+                        * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), 0)
                     ) / NULLIF(SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END), 0) as unit_cost,
                     SUM(
                         (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-                        * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+                        * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), 0)
                     ) as total_cost
                 FROM inventory_outbound io
                 JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id

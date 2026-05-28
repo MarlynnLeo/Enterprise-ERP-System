@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="permissions-container">
+  <div class="module-page permissions-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -31,15 +31,15 @@
       <div v-if="activeTab === 'roles'">
         <div class="role-header">
           <h3>系统角色</h3>
-          <el-button type="primary" v-permission="'system:permissions:manage'" @click="showAddRoleDialog">新增角色</el-button>
+          <el-button
+            type="primary"
+            v-permission="'system:permissions:manage'"
+            @click="showAddRoleDialog"
+            >新增角色</el-button
+          >
         </div>
 
-        <el-table
-          :data="roleList"
-          style="width: 100%"
-          border
-          v-loading="roleLoading"
-        >
+        <el-table :data="roleList" style="width: 100%" border v-loading="roleLoading">
           <template #empty>
             <el-empty description="暂无角色数据" />
           </template>
@@ -54,16 +54,20 @@
             </template>
           </el-table-column>
           <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
-          <el-table-column label="操作" min-width="250" fixed="right">
+          <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+              <div style="display: flex; gap: 5px; flex-wrap: wrap">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要启用该角色吗？"
                   @confirm="handleToggleRoleStatus(scope.row)"
                 >
                   <template #reference>
-                    <el-button size="small" type="success" v-permission="'system:permissions:manage'">
+                    <el-button
+                      size="small"
+                      type="success"
+                      v-permission="'system:permissions:manage'"
+                    >
                       <el-icon><Check /></el-icon> 启用
                     </el-button>
                   </template>
@@ -75,7 +79,11 @@
                   confirm-button-type="danger"
                 >
                   <template #reference>
-                    <el-button size="small" type="warning" v-permission="'system:permissions:manage'">
+                    <el-button
+                      size="small"
+                      type="warning"
+                      v-permission="'system:permissions:manage'"
+                    >
                       <el-icon><Close /></el-icon> 禁用
                     </el-button>
                   </template>
@@ -85,15 +93,22 @@
                   type="primary"
                   size="small"
                   @click="handleViewRole(scope.row)"
-                ><el-icon><View /></el-icon> 查看</el-button>
+                  ><el-icon><View /></el-icon> 查看</el-button
+                >
                 <el-button
                   v-if="String(scope.row.status) !== '1'"
                   type="primary"
                   size="small"
                   v-permission="'system:permissions:manage'"
                   @click="handleEditRole(scope.row)"
-                ><el-icon><Edit /></el-icon> 编辑</el-button>
-                <el-button type="info" size="small" v-permission="'system:permissions:manage'" @click="handleRolePermission(scope.row)">
+                  ><el-icon><Edit /></el-icon> 编辑</el-button
+                >
+                <el-button
+                  type="info"
+                  size="small"
+                  v-permission="'system:permissions:manage'"
+                  @click="handleRolePermission(scope.row)"
+                >
                   <el-icon><Setting /></el-icon> 分配权限
                 </el-button>
               </div>
@@ -101,7 +116,10 @@
           </el-table-column>
         </el-table>
         <!-- 角色分页 -->
-        <div class="pagination-container" style="display: flex; justify-content: flex-end; margin-top: 20px;">
+        <div
+          class="pagination-container"
+          style="display: flex; justify-content: flex-end; margin-top: 20px"
+        >
           <el-pagination
             background
             layout="total, sizes, prev, pager, next, jumper"
@@ -119,8 +137,18 @@
         <div class="menu-header">
           <h3>菜单权限</h3>
           <div>
-            <el-button type="primary" v-permission="'system:permissions:manage'" @click="showAddMenuDialog">新增菜单</el-button>
-            <el-button type="success" v-permission="'system:permissions:manage'" @click="importMenuData">导入完整菜单</el-button>
+            <el-button
+              type="primary"
+              v-permission="'system:permissions:manage'"
+              @click="showAddMenuDialog"
+              >新增菜单</el-button
+            >
+            <el-button
+              type="success"
+              v-permission="'system:permissions:manage'"
+              @click="importMenuData"
+              >导入完整菜单</el-button
+            >
           </div>
         </div>
 
@@ -129,7 +157,7 @@
           style="width: 100%"
           border
           row-key="id"
-          :tree-props="{children: 'children', hasChildren: 'hasChildren'}"
+          :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
           v-loading="menuLoading"
           :default-sort="{ prop: 'sort', order: 'ascending' }"
         >
@@ -168,16 +196,20 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" min-width="400" fixed="right">
+          <el-table-column label="操作" min-width="400" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+              <div style="display: flex; gap: 5px; flex-wrap: wrap">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要显示该菜单吗？"
                   @confirm="handleToggleMenuStatus(scope.row)"
                 >
                   <template #reference>
-                    <el-button size="small" type="success" v-permission="'system:permissions:manage'">
+                    <el-button
+                      size="small"
+                      type="success"
+                      v-permission="'system:permissions:manage'"
+                    >
                       <el-icon><Check /></el-icon> 显示
                     </el-button>
                   </template>
@@ -189,7 +221,11 @@
                   confirm-button-type="danger"
                 >
                   <template #reference>
-                    <el-button size="small" type="warning" v-permission="'system:permissions:manage'">
+                    <el-button
+                      size="small"
+                      type="warning"
+                      v-permission="'system:permissions:manage'"
+                    >
                       <el-icon><Close /></el-icon> 隐藏
                     </el-button>
                   </template>
@@ -199,15 +235,24 @@
                   type="primary"
                   size="small"
                   @click="handleViewMenu(scope.row)"
-                ><el-icon><View /></el-icon> 查看</el-button>
+                  ><el-icon><View /></el-icon> 查看</el-button
+                >
                 <el-button
                   v-if="String(scope.row.status) !== '1'"
                   type="primary"
                   size="small"
                   v-permission="'system:permissions:manage'"
                   @click="handleEditMenu(scope.row)"
-                ><el-icon><Edit /></el-icon> 编辑</el-button>
-                <el-button type="success" size="small" v-permission="'system:permissions:manage'" @click="handleAddChildMenu(scope.row)" v-if="scope.row.type < 2">添加子菜单</el-button>
+                  ><el-icon><Edit /></el-icon> 编辑</el-button
+                >
+                <el-button
+                  type="success"
+                  size="small"
+                  v-permission="'system:permissions:manage'"
+                  @click="handleAddChildMenu(scope.row)"
+                  v-if="scope.row.type < 2"
+                  >添加子菜单</el-button
+                >
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要删除该菜单吗？此操作无法恢复。"
@@ -215,7 +260,11 @@
                   confirm-button-type="danger"
                 >
                   <template #reference>
-                    <el-button size="small" type="danger" v-permission="'system:permissions:manage'">
+                    <el-button
+                      size="small"
+                      type="danger"
+                      v-permission="'system:permissions:manage'"
+                    >
                       <el-icon><Delete /></el-icon> 删除
                     </el-button>
                   </template>
@@ -228,13 +277,9 @@
     </el-card>
 
     <!-- 角色添加/编辑/查看对话框 -->
-    <el-dialog
-      :title="roleDialogTitle"
-      v-model="roleDialogVisible"
-      width="600px"
-    >
+    <el-dialog :title="roleDialogTitle" v-model="roleDialogVisible" width="600px">
       <template v-if="roleIsViewMode">
-        <el-descriptions :column="1" border style="margin-bottom: 20px;">
+        <el-descriptions :column="1" border style="margin-bottom: 20px">
           <el-descriptions-item label="角色名称">{{ roleForm.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="角色编码">{{ roleForm.code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
@@ -242,7 +287,9 @@
               {{ Number(roleForm.status) === 1 ? '启用' : '禁用' }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="角色描述">{{ roleForm.description || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="角色描述">{{
+            roleForm.description || '-'
+          }}</el-descriptions-item>
         </el-descriptions>
       </template>
       <el-form v-else :model="roleForm" :rules="roleRules" ref="roleFormRef" label-width="100px">
@@ -269,8 +316,17 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="roleDialogVisible = false">{{ roleIsViewMode ? '关闭' : '取消' }}</el-button>
-          <el-button v-if="!roleIsViewMode" v-permission="'system:permissions:manage'" type="primary" @click="saveRole" :loading="roleSaveLoading">确认</el-button>
+          <el-button @click="roleDialogVisible = false">{{
+            roleIsViewMode ? '关闭' : '取消'
+          }}</el-button>
+          <el-button
+            v-if="!roleIsViewMode"
+            v-permission="'system:permissions:manage'"
+            type="primary"
+            @click="saveRole"
+            :loading="roleSaveLoading"
+            >确认</el-button
+          >
         </span>
       </template>
     </el-dialog>
@@ -286,7 +342,9 @@
       <!-- 顶栏：角色 + 搜索 + 统计 -->
       <div class="perm-toolbar">
         <div class="perm-toolbar-left">
-          <span class="perm-role-label">当前角色：<strong>{{ currentRole?.name || '未选择' }}</strong></span>
+          <span class="perm-role-label"
+            >当前角色：<strong>{{ currentRole?.name || '未选择' }}</strong></span
+          >
           <el-tag type="info" size="small" effect="plain" round>
             已选 <strong>{{ permSelectedCount }}</strong> 项
           </el-tag>
@@ -298,7 +356,9 @@
           style="width: 260px"
           size="small"
         >
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
       </div>
       <!-- 操作栏 -->
@@ -316,11 +376,7 @@
               <el-button size="small">模块快捷操作</el-button>
             </template>
             <div class="module-quick-list">
-              <div
-                v-for="mod in topModules"
-                :key="mod.id"
-                class="module-quick-item"
-              >
+              <div v-for="mod in topModules" :key="mod.id" class="module-quick-item">
                 <el-checkbox
                   :model-value="isModuleFullyChecked(mod)"
                   :indeterminate="isModuleIndeterminate(mod)"
@@ -328,7 +384,9 @@
                   size="small"
                 />
                 <span class="module-quick-name">{{ mod.name }}</span>
-                <el-tag size="small" type="info" effect="plain">{{ getModuleCheckedCount(mod) }}</el-tag>
+                <el-tag size="small" type="info" effect="plain">{{
+                  getModuleCheckedCount(mod)
+                }}</el-tag>
               </div>
             </div>
           </el-popover>
@@ -362,7 +420,8 @@
                   size="small"
                   effect="plain"
                   class="perm-node__tag"
-                >{{ data.type === 0 ? '目录' : data.type === 1 ? '菜单' : '按钮' }}</el-tag>
+                  >{{ data.type === 0 ? '目录' : data.type === 1 ? '菜单' : '按钮' }}</el-tag
+                >
                 <span class="perm-node__code" v-if="data.permission">{{ data.permission }}</span>
                 <el-button
                   v-if="data.type === 0 && data.children && data.children.length > 0"
@@ -371,7 +430,8 @@
                   type="primary"
                   class="perm-node__select-all"
                   @click.stop="toggleModuleCheck(data)"
-                >{{ isModuleFullyChecked(data) ? '取消全选' : '全选' }}</el-button>
+                  >{{ isModuleFullyChecked(data) ? '取消全选' : '全选' }}</el-button
+                >
               </div>
             </template>
           </el-tree>
@@ -387,29 +447,35 @@
       <template #footer>
         <div class="perm-dialog-footer">
           <span class="perm-footer-stats">
-            完整选中 <strong>{{ permCheckedCount }}</strong> 项，
-            部分选中 <strong>{{ permHalfCheckedCount }}</strong> 项
+            完整选中 <strong>{{ permCheckedCount }}</strong> 项， 部分选中
+            <strong>{{ permHalfCheckedCount }}</strong> 项
           </span>
           <span>
             <el-button @click="permissionDialogVisible = false">关闭</el-button>
-            <el-button v-permission="'system:permissions:manage'" type="primary" @click="saveRolePermission" :loading="permissionSaveLoading">保存权限</el-button>
+            <el-button
+              v-permission="'system:permissions:manage'"
+              type="primary"
+              @click="saveRolePermission"
+              :loading="permissionSaveLoading"
+              >保存权限</el-button
+            >
           </span>
         </div>
       </template>
     </el-dialog>
     <!-- 菜单添加/编辑/查看对话框 -->
-    <el-dialog
-      :title="menuDialogTitle"
-      v-model="menuDialogVisible"
-      width="600px"
-    >
+    <el-dialog :title="menuDialogTitle" v-model="menuDialogVisible" width="600px">
       <template v-if="menuIsViewMode">
-        <el-descriptions :column="2" border style="margin-bottom: 20px;">
+        <el-descriptions :column="2" border style="margin-bottom: 20px">
           <el-descriptions-item label="上级菜单" :span="2">
-            {{ menuForm.parentId === 0 ? '顶级菜单' : (menuTree.find(m => m.id === menuForm.parentId)?.name || '未知') }}
+            {{
+              menuForm.parentId === 0
+                ? '顶级菜单'
+                : menuTree.find((m) => m.id === menuForm.parentId)?.name || '未知'
+            }}
           </el-descriptions-item>
           <el-descriptions-item label="菜单类型">
-             {{ menuForm.type === 0 ? '目录' : (menuForm.type === 1 ? '菜单' : '按钮') }}
+            {{ menuForm.type === 0 ? '目录' : menuForm.type === 1 ? '菜单' : '按钮' }}
           </el-descriptions-item>
           <el-descriptions-item label="菜单名称">{{ menuForm.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
@@ -418,12 +484,20 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="排序">{{ menuForm.sort ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="路由路径" v-if="menuForm.type !== 2" :span="2">{{ menuForm.path || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="组件路径" v-if="menuForm.type === 1" :span="2">{{ menuForm.component || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="权限标识" v-if="menuForm.type !== 0" :span="2">{{ menuForm.permission || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="路由路径" v-if="menuForm.type !== 2" :span="2">{{
+            menuForm.path || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="组件路径" v-if="menuForm.type === 1" :span="2">{{
+            menuForm.component || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="权限标识" v-if="menuForm.type !== 0" :span="2">{{
+            menuForm.permission || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="图标" v-if="menuForm.type !== 2" :span="2">
-             <el-icon v-if="menuForm.icon" style="vertical-align: middle; margin-right: 5px;"><component :is="menuForm.icon" /></el-icon>
-             {{ menuForm.icon || '-' }}
+            <el-icon v-if="menuForm.icon" style="vertical-align: middle; margin-right: 5px"
+              ><component :is="menuForm.icon"
+            /></el-icon>
+            {{ menuForm.icon || '-' }}
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -464,7 +538,12 @@
           <el-input v-model="menuForm.icon" placeholder="请输入图标名称"></el-input>
         </el-form-item>
         <el-form-item label="排序" prop="sort">
-          <el-input-number v-model="menuForm.sort" :min="0" :max="999" style="width: 100%"></el-input-number>
+          <el-input-number
+            v-model="menuForm.sort"
+            :min="0"
+            :max="999"
+            style="width: 100%"
+          ></el-input-number>
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="menuForm.status">
@@ -475,8 +554,17 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="menuDialogVisible = false">{{ menuIsViewMode ? '关闭' : '取消' }}</el-button>
-          <el-button v-if="!menuIsViewMode" v-permission="'system:permissions:manage'" type="primary" @click="saveMenu" :loading="menuSaveLoading">确认</el-button>
+          <el-button @click="menuDialogVisible = false">{{
+            menuIsViewMode ? '关闭' : '取消'
+          }}</el-button>
+          <el-button
+            v-if="!menuIsViewMode"
+            v-permission="'system:permissions:manage'"
+            type="primary"
+            @click="saveMenu"
+            :loading="menuSaveLoading"
+            >确认</el-button
+          >
         </span>
       </template>
     </el-dialog>
@@ -485,7 +573,16 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, computed, h, watch } from 'vue';
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
-import { Refresh, Search } from '@element-plus/icons-vue';
+import {
+  Check,
+  Close,
+  Delete,
+  Edit,
+  Refresh,
+  Search,
+  Setting,
+  View,
+} from '@element-plus/icons-vue';
 import { api, systemApi } from '@/services/api';
 import menuPermissions from '../../utils/menuPermissions';
 import { useAuthStore } from '../../stores/auth';
@@ -493,10 +590,14 @@ import { useAuthStore } from '../../stores/auth';
 const _authStore = useAuthStore();
 // 菜单类型标签组件
 const MenuTypeTag = (props) => {
-  return h('el-tag', {
-    type: props.type === 0 ? 'primary' : props.type === 1 ? 'success' : 'warning',
-    size: 'small'
-  }, props.type === 0 ? '目录' : props.type === 1 ? '菜单' : '按钮');
+  return h(
+    'el-tag',
+    {
+      type: props.type === 0 ? 'primary' : props.type === 1 ? 'success' : 'warning',
+      size: 'small',
+    },
+    props.type === 0 ? '目录' : props.type === 1 ? '菜单' : '按钮'
+  );
 };
 // 当前激活的标签页
 const activeTab = ref('roles');
@@ -528,8 +629,9 @@ const permissionSaveLoading = ref(false);
 const currentRole = ref({});
 const selectedMenuIds = ref([]);
 const halfCheckedMenuIds = ref([]);
-const treeRenderFlag = ref(false);  // 控制树组件的渲染
-const treeKey = ref(Date.now());    // 用于强制树组件重新渲染
+const rolePermissionBaselines = new Map();
+const treeRenderFlag = ref(false); // 控制树组件的渲染
+const treeKey = ref(Date.now()); // 用于强制树组件重新渲染
 // 权限搜索关键词
 const permSearchKeyword = ref('');
 // 角色表单
@@ -538,7 +640,7 @@ const roleForm = reactive({
   name: '',
   code: '',
   description: '',
-  status: 1
+  status: 1,
 });
 // 菜单表单
 const menuForm = reactive({
@@ -551,24 +653,26 @@ const menuForm = reactive({
   type: 1,
   icon: '',
   sort: 0,
-  status: 1
+  status: 1,
 });
 // 角色表单验证规则
 const roleRules = {
   name: [
     { required: true, message: '请输入角色名称', trigger: 'blur' },
-    { min: 2, max: 30, message: '角色名称长度在 2 到 30 个字符之间', trigger: 'blur' }
+    { min: 2, max: 30, message: '角色名称长度在 2 到 30 个字符之间', trigger: 'blur' },
   ],
   code: [
     { required: true, message: '请输入角色编码', trigger: 'blur' },
-    { pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/, message: '编码只能包含英文字母、数字和下划线，且必须以字母或下划线开头', trigger: 'blur' }
-  ]
+    {
+      pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/,
+      message: '编码只能包含英文字母、数字和下划线，且必须以字母或下划线开头',
+      trigger: 'blur',
+    },
+  ],
 };
 // 菜单表单验证规则
 const menuRules = {
-  name: [
-    { required: true, message: '请输入菜单名称', trigger: 'blur' }
-  ],
+  name: [{ required: true, message: '请输入菜单名称', trigger: 'blur' }],
   path: [
     {
       validator: (_rule, value, callback) => {
@@ -578,12 +682,10 @@ const menuRules = {
         }
         callback();
       },
-      trigger: 'blur'
-    }
+      trigger: 'blur',
+    },
   ],
-  type: [
-    { required: true, message: '请选择菜单类型', trigger: 'change' }
-  ]
+  type: [{ required: true, message: '请选择菜单类型', trigger: 'change' }],
 };
 // 添加计算属性来处理菜单树
 const validMenuTree = computed(() => {
@@ -606,32 +708,42 @@ const permSelectedCount = computed(() => {
 // 完整选中计数
 const permCheckedCount = computed(() => {
   if (!permissionTreeRef.value) return selectedMenuIds.value?.length || 0;
-  try { return permissionTreeRef.value.getCheckedKeys().length; } catch { return 0; }
+  try {
+    return permissionTreeRef.value.getCheckedKeys().length;
+  } catch {
+    return 0;
+  }
 });
 // 半选中计数
 const permHalfCheckedCount = computed(() => {
   if (!permissionTreeRef.value) return 0;
-  try { return permissionTreeRef.value.getHalfCheckedKeys().length; } catch { return 0; }
+  try {
+    return permissionTreeRef.value.getHalfCheckedKeys().length;
+  } catch {
+    return 0;
+  }
 });
 // 搜索过滤树节点
 const filterNode = (value, data) => {
   if (!value) return true;
   const kw = value.toLowerCase();
-  return (data.name && data.name.toLowerCase().includes(kw)) ||
-         (data.permission && data.permission.toLowerCase().includes(kw));
+  return (
+    (data.name && data.name.toLowerCase().includes(kw)) ||
+    (data.permission && data.permission.toLowerCase().includes(kw))
+  );
 };
 // 递归收集节点下所有叶子ID
 const collectLeafIds = (node) => {
   if (!node.children || node.children.length === 0) return [node.id];
-  return node.children.flatMap(c => collectLeafIds(c));
+  return node.children.flatMap((c) => collectLeafIds(c));
 };
 // 切换模块全选/取消全选
 const toggleModuleCheck = (moduleData) => {
   if (!permissionTreeRef.value) return;
   const leafIds = collectLeafIds(moduleData);
   const checked = permissionTreeRef.value.getCheckedKeys();
-  const allChecked = leafIds.length > 0 && leafIds.every(id => checked.includes(id));
-  leafIds.forEach(id => permissionTreeRef.value.setChecked(id, !allChecked, true));
+  const allChecked = leafIds.length > 0 && leafIds.every((id) => checked.includes(id));
+  leafIds.forEach((id) => permissionTreeRef.value.setChecked(id, !allChecked, true));
   handleTreeCheck();
 };
 // 模块是否全选
@@ -640,7 +752,7 @@ const isModuleFullyChecked = (moduleData) => {
   const leafIds = collectLeafIds(moduleData);
   if (leafIds.length === 0) return false;
   const checked = permissionTreeRef.value.getCheckedKeys();
-  return leafIds.every(id => checked.includes(id));
+  return leafIds.every((id) => checked.includes(id));
 };
 // 模块是否半选
 const isModuleIndeterminate = (moduleData) => {
@@ -648,7 +760,7 @@ const isModuleIndeterminate = (moduleData) => {
   const leafIds = collectLeafIds(moduleData);
   if (leafIds.length === 0) return false;
   const checked = permissionTreeRef.value.getCheckedKeys();
-  const count = leafIds.filter(id => checked.includes(id)).length;
+  const count = leafIds.filter((id) => checked.includes(id)).length;
   return count > 0 && count < leafIds.length;
 };
 // 获取模块已选计数
@@ -656,7 +768,7 @@ const getModuleCheckedCount = (moduleData) => {
   if (!permissionTreeRef.value) return '0';
   const leafIds = collectLeafIds(moduleData);
   const checked = permissionTreeRef.value.getCheckedKeys();
-  const count = leafIds.filter(id => checked.includes(id)).length;
+  const count = leafIds.filter((id) => checked.includes(id)).length;
   return `${count}/${leafIds.length}`;
 };
 // 监听搜索关键词变化，触发树过滤
@@ -671,13 +783,17 @@ const loadRoles = async () => {
   try {
     const params = {
       page: roleCurrentPage.value,
-      limit: rolePageSize.value
+      limit: rolePageSize.value,
     };
     const response = await systemApi.getRoles(params);
 
     // 确保处理的是数组数据
     const responseData = response.data;
-    const rolesData = responseData?.data || responseData?.list || responseData?.rows || (Array.isArray(responseData) ? responseData : []);
+    const rolesData =
+      responseData?.data ||
+      responseData?.list ||
+      responseData?.rows ||
+      (Array.isArray(responseData) ? responseData : []);
 
     roleList.value = rolesData;
 
@@ -720,21 +836,14 @@ const loadMenus = async () => {
         const menuData = directResponse.data;
 
         // 处理直接从数据库获取的菜单数据
-        menuList.value = menuData.map(item => ({
+        menuList.value = menuData.map((item) => ({
           ...item,
           id: Number(item.id),
           parent_id: Number(item.parent_id || 0),
           parentId: Number(item.parent_id || 0), // 同时设置parentId以兼容前端代码
           sort: item.sort_order || item.sort || 0, // 处理排序字段
-          type: Number(item.type || 0) // 确保type是数字
+          type: Number(item.type || 0), // 确保type是数字
         }));
-
-        // 缓存菜单数据
-        try {
-          localStorage.setItem('cachedMenus', JSON.stringify(menuList.value));
-        } catch {
-          // 缓存失败不影响主流程
-        }
 
         // 构建菜单树
         const treeData = convertToTree(menuList.value);
@@ -743,8 +852,7 @@ const loadMenus = async () => {
         menuLoading.value = false;
         return menuTree.value;
       }
-    } catch {
-    }
+    } catch {}
 
     // 如果直接API失败，使用标准API获取菜单列表
     const response = await systemApi.getMenus();
@@ -752,21 +860,8 @@ const loadMenus = async () => {
     // 检查响应数据
     if (!response || !response.data) {
       ElMessage.error('加载菜单失败：响应数据无效');
-
-      // 尝试从本地存储中恢复菜单数据
-      const cachedMenus = localStorage.getItem('cachedMenus');
-      if (cachedMenus) {
-        try {
-          const parsedMenus = JSON.parse(cachedMenus);
-          menuList.value = parsedMenus;
-          const treeData = convertToTree(menuList.value);
-          menuTree.value = treeData;
-          return menuTree.value;
-        } catch (cacheError) {
-          console.error('从本地缓存恢复菜单数据失败:', cacheError);
-        }
-      }
-
+      menuList.value = [];
+      menuTree.value = [];
       return [];
     }
 
@@ -778,20 +873,14 @@ const loadMenus = async () => {
 
     if (Array.isArray(menuData)) {
       // 修复：确保所有菜单项都有正确的id和parent_id格式
-      menuList.value = menuData.map(item => ({
+      menuList.value = menuData.map((item) => ({
         ...item,
         id: Number(item.id), // 确保id是数字
         parent_id: Number(item.parent_id || item.parentId || 0), // 确保parent_id是数字，默认为0
         parentId: Number(item.parent_id || item.parentId || 0), // 添加parentId字段以兼容不同命名
         sort: Number(item.sort_order || item.sort || 0), // 处理排序字段
-        type: Number(item.type || 0) // 确保type是数字
+        type: Number(item.type || 0), // 确保type是数字
       }));
-
-      // 缓存菜单数据到本地存储，以便在API失败时使用
-      try {
-        localStorage.setItem('cachedMenus', JSON.stringify(menuList.value));
-      } catch {
-      }
 
       // 构建菜单树
       const treeData = convertToTree(menuList.value);
@@ -830,7 +919,7 @@ const convertToTree = (flatList) => {
   const result = [];
 
   // 第一次遍历: 创建所有节点的映射
-  flatList.forEach(item => {
+  flatList.forEach((item) => {
     if (!item || typeof item !== 'object') return;
 
     const id = Number(item.id);
@@ -856,12 +945,12 @@ const convertToTree = (flatList) => {
       parentId: parentId,
       sort: sortValue,
       sort_order: sortValue,
-      children: []
+      children: [],
     };
   });
 
   // 第二次遍历: 构建树结构
-  Object.values(map).forEach(node => {
+  Object.values(map).forEach((node) => {
     const parentId = Number(node.parentId || node.parent_id || 0);
 
     if (parentId === 0) {
@@ -884,7 +973,7 @@ const convertToTree = (flatList) => {
     nodes.sort((a, b) => (a.sort || 0) - (b.sort || 0));
 
     // 递归对子节点排序
-    nodes.forEach(node => {
+    nodes.forEach((node) => {
       if (node.children && node.children.length > 0) {
         sortNodes(node.children);
       }
@@ -918,7 +1007,7 @@ const handleEditRole = (row) => {
   resetRoleForm();
 
   // 填充表单数据
-  Object.keys(roleForm).forEach(key => {
+  Object.keys(roleForm).forEach((key) => {
     if (key in row) {
       roleForm[key] = row[key];
     }
@@ -961,7 +1050,7 @@ const handleRolePermission = async (row) => {
     const loading = ElLoading.service({
       lock: true,
       text: '正在加载菜单数据...',
-      background: 'rgba(0, 0, 0, 0.7)'
+      background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)',
     });
 
     try {
@@ -969,27 +1058,9 @@ const handleRolePermission = async (row) => {
       if (!menuList.value || menuList.value.length === 0) {
         await loadMenus();
       } else {
-
         // 如果菜单树为空，但菜单列表已加载，则重新构建菜单树
         if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
           menuTree.value = convertToTree(menuList.value);
-        }
-      }
-
-
-      // 如果菜单树仍然为空，尝试从本地存储恢复
-      if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
-        const cachedMenus = localStorage.getItem('cachedMenus');
-        if (cachedMenus) {
-          try {
-            const parsedMenus = JSON.parse(cachedMenus);
-            if (Array.isArray(parsedMenus) && parsedMenus.length > 0) {
-              menuList.value = parsedMenus;
-              menuTree.value = convertToTree(parsedMenus);
-            }
-          } catch (cacheError) {
-            console.error('从本地缓存恢复菜单数据失败:', cacheError);
-          }
         }
       }
 
@@ -1016,7 +1087,7 @@ const handleRolePermission = async (row) => {
       // 兼容新旧接口
       if (Array.isArray(permissionData)) {
         // 旧格式：直接是菜单ID数组
-        const allSelectedIds = permissionData.map(id => Number(id));
+        const allSelectedIds = permissionData.map((id) => Number(id));
 
         // 🔧 重要修复：只选中叶子节点，避免父节点导致子节点自动全选
         const leafNodeIds = filterLeafNodes(allSelectedIds);
@@ -1024,19 +1095,11 @@ const handleRolePermission = async (row) => {
         halfCheckedMenuIds.value = [];
       } else {
         // 新格式：包含完全选中和半选状态的对象
-        selectedMenuIds.value = (permissionData.checkedKeys || []).map(id => Number(id));
-        halfCheckedMenuIds.value = (permissionData.halfCheckedKeys || []).map(id => Number(id));
+        selectedMenuIds.value = (permissionData.checkedKeys || []).map((id) => Number(id));
+        halfCheckedMenuIds.value = (permissionData.halfCheckedKeys || []).map((id) => Number(id));
       }
 
-      // 保存当前角色的权限到localStorage，防止刷新丢失
-      try {
-        const roleSelectionsKey = `role_permissions_${row.id}`;
-        localStorage.setItem(roleSelectionsKey, JSON.stringify({
-          checked: selectedMenuIds.value,
-          halfChecked: halfCheckedMenuIds.value
-        }));
-      } catch {
-      }
+      setRolePermissionBaseline(row.id, selectedMenuIds.value);
 
       // 利用原生的选中能力
       if (permissionTreeRef.value) {
@@ -1065,7 +1128,6 @@ const handleRolePermission = async (row) => {
 };
 // 提取设置树选中状态的逻辑为独立函数
 const _setTreeCheckedStatus = () => {
-
   try {
     // 先清空所有选中状态
     if (typeof permissionTreeRef.value.setCheckedKeys === 'function') {
@@ -1077,13 +1139,12 @@ const _setTreeCheckedStatus = () => {
     // 设置完全选中的菜单
     if (selectedMenuIds.value && selectedMenuIds.value.length > 0) {
       // 确保所有ID都是数字类型
-      const numericIds = selectedMenuIds.value.map(id => Number(id));
+      const numericIds = selectedMenuIds.value.map((id) => Number(id));
       permissionTreeRef.value.setCheckedKeys(numericIds);
     }
 
     // 检查菜单树数据状态
     const menuTreeData = menuTree.value || [];
-
 
     // 检查树节点是否正确渲染
     if (permissionTreeRef.value.store && permissionTreeRef.value.store.nodesMap) {
@@ -1110,60 +1171,69 @@ const _setTreeCheckedStatus = () => {
       message: error.message,
       stack: error.stack,
       permissionTreeRef: permissionTreeRef.value ? '存在' : '不存在',
-      selectedMenuIds: selectedMenuIds.value ? selectedMenuIds.value.length : 0
+      selectedMenuIds: selectedMenuIds.value ? selectedMenuIds.value.length : 0,
     });
   }
 };
 // 保存角色
 const saveRole = async () => {
-  if (!roleFormRef.value) return
+  if (!roleFormRef.value) return;
   // 🔒 防止重复提交：在验证之前就检查 loading 状态
   if (roleSaveLoading.value) {
-    ElMessage.warning('正在保存中，请勿重复操作')
-    return
+    ElMessage.warning('正在保存中，请勿重复操作');
+    return;
   }
   try {
     // 表单验证
-    const valid = await roleFormRef.value.validate()
-    if (!valid) return
+    const valid = await roleFormRef.value.validate();
+    if (!valid) return;
     // 🔒 立即设置 loading 状态，防止重复提交
-    roleSaveLoading.value = true
+    roleSaveLoading.value = true;
     if (roleForm.id) {
       // 更新
-      await systemApi.updateRole(roleForm.id, roleForm)
-      ElMessage.success('更新成功')
+      await systemApi.updateRole(roleForm.id, roleForm);
+      ElMessage.success('更新成功');
     } else {
       // 新增
-      await systemApi.createRole(roleForm)
-      ElMessage.success('添加成功')
+      await systemApi.createRole(roleForm);
+      ElMessage.success('添加成功');
     }
-    roleDialogVisible.value = false
-    loadRoles()
+    roleDialogVisible.value = false;
+    loadRoles();
   } catch (error) {
     // 表单验证失败
     if (error && typeof error === 'object' && !error.response) {
-      return
+      return;
     }
-    console.error('保存角色失败:', error)
+    console.error('保存角色失败:', error);
     // 提取后端返回的错误信息
-    const errorMsg = error.response?.data?.error ||
-                     error.response?.data?.message ||
-                     error.message ||
-                     '保存角色失败'
+    const errorMsg =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      '保存角色失败';
     // 如果是重复提交错误（409状态码），显示警告
     if (error.response?.status === 409) {
-      ElMessage.warning(errorMsg)
+      ElMessage.warning(errorMsg);
     } else {
-      ElMessage.error(errorMsg)
+      ElMessage.error(errorMsg);
     }
   } finally {
-    roleSaveLoading.value = false
+    roleSaveLoading.value = false;
   }
-}
+};
 // 保存角色权限，确保严格按照用户勾选进行保存
 const saveRolePermission = async () => {
   permissionSaveLoading.value = true;
   try {
+    // 确保当前角色ID有效
+    if (!currentRole.value || !currentRole.value.id) {
+      console.error('当前角色无效:', currentRole.value);
+      ElMessage.error('当前角色无效，请重新选择角色');
+      permissionSaveLoading.value = false;
+      return;
+    }
+
     // 确保树组件存在
     if (!permissionTreeRef.value) {
       console.error('保存失败：树组件引用不存在');
@@ -1183,51 +1253,28 @@ const saveRolePermission = async () => {
     }
 
     // 对比之前的选中状态和当前选中状态
-    const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
     let uncheckedIds = [];
+    const prevNumericChecked = getRolePermissionBaseline(currentRole.value.id);
+    const currentNumericChecked = ensureNumericIds(checkedKeys);
 
     try {
-      const prevData = JSON.parse(localStorage.getItem(rolePermissionsKey) || '{}');
-      let prevChecked = [];
-
-      // 优先使用后端返回的完整数据作为比较基准
-      if (prevData.fromBackend && prevData.checked) {
-        prevChecked = prevData.checked;
-      }
-      // 其次使用原始保存的选中状态
-      else if (prevData.originalChecked) {
-        prevChecked = prevData.originalChecked;
-      }
-      // 最后使用普通缓存数据
-      else if (prevData.checked) {
-        prevChecked = prevData.checked;
-      }
-
-      // 转换为数字格式进行比较
-      const prevNumericChecked = prevChecked.map(id => Number(id));
-      const currentNumericChecked = checkedKeys.map(id => Number(id));
-
-      // 找出已取消选中的菜单ID
-      uncheckedIds = prevNumericChecked.filter(id => !currentNumericChecked.includes(id));
+      uncheckedIds = prevNumericChecked.filter((id) => !currentNumericChecked.includes(id));
 
       if (uncheckedIds.length > 0) {
-
         // 获取这些菜单的名称用于显示
-        const uncheckedNames = uncheckedIds.map(id => {
+        const uncheckedNames = uncheckedIds.map((id) => {
           const node = permissionTreeRef.value.getNode(id);
           return node ? node.data.name : `菜单ID:${id}`;
         });
-
 
         // 显示提示，确保用户知道哪些权限被取消了
         ElMessage({
           message: `已取消 ${uncheckedNames.length} 项权限: ${uncheckedNames.slice(0, 3).join(', ')}${uncheckedNames.length > 3 ? '等' : ''}`,
           type: 'warning',
-          duration: 5000
+          duration: 5000,
         });
       }
-    } catch {
-    }
+    } catch {}
 
     // 构建菜单ID列表 - 转换为数字格式并确保唯一性
     const menuIds = [...new Set(ensureNumericIds(checkedKeys))];
@@ -1235,21 +1282,14 @@ const saveRolePermission = async () => {
     // 修复关键问题：将半选中的关键权限合并到完整选中列表中
     // 因为半选中通常表示父级权限，这些权限对功能访问至关重要
     const _allSelectedMenuIds = [...new Set([...menuIds, ...halfMenuIds])];
-    // 确保当前角色ID有效
-    if (!currentRole.value || !currentRole.value.id) {
-      console.error('当前角色无效:', currentRole.value);
-      ElMessage.error('当前角色无效，请重新选择角色');
-      permissionSaveLoading.value = false;
-      return;
-    }
 
     // 收集菜单名称用于确认提示
-    const checkedMenuNames = menuIds.map(id => {
+    const checkedMenuNames = menuIds.map((id) => {
       const node = permissionTreeRef.value.getNode(id);
       return node ? node.data.name : `菜单ID:${id}`;
     });
 
-    const halfCheckedMenuNames = halfMenuIds.map(id => {
+    const halfCheckedMenuNames = halfMenuIds.map((id) => {
       const node = permissionTreeRef.value.getNode(id);
       return node ? node.data.name : `菜单ID:${id}`;
     });
@@ -1258,7 +1298,7 @@ const saveRolePermission = async () => {
       if (names.length === 0) return null;
       const children = [
         h('strong', title),
-        ...names.slice(0, 10).map(name => h('div', { style: itemStyle }, `- ${name}`))
+        ...names.slice(0, 10).map((name) => h('div', { style: itemStyle }, `- ${name}`)),
       ];
       if (names.length > 10) {
         children.push(h('div', `- 等${names.length}个菜单...`));
@@ -1266,25 +1306,27 @@ const saveRolePermission = async () => {
       return h('div', { style: { marginTop: '12px' } }, children);
     };
 
-    const confirmMessage = h('div', [
-      h('div', [
-        h('strong', `您将为角色 "${currentRole.value.name}" 分配以下权限：`)
-      ]),
-      buildPermissionSection(`完整权限菜单(${checkedMenuNames.length})：`, checkedMenuNames),
-      buildPermissionSection(`部分权限菜单(${halfCheckedMenuNames.length})：`, halfCheckedMenuNames)
-    ].filter(Boolean));
+    const confirmMessage = h(
+      'div',
+      [
+        h('div', [h('strong', `您将为角色 "${currentRole.value.name}" 分配以下权限：`)]),
+        buildPermissionSection(`完整权限菜单(${checkedMenuNames.length})：`, checkedMenuNames),
+        buildPermissionSection(
+          `部分权限菜单(${halfCheckedMenuNames.length})：`,
+          halfCheckedMenuNames
+        ),
+      ].filter(Boolean)
+    );
 
     if (uncheckedIds.length > 0) {
-      const uncheckedNames = uncheckedIds.map(id => {
+      const uncheckedNames = uncheckedIds.map((id) => {
         const node = permissionTreeRef.value.getNode(id);
         return node ? node.data.name : `菜单ID:${id}`;
       });
       confirmMessage.children.push(
-        buildPermissionSection(
-          `已取消的权限(${uncheckedIds.length})：`,
-          uncheckedNames,
-          { color: 'var(--el-color-danger)' }
-        )
+        buildPermissionSection(`已取消的权限(${uncheckedIds.length})：`, uncheckedNames, {
+          color: 'var(--el-color-danger)',
+        })
       );
     }
 
@@ -1297,47 +1339,37 @@ const saveRolePermission = async () => {
           confirmButtonText: '确认',
           cancelButtonText: '取消',
           type: 'warning',
-          dangerouslyUseHTMLString: false
+          dangerouslyUseHTMLString: false,
         }
-      ).then(async () => {
-        // 即使清空权限，也保留仪表盘权限
-        await submitRolePermissions([1], [], uncheckedIds);
-      }).catch(() => {
-        permissionSaveLoading.value = false;
-      });
+      )
+        .then(async () => {
+          // 即使清空权限，也保留仪表盘权限
+          await submitRolePermissions([1], [], uncheckedIds);
+        })
+        .catch(() => {
+          permissionSaveLoading.value = false;
+        });
     } else {
       // 使用更详细的确认提示
-      ElMessageBox.confirm(
-        confirmMessage,
-        '确认分配权限',
-        {
-          confirmButtonText: '确认分配',
-          cancelButtonText: '取消',
-          type: 'info',
-          dangerouslyUseHTMLString: false
-        }
-      ).then(async () => {
-        // 先保存当前选择到本地缓存，确保选择不会丢失
-        localStorage.setItem(rolePermissionsKey, JSON.stringify({
-          checked: menuIds,
-          halfChecked: halfMenuIds,
-          unchecked: uncheckedIds,  // 特别记录取消选中的ID
-          timestamp: Date.now(),
-          userEdited: true,  // 标记为用户手动编辑
-          exactSelection: true  // 标记为精确选择模式
-        }));
-
-        await submitRolePermissions(menuIds, halfMenuIds, uncheckedIds);
-      }).catch(() => {
-        permissionSaveLoading.value = false;
-      });
+      ElMessageBox.confirm(confirmMessage, '确认分配权限', {
+        confirmButtonText: '确认分配',
+        cancelButtonText: '取消',
+        type: 'info',
+        dangerouslyUseHTMLString: false,
+      })
+        .then(async () => {
+          await submitRolePermissions(menuIds, halfMenuIds, uncheckedIds);
+        })
+        .catch(() => {
+          permissionSaveLoading.value = false;
+        });
     }
   } catch (error) {
     console.error('保存角色权限失败:', error);
     console.error('错误详情:', {
       message: error.message,
       response: error.response?.data,
-      status: error.response?.status
+      status: error.response?.status,
     });
     ElMessage.error('保存角色权限失败: ' + (error.response?.data?.message || error.message));
     permissionSaveLoading.value = false;
@@ -1348,67 +1380,44 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
   try {
     // 新的权限处理逻辑：保持半选中状态，同时确保权限不丢失
     // 1. 完整选中的权限直接保存
-    let numericMenuIds = menuIds.map(id => Number(id)).filter(id => !isNaN(id) && id > 0);
+    let numericMenuIds = menuIds.map((id) => Number(id)).filter((id) => !isNaN(id) && id > 0);
     // 2. 重新设计权限处理逻辑：自动添加必要的父权限
     // 收集所有需要的父权限
     const allRequiredIds = new Set([...numericMenuIds]);
     // 为每个选中的权限添加其父权限链
-    numericMenuIds.forEach(id => {
-      let currentMenu = menuList.value.find(menu => menu.id === id);
+    numericMenuIds.forEach((id) => {
+      let currentMenu = menuList.value.find((menu) => menu.id === id);
       while (currentMenu && currentMenu.parent_id) {
         allRequiredIds.add(currentMenu.parent_id);
-        currentMenu = menuList.value.find(menu => menu.id === currentMenu.parent_id);
+        currentMenu = menuList.value.find((menu) => menu.id === currentMenu.parent_id);
       }
     });
     // 3. 重新计算完整选中和半选中状态
     const allRequiredArray = Array.from(allRequiredIds);
-    const { checkedIds, halfCheckedIds: calculatedHalfCheckedIds } = calculateTreeState(allRequiredArray);
+    const { checkedIds, halfCheckedIds: calculatedHalfCheckedIds } =
+      calculateTreeState(allRequiredArray);
     // 4. 最终的权限列表
     // 🔧 关键修复：半选中的父节点也应该保存到数据库
     // 因为用户有该父节点下的部分权限，就应该能看到父节点菜单
     // 例如：用户有 production:plans:view 权限，就应该能看到 production:plans 菜单
     numericMenuIds = [...new Set([...checkedIds, ...calculatedHalfCheckedIds])];
     const finalHalfCheckedIds = calculatedHalfCheckedIds;
-    const numericUncheckedIds = uncheckedIds.map(id => Number(id)).filter(id => !isNaN(id) && id > 0);
+    const numericUncheckedIds = uncheckedIds
+      .map((id) => Number(id))
+      .filter((id) => !isNaN(id) && id > 0);
     // 确保取消的ID真的不在选中列表中
-    numericMenuIds = numericMenuIds.filter(id => !numericUncheckedIds.includes(id));
+    numericMenuIds = numericMenuIds.filter((id) => !numericUncheckedIds.includes(id));
 
-    // 保存到本地存储，确保即使后端保存失败也有备份
-    const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
-    try {
-      localStorage.setItem(rolePermissionsKey, JSON.stringify({
-        checked: numericMenuIds,
-        halfChecked: finalHalfCheckedIds,
-        unchecked: numericUncheckedIds,
-        timestamp: Date.now(),
-        saveInProgress: true,
-        exactSelection: true,
-        // 记录一份原始选择，用于在刷新页面后比对是否有变化
-        originalChecked: numericMenuIds,
-        originalHalfChecked: finalHalfCheckedIds,
-        originalUnchecked: numericUncheckedIds
-      }));
-    } catch {
-      // 保存权限到本地存储失败
-    }
     // 提交数据到API
     const _response = await systemApi.updateRolePermissions(currentRole.value.id, {
       menuIds: numericMenuIds,
       halfCheckedIds: finalHalfCheckedIds,
-      uncheckedIds: numericUncheckedIds
+      uncheckedIds: numericUncheckedIds,
     });
 
-    // 更新本地存储，标记保存成功
-    try {
-      const storedData = JSON.parse(localStorage.getItem(rolePermissionsKey) || '{}');
-      storedData.saveInProgress = false;
-      storedData.saveSuccess = true;
-      storedData.saveTime = Date.now();
-      storedData.confirmed = true; // 标记为已确认的最终状态
-      localStorage.setItem(rolePermissionsKey, JSON.stringify(storedData));
-    } catch {
-      // 本地存储失败不影响主流程
-    }
+    setRolePermissionBaseline(currentRole.value.id, numericMenuIds);
+    selectedMenuIds.value = numericMenuIds;
+    halfCheckedMenuIds.value = finalHalfCheckedIds;
 
     // 更新当前用户的权限缓存
     try {
@@ -1501,7 +1510,7 @@ const handleEditMenu = (row) => {
   resetMenuForm();
 
   // 填充表单数据
-  Object.keys(menuForm).forEach(key => {
+  Object.keys(menuForm).forEach((key) => {
     if (key in row) {
       menuForm[key] = row[key];
     }
@@ -1511,76 +1520,75 @@ const handleEditMenu = (row) => {
 };
 // 删除菜单
 const handleDeleteMenu = (row) => {
-  ElMessageBox.confirm(
-    '确认要删除该菜单吗？删除后不可恢复！',
-    '警告',
-    {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(async () => {
-    try {
-      await systemApi.deleteMenu(row.id);
-      ElMessage.success('删除成功');
-      loadMenus(); // 重新加载菜单数据
-    } catch (error) {
-      console.error('删除失败:', error);
-      ElMessage.error('删除失败: ' + error.message);
-    }
-  }).catch(() => {});
+  ElMessageBox.confirm('确认要删除该菜单吗？删除后不可恢复！', '警告', {
+    confirmButtonText: '确认',
+    cancelButtonText: '取消',
+    type: 'warning',
+  })
+    .then(async () => {
+      try {
+        await systemApi.deleteMenu(row.id);
+        ElMessage.success('删除成功');
+        loadMenus(); // 重新加载菜单数据
+      } catch (error) {
+        console.error('删除失败:', error);
+        ElMessage.error('删除失败: ' + error.message);
+      }
+    })
+    .catch(() => {});
 };
 // 保存菜单
 const saveMenu = async () => {
-  if (!menuFormRef.value) return
+  if (!menuFormRef.value) return;
   // 🔒 防止重复提交：在验证之前就检查 loading 状态
   if (menuSaveLoading.value) {
-    ElMessage.warning('正在保存中，请勿重复操作')
-    return
+    ElMessage.warning('正在保存中，请勿重复操作');
+    return;
   }
   try {
     // 表单验证
-    const valid = await menuFormRef.value.validate()
-    if (!valid) return
+    const valid = await menuFormRef.value.validate();
+    if (!valid) return;
     // 🔒 立即设置 loading 状态，防止重复提交
-    menuSaveLoading.value = true
+    menuSaveLoading.value = true;
     if (menuForm.id) {
       // 更新
-      await systemApi.updateMenu(menuForm.id, menuForm)
-      ElMessage.success('更新成功')
+      await systemApi.updateMenu(menuForm.id, menuForm);
+      ElMessage.success('更新成功');
     } else {
       // 新增
-      const response = await systemApi.createMenu(menuForm)
-      ElMessage.success('添加成功')
+      const response = await systemApi.createMenu(menuForm);
+      ElMessage.success('添加成功');
       // 拦截器已解包，response.data 就是业务数据
       // 如果API返回了新创建的菜单ID，更新表单
       if (response.data?.id) {
-        menuForm.id = response.data.id
+        menuForm.id = response.data.id;
       }
     }
-    menuDialogVisible.value = false
-    loadMenus() // 重新加载菜单数据
+    menuDialogVisible.value = false;
+    loadMenus(); // 重新加载菜单数据
   } catch (error) {
     // 表单验证失败
     if (error && typeof error === 'object' && !error.response) {
-      return
+      return;
     }
-    console.error('保存菜单失败:', error)
+    console.error('保存菜单失败:', error);
     // 提取后端返回的错误信息
-    const errorMsg = error.response?.data?.error ||
-                     error.response?.data?.message ||
-                     error.message ||
-                     '保存菜单失败'
+    const errorMsg =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      '保存菜单失败';
     // 如果是重复提交错误（409状态码），显示警告
     if (error.response?.status === 409) {
-      ElMessage.warning(errorMsg)
+      ElMessage.warning(errorMsg);
     } else {
-      ElMessage.error(errorMsg)
+      ElMessage.error(errorMsg);
     }
   } finally {
-    menuSaveLoading.value = false
+    menuSaveLoading.value = false;
   }
-}
+};
 // 重置角色表单
 const resetRoleForm = () => {
   roleForm.id = null;
@@ -1614,24 +1622,22 @@ const resetMenuForm = () => {
 };
 // 导入菜单数据
 const importMenuData = async () => {
-  ElMessageBox.confirm(
-    '确认要导入完整的菜单数据吗？这将覆盖现有的菜单配置。',
-    '确认导入',
-    {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(async () => {
-    try {
-      await api.post('/system/menus/import', { menus: menuPermissions });
-      ElMessage.success('菜单数据导入成功');
-      loadMenus(); // 重新加载菜单数据
-    } catch (error) {
-      console.error('导入菜单数据失败:', error);
-      ElMessage.error('导入菜单数据失败: ' + error.message);
-    }
-  }).catch(() => {});
+  ElMessageBox.confirm('确认要导入完整的菜单数据吗？这将覆盖现有的菜单配置。', '确认导入', {
+    confirmButtonText: '确认',
+    cancelButtonText: '取消',
+    type: 'warning',
+  })
+    .then(async () => {
+      try {
+        await api.post('/system/menus/import', { menus: menuPermissions });
+        ElMessage.success('菜单数据导入成功');
+        loadMenus(); // 重新加载菜单数据
+      } catch (error) {
+        console.error('导入菜单数据失败:', error);
+        ElMessage.error('导入菜单数据失败: ' + error.message);
+      }
+    })
+    .catch(() => {});
 };
 // 展开所有节点
 const expandAll = () => {
@@ -1646,7 +1652,7 @@ const expandAll = () => {
       // 手动展开所有节点
       const store = permissionTreeRef.value.store;
       if (store && store.nodesMap) {
-        Object.keys(store.nodesMap).forEach(nodeId => {
+        Object.keys(store.nodesMap).forEach((nodeId) => {
           const node = store.nodesMap[nodeId];
           if (node && node.childNodes && node.childNodes.length > 0) {
             node.expanded = true;
@@ -1675,7 +1681,7 @@ const _handleNodeExpand = (_data, _node) => {
         const numericSelectedKeys = ensureNumericIds(selectedMenuIds.value);
 
         // 检查是否有选中状态丢失
-        const lostKeys = numericSelectedKeys.filter(id => !numericCurrentKeys.includes(id));
+        const lostKeys = numericSelectedKeys.filter((id) => !numericCurrentKeys.includes(id));
 
         // 如果有选中状态丢失，重新设置选中状态
         if (lostKeys.length > 0) {
@@ -1686,8 +1692,7 @@ const _handleNodeExpand = (_data, _node) => {
           permissionTreeRef.value.setCheckedKeys(mergedKeys);
         }
       }
-    } catch {
-    }
+    } catch {}
   }, 100);
 };
 // 修改权限对话框打开事件处理函数，处理精确选中问题
@@ -1696,167 +1701,112 @@ const onPermissionDialogOpened = async () => {
   const loading = ElLoading.service({
     lock: true,
     text: '正在加载菜单数据...',
-    background: 'rgba(0, 0, 0, 0.7)'
+    background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)',
   });
   try {
-      // 检查菜单树数据是否有效，如果有效则不重新加载
-      let needReloadMenus = false;
+    // 检查菜单树数据是否有效，如果有效则不重新加载
+    let needReloadMenus = false;
 
-      if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
-        needReloadMenus = true;
-      } else {
-        // 检查是否有子节点
-        let hasChildren = false;
-        menuTree.value.forEach(node => {
-          if (node.children && node.children.length > 0) {
-            hasChildren = true;
-          }
-        });
-
-        if (!hasChildren) {
-          needReloadMenus = true;
+    if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
+      needReloadMenus = true;
+    } else {
+      // 检查是否有子节点
+      let hasChildren = false;
+      menuTree.value.forEach((node) => {
+        if (node.children && node.children.length > 0) {
+          hasChildren = true;
         }
-      }
-
-      // 只有在必要时才重新加载菜单数据
-      if (needReloadMenus) {
-    await loadMenus();
-
-        // 如果加载后菜单树仍为空，尝试从本地存储恢复
-        if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
-          // 尝试从本地存储恢复
-          const cachedMenus = localStorage.getItem('cachedMenus');
-          if (cachedMenus) {
-            try {
-              const parsedMenus = JSON.parse(cachedMenus);
-              if (Array.isArray(parsedMenus) && parsedMenus.length > 0) {
-                menuList.value = parsedMenus;
-                menuTree.value = convertToTree(parsedMenus);
-              }
-            } catch (error) {
-              console.error('恢复缓存的菜单数据失败:', error);
-            }
-          }
-        }
-      }
-
-      // 构建角色权限本地存储键
-      const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
-
-      // 优先级顺序:
-      // 1. 本地存储的角色权限(最新)
-      // 2. 后端返回的角色权限(可能未更新)
-
-      // 尝试从本地存储恢复角色权限
-      let loadedFromCache = false;
-      try {
-        const savedPermissions = localStorage.getItem(rolePermissionsKey);
-        if (savedPermissions) {
-          const parsedData = JSON.parse(savedPermissions);
-
-          // 检查是否有用户最近编辑过的数据
-          if (parsedData.userEdited || parsedData.saveSuccess || parsedData.confirmed) {
-            if (parsedData.checked && Array.isArray(parsedData.checked)) {
-              // 确保ID是精确匹配的，不会自动选中同模块所有菜单
-              selectedMenuIds.value = parsedData.checked.map(id => Number(id));
-              halfCheckedMenuIds.value = (parsedData.halfChecked || []).map(id => Number(id));
-              loadedFromCache = true;
-            }
-          } else if (parsedData.checked && Array.isArray(parsedData.checked) && parsedData.checked.length > 0) {
-            // 使用普通缓存数据
-            selectedMenuIds.value = parsedData.checked.map(id => Number(id));
-            halfCheckedMenuIds.value = (parsedData.halfChecked || []).map(id => Number(id));
-            loadedFromCache = true;
-          }
-        }
-      } catch {
-      }
-
-      // 始终从后端获取最新的权限数据，确保数据一致性
-      try {
-        // 获取角色权限
-        const response = await systemApi.getRolePermissions(currentRole.value.id);
-        // API响应处理
-        // 检查响应是否有效
-        if (!response) {
-          ElMessage.warning('获取角色权限失败：无响应');
-          selectedMenuIds.value = [];
-          halfCheckedMenuIds.value = [];
-          return;
-        }
-        // 拦截器已解包，response.data 就是业务数据
-        let permissionData = null;
-        // 情况1：直接格式，响应就是数组
-        if (Array.isArray(response.data)) {
-          permissionData = response.data;
-        }
-        // 情况2：响应数据为null或undefined
-        else if (response.data === null || response.data === undefined) {
-          permissionData = [];
-        }
-        // 情况3：其他格式
-        else {
-          permissionData = [];
-        }
-        // 处理权限数据
-        if (Array.isArray(permissionData)) {
-          // 直接是菜单ID数组，需要过滤出叶子节点
-          const allSelectedIds = permissionData.map(id => Number(id)).filter(id => !isNaN(id));
-          // 🔧 重要修复：只选中叶子节点，避免父节点导致子节点自动全选
-          const leafNodeIds = filterLeafNodes(allSelectedIds);
-          // 使用叶子节点作为选中状态，树组件会自动计算父节点的半选状态
-          selectedMenuIds.value = leafNodeIds;
-          halfCheckedMenuIds.value = [];
-        } else if (permissionData && typeof permissionData === 'object') {
-          // 对象格式：包含完全选中和半选状态
-          selectedMenuIds.value = (permissionData.checkedKeys || []).map(id => Number(id)).filter(id => !isNaN(id));
-          halfCheckedMenuIds.value = (permissionData.halfCheckedKeys || []).map(id => Number(id)).filter(id => !isNaN(id));
-        } else {
-          // 无效数据
-          selectedMenuIds.value = [];
-          halfCheckedMenuIds.value = [];
-        }
-        // 权限数据获取完成
-        // 清除旧的本地存储，避免数据不一致
-        try {
-          localStorage.removeItem(rolePermissionsKey);
-        } catch {
-        }
-      } catch (error) {
-        ElMessage.error('获取角色权限失败：' + (error.response?.data?.message || error.message));
-        // 如果后端获取失败且有本地缓存，使用本地缓存
-        if (!loadedFromCache) {
-          selectedMenuIds.value = [];
-          halfCheckedMenuIds.value = [];
-        }
-      }
-      // 确保 selectedMenuIds 的值是普通数组而不是响应式Proxy对象
-      if (selectedMenuIds.value && selectedMenuIds.value.length > 0) {
-        // 克隆数组，消除Proxy包装
-        const plainArray = [...selectedMenuIds.value].map(id => Number(id));
-        selectedMenuIds.value = plainArray;
-      }
-      // 重置树渲染状态
-      treeRenderFlag.value = false;
-      // 使用新的key强制重新渲染树
-      treeKey.value = Date.now();
-      // 关闭加载提示
-      loading.close();
-      // 等待DOM更新完成后再处理树
-      nextTick(() => {
-        // 设置标志位表示可以渲染树了
-        treeRenderFlag.value = true;
-        // 等待树组件完成渲染后展开并应用选中状态
-        nextTick(() => {
-          expandAll();
-          forceApplyCheckedState();
-        });
       });
-    } catch (error) {
-      console.error('打开权限对话框时发生错误:', error);
-      loading.close();
-      ElMessage.error('加载菜单数据失败');
+
+      if (!hasChildren) {
+        needReloadMenus = true;
+      }
     }
+
+    // 只有在必要时才重新加载菜单数据
+    if (needReloadMenus) {
+      await loadMenus();
+    }
+
+    // 始终从后端获取最新的权限数据，确保数据一致性
+    try {
+      // 获取角色权限
+      const response = await systemApi.getRolePermissions(currentRole.value.id);
+      // API响应处理
+      // 检查响应是否有效
+      if (!response) {
+        ElMessage.warning('获取角色权限失败：无响应');
+        selectedMenuIds.value = [];
+        halfCheckedMenuIds.value = [];
+        return;
+      }
+      // 拦截器已解包，response.data 就是业务数据
+      let permissionData = null;
+      // 情况1：直接格式，响应就是数组
+      if (Array.isArray(response.data)) {
+        permissionData = response.data;
+      }
+      // 情况2：响应数据为null或undefined
+      else if (response.data === null || response.data === undefined) {
+        permissionData = [];
+      }
+      // 情况3：其他格式
+      else {
+        permissionData = [];
+      }
+      // 处理权限数据
+      if (Array.isArray(permissionData)) {
+        // 直接是菜单ID数组，需要过滤出叶子节点
+        const allSelectedIds = permissionData.map((id) => Number(id)).filter((id) => !isNaN(id));
+        // 🔧 重要修复：只选中叶子节点，避免父节点导致子节点自动全选
+        const leafNodeIds = filterLeafNodes(allSelectedIds);
+        // 使用叶子节点作为选中状态，树组件会自动计算父节点的半选状态
+        selectedMenuIds.value = leafNodeIds;
+        halfCheckedMenuIds.value = [];
+      } else if (permissionData && typeof permissionData === 'object') {
+        // 对象格式：包含完全选中和半选状态
+        selectedMenuIds.value = (permissionData.checkedKeys || [])
+          .map((id) => Number(id))
+          .filter((id) => !isNaN(id));
+        halfCheckedMenuIds.value = (permissionData.halfCheckedKeys || [])
+          .map((id) => Number(id))
+          .filter((id) => !isNaN(id));
+      } else {
+        // 无效数据
+        selectedMenuIds.value = [];
+        halfCheckedMenuIds.value = [];
+      }
+      setRolePermissionBaseline(currentRole.value.id, selectedMenuIds.value);
+    } catch (error) {
+      ElMessage.error('获取角色权限失败：' + (error.response?.data?.message || error.message));
+    }
+    // 确保 selectedMenuIds 的值是普通数组而不是响应式Proxy对象
+    if (selectedMenuIds.value && selectedMenuIds.value.length > 0) {
+      // 克隆数组，消除Proxy包装
+      const plainArray = [...selectedMenuIds.value].map((id) => Number(id));
+      selectedMenuIds.value = plainArray;
+    }
+    // 重置树渲染状态
+    treeRenderFlag.value = false;
+    // 使用新的key强制重新渲染树
+    treeKey.value = Date.now();
+    // 关闭加载提示
+    loading.close();
+    // 等待DOM更新完成后再处理树
+    nextTick(() => {
+      // 设置标志位表示可以渲染树了
+      treeRenderFlag.value = true;
+      // 等待树组件完成渲染后展开并应用选中状态
+      nextTick(() => {
+        expandAll();
+        forceApplyCheckedState();
+      });
+    });
+  } catch (error) {
+    console.error('打开权限对话框时发生错误:', error);
+    loading.close();
+    ElMessage.error('加载菜单数据失败');
+  }
 };
 // 在选中值处理部分添加一个专门处理菜单ID的函数
 // 在convertToTree函数后面添加这个新函数
@@ -1865,17 +1815,23 @@ const ensureNumericIds = (ids) => {
   if (!Array.isArray(ids)) return [];
 
   // 过滤并转换所有ID为数字类型
-  return ids.map(id => {
-    const numId = Number(id);
-    return !isNaN(numId) && numId > 0 ? numId : null;
-  }).filter(id => id !== null);
+  return ids
+    .map((id) => {
+      const numId = Number(id);
+      return !isNaN(numId) && numId > 0 ? numId : null;
+    })
+    .filter((id) => id !== null);
+};
+const getRolePermissionBaseline = (roleId) => rolePermissionBaselines.get(Number(roleId)) || [];
+const setRolePermissionBaseline = (roleId, checkedIds) => {
+  rolePermissionBaselines.set(Number(roleId), [...new Set(ensureNumericIds(checkedIds))]);
 };
 // 🔧 提取公共函数：构建菜单映射关系
 const buildMenuMaps = () => {
   const menuMap = {};
   const childrenMap = {};
 
-  menuList.value.forEach(menu => {
+  menuList.value.forEach((menu) => {
     menuMap[menu.id] = menu;
     if (menu.parent_id) {
       if (!childrenMap[menu.parent_id]) {
@@ -1896,7 +1852,7 @@ const filterLeafNodes = (selectedIds) => {
   const { childrenMap } = buildMenuMaps();
 
   // 只保留叶子节点
-  return selectedIds.filter(id => {
+  return selectedIds.filter((id) => {
     const children = childrenMap[id] || [];
     return children.length === 0;
   });
@@ -1912,7 +1868,7 @@ const calculateTreeState = (allSelectedIds) => {
     // 使用公共函数构建菜单映射
     const { menuMap, childrenMap } = buildMenuMaps();
     // 遍历所有选中的权限
-    allSelectedIds.forEach(id => {
+    allSelectedIds.forEach((id) => {
       const menu = menuMap[id];
       if (!menu) return;
       // 检查是否有子菜单
@@ -1922,7 +1878,7 @@ const calculateTreeState = (allSelectedIds) => {
         checkedIds.push(id);
       } else {
         // 有子菜单，检查子菜单的选中情况
-        const selectedChildren = children.filter(childId => allSelectedIds.includes(childId));
+        const selectedChildren = children.filter((childId) => allSelectedIds.includes(childId));
         if (selectedChildren.length === 0) {
           // 没有子菜单被选中，说明用户直接选中了这个父菜单
           checkedIds.push(id);
@@ -1963,7 +1919,7 @@ const forceApplyCheckedState = () => {
         const currentHalfChecked = permissionTreeRef.value.getHalfCheckedKeys();
         const totalSelected = [...currentChecked, ...currentHalfChecked];
         // 检查是否包含了所有必要的权限，而不是严格相等
-        const missingIds = numericIds.filter(id => !totalSelected.includes(id));
+        const missingIds = numericIds.filter((id) => !totalSelected.includes(id));
         if (missingIds.length > 0 && missingIds.length < numericIds.length) {
           // 只有在确实缺少权限且不是全部缺少时才重试
           permissionTreeRef.value.setCheckedKeys(numericIds);
@@ -1991,9 +1947,10 @@ const collapseAll = () => {
       // 手动折叠所有节点
       const store = permissionTreeRef.value.store;
       if (store && store.nodesMap) {
-        Object.keys(store.nodesMap).forEach(nodeId => {
+        Object.keys(store.nodesMap).forEach((nodeId) => {
           const node = store.nodesMap[nodeId];
-          if (node && node.level === 1) { // 只折叠顶级节点
+          if (node && node.level === 1) {
+            // 只折叠顶级节点
             node.expanded = false;
           }
         });
@@ -2010,17 +1967,18 @@ const refreshMenuTree = async () => {
     const loading = ElLoading.service({
       lock: true,
       text: '正在刷新菜单数据...',
-      background: 'rgba(0, 0, 0, 0.7)'
+      background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)',
     });
-
-    // 清除本地缓存，确保重新加载最新数据
-    localStorage.removeItem('cachedMenus');
 
     // 重新加载菜单数据
     await loadMenus();
 
     // 如果菜单树仍然为空，但菜单列表有数据，则手动构建菜单树
-    if ((!menuTree.value || menuTree.value.length === 0) && menuList.value && menuList.value.length > 0) {
+    if (
+      (!menuTree.value || menuTree.value.length === 0) &&
+      menuList.value &&
+      menuList.value.length > 0
+    ) {
       menuTree.value = convertToTree(menuList.value);
     }
 
@@ -2030,22 +1988,22 @@ const refreshMenuTree = async () => {
     // 如果菜单树已加载，等待DOM更新后再展开所有节点
     if (menuTree.value && menuTree.value.length > 0) {
       // 使用nextTick确保DOM已更新
-        nextTick(() => {
+      nextTick(() => {
         // 添加延时，确保树组件已完全渲染
-          setTimeout(() => {
+        setTimeout(() => {
           if (permissionTreeRef.value) {
-              try {
-                expandAll();
+            try {
+              expandAll();
               ElMessage.success('菜单数据刷新成功');
-              } catch {
-                // 展开失败不影响主流程
-              }
-            } else {
-            ElMessage.success('菜单数据刷新成功，但无法自动展开节点');
+            } catch {
+              // 展开失败不影响主流程
             }
+          } else {
+            ElMessage.success('菜单数据刷新成功，但无法自动展开节点');
+          }
         }, 500); // 增加延迟时间，确保树组件已渲染完成
-        });
-      } else {
+      });
+    } else {
       ElMessage.error('菜单数据刷新失败，请检查网络或联系管理员');
     }
   } catch (error) {
@@ -2053,30 +2011,9 @@ const refreshMenuTree = async () => {
     ElMessage.error('刷新菜单树失败: ' + error.message);
   }
 };
-// 优化handleCheckChange函数，移除多余日志
-const handleCheckChange = (data, checked, indeterminate) => {
-  // 记录状态变更
-  try {
-    if (currentRole.value && currentRole.value.id) {
-      const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
-
-      const existingData = JSON.parse(localStorage.getItem(rolePermissionsKey) || '{}');
-
-      // 标记为用户手动编辑过
-      existingData.lastEditTime = Date.now();
-      existingData.lastEditedNode = {
-        id: data.id,
-        name: data.name,
-        checked: checked,
-        indeterminate: indeterminate
-      };
-      existingData.userEdited = true;
-
-      // 保存回本地存储
-      localStorage.setItem(rolePermissionsKey, JSON.stringify(existingData));
-    }
-  } catch {
-  }
+// 同步树状态到当前对话框的响应式变量
+const handleCheckChange = () => {
+  handleTreeCheck();
 };
 // 优化handleTreeCheck函数，移除多余日志
 const handleTreeCheck = () => {
@@ -2093,20 +2030,6 @@ const handleTreeCheck = () => {
       // 保存当前选中状态到响应式变量，确保使用最新状态
       selectedMenuIds.value = numericCheckedKeys;
       halfCheckedMenuIds.value = numericHalfCheckedKeys;
-
-      // 使用统一的key格式
-      const rolePermissionsKey = `role_permissions_${currentRole.value.id}`;
-
-      // 每次勾选变化时，立即保存到本地存储
-      try {
-        localStorage.setItem(rolePermissionsKey, JSON.stringify({
-          checked: numericCheckedKeys,
-          halfChecked: numericHalfCheckedKeys,
-          timestamp: Date.now(),
-          userEdited: true  // 标记为用户手动编辑
-        }));
-      } catch {
-      }
     }
   } catch (err) {
     console.error('处理树节点选中状态失败:', err);
@@ -2126,10 +2049,10 @@ onMounted(async () => {
       setTimeout(async () => {
         await loadMenus();
       }, 1000);
-      }
-    } catch (error) {
-    console.error('组件挂载时加载数据失败:', error);
     }
+  } catch (error) {
+    console.error('组件挂载时加载数据失败:', error);
+  }
 });
 </script>
 <style scoped>
@@ -2160,13 +2083,15 @@ onMounted(async () => {
   font-weight: 500;
   color: var(--color-text-primary);
 }
-.role-header, .menu-header {
+.role-header,
+.menu-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
 }
-.role-header h3, .menu-header h3 {
+.role-header h3,
+.menu-header h3 {
   margin: 0;
 }
 .current-role {
@@ -2196,19 +2121,19 @@ onMounted(async () => {
   border-radius: 3px;
 }
 .menu-type-tag.directory {
-  background-color: #e6f7ff;
-  color: #1890ff;
-  border: 1px solid #91d5ff;
+  background-color: var(--ds-blue-bg);
+  color: var(--ds-blue);
+  border: 1px solid var(--ds-blue-strong);
 }
 .menu-type-tag.menu {
-  background-color: #f6ffed;
-  color: #52c41a;
-  border: 1px solid #b7eb8f;
+  background-color: var(--ds-green-bg);
+  color: var(--color-success);
+  border: 1px solid var(--ds-green-strong);
 }
 .menu-type-tag.button {
-  background-color: #fff7e6;
-  color: #fa8c16;
-  border: 1px solid #ffd591;
+  background-color: var(--ds-yellow-bg);
+  color: var(--ds-orange);
+  border: 1px solid var(--ds-yellow-strong);
 }
 .permission-code {
   color: var(--color-text-secondary);
@@ -2217,19 +2142,19 @@ onMounted(async () => {
 }
 /* 添加半选状态的样式 */
 :deep(.is-half-checked) .el-checkbox__input {
-  background-color: #fff7e6 !important;
-  border-color: #fa8c16 !important;
+  background-color: var(--ds-yellow-bg) !important;
+  border-color: var(--ds-orange) !important;
 }
 :deep(.is-half-checked) .el-checkbox__inner {
-  background-color: #fff7e6 !important;
-  border-color: #fa8c16 !important;
+  background-color: var(--ds-yellow-bg) !important;
+  border-color: var(--ds-orange) !important;
 }
 :deep(.is-half-checked) .el-tree-node__content {
-  background-color: #fffbf2;
+  background-color: var(--ds-yellow-bg);
 }
 :deep(.is-half-checked) .permission-node:after {
-  content: "(半选)";
-  color: #fa8c16;
+  content: '(半选)';
+  color: var(--ds-orange);
   font-size: 12px;
   margin-left: 5px;
 }
@@ -2255,11 +2180,11 @@ onMounted(async () => {
 .example-content h4 {
   margin: 0 0 10px 0;
   font-weight: 500;
-  color: #1f2f3d;
+  color: var(--color-text-primary);
 }
 .example-steps {
   padding-left: 10px;
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--color-border-light);
   margin-bottom: 10px;
 }
 .example-steps p {
@@ -2321,11 +2246,11 @@ onMounted(async () => {
   top: 0;
   bottom: 0;
   width: 2px;
-  background-color: #e6e6e6;
+  background-color: var(--color-border-light);
 }
 /* 注意：对话框基础样式已在全局主题中定义，这里只定义页面特定样式 */
 :deep(.el-dialog__body) {
-  max-height: 70vh;  /* 页面特定：确保能看到更多菜单项 */
+  max-height: 70vh; /* 页面特定：确保能看到更多菜单项 */
   overflow-y: auto;
   /* padding 使用全局主题的 24px */
 }
@@ -2336,7 +2261,7 @@ onMounted(async () => {
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border-lighter);
 }
 .perm-toolbar-left {
   display: flex;
@@ -2384,7 +2309,7 @@ onMounted(async () => {
   border: 1px solid var(--color-border-lighter);
   border-radius: 6px;
   padding: 8px;
-  background-color: #fafafa;
+  background-color: var(--color-bg-light);
   max-height: 55vh;
   overflow-y: auto;
 }
@@ -2464,14 +2389,14 @@ onMounted(async () => {
 }
 :deep(.el-tree-node__children .el-tree-node__content) {
   background-color: var(--color-bg-light);
-  border-left: 2px solid #e6e6e6;
+  border-left: 2px solid var(--color-border-light);
   margin-left: 8px;
   padding-left: 12px;
 }
 /* 三级菜单样式 */
 :deep(.el-tree-node__children .el-tree-node__children .el-tree-node__content) {
-  background-color: #f0f0f0;
-  border-left: 2px solid #d9d9d9;
+  background-color: var(--color-bg-hover);
+  border-left: 2px solid var(--color-border-light);
   margin-left: 16px;
 }
 .empty-tree-message {

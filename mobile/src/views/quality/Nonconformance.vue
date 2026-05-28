@@ -53,12 +53,7 @@
     if (!params.status || params.status === 'all') {
       delete apiParams.status
     }
-    const response = await qualityApi.getNonconformanceRecords(apiParams)
-    // 后端返回 { success, data: { items, total } }，转换为通用组件期望的 { data: { list, total } }
-    if (response?.data?.data?.items) {
-      response.data.data.list = response.data.data.items
-    }
-    return response
+    return qualityApi.getNonconformanceRecords(apiParams)
   }
 
   const handleItemClick = (item) => {

@@ -1,5 +1,5 @@
 <template>
-  <div class="eight-d-report-container">
+  <div class="module-page eight-d-report-container">
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -74,12 +74,12 @@
         <el-table-column prop="material_name" label="物料名称" width="120" show-overflow-tooltip />
         <el-table-column prop="initiated_by" label="发起人" width="90" show-overflow-tooltip />
         <el-table-column prop="owner" label="主负责人" width="90" show-overflow-tooltip />
-        <el-table-column prop="priority" label="优先级" width="80" align="center">
+        <el-table-column prop="priority" label="优先级" width="80">
           <template #default="{ row }">
             <el-tag :type="getPriorityType(row.priority)" size="small">{{ getPriorityLabel(row.priority) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="当前阶段" width="100" align="center">
+        <el-table-column label="当前阶段" width="100">
           <template #default="{ row }">
             <el-tag v-if="!['completed', 'closed'].includes(row.current_phase)" :type="getPhaseType(row.current_phase)" size="small">{{ getPhaseLabel(row.current_phase) }}</el-tag>
             <span v-else style="color: var(--color-text-secondary); font-size: 13px;">-</span>
@@ -90,7 +90,7 @@
             <el-progress :percentage="getProgress(row)" :stroke-width="8" :color="getProgressColor(row)" />
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" align="center">
+        <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
@@ -103,7 +103,7 @@
         <el-table-column prop="created_at" label="创建时间" width="100">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="380" fixed="right">
+        <el-table-column label="操作" width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button v-permission="'quality:8d:view'" size="small" @click="handleView(row)">查看</el-button>
             <el-button v-permission="'quality:8d:view'" size="small" @click="_viewLogs(row)">日志</el-button>
@@ -422,7 +422,7 @@
         <el-row :gutter="16" style="margin-bottom: 16px;">
           <el-col :span="8">
             <el-card shadow="never" class="role-card">
-              <div class="role-icon" style="background: #E6F7FF;"><el-icon><List /></el-icon></div>
+              <div class="role-icon" style="background: var(--ds-blue-bg);"><el-icon><List /></el-icon></div>
               <div class="role-info">
                 <div class="role-title">发起人</div>
                 <div class="role-name">{{ detailData.initiated_by || detailData.created_by || '-' }}</div>
@@ -431,7 +431,7 @@
           </el-col>
           <el-col :span="8">
             <el-card shadow="never" class="role-card">
-              <div class="role-icon" style="background: #FFF7E6;">👤</div>
+              <div class="role-icon" style="background: var(--ds-yellow-bg);">👤</div>
               <div class="role-info">
                 <div class="role-title">主负责人 (Champion)</div>
                 <div class="role-name">{{ detailData.owner || '-' }}</div>
@@ -440,7 +440,7 @@
           </el-col>
           <el-col :span="8">
             <el-card shadow="never" class="role-card">
-              <div class="role-icon" style="background: #F0FFF0;">👥</div>
+              <div class="role-icon" style="background: var(--ds-green-bg);">👥</div>
               <div class="role-info">
                 <div class="role-title">D1团队组长</div>
                 <div class="role-name">{{ detailData.d1_team_leader || '-' }}</div>
@@ -584,7 +584,7 @@
       </div>
       <div v-else class="print-container" id="printable-8d-report">
         <!-- 打印视图 -->
-        <h1 style="text-align: center; border-bottom: 2px solid #ccc; padding-bottom: 20px;">8D 纠正预防措施报告</h1>
+        <h1 style="text-align: center; border-bottom: 2px solid var(--color-border-base); padding-bottom: 20px;">8D 纠正预防措施报告</h1>
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
           <span><strong>报告编号:</strong> {{ currentPrintRow?.report_no }}</span>
           <span><strong>发生日期:</strong> {{ dayjs(currentPrintRow?.d2_occurrence_date).format('YYYY-MM-DD') }}</span>
@@ -631,7 +631,7 @@
             </tr>
           </tbody>
         </table>
-        <div style="margin-top: 50px; text-align: right; color: #888; font-size: 12px;">自动生成自 MES/ERP 系统 - {{ dayjs().format('YYYY-MM-DD HH:mm') }}</div>
+        <div style="margin-top: 50px; text-align: right; color: var(--color-text-secondary); font-size: 12px;">自动生成自 MES/ERP 系统 - {{ dayjs().format('YYYY-MM-DD HH:mm') }}</div>
       </div>
       <template #footer>
         <el-button @click="logsDialogVisible = false">关闭</el-button>
@@ -644,14 +644,16 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, MagicStick, Download, List } from '@element-plus/icons-vue'
-import html2pdf from 'html2pdf.js'
 import { eightDReportApi } from '@/api/quality'
 import nonconformingProductApi from '@/api/nonconformingProductApi'
-import { systemApi } from '@/api/system'
 import { api } from '@/services/axiosInstance'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import printService from '@/services/printService'
+import { buildResourceUrl } from '@/config/app'
+import { loadHtml2Pdf } from '@/utils/lazyVendors'
+import { parseResponseData } from '@/utils/responseParser'
+import { loadUserListOptions } from '@/utils/optionLoaders'
 // 响应式状态
 const logsDialogVisible = ref(false)
 const isPrintMode = ref(false)
@@ -660,7 +662,7 @@ const currentPrintRow = ref(null)
 const _viewLogs = async (row) => {
   try {
     const res = await eightDReportApi.getReportLogs(row.id)
-    auditLogs.value = res.data?.data || res.data
+    auditLogs.value = parseResponseData(res)
     isPrintMode.value = false
     logsDialogVisible.value = true
   } catch {
@@ -726,7 +728,7 @@ const handlePrintCommand = async () => {
   }
 }
 const exportPdfLoading = ref(false)
-const exportDetailToPdf = () => {
+const exportDetailToPdf = async () => {
   const element = document.getElementById('pdf-detail-content');
   if (!element) return;
   const opt = {
@@ -738,6 +740,7 @@ const exportDetailToPdf = () => {
   };
 
   exportPdfLoading.value = true;
+  const html2pdf = await loadHtml2Pdf();
   html2pdf().set(opt).from(element).save().then(() => {
     exportPdfLoading.value = false;
     ElMessage.success('PDF导出成功');
@@ -860,8 +863,7 @@ const reviewForm = reactive({
 const fetchUsers = async () => {
   try {
     loadingUsers.value = true
-    const res = await systemApi.getUsers({ page: 1, pageSize: 500, status: 1 })
-    userList.value = res.data?.data?.list || res.data?.list || []
+    userList.value = (await loadUserListOptions()).filter(user => String(user.status ?? 1) === '1')
   } catch {
   } finally {
     loadingUsers.value = false
@@ -870,8 +872,8 @@ const fetchUsers = async () => {
 const fetchNcpList = async (query = '') => {
   try {
     loadingNcp.value = true
-    const res = await nonconformingProductApi.getList({ page: 1, pageSize: 100, keyword: query })
-    const data = res.data?.data || res.data || {}
+    const res = await nonconformingProductApi.getList({ page: 1, pageSize: 50, keyword: query })
+    const data = parseResponseData(res, {})
     const rows = data.items || data.list || data.records || []
     ncpList.value = rows.filter(item => ['pending', 'processing'].includes(item.status))
   } catch {
@@ -919,7 +921,7 @@ const fetchData = async () => {
       params.endDate = dayjs(dateRange.value[1]).format('YYYY-MM-DD')
     }
     const response = await eightDReportApi.getReports(params)
-    const resData = response.data?.data || response.data || {}
+    const resData = parseResponseData(response, {})
     if (Array.isArray(resData)) {
       tableData.value = resData
       pagination.total = resData.length
@@ -937,7 +939,7 @@ const fetchData = async () => {
 const fetchStatistics = async () => {
   try {
     const response = await eightDReportApi.getStatistics()
-    statistics.value = response.data?.data || response.data || {}
+    statistics.value = parseResponseData(response, {})
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
@@ -972,7 +974,7 @@ const submitAiGenerate = async () => {
   aiLoading.value = true
   try {
     const response = await eightDReportApi.aiAnalyze(aiForm)
-    const result = response.data?.data || response.data
+    const result = parseResponseData(response)
 
     if (result) {
       // 成功获取AI数据，填充到主表单
@@ -1030,7 +1032,7 @@ const _handleFileUpload = async (options, targetArray) => {
     const res = await api.post('/upload/file', fd, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    const fileInfo = res.data?.data || res.data
+    const fileInfo = parseResponseData(res)
     if (fileInfo && fileInfo.url) {
       targetArray.push({
         name: fileInfo.filename || options.file.name,
@@ -1053,9 +1055,7 @@ const _handleRemoveFile = (file, targetArray) => {
 const _getFullUrl = (url) => {
   if (url && url.startsWith('http')) return url;
   if (!url) return '';
-  const baseUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-  const path = url.startsWith('/') ? url : `/${url}`;
-  return `${baseUrl}${path}`;
+  return buildResourceUrl(url);
 }
 const formatList = (value) => {
   if (Array.isArray(value)) return value.filter(Boolean).join(', ')
@@ -1090,7 +1090,7 @@ const handleEdit = async (row) => {
   currentRow.value = row
   try {
     const response = await eightDReportApi.getReportById(row.id)
-    const data = response.data?.data || response.data
+    const data = parseResponseData(response)
     Object.keys(formData).forEach(key => {
       if (key.endsWith('_str')) return
       if (data[key] !== undefined) formData[key] = data[key]
@@ -1168,7 +1168,7 @@ const submitForm = async () => {
 const handleView = async (row) => {
   try {
     const response = await eightDReportApi.getReportById(row.id)
-    detailData.value = response.data?.data || response.data
+    detailData.value = parseResponseData(response)
     detailDialogVisible.value = true
   } catch {
     ElMessage.error('获取详情失败')
@@ -1301,9 +1301,9 @@ const getProgress = (row) => {
 }
 const getProgressColor = (row) => {
   const p = getProgress(row)
-  if (p >= 100) return '#67C23A'
-  if (p >= 50) return '#409EFF'
-  return '#E6A23C'
+  if (p >= 100) return 'var(--color-success)'
+  if (p >= 50) return 'var(--color-primary)'
+  return 'var(--color-warning)'
 }
 onMounted(() => {
   fetchData()

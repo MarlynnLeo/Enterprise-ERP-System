@@ -6,6 +6,13 @@ const ExcelJS = require('exceljs');
 const SalaryService = require('../../../services/business/hr/salaryService');
 const DingtalkSyncService = require('../../../services/business/hr/dingtalkSyncService');
 
+const REQUEST_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  WITHDRAWN: 'withdrawn',
+};
+
 const normalizeExcelCellValue = (value) => {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value;
@@ -40,6 +47,99 @@ const worksheetToRows = (worksheet) => {
   });
 
   return rows;
+};
+
+const getUserId = (req) => req.user?.id || req.user?.userId || null;
+
+const sanitizeText = (value) => String(value ?? '').trim();
+
+const parsePositiveNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+};
+
+const parseListPagination = (query) => {
+  const page = Math.max(Number.parseInt(query.page, 10) || 1, 1);
+  const requestedSize = query.pageSize ?? query.limit ?? 20;
+  const pageSize = Math.min(Math.max(Number.parseInt(requestedSize, 10) || 20, 1), 100);
+  return {
+    page,
+    pageSize,
+    offset: (page - 1) * pageSize,
+  };
+};
+
+const buildRequestNo = (prefix) => {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const seed = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+  return `${prefix}${date}${seed}`;
+};
+
+const getEmployeeByUser = async (userId) => {
+  if (!userId) return null;
+  const [[employee]] = await pool.query(
+    `SELECT id, name, employee_no, department_id
+     FROM hr_employees
+     WHERE user_id = ? AND employment_status != 'left'
+     ORDER BY id DESC
+     LIMIT 1`,
+    [userId]
+  );
+  return employee || null;
+};
+
+const tryStartRequestWorkflow = async ({
+  table,
+  businessType,
+  businessId,
+  businessCode,
+  title,
+  userId,
+}) => {
+  const [[template]] = await pool.query(
+    `SELECT id
+     FROM workflow_templates
+     WHERE business_type = ? AND is_active = 1 AND deleted_at IS NULL
+     ORDER BY version DESC
+     LIMIT 1`,
+    [businessType]
+  );
+
+  if (!template) {
+    await pool.query(
+      `UPDATE ${table}
+       SET workflow_status = 'not_configured', workflow_error = ?
+       WHERE id = ?`,
+      ['未配置启用的审批流程，申请已进入待处理', businessId]
+    );
+    return { started: false, message: '申请已提交，审批流程尚未配置' };
+  }
+
+  try {
+    const WorkflowService = require('../../../services/business/WorkflowService');
+    const result = await WorkflowService.tryStartWorkflow(
+      businessType,
+      businessId,
+      businessCode,
+      title,
+      userId
+    );
+    await pool.query(
+      `UPDATE ${table}
+       SET workflow_instance_id = ?, workflow_status = 'started', workflow_error = NULL
+       WHERE id = ?`,
+      [result.instance_id || null, businessId]
+    );
+    return { started: true, ...result };
+  } catch (error) {
+    await pool.query(
+      `UPDATE ${table}
+       SET workflow_status = 'failed', workflow_error = ?
+       WHERE id = ?`,
+      [error.message || '审批流程启动失败', businessId]
+    );
+    return { started: false, message: error.message || '审批流程启动失败' };
+  }
 };
 
 // ---------- 员工管理 ---------- //
@@ -161,6 +261,220 @@ const syncAttendance = async (req, res) => {
   } catch (error) {
     logger.error('钉钉考勤同步失败:', error);
     return ResponseHandler.error(res, '钉钉考勤同步失败: ' + error.message, 'OPERATION_ERROR', 500, error);
+  }
+};
+
+const buildRequestListQuery = (baseTable, alias, requestType, query, userId) => {
+  const { page, pageSize, offset } = parseListPagination(query);
+  const { status, search, mine } = query;
+  const conditions = ['1=1'];
+  const params = [];
+
+  if (status && status !== 'all') {
+    conditions.push(`${alias}.status = ?`);
+    params.push(status);
+  }
+
+  if (mine === 'true' || mine === true) {
+    conditions.push(`${alias}.applicant_user_id = ?`);
+    params.push(userId || 0);
+  }
+
+  if (search) {
+    conditions.push(`(
+      ${alias}.request_no LIKE ?
+      OR e.name LIKE ?
+      OR e.employee_no LIKE ?
+      OR d.name LIKE ?
+      OR u.real_name LIKE ?
+      OR u.username LIKE ?
+    )`);
+    const keyword = `%${search}%`;
+    params.push(keyword, keyword, keyword, keyword, keyword, keyword);
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+  const fromClause = `
+    FROM ${baseTable} ${alias}
+    LEFT JOIN hr_employees e ON e.id = ${alias}.employee_id
+    LEFT JOIN departments d ON d.id = e.department_id
+    LEFT JOIN users u ON u.id = ${alias}.applicant_user_id
+  `;
+
+  return {
+    page,
+    pageSize,
+    offset,
+    params,
+    countSql: `SELECT COUNT(*) AS total ${fromClause} ${whereClause}`,
+    listSql: `
+      SELECT
+        ${alias}.*,
+        ? AS request_type,
+        e.name AS employee_name,
+        e.employee_no,
+        d.name AS department_name,
+        COALESCE(u.real_name, u.username) AS applicant_name
+      ${fromClause}
+      ${whereClause}
+      ORDER BY ${alias}.created_at DESC, ${alias}.id DESC
+      LIMIT ${pageSize} OFFSET ${offset}
+    `,
+    listParams: [requestType, ...params],
+  };
+};
+
+const getLeaveRequests = async (req, res) => {
+  try {
+    const query = buildRequestListQuery(
+      'hr_leave_requests',
+      'lr',
+      'leave',
+      req.query,
+      getUserId(req)
+    );
+    const [[{ total }]] = await pool.query(query.countSql, query.params);
+    const [rows] = await pool.query(query.listSql, query.listParams);
+    return ResponseHandler.paginated(res, rows, total, query.page, query.pageSize);
+  } catch (error) {
+    logger.error('获取请假申请失败:', error);
+    return ResponseHandler.error(res, '获取请假申请失败', 'OPERATION_ERROR', 500, error);
+  }
+};
+
+const createLeaveRequest = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const employee = await getEmployeeByUser(userId);
+    const leaveType = sanitizeText(req.body.type || req.body.leave_type);
+    const startDate = sanitizeText(req.body.start_date);
+    const endDate = sanitizeText(req.body.end_date);
+    const duration = parsePositiveNumber(req.body.duration);
+    const reason = sanitizeText(req.body.reason);
+
+    if (!leaveType) return ResponseHandler.error(res, '请选择请假类型', 'VALIDATION_ERROR', 400);
+    if (!startDate) return ResponseHandler.error(res, '请选择开始日期', 'VALIDATION_ERROR', 400);
+    if (!endDate) return ResponseHandler.error(res, '请选择结束日期', 'VALIDATION_ERROR', 400);
+    if (new Date(startDate) > new Date(endDate)) {
+      return ResponseHandler.error(res, '结束日期不能早于开始日期', 'VALIDATION_ERROR', 400);
+    }
+    if (!duration) return ResponseHandler.error(res, '请填写有效的请假天数', 'VALIDATION_ERROR', 400);
+    if (!reason) return ResponseHandler.error(res, '请填写请假事由', 'VALIDATION_ERROR', 400);
+
+    const requestNo = buildRequestNo('QJ');
+    const [result] = await pool.query(
+      `INSERT INTO hr_leave_requests
+       (request_no, applicant_user_id, employee_id, leave_type, start_date, end_date, duration, reason, status, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        requestNo,
+        userId,
+        employee?.id || null,
+        leaveType,
+        startDate,
+        endDate,
+        duration,
+        reason,
+        REQUEST_STATUS.PENDING,
+        userId,
+        userId,
+      ]
+    );
+
+    const workflow = await tryStartRequestWorkflow({
+      table: 'hr_leave_requests',
+      businessType: 'hr_leave',
+      businessId: result.insertId,
+      businessCode: requestNo,
+      title: `请假申请 ${requestNo}`,
+      userId,
+    });
+
+    return ResponseHandler.success(
+      res,
+      { id: result.insertId, request_no: requestNo, workflow },
+      workflow.started ? '请假申请已提交审批' : workflow.message,
+      201
+    );
+  } catch (error) {
+    logger.error('提交请假申请失败:', error);
+    return ResponseHandler.error(res, '提交请假申请失败: ' + error.message, 'OPERATION_ERROR', 500, error);
+  }
+};
+
+const getOvertimeRequests = async (req, res) => {
+  try {
+    const query = buildRequestListQuery(
+      'hr_overtime_requests',
+      'ot',
+      'overtime',
+      req.query,
+      getUserId(req)
+    );
+    const [[{ total }]] = await pool.query(query.countSql, query.params);
+    const [rows] = await pool.query(query.listSql, query.listParams);
+    return ResponseHandler.paginated(res, rows, total, query.page, query.pageSize);
+  } catch (error) {
+    logger.error('获取加班申请失败:', error);
+    return ResponseHandler.error(res, '获取加班申请失败', 'OPERATION_ERROR', 500, error);
+  }
+};
+
+const createOvertimeRequest = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const employee = await getEmployeeByUser(userId);
+    const overtimeDate = sanitizeText(req.body.date || req.body.overtime_date);
+    const startTime = sanitizeText(req.body.start_time);
+    const endTime = sanitizeText(req.body.end_time);
+    const hours = parsePositiveNumber(req.body.hours);
+    const overtimeType = sanitizeText(req.body.type || req.body.overtime_type);
+    const reason = sanitizeText(req.body.reason);
+
+    if (!overtimeDate) return ResponseHandler.error(res, '请选择加班日期', 'VALIDATION_ERROR', 400);
+    if (!hours) return ResponseHandler.error(res, '请填写有效的加班时长', 'VALIDATION_ERROR', 400);
+    if (!overtimeType) return ResponseHandler.error(res, '请选择加班类型', 'VALIDATION_ERROR', 400);
+    if (!reason) return ResponseHandler.error(res, '请填写加班原因', 'VALIDATION_ERROR', 400);
+
+    const requestNo = buildRequestNo('JB');
+    const [result] = await pool.query(
+      `INSERT INTO hr_overtime_requests
+       (request_no, applicant_user_id, employee_id, overtime_date, start_time, end_time, hours, overtime_type, reason, status, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        requestNo,
+        userId,
+        employee?.id || null,
+        overtimeDate,
+        startTime || null,
+        endTime || null,
+        hours,
+        overtimeType,
+        reason,
+        REQUEST_STATUS.PENDING,
+        userId,
+        userId,
+      ]
+    );
+
+    const workflow = await tryStartRequestWorkflow({
+      table: 'hr_overtime_requests',
+      businessType: 'hr_overtime',
+      businessId: result.insertId,
+      businessCode: requestNo,
+      title: `加班申请 ${requestNo}`,
+      userId,
+    });
+
+    return ResponseHandler.success(
+      res,
+      { id: result.insertId, request_no: requestNo, workflow },
+      workflow.started ? '加班申请已提交审批' : workflow.message,
+      201
+    );
+  } catch (error) {
+    logger.error('提交加班申请失败:', error);
+    return ResponseHandler.error(res, '提交加班申请失败: ' + error.message, 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -525,6 +839,10 @@ module.exports = {
   deleteEmployee,
   syncDingtalk,
   syncAttendance,
+  getLeaveRequests,
+  createLeaveRequest,
+  getOvertimeRequests,
+  createOvertimeRequest,
   getAttendance,
   batchSaveAttendance,
   importAttendanceExcel,

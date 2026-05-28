@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="page-container">
     <NavBar title="会话管理" left-arrow @click-left="$router.go(-1)" />
     <div class="page-body">
@@ -31,18 +31,33 @@
   import { ref, computed, onMounted } from 'vue'
   import { NavBar, CellGroup, Cell, Loading, Tag } from 'vant'
   import { systemApi } from '@/services/api'
-  import { extractApiData } from '@/utils/apiHelper'
+  import { extractApiPaginated } from '@/utils/apiHelper'
 
   const loading = ref(true)
   const users = ref([])
+  const USER_PAGE_SIZE = 100
   const activeCount = computed(() => users.value.filter(u => u.status === 1).length)
   const totalCount = computed(() => users.value.length)
 
+  const loadAllUsers = async () => {
+    let page = 1
+    const result = []
+
+    while (true) {
+      const res = await systemApi.getUsers({ page, pageSize: USER_PAGE_SIZE })
+      const { list, total } = extractApiPaginated(res, { totalFallback: 0 })
+      result.push(...list)
+
+      if (!list.length || result.length >= total || list.length < USER_PAGE_SIZE) break
+      page += 1
+    }
+
+    return result
+  }
+
   const fetchData = async () => {
     try {
-      const res = await systemApi.getUsers({ pageSize: 200 })
-      const d = extractApiData(res)
-      users.value = Array.isArray(d) ? d : (d.list || d.items || [])
+      users.value = await loadAllUsers()
     } catch { users.value = [] } finally { loading.value = false }
   }
 
@@ -50,8 +65,8 @@
 </script>
 
 <style lang="scss" scoped>
-  .page-container { min-height: 100vh; background: var(--bg-primary); }
-  .page-body { padding: 12px; }
+  .page-container { min-height: 100%; background: var(--bg-primary); }
+  .page-body { padding: 0 12px var(--app-bottom-space); }
   .stat-row { display: flex; gap: 8px; margin-bottom: 12px; }
   .stat-item {
     flex: 1; text-align: center; padding: 14px 0;

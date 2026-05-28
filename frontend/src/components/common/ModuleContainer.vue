@@ -115,25 +115,25 @@ onUnmounted(() => {
 }
 
 .module-container:fullscreen {
-  background-color: var(--el-bg-color, #ffffff);
+  background-color: var(--el-bg-color, var(--ds-white));
   padding: 20px;
   overflow: auto;
 }
 
 .module-container:-webkit-full-screen {
-  background-color: var(--el-bg-color, #ffffff);
+  background-color: var(--el-bg-color, var(--ds-white));
   padding: 20px;
   overflow: auto;
 }
 
 .module-container:-moz-full-screen {
-  background-color: var(--el-bg-color, #ffffff);
+  background-color: var(--el-bg-color, var(--ds-white));
   padding: 20px;
   overflow: auto;
 }
 
 .module-container:-ms-fullscreen {
-  background-color: var(--el-bg-color, #ffffff);
+  background-color: var(--el-bg-color, var(--ds-white));
   padding: 20px;
   overflow: auto;
 }

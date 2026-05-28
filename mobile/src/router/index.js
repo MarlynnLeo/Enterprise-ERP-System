@@ -8,6 +8,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { showToast } from 'vant'
 import { useAuthStore } from '@/stores/auth'
+import { loadThemeFromServer } from '@/composables/useTheme'
 
 const routes = [
   {
@@ -106,114 +107,144 @@ const routes = [
   },
   // 基础数据
   {
-    path: '/baseData',
+    path: '/basedata',
     name: 'BaseData',
     component: () => import('@/views/baseData/Index.vue'),
     meta: { title: '基础数据', permission: 'basedata' }
   },
   {
-    path: '/baseData/materials',
+    path: '/basedata/materials',
     name: 'Materials',
     component: () => import('@/views/baseData/Materials.vue'),
     meta: { title: '物料管理', permission: 'basedata' }
   },
   {
-    path: '/baseData/materials/create',
+    path: '/basedata/materials/create',
     name: 'CreateMaterial',
     component: () => import('@/views/baseData/CreateMaterial.vue'),
     meta: { title: '新建物料', permission: 'basedata' }
   },
   {
-    path: '/baseData/materials/:id/edit',
+    path: '/basedata/materials/:id/edit',
     name: 'EditMaterial',
     component: () => import('@/views/baseData/CreateMaterial.vue'),
     meta: { title: '编辑物料', permission: 'basedata' }
   },
   {
-    path: '/baseData/materials/:id',
+    path: '/basedata/materials/:id',
     name: 'MaterialDetail',
     component: () => import('@/views/baseData/MaterialDetail.vue'),
     meta: { title: '物料详情', permission: 'basedata' }
   },
   {
-    path: '/baseData/boms',
+    path: '/basedata/boms',
     name: 'BOMs',
     component: () => import('@/views/baseData/BOMs.vue'),
     meta: { title: 'BOM管理', permission: 'basedata' }
   },
   {
-    path: '/baseData/customers',
+    path: '/basedata/boms/:id',
+    name: 'BOMDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: 'BOM详情', permission: 'basedata', resource: 'baseBom' }
+  },
+  {
+    path: '/basedata/customers',
     name: 'Customers',
     component: () => import('@/views/baseData/Customers.vue'),
     meta: { title: '客户管理', permission: 'basedata' }
   },
   {
-    path: '/baseData/customers/create',
+    path: '/basedata/customers/create',
     name: 'CreateCustomer',
     component: () => import('@/views/baseData/CreateCustomer.vue'),
     meta: { title: '新建客户', permission: 'basedata' }
   },
   {
-    path: '/baseData/customers/:id/edit',
+    path: '/basedata/customers/:id/edit',
     name: 'EditCustomer',
     component: () => import('@/views/baseData/CreateCustomer.vue'),
     meta: { title: '编辑客户', permission: 'basedata' }
   },
   {
-    path: '/baseData/customers/:id',
+    path: '/basedata/customers/:id',
     name: 'CustomerDetail',
     component: () => import('@/views/baseData/CustomerDetail.vue'),
     meta: { title: '客户详情', permission: 'basedata' }
   },
   {
-    path: '/baseData/suppliers',
+    path: '/basedata/suppliers',
     name: 'Suppliers',
     component: () => import('@/views/baseData/Suppliers.vue'),
     meta: { title: '供应商管理', permission: 'basedata' }
   },
   {
-    path: '/baseData/suppliers/create',
+    path: '/basedata/suppliers/create',
     name: 'CreateSupplier',
     component: () => import('@/views/baseData/CreateSupplier.vue'),
     meta: { title: '新建供应商', permission: 'basedata' }
   },
   {
-    path: '/baseData/suppliers/:id/edit',
+    path: '/basedata/suppliers/:id/edit',
     name: 'EditSupplier',
     component: () => import('@/views/baseData/CreateSupplier.vue'),
     meta: { title: '编辑供应商', permission: 'basedata' }
   },
   {
-    path: '/baseData/suppliers/:id',
+    path: '/basedata/suppliers/:id',
     name: 'SupplierDetail',
     component: () => import('@/views/baseData/SupplierDetail.vue'),
     meta: { title: '供应商详情', permission: 'basedata' }
   },
   {
-    path: '/baseData/categories',
+    path: '/basedata/categories',
     name: 'Categories',
     component: () => import('@/views/baseData/Categories.vue'),
     meta: { title: '分类管理', permission: 'basedata' }
   },
   {
-    path: '/baseData/units',
+    path: '/basedata/categories/:id',
+    name: 'CategoryDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '分类详情', permission: 'basedata', resource: 'baseCategory' }
+  },
+  {
+    path: '/basedata/units',
     name: 'Units',
     component: () => import('@/views/baseData/Units.vue'),
     meta: { title: '单位管理', permission: 'basedata' }
   },
   {
-    path: '/baseData/locations',
+    path: '/basedata/units/:id',
+    name: 'UnitDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '单位详情', permission: 'basedata', resource: 'baseUnit' }
+  },
+  {
+    path: '/basedata/locations',
     name: 'Locations',
     component: () => import('@/views/baseData/Locations.vue'),
     meta: { title: '库位管理', permission: 'basedata' }
   },
   {
-    path: '/baseData/process-templates',
+    path: '/basedata/locations/:id',
+    name: 'LocationDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '库位详情', permission: 'basedata', resource: 'baseLocation' }
+  },
+  {
+    path: '/basedata/process-templates',
     name: 'ProcessTemplates',
     component: () => import('@/views/baseData/ProcessTemplates.vue'),
     meta: { title: '工序模板', permission: 'basedata' }
   },
   // 库存管理
+  {
+    path: '/basedata/process-templates/:id',
+    name: 'ProcessTemplateDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '工序模板详情', permission: 'basedata', resource: 'baseProcessTemplate' }
+  },
   {
     path: '/inventory',
     name: 'Inventory',
@@ -240,6 +271,7 @@ const routes = [
   },
   {
     path: '/inventory/inbound/:id',
+    name: 'InventoryInboundDetail',
     component: () => import('@/views/inventory/InboundDetail.vue'),
     meta: { title: '入库详情', permission: 'inventory' }
   },
@@ -418,10 +450,22 @@ const routes = [
     meta: { title: '外委加工', permission: 'purchase' }
   },
   {
+    path: '/purchase/processing/:id',
+    name: 'PurchaseProcessingDetail',
+    component: () => import('@/views/purchase/ProcessingDetail.vue'),
+    meta: { title: '外委加工详情', permission: 'purchase' }
+  },
+  {
     path: '/purchase/processing-receipts',
     name: 'PurchaseProcessingReceipts',
     component: () => import('@/views/purchase/ProcessingReceipts.vue'),
     meta: { title: '外委入库', permission: 'purchase' }
+  },
+  {
+    path: '/purchase/processing-receipts/:id',
+    name: 'PurchaseProcessingReceiptDetail',
+    component: () => import('@/views/purchase/ProcessingReceiptDetail.vue'),
+    meta: { title: '外委入库详情', permission: 'purchase' }
   },
   // 销售管理
   {
@@ -457,7 +501,8 @@ const routes = [
   {
     path: '/sales/outbound/new',
     name: 'CreateSalesOutbound',
-    redirect: '/sales/outbound'
+    component: () => import('@/views/sales/CreateSalesOutbound.vue'),
+    meta: { title: '新建销售出库', permission: 'sales' }
   },
   {
     path: '/sales/outbound/:id',
@@ -484,10 +529,22 @@ const routes = [
     meta: { title: '销售换货', permission: 'sales' }
   },
   {
+    path: '/sales/exchanges/:id',
+    name: 'SalesExchangeDetail',
+    component: () => import('@/views/sales/ExchangeDetail.vue'),
+    meta: { title: '销售换货详情', permission: 'sales' }
+  },
+  {
     path: '/sales/quotations',
     name: 'SalesQuotations',
     component: () => import('@/views/sales/Quotations.vue'),
     meta: { title: '报价管理', permission: 'sales' }
+  },
+  {
+    path: '/sales/quotations/:id',
+    name: 'SalesQuotationDetail',
+    component: () => import('@/views/sales/QuotationDetail.vue'),
+    meta: { title: '报价详情', permission: 'sales' }
   },
   {
     path: '/sales/customers',
@@ -521,15 +578,16 @@ const routes = [
     meta: { title: '会计凭证', permission: 'finance' }
   },
   {
+    path: '/finance/gl/entries/create',
+    name: 'GLEntryCreate',
+    component: () => import('@/views/finance/CreateEntry.vue'),
+    meta: { title: '新建凭证', permission: 'finance' }
+  },
+  {
     path: '/finance/gl/entries/:id',
     name: 'GLEntryDetail',
     component: () => import('@/views/finance/EntryDetail.vue'),
     meta: { title: '凭证详情', permission: 'finance' }
-  },
-  {
-    path: '/finance/gl/entries/create',
-    name: 'GLEntryCreate',
-    redirect: '/finance/gl/entries'
   },
   {
     path: '/finance/gl/periods',
@@ -570,7 +628,8 @@ const routes = [
   {
     path: '/finance/ar/receipts/create',
     name: 'ARReceiptCreate',
-    redirect: '/finance/ar/receipts'
+    component: () => import('@/views/finance/CreateARReceipt.vue'),
+    meta: { title: '新建收款', permission: 'finance' }
   },
   {
     path: '/finance/ar/receipts/:id',
@@ -599,7 +658,8 @@ const routes = [
   {
     path: '/finance/ap/payments/create',
     name: 'APPaymentCreate',
-    redirect: '/finance/ap/payments'
+    component: () => import('@/views/finance/CreateAPPayment.vue'),
+    meta: { title: '新建付款', permission: 'finance' }
   },
   {
     path: '/finance/ap/payments/:id',
@@ -662,10 +722,28 @@ const routes = [
     meta: { title: '银行交易', permission: 'finance' }
   },
   {
+    path: '/finance/cash/bank-transactions/:id',
+    name: 'BankTransactionDetail',
+    component: () => import('@/views/finance/BankTransactionDetail.vue'),
+    meta: { title: '银行交易详情', permission: 'finance' }
+  },
+  {
     path: '/finance/cash/cash-transactions',
     name: 'CashTransactions',
     component: () => import('@/views/finance/CashTransactionsPage.vue'),
     meta: { title: '现金交易', permission: 'finance' }
+  },
+  {
+    path: '/finance/cash/cash-transactions/create',
+    name: 'CashTransactionCreateAlias',
+    component: () => import('@/views/finance/CreateCashTransaction.vue'),
+    meta: { title: '新建现金交易', permission: 'finance' }
+  },
+  {
+    path: '/finance/cash/cash-transactions/:id',
+    name: 'CashTransactionDetail',
+    component: () => import('@/views/finance/BankTransactionDetail.vue'),
+    meta: { title: '现金交易详情', permission: 'finance' }
   },
   {
     path: '/finance/cash/reconciliation',
@@ -676,7 +754,8 @@ const routes = [
   {
     path: '/finance/cash/transactions/create',
     name: 'CashTransactionCreate',
-    redirect: '/finance/cash/bank-transactions'
+    component: () => import('@/views/finance/CreateCashTransaction.vue'),
+    meta: { title: '新建现金交易', permission: 'finance' }
   },
   {
     path: '/finance/reports/balance-sheet',
@@ -770,6 +849,12 @@ const routes = [
     meta: { title: '检验模板', permission: 'quality' }
   },
   {
+    path: '/quality/templates/:id',
+    name: 'QualityTemplateDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '检验模板详情', permission: 'quality', resource: 'qualityTemplate' }
+  },
+  {
     path: '/quality/traceability',
     name: 'QualityTraceability',
     component: () => import('@/views/quality/Traceability.vue'),
@@ -831,6 +916,12 @@ const routes = [
     meta: { title: '设备台账', permission: 'equipment' }
   },
   {
+    path: '/equipment/create',
+    name: 'CreateEquipment',
+    component: () => import('@/views/equipment/CreateEquipment.vue'),
+    meta: { title: '新增设备', permission: 'equipment' }
+  },
+  {
     path: '/equipment/detail/:id',
     name: 'EquipmentDetail',
     component: () => import('@/views/equipment/EquipmentDetail.vue'),
@@ -853,6 +944,12 @@ const routes = [
     name: 'EquipmentMaintenance',
     component: () => import('@/views/equipment/Maintenance.vue'),
     meta: { title: '保养计划', permission: 'equipment' }
+  },
+  {
+    path: '/equipment/maintenance/create',
+    name: 'CreateEquipmentMaintenance',
+    component: () => import('@/views/equipment/CreateMaintenance.vue'),
+    meta: { title: '制定保养计划', permission: 'equipment' }
   },
   {
     path: '/equipment/repair',
@@ -887,16 +984,34 @@ const routes = [
     meta: { title: '员工档案', permission: 'hr' }
   },
   {
+    path: '/hr/employees/create',
+    name: 'CreateEmployee',
+    component: () => import('@/views/hr/CreateEmployee.vue'),
+    meta: { title: '新员工入职', permission: 'hr' }
+  },
+  {
     path: '/hr/departments',
     name: 'HRDepartments',
     component: () => import('@/views/hr/Departments.vue'),
     meta: { title: '部门管理', permission: 'hr' }
   },
   {
+    path: '/hr/departments/create',
+    name: 'CreateDepartment',
+    component: () => import('@/views/hr/CreateDepartment.vue'),
+    meta: { title: '新增部门', permission: 'hr' }
+  },
+  {
     path: '/hr/attendance',
     name: 'HRAttendance',
     component: () => import('@/views/hr/Attendance.vue'),
     meta: { title: '考勤记录', permission: 'hr' }
+  },
+  {
+    path: '/hr/attendance/manual',
+    name: 'CreateAttendance',
+    component: () => import('@/views/hr/CreateAttendance.vue'),
+    meta: { title: '手动补卡', permission: 'hr' }
   },
   {
     path: '/hr/leave',
@@ -947,16 +1062,16 @@ const routes = [
 
   // 消息通知
   {
-    path: '/notifications',
+    path: '/system/notifications',
     name: 'Notifications',
     component: () => import('@/views/Notifications.vue'),
-    meta: { title: '消息通知' }
+    meta: { title: '消息通知', permission: 'system:notifications' }
   },
   {
-    path: '/notifications/:id',
+    path: '/system/notifications/:id',
     name: 'NotificationDetail',
     component: () => import('@/views/notifications/NotificationDetail.vue'),
-    meta: { title: '消息详情' }
+    meta: { title: '消息详情', permission: 'system:notifications' }
   },
 
   // 即时通讯
@@ -999,16 +1114,34 @@ const routes = [
     meta: { title: '部门管理', permission: 'system' }
   },
   {
+    path: '/system/departments/:id',
+    name: 'SystemDepartmentDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '部门详情', permission: 'system', resource: 'systemDepartment' }
+  },
+  {
     path: '/system/roles',
     name: 'SystemRoles',
     component: () => import('@/views/system/Roles.vue'),
     meta: { title: '角色管理', permission: 'system' }
   },
   {
+    path: '/system/roles/:id',
+    name: 'SystemRoleDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '角色详情', permission: 'system', resource: 'systemRole' }
+  },
+  {
     path: '/system/permissions',
     name: 'SystemPermissions',
     component: () => import('@/views/system/Permissions.vue'),
     meta: { title: '权限管理', permission: 'system' }
+  },
+  {
+    path: '/system/permissions/:id',
+    name: 'SystemPermissionDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '权限详情', permission: 'system', resource: 'systemPermission' }
   },
   {
     path: '/system/config',
@@ -1021,6 +1154,12 @@ const routes = [
     name: 'SystemLogs',
     component: () => import('@/views/system/Logs.vue'),
     meta: { title: '系统日志', permission: 'system' }
+  },
+  {
+    path: '/system/logs/:id',
+    name: 'SystemLogDetail',
+    component: () => import('@/views/common/RecordDetail.vue'),
+    meta: { title: '日志详情', permission: 'system', resource: 'systemLog' }
   },
   {
     path: '/system/access-control',
@@ -1101,12 +1240,6 @@ const routes = [
     component: () => import('@/views/production/TaskDetail.vue'),
     meta: { title: '任务详情', permission: 'production' }
   },
-  // 设置页已废弃 — 功能已合并到 /profile
-  {
-    path: '/settings',
-    redirect: '/profile'
-  },
-
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
@@ -1124,21 +1257,21 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/production\/tasks\/create$/, permission: 'production:tasks:create' },
   { pattern: /^\/production\/tasks\/:id\/report$/, permission: 'production:tasks:update' },
   { pattern: /^\/production\/tasks(\/:id)?$/, permission: 'production:tasks:view' },
-  { pattern: /^\/baseData\/materials\/create$/, permission: 'basedata:materials:create' },
-  { pattern: /^\/baseData\/materials\/:id\/edit$/, permission: 'basedata:materials:update' },
-  { pattern: /^\/baseData\/materials(\/:id)?$/, permission: 'basedata:materials:view' },
-  { pattern: /^\/baseData\/boms(\/.*)?$/, permission: 'basedata:boms:view' },
-  { pattern: /^\/baseData\/customers\/create$/, permission: 'basedata:customers:create' },
-  { pattern: /^\/baseData\/customers\/:id\/edit$/, permission: 'basedata:customers:update' },
-  { pattern: /^\/baseData\/customers(\/:id)?$/, permission: 'basedata:customers:view' },
-  { pattern: /^\/baseData\/suppliers\/create$/, permission: 'basedata:suppliers:create' },
-  { pattern: /^\/baseData\/suppliers\/:id\/edit$/, permission: 'basedata:suppliers:update' },
-  { pattern: /^\/baseData\/suppliers(\/:id)?$/, permission: 'basedata:suppliers:view' },
-  { pattern: /^\/baseData\/categories(\/.*)?$/, permission: 'basedata:categories:view' },
-  { pattern: /^\/baseData\/units(\/.*)?$/, permission: 'basedata:units:view' },
-  { pattern: /^\/baseData\/locations(\/.*)?$/, permission: 'basedata:locations:view' },
+  { pattern: /^\/basedata\/materials\/create$/, permission: 'basedata:materials:create' },
+  { pattern: /^\/basedata\/materials\/:id\/edit$/, permission: 'basedata:materials:update' },
+  { pattern: /^\/basedata\/materials(\/:id)?$/, permission: 'basedata:materials:view' },
+  { pattern: /^\/basedata\/boms(\/.*)?$/, permission: 'basedata:boms:view' },
+  { pattern: /^\/basedata\/customers\/create$/, permission: 'basedata:customers:create' },
+  { pattern: /^\/basedata\/customers\/:id\/edit$/, permission: 'basedata:customers:update' },
+  { pattern: /^\/basedata\/customers(\/:id)?$/, permission: 'basedata:customers:view' },
+  { pattern: /^\/basedata\/suppliers\/create$/, permission: 'basedata:suppliers:create' },
+  { pattern: /^\/basedata\/suppliers\/:id\/edit$/, permission: 'basedata:suppliers:update' },
+  { pattern: /^\/basedata\/suppliers(\/:id)?$/, permission: 'basedata:suppliers:view' },
+  { pattern: /^\/basedata\/categories(\/.*)?$/, permission: 'basedata:categories:view' },
+  { pattern: /^\/basedata\/units(\/.*)?$/, permission: 'basedata:units:view' },
+  { pattern: /^\/basedata\/locations(\/.*)?$/, permission: 'basedata:locations:view' },
   {
-    pattern: /^\/baseData\/process-templates(\/.*)?$/,
+    pattern: /^\/basedata\/process-templates(\/.*)?$/,
     permission: ['basedata:process-templates:view', 'basedata:processtemplates:view']
   },
   { pattern: /^\/inventory\/stock$/, permission: 'inventory:stock:view' },
@@ -1161,14 +1294,14 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/purchase\/receipts\/create$/, permission: 'purchase:receipts:create' },
   { pattern: /^\/purchase\/receipts(\/:id)?$/, permission: 'purchase:receipts:view' },
   { pattern: /^\/purchase\/returns(\/:id)?$/, permission: 'purchase:returns:view' },
-  { pattern: /^\/purchase\/processing$/, permission: 'purchase:processing:view' },
-  { pattern: /^\/purchase\/processing-receipts$/, permission: 'purchase:processing-receipts:view' },
+  { pattern: /^\/purchase\/processing(\/:id)?$/, permission: 'purchase:processing:view' },
+  { pattern: /^\/purchase\/processing-receipts(\/:id)?$/, permission: 'purchase:processing-receipts:view' },
   { pattern: /^\/sales\/orders\/create$/, permission: 'sales:orders:create' },
   { pattern: /^\/sales\/orders(\/:id)?$/, permission: 'sales:orders:view' },
   { pattern: /^\/sales\/outbound\/new$/, permission: 'sales:outbound:create' },
   { pattern: /^\/sales\/outbound(\/:id)?$/, permission: 'sales:outbound:view' },
   { pattern: /^\/sales\/returns(\/:id)?$/, permission: 'sales:returns:view' },
-  { pattern: /^\/sales\/exchanges(\/:id)?$/, permission: 'sales:returns:view' },
+  { pattern: /^\/sales\/exchanges(\/:id)?$/, permission: 'sales:exchanges:view' },
   { pattern: /^\/sales\/quotations(\/:id)?$/, permission: 'sales:quotations:view' },
   { pattern: /^\/sales\/customers(\/:id)?$/, permission: 'basedata:customers:view' },
   { pattern: /^\/finance\/gl\/accounts(\/:id)?$/, permission: 'finance:accounts:view' },
@@ -1193,6 +1326,8 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/quality\/reports\/.*$/, permission: 'quality:reports:view' },
   { pattern: /^\/quality\/standards(\/.*)?$/, permission: 'quality:aql:view' },
   { pattern: /^\/quality(\/.*)?$/, permission: 'quality' },
+  { pattern: /^\/equipment\/create$/, permission: 'production:equipment:create' },
+  { pattern: /^\/equipment\/maintenance\/create$/, permission: 'production:equipment:update' },
   { pattern: /^\/equipment\/(check|repair)\/create$/, permission: 'production:equipment:update' },
   { pattern: /^\/equipment(\/.*)?$/, permission: 'production:equipment:view' },
   { pattern: /^\/hr(\/.*)?$/, permission: 'hr' },
@@ -1234,63 +1369,85 @@ const router = createRouter({
       return savedPosition
     }
     if (to.hash) {
-      return { el: to.hash, behavior: 'smooth' }
+      return { el: to.hash }
     }
-    return { top: 0, behavior: 'smooth' }
+    return { top: 0 }
   }
 })
 
-router.beforeEach(async (to, from, next) => {
-  // 设置标题
+const CHUNK_RELOAD_KEY = 'router_chunk_reload_attempted_v2'
+const isChunkLoadError = (error) => {
+  const message = String(error?.message || error || '')
+  return error?.name === 'ChunkLoadError' ||
+    /Failed to fetch dynamically imported module|Importing a module script failed|Unable to preload CSS|Loading chunk/i.test(message)
+}
+
+router.onError((error) => {
+  if (!isChunkLoadError(error)) return
+  if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) return
+
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, 'true')
+  window.location.reload()
+})
+
+router.beforeEach(async (to) => {
   document.title = to.meta.title ? `${to.meta.title} - ERP移动版` : 'ERP移动版'
 
-  // 检查是否需要登录
   const authStore = useAuthStore()
   let isAuthenticated = authStore.isAuthenticated
 
+  // 如果有登录标记但用户数据为空（浏览器重启后），尝试用 cookie 恢复会话
+  if (isAuthenticated && !authStore.profileLoaded) {
+    isAuthenticated = await authStore.fetchUserProfile()
+    if (!isAuthenticated) {
+      // cookie 已过期，清除本地登录标记
+      await authStore.logout()
+    }
+  }
+
+  // 如果仍未认证，再尝试一次 fetchUserProfile（可能是新标签打开）
   if (!isAuthenticated && !to.meta.allowGuest) {
     isAuthenticated = await authStore.fetchUserProfile()
   }
 
   if (!isAuthenticated && !to.meta.allowGuest) {
-    next({ name: 'Login', query: { redirect: to.fullPath } })
-    return
+    return { name: 'Login', query: { redirect: to.fullPath } }
   }
 
-  // ==================== 权限检查 ====================
+  const themeOwner = authStore.userId || authStore.username || 'authenticated'
+  if (isAuthenticated && to.name !== 'Login' && window.__mobileThemeLoadedFor !== themeOwner) {
+    window.__mobileThemeLoadedFor = themeOwner
+    loadThemeFromServer().catch(() => {})
+  }
+
   if (to.meta.permission && isAuthenticated) {
-    // 延迟导入 authStore，避免循环依赖
-    // 首次导航时自动加载权限数据
     if (!authStore.permissionsLoaded) {
       try {
         await authStore.fetchUserPermissions()
       } catch (error) {
-        console.error('[路由守卫] 加载权限数据失败:', error)
+        console.error('[router] Failed to load permissions:', error)
       }
     }
 
-    // 检查路由权限
     const requiredPermission = to.meta.permission
     let hasPermission = authStore.hasPermission(requiredPermission)
 
-    // 无权限时尝试刷新一次
     if (!hasPermission && authStore.permissionsLoaded) {
       try {
         await authStore.refreshPermissions()
         hasPermission = authStore.hasPermission(requiredPermission)
       } catch (error) {
-        console.error('[路由守卫] 刷新权限失败:', error)
+        console.error('[router] Failed to refresh permissions:', error)
       }
     }
 
     if (!hasPermission) {
       showToast('您没有权限访问此页面')
-      next('/')
-      return
+      return '/'
     }
   }
 
-  next()
+  return true
 })
 
 export default router

@@ -19,7 +19,7 @@ const { parsePagination, appendPaginationSQL } = require('../../../utils/safePag
 exports.getSalesExchanges = async (req, res) => {
   try {
     const { page = 1, pageSize = 10, search, startDate, endDate, status } = req.query;
-    const pagination = parsePagination(page, pageSize, { maxPageSize: 200, defaultPageSize: 10 });
+    const pagination = parsePagination(page, pageSize, { maxPageSize: 100, defaultPageSize: 10 });
 
     // 构建查询条件
     let whereClause = '';
@@ -457,7 +457,7 @@ exports.updateSalesExchange = async (req, res) => {
 
     // 获取当前换货单状态（在更新之前）
     const [currentExchange] = await connection.query(
-      'SELECT status FROM sales_exchanges WHERE id = ?',
+      'SELECT status FROM sales_exchanges WHERE id = ? FOR UPDATE',
       [id]
     );
     const currentStatus = currentExchange[0]?.status;
@@ -660,6 +660,20 @@ exports.deleteSalesExchange = async (req, res) => {
     connection = await db.pool.getConnection();
     await connection.beginTransaction();
 
+    const [existing] = await connection.query(
+      'SELECT id, status FROM sales_exchanges WHERE id = ? FOR UPDATE',
+      [id]
+    );
+    if (existing.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.notFound(res, 'Exchange order not found');
+    }
+
+    if (['processing', 'completed', 'rejected', '处理中', '已完成', '已拒绝'].includes(existing[0].status)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, 'Current exchange status cannot be deleted', 'VALIDATION_ERROR', 400);
+    }
+
     // 删除明细
     await connection.query('DELETE FROM sales_exchange_items WHERE exchange_id = ?', [id]);
 
@@ -708,7 +722,7 @@ exports.updateExchangeStatus = async (req, res) => {
 
     // 查询当前状态
     const [currentResult] = await connection.query(
-      'SELECT id, status, exchange_no FROM sales_exchanges WHERE id = ?',
+      'SELECT id, status, exchange_no FROM sales_exchanges WHERE id = ? FOR UPDATE',
       [id]
     );
 
@@ -879,7 +893,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
           operator: operator,
           remark: `换货退回：${item.product_name} (${item.specification})`,
           unitId: item.unit_id || null,
-          batchNumber: null,
+          batchNumber: `EX-${exchangeNo}-${item.material_id}`,
         },
         connection
       );
@@ -1127,8 +1141,6 @@ async function getMaterialsBySourceWithInventoryCheck(items) {
 
   return materialsBySource;
 }
-
-// ✅ RED-1 清理：废弃函数 getMaterialsBySource 已删除，被 getMaterialsBySourceWithInventoryCheck 替代
 
 // 使用统一的编号生成服务 - 用于采购申请编号生成
 

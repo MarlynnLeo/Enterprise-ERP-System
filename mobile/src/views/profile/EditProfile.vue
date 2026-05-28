@@ -185,7 +185,7 @@
 
 <style lang="scss" scoped>
   .unified-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
   }
 

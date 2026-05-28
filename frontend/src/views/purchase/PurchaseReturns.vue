@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * PurchaseReturns.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="purchase-returns-container">
+  <div class="module-page purchase-returns-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,11 +19,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="searchReturns"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="退货单号">
           <el-input  v-model="searchForm.returnNo" placeholder="请输入退货单号" clearable ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="收货单号">
           <el-input  v-model="searchForm.receiptNo" placeholder="请输入收货单号" clearable ></el-input>
         </el-form-item>
@@ -45,16 +52,8 @@
             <el-option label="已取消" value="cancelled"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchReturns" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -75,7 +74,7 @@
         <div class="stat-label">已完成退货</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ formatCurrency(returnStats.totalAmount || 0) }}</div>
+        <div class="stat-value">{{ formatCurrency(returnStats.totalAmount) }}</div>
         <div class="stat-label">退货总金额</div>
       </el-card>
     </div>
@@ -106,7 +105,7 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="240" fixed="right">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -130,7 +129,7 @@
               confirm-button-type="danger"
             >
               <template #reference>
-                <el-button v-permission="'purchase:returns:update'" size="small" type="danger">删除</el-button>
+                <el-button v-permission="'purchase:returns:delete'" size="small" type="danger">删除</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -203,20 +202,20 @@
 
         <el-divider content-position="center">退货物料</el-divider>
         <el-table :data="viewDialog.return.items || []" border style="width: 100%">
-          <el-table-column type="index" label="序号" width="60" align="center"></el-table-column>
+          <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column label="物料名称" prop="materialName" min-width="150" show-overflow-tooltip></el-table-column>
           <el-table-column label="规格" prop="specification" min-width="150" show-overflow-tooltip></el-table-column>
           <el-table-column label="单位" prop="unitName" min-width="80" show-overflow-tooltip></el-table-column>
-          <el-table-column label="收货数量" prop="receivedQuantity" min-width="100" align="center"></el-table-column>
-          <el-table-column label="退货数量" prop="returnQuantity" min-width="100" align="center"></el-table-column>
-          <el-table-column label="单价" min-width="100" align="center">
+          <el-table-column label="收货数量" prop="receivedQuantity" min-width="100"></el-table-column>
+          <el-table-column label="退货数量" prop="returnQuantity" min-width="100"></el-table-column>
+          <el-table-column label="单价" min-width="100">
             <template #default="scope">
-              ¥{{ parseFloat(scope.row.price || 0).toFixed(2) }}
+              {{ formatCurrency(scope.row.price) }}
             </template>
           </el-table-column>
-          <el-table-column label="金额" min-width="100" align="center">
+          <el-table-column label="金额" min-width="100">
             <template #default="scope">
-              ¥{{ (scope.row.returnQuantity * scope.row.price).toFixed(2) }}
+              {{ formatReturnLineAmount(scope.row) }}
             </template>
           </el-table-column>
           <el-table-column label="退货原因" prop="returnReason" min-width="150" show-overflow-tooltip></el-table-column>
@@ -294,16 +293,16 @@
         <div class="mt-4">
           <div class="mb-2 font-weight-bold">物料清单</div>
           <el-table :data="returnDialog.form.items" border style="width: 100%">
-            <el-table-column type="index" label="序号" width="50" align="center"></el-table-column>
+            <el-table-column type="index" label="序号" width="50"></el-table-column>
             <el-table-column label="物料名称" prop="materialName" min-width="150"></el-table-column>
             <el-table-column label="规格" prop="specification" min-width="120"></el-table-column>
             <el-table-column label="单位" prop="unitName" min-width="80"></el-table-column>
-            <el-table-column label="收货数量" min-width="100" align="center">
+            <el-table-column label="收货数量" min-width="100">
               <template #default="scope">
                 {{ scope.row.receivedQuantity }}
               </template>
             </el-table-column>
-            <el-table-column label="退货数量" min-width="120" align="center">
+            <el-table-column label="退货数量" min-width="120">
               <template #default="scope">
                 <el-input-number
                   v-model="scope.row.returnQuantity"
@@ -316,7 +315,7 @@
                 ></el-input-number>
               </template>
             </el-table-column>
-            <el-table-column label="单价" min-width="130" align="center">
+            <el-table-column label="单价" min-width="130">
               <template #default="scope">
                 <el-input-number
                   v-model="scope.row.price"
@@ -328,9 +327,9 @@
                 ></el-input-number>
               </template>
             </el-table-column>
-            <el-table-column label="金额" min-width="100" align="center">
+            <el-table-column label="金额" min-width="100">
               <template #default="scope">
-                ¥{{ ((scope.row.returnQuantity || 0) * (scope.row.price || 0)).toFixed(2) }}
+                {{ formatReturnLineAmount(scope.row) }}
               </template>
             </el-table-column>
             <el-table-column label="退货原因" min-width="180">
@@ -358,7 +357,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="closeReturnDialog">取 消</el-button>
-          <el-button type="primary" @click="submitReturn" :loading="submitLoading">确 定</el-button>
+          <el-button type="primary" v-permission="returnDialog.isEdit ? 'purchase:returns:update' : 'purchase:returns:create'" @click="submitReturn" :loading="submitLoading">确 定</el-button>
         </span>
       </template>
     </el-dialog>
@@ -381,10 +380,11 @@
   </div>
 </template>
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Plus, Search, Refresh } from '@element-plus/icons-vue';
+import { Plus } from '@element-plus/icons-vue';
 import { useSnackbar } from '@/composables/useSnackbar';
 import { useAuthStore } from '@/stores/auth';
 import { purchaseApi } from '@/services/api';
@@ -397,6 +397,18 @@ import {
 } from '@/constants/systemConstants';
 const { showSnackbar } = useSnackbar();
 const authStore = useAuthStore();
+const isBlankAmount = (value) => value === null || value === undefined || value === '';
+const toMoneyNumber = (value) => {
+  if (isBlankAmount(value)) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+const formatReturnLineAmount = (row) => {
+  const quantity = toMoneyNumber(row?.returnQuantity);
+  const price = toMoneyNumber(row?.price);
+  if (quantity === null || price === null) return '-';
+  return formatCurrency(quantity * price);
+};
 // 表格列定义
 
 
@@ -435,7 +447,7 @@ const returnDialog = reactive({
   form: {
     id: null,
     receiptId: null,
-    returnDate: new Date().toISOString().substr(0, 10),
+    returnDate: formatLocalDate(new Date()),
     operator: '',
     warehouseId: null,
     warehouseName: '',
@@ -468,7 +480,8 @@ const returnStats = ref({
   draftCount: 0,
   confirmedCount: 0,
   completedCount: 0,
-  totalAmount: 0
+  cancelledCount: 0,
+  totalAmount: null
 });
 // 提交状态
 const submitLoading = ref(false);
@@ -484,11 +497,12 @@ const loadReturnStats = async () => {
     const data = response.data;
     // 映射后端字段到前端期望的字段
     returnStats.value = {
-      total: data.totalCount || data.total_count || 0,
-      draftCount: data.pendingCount || data.pending_count || 0,
-      confirmedCount: data.approvedCount || data.approved_count || 0,
-      completedCount: data.completedCount || data.completed_count || 0,
-      totalAmount: data.totalAmount || data.total_amount || 0
+      total: data.totalCount ?? data.total_count ?? 0,
+      draftCount: data.draftCount ?? data.draft_count ?? 0,
+      confirmedCount: data.confirmedCount ?? data.confirmed_count ?? 0,
+      completedCount: data.completedCount ?? data.completed_count ?? 0,
+      cancelledCount: data.cancelledCount ?? data.cancelled_count ?? 0,
+      totalAmount: isBlankAmount(data.totalAmount ?? data.total_amount) ? null : (data.totalAmount ?? data.total_amount)
     };
   } catch (error) {
     console.error('获取退货单统计信息失败:', error);
@@ -498,7 +512,8 @@ const loadReturnStats = async () => {
       draftCount: 0,
       confirmedCount: 0,
       completedCount: 0,
-      totalAmount: 0
+      cancelledCount: 0,
+      totalAmount: null
     };
   }
 };
@@ -564,15 +579,8 @@ async function loadReturns() {
 // 方法：加载供应商列表
 async function loadSuppliers() {
   try {
-    const response = await baseDataApi.getSuppliers();
-    // 兼容不同的数据结构
-    if (Array.isArray(response.data)) {
-    suppliers.value = response.data;
-    } else if (Array.isArray(response)) {
-      suppliers.value = response;
-    } else {
-      suppliers.value = [];
-    }
+    const response = await baseDataApi.getSuppliers({ page: 1, pageSize: 50 });
+    suppliers.value = parseListData(response, { enableLog: false });
 
     } catch (error) {
     console.error('加载供应商失败:', error);
@@ -585,7 +593,7 @@ async function loadCompletedReceipts() {
   try {
     const response = await purchaseApi.getReceipts({
       status: 'completed',
-      limit: 100
+      limit: 50
     });
     // 使用统一解析器
     const receiptsData = parseListData(response, { enableLog: false });
@@ -652,7 +660,7 @@ function formatDate(date) {
   try {
     const d = new Date(date);
     if (isNaN(d.getTime())) return date;
-    return d.toISOString().split('T')[0];
+    return formatLocalDate(d);
   } catch {
     return date;
   }
@@ -663,7 +671,7 @@ function showAddDialog() {
   returnDialog.form = {
     id: null,
     receiptId: null,
-    returnDate: new Date().toISOString().substring(0, 10),
+    returnDate: formatLocalDate(new Date()),
     operator: authStore.realName || authStore.username || '系统用户',  // 使用真实姓名或用户名
     warehouseId: null,
     warehouseName: '',
@@ -705,7 +713,7 @@ async function viewReturn(returnItem) {
         unitName: item.unit || '',
         receivedQuantity: item.quantity || 0,
         returnQuantity: item.return_quantity || 0,
-        price: item.price || 0,
+        price: isBlankAmount(item.price) ? null : item.price,
         returnReason: item.return_reason || ''
       }))
     };
@@ -729,7 +737,7 @@ async function editReturn(returnItem) {
     returnDialog.form = {
       id: returnData.id,
       receiptId: returnData.receipt_id,  // 使用数据库字段名
-      returnDate: returnData.return_date ? returnData.return_date.split('T')[0] : new Date().toISOString().substring(0, 10),
+      returnDate: returnData.return_date ? formatLocalDate(returnData.return_date) : formatLocalDate(new Date()),
       operator: returnData.operator_name || returnData.operator,
       warehouseId: returnData.warehouse_id,  // 使用数据库字段名
       warehouseName: returnData.warehouse_name || '',
@@ -802,7 +810,7 @@ async function handleReceiptChange(receiptId) {
         unitName: item.unit_name || '',
         receivedQuantity: Number(item.received_quantity || item.quantity || 0),
         returnQuantity: existingItem ? existingItem.returnQuantity : 0,
-        price: Number(item.price || 0),
+        price: isBlankAmount(item.price) ? null : Number(item.price),
         returnReason: existingItem ? existingItem.returnReason : ''
       };
     });
@@ -831,6 +839,11 @@ async function submitReturn() {
       showSnackbar(`请为退货物料 ${item.materialName} 选择退货原因`, 'warning');
       return;
     }
+
+    if (item.returnQuantity > 0 && toMoneyNumber(item.price) === null) {
+      showSnackbar(`物料 ${item.materialName} 缺少可用单价，无法创建退货单`, 'warning');
+      return;
+    }
   }
   try {
     submitLoading.value = true;
@@ -847,7 +860,7 @@ async function submitReturn() {
         unitName: item.unitName,
         quantity: Number(item.receivedQuantity),
         returnQuantity: Number(item.returnQuantity),
-        price: Number(item.price),
+        price: toMoneyNumber(item.price),
         returnReason: item.returnReason
       }));
     // 计算总金额
@@ -960,7 +973,13 @@ async function printReturn() {
   try {
     const currentReturn = viewDialog.return;
     const items = currentReturn.items || [];
-    const totalAmount = items.reduce((sum, item) => sum + Number(item.returnQuantity || 0) * Number(item.price || 0), 0);
+    const hasVisibleLineAmount = items.every(item => (
+      toMoneyNumber(item.returnQuantity ?? item.return_quantity) === null ||
+      toMoneyNumber(item.price) !== null
+    ));
+    const totalAmount = hasVisibleLineAmount
+      ? items.reduce((sum, item) => sum + (toMoneyNumber(item.returnQuantity ?? item.return_quantity) || 0) * (toMoneyNumber(item.price) || 0), 0)
+      : null;
     const html = await printService.generateByDefaultTemplate('purchase', 'purchase_return', {
       return_no: currentReturn.returnNumber || currentReturn.return_no || '',
       return_date: formatDate(currentReturn.returnDate || currentReturn.return_date),
@@ -970,10 +989,12 @@ async function printReturn() {
       operator: currentReturn.operatorName || currentReturn.operator || '',
       status: getStatusText(currentReturn.status),
       reason: currentReturn.reason || '',
-      total_amount: formatCurrency(totalAmount || currentReturn.totalAmount || currentReturn.total_amount || 0),
+      total_amount: formatCurrency(totalAmount ?? currentReturn.totalAmount ?? currentReturn.total_amount),
       print_time: new Date().toLocaleString(),
       items: items.map((item, index) => {
-        const amount = Number(item.returnQuantity || 0) * Number(item.price || 0);
+        const quantity = toMoneyNumber(item.returnQuantity ?? item.return_quantity);
+        const price = toMoneyNumber(item.price);
+        const amount = quantity === null || price === null ? null : quantity * price;
         return {
           index: index + 1,
           material_code: item.materialCode || item.material_code || '',
@@ -982,7 +1003,7 @@ async function printReturn() {
           received_quantity: item.receivedQuantity || item.quantity || '',
           return_quantity: item.returnQuantity || item.return_quantity || '',
           unit_name: item.unitName || item.unit_name || item.unit || '',
-          unit_price: formatCurrency(item.price || 0),
+          unit_price: formatCurrency(item.price),
           amount: formatCurrency(amount),
           return_reason: item.returnReason || item.return_reason || ''
         };

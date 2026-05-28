@@ -143,47 +143,39 @@
 
 [data-theme="kacon"] body,
 [data-theme="kacon"] .layout-container {
-  background: #f5f5f5 !important;
+  background: var(--color-bg-page) !important;
   background-image: none !important;
 }
 
 
 /* ========== 2. Layout 布局框架覆盖 ========== */
 
-/* 覆盖 Layout.vue 的 tech-theme 变量 */
-[data-theme="kacon"] .tech-theme {
-  --tech-primary: #00A896 !important;
-  --tech-secondary: #008678 !important;
-  --tech-accent: #00bfa5 !important;
-  --tech-glow: transparent !important;
-  --tech-dark: #1a1a1a !important;
-  --tech-light: #f5f5f5 !important;
-
-  /* 覆盖玻璃效果变量为扁平 */
-  --glass-bg: #ffffff !important;
-  --glass-border: #e8e8e8 !important;
-  --glass-shadow: transparent !important;
-
-  --border-radius-sm: 4px !important;
-  --border-radius-md: 6px !important;
-  --border-radius-lg: 6px !important;
-
-  --float-shadow: none !important;
-  --float-shadow-hover: none !important;
-
-  --btn-bg: transparent !important;
-  --btn-border: transparent !important;
-  --btn-hover-bg: #f5f5f5 !important;
-  --btn-hover-shadow: none !important;
+/* Layout shell variables */
+[data-theme="kacon"] .app-shell {
+  --shell-accent: var(--color-primary) !important;
+  --shell-accent-strong: var(--color-primary-dark-2) !important;
+  --shell-accent-soft: var(--color-primary-light-9) !important;
+  --shell-glow: transparent !important;
+  --shell-surface: var(--color-bg-base) !important;
+  --shell-border: var(--color-border-base) !important;
+  --shell-shadow: none !important;
+  --shell-shadow-hover: none !important;
+  --shell-radius-sm: var(--radius-sm) !important;
+  --shell-radius-md: var(--radius-md) !important;
+  --shell-radius-lg: var(--radius-md) !important;
+  --shell-control-bg: transparent !important;
+  --shell-control-border: transparent !important;
+  --shell-control-hover-bg: var(--color-bg-hover) !important;
+  --shell-control-hover-shadow: none !important;
 }
 
 
 /* ========== 3. 侧边栏 ========== */
 
 [data-theme="kacon"] .sidebar,
-[data-theme="kacon"] .el-aside {
-  background: #ffffff !important;
-  border-right: 1px solid #e8e8e8 !important;
+[data-theme="kacon"] .app-sidebar {
+  background: var(--color-bg-base) !important;
+  border-right: 1px solid var(--color-border-base) !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -192,25 +184,25 @@
   height: 100% !important;
 }
 
-/* 覆盖 glass-sidebar */
-[data-theme="kacon"] .glass-sidebar {
-  background: #ffffff !important;
+/* Shell sidebar */
+[data-theme="kacon"] .app-sidebar {
+  background: var(--color-bg-base) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border-right: 1px solid #e8e8e8 !important;
+  border-right: 1px solid var(--color-border-base) !important;
   box-shadow: none !important;
 }
 
 /* Logo容器 */
 [data-theme="kacon"] .logo-container {
-  background: #ffffff !important;
-  border-bottom: 1px solid #f0f0f0 !important;
+  background: var(--color-bg-base) !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
   box-shadow: none !important;
   border-radius: 0 !important;
 }
 
 [data-theme="kacon"] .logo-container .title {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
   font-weight: 700 !important;
 }
 
@@ -221,12 +213,12 @@
 }
 
 /* 标题 - 移除渐变文字 */
-[data-theme="kacon"] .tech-title {
+[data-theme="kacon"] .app-title {
   background: none !important;
   -webkit-background-clip: unset !important;
   background-clip: unset !important;
-  -webkit-text-fill-color: #00A896 !important;
-  color: #00A896 !important;
+  -webkit-text-fill-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
 }
 
 /* 菜单 */
@@ -238,9 +230,9 @@
 /* 菜单项 - 默认状态 */
 [data-theme="kacon"] .sidebar .el-menu-item,
 [data-theme="kacon"] .sidebar .el-sub-menu__title,
-[data-theme="kacon"] .el-aside .el-menu-item,
-[data-theme="kacon"] .el-aside .el-sub-menu__title {
-  color: #4a4a4a !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item,
+[data-theme="kacon"] .app-sidebar .el-sub-menu__title {
+  color: var(--color-text-regular) !important;
   border-left: 3px solid transparent !important;
   border-radius: 0 !important;
   margin: 0 !important;
@@ -251,9 +243,9 @@
 
 [data-theme="kacon"] .sidebar .el-menu-item span,
 [data-theme="kacon"] .sidebar .el-sub-menu__title span,
-[data-theme="kacon"] .el-aside .el-menu-item span,
-[data-theme="kacon"] .el-aside .el-sub-menu__title span {
-  color: #4a4a4a !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item span,
+[data-theme="kacon"] .app-sidebar .el-sub-menu__title span {
+  color: var(--color-text-regular) !important;
   font-size: 14px !important;
   font-weight: 600 !important;
 }
@@ -261,9 +253,9 @@
 /* 菜单项图标 - 18px 与加粗文字形成视觉平衡 */
 [data-theme="kacon"] .sidebar .el-menu-item .el-icon,
 [data-theme="kacon"] .sidebar .el-sub-menu__title .el-icon,
-[data-theme="kacon"] .el-aside .el-menu-item .el-icon,
-[data-theme="kacon"] .el-aside .el-sub-menu__title .el-icon {
-  color: #8c8c8c !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item .el-icon,
+[data-theme="kacon"] .app-sidebar .el-sub-menu__title .el-icon {
+  color: var(--color-text-secondary) !important;
   font-size: 18px !important;
   filter: none !important;
 }
@@ -271,10 +263,10 @@
 /* 菜单项 - 悬停 */
 [data-theme="kacon"] .sidebar .el-menu-item:hover,
 [data-theme="kacon"] .sidebar .el-sub-menu__title:hover,
-[data-theme="kacon"] .el-aside .el-menu-item:hover,
-[data-theme="kacon"] .el-aside .el-sub-menu__title:hover {
-  background: #f5f5f5 !important;
-  color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item:hover,
+[data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover {
+  background: var(--color-bg-page) !important;
+  color: var(--color-primary) !important;
   border-left-color: transparent !important;
   transform: none !important;
   box-shadow: none !important;
@@ -282,86 +274,86 @@
 
 [data-theme="kacon"] .sidebar .el-menu-item:hover span,
 [data-theme="kacon"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="kacon"] .el-aside .el-menu-item:hover span,
-[data-theme="kacon"] .el-aside .el-sub-menu__title:hover span {
-  color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item:hover span,
+[data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover span {
+  color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item:hover .el-icon,
 [data-theme="kacon"] .sidebar .el-sub-menu__title:hover .el-icon,
-[data-theme="kacon"] .el-aside .el-menu-item:hover .el-icon,
-[data-theme="kacon"] .el-aside .el-sub-menu__title:hover .el-icon {
-  color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item:hover .el-icon,
+[data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover .el-icon {
+  color: var(--color-primary) !important;
 }
 
 /* 菜单项 - 激活 */
 [data-theme="kacon"] .sidebar .el-menu-item.is-active,
-[data-theme="kacon"] .el-aside .el-menu-item.is-active {
-  background: #e6f7f5 !important;
-  color: #00A896 !important;
-  border-left-color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item.is-active {
+  background: var(--color-primary-light-9) !important;
+  color: var(--color-primary) !important;
+  border-left-color: var(--color-primary) !important;
   font-weight: 500;
   border-radius: 0 !important;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item.is-active span,
-[data-theme="kacon"] .el-aside .el-menu-item.is-active span {
-  color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item.is-active span {
+  color: var(--color-primary) !important;
   font-weight: 700 !important;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item.is-active .el-icon,
-[data-theme="kacon"] .el-aside .el-menu-item.is-active .el-icon {
-  color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-menu-item.is-active .el-icon {
+  color: var(--color-primary) !important;
 }
 
-/* 覆盖 tech-menu 的激活样式 */
-[data-theme="kacon"] .tech-menu .el-menu-item.is-active {
-  background: #e6f7f5 !important;
-  border-left: 3px solid #00A896 !important;
+/* Shell menu active state */
+[data-theme="kacon"] .app-menu .el-menu-item.is-active {
+  background: var(--color-primary-light-9) !important;
+  border-left: 3px solid var(--color-primary) !important;
   border-radius: 0 !important;
 }
 
-/* 覆盖 tech-menu 的悬停动画 - 清除科技主题的 transform 上浮效果 */
-[data-theme="kacon"] .tech-menu .el-menu-item,
-[data-theme="kacon"] .tech-menu .el-sub-menu__title {
+/* Shell menu hover state */
+[data-theme="kacon"] .app-menu .el-menu-item,
+[data-theme="kacon"] .app-menu .el-sub-menu__title {
   border-radius: 0 !important;
   transform: none;
   box-shadow: none;
   will-change: auto;
 }
 
-[data-theme="kacon"] .tech-menu .el-menu-item:hover,
-[data-theme="kacon"] .tech-menu .el-sub-menu__title:hover {
+[data-theme="kacon"] .app-menu .el-menu-item:hover,
+[data-theme="kacon"] .app-menu .el-sub-menu__title:hover {
   transform: none;
   box-shadow: none;
-  background-color: #f5f5f5 !important;
+  background-color: var(--color-bg-page) !important;
 }
 
 /* 子菜单激活标题 */
 [data-theme="kacon"] .sidebar .el-sub-menu.is-active>.el-sub-menu__title,
-[data-theme="kacon"] .el-aside .el-sub-menu.is-active>.el-sub-menu__title {
-  color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-sub-menu.is-active>.el-sub-menu__title {
+  color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .sidebar .el-sub-menu.is-active>.el-sub-menu__title span,
-[data-theme="kacon"] .el-aside .el-sub-menu.is-active>.el-sub-menu__title span {
-  color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-sub-menu.is-active>.el-sub-menu__title span {
+  color: var(--color-primary) !important;
   font-weight: 700 !important;
 }
 
 [data-theme="kacon"] .sidebar .el-sub-menu.is-active>.el-sub-menu__title .el-icon,
-[data-theme="kacon"] .el-aside .el-sub-menu.is-active>.el-sub-menu__title .el-icon {
-  color: #00A896 !important;
+[data-theme="kacon"] .app-sidebar .el-sub-menu.is-active>.el-sub-menu__title .el-icon {
+  color: var(--color-primary) !important;
 }
 
-/* 二级子菜单 - 覆盖tech样式 */
-[data-theme="kacon"] .tech-menu .el-sub-menu .el-sub-menu>.el-sub-menu__title {
+/* Nested shell submenu */
+[data-theme="kacon"] .app-menu .el-sub-menu .el-sub-menu>.el-sub-menu__title {
   background: transparent !important;
 }
 
-[data-theme="kacon"] .tech-menu .el-sub-menu .el-sub-menu>.el-sub-menu__title::before {
-  background: #00A896 !important;
+[data-theme="kacon"] .app-menu .el-sub-menu .el-sub-menu>.el-sub-menu__title::before {
+  background: var(--color-primary) !important;
 }
 
 
@@ -369,23 +361,23 @@
 
 [data-theme="kacon"] .header,
 [data-theme="kacon"] .el-header {
-  background: #ffffff !important;
+  background: var(--color-bg-base) !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border-radius: 0 !important;
   margin: 0 !important;
   border: none !important;
-  border-bottom: 1px solid #e8e8e8 !important;
+  border-bottom: 1px solid var(--color-border-base) !important;
 }
 
-/* 覆盖 glass-header */
-[data-theme="kacon"] .glass-header {
-  background: #ffffff !important;
+/* Shell header */
+[data-theme="kacon"] .app-header {
+  background: var(--color-bg-base) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: none !important;
-  border-bottom: 1px solid #e8e8e8 !important;
+  border-bottom: 1px solid var(--color-border-base) !important;
   box-shadow: none !important;
 }
 
@@ -398,14 +390,14 @@
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border-radius: 4px !important;
-  color: #4a4a4a !important;
+  color: var(--color-text-regular) !important;
 }
 
 [data-theme="kacon"] .icon-button:hover,
 [data-theme="kacon"] .icon-button-wrapper .notification-bell:hover,
 [data-theme="kacon"] .icon-button-wrapper .theme-selector:hover {
-  background: #f5f5f5 !important;
-  color: #00A896 !important;
+  background: var(--color-bg-page) !important;
+  color: var(--color-primary) !important;
   border-color: transparent !important;
   transform: none !important;
   box-shadow: none !important;
@@ -414,155 +406,28 @@
 /* 用户信息区域 */
 [data-theme="kacon"] .user-info {
   background: transparent !important;
-  border: 1px solid #e8e8e8 !important;
+  border: 1px solid var(--color-border-base) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border-radius: 20px !important;
 }
 
 [data-theme="kacon"] .user-info:hover {
-  background: #f5f5f5 !important;
-  border-color: #d9d9d9 !important;
+  background: var(--color-bg-page) !important;
+  border-color: var(--color-border-darker) !important;
   transform: none !important;
   box-shadow: none !important;
 }
 
 /* 头像 - 扁平化 */
-[data-theme="kacon"] .tech-avatar {
-  border: 2px solid #00A896 !important;
-  background: #ffffff !important;
+[data-theme="kacon"] .user-avatar {
+  border: 2px solid var(--color-primary) !important;
+  background: var(--color-bg-base) !important;
   box-shadow: none !important;
 }
 
 
 /* ========== 5. 主内容区 ========== */
-
-[data-theme="kacon"] .main-content {
-  margin: 0 !important;
-  padding: 16px !important;
-  background: #f5f5f5 !important;
-}
-
-/* 覆盖 Layout.vue 中的卡片样式 */
-[data-theme="kacon"] .main-content .el-card {
-  border-radius: 6px !important;
-  box-shadow: none !important;
-  border: 1px solid #e8e8e8 !important;
-  overflow: visible !important;
-}
-
-[data-theme="kacon"] .main-content .el-card:hover {
-  transform: none !important;
-  box-shadow: none !important;
-  border-color: #d9d9d9 !important;
-}
-
-/* 覆盖 Layout.vue 中的表格样式 */
-[data-theme="kacon"] .main-content .el-table {
-  border: none !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .main-content .el-table:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* 卡片发光效果移除 */
-[data-theme="kacon"] .card-glow {
-  display: none !important;
-}
-
-
-/* ========== 6. 公共组件覆盖（common-styles.css） ========== */
-
-/* 页面头部卡片 - 扁平化 */
-[data-theme="kacon"] .header-card {
-  background: #ffffff !important;
-  border: 1px solid #e8e8e8 !important;
-  border-left: 3px solid #00A896 !important;
-}
-
-[data-theme="kacon"] .header-card::before {
-  display: none !important;
-}
-
-[data-theme="kacon"] .header-card .title-section h2::before {
-  background: #00A896 !important;
-}
-
-/* 统计卡片 - 扁平化 */
-[data-theme="kacon"] .stat-card {
-  background: #ffffff !important;
-  border: 1px solid #e8e8e8 !important;
-  box-shadow: none !important;
-  transition: border-color 0.15s ease !important;
-}
-
-[data-theme="kacon"] .stat-card::before {
-  display: none !important;
-}
-
-[data-theme="kacon"] .stat-card:hover {
-  transform: none !important;
-  box-shadow: none !important;
-  border-color: #d9d9d9 !important;
-}
-
-[data-theme="kacon"] .stat-card:hover .stat-value {
-  transform: none !important;
-}
-
-[data-theme="kacon"] .stat-value {
-  color: #00A896 !important;
-}
-
-/* 统计卡片颜色变体 - 扁平色块 */
-[data-theme="kacon"] .stat-card.success .stat-value,
-[data-theme="kacon"] .stat-card:nth-child(2) .stat-value {
-  color: #34c759 !important;
-}
-
-[data-theme="kacon"] .stat-card.warning .stat-value,
-[data-theme="kacon"] .stat-card:nth-child(3) .stat-value {
-  color: #f0a020 !important;
-}
-
-[data-theme="kacon"] .stat-card.danger .stat-value,
-[data-theme="kacon"] .stat-card:nth-child(4) .stat-value {
-  color: #e54d42 !important;
-}
-
-[data-theme="kacon"] .stat-card.info .stat-value,
-[data-theme="kacon"] .stat-card:nth-child(5) .stat-value {
-  color: #8c8c8c !important;
-}
-
-/* 搜索卡片 */
-[data-theme="kacon"] .search-card {
-  background: #ffffff;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
-}
-
-/* 高级搜索按钮品牌化 */
-[data-theme="kacon"] .advanced-search-btn {
-  background-color: #00A896 !important;
-  border-color: #00A896 !important;
-}
-
-[data-theme="kacon"] .advanced-search-btn:hover,
-[data-theme="kacon"] .advanced-search-btn:focus {
-  background-color: #00bfa5 !important;
-  border-color: #00bfa5 !important;
-}
-
-/* 表单分组标题 */
-[data-theme="kacon"] .form-section-title {
-  border-bottom: 2px solid #f0f0f0 !important;
-  color: #1a1a1a !important;
-}
-
 
 /* ========== 7. 对话框覆盖 — 已合并至第36节 ========== */
 
@@ -572,140 +437,11 @@
 }
 
 [data-theme="kacon"] .el-descriptions .el-descriptions__header {
-  background-color: #fafafa !important;
+  background-color: var(--color-bg-light) !important;
 }
 
 [data-theme="kacon"] .el-descriptions .el-descriptions__label {
-  background-color: #fafafa !important;
-}
-
-
-/* ========== 8. 按钮系统 ========== */
-
-/* 所有按钮基础 */
-[data-theme="kacon"] .el-button {
-  border-radius: 4px !important;
-  font-weight: 500 !important;
-  box-shadow: none !important;
-  transition: all 0.15s ease !important;
-}
-
-[data-theme="kacon"] .el-button:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .el-button:active {
-  transform: none !important;
-}
-
-/* 主要按钮 */
-[data-theme="kacon"] .el-button--primary {
-  background: #00A896 !important;
-  border-color: #00A896 !important;
-}
-
-[data-theme="kacon"] .el-button--primary:hover {
-  background: #00bfa5 !important;
-  border-color: #00bfa5 !important;
-}
-
-[data-theme="kacon"] .el-button--primary:active {
-  background: #008678 !important;
-  border-color: #008678 !important;
-}
-
-/* 朴素主要按钮 */
-[data-theme="kacon"] .el-button--primary.is-plain {
-  background: #e6f7f5 !important;
-  border-color: #99e3da !important;
-  color: #00A896 !important;
-}
-
-[data-theme="kacon"] .el-button--primary.is-plain:hover {
-  background: #00A896 !important;
-  border-color: #00A896 !important;
-  color: #ffffff !important;
-}
-
-/* 成功/警告/危险按钮 */
-[data-theme="kacon"] .el-button--success,
-[data-theme="kacon"] .el-button--warning,
-[data-theme="kacon"] .el-button--danger {
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .el-button--success:hover,
-[data-theme="kacon"] .el-button--warning:hover,
-[data-theme="kacon"] .el-button--danger:hover {
-  box-shadow: none !important;
-}
-
-/* 默认按钮 */
-[data-theme="kacon"] .el-button--default {
-  border-color: #d9d9d9 !important;
-  color: #4a4a4a !important;
-}
-
-[data-theme="kacon"] .el-button--default:hover {
-  border-color: #00A896 !important;
-  color: #00A896 !important;
-  background: #ffffff !important;
-}
-
-/* 文字/链接按钮 */
-[data-theme="kacon"] .el-button--text,
-[data-theme="kacon"] .el-button.is-text {
-  color: #00A896 !important;
-  background: transparent !important;
-  border-color: transparent !important;
-}
-
-[data-theme="kacon"] .el-button--text:hover,
-[data-theme="kacon"] .el-button.is-text:hover {
-  color: #00bfa5 !important;
-  background: #e6f7f5 !important;
-}
-
-[data-theme="kacon"] .el-button.is-link {
-  color: #00A896 !important;
-  background: transparent !important;
-  border-color: transparent !important;
-}
-
-[data-theme="kacon"] .el-button.is-link:hover {
-  color: #00bfa5 !important;
-  background: transparent !important;
-}
-
-
-/* ========== 9. 卡片 ========== */
-
-[data-theme="kacon"] .el-card,
-[data-theme="kacon"] .dashboard-card {
-  background: #ffffff !important;
-  border: 1px solid #e8e8e8 !important;
-  border-radius: 6px !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .el-card:hover,
-[data-theme="kacon"] .dashboard-card:hover {
-  border-color: #d9d9d9 !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
-
-[data-theme="kacon"] .el-card__header {
-  background: #fafafa !important;
-  border-bottom: 1px solid #f0f0f0 !important;
-  padding: 12px 16px !important;
-  font-weight: 600;
-  color: #1a1a1a;
-}
-
-[data-theme="kacon"] .el-card__body {
-  padding: 16px !important;
+  background-color: var(--color-bg-light) !important;
 }
 
 
@@ -721,17 +457,17 @@
 }
 
 [data-theme="kacon"] .el-table th.el-table__cell {
-  background: #fafafa !important;
-  color: #8c8c8c !important;
+  background: var(--color-bg-light) !important;
+  color: var(--color-text-secondary) !important;
   font-size: 14px !important;
   font-weight: 500 !important;
-  border-bottom: 1px solid #f0f0f0 !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
   padding: 10px 0 !important;
 }
 
 [data-theme="kacon"] .el-table td.el-table__cell {
-  border-bottom: 1px solid #f5f5f5 !important;
-  color: #4a4a4a !important;
+  border-bottom: 1px solid var(--color-border-lighter) !important;
+  color: var(--color-text-regular) !important;
   font-size: 14px !important;
   padding: 10px 0 !important;
 }
@@ -741,50 +477,50 @@
 }
 
 [data-theme="kacon"] .el-table__body tr:hover>td.el-table__cell {
-  background-color: #fafafa !important;
+  background-color: var(--color-bg-light) !important;
 }
 
 [data-theme="kacon"] .el-table__body tr.current-row>td.el-table__cell {
-  background-color: #e6f7f5 !important;
+  background-color: var(--color-primary-light-9) !important;
 }
 
 [data-theme="kacon"] .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: #fafafa !important;
+  background-color: var(--color-bg-light) !important;
 }
 
 /* 表格排序 */
 [data-theme="kacon"] .el-table .ascending .sort-caret.ascending {
-  border-bottom-color: #00A896 !important;
+  border-bottom-color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-table .descending .sort-caret.descending {
-  border-top-color: #00A896 !important;
+  border-top-color: var(--color-primary) !important;
 }
 
 /* 表格空状态 */
 [data-theme="kacon"] .el-table__empty-text {
-  color: #bfbfbf !important;
+  color: var(--color-text-placeholder) !important;
 }
 
 
 /* ========== 11. 输入框 ========== */
 
 [data-theme="kacon"] .el-input__wrapper {
-  border: 1px solid #d9d9d9 !important;
+  border: 1px solid var(--color-border-darker) !important;
   border-radius: 4px !important;
   box-shadow: none !important;
-  background: #ffffff !important;
+  background: var(--color-bg-base) !important;
   transition: border-color 0.15s ease !important;
   padding-right: 32px !important;
 }
 
 [data-theme="kacon"] .el-input__wrapper:hover {
-  border-color: #00A896 !important;
+  border-color: var(--color-primary) !important;
   box-shadow: none !important;
 }
 
 [data-theme="kacon"] .el-textarea__inner {
-  border: 1px solid #d9d9d9 !important;
+  border: 1px solid var(--color-border-darker) !important;
   border-radius: 4px !important;
   box-shadow: none !important;
 }
@@ -793,31 +529,31 @@
 /* ========== 12. 选择器 ========== */
 
 [data-theme="kacon"] .el-select-dropdown {
-  border: 1px solid #e8e8e8 !important;
+  border: 1px solid var(--color-border-base) !important;
   border-radius: 4px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-select-dropdown__item.is-selected {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
   font-weight: 500 !important;
-  background-color: #e6f7f5 !important;
+  background-color: var(--color-primary-light-9) !important;
 }
 
 [data-theme="kacon"] .el-select-dropdown__item:hover {
-  background: #f5f5f5 !important;
+  background: var(--color-bg-page) !important;
 }
 
 
 /* ========== 13. 标签页 ========== */
 
 [data-theme="kacon"] .el-tabs__item {
-  color: #8c8c8c !important;
+  color: var(--color-text-secondary) !important;
   transition: color 0.15s ease !important;
 }
 
 [data-theme="kacon"] .el-tabs__nav-wrap::after {
-  background-color: #f0f0f0 !important;
+  background-color: var(--color-border-light) !important;
 }
 
 
@@ -828,16 +564,16 @@
 }
 
 [data-theme="kacon"] .el-pagination .el-pager li.is-active {
-  background: #00A896 !important;
-  color: #ffffff !important;
+  background: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 [data-theme="kacon"] .el-pagination .el-pager li:hover:not(.is-active) {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-pagination button:hover {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 
@@ -851,11 +587,11 @@
 /* ========== 17. 下拉菜单 ========== */
 
 [data-theme="kacon"] .el-dropdown-menu {
-  border: 1px solid #e8e8e8 !important;
+  border: 1px solid var(--color-border-base) !important;
   border-radius: 4px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
   padding: 4px !important;
-  background: #ffffff !important;
+  background: var(--color-bg-base) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
@@ -866,46 +602,46 @@
 }
 
 [data-theme="kacon"] .el-dropdown-menu__item:hover {
-  background: #f5f5f5 !important;
-  color: #00A896 !important;
+  background: var(--color-bg-page) !important;
+  color: var(--color-primary) !important;
   transform: none !important;
   box-shadow: none !important;
 }
 
-/* 覆盖 tech-dropdown 和 language-dropdown */
-[data-theme="kacon"] .tech-dropdown,
+/* Shell dropdown */
+[data-theme="kacon"] .user-dropdown,
 [data-theme="kacon"] .language-dropdown {
-  background: #ffffff !important;
+  background: var(--color-bg-base) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border: 1px solid #e8e8e8 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid var(--color-border-base) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
   border-radius: 4px !important;
 }
 
-[data-theme="kacon"] .tech-dropdown .el-dropdown-menu__item:not(.is-disabled):hover,
+[data-theme="kacon"] .user-dropdown .el-dropdown-menu__item:not(.is-disabled):hover,
 [data-theme="kacon"] .language-dropdown .el-dropdown-menu__item:hover {
-  background: #f5f5f5 !important;
-  color: #00A896 !important;
+  background: var(--color-bg-page) !important;
+  color: var(--color-primary) !important;
   transform: none !important;
   box-shadow: none !important;
 }
 
-[data-theme="kacon"] .tech-dropdown .el-dropdown-menu__item:not(.is-disabled):hover .el-icon {
+[data-theme="kacon"] .user-dropdown .el-dropdown-menu__item:not(.is-disabled):hover .el-icon {
   transform: none !important;
 }
 
 [data-theme="kacon"] .language-dropdown .el-dropdown-menu__item.is-active {
-  background: #e6f7f5 !important;
-  color: #00A896 !important;
-  border-left: 3px solid #00A896 !important;
+  background: var(--color-primary-light-9) !important;
+  color: var(--color-primary) !important;
+  border-left: 3px solid var(--color-primary) !important;
 }
 
 
 /* ========== 18. 进度条 ========== */
 
 [data-theme="kacon"] .el-progress-bar__outer {
-  background: #f0f0f0 !important;
+  background: var(--color-border-light) !important;
 }
 
 
@@ -913,39 +649,39 @@
 
 [data-theme="kacon"] .el-breadcrumb__inner.is-link:hover,
 [data-theme="kacon"] .el-breadcrumb__inner a:hover {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 
 /* ========== 20. 链接 ========== */
 
 [data-theme="kacon"] .el-link--primary {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-link--primary:hover {
-  color: #00bfa5 !important;
+  color: var(--color-primary) !important;
 }
 
 
 /* ========== 21. 步骤条 ========== */
 
 [data-theme="kacon"] .el-step__head.is-finish .el-step__icon {
-  color: #00A896 !important;
-  border-color: #00A896 !important;
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-step__head.is-process .el-step__icon {
-  background: #00A896 !important;
-  border-color: #00A896 !important;
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-step__title.is-finish {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-step__head.is-finish .el-step__line {
-  background-color: #00A896 !important;
+  background-color: var(--color-primary) !important;
 }
 
 
@@ -953,27 +689,27 @@
 
 [data-theme="kacon"] .el-message {
   border-radius: 4px !important;
-  border: 1px solid #e8e8e8 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid var(--color-border-base) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 6%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-notification {
   border-radius: 6px !important;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
 }
 
 
 /* ========== 23. 抽屉 ========== */
 
 [data-theme="kacon"] .el-drawer {
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.06) !important;
+  box-shadow: -2px 0 8px color-mix(in srgb, var(--ds-black) 6%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-drawer__header {
-  border-bottom: 1px solid #f0f0f0 !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
   margin-bottom: 0 !important;
   padding: 16px 20px !important;
-  color: #1a1a1a !important;
+  color: var(--color-text-primary) !important;
   font-weight: 600 !important;
 }
 
@@ -981,18 +717,18 @@
 /* ========== 24. 加载状态 ========== */
 
 [data-theme="kacon"] .el-loading-spinner .circular .path {
-  stroke: #00A896 !important;
+  stroke: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-loading-spinner .el-loading-text {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 
 /* ========== 25. 表单标签 ========== */
 
 [data-theme="kacon"] .el-form-item__label {
-  color: #4a4a4a !important;
+  color: var(--color-text-regular) !important;
   font-weight: 500 !important;
   font-size: 14px !important;
 }
@@ -1004,37 +740,33 @@
   filter: none !important;
 }
 
-[data-theme="kacon"] .stat-card .el-icon {
-  filter: none !important;
-}
-
 
 /* ========== 27. 日期选择器 ========== */
 
 [data-theme="kacon"] .el-date-picker .el-picker-panel__link-btn {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-date-table td.today .el-date-table-cell__text {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-date-table td.current:not(.is-disabled) .el-date-table-cell__text {
-  background-color: #00A896 !important;
+  background-color: var(--color-primary) !important;
 }
 
 
 /* ========== 28. 时间线 ========== */
 
 [data-theme="kacon"] .el-timeline-item__node--primary {
-  background-color: #00A896 !important;
+  background-color: var(--color-primary) !important;
 }
 
 
 /* ========== 29. 徽章 ========== */
 
 [data-theme="kacon"] .el-badge__content--primary {
-  background-color: #00A896 !important;
+  background-color: var(--color-primary) !important;
 }
 
 
@@ -1046,12 +778,12 @@
 }
 
 [data-theme="kacon"] ::-webkit-scrollbar-thumb {
-  background: #d9d9d9;
+  background: var(--color-border-darker);
   border-radius: 3px;
 }
 
 [data-theme="kacon"] ::-webkit-scrollbar-thumb:hover {
-  background: #bfbfbf;
+  background: var(--color-text-placeholder);
 }
 
 [data-theme="kacon"] ::-webkit-scrollbar-track {
@@ -1104,678 +836,42 @@
   border-radius: 0 !important;
 }
 
-
-/* ==================================================================
-   33. 仪表盘 Dashboard 专区覆盖
-   ================================================================== */
-
-/* ===== 33.1 仪表盘容器 ===== */
-
-[data-theme="kacon"] .dashboard-container {
-  animation: none !important;
-  background: transparent !important;
-}
-
-/* ===== 33.2 统计卡片（横向图标+数字布局） ===== */
-
-[data-theme="kacon"] .dashboard-container .stat-card {
-  background: #ffffff !important;
-  border: 1px solid #e8e8e8 !important;
-  border-radius: 6px !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .stat-card:hover {
-  border-color: #d9d9d9 !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
-
-/* 统计卡片加载shimmer - 简化 */
-[data-theme="kacon"] .dashboard-container .stat-card-loading::before {
-  display: none !important;
-}
-
-/* 数据更新指示器 - 隐藏脉冲动画 */
-[data-theme="kacon"] .dashboard-container .update-indicator {
-  animation: none !important;
-  opacity: 0 !important;
-}
-
-/* 图标容器 - 移除渐变改为扁平色 */
-[data-theme="kacon"] .dashboard-container .icon-container {
-  box-shadow: none !important;
-  border-radius: 8px !important;
-}
-
-[data-theme="kacon"] .dashboard-container .icon-container::before {
-  display: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .stat-card:hover .icon-container {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .stat-card:hover .icon-container .el-icon {
-  transform: none !important;
-}
-
-/* 扁平化配色 - 移除渐变 */
-[data-theme="kacon"] .dashboard-container .icon-container.blue {
-  background: #00A896 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .icon-container.red {
-  background: #e54d42 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .icon-container.green {
-  background: #34c759 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .icon-container.purple {
-  background: #8c68cd !important;
-}
-
-/* 数字颜色 */
-[data-theme="kacon"] .dashboard-container .number {
-  color: #1a1a1a !important;
-}
-
-
-/* ===== 33.3 个人信息+天气整合卡片 ===== */
-
-[data-theme="kacon"] .dashboard-container .combined-info-card {
-  background: #00A896 !important;
-  border: 1px solid #008678 !important;
-  border-radius: 6px !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .combined-info-card::before {
-  display: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .combined-info-card:hover {
-  transform: none !important;
-  box-shadow: none !important;
-  border-color: #008678 !important;
-}
-
-/* 头像 - 移除光环和粒子特效 */
-[data-theme="kacon"] .dashboard-container .avatar-glow {
-  display: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .avatar-particles {
-  display: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .center-avatar .avatar {
-  border: 2px solid rgba(255, 255, 255, 0.8) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .center-avatar .avatar:hover {
-  transform: none !important;
-  box-shadow: none !important;
-  border-color: #ffffff !important;
-}
-
-
-/* ===== 33.4 公共容器卡片（待办/排行榜/图表/日历/预警） ===== */
-
-[data-theme="kacon"] .dashboard-container .list-container,
-[data-theme="kacon"] .dashboard-container .chart-container,
-[data-theme="kacon"] .dashboard-container .calendar-container,
-[data-theme="kacon"] .dashboard-container .calendar-wrapper,
-[data-theme="kacon"] .dashboard-container .warning-container {
-  background: #ffffff !important;
-  border: 1px solid #e8e8e8 !important;
-  border-radius: 6px !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .list-container:hover,
-[data-theme="kacon"] .dashboard-container .chart-container:hover,
-[data-theme="kacon"] .dashboard-container .calendar-container:hover,
-[data-theme="kacon"] .dashboard-container .calendar-wrapper:hover,
-[data-theme="kacon"] .dashboard-container .warning-container:hover {
-  transform: none !important;
-  box-shadow: none !important;
-  border-color: #d9d9d9 !important;
-}
-
-
-/* ===== 33.5 Tab标签栏 ===== */
-
-[data-theme="kacon"] .dashboard-container .list-header,
-[data-theme="kacon"] .dashboard-container .chart-header {
-  border-bottom: 1px solid #f0f0f0 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .tab {
-  color: #8c8c8c !important;
-  font-size: 14px !important;
-}
-
-[data-theme="kacon"] .dashboard-container .tab:hover {
-  color: #00A896 !important;
-  background-color: #f5f5f5 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .tab.active {
-  color: #00A896 !important;
-  font-weight: 600 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .tab.active::after {
-  background: #00A896 !important;
-  box-shadow: none !important;
-  animation: none !important;
-}
-
-
-/* ===== 33.6 仪表盘表格 ===== */
-
-[data-theme="kacon"] .dashboard-container .dashboard-table .el-table__row:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* 操作按钮 */
-[data-theme="kacon"] .dashboard-container .action-btn {
-  border-radius: 4px !important;
-}
-
-[data-theme="kacon"] .dashboard-container .action-btn::before {
-  display: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .action-btn:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .warning-action-btn {
-  border-radius: 4px !important;
-}
-
-
-/* ===== 33.7 日历 ===== */
-
-[data-theme="kacon"] .dashboard-container .calendar-alert {
-  background: #f5f5f5 !important;
-  box-shadow: none !important;
-  border-radius: 4px !important;
-}
-
-[data-theme="kacon"] .dashboard-container .month-arrow {
-  color: #8c8c8c !important;
-}
-
-[data-theme="kacon"] .dashboard-container .more-btn {
-  color: #00A896 !important;
-}
-
-/* 日期单元格 */
-[data-theme="kacon"] .dashboard-container .day-number:hover {
-  background-color: #e6f7f5 !important;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* 当前日 - 扁平化品牌色 */
-[data-theme="kacon"] .dashboard-container .day-number.current {
-  background: #00A896 !important;
-  color: #ffffff !important;
-  box-shadow: none !important;
-  animation: none !important;
-}
-
-/* 有事件的日期 - 扁平化 */
-[data-theme="kacon"] .dashboard-container .day-number.has-events {
-  background: #e54d42 !important;
-  color: #ffffff !important;
-  box-shadow: none !important;
-}
-
-
-/* ===== 33.8 汇率卡片 ===== */
-
-[data-theme="kacon"] .dashboard-container .rate-card {
-  background: #ffffff !important;
-  color: #1a1a1a !important;
-  border: 1px solid #e8e8e8 !important;
-  border-radius: 6px !important;
-  box-shadow: none !important;
-  animation: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rate-card::before {
-  display: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rate-card:hover {
-  transform: none !important;
-  box-shadow: none !important;
-  border-color: #d9d9d9 !important;
-}
-
-/* 汇率卡各子项重置文字颜色 */
-[data-theme="kacon"] .dashboard-container .rate-card:nth-child(1),
-[data-theme="kacon"] .dashboard-container .rate-card:nth-child(2),
-[data-theme="kacon"] .dashboard-container .rate-card:nth-child(3),
-[data-theme="kacon"] .dashboard-container .rate-card:nth-child(4) {
-  background: #ffffff !important;
-}
-
-[data-theme="kacon"] .dashboard-container .currency-pair {
-  color: #1a1a1a !important;
-  opacity: 1 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rate-value {
-  color: #1a1a1a !important;
-  font-weight: 700 !important;
-  text-shadow: none !important;
-}
-
-/* 汇率变动标签 - 扁平化 */
-[data-theme="kacon"] .dashboard-container .rate-change {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rate-change.positive {
-  color: #34c759 !important;
-  background: #d4f5dd !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rate-change.negative {
-  color: #e54d42 !important;
-  background: #f9dad8 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rate-change.neutral {
-  color: #8c8c8c !important;
-  background: #f0f0f0 !important;
-}
-
-/* 汇率走势图容器 */
-[data-theme="kacon"] .dashboard-container .exchange-rate-chart {
-  box-shadow: none !important;
-  border: 1px solid #f0f0f0 !important;
-  border-radius: 6px !important;
-}
-
-/* 滚动指示器 */
-[data-theme="kacon"] .dashboard-container .scroll-indicator {
-  background: #00A896 !important;
-  animation: none !important;
-  backdrop-filter: none !important;
-  box-shadow: none !important;
-  border-radius: 4px !important;
-}
-
-[data-theme="kacon"] .dashboard-container .scroll-indicator:hover {
-  box-shadow: none !important;
-}
-
-
-/* ===== 33.9 金属价格卡片 ===== */
-
-/* 扁平化金属价格卡片 - 保留功能性浅底色 */
-[data-theme="kacon"] .dashboard-container .price-card {
-  box-shadow: none !important;
-  border-radius: 6px !important;
-  animation: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card-gold {
-  background: #fffbe6 !important;
-  border: 1px solid #fadb14 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card-platinum {
-  background: #f5f5f5 !important;
-  border: 1px solid #d9d9d9 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card-aluminum {
-  background: #e6f7ff !important;
-  border: 1px solid #91d5ff !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card-copper {
-  background: #fff7e6 !important;
-  border: 1px solid #ffd591 !important;
-}
-
-/* 价格值 - 移除text-shadow */
-[data-theme="kacon"] .dashboard-container .price-value {
-  text-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card-gold .price-value {
-  text-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card-platinum .price-value {
-  text-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card-aluminum .price-value {
-  text-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .price-card-copper .price-value {
-  text-shadow: none !important;
-}
-
-/* 金属图标 - 移除脉冲动画和阴影 */
-[data-theme="kacon"] .dashboard-container .metal-icon {
-  animation: none !important;
-  box-shadow: none !important;
-}
-
-/* 金属图标扁平色 */
-[data-theme="kacon"] .dashboard-container .metal-icon-gold {
-  background: #fadb14 !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .metal-icon-platinum {
-  background: #bfbfbf !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .metal-icon-aluminum {
-  background: #1890ff !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .metal-icon-copper {
-  background: #fa8c16 !important;
-  box-shadow: none !important;
-}
-
-
-/* ===== 33.10 排行榜领奖台 ===== */
-
-/* 排行榜容器 */
-[data-theme="kacon"] .dashboard-container .ranking-container {
-  overflow: visible !important;
-}
-
-/* 排行榜项 - 扁平化 */
-[data-theme="kacon"] .dashboard-container .podium-item {
-  animation: none !important;
-  perspective: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .podium-item:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* 王冠 - 移除浮动动画 */
-[data-theme="kacon"] .dashboard-container .crown-icon {
-  animation: none !important;
-  filter: none !important;
-}
-
-/* 排行榜前三名 - 扁平化卡片 */
-[data-theme="kacon"] .dashboard-container .podium-item.rank-1 {
-  background: #ffffff !important;
-  border: 1px solid #fadb14 !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-1 .front {
-  background: #fffbe6 !important;
-  border: 1px solid #fadb14 !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-1 .rank-badge {
-  text-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .podium-item.rank-2 {
-  background: #ffffff !important;
-  border: 1px solid #d9d9d9 !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-2 .front {
-  background: #f5f5f5 !important;
-  border: 1px solid #d9d9d9 !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-2 .rank-badge {
-  text-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .podium-item.rank-3 {
-  background: #ffffff !important;
-  border: 1px solid #ffd591 !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-3 .front {
-  background: #fff7e6 !important;
-  border: 1px solid #ffd591 !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-3 .rank-badge {
-  text-shadow: none !important;
-}
-
-/* 翻转效果 - 简化为淡入淡出 */
-[data-theme="kacon"] .dashboard-container .flipper {
-  transform-style: flat !important;
-}
-
-[data-theme="kacon"] .dashboard-container .podium-item.flipped .flipper {
-  transform: none !important;
-}
-
-/* 背面卡片 - 扁平化 */
-[data-theme="kacon"] .dashboard-container .rank-1 .back {
-  background: #00A896 !important;
-  box-shadow: none !important;
-  border-radius: 6px !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-2 .back {
-  background: #4a4a4a !important;
-  box-shadow: none !important;
-  border-radius: 6px !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-3 .back {
-  background: #008678 !important;
-  box-shadow: none !important;
-  border-radius: 6px !important;
-}
-
-/* 暂无数据状态 - 简化 */
-[data-theme="kacon"] .dashboard-container .podium-item.no-data {
-  background: #fafafa !important;
-  border: 1px dashed #d9d9d9 !important;
-  box-shadow: none !important;
-}
-
-/* 头像容器阴影移除 */
-[data-theme="kacon"] .dashboard-container .avatar-container {
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .dashboard-container .rank-1 .avatar-container {
-  box-shadow: none !important;
-}
-
-/* 排行榜淡入动画移除 */
-[data-theme="kacon"] .dashboard-container .ranking-podium {
-  animation: none !important;
-}
-
-
-/* ===== 33.11 分节标题和分隔线 ===== */
-
-[data-theme="kacon"] .dashboard-container .section-title {
-  border-left-color: #00A896 !important;
-}
-
-[data-theme="kacon"] .dashboard-container .section-divider {
-  background: #f0f0f0 !important;
-}
-
-/* 最后更新信息 */
-[data-theme="kacon"] .dashboard-container .last-update {
-  border-left-color: #00A896 !important;
-  background: #fafafa !important;
-  border-radius: 4px !important;
-}
-
-/* 空头像 */
-[data-theme="kacon"] .dashboard-container .empty-avatar {
-  background: #fafafa !important;
-  border: 1px dashed #d9d9d9 !important;
-}
-
-
-/* ==================================================================
-   34. 表格操作列按钮统一风格
-   ================================================================== */
-
-/* 强制针对表格最后一列（操作列）内的所有按钮建立严格的基准样式
-   去除不同开发者使用 is-text/is-link/is-plain/不同type 带来的白底、蓝底、图标杂乱问题 */
-
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button {
-  border: none !important;
-  box-shadow: none !important;
-  padding: 4px 10px !important;
-  height: 26px !important;
-  font-weight: 500 !important;
-  border-radius: 4px !important;
-  transition: all 0.2s ease !important;
-  /* 默认全部打底为极为柔和的品牌青绿色，解决白色或默认蓝色的突兀感 */
-  color: #00A896 !important;
-  background-color: #e6f7f5 !important;
-}
-
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button:hover {
-  background-color: #ccefeb !important;
-  /* 悬停颜色稍深的一阶 */
-  color: #008678 !important;
-  transform: translateY(-1px) !important;
-}
-
-/* 核心要求：强制隐藏所有操作列按钮中的图标，保持纯文字的极简与专业一致性 */
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button i,
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button .el-icon,
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button svg {
-  display: none !important;
-}
-
-/* 按钮内部文字容器修正，消除因隐藏图标造成的间距偏移 */
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button span {
-  margin-left: 0 !important;
-}
-
-/* 仅对极少数高危/特殊操作保留特异色彩 */
-
-/* 危险/删除操作保留红色警示 */
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button--danger {
-  color: #e54d42 !important;
-  background-color: #f9dad8 !important;
-}
-
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button--danger:hover {
-  background-color: #f3b6b1 !important;
-  color: #b73e35 !important;
-}
-
-/* 警告性操作保留橙色警示 */
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button--warning {
-  color: #f0a020 !important;
-  background-color: #fcecd0 !important;
-}
-
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button--warning:hover {
-  background-color: #f8dbb2 !important;
-  color: #c0801a !important;
-}
-
-/* 成功类操作变更为纯绿色（如用户特别要求的纯绿） */
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button--success {
-  color: #34c759 !important;
-  /* 纯绿色 */
-  background-color: #d4f5dd !important;
-  /* 浅绿色底 */
-}
-
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .el-button--success:hover {
-  background-color: #b2ebc4 !important;
-  color: #2aa148 !important;
-}
-
-/* 默认只针对表格最后一列（通常为操作列）的数据行优化布局，且不影响表头 */
-[data-theme="kacon"] .el-table__body .el-table__row .el-table__cell:last-child .cell {
-  display: flex !important;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-
 /* ==================================================================
    35. 深度覆盖：基础组件色彩大一统与扁平化 (Pagination/Tabs/Forms/Tags)
    ================================================================== */
 
 /* ===== 35.1 分页器 (Pagination) ===== */
 [data-theme="kacon"] .el-pagination.is-background .el-pager li:not(.is-disabled).is-active {
-  background-color: #00A896 !important;
-  color: #ffffff !important;
+  background-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
   box-shadow: none !important;
 }
 
 [data-theme="kacon"] .el-pagination.is-background .el-pager li:not(.is-disabled):hover {
-  color: #00A896 !important;
-  background-color: #e6f7f5 !important;
+  color: var(--color-primary) !important;
+  background-color: var(--color-primary-light-9) !important;
 }
 
 [data-theme="kacon"] .el-pagination.is-background .btn-prev,
 [data-theme="kacon"] .el-pagination.is-background .btn-next,
 [data-theme="kacon"] .el-pagination.is-background .el-pager li {
-  background-color: #f5f5f5 !important;
+  background-color: var(--color-bg-page) !important;
   border-radius: 4px !important;
 }
 
 
 /* ===== 35.2 选项卡 (Tabs) ===== */
 [data-theme="kacon"] .el-tabs__item.is-active {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
   font-weight: 600 !important;
 }
 
 [data-theme="kacon"] .el-tabs__item:hover {
-  color: #008678 !important;
+  color: var(--color-primary-dark-2) !important;
 }
 
 [data-theme="kacon"] .el-tabs__active-bar {
-  background-color: #00A896 !important;
+  background-color: var(--color-primary) !important;
   height: 3px !important;
   /* 稍微加粗显得更现代 */
 }
@@ -1783,79 +879,79 @@
 
 /* ===== 35.3 开关 (Switch) ===== */
 [data-theme="kacon"] .el-switch.is-checked .el-switch__core {
-  background-color: #00A896 !important;
-  border-color: #00A896 !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 
 /* ===== 35.4 表单选项器 (Checkbox / Radio) ===== */
 [data-theme="kacon"] .el-checkbox__input.is-checked .el-checkbox__inner,
 [data-theme="kacon"] .el-radio__input.is-checked .el-radio__inner {
-  background-color: #00A896 !important;
-  border-color: #00A896 !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-checkbox__input.is-checked+.el-checkbox__label,
 [data-theme="kacon"] .el-radio__input.is-checked+.el-radio__label {
-  color: #00A896 !important;
+  color: var(--color-primary) !important;
 }
 
 [data-theme="kacon"] .el-checkbox__inner:hover,
 [data-theme="kacon"] .el-radio__inner:hover {
-  border-color: #00A896 !important;
+  border-color: var(--color-primary) !important;
 }
 
 
 /* ===== 35.5 选中框/边框色彩统一 (Select / Input / Focus...) ===== */
 [data-theme="kacon"] .el-select .el-input.is-focus .el-input__wrapper {
-  box-shadow: 0 0 0 1px #00A896 inset !important;
+  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
 }
 
 [data-theme="kacon"] .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px #00A896 inset !important;
+  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
 }
 
 [data-theme="kacon"] .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px #00A896 inset !important;
+  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
 }
 
 
 /* ===== 35.6 标签 (Tag) 色彩修正为扁平主题态 ===== */
 [data-theme="kacon"] .el-tag--primary,
 [data-theme="kacon"] .el-tag {
-  background-color: #e6f7f5 !important;
-  border-color: #00A896 !important;
-  color: #00A896 !important;
+  background-color: var(--color-primary-light-9) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
   border-radius: 4px !important;
 }
 
 [data-theme="kacon"] .el-tag--success {
-  background-color: #d4f5dd !important;
-  border-color: #34c759 !important;
-  color: #34c759 !important;
+  background-color: var(--color-success-light) !important;
+  border-color: var(--color-success) !important;
+  color: var(--color-success) !important;
 }
 
 [data-theme="kacon"] .el-tag--warning {
-  background-color: #fcecd0 !important;
-  border-color: #f0a020 !important;
-  color: #f0a020 !important;
+  background-color: var(--color-warning-light) !important;
+  border-color: var(--color-warning) !important;
+  color: var(--color-warning) !important;
 }
 
 [data-theme="kacon"] .el-tag--danger {
-  background-color: #f9dad8 !important;
-  border-color: #e54d42 !important;
-  color: #e54d42 !important;
+  background-color: var(--color-danger-light) !important;
+  border-color: var(--color-danger) !important;
+  color: var(--color-danger) !important;
 }
 
 [data-theme="kacon"] .el-tag--info {
-  background-color: #f5f5f5 !important;
-  border-color: #d9d9d9 !important;
-  color: #4a4a4a !important;
+  background-color: var(--color-bg-page) !important;
+  border-color: var(--color-border-darker) !important;
+  color: var(--color-text-regular) !important;
 }
 
 /* 进度条 (Progress) */
 [data-theme="kacon"] .el-progress-bar__inner {
-  background-color: #00A896 !important;
+  background-color: var(--color-primary) !important;
 }
 
 
@@ -1868,8 +964,8 @@
 [data-theme="kacon"] .el-dialog {
   border-radius: 6px !important;
   /* 适中圆角，符合商务系统严谨属性 */
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
-  border: 1px solid #e8e8e8 !important;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
+  border: 1px solid var(--color-border-base) !important;
   overflow: hidden !important;
   /* 限定模态框内容无法逃逸 */
 }
@@ -1880,8 +976,8 @@
 [data-theme="kacon"] .el-drawer__header {
   margin: 0 !important;
   padding: 18px 24px !important;
-  background-color: #fafafa !important;
-  border-bottom: 1px solid #f0f0f0 !important;
+  background-color: var(--color-bg-light) !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
   display: flex !important;
   align-items: center !important;
 }
@@ -1890,7 +986,7 @@
 [data-theme="kacon"] .el-drawer__title {
   font-size: 16px !important;
   font-weight: 600 !important;
-  color: #1a1a1a !important;
+  color: var(--color-text-primary) !important;
   display: flex !important;
   align-items: center !important;
 }
@@ -1901,7 +997,7 @@
   display: block;
   width: 4px;
   height: 16px;
-  background-color: #00A896;
+  background-color: var(--color-primary);
   border-radius: 2px;
   margin-right: 8px;
 }
@@ -1915,9 +1011,9 @@
 
 [data-theme="kacon"] .el-dialog__headerbtn:hover .el-dialog__close,
 [data-theme="kacon"] .el-drawer__close-btn:hover {
-  color: #e54d42 !important;
+  color: var(--color-danger) !important;
   /* 警示色：悬浮变红 */
-  transform: rotate(90deg) !important;
+  transform: none !important;
   transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
 }
 
@@ -1930,7 +1026,7 @@
 [data-theme="kacon"] .el-dialog__body .el-descriptions {
   border-radius: 4px !important;
   overflow: hidden !important;
-  border: 1px solid #e8e8e8 !important;
+  border: 1px solid var(--color-border-base) !important;
   /* 内置一道精细边框 */
 }
 
@@ -1939,9 +1035,9 @@
 }
 
 [data-theme="kacon"] .el-dialog__body .el-descriptions-item__label.is-bordered-label {
-  background-color: #fafafa !important;
+  background-color: var(--color-bg-light) !important;
   /* 跟顶槽头部同样的底色 */
-  color: #606266 !important;
+  color: var(--color-text-regular) !important;
   font-weight: 500 !important;
 }
 
@@ -1949,73 +1045,8 @@
 [data-theme="kacon"] .el-dialog__footer,
 [data-theme="kacon"] .el-drawer__footer {
   padding: 16px 24px !important;
-  border-top: 1px solid #f0f0f0 !important;
-  background-color: #fafafa !important;
+  border-top: 1px solid var(--color-border-light) !important;
+  background-color: var(--color-bg-light) !important;
   /* 底部与头部色彩呼应形成外包装壳 */
   margin: 0 !important;
-}
-
-/* 表单底部按钮组规范容器间距 */
-[data-theme="kacon"] .el-dialog__footer .dialog-footer {
-  display: flex !important;
-  justify-content: flex-end !important;
-  gap: 12px !important;
-}
-
-[data-theme="kacon"] .el-dialog__footer .dialog-footer .el-button {
-  margin-left: 0 !important;
-  /* 去除组件自带 margin left 以防止 flex gap 计算叠加 */
-}
-
-/* ------------------------------------- */
-/* Layout & Form Standardization Fixes   */
-/* ------------------------------------- */
-
-[data-theme="kacon"] .el-input__suffix {
-  right: 8px !important;
-  position: absolute !important;
-}
-
-/* 2. Responsive search inputs */
-[data-theme="kacon"] .search-form .el-input,
-[data-theme="kacon"] .search-form .el-select {
-  width: 100%;
-  min-width: 180px;
-  max-width: 220px;
-}
-
-/* 3. Global Date Picker Root Width Overrides
-   We modify the generic Element Plus component classes directly.
-   This safely handles the actual element sizing without parent-view overrides.
-*/
-[data-theme="kacon"] .el-date-editor:not(.el-range-editor) {
-  width: 200px;
-}
-
-[data-theme="kacon"] .el-date-editor--monthrange,
-[data-theme="kacon"] .el-range-editor--monthrange {
-  width: 220px;
-}
-
-[data-theme="kacon"] .el-date-editor--daterange,
-[data-theme="kacon"] .el-range-editor--daterange {
-  width: 240px;
-}
-
-[data-theme="kacon"] .el-date-editor--datetimerange,
-[data-theme="kacon"] .el-range-editor--datetimerange {
-  width: 280px;
-}
-
-/* On mobile size, shrink horizontally to fit */
-@media (max-width: 768px) {
-
-  [data-theme="kacon"] .search-form .el-input,
-  [data-theme="kacon"] .search-form .el-select,
-  [data-theme="kacon"] .el-date-editor,
-  [data-theme="kacon"] .el-range-editor {
-    min-width: 100px;
-    max-width: 100%;
-    width: 100%;
-  }
 }

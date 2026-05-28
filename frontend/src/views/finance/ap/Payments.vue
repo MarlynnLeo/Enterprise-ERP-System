@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="payments-container">
+  <div class="module-page payments-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,25 +19,22 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="searchPayments"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="付款编号">
           <el-input  v-model="searchForm.paymentNumber" placeholder="输入付款编号" clearable ></el-input>
         </el-form-item>
         <el-form-item label="供应商">
           <el-input  v-model="searchForm.supplierName" placeholder="输入供应商名称" clearable ></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchPayments">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-          <el-button class="advanced-search-btn" @click="showAdvancedSearch = !showAdvancedSearch">
-            {{ showAdvancedSearch ? '收起筛选' : '高级搜索' }}
-            <el-icon style="margin-left: 4px;"><ArrowUp v-if="showAdvancedSearch" /><ArrowDown v-else /></el-icon>
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <!-- 高级搜索区域 -->
-      <el-form :inline="true" :model="searchForm" class="search-form" v-show="showAdvancedSearch" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dcdfe6;">
+      </template>
+      <template #advanced>
         <el-form-item label="付款日期">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -64,8 +61,8 @@
             <el-option label="已作废" value="void"></el-option>
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
@@ -79,7 +76,7 @@
         <el-table-column prop="supplierName" label="供应商" width="250"></el-table-column>
         <el-table-column prop="paymentDate" label="付款日期" width="100"></el-table-column>
         <el-table-column prop="invoiceNumber" label="发票编号" width="130"></el-table-column>
-        <el-table-column prop="amount" label="金额" width="200" align="right">
+        <el-table-column prop="amount" label="金额" width="200">
           <template #default="scope">
             {{ formatCurrency(scope.row.amount) }}
           </template>
@@ -97,7 +94,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" min-width="230" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button type="info" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
             <el-button v-permission="'finance:ap:update'"
@@ -327,13 +324,13 @@
 </template>
 <script setup>
 import { NumberFormatter } from '@/utils/commonHelpers'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
 import PrintDialog from '@/components/common/PrintDialog.vue';
-import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
+import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { Plus } from '@element-plus/icons-vue';
+import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth'
 // 权限store
 const authStore = useAuthStore()
@@ -394,7 +391,7 @@ const paymentForm = reactive({
   paidAmount: '',
   balance: '',
   balanceValue: 0,
-  paymentDate: new Date().toISOString().slice(0, 10),
+  paymentDate: formatLocalDate(new Date()),
   amount: 0,
   paymentMethod: 'bank_transfer',
   notes: '',
@@ -457,25 +454,11 @@ const loadPayments = async () => {
       paymentMethod: searchForm.paymentMethod,
       status: searchForm.status // 添加状态筛选
     };
-    const response = await api.get('/finance/ap/payments', { params });
+    const response = await financeApi.getPayments(params);
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
     paymentList.value = list;
     total.value = totalCount;
-    // 如果付款记录缺少发票信息，尝试获取
-    for (const payment of paymentList.value) {
-      if (payment.invoiceId && !payment.invoiceNumber) {
-        try {
-          const invoiceResponse = await api.get(`/finance/ap/invoices/${payment.invoiceId}`);
-          const invoiceData = parseDataObject(invoiceResponse, { enableLog: false });
-          if (invoiceData) {
-            payment.invoiceNumber = invoiceData.invoiceNumber;
-          }
-        } catch (error) {
-          console.error(`获取发票 ${payment.invoiceId} 详情失败:`, error);
-        }
-      }
-    }
   } catch (error) {
     console.error('加载付款记录失败:', error);
     ElMessage.error(`加载付款记录失败: ${error.message || '未知错误'}`);
@@ -488,7 +471,7 @@ const loadPayments = async () => {
 // 加载未付清的发票选项
 const loadInvoiceOptions = async () => {
   try {
-    const response = await api.get('/finance/ap/invoices/unpaid');
+    const response = await financeApi.getUnpaidAPInvoices();
     // 使用统一的列表解析工具
     invoiceOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
@@ -500,7 +483,7 @@ const loadInvoiceOptions = async () => {
 // 加载银行账户选项
 const loadBankAccountOptions = async () => {
   try {
-    const response = await api.get('/finance/bank-accounts');
+    const response = await financeApi.getBankAccountsList();
     // 使用统一的列表解析工具
     bankAccountOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
@@ -521,7 +504,7 @@ const handleInvoiceChange = async () => {
   }
 
   try {
-    const response = await api.get(`/finance/ap/invoices/${paymentForm.invoiceId}`);
+    const response = await financeApi.getAPInvoice(paymentForm.invoiceId);
     const invoice = response.data;
 
     const balance = invoice.amount - invoice.paidAmount;
@@ -571,7 +554,7 @@ const getStatusText = (status) => {
 // 查看详情
 const handleViewDetail = async (row) => {
   try {
-    const response = await api.get(`/finance/ap/payments/${row.id}`);
+    const response = await financeApi.getPayment(row.id);
     detailData.value = response.data;
     detailDialogVisible.value = true;
   } catch (error) {
@@ -602,7 +585,7 @@ const confirmVoid = async () => {
     if (valid) {
       voidLoading.value = true;
       try {
-        await api.post(`/finance/ap/payments/${voidForm.id}/void`, {
+        await financeApi.voidPayment(voidForm.id, {
           void_reason: voidForm.voidReason
         });
 
@@ -637,7 +620,7 @@ const printData = ref({});
 const handlePrint = async (row) => {
   try {
     // 获取完整的付款详情以确保数据准确（如关联发票号）
-    const response = await api.get(`/finance/ap/payments/${row.id}`);
+    const response = await financeApi.getPayment(row.id);
     const payment = response.data;
     const operatorName =
       authStore.realName ||
@@ -690,7 +673,7 @@ const savePayment = async () => {
           referenceNumber: paymentForm.referenceNumber
         };
 
-        await api.post('/finance/ap/payments', data);
+        await financeApi.createPayment(data);
         ElMessage.success('添加成功');
         dialogVisible.value = false;
         loadPayments();
@@ -714,7 +697,7 @@ const resetPaymentForm = () => {
   paymentForm.paidAmount = '';
   paymentForm.balance = '';
   paymentForm.balanceValue = 0;
-  paymentForm.paymentDate = new Date().toISOString().slice(0, 10);
+  paymentForm.paymentDate = formatLocalDate(new Date());
   paymentForm.amount = 0;
   paymentForm.paymentMethod = 'bank_transfer';
   paymentForm.notes = '';

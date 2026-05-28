@@ -10,8 +10,7 @@
     <el-upload
       v-if="!readonly"
       v-model:file-list="fileList"
-      :action="uploadUrl"
-      :headers="uploadHeaders"
+      :http-request="uploadAttachment"
       :on-success="handleSuccess"
       :on-error="handleError"
       :before-upload="beforeUpload"
@@ -57,10 +56,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Upload, Document, Delete, Download } from '@element-plus/icons-vue';
-import { tokenManager } from '@/utils/unifiedStorage';
+import { api } from '@/services/api';
+import { buildResourceUrl } from '@/config/app';
 
 const props = defineProps({
   modelValue: {
@@ -85,17 +85,6 @@ const emit = defineEmits(['update:modelValue']);
 
 const fileList = ref([]);
 const attachments = ref([...props.modelValue]);
-
-const uploadUrl = computed(() => {
-  const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-  return `${baseUrl}/api/upload/file`;
-});
-
-const uploadHeaders = computed(() => {
-  return {
-    'Authorization': `Bearer ${tokenManager.getToken()}`
-  };
-});
 
 const beforeUpload = (file) => {
   const isLtMaxSize = file.size / 1024 / 1024 < props.maxSizeMB;
@@ -130,12 +119,29 @@ const beforeUpload = (file) => {
   return true;
 };
 
+const uploadAttachment = async ({ file, onSuccess, onError }) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await api.post('/upload/file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    onSuccess(response.data);
+  } catch (error) {
+    onError(error);
+  }
+};
+
 const handleSuccess = (response, file) => {
-  if (response.success) {
+  const uploadedFile = response?.success ? response.data : response?.data || response;
+  const fileUrl = uploadedFile?.url || uploadedFile?.filePath || uploadedFile?.path;
+
+  if (fileUrl) {
     attachments.value.push({
       name: file.name,
       size: file.size,
-      url: response.data.url,
+      url: fileUrl,
       type: file.type
     });
     emit('update:modelValue', attachments.value);
@@ -168,7 +174,7 @@ const removeFile = (index) => {
 const downloadFile = (file) => {
   // 创建隐藏的a标签进行下载
   const link = document.createElement('a');
-  link.href = file.url;
+  link.href = buildResourceUrl(file.url);
   link.download = file.name;
   link.target = '_blank';
   document.body.appendChild(link);
@@ -197,24 +203,24 @@ watch(() => props.modelValue, (newVal) => {
 
 .attachment-list {
   margin-top: 20px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--color-border-base);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .list-header {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   padding: 10px 15px;
   font-weight: bold;
-  color: #606266;
-  border-bottom: 1px solid #dcdfe6;
+  color: var(--color-text-regular);
+  border-bottom: 1px solid var(--color-border-base);
 }
 
 .attachment-item {
   display: flex;
   align-items: center;
   padding: 12px 15px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--color-border-lighter);
   transition: background-color 0.3s;
 }
 
@@ -223,12 +229,12 @@ watch(() => props.modelValue, (newVal) => {
 }
 
 .attachment-item:hover {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
 }
 
 .file-icon {
   font-size: 24px;
-  color: #409eff;
+  color: var(--color-primary);
   margin-right: 12px;
   flex-shrink: 0;
 }
@@ -243,7 +249,7 @@ watch(() => props.modelValue, (newVal) => {
 
 .filename {
   font-size: 14px;
-  color: #303133;
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -251,7 +257,7 @@ watch(() => props.modelValue, (newVal) => {
 
 .filesize {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .file-actions {
@@ -262,7 +268,7 @@ watch(() => props.modelValue, (newVal) => {
 
 .el-upload__tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
   margin-top: 8px;
 }
 </style>

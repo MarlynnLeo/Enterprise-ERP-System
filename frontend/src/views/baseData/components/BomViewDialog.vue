@@ -5,6 +5,7 @@
     @update:model-value="val => emit('update:modelValue', val)"
     width="800px"
     append-to-body
+    destroy-on-close
     class="bom-view-dialog"
   >
     <div class="dialog-content-wrapper">
@@ -51,8 +52,8 @@
                   <span>{{ scope.row.specification || scope.row.material_specs || scope.row.specs || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="quantity" label="用量" width="70" align="right"></el-table-column>
-              <el-table-column prop="unit_name" label="单位" width="60" align="center"></el-table-column>
+              <el-table-column prop="quantity" label="用量" width="70"></el-table-column>
+              <el-table-column prop="unit_name" label="单位" width="60"></el-table-column>
             </el-table>
           </el-tab-pane>
         </el-tabs>
@@ -76,6 +77,8 @@
 import { ref, computed } from 'vue'
 import { View, Download } from '@element-plus/icons-vue'
 import { ElImageViewer, ElMessage } from 'element-plus'
+import { buildResourceUrl } from '@/config/app'
+import { api } from '@/services/api'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -132,9 +135,7 @@ const isPdf = (url) => {
 const buildAttachmentUrl = (url) => {
   if (!url) return ''
   if (/^https?:\/\//i.test(url)) return url
-  const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-  const path = url.startsWith('/') ? url : `/${url}`
-  const fullUrl = `${baseUrl}${path}`
+  const fullUrl = buildResourceUrl(url)
   return /^https?:\/\//i.test(fullUrl) ? fullUrl : `${window.location.origin}${fullUrl}`
 }
 
@@ -162,8 +163,7 @@ const downloadAttachment = async (url) => {
 
   // 根本解决：采用二进制下载文件，防止跨域、路由Fallback或强制变成_uid_xxxx.htm
   try {
-    const { default: axios } = await import('axios')
-    const response = await axios.get(fullUrl, { responseType: 'blob' })
+    const response = await api.get(fullUrl, { responseType: 'blob' })
     const blob = new Blob([response.data])
     const downloadUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')

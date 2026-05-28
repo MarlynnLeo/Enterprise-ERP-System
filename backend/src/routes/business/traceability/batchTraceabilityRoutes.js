@@ -9,6 +9,7 @@ const batchTraceabilityController = require('../../../controllers/business/trace
 const productSalesTraceabilityController = require('../../../controllers/business/traceability/productSalesTraceabilityController');
 const { authenticateToken } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/requirePermission');
+const { ResponseHandler } = require('../../../utils/responseHandler');
 
 // 所有路由需要认证
 router.use(authenticateToken);
@@ -17,11 +18,7 @@ router.use(authenticateToken);
 const validateInput = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      message: '输入验证失败',
-      errors: errors.array(),
-    });
+    return ResponseHandler.validationError(res, '输入验证失败', errors.array());
   }
   next();
 };
@@ -33,8 +30,8 @@ router.get(
   '/unified',
   requirePermission('quality:traceability:view'),
   [
-    query('materialCode').notEmpty().trim().escape().withMessage('物料编码不能为空'),
-    query('batchNumber').optional().trim().escape(),
+    query('materialCode').trim().notEmpty().escape().withMessage('物料编码不能为空'),
+    query('batchNumber').trim().notEmpty().escape().withMessage('批次号不能为空'),
     validateInput,
   ],
   batchTraceabilityController.getUnifiedTraceability

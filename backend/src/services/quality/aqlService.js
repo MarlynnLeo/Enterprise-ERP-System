@@ -1,5 +1,6 @@
 const AqlStandard = require('../../models/quality/aqlStandard');
 const logger = require('../../utils/logger');
+const { parsePagination } = require('../../utils/safePagination');
 
 class AqlService {
     /**
@@ -45,11 +46,12 @@ class AqlService {
      * 分页获取 AQL 标准列表
      */
     static async getStandardsList(params = {}) {
-        const page = parseInt(params.page) || 1;
-        const limit = parseInt(params.pageSize) || 10;
-        const offset = (page - 1) * limit;
+        const pagination = parsePagination(params.page, params.pageSize || params.limit, {
+            defaultPageSize: 10,
+            maxPageSize: 100,
+        });
 
-        const listParams = { ...params, limit, offset };
+        const listParams = { ...params, limit: pagination.limit, offset: pagination.offset };
 
         const [items, total] = await Promise.all([
             AqlStandard.findAll(listParams),
@@ -59,9 +61,9 @@ class AqlService {
         return {
             items,
             total,
-            page,
-            pageSize: limit,
-            totalPages: Math.ceil(total / limit)
+            page: pagination.page,
+            pageSize: pagination.pageSize,
+            totalPages: Math.ceil(total / pagination.pageSize)
         };
     }
 

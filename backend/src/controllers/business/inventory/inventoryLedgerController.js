@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
@@ -57,6 +58,9 @@ const _insertInventoryLedgerLocal = async (
     is_excess = 0,
     bom_required_qty = null,
     total_issued_qty = null,
+    transaction_date = null,
+    transactionDate = null,
+    unit_cost = null,
   }
 ) => {
   try {
@@ -76,6 +80,8 @@ const _insertInventoryLedgerLocal = async (
       bom_required_qty,
       total_issued_qty,
       allowNegativeStock,
+      transactionDate: transactionDate || transaction_date,
+      unitCost: unit_cost,
     };
 
     return await InventoryService.updateStock(params, connection);
@@ -149,6 +155,7 @@ const getTransactionList = async (req, res) => {
     // 安全性：验证排序字段和排序方向
     const allowedSortFields = [
       'inventory_ledger.created_at',
+      'inventory_ledger.transaction_date',
       'inventory_ledger.transaction_type',
       'inventory_ledger.quantity',
       'materials.name',
@@ -167,10 +174,9 @@ const getTransactionList = async (req, res) => {
     // 处理库存流水查询请求
 
     // 安全性：验证和清理输入参数
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    const pageSizeNum = Math.min(Math.max(1, parseInt(pageSize) || 10), 10000); // 限制最大页面大小为10000
-    const offset = (pageNum - 1) * pageSizeNum;
-    const limit = pageSizeNum;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
+    const pageNum = pagination.page;
+    const pageSizeNum = pagination.pageSize;
 
     // 验证日期格式
     if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
@@ -203,8 +209,8 @@ const getTransactionList = async (req, res) => {
     const params = [];
 
     if (startDate && endDate) {
-      conditions.push('inventory_ledger.created_at BETWEEN ? AND ?');
-      params.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+      conditions.push('COALESCE(inventory_ledger.transaction_date, DATE(inventory_ledger.created_at)) BETWEEN ? AND ?');
+      params.push(startDate, endDate);
     }
 
     if (materialName) {
@@ -265,6 +271,7 @@ const getTransactionList = async (req, res) => {
         inventory_ledger.before_quantity as beforeQuantity,
         inventory_ledger.after_quantity as afterQuantity,
         inventory_ledger.transaction_no as transactionNo,
+        DATE_FORMAT(COALESCE(inventory_ledger.transaction_date, DATE(inventory_ledger.created_at)), '%Y-%m-%d') as transactionDate,
         DATE_FORMAT(inventory_ledger.created_at, '%Y-%m-%d %H:%i:%s') as transactionTime,
         inventory_ledger.created_at as createdAt,
         'ledger' as source_table
@@ -280,7 +287,7 @@ const getTransactionList = async (req, res) => {
         users ON inventory_ledger.operator = users.username
       ${whereClause}
       ORDER BY ${safeSortField} ${safeSortOrder}
-      LIMIT ${limit} OFFSET ${offset}
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
@@ -326,8 +333,8 @@ const getTransactionList = async (req, res) => {
     const statsParams = [];
 
     if (startDate && endDate) {
-      statsConditions.push('created_at BETWEEN ? AND ?');
-      statsParams.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+      statsConditions.push('COALESCE(transaction_date, DATE(created_at)) BETWEEN ? AND ?');
+      statsParams.push(startDate, endDate);
     }
 
     if (materialName) {
@@ -403,8 +410,8 @@ const getTransactionList = async (req, res) => {
       {
         items: formattedTransactions,
         total: parseInt(total),
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pageNum,
+        pageSize: pageSizeNum,
         statistics,
       },
       '获取库存流水列表成功'
@@ -427,11 +434,13 @@ const getTransactionList = async (req, res) => {
       statusCode = 503;
     }
 
-    res.status(statusCode).json({
-      success: false,
-      message: errorMessage,
-      ...(process.env.NODE_ENV !== 'production' && { error: error.message }),
-    });
+    ResponseHandler.error(
+      res,
+      errorMessage,
+      statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+      statusCode,
+      error
+    );
   } finally {
     if (connection) {
       connection.release();
@@ -457,8 +466,8 @@ const getTransactionStats = async (req, res) => {
     const params = [];
 
     if (startDate && endDate) {
-      conditions.push('t.created_at BETWEEN ? AND ?');
-      params.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+      conditions.push('COALESCE(t.transaction_date, DATE(t.created_at)) BETWEEN ? AND ?');
+      params.push(startDate, endDate);
     }
 
     if (materialName) {
@@ -690,8 +699,8 @@ const exportInventoryReport = async (req, res) => {
           c.name as categoryName,
           COALESCE(SUM(s.quantity), 0) as quantity,
           u.name as unitName,
-          m.price as unitPrice,
-          COALESCE(SUM(s.quantity * m.price), 0) as totalValue,
+          m.cost_price as unitPrice,
+          COALESCE(SUM(s.quantity * m.cost_price), 0) as totalValue,
           COUNT(DISTINCT s.location_id) as locationCount,
           m.min_stock as safetyStock
         FROM materials m
@@ -699,7 +708,7 @@ const exportInventoryReport = async (req, res) => {
         LEFT JOIN categories c ON m.category_id = c.id
         LEFT JOIN units u ON m.unit_id = u.id
         ${whereClause}
-        GROUP BY m.id, m.code, m.name, m.specs, c.name, m.price, u.name, m.min_stock
+        GROUP BY m.id, m.code, m.name, m.specs, c.name, m.cost_price, u.name, m.min_stock
         ORDER BY m.code
       `;
     } else if (reportType === 'location') {
@@ -713,8 +722,8 @@ const exportInventoryReport = async (req, res) => {
           l.name as locationName,
           COALESCE(s.quantity, 0) as quantity,
           u.name as unitName,
-          m.price as unitPrice,
-          COALESCE(s.quantity * m.price, 0) as totalValue,
+          m.cost_price as unitPrice,
+          COALESCE(s.quantity * m.cost_price, 0) as totalValue,
           DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i:%s') as lastMoveDate
         FROM materials m
         LEFT JOIN ${STOCK_SUBQUERY} s ON m.id = s.material_id
@@ -731,8 +740,8 @@ const exportInventoryReport = async (req, res) => {
           c.name as categoryName,
           COUNT(DISTINCT m.id) as materialCount,
           COALESCE(SUM(s.quantity), 0) as totalQuantity,
-          COALESCE(SUM(s.quantity * m.price), 0) as totalValue,
-          COALESCE(AVG(m.price), 0) as averagePrice
+          COALESCE(SUM(s.quantity * m.cost_price), 0) as totalValue,
+          COALESCE(AVG(m.cost_price), 0) as averagePrice
         FROM categories c
         LEFT JOIN materials m ON c.id = m.category_id
         LEFT JOIN ${STOCK_SUBQUERY} s ON m.id = s.material_id
@@ -744,12 +753,13 @@ const exportInventoryReport = async (req, res) => {
       // 期间库存报表（字段名使用驼峰命名）
       query = `
         SELECT
+          m.id,
           m.code as materialCode,
           m.name as materialName,
           m.specs as specification,
           c.name as categoryName,
           u.name as unitName,
-          m.price as unitPrice,
+          m.cost_price as unitPrice,
           0 as beginningQuantity,
           0 as beginningValue,
           0 as inboundQuantity,
@@ -806,46 +816,31 @@ const exportInventoryReport = async (req, res) => {
 
     // 如果是期间库存报表，需要计算实际的期间数据
     if (reportType === 'period') {
-      reportData = await Promise.all(
-        reportData.map(async (row) => {
-          try {
-            // 从物料编码获取物料ID
-            const [materialResult] = await connection.execute(
-              'SELECT id FROM materials WHERE code = ?',
-              [row['物料编码']]
-            );
-
-            if (materialResult.length > 0) {
-              const materialId = materialResult[0].id;
-              const periodData = await calculatePeriodInventory(
-                connection,
-                materialId,
-                startDate,
-                endDate,
-                locationId
-              );
-
-              return {
-                ...row,
-                期初数量: periodData.beginningQuantity,
-                期初金额: periodData.beginningValue,
-                本期收入数量: periodData.inboundQuantity,
-                本期收入金额: periodData.inboundValue,
-                本期发出数量: periodData.outboundQuantity,
-                本期发出金额: periodData.outboundValue,
-                期末数量: periodData.endingQuantity,
-                期末金额: periodData.endingValue,
-                库存周转率: periodData.turnoverRate,
-                库存周转天数: periodData.turnoverDays,
-              };
-            }
-            return row;
-          } catch (error) {
-            logger.error('计算期间数据失败:', error);
-            return row;
-          }
-        })
+      const periodMap = await calculatePeriodInventoryBatch(
+        connection,
+        reportData.map((row) => row.id),
+        startDate,
+        endDate,
+        locationId
       );
+      reportData = reportData.map((row) => {
+        const { id, ...rest } = row;
+        const periodData = periodMap.get(String(id)) || buildEmptyPeriodInventory();
+
+        return {
+          ...rest,
+          期初数量: periodData.beginningQuantity,
+          期初金额: periodData.beginningValue,
+          本期收入数量: periodData.inboundQuantity,
+          本期收入金额: periodData.inboundValue,
+          本期发出数量: periodData.outboundQuantity,
+          本期发出金额: periodData.outboundValue,
+          期末数量: periodData.endingQuantity,
+          期末金额: periodData.endingValue,
+          库存周转率: periodData.turnoverRate,
+          库存周转天数: periodData.turnoverDays,
+        };
+      });
     }
 
     // 创建工作簿和工作表
@@ -949,8 +944,8 @@ const exportTransactionReport = async (req, res) => {
     const params = [];
 
     if (startDate && endDate) {
-      conditions.push('inventory_ledger.created_at BETWEEN ? AND ?');
-      params.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+      conditions.push('COALESCE(inventory_ledger.transaction_date, DATE(inventory_ledger.created_at)) BETWEEN ? AND ?');
+      params.push(startDate, endDate);
     }
 
     if (materialName) {
@@ -976,6 +971,7 @@ const exportTransactionReport = async (req, res) => {
       `SELECT
          inventory_ledger.reference_no,
          inventory_ledger.created_at,
+         inventory_ledger.transaction_date,
          inventory_ledger.material_id,
          inventory_ledger.location_id,
          materials.code as material_code,
@@ -999,7 +995,7 @@ const exportTransactionReport = async (req, res) => {
        LEFT JOIN units ON inventory_ledger.unit_id = units.id
        LEFT JOIN users ON inventory_ledger.operator = users.username
        ${whereClause}
-       ORDER BY inventory_ledger.created_at ASC`,
+       ORDER BY COALESCE(inventory_ledger.transaction_date, DATE(inventory_ledger.created_at)) ASC, inventory_ledger.id ASC`,
       params
     );
 
@@ -1040,7 +1036,10 @@ const exportTransactionReport = async (req, res) => {
     });
 
     // 按原始顺序重新排序
-    rawTransactions.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    rawTransactions.sort(
+      (a, b) =>
+        new Date(a.transaction_date || a.created_at) - new Date(b.transaction_date || b.created_at)
+    );
 
     // 格式化数据，添加中文标题
     const transactions = rawTransactions.map((t) => ({
@@ -1127,8 +1126,11 @@ const getInventoryReport = async (req, res) => {
       endDate = '',
     } = req.query;
 
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
-    const limit = parseInt(pageSize);
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
+    const offset = pagination.offset;
+    const limit = pagination.limit;
+    const pageNum = pagination.page;
+    const pageSizeNum = pagination.pageSize;
 
     // 构建查询条件
     let whereClause = 'WHERE 1=1';
@@ -1197,8 +1199,8 @@ const getInventoryReport = async (req, res) => {
           m.specs as specification,
           c.name as categoryName,
           SUM(current_stock.quantity) as quantity,
-          m.price as unitPrice,
-          SUM(current_stock.quantity) * IFNULL(m.price, 0) as totalValue,
+          m.cost_price as unitPrice,
+          SUM(current_stock.quantity) * IFNULL(m.cost_price, 0) as totalValue,
           COUNT(DISTINCT current_stock.location_id) as locationCount,
           u.name as unitName,
           m.min_stock as safetyStock
@@ -1214,10 +1216,10 @@ const getInventoryReport = async (req, res) => {
         LEFT JOIN categories c ON m.category_id = c.id
         LEFT JOIN units u ON m.unit_id = u.id
         ${reportWhereClause}
-        GROUP BY m.id, m.code, m.name, m.specs, c.name, m.price, u.name, m.min_stock
+        GROUP BY m.id, m.code, m.name, m.specs, c.name, m.cost_price, u.name, m.min_stock
         HAVING SUM(current_stock.quantity) > 0
         ORDER BY m.code
-        LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+        LIMIT ${limit} OFFSET ${offset}
       `;
 
       // 更新参数数组
@@ -1269,8 +1271,8 @@ const getInventoryReport = async (req, res) => {
           m.specs as specification,
           c.name as categoryName,
           SUM(current_stock.quantity) as quantity,
-          m.price as unitPrice,
-          SUM(current_stock.quantity) * IFNULL(m.price, 0) as totalValue,
+          m.cost_price as unitPrice,
+          SUM(current_stock.quantity) * IFNULL(m.cost_price, 0) as totalValue,
           u.name as unitName,
           MIN(first_in.date) as firstInboundDate,
           DATEDIFF(NOW(), MIN(first_in.date)) as agingDays
@@ -1296,10 +1298,10 @@ const getInventoryReport = async (req, res) => {
           GROUP BY material_id
         ) first_in ON m.id = first_in.material_id
         ${reportWhereClause}
-        GROUP BY m.id, m.code, m.name, m.specs, c.name, m.price, u.name
+        GROUP BY m.id, m.code, m.name, m.specs, c.name, m.cost_price, u.name
         HAVING SUM(current_stock.quantity) > 0
         ORDER BY agingDays DESC
-        LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+        LIMIT ${limit} OFFSET ${offset}
       `;
 
       // 更新参数数组
@@ -1322,14 +1324,14 @@ const getInventoryReport = async (req, res) => {
           m.specs as specification,
           c.name as categoryName,
           u.name as unitName,
-          m.price as unitPrice,
+          m.cost_price as unitPrice,
           m.min_stock as safetyStock
         FROM materials m
         LEFT JOIN categories c ON m.category_id = c.id
         LEFT JOIN units u ON m.unit_id = u.id
         ${whereClause}
         ORDER BY m.code
-        LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+        LIMIT ${limit} OFFSET ${offset}
       `;
 
       // 为period报表添加参数
@@ -1354,8 +1356,8 @@ const getInventoryReport = async (req, res) => {
           c.name as categoryName,
           l.name as locationName,
           COALESCE(s.quantity, 0) as quantity,
-          m.price as unitPrice,
-          COALESCE(s.quantity * m.price, 0) as totalValue,
+          m.cost_price as unitPrice,
+          COALESCE(s.quantity * m.cost_price, 0) as totalValue,
           u.name as unitName,
           m.min_stock as minStock,
           m.max_stock as maxStock,
@@ -1367,7 +1369,7 @@ const getInventoryReport = async (req, res) => {
         LEFT JOIN units u ON m.unit_id = u.id
         ${whereClause}
         ORDER BY m.code, l.name
-        LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+        LIMIT ${limit} OFFSET ${offset}
       `;
 
       // 为location报表添加参数
@@ -1388,16 +1390,16 @@ const getInventoryReport = async (req, res) => {
           c.name as categoryName,
           COUNT(DISTINCT m.id) as materialCount,
           COALESCE(SUM(s.quantity), 0) as totalQuantity,
-          COALESCE(SUM(s.quantity * m.price), 0) as totalValue,
-          COALESCE(AVG(m.price), 0) as averagePrice,
-          COALESCE(SUM(s.quantity * m.price) / (SELECT SUM(s2.quantity * m2.price) FROM ${SIMPLE_STOCK_SUBQUERY} as s2 JOIN materials m2 ON s2.material_id = m2.id) * 100, 0) as valuePercent
+          COALESCE(SUM(s.quantity * m.cost_price), 0) as totalValue,
+          COALESCE(AVG(m.cost_price), 0) as averagePrice,
+          COALESCE(SUM(s.quantity * m.cost_price) / (SELECT SUM(s2.quantity * m2.cost_price) FROM ${SIMPLE_STOCK_SUBQUERY} as s2 JOIN materials m2 ON s2.material_id = m2.id) * 100, 0) as valuePercent
         FROM categories c
         LEFT JOIN materials m ON c.id = m.category_id
         LEFT JOIN ${STOCK_SUBQUERY} s ON m.id = s.material_id
         ${whereClause}
         GROUP BY c.id, c.name
         ORDER BY totalValue DESC
-        LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+        LIMIT ${limit} OFFSET ${offset}
       `;
 
       // 为value报表添加参数
@@ -1445,7 +1447,7 @@ const getInventoryReport = async (req, res) => {
         WHERE m.min_stock > 0 AND (s.total_quantity < m.min_stock OR s.total_quantity IS NULL)
         ${whereClause.replace('WHERE 1=1', '')}
         ORDER BY gap ASC
-        LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+        LIMIT ${limit} OFFSET ${offset}
       `;
 
       // 为warning报表添加参数
@@ -1461,38 +1463,17 @@ const getInventoryReport = async (req, res) => {
 
     if (reportType === 'period') {
       // 期间库存报表 - 计算期初、期末、收入、发出
-      updatedItems = await Promise.all(
-        items.map(async (item) => {
-          try {
-            const periodData = await calculatePeriodInventory(
-              connection,
-              item.id,
-              startDate,
-              endDate,
-              locationId
-            );
-            return {
-              ...item,
-              ...periodData,
-            };
-          } catch (error) {
-            logger.error('计算期间库存数据时出错:', error);
-            return {
-              ...item,
-              beginningQuantity: 0,
-              beginningValue: 0,
-              inboundQuantity: 0,
-              inboundValue: 0,
-              outboundQuantity: 0,
-              outboundValue: 0,
-              endingQuantity: 0,
-              endingValue: 0,
-              turnoverRate: 0,
-              turnoverDays: 0,
-            };
-          }
-        })
+      const periodMap = await calculatePeriodInventoryBatch(
+        connection,
+        items.map((item) => item.id),
+        startDate,
+        endDate,
+        locationId
       );
+      updatedItems = items.map((item) => ({
+        ...item,
+        ...(periodMap.get(String(item.id)) || buildEmptyPeriodInventory()),
+      }));
 
       // 计算统计数据
       statisticsData = calculatePeriodStatistics(updatedItems);
@@ -1506,7 +1487,7 @@ const getInventoryReport = async (req, res) => {
         const [statsResult] = await connection.query(`
           SELECT
             COUNT(DISTINCT m.id) as totalItems,
-            COALESCE(SUM(current_stock.quantity * IFNULL(m.price, 0)), 0) as totalValue,
+            COALESCE(SUM(current_stock.quantity * IFNULL(m.cost_price, 0)), 0) as totalValue,
             COUNT(DISTINCT current_stock.location_id) as totalLocations,
             SUM(CASE WHEN current_stock.quantity < m.min_stock THEN 1 ELSE 0 END) as lowStock
           FROM (
@@ -1535,8 +1516,8 @@ const getInventoryReport = async (req, res) => {
       {
         items: updatedItems,
         total: countResult[0].total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pageNum,
+        pageSize: pageSizeNum,
         statistics: statisticsData,
       },
       '获取库存报表成功'
@@ -1575,12 +1556,12 @@ const calculatePeriodInventory = async (
     const [beginningResult] = await connection.query(
       `SELECT
         COALESCE(after_quantity, 0) as quantity,
-        COALESCE(after_quantity * (SELECT price FROM materials WHERE id = ?), 0) as value
+        COALESCE(after_quantity * (SELECT COALESCE(cost_price, price, 0) FROM materials WHERE id = ?), 0) as value
        FROM inventory_ledger
        WHERE material_id = ?
-       AND created_at < ?
+       AND COALESCE(transaction_date, DATE(created_at)) < ?
        ${locationCondition}
-       ORDER BY created_at DESC
+       ORDER BY COALESCE(transaction_date, DATE(created_at)) DESC, id DESC
        LIMIT 1`,
       [materialId, materialId, defaultStartDate, ...locationParams]
     );
@@ -1593,10 +1574,10 @@ const calculatePeriodInventory = async (
     const [inboundResult] = await connection.query(
       `SELECT
         COALESCE(SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END), 0) as quantity,
-        COALESCE(SUM(CASE WHEN quantity > 0 THEN quantity * (SELECT price FROM materials WHERE id = ?) ELSE 0 END), 0) as value
+        COALESCE(SUM(CASE WHEN quantity > 0 THEN COALESCE(NULLIF(total_value, 0), quantity * COALESCE(NULLIF(unit_cost, 0), (SELECT COALESCE(cost_price, price, 0) FROM materials WHERE id = ?), 0)) ELSE 0 END), 0) as value
        FROM inventory_ledger
        WHERE material_id = ?
-       AND created_at >= ? AND created_at <= ?
+       AND COALESCE(transaction_date, DATE(created_at)) >= ? AND COALESCE(transaction_date, DATE(created_at)) <= ?
        AND transaction_type IN ('inbound', 'purchase_inbound', 'production_inbound', 'outsourced_inbound', 'in', '入库', '采购入库', '生产入库', '委外入库')
        ${locationCondition}`,
       [materialId, materialId, defaultStartDate, defaultEndDate, ...locationParams]
@@ -1609,10 +1590,10 @@ const calculatePeriodInventory = async (
     const [outboundResult] = await connection.query(
       `SELECT
         COALESCE(SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END), 0) as quantity,
-        COALESCE(SUM(CASE WHEN quantity < 0 THEN ABS(quantity) * (SELECT price FROM materials WHERE id = ?) ELSE 0 END), 0) as value
+        COALESCE(SUM(CASE WHEN quantity < 0 THEN COALESCE(NULLIF(total_value, 0), ABS(quantity) * COALESCE(NULLIF(unit_cost, 0), (SELECT COALESCE(cost_price, price, 0) FROM materials WHERE id = ?), 0)) ELSE 0 END), 0) as value
        FROM inventory_ledger
        WHERE material_id = ?
-       AND created_at >= ? AND created_at <= ?
+       AND COALESCE(transaction_date, DATE(created_at)) >= ? AND COALESCE(transaction_date, DATE(created_at)) <= ?
        AND transaction_type IN ('outbound', 'production_outbound', 'sales_outbound', 'outsourced_outbound', 'out', '出库', '生产出库', '销售出库', '委外出库')
        ${locationCondition}`,
       [materialId, materialId, defaultStartDate, defaultEndDate, ...locationParams]
@@ -1646,6 +1627,126 @@ const calculatePeriodInventory = async (
     logger.error('计算期间库存数据失败:', error);
     throw error;
   }
+};
+
+const buildEmptyPeriodInventory = () => ({
+  beginningQuantity: 0,
+  beginningValue: 0,
+  inboundQuantity: 0,
+  inboundValue: 0,
+  outboundQuantity: 0,
+  outboundValue: 0,
+  endingQuantity: 0,
+  endingValue: 0,
+  turnoverRate: 0,
+  turnoverDays: 0,
+});
+
+const getDefaultPeriodDates = (startDate, endDate) => {
+  const now = new Date();
+  return {
+    startDate:
+      startDate || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`,
+    endDate:
+      endDate ||
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()}`,
+  };
+};
+
+const calculatePeriodInventoryBatch = async (
+  connection,
+  materialIds,
+  startDate,
+  endDate,
+  locationId = ''
+) => {
+  const ids = [...new Set((materialIds || []).map((id) => parseInt(id, 10)).filter(Boolean))];
+  const periodMap = new Map();
+
+  ids.forEach((id) => periodMap.set(String(id), buildEmptyPeriodInventory()));
+  if (ids.length === 0) return periodMap;
+
+  const { startDate: defaultStartDate, endDate: defaultEndDate } = getDefaultPeriodDates(
+    startDate,
+    endDate
+  );
+  const locationCondition = locationId ? 'AND il.location_id = ?' : '';
+  const locationParams = locationId ? [locationId] : [];
+
+  const [beginningRows] = await connection.query(
+    `
+      SELECT material_id, quantity, value
+      FROM (
+        SELECT
+          il.material_id,
+          COALESCE(il.after_quantity, 0) as quantity,
+          COALESCE(il.after_quantity * COALESCE(m.cost_price, 0), 0) as value,
+          ROW_NUMBER() OVER (PARTITION BY il.material_id ORDER BY COALESCE(il.transaction_date, DATE(il.created_at)) DESC, il.id DESC) as row_num
+        FROM inventory_ledger il
+        LEFT JOIN materials m ON il.material_id = m.id
+        WHERE il.material_id IN (?)
+          AND COALESCE(il.transaction_date, DATE(il.created_at)) < ?
+          ${locationCondition}
+      ) latest_stock
+      WHERE row_num = 1
+    `,
+    [ids, defaultStartDate, ...locationParams]
+  );
+
+  beginningRows.forEach((row) => {
+    periodMap.set(String(row.material_id), {
+      ...periodMap.get(String(row.material_id)),
+      beginningQuantity: parseFloat(row.quantity) || 0,
+      beginningValue: parseFloat(row.value) || 0,
+    });
+  });
+
+  const [movementRows] = await connection.query(
+    `
+      SELECT
+        il.material_id,
+        COALESCE(SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END), 0) as inboundQuantity,
+        COALESCE(SUM(CASE WHEN il.quantity > 0 THEN COALESCE(NULLIF(il.total_value, 0), il.quantity * COALESCE(NULLIF(il.unit_cost, 0), m.cost_price, 0)) ELSE 0 END), 0) as inboundValue,
+        COALESCE(SUM(CASE WHEN il.quantity < 0 THEN ABS(il.quantity) ELSE 0 END), 0) as outboundQuantity,
+        COALESCE(SUM(CASE WHEN il.quantity < 0 THEN COALESCE(NULLIF(il.total_value, 0), ABS(il.quantity) * COALESCE(NULLIF(il.unit_cost, 0), m.cost_price, 0)) ELSE 0 END), 0) as outboundValue
+      FROM inventory_ledger il
+      LEFT JOIN materials m ON il.material_id = m.id
+      WHERE il.material_id IN (?)
+        AND COALESCE(il.transaction_date, DATE(il.created_at)) >= ?
+        AND COALESCE(il.transaction_date, DATE(il.created_at)) <= ?
+        ${locationCondition}
+      GROUP BY il.material_id
+    `,
+    [ids, defaultStartDate, defaultEndDate, ...locationParams]
+  );
+
+  movementRows.forEach((row) => {
+    const current = periodMap.get(String(row.material_id)) || buildEmptyPeriodInventory();
+    const inboundQuantity = parseFloat(row.inboundQuantity) || 0;
+    const inboundValue = parseFloat(row.inboundValue) || 0;
+    const outboundQuantity = parseFloat(row.outboundQuantity) || 0;
+    const outboundValue = parseFloat(row.outboundValue) || 0;
+    const endingQuantity = current.beginningQuantity + inboundQuantity - outboundQuantity;
+    const endingValue = current.beginningValue + inboundValue - outboundValue;
+    const avgInventory = (current.beginningValue + endingValue) / 2;
+    const turnoverRate = avgInventory > 0 ? outboundValue / avgInventory : 0;
+    const turnoverDays = turnoverRate > 0 ? 365 / turnoverRate : 0;
+
+    periodMap.set(String(row.material_id), {
+      beginningQuantity: current.beginningQuantity,
+      beginningValue: current.beginningValue,
+      inboundQuantity,
+      inboundValue,
+      outboundQuantity,
+      outboundValue,
+      endingQuantity,
+      endingValue,
+      turnoverRate: parseFloat(turnoverRate.toFixed(2)),
+      turnoverDays: parseFloat(turnoverDays.toFixed(1)),
+    });
+  });
+
+  return periodMap;
 };
 
 // 计算期间统计数据
@@ -1691,8 +1792,11 @@ const getInventoryLedger = async (req, res) => {
       transactionType = '',
     } = req.query;
 
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
-    const limit = parseInt(pageSize);
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
+    const offset = pagination.offset;
+    const limit = pagination.limit;
+    const pageNum = pagination.page;
+    const pageSizeNum = pagination.pageSize;
 
     // 设置默认日期范围
     // 注意：使用 || 运算符时，空字符串会被视为 falsy，所以需要明确检查
@@ -1717,7 +1821,7 @@ const getInventoryLedger = async (req, res) => {
     }
 
     // 构建查询条件
-    let whereClause = 'WHERE t.created_at >= ? AND t.created_at <= ?';
+    let whereClause = 'WHERE COALESCE(t.transaction_date, DATE(t.created_at)) >= ? AND COALESCE(t.transaction_date, DATE(t.created_at)) <= ?';
     const params = [defaultStartDate, defaultEndDate];
 
     if (materialId) {
@@ -1759,7 +1863,7 @@ const getInventoryLedger = async (req, res) => {
     const detailQuery = `
       SELECT
         t.id,
-        DATE_FORMAT(t.created_at, '%Y-%m-%d') as date,
+        DATE_FORMAT(COALESCE(t.transaction_date, DATE(t.created_at)), '%Y-%m-%d') as date,
         m.code as materialCode,
         m.name as materialName,
         m.specs as specification,
@@ -1771,13 +1875,13 @@ const getInventoryLedger = async (req, res) => {
         t.quantity,
         COALESCE(t.before_quantity, 0) as before_quantity,
         COALESCE(t.after_quantity, 0) as after_quantity,
-        m.price as unitPrice,
+        m.cost_price as unitPrice,
         CASE
           WHEN t.quantity > 0 THEN t.quantity
           ELSE 0
         END as inQuantity,
         CASE
-          WHEN t.quantity > 0 THEN t.quantity * m.price
+          WHEN t.quantity > 0 THEN COALESCE(NULLIF(t.total_value, 0), t.quantity * COALESCE(NULLIF(t.unit_cost, 0), m.cost_price, 0))
           ELSE 0
         END as inValue,
         CASE
@@ -1785,11 +1889,11 @@ const getInventoryLedger = async (req, res) => {
           ELSE 0
         END as outQuantity,
         CASE
-          WHEN t.quantity < 0 THEN ABS(t.quantity) * m.price
+          WHEN t.quantity < 0 THEN COALESCE(NULLIF(t.total_value, 0), ABS(t.quantity) * COALESCE(NULLIF(t.unit_cost, 0), m.cost_price, 0))
           ELSE 0
         END as outValue,
         COALESCE(t.after_quantity, 0) as balanceQuantity,
-        COALESCE(t.after_quantity * m.price, 0) as balanceValue,
+        COALESCE(t.after_quantity * m.cost_price, 0) as balanceValue,
         t.operator,
         CASE
           WHEN t.operator = 'system' THEN '系统'
@@ -1807,7 +1911,7 @@ const getInventoryLedger = async (req, res) => {
       LEFT JOIN locations l ON t.location_id = l.id
       LEFT JOIN units u ON m.unit_id = u.id
       ${whereClause}
-      ORDER BY t.created_at DESC, m.code
+      ORDER BY COALESCE(t.transaction_date, DATE(t.created_at)) DESC, t.id DESC, m.code
       LIMIT ${limit} OFFSET ${offset}
     `;
 
@@ -1859,8 +1963,8 @@ const getInventoryLedger = async (req, res) => {
       {
         items: processedItems,
         total: countResult[0].total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pageNum,
+        pageSize: pageSizeNum,
         statistics,
       },
       '获取库存收发结存明细成功'
@@ -1879,20 +1983,20 @@ const getMaterialLedger = async (req, res) => {
   try {
     const { materialId } = req.params;
     const { page = 1, limit = 20, startDate, endDate } = req.query;
-    const offset = (page - 1) * limit;
+    const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
 
     // 构建查询条件
     let whereClause = 'WHERE l.material_id = ?';
     const queryParams = [materialId];
 
     if (startDate) {
-      whereClause += ' AND l.created_at >= ?';
+      whereClause += ' AND COALESCE(l.transaction_date, DATE(l.created_at)) >= ?';
       queryParams.push(startDate);
     }
 
     if (endDate) {
-      whereClause += ' AND l.created_at <= ?';
-      queryParams.push(endDate + ' 23:59:59');
+      whereClause += ' AND COALESCE(l.transaction_date, DATE(l.created_at)) <= ?';
+      queryParams.push(endDate);
     }
 
     // 获取物料库存台账记录
@@ -1909,6 +2013,7 @@ const getMaterialLedger = async (req, res) => {
         l.remark,
         l.before_quantity,
         l.after_quantity,
+        l.transaction_date,
         l.created_at,
         loc.name as location_name,
         m.code as material_code,
@@ -1918,8 +2023,8 @@ const getMaterialLedger = async (req, res) => {
       LEFT JOIN units u ON l.unit_id = u.id
       LEFT JOIN locations loc ON l.location_id = loc.id
       ${whereClause}
-      ORDER BY l.created_at DESC
-      LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+      ORDER BY COALESCE(l.transaction_date, DATE(l.created_at)) DESC, l.id DESC
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     const [rows] = await db.pool.execute(query, queryParams);
@@ -1937,10 +2042,10 @@ const getMaterialLedger = async (req, res) => {
       {
         data: rows,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pagination.page,
+          limit: pagination.pageSize,
           total: countResult[0].total,
-          pages: Math.ceil(countResult[0].total / limit),
+          pages: Math.ceil(countResult[0].total / pagination.pageSize),
         },
       },
       '获取物料库存台账成功'
@@ -1964,7 +2069,7 @@ const getMovements = async (req, res) => {
       startDate,
       endDate,
     } = req.query;
-    const offset = (page - 1) * limit;
+    const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
 
     // 构建查询条件
     let whereClause = 'WHERE 1=1';
@@ -1986,13 +2091,13 @@ const getMovements = async (req, res) => {
     }
 
     if (startDate) {
-      whereClause += ' AND l.created_at >= ?';
+      whereClause += ' AND COALESCE(l.transaction_date, DATE(l.created_at)) >= ?';
       queryParams.push(startDate);
     }
 
     if (endDate) {
-      whereClause += ' AND l.created_at <= ?';
-      queryParams.push(endDate + ' 23:59:59');
+      whereClause += ' AND COALESCE(l.transaction_date, DATE(l.created_at)) <= ?';
+      queryParams.push(endDate);
     }
 
     // 获取库存变动记录
@@ -2015,6 +2120,7 @@ const getMovements = async (req, res) => {
         l.remark,
         l.before_quantity,
         l.after_quantity,
+        l.transaction_date,
         l.created_at,
         CASE
           WHEN l.quantity > 0 THEN '入库'
@@ -2026,8 +2132,8 @@ const getMovements = async (req, res) => {
       LEFT JOIN units u ON l.unit_id = u.id
       LEFT JOIN locations loc ON l.location_id = loc.id
       ${whereClause}
-      ORDER BY l.created_at DESC
-      LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+      ORDER BY COALESCE(l.transaction_date, DATE(l.created_at)) DESC, l.id DESC
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     const [rows] = await db.pool.execute(query, queryParams);
@@ -2060,8 +2166,8 @@ const getMovements = async (req, res) => {
       {
         items: rows,
         total: countResult[0].total,
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pagination.page,
+        limit: pagination.pageSize,
         statistics: statsResult[0],
       },
       '获取库存变动记录成功'

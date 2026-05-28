@@ -12,8 +12,210 @@ const DLQService = require('../../services/business/DLQService');
 
 class FinanceSubscriber {
     constructor() {
+        this.registerDLQHandlers();
         this.registerListeners();
         logger.info('🎧 [FinanceSubscriber] 已挂载财务集成事件监听器');
+    }
+
+    registerDLQHandlers() {
+        const handlers = {
+            'Finance:GenerateAPInvoiceFromPurchaseReceipt': async (payload) => {
+                const receipt = await this.fetchPurchaseReceipt(payload.receiptId);
+                const exists = await this.existsBySource(
+                    'ap_invoices',
+                    'purchase_receipt',
+                    receipt.id
+                );
+                if (!exists) {
+                    await FinanceIntegrationService.generateAPInvoiceFromPurchaseReceipt(
+                        receipt,
+                        payload.currentUserId || payload.userId || null
+                    );
+                }
+            },
+            'Finance:GenerateInputTaxInvoiceFromPurchaseReceipt': async (payload) => {
+                const receipt = await this.fetchPurchaseReceipt(payload.receiptId);
+                const exists = await this.taxInvoiceExistsByRelatedDocument(
+                    '采购入库单',
+                    receipt.id
+                );
+                if (!exists) {
+                    await FinanceIntegrationService.generateInputTaxInvoiceFromPurchaseReceipt(
+                        receipt,
+                        payload.currentUserId || payload.userId || null
+                    );
+                }
+            },
+            'Finance:GenerateARInvoiceFromSalesOrder': async (payload) => {
+                const salesOrder = payload.salesOrder
+                    || await this.fetchSalesOrder(payload.salesOrderId);
+                const exists = await this.existsBySource('ar_invoices', 'sales_order', salesOrder.id);
+                if (!exists) {
+                    await FinanceIntegrationService.generateARInvoiceFromSalesOrder(salesOrder);
+                }
+            },
+            'Finance:GenerateCostEntryFromSalesOutbound': async (payload) => {
+                const outbound = payload.outboundData || await this.fetchSalesOutbound(payload.outboundId);
+                const exists = await this.glEntryExistsByDocument(outbound.outbound_no, 'sales_outbound');
+                if (!exists) {
+                    await FinanceIntegrationService.generateCostEntryFromSalesOutbound(outbound);
+                }
+            },
+            'Finance:GenerateOutputTaxInvoiceFromSalesOutbound': async (payload) => {
+                const outbound = payload.outboundData || await this.fetchSalesOutbound(payload.outboundId);
+                const exists = await this.taxInvoiceExistsByRelatedDocument('销售出库单', outbound.id);
+                if (!exists) {
+                    await FinanceIntegrationService.generateOutputTaxInvoiceFromSalesOutbound(
+                        outbound,
+                        payload.currentUserId || payload.userId || null
+                    );
+                }
+            },
+            'Finance:CalculateActualCostFromProductionTask': async (payload) => {
+                if (!payload.isFullComplete) return;
+                const CostAccountingService = require('../../services/business/CostAccountingService');
+                await CostAccountingService.calculateActualCost(payload.taskId);
+            },
+            'Finance:PurchaseReceiptCompleted': async (payload) => {
+                await this.handlePurchaseReceiptCompleted(payload);
+            },
+            'Finance:SalesOutboundCompleted': async (payload) => {
+                await this.replaySalesOutboundCompleted(payload);
+            },
+            'EventBus:PURCHASE_RECEIPT_COMPLETED': async (payload) => {
+                await this.handlePurchaseReceiptCompleted(payload.args?.[0] || payload);
+            },
+            'EventBus:SALES_OUTBOUND_COMPLETED': async (payload) => {
+                await this.replaySalesOutboundCompleted(payload.args?.[0] || payload);
+            },
+            'EventBus:PRODUCTION_TASK_COMPLETED': async (payload) => {
+                await this.handleProductionTaskCompleted(payload.args?.[0] || payload);
+            },
+        };
+
+        Object.entries(handlers).forEach(([taskName, handler]) => {
+            DLQService.registerHandler(taskName, handler);
+        });
+    }
+
+    async fetchPurchaseReceipt(receiptId) {
+        const db = require('../../config/db');
+        const [rows] = await db.pool.execute(
+            `SELECT pr.*, s.name as supplier_name
+             FROM purchase_receipts pr
+             LEFT JOIN suppliers s ON pr.supplier_id = s.id
+             WHERE pr.id = ?`,
+            [receiptId]
+        );
+        if (rows.length === 0) {
+            throw new Error(`Purchase receipt not found: ${receiptId}`);
+        }
+        return rows[0];
+    }
+
+    async fetchSalesOrder(salesOrderId) {
+        const db = require('../../config/db');
+        const [rows] = await db.pool.execute(
+            `SELECT so.*, c.name as customer_name
+             FROM sales_orders so
+             LEFT JOIN customers c ON so.customer_id = c.id
+             WHERE so.id = ?`,
+            [salesOrderId]
+        );
+        if (rows.length === 0) {
+            throw new Error(`Sales order not found: ${salesOrderId}`);
+        }
+        return rows[0];
+    }
+
+    parseRelatedOrderIds(value) {
+        if (!value) return [];
+        if (Array.isArray(value)) return value.map(Number).filter(Boolean);
+
+        if (typeof value === 'string') {
+            try {
+                const parsed = JSON.parse(value);
+                if (Array.isArray(parsed)) return parsed.map(Number).filter(Boolean);
+            } catch {
+                return value
+                    .split(',')
+                    .map((item) => Number(String(item).replace(/[^0-9]/g, '')))
+                    .filter(Boolean);
+            }
+        }
+
+        return [];
+    }
+
+    async fetchSalesOrdersForOutbound(outboundId, fallbackOrderId = null) {
+        const db = require('../../config/db');
+        const ids = new Set();
+        if (fallbackOrderId) ids.add(Number(fallbackOrderId));
+
+        const [sources] = await db.pool.execute(
+            `SELECT sob.order_id, sob.related_orders, sobi.source_order_id
+             FROM sales_outbound sob
+             LEFT JOIN sales_outbound_items sobi ON sobi.outbound_id = sob.id
+             WHERE sob.id = ?`,
+            [outboundId]
+        );
+
+        sources.forEach((row) => {
+            if (row.order_id) ids.add(Number(row.order_id));
+            if (row.source_order_id) ids.add(Number(row.source_order_id));
+            this.parseRelatedOrderIds(row.related_orders).forEach((id) => ids.add(id));
+        });
+
+        const orderIds = [...ids].filter(Boolean);
+        if (orderIds.length === 0) return [];
+
+        const placeholders = orderIds.map(() => '?').join(',');
+        const [orders] = await db.pool.execute(
+            `SELECT so.*, c.name as customer_name
+             FROM sales_orders so
+             LEFT JOIN customers c ON so.customer_id = c.id
+             WHERE so.id IN (${placeholders})`,
+            orderIds
+        );
+        return orders;
+    }
+
+    async fetchSalesOutbound(outboundId) {
+        const db = require('../../config/db');
+        const [rows] = await db.pool.execute(
+            `SELECT sob.*,
+                    sob.delivery_date as outbound_date,
+                    ord.customer_id,
+                    c.name as customer_name,
+                    ord.order_no
+             FROM sales_outbound sob
+             LEFT JOIN sales_orders ord ON sob.order_id = ord.id
+             LEFT JOIN customers c ON ord.customer_id = c.id
+             WHERE sob.id = ?`,
+            [outboundId]
+        );
+        if (rows.length === 0) {
+            throw new Error(`Sales outbound not found: ${outboundId}`);
+        }
+        return rows[0];
+    }
+
+    async replaySalesOutboundCompleted(payload) {
+        const outboundId = payload.outboundData?.id || payload.outboundId;
+        const outboundData = payload.outboundData?.id
+            ? payload.outboundData
+            : await this.fetchSalesOutbound(outboundId);
+        const salesOrderId = payload.salesOrder?.id || payload.salesOrderId || outboundData.order_id;
+        const salesOrders = payload.salesOrder
+            ? [payload.salesOrder]
+            : await this.fetchSalesOrdersForOutbound(outboundId, salesOrderId);
+
+        await this.handleSalesOutboundCompleted({
+            salesOrder: salesOrders[0] || null,
+            salesOrders,
+            outboundData,
+            currentUserId: payload.currentUserId || payload.userId || null,
+        });
     }
 
     registerListeners() {
@@ -140,7 +342,7 @@ class FinanceSubscriber {
                 } catch (invoiceError) {
                     await this.recordFailure(
                         'Finance:GenerateAPInvoiceFromPurchaseReceipt',
-                        { receiptId, receiptNo },
+                        { receiptId, receiptNo, currentUserId },
                         invoiceError,
                         '⚠️ [FinanceSubscriber] 应付发票自动生成失败'
                     );
@@ -164,7 +366,7 @@ class FinanceSubscriber {
                 } catch (taxError) {
                     await this.recordFailure(
                         'Finance:GenerateInputTaxInvoiceFromPurchaseReceipt',
-                        { receiptId, receiptNo },
+                        { receiptId, receiptNo, currentUserId },
                         taxError,
                         '⚠️ [FinanceSubscriber] 进项发票自动生成失败'
                     );
@@ -188,32 +390,35 @@ class FinanceSubscriber {
      */
     async handleSalesOutboundCompleted(payload) {
         const { salesOrder, outboundData, currentUserId } = payload;
+        const salesOrders = Array.isArray(payload.salesOrders) && payload.salesOrders.length > 0
+            ? payload.salesOrders
+            : (salesOrder ? [salesOrder] : []);
         const outboundNo = outboundData.outbound_no;
 
         logger.info(`[FinanceSubscriber] 收到出库完工广播，开始串行生成财务数据 - 出库单: ${outboundNo}`);
 
         try {
             // 1. 生成应收发票（幂等检查）
-            if (salesOrder) {
+            for (const order of salesOrders) {
                 try {
                     const arExists = await this.existsBySource(
                         'ar_invoices',
                         'sales_order',
-                        salesOrder.id
+                        order.id
                     );
                     if (arExists) {
-                        logger.info(`⏭️ [FinanceSubscriber] 订单 ${salesOrder.order_no} 已生成过应收发票，跳过`);
+                        logger.info(`⏭️ [FinanceSubscriber] 订单 ${order.order_no} 已生成过应收发票，跳过`);
                     } else {
                         await FinanceIntegrationService.generateARInvoiceFromSalesOrder(
-                            salesOrder,
+                            order,
                             currentUserId
                         );
-                        logger.info(`✅ [FinanceSubscriber] 应收发票自动生成成功 - 订单: ${salesOrder.order_no}`);
+                        logger.info(`✅ [FinanceSubscriber] 应收发票自动生成成功 - 订单: ${order.order_no}`);
                     }
                 } catch (invoiceError) {
                     await this.recordFailure(
                         'Finance:GenerateARInvoiceFromSalesOrder',
-                        { salesOrderId: salesOrder.id, orderNo: salesOrder.order_no, outboundNo },
+                        { salesOrderId: order.id, orderNo: order.order_no, outboundNo, currentUserId },
                         invoiceError,
                         '⚠️ [FinanceSubscriber] 应收发票自动生成失败'
                     );
@@ -235,7 +440,7 @@ class FinanceSubscriber {
             } catch (costError) {
                 await this.recordFailure(
                     'Finance:GenerateCostEntryFromSalesOutbound',
-                    { outboundId: outboundData.id, outboundNo },
+                    { outboundId: outboundData.id, outboundNo, currentUserId },
                     costError,
                     '⚠️ [FinanceSubscriber] 销售成本分录自动生成失败'
                 );
@@ -259,7 +464,7 @@ class FinanceSubscriber {
             } catch (taxError) {
                 await this.recordFailure(
                     'Finance:GenerateOutputTaxInvoiceFromSalesOutbound',
-                    { outboundId: outboundData.id, outboundNo },
+                    { outboundId: outboundData.id, outboundNo, currentUserId },
                     taxError,
                     '⚠️ [FinanceSubscriber] 销项发票自动生成失败'
                 );

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ProcessTemplates.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="purchase-requisitions-container">
+  <div class="module-page base-data-list-page">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -18,8 +18,13 @@
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
         <el-form-item label="产品名称">
           <el-select
             v-model="searchForm.productId"
@@ -38,22 +43,18 @@
             />
           </el-select>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="工序模板名称">
           <el-input  v-model="searchForm.name" placeholder="请输入模板名称" clearable />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="handleReset" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
+      </template>
+      <template #actions>
           <el-button type="success" @click="handleExport">
             <el-icon><Download /></el-icon> 导出
           </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -111,7 +112,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="330" fixed="right">
+        <el-table-column label="操作" min-width="330" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -346,7 +347,7 @@
                 <el-input v-else v-model="row.remark" placeholder="请输入备注" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80" v-if="dialogType !== 'view'">
+            <el-table-column label="操作" width="80" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ $index }">
                 <el-button type="danger" size="small" @click="removeProcess($index)">
                   <el-icon><Delete /></el-icon>
@@ -364,7 +365,6 @@
     </el-dialog>
     <!-- 文件预览对话框 -->
     <ProcessTemplatePreviewDialog
-      v-if="previewDialogVisible"
       v-model="previewDialogVisible"
       :doc="currentPreviewDoc"
     />
@@ -374,12 +374,12 @@
 import { defineAsyncComponent, ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Search, Refresh, Delete, Upload, View, Edit, Switch
+  Plus, Delete, Upload, View, Edit, Switch
 } from '@element-plus/icons-vue'
-import { api } from '@/services/axiosInstance'
 import { baseDataApi } from '@/api/baseData'
 import { loadMaterials, mapMaterialData, searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
+import { loadDepartmentOptions } from '@/utils/optionLoaders'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useAuthStore } from '@/stores/auth'
 // 权限store
@@ -430,8 +430,7 @@ const formRules = {
 // 获取部门列表
 const fetchDepartmentList = async () => {
   try {
-    const response = await api.get('/system/departments/list')
-    const deptData = parseListData(response, { enableLog: false })
+    const deptData = await loadDepartmentOptions()
     // 过滤出状态为启用的部门
     departmentList.value = deptData.filter(dept => String(dept.status) === '1')
   } catch (error) {
@@ -474,7 +473,6 @@ const remoteSearchProduct = async (query) => {
   try {
     // 使用统一的搜索函数进行远程搜索
     const searchResults = await searchMaterials(baseDataApi, query, {
-      pageSize: 500, // 增加搜索结果限制,支持大量产品
       includeAll: true
     })
     // 映射搜索结果
@@ -847,28 +845,6 @@ const removeInstructionDoc = (row, index) => {
 }
 </script>
 <style scoped>
-.header-card {
-  margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-}
 .process-table-container {
   margin-top: 10px;
 }
@@ -886,10 +862,6 @@ const removeInstructionDoc = (row, index) => {
 .material-list {
   border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
-}
-/* 操作列样式 - 与库存出库页面保持一致 */
-.el-table .el-button + .el-button {
-  margin-left: 8px;
 }
 .doc-tag {
   margin: 2px;

@@ -8,79 +8,28 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { api } from '../services/api'
-import { tokenManager } from '../utils/unifiedStorage'
 import logger from '../utils/logger'
-
-// 主题预设定义
-const themePresets = {
-  default: {
-    id: 'default',
-    name: '默认主题',
-    primaryColor: '#409EFF',
-    mode: 'light'
-  },
-  tech: {
-    id: 'tech',
-    name: '科技主题',
-    primaryColor: '#00C3FF',
-    mode: 'dark'
-  },
-  business: {
-    id: 'business',
-    name: '商务主题',
-    primaryColor: '#2C3E50',
-    mode: 'light'
-  },
-  vibrant: {
-    id: 'vibrant',
-    name: '活力主题',
-    primaryColor: '#FF6B6B',
-    mode: 'light'
-  },
-  nature: {
-    id: 'nature',
-    name: '自然主题',
-    primaryColor: '#51CF66',
-    mode: 'light'
-  },
-  dark: {
-    id: 'dark',
-    name: '深色主题',
-    primaryColor: '#409EFF',
-    mode: 'dark'
-  },
-  professional: {
-    id: 'professional',
-    name: '专业主题',
-    primaryColor: '#34495E',
-    mode: 'light'
-  },
-  kacon: {
-    id: 'kacon',
-    name: 'KACON品牌',
-    primaryColor: '#00A896',
-    mode: 'light'
-  }
-}
+import {
+  DEFAULT_THEME_SETTINGS,
+  THEME_PRESET_LIST,
+  THEME_PRESETS,
+  getThemePreset,
+  normalizeThemeAppearance
+} from '@/config/themePresets'
 
 export const useThemeStore = defineStore('theme', () => {
   // 主题设置 - 默认值
-  const defaultAppearance = {
-    theme: 'light',
-    preset: 'kacon',  // 全系统强制采用 KACON 品牌主视觉作为默认主题预设
-    primaryColor: '#00A896', // KACON 品牌专属高定色（Teal）
-    fontSize: 14
-  }
+  const defaultAppearance = { ...DEFAULT_THEME_SETTINGS }
 
   // 从 localStorage 加载主题设置（作为初始值）
   const getLocalTheme = () => {
     try {
       const saved = localStorage.getItem('theme_settings')
       if (saved) {
-        return { ...defaultAppearance, ...JSON.parse(saved) }
+        return normalizeThemeAppearance(JSON.parse(saved))
       }
     } catch (error) {
-      console.error('加载本地主题失败:', error)
+      logger.error('加载本地主题失败:', error)
     }
     return { ...defaultAppearance }
   }
@@ -94,18 +43,12 @@ export const useThemeStore = defineStore('theme', () => {
   // 从服务器加载主题设置
   const loadThemeFromServer = async () => {
     try {
-      // 使用 tokenManager 获取 token，与 auth store 保持一致
-      const token = tokenManager.getToken()
-      if (!token || !tokenManager.isTokenValid()) {
-        return
-      }
-
       const response = await api.get('/auth/theme')
 
       // 拦截器已解包，response.data 就是主题数据
       if (response.data) {
         // 数据库的主题是权威来源，覆盖localStorage
-        appearance.value = { ...defaultAppearance, ...response.data }
+        appearance.value = normalizeThemeAppearance(response.data)
         isLoaded.value = true
 
         // 更新 localStorage，保持同步
@@ -129,13 +72,7 @@ export const useThemeStore = defineStore('theme', () => {
   // 保存主题设置到服务器
   const saveThemeToServer = async (themeData) => {
     try {
-      // 使用 tokenManager 检查登录状态
-      const token = tokenManager.getToken()
-      if (!token || !tokenManager.isTokenValid()) {
-        return
-      }
-
-      await api.post('/auth/theme', themeData)
+      await api.post('/auth/theme', normalizeThemeAppearance(themeData))
     } catch (error) {
       logger.error('保存主题设置失败:', error.message)
       throw error
@@ -146,6 +83,9 @@ export const useThemeStore = defineStore('theme', () => {
   const currentTheme = computed(() => {
     if (appearance.value.theme === 'system') {
       // 跟随系统主题
+      if (typeof window === 'undefined') {
+        return getThemePreset(appearance.value.preset).mode
+      }
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     }
     return appearance.value.theme
@@ -156,6 +96,9 @@ export const useThemeStore = defineStore('theme', () => {
 
   // 应用主题到DOM
   const applyTheme = () => {
+    if (typeof document === 'undefined') return
+
+    appearance.value = normalizeThemeAppearance(appearance.value)
     const html = document.documentElement
 
     // 移除所有主题类
@@ -165,9 +108,7 @@ export const useThemeStore = defineStore('theme', () => {
     html.classList.add(currentTheme.value)
 
     // 设置主题预设的data属性
-    if (appearance.value.preset) {
-      html.setAttribute('data-theme', appearance.value.preset)
-    }
+    html.setAttribute('data-theme', appearance.value.preset)
 
     // 设置CSS变量
     html.style.setProperty('--el-color-primary', appearance.value.primaryColor)
@@ -176,14 +117,14 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   // 应用主题预设
-  const applyPreset = (presetId) => {
-    const preset = themePresets[presetId]
+  const applyPreset = async (presetId) => {
+    const preset = THEME_PRESETS[presetId]
     if (!preset) {
       logger.warn(`主题预设 "${presetId}" 不存在`)
-      return
+      return false
     }
 
-    updateAppearance({
+    return updateAppearance({
       preset: preset.id,
       theme: preset.mode,
       primaryColor: preset.primaryColor
@@ -192,12 +133,12 @@ export const useThemeStore = defineStore('theme', () => {
 
   // 获取当前预设信息
   const currentPreset = computed(() => {
-    return themePresets[appearance.value.preset] || themePresets.default
+    return getThemePreset(appearance.value.preset)
   })
 
   // 更新主题设置
   const updateAppearance = async (newAppearance) => {
-    appearance.value = { ...appearance.value, ...newAppearance }
+    appearance.value = normalizeThemeAppearance({ ...appearance.value, ...newAppearance })
     applyTheme()
 
     // 立即保存到 localStorage（作为备份）
@@ -210,8 +151,10 @@ export const useThemeStore = defineStore('theme', () => {
     // 保存到数据库（权威来源，用于跨设备同步）
     try {
       await saveThemeToServer(appearance.value)
+      return true
     } catch (error) {
       logger.error('保存主题到数据库失败:', error)
+      return false
     }
   }
 
@@ -278,6 +221,7 @@ export const useThemeStore = defineStore('theme', () => {
     saveThemeToServer,
 
     // 主题预设列表
-    themePresets
+    themePresets: THEME_PRESETS,
+    themePresetList: THEME_PRESET_LIST
   }
 })

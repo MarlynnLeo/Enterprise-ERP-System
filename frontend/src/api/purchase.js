@@ -1,6 +1,43 @@
 import { api, fastApi } from '../services/axiosInstance';
 import { baseDataApi } from './baseData';
-import { parseListData } from '../utils/responseParser';
+
+const DEFAULT_REQUISITION_LABEL = '关联申请';
+
+const normalizePurchaseOrder = (order = {}) => {
+    if (!order || typeof order !== 'object') return order;
+
+    const requisitionId = order.requisition_id || order.requisitionId || null;
+    const requisitionNumber = order.requisition_number || order.requisitionNumber || (requisitionId ? DEFAULT_REQUISITION_LABEL : '');
+
+    return {
+        ...order,
+        requisition_id: requisitionId,
+        requisition_number: requisitionNumber,
+        hasRequisition: Boolean(requisitionId && order.status === 'pending')
+    };
+};
+
+const normalizePurchaseOrderResponse = (response) => {
+    if (!response?.data) return response;
+
+    if (Array.isArray(response.data)) {
+        return { ...response, data: response.data.map(normalizePurchaseOrder) };
+    }
+
+    if (Array.isArray(response.data.list)) {
+        return { ...response, data: { ...response.data, list: response.data.list.map(normalizePurchaseOrder) } };
+    }
+
+    if (Array.isArray(response.data.items)) {
+        return { ...response, data: { ...response.data, items: response.data.items.map(normalizePurchaseOrder) } };
+    }
+
+    if (typeof response.data === 'object') {
+        return { ...response, data: normalizePurchaseOrder(response.data) };
+    }
+
+    return response;
+};
 
 export const purchaseApi = {
     // 采购申请
@@ -29,14 +66,12 @@ export const purchaseApi = {
                 apiUrl = `${apiUrl}?${searchParams.toString()}`;
 
                 // 发送请求，不再使用params参数
-                const response = await fastApi.get(apiUrl);
-                return response.data || response;
+                return fastApi.get(apiUrl);
             }
 
             // 如果没有status数组，使用标准方式发送请求
             const config = { params };
-            const response = await fastApi.get(apiUrl, config);
-            return response.data || response;
+            return fastApi.get(apiUrl, config);
         } catch (error) {
             console.error('采购申请列表API错误:', error);
             throw error;
@@ -44,13 +79,13 @@ export const purchaseApi = {
     },
     getRequisition: async (id) => {
         try {
-            const response = await api.get(`/purchase/requisitions/${id}`);
-            return response.data || response;
+            return api.get(`/purchase/requisitions/${id}`);
         } catch (error) {
             console.error('采购申请详情API错误:', error);
             throw error;
         }
     },
+    getProductionPlanRequisitionStatus: (params) => api.get('/purchase/requisitions/production-status', { params }),
     createRequisition: (data) => api.post('/purchase/requisitions', data),
     updateRequisition: (id, data) => api.put(`/purchase/requisitions/${id}`, data),
     deleteRequisition: (id) => api.delete(`/purchase/requisitions/${id}`),
@@ -60,41 +95,7 @@ export const purchaseApi = {
     getOrders: async (params) => {
         try {
             const response = await fastApi.get('/purchase/orders', { params });
-
-            // 使用统一解析器
-            const items = parseListData(response, { enableLog: false });
-            if (items.length > 0) {
-                // 检查每个订单的状态，标记含有关联申请且待审批的订单
-                const processedItems = items.map(order => {
-                    // 确保关联申请字段统一
-                    if (order.requisitionId && !order.requisition_id) {
-                        order.requisition_id = order.requisitionId;
-                    }
-                    if (order.requisitionNumber && !order.requisition_number) {
-                        order.requisition_number = order.requisitionNumber;
-                    }
-
-                    // 如果有关联申请但字段为null或undefined，确保显示为空字符串
-                    if (order.requisition_id) {
-                        if (!order.requisition_number) {
-                            order.requisition_number = '关联申请';
-                        }
-                    }
-
-                    // 标记关联申请单的订单
-                    if (order.requisition_id && order.status === 'pending') {
-                        // 添加标记
-                        order.hasRequisition = true;
-                    }
-                    return order;
-                });
-                // 更新 response.data 以保持一致性
-                if (response.data && typeof response.data === 'object') {
-                    response.data.list = processedItems;
-                }
-            }
-
-            return response;
+            return normalizePurchaseOrderResponse(response);
         } catch (error) {
             console.error('获取订单列表失败:', error);
             throw error;
@@ -103,16 +104,7 @@ export const purchaseApi = {
     getOrder: async (id) => {
         try {
             const response = await api.get(`/purchase/orders/${id}`);
-
-            // 处理响应数据
-            if (response.data) {
-                // 标记关联申请单的订单
-                if (response.data.requisition_id && response.data.status === 'pending') {
-                    response.data.hasRequisition = true;
-                }
-            }
-
-            return response;
+            return normalizePurchaseOrderResponse(response);
         } catch (error) {
             console.error('获取订单详情失败:', error);
             throw error;
@@ -150,6 +142,7 @@ export const purchaseApi = {
 
     // 获取特定供应商特定物料的历史最新有效价格
     getLatestPrice: (params) => api.get('/purchase/orders/latest-price', { params }),
+    getLatestPrices: (data) => api.post('/purchase/orders/latest-prices', data),
     updateOrderStatus: (id, status) => {
         // 处理status参数格式
         // 如果status是字符串，将其转换为{newStatus: status}格式
@@ -163,7 +156,12 @@ export const purchaseApi = {
 
         return api.put(`/purchase/orders/${id}/status`, data);
     },
+    batchUpdateOrderStatus: (orderIds, status) => api.put('/purchase/orders/batch-status', {
+        order_ids: orderIds,
+        newStatus: status
+    }),
     updateOrderItemsReceived: (id, items) => api.put(`/purchase/orders/${id}/items-received`, { items }),
+    receiveOrderWithInspection: (id, items) => api.post(`/purchase/orders/${id}/receive-with-inspection`, { items }),
     getOrderStats: () => api.get('/purchase/orders/statistics'),
 
     // 采购订单关联申请单

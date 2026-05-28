@@ -30,7 +30,9 @@ class PeriodValidationService {
         [year]
       );
 
-      const isFrozen = result[0].count > 0 && result[0].is_frozen === 1;
+      const isFrozen =
+        Number(result[0].count || 0) > 0 &&
+        (Number(result[0].is_frozen) === 1 || result[0].is_frozen === true);
 
       return {
         isFrozen,
@@ -63,7 +65,7 @@ class PeriodValidationService {
       const period = result[0];
 
       return {
-        isClosed: period.is_closed === 1 || period.is_closed === true,
+        isClosed: Number(period.is_closed) === 1 || period.is_closed === true,
         periodName: period.period_name,
         fiscalYear: period.fiscal_year,
         message: period.is_closed

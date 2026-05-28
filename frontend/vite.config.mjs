@@ -12,13 +12,16 @@ export default defineConfig(({ mode }) => {
     plugins: [vue()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src'),
-        'lottie-web': 'lottie-web/build/player/esm/lottie_light.min.js'
+        '@': path.resolve(__dirname, './src')
       }
     },
     optimizeDeps: {
       include: [
-        'dompurify'
+        'dompurify',
+        'echarts/core',
+        'echarts/charts',
+        'echarts/components',
+        'echarts/renderers'
       ],
       // 强制预构建这些 CommonJS 模块
       force: false
@@ -104,10 +107,6 @@ export default defineConfig(({ mode }) => {
             if (/\/node_modules\/(html2pdf\.js|jspdf|html2canvas)\//.test(normalizedId)) {
               return 'vendor-pdf'
             }
-            if (/\/node_modules\/(vue3-lottie|lottie-web)\//.test(normalizedId)) {
-              return 'vendor-lottie'
-            }
-
             return undefined
           },
           // 添加文件名哈希

@@ -92,7 +92,6 @@
         </div>
       </section>
 
-      <!-- 实时监控列表 -->
       <section class="section section-last">
         <div class="section-head">
           <h2 class="section-label flex-label">
@@ -140,6 +139,7 @@
   import { useRouter } from 'vue-router'
   import { useAuthStore } from '@/stores/auth'
   import { inventoryApi, productionApi, salesApi, systemApi } from '@/services/api'
+  import { extractApiData } from '@/utils/apiHelper'
 
   import {
     BellIcon,
@@ -180,7 +180,7 @@
 
   // 功能菜单
   const allMenus = ref([
-    { title: '基础数据', path: '/baseData', colorClass: 'mod-indigo', icon: CircleStackIcon, permission: 'basedata' },
+    { title: '基础数据', path: '/basedata', colorClass: 'mod-indigo', icon: CircleStackIcon, permission: 'basedata' },
     { title: '生产管理', path: '/production', colorClass: 'mod-blue', icon: ClipboardDocumentListIcon, permission: 'production' },
     { title: '采购管理', path: '/purchase', colorClass: 'mod-purple', icon: ShoppingCartIcon, permission: 'purchase' },
     { title: '销售管理', path: '/sales', colorClass: 'mod-pink', icon: CurrencyDollarIcon, permission: 'sales' },
@@ -215,7 +215,13 @@
   })
 
   const navigateTo = (path) => router.push(path)
-  const handleNotification = () => router.push('/notifications')
+  const handleNotification = () => router.push('/system/notifications')
+  const unwrapData = (response) => extractApiData(response, {})
+  const firstNumber = (...values) => {
+    const found = values.find((value) => value !== undefined && value !== null && value !== '')
+    const number = Number(found)
+    return Number.isFinite(number) ? number : 0
+  }
 
   const loadHomeStats = async () => {
     try {
@@ -225,17 +231,17 @@
         salesApi.getSalesStatistics()
       ])
       if (results[0].status === 'fulfilled') {
-        const d = results[0].value.data
-        dashboardStats.value[0].value = String(d?.total || d?.totalCount || d?.length || 0)
+        const d = unwrapData(results[0].value)
+        dashboardStats.value[0].value = String(firstNumber(d.total, d.totalCount, d.pagination?.total, Array.isArray(d) ? d.length : undefined))
         dashboardStats.value[0].trend = '↑'
       }
       if (results[1].status === 'fulfilled') {
-        const d = results[1].value.data
-        dashboardStats.value[1].value = String(d?.tasks?.in_progress || 0)
+        const d = unwrapData(results[1].value)
+        dashboardStats.value[1].value = String(firstNumber(d?.tasks?.inProgress, d?.tasks?.in_progress, d?.tasks?.pending, d?.tasks?.total))
       }
       if (results[2].status === 'fulfilled') {
-        const d = results[2].value.data
-        dashboardStats.value[2].value = String(d?.pending_orders || 0)
+        const d = unwrapData(results[2].value)
+        dashboardStats.value[2].value = String(firstNumber(d.pending_orders, d.pendingOrders, d.orders?.pending, d.pending))
       }
     } catch {
       /* 静默 */
@@ -243,7 +249,7 @@
   }
 
   onMounted(async () => {
-    if (authStore.isAuthenticated && authStore.token) {
+    if (authStore.isAuthenticated) {
       // 确保权限数据已加载（首页菜单过滤依赖此数据）
       if (!authStore.permissionsLoaded) {
         try {
@@ -252,6 +258,7 @@
           console.warn('[Home] 加载权限失败:', e.message)
         }
       }
+      // 刷新用户信息（用 cookie 验证后端会话是否有效）
       authStore.fetchUserProfile().catch(() => {})
       loadHomeStats()
       // 加载未读通知数
@@ -265,9 +272,9 @@
 <style lang="scss" scoped>
   /* ==============================
    KACON 工业配色方案
-   主色: #3C4858 (深灰蓝)
-   强调: #67C1D9 (青色)
-   背景: #F4F7FA (浅灰白)
+   主色: var(--color-text-primary) (深灰蓝)
+   强调: var(--color-accent) (青色)
+   背景: var(--color-bg-page) (浅灰白)
    ============================== */
 
   .home-page {
@@ -283,13 +290,15 @@
    ============================== */
   .kacon-header {
     background: var(--bg-secondary);
-    padding: 12px 20px;
-    margin: 20px 20px 0 20px;
-    border-radius: 16px;
+    min-height: calc(48px + var(--safe-area-top, 0px));
+    padding: var(--safe-area-top, 0px) 12px 0;
+    margin: 0;
+    border-radius: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border: 1px solid var(--van-border-color);
+    border: 0;
+    border-bottom: 1px solid var(--van-border-color, var(--surface-border));
     box-shadow: none;
     flex-shrink: 0;
   }
@@ -298,6 +307,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
@@ -331,6 +341,7 @@
   .header-brand {
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   .brand-row {
@@ -373,6 +384,7 @@
     display: flex;
     align-items: center;
     gap: 16px;
+    flex-shrink: 0;
   }
 
   .header-icon-btn {
@@ -446,8 +458,8 @@
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 20px;
-    padding-bottom: calc(var(--van-tabbar-height, 50px) + 24px);
+    padding: 0 12px;
+    padding-bottom: var(--app-bottom-space);
   }
 
   /* ==============================
@@ -455,13 +467,13 @@
    ============================== */
   .dashboard-card {
     background: var(--bg-secondary);
-    padding: 20px 24px;
-    border-radius: 16px;
+    padding: 14px;
+    border-radius: 12px;
     box-shadow: none;
     position: relative;
     overflow: hidden;
-    border: 1px solid var(--van-border-color);
-    margin-bottom: 24px;
+    border: 1px solid var(--surface-border, var(--border-subtle));
+    margin-bottom: calc(12px * 2);
   }
 
   .dashboard-bg-icon {
@@ -657,12 +669,12 @@
     margin: -6px -4px;   /* 补偿视觉间距 */
     min-height: 44px;
     border-radius: 8px;
-    transition: all 0.2s;
+    transition: color 0.2s, background-color 0.2s;
     -webkit-tap-highlight-color: transparent;
   }
 
   .toggle-btn:active {
-    background: rgba(103, 193, 217, 0.1);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
   }
 
   .hi-xs {
@@ -804,7 +816,7 @@
     align-items: center;
     justify-content: space-between;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background-color 0.15s, border-color 0.15s, transform 0.15s;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -897,58 +909,4 @@
     color: var(--text-disabled);
   }
 
-  /* ==============================
-   悬浮扫码 FAB
-   ============================== */
-  .fab-scan {
-    position: fixed;
-    bottom: calc(var(--van-tabbar-height, 50px) + 24px);
-    right: 20px;
-    width: 56px;
-    height: 56px;
-    background: var(--color-accent);
-    border-radius: 16px;
-    box-shadow: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-brand);
-    border: 4px solid var(--bg-secondary);
-    cursor: pointer;
-    z-index: 40;
-    transition: all 0.2s;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .fab-scan:active {
-    transform: scale(0.9) rotate(3deg);
-  }
-
-  .hi-fab {
-    width: 28px;
-    height: 28px;
-    stroke-width: 2.5;
-  }
-
-  .fab-badge {
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    width: 14px;
-    height: 14px;
-    background: var(--color-error);
-    border-radius: 50%;
-    border: 2px solid var(--bg-secondary);
-    animation: bounce-sm 2s infinite;
-  }
-
-  @keyframes bounce-sm {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-4px);
-    }
-  }
 </style>

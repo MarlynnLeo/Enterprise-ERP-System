@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="bank-accounts-container">
+  <div class="module-page bank-accounts-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,8 +19,12 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      @search="searchAccounts"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="账户名称">
           <el-input  v-model="searchForm.accountName" placeholder="输入账户名称" clearable ></el-input>
         </el-form-item>
@@ -33,12 +37,8 @@
             <el-option label="冻结" value="frozen"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchAccounts">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 账户统计信息 -->
     <div class="statistics-row">
@@ -82,7 +82,7 @@
             {{ getCurrencyText(scope.row.currency) }}
           </template>
         </el-table-column>
-        <el-table-column prop="balance" label="当前余额" width="150" align="right">
+        <el-table-column prop="balance" label="当前余额" width="150">
           <template #default="scope">
             <span :class="{ 'negative-value': scope.row.balance < 0 }">
               {{ formatCurrency(scope.row.balance) }}
@@ -98,7 +98,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="lastTransactionDate" label="最后交易日期" width="120"></el-table-column>
-        <el-table-column label="操作" min-width="220" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button type="primary" size="small" @click="handleEdit(scope.row)"
               v-permission="'finance:cash:update'">编辑</el-button>
@@ -279,7 +279,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="amount" label="交易金额" width="130" align="right">
+        <el-table-column prop="amount" label="交易金额" width="130">
           <template #default="scope">
             <span :class="[getAmountClass(scope.row.transaction_type, scope.row.amount)]">
               {{ formatCurrency(scope.row.amount) }}
@@ -315,13 +315,14 @@
 
 <script setup>
 import { parsePaginatedData, parseDataObject } from '@/utils/responseParser'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { api } from '@/services/api';
+import { buildApiUrl } from '@/config/app';
 
 const loading = ref(false);
 const accountList = ref([]);
@@ -340,7 +341,7 @@ const accountFormRef = ref(null);
 const accountForm = reactive({
   id: null, accountName: '', accountNumber: '', bankName: '', branchName: '',
   currency: 'CNY', accountType: '活期', initialBalance: 0, balance: 0,
-  openDate: new Date().toISOString().slice(0, 10),
+  openDate: formatLocalDate(new Date()),
   status: 'active', notes: '', lastTransactionDate: ''
 });
 
@@ -633,18 +634,18 @@ const exportTransactions = () => {
   if (!selectedAccount.value.id) return;
 
   // 使用环境变量配置的API基础URL，默认为相对路径
-  const baseURL = import.meta.env.VITE_API_URL || '';
-  let url = `${baseURL}/api/finance/bank-transactions/export?accountId=${selectedAccount.value.id}`;
+  const params = new URLSearchParams({ accountId: selectedAccount.value.id });
 
   if (transactionSearchForm.dateRange && transactionSearchForm.dateRange.length === 2) {
-    url += `&startDate=${transactionSearchForm.dateRange[0]}&endDate=${transactionSearchForm.dateRange[1]}`;
+    params.set('startDate', transactionSearchForm.dateRange[0]);
+    params.set('endDate', transactionSearchForm.dateRange[1]);
   }
 
   if (transactionSearchForm.type) {
-    url += `&type=${transactionSearchForm.type}`;
+    params.set('type', transactionSearchForm.type);
   }
 
-  window.open(url);
+  window.open(buildApiUrl(`/finance/bank-transactions/export?${params.toString()}`));
 };
 
 // 重置账户表单
@@ -658,7 +659,7 @@ const resetAccountForm = () => {
   accountForm.accountType = '活期';
   accountForm.initialBalance = 0;
   accountForm.balance = 0;
-  accountForm.openDate = new Date().toISOString().slice(0, 10);
+  accountForm.openDate = formatLocalDate(new Date());
   accountForm.status = 'active';
   accountForm.notes = '';
   accountForm.lastTransactionDate = '';

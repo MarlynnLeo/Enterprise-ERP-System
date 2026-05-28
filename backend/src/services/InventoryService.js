@@ -24,6 +24,61 @@ const cacheService = require('./cacheService'); // ✅ 新增：缓存服务
  * - v_current_stock: 当前库存视图（自动计算）
  */
 class InventoryService {
+  static normalizeTransactionDate(value) {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) {
+      throw new Error(`无效的库存交易日期: ${value}`);
+    }
+    return date.toISOString().slice(0, 10);
+  }
+
+  static async resolveTransactionDate(
+    { transactionDate, referenceType, referenceNo },
+    connection
+  ) {
+    if (transactionDate) {
+      return this.normalizeTransactionDate(transactionDate);
+    }
+
+    const refType = String(referenceType || '').toLowerCase();
+    const refNo = referenceNo || null;
+    if (!refNo) {
+      return this.normalizeTransactionDate();
+    }
+
+    const sourceMap = {
+      inbound: { table: 'inventory_inbound', noColumn: 'inbound_no', dateColumn: 'inbound_date' },
+      outbound: { table: 'inventory_outbound', noColumn: 'outbound_no', dateColumn: 'outbound_date' },
+      transfer: { table: 'inventory_transfers', noColumn: 'transfer_no', dateColumn: 'transfer_date' },
+      inventory_check: { table: 'inventory_checks', noColumn: 'check_no', dateColumn: 'check_date' },
+      check: { table: 'inventory_checks', noColumn: 'check_no', dateColumn: 'check_date' },
+      purchase_receipt: { table: 'purchase_receipts', noColumn: 'receipt_no', dateColumn: 'receipt_date' },
+      purchase_return: { table: 'purchase_returns', noColumn: 'return_no', dateColumn: 'return_date' },
+      sales_outbound: { table: 'sales_outbound', noColumn: 'outbound_no', dateColumn: 'delivery_date' },
+      sales_return: { table: 'sales_returns', noColumn: 'return_no', dateColumn: 'return_date' },
+      sales_exchange: { table: 'sales_exchanges', noColumn: 'exchange_no', dateColumn: 'exchange_date' },
+      scrap_record: { table: 'scrap_records', noColumn: 'scrap_no', dateColumn: 'scrap_date' },
+    };
+    const source = sourceMap[refType];
+    if (!source) {
+      return this.normalizeTransactionDate();
+    }
+
+    try {
+      const [rows] = await connection.execute(
+        `SELECT ${source.dateColumn} as transaction_date
+         FROM ${source.table}
+         WHERE ${source.noColumn} = ?
+         LIMIT 1`,
+        [refNo]
+      );
+      return this.normalizeTransactionDate(rows[0]?.transaction_date);
+    } catch (error) {
+      logger.warn(`库存交易日期推断失败，使用当前日期: ${refType}/${refNo}`, error.message);
+      return this.normalizeTransactionDate();
+    }
+  }
+
   /**
    * 获取物料在指定库位的当前库存数量
    *
@@ -183,6 +238,7 @@ class InventoryService {
       bom_required_qty = null,
       total_issued_qty = null,
       allowNegativeStock = false,
+      transactionDate = null,
       unitCost = null, // 新增参数：入库时传入的实际成本单价
       purchaseOrderId = null, // 原生批次身份证属性
       purchaseOrderNo = null, // 原生批次身份证属性
@@ -221,6 +277,17 @@ class InventoryService {
     const startTime = Date.now();
 
     try {
+      const resolvedTransactionDate = await this.resolveTransactionDate(
+        { transactionDate, referenceType, referenceNo },
+        connection
+      );
+      const PeriodValidationService = require('./business/PeriodValidationService');
+      const inventoryCheck =
+        await PeriodValidationService.validateInventoryTransaction(resolvedTransactionDate);
+      if (!inventoryCheck.allowed) {
+        throw new Error(inventoryCheck.message);
+      }
+
       // 2. 使用行级锁获取当前库存
       const beforeQuantity = await this.getCurrentStock(materialId, locationId, connection, true);
 
@@ -331,9 +398,10 @@ class InventoryService {
             material_id, location_id, transaction_type, transaction_no, reference_no, reference_type,
             quantity, before_quantity, after_quantity, unit_id,
             batch_number, supplier_id, supplier_name, production_date, expiry_date, warehouse_name,
-            operator, remark, issue_reason, is_excess, bom_required_qty, total_issued_qty, created_at,
+            operator, remark, issue_reason, is_excess, bom_required_qty, total_issued_qty,
+            transaction_date, created_at,
             unit_cost, total_value, purchase_order_id, purchase_order_no, receipt_id, receipt_no
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)`,
           [
             materialId,
             locationId,
@@ -357,6 +425,7 @@ class InventoryService {
             is_excess,
             bom_required_qty,
             total_issued_qty,
+            resolvedTransactionDate,
             actualUnitCost || 0,
             currentTotalValue,
             purchaseOrderId,

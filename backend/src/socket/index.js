@@ -4,7 +4,6 @@
  */
 
 const { Server } = require('socket.io');
-const jwt = require('jsonwebtoken');
 const { logger } = require('../utils/logger');
 const { pool } = require('../config/db');
 const { createCorsOptions } = require('../config/cors');
@@ -13,6 +12,7 @@ const { verifyAccessToken } = require('../config/jwtEnhanced');
 let io = null;
 // userId -> Set<socketId> 的映射，支持多端登录
 const onlineUsers = new Map();
+const allowLegacyAccessTokens = process.env.ALLOW_LEGACY_ACCESS_TOKENS === 'true';
 
 function getCookieValue(cookieHeader, name) {
   if (!cookieHeader) return null;
@@ -24,6 +24,48 @@ function getCookieValue(cookieHeader, name) {
     }
   }
   return null;
+}
+
+async function verifySocketToken(token) {
+  const decoded = verifyAccessToken(token);
+  const userId = Number(decoded?.id || decoded?.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error('Invalid token user');
+  }
+
+  const [users] = await pool.query(
+    `SELECT id, username, real_name, status, token_version
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [userId]
+  );
+  const user = users[0];
+  if (!user || Number(user.status) !== 1) {
+    throw new Error('User is unavailable');
+  }
+
+  if (
+    decoded.tokenVersion === undefined
+      ? !allowLegacyAccessTokens
+      : Number(decoded.tokenVersion) !== Number(user.token_version || 0)
+  ) {
+    throw new Error('Token has been revoked');
+  }
+
+  return {
+    id: user.id,
+    username: user.username,
+    realName: user.real_name,
+  };
+}
+
+async function isConversationMember(conversationId, userId) {
+  const [memberRows] = await pool.query(
+    'SELECT id FROM chat_conversation_members WHERE conversation_id = ? AND user_id = ? LIMIT 1',
+    [conversationId, userId]
+  );
+  return memberRows.length > 0;
 }
 
 /**
@@ -38,7 +80,7 @@ function initSocket(httpServer) {
   });
 
   // JWT 鉴权中间件
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token =
       socket.handshake.auth?.token ||
       socket.handshake.query?.token ||
@@ -47,13 +89,12 @@ function initSocket(httpServer) {
       return next(new Error('未提供认证令牌'));
     }
     try {
-      const decoded = token === socket.handshake.auth?.token || token === socket.handshake.query?.token
-        ? jwt.verify(token, process.env.JWT_SECRET)
-        : verifyAccessToken(token);
-      socket.userId = decoded.userId || decoded.id;
-      socket.userName = decoded.username || decoded.name;
+      const user = await verifySocketToken(token);
+      socket.userId = user.id;
+      socket.userName = user.realName || user.username;
       next();
-    } catch {
+    } catch (error) {
+      logger.warn('[Socket] Token validation failed:', { error: error.message });
       return next(new Error('令牌无效或已过期'));
     }
   });
@@ -77,16 +118,22 @@ function initSocket(httpServer) {
     // ==================== 聊天事件 ====================
 
     // 加入会话房间
-    socket.on('chat:join', async (conversationId) => {
-      socket.join(`conv:${conversationId}`);
-      // 清零未读数
+    socket.on('chat:join', async (conversationId, callback) => {
       try {
+        if (!(await isConversationMember(conversationId, userId))) {
+          return callback?.({ error: 'FORBIDDEN' });
+        }
+
+        socket.join(`conv:${conversationId}`);
+        // 清零未读数
         await pool.query(
           'UPDATE chat_conversation_members SET unread_count = 0, last_read_at = NOW() WHERE conversation_id = ? AND user_id = ?',
           [conversationId, userId]
         );
+        callback?.({ success: true });
       } catch (err) {
-        logger.error('[Socket] 清零未读数失败:', err.message);
+        logger.error('[Socket] 加入会话房间失败:', err.message);
+        callback?.({ error: 'JOIN_FAILED' });
       }
     });
 
@@ -104,11 +151,7 @@ function initSocket(httpServer) {
         }
 
         // 验证用户是否为会话成员
-        const [memberRows] = await pool.query(
-          'SELECT id FROM chat_conversation_members WHERE conversation_id = ? AND user_id = ?',
-          [conversationId, userId]
-        );
-        if (memberRows.length === 0) {
+        if (!(await isConversationMember(conversationId, userId))) {
           return callback?.({ error: '您不是该会话的成员' });
         }
 
@@ -174,11 +217,18 @@ function initSocket(httpServer) {
     });
 
     // 正在输入
-    socket.on('chat:typing', (conversationId) => {
-      socket.to(`conv:${conversationId}`).emit('chat:typing', {
-        userId,
-        userName: socket.userName,
-      });
+    socket.on('chat:typing', async (conversationId) => {
+      try {
+        if (!(await isConversationMember(conversationId, userId))) {
+          return;
+        }
+        socket.to(`conv:${conversationId}`).emit('chat:typing', {
+          userId,
+          userName: socket.userName,
+        });
+      } catch (err) {
+        logger.error('[Socket] 正在输入事件失败:', err.message);
+      }
     });
 
     // 断开连接

@@ -82,7 +82,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" fixed="right" min-width="150">
+        <el-table-column label="操作" fixed="right" min-width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" type="primary" link @click="handleEdit(scope.row)"
               v-permission="'quality:aql:update'">编辑</el-button>
@@ -191,7 +191,8 @@ import { ref, onMounted } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search } from '@element-plus/icons-vue';
-import request from '@/utils/request';
+import { api } from '@/services/axiosInstance';
+import { parsePaginatedData } from '@/utils/responseParser';
 import 'dayjs';
 
 // ---- State ----
@@ -236,7 +237,7 @@ const rules = {
 const fetchData = async () => {
   loading.value = true;
   try {
-    const res = await request.get('/quality/aql-standards', {
+    const res = await api.get('/quality/aql-standards', {
       params: {
         page: currentPage.value,
         pageSize: pageSize.value,
@@ -244,9 +245,9 @@ const fetchData = async () => {
         status: searchStatus.value
       }
     });
-    const responseData = res.data || res;
-    tableData.value = responseData.items || [];
-    total.value = responseData.total || 0;
+    const pageData = parsePaginatedData(res, { enableLog: false });
+    tableData.value = pageData.list;
+    total.value = pageData.total;
   } catch (error) {
     console.error('Failed to fetch AQL standards:', error);
     ElMessage.error('获取列表失败');
@@ -276,7 +277,7 @@ const handleDelete = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await request.delete(`/quality/aql-standards/${row.id}`);
+      await api.delete(`/quality/aql-standards/${row.id}`);
       ElMessage.success('删除成功');
       fetchData();
     } catch (error) {
@@ -295,10 +296,10 @@ const handleSubmit = () => {
     submitting.value = true;
     try {
       if (isEdit.value) {
-        await request.put(`/quality/aql-standards/${form.value.id}`, form.value);
+        await api.put(`/quality/aql-standards/${form.value.id}`, form.value);
         ElMessage.success('更新成功');
       } else {
-        await request.post('/quality/aql-standards', form.value);
+        await api.post('/quality/aql-standards', form.value);
         ElMessage.success('创建成功');
       }
       dialogVisible.value = false;

@@ -4,6 +4,7 @@
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
     width="55%"
+    destroy-on-close
     @close="handleClose"
     @open="handleOpen"
   >
@@ -60,7 +61,7 @@
       </el-row>
       <el-form-item label="附件">
         <el-upload
-          class="upload-demo"
+          class="attachment-upload"
           action="#"
           :auto-upload="false"
           :on-change="handleAttachmentChange"
@@ -164,7 +165,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="单位" width="70" align="center">
+          <el-table-column label="单位" width="70">
             <template #default="scope">
               <span>{{ scope.row.unit_name || '-' }}</span>
             </template>
@@ -174,7 +175,7 @@
               <el-input  v-model="scope.row.remark" placeholder="备注" clearable ></el-input>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right">
+          <el-table-column label="操作" width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 size="small"
@@ -210,8 +211,9 @@ import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElImageViewer } from 'element-plus'
 import { materialApi } from '@/api/material'
 import { bomApi } from '@/api/bom'
-import { parseListData } from '@/utils/responseParser'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 import api from '@/services/axiosInstance'
+import { buildResourceUrl } from '@/config/app'
 const props = defineProps({
   modelValue: Boolean,
   editData: {
@@ -361,9 +363,7 @@ const isPdf = (url) => {
 const buildAttachmentUrl = (url) => {
   if (!url) return ''
   if (/^https?:\/\//i.test(url)) return url
-  const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-  const path = url.startsWith('/') ? url : `/${url}`
-  const fullUrl = `${baseUrl}${path}`
+  const fullUrl = buildResourceUrl(url)
   return /^https?:\/\//i.test(fullUrl) ? fullUrl : `${window.location.origin}${fullUrl}`
 }
 
@@ -535,7 +535,7 @@ const handleMaterialCodeChangeByRow = async (val, row) => {
     if (form.product_id && material.id) {
       try {
         const res = await bomApi.detectCircularReference(form.product_id, material.id)
-        const result = res?.data?.data || res?.data || {}
+        const result = parseResponseData(res, {})
         if (result.hasCircle) {
           ElMessage.error(`检测到循环引用！路径: ${result.path}，该物料不能添加到此BOM`)
           row.material_code = ''

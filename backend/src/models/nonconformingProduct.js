@@ -16,11 +16,14 @@ class NonconformingProduct {
   /**
    * Create nonconforming product
    */
-  static async create(ncpData) {
+  static async create(ncpData, externalConnection = null) {
     let connection;
+    const useOwnConnection = !externalConnection;
     try {
-      connection = await db.pool.getConnection();
-      await connection.beginTransaction();
+      connection = externalConnection || await db.pool.getConnection();
+      if (useOwnConnection) {
+        await connection.beginTransaction();
+      }
 
       const ncpNo = await this.generateNcpNo(connection);
 
@@ -173,16 +176,18 @@ class NonconformingProduct {
         );
       }
 
-      await connection.commit();
+      if (useOwnConnection) {
+        await connection.commit();
+      }
 
       logger.info(`Created nonconforming product: ${ncpNo}`);
       return { id: result.insertId, ncp_no: ncpNo };
     } catch (error) {
-      if (connection) await connection.rollback();
+      if (connection && useOwnConnection) await connection.rollback();
       logger.error('Failed to create nonconforming product:', error);
       throw error;
     } finally {
-      if (connection) connection.release();
+      if (connection && useOwnConnection) connection.release();
     }
   }
 
@@ -205,7 +210,7 @@ class NonconformingProduct {
 
     const pagination = parsePagination(page, pageSize, {
       defaultPageSize: 10,
-      maxPageSize: 200,
+      maxPageSize: 100,
     });
 
     let query = `
@@ -448,7 +453,7 @@ class NonconformingProduct {
       await connection.beginTransaction();
 
       const [rows] = await connection.query(
-        'SELECT id, ncp_no, status FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL',
+        'SELECT id, ncp_no, status FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [id]
       );
       if (rows.length === 0) {

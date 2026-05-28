@@ -13,13 +13,12 @@ const PeriodEndService = require('../../../services/business/PeriodEndService');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const AdvancedReportsService = require('../../../services/utils/AdvancedReportsService');
 const db = require('../../../config/db');
+const { toLocalDateString } = require('../../../utils/dateUtils');
 
 function getDefaultReportRange(query = {}) {
   const today = new Date();
-  const defaultStartDate = new Date(today.getFullYear(), today.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-  const defaultEndDate = today.toISOString().slice(0, 10);
+  const defaultStartDate = toLocalDateString(new Date(today.getFullYear(), today.getMonth(), 1));
+  const defaultEndDate = toLocalDateString(today);
 
   return {
     ...query,
@@ -201,7 +200,7 @@ class FinanceEnhancementController {
   static async getAutomationHistory(req, res) {
     try {
       const { page = 1, pageSize = 20 } = req.query;
-      const pageNum = parsePositiveInteger(page, 1, 100000);
+      const pageNum = parsePositiveInteger(page, 1, 1000);
       const pageSizeNum = parsePositiveInteger(pageSize, 20, 100);
       const offset = (pageNum - 1) * pageSizeNum;
 
@@ -222,7 +221,7 @@ class FinanceEnhancementController {
           'production_cost'
         )
         ORDER BY created_at DESC
-        LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSizeNum))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+        LIMIT ${pageSizeNum} OFFSET ${offset}
       `);
 
       // 获取总数
@@ -346,7 +345,7 @@ class FinanceEnhancementController {
    */
   static async initializeSystem(req, res) {
     try {
-      await PeriodEndService.initializePeriodEndTables();
+      // 表结构统一由 Knex migration 管理，此接口只补齐增强模块的基础配置数据。
       await CostAccountingService.initializeCostAccountingTables();
       ResponseHandler.success(res, null, '财务增强功能初始化完成');
     } catch (error) {

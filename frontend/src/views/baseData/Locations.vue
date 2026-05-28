@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="purchase-requisitions-container">
+  <div class="module-page base-data-list-page">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,11 +19,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="库位名称">
           <el-input  v-model="searchForm.name" placeholder="请输入库位名称" clearable ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="库位编码">
           <el-input  v-model="searchForm.code" placeholder="请输入库位编码" clearable ></el-input>
         </el-form-item>
@@ -43,19 +50,13 @@
             <el-option :value="0" label="禁用"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
+      </template>
+      <template #actions>
           <el-button type="success" @click="handleExport">
             <el-icon><Download /></el-icon> 导出
           </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
@@ -85,7 +86,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注"></el-table-column>
-        <el-table-column label="操作" min-width="40" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               v-if="canUpdate && Number(scope.row.status) !== 1"
@@ -192,14 +193,12 @@
 
 <script setup>
 import { parsePaginatedData } from '@/utils/responseParser';
-
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { baseDataApi } from '@/api/baseData';
-import { Plus, Edit, Delete, Search, Refresh, Download, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
 import { WAREHOUSE_TYPES, getWarehouseTypeText } from '@/constants/systemConstants'
 import { useAuthStore } from '@/stores/auth';
-
 // 权限store
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:locations:create'));
@@ -462,37 +461,3 @@ const getLocationTypeLabel = (type) => {
   return getWarehouseTypeText(type);
 };
 </script>
-
-<style scoped>
-.header-card {
-  margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-/* 操作列样式 - 与库存出库页面保持一致 */
-.el-table .el-button + .el-button {
-  margin-left: 8px;
-}
-</style>

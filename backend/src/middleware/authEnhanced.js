@@ -9,8 +9,61 @@ const {
   verifyAccessToken,
   verifyRefreshToken,
   getTokensFromCookies,
+  clearTokenCookies,
 } = require('../config/jwtEnhanced');
 const { logger } = require('../utils/logger');
+const { ResponseHandler } = require('../utils/responseHandler');
+const { pool } = require('../config/db');
+
+const allowLegacyAccessTokens = process.env.ALLOW_LEGACY_ACCESS_TOKENS === 'true';
+
+function createAuthError(message, code = 'INVALID_TOKEN', statusCode = 401) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
+}
+
+async function loadVerifiedAccessUser(decoded) {
+  const userId = Number(decoded?.id);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw createAuthError('认证令牌用户无效', 'INVALID_TOKEN', 401);
+  }
+
+  const [users] = await pool.execute(
+    `SELECT id, username, real_name, status, token_version
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [userId]
+  );
+  const user = users[0];
+
+  if (!user) {
+    throw createAuthError('用户不存在或已被删除', 'USER_NOT_FOUND', 401);
+  }
+
+  if (Number(user.status) !== 1) {
+    throw createAuthError('账号已被禁用，请联系管理员', 'ACCOUNT_DISABLED', 403);
+  }
+
+  const dbTokenVersion = Number(user.token_version || 0);
+  if (decoded.tokenVersion === undefined) {
+    if (!allowLegacyAccessTokens) {
+      throw createAuthError('令牌版本缺失，请重新登录', 'TOKEN_REVOKED', 401);
+    }
+  } else if (Number(decoded.tokenVersion) !== dbTokenVersion) {
+    throw createAuthError('令牌已失效，请重新登录', 'TOKEN_REVOKED', 401);
+  }
+
+  return {
+    ...decoded,
+    id: user.id,
+    username: user.username,
+    realName: user.real_name,
+    tokenVersion: dbTokenVersion,
+  };
+}
 
 /**
  * 认证中间件 - 支持Cookie和Authorization Header
@@ -35,25 +88,27 @@ const authenticateToken = async (req, res, next) => {
 
     // 3. 如果都没有，返回401
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: '未提供认证令牌',
-        code: 'NO_TOKEN',
-      });
+      return ResponseHandler.error(res, '未提供认证令牌', 'NO_TOKEN', 401);
     }
 
-    // 4. 验证token
+    // 4. 验证token，并实时校验用户状态与token版本
     const decoded = verifyAccessToken(token);
-    req.user = decoded;
+    req.user = await loadVerifiedAccessUser(decoded);
     next();
   } catch (error) {
     logger.warn('Token验证失败:', { error: error.message, path: req.path });
 
-    return res.status(401).json({
-      success: false,
-      message: error.message || '认证令牌无效或已过期',
-      code: error.message.includes('过期') ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
-    });
+    if (['TOKEN_REVOKED', 'ACCOUNT_DISABLED', 'USER_NOT_FOUND'].includes(error.code)) {
+      clearTokenCookies(res);
+    }
+
+    return ResponseHandler.error(
+      res,
+      error.message || '认证令牌无效或已过期',
+      error.code || (error.message.includes('过期') ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN'),
+      error.statusCode || 401,
+      error
+    );
   }
 };
 
@@ -69,11 +124,14 @@ const optionalAuth = async (req, res, next) => {
 
     if (token) {
       const decoded = verifyAccessToken(token);
-      req.user = decoded;
+      req.user = await loadVerifiedAccessUser(decoded);
     }
   } catch (error) {
     // 忽略错误，继续处理
     logger.debug('可选认证失败:', error.message);
+    if (['TOKEN_REVOKED', 'ACCOUNT_DISABLED', 'USER_NOT_FOUND'].includes(error.code)) {
+      clearTokenCookies(res);
+    }
   }
   next();
 };
@@ -88,11 +146,7 @@ const authenticateRefreshToken = async (req, res, next) => {
     const token = refreshToken || req.body?.refreshToken;
 
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: '未提供刷新令牌',
-        code: 'NO_REFRESH_TOKEN',
-      });
+      return ResponseHandler.error(res, '未提供刷新令牌', 'NO_REFRESH_TOKEN', 401);
     }
 
     // 验证刷新令牌
@@ -100,11 +154,13 @@ const authenticateRefreshToken = async (req, res, next) => {
     req.refreshToken = token;
     next();
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: error.message || '刷新令牌无效或已过期',
-      code: 'INVALID_REFRESH_TOKEN',
-    });
+    return ResponseHandler.error(
+      res,
+      error.message || '刷新令牌无效或已过期',
+      'INVALID_REFRESH_TOKEN',
+      401,
+      error
+    );
   }
 };
 

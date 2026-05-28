@@ -7,6 +7,8 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const BatchManagementService = require('./BatchManagementService');
 
+const toRows = (result) => (Array.isArray(result?.rows) ? result.rows : (result?.rows ? [result.rows] : []));
+
 class InventoryTraceabilityService {
   /**
    * 处理采购入库追溯
@@ -143,17 +145,21 @@ class InventoryTraceabilityService {
         original_quantity: produced_quantity,
         unit,
         production_date,
-        receipt_date: new Date(),
+        receipt_date: production_date || new Date(),
         warehouse_id,
         warehouse_name,
         location,
         unit_cost: 0, // 生产成本需要单独计算
+        transaction_type: 'production_inbound',
+        reference_type: 'production_task',
+        reference_no: production_order_no || `TASK-${production_task_id}`,
+        reference_id: production_task_id,
         created_by: operator,
-      });
+      }, connection);
 
       // 2. 记录原料消耗关系
       const consumptionRecords = [];
-      for (const material of consumed_materials) {
+      for (const material of consumed_materials || []) {
         // 查找对应的原料批次
         const materialBatches = await BatchManagementService.getBatchByMaterialAndBatch(
           material.material_code,
@@ -180,7 +186,7 @@ class InventoryTraceabilityService {
             reference_no: production_order_no,
             operator,
             remarks: `生产消耗 - ${remarks || ''}`,
-          });
+          }, connection);
 
           consumptionRecords.push({
             material_code: material.material_code,
@@ -211,7 +217,7 @@ class InventoryTraceabilityService {
    * 创建批次关联关系
    * @param {Object} relationshipData - 关系数据
    */
-  static async createBatchRelationship(relationshipData) {
+  static async createBatchRelationship(relationshipData, externalConnection = null) {
     const query = `
       INSERT INTO batch_relationships (
         parent_batch_id, child_batch_id, parent_material_code, child_material_code,
@@ -226,7 +232,7 @@ class InventoryTraceabilityService {
         ? relationshipData.consumed_quantity / relationshipData.produced_quantity
         : 1;
 
-    await db.query(query, [
+    const params = [
       relationshipData.parent_batch_id,
       relationshipData.child_batch_id,
       relationshipData.parent_material_code,
@@ -243,7 +249,14 @@ class InventoryTraceabilityService {
       relationshipData.reference_no,
       relationshipData.operator,
       relationshipData.remarks,
-    ]);
+    ];
+
+    if (externalConnection) {
+      await externalConnection.execute(query, params);
+      return;
+    }
+
+    await db.query(query, params);
   }
 
   /**
@@ -337,25 +350,35 @@ class InventoryTraceabilityService {
           br.*,
           m.code as child_material_code,
           m.name as child_material_name,
-          cb.batch_number as child_batch_number,
-          cb.current_quantity as child_quantity,
-          cb.receipt_date as child_receipt_date
+          b.batch_number as child_batch_number,
+          b.current_quantity as child_quantity,
+          b.receipt_date as child_receipt_date
         FROM batch_relationships br
-        JOIN v_batch_stock cb ON br.child_batch_id = cb.batch_number
-        LEFT JOIN materials m ON cb.material_id = m.id
-        WHERE br.parent_batch_id = ?
+        LEFT JOIN materials m ON m.code = br.child_material_code
+        LEFT JOIN (
+          SELECT
+            il.material_id,
+            il.batch_number,
+            SUM(il.quantity) as current_quantity,
+            COALESCE(MIN(CASE WHEN il.quantity > 0 THEN il.created_at END), MIN(il.created_at)) as receipt_date
+          FROM inventory_ledger il
+          GROUP BY il.material_id, il.batch_number
+        ) b
+          ON b.material_id = m.id
+         AND b.batch_number = br.child_batch_number
+        WHERE br.parent_material_code = ?
+          AND br.parent_batch_number = ?
         ORDER BY br.created_at ASC
       `;
 
-      const result = await db.query(query, [batch.id]);
-      const relationships = result.rows || [];
+      const relationships = toRows(await db.query(query, [batch.material_code, batch.batch_number]));
 
       for (const rel of relationships) {
         const childBatch = {
-          id: rel.child_batch_id,
+          id: rel.child_batch_id || rel.child_batch_number,
           material_code: rel.child_material_code,
           material_name: rel.child_material_name,
-          batch_number: rel.child_batch_number,
+          batch_number: rel.child_batch_number || rel.child_batch_id,
           current_quantity: rel.child_quantity,
           receipt_date: rel.child_receipt_date,
         };
@@ -416,25 +439,35 @@ class InventoryTraceabilityService {
           br.*,
           m.code as parent_material_code,
           m.name as parent_material_name,
-          pb.batch_number as parent_batch_number,
-          pb.current_quantity as parent_quantity,
-          pb.receipt_date as parent_receipt_date
+          b.batch_number as parent_batch_number,
+          b.current_quantity as parent_quantity,
+          b.receipt_date as parent_receipt_date
         FROM batch_relationships br
-        JOIN v_batch_stock pb ON br.parent_batch_id = pb.batch_number
-        LEFT JOIN materials m ON pb.material_id = m.id
-        WHERE br.child_batch_id = ?
+        LEFT JOIN materials m ON m.code = br.parent_material_code
+        LEFT JOIN (
+          SELECT
+            il.material_id,
+            il.batch_number,
+            SUM(il.quantity) as current_quantity,
+            COALESCE(MIN(CASE WHEN il.quantity > 0 THEN il.created_at END), MIN(il.created_at)) as receipt_date
+          FROM inventory_ledger il
+          GROUP BY il.material_id, il.batch_number
+        ) b
+          ON b.material_id = m.id
+         AND b.batch_number = br.parent_batch_number
+        WHERE br.child_material_code = ?
+          AND br.child_batch_number = ?
         ORDER BY br.created_at ASC
       `;
 
-      const result = await db.query(query, [batch.id]);
-      const relationships = result.rows || [];
+      const relationships = toRows(await db.query(query, [batch.material_code, batch.batch_number]));
 
       for (const rel of relationships) {
         const parentBatch = {
-          id: rel.parent_batch_id,
+          id: rel.parent_batch_id || rel.parent_batch_number,
           material_code: rel.parent_material_code,
           material_name: rel.parent_material_name,
-          batch_number: rel.parent_batch_number,
+          batch_number: rel.parent_batch_number || rel.parent_batch_id,
           current_quantity: rel.parent_quantity,
           receipt_date: rel.parent_receipt_date,
         };
@@ -477,23 +510,28 @@ class InventoryTraceabilityService {
    * @returns {Promise<Object>} - 批次记录
    */
   static async findBatchByCodeAndNumber(materialCode, batchNumber) {
-    // ✅ 单表架构：直接从 v_batch_stock 查询
+    // 单表架构：从库存台账汇总，保证当前库存为 0 的批次也可以追溯
     const query = `
       SELECT
-        vbs.*,
+        CONCAT(m.code, '_', il.batch_number) as id,
+        il.material_id,
+        il.batch_number,
+        SUM(il.quantity) as current_quantity,
+        SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as original_quantity,
+        COALESCE(MIN(CASE WHEN il.quantity > 0 THEN il.created_at END), MIN(il.created_at)) as receipt_date,
         m.code as material_code,
         m.name as material_name,
         u.name as unit
-      FROM v_batch_stock vbs
-      LEFT JOIN materials m ON vbs.material_id = m.id
+      FROM inventory_ledger il
+      LEFT JOIN materials m ON il.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
-      WHERE m.code = ? AND vbs.batch_number = ?
-      ORDER BY vbs.receipt_date DESC
+      WHERE m.code = ? AND il.batch_number = ?
+      GROUP BY il.material_id, il.batch_number, m.code, m.name, u.name
       LIMIT 1
     `;
 
-    const result = await db.query(query, [materialCode, batchNumber]);
-    return result.rows && result.rows.length > 0 ? result.rows[0] : null;
+    const rows = toRows(await db.query(query, [materialCode, batchNumber]));
+    return rows.length > 0 ? rows[0] : null;
   }
 }
 

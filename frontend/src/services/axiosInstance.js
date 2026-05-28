@@ -1,16 +1,94 @@
 import axios from 'axios';
-import { tokenManager } from '../utils/unifiedStorage';
+import { API_CONFIG, normalizeApiRequestUrl } from '@/config/app';
+import { applyRequestOptimizer } from '@/utils/requestOptimizer';
 // 使用环境变量，如果没有设置则使用相对路径
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = API_CONFIG.defaultBaseURL;
+const UNSAFE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d+\-.]*:/i;
+let csrfToken = '';
+let csrfTokenPromise = null;
+
+const getWindowOrigin = () => (
+    typeof window !== 'undefined' && window.location?.origin ? window.location.origin : ''
+);
+
+const isAbsoluteUrl = (url) => ABSOLUTE_URL_PATTERN.test(String(url || ''));
+
+const getUrl = (url, baseOrigin) => {
+    try {
+        return new URL(String(url || ''), baseOrigin || undefined);
+    } catch {
+        return null;
+    }
+};
+
+const isCredentialedApiRequest = (config) => {
+    const url = String(config.url || '');
+    if (!isAbsoluteUrl(url)) return true;
+
+    const origin = getWindowOrigin();
+    if (!origin) return false;
+
+    const requestUrl = getUrl(url, origin);
+    const apiBaseUrl = getUrl(config.baseURL || API_URL, origin);
+    if (!requestUrl || !apiBaseUrl || requestUrl.origin !== apiBaseUrl.origin) {
+        return false;
+    }
+
+    const apiPath = apiBaseUrl.pathname.replace(/\/+$/, '') || '/';
+    return apiPath === '/'
+        || requestUrl.pathname === apiPath
+        || requestUrl.pathname.startsWith(`${apiPath}/`);
+};
+
+const isCrossOriginAbsoluteRequest = (config) => {
+    const url = String(config.url || '');
+    if (!isAbsoluteUrl(url)) return false;
+
+    const origin = getWindowOrigin();
+    const requestUrl = origin ? getUrl(url, origin) : null;
+    return Boolean(requestUrl && requestUrl.origin !== origin);
+};
+
+const fetchCsrfToken = async () => {
+    if (csrfToken) return csrfToken;
+
+    if (!csrfTokenPromise) {
+        csrfTokenPromise = axios.get('/csrf-token', {
+            baseURL: API_URL,
+            timeout: API_CONFIG.fastTimeoutMs,
+            withCredentials: true
+        }).then((response) => {
+            const token = response.data?.csrfToken || response.data?.token || response.data?.data?.csrfToken || '';
+            csrfToken = token;
+            return token;
+        }).finally(() => {
+            csrfTokenPromise = null;
+        });
+    }
+
+    return csrfTokenPromise;
+};
+
+const shouldAttachCsrfToken = (config, isTrustedApiRequest) => {
+    const method = String(config.method || 'get').toLowerCase();
+    const url = String(config.url || '');
+    return UNSAFE_METHODS.has(method)
+        && isTrustedApiRequest
+        && !config.skipCsrf
+        && !url.includes('/csrf-token')
+        && !url.includes('/auth/login')
+        && !url.includes('/auth/refresh');
+};
 // 默认API实例（用于一般请求）
 export const api = axios.create({
     baseURL: API_URL,
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 20000,
-    retry: 1,
-    retryDelay: 1000,
+    timeout: API_CONFIG.timeoutMs,
+    retry: API_CONFIG.retryCount,
+    retryDelay: API_CONFIG.retryDelayMs,
     withCredentials: true  // ✅ 重要：允许发送Cookie
 });
 // 快速API实例（用于用户信息等关键请求）
@@ -19,9 +97,9 @@ export const fastApi = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 5000,
-    retry: 1,
-    retryDelay: 500,
+    timeout: API_CONFIG.fastTimeoutMs,
+    retry: API_CONFIG.retryCount,
+    retryDelay: API_CONFIG.fastRetryDelayMs,
     withCredentials: true  // ✅ 重要：允许发送Cookie
 });
 /**
@@ -61,18 +139,23 @@ const unwrapResponse = (response) => {
 };
 // 通用拦截器配置函数
 const setupInterceptors = (apiInstance) => {
-    apiInstance.interceptors.request.use((config) => {
-        const token = tokenManager.getToken();
-        if (config.url && !config.url.startsWith('http')) {
-            if (!config.url.startsWith('/api')) {
-                config.url = '/api' + config.url;
-            }
+    apiInstance.interceptors.request.use(async (config) => {
+        config.url = normalizeApiRequestUrl(config.url);
+
+        const isTrustedApiRequest = isCredentialedApiRequest(config);
+        config.headers = config.headers || {};
+        delete config.headers['Authorization'];
+        delete config.headers.authorization;
+
+        if (!isTrustedApiRequest && isCrossOriginAbsoluteRequest(config)) {
+            config.withCredentials = false;
         }
-        // 只要存在 token 就注入 Authorization 头
-        // 即使 token 可能已过期，也应该发送，让后端返回 401 触发前端的 refresh 逻辑
-        // 否则请求不带 Authorization 头会被 CSRF 中间件拦截为 403
-        if (token) {
-            config.headers['Authorization'] = `Bearer ${token}`;
+
+        if (shouldAttachCsrfToken(config, isTrustedApiRequest)) {
+            const csrf = await fetchCsrfToken();
+            if (csrf) {
+                config.headers['X-CSRF-Token'] = csrf;
+            }
         }
         return config;
     }, (error) => {
@@ -82,12 +165,12 @@ const setupInterceptors = (apiInstance) => {
     // 用于管理刷新Token的状态
     let isRefreshing = false;
     let failedQueue = [];
-    const processQueue = (error, token = null) => {
+    const processQueue = (error) => {
         failedQueue.forEach(prom => {
             if (error) {
                 prom.reject(error);
             } else {
-                prom.resolve(token);
+                prom.resolve();
             }
         });
         failedQueue = [];
@@ -100,29 +183,22 @@ const setupInterceptors = (apiInstance) => {
             return unwrapResponse(response);
         },
         async (error) => {
-            const originalRequest = error.config;
+            const originalRequest = error.config || {};
+            const requestUrl = String(originalRequest.url || '');
+            const csrfErrorCode = error.response?.data?.errorCode || error.response?.data?.code;
+            if (error.response?.status === 403 && csrfErrorCode === 'INVALID_CSRF_TOKEN') {
+                csrfToken = '';
+            }
             // 如果是401错误且不是登录/刷新接口且未重试过
             if (error.response?.status === 401 &&
-                !originalRequest.url.includes('/auth/login') &&
-                !originalRequest.url.includes('/auth/refresh') &&
+                isCredentialedApiRequest(originalRequest) &&
+                !requestUrl.includes('/auth/login') &&
+                !requestUrl.includes('/auth/refresh') &&
                 !originalRequest._retry) {
-                // ✅ 根源判断：如果本地根本没有任何 token，说明用户未登录，直接跳登录页
-                // 不发送任何 refresh 请求，避免后端产生无意义的错误日志
-                const hasAnyToken = tokenManager.getToken() || tokenManager.getRefreshToken();
-                if (!hasAnyToken) {
-                    tokenManager.clearAuth();
-                    if (!window.location.pathname.includes('/login')) {
-                        window.location.href = '/login';
-                    }
-                    return Promise.reject(error);
-                }
                 if (isRefreshing) {
                     return new Promise((resolve, reject) => {
                         failedQueue.push({ resolve, reject });
-                    }).then(token => {
-                        if (token) {
-                            originalRequest.headers['Authorization'] = `Bearer ${token}`;
-                        }
+                    }).then(() => {
                         return apiInstance(originalRequest);
                     }).catch(err => {
                         return Promise.reject(err);
@@ -131,35 +207,15 @@ const setupInterceptors = (apiInstance) => {
                 originalRequest._retry = true;
                 isRefreshing = true;
                 try {
-                    // 尝试用 Cookie 或 localStorage 中的 refreshToken 刷新
-                    let refreshResponse;
-                    const storedRefreshToken = tokenManager.getRefreshToken();
-
-                    try {
-                        refreshResponse = await apiInstance.post('/auth/refresh',
-                            storedRefreshToken ? { refreshToken: storedRefreshToken } : undefined
-                        );
-                    } catch (refreshErr) {
-                        throw refreshErr;
-                    }
-                    const resData = refreshResponse.data;
-                    const accessToken = resData?.accessToken || resData?.token;
-                    const newRefreshToken = resData?.refreshToken;
-                    if (accessToken) {
-                        tokenManager.setToken(accessToken);
-                        if (newRefreshToken) {
-                            tokenManager.setRefreshToken(newRefreshToken);
-                        }
-                        apiInstance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-                        originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
-                        processQueue(null, accessToken);
-                        return apiInstance(originalRequest);
-                    } else {
-                        throw new Error('刷新Token失败: 响应中没有token');
-                    }
+                    // Refresh is cookie-based; the backend rotates HttpOnly cookies.
+                    await apiInstance.post('/auth/refresh');
+                    originalRequest.headers = originalRequest.headers || {};
+                    delete originalRequest.headers['Authorization'];
+                    delete originalRequest.headers.authorization;
+                    processQueue(null);
+                    return apiInstance(originalRequest);
                 } catch (refreshError) {
-                    processQueue(refreshError, null);
-                    tokenManager.clearAuth();
+                    processQueue(refreshError);
                     if (!window.location.pathname.includes('/login')) {
                         window.location.href = '/login';
                     }
@@ -172,6 +228,14 @@ const setupInterceptors = (apiInstance) => {
         }
     );
 };
+applyRequestOptimizer(api, axios, {
+    defaultCacheTtl: API_CONFIG.getCacheTtlMs,
+    maxCacheSize: API_CONFIG.maxRequestCacheSize
+});
+applyRequestOptimizer(fastApi, axios, {
+    defaultCacheTtl: API_CONFIG.getCacheTtlMs,
+    maxCacheSize: API_CONFIG.maxRequestCacheSize
+});
 setupInterceptors(api);
 setupInterceptors(fastApi);
 // 请求重试拦截器（仅对网络错误和 5xx 服务端错误重试，排除认证相关的 4xx）
@@ -183,7 +247,7 @@ api.interceptors.response.use(undefined, async (err) => {
         return Promise.reject(err);
     }
     config.retryCount = (config.retryCount || 0) + 1;
-    await new Promise(resolve => setTimeout(resolve, config.retryDelay || 1000));
+    await new Promise(resolve => setTimeout(resolve, config.retryDelay || API_CONFIG.retryDelayMs));
     return api(config);
 });
 export default api;

@@ -15,6 +15,7 @@ const {
   ERROR_MESSAGES,
 } = require('../../constants/financeConstants');
 const { accountingConfig } = require('../../config/accountingConfig');
+const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
 
 /**
  * 库存成本自动化服务
@@ -34,17 +35,35 @@ class InventoryCostService {
 
       // 1. 验证并获取物料信息
       const material = await this.getMaterialInfo(connection, transaction.material_id);
+      const accountingDate = toLocalDateString(
+        transaction.transaction_date || transaction.date || currentDateString()
+      );
+      const documentNumber = `${transaction.reference_no || transaction.id || 'IN'}-M${transaction.material_id}`;
+      const existingEntry = await this.findExistingActiveGlEntry(
+        connection,
+        DOCUMENT_TYPE_MAPPING.INVENTORY_INBOUND,
+        documentNumber
+      );
+      if (existingEntry) {
+        await connection.commit();
+        return {
+          skipped: true,
+          entryId: existingEntry.id,
+          entryNumber: existingEntry.entry_number,
+          message: 'Inventory inbound cost entry already exists',
+        };
+      }
 
       // 2. 计算成本
       // ✅ 优先使用流水传入的实际账单价格 (如采购价/生产成本价)，若无则回退至移动加权平均价或静态参考价
-      const inboundUnitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || material.price || 0);
+      const inboundUnitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || 0);
       const inboundQty = parseFloat(transaction.quantity) || 0;
       const totalCost = inboundQty * inboundUnitCost;
 
       // ==========================================
       // [新增] 实施移动加权平均成本 (MAC) 闭环更新
       // ==========================================
-      const oldCostPrice = parseFloat(material.cost_price || material.price || 0);
+      const oldCostPrice = parseFloat(material.cost_price || 0);
       let newMac = inboundUnitCost; // 默认 fallback
 
       try {
@@ -80,7 +99,7 @@ class InventoryCostService {
       }
 
       // 3. 获取当前会计期间
-      const periodId = context.periodId || (await this.getCurrentPeriodId(connection));
+      const periodId = context.periodId || (await this.getCurrentPeriodId(connection, accountingDate));
 
       // 4. 生成分录编号
       const entryNumber = await this.generateEntryNumber(connection, ENTRY_NUMBER_PREFIX.INVENTORY);
@@ -90,7 +109,8 @@ class InventoryCostService {
         connection,
         transaction.material_id
       );
-      const sourceAccountId = await this.getSourceAccountId(connection, transaction.reference_type);
+      const referenceType = transaction.reference_type || transaction.transaction_type;
+      const sourceAccountId = await this.getSourceAccountId(connection, referenceType);
 
       // 6. 获取用户ID（如果传入的是用户名或姓名）
       const userId = await getUserIdByIdentifier(connection, context.userId || 'system');
@@ -98,10 +118,10 @@ class InventoryCostService {
       // 7. 准备分录数据
       const entryData = {
         entry_number: entryNumber,
-        entry_date: new Date().toISOString().split('T')[0],
-        posting_date: new Date().toISOString().split('T')[0],
+        entry_date: accountingDate,
+        posting_date: accountingDate,
         document_type: DOCUMENT_TYPE_MAPPING.INVENTORY_INBOUND,
-        document_number: `${transaction.reference_no}-M${transaction.material_id}`,
+        document_number: documentNumber,
         period_id: periodId,
         description: `库存入库 - ${material.name} (${material.code})`,
         created_by: userId,
@@ -172,20 +192,39 @@ class InventoryCostService {
 
       // 1. 验证并获取物料信息
       const material = await this.getMaterialInfo(connection, transaction.material_id);
+      const accountingDate = toLocalDateString(
+        transaction.transaction_date || transaction.date || currentDateString()
+      );
+      const documentNumber = `${transaction.reference_no || transaction.id || 'OUT'}-M${transaction.material_id}`;
+      const existingEntry = await this.findExistingActiveGlEntry(
+        connection,
+        DOCUMENT_TYPE_MAPPING.INVENTORY_OUTBOUND,
+        documentNumber
+      );
+      if (existingEntry) {
+        await connection.commit();
+        return {
+          skipped: true,
+          entryId: existingEntry.id,
+          entryNumber: existingEntry.entry_number,
+          message: 'Inventory outbound cost entry already exists',
+        };
+      }
 
       // 2. 计算成本
       // ✅ 出库同理，优先取透传价格，若无则取当下材料已被 MAC 算法维护好的 cost_price 移动加权均价
-      const unitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || material.price || 0);
+      const unitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || 0);
       const totalCost = Math.abs(transaction.quantity) * unitCost;
 
       // 3. 获取当前会计期间
-      const periodId = context.periodId || (await this.getCurrentPeriodId(connection));
+      const periodId = context.periodId || (await this.getCurrentPeriodId(connection, accountingDate));
 
       // 4. 生成分录编号
       const entryNumber = await this.generateEntryNumber(connection, ENTRY_NUMBER_PREFIX.INVENTORY);
 
       // 5. 获取会计科目ID
-      const costAccountId = await this.getCostAccountId(connection, transaction.reference_type);
+      const referenceType = transaction.reference_type || transaction.transaction_type;
+      const costAccountId = await this.getCostAccountId(connection, referenceType);
       const inventoryAccountId = await this.getInventoryAccountId(
         connection,
         transaction.material_id
@@ -197,10 +236,10 @@ class InventoryCostService {
       // 7. 准备分录数据
       const entryData = {
         entry_number: entryNumber,
-        entry_date: new Date().toISOString().split('T')[0],
-        posting_date: new Date().toISOString().split('T')[0],
+        entry_date: accountingDate,
+        posting_date: accountingDate,
         document_type: DOCUMENT_TYPE_MAPPING.INVENTORY_OUTBOUND,
-        document_number: `${transaction.reference_no}-M${transaction.material_id}`,
+        document_number: documentNumber,
         period_id: periodId,
         description: `库存出库 - ${material.name} (${material.code})`,
         created_by: userId,
@@ -277,12 +316,29 @@ class InventoryCostService {
     return materials[0];
   }
 
+  static async findExistingActiveGlEntry(connection, documentType, documentNumber) {
+    if (!documentType || !documentNumber) return null;
+
+    const [entries] = await connection.execute(
+      `SELECT id, entry_number
+       FROM gl_entries
+       WHERE document_type = ?
+         AND document_number = ?
+         AND COALESCE(is_reversed, 0) = 0
+       LIMIT 1
+       FOR UPDATE`,
+      [documentType, documentNumber]
+    );
+
+    return entries[0] || null;
+  }
+
   /**
    * 获取当前会计期间ID
    * @private
    */
-  static async getCurrentPeriodId(connection) {
-    const today = new Date().toISOString().split('T')[0];
+  static async getCurrentPeriodId(connection, date = currentDateString()) {
+    const today = toLocalDateString(date);
 
     const [periods] = await connection.execute(
       'SELECT id FROM gl_periods WHERE start_date <= ? AND end_date >= ? AND is_closed = 0 LIMIT 1',
@@ -335,6 +391,9 @@ class InventoryCostService {
         break;
       case 'production_inbound':
         accountKey = 'PRODUCTION_COST'; // 生产成本
+        break;
+      case 'sales_return':
+        accountKey = 'SALES_COST'; // 销售退货入库冲回主营业务成本
         break;
       case 'manual_in':
       case 'adjustment_in':
@@ -407,8 +466,7 @@ class InventoryCostService {
    * @private
    */
   static async generateEntryNumber(connection, prefix) {
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = currentDateString().replace(/-/g, '');
 
     const [result] = await connection.execute(
       'SELECT MAX(entry_number) as max_no FROM gl_entries WHERE entry_number LIKE ? FOR UPDATE',

@@ -13,8 +13,101 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const financeModel = require('../../models/finance');
 const DocumentLinkService = require('./DocumentLinkService');
+const { accountingConfig } = require('../../config/accountingConfig');
+const { roundMoney } = require('../../utils/money');
+const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
+
+function validationError(message) {
+  const error = new Error(message);
+  error.code = 'VALIDATION_ERROR';
+  return error;
+}
+
+function toCents(value) {
+  return Math.round(roundMoney(value) * 100);
+}
+
+function normalizeInvoiceVoucherAmounts(invoice) {
+  const amountExcludingTaxCents = toCents(invoice?.amount_excluding_tax);
+  const taxAmountCents = toCents(invoice?.tax_amount);
+  const totalAmountCents = toCents(invoice?.total_amount);
+
+  if (amountExcludingTaxCents < 0 || taxAmountCents < 0 || totalAmountCents < 0) {
+    throw validationError('发票金额不能为负数，不能生成会计分录');
+  }
+
+  if (totalAmountCents <= 0) {
+    throw validationError('发票价税合计必须大于0，不能生成会计分录');
+  }
+
+  if (amountExcludingTaxCents + taxAmountCents !== totalAmountCents) {
+    throw validationError('发票金额不平衡：不含税金额 + 税额必须等于价税合计');
+  }
+
+  return {
+    amountExcludingTax: amountExcludingTaxCents / 100,
+    taxAmount: taxAmountCents / 100,
+    totalAmount: totalAmountCents / 100,
+  };
+}
+
+function addNonZeroEntryItem(items, item, direction, amount) {
+  const amountCents = toCents(amount);
+  if (amountCents === 0) return;
+
+  const normalizedAmount = amountCents / 100;
+  items.push({
+    ...item,
+    debit_amount: direction === 'debit' ? normalizedAmount : 0,
+    credit_amount: direction === 'credit' ? normalizedAmount : 0,
+  });
+}
 
 class TaxAccountingService {
+  static async resolveTaxAccountId(connection, taxConfigKeys, accountConfigKeys, label) {
+    const configKeys = [...new Set([].concat(taxConfigKeys).filter(Boolean))];
+    if (configKeys.length > 0) {
+      const [configs] = await connection.execute(
+        `SELECT tac.config_key, tac.account_id
+         FROM tax_account_config tac
+         JOIN gl_accounts ga ON ga.id = tac.account_id AND ga.is_active = 1
+         WHERE tac.config_key IN (${configKeys.map(() => '?').join(',')})
+           AND COALESCE(tac.is_active, 1) = 1`,
+        configKeys
+      );
+      const configByKey = new Map(configs.map((config) => [config.config_key, config.account_id]));
+      for (const key of configKeys) {
+        if (configByKey.has(key)) {
+          return configByKey.get(key);
+        }
+      }
+    }
+
+    await accountingConfig.loadFromDatabase(db);
+    const accountCodes = [
+      ...new Set(
+        []
+          .concat(accountConfigKeys)
+          .filter(Boolean)
+          .map((key) => accountingConfig.getAccountCode(key))
+          .filter(Boolean)
+      ),
+    ];
+
+    for (const accountCode of accountCodes) {
+      const [accounts] = await connection.execute(
+        'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = 1 LIMIT 1',
+        [accountCode]
+      );
+      if (accounts.length > 0) {
+        return accounts[0].id;
+      }
+    }
+
+    const expectedKeys = [...configKeys, ...accountConfigKeys].join(', ');
+    throw new Error(`未配置${label}科目(${expectedKeys})`);
+  }
+
   static async linkTaxInvoiceVoucher(invoice, entryInfo, userId, connection) {
     if (!invoice?.id || !entryInfo?.entryId) return;
 
@@ -45,6 +138,52 @@ class TaxAccountingService {
     );
   }
 
+  static async hasLinkedArVoucherForOutputTax(connection, invoice) {
+    if (!invoice?.related_document_id) return false;
+
+    const [rows] = await connection.execute(
+      `SELECT ai.id
+       FROM sales_outbound so
+       JOIN ar_invoices ai
+         ON ai.source_type = 'sales_order'
+        AND ai.source_id = so.order_id
+       JOIN document_links dl
+         ON dl.source_type = 'ar_invoice'
+        AND dl.source_id = ai.id
+        AND dl.target_type = 'finance_voucher'
+       JOIN gl_entries ge
+         ON ge.id = dl.target_id
+        AND COALESCE(ge.is_reversed, 0) = 0
+       WHERE so.id = ?
+       LIMIT 1`,
+      [invoice.related_document_id]
+    );
+
+    return rows.length > 0;
+  }
+
+  static async hasLinkedApVoucherForInputTax(connection, invoice) {
+    if (!invoice?.related_document_id) return false;
+
+    const [rows] = await connection.execute(
+      `SELECT ai.id
+       FROM ap_invoices ai
+       JOIN document_links dl
+         ON dl.source_type = 'ap_invoice'
+        AND dl.source_id = ai.id
+        AND dl.target_type = 'finance_voucher'
+       JOIN gl_entries ge
+         ON ge.id = dl.target_id
+        AND COALESCE(ge.is_reversed, 0) = 0
+       WHERE ai.source_type = 'purchase_receipt'
+         AND ai.source_id = ?
+       LIMIT 1`,
+      [invoice.related_document_id]
+    );
+
+    return rows.length > 0;
+  }
+
   /**
    * 从销项发票生成会计分录
    * @param {Object} invoice - 销项发票数据
@@ -52,7 +191,7 @@ class TaxAccountingService {
    * @returns {Promise<Object>} 生成的会计分录信息
    */
   static async generateOutputTaxEntry(invoice, userId, externalConnection = null) {
-    const connection = externalConnection || await db.pool.getConnection();
+    const connection = externalConnection || (await db.pool.getConnection());
     const shouldManageTransaction = !externalConnection;
 
     try {
@@ -60,81 +199,98 @@ class TaxAccountingService {
         await connection.beginTransaction();
       }
 
-      // 1. 获取税务科目配置
-      const [outputTaxConfig] = await connection.execute(
-        'SELECT account_id FROM tax_account_config WHERE config_key = ?',
-        ['VAT_OUTPUT_TAX']
+      const outputTaxAccountId = await this.resolveTaxAccountId(
+        connection,
+        ['VAT_OUTPUT_TAX'],
+        ['VAT_OUTPUT_TAX', 'TAX_PAYABLE'],
+        '销项税额'
       );
-
-      if (outputTaxConfig.length === 0) {
-        throw new Error('未配置销项税额科目');
-      }
-
-      const outputTaxAccountId = outputTaxConfig[0].account_id;
-
-      // 2. 获取应收账款科目
-      const [arConfig] = await connection.execute(
-        'SELECT account_id FROM tax_account_config WHERE config_key = ?',
-        ['ACCOUNTS_RECEIVABLE']
+      const arAccountId = await this.resolveTaxAccountId(
+        connection,
+        ['ACCOUNTS_RECEIVABLE'],
+        ['ACCOUNTS_RECEIVABLE'],
+        '应收账款'
       );
-
-      const arAccountId = arConfig.length > 0 ? arConfig[0].account_id : null;
-
-      // 3. 获取主营业务收入科目
-      const [revenueConfig] = await connection.execute(
-        'SELECT account_id FROM tax_account_config WHERE config_key = ?',
-        ['SALES_REVENUE']
+      const revenueAccountId = await this.resolveTaxAccountId(
+        connection,
+        ['SALES_REVENUE'],
+        ['SALES_REVENUE'],
+        '主营业务收入'
       );
-
-      const revenueAccountId = revenueConfig.length > 0 ? revenueConfig[0].account_id : null;
-
-      if (!arAccountId) {
-        throw new Error('未配置应收账款科目');
-      }
-      if (!revenueAccountId) {
-        throw new Error('未配置主营业务收入科目');
-      }
 
       // 4. 生成分录编号
       const entryNumber = await this.generateEntryNumber('VAT-OUT', connection);
 
       // 5. 获取当前会计期间
-      const periodId = await this.getCurrentPeriodId(invoice.invoice_date, connection);
+      const invoiceDate = toLocalDateString(invoice.invoice_date || currentDateString());
+      const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
+      const voucherAmounts = normalizeInvoiceVoucherAmounts(invoice);
+      const useTaxReclassification = await this.hasLinkedArVoucherForOutputTax(connection, invoice);
 
       // 6. 创建会计分录
       const entryData = {
         entry_number: entryNumber,
-        entry_date: invoice.invoice_date,
-        posting_date: invoice.invoice_date,
+        entry_date: invoiceDate,
+        posting_date: invoiceDate,
         document_type: '发票',
         document_number: invoice.invoice_number,
         period_id: periodId,
-        description: `销项税额 - ${invoice.invoice_number}`,
+        description: useTaxReclassification
+          ? `VAT output tax reclassification - ${invoice.invoice_number}`
+          : `销项税额 - ${invoice.invoice_number}`,
         created_by: userId,
         status: 'posted',
         is_posted: 1,
       };
 
-      const entryItems = [
-        {
-          account_id: arAccountId,
-          debit_amount: invoice.total_amount,
-          credit_amount: 0,
-          description: `应收账款 - ${invoice.supplier_or_customer_name}`,
-        },
-        {
-          account_id: revenueAccountId,
-          debit_amount: 0,
-          credit_amount: invoice.amount_excluding_tax,
-          description: `主营业务收入 - ${invoice.supplier_or_customer_name}`,
-        },
+      const entryItems = [];
+
+      if (useTaxReclassification) {
+        addNonZeroEntryItem(
+          entryItems,
+          {
+            account_id: revenueAccountId,
+            description: `VAT output tax reclassification - ${invoice.invoice_number}`,
+          },
+          'debit',
+          voucherAmounts.taxAmount
+        );
+      } else {
+        addNonZeroEntryItem(
+          entryItems,
+          {
+            account_id: arAccountId,
+            description: `应收账款 - ${invoice.supplier_or_customer_name}`,
+          },
+          'debit',
+          voucherAmounts.totalAmount
+        );
+        addNonZeroEntryItem(
+          entryItems,
+          {
+            account_id: revenueAccountId,
+            description: `主营业务收入 - ${invoice.supplier_or_customer_name}`,
+          },
+          'credit',
+          voucherAmounts.amountExcludingTax
+        );
+      }
+      addNonZeroEntryItem(
+        entryItems,
         {
           account_id: outputTaxAccountId,
-          debit_amount: 0,
-          credit_amount: invoice.tax_amount,
           description: `应交增值税(销项税额) - ${invoice.invoice_number}`,
         },
-      ];
+        'credit',
+        voucherAmounts.taxAmount
+      );
+
+      if (entryItems.length === 0) {
+        if (shouldManageTransaction) {
+          await connection.commit();
+        }
+        return { skipped: true, message: 'No VAT amount to post' };
+      }
 
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
 
@@ -177,7 +333,7 @@ class TaxAccountingService {
    * @returns {Promise<Object>} 生成的会计分录信息
    */
   static async generateInputTaxEntry(invoice, userId, externalConnection = null) {
-    const connection = externalConnection || await db.pool.getConnection();
+    const connection = externalConnection || (await db.pool.getConnection());
     const shouldManageTransaction = !externalConnection;
 
     try {
@@ -185,56 +341,45 @@ class TaxAccountingService {
         await connection.beginTransaction();
       }
 
-      // 1. 获取税务科目配置
-      const [inputTaxConfig] = await connection.execute(
-        'SELECT account_id FROM tax_account_config WHERE config_key = ?',
-        ['VAT_INPUT_TAX']
+      const inputTaxAccountId = await this.resolveTaxAccountId(
+        connection,
+        ['VAT_INPUT_TAX'],
+        ['VAT_INPUT_TAX', 'TAX_PAYABLE'],
+        '进项税额'
       );
-
-      if (inputTaxConfig.length === 0) {
-        throw new Error('未配置进项税额科目');
-      }
-
-      const inputTaxAccountId = inputTaxConfig[0].account_id;
-
-      // 2. 获取应付账款科目
-      const [apConfig] = await connection.execute(
-        'SELECT account_id FROM tax_account_config WHERE config_key = ?',
-        ['ACCOUNTS_PAYABLE']
+      const apAccountId = await this.resolveTaxAccountId(
+        connection,
+        ['ACCOUNTS_PAYABLE'],
+        ['ACCOUNTS_PAYABLE'],
+        '应付账款'
       );
-
-      const apAccountId = apConfig.length > 0 ? apConfig[0].account_id : null;
-
-      // 3. 获取原材料/库存商品科目（根据关联单据类型）
-      const [inventoryConfig] = await connection.execute(
-        'SELECT account_id FROM tax_account_config WHERE config_key = ?',
-        ['RAW_MATERIALS']
+      const inventoryAccountId = await this.resolveTaxAccountId(
+        connection,
+        ['RAW_MATERIALS', 'INVENTORY_GOODS', 'INVENTORY'],
+        ['RAW_MATERIALS', 'INVENTORY_GOODS', 'INVENTORY'],
+        '原材料/库存商品'
       );
-
-      const inventoryAccountId = inventoryConfig.length > 0 ? inventoryConfig[0].account_id : null;
-
-      if (!apAccountId) {
-        throw new Error('未配置应付账款科目');
-      }
-      if (!inventoryAccountId) {
-        throw new Error('未配置原材料/库存商品科目');
-      }
 
       // 4. 生成分录编号
       const entryNumber = await this.generateEntryNumber('VAT-IN', connection);
 
       // 5. 获取当前会计期间
-      const periodId = await this.getCurrentPeriodId(invoice.invoice_date, connection);
+      const invoiceDate = toLocalDateString(invoice.invoice_date || currentDateString());
+      const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
+      const voucherAmounts = normalizeInvoiceVoucherAmounts(invoice);
+      const useTaxReclassification = await this.hasLinkedApVoucherForInputTax(connection, invoice);
 
       // 6. 创建会计分录
       const entryData = {
         entry_number: entryNumber,
-        entry_date: invoice.invoice_date,
-        posting_date: invoice.invoice_date,
+        entry_date: invoiceDate,
+        posting_date: invoiceDate,
         document_type: '发票',
         document_number: invoice.invoice_number,
         period_id: periodId,
-        description: `进项税额 - ${invoice.invoice_number}`,
+        description: useTaxReclassification
+          ? `VAT input tax reclassification - ${invoice.invoice_number}`
+          : `进项税额 - ${invoice.invoice_number}`,
         created_by: userId,
         status: 'posted',
         is_posted: 1,
@@ -242,28 +387,56 @@ class TaxAccountingService {
 
       const entryItems = [];
 
-      // 借方明细
-      entryItems.push({
-        account_id: inventoryAccountId,
-        debit_amount: invoice.amount_excluding_tax,
-        credit_amount: 0,
-        description: `原材料/库存商品 - ${invoice.supplier_or_customer_name}`,
-      });
+      if (!useTaxReclassification) {
+        addNonZeroEntryItem(
+          entryItems,
+          {
+            account_id: inventoryAccountId,
+            description: `原材料/库存商品 - ${invoice.supplier_or_customer_name}`,
+          },
+          'debit',
+          voucherAmounts.amountExcludingTax
+        );
+      }
 
-      entryItems.push({
-        account_id: inputTaxAccountId,
-        debit_amount: invoice.tax_amount,
-        credit_amount: 0,
-        description: `应交增值税(进项税额) - ${invoice.invoice_number}`,
-      });
+      addNonZeroEntryItem(
+        entryItems,
+        {
+          account_id: inputTaxAccountId,
+          description: `应交增值税(进项税额) - ${invoice.invoice_number}`,
+        },
+        'debit',
+        voucherAmounts.taxAmount
+      );
 
-      // 贷方明细
-      entryItems.push({
-        account_id: apAccountId,
-        debit_amount: 0,
-        credit_amount: invoice.total_amount,
-        description: `应付账款 - ${invoice.supplier_or_customer_name}`,
-      });
+      if (useTaxReclassification) {
+        addNonZeroEntryItem(
+          entryItems,
+          {
+            account_id: inventoryAccountId,
+            description: `VAT input tax reclassification - ${invoice.invoice_number}`,
+          },
+          'credit',
+          voucherAmounts.taxAmount
+        );
+      } else {
+        addNonZeroEntryItem(
+          entryItems,
+          {
+            account_id: apAccountId,
+            description: `应付账款 - ${invoice.supplier_or_customer_name}`,
+          },
+          'credit',
+          voucherAmounts.totalAmount
+        );
+      }
+
+      if (entryItems.length === 0) {
+        if (shouldManageTransaction) {
+          await connection.commit();
+        }
+        return { skipped: true, message: 'No VAT amount to post' };
+      }
 
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
 
@@ -306,10 +479,7 @@ class TaxAccountingService {
    * @returns {Promise<string>} 分录编号
    */
   static async generateEntryNumber(prefix, connection) {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const datePart = currentDateString().replace(/-/g, '');
 
     // 查询当天最大编号
     const [rows] = await connection.execute(
@@ -321,7 +491,7 @@ class TaxAccountingService {
       LIMIT 1
       FOR UPDATE
     `,
-      [`${prefix}-${year}${month}${day}%`]
+      [`${prefix}-${datePart}%`]
     );
 
     let sequence = 1;
@@ -331,7 +501,7 @@ class TaxAccountingService {
       sequence = lastSequence + 1;
     }
 
-    return `${prefix}-${year}${month}${day}${String(sequence).padStart(4, '0')}`;
+    return `${prefix}-${datePart}${String(sequence).padStart(4, '0')}`;
   }
 
   /**
@@ -365,7 +535,7 @@ class TaxAccountingService {
    * @returns {Promise<Object>} 生成的会计分录信息
    */
   static async generateVATReturnEntry(taxReturn, userId, externalConnection = null, options = {}) {
-    const connection = externalConnection || await db.pool.getConnection();
+    const connection = externalConnection || (await db.pool.getConnection());
     const shouldManageTransaction = !externalConnection;
 
     try {
@@ -373,35 +543,24 @@ class TaxAccountingService {
         await connection.beginTransaction();
       }
 
-      // 1. 获取税务科目配置
-      const [vatPayableConfig] = await connection.execute(
-        'SELECT account_id FROM tax_account_config WHERE config_key = ?',
-        ['VAT_PAYABLE']
+      const vatPayableAccountId = await this.resolveTaxAccountId(
+        connection,
+        ['VAT_PAYABLE'],
+        ['VAT_PAYABLE', 'TAX_PAYABLE'],
+        '应交增值税'
       );
-
-      if (vatPayableConfig.length === 0) {
-        throw new Error('未配置应交增值税科目');
-      }
-
-      const vatPayableAccountId = vatPayableConfig[0].account_id;
-
-      // 2. 获取银行存款科目
-      const [bankConfig] = await connection.execute(
-        'SELECT account_id FROM tax_account_config WHERE config_key = ?',
-        ['BANK_DEPOSITS']
+      const bankAccountId = await this.resolveTaxAccountId(
+        connection,
+        ['BANK_DEPOSIT', 'BANK_DEPOSITS'],
+        ['BANK_DEPOSIT'],
+        '银行存款'
       );
-
-      if (bankConfig.length === 0) {
-        throw new Error('未配置银行存款科目');
-      }
-
-      const bankAccountId = bankConfig[0].account_id;
 
       // 3. 生成分录编号
       const entryNumber = await this.generateEntryNumber('VAT-PAY', connection);
 
       // 4. 获取当前会计期间
-      const accountingDate = options.accountingDate || new Date().toISOString().split('T')[0];
+      const accountingDate = toLocalDateString(options.accountingDate || currentDateString());
       const periodId = await this.getCurrentPeriodId(accountingDate, connection);
       const payableAmount = parseFloat(taxReturn.tax_payable || 0);
 

@@ -10,6 +10,7 @@ const db = require('../../config/db');
 const financeModel = require('../../models/finance');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('./DocumentLinkService');
+const { currentDateString } = require('../../utils/dateUtils');
 
 function normalizePeriodMonth(value) {
   const periodMonth = String(value || '').trim();
@@ -518,8 +519,7 @@ class DepreciationService {
    * 生成分录编号
    */
   static async generateEntryNumber(prefix, connection = db.pool) {
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = currentDateString().replace(/-/g, '');
 
     const [result] = await connection.execute(
       `SELECT entry_number as max_no

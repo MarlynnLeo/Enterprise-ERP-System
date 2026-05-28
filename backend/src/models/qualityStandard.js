@@ -6,6 +6,7 @@
  */
 
 const db = require('../config/db');
+const { parsePagination } = require('../utils/safePagination');
 
 /**
  * 质量标准模型
@@ -19,6 +20,7 @@ class QualityStandard {
    * @returns {Promise<{rows: Array, total: number}>} 标准列表和总数
    */
   static async getStandards(filters = {}, page = 1, pageSize = 20) {
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
     let query = `
       SELECT qs.*,
         COUNT(qsi.id) as item_count,
@@ -72,8 +74,7 @@ class QualityStandard {
     const total = countResult.rows[0].total;
 
     // 添加分页（直接拼接，已验证）
-    const offset = (page - 1) * pageSize;
-    query += ` ORDER BY qs.created_at DESC LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`;
+    query += ` ORDER BY qs.created_at DESC LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
 
     const result = await db.query(query, queryParams);
 

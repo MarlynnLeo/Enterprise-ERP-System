@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -16,7 +16,7 @@
       <el-table :data="tableData" v-loading="loading" border stripe>
       <el-table-column prop="from_currency" label="源币种" width="100" />
       <el-table-column prop="to_currency" label="目标币种" width="100" />
-      <el-table-column prop="rate" label="汇率" width="140" align="right">
+      <el-table-column prop="rate" label="汇率" width="140">
         <template #default="{ row }">{{ Number(row.rate).toFixed(6) }}</template>
       </el-table-column>
       <el-table-column prop="effective_date" label="生效日期" width="120" />
@@ -24,7 +24,7 @@
         <template #default="{ row }"><el-tag size="small">{{ row.source === 'api' ? '自动' : '手动' }}</el-tag></template>
       </el-table-column>
       <el-table-column prop="created_at" label="创建时间" min-width="160" />
-      <el-table-column label="操作" width="80">
+      <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
             <template #reference><el-button v-permission="'finance:exchange-rates:update'" link type="danger">删除</el-button></template>
@@ -102,5 +102,4 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
-/* 页面专属样式已由 common-styles.css 统一提供 */
 </style>

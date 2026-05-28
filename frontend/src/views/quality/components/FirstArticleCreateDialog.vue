@@ -99,7 +99,7 @@ const isFullInspection = computed(() => {
 // 获取可用的生产任务（进行中的任务）
 const fetchTasks = async () => {
   try {
-    const res = await productionApi.getProductionTasks({ status: 'in_progress', pageSize: 100 })
+    const res = await productionApi.getProductionTasks({ status: 'in_progress', pageSize: 50 })
     const data = res.data || res
     taskOptions.value = data.list || data || []
   } catch (error) {

@@ -14,6 +14,13 @@ import {
   sanitizePrintHtml,
   writeSafeHtmlDocument,
 } from '@/utils/htmlSecurity'
+import { getCssTokenValue } from '@/utils/designTokens'
+import { parseResponseData } from '@/utils/responseParser'
+
+const getPrintTokens = () => ({
+  border: getCssTokenValue('textPrimary'),
+  headerBg: getCssTokenValue('page')
+})
 
 /**
  * 解码 HTML 实体（如果模板内容被转义了）
@@ -32,36 +39,23 @@ export function decodeHtmlEntities(text) {
 export function parseTemplateResponse(response) {
   if (!response) return null;
 
+  const payload = parseResponseData(response, null);
   let template = null;
 
-  if (response.content) {
-    template = response;
-  }
-  // 格式1: { code: 200, data: {...} } - 传统格式
-  else if (response.data?.data?.content) {
-    template = response.data.data;
-  }
-  // 格式2: { success: true, data: {...} } - ResponseHandler 格式（已被拦截器解包）
-  else if (response.data?.content) {
-    template = response.data;
-  }
-  // 格式3: { code: 200, data: { list: [...] } } - 列表格式
-  else if (response.data?.data?.list?.[0]) {
-    template = response.data.data.list[0];
-  }
-  // 格式4: { data: [...] } - 数组格式
-  else if (Array.isArray(response.data?.data) && response.data.data[0]) {
-    template = response.data.data[0];
+  if (payload?.content) {
+    template = payload;
+  } else if (payload?.list?.[0]) {
+    template = payload.list[0];
+  } else if (Array.isArray(payload) && payload[0]) {
+    template = payload[0];
   }
 
-  // 解码 HTML 实体
   if (template?.content && (template.content.includes('&lt;') || template.content.includes('&gt;'))) {
     template.content = decodeHtmlEntities(template.content);
   }
 
   return template;
 }
-
 export function normalizeTemplateListResponse(response) {
   const payload = response?.data ?? response;
 
@@ -259,6 +253,7 @@ const printService = {
       const content = compiledTemplate(data);
 
       // 构建打印样式
+      const printTokens = getPrintTokens()
       const style = `
         <style>
           @page {
@@ -277,11 +272,11 @@ const printService = {
             border-collapse: collapse;
           }
           th, td {
-            border: 1px solid #000;
+            border: 1px solid ${printTokens.border};
             padding: 5px;
           }
           th {
-            background-color: #f0f0f0;
+            background-color: ${printTokens.headerBg};
           }
         </style>
       `;
@@ -324,6 +319,7 @@ const printService = {
       }
 
       // 构建打印样式
+      const printTokens = getPrintTokens()
       const style = `
         <style>
           @page {
@@ -342,11 +338,11 @@ const printService = {
             border-collapse: collapse;
           }
           th, td {
-            border: 1px solid #000;
+            border: 1px solid ${printTokens.border};
             padding: 5px;
           }
           th {
-            background-color: #f0f0f0;
+            background-color: ${printTokens.headerBg};
           }
         </style>
       `;

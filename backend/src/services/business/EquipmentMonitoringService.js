@@ -314,7 +314,7 @@ class EquipmentMonitoringService extends BaseService {
       const total = countResult[0].total;
 
       // 获取数据
-      const safePageSize = Math.max(1, Math.min(10000, parseInt(pageSize, 10) || 20));
+      const safePageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 20));
       const offset = (Math.max(1, parseInt(page, 10) || 1) - 1) * safePageSize;
       const [rows] = await connection.execute(
         `

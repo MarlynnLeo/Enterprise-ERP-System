@@ -120,8 +120,8 @@ watch(() => props.data, () => {
 
 .preview-content {
   flex: 1;
-  border: 1px solid #dcdfe6;
-  background-color: #f5f7fa;
+  border: 1px solid var(--color-border-base);
+  background-color: var(--color-bg-hover);
   padding: 20px;
   display: flex;
   justify-content: center;
@@ -130,9 +130,9 @@ watch(() => props.data, () => {
 .preview-iframe {
   width: 100%;
   height: 600px; /* 或者根据内容自适应 */
-  background-color: white;
+  background-color: var(--color-bg-base);
   border: none;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 10%, transparent);
 }
 
 .error-message {

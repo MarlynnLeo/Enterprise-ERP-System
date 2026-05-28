@@ -1,58 +1,11 @@
-import { devLogger } from '@/utils/devLogger';
+import { diagnosticLogger } from '@/utils/logger';
 /**
  * 响应数据解析工具
  * @description 统一处理API响应数据的解析逻辑
  * @date 2025-11-25
  * @updated 2025-11-28 - axios拦截器已统一解包ResponseHandler格式
  *
- * ═══════════════════════════════════════════════════════════════════════════
- * 重要说明 - 数据流说明
- * ═══════════════════════════════════════════════════════════════════════════
- *
- * 后端 ResponseHandler.paginated() 返回格式：
- * {
- *   success: true,
- *   message: '查询成功',
- *   data: {
- *     list: [...],      // 数据列表
- *     total: 100,       // 总记录数
- *     page: 1,          // 当前页码
- *     pageSize: 20,     // 每页大小
- *     totalPages: 5     // 总页数
- *   },
- *   timestamp: '...'
- * }
- *
- * axios 拦截器 (axiosInstance.js) 解包后：
- * response.data = {
- *   list: [...],
- *   total: 100,
- *   page: 1,
- *   pageSize: 20,
- *   totalPages: 5
- * }
- *
- * 前端组件使用 parsePaginatedData 解析：
- * const { list, total, page, pageSize } = parsePaginatedData(response);
- *
- * ═══════════════════════════════════════════════════════════════════════════
- * API 层规范（重要！）
- * ═══════════════════════════════════════════════════════════════════════════
- *
- * API 层（如 bom.js, material.js）不应该再次修改 response.data！
- * 应直接返回 axios 响应，让组件使用 parsePaginatedData 或 parseListData 解析。
- *
- * 正确写法：
- *   getBoms: (params) => api.get('/baseData/boms', { params })
- *
- * 错误写法：
- *   getBoms: async (params) => {
- *     const response = await api.get('/baseData/boms', { params });
- *     response.data = { items: response.data.list, ... };  // ❌ 不要这样做！
- *     return response;
- *   }
- *
- * ═══════════════════════════════════════════════════════════════════════════
+ * axios 拦截器已统一解包后端 ResponseHandler，组件侧通过本文件解析列表和分页数据。
  */
 
 // 默认关闭解析跟踪，需要时可在调用处手动启用 enableLog: true
@@ -106,37 +59,37 @@ export const parseListData = (response, options = {}) => {
   // 拦截器已解包，response.data 就是业务数据
   // 优先级1: response.data.list (分页格式)
   if (response?.data?.list && Array.isArray(response.data.list)) {
-    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data.list`);
+    enableLog && diagnosticLogger.debug(`${logPrefix}✅ 数据格式: data.list`);
     result = response.data.list;
   }
   // 优先级2: response.data.items
   else if (response?.data?.items && Array.isArray(response.data.items)) {
-    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data.items`);
+    enableLog && diagnosticLogger.debug(`${logPrefix}✅ 数据格式: data.items`);
     result = response.data.items;
   }
   // 优先级3: response.data.rows
   else if (response?.data?.rows && Array.isArray(response.data.rows)) {
-    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data.rows`);
+    enableLog && diagnosticLogger.debug(`${logPrefix}✅ 数据格式: data.rows`);
     result = response.data.rows;
   }
   // 优先级3.5: response.data.data (嵌套 data 格式，如退货接口 { data: [...], pagination: {...} })
   else if (response?.data?.data && Array.isArray(response.data.data)) {
-    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data.data`);
+    enableLog && diagnosticLogger.debug(`${logPrefix}✅ 数据格式: data.data`);
     result = response.data.data;
   }
   // 优先级4: response.data (数组)
   else if (response?.data && Array.isArray(response.data)) {
-    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data (Array)`);
+    enableLog && diagnosticLogger.debug(`${logPrefix}✅ 数据格式: data (Array)`);
     result = response.data;
   }
   // 优先级5: response (数组)
   else if (Array.isArray(response)) {
-    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: response (Array)`);
+    enableLog && diagnosticLogger.debug(`${logPrefix}✅ 数据格式: response (Array)`);
     result = response;
   }
   // 未知格式
   else {
-    enableLog && devLogger.warn(`${logPrefix}⚠️ 数据格式未知:`, response);
+    enableLog && diagnosticLogger.warn(`${logPrefix}⚠️ 数据格式未知:`, response);
     return [];
   }
 
@@ -161,18 +114,34 @@ export const parseDataObject = (response, options = {}) => {
 
   // 拦截器已解包，response.data 就是业务数据
   if (response?.data && typeof response.data === 'object') {
-    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: data (直接对象)`);
+    enableLog && diagnosticLogger.debug(`${logPrefix}✅ 数据格式: data (直接对象)`);
     return normalizeBooleanFields(response.data);
   }
 
   // response (直接对象)
   if (response && typeof response === 'object' && !response.data) {
-    enableLog && devLogger.debug(`${logPrefix}✅ 数据格式: response (直接对象)`);
+    enableLog && diagnosticLogger.debug(`${logPrefix}✅ 数据格式: response (直接对象)`);
     return normalizeBooleanFields(response);
   }
 
-  enableLog && devLogger.warn(`${logPrefix}⚠️ 无法解析数据对象`);
+  enableLog && diagnosticLogger.warn(`${logPrefix}⚠️ 无法解析数据对象`);
   return null;
+};
+
+export const parseResponseData = (response, defaultValue = null) => {
+  if (response?.data && typeof response.data === 'object' && 'success' in response.data) {
+    return normalizeBooleanFields(response.data.success ? (response.data.data ?? defaultValue) : defaultValue);
+  }
+
+  if (response?.data !== undefined) {
+    return normalizeBooleanFields(response.data);
+  }
+
+  if (response !== undefined && response !== null) {
+    return normalizeBooleanFields(response);
+  }
+
+  return defaultValue;
 };
 
 /**
@@ -186,7 +155,7 @@ export const parseDataObject = (response, options = {}) => {
  * @example
  * const response = await api.create(data);
  * if (isResponseSuccess(response)) {
- *   devLogger.debug('创建成功');
+ *   diagnosticLogger.debug('创建成功');
  * }
  */
 export const isResponseSuccess = (response) => {
@@ -255,13 +224,13 @@ export const parsePaginatedData = (response, options = {}) => {
     const statistics = data.statistics || null;
     const extra = data.extra || null;
 
-    enableLog && devLogger.debug(`${logPrefix}📊 分页信息:`, { total, page, pageSize, totalPages });
+    enableLog && diagnosticLogger.debug(`${logPrefix}📊 分页信息:`, { total, page, pageSize, totalPages });
 
     return { list, total, page, pageSize, totalPages, statistics, extra };
   }
 
   // 默认返回空数据
-  enableLog && devLogger.warn(`${logPrefix}⚠️ 无法解析分页数据`);
+  enableLog && diagnosticLogger.warn(`${logPrefix}⚠️ 无法解析分页数据`);
   return { list: [], total: 0, page: 1, pageSize: 20, totalPages: 0, statistics: null, extra: null };
 };
 
@@ -282,12 +251,12 @@ export const parseResponse = (response, options = {}) => {
 
   switch (type) {
     case 'list':
-      return parseListData(response, logPrefix);
+      return parseListData(response, { ...options, logPrefix });
     case 'paginated':
-      return parsePaginatedData(response);
+      return parsePaginatedData(response, { ...options, logPrefix });
     case 'object':
     default:
-      return parseDataObject(response);
+      return parseDataObject(response, { ...options, logPrefix });
   }
 };
 
@@ -301,7 +270,7 @@ export const parseResponse = (response, options = {}) => {
  * const response = await axios.get('/api/data');
  * const result = parseApiResponse(response);
  * if (result.success) {
- *   devLogger.debug('数据:', result.data);
+ *   diagnosticLogger.debug('数据:', result.data);
  * } else {
  *   console.error('错误:', result.message);
  * }
@@ -330,6 +299,7 @@ export const parseApiResponse = (response) => {
 export default {
   parseListData,
   parseDataObject,
+  parseResponseData,
   isResponseSuccess,
   getResponseError,
   parsePaginatedData,

@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="pricing-container">
+  <div class="module-page pricing-container">
     <!-- Header -->
     <el-card class="header-card">
       <div class="header-content">
@@ -8,6 +8,10 @@
           <p class="subtitle">管理产品BOM成本与销售定价</p>
         </div>
         <div class="action-section">
+          <el-button v-permission="'finance:pricing:export'" type="primary" @click="pricing.handleExport" :loading="pricing.exporting.value">
+            <el-icon><Download /></el-icon>
+            导出
+          </el-button>
           <el-button v-permission="'finance:pricing:update'" type="primary" @click="settingsVisible = true">
             <el-icon><Setting /></el-icon> 定价设置
           </el-button>
@@ -16,8 +20,14 @@
     </el-card>
 
     <!-- Search -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
+    <FinanceQueryCard
+      :expanded="showAdvancedSearch"
+      :loading="pricing.loading.value"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="pricing.handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="产品名称/编码">
           <el-input
             v-model="pricing.searchQuery.value"
@@ -31,23 +41,17 @@
             </template>
           </el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="筛选">
-          <el-select v-model="pricing.filterType.value" placeholder="全部" clearable @change="pricing.handleSearch">
+          <el-select v-model="pricing.filterType.value" placeholder="全部" clearable>
             <el-option label="低利润率" value="low_margin" />
             <el-option label="成本变动" value="cost_variance" />
             <el-option label="未定价" value="no_pricing" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="pricing.handleSearch">
-            <el-icon><Search /></el-icon> 搜索
-          </el-button>
-          <el-button v-permission="'finance:pricing:export'" type="success" @click="pricing.handleExport" :loading="pricing.exporting.value">
-            <el-icon><Download /></el-icon> 导出
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- Table -->
     <el-card class="data-card">
@@ -55,20 +59,20 @@
         <el-table-column prop="product_code" label="产品编码" width="120" />
         <el-table-column prop="product_name" label="产品名称" min-width="150" />
         <el-table-column prop="product_specs" label="规格型号" width="150" show-overflow-tooltip />
-        <el-table-column prop="cost_price" label="成本价" width="120" align="right">
+        <el-table-column prop="cost_price" label="成本价" width="120">
           <template #default="{ row }">
-            <span>¥{{ formatNumber(row.cost_price) }}</span>
+            <span>{{ formatPrice(row.cost_price) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="suggested_price" label="建议售价" width="120" align="right">
+        <el-table-column prop="suggested_price" label="建议售价" width="120">
           <template #default="{ row }">
-            <span class="suggested-price">¥{{ formatNumber(row.suggested_price) }}</span>
+            <span class="suggested-price">{{ formatPrice(row.suggested_price) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="profit_margin" label="利润率" width="120" align="right">
+        <el-table-column prop="profit_margin" label="利润率" width="120">
           <template #default="{ row }">
             <el-tag :type="getMarginColor(row.profit_margin)">
-              {{ formatNumber(row.profit_margin) }}%
+              {{ formatPercent(row.profit_margin) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -77,7 +81,7 @@
             {{ formatDate(row.effective_date) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right" align="center">
+        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button v-permission="'finance:pricing:update'" type="primary" size="small" @click="openPricingDrawer(row)">定价</el-button>
             <el-button type="success" size="small" @click="bom.handleViewBom(row, 'preview', pricing.currentProduct)">BOM</el-button>
@@ -123,8 +127,7 @@
               <span class="label-text">{{ costTypeText }}</span>
             </div>
             <div class="cost-value-row">
-              <span class="currency">¥</span>
-              <span class="amount">{{ formatNumber(pricing.pricingForm.cost_price) }}</span>
+              <span class="amount">{{ formatPrice(pricing.pricingForm.cost_price) }}</span>
             </div>
           </div>
           <div class="cost-actions">
@@ -369,14 +372,32 @@ const strategy = useStrategyFields();
 // ========== 设置 ==========
 const settingsVisible = ref(false);
 const settingsActiveTab = ref('thresholds');
+const showAdvancedSearch = ref(false);
+
+const resetSearch = () => {
+  pricing.searchQuery.value = '';
+  pricing.filterType.value = '';
+  pricing.handleSearch();
+};
 
 // ========== Computed ==========
 const costTypeText = computed(() => pricing.costType.value === 'bom' ? 'BOM成本' : '采购成本');
 
 const getMarginColor = (margin) => {
+  if (margin === null || margin === undefined || margin === '') return 'info';
   if (margin < pricing.settingsForm.lowMarginThreshold) return 'danger';
   if (margin < pricing.settingsForm.lowMarginThreshold * 2) return 'warning';
   return 'success';
+};
+
+const formatPrice = (value) => {
+  const formatted = formatNumber(value);
+  return formatted === '-' ? '-' : `¥${formatted}`;
+};
+
+const formatPercent = (value) => {
+  const formatted = formatNumber(value);
+  return formatted === '-' ? '-' : `${formatted}%`;
 };
 
 // ========== 策略字段计算 ==========
@@ -501,18 +522,17 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 24px;
   padding: 20px 24px;
-  background-color: #ffff;
+  background-color: var(--color-bg-base);
   border: 1px solid var(--color-border-lighter);
   border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
 .cost-section:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
-  border-color: #d9ecff;
+  box-shadow: 0 4px 16px 0 color-mix(in srgb, var(--ds-black) 10%, transparent);
+  border-color: var(--color-primary-light-8);
 }
 
 .cost-icon {
@@ -590,7 +610,7 @@ onMounted(() => {
 }
 
 .more-tag {
-  background: #f0f0f0;
+  background: var(--color-bg-hover);
   color: var(--color-text-regular);
   padding: 2px 6px;
   border-radius: 4px;

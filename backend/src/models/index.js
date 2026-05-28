@@ -13,7 +13,7 @@ const sequelize = require('../config/sequelize');
 const db = {};
 
 // 特别处理User模型和Todo模型，确保它们被优先加载
-const userModel = require('./User')(sequelize);
+const userModel = require('./user')(sequelize);
 db[userModel.name] = userModel;
 
 const todoModel = require('./todo')(sequelize);
@@ -33,7 +33,7 @@ fs.readdirSync(__dirname)
         'traceability.js',
         'traceability_chain.js',
         'traceability_chain_optimized.js',
-        'User.js',
+        'user.js',
         'todo.js',
         'notification.js',
         'inventory.js',

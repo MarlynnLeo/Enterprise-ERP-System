@@ -1,5 +1,5 @@
-﻿<template>
-  <div class="nonconforming-container">
+<template>
+  <div class="module-page nonconforming-container">
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -31,36 +31,26 @@
       </template>
       <!-- 搜索表单 -->
       <div class="search-container">
-        <el-form :inline="true" :model="searchForm" class="search-form">
-          <el-form-item>
+        <FinanceQueryCard
+          :model="searchForm"
+          :loading="loading"
+          @search="fetchData"
+          @reset="handleReset"
+        >
+          <template #basic>
+          <el-form-item label="物料名称">
             <el-input
               v-model="searchKeyword"
-              placeholder="请输入不合格品编号/物料名称"
+              placeholder="物料名称"
               @keyup.enter="fetchData"
-              clearable >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
+              clearable
+            />
           </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="fetchData">
-              <el-icon><Search /></el-icon>查询
-            </el-button>
-            <el-button @click="handleReset">
-              <el-icon><Refresh /></el-icon>重置
-            </el-button>
-            <el-button class="advanced-search-btn" @click="showAdvancedSearch = !showAdvancedSearch">
-              {{ showAdvancedSearch ? '收起筛选' : '高级搜索' }}
-              <el-icon style="margin-left: 4px;"><ArrowUp v-if="showAdvancedSearch" /><ArrowDown v-else /></el-icon>
-            </el-button>
-            <el-button v-permission="'quality:nonconforming:create'" type="primary" @click="handleCreate">
-              <el-icon><Plus /></el-icon>新增
-            </el-button>
+          </template>
+          <template #advanced>
+          <el-form-item label="不合格品编号">
+            <el-input v-model="searchForm.ncpNo" placeholder="不合格品编号" clearable @keyup.enter="fetchData" />
           </el-form-item>
-        </el-form>
-        <!-- 高级搜索区域 -->
-        <el-form :inline="true" :model="searchForm" class="search-form" v-show="showAdvancedSearch" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dcdfe6;">
           <el-form-item label="状态">
             <el-select v-model="searchForm.status" placeholder="状态" clearable>
               <el-option label="待处理" value="pending" />
@@ -95,7 +85,13 @@
               end-placeholder="结束日期"
             />
           </el-form-item>
-        </el-form>
+          </template>
+          <template #actions>
+            <el-button v-permission="'quality:nonconforming:create'" type="primary" @click="handleCreate">
+              <el-icon><Plus /></el-icon>新增
+            </el-button>
+          </template>
+        </FinanceQueryCard>
       </div>
       <!-- 不合格品列表 -->
       <el-table
@@ -109,14 +105,14 @@
         <el-table-column prop="material_name" label="物料名称" width="150" show-overflow-tooltip />
         <el-table-column prop="material_code" label="物料编码" width="120" show-overflow-tooltip />
         <el-table-column prop="batch_no" label="批次号" width="200" show-overflow-tooltip />
-        <el-table-column prop="quantity" label="数量" width="80" align="center">
+        <el-table-column prop="quantity" label="数量" width="80">
           <template #default="scope">
             <span style="color: var(--color-danger); font-weight: bold;">
               {{ Math.floor(scope.row.quantity || 0) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="unqualified_rate" label="占比" width="100" align="center">
+        <el-table-column prop="unqualified_rate" label="占比" width="100">
           <template #default="{ row }">
             <span v-if="row.unqualified_rate != null">{{ row.unqualified_rate }}%</span>
             <span v-else>-</span>
@@ -139,7 +135,7 @@
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="270" fixed="right">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" @click="handleView(row)">查看</el-button>
             <el-button v-permission="'quality:nonconforming:update'" size="small" type="primary" @click="handleDispose(row)" v-if="row.status === 'pending'">
@@ -287,7 +283,17 @@
           </el-select>
         </el-form-item>
         <el-form-item label="归属供应商" required v-if="disposeForm.responsible_party === 'supplier' || disposeForm.disposition === 'return' || disposeForm.disposition === 'replacement'">
-          <el-select v-model="disposeForm.supplier_id" placeholder="请强制指定产生不良的供应商(闭环需要)" style="width: 100%;" filterable>
+          <el-select
+            v-model="disposeForm.supplier_id"
+            placeholder="请搜索并选择产生不良的供应商"
+            style="width: 100%;"
+            filterable
+            remote
+            reserve-keyword
+            :remote-method="fetchSuppliers"
+            :loading="supplierLoading"
+            @visible-change="visible => visible && fetchSuppliers()"
+          >
             <el-option v-for="supplier in supplierList" :key="supplier.id" :label="supplier.name" :value="supplier.id" />
           </el-select>
         </el-form-item>
@@ -324,10 +330,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
-import { Search, Refresh, Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import ncpApi from '@/api/nonconformingProductApi'
-import { baseDataApi } from '@/api/baseData'
-import { parseListData } from '@/utils/responseParser'
+import { searchSupplierOptions } from '@/utils/optionLoaders'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 const route = useRoute()
@@ -338,8 +343,8 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const searchKeyword = ref('')
 const dateRange = ref([])
-const showAdvancedSearch = ref(false)
 const searchForm = reactive({
+  ncpNo: '',
   status: '',
   disposition: '',
   severity: ''
@@ -419,6 +424,7 @@ const fetchStatistics = async () => {
 // Handle reset
 const handleReset = () => {
   searchKeyword.value = ''
+  searchForm.ncpNo = ''
   searchForm.status = ''
   searchForm.disposition = ''
   searchForm.severity = ''
@@ -457,6 +463,12 @@ const handleDispose = (row) => {
   disposeForm.disposition_by = ''
   disposeForm.responsible_party = row.supplier_id ? 'supplier' : 'unknown'
   disposeForm.supplier_id = row.supplier_id || null
+  if (row.supplier_id && !supplierList.value.some(s => Number(s.id) === Number(row.supplier_id))) {
+    supplierList.value.unshift({
+      id: row.supplier_id,
+      name: row.supplier_name || row.supplier || `供应商-${row.supplier_id}`
+    })
+  }
   disposeDialogVisible.value = true
 }
 // Submit disposition
@@ -616,12 +628,33 @@ const getStatusLabel = (status) => {
   return labels[status] || status
 }
 const supplierList = ref([])
-const fetchSuppliers = async () => {
+const supplierLoading = ref(false)
+let supplierSearchId = 0
+const mergeSuppliers = (items = []) => {
+  items.forEach(item => {
+    if (item?.id && !supplierList.value.some(existing => Number(existing.id) === Number(item.id))) {
+      supplierList.value.push(item)
+    }
+  })
+}
+const fetchSuppliers = async (query = '') => {
+  const searchId = ++supplierSearchId
+  supplierLoading.value = true
   try {
-    const res = await baseDataApi.getSuppliers({ page: 1, pageSize: 3000 })
-    supplierList.value = parseListData(res, { enableLog: false })
+    const suppliers = await searchSupplierOptions(query, { pageSize: 50 })
+    if (searchId === supplierSearchId) {
+      if (query) {
+        supplierList.value = suppliers
+      } else {
+        mergeSuppliers(suppliers)
+      }
+    }
   } catch(error) {
     console.error('Failed to fetch suppliers:', error)
+  } finally {
+    if (searchId === supplierSearchId) {
+      supplierLoading.value = false
+    }
   }
 }
 onMounted(() => {
@@ -670,7 +703,6 @@ const fetchNcpByInspection = async (inspectionId) => {
   justify-content: space-between;
   align-items: center;
 }
-/* 使用全局样式 common-styles.css 中的 .statistics-row 和 .stat-card */
 /* 表格样式优化 */
 :deep(.el-table) {
   font-size: 14px;

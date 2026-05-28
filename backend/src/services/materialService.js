@@ -7,8 +7,9 @@ const materialService = {
   async getAllMaterials(page = 1, pageSize = 10, filters = {}) {
     try {
       const validPage = Math.max(1, parseInt(page) || 1);
-      const validPageSize = Math.max(1, parseInt(pageSize) || 10);
-      const offset = (validPage - 1) * validPageSize;
+      const noPagination = pageSize === null || pageSize === undefined;
+      const validPageSize = noPagination ? null : Math.min(Math.max(1, parseInt(pageSize, 10) || 10), 100);
+      const offset = noPagination ? 0 : (validPage - 1) * validPageSize;
 
       logger.debug('🔍 getAllMaterials 查询参数:', {
         page: validPage,
@@ -128,7 +129,10 @@ const materialService = {
       logger.debug('📊 查询总数:', total);
 
       // 添加排序和分页      // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入SQL
-      sql += ` ORDER BY m.id DESC LIMIT ${Number(validPageSize)} OFFSET ${Number(offset)}`;
+      sql += ' ORDER BY m.id DESC';
+      if (!noPagination) {
+        sql += ` LIMIT ${Number(validPageSize)} OFFSET ${Number(offset)}`;
+      }
 
       logger.debug('🔍 执行SQL查询...');
       const [data] = await pool.query(sql, params);
@@ -142,8 +146,8 @@ const materialService = {
         pagination: {
           total,
           page: validPage,
-          pageSize: validPageSize,
-          totalPages: Math.ceil(total / validPageSize),
+          pageSize: noPagination ? data.length : validPageSize,
+          totalPages: noPagination ? 1 : Math.ceil(total / validPageSize),
         },
       };
     } catch (error) {
@@ -391,7 +395,7 @@ const materialService = {
 
   async exportMaterials(filters = {}) {
     try {
-      const { data } = await this.getAllMaterials(1, 10000, filters);
+      const { data } = await this.getAllMaterials(1, null, filters);
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Materials');
@@ -539,4 +543,3 @@ const materialService = {
 };
 
 module.exports = materialService;
-

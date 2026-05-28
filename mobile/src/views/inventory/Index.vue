@@ -30,8 +30,8 @@
   const statistics = ref({
     totalSKU: 0,
     lowStock: 0,
-    inboundToday: 0,
-    outboundToday: 0
+    inboundThisMonth: 0,
+    outboundThisMonth: 0
   })
 
   // 智能缩写
@@ -55,14 +55,14 @@
       color: 'bg-red'
     },
     {
-      label: '今日入库',
-      value: formatShort(statistics.value.inboundToday),
+      label: '本月入库',
+      value: formatShort(statistics.value.inboundThisMonth),
       icon: 'clipboard-check',
       color: 'bg-green'
     },
     {
-      label: '今日出库',
-      value: formatShort(statistics.value.outboundToday),
+      label: '本月出库',
+      value: formatShort(statistics.value.outboundThisMonth),
       icon: 'credit-card',
       color: 'bg-orange'
     }
@@ -151,26 +151,24 @@
   // ---- 加载数据 ----
   const loadStatistics = async () => {
     try {
-      // 尝试从库存查询接口获取统计
-      const response = await inventoryApi.getInventoryStock({ page: 1, limit: 1, show_all: true })
-      let items = response.data || response.list || []
-      if (!Array.isArray(items)) items = []
+      const response = await inventoryApi.getDashboard()
+      const summary = response.data || {}
+      const summaryStats = summary.statistics || {}
+      const inbound = summaryStats.inbound || {}
+      const outbound = summaryStats.outbound || {}
+      const alerts = summaryStats.alerts || {}
+      const low = Number(alerts.low) || 0
 
-      const total = response.total || items.length || 0
-      const low = items.filter((i) => {
-        const q = i.quantity || 0
-        const m = i.min_stock || 0
-        return m > 0 && q <= m
-      }).length
-
-      statistics.value.totalSKU = total
+      statistics.value.totalSKU = Number(summaryStats.totalStock) || 0
       statistics.value.lowStock = low
+      statistics.value.inboundThisMonth = Number(inbound.count) || 0
+      statistics.value.outboundThisMonth = Number(outbound.count) || 0
 
       // 如果低库存 > 0，给库存查询加徽章
       if (low > 0) stockModules.value[0].badge = low
     } catch (error) {
       console.error('加载库存统计失败:', error)
-      statistics.value = { totalSKU: 0, lowStock: 0, inboundToday: 0, outboundToday: 0 }
+      statistics.value = { totalSKU: 0, lowStock: 0, inboundThisMonth: 0, outboundThisMonth: 0 }
     }
   }
 

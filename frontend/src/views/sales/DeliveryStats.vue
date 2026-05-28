@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * DeliveryStats.vue
  * @description 发货统计页面组件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="outbound-container">
+  <div class="module-page outbound-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -18,16 +18,22 @@
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="查询">
+    <FinanceQueryCard
+      :model="searchForm"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchForm.search"
-            placeholder="订单号/客户/产品/合同"
+            placeholder="物料名称"
             @keyup.enter="handleSearch"
             clearable
           />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="发货状态">
           <el-select
             v-model="searchForm.status"
@@ -48,16 +54,8 @@
             @change="handleSearch"
           />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -88,103 +86,41 @@
         table-layout="fixed"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column
-          type="selection"
-          width="55"
-          fixed
-          :selectable="checkSelectable"
-        />
-        <el-table-column
-          prop="order_no"
-          label="订单编号"
-          width="120"
-          fixed
-          resizable
-        >
+        <el-table-column type="selection" width="55" fixed :selectable="checkSelectable" />
+        <el-table-column prop="order_no" label="订单编号" width="120" fixed resizable>
           <template #default="{ row }">
             <el-link type="primary" @click="viewOrderDetails(row.order_id)">
               {{ row.order_no }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="customer_name"
-          label="客户名称"
-          min-width="200"
-          resizable
-        />
-        <el-table-column
-          prop="contract_code"
-          label="合同编码"
-          width="120"
-          resizable
-        >
+        <el-table-column prop="customer_name" label="客户名称" min-width="200" resizable />
+        <el-table-column prop="contract_code" label="合同编码" width="120" resizable>
           <template #default="{ row }">
             {{ row.contract_code || '-' }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="material_code"
-          label="产品编码"
-          width="120"
-          resizable
-        />
-        <el-table-column
-          prop="material_name"
-          label="产品名称"
-          min-width="150"
-          resizable
-          show-overflow-tooltip
-        />
-        <el-table-column
-          prop="specification"
-          label="规格"
-          width="120"
-          resizable
-          show-overflow-tooltip
-        />
-        <el-table-column
-          prop="ordered_quantity"
-          label="订单数量"
-          width="90"
-          align="right"
-          resizable
-        >
+        <el-table-column prop="material_code" label="产品编码" width="120" resizable />
+        <el-table-column prop="material_name" label="产品名称" min-width="150" resizable show-overflow-tooltip />
+        <el-table-column prop="specification" label="规格" width="120" resizable show-overflow-tooltip />
+        <el-table-column prop="ordered_quantity" label="订单数量" width="90" resizable>
           <template #default="{ row }">
             {{ row.ordered_quantity }} {{ row.unit_name }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="shipped_quantity"
-          label="已发数量"
-          width="100"
-          align="right"
-          resizable
-        >
+        <el-table-column prop="shipped_quantity" label="已发数量" width="100" resizable>
           <template #default="{ row }">
             {{ row.shipped_quantity }} {{ row.unit_name }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="unshipped_quantity"
-          label="未发数量"
-          width="100"
-          align="right"
-          resizable
-        >
+        <el-table-column prop="unshipped_quantity" label="未发数量" width="100" resizable>
           <template #default="{ row }">
             <span :class="{ 'text-red': row.unshipped_quantity > 0 }">
               {{ row.unshipped_quantity }} {{ row.unit_name }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="delivery_progress"
-          label="发货进度"
-          width="120"
-          align="center"
-          resizable
-        >
+        <el-table-column prop="delivery_progress" label="发货进度" width="120" resizable>
           <template #default="{ row }">
             <el-progress
               :percentage="Math.min(100, Math.max(0, Number(row.delivery_progress) || 0))"
@@ -193,13 +129,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column
-          prop="stock_quantity"
-          label="库存"
-          width="100"
-          align="right"
-          resizable
-        >
+        <el-table-column prop="stock_quantity" label="库存" width="100" resizable>
           <template #default="{ row }">
             <span :class="{
               'text-green': (row.stock_quantity || 0) >= (row.unshipped_quantity || 0),
@@ -209,45 +139,24 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="delivery_status"
-          label="发货状态"
-          width="100"
-          align="center"
-          resizable
-        >
+        <el-table-column prop="delivery_status" label="发货状态" width="100" resizable>
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.delivery_status)">
               {{ getStatusText(row.delivery_status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="order_date"
-          label="订单日期"
-          width="120"
-          resizable
-        >
+        <el-table-column prop="order_date" label="订单日期" width="120" resizable>
           <template #default="{ row }">
             {{ formatDate(row.order_date) }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="delivery_date"
-          label="要求交期"
-          width="120"
-          resizable
-        >
+        <el-table-column prop="delivery_date" label="要求交期" width="120" resizable>
           <template #default="{ row }">
             {{ formatDate(row.delivery_date) }}
           </template>
         </el-table-column>
-        <el-table-column
-          label="操作"
-          width="200"
-          fixed="right"
-          resizable
-        >
+        <el-table-column label="操作" width="200" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button
               v-if="canShip(row)"
@@ -312,7 +221,7 @@
             <el-table-column prop="material_code" label="产品编码" width="120" />
             <el-table-column prop="material_name" label="产品名称" width="160" show-overflow-tooltip />
             <el-table-column prop="specification" label="规格" width="150" show-overflow-tooltip />
-            <el-table-column prop="ordered_quantity" label="订单数量" width="100" align="right">
+            <el-table-column prop="ordered_quantity" label="订单数量" width="100">
               <template #default="{ row }">
                 {{ row.ordered_quantity }} {{ row.unit_name }}
               </template>
@@ -322,7 +231,7 @@
                 {{ row.outbound_no || '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="shipped_quantity" label="发货数量" width="90" align="right">
+            <el-table-column prop="shipped_quantity" label="发货数量" width="90">
               <template #default="{ row }">
                 {{ row.shipped_quantity || 0 }} {{ row.unit_name }}
               </template>
@@ -366,16 +275,16 @@
           </template>
         </el-alert>
         <el-table :data="shippingItems" border max-height="400">
-          <el-table-column prop="order_no" label="订单编号" width="120" header-align="center" show-overflow-tooltip />
-          <el-table-column prop="material_code" label="产品编码" width="120" header-align="center" show-overflow-tooltip />
-          <el-table-column prop="material_name" label="产品名称" min-width="100" header-align="center" show-overflow-tooltip />
-          <el-table-column prop="specification" label="规格" width="150" header-align="center" show-overflow-tooltip />
-          <el-table-column label="未发数量" width="100" header-align="center" align="right">
+          <el-table-column prop="order_no" label="订单编号" width="120" show-overflow-tooltip />
+          <el-table-column prop="material_code" label="产品编码" width="120" show-overflow-tooltip />
+          <el-table-column prop="material_name" label="产品名称" min-width="100" show-overflow-tooltip />
+          <el-table-column prop="specification" label="规格" width="150" show-overflow-tooltip />
+          <el-table-column label="未发数量" width="100">
             <template #default="{ row }">
               {{ row.unshipped_quantity }} {{ row.unit_name }}
             </template>
           </el-table-column>
-          <el-table-column label="库存" width="100" header-align="center" align="right">
+          <el-table-column label="库存" width="100">
             <template #default="{ row }">
               <span :class="{
                 'text-green': (row.stock_quantity || 0) >= (row.unshipped_quantity || 0),
@@ -385,7 +294,7 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="发货数量" width="100" header-align="center" align="right">
+          <el-table-column label="发货数量" width="100">
             <template #default="{ row }">
               <el-input
                 v-model.number="row.shipping_quantity"
@@ -469,7 +378,7 @@
 import { parseListData } from '@/utils/responseParser'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh, Download, Van, Select, Close } from '@element-plus/icons-vue'
+import { Download, Van, Select, Close } from '@element-plus/icons-vue'
 import { salesApi } from '@/services/api'
 import { useRoute } from 'vue-router'
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -618,9 +527,9 @@ const getStatusText = (status) => {
   return statusMap[status] || '未知'
 }
 const getProgressColor = (percentage) => {
-  if (percentage === 100) return '#67c23a'
-  if (percentage >= 50) return '#e6a23c'
-  return '#f56c6c'
+  if (percentage === 100) return 'var(--color-success)'
+  if (percentage >= 50) return 'var(--color-warning)'
+  return 'var(--color-danger)'
 }
 // 订单状态转换函数
 const getOrderStatusType = (status) => {
@@ -947,70 +856,6 @@ onMounted(() => {
 /* 数据卡片底部留白（当有浮动栏时） */
 .data-card.has-floating-bar {
   padding-bottom: 120px;
-}
-/* 浮动批量操作栏样式 */
-.floating-batch-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-  z-index: 1000;
-  min-width: 500px;
-}
-.floating-batch-bar .batch-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-on-primary, #fff);
-  font-size: 14px;
-}
-.floating-batch-bar .batch-info .el-icon {
-  font-size: 20px;
-}
-.floating-batch-bar .batch-info strong {
-  color: #ffd700;
-  font-size: 18px;
-  margin: 0 2px;
-}
-.floating-batch-bar .batch-buttons {
-  display: flex;
-  gap: 12px;
-}
-.floating-batch-bar .batch-buttons .el-button {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-}
-.floating-batch-bar .batch-buttons .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-/* 浮动栏进入/离开动画 */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
-}
-.slide-up-enter-from {
-  transform: translateX(-50%) translateY(100px);
-  opacity: 0;
-}
-.slide-up-leave-to {
-  transform: translateX(-50%) translateY(100px);
-  opacity: 0;
-}
-.batch-buttons .el-button {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all var(--transition-base);
-}
-.batch-buttons .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 .text-red {
   color: var(--color-danger);

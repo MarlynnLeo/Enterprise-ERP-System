@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:alt": "vite --port 3000 || vite --port 3001 || vite --port 3002",
     "build": "vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -28,18 +27,18 @@
     "pinia": "^3.0.4",
     "vue": "^3.3.8",
     "vue-i18n": "^11.1.11",
-    "vue-router": "^5.0.6",
-    "vue3-lottie": "^3.3.1"
+    "vue-router": "^5.0.6"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^29.0.0",
     "@vitejs/plugin-vue": "^6.0.3",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.8.0",
-    "rollup-plugin-visualizer": "^6.0.5",
     "sass": "^1.69.5",
     "terser": "^5.43.1",
     "vite": "^7.3.0"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
   }
 }

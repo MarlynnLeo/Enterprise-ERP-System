@@ -23,6 +23,7 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const SchedulingService = require('../../../services/business/SchedulingService');
 const BomExplosionService = require('../../../services/BomExplosionService');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 // 任务生命周期相关服务统一在顶部声明，避免运行时动态 require
 const { validateTaskTransition, syncPlanStatus, generateBatchNo } = require('../../../services/business/TaskLifecycleService');
@@ -38,6 +39,35 @@ const PROC_STATUS = {
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
 };
+
+async function resolveCostCenterIdForProduct(connection, productId) {
+  if (!productId) return null;
+
+  const [rows] = await connection.query(
+    `
+      SELECT cost_center_id
+      FROM (
+        SELECT cc.id AS cost_center_id, 2 AS priority
+        FROM materials m
+        JOIN cost_centers cc ON cc.department_id = m.production_group_id
+        WHERE m.id = ?
+          AND (cc.is_active = 1 OR cc.is_active IS NULL)
+          AND cc.deleted_at IS NULL
+        UNION ALL
+        SELECT cc.id AS cost_center_id, 1 AS priority
+        FROM cost_centers cc
+        WHERE cc.type = 'production'
+          AND (cc.is_active = 1 OR cc.is_active IS NULL)
+          AND cc.deleted_at IS NULL
+      ) candidates
+      ORDER BY priority DESC, cost_center_id ASC
+      LIMIT 1
+    `,
+    [productId]
+  );
+
+  return rows.length > 0 ? rows[0].cost_center_id : null;
+}
 
 /**
  * 构建通用查询过滤条件（去除主查询/计数/统计三处重复的 WHERE 条件逻辑）
@@ -151,34 +181,44 @@ exports.getProductionTaskManagers = async (req, res) => {
  */
 exports.getProductionTasks = async (req, res) => {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const pageSize = parseInt(req.query.pageSize, 10) || 10;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+      defaultPageSize: 10,
+      maxPageSize: 100,
+    });
 
     // 使用公共函数构建过滤条件
     const { whereClause, queryParams } = buildFilterConditions(req.query);
     const filterParams = [...queryParams];
 
     // 主查询
-    const query = `
+    const query = appendPaginationSQL(`
       SELECT pt.*, pp.name as planName, pp.code as plan_code, pp.contract_code, p.name as productName, p.code as productCode, p.specs,
              u.name as unit,
              DATE_FORMAT(pt.actual_start_time, '%Y-%m-%d %H:%i:%s') as actual_start_time,
              EXISTS (
                SELECT 1 FROM inventory_outbound o
-               WHERE (o.production_task_id = pt.id OR (o.reference_type = 'production_task' AND o.reference_id = pt.id))
-               AND o.status != 'cancelled'
+               WHERE (
+                 o.production_task_id = pt.id
+                 OR (o.reference_type = 'production_task' AND o.reference_id = pt.id)
+                 OR (
+                   o.reference_type = 'batch_production_tasks'
+                   AND o.source_task_ids IS NOT NULL
+                   AND JSON_CONTAINS(o.source_task_ids, CAST(pt.id AS JSON))
+                 )
+               )
+               AND o.status NOT IN ('cancelled', 'reversed')
+               AND o.deleted_at IS NULL
              ) as has_outbound_document
       FROM production_tasks pt
       LEFT JOIN production_plans pp ON pt.plan_id = pp.id
       LEFT JOIN materials p ON pt.product_id = p.id
       LEFT JOIN units u ON p.unit_id = u.id
       WHERE pt.deleted_at IS NULL ${whereClause}
-      ORDER BY pt.created_at DESC LIMIT ? OFFSET ?
-    `;
+      ORDER BY pt.created_at DESC
+    `, pagination.limit, pagination.offset);
 
     // Keep pagination parameters out of count/statistics queries.
-    const [tasks] = await pool.query(query, [...filterParams, parseInt(pageSize, 10), offset]);
+    const [tasks] = await pool.query(query, filterParams);
 
     // 如果有任务，一次性获取所有任务的工序数据（优化N+1查询问题）
     if (tasks.length > 0) {
@@ -254,8 +294,8 @@ exports.getProductionTasks = async (req, res) => {
     return ResponseHandler.success(res, {
       items: tasks,
       total,
-      page,
-      pageSize,
+      page: pagination.page,
+      pageSize: pagination.pageSize,
       statistics,
     });
   } catch (error) {
@@ -283,35 +323,51 @@ exports.createProductionTask = async (req, res) => {
       process_template_id,
     } = req.body;
 
+    const taskQuantity = Number(quantity);
+    if (!product_id || !Number.isFinite(taskQuantity) || taskQuantity <= 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '缺少有效参数: product_id, quantity', 'VALIDATION_ERROR', 400);
+    }
+
     const code = await CodeGenerators.generateTaskCode(connection);
+    let linkedPlan = null;
 
     if (plan_id) {
       const [planCheck] = await connection.query(
-        'SELECT id, status, product_id, quantity FROM production_plans WHERE id = ?',
+        `SELECT id, status, product_id, quantity, COALESCE(pushed_quantity, 0) as pushed_quantity
+         FROM production_plans
+         WHERE id = ? AND deleted_at IS NULL
+         FOR UPDATE`,
         [plan_id]
       );
 
       if (planCheck.length === 0) {
+        await connection.rollback();
         return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
+      }
+
+      linkedPlan = planCheck[0];
+      if (linkedPlan.product_id && Number(linkedPlan.product_id) !== Number(product_id)) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '生产任务产品必须与关联生产计划一致', 'VALIDATION_ERROR', 400);
+      }
+
+      const planQuantity = Number(linkedPlan.quantity) || 0;
+      const pushedQuantity = Number(linkedPlan.pushed_quantity) || 0;
+      const remainingQuantity = Math.max(0, planQuantity - pushedQuantity);
+      if (taskQuantity > remainingQuantity) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `下推数量(${taskQuantity})不能超过生产计划剩余数量(${remainingQuantity})`,
+          'EXCEEDED_QUANTITY',
+          400
+        );
       }
     }
 
     // 根据产品的生产组自动获取对应的成本中心
-    let costCenterId = null;
-    if (product_id) {
-      const [ccResult] = await connection.query(
-        `
-                SELECT cc.id as cost_center_id
-                FROM materials m
-                JOIN cost_centers cc ON cc.department_id = m.production_group_id
-                WHERE m.id = ?
-            `,
-        [product_id]
-      );
-      if (ccResult.length > 0) {
-        costCenterId = ccResult[0].cost_center_id;
-      }
-    }
+    const costCenterId = await resolveCostCenterIdForProduct(connection, product_id);
 
     const [taskResult] = await connection.query(
       `
@@ -323,7 +379,7 @@ exports.createProductionTask = async (req, res) => {
         code,
         plan_id || null,
         product_id,
-        quantity,
+        taskQuantity,
         start_date || null,
         expected_end_date || null,
         manager || '未分配',
@@ -333,6 +389,15 @@ exports.createProductionTask = async (req, res) => {
     );
 
     const taskId = taskResult.insertId;
+
+    if (linkedPlan) {
+      await connection.query(
+        `UPDATE production_plans
+         SET pushed_quantity = COALESCE(pushed_quantity, 0) + ?
+         WHERE id = ?`,
+        [taskQuantity, plan_id]
+      );
+    }
 
     // 自动创建单据关联（生产计划 → 生产任务）
     if (plan_id) {
@@ -381,7 +446,7 @@ exports.createProductionTask = async (req, res) => {
               taskId,
               step.name,
               step.order_num,
-              quantity,
+              taskQuantity,
               0,
               step.standard_hours || 0, // 从工序模板同步标准工时
               step.description || '',
@@ -398,7 +463,7 @@ exports.createProductionTask = async (req, res) => {
             const startTime = String(start_date).includes(' ') || String(start_date).includes('T')
               ? start_date
               : start_date + ' 08:00:00';
-            await SchedulingService.fillProcessSchedule(taskId, startTime, quantity, connection);
+            await SchedulingService.fillProcessSchedule(taskId, startTime, taskQuantity, connection);
             logger.info(`[排程] 任务 ${code} 工序计划时间已自动填充`);
           } catch (schedErr) {
             throw new Error(`任务 ${code} 工序时间填充失败: ${schedErr.message}`, {
@@ -437,6 +502,8 @@ exports.createProductionTask = async (req, res) => {
       res,
       {
         id: taskId,
+        code,
+        pushed_quantity: linkedPlan ? (Number(linkedPlan.pushed_quantity) || 0) + taskQuantity : undefined,
         message: '生产任务创建成功',
       },
       '创建成功',
@@ -472,11 +539,12 @@ exports.updateProductionTask = async (req, res) => {
     } = req.body;
 
     const [taskCheck] = await connection.query(
-      'SELECT id, status FROM production_tasks WHERE id = ?',
+      'SELECT id, status, plan_id, product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
     if (taskCheck.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
     }
 
@@ -484,7 +552,80 @@ exports.updateProductionTask = async (req, res) => {
       taskCheck[0].status === TASK_STATUS.COMPLETED ||
       taskCheck[0].status === TASK_STATUS.CANCELLED
     ) {
+      await connection.rollback();
       return ResponseHandler.error(res, '已完成或已取消的任务不能修改', 'VALIDATION_ERROR', 400);
+    }
+
+    const taskQuantity = Number(quantity);
+    if (!product_id || !Number.isFinite(taskQuantity) || taskQuantity <= 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '缺少有效参数: product_id, quantity', 'VALIDATION_ERROR', 400);
+    }
+
+    const currentTask = taskCheck[0];
+    const currentPlanId = currentTask.plan_id ? Number(currentTask.plan_id) : null;
+    const nextPlanId = plan_id ? Number(plan_id) : null;
+    const currentProductId = currentTask.product_id ? Number(currentTask.product_id) : null;
+    const nextProductId = product_id ? Number(product_id) : null;
+    const currentQuantity = Number(currentTask.quantity) || 0;
+    const preStartStatuses = [TASK_STATUS.PENDING, TASK_STATUS.ALLOCATED];
+    const trackedFieldsChanged =
+      currentPlanId !== nextPlanId ||
+      currentProductId !== nextProductId ||
+      currentQuantity !== taskQuantity;
+
+    if (trackedFieldsChanged && !preStartStatuses.includes(currentTask.status)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '任务已进入执行流程，不能修改计划、产品或数量', 'VALIDATION_ERROR', 400);
+    }
+
+    if (trackedFieldsChanged) {
+      if (currentPlanId) {
+        await connection.query(
+          `UPDATE production_plans
+           SET pushed_quantity = GREATEST(0, COALESCE(pushed_quantity, 0) - ?)
+           WHERE id = ?`,
+          [currentQuantity, currentPlanId]
+        );
+      }
+
+      if (nextPlanId) {
+        const [planRows] = await connection.query(
+          `SELECT id, product_id, quantity, COALESCE(pushed_quantity, 0) as pushed_quantity
+           FROM production_plans
+           WHERE id = ? AND deleted_at IS NULL
+           FOR UPDATE`,
+          [nextPlanId]
+        );
+        if (planRows.length === 0) {
+          await connection.rollback();
+          return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
+        }
+
+        const plan = planRows[0];
+        if (plan.product_id && Number(plan.product_id) !== nextProductId) {
+          await connection.rollback();
+          return ResponseHandler.error(res, '生产任务产品必须与关联生产计划一致', 'VALIDATION_ERROR', 400);
+        }
+
+        const remainingQuantity = Math.max(0, (Number(plan.quantity) || 0) - (Number(plan.pushed_quantity) || 0));
+        if (taskQuantity > remainingQuantity) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            `下推数量(${taskQuantity})不能超过生产计划剩余数量(${remainingQuantity})`,
+            'EXCEEDED_QUANTITY',
+            400
+          );
+        }
+
+        await connection.query(
+          `UPDATE production_plans
+           SET pushed_quantity = COALESCE(pushed_quantity, 0) + ?
+           WHERE id = ?`,
+          [taskQuantity, nextPlanId]
+        );
+      }
     }
 
     // 如果有状态更新，需要转换为数据库ENUM格式（混合命名）
@@ -495,21 +636,7 @@ exports.updateProductionTask = async (req, res) => {
     }
 
     // 如果产品变更，同步更新成本中心
-    let costCenterId = null;
-    if (product_id) {
-      const [ccResult] = await connection.query(
-        `
-                SELECT cc.id as cost_center_id
-                FROM materials m
-                JOIN cost_centers cc ON cc.department_id = m.production_group_id
-                WHERE m.id = ?
-            `,
-        [product_id]
-      );
-      if (ccResult.length > 0) {
-        costCenterId = ccResult[0].cost_center_id;
-      }
-    }
+    const costCenterId = await resolveCostCenterIdForProduct(connection, product_id);
 
     await connection.query(
       `
@@ -521,7 +648,7 @@ exports.updateProductionTask = async (req, res) => {
       [
         plan_id || null,
         product_id,
-        quantity,
+        taskQuantity,
         start_date || null,
         expected_end_date || null,
         manager,
@@ -531,6 +658,27 @@ exports.updateProductionTask = async (req, res) => {
         id,
       ]
     );
+
+    const planIdsToRefresh = [...new Set([currentPlanId, nextPlanId].filter(Boolean))];
+    for (const planIdToRefresh of planIdsToRefresh) {
+      const [remainingTasks] = await connection.query(
+        `SELECT COUNT(*) as active_count
+         FROM production_tasks
+         WHERE plan_id = ? AND deleted_at IS NULL AND status != ?`,
+        [planIdToRefresh, TASK_STATUS.CANCELLED]
+      );
+
+      if (Number(remainingTasks[0]?.active_count || 0) === 0) {
+        await connection.query(
+          `UPDATE production_plans
+           SET status = 'draft'
+           WHERE id = ? AND status NOT IN ('completed', 'cancelled')`,
+          [planIdToRefresh]
+        );
+      } else {
+        await syncPlanStatus(planIdToRefresh, connection);
+      }
+    }
 
     await connection.commit();
 
@@ -555,23 +703,75 @@ exports.deleteProductionTask = async (req, res) => {
     const { id } = req.params;
 
     const [taskCheck] = await connection.query(
-      'SELECT id, status FROM production_tasks WHERE id = ?',
+      'SELECT id, status, plan_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
     if (taskCheck.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
     }
 
-    if (taskCheck[0].status !== TASK_STATUS.PENDING) {
-      return ResponseHandler.error(res, '只能删除待生产状态的任务', 'VALIDATION_ERROR', 400);
+    const deletableStatuses = [TASK_STATUS.PENDING, TASK_STATUS.ALLOCATED];
+    if (!deletableStatuses.includes(taskCheck[0].status)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '只能删除未开始或已分配但尚未执行的生产任务', 'VALIDATION_ERROR', 400);
+    }
+
+    const [usageRows] = await connection.query(
+      `SELECT
+         (SELECT COUNT(*) FROM inventory_outbound
+          WHERE (
+            production_task_id = ?
+            OR (reference_type = 'production_task' AND reference_id = ?)
+            OR (
+              reference_type = 'batch_production_tasks'
+              AND source_task_ids IS NOT NULL
+              AND JSON_CONTAINS(source_task_ids, CAST(? AS JSON))
+            )
+          )
+            AND status NOT IN ('cancelled', 'reversed')
+            AND deleted_at IS NULL) as outbound_count,
+         (SELECT COUNT(*) FROM production_reports WHERE task_id = ?) as report_count,
+         (SELECT COUNT(*) FROM quality_inspections
+          WHERE task_id = ? AND deleted_at IS NULL AND (status IS NULL OR status != 'cancelled')) as inspection_count`,
+      [id, id, String(id), id, id]
+    );
+    const usage = usageRows[0] || {};
+    if (usage.outbound_count > 0 || usage.report_count > 0 || usage.inspection_count > 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '任务已产生发料、报工或检验单据，不能删除，请走取消/关闭流程', 'VALIDATION_ERROR', 400);
     }
 
     await connection.query('DELETE FROM production_processes WHERE task_id = ?', [id]);
     await connection.query('DELETE FROM production_reports WHERE task_id = ?', [id]);
-    // ✅ 软删除生产任务主表
     await softDelete(connection, 'production_tasks', 'id', id);
 
+    if (taskCheck[0].plan_id) {
+      await connection.query(
+        `UPDATE production_plans
+         SET pushed_quantity = GREATEST(0, COALESCE(pushed_quantity, 0) - ?)
+         WHERE id = ?`,
+        [Number(taskCheck[0].quantity) || 0, taskCheck[0].plan_id]
+      );
+
+      const [remainingTasks] = await connection.query(
+        `SELECT COUNT(*) as active_count
+         FROM production_tasks
+         WHERE plan_id = ? AND deleted_at IS NULL AND status != ?`,
+        [taskCheck[0].plan_id, TASK_STATUS.CANCELLED]
+      );
+      if (Number(remainingTasks[0]?.active_count || 0) === 0) {
+        await connection.query(
+          `UPDATE production_plans
+           SET status = 'draft'
+           WHERE id = ? AND status NOT IN ('completed', 'cancelled')`,
+          [taskCheck[0].plan_id]
+        );
+      } else {
+        await syncPlanStatus(taskCheck[0].plan_id, connection);
+      }
+    }
     await connection.commit();
 
     return ResponseHandler.success(res, null, '生产任务删除成功');
@@ -645,22 +845,41 @@ exports.updateProductionTaskProgress = async (req, res) => {
     const { progress, completed_quantity } = req.body;
 
     const [taskCheck] = await connection.query(
-      'SELECT id, status FROM production_tasks WHERE id = ?',
+      'SELECT id, code, status, quantity, completed_quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
     if (taskCheck.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
     }
 
-    await connection.query(
-      `
-      UPDATE production_tasks
-      SET progress = ?, completed_quantity = ?
-      WHERE id = ?
-    `,
-      [progress || 0, completed_quantity || 0, id]
-    );
+    const task = taskCheck[0];
+    if (task.status !== TASK_STATUS.IN_PROGRESS) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '只有生产中的任务可以调整进度', 'INVALID_STATUS', 400);
+    }
+
+    const numericProgress = Number(progress);
+    if (!Number.isFinite(numericProgress) || numericProgress < 0 || numericProgress > 99) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '进度必须在 0 到 99 之间；完工请走报工/完工流程', 'VALIDATION_ERROR', 400);
+    }
+
+    if (completed_quantity !== undefined && Number(completed_quantity) !== Number(task.completed_quantity || 0)) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '完工数量由报工/完工流程自动维护，不能通过进度接口直接修改',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    await connection.query('UPDATE production_tasks SET progress = ? WHERE id = ?', [
+      numericProgress,
+      id,
+    ]);
 
     await connection.commit();
 
@@ -1101,7 +1320,7 @@ exports.getPendingTasks = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
-    const safeLimit = parseInt(limit, 10) || 10;
+    const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 10, 100));
     const pendingTaskStatuses = [
       PRODUCTION_STATUS_KEYS.PENDING,
       PRODUCTION_STATUS_KEYS.IN_PROGRESS,
@@ -1153,7 +1372,7 @@ exports.completeTask = async (req, res) => {
     const [tasks] = await connection.query(
       `SELECT pt.id, pt.code, pt.quantity, pt.completed_quantity, pt.status, pt.plan_id
        FROM production_tasks pt
-       WHERE pt.id = ? FOR UPDATE`,
+       WHERE pt.id = ? AND pt.deleted_at IS NULL FOR UPDATE`,
       [id]
     );
 
@@ -1163,6 +1382,16 @@ exports.completeTask = async (req, res) => {
     }
 
     const task = tasks[0];
+    if (task.status !== TASK_STATUS.IN_PROGRESS) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '任务必须先进入生产中状态，完成首检/过程检流转后才能完工',
+        'INVALID_STATUS',
+        400
+      );
+    }
+
     const totalQuantity = Number(task.quantity) || 0;
     const currentCompleted = Number(task.completed_quantity) || 0;
     const remaining = totalQuantity - currentCompleted;

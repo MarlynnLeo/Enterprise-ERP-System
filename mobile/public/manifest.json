@@ -1,11 +1,14 @@
 {
+  "id": "kacon-erp-mobile",
   "name": "KACON-ERP移动端",
   "short_name": "KACON-ERP",
   "description": "企业资源管理系统移动端",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1989fa",
+  "orientation": "portrait",
+  "background_color": "#f5f7fa",
+  "theme_color": "#00A896",
   "icons": [
     {
       "src": "/icons/icon-192x192.svg",
@@ -19,8 +22,5 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
-  ],
-  "orientation": "portrait",
-  "scope": "/",
-  "id": "kacon-erp-mobile"
-} 
+  ]
+}

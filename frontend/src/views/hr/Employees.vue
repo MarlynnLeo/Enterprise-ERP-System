@@ -19,11 +19,11 @@
         <el-table-column prop="name" label="姓名" width="100" fixed />
         <el-table-column prop="department_name" label="部门" width="100" />
         <el-table-column prop="insurance_type" label="社保类型" width="100" />
-        <el-table-column label="薪酬基数" align="center">
+        <el-table-column label="薪酬基数">
           <el-table-column prop="base_salary" label="基本工资" width="100" />
           <el-table-column prop="split_base_salary" label="拆分报税基数" width="110" />
         </el-table-column>
-        <el-table-column label="补贴设定" align="center">
+        <el-table-column label="补贴设定">
           <el-table-column prop="position_allowance" label="职位/外补" width="100" />
           <el-table-column prop="housing_allowance" label="房补/交补" width="100" />
           <el-table-column prop="meal_allowance" label="餐补" width="100" />
@@ -36,7 +36,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)"
               v-permission="'hr:employees:update'">编辑</el-button>
@@ -142,9 +142,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { hrApi } from '@/api/hr'
-import { api } from '@/services/axiosInstance'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
+import { parseResponseData } from '@/utils/responseParser'
+import { loadDepartmentOptions } from '@/utils/optionLoaders'
 
 const tableData = ref([])
 const departmentList = ref([])
@@ -171,7 +172,7 @@ const fetchEmployees = async () => {
   loading.value = true
   try {
     const res = await hrApi.getEmployees({})
-    tableData.value = res.data.data || res.data
+    tableData.value = parseResponseData(res)
   } catch {
     ElMessage.error('获取员工列表失败')
   } finally {
@@ -250,8 +251,8 @@ const handleSyncDingtalk = async () => {
 onMounted(() => {
   fetchEmployees()
   // 加载部门列表
-  api.get('/system/departments/list').then(res => {
-    departmentList.value = res.data.data || res.data || []
+  loadDepartmentOptions().then(list => {
+    departmentList.value = list
   }).catch(() => {})
 })
 </script>

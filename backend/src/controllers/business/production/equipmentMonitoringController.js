@@ -4,6 +4,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const equipmentMonitoringService = require('../../../services/business/EquipmentMonitoringService');
 // const { validateData, ValidationRules } = require('../../../utils/validator');
@@ -14,13 +15,17 @@ const { EQUIPMENT_STATUS } = require('../../../constants/systemConstants');
  */
 const getEquipmentList = async (req, res) => {
   try {
+    const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
     const filters = {
       equipment_type: req.query.equipment_type,
       status: req.query.status,
       location_id: req.query.location_id,
       workshop_id: req.query.workshop_id,
-      page: parseInt(req.query.page, 10) || 1,
-      pageSize: parseInt(req.query.pageSize, 10) || 20,
+      page: pagination.page,
+      pageSize: pagination.pageSize,
     };
 
     const result = await equipmentMonitoringService.getEquipmentList(filters);
@@ -147,12 +152,16 @@ const batchRecordEquipmentData = async (req, res) => {
  */
 const getEquipmentAlarms = async (req, res) => {
   try {
+    const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
     const filters = {
       equipment_id: req.query.equipment_id,
       alarm_level: req.query.alarm_level,
       status: req.query.status,
-      page: parseInt(req.query.page, 10) || 1,
-      pageSize: parseInt(req.query.pageSize, 10) || 20,
+      page: pagination.page,
+      pageSize: pagination.pageSize,
     };
 
     const result = await equipmentMonitoringService.getEquipmentAlarms(filters);

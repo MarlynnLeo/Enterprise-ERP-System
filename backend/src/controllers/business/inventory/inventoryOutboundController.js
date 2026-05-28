@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 
 const db = require('../../../config/db');
@@ -16,6 +17,7 @@ const InventoryService = require('../../../services/InventoryService');
 const AsyncTaskService = require('../../../services/business/AsyncTaskService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { currentDateString } = require('../../../utils/dateUtils');
 
 // 导入生产发料状态同步能力
 const { checkAndUpdateTaskStatus, _syncProductionStatus } = require('./inventoryConsistencyController');
@@ -376,9 +378,10 @@ const getStatusText = (status) => OUTBOUND_STATUS_TEXT[status] || status || '未
 const getOutboundList = async (req, res) => {
   try {
     // 确保参数为数字类型
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 20;
-    const offset = (page - 1) * limit;
+    const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
     const {
       search = '',
       status = '',
@@ -389,7 +392,7 @@ const getOutboundList = async (req, res) => {
     } = req.query;
 
     // 构建搜索条件 - 只搜索出库单号和产品信息（不搜索物料明细）
-    let whereClause = 'WHERE 1=1';
+    let whereClause = 'WHERE o.deleted_at IS NULL';
     const params = [];
 
     if (search) {
@@ -435,7 +438,7 @@ const getOutboundList = async (req, res) => {
     }
 
     // 获取出库单主表数据（包含操作人信息和生产组信息）
-    const listQuery = `
+    const listQuery = appendPaginationSQL(`
       SELECT
         o.id,
         o.outbound_no,
@@ -476,12 +479,10 @@ const getOutboundList = async (req, res) => {
       ${whereClause}
       GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, o.operator, o.remark, o.created_at, o.updated_at, o.reference_id, o.reference_type, p.code, p.specs, pt.quantity, pg.name
       ORDER BY o.created_at DESC
-      LIMIT ? OFFSET ?
-    `;
+    `, pagination.limit, pagination.offset);
 
     // LIMIT/OFFSET 使用参数化查询；count 查询不包含分页参数
     const filterParams = [...params];
-    params.push(parseInt(limit, 10), offset);
     const [outbounds] = await db.pool.query(listQuery, params);
 
     // 获取总数 - 需要包含生产组筛选所需的JOIN
@@ -540,22 +541,149 @@ const getOutboundList = async (req, res) => {
       status_text: getStatusText(item.status),
     }));
 
-    res.status(200).json({
-      success: true,
-      message: '获取出库单列表成功',
-      data: {
-        list: items,
-        total,
-        page,
-        pageSize: limit,
-        totalPages: Math.ceil(total / limit),
-        statistics,
-      },
-      timestamp: new Date().toISOString(),
-    });
+    ResponseHandler.paginated(
+      res,
+      items,
+      total,
+      pagination.page,
+      pagination.pageSize,
+      '获取出库单列表成功',
+      { statistics }
+    );
   } catch (error) {
     logger.error('获取出库单列表失败:', error);
     ResponseHandler.error(res, '获取出库单列表失败', 'SERVER_ERROR', 500, error);
+  }
+};
+
+const exportOutbound = async (req, res) => {
+  try {
+    const {
+      search = '',
+      status = '',
+      production_plan_id = '',
+      production_group_id = '',
+      startDate = '',
+      endDate = '',
+    } = req.query;
+
+    let whereClause = 'WHERE o.deleted_at IS NULL';
+    const params = [];
+
+    if (search) {
+      whereClause += ` AND o.id IN (
+        SELECT DISTINCT o2.id
+        FROM inventory_outbound o2
+        LEFT JOIN production_tasks pt2 ON o2.reference_type = 'production_task' AND o2.reference_id = pt2.id
+        LEFT JOIN materials p2 ON pt2.product_id = p2.id
+        WHERE o2.outbound_no LIKE ?
+           OR p2.name LIKE ?
+           OR p2.code LIKE ?
+           OR p2.specs LIKE ?
+      )`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    if (status) {
+      whereClause += ' AND o.status = ?';
+      params.push(status);
+    }
+
+    if (production_plan_id) {
+      whereClause += ' AND o.reference_id = ? AND o.reference_type = "production_plan"';
+      params.push(production_plan_id);
+    }
+
+    if (production_group_id) {
+      whereClause += ' AND p.production_group_id = ?';
+      params.push(production_group_id);
+    }
+
+    if (startDate) {
+      whereClause += ' AND o.outbound_date >= ?';
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      whereClause += ' AND o.outbound_date <= ?';
+      params.push(endDate);
+    }
+
+    const [rows] = await db.pool.query(
+      `
+      SELECT
+        o.outbound_no,
+        DATE_FORMAT(o.outbound_date, '%Y-%m-%d') as outbound_date,
+        o.status,
+        o.outbound_type,
+        o.reference_type,
+        o.reference_id,
+        COALESCE(
+          (SELECT u.real_name FROM users u WHERE u.username = o.operator LIMIT 1),
+          o.operator
+        ) as operator_name,
+        COUNT(DISTINCT oi.id) as item_count,
+        COALESCE(SUM(COALESCE(NULLIF(oi.actual_quantity, 0), oi.quantity)), 0) as actual_quantity,
+        COALESCE(SUM(oi.shortage_quantity), 0) as shortage_quantity,
+        GROUP_CONCAT(DISTINCT l.name ORDER BY l.name SEPARATOR ', ') as location_names,
+        GROUP_CONCAT(DISTINCT pg.name ORDER BY pg.name SEPARATOR ', ') as production_group_names,
+        o.remark,
+        DATE_FORMAT(o.created_at, '%Y-%m-%d %H:%i:%s') as created_at
+      FROM inventory_outbound o
+      LEFT JOIN inventory_outbound_items oi ON o.id = oi.outbound_id
+      LEFT JOIN materials m ON oi.material_id = m.id
+      LEFT JOIN locations l ON m.location_id = l.id
+      LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
+      LEFT JOIN materials p ON pt.product_id = p.id
+      LEFT JOIN departments pg ON p.production_group_id = pg.id AND pg.status = 1
+      ${whereClause}
+      GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, o.outbound_type, o.reference_type,
+               o.reference_id, o.operator, o.remark, o.created_at
+      ORDER BY o.created_at DESC
+      `,
+      params
+    );
+
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('出库单');
+    worksheet.columns = [
+      { header: '出库单号', key: 'outbound_no', width: 20 },
+      { header: '出库日期', key: 'outbound_date', width: 14 },
+      { header: '状态', key: 'status_text', width: 14 },
+      { header: '类型', key: 'outbound_type', width: 16 },
+      { header: '关联类型', key: 'reference_type', width: 18 },
+      { header: '关联ID', key: 'reference_id', width: 12 },
+      { header: '仓库', key: 'location_names', width: 24 },
+      { header: '生产组', key: 'production_group_names', width: 20 },
+      { header: '明细数', key: 'item_count', width: 10 },
+      { header: '实发数量', key: 'actual_quantity', width: 14 },
+      { header: '缺料数量', key: 'shortage_quantity', width: 14 },
+      { header: '操作人', key: 'operator_name', width: 16 },
+      { header: '创建时间', key: 'created_at', width: 20 },
+      { header: '备注', key: 'remark', width: 30 },
+    ];
+
+    rows.forEach((row) => {
+      worksheet.addRow({
+        ...row,
+        status_text: getStatusText(row.status),
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="inventory_outbound_${Date.now()}.xlsx"`
+    );
+    return res.send(buffer);
+  } catch (error) {
+    logger.error('导出出库单失败:', error);
+    return ResponseHandler.error(res, '导出出库单失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -738,11 +866,12 @@ const updateOutbound = async (req, res) => {
 
     // 检查出库单是否存在
     const [checkResult] = await connection.execute(
-      'SELECT status FROM inventory_outbound WHERE id = ?',
+      'SELECT status FROM inventory_outbound WHERE id = ? FOR UPDATE',
       [id]
     );
 
     if (checkResult.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
     }
 
@@ -750,6 +879,7 @@ const updateOutbound = async (req, res) => {
 
     // 只要出库单还没有完成(completed),就允许更新
     if (currentStatus === STATUS.OUTBOUND.COMPLETED) {
+      await connection.rollback();
       return ResponseHandler.error(res, '已完成的出库单不能修改', 'VALIDATION_ERROR', 400);
     }
 
@@ -1104,7 +1234,7 @@ const _createOutbound = async (outboundData) => {
         }
       } catch (taskError) {
         logger.error('更新生产任务状态失败:', taskError);
-        // 不阻止出库单创建流程
+        throw taskError;
       }
     }
 
@@ -1324,33 +1454,6 @@ const _createOutbound = async (outboundData) => {
           }
         }
 
-        // 创建追溯记录 - 已禁用，改用新的追溯链路服务（在出库单完成时调用）
-        // try {
-
-        //   // 获取物料的批次号（使用公共函数）
-        //   let batchNumber = item.batchNumber || '';
-
-        //   // 如果没有批次号，尝试从库存中获取
-        //   if (!batchNumber) {
-        //     batchNumber = await getMaterialBatchNumber(
-        //       connection,
-        //       item.materialId,
-        //       null,
-        //       'default'
-        //     );
-        //   }
-
-        //   // 调用追溯API
-        //   await qualityApi.autoCreateTraceability('outbound', {
-        //     outbound_id: outboundId,
-        //     material_id: item.materialId,
-        //     batch_number: batchNumber
-        //   });
-
-        // } catch (traceError) {
-        //   logger.error('创建追溯记录失败:', traceError);
-        //   // 不因为追溯失败而影响出库操作
-        // }
       }
     }
 
@@ -1562,13 +1665,17 @@ const createOutbound = async (req, res) => {
       statusCode = 400;
     }
 
-    res.status(statusCode).json({
-      success: false,
-      message: error.message || '创建出库单失败',
-      error: errorMessage,
-      code: error.code,
-      details: error.details,
-    });
+    const responseError = error instanceof Error ? error : new Error(error.message || errorMessage);
+    responseError.code = error.code;
+    responseError.details = error.details;
+
+    ResponseHandler.error(
+      res,
+      error.message || '创建出库单失败',
+      error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR'),
+      statusCode,
+      responseError
+    );
   }
 };
 
@@ -1583,11 +1690,12 @@ const deleteOutbound = async (req, res) => {
 
     // 检查出库单是否存在,并获取关联信息
     const [checkResult] = await connection.execute(
-      'SELECT status, reference_id, reference_type FROM inventory_outbound WHERE id = ?',
+      'SELECT status, reference_id, reference_type FROM inventory_outbound WHERE id = ? FOR UPDATE',
       [id]
     );
 
     if (checkResult.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
     }
 
@@ -1595,6 +1703,7 @@ const deleteOutbound = async (req, res) => {
 
     // 检查出库单状态，只允许删除草稿状态的出库单
     if (status !== 'draft') {
+      await connection.rollback();
       return ResponseHandler.error(res, '只能删除草稿状态的出库单', 'VALIDATION_ERROR', 400);
     }
 
@@ -1603,7 +1712,7 @@ const deleteOutbound = async (req, res) => {
       try {
         // 检查任务当前状态
         const [taskCheck] = await connection.execute(
-          'SELECT status FROM production_tasks WHERE id = ?',
+          'SELECT status FROM production_tasks WHERE id = ? FOR UPDATE',
           [reference_id]
         );
 
@@ -1637,7 +1746,7 @@ const deleteOutbound = async (req, res) => {
         }
       } catch (taskError) {
         logger.error('回退生产任务状态失败:', taskError);
-        // 不阻止删除流程,但记录错误
+        throw taskError;
       }
     }
 
@@ -1645,7 +1754,7 @@ const deleteOutbound = async (req, res) => {
     if (reference_id && reference_type === 'production_plan') {
       try {
         const [planCheck] = await connection.execute(
-          'SELECT status FROM production_plans WHERE id = ?',
+          'SELECT status FROM production_plans WHERE id = ? FOR UPDATE',
           [reference_id]
         );
 
@@ -1662,6 +1771,7 @@ const deleteOutbound = async (req, res) => {
         }
       } catch (planError) {
         logger.error('回退生产计划状态失败:', planError);
+        throw planError;
       }
     }
 
@@ -1680,421 +1790,6 @@ const deleteOutbound = async (req, res) => {
     await connection.rollback();
     logger.error('删除出库单失败:', error);
     ResponseHandler.error(res, '删除出库单失败', 'SERVER_ERROR', 500, error);
-  } finally {
-    connection.release();
-  }
-};
-
-// 撤销出库 - 回退已完成的出库单
-
-const _cancelOutboundLegacy = async (req, res) => {
-  const connection = await db.pool.getConnection();
-  try {
-    await connection.beginTransaction();
-
-    const { id } = req.params;
-    const { force } = req.body || {}; // 强制撤销标志（用于生产中状态的确认）
-
-    // 检查出库单是否存在,并获取详细信息
-    const [checkResult] = await connection.execute(
-      'SELECT status, reference_id, reference_type, outbound_no FROM inventory_outbound WHERE id = ?',
-      [id]
-    );
-
-    if (checkResult.length === 0) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
-    }
-
-    const { status, reference_id, reference_type, outbound_no } = checkResult[0];
-
-    // 统一使用状态常量
-    if (status !== STATUS.OUTBOUND.COMPLETED) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '只能撤销已完成的出库单', 'VALIDATION_ERROR', 400);
-    }
-
-    // ============ 新增：检查关联的生产任务/计划状态，判断是否允许撤销 ============
-    // 不允许撤销的状态（生产已完成或已进入检验阶段）
-    const prohibitedStatuses = [
-      'inspection',
-      'quality_passed',
-      'completed',
-      'warehoused',
-      'warehousing',
-    ];
-    // 需要警告确认的状态（生产进行中）
-    const warningStatuses = ['in_progress'];
-
-    if (reference_id && reference_type === 'production_task') {
-      // 检查生产任务状态
-      const [taskCheck] = await connection.execute(
-        'SELECT status, code FROM production_tasks WHERE id = ?',
-        [reference_id]
-      );
-
-      if (taskCheck.length > 0) {
-        const taskStatus = taskCheck[0].status;
-        const taskCode = taskCheck[0].code;
-
-        // 检查是否在禁止撤销的状态
-        if (prohibitedStatuses.includes(taskStatus)) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `无法撤销：关联的生产任务 ${taskCode} 已进入"${getStatusText(taskStatus)}"状态，物料已被消耗转化为成品，撤销会导致数据不一致`,
-            'VALIDATION_ERROR',
-            400
-          );
-        }
-
-        // 检查是否需要警告确认
-        if (warningStatuses.includes(taskStatus) && !force) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `警告：关联的生产任务 ${taskCode} 正在生产中，部分物料可能已被消耗。如确需撤销，请使用强制撤销。`,
-            'NEED_CONFIRM',
-            409,
-            { needConfirm: true, taskStatus, taskCode }
-          );
-        }
-      }
-    }
-
-    if (reference_id && reference_type === 'production_plan') {
-      // 检查生产计划状态
-      const [planCheck] = await connection.execute(
-        'SELECT status, code FROM production_plans WHERE id = ?',
-        [reference_id]
-      );
-
-      if (planCheck.length > 0) {
-        const planStatus = planCheck[0].status;
-        const planCode = planCheck[0].code;
-
-        // 检查是否在禁止撤销的状态
-        if (prohibitedStatuses.includes(planStatus)) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `无法撤销：关联的生产计划 ${planCode} 已进入"${getStatusText(planStatus)}"状态，物料已被消耗转化为成品，撤销会导致数据不一致`,
-            'VALIDATION_ERROR',
-            400
-          );
-        }
-
-        // 检查是否需要警告确认
-        if (warningStatuses.includes(planStatus) && !force) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `警告：关联的生产计划 ${planCode} 正在生产中，部分物料可能已被消耗。如确需撤销，请使用强制撤销。`,
-            'NEED_CONFIRM',
-            409,
-            { needConfirm: true, planStatus, planCode }
-          );
-        }
-      }
-
-      // 额外检查：该计划下的所有任务状态
-      const [taskStats] = await connection.execute(
-        `
-        SELECT
-          COUNT(*) as total,
-          SUM(CASE WHEN status IN ('inspection', 'quality_passed', 'completed', 'warehoused') THEN 1 ELSE 0 END) as completed_count,
-          SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count
-        FROM production_tasks
-        WHERE plan_id = ?
-      `,
-        [reference_id]
-      );
-
-      if (taskStats.length > 0) {
-        const {  completed_count, in_progress_count } = taskStats[0];
-        const completedNum = Number(completed_count) || 0;
-        const inProgressNum = Number(in_progress_count) || 0;
-
-        if (completedNum > 0) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `无法撤销：该计划下有 ${completedNum} 个生产任务已完成或进入检验阶段，物料已被消耗转化为成品`,
-            'VALIDATION_ERROR',
-            400
-          );
-        }
-
-        if (inProgressNum > 0 && !force) {
-          await connection.rollback();
-          return ResponseHandler.error(
-            res,
-            `警告：该计划下有 ${inProgressNum} 个生产任务正在生产中，部分物料可能已被消耗。如确需撤销，请使用强制撤销。`,
-            'NEED_CONFIRM',
-            409,
-            { needConfirm: true, inProgressCount: inProgressNum }
-          );
-        }
-      }
-    }
-    // ============ 结束：检查关联的生产任务/计划状态 ============
-
-    // 获取出库单明细（包含actual_quantity用于库存回退）
-    // 注意：location_id 从 materials 表获取，因为 inventory_outbound_items 表没有 location_id 字段
-    const [items] = await connection.execute(
-      `
-      SELECT
-        ioi.material_id,
-        COALESCE(m.location_id, 1) as location_id,
-        ioi.quantity,
-        ioi.actual_quantity,
-        ioi.unit_id,
-        m.code as material_code,
-        m.name as material_name
-      FROM inventory_outbound_items ioi
-      LEFT JOIN materials m ON ioi.material_id = m.id
-      WHERE ioi.outbound_id = ?
-    `,
-      [id]
-    );
-
-    // ✅ 源头修复：预先从台账中按物料返回原始出库批次（一个物料可能有多个 FIFO 批次）
-    // 结构: Map<material_id, Array<{batchNumber, quantity}>>
-    const [originalLedger] = await connection.execute(
-      `SELECT material_id, batch_number, ABS(quantity) as qty
-       FROM inventory_ledger
-       WHERE reference_no = ? AND transaction_type = 'sales_outbound'
-         AND quantity < 0
-         AND batch_number IS NOT NULL AND batch_number != ''
-       ORDER BY id ASC`,
-      [outbound_no]
-    );
-    // 尝试其他出库类型（如果 sales_outbound 未查到）
-    const ledgerCheck = originalLedger.length > 0 ? originalLedger : (
-      await connection.execute(
-        `SELECT material_id, batch_number, ABS(quantity) as qty
-         FROM inventory_ledger
-         WHERE reference_no = ? AND quantity < 0
-           AND batch_number IS NOT NULL AND batch_number != ''
-         ORDER BY id ASC`,
-        [outbound_no]
-      )
-    )[0];
-
-    // 构建 "material_id => [{batchNumber, qty}]" 映射
-    const batchByMaterial = new Map();
-    for (const row of ledgerCheck) {
-      const mid = row.material_id;
-      if (!batchByMaterial.has(mid)) batchByMaterial.set(mid, []);
-      batchByMaterial.get(mid).push({ batchNumber: row.batch_number, qty: parseFloat(row.qty) });
-    }
-
-    // 获取当前操作员
-    const operator = await getCurrentUserName(req);
-
-    // 如果明细为空（可能已经被删除），直接更新状态为draft
-    if (items.length === 0) {
-      logger.info(`出库单 ${outbound_no} 明细为空（可能已经被之前的操作删除），直接回退状态`);
-
-      // 将出库单状态改为draft
-      await connection.execute(
-        'UPDATE inventory_outbound SET status = ?, updated_at = NOW() WHERE id = ?',
-        ['draft', id]
-      );
-
-      // 如果出库单关联了生产任务,回退任务状态
-      if (reference_id && reference_type === 'production_task') {
-        const [taskCheck] = await connection.execute(
-          'SELECT status FROM production_tasks WHERE id = ?',
-          [reference_id]
-        );
-
-        if (
-          taskCheck.length > 0 &&
-          taskCheck[0].status === STATUS.PRODUCTION_TASK.MATERIAL_ISSUED
-        ) {
-          await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
-            STATUS.PRODUCTION_TASK.PREPARING,
-            reference_id,
-          ]);
-          logger.info(
-            `生产任务 ${reference_id} 状态已回退: ${STATUS.PRODUCTION_TASK.MATERIAL_ISSUED} → ${STATUS.PRODUCTION_TASK.PREPARING}`
-          );
-        }
-      }
-
-      await connection.commit();
-      return ResponseHandler.success(res, { id }, '出库单已撤销');
-    }
-
-    // 回退库存 - 将出库的物料加回来，将源头批次号一并恢复
-    for (const item of items) {
-      try {
-        // 使用actual_quantity回退库存（与出库时的扣减逻辑一致）
-        // 如果actual_quantity为null，说明是旧数据，使用quantity作为后备
-        const returnQuantity = parseFloat(item.actual_quantity ?? item.quantity) || 0;
-
-        // 如果实际出库数量为0，则不需要回退
-        if (returnQuantity <= 0) {
-          logger.info(`物料 ${item.material_code} 实际出库数量为0，跳过回退`);
-          continue;
-        }
-
-        // ✅ 取回原始批次并将对应批次的库存分别回退
-        const originalBatches = batchByMaterial.get(item.material_id) || [];
-
-        if (originalBatches.length > 0) {
-          // 按原始 FIFO 批次逐一回退，保持批次追溯的一致性
-          for (const batchInfo of originalBatches) {
-            await InventoryService.updateStock(
-              {
-                materialId: item.material_id,
-                locationId: item.location_id,
-                quantity: batchInfo.qty,
-                transactionType: 'outbound_cancel',
-                referenceNo: outbound_no,
-                referenceType: 'outbound_cancel',
-                operator: operator,
-                remark: `撤销出库单: ${outbound_no}`,
-                unitId: item.unit_id,
-                batchNumber: batchInfo.batchNumber, // 使用原始批次号回退
-              },
-              connection
-            );
-          }
-        } else {
-          // 如果还是未找到批次（非常旧数据），则整个单元一错回退
-          // updateStock 会自动生成批次号，不会产生空批次
-          await InventoryService.updateStock(
-            {
-              materialId: item.material_id,
-              locationId: item.location_id,
-              quantity: returnQuantity,
-              transactionType: 'outbound_cancel',
-              referenceNo: outbound_no,
-              referenceType: 'outbound_cancel',
-              operator: operator,
-              remark: `撤销出库单: ${outbound_no}`,
-              unitId: item.unit_id,
-              // batchNumber 未传入，将由 updateStock 内部自动生成
-            },
-            connection
-          );
-        }
-
-        logger.info(
-          `撤销出库: ${item.material_code} ${item.material_name}, 数量: +${returnQuantity}`
-        );
-      } catch (stockError) {
-        logger.error(`回退库存失败 - 物料: ${item.material_code}:`, stockError);
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          `回退库存失败: ${item.material_name}`,
-          'SERVER_ERROR',
-          500,
-          stockError
-        );
-      }
-    }
-
-    // 将出库单状态改为draft
-    await connection.execute(
-      'UPDATE inventory_outbound SET status = ?, updated_at = NOW() WHERE id = ?',
-      ['draft', id]
-    );
-
-    logger.info(`出库单 ${id} (${outbound_no}) 状态已回退: completed → draft`);
-
-    // ============ 重要：删除出库单明细，以便重新出库时使用最新的BOM数据 ============
-    // 如果是生产出库单，需要删除明细项，确保重新出库时获取最新的BOM
-    if (
-      reference_id &&
-      (reference_type === 'production_task' || reference_type === 'production_plan')
-    ) {
-      try {
-        const [deleteResult] = await connection.execute(
-          'DELETE FROM inventory_outbound_items WHERE outbound_id = ?',
-          [id]
-        );
-        logger.info(
-        `已删除出库单 ${outbound_no} 的 ${deleteResult.affectedRows} 条明细项，重新出库时将使用统一净需求`
-        );
-      } catch (deleteError) {
-        logger.error('删除出库单明细失败:', deleteError);
-        // 不阻止撤销流程，但记录警告
-      }
-    }
-    // ============ 结束：删除出库单明细 ============
-
-    // 如果出库单关联了生产任务,回退任务状态
-    if (reference_id && reference_type === 'production_task') {
-      try {
-        const [taskCheck] = await connection.execute(
-          'SELECT status FROM production_tasks WHERE id = ?',
-          [reference_id]
-        );
-
-        if (taskCheck.length > 0) {
-          const currentTaskStatus = taskCheck[0].status;
-
-          // 如果任务是已发料状态,回退到配料中
-          if (currentTaskStatus === STATUS.PRODUCTION_TASK.MATERIAL_ISSUED) {
-            await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
-              STATUS.PRODUCTION_TASK.PREPARING,
-              reference_id,
-            ]);
-            logger.info(
-              `生产任务 ${reference_id} 状态已回退: ${STATUS.PRODUCTION_TASK.MATERIAL_ISSUED} → ${STATUS.PRODUCTION_TASK.PREPARING}`
-            );
-          }
-        }
-      } catch (taskError) {
-        logger.error('回退生产任务状态失败:', taskError);
-        // 不阻止撤销流程
-      }
-    }
-
-    // 如果出库单关联了生产计划,回退计划状态
-    if (reference_id && reference_type === 'production_plan') {
-      try {
-        const [planCheck] = await connection.execute(
-          'SELECT status FROM production_plans WHERE id = ?',
-          [reference_id]
-        );
-
-        if (planCheck.length > 0) {
-          const currentPlanStatus = planCheck[0].status;
-
-          if (currentPlanStatus === STATUS.PRODUCTION_PLAN.MATERIAL_ISSUED) {
-            await connection.execute('UPDATE production_plans SET status = ? WHERE id = ?', [
-              STATUS.PRODUCTION_PLAN.PREPARING,
-              reference_id,
-            ]);
-            logger.info(`生产计划 ${reference_id} 状态已回退: material_issued → preparing`);
-          }
-        }
-      } catch (planError) {
-        logger.error('回退生产计划状态失败:', planError);
-      }
-    }
-
-    await connection.commit();
-
-    ResponseHandler.success(
-      res,
-      {
-        id,
-        outbound_no,
-        canceledItems: items.length,
-        message: '出库已撤销,库存已回退,出库单状态已改为草稿',
-      },
-      '撤销成功'
-    );
-  } catch (error) {
-    await connection.rollback();
-    logger.error('撤销出库失败:', error);
-    ResponseHandler.error(res, '撤销失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }
@@ -2296,7 +1991,7 @@ const reversePostedGLEntriesForOutbound = async (outboundNo, operator) => {
     const financeModel = require('../../../models/finance');
     const errors = [];
     let reversedCount = 0;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = currentDateString();
 
     for (const entry of entries) {
       try {
@@ -2333,11 +2028,13 @@ const updateOutboundStatus = async (req, res) => {
       `SELECT status, reference_id, reference_type, production_task_id, source_task_ids,
               issue_reason, is_excess
        FROM inventory_outbound
-       WHERE id = ?`,
+       WHERE id = ?
+       FOR UPDATE`,
       [id]
     );
 
     if (checkResult.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
     }
 
@@ -2368,6 +2065,7 @@ const updateOutboundStatus = async (req, res) => {
     };
 
     if (!validTransitions[currentStatus] || !validTransitions[currentStatus].includes(newStatus)) {
+      await connection.rollback();
       return ResponseHandler.error(res, '无效的状态转换', 'VALIDATION_ERROR', 400);
     }
 
@@ -2402,7 +2100,13 @@ const updateOutboundStatus = async (req, res) => {
             referenceId
           );
           if (!bomResult.success) {
-            logger.warn(`出库单 ${id} 确认时从统一净需求生成物料失败: ${bomResult.error}`);
+            await connection.rollback();
+            return ResponseHandler.error(
+              res,
+              `出库单确认失败，无法从统一净需求生成物料: ${bomResult.error}`,
+              'VALIDATION_ERROR',
+              400
+            );
           }
         }
       }
@@ -2417,7 +2121,13 @@ const updateOutboundStatus = async (req, res) => {
         if (itemCount === 0) {
           const bomResult = await fetchBatchBomItemsForOutbound(connection, id, batchTaskIds);
           if (!bomResult.success) {
-            logger.warn(`批量出库单 ${id} 确认时从统一净需求生成明细失败: ${bomResult.error}`);
+            await connection.rollback();
+            return ResponseHandler.error(
+              res,
+              `批量出库单确认失败，无法从统一净需求生成明细: ${bomResult.error}`,
+              'VALIDATION_ERROR',
+              400
+            );
           }
         }
       }
@@ -2495,6 +2205,7 @@ const updateOutboundStatus = async (req, res) => {
         }
       } catch (planError) {
         logger.error('更新生产计划/任务状态时出错:', planError);
+        throw planError;
       }
     }
 
@@ -2520,7 +2231,13 @@ const updateOutboundStatus = async (req, res) => {
       }
 
       if (itemCount === 0) {
-        logger.warn(`出库单 ${id} 没有明细项，跳过库存扣减`);
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '出库单没有明细，不能完成出库',
+          'VALIDATION_ERROR',
+          400
+        );
       } else {
         // 获取出库明细项(包含planned_quantity和actual_quantity，支持部分发料)
         const [items] = await connection.execute(
@@ -2808,7 +2525,7 @@ const updateOutboundStatus = async (req, res) => {
           );
         } catch (processError) {
           logger.error('创建生产过程记录失败:', processError);
-          // 不阻止主流程继续执行
+          throw processError;
         }
       }
 
@@ -2837,6 +2554,7 @@ const updateOutboundStatus = async (req, res) => {
           }
         } catch (processError) {
           logger.error('批量发料创建生产过程记录失败:', processError);
+          throw processError;
         }
       }
 
@@ -3146,7 +2864,7 @@ const supplementOutbound = async (req, res) => {
         }
       } catch (processError) {
         logger.error('补发后创建生产过程记录失败:', processError);
-        // 不阻止主流程
+        throw processError;
       }
     }
 
@@ -4028,6 +3746,7 @@ const cancelOutboundReissue = async (req, res) => {
 
 module.exports = {
   getOutboundList,
+  exportOutbound,
   getOutboundDetail,
   updateOutbound,
   _createOutbound,

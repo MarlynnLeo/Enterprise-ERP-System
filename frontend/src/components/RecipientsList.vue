@@ -69,6 +69,7 @@ import { ref, computed, watch } from 'vue';
 import technicalCommunicationApi from '@/services/technicalCommunicationApi';
 import { ElMessage } from 'element-plus';
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { parseDataObject } from '@/utils/responseParser'
 
 const props = defineProps({
   communicationId: {
@@ -95,9 +96,9 @@ const readPercentage = computed(() => {
 // 进度条颜色
 const progressColor = computed(() => {
   const percentage = readPercentage.value;
-  if (percentage < 30) return '#f56c6c';
-  if (percentage < 70) return '#e6a23c';
-  return '#67c23a';
+  if (percentage < 30) return 'var(--color-danger)';
+  if (percentage < 70) return 'var(--color-warning)';
+  return 'var(--color-success)';
 });
 
 // 格式化日期
@@ -112,11 +113,10 @@ const getDepartmentUserCount = (deptId) => {
 const loadRecipients = async () => {
   try {
     const res = await technicalCommunicationApi.getRecipients(props.communicationId);
-    if (res.data.code === 200) {
-      recipients.value = res.data.data.recipients || [];
-      departments.value = res.data.data.departments || [];
-      stats.value = res.data.data.stats || { total: 0, read: 0, unread: 0 };
-    }
+    const data = parseDataObject(res, { enableLog: false }) || {};
+    recipients.value = data.recipients || [];
+    departments.value = data.departments || [];
+    stats.value = data.stats || { total: 0, read: 0, unread: 0 };
   } catch (error) {
     console.error('加载抄送人员失败:', error);
     ElMessage.error('加载抄送人员失败');
@@ -150,7 +150,7 @@ defineExpose({
 
 .header h3 {
   margin: 0;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .stats-bar {
@@ -159,4 +159,3 @@ defineExpose({
   gap: 10px;
 }
 </style>
-

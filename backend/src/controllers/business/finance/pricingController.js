@@ -60,7 +60,7 @@ exports.getPricingList = async (req, res) => {
       ORDER BY
         CASE WHEN pp.id IS NOT NULL THEN 0 ELSE 1 END ASC,
         m.code ASC
-      LIMIT ${Math.max(1,Math.min(Math.floor(Number(pagination.limit))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(pagination.offset))||0)}
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     // 统计总数

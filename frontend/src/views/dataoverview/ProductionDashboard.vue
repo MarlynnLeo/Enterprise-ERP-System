@@ -200,7 +200,7 @@
                 {{ scope.row.manager || '-' }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right">
+            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="primary"
@@ -230,7 +230,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
-import Chart from 'chart.js/auto';
+import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { productionApi } from '@/services/api';
@@ -569,7 +569,7 @@ async function fetchPendingPlans() {
     // 获取状态为待处理的生产任务
     const params = {
       status: ['pending'],
-      pageSize: 100
+      pageSize: 50
     };
     const response = await productionApi.getProductionTasks(params);
     // 拦截器已解包，response.data 就是业务数据

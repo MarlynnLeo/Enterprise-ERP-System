@@ -49,9 +49,7 @@ const getWarehouseTypeText = (type) => {
 };
 
 // ==================== 库存事务类型映射 ====================
-// ⚠️ 已废弃：此常量已迁移到数据库 business_types 表
-// 请使用 BusinessTypeService 服务动态获取业务类型
-// 保留此常量仅用于向后兼容，建议逐步迁移到新服务
+// 兼容入口：标准业务类型以数据库 business_types 表为准，新代码优先使用 BusinessTypeService。
 const INVENTORY_TRANSACTION_TYPES = {
   // 基础类型
   inbound: '生产入库',

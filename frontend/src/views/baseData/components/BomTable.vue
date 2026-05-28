@@ -11,12 +11,7 @@
       <template #empty>
         <el-empty description="暂无BOM数据" />
       </template>
-      <el-table-column
-        v-if="selectionMode"
-        type="selection"
-        width="55"
-        :selectable="(row) => true"
-      ></el-table-column>
+      <el-table-column v-if="selectionMode" type="selection" width="55" :selectable="(row) => true"></el-table-column>
       <el-table-column label="产品编码" width="120" sortable prop="product_code" show-overflow-tooltip>
         <template #default="scope">
           {{ scope.row.product_code || '未知' }}
@@ -34,7 +29,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="version" label="版本" width="80" sortable></el-table-column>
-      <el-table-column label="状态" width="100" align="center">
+      <el-table-column label="状态" width="100">
         <template #default="scope">
           <el-tag v-if="isHistoryVersion(scope.row)" type="info">历史版本</el-tag>
           <el-tag v-else :type="getStatusType(isApproved(scope.row))">
@@ -55,8 +50,9 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip></el-table-column>
-      <el-table-column label="操作" min-width="250" fixed="right">
+      <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="scope">
+          <div class="table-actions">
           <el-button size="small" @click="handleView(scope.row)">
             <el-icon><View /></el-icon> 查看
           </el-button>
@@ -114,6 +110,7 @@
               </template>
             </el-popconfirm>
           </template>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -231,10 +228,3 @@ const formatStatus = (approved) => {
   return approved ? '已审核' : '未审核'
 }
 </script>
-<style scoped>
-.pagination-container {
-  margin-top: 15px;
-  display: flex;
-  justify-content: flex-end;
-}
-</style>

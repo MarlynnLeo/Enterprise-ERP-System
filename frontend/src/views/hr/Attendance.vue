@@ -27,23 +27,23 @@
       <el-table :data="tableData" border v-loading="loading" height="calc(100vh - 250px)" style="width:100%" size="small">
         <el-table-column prop="department_name" label="部门" width="80" fixed />
         <el-table-column prop="name" label="姓名" width="70" fixed />
-        <el-table-column label="出勤天数" align="center">
+        <el-table-column label="出勤天数">
           <el-table-column prop="full_work_days" label="全勤天数" width="75" />
           <el-table-column prop="actual_work_days" label="在勤天数" width="75" />
           <el-table-column prop="absent_from_position" label="不在职天" width="75" />
         </el-table-column>
-        <el-table-column label="请假" align="center">
+        <el-table-column label="请假">
           <el-table-column prop="personal_leave_days" label="事假天数" width="75" />
           <el-table-column prop="sick_leave_days" label="病假天数" width="75" />
-          <el-table-column prop="total_leave_days" label="天数合计" width="75" class-name="subtotal-col" />
+          <el-table-column prop="total_leave_days" label="天数合计" width="75" class-name="subtotal-col operation-column" />
         </el-table-column>
         <el-table-column prop="public_holiday_days" label="公休天数" width="75" />
-        <el-table-column label="违规" align="center">
+        <el-table-column label="违规">
           <el-table-column prop="late_count" label="迟到次数" width="75" />
           <el-table-column prop="missing_punch_count" label="缺卡次数" width="75" />
-          <el-table-column prop="total_violation_count" label="次数合计" width="75" class-name="subtotal-col" />
+          <el-table-column prop="total_violation_count" label="次数合计" width="75" class-name="subtotal-col operation-column" />
         </el-table-column>
-        <el-table-column label="加班" align="center">
+        <el-table-column label="加班">
           <el-table-column prop="serious_late_overtime" label="严重迟到/上加班" width="100" />
           <el-table-column prop="normal_overtime" label="正常晚" width="70" />
           <el-table-column prop="saturday_overtime" label="周六" width="60" />
@@ -114,6 +114,7 @@ import { hrApi } from '@/api/hr'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload, Setting } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
+import { parseResponseData } from '@/utils/responseParser'
 
 const period = ref(dayjs().format('YYYY-MM'))
 const tableData = ref([])
@@ -131,7 +132,7 @@ const fetchAttendance = async () => {
   loading.value = true
   try {
     const res = await hrApi.getAttendance(period.value)
-    tableData.value = res.data.data || res.data
+    tableData.value = parseResponseData(res)
   } catch {
     ElMessage.error('获取考勤失败')
   } finally {
@@ -185,7 +186,7 @@ const fetchRules = async () => {
   rulesLoading.value = true
   try {
     const res = await hrApi.getAttendanceRules()
-    rulesList.value = (res.data.data || res.data).map(r => ({
+    rulesList.value = (parseResponseData(res)).map(r => ({
       ...r,
       _editValue: typeof r.rule_value === 'string' ? JSON.parse(r.rule_value) : r.rule_value
     }))
@@ -264,12 +265,12 @@ onMounted(() => {
   gap: 10px;
 }
 .subtotal-col {
-  background-color: #fdf6ec !important;
+  background-color: var(--ds-yellow-bg) !important;
   font-weight: bold;
 }
 
 .rule-item {
-  background: #f9fafb;
+  background: var(--color-bg-section);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 10px;

@@ -237,7 +237,7 @@
   const getWarehouses = async () => {
     try {
       loadingWarehouses.value = true
-      const response = await inventoryApi.getLocations()
+      const response = await inventoryApi.getLocations({ page: 1, pageSize: 50, status: 1 })
       if (response && response.data) {
         let items = []
         if (Array.isArray(response.data)) {
@@ -264,7 +264,7 @@
   .unified-page {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     background: var(--bg-primary);
   }
 

@@ -1,239 +1,212 @@
-<!--
-/**
- * App.vue
- * @description 移动端应用文件
-  * @date 2025-08-27
- * @version 1.0.0
- */
--->
 <template>
   <div
     :class="[
       'app-container',
-      { 'standalone-mode': isStandalone, 'fullscreen-active': forceFullscreen }
+      {
+        'is-pwa-standalone': isStandalone,
+        'has-tabbar': showTabbar
+      }
     ]"
   >
-    <!-- 错误边界 -->
-    <ErrorBoundary ref="errorBoundaryRef">
-      <RouterView v-slot="{ Component, route: viewRoute }">
-        <Transition :name="transitionName" mode="out-in">
+    <ErrorBoundary ref="errorBoundaryRef" class="app-boundary">
+      <main class="app-main" role="main">
+        <RouterView v-slot="{ Component, route: viewRoute }">
           <KeepAlive :include="keepAlivePages">
             <component :is="Component" :key="viewRoute.path" />
           </KeepAlive>
-        </Transition>
-      </RouterView>
+        </RouterView>
+      </main>
 
-      <Tabbar v-show="showTabbar" route>
-        <TabbarItem name="Home" to="/" icon="home-o">首页</TabbarItem>
-        <TabbarItem name="Scan" to="/scan" icon="scan">扫码</TabbarItem>
-        <TabbarItem name="Notifications" to="/notifications" icon="bell">通知</TabbarItem>
-        <TabbarItem name="Profile" to="/profile" icon="user-o">我的</TabbarItem>
-      </Tabbar>
-
+      <footer v-show="showTabbar" class="app-tabbar-shell" aria-label="底部导航">
+        <Tabbar class="app-tabbar" route :fixed="false" :safe-area-inset-bottom="false">
+          <TabbarItem name="Home" to="/" icon="home-o" replace>首页</TabbarItem>
+          <TabbarItem name="Scan" to="/scan" icon="scan" replace>扫码</TabbarItem>
+          <TabbarItem name="Notifications" to="/system/notifications" icon="bell" replace>通知</TabbarItem>
+          <TabbarItem name="Profile" to="/profile" icon="user-o" replace>我的</TabbarItem>
+        </Tabbar>
+      </footer>
     </ErrorBoundary>
   </div>
 </template>
 
 <script setup>
-  import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
+  import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
   import { useRoute } from 'vue-router'
   import { Tabbar, TabbarItem } from 'vant'
   import { useAuthStore } from './stores/auth'
   import { useKeyboardScroll } from './composables/useKeyboardScroll'
-
+  import { getPwaViewportState, onPwaViewportChange } from './utils/pwaViewport'
   import ErrorBoundary from './components/ErrorBoundary.vue'
 
   const route = useRoute()
   const authStore = useAuthStore()
   const errorBoundaryRef = ref(null)
+  const pwaState = ref(getPwaViewportState())
 
-  // 路由转场动画方向
-  const transitionName = ref('slide-fade')
+  const keepAlivePages = ['Home', 'Notifications']
+  const tabbarRouteNames = new Set(['Home', 'Scan', 'Notifications', 'Profile'])
 
-  // 全局键盘遮挡自动滚动
+  const isStandalone = computed(() => pwaState.value.isStandalone)
+  const showTabbar = computed(() => {
+    if (!authStore.isAuthenticated) return false
+    if (route.meta?.hideTabbar) return false
+    if (route.meta?.showTabbar) return true
+    return tabbarRouteNames.has(route.name)
+  })
+
+  let stopViewportSync = null
+
   useKeyboardScroll()
 
-  /**
-   * 需要缓存的列表页组件名
-   * 从详情页返回时保持列表滚动位置和数据状态
-   */
-  const keepAlivePages = [
-    'Home',
-    'Notifications'
-  ]
-
-  // 响应式状态
-  const isStandalone = ref(false)
-  const forceFullscreen = ref(false)
-
-  // 局部定时器（避免污染 window 全局命名空间）
-  let fullscreenRefreshTimer = null
-  let visibilityChangeTimer = null
-
-  // 检查是否是从主屏幕启动（standalone 模式）
-  const checkStandaloneMode = () => {
-    const isFromHomeScreen =
-      window.navigator.standalone === true ||
-      window.matchMedia('(display-mode: standalone)').matches
-
-    if (isFromHomeScreen) {
-      localStorage.setItem('forceFullscreen', 'true')
-    }
-
-    isStandalone.value = isFromHomeScreen
-    forceFullscreen.value = localStorage.getItem('forceFullscreen') === 'true'
-  }
-
-
-
-  // 计算是否显示底部导航栏
-  const showTabbar = computed(() => {
-    const noTabbarRoutes = ['/login', '/chat']
-    if (noTabbarRoutes.includes(route.path)) {
-      return false
-    }
-    return authStore.isAuthenticated
-  })
-
-  // 监听路由变化
-  watch(
-    () => route.path,
-    () => {
-      clearTimeout(fullscreenRefreshTimer)
-      fullscreenRefreshTimer = setTimeout(() => {
-        checkStandaloneMode()
-      }, 300)
-    },
-    { immediate: true }
-  )
-
-  // 在可见性变化时重新检查状态
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
-      clearTimeout(visibilityChangeTimer)
-      visibilityChangeTimer = setTimeout(() => {
-        checkStandaloneMode()
-      }, 500)
-    }
-  }
-
-  // 在组件挂载时设置
   onMounted(() => {
-    const isFromHomeScreen = window.navigator.standalone === true
-
-    if (authStore.isAuthenticated || isFromHomeScreen) {
-      localStorage.setItem('isLoggedIn', 'true')
-      localStorage.setItem('forceFullscreen', 'true')
-    }
-
-    checkStandaloneMode()
-
-    // 添加可见性变化监听
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    stopViewportSync = onPwaViewportChange((nextState) => {
+      pwaState.value = nextState
+    })
   })
 
-  // 在组件卸载前清理
   onBeforeUnmount(() => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange)
-    clearTimeout(fullscreenRefreshTimer)
-    clearTimeout(visibilityChangeTimer)
+    stopViewportSync?.()
   })
 </script>
 
 <style lang="scss">
   @use '@/assets/styles/variables.scss' as *;
 
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-    height: 100% !important;
-    font-family: var(--font-sans);
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    /* 防止iOS弹性滚动，但不阻止子容器滚动 */
-    overscroll-behavior-y: none;
+  :root {
+    --app-viewport-height: 100dvh;
+    --app-shell-height: var(--app-viewport-height);
+    --app-width: 100%;
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --app-shell-width: 100%;
+    --app-page-x: 12px;
+    --app-tabbar-height: var(--van-tabbar-height, 56px);
+    --app-tabbar-border-top: 1px solid var(--van-border-color, var(--surface-border));
+    --app-tabbar-background: var(--van-tabbar-background, var(--bg-secondary));
+    --app-scroll-bottom-space: calc(12px + var(--safe-area-bottom));
+    --app-safe-bottom-space: var(--app-scroll-bottom-space);
+    --app-fixed-bottom-space: max(12px, var(--safe-area-bottom));
+    --app-fixed-control-height: 68px;
+    --app-fixed-control-space: calc(var(--app-fixed-control-height) + var(--safe-area-bottom));
+    --app-fixed-control-padding-bottom: calc(12px + var(--safe-area-bottom));
+    --app-bottom-space: var(--app-scroll-bottom-space);
   }
 
-  /* 全屏模式类 - 允许内部滚动 */
-  .fullscreen-mode {
-    position: fixed !important;
-    width: 100% !important;
-    height: 100% !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
+  html {
+    width: 100%;
+    height: 100%;
+    min-height: -webkit-fill-available;
+    background-color: var(--bg-primary);
+  }
+
+  html,
+  body,
+  #app {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    min-height: var(--app-shell-height);
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    min-height: -webkit-fill-available;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  #app {
+    height: 100%;
+    height: var(--app-shell-height);
+    min-height: -webkit-fill-available;
+    overflow: hidden;
+    background-color: var(--bg-primary);
   }
 
   .app-container {
-    height: 100vh;
+    width: 100%;
+    max-width: var(--app-shell-width);
+    height: 100%;
+    height: var(--app-shell-height);
+    min-height: 100%;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    overflow: hidden;
+    position: relative;
+    isolation: isolate;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
     background-color: var(--bg-primary);
     color: var(--text-primary);
-
-    /* 全屏模式下的样式调整 */
-    &.standalone-mode,
-    &.fullscreen-active {
-      /* 适配iPhone X及以上刘海屏 */
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
-    }
   }
 
-  // 页面通用容器
+  .app-container.is-pwa-standalone {
+    padding: 0;
+  }
+
+  .app-boundary {
+    width: 100%;
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-main {
+    width: 100%;
+    min-height: 0;
+    flex: 1 1 auto;
+    position: relative;
+    overflow: hidden;
+    overscroll-behavior-y: contain;
+    background-color: var(--bg-primary);
+  }
+
+  .app-main > * {
+    height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .page-container {
     display: flex;
     flex-direction: column;
-    min-height: 100%;
-    height: 100%;
+    min-height: 0;
     position: relative;
     background-color: var(--bg-primary);
     color: var(--text-primary);
   }
 
-  // 内容容器
+  .home-page,
+  .module-page,
+  .universal-page,
+  .universal-list-page,
+  .page-container,
+  .profile-page {
+    min-height: 0;
+  }
+
   .content-container {
     flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: calc(16px + var(--van-tabbar-height, 50px));
+    min-height: 0;
+    overflow-x: hidden;
+    padding-bottom: var(--app-bottom-space);
     background-color: var(--bg-primary);
   }
 
-  // 卡片样式
-  .card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-lg);
-    margin: 16px;
-    overflow: hidden;
-    box-shadow: none;
-  }
-
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
-    font-weight: bold;
-  }
-
-  .card-content {
-    padding: 16px;
-  }
-
-  // 辅助类
   .text-center {
     text-align: center;
   }
@@ -258,7 +231,6 @@
     margin-top: $margin-xs;
   }
 
-  // 盘盈盘亏状态颜色
   .profit-text {
     color: var(--color-success);
   }
@@ -267,53 +239,172 @@
     color: var(--color-error);
   }
 
-
-
-  /* 顶级容器 */
-  .standalone-mode {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+  .app-container.has-tabbar .app-tabbar-shell {
+    flex: 0 0 var(--app-tabbar-height);
     width: 100%;
+    height: var(--app-tabbar-height);
+    min-height: var(--app-tabbar-height);
+    box-sizing: border-box;
+    display: block;
+    padding: 0;
+    z-index: 100;
+    background: var(--app-tabbar-background);
+    border-top: var(--app-tabbar-border-top);
+    overflow: hidden;
+  }
+
+  .app-container.has-tabbar .app-tabbar-shell::after {
+    display: none;
+  }
+
+  .app-container.has-tabbar .app-tabbar {
+    position: relative;
+    width: 100%;
+    height: var(--app-tabbar-height);
+    min-height: var(--app-tabbar-height);
+    box-sizing: border-box;
+    display: flex;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    z-index: 1;
+  }
+
+  .app-container.has-tabbar .app-tabbar .van-tabbar-item {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
     height: 100%;
+  }
+
+  .app-container.has-tabbar .app-tabbar .van-tabbar-item--active {
+    background: transparent;
+  }
+
+  .app-container :where(
+    .page-container,
+    .create-page,
+    .detail-page,
+    .home-page,
+    .module-page,
+    .universal-page,
+    .universal-list-page,
+    .profile-page,
+    .about-page,
+    .chat-page,
+    .chat-container,
+    .notifications-page,
+    .notification-page,
+    .global-search-page,
+    .theme-page,
+    .scroll-container,
+    .main-scroll
+  ) {
+    box-sizing: border-box;
+  }
+
+  .app-container :where(
+    .page-container,
+    .create-page,
+    .detail-page,
+    .record-page,
+    .home-page,
+    .module-page,
+    .universal-page,
+    .universal-list-page,
+    .profile-page,
+    .about-page,
+    .chat-page,
+    .notifications-page,
+    .notification-page,
+    .notification-detail-page,
+    .global-search-page,
+    .theme-page,
+    .theme-settings,
+    .scan-page,
+    .unified-page,
+    .accounts-page,
+    .customer-detail-page,
+    .equipment-detail-page,
+    .material-detail,
+    .order-detail-page,
+    .create-order-page,
+    .create-plan-page,
+    .create-receipt-page,
+    .transfer-page,
+    .transaction-page,
+    .stock-page,
+    .check-page,
+    .report-page,
+    .report-history-page,
+    .tasks-page,
+    .dashboard-page,
+    .config-page,
+    .system-page,
+    .users-page,
+    .traceability-page,
+    .trace-detail-page
+  ) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-container :where(
+    .content-container,
+    .page-body,
+    .module-body,
+    .main-scroll,
+    .scroll-container,
+    .page-content,
+    .search-container,
+    .content-wrapper,
+    .detail-body,
+    .report-body,
+    .report-list,
+    .conversation-list,
+    .message-area,
+    .contacts-list
+  ) {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  .fullscreen-active {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    overflow-y: auto !important;
+  .app-container :where(
+    .about-page,
+    .theme-settings,
+    .create-page,
+    .detail-page,
+    .record-page,
+    .material-detail,
+    .customer-detail-page,
+    .equipment-detail-page,
+    .order-detail-page,
+    .create-order-page,
+    .create-plan-page,
+    .create-receipt-page,
+    .transfer-page,
+    .transaction-page,
+    .stock-page,
+    .check-page,
+    .report-page,
+    .report-history-page,
+    .dashboard-page,
+    .config-page,
+    .system-page,
+    .users-page,
+    .traceability-page,
+    .trace-detail-page
+  ) > .content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
-  }
-
-  /* ==================== 路由转场动画 ==================== */
-  .slide-fade-enter-active {
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .slide-fade-leave-active {
-    transition: all 0.15s cubic-bezier(0.4, 0, 1, 1);
-  }
-  .slide-fade-enter-from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  .slide-fade-leave-to {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-
-  /* ==================== 统一底部安全间距 ==================== */
-  /* 所有路由页面的根容器自动追加底部间距，防止 TabBar 遮挡 */
-  .app-container > .error-boundary-wrapper > div:first-child,
-  .app-container > div:first-child {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }
 </style>

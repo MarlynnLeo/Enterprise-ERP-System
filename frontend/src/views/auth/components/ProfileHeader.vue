@@ -10,8 +10,7 @@
     <div class="header-right">
       <div class="motivation-section">
         <div class="motivation-icon-wrapper">
-          <div class="motivation-icon">✨</div>
-          <div class="icon-glow"></div>
+          <el-icon class="motivation-icon"><Trophy /></el-icon>
         </div>
         <div class="motivation-text">
           <div class="motivation-title">
@@ -21,16 +20,11 @@
         </div>
       </div>
     </div>
-    <div class="header-decoration">
-      <div class="decoration-circle circle-1"></div>
-      <div class="decoration-circle circle-2"></div>
-      <div class="decoration-circle circle-3"></div>
-    </div>
   </div>
 </template>
 <script setup>
 import { computed } from 'vue'
-import { User } from '@element-plus/icons-vue'
+import { Trophy, User } from '@element-plus/icons-vue'
 const _props = defineProps({
   userName: {
     type: String,
@@ -60,15 +54,15 @@ const motivation = computed(() => {
 <style scoped>
 .profile-header-card {
   position: relative;
-  background: linear-gradient(120deg, var(--el-color-primary-light-9) 0%, var(--el-bg-color) 100%);
-  border-radius: 16px;
-  padding: 24px 30px;
+  background: var(--el-bg-color);
+  border-radius: 12px;
+  padding: 24px 28px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
   border: 1px solid var(--el-border-color-lighter);
 }
 .header-left {
@@ -78,12 +72,15 @@ const motivation = computed(() => {
   z-index: 2;
 }
 .header-icon {
-  font-size: 32px;
-  color: var(--el-color-primary);
-  background: white;
-  padding: 12px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: var(--el-color-white);
+  background: var(--el-color-primary);
+  border-radius: 50%;
 }
 .header-text {
   display: flex;
@@ -91,8 +88,8 @@ const motivation = computed(() => {
 }
 .page-title {
   margin: 0;
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 26px;
+  font-weight: 800;
   color: var(--el-text-color-primary);
   line-height: 1.2;
 }
@@ -108,48 +105,44 @@ const motivation = computed(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  background: rgba(255, 255, 255, 0.6);
-  padding: 10px 20px;
+  background: var(--el-fill-color-extra-light);
+  padding: 12px 18px;
   border-radius: 12px;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  transition: all 0.3s ease;
+  border: 1px solid var(--el-border-color-lighter);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 /* 深色模式适配 */
-html.dark .motivation-section {
-  background: rgba(0, 0, 0, 0.2);
-  border-color: rgba(255, 255, 255, 0.1);
+:global(html.dark[data-theme="dark"]) .motivation-section {
+  background: color-mix(in srgb, var(--color-text-primary) 20%, transparent);
+  border-color: color-mix(in srgb, var(--el-color-white) 10%, transparent);
 }
 .motivation-section:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--el-color-primary-light-6);
+  background: var(--el-bg-color);
 }
 .motivation-icon-wrapper {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 42px;
+  border-radius: 50%;
+  color: var(--el-color-white);
+  background: var(--el-color-warning);
 }
 .motivation-icon {
-  font-size: 24px;
-  z-index: 2;
-}
-.icon-glow {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle, rgba(255, 215, 0, 0.4) 0%, transparent 70%);
-  animation: pulse 2s infinite;
+  font-size: 22px;
 }
 .motivation-text {
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 .motivation-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--el-text-color-primary);
 }
 .highlight-name {
@@ -164,56 +157,20 @@ html.dark .motivation-section {
   font-family: 'DIN Alternate', sans-serif;
 }
 .motivation-desc {
+  max-width: 440px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-top: 2px;
-}
-.header-decoration {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  z-index: 1;
-  pointer-events: none;
-}
-.decoration-circle {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.1;
-}
-.circle-1 {
-  width: 200px;
-  height: 200px;
-  background: var(--el-color-primary);
-  top: -50px;
-  right: -50px;
-}
-.circle-2 {
-  width: 100px;
-  height: 100px;
-  background: var(--el-color-success);
-  bottom: 20px;
-  right: 200px;
-}
-.circle-3 {
-  width: 50px;
-  height: 50px;
-  background: var(--el-color-warning);
-  top: 40px;
-  right: 300px;
-}
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.2); opacity: 0.3; }
-  100% { transform: scale(1); opacity: 0.6; }
 }
 @media (max-width: 768px) {
   .profile-header-card {
     flex-direction: column;
     align-items: flex-start;
-    gap: 20px;
+    gap: 16px;
+    padding: 18px;
   }
 
   .header-right {
@@ -222,6 +179,16 @@ html.dark .motivation-section {
 
   .motivation-section {
     width: 100%;
+    box-sizing: border-box;
+    align-items: flex-start;
+  }
+
+  .page-title {
+    font-size: 22px;
+  }
+
+  .motivation-desc {
+    white-space: normal;
   }
 }
 </style>

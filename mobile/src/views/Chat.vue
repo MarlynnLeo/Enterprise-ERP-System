@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Chat.vue
  * @description 即时通讯页面 - 会话列表与聊天窗口
@@ -393,7 +393,7 @@ const formatMsgTime = (ts) => {
 
 <style lang="scss" scoped>
 .chat-page {
-  min-height: 100vh;
+  min-height: 100%;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
@@ -514,14 +514,14 @@ const formatMsgTime = (ts) => {
 .chat-room-view {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
 }
 
 .message-area {
   flex: 1;
   overflow-y: auto;
   padding: 12px 16px;
-  padding-bottom: 80px;
+  padding-bottom: var(--app-fixed-control-space);
 }
 
 .loading-more {
@@ -631,7 +631,7 @@ const formatMsgTime = (ts) => {
   background: var(--bg-secondary, rgba(30,30,40,0.95));
   border-top: 1px solid var(--border-light, rgba(255,255,255,0.06));
   padding: 4px 10px;
-  padding-bottom: max(4px, env(safe-area-inset-bottom));
+  padding-bottom: max(4px, var(--safe-area-bottom, 0px));
 }
 
 .input-row {

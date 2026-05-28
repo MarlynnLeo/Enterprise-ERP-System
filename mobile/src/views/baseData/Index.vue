@@ -64,25 +64,25 @@
   const quickActions = ref([
     {
       label: '物料管理',
-      path: '/baseData/materials',
+      path: '/basedata/materials',
       icon: 'cube',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
     },
     {
       label: '客户管理',
-      path: '/baseData/customers',
+      path: '/basedata/customers',
       icon: 'people',
       gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
     },
     {
       label: '供应商管理',
-      path: '/baseData/suppliers',
+      path: '/basedata/suppliers',
       icon: 'briefcase',
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
     },
     {
       label: '仓库管理',
-      path: '/baseData/locations',
+      path: '/basedata/locations',
       icon: 'home',
       gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
     }
@@ -93,13 +93,13 @@
     {
       title: '物料管理',
       desc: '查看和管理物料信息',
-      path: '/baseData/materials',
+      path: '/basedata/materials',
       icon: 'cube'
     },
     {
       title: 'BOM管理',
       desc: '物料清单管理',
-      path: '/baseData/boms',
+      path: '/basedata/boms',
       icon: 'layers'
     }
   ])
@@ -108,13 +108,13 @@
     {
       title: '客户管理',
       desc: '查看和管理客户信息',
-      path: '/baseData/customers',
+      path: '/basedata/customers',
       icon: 'people'
     },
     {
       title: '供应商管理',
       desc: '查看和管理供应商信息',
-      path: '/baseData/suppliers',
+      path: '/basedata/suppliers',
       icon: 'briefcase'
     }
   ])
@@ -123,25 +123,25 @@
     {
       title: '单位管理',
       desc: '系统计量单位设置',
-      path: '/baseData/units',
+      path: '/basedata/units',
       icon: 'completed'
     },
     {
       title: '分类管理',
       desc: '物料与产品分类树',
-      path: '/baseData/categories',
+      path: '/basedata/categories',
       icon: 'cluster-o'
     },
     {
       title: '仓库/库位管理',
       desc: '仓库和库位设置',
-      path: '/baseData/locations',
+      path: '/basedata/locations',
       icon: 'home'
     },
     {
       title: '工序模板',
       desc: '生产工序模板管理',
-      path: '/baseData/process-templates',
+      path: '/basedata/process-templates',
       icon: 'settings'
     }
   ])

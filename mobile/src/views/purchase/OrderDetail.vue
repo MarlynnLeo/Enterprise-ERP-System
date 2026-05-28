@@ -230,6 +230,7 @@
   import { useRouter, useRoute } from 'vue-router'
   import { NavBar, Icon, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/services/api'
+  import { extractApiData } from '@/utils/apiHelper'
 
   const router = useRouter()
   const route = useRoute()
@@ -245,7 +246,7 @@
       loading.value = true
       const orderId = route.params.id
       const response = await purchaseApi.getOrder(orderId)
-      order.value = response.data?.data || response.data || response
+      order.value = extractApiData(response, null)
       orderItems.value = order.value?.items || []
     } catch (error) {
       console.error('获取采购订单详情失败:', error)
@@ -336,7 +337,7 @@
 
   // 查看供应商
   const viewSupplier = () => {
-    router.push(`/baseData/suppliers/${order.value.supplier_id}`)
+    router.push(`/basedata/suppliers/${order.value.supplier_id}`)
   }
 
   import { getPurchaseStatusText } from '@/constants/systemConstants'
@@ -381,7 +382,7 @@
 
 <style lang="scss" scoped>
   .order-detail-page {
-    height: 100vh;
+    height: 100%;
     background-color: var(--bg-secondary);
     display: flex;
     flex-direction: column;
@@ -392,7 +393,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 16px;
-    padding-bottom: 32px;
+    padding-bottom: var(--app-bottom-space);
     -webkit-overflow-scrolling: touch;
   }
 
@@ -408,7 +409,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
 
     h3 {
       margin: 0;
@@ -540,7 +541,7 @@
     display: flex;
     justify-content: space-between;
     padding: 12px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 6px;
     margin-bottom: 8px;
 

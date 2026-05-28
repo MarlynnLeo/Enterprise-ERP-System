@@ -110,6 +110,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {  showToast , Button } from 'vant'
 import { salesApi } from '@/services/api'
+import { extractApiData } from '@/utils/apiHelper'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
 
@@ -145,7 +146,7 @@ const fetchDetail = async () => {
     loading.value = true
     try {
         const res = await salesApi.getSalesOrder(id)
-        order.value = res.data?.data || res.data || res
+        order.value = extractApiData(res, null)
     } catch (error) {
         console.error('获取销售订单详情失败:', error)
         showToast('加载失败')
@@ -217,9 +218,9 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .page-container {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 20px;
+    padding-bottom: var(--app-bottom-space);
     display: flex;
     flex-direction: column;
 }
@@ -228,9 +229,13 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem;
+    min-height: calc(48px + var(--safe-area-top, 0px));
+    margin: 0;
+    padding: var(--safe-area-top, 0px) 12px 0;
     background: var(--bg-secondary);
-    backdrop-filter: blur(20px);
+    border: 0;
+    border-bottom: 1px solid var(--van-border-color, var(--surface-border));
+    border-radius: 0;
     position: sticky;
     top: 0;
     z-index: 50;
@@ -246,8 +251,8 @@ onMounted(() => {
 }
 
 .page-title {
-    font-size: 1.125rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 700;
     color: var(--text-primary);
 }
 
@@ -256,7 +261,7 @@ onMounted(() => {
 }
 
 .content-scroll {
-    padding: 1rem;
+    padding: 0 12px var(--app-bottom-space);
 }
 
 .status-section {
@@ -411,11 +416,11 @@ onMounted(() => {
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 8px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--surface-border, var(--border-subtle));
 }
 .item-title-row {
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   padding-bottom: 8px;
 }
 .item-title {

@@ -117,20 +117,12 @@
   const errors = reactive({ username: false, password: false })
   const focusState = reactive({ username: false, password: false })
 
-  // 视口高度修正（移动端键盘弹出时）
-  const updateVh = () => {
-    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`)
-  }
-
   onMounted(() => {
     document.body.classList.add('login-page-active')
-    updateVh()
-    window.addEventListener('resize', updateVh)
   })
 
   onBeforeUnmount(() => {
     document.body.classList.remove('login-page-active')
-    window.removeEventListener('resize', updateVh)
   })
 
   const onSubmit = async () => {
@@ -150,7 +142,6 @@
     try {
       await authStore.login({ username: username.value, password: password.value })
       localStorage.setItem('isLoggedIn', 'true')
-      localStorage.setItem('forceFullscreen', 'true')
       showToast({ type: 'success', message: '登录成功', duration: 800, onClose: () => router.push('/') })
     } catch (error) {
       console.error('登录失败:', error)
@@ -304,7 +295,10 @@
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.06);
     border: 1.5px solid rgba(255, 255, 255, 0.08);
-    transition: all 0.25s ease;
+    transition:
+      background-color 0.25s ease,
+      border-color 0.25s ease,
+      box-shadow 0.25s ease;
 
     &.focused {
       border-color: rgba(99, 102, 241, 0.6);

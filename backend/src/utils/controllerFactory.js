@@ -29,8 +29,11 @@ function createCrudController(service, resourceName, options = {}) {
      */
     async getAll(req, res) {
       try {
-        const { page = 1, pageSize = 10, ...filters } = req.query;
-        const result = await service.getAll(parseInt(page) || 1, parseInt(pageSize) || 10, filters);
+        const { page = 1, pageSize, limit, ...filters } = req.query;
+        const normalizedPage = Math.max(parseInt(page, 10) || 1, 1);
+        const requestedPageSize = parseInt(pageSize || limit, 10) || 10;
+        const normalizedPageSize = Math.min(Math.max(requestedPageSize, 1), 100);
+        const result = await service.getAll(normalizedPage, normalizedPageSize, filters);
 
         if (usePaginated && result.total !== undefined) {
           // 使用分页响应
@@ -38,8 +41,8 @@ function createCrudController(service, resourceName, options = {}) {
             res,
             result.items || result.data || result.list || result,
             result.total,
-            result.page || parseInt(page),
-            result.pageSize || parseInt(pageSize),
+            result.page || normalizedPage,
+            result.pageSize || normalizedPageSize,
             `获取${resourceName}列表成功`
           );
         } else {

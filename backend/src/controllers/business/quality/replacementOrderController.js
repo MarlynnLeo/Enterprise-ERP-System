@@ -35,7 +35,7 @@ const getReplacementOrders = async (req, res) => {
 
     const pagination = parsePagination(page, pageSize, {
       defaultPageSize: 10,
-      maxPageSize: 200,
+      maxPageSize: 100,
     });
 
     const whereConditions = [];
@@ -161,7 +161,7 @@ const updateReplacementOrder = async (req, res) => {
 
     // 检查换货单是否存在
     const [checkResult] = await connection.query(
-      'SELECT status FROM replacement_orders WHERE id = ?',
+      'SELECT status FROM replacement_orders WHERE id = ? FOR UPDATE',
       [id]
     );
 
@@ -299,7 +299,7 @@ const updateStatus = async (req, res) => {
       return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
-    const [existing] = await connection.query('SELECT * FROM replacement_orders WHERE id = ?', [id]);
+    const [existing] = await connection.query('SELECT * FROM replacement_orders WHERE id = ? FOR UPDATE', [id]);
     if (existing.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '换货单不存在', 'NOT_FOUND', 404);

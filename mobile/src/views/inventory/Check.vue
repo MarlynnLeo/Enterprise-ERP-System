@@ -314,12 +314,12 @@
 
 <style lang="scss" scoped>
   .check-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-bottom-space);
   }
   .content-wrapper {
-    padding: 0 12px 12px;
+    padding: 0 12px var(--app-bottom-space);
   }
   .header-actions {
     display: flex;
@@ -335,9 +335,11 @@
     justify-content: space-around;
     background: var(--bg-secondary);
     border-radius: 12px;
-    padding: 14px 8px;
-    margin: 8px 0;
-    border: 1px solid var(--glass-border);
+    min-height: 74px;
+    padding: 12px 8px;
+    margin: 8px 0 12px;
+    border: 1px solid var(--surface-border, var(--border-subtle));
+    box-shadow: none;
   }
   .stat-item {
     display: flex;
@@ -367,7 +369,7 @@
   .stat-divider {
     width: 1px;
     height: 28px;
-    background: var(--glass-border);
+    background: var(--van-border-color, var(--surface-border));
   }
 
   .search-section {
@@ -394,12 +396,12 @@
     padding: 6px 14px;
     border-radius: 20px;
     background: var(--bg-secondary);
-    border: 1.5px solid var(--glass-border);
+    border: 1.5px solid var(--surface-border, var(--border-subtle));
     white-space: nowrap;
     flex-shrink: 0;
     font-size: 0.8125rem;
     color: var(--text-secondary);
-    transition: all 0.25s;
+    transition: background-color 0.25s, border-color 0.25s, color 0.25s, box-shadow 0.25s, opacity 0.25s, transform 0.25s;
     cursor: pointer;
     .chip-text {
       font-weight: 500;
@@ -420,7 +422,7 @@
     border-radius: 12px;
     margin-bottom: 10px;
     overflow: hidden;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     animation: fadeInUp 0.35s ease-out both;
     &:active {
       transform: scale(0.98);
@@ -532,7 +534,7 @@
     align-items: center;
     margin-top: 6px;
     padding-top: 6px;
-    border-top: 1px solid var(--glass-border);
+    border-top: 1px solid var(--surface-border, var(--border-subtle));
   }
   .remark-text {
     flex: 1;

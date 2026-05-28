@@ -7,6 +7,7 @@
 const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { softDelete } = require('../../utils/softDelete');
+const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 const PermissionService = require('../PermissionService');
 
 class WorkflowService {
@@ -16,6 +17,7 @@ class WorkflowService {
   /** 获取工作流模板列表 */
   async getTemplates(params = {}) {
     const { keyword, business_type, is_active, page = 1, pageSize = 20 } = params;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
     let countWhere = 'WHERE deleted_at IS NULL';
     let listWhere = 'WHERE wt.deleted_at IS NULL';
     const values = [];
@@ -37,16 +39,17 @@ class WorkflowService {
     }
 
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM workflow_templates ${countWhere}`, values);
-    const offset = (page - 1) * pageSize;
-    const [rows] = await pool.query(
+    const listSql = appendPaginationSQL(
       `SELECT wt.*, IFNULL(nc.node_count, 0) AS node_count
        FROM workflow_templates wt
        LEFT JOIN (SELECT template_id, COUNT(*) AS node_count FROM workflow_template_nodes GROUP BY template_id) nc ON nc.template_id = wt.id
-       ${listWhere} ORDER BY wt.updated_at DESC LIMIT ? OFFSET ?`,
-      [...values, Number(pageSize), offset]
+       ${listWhere} ORDER BY wt.updated_at DESC`,
+      pagination.limit,
+      pagination.offset
     );
+    const [rows] = await pool.query(listSql, values);
 
-    return { list: rows, total, page: Number(page), pageSize: Number(pageSize) };
+    return { list: rows, total, page: pagination.page, pageSize: pagination.pageSize };
   }
 
   /** 获取模板详情（含节点） */
@@ -166,6 +169,22 @@ class WorkflowService {
     try {
       await conn.beginTransaction();
 
+      const [[existingInstance]] = await conn.query(
+        `SELECT id, status
+         FROM workflow_instances
+         WHERE business_type = ?
+           AND business_id = ?
+           AND deleted_at IS NULL
+           AND status IN ('pending', 'in_progress')
+         ORDER BY id DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [business_type, business_id]
+      );
+      if (existingInstance) {
+        throw new Error(`该单据已有进行中的审批流程，审批实例ID: ${existingInstance.id}`);
+      }
+
       // 3. 创建流程实例
       const [instResult] = await conn.query(
         `INSERT INTO workflow_instances
@@ -230,7 +249,7 @@ class WorkflowService {
 
       // 1. 验证节点状态
       const [[node]] = await conn.query(
-        "SELECT * FROM workflow_instance_nodes WHERE id = ? AND instance_id = ? AND status = 'in_progress'",
+        "SELECT * FROM workflow_instance_nodes WHERE id = ? AND instance_id = ? AND status = 'in_progress' FOR UPDATE",
         [node_id, instance_id]
       );
       if (!node) throw new Error('审批节点不存在或已处理');
@@ -245,6 +264,12 @@ class WorkflowService {
       }
 
       // 获取审批人姓名
+      const [[instLock]] = await conn.query(
+        "SELECT id, status, initiator_id, business_type, business_id FROM workflow_instances WHERE id = ? AND status IN ('pending','in_progress') FOR UPDATE",
+        [instance_id]
+      );
+      if (!instLock) throw new Error('Workflow instance is not pending or in progress');
+
       const [[user]] = await conn.query('SELECT real_name, username FROM users WHERE id = ?', [approver_id]);
       const approverName = user?.real_name || user?.username || String(approver_id);
 
@@ -268,17 +293,11 @@ class WorkflowService {
           [instance_id, node_id]
         );
         // 回调更新业务单据状态为拒绝
-        const [[instRej]] = await conn.query('SELECT business_type, business_id FROM workflow_instances WHERE id = ?', [instance_id]);
-        if (instRej) {
-          await this._onWorkflowRejected(conn, instRej.business_type, instRej.business_id);
-        }
+        await this._onWorkflowRejected(conn, instLock.business_type, instLock.business_id);
       } else {
         // 通过 → 预查询实例数据（合并两次查询为一次）
-        const [[instData]] = await conn.query(
-          'SELECT initiator_id, business_type, business_id FROM workflow_instances WHERE id = ?', [instance_id]
-        );
         const [pendingNodes] = await conn.query(
-          "SELECT * FROM workflow_instance_nodes WHERE instance_id = ? AND status = 'pending' AND node_type = 'approval' ORDER BY sequence LIMIT 1",
+          "SELECT * FROM workflow_instance_nodes WHERE instance_id = ? AND status = 'pending' AND node_type = 'approval' ORDER BY sequence LIMIT 1 FOR UPDATE",
           [instance_id]
         );
 
@@ -300,7 +319,7 @@ class WorkflowService {
               'SELECT * FROM workflow_template_nodes WHERE id = ?', [nextNode.template_node_id]
             );
             if (tplNode) {
-              await this._assignApprover(conn, nextNode.id, tplNode, instData?.initiator_id);
+              await this._assignApprover(conn, nextNode.id, tplNode, instLock.initiator_id);
             }
           }
         } else {
@@ -315,9 +334,7 @@ class WorkflowService {
           );
 
           // 回调更新业务单据状态
-          if (instData) {
-            await this._onWorkflowApproved(conn, instData.business_type, instData.business_id, approver_id);
-          }
+          await this._onWorkflowApproved(conn, instLock.business_type, instLock.business_id, approver_id);
         }
       }
 
@@ -340,7 +357,7 @@ class WorkflowService {
       await conn.beginTransaction();
 
       const [[inst]] = await conn.query(
-        "SELECT * FROM workflow_instances WHERE id = ? AND initiator_id = ? AND status IN ('pending','in_progress')",
+        "SELECT * FROM workflow_instances WHERE id = ? AND initiator_id = ? AND status IN ('pending','in_progress') FOR UPDATE",
         [instance_id, userId]
       );
       if (!inst) throw new Error('流程不存在或无法撤回');
@@ -423,6 +440,7 @@ class WorkflowService {
   /** 查询我发起的审批 */
   async getMyInitiated(userId, params = {}) {
     const { status, page = 1, pageSize = 20 } = params;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
     let where = 'WHERE wi.initiator_id = ? AND wi.deleted_at IS NULL';
     const values = [userId];
 
@@ -434,21 +452,23 @@ class WorkflowService {
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) AS total FROM workflow_instances wi ${where}`, values
     );
-    const offset = (page - 1) * pageSize;
-    const [rows] = await pool.query(
+    const listSql = appendPaginationSQL(
       `SELECT wi.*, wt.name AS template_name, u.real_name AS initiator_name
        FROM workflow_instances wi
        LEFT JOIN workflow_templates wt ON wt.id = wi.template_id
        LEFT JOIN users u ON u.id = wi.initiator_id
-       ${where} ORDER BY wi.created_at DESC LIMIT ? OFFSET ?`,
-      [...values, Number(pageSize), offset]
+       ${where} ORDER BY wi.created_at DESC`,
+      pagination.limit,
+      pagination.offset
     );
-    return { list: rows, total, page: Number(page), pageSize: Number(pageSize) };
+    const [rows] = await pool.query(listSql, values);
+    return { list: rows, total, page: pagination.page, pageSize: pagination.pageSize };
   }
 
   /** 查询我待审批的 */
   async getMyPending(userId, params = {}) {
     const { page = 1, pageSize = 20 } = params;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
     // 获取用户角色和部门
 
@@ -462,17 +482,18 @@ class WorkflowService {
        JOIN workflow_instances wi ON wi.id = win.instance_id ${where}`, values
     );
 
-    const offset = (page - 1) * pageSize;
-    const [rows] = await pool.query(
+    const listSql = appendPaginationSQL(
       `SELECT win.*, wi.title, wi.business_type, wi.business_id, wi.business_code,
               wi.status AS instance_status, u.real_name AS initiator_name
        FROM workflow_instance_nodes win
        JOIN workflow_instances wi ON wi.id = win.instance_id
        LEFT JOIN users u ON u.id = wi.initiator_id
-       ${where} ORDER BY win.created_at DESC LIMIT ? OFFSET ?`,
-      [...values, Number(pageSize), offset]
+       ${where} ORDER BY win.created_at DESC`,
+      pagination.limit,
+      pagination.offset
     );
-    return { list: rows, total, page: Number(page), pageSize: Number(pageSize) };
+    const [rows] = await pool.query(listSql, values);
+    return { list: rows, total, page: pagination.page, pageSize: pagination.pageSize };
   }
 
   /** 根据业务单据获取审批状态 */
@@ -570,6 +591,8 @@ class WorkflowService {
     purchase_requisition: { table: 'purchase_requisitions', approved: 'approved', rejected: 'draft',    withdrawn: 'draft', extra: '' },
     contract:             { table: 'contracts',              approved: 'active',   rejected: 'draft',    withdrawn: 'draft', extra: '' },
     ecn:                  { table: 'ecn_orders',             approved: 'approved', rejected: 'rejected', withdrawn: 'draft', extra: ', approved_by = ?, approved_at = NOW()' },
+    hr_leave:             { table: 'hr_leave_requests',      approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', extra: '' },
+    hr_overtime:          { table: 'hr_overtime_requests',   approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', extra: '' },
   };
 
   /**
@@ -587,6 +610,23 @@ class WorkflowService {
     }
 
     try {
+      const [[businessRow]] = await conn.query(
+        `SELECT id, status FROM ${cfg.table} WHERE id = ? FOR UPDATE`,
+        [businessId]
+      );
+      if (!businessRow) {
+        throw new Error(`Business document not found [${businessType}:${businessId}]`);
+      }
+
+      const allowedSourceStatuses = action === 'approved'
+        ? ['pending', 'submitted', 'in_review', 'approving']
+        : ['pending', 'submitted', 'in_review', 'approving', 'approved'];
+      if (!allowedSourceStatuses.includes(businessRow.status)) {
+        throw new Error(
+          `Business document status [${businessRow.status}] cannot be changed to [${targetStatus}] by workflow callback`
+        );
+      }
+
       const params = [targetStatus];
       const extraSql = action === 'approved' ? (cfg.extra || '') : '';
       if (extraSql.includes('approved_by')) params.push(approverId);

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * OutsourcedReceipts.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="outsourced-receipts-container">
+  <div class="module-page outsourced-receipts-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -18,11 +18,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="单号搜索">
-          <el-input v-model="searchForm.keyword" placeholder="请输入入库单号或加工单号" clearable></el-input>
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input v-model="searchForm.keyword" placeholder="物料名称" clearable></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="供应商">
           <el-input v-model="searchForm.supplierName" placeholder="请输入供应商名称" clearable></el-input>
         </el-form-item>
@@ -47,16 +54,8 @@
 
           />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -99,7 +98,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="200" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -113,13 +112,14 @@
               type="primary"
               @click="handleEditReceipt(scope.row)"
 
-              v-permission="'purchase:processing-receipts'">
+              v-permission="'purchase:processing-receipts:edit'">
               编辑
             </el-button>
             <el-button
               v-if="scope.row.status === 'pending'"
               size="small"
               type="success"
+              v-permission="'purchase:processing-receipts:edit'"
               @click="updateReceiptStatus(scope.row, 'confirmed')"
             >
               确认入库
@@ -128,6 +128,7 @@
               v-if="scope.row.status === 'pending'"
               size="small"
               type="danger"
+              v-permission="'purchase:processing-receipts:edit'"
               @click="updateReceiptStatus(scope.row, 'cancelled')"
             >
               取消
@@ -166,11 +167,10 @@
 
 <script setup>
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus'
 import { api } from '@/services/api';
-import { Search, Refresh } from '@element-plus/icons-vue'
+
 import ReceiptDialog from './ReceiptDialog.vue';
 import {
   OUTSOURCED_STATUS_OPTIONS,

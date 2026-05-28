@@ -16,6 +16,7 @@
  */
 
 const { accountingConfig } = require('../config/accountingConfig');
+const { logger } = require('../utils/logger');
 
 // ==================== 会计分录单据类型 ====================
 // 必须与数据库 gl_entries 表的 document_type ENUM 定义保持一致
@@ -107,8 +108,7 @@ const ACCOUNT_TYPES = {
 };
 
 // ==================== 常用会计科目编码 ====================
-// 注意：此常量已废弃，请使用 accountingConfig.getAccountCode(key)
-// 为了向后兼容，保留此对象，但建议迁移到新的配置系统
+// 兼容入口：动态委托 accountingConfig.getAccountCode(key)，新代码优先直接使用 accountingConfig。
 const ACCOUNT_CODES = new Proxy(
   {},
   {
@@ -116,7 +116,9 @@ const ACCOUNT_CODES = new Proxy(
       // 动态从配置中获取科目编码
       const code = accountingConfig.getAccountCode(prop);
       if (!code) {
-        console.warn(`[DEPRECATED] 会计科目 ${prop} 未配置，请检查 accountingConfig`);
+        logger.warn('会计科目未配置，请检查 accountingConfig', {
+          accountKey: String(prop),
+        });
       }
       return code;
     },

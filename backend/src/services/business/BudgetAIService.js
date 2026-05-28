@@ -125,12 +125,9 @@ class BudgetAIService {
      */
     static async callOllamaAI(systemPrompt, userPrompt) {
         const { apiUrl, model, timeoutMs } = getAIConfig();
-        // 使用动态 import 加载 node-fetch（兼容性处理）
-        let fetchFn;
-        try {
-            fetchFn = (await import('node-fetch')).default;
-        } catch {
-            fetchFn = globalThis.fetch;
+        const fetchFn = globalThis.fetch;
+        if (typeof fetchFn !== 'function') {
+            throw new Error('当前运行时不支持 fetch，请升级到 Node.js 18+');
         }
 
         const requestBody = JSON.stringify({

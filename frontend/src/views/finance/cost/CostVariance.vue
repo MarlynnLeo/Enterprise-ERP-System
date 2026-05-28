@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="cost-variance-container">
+  <div class="module-page cost-variance-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -35,42 +35,42 @@
           <el-table :data="varianceList" border v-loading="loading" style="width: 100%; margin-top: 15px;">
             <el-table-column prop="order_number" label="生产订单号" width="160"></el-table-column>
             <el-table-column prop="product_name" label="产品名称" min-width="200"></el-table-column>
-            <el-table-column prop="quantity" label="数量" width="80" align="right"></el-table-column>
-            <el-table-column label="标准成本" width="130" align="right">
+            <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
+            <el-table-column label="标准成本" width="130">
               <template #default="scope">{{ formatCurrency(scope.row.standard_cost) }}</template>
             </el-table-column>
-            <el-table-column label="实际成本" width="130" align="right">
+            <el-table-column label="实际成本" width="130">
               <template #default="scope">{{ formatCurrency(scope.row.actual_cost) }}</template>
             </el-table-column>
-            <el-table-column label="总差异" width="120" align="right">
+            <el-table-column label="总差异" width="120">
               <template #default="scope">
-                <span :style="{ color: scope.row.total_variance >= 0 ? '#67c23a' : '#f56c6c', fontWeight: 'bold' }">
+                <span :style="{ color: scope.row.total_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 'bold' }">
                   {{ formatCurrency(scope.row.total_variance) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="材料差异" width="120" align="right">
+            <el-table-column label="材料差异" width="120">
               <template #default="scope">
-                <span :style="{ color: scope.row.material_variance >= 0 ? '#67c23a' : '#f56c6c' }">
+                <span :style="{ color: scope.row.material_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
                   {{ formatCurrency(scope.row.material_variance) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="人工差异" width="120" align="right">
+            <el-table-column label="人工差异" width="120">
               <template #default="scope">
-                <span :style="{ color: scope.row.labor_variance >= 0 ? '#67c23a' : '#f56c6c' }">
+                <span :style="{ color: scope.row.labor_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
                   {{ formatCurrency(scope.row.labor_variance) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="差异率" width="100" align="center">
+            <el-table-column label="差异率" width="100">
               <template #default="scope">
                 <el-tag :type="getVarianceType(scope.row.variance_rate)" size="small">
                   {{ scope.row.variance_rate || 0 }}%
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="90" fixed="right">
+            <el-table-column label="操作" width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
               </template>
@@ -122,7 +122,7 @@
               <el-card shadow="hover">
                 <div class="stat-card">
                   <div class="stat-title">效率差异(小时)</div>
-                  <div class="stat-value" :style="{ color: effSummary.efficiency_variance >= 0 ? '#67c23a' : '#f56c6c' }">
+                  <div class="stat-value" :style="{ color: effSummary.efficiency_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
                     {{ effSummary.efficiency_variance.toFixed(2) }}
                   </div>
                 </div>
@@ -132,7 +132,7 @@
               <el-card shadow="hover">
                 <div class="stat-card">
                   <div class="stat-title">效率率</div>
-                  <div class="stat-value" :style="{ color: effSummary.efficiency_rate >= 100 ? '#67c23a' : '#f56c6c' }">
+                  <div class="stat-value" :style="{ color: effSummary.efficiency_rate >= 100 ? 'var(--color-success)' : 'var(--color-danger)' }">
                     {{ effSummary.efficiency_rate.toFixed(1) }}%
                   </div>
                 </div>
@@ -145,31 +145,31 @@
             <el-table-column prop="task_code" label="任务编号" width="160"></el-table-column>
             <el-table-column prop="product_name" label="产品" min-width="180"></el-table-column>
             <el-table-column prop="cost_center_name" label="成本中心" width="120"></el-table-column>
-            <el-table-column prop="quantity" label="数量" width="80" align="right"></el-table-column>
-            <el-table-column label="标准工时" width="110" align="right">
+            <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
+            <el-table-column label="标准工时" width="110">
               <template #default="scope">{{ (scope.row.standard_hours || 0).toFixed(2) }} h</template>
             </el-table-column>
-            <el-table-column label="实际工时" width="110" align="right">
+            <el-table-column label="实际工时" width="110">
               <template #default="scope">{{ (scope.row.actual_hours || 0).toFixed(2) }} h</template>
             </el-table-column>
-            <el-table-column label="效率差异" width="110" align="right">
+            <el-table-column label="效率差异" width="110">
               <template #default="scope">
-                <span :style="{ color: scope.row.efficiency_variance >= 0 ? '#67c23a' : '#f56c6c', fontWeight: 'bold' }">
+                <span :style="{ color: scope.row.efficiency_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 'bold' }">
                   {{ (scope.row.efficiency_variance || 0).toFixed(2) }} h
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="效率率" width="100" align="center">
+            <el-table-column label="效率率" width="100">
               <template #default="scope">
                 <el-tag :type="scope.row.efficiency_rate >= 100 ? 'success' : 'danger'" size="small">
                   {{ (scope.row.efficiency_rate || 0).toFixed(0) }}%
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="成本影响" width="120" align="right">
+            <el-table-column label="成本影响" width="120">
               <template #default="scope">
-                <span :style="{ color: scope.row.cost_impact >= 0 ? '#67c23a' : '#f56c6c' }">
-                  {{ formatCurrency(scope.row.cost_impact || 0) }}
+                <span :style="{ color: scope.row.cost_impact >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                  {{ formatCurrency(scope.row.cost_impact) }}
                 </span>
               </template>
             </el-table-column>
@@ -214,7 +214,7 @@
               <el-card shadow="hover">
                 <div class="stat-card">
                   <div class="stat-title">利用率</div>
-                  <div class="stat-value" :style="{ color: capacitySummary.utilization_rate >= 80 ? '#67c23a' : '#f56c6c' }">
+                  <div class="stat-value" :style="{ color: capacitySummary.utilization_rate >= 80 ? 'var(--color-success)' : 'var(--color-danger)' }">
                     {{ capacitySummary.utilization_rate.toFixed(1) }}%
                   </div>
                 </div>
@@ -225,18 +225,18 @@
           <!-- 按成本中心的产能利用明细 -->
           <el-table :data="capacityList" border v-loading="capLoading" style="width: 100%; margin-top: 20px;">
             <el-table-column prop="cost_center_name" label="成本中心" width="150"></el-table-column>
-            <el-table-column prop="standard_capacity" label="标准产能(h)" width="130" align="right"></el-table-column>
-            <el-table-column prop="actual_used" label="实际利用(h)" width="130" align="right"></el-table-column>
-            <el-table-column prop="idle_capacity" label="闲置产能(h)" width="130" align="right"></el-table-column>
-            <el-table-column label="利用率" width="140" align="center">
+            <el-table-column prop="standard_capacity" label="标准产能(h)" width="130"></el-table-column>
+            <el-table-column prop="actual_used" label="实际利用(h)" width="130"></el-table-column>
+            <el-table-column prop="idle_capacity" label="闲置产能(h)" width="130"></el-table-column>
+            <el-table-column label="利用率" width="140">
               <template #default="scope">
                 <el-progress :percentage="Math.min(scope.row.utilization_rate, 100)"
-                             :color="scope.row.utilization_rate >= 80 ? '#67c23a' : '#f56c6c'" />
+                             :color="scope.row.utilization_rate >= 80 ? 'var(--color-success)' : 'var(--color-danger)'" />
               </template>
             </el-table-column>
-            <el-table-column label="闲置成本" width="130" align="right">
+            <el-table-column label="闲置成本" width="130">
               <template #default="scope">
-                <span style="color: var(--color-text-secondary);">{{ formatCurrency(scope.row.idle_cost || 0) }}</span>
+                <span style="color: var(--color-text-secondary);">{{ formatCurrency(scope.row.idle_cost) }}</span>
               </template>
             </el-table-column>
           </el-table>
@@ -258,20 +258,20 @@
 
         <el-table :data="currentDetail.comparison" border size="small">
           <el-table-column prop="item" label="成本项目" width="150"></el-table-column>
-          <el-table-column label="标准成本" width="150" align="right">
+          <el-table-column label="标准成本" width="150">
             <template #default="scope">{{ formatCurrency(scope.row.standard) }}</template>
           </el-table-column>
-          <el-table-column label="实际成本" width="150" align="right">
+          <el-table-column label="实际成本" width="150">
             <template #default="scope">{{ formatCurrency(scope.row.actual) }}</template>
           </el-table-column>
-          <el-table-column label="差异金额" width="150" align="right">
+          <el-table-column label="差异金额" width="150">
             <template #default="scope">
-              <span :style="{ color: scope.row.variance >= 0 ? '#67c23a' : '#f56c6c', fontWeight: 'bold' }">
+              <span :style="{ color: scope.row.variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 'bold' }">
                 {{ formatCurrency(scope.row.variance) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="差异率" width="120" align="right">
+          <el-table-column label="差异率" width="120">
             <template #default="scope">
               <el-tag :type="getVarianceType(scope.row.variance_rate)">{{ scope.row.variance_rate }}%</el-tag>
             </template>
@@ -294,7 +294,10 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Download } from '@element-plus/icons-vue';
 import api from '@/services/api';
+import { buildApiUrl } from '@/config/app';
+import { formatLocalMonth } from '@/utils/format';
 import { formatCurrency } from '@/utils/helpers/formatters';
+import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 
 const activeTab = ref('cost');
 const loading = ref(false);
@@ -334,7 +337,7 @@ const effSummary = reactive({
 });
 
 // 产能利用数据
-const capDateRange = ref(new Date().toISOString().slice(0, 7));
+const capDateRange = ref(formatLocalMonth(new Date()));
 const capacityList = ref([]);
 const capacitySummary = reactive({
   standard_capacity: 0,
@@ -355,7 +358,7 @@ const getVarianceType = (rate) => {
 const loadCostCenterOptions = async () => {
   try {
     const res = await api.get('/finance/cost-centers/options');
-    costCenterOptions.value = res.data?.data || res.data || [];
+    costCenterOptions.value = parseResponseData(res, []);
   } catch {
     costCenterOptions.value = [];
   }
@@ -373,17 +376,10 @@ const loadVarianceData = async () => {
     if (searchForm.productName) params.productName = searchForm.productName;
     if (searchForm.varianceType) params.varianceType = searchForm.varianceType;
 
-    const res = await api.get('/finance-enhancement/cost/variance', { params });
-    if (res.data && res.data.list) {
-      varianceList.value = res.data.list;
-      pagination.total = Number(res.data.total) || 0;
-    } else if (res.data && res.data.data) {
-      varianceList.value = res.data.data.list || [];
-      pagination.total = Number(res.data.data.total) || 0;
-    } else {
-      varianceList.value = [];
-      pagination.total = 0;
-    }
+    const res = await api.get('/finance/cost/variance', { params });
+    const { list, total } = parsePaginatedData(res, { enableLog: false });
+    varianceList.value = list;
+    pagination.total = Number(total) || 0;
   } catch (error) {
     console.error('加载差异数据失败:', error);
     ElMessage.error('加载差异数据失败');
@@ -405,7 +401,7 @@ const loadEfficiencyData = async () => {
     if (effCostCenter.value) params.costCenterId = effCostCenter.value;
 
     const res = await api.get('/finance/cost-centers/efficiency-variance', { params });
-    const data = res.data?.data || res.data || {};
+    const data = parseResponseData(res, {});
     efficiencyList.value = data.list || [];
 
     // 计算汇总
@@ -434,7 +430,7 @@ const loadCapacityData = async () => {
   try {
     const params = { month: capDateRange.value };
     const res = await api.get('/finance/cost-centers/capacity-utilization', { params });
-    const data = res.data?.data || res.data || {};
+    const data = parseResponseData(res, {});
     capacityList.value = data.list || [];
 
     // 计算汇总
@@ -460,9 +456,9 @@ const loadCapacityData = async () => {
 const viewDetail = async (row) => {
   try {
     const taskId = row.id;
-    const res = await api.get(`/finance-enhancement/cost/variance/${taskId}`);
+    const res = await api.get(`/finance/cost/variance/${taskId}`);
     if (res.data) {
-      currentDetail.value = res.data.data || res.data;
+      currentDetail.value = parseResponseData(res);
     } else {
       currentDetail.value = row;
     }
@@ -497,7 +493,8 @@ const exportVariance = async () => {
     if (searchForm.varianceType) params.append('varianceType', searchForm.varianceType);
 
     // 直接下载文件
-    const url = `/api/finance-enhancement/cost/export/variance?${params.toString()}`;
+    const query = params.toString();
+    const url = buildApiUrl(`/finance/cost/export/variance${query ? `?${query}` : ''}`);
     window.open(url, '_blank');
     ElMessage.success('导出已开始，请查看下载文件');
   } catch (error) {
@@ -527,4 +524,3 @@ onMounted(() => {
 .stat-title { font-size: 14px; color: var(--color-text-secondary); margin-bottom: 8px; }
 .stat-value { font-size: 28px; font-weight: bold; color: var(--color-text-primary); }
 </style>
-

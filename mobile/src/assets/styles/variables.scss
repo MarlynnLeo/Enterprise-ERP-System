@@ -10,27 +10,27 @@
 // 实际运行时由 themes/kacon.css 中的 :root 控制
 
 // 主色系
-$primary-color: #67c1d9;
-$success-color: #10b981;
-$warning-color: #f59e0b;
-$danger-color: #ef4444;
-$info-color: #3b82f6;
+$primary-color: var(--color-primary);
+$success-color: var(--color-success);
+$warning-color: var(--color-warning);
+$danger-color: var(--color-error);
+$info-color: var(--color-info);
 
 // 文本颜色（KACON 浅色模式）
-$text-color: #1e293b;
-$text-color-secondary: #64748b;
-$text-color-placeholder: #94a3b8;
-$text-color-disabled: #cbd5e1;
+$text-color: var(--text-primary);
+$text-color-secondary: var(--text-secondary);
+$text-color-placeholder: var(--text-tertiary);
+$text-color-disabled: var(--text-disabled);
 
 // 背景颜色（KACON 浅色模式）
-$background-color: #f4f7fa;
-$background-color-light: #ffffff;
-$active-color: rgba(103, 193, 217, 0.12);
-$white: #ffffff;
+$background-color: var(--bg-primary);
+$background-color-light: var(--bg-secondary);
+$active-color: var(--surface-active);
+$white: var(--color-on-primary);
 
 // 边框颜色
-$border-color: rgba(0, 0, 0, 0.06);
-$border-color-light: rgba(0, 0, 0, 0.03);
+$border-color: var(--van-border-color);
+$border-color-light: var(--border-subtle);
 
 // ==================== 间距系统 ====================
 $padding-xs: 8px;
@@ -74,10 +74,10 @@ $animation-duration-slow: 0.45s;
 $animation-timing: cubic-bezier(0.4, 0, 0.2, 1);
 
 // ==================== 阴影系统 ====================
-$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-$shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-$shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
-$shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.12);
+$shadow-sm: var(--shadow-sm);
+$shadow-md: var(--shadow-md);
+$shadow-lg: var(--shadow-lg);
+$shadow-xl: var(--shadow-lg);
 
 // ==================== Z-index系统 ====================
 $z-index-dropdown: 1000;

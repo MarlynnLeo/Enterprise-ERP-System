@@ -21,7 +21,7 @@ export default {
         {
             path: 'production',
             name: 'production-dashboard',
-            component: () => import('../../views/dataOverview/ProductionDashboard.vue'),
+            component: () => import('../../views/dataoverview/ProductionDashboard.vue'),
             meta: {
                 requiresAuth: true,
                 permission: 'dataoverview:production'
@@ -30,7 +30,7 @@ export default {
         {
             path: 'inventory',
             name: 'inventory-dashboard-view',
-            component: () => import('../../views/dataOverview/InventoryDashboard.vue'),
+            component: () => import('../../views/dataoverview/InventoryDashboard.vue'),
             meta: {
                 requiresAuth: true,
                 permission: 'dataoverview:inventory'
@@ -39,7 +39,7 @@ export default {
         {
             path: 'sales',
             name: 'sales-dashboard-view',
-            component: () => import('../../views/dataOverview/SalesDashboard.vue'),
+            component: () => import('../../views/dataoverview/SalesDashboard.vue'),
             meta: {
                 requiresAuth: true,
                 permission: 'dataoverview:sales'
@@ -48,7 +48,7 @@ export default {
         {
             path: 'finance',
             name: 'finance-dashboard-view',
-            component: () => import('../../views/dataOverview/FinanceDashboard.vue'),
+            component: () => import('../../views/dataoverview/FinanceDashboard.vue'),
             meta: {
                 requiresAuth: true,
                 permission: 'dataoverview:finance'
@@ -57,7 +57,7 @@ export default {
         {
             path: 'quality',
             name: 'quality-dashboard-view',
-            component: () => import('../../views/dataOverview/QualityDashboard.vue'),
+            component: () => import('../../views/dataoverview/QualityDashboard.vue'),
             meta: {
                 requiresAuth: true,
                 permission: 'dataoverview:quality'
@@ -66,7 +66,7 @@ export default {
         {
             path: 'purchase',
             name: 'purchase-dashboard-view',
-            component: () => import(/* webpackChunkName: "purchase-dashboard" */ '../../views/dataOverview/PurchaseDashboard.vue'),
+            component: () => import(/* webpackChunkName: "purchase-dashboard" */ '../../views/dataoverview/PurchaseDashboard.vue'),
             meta: {
                 requiresAuth: true,
                 permission: 'dataoverview:purchase'

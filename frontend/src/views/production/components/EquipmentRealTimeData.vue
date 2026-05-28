@@ -95,7 +95,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh, Timer } from '@element-plus/icons-vue'
 import { equipmentMonitoringAPI } from '@/api/modules/business/equipmentMonitoring'
 import { formatTime } from '@/utils/helpers/dateUtils'
-import * as echarts from 'echarts'
+import { echarts } from '@/utils/echartsCore'
 
 // Props
 const props = defineProps({
@@ -149,19 +149,24 @@ const fetchRealTimeData = async () => {
 }
 
 const updateCharts = () => {
-  Object.keys(realTimeData.value).forEach(parameterCode => {
+  const parameterCodes = Object.keys(realTimeData.value)
+
+  Object.keys(charts).forEach(parameterCode => {
+    if (!parameterCodes.includes(parameterCode) && charts[parameterCode]) {
+      charts[parameterCode].dispose()
+      delete charts[parameterCode]
+    }
+  })
+
+  parameterCodes.forEach(parameterCode => {
     const parameter = realTimeData.value[parameterCode]
     const chartId = `chart-${parameterCode}`
     const chartElement = document.getElementById(chartId)
 
     if (chartElement) {
-      // 销毁旧图表
-      if (charts[parameterCode]) {
-        charts[parameterCode].dispose()
-      }
-
-      // 创建新图表
-      const chart = echarts.init(chartElement)
+      const chart = charts[parameterCode] && !charts[parameterCode].isDisposed()
+        ? charts[parameterCode]
+        : echarts.init(chartElement)
       charts[parameterCode] = chart
 
       // 准备数据
@@ -221,7 +226,7 @@ const updateCharts = () => {
         }
       }
 
-      chart.setOption(option)
+      chart.setOption(option, true)
     }
   })
 }
@@ -298,16 +303,16 @@ const getParameterStatusType = (parameter) => {
 }
 
 const getParameterColor = (parameter) => {
-  if (parameter.data.length === 0) return '#909399'
+  if (parameter.data.length === 0) return 'var(--color-text-secondary)'
 
   const latestData = parameter.data[0]
   const colorMap = {
-    normal: '#67c23a',
-    warning: '#e6a23c',
-    alarm: '#f56c6c',
-    error: '#f56c6c'
+    normal: 'var(--color-success)',
+    warning: 'var(--color-warning)',
+    alarm: 'var(--color-danger)',
+    error: 'var(--color-danger)'
   }
-  return colorMap[latestData.status] || '#409eff'
+  return colorMap[latestData.status] || 'var(--color-primary)'
 }
 
 // 生命周期

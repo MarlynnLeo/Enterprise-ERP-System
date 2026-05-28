@@ -7,7 +7,7 @@
  * 重要说明：
  * axios 拦截器已统一解包 ResponseHandler 格式
  * 所有 API 响应的 response.data 都是实际的业务数据
- * 不需要再访问 response.data.data
+ * 不需要再手动解包嵌套 data
  */
 
 import { defineStore } from 'pinia'
@@ -22,9 +22,16 @@ const permissionAliasMap = {
   'basedata:material-sources': 'basedata:materialsources',
   'basedata:inspection-methods': 'basedata:inspectionmethods',
   'inventory:manualtransaction': 'inventory:manual',
+  'inventory:manual-transaction': 'inventory:manual',
   'production:productionreport': 'production:reports',
   'production:productionreport:read': 'production:reports:view',
+  'sales:exchanges': 'sales:returns',
   'sales:packinglists': 'sales:packing',
+  'sales:packing-lists': 'sales:packing',
+  'equipment:list': 'production:equipment',
+  'equipment:maintenance': 'production:equipment',
+  'equipment:inspection': 'production:equipment',
+  'equipment:status': 'production:equipment',
   'quality:incoming': 'quality:inspections',
   'quality:process': 'quality:inspections',
   'quality:final': 'quality:inspections',
@@ -47,8 +54,13 @@ const expandPermissionCandidates = (permission) => {
   return [...candidates]
 }
 
+const isTransientPermissionLoadError = (error) => {
+  const status = error?.response?.status
+  return !status || status === 429 || status >= 500
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(tokenManager.getToken() || '')
+  const token = ref('')
   const user = ref(tokenManager.getUser() || null)
 
   const savedPermissions = permissionManager.getUserPermissions()
@@ -58,16 +70,14 @@ export const useAuthStore = defineStore('auth', () => {
   const permissionsLoaded = ref(false)
   const permissionsLoading = ref(false) // 权限是否正在加载
 
-  const isAuthenticated = computed(() => !!token.value && tokenManager.isTokenValid())
-  const isAdmin = computed(() => permissions.value.includes('*'))
+  const isAuthenticated = computed(() => Boolean(user.value))
+  const isAdmin = computed(() => permissionsLoaded.value && permissions.value.includes('*'))
 
-  // 设置请求头中的token
+  // 认证令牌由后端 HttpOnly Cookie 管理，前端只清理旧的浏览器可读 token。
   const setAuthHeader = () => {
-    if (token.value && tokenManager.isTokenValid()) {
-      tokenManager.setToken(token.value)
-    } else {
-      tokenManager.removeToken()
-    }
+    token.value = ''
+    tokenManager.removeToken()
+    tokenManager.removeRefreshToken()
   }
 
   // 初始化设置
@@ -78,25 +88,14 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await api.post('/auth/login', credentials)
 
-      // 拦截器已解包，response.data 就是 { accessToken, refreshToken, user }
+      // 拦截器已解包，response.data 就是 { user }
       const data = response.data
-
-      // 保存accessToken
-      if (data.accessToken) {
-        token.value = data.accessToken
-        tokenManager.setToken(data.accessToken)
-      } else if (data.token) {
-        token.value = data.token
-        tokenManager.setToken(data.token)
-      }
-
-      // 保存refreshToken到localStorage（作为Cookie的fallback）
-      if (data.refreshToken) {
-        tokenManager.setRefreshToken(data.refreshToken)
-      }
 
       // 保存用户信息
       user.value = data.user
+      if (!user.value) {
+        throw new Error('登录响应缺少用户信息')
+      }
       tokenManager.setUser(user.value)
 
       setAuthHeader()
@@ -105,8 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
       try {
         await fetchUserProfile()
       } catch {
-        if (import.meta.env.DEV) {
-        }
+        // 登录主流程已完成，资料补充加载失败时保持静默。
       }
 
       return true
@@ -132,7 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
       permissionManager.clearUserPermissions()
       localStorage.removeItem('theme_settings')
 
-      tokenManager.clearAuth()
+      tokenManager.clearAll()
     }
   }
 
@@ -221,6 +219,19 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     } catch (error) {
       console.error('获取用户权限失败:', error)
+
+      const cachedPermissions = permissionManager.getUserPermissions()
+      const fallbackPermissions = permissions.value.length
+        ? permissions.value
+        : (Array.isArray(cachedPermissions) ? cachedPermissions : [])
+
+      if (isTransientPermissionLoadError(error) && fallbackPermissions.length > 0) {
+        permissions.value = fallbackPermissions
+        permissionsLoaded.value = true
+        permissionManager.setUserPermissions(permissions.value)
+        return true
+      }
+
       permissions.value = []
       permissionsLoaded.value = false
 
@@ -247,9 +258,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 检查是否有特定权限
   const hasPermission = (permission) => {
-    // 即使未完全 loaded，如果本地缓存 permissions.value 有数据，也允许基于本地数据判断（防止页面闪烁）
-    // 去掉强制 !permissionsLoaded.value 的阻挡，它会导致刷新瞬间所有能看到的按钮都隐藏又出现
-    if (!permissionsLoaded.value && permissions.value.length === 0) {
+    // 权限未完成后端加载前一律拒绝，避免使用旧缓存短暂放开按钮或路由。
+    if (!permissionsLoaded.value) {
       return false
     }
 
@@ -277,6 +287,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const hasChildPermission = (permission) => {
+    if (!permissionsLoaded.value) {
+      return false
+    }
+
     if (permissions.value.includes('*')) {
       return true
     }

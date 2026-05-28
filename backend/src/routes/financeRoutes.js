@@ -23,13 +23,20 @@ const overdueController = require('../controllers/business/finance/overdueContro
 const bomPriceAdjustmentController = require('../controllers/business/finance/bomPriceAdjustmentController');
 const expenseController = require('../controllers/business/finance/expenseController');
 // budgetController — 已迁移到 business/finance/budgetRoutes.js
-// 注意:原reportsController已被enhancedReportsController替代,使用真实数据
+// 财务报表已统一由增强报表控制器提供真实数据
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
+const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../middleware/priceAccessControl');
 
 // 所有财务路由都必须经过认证
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // 系统初始化路由
 router.post('/init', requirePermission('system:settings:update'), financeController.initFinanceTables);
@@ -83,7 +90,7 @@ router.get('/entries/:id/items', requirePermission('finance:entries:view'), fina
 router.post('/entries', requirePermission('finance:entries:create'), financeController.createEntry);
 router.patch('/entries/:id/post', requirePermission('finance:entries:approve'), financeController.postEntry);
 router.post('/entries/:id/reverse', requirePermission('finance:entries:update'), financeController.reverseEntry);
-router.delete('/entries/:id', requirePermission('finance:entries:update'), financeController.deleteEntry);
+router.delete('/entries/:id', requirePermission('finance:entries:delete'), financeController.deleteEntry);
 
 // 3. 会计期间管理
 router.get('/periods', requirePermission('finance:periods:view'), financeController.getAllPeriods);
@@ -172,8 +179,6 @@ router.put('/assets/categories/:id', requirePermission('finance:assets:update'),
 router.delete('/assets/categories/:id', requirePermission('finance:assets:delete'), assetsController.deleteAssetCategory);
 
 // 基础数据API (供前端用于表单选择)
-router.get('/baseData/bankAccounts', requirePermission('finance:cash:view'), cashController.getBankAccounts);
-
 // 自动编号生成
 router.get('/assets/generate-code', requirePermission('finance:assets:view'), assetsController.generateAssetCode);
 
@@ -181,10 +186,9 @@ router.get('/assets/generate-code', requirePermission('finance:assets:view'), as
 router.get('/assets/depreciation/records', requirePermission('finance:assets:view'), assetsController.getDepreciationRecords);
 router.get('/assets/depreciation/calculate', requirePermission('finance:assets:execute'), assetsController.calculateBatchDepreciation);
 router.post('/assets/depreciation/submit', requirePermission('finance:assets:execute'), assetsController.submitDepreciation);
-router.get('/assets/depreciation/export', requirePermission('finance:assets:export'), assetsController.exportDepreciation);
+router.get('/assets/depreciation/export', requirePermission('finance:assets:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), assetsController.exportDepreciation);
 
 // 资产统计
-router.get('/assets/statistics/summary', requirePermission('finance:assets:view'), assetsController.getAssetStatistics); // ⚠️ 已弃用，请使用 /assets/stats
 router.get('/assets/stats', requirePermission('finance:assets:view'), assetsController.getAssetStatistics);
 router.get('/assets/dashboard/stats', requirePermission('finance:assets:view'), assetsController.getDashboardStats);
 
@@ -235,11 +239,13 @@ router.patch('/bank-accounts/:id/status', requirePermission('finance:cash:update
 
 // 2. 银行交易管理
 // 注意：具体路径必须在参数路径之前定义
+router.get('/bank-transactions/print-data', requirePermission('finance:cash:view'), cashController.getBankTransactionsForPrint);
 router.get('/bank-transactions', requirePermission('finance:cash:view'), cashController.getBankTransactions);
-router.get('/bank-transactions/export', requirePermission('finance:cash:export'), cashController.exportBankTransactions);
+router.get('/bank-transactions/export', requirePermission('finance:cash:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), cashController.exportBankTransactions);
 router.post(
   '/bank-transactions/import',
   requirePermission('finance:cash:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FileUploadMiddlewares.excel,
   cashController.importBankTransactions
 );
@@ -266,6 +272,7 @@ const {
 } = require('../middleware/validation/cashTransactionValidation');
 
 // 现金交易路由 - 使用主控制器的现金交易方法
+router.get('/cash-transactions/print-data', requirePermission('finance:cash:view'), cashController.getCashTransactionsForPrint);
 router.get('/cash-transactions', requirePermission('finance:cash:view'), getCashTransactionsValidation, cashController.getCashTransactions);
 router.get(
   '/cash-transactions/stats',
@@ -276,12 +283,14 @@ router.get(
 router.get(
   '/cash-transactions/export',
   requirePermission('finance:cash:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
   exportCashTransactionsValidation,
   cashController.exportCashTransactions
 );
 router.post(
   '/cash-transactions/import',
   requirePermission('finance:cash:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FileUploadMiddlewares.excel,
   importCashTransactionsValidation,
   cashController.importCashTransactions
@@ -321,6 +330,7 @@ router.get('/cash/reconciliation/reconciled', requirePermission('finance:cash:re
 router.get('/cash/reconciliation/stats', requirePermission('finance:cash:reconcile'), cashController.getReconciliationStats);
 router.get('/cash/reconciliation/matched-transaction', requirePermission('finance:cash:reconcile'), cashController.getMatchedTransactions);
 router.get('/cash/reconciliation/possible-matches', requirePermission('finance:cash:reconcile'), cashController.getPossibleMatchingTransactions);
+router.post('/cash/reconciliation/batch-mark-reconciled', requirePermission('finance:cash:reconcile'), cashController.batchMarkTransactionsAsReconciled);
 router.post('/cash/reconciliation/mark-reconciled', requirePermission('finance:cash:reconcile'), cashController.markTransactionAsReconciled);
 router.post(
   '/cash/reconciliation/cancel-reconciled',
@@ -372,19 +382,19 @@ const pricingStrategyController = require('../controllers/business/finance/prici
 
 // 定价策略字段管理
 router.get('/pricing/strategy-fields', requirePermission('finance:pricing:view'), pricingStrategyController.getStrategyFields);
-router.post('/pricing/strategy-fields', requirePermission('finance:pricing:create'), pricingStrategyController.createStrategyField);
-router.put('/pricing/strategy-fields/:id', requirePermission('finance:pricing:update'), pricingStrategyController.updateStrategyField);
-router.delete('/pricing/strategy-fields/:id', requirePermission('finance:pricing:delete'), pricingStrategyController.deleteStrategyField);
-router.patch('/pricing/strategy-fields/:id/toggle', requirePermission('finance:pricing:update'), pricingStrategyController.toggleStrategyField);
+router.post('/pricing/strategy-fields', requirePermission('finance:pricing:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingStrategyController.createStrategyField);
+router.put('/pricing/strategy-fields/:id', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingStrategyController.updateStrategyField);
+router.delete('/pricing/strategy-fields/:id', requirePermission('finance:pricing:delete'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingStrategyController.deleteStrategyField);
+router.patch('/pricing/strategy-fields/:id/toggle', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingStrategyController.toggleStrategyField);
 
 // 定价设置 (必须在 /pricing/:productId 之前，否则 settings 会被误匹配为 productId)
 router.get('/pricing/settings', requirePermission('finance:pricing:view'), pricingController.getPricingSettings);
-router.put('/pricing/settings', requirePermission('finance:pricing:update'), pricingController.updatePricingSettings);
+router.put('/pricing/settings', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingController.updatePricingSettings);
 
 // 产品定价
 router.get('/pricing', requirePermission('finance:pricing:view'), pricingController.getPricingList);
-router.post('/pricing', requirePermission('finance:pricing:update'), pricingController.createPricing); // 创建产品定价
-router.get('/pricing/export', requirePermission('finance:pricing:export'), pricingExportController.exportPricingList); // 导出功能
+router.post('/pricing', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), pricingController.createPricing); // 创建产品定价
+router.get('/pricing/export', requirePermission('finance:pricing:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), pricingExportController.exportPricingList); // 导出功能
 router.get('/pricing/calculate-bom/:productId', requirePermission('finance:pricing:view'), pricingController.calculateBomCost); // 必须在 /:productId 之前
 router.get('/pricing/:productId', requirePermission('finance:pricing:view'), pricingController.getPricingDetail); // 获取单个产品定价详情
 router.get('/pricing/:productId/history', requirePermission('finance:pricing:view'), pricingController.getPricingHistory); // 获取产品定价历史
@@ -392,13 +402,13 @@ router.get('/pricing/:productId/bom', requirePermission('finance:pricing:view'),
 
 // BOM价格调整路由
 router.get('/bom-price-adjustments/:productId', requirePermission('finance:pricing:view'), bomPriceAdjustmentController.getAdjustments); // 获取产品的价格调整列表
-router.post('/bom-price-adjustments', requirePermission('finance:pricing:update'), bomPriceAdjustmentController.saveAdjustment); // 保存价格调整
+router.post('/bom-price-adjustments', requirePermission('finance:pricing:update'), requirePermission(PRICE_UPDATE_PERMISSIONS), bomPriceAdjustmentController.saveAdjustment); // 保存价格调整
 router.get(
   '/bom-price-adjustments/:productId/:materialId/history',
   requirePermission('finance:pricing:view'),
   bomPriceAdjustmentController.getAdjustmentHistory
 ); // 获取调整历史
-router.delete('/bom-price-adjustments/:id', requirePermission('finance:pricing:delete'), bomPriceAdjustmentController.deleteAdjustment); // 删除调整
+router.delete('/bom-price-adjustments/:id', requirePermission('finance:pricing:delete'), requirePermission(PRICE_UPDATE_PERMISSIONS), bomPriceAdjustmentController.deleteAdjustment); // 删除调整
 
 // 逾期检查触发路由（全局）
 router.get('/overdue/check', requirePermission('finance:reports:view'), overdueController.checkOverdueInvoices);

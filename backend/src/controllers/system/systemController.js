@@ -14,6 +14,7 @@ const { pool } = require('../../config/db');
 const cacheService = require('../../services/cacheService');
 const DLQService = require('../../services/business/DLQService');
 const BackupService = require('../../services/system/BackupService');
+const { parsePagination } = require('../../utils/safePagination');
 
 // 以下模块原散落于各函数体内，统一移至顶部（P1 治理）
 const PermissionService = require('../../services/PermissionService');
@@ -71,8 +72,9 @@ const systemController = {
   // 用户管理
   async getAllUsers(req, res) {
     try {
-      const { page = 1, limit = 10, ...filters } = req.query;
-      const result = await systemModel.getAllUsers(parseInt(page), parseInt(limit), filters);
+      const { page = 1, limit, pageSize, ...filters } = req.query;
+      const effectiveLimit = limit || pageSize || 10;
+      const result = await systemModel.getAllUsers(parseInt(page), parseInt(effectiveLimit), filters);
       ResponseHandler.paginated(
         res,
         result.list,
@@ -145,6 +147,7 @@ const systemController = {
 
 
       const updatedUser = await systemModel.updateUser(id, userData);
+      PermissionService.clearUserPermissionsCache(id);
 
       ResponseHandler.success(res, omitUserSecrets(updatedUser), '更新用户成功');
     } catch (error) {
@@ -340,13 +343,16 @@ const systemController = {
   // 角色管理
   async getAllRoles(req, res) {
     try {
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 10;
+      const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
       const filters = { ...req.query };
       delete filters.page;
       delete filters.limit;
+      delete filters.pageSize;
 
-      const result = await systemModel.getAllRoles(page, limit, filters);
+      const result = await systemModel.getAllRoles(pagination.page, pagination.pageSize, filters);
       ResponseHandler.paginated(
         res,
         result.list,
@@ -642,7 +648,8 @@ const systemController = {
 
   async getRolesList(req, res) {
     try {
-      const result = await systemModel.getAllRoles(1, 1000, {});
+      const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 100, 1), 100);
+      const result = await systemModel.getAllRoles(1, pageSize, {});
       // ✅ 使用统一的响应格式
       return ResponseHandler.success(res, result.list, '获取角色列表成功');
     } catch (error) {
@@ -841,14 +848,16 @@ const systemController = {
 
         for (const menu of menus) {
           // 使用 INSERT ... ON DUPLICATE KEY UPDATE 减少逐条查询
+          const visible = menu.visible !== undefined ? normalizeBinaryStatus(menu.visible) : 1;
+          const status = menu.status !== undefined ? normalizeBinaryStatus(menu.status) : 1;
           const params = [
             menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
-            menu.icon || '', menu.type || 1, menu.status || 1, menu.sort || 0,
+            menu.icon || '', menu.type || 1, visible, status, menu.sort || 0,
           ];
           if (existingSet.has(menu.permission)) {
             await connection.execute(
               `UPDATE menus SET parent_id = ?, name = ?, path = ?, component = ?, icon = ?,
-               type = ?, status = ?, sort_order = ?, updated_at = NOW()
+               type = ?, visible = ?, status = ?, sort_order = ?, updated_at = NOW()
                WHERE permission = ?`,
               [...params, menu.permission]
             );
@@ -856,10 +865,10 @@ const systemController = {
           } else {
             await connection.execute(
               `INSERT INTO menus (parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW(), NOW())`,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
               [
                 menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
-                menu.icon || '', menu.permission, menu.type || 1, menu.status || 1, menu.sort || 0,
+                menu.icon || '', menu.permission, menu.type || 1, visible, status, menu.sort || 0,
               ]
             );
             existingSet.add(menu.permission);
@@ -1019,10 +1028,10 @@ const systemController = {
     try {
       const { limit = 100, offset = 0 } = req.query;
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const actualLimit = Math.min(Math.max(parseInt(limit) || 100, 1), 1000); // 限制1-1000
+      const actualLimit = Math.min(Math.max(parseInt(limit) || 100, 1), 100);
       const actualOffset = Math.max(parseInt(offset) || 0, 0);
       const [logs] = await pool.query(
-        `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualLimit))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(actualOffset))||0)}`
+        `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${actualLimit} OFFSET ${actualOffset}`
       );
       return ResponseHandler.success(res, logs, '获取系统日志成功');
     } catch (error) {
@@ -1058,6 +1067,17 @@ const systemController = {
     } catch (error) {
       logger.error('标记失败任务失败:', error);
       return ResponseHandler.error(res, '标记失败任务失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  async retryFailedJobs(req, res) {
+    try {
+      const limit = req.body?.limit || req.query?.limit || 20;
+      const result = await DLQService.retryPendingJobs({ limit });
+      return ResponseHandler.success(res, result, '失败任务重试已执行');
+    } catch (error) {
+      logger.error('重试失败任务失败:', error);
+      return ResponseHandler.error(res, '重试失败任务失败', 'SERVER_ERROR', 500, error);
     }
   },
 

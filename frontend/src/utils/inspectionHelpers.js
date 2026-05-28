@@ -552,7 +552,7 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
           start_date: today,
           end_date: today,
           page: 1,
-          limit: 1000
+          limit: 1
         })
 
         // 拦截器已解包，response.data 就是业务数据
@@ -574,4 +574,3 @@ export async function generateBatchNumber(supplierCode = '', supplierId = null, 
     throw error
   }
 }
-

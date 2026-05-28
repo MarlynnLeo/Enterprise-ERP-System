@@ -92,6 +92,31 @@
     ]
   }))
 
+  const normalizePlan = (plan = {}) => ({
+    ...plan,
+    productName: plan.productName || plan.product_name || plan.material_name,
+    productCode: plan.productCode || plan.product_code || plan.material_code,
+    startDate: plan.startDate || plan.start_date,
+    endDate: plan.endDate || plan.end_date,
+    deliveryDate: plan.deliveryDate || plan.delivery_date,
+    completedQuantity: Number(plan.completedQuantity ?? plan.completed_quantity) || 0,
+    taskQuantity: Number(plan.taskQuantity ?? plan.task_quantity) || 0,
+    progress: Number(plan.progress) || 0
+  })
+
+  const normalizePlanResponse = (response) => {
+    const normalizeArray = (list) => list.map(normalizePlan)
+
+    if (Array.isArray(response?.data)) response.data = normalizeArray(response.data)
+    if (Array.isArray(response?.list)) response.list = normalizeArray(response.list)
+    if (Array.isArray(response?.items)) response.items = normalizeArray(response.items)
+    if (Array.isArray(response?.data?.list)) response.data.list = normalizeArray(response.data.list)
+    if (Array.isArray(response?.data?.items)) response.data.items = normalizeArray(response.data.items)
+    if (Array.isArray(response?.data?.data)) response.data.data = normalizeArray(response.data.data)
+
+    return response
+  }
+
   // 加载生产计划数据
   const loadPlans = async (params) => {
     // 处理状态筛选
@@ -102,7 +127,7 @@
 
     const response = await productionApi.getProductionPlans(apiParams)
 
-    return response
+    return normalizePlanResponse(response)
   }
 
   // 处理项目点击

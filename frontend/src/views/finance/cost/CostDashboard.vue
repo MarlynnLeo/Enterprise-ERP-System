@@ -8,7 +8,7 @@
         </div>
         <div class="action-buttons">
           <el-button type="primary" @click="refreshData">刷新数据</el-button>
-          <el-button v-permission="'finance:automation:execute'" type="warning" @click="showWIPDialog = true">
+          <el-button v-permission="'finance:cost:execute'" type="warning" @click="showWIPDialog = true">
             <el-icon><Setting /></el-icon> 月末成本结转
           </el-button>
         </div>
@@ -93,7 +93,7 @@
                 <div class="yearly-current">¥ {{ formatNumber(item.current) }}</div>
                 <div class="yearly-growth" :class="item.growth >= 0 ? 'up' : 'down'">
                   <span>{{ item.growth >= 0 ? '↑' : '↓' }} {{ Math.abs(item.growth) }}%</span>
-                  <span class="yearly-last">去年: ¥{{ formatNumber(item.last) }}</span>
+                  <span class="yearly-last">去年: {{ formatMoney(item.last) }}</span>
                 </div>
               </div>
             </el-col>
@@ -124,20 +124,20 @@
               </template>
             </el-table-column>
             <el-table-column prop="product_name" label="产品名称" min-width="150" />
-            <el-table-column label="标准成本" width="120" align="right">
-              <template #default="scope">¥{{ formatNumber(scope.row.standard_total_cost) }}</template>
+            <el-table-column label="标准成本" width="120">
+              <template #default="scope">{{ formatMoney(scope.row.standard_total_cost) }}</template>
             </el-table-column>
-            <el-table-column label="实际成本" width="120" align="right">
-              <template #default="scope">¥{{ formatNumber(scope.row.actual_total_cost) }}</template>
+            <el-table-column label="实际成本" width="120">
+              <template #default="scope">{{ formatMoney(scope.row.actual_total_cost) }}</template>
             </el-table-column>
-            <el-table-column label="差异" width="120" align="right">
+            <el-table-column label="差异" width="120">
               <template #default="scope">
                 <span :class="scope.row.is_favorable ? 'text-success' : 'text-danger'">
-                  {{ scope.row.is_favorable ? '+' : '' }}¥{{ formatNumber(scope.row.total_variance) }}
+                  {{ formatSignedMoney(scope.row.total_variance, scope.row.is_favorable) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="差异率" width="100" align="center">
+            <el-table-column label="差异率" width="100">
               <template #default="scope">
                 <el-tag :type="scope.row.alert_level === 'critical' ? 'danger' : 'warning'" size="small">
                   {{ scope.row.variance_rate }}%
@@ -185,11 +185,20 @@
             <el-option
               v-for="period in periods"
               :key="period.id"
-              :label="period.period_name"
+              :label="`${period.period_name}${period.is_closed ? '（已关闭）' : ''}`"
               :value="period.id"
+              :disabled="period.is_closed"
             />
           </el-select>
         </el-form-item>
+        <el-alert
+          v-if="selectedPeriod?.is_closed"
+          title="该期间已关闭，不能执行成本结转"
+          type="warning"
+          show-icon
+          :closable="false"
+          class="closing-alert"
+        />
         <el-divider content-position="left">操作选项</el-divider>
         <div class="closing-actions">
           <el-card shadow="hover" class="action-card">
@@ -198,7 +207,7 @@
                 <h4>计算在制品成本</h4>
                 <p>遍历所有未完工任务，计算约当产量和WIP成本</p>
               </div>
-              <el-button type="info" @click="calculateWIP" :loading="wipLoading">
+              <el-button type="info" @click="calculateWIP" :loading="wipLoading" :disabled="!selectedPeriodId || selectedPeriod?.is_closed" v-permission="'finance:cost:execute'">
                 计算 WIP
               </el-button>
             </div>
@@ -209,8 +218,31 @@
                 <h4>一键月末结转</h4>
                 <p>自动执行：WIP计算 → WIP凭证 → 差异分摊</p>
               </div>
-              <el-button type="primary" @click="executeCostClosing" :loading="closingLoading" v-permission="'finance:automation:execute'">
+              <el-button
+                type="primary"
+                @click="executeCostClosing"
+                :loading="closingLoading"
+                :disabled="!selectedPeriodId || selectedPeriod?.is_closed"
+                v-permission="'finance:cost:execute'"
+              >
                 执行结转
+              </el-button>
+            </div>
+          </el-card>
+          <el-card shadow="hover" class="action-card">
+            <div class="action-content">
+              <div class="action-info">
+                <h4>生成WIP凭证</h4>
+                <p>按已计算的WIP快照生成或修复月末结转凭证</p>
+              </div>
+              <el-button
+                type="warning"
+                @click="generateWIPVoucher"
+                :loading="voucherLoading"
+                :disabled="!selectedPeriodId || selectedPeriod?.is_closed"
+                v-permission="'finance:cost:execute'"
+              >
+                生成凭证
               </el-button>
             </div>
           </el-card>
@@ -220,11 +252,24 @@
         <div v-if="closingResult" class="closing-result">
           <el-descriptions :column="2" border size="small">
             <el-descriptions-item label="WIP任务数">{{ closingResult.wip?.taskCount || 0 }}</el-descriptions-item>
-            <el-descriptions-item label="WIP总成本">¥{{ formatNumber(closingResult.wip?.summary?.totalWIPCost) }}</el-descriptions-item>
+            <el-descriptions-item label="WIP总成本">{{ formatMoney(closingResult.wip?.summary?.totalWIPCost) }}</el-descriptions-item>
             <el-descriptions-item label="WIP凭证ID">{{ closingResult.wipVoucher?.entryId || '未生成' }}</el-descriptions-item>
             <el-descriptions-item label="差异分摊产品数">{{ closingResult.variance?.productCount || 0 }}</el-descriptions-item>
           </el-descriptions>
         </div>
+        <el-divider content-position="left" v-if="costClosingHistory.length">执行记录</el-divider>
+        <el-table v-if="costClosingHistory.length" :data="costClosingHistory" size="small" border max-height="180">
+          <el-table-column prop="periodName" label="期间" min-width="140" />
+          <el-table-column prop="status" label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'success' ? 'success' : 'danger'" size="small">
+                {{ row.status === 'success' ? '成功' : '失败' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="message" label="结果" min-width="180" />
+          <el-table-column prop="time" label="时间" width="160" />
+        </el-table>
       </el-form>
       <template #footer>
         <el-button @click="showWIPDialog = false">关闭</el-button>
@@ -233,12 +278,14 @@
   </div>
 </template>
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
-import * as echarts from 'echarts';
-import { api } from '@/services/api';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { echarts } from '@/utils/echartsCore';
+import { financeApi } from '@/api/finance';
+import { parseListData } from '@/utils/responseParser';
 import { Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { formatCurrency } from '@/utils/helpers/formatters';
+import { alphaColor } from '@/utils/designTokens';
 // 状态定义
 const _loading = ref(false);
 const trendPeriod = ref('month');
@@ -259,8 +306,13 @@ const selectedPeriodId = ref(null);
 const periods = ref([]);
 const periodsLoading = ref(false);
 const wipLoading = ref(false);
+const voucherLoading = ref(false);
 const closingLoading = ref(false);
 const closingResult = ref(null);
+const costClosingHistory = ref([]);
+const selectedPeriod = computed(() =>
+  periods.value.find(period => Number(period.id) === Number(selectedPeriodId.value))
+);
 // 成本预警相关
 const alerts = ref([]);
 const alertsLoading = ref(false);
@@ -286,16 +338,25 @@ const yearlyComparison = ref({
 // formatNumber 已统一引用公共实现;
 // 数字格式化
 const formatNumber = (value, decimals = 2) => {
-  if (value === null || value === undefined) return '0';
+  if (value === null || value === undefined || value === '') return '-';
   const num = parseFloat(value);
-  if (isNaN(num)) return '0';
+  if (isNaN(num)) return '-';
   return num.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+};
+const formatMoney = (value) => {
+  const formatted = formatNumber(value);
+  return formatted === '-' ? '-' : `¥${formatted}`;
+};
+const formatSignedMoney = (value, isFavorable) => {
+  const formatted = formatMoney(value);
+  if (formatted === '-') return '-';
+  return `${isFavorable ? '+' : ''}${formatted}`;
 };
 // 加载会计期间
 const loadPeriods = async () => {
   periodsLoading.value = true;
   try {
-    const res = await api.get('/finance/periods');
+    const res = await financeApi.cost.getPeriods();
     // API拦截器已解包，res.data 就是业务数据
     if (res.data?.periods) {
       periods.value = res.data.periods;
@@ -317,11 +378,13 @@ const calculateWIP = async () => {
     ElMessage.warning('请先选择会计期间');
     return;
   }
+  if (selectedPeriod.value?.is_closed) {
+    ElMessage.warning('该期间已关闭，不能计算WIP');
+    return;
+  }
   wipLoading.value = true;
   try {
-    const res = await api.get('/finance/automation/wip/calculate', {
-      params: { periodId: selectedPeriodId.value }
-    });
+    const res = await financeApi.cost.calculateWIP({ periodId: selectedPeriodId.value });
     // API拦截器已解包，res.data 直接是业务数据
     if (res.data?.taskCount !== undefined) {
       closingResult.value = { wip: res.data };
@@ -337,10 +400,49 @@ const calculateWIP = async () => {
     wipLoading.value = false;
   }
 };
+
+const generateWIPVoucher = async () => {
+  if (!selectedPeriodId.value) {
+    ElMessage.warning('请先选择会计期间');
+    return;
+  }
+  if (selectedPeriod.value?.is_closed) {
+    ElMessage.warning('该期间已关闭，不能生成WIP凭证');
+    return;
+  }
+
+  voucherLoading.value = true;
+  try {
+    const res = await financeApi.cost.generateWIPVoucher(selectedPeriodId.value);
+    const result = res.data || {};
+    closingResult.value = {
+      ...(closingResult.value || {}),
+      wipVoucher: result
+    };
+
+    if (result.reused) {
+      ElMessage.success(`WIP凭证已存在并通过校验：${result.entryNumber || result.entryId}`);
+    } else if (result.skipped) {
+      ElMessage.info(result.reason || '无在制品成本，未生成凭证');
+    } else {
+      ElMessage.success(`WIP凭证生成完成：${result.entryId || '-'}`);
+    }
+  } catch (error) {
+    console.error('WIP凭证生成失败:', error);
+    ElMessage.error('WIP凭证生成失败: ' + (error.response?.data?.message || error.message));
+  } finally {
+    voucherLoading.value = false;
+  }
+};
+
 // 执行月末成本结转
 const executeCostClosing = async () => {
   if (!selectedPeriodId.value) {
     ElMessage.warning('请先选择会计期间');
+    return;
+  }
+  if (selectedPeriod.value?.is_closed) {
+    ElMessage.warning('该期间已关闭，不能执行成本结转');
     return;
   }
 
@@ -355,18 +457,31 @@ const executeCostClosing = async () => {
   }
   closingLoading.value = true;
   try {
-    const res = await api.post(`/finance/automation/cost-closing/${selectedPeriodId.value}`);
+    const res = await financeApi.cost.executeCostClosing(selectedPeriodId.value);
     // API拦截器已解包，res.data 直接是业务数据
     if (res.data) {
       closingResult.value = res.data;
       ElMessage.success('月末成本结转完成！');
+      costClosingHistory.value.unshift({
+        periodName: selectedPeriod.value?.period_name || selectedPeriodId.value,
+        status: 'success',
+        message: '月末成本结转完成',
+        time: new Date().toLocaleString()
+      });
       refreshData(); // 刷新驾驶舱数据
     } else {
       ElMessage.error('结转失败：未返回数据');
     }
   } catch (error) {
     console.error('月末结转失败:', error);
-    ElMessage.error('月末结转失败: ' + (error.response?.data?.message || error.message));
+    const message = error.response?.data?.message || error.message;
+    costClosingHistory.value.unshift({
+      periodName: selectedPeriod.value?.period_name || selectedPeriodId.value,
+      status: 'failed',
+      message,
+      time: new Date().toLocaleString()
+    });
+    ElMessage.error('月末结转失败: ' + message);
   } finally {
     closingLoading.value = false;
   }
@@ -393,7 +508,7 @@ const handleResize = () => {
 // 加载统计数据
 const loadStatistics = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/statistics');
+    const res = await financeApi.cost.getStatistics();
     // API拦截器已解包，res.data 就是业务数据
     const data = res.data;
     if (data) {
@@ -411,7 +526,7 @@ const loadStatistics = async () => {
 // 加载趋势数据
 const loadTrendData = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/trend', { params: { period: trendPeriod.value } });
+    const res = await financeApi.cost.getTrend({ period: trendPeriod.value });
     // API拦截器已解包
     const data = res.data;
     if (data && data.trend && trendChart) {
@@ -444,7 +559,7 @@ const loadTrendData = async () => {
 // 加载构成数据
 const loadCompositionData = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/composition');
+    const res = await financeApi.cost.getComposition();
     // API拦截器已解包
     const data = res.data;
     // 后端返回 {composition: [{name, value}]}
@@ -462,7 +577,7 @@ const loadCompositionData = async () => {
               itemStyle: {
                 shadowBlur: 10,
                 shadowOffsetX: 0,
-                shadowColor: 'rgba(0, 0, 0, 0.5)'
+                shadowColor: alphaColor('textPrimary', 0.5)
               }
             }
           }
@@ -477,9 +592,8 @@ const loadCompositionData = async () => {
 // 加载差异数据（从真实API获取）
 const loadVarianceData = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/variance', { params: { pageSize: 20 } });
-    // API拦截器已解包，res.data 即为 { list, total }
-    const listData = res.data?.list || res.data?.data?.list || [];
+    const res = await financeApi.cost.getVariance({ pageSize: 20 });
+    const listData = parseListData(res, { enableLog: false });
 
     if (listData.length > 0 && varianceChart) {
       // 按产品名称分组汇总
@@ -521,7 +635,7 @@ const loadVarianceData = async () => {
 const loadCostAlerts = async () => {
   alertsLoading.value = true;
   try {
-    const res = await api.get('/finance-enhancement/cost/alerts');
+    const res = await financeApi.cost.getAlerts();
     alerts.value = res.data?.list || [];
   } catch (error) {
     console.error('加载成本预警失败:', error);
@@ -533,7 +647,7 @@ const loadCostAlerts = async () => {
 // 加载预警配置
 const loadAlertSettings = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/alert-settings');
+    const res = await financeApi.cost.getAlertSettings();
     if (res.data) {
       alertSettings.value = {
         ...alertSettings.value,
@@ -552,7 +666,7 @@ const loadAlertSettings = async () => {
 const saveAlertSettings = async () => {
   savingAlertSettings.value = true;
   try {
-    await api.post('/finance-enhancement/cost/alert-settings', alertSettings.value);
+    await financeApi.cost.saveAlertSettings(alertSettings.value);
     ElMessage.success('预警配置保存成功');
     showAlertSettings.value = false;
     loadCostAlerts(); // 重新加载预警
@@ -566,9 +680,7 @@ const saveAlertSettings = async () => {
 // 加载年度成本对比
 const loadYearlyComparison = async () => {
   try {
-    const res = await api.get('/finance-enhancement/cost/yearly-comparison', {
-      params: { year: selectedYear.value }
-    });
+    const res = await financeApi.cost.getYearlyComparison({ year: selectedYear.value });
     const data = res.data;
     if (data) {
       yearlyComparison.value = {
@@ -654,6 +766,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 10px;
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.stat-card:hover {
+  border-color: var(--color-border-light);
+  background: var(--color-bg-section);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent) !important;
+  transform: none !important;
 }
 .stat-icon {
   width: 60px;
@@ -665,9 +786,9 @@ onUnmounted(() => {
   font-size: 30px;
   margin-right: 15px;
 }
-.stat-icon.primary { background-color: var(--color-primary-light-9); color: var(--color-primary); }
-.stat-icon.success { background-color: var(--color-success-light); color: var(--color-success); }
-.stat-icon.warning { background-color: var(--color-warning-light); color: var(--color-warning); }
+.stat-icon.primary { background-color: var(--color-primary); color: var(--color-on-primary); }
+.stat-icon.success { background-color: var(--color-success); color: var(--color-on-primary); }
+.stat-icon.warning { background-color: var(--color-warning); color: var(--color-on-primary); }
 .stat-info {
   flex: 1;
 }
@@ -714,6 +835,9 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 15px;
 }
+.closing-alert {
+  margin-bottom: 12px;
+}
 .action-card {
   cursor: default;
 }
@@ -742,7 +866,7 @@ onUnmounted(() => {
 .yearly-stat {
   text-align: center;
   padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%);
+  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-lighter) 100%);
   border-radius: 8px;
 }
 .yearly-label {

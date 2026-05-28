@@ -1,79 +1,69 @@
 <template>
-  <el-card class="glass-card avatar-frame-card" shadow="hover">
+  <el-card class="profile-card avatar-frame-panel" shadow="hover">
     <template #header>
       <div class="card-header">
         <div class="header-left">
-          <el-icon class="header-icon" color="#E6A23C"><Brush /></el-icon>
-          <span class="header-title">🎨 头像特效选择</span>
+          <el-icon class="header-icon"><Brush /></el-icon>
+          <span class="header-title">头像动态框</span>
         </div>
-        <div class="current-selection" v-if="modelValue">
-          <span>当前使用：</span>
+        <div v-if="modelValue" class="current-selection">
+          <span>当前</span>
           <el-tag type="success">{{ getFrameName(modelValue) }}</el-tag>
         </div>
       </div>
     </template>
 
-    <el-alert
-      title="选择你喜欢的头像特效，让个人资料更炫酷"
-      type="info"
-      :closable="false"
-      show-icon
-      style="margin-bottom: 20px"
-    />
-
-    <!-- 分类标签 -->
     <el-tabs v-model="activeCategory" class="frame-tabs">
-      <el-tab-pane v-for="cat in categories" :key="cat.name" :label="cat.label" :name="cat.name">
-        <template #label>
-          <span class="custom-tab-label">
-            <span class="tab-icon">{{ cat.icon }}</span>
-            <span>{{ cat.label }}</span>
-          </span>
-        </template>
-      </el-tab-pane>
+      <el-tab-pane
+        v-for="category in categories"
+        :key="category.name"
+        :label="category.label"
+        :name="category.name"
+      />
     </el-tabs>
 
-    <!-- 特效网格 -->
     <div class="frames-grid">
       <div
         v-for="frame in filteredFrames"
         :key="frame.id"
-        class="frame-item"
-        :class="{ 'active': modelValue === frame.id }"
+        class="frame-tile"
+        role="button"
+        tabindex="0"
+        :class="{
+          active: modelValue === frame.id,
+          previewing: previewFrame === frame.id
+        }"
         @click="selectFrame(frame.id)"
+        @keydown.enter.prevent="selectFrame(frame.id)"
+        @keydown.space.prevent="selectFrame(frame.id)"
       >
-        <div class="frame-preview">
-          <div class="avatar-frame-container" style="position: relative; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;">
-            <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2;">
-              <Vue3Lottie
-                v-if="frame.animationData"
-                :animationData="frame.animationData"
-                :height="85"
-                :width="85"
-              />
-            </div>
-            <el-avatar
-              :size="70"
-              :src="avatar || '/default-avatar.png'"
-              class="preview-avatar"
-              style="position: relative; z-index: 1;"
-            >
-              {{ name ? name[0].toUpperCase() : 'U' }}
-            </el-avatar>
-          </div>
-        </div>
+        <span v-if="modelValue === frame.id" class="active-badge">
+          <el-icon><StarFilled /></el-icon>
+        </span>
 
-        <div class="frame-info">
-          <h3>{{ frame.name }}</h3>
-          <p class="frame-desc">{{ frame.description }}</p>
-          <div class="frame-tags">
-            <el-tag v-for="tag in frame.tags" :key="tag" size="small" :type="getFrameTagType(tag)">
-              {{ tag }}
-            </el-tag>
-          </div>
-        </div>
+        <DecorativeAvatarFrame
+          :frame="frame"
+          :avatar="avatar"
+          :name="name"
+          :size="112"
+          :avatar-size="72"
+          class="tile-preview"
+        />
 
-        <div class="frame-actions">
+        <span class="frame-name">{{ frame.name }}</span>
+        <span class="frame-desc">{{ frame.description }}</span>
+        <span class="frame-tags">
+          <el-tag
+            v-for="tag in frame.tags"
+            :key="tag"
+            size="small"
+            :type="getFrameTagType(tag)"
+          >
+            {{ tag }}
+          </el-tag>
+        </span>
+
+        <span class="frame-action">
           <el-button
             v-if="modelValue === frame.id"
             type="success"
@@ -90,68 +80,60 @@
             @click.stop="applyFrame(frame.id)"
           >
             <el-icon><Select /></el-icon>
-            选择
+            应用
           </el-button>
-        </div>
-
-        <div v-if="modelValue === frame.id" class="active-badge">
-          <el-icon><StarFilled /></el-icon>
-        </div>
+        </span>
       </div>
     </div>
 
-    <!-- 无结果提示 -->
-    <el-empty v-if="filteredFrames.length === 0" description="暂无此类特效" />
+    <el-empty v-if="filteredFrames.length === 0" description="暂无此类头像框" />
 
-    <!-- 实时预览 -->
     <el-divider content-position="center">
-      <el-icon><Brush /></el-icon> 实时预览
+      <el-icon><Brush /></el-icon>
+      预览
     </el-divider>
 
     <div class="large-preview-section">
-      <div class="large-preview">
-        <div class="preview-container-large" style="position: relative; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center;">
-          <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2;">
-            <Vue3Lottie
-              v-if="getCurrentPreviewFrame.animationData"
-              :animationData="getCurrentPreviewFrame.animationData"
-              :height="140"
-              :width="140"
-            />
-          </div>
-          <el-avatar
-            :size="120"
-            :src="avatar || '/default-avatar.png'"
-            class="large-preview-avatar"
-            style="position: relative; z-index: 1;"
-          >
-            {{ name ? name[0].toUpperCase() : 'U' }}
-          </el-avatar>
-        </div>
+      <DecorativeAvatarFrame
+        :frame="currentPreviewFrame"
+        :avatar="avatar"
+        :name="name"
+        :size="190"
+        :avatar-size="120"
+      />
+      <div class="preview-copy">
+        <strong>{{ currentPreviewFrame.name || '默认头像' }}</strong>
+        <span>{{ currentPreviewFrame.description || '不使用动态头像框' }}</span>
       </div>
-      <div class="preview-info">
-        <el-alert
-          :title="`预览：${getFrameName(previewFrame)}`"
-          type="info"
-          :closable="false"
-          show-icon
-        />
-      </div>
+      <el-button
+        type="primary"
+        :disabled="modelValue === previewFrame"
+        @click="applyFrame(previewFrame)"
+      >
+        应用当前预览
+      </el-button>
     </div>
   </el-card>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Brush, Check, Select, StarFilled } from '@element-plus/icons-vue'
+import DecorativeAvatarFrame from './DecorativeAvatarFrame.vue'
 
 const props = defineProps({
   modelValue: {
     type: String,
-    default: 'frame1'
+    default: 'festival-lantern'
   },
-  avatar: String,
-  name: String,
+  avatar: {
+    type: String,
+    default: ''
+  },
+  name: {
+    type: String,
+    default: ''
+  },
   frames: {
     type: Array,
     default: () => []
@@ -164,18 +146,19 @@ const previewFrame = ref(props.modelValue)
 const activeCategory = ref('all')
 
 const categories = [
-  { name: 'all', label: '全部', icon: '📋' },
-  { name: 'magic', label: '魔法', icon: '🪄' },
-  { name: 'tech', label: '科技', icon: '🚀' },
-  { name: 'nature', label: '自然', icon: '🌿' },
-  { name: 'fun', label: '趣味', icon: '🎨' }
+  { name: 'all', label: '全部' },
+  { name: 'featured', label: '推荐' },
+  { name: 'oriental', label: '国风' },
+  { name: 'luxury', label: '华丽' },
+  { name: 'tech', label: '科技' },
+  { name: 'nature', label: '自然' }
 ]
 
 const categoryTags = {
-  magic: ['魔法', '神圣', '神秘', '黑暗', '光效'],
-  tech: ['科技', '赛博', '军事', '宇宙', '未来', '动态', '故障'],
-  nature: ['星空', '火焰', '雷电', '自然', '冰雪', '熔岩', '唯美', '清新', '森系', '能量', '光影'],
-  fun: ['复古', '彩虹', '机械', '潮流', '可爱', '光明', '奢华', '黑客', '简约', '极简', '水墨', '趣味', '设计', '生活', '爱心', '炫彩', '硬核', '酷炫', '霸气']
+  oriental: ['国风', '节庆'],
+  luxury: ['华丽', '皇冠', '宝石', '桂冠', '金色'],
+  tech: ['科技', '赛博', '直播', '霓虹'],
+  nature: ['自然', '星河', '治愈']
 }
 
 const filteredFrames = computed(() => {
@@ -183,36 +166,53 @@ const filteredFrames = computed(() => {
     return props.frames
   }
 
+  if (activeCategory.value === 'featured') {
+    return props.frames.filter(frame => frame.featured)
+  }
+
   const targetTags = categoryTags[activeCategory.value] || []
-  return props.frames.filter(frame => {
-    return frame.tags.some(tag => targetTags.includes(tag))
-  })
+  return props.frames.filter(frame => frame.tags?.some(tag => targetTags.includes(tag)))
 })
 
-const getFrameName = (id) => {
-  const frame = props.frames.find(f => f.id === id)
-  return frame ? frame.name : '默认特效'
+const currentPreviewFrame = computed(() => {
+  return props.frames.find(frame => frame.id === previewFrame.value) || props.frames[0] || {}
+})
+
+watch(() => props.modelValue, (value) => {
+  previewFrame.value = value
+})
+
+function getFrameName(id) {
+  const frame = props.frames.find(item => item.id === id)
+  return frame ? frame.name : '默认头像'
 }
 
-const getCurrentPreviewFrame = computed(() => {
-  return props.frames.find(f => f.id === previewFrame.value) || {}
-})
-
-const getFrameTagType = (tag) => {
+function getFrameTagType(tag) {
   const typeMap = {
-    '魔法': 'warning', '神圣': 'warning', '黑暗': 'info',
-    '科技': 'primary', '赛博': 'primary', '未来': 'primary',
-    '自然': 'success', '火焰': 'danger', '雷电': 'danger',
-    '趣味': 'success', '可爱': 'danger', '复古': 'info'
+    国风: 'danger',
+    节庆: 'danger',
+    华丽: 'warning',
+    皇冠: 'warning',
+    宝石: 'success',
+    桂冠: 'warning',
+    金色: 'warning',
+    科技: 'primary',
+    赛博: 'primary',
+    直播: 'primary',
+    霓虹: 'primary',
+    自然: 'success',
+    星河: 'info',
+    治愈: 'success'
   }
+
   return typeMap[tag] || 'info'
 }
 
-const selectFrame = (id) => {
+function selectFrame(id) {
   previewFrame.value = id
 }
 
-const applyFrame = (id) => {
+function applyFrame(id) {
   emit('update:modelValue', id)
   emit('change', id)
   previewFrame.value = id
@@ -220,109 +220,129 @@ const applyFrame = (id) => {
 </script>
 
 <style scoped>
-.glass-card {
-  border-radius: 16px;
+.profile-card {
+  border-radius: 12px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+}
+
+.avatar-frame-panel :deep(.el-card__header) {
+  padding: 16px 18px;
+}
+
+.avatar-frame-panel :deep(.el-card__body) {
+  padding: 18px;
 }
 
 .card-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
+  gap: 16px;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-icon {
-  font-size: 20px;
-  background: var(--el-fill-color-light);
-  padding: 8px;
-  border-radius: 8px;
-  box-sizing: content-box;
-}
-
-.header-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
+.header-left,
 .current-selection {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 10px;
+}
+
+.header-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--el-color-warning);
+  color: var(--el-color-white);
+  font-size: 20px;
+}
+
+.header-title {
+  color: var(--el-text-color-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.current-selection {
   color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.frame-tabs {
+  margin-bottom: 18px;
+}
+
+.frame-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+  background: var(--el-border-color-lighter);
+}
+
+.frame-tabs :deep(.el-tabs__item) {
+  font-weight: 700;
 }
 
 .frames-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
 }
 
-.frame-item {
+.frame-tile {
   position: relative;
-  border: 2px solid var(--el-border-color-lighter);
-  border-radius: 16px;
-  padding: 24px;
-  cursor: pointer;
-  transition: all 0.3s;
-  background: var(--el-bg-color);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  overflow: visible;
+  gap: 10px;
+  padding: 18px 14px 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-bg-color);
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
-.frame-item:hover {
+.frame-tile:hover,
+.frame-tile.previewing {
   border-color: var(--el-color-primary);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-  transform: translateY(-4px);
+  background: var(--el-fill-color-extra-light);
 }
 
-.frame-item.active {
+.frame-tile:focus-visible {
+  outline: 3px solid var(--el-color-primary-light-5);
+  outline-offset: 2px;
+}
+
+.frame-tile.active {
   border-color: var(--el-color-success);
   background: var(--el-color-success-light-9);
 }
 
-.frame-preview {
-  height: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.tile-preview {
+  margin-bottom: 2px;
 }
 
-.avatar-frame-container {
-  transform: scale(0.8);
-}
-
-.frame-info {
-  text-align: center;
-  flex: 1;
-}
-
-.frame-info h3 {
-  margin: 0 0 8px;
-  font-size: 16px;
+.frame-name {
   color: var(--el-text-color-primary);
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .frame-desc {
-  margin: 0 0 12px;
-  font-size: 13px;
+  min-height: 36px;
   color: var(--el-text-color-secondary);
-  line-height: 1.4;
-  height: 36px;
+  font-size: 12px;
+  line-height: 1.5;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -331,49 +351,77 @@ const applyFrame = (id) => {
 .frame-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
   justify-content: center;
+  gap: 6px;
+  min-height: 24px;
 }
 
-.frame-actions {
-  width: 100%;
+.frame-action {
   display: flex;
   justify-content: center;
+  width: 100%;
+  margin-top: auto;
 }
 
 .active-badge {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
   color: var(--el-color-success);
   font-size: 20px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
 .large-preview-section {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 22px;
+  padding: 26px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.preview-copy {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 30px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 16px;
+  gap: 8px;
+  text-align: left;
 }
 
-.large-preview {
-  height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.preview-copy strong {
+  color: var(--el-text-color-primary);
+  font-size: 18px;
 }
 
-.preview-container-large {
-  transform: scale(1);
+.preview-copy span {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
-.effect-wrapper :deep(.el-avatar),
-.effect-wrapper-large :deep(.el-avatar) {
-  position: relative;
-  z-index: 2;
+@media (max-width: 768px) {
+  .card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .frames-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .large-preview-section {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    padding: 20px 16px;
+  }
+
+  .preview-copy {
+    text-align: center;
+  }
 }
 </style>

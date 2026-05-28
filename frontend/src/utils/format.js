@@ -50,9 +50,9 @@ const abbreviateNumber = (val, decimals = 2) => {
  * @returns {string} 格式化后的金额字符串
  */
 export const formatCurrency = (amount, currency = '¥', decimals = 2) => {
-    if (amount === undefined || amount === null || amount === '') return `${currency}0.00`;
+    if (amount === undefined || amount === null || amount === '') return '-';
     const num = parseFloat(amount);
-    if (isNaN(num)) return `${currency}0.00`;
+    if (isNaN(num)) return '-';
 
     const { text, unit } = abbreviateNumber(num, decimals);
     return `${currency}${text}${unit}`;
@@ -74,6 +74,10 @@ export const formatDate = (date) => {
 
     return `${year}-${month}-${day}`;
 };
+
+export const formatLocalDate = (date = new Date()) => formatDate(date);
+
+export const formatLocalMonth = (date = new Date()) => formatLocalDate(date).slice(0, 7);
 
 /**
  * 格式化日期时间 (YYYY-MM-DD HH:mm:ss)
@@ -103,9 +107,9 @@ export const formatDateTime = (date) => {
  * @returns {string}
  */
 export const formatNumber = (num, decimals = 2) => {
-    if (num === undefined || num === null || num === '') return '0';
+    if (num === undefined || num === null || num === '') return '-';
     const val = parseFloat(num);
-    if (isNaN(val)) return '0';
+    if (isNaN(val)) return '-';
 
     const { text, unit } = abbreviateNumber(val, decimals);
     return `${text}${unit}`;

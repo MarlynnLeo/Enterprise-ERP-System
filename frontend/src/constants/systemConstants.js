@@ -6,7 +6,7 @@
 
 import { reactive, watchEffect } from 'vue';
 import { useDictionaryStore } from '@/stores/dictionary';
-import { startCase } from 'lodash';
+import { startCase } from 'lodash-es';
 
 // =======================
 // 后端字典缺省容灾配置 (FALLBACK)
@@ -14,6 +14,7 @@ import { startCase } from 'lodash';
 // 防御性编程：在面临新部署、后端升级数据丢失或外网波动时兜底显示
 const FALLBACK_DICTIONARY = {
   production_status: {
+    draft: { name: '未开始', color: 'info' },
     pending: { name: '未开始', color: 'info' },
     allocated: { name: '分配中', color: 'info' },
     material_issuing: { name: '发料中', color: 'warning' },
@@ -27,6 +28,14 @@ const FALLBACK_DICTIONARY = {
     warehousing: { name: '入库中', color: 'primary' },
     completed: { name: '已完成', color: 'success' },
     cancelled: { name: '已取消', color: 'danger' }
+  },
+  gl_transaction_type: {
+    PRODUCTION_MATERIAL: { name: '生产领料', color: 'warning' },
+    PRODUCTION_LABOR: { name: '人工成本', color: 'primary' },
+    PRODUCTION_OVERHEAD: { name: '制造费用', color: 'primary' },
+    PRODUCTION_COMPLETE: { name: '生产完工', color: 'success' },
+    PRODUCTION: { name: '生产业务', color: 'primary' },
+    MATERIAL_ISSUE: { name: '材料领用', color: 'warning' }
   }
 };
 
@@ -202,9 +211,21 @@ export const PRODUCTION_FLOW_STEPS = [
 
 export const PRODUCTION_PLAN_PUSHABLE_STATUSES = Object.freeze([
   PRODUCTION_STATUS_KEYS.DRAFT,
+  PRODUCTION_STATUS_KEYS.ALLOCATED,
+  PRODUCTION_STATUS_KEYS.MATERIAL_ISSUING,
   PRODUCTION_STATUS_KEYS.PREPARING,
   PRODUCTION_STATUS_KEYS.MATERIAL_ISSUED,
   PRODUCTION_STATUS_KEYS.IN_PROGRESS,
+]);
+export const PRODUCTION_PLAN_CANCELABLE_STATUSES = Object.freeze([
+  PRODUCTION_STATUS_KEYS.DRAFT,
+  PRODUCTION_STATUS_KEYS.ALLOCATED,
+  PRODUCTION_STATUS_KEYS.MATERIAL_ISSUING,
+  PRODUCTION_STATUS_KEYS.PREPARING,
+  PRODUCTION_STATUS_KEYS.MATERIAL_ISSUED,
+  PRODUCTION_STATUS_KEYS.IN_PROGRESS,
+  PRODUCTION_STATUS_KEYS.PAUSED,
+  PRODUCTION_STATUS_KEYS.INSPECTION,
 ]);
 export const PRODUCTION_PLAN_STATUS_OPTIONS = Object.freeze([
   ...PRODUCTION_FLOW_STEPS.map(({ status, name }) => ({ value: status, label: name })),
@@ -437,6 +458,7 @@ export default {
   PRODUCTION_STATUS_COLORS,
   PRODUCTION_STATUS_KEYS,
   PRODUCTION_PLAN_PUSHABLE_STATUSES,
+  PRODUCTION_PLAN_CANCELABLE_STATUSES,
   PRODUCTION_PLAN_STATUS_OPTIONS,
   getProductionStatusText,
   getProductionStatusColor,

@@ -7,10 +7,13 @@
 
 const logger = require('../utils/logger');
 const db = require('../config/db');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const financeModel = require('./finance');
 const { DOCUMENT_TYPE_MAPPING } = require('../constants/financeConstants');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { accountingConfig } = require('../config/accountingConfig');
+const { toLocalDateString } = require('../utils/dateUtils');
 
 async function getOpenAccountingPeriodId(connection, accountingDate = null) {
   const params = [];
@@ -49,6 +52,10 @@ function normalizeDepreciationMonth(value) {
     throw new Error('折旧日期格式不正确，请使用YYYY-MM或YYYY-MM-DD格式');
   }
   return `${match[1]}-${match[2]}`;
+}
+
+function toLocalMonthString(value) {
+  return toLocalDateString(value).slice(0, 7);
 }
 
 function roundMoney(value) {
@@ -344,8 +351,12 @@ const assetsModel = {
   getAssets: async (filters = {}, page = 1, pageSize = 20) => {
     try {
       // 转换参数为数字
-      page = parseInt(page, 10) || 1;
-      pageSize = parseInt(pageSize, 10) || 20;
+      const noPaginationRequested = pageSize === null || pageSize === undefined;
+      const pagination = noPaginationRequested
+        ? null
+        : parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
+      page = pagination?.page || 1;
+      pageSize = pagination?.pageSize ?? null;
 
       // 首先验证是否能获取到任何数据
       const testQuery = 'SELECT COUNT(*) as count FROM fixed_assets';
@@ -433,8 +444,10 @@ const assetsModel = {
       const total = countResult && countResult[0] ? countResult[0].total : 0;
 
       // 添加分页（直接拼接，已验证）
-      const offset = (page - 1) * pageSize;
-      query += ` LIMIT ${pageSize} OFFSET ${offset}`;
+      const noPagination = noPaginationRequested;
+      if (!noPagination) {
+        query += ` LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
+      }
 
       // 使用 query 避免 LIMIT/OFFSET 参数化问题
       const [assets] = await db.pool.query(query, params);
@@ -491,8 +504,8 @@ const assetsModel = {
         pagination: {
           total,
           page,
-          pageSize,
-          totalPages: Math.ceil(total / pageSize),
+          pageSize: noPagination ? formattedAssets.length : pagination.pageSize,
+          totalPages: noPagination ? 1 : Math.ceil(total / pagination.pageSize),
         },
       };
     } catch {
@@ -593,6 +606,8 @@ const assetsModel = {
     try {
       logger.info('开始计算折旧，参数:', params);
       await connection.beginTransaction();
+      const depreciationDate = toLocalDateString(params.depreciationDate);
+      const depreciationMonth = toLocalMonthString(depreciationDate);
 
       // 获取资产信息
       const [assets] = await connection.query('SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE', [
@@ -712,7 +727,7 @@ const assetsModel = {
           [
             params.assetId,
             params.periodId,
-            params.depreciationDate,
+            depreciationDate,
             depreciationAmount,
             bookValueBefore,
             bookValueAfter,
@@ -739,10 +754,10 @@ const assetsModel = {
         if (params.glEntry) {
           const entryData = {
             entry_number: params.glEntry.entry_number,
-            entry_date: params.depreciationDate,
-            posting_date: params.depreciationDate,
+            entry_date: depreciationDate,
+            posting_date: depreciationDate,
             document_type: '折旧单',
-            document_number: `DEP-${asset.asset_code}-${new Date(params.depreciationDate).toISOString().slice(0, 7)}`,
+            document_number: `DEP-${asset.asset_code}-${depreciationMonth}`,
             period_id: params.periodId,
             description: `固定资产折旧: ${asset.asset_name}`,
             created_by: params.glEntry.created_by,
@@ -783,7 +798,7 @@ const assetsModel = {
           await DocumentLinkService.tryAutoLink(
             'asset_depreciation',
             depreciationId,
-            `${asset.asset_code}-${new Date(params.depreciationDate).toISOString().slice(0, 7)}`,
+            `${asset.asset_code}-${depreciationMonth}`,
             'finance_voucher',
             entryId,
             entryData.entry_number,
@@ -903,9 +918,9 @@ const assetsModel = {
       const createdBy = requirePositiveInteger(options.created_by, 'created_by');
 
       // 获取折旧相关的会计科目（通过配置获取，避免硬编码）
-      const { accountingConfig } = require('../config/accountingConfig');
-      const depExpCode = accountingConfig.getAccountCode('DEPRECIATION_EXPENSE') || '6602';
-      const accDepCode = accountingConfig.getAccountCode('ACCUMULATED_DEPRECIATION') || '1602';
+      await accountingConfig.loadFromDatabase(db);
+      const depExpCode = accountingConfig.getAccountCode('DEPRECIATION_EXPENSE');
+      const accDepCode = accountingConfig.getAccountCode('ACCUMULATED_DEPRECIATION');
 
       const [expenseAccount] = await connection.execute(
         'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = true',
@@ -1055,8 +1070,8 @@ const assetsModel = {
 
         const entryData = {
           entry_number: entryNumber,
-          entry_date: depreciationDate + '-01',
-          posting_date: depreciationDate + '-01',
+          entry_date: depreciationDateFormatted,
+          posting_date: depreciationDateFormatted,
           document_type: '调整单',
           document_number: entryNumber,
           period_id: periodId,
@@ -1157,6 +1172,7 @@ const assetsModel = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      disposalData.disposal_date = toLocalDateString(disposalData.disposal_date);
 
       // 获取资产信息
       const [assets] = await connection.query('SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE', [id]);
@@ -1197,25 +1213,52 @@ const assetsModel = {
         return rows.length > 0 ? rows[0].id : null;
       };
 
-      const fixedAssetAccountId = await findAccount('1601');    // 固定资产
-      const accDepAccountId = await findAccount('1602');         // 累计折旧
-      const impairmentAccountId = await findAccount('1603');     // 固定资产减值准备
-      const clearingAccountId = await findAccount('1606');       // 固定资产清理
-      const bankGlAccountId = await findAccount('1002');         // 银行存款总账科目
-      const nonOpIncomeId = await findAccount('5401');           // 营业外收入
-      const nonOpExpenseId = await findAccount('6501');          // 营业外支出
+      await accountingConfig.loadFromDatabase(db);
+      const getConfiguredAccount = async (configKey, label) => {
+        const accountCode = accountingConfig.getAccountCode(configKey);
+        const id = accountCode ? await findAccount(accountCode) : null;
+        return { id, code: accountCode, label };
+      };
+
+      const fixedAssetAccount = await getConfiguredAccount('FIXED_ASSETS', '固定资产');
+      const accDepAccount = await getConfiguredAccount('ACCUMULATED_DEPRECIATION', '累计折旧');
+      const impairmentAccount = await getConfiguredAccount(
+        'FIXED_ASSET_IMPAIRMENT_ALLOWANCE',
+        '固定资产减值准备'
+      );
+      const clearingAccount = await getConfiguredAccount('FIXED_ASSET_CLEARING', '固定资产清理');
+      const bankGlAccount = await getConfiguredAccount('BANK_DEPOSIT', '银行存款');
+      const nonOpIncomeAccount = await getConfiguredAccount('NON_OPERATING_INCOME', '营业外收入');
+      const nonOpExpenseAccount = await getConfiguredAccount(
+        'NON_OPERATING_EXPENSE',
+        '营业外支出'
+      );
+
+      const fixedAssetAccountId = fixedAssetAccount.id;
+      const accDepAccountId = accDepAccount.id;
+      const impairmentAccountId = impairmentAccount.id;
+      const clearingAccountId = clearingAccount.id;
+      const bankGlAccountId = bankGlAccount.id;
+      const nonOpIncomeId = nonOpIncomeAccount.id;
+      const nonOpExpenseId = nonOpExpenseAccount.id;
 
       // 检查必要科目是否存在
       if (!fixedAssetAccountId || !accDepAccountId || !clearingAccountId) {
-        throw new Error('固定资产处置缺少必要会计科目(1601/1602/1606)');
+        throw new Error(
+          `固定资产处置缺少必要会计科目(${fixedAssetAccount.code || 'FIXED_ASSETS未配置'}/${accDepAccount.code || 'ACCUMULATED_DEPRECIATION未配置'}/${clearingAccount.code || 'FIXED_ASSET_CLEARING未配置'})`
+        );
       }
 
       if (impairmentAmount > 0 && !impairmentAccountId) {
-        throw new Error('固定资产处置缺少固定资产减值准备科目(1603)');
+        throw new Error(
+          `固定资产处置缺少固定资产减值准备科目(${impairmentAccount.code || 'FIXED_ASSET_IMPAIRMENT_ALLOWANCE未配置'})`
+        );
       }
 
       if (disposalAmount > 0 && !bankGlAccountId) {
-        throw new Error('固定资产处置收款缺少银行存款科目(1002)');
+        throw new Error(
+          `固定资产处置收款缺少银行存款科目(${bankGlAccount.code || 'BANK_DEPOSIT未配置'})`
+        );
       }
 
       if (disposalAmount > 0 && !disposalData.bank_account_id) {
@@ -1223,11 +1266,15 @@ const assetsModel = {
       }
 
       if (gainLoss > 0.01 && !nonOpIncomeId) {
-        throw new Error('固定资产处置收益缺少营业外收入科目(5401)');
+        throw new Error(
+          `固定资产处置收益缺少营业外收入科目(${nonOpIncomeAccount.code || 'NON_OPERATING_INCOME未配置'})`
+        );
       }
 
       if (gainLoss < -0.01 && !nonOpExpenseId) {
-        throw new Error('固定资产处置损失缺少营业外支出科目(6501)');
+        throw new Error(
+          `固定资产处置损失缺少营业外支出科目(${nonOpExpenseAccount.code || 'NON_OPERATING_EXPENSE未配置'})`
+        );
       }
 
       {
@@ -1348,6 +1395,14 @@ const assetsModel = {
           generatedEntries.push({ entryId: entry2Id, entryNumber: entry2Data.entry_number });
 
           bankTransactionNumber = `${docNumber}-BANK`;
+          const [existingBankTransactions] = await connection.execute(
+            'SELECT id FROM bank_transactions WHERE transaction_number = ? LIMIT 1 FOR UPDATE',
+            [bankTransactionNumber]
+          );
+          if (existingBankTransactions.length > 0) {
+            throw new Error(`资产处置收款流水已存在，不能重复入账: ${bankTransactionNumber}`);
+          }
+
           const [bankTxResult] = await connection.execute(
             `INSERT INTO bank_transactions
              (transaction_number, bank_account_id, transaction_date, transaction_type,
@@ -1521,7 +1576,7 @@ const assetsModel = {
     try {
       // 检查 asset_categories 表是否存在
       const [tables] = await db.pool.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'mes' AND table_name = 'asset_categories'"
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'asset_categories'"
       );
 
       // 如果表不存在，直接返回空结果
@@ -1538,8 +1593,12 @@ const assetsModel = {
       }
 
       // 转换参数为数字
-      const pageNum = parseInt(page, 10) || 1;
-      const limitNum = parseInt(limit, 10) || 20;
+      const pagination = parsePagination(page, limit, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
+      const pageNum = pagination.page;
+      const limitNum = pagination.limit;
 
       // 构建查询
       let query = `
@@ -1553,7 +1612,7 @@ const assetsModel = {
       const total = countResult && countResult[0] ? countResult[0].total : 0;
 
       // 添加分页（直接拼接，已验证）
-      const offset = (pageNum - 1) * limitNum;
+      const offset = pagination.offset;
       query += ` LIMIT ${limitNum} OFFSET ${offset}`;
 
       // 使用 query 避免 LIMIT/OFFSET 参数化问题
@@ -1565,14 +1624,9 @@ const assetsModel = {
         page: pageNum,
         limit: limitNum,
       };
-    } catch {
-      // 出错时返回空结果而不是抛出异常
-      return {
-        data: [],
-        total: 0,
-        page: page,
-        limit: limit,
-      };
+    } catch (error) {
+      logger.error('获取资产类别列表失败:', error);
+      throw error;
     }
   },
 
@@ -1684,151 +1738,14 @@ const assetsModel = {
       return result[0].count;
     } catch (error) {
       logger.error('获取资产总数失败:', error);
-      return 0;
+      throw error;
     }
   },
 
-  // 资产创建后的扩展钩子，保持无副作用，禁止在生产数据中自动插入示例资产
+  // 资产创建后的扩展钩子，保持无副作用
   createAssetCompleted: async (assetId) => {
     logger.info(`资产创建完成，ID: ${assetId}`);
     return true;
-  },
-
-  /**
-   * 创建示例资产数据
-   * @returns {Promise<Object>} 创建结果
-   */
-  createSampleAssets: async () => {
-    const conn = await db.getConnection();
-    try {
-      await conn.beginTransaction();
-
-      // 检查是否已存在示例类别
-      const [existingCategories] = await conn.query(
-        'SELECT * FROM asset_categories WHERE name LIKE "示例类别%"'
-      );
-
-      let categoryIds = [];
-
-      // 如果不存在示例类别，创建一些
-      if (existingCategories.length === 0) {
-        const categoryData = [
-          {
-            name: '示例类别1',
-            code: 'SAMPLE1',
-            default_useful_life: 36,
-            default_depreciation_method: '直线法',
-            default_salvage_rate: 5.0,
-            description: '办公设备',
-          },
-          {
-            name: '示例类别2',
-            code: 'SAMPLE2',
-            default_useful_life: 24,
-            default_depreciation_method: '双倍余额递减法',
-            default_salvage_rate: 10.0,
-            description: '电子设备',
-          },
-          {
-            name: '示例类别3',
-            code: 'SAMPLE3',
-            default_useful_life: 60,
-            default_depreciation_method: '直线法',
-            default_salvage_rate: 5.0,
-            description: '家具',
-          },
-        ];
-
-        for (const category of categoryData) {
-          const [result] = await conn.query(
-            `INSERT INTO asset_categories (name, code, default_useful_life, default_depreciation_method, default_salvage_rate, description)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              category.name,
-              category.code,
-              category.default_useful_life,
-              category.default_depreciation_method,
-              category.default_salvage_rate,
-              category.description,
-            ]
-          );
-          categoryIds.push(result.insertId);
-        }
-      } else {
-        categoryIds = existingCategories.map((cat) => cat.id);
-      }
-
-      // 创建示例资产
-      const assets = [];
-      const assetData = [
-        {
-          assetName: '示例资产1',
-          notes: '笔记本电脑',
-          acquisitionCost: 8000,
-          acquisitionDate: new Date(),
-        },
-        {
-          assetName: '示例资产2',
-          notes: '办公桌',
-          acquisitionCost: 1200,
-          acquisitionDate: new Date(),
-        },
-        {
-          assetName: '示例资产3',
-          notes: '打印机',
-          acquisitionCost: 2500,
-          acquisitionDate: new Date(),
-        },
-      ];
-
-      for (let i = 0; i < assetData.length; i++) {
-        const asset = assetData[i];
-        const categoryId = categoryIds[i % categoryIds.length];
-
-        const [result] = await conn.query(
-          `INSERT INTO fixed_assets (
-            asset_code, asset_name, asset_type, category_id, acquisition_date,
-            acquisition_cost, depreciation_method, useful_life, salvage_value,
-            current_value, net_value, accumulated_depreciation, status, notes
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            await CodeGeneratorService.nextCode('asset', conn),
-            asset.assetName,
-            '示例类型',
-            categoryId,
-            asset.acquisitionDate,
-            asset.acquisitionCost,
-            '直线法',
-            60, // 5年
-            asset.acquisitionCost * 0.1, // 10%残值
-            asset.acquisitionCost, // 初始当前价值与购买价格相同
-            asset.acquisitionCost,
-            0, // 初始累计折旧为0
-            '在用',
-            asset.notes,
-          ]
-        );
-
-        assets.push({
-          id: result.insertId,
-          ...asset,
-          category_id: categoryId,
-        });
-      }
-
-      await conn.commit();
-      return {
-
-        categories: categoryIds.length,
-        assets: assets,
-      };
-    } catch (error) {
-      await conn.rollback();
-      logger.error('创建示例资产数据失败:', error);
-      throw error;
-    } finally {
-      conn.release();
-    }
   },
 
   /**
@@ -1994,21 +1911,23 @@ const assetsModel = {
    */
   getAssetChangeLogs: async (assetId, page = 1, pageSize = 50) => {
     try {
-      const offset = (page - 1) * pageSize;
+      const pagination = parsePagination(page, pageSize, { defaultPageSize: 50, maxPageSize: 100 });
       const [total] = await db.pool.query(
         'SELECT COUNT(*) as count FROM asset_change_logs WHERE asset_id = ?', [assetId]
       );
-      const [logs] = await db.pool.query(
+      const logSql = appendPaginationSQL(
         `SELECT id, asset_id, change_type, change_date, changed_by,
                 field_name, old_value, new_value, remarks
          FROM asset_change_logs WHERE asset_id = ?
-         ORDER BY change_date DESC LIMIT ? OFFSET ?`,
-        [assetId, pageSize, offset]
+         ORDER BY change_date DESC`,
+        pagination.limit,
+        pagination.offset
       );
+      const [logs] = await db.pool.query(logSql, [assetId]);
       return { logs, total: total[0].count };
     } catch (error) {
       logger.error('获取资产变动记录失败:', error);
-      return { logs: [], total: 0 };
+      throw error;
     }
   },
 
@@ -2026,7 +1945,7 @@ const assetsModel = {
       return records;
     } catch (error) {
       logger.error('获取折旧历史记录失败:', error);
-      return [];
+      throw error;
     }
   },
 
@@ -2037,6 +1956,7 @@ const assetsModel = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      impairmentData.impairment_date = toLocalDateString(impairmentData.impairment_date);
 
       // 验证资产是否存在
       const [assets] = await connection.query('SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE', [assetId]);
@@ -2061,6 +1981,20 @@ const assetsModel = {
         throw new Error('减值准备金额不能大于资产当前净值');
       }
       const newNetValue = roundMoney(netValue - amount);
+
+      const [existingImpairments] = await connection.query(
+        `SELECT id, voucher_no
+         FROM asset_impairments
+         WHERE asset_id = ? AND impairment_date = ? AND impairment_amount = ?
+         LIMIT 1
+         FOR UPDATE`,
+        [assetId, impairmentData.impairment_date, amount]
+      );
+      if (existingImpairments.length > 0) {
+        throw new Error(
+          `该资产在 ${impairmentData.impairment_date} 已存在相同金额的减值记录，不能重复计提`
+        );
+      }
 
       // 1. 插入减值记录
       const [insertResult] = await connection.query(
@@ -2103,17 +2037,25 @@ const assetsModel = {
         ]
       );
 
+      await accountingConfig.loadFromDatabase(db);
+      const lossAccountCode = accountingConfig.getAccountCode('ASSET_IMPAIRMENT_LOSS');
+      const allowanceAccountCode = accountingConfig.getAccountCode(
+        'FIXED_ASSET_IMPAIRMENT_ALLOWANCE'
+      );
+
       const [lossAccounts] = await connection.query(
         'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = true LIMIT 1',
-        ['6702']
+        [lossAccountCode]
       );
       const [allowanceAccounts] = await connection.query(
         'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = true LIMIT 1',
-        ['1603']
+        [allowanceAccountCode]
       );
 
       if (lossAccounts.length === 0 || allowanceAccounts.length === 0) {
-        throw new Error('Asset impairment is missing required GL accounts (6702/1603)');
+        throw new Error(
+          `Asset impairment is missing required GL accounts (${lossAccountCode || 'ASSET_IMPAIRMENT_LOSS未配置'}/${allowanceAccountCode || 'FIXED_ASSET_IMPAIRMENT_ALLOWANCE未配置'})`
+        );
       }
 
       const periodId = await getOpenAccountingPeriodId(connection, impairmentData.impairment_date);
@@ -2211,7 +2153,7 @@ const assetsModel = {
       return records;
     } catch (error) {
       logger.error('获取资产减值记录失败:', error);
-      return [];
+      throw error;
     }
   },
 
@@ -2233,7 +2175,7 @@ const assetsModel = {
 
       for (let i = 1; i <= months; i++) {
         const forecastDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
-        const monthStr = forecastDate.toISOString().slice(0, 7); // YYYY-MM
+        const monthStr = toLocalMonthString(forecastDate); // YYYY-MM
 
         let monthTotal = 0;
 

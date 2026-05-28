@@ -9,7 +9,7 @@
 <template>
   <div class="user-profile">
     <!-- 加载状态 -->
-    <el-card v-if="isLoading" class="glass-card loading-card" shadow="hover">
+    <el-card v-if="isLoading" class="profile-card loading-card" shadow="hover">
       <el-skeleton :rows="5" animated />
     </el-card>
     <template v-else>
@@ -20,28 +20,40 @@
       />
 
       <!-- 导航按钮 -->
-      <div class="nav-buttons">
-        <el-button
+      <div class="profile-nav" role="tablist" aria-label="个人中心导航">
+        <button
           v-for="tab in tabs"
           :key="tab.id"
-          :type="activeTab === tab.id ? 'primary' : ''"
-          :plain="activeTab !== tab.id"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === tab.id"
+          :class="{ active: activeTab === tab.id }"
+          class="profile-nav-item"
           @click="activeTab = tab.id"
-          class="nav-btn"
         >
-          <el-icon><component :is="tab.icon" /></el-icon>
-          <span>{{ tab.label }}</span>
-        </el-button>
+          <span class="nav-icon">
+            <el-icon><component :is="tab.icon" /></el-icon>
+          </span>
+          <span class="nav-text">
+            <span class="nav-label">{{ tab.label }}</span>
+            <span class="nav-desc">{{ tab.description }}</span>
+          </span>
+        </button>
       </div>
       <!-- 主要内容区 -->
-      <el-row :gutter="20">
+      <el-row
+        :gutter="20"
+        class="profile-content-row"
+        :class="{ 'avatar-tab-active': activeTab === 'avatar' }"
+      >
         <!-- 左侧：用户信息卡片 -->
-        <el-col :xs="24" :sm="24" :md="8" :lg="7" :xl="6">
+        <el-col class="profile-side-col" :xs="24" :sm="24" :md="8" :lg="7" :xl="6">
           <ProfileStats
             :name="userForm.name"
             :role="userForm.role"
             :avatar="userForm.avatar"
             :avatar-frame="currentAvatarFrame"
+            :avatar-frame-config="selectedAvatarFrame"
             :is-editing="isEditing"
             :stats="statsData"
             :today-online="formatOnlineTime(userStats.todayOnlineTime)"
@@ -52,7 +64,19 @@
           />
         </el-col>
         <!-- 右侧：内容区 -->
-        <el-col :xs="24" :sm="24" :md="16" :lg="17" :xl="18">
+        <el-col class="profile-main-col" :xs="24" :sm="24" :md="16" :lg="17" :xl="18">
+          <div class="profile-section-header">
+            <div class="section-heading">
+              <span class="section-icon">
+                <el-icon><component :is="activeTabInfo.icon" /></el-icon>
+              </span>
+              <div>
+                <h2>{{ activeTabInfo.label }}</h2>
+                <p>{{ activeTabInfo.description }}</p>
+              </div>
+            </div>
+          </div>
+
           <!-- 基本信息与密码 -->
           <ProfileEdit
             v-show="activeTab === 'basic' || activeTab === 'password'"
@@ -66,89 +90,12 @@
             @update:user-form="updateUserForm"
             @change-password="changePassword"
           />
-          <!-- 外观设置 -->
-          <div v-show="activeTab === 'appearance'">
-            <el-card class="glass-card appearance-card" shadow="hover">
-              <template #header>
-                <div class="card-header">
-                  <div class="header-left">
-                    <el-icon class="header-icon" color="#E6A23C"><Brush /></el-icon>
-                    <span class="header-title">外观偏好</span>
-                  </div>
-                </div>
-              </template>
-
-              <el-form :model="appearanceForm" label-width="120px">
-                <div class="appearance-section">
-                  <div class="section-title">
-                    <el-icon><Sunny /></el-icon>
-                    主题模式
-                  </div>
-                  <el-form-item label="选择主题">
-                    <el-radio-group v-model="appearanceForm.theme" size="large">
-                      <el-radio-button value="light">
-                        <el-icon><Sunny /></el-icon> 浅色
-                      </el-radio-button>
-                      <el-radio-button value="dark">
-                        <el-icon><Moon /></el-icon> 深色
-                      </el-radio-button>
-                      <el-radio-button value="system">
-                        <el-icon><Monitor /></el-icon> 跟随系统
-                      </el-radio-button>
-                    </el-radio-group>
-                  </el-form-item>
-                </div>
-
-                <el-divider />
-
-                <div class="appearance-section">
-                  <div class="section-title">
-                    <el-icon><Brush /></el-icon>
-                    颜色配置
-                  </div>
-                  <el-form-item label="主色调">
-                    <div class="color-picker-wrapper">
-                      <el-color-picker v-model="appearanceForm.primaryColor" show-alpha />
-                      <el-input v-model="appearanceForm.primaryColor" style="width: 120px; margin-left: 10px" />
-                      <div class="color-preview" :style="{background: appearanceForm.primaryColor}"></div>
-                    </div>
-                  </el-form-item>
-                </div>
-
-                <el-divider />
-
-                <div class="appearance-section">
-                  <div class="section-title">
-                    <el-icon><Reading /></el-icon>
-                    字体设置
-                  </div>
-                  <el-form-item label="字体大小">
-                    <div class="font-size-wrapper">
-                      <el-slider
-                        v-model="appearanceForm.fontSize"
-                        :min="12"
-                        :max="20"
-                        :step="1"
-                        show-stops
-                        :marks="{12: '小', 14: '默认', 16: '中', 18: '大', 20: '超大'}"
-                      />
-                      <div class="font-preview" :style="{fontSize: appearanceForm.fontSize + 'px'}">
-                        预览文本 Aa
-                      </div>
-                    </div>
-                  </el-form-item>
-                </div>
-
-                <el-form-item>
-                  <el-button type="primary" @click="saveAppearance">
-                    <el-icon><Check /></el-icon> 保存设置
-                  </el-button>
-                  <el-button @click="resetAppearance">
-                    <el-icon><RefreshRight /></el-icon> 重置默认
-                  </el-button>
-                </el-form-item>
-              </el-form>
-            </el-card>
+          <!-- 待办事项 -->
+          <div v-show="activeTab === 'todos'">
+            <ProfileTodos
+              :todo-id="route.query.id"
+              @changed="loadUserStats"
+            />
           </div>
           <!-- 近期活动 -->
           <div v-show="activeTab === 'activities'">
@@ -184,33 +131,37 @@
   </div>
 </template>
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { formatLocalDate } from '@/utils/format';
+import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
-import { useThemeStore } from '../stores/theme'
+import { Clock, Lock, StarFilled, Tickets, TrendCharts, User } from '@element-plus/icons-vue'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import {
-   Brush,
-  Sunny, Moon, Monitor, Reading, Check, RefreshRight
-} from '@element-plus/icons-vue'
 import {  userApi } from '../services/api'
-import '../services/api'
+import { parseDataObject, parseListData } from '@/utils/responseParser'
+import {
+  AVATAR_FRAME_OPTIONS,
+  DEFAULT_AVATAR_FRAME,
+  getAvatarFrameConfig,
+  normalizeAvatarFrameId
+} from '@/utils/avatarFrames'
 // 引入拆分的组件
 import ProfileHeader from './auth/components/ProfileHeader.vue'
 import ProfileStats from './auth/components/ProfileStats.vue'
 import ProfileEdit from './auth/components/ProfileEdit.vue'
+import ProfileTodos from './auth/components/ProfileTodos.vue'
 import ActivityLog from './auth/components/ActivityLog.vue'
 import UserMetrics from './auth/components/UserMetrics.vue'
 import AvatarSelector from './auth/components/AvatarSelector.vue'
 const authStore = useAuthStore()
-const themeStore = useThemeStore()
 const router = useRouter()
+const route = useRoute()
 // 状态
 const isLoading = ref(true)
 const isEditing = ref(false)
 const activeTab = ref('basic')
-const currentAvatarFrame = ref('lottie-golden')
+const currentAvatarFrame = ref(DEFAULT_AVATAR_FRAME)
 // 表单数据
 const userForm = reactive({
   name: '',
@@ -221,11 +172,6 @@ const userForm = reactive({
   location: [],
   bio: '',
   created_at: null
-})
-const appearanceForm = reactive({
-  theme: themeStore.appearance.theme,
-  primaryColor: themeStore.appearance.primaryColor,
-  fontSize: themeStore.appearance.fontSize
 })
 // 数据
 const userActivities = ref([])
@@ -242,9 +188,9 @@ const userStats = reactive({
 // 计算属性
 const statsData = computed(() => {
   return [
-    { icon: 'User', label: '项目参与', value: userStats.projectsParticipated },
-    { icon: 'TrendCharts', label: '任务完成', value: userStats.tasksCompleted },
-    { icon: 'StarFilled', label: '获赞统计', value: userStats.praiseCount }
+    { icon: User, label: '项目参与', value: userStats.projectsParticipated },
+    { icon: TrendCharts, label: '任务完成', value: userStats.tasksCompleted },
+    { icon: StarFilled, label: '获赞统计', value: userStats.praiseCount }
   ]
 })
 const daysFromRegistration = computed(() => {
@@ -257,13 +203,14 @@ const efficiencyScore = ref(85)
 const averageResponseTime = ref('2.3小时')
 // 选项
 const tabs = [
-  { id: 'basic', label: '基本信息', icon: 'User' },
-  { id: 'password', label: '密码修改', icon: 'Lock' },
-  { id: 'appearance', label: '外观设置', icon: 'Brush' },
-  { id: 'activities', label: '近期活动', icon: 'Clock' },
-  { id: 'stats', label: '数据统计', icon: 'TrendCharts' },
-  { id: 'avatar', label: '头像特效', icon: 'StarFilled' }
+  { id: 'basic', label: '基本信息', description: '资料维护', icon: User },
+  { id: 'todos', label: '待办事项', description: '任务闭环', icon: Tickets },
+  { id: 'password', label: '密码修改', description: '账号安全', icon: Lock },
+  { id: 'activities', label: '近期活动', description: '操作轨迹', icon: Clock },
+  { id: 'stats', label: '数据统计', description: '效率概览', icon: TrendCharts },
+  { id: 'avatar', label: '头像特效', description: '动态装扮', icon: StarFilled }
 ]
+const activeTabInfo = computed(() => tabs.find(tab => tab.id === activeTab.value) || tabs[0])
 const locationOptions = [
   {
     value: 'beijing', label: '北京',
@@ -280,25 +227,29 @@ const locationOptions = [
     ]
   }
 ]
-import frameGolden from '../assets/lottie/frame-golden.json'
-import frameCyber from '../assets/lottie/frame-cyber.json'
-import frameNature from '../assets/lottie/frame-nature.json'
-import frameHexagon from '../assets/lottie/frame-hexagon.json'
-import frameDiamond from '../assets/lottie/frame-diamond.json'
-import frameStar from '../assets/lottie/frame-star.json'
-import frameRipple from '../assets/lottie/frame-ripple.json'
 // 头像特效配置
-const avatarFrames = ref([
-  // 顶级全屏动态矢量动画
-  { id: 'lottie-golden', name: '皇家金冠', description: '专属王者闪耀金环特效，尊贵流光', tags: ['魔法', '奢华'], animationData: frameGolden },
-  { id: 'lottie-cyber', name: '赛博霓虹', description: '未来科技脉冲呼吸灯，动态描边', tags: ['科技', '赛博'], animationData: frameCyber },
-  { id: 'lottie-nature', name: '自然律动', description: '清新森系多重轨道环绕，生机盎然', tags: ['自然', '清新'], animationData: frameNature },
-  { id: 'lottie-hexagon', name: '赛博六边', description: '多维矩阵工业外骨骼扫描框', tags: ['科技', '硬核'], animationData: frameHexagon },
-  { id: 'lottie-diamond', name: '棱镜护盾', description: '交叉复式四芒星法力屏障', tags: ['魔法', '神圣'], animationData: frameDiamond },
-  { id: 'lottie-star', name: '闪耀星芒', description: '八星光辉核心能量反应炉', tags: ['魔法', '趣味'], animationData: frameStar },
-  { id: 'lottie-ripple', name: '灵动涟漪', description: '静水流深扩散波纹，唯美治愈', tags: ['自然', '唯美'], animationData: frameRipple },
-  { id: 'none', name: '无特效', description: '朴实无华的默认基本盘', tags: ['简约'] }
-])
+const avatarFrames = AVATAR_FRAME_OPTIONS
+const selectedAvatarFrame = computed(() => getAvatarFrameConfig(currentAvatarFrame.value))
+
+const profileTabAliases = {
+  'avatar-frame': 'avatar',
+  avatarFrame: 'avatar',
+  todo: 'todos',
+  task: 'todos'
+}
+
+const syncActiveTabFromRoute = (tab) => {
+  const normalizedTab = profileTabAliases[tab] || tab
+  const exists = tabs.some(item => item.id === normalizedTab)
+  activeTab.value = exists ? normalizedTab : 'basic'
+}
+
+watch(
+  () => route.query.tab,
+  (tab) => syncActiveTabFromRoute(tab),
+  { immediate: true }
+)
+
 // 初始化
 onMounted(async () => {
   try {
@@ -306,7 +257,7 @@ onMounted(async () => {
     await loadUserProfile()
     await loadActivities()
     await loadUserStats()
-    currentAvatarFrame.value = authStore.user?.avatar_frame || 'lottie-golden'
+    currentAvatarFrame.value = normalizeAvatarFrameId(authStore.user?.avatar_frame)
   } finally {
     isLoading.value = false
   }
@@ -334,8 +285,8 @@ const loadUserProfile = async () => {
 const loadActivities = async () => {
   try {
     const response = await userApi.getActivities({ page: 1, limit: 20 })
-    const data = response.data?.data || response.data || response
-    userActivities.value = data.activities || data.items || data.list || []
+    const data = parseDataObject(response, { enableLog: false }) || {}
+    userActivities.value = data.activities || parseListData(response, { enableLog: false })
   } catch (error) {
     console.error('Failed to load activities', error)
     userActivities.value = []
@@ -344,7 +295,7 @@ const loadActivities = async () => {
 const loadUserStats = async () => {
   try {
     const response = await userApi.getStatistics()
-    const data = response.data?.data || response.data || response
+    const data = parseDataObject(response, { enableLog: false }) || {}
     const loginStats = data.loginStats || {}
     const todoStats = data.todoStats || {}
     const activityStats = data.activityStats || {}
@@ -367,8 +318,8 @@ const loadMoreActivities = async () => {
   try {
     const nextPage = Math.floor(userActivities.value.length / 20) + 1
     const response = await userApi.getActivities({ page: nextPage, limit: 20 })
-    const data = response.data?.data || response.data || response
-    const more = data.activities || data.items || data.list || []
+    const data = parseDataObject(response, { enableLog: false }) || {}
+    const more = data.activities || parseListData(response, { enableLog: false })
     userActivities.value.push(...more)
   } catch (error) {
     console.error('Failed to load more activities', error)
@@ -381,7 +332,7 @@ const exportActivities = () => {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `activities-${new Date().toISOString().split('T')[0]}.json`
+  a.download = `activities-${formatLocalDate(new Date())}.json`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -436,34 +387,63 @@ const changePassword = async (data, callback) => {
     callback && callback()
   }
 }
-const saveAppearance = () => {
-  themeStore.setTheme(appearanceForm.theme)
-  themeStore.setPrimaryColor(appearanceForm.primaryColor)
-  // 字体大小设置暂略
-  ElMessage.success('外观设置已保存')
-}
-const resetAppearance = () => {
-  appearanceForm.theme = 'light'
-  appearanceForm.primaryColor = '#409EFF'
-  appearanceForm.fontSize = 14
-  saveAppearance()
-}
-const handleAvatarChange = () => {
-  // 处理头像上传
-  ElMessage.success('头像上传成功')
+const handleAvatarChange = async (file) => {
+  const rawFile = file?.raw || file
+  if (!rawFile) {
+    ElMessage.warning('请选择头像文件')
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('avatar', rawFile)
+
+  try {
+    const response = await userApi.updateAvatar(formData)
+    const data = parseDataObject(response, { enableLog: false }) || {}
+    const avatarUrl = data.avatarUrl || data.avatar || data.url
+
+    if (avatarUrl) {
+      userForm.avatar = avatarUrl
+      if (authStore.user) {
+        authStore.user.avatar = avatarUrl
+      }
+    }
+
+    await authStore.fetchUserProfile(false)
+    userForm.avatar = authStore.user?.avatar || userForm.avatar
+    window.dispatchEvent(new CustomEvent('erp:user-profile-updated', {
+      detail: {
+        avatar: userForm.avatar,
+        avatarFrame: currentAvatarFrame.value
+      }
+    }))
+    ElMessage.success('头像上传成功')
+  } catch (error) {
+    console.error('Avatar upload error:', error)
+    ElMessage.error('头像上传失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
 }
 const handleAvatarError = () => {
   ElMessage.warning('头像加载失败，使用默认头像')
 }
 const handleFrameChange = async (frameId) => {
-  currentAvatarFrame.value = frameId
+  const normalizedFrameId = normalizeAvatarFrameId(frameId)
+  currentAvatarFrame.value = normalizedFrameId
   try {
     // 使用专用接口保存
-    await userApi.updateAvatarFrame(frameId)
+    await userApi.updateAvatarFrame(normalizedFrameId)
 
     // 更新本地 store
-    authStore.user.avatar_frame = frameId
+    if (authStore.user) {
+      authStore.user.avatar_frame = normalizedFrameId
+    }
 
+    window.dispatchEvent(new CustomEvent('erp:user-profile-updated', {
+      detail: {
+        avatar: userForm.avatar,
+        avatarFrame: normalizedFrameId
+      }
+    }))
     ElMessage.success('头像特效已保存')
   } catch (error) {
     ElMessage.error('特效保存失败: ' + (error.message || '未知错误'))
@@ -489,64 +469,158 @@ const formatOnlineTime = (seconds) => {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.nav-buttons {
-  display: flex;
+.profile-nav {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   width: 100%;
 }
-.nav-btn {
-  flex: 1;
-  border-radius: 12px;
-  transition: all 0.3s;
-  height: 48px;
+
+.profile-nav-item {
+  appearance: none;
+  min-width: 0;
+  min-height: 68px;
   display: flex;
   align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  color: var(--el-text-color-regular);
+  background: var(--el-bg-color);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.profile-nav-item:hover {
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-fill-color-extra-light);
+}
+
+.profile-nav-item.active {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-9);
+}
+
+.profile-nav-item:focus-visible {
+  outline: 3px solid var(--el-color-primary-light-6);
+  outline-offset: 2px;
+}
+
+.nav-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  font-size: 15px;
+  border-radius: 50%;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-8);
+  font-size: 19px;
 }
-.nav-btn:hover {
-  transform: translateY(-2px);
+
+.profile-nav-item.active .nav-icon {
+  color: var(--el-color-white);
+  background: var(--el-color-primary);
+  border-color: var(--el-color-primary);
 }
-.glass-card {
-  border-radius: 16px;
+
+.nav-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nav-label {
+  overflow: hidden;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-desc {
+  overflow: hidden;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-card {
+  border-radius: 10px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   margin-bottom: 20px;
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
 }
-/* 外观设置样式 */
-.appearance-section {
-  margin-bottom: 20px;
+
+.profile-content-row {
+  align-items: stretch;
 }
-.section-title {
+
+.profile-side-col,
+.profile-main-col {
+  min-width: 0;
+}
+
+.profile-side-col {
+  display: flex;
+}
+
+.profile-main-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-section-header {
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-bg-color);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+}
+
+.section-heading {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 600;
+  gap: 12px;
+}
+
+.section-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--el-color-white);
+  background: var(--el-color-primary);
+  font-size: 21px;
+}
+
+.section-heading h2 {
+  margin: 0;
   color: var(--el-text-color-primary);
-  margin-bottom: 20px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
 }
-.color-picker-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.color-preview {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color);
-}
-.font-size-wrapper {
-  padding: 0 10px;
-}
-.font-preview {
-  margin-top: 20px;
-  padding: 15px;
-  background: var(--el-fill-color-light);
-  border-radius: 8px;
-  text-align: center;
+
+.section-heading p {
+  margin: 3px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 /* 响应式 */
 @media (max-width: 768px) {
@@ -554,13 +628,63 @@ const formatOnlineTime = (seconds) => {
     padding: 10px;
   }
 
-  .nav-buttons {
+  .profile-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
-  .nav-btn {
-    padding: 8px 12px;
-    font-size: 12px;
+  .profile-nav-item {
+    min-height: 60px;
+    padding: 10px;
+    gap: 9px;
+  }
+
+  .nav-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    font-size: 17px;
+  }
+
+  .nav-label {
+    font-size: 13px;
+  }
+
+  .nav-desc {
+    font-size: 11px;
+  }
+
+  .profile-section-header {
+    padding: 14px;
+  }
+
+  .section-icon {
+    width: 38px;
+    height: 38px;
+    font-size: 19px;
+  }
+
+  .section-heading h2 {
+    font-size: 16px;
+  }
+
+  .profile-content-row.avatar-tab-active {
+    flex-direction: column;
+  }
+
+  .profile-content-row.avatar-tab-active .profile-main-col {
+    order: 1;
+  }
+
+  .profile-content-row.avatar-tab-active .profile-side-col {
+    order: 2;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1200px) {
+  .profile-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 </style>

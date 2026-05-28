@@ -1,3 +1,4 @@
+import { formatLocalDate } from '@/utils/format';
 /**
  * usePurchaseOrderForm.js
  * @description 采购订单表单逻辑的组合式函数（从 PurchaseOrders.vue 抽取）
@@ -6,7 +7,7 @@
 import { ref, reactive, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { purchaseApi, supplierApi, baseDataApi } from '@/services/api'
-import { parseListData } from '@/utils/responseParser'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 import { searchMaterials } from '@/utils/searchConfig'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
@@ -43,14 +44,62 @@ function clearMaterialFields(target) {
   target.unit_id = null
 }
 
+function getResponsePayload(response) {
+  return parseResponseData(response, {})
+}
+
+function normalizePriceMap(response) {
+  const payload = getResponsePayload(response)
+  return payload && typeof payload === 'object' ? payload : {}
+}
+
+const isBlankAmount = (value) => value === null || value === undefined || value === ''
+const toNumberOrNull = (value) => {
+  if (isBlankAmount(value)) return null
+  const normalized = typeof value === 'string' ? value.replace(/,/g, '') : value
+  const number = Number(normalized)
+  return Number.isNaN(number) ? null : number
+}
+const normalizeTaxRate = (rate, fallback = DEFAULT_VAT_RATE) => {
+  const number = toNumberOrNull(rate)
+  if (number === null) return fallback
+  return number > 1 ? number / 100 : number
+}
+
+const AUTO_FILL_PRICE_SOURCES = new Set([
+  'supplier_history',
+  'supplier_receipt_history',
+  'other_supplier_history',
+  'material_cost'
+])
+const SAME_SUPPLIER_PRICE_SOURCES = new Set(['supplier_history', 'supplier_receipt_history'])
+
+function canAutoFillPurchasePrice(priceInfo) {
+  return priceInfo && Number(priceInfo.price) > 0 && priceInfo.auto_fill !== false && AUTO_FILL_PRICE_SOURCES.has(priceInfo.source)
+}
+
+function canRefreshForSupplier(priceInfo) {
+  return canAutoFillPurchasePrice(priceInfo) && SAME_SUPPLIER_PRICE_SOURCES.has(priceInfo.source)
+}
+
+function getPurchasePriceMessage(priceInfo) {
+  const priceText = `￥${Number(priceInfo.price).toFixed(2)}`
+  if (priceInfo.source === 'supplier_history') return `已自动带入该供应商最近成交价: ${priceText}`
+  if (priceInfo.source === 'supplier_receipt_history') return `已自动带入该供应商最近收货价: ${priceText}`
+  if (priceInfo.source === 'other_supplier_history') return `已参考其他供应商历史价: ${priceText}`
+  if (priceInfo.source === 'material_cost') return `已带入物料当前成本价: ${priceText}`
+  return `已带入采购参考价: ${priceText}`
+}
+
 export function usePurchaseOrderForm(loadOrdersCallback) {
   const financeStore = useFinanceStore()
   const { vatRateOptions, defaultVATRate } = storeToRefs(financeStore)
 
   // 格式化税率显示
   const formatTaxRate = (rate) => {
-    if (rate === null || rate === undefined) return '0%'
-    return `${(rate * 100).toFixed(0)}%`
+    const normalizedRate = toNumberOrNull(rate)
+    if (normalizedRate === null) return '-'
+    return `${(normalizeTaxRate(normalizedRate, 0) * 100).toFixed(0)}%`
   }
 
   // 供应商数据
@@ -69,7 +118,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
 
   // 表单数据
   const orderForm = reactive({
-    order_number: '', order_date: new Date().toISOString().split('T')[0],
+    order_number: '', order_date: formatLocalDate(new Date()),
     expected_delivery_date: '', supplier_id: '', supplier_name: '',
     contact_person: '', contact_phone: '', notes: '',
     requisition_id: null, requisition_number: '', status: 'draft',
@@ -101,7 +150,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   // ========== 供应商操作 ==========
   const loadSuppliers = async () => {
     try {
-      const res = await supplierApi.getSuppliers({ page: 1, pageSize: 100 })
+      const res = await supplierApi.getSuppliers({ page: 1, pageSize: 50 })
       suppliers.value = parseListData(res, { enableLog: false })
       filteredSuppliers.value = [...suppliers.value]
     } catch (error) {
@@ -120,7 +169,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     }
     try {
       const res = await supplierApi.getSupplier(idNum)
-      const supplier = res.data?.data || res.data || res
+      const supplier = parseResponseData(res)
       if (supplier && supplier.id) {
         if (!suppliers.value.some(s => s.id === supplier.id)) suppliers.value.unshift(supplier)
         if (!filteredSuppliers.value.some(s => s.id === supplier.id)) filteredSuppliers.value.unshift(supplier)
@@ -162,26 +211,31 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       orderForm.contact_phone = supplier.contact_phone || ''
       if (!suppliers.value.find(s => s.id === supplier.id)) suppliers.value.push(supplier)
     }
-    let updatedCount = 0
-    for (let i = 0; i < orderForm.items.length; i++) {
-      const item = orderForm.items[i]
-      if (item.material_id) {
-        try {
-          const res = await purchaseApi.getLatestPrice({ material_id: item.material_id, supplier_id: supplierId })
-          if (res && res.data && res.data.price > 0 && res.data.source === 'supplier_history') {
-            item.price = res.data.price; recalculatePrice(item); updatedCount++
+    const materialIds = [...new Set(orderForm.items.map(item => item.material_id).filter(Boolean))]
+    if (materialIds.length > 0) {
+      let updatedCount = 0
+      try {
+        const res = await purchaseApi.getLatestPrices({ material_ids: materialIds, supplier_id: supplierId })
+        const priceMap = normalizePriceMap(res)
+        orderForm.items.forEach(item => {
+          const priceInfo = priceMap[String(item.material_id)]
+          if (canRefreshForSupplier(priceInfo)) {
+            item.price = priceInfo.price
+            recalculatePrice(item)
+            updatedCount++
           }
-        } catch { console.warn(`重算物料 ${item.material_code} 的单价失败`) }
+        })
+      } catch (error) {
+        console.warn('批量重算物料单价失败:', error)
       }
+      if (updatedCount > 0) ElMessage.success(`已根据新供应商的历史成交记录，自动刷新了 ${updatedCount} 项物料单价`)
     }
-    if (updatedCount > 0) ElMessage.success(`已根据新供应商的历史成交记录，自动刷新了 ${updatedCount} 项物料单价`)
   }
 
-  // ========== 物料操作 ==========
   const addMaterialRow = () => {
     orderForm.items.push({
       material_id: null, material_code: '', material_name: '', specification: '', specs: '',
-      unit: '', unit_name: '', unit_id: null, quantity: '', price: '', total_price: 0,
+      unit: '', unit_name: '', unit_id: null, quantity: '', price: '', total_price: null,
       tax_rate: defaultVATRate.value, tax_amount: 0, material_display: ''
     })
   }
@@ -189,9 +243,20 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   const removeItem = (index) => { orderForm.items.splice(index, 1) }
 
   const recalculatePrice = (item) => {
-    if (item.quantity <= 0) { ElMessage.warning('数量必须大于0'); item.quantity = 0.01 }
-    item.total_price = item.quantity * item.price
-    item.tax_amount = item.total_price * (item.tax_rate || 0)
+    const quantity = toNumberOrNull(item.quantity)
+    if (quantity === null || quantity <= 0) { ElMessage.warning('数量必须大于0'); item.quantity = 0.01 }
+    const normalizedQuantity = toNumberOrNull(item.quantity) ?? 0.01
+    const price = toNumberOrNull(item.price)
+    if (price === null) {
+      item.total_price = null
+      item.tax_amount = null
+      calculateTotalAmount()
+      return
+    }
+    item.price = price
+    item.total_price = normalizedQuantity * price
+    item.tax_amount = item.total_price * normalizeTaxRate(item.tax_rate, defaultVATRate.value)
+    calculateTotalAmount()
   }
 
   const formatQuantity = (item) => {
@@ -199,8 +264,15 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   }
 
   const calculateTotalAmount = () => {
-    const subtotal = orderForm.items.reduce((total, item) => total + (item.quantity * item.price), 0)
-    const taxAmount = orderForm.items.reduce((total, item) => total + (item.tax_amount || 0), 0)
+    const materialItems = orderForm.items.filter(item => item.material_id)
+    const hasUnknownAmount = materialItems.some(item => toNumberOrNull(item.price) === null || toNumberOrNull(item.total_price) === null)
+    if (hasUnknownAmount) {
+      orderForm.subtotal = null
+      orderForm.tax_amount = null
+      return '-'
+    }
+    const subtotal = materialItems.reduce((total, item) => total + (toNumberOrNull(item.total_price) ?? 0), 0)
+    const taxAmount = materialItems.reduce((total, item) => total + (toNumberOrNull(item.tax_amount) ?? 0), 0)
     orderForm.subtotal = subtotal; orderForm.tax_amount = taxAmount
     return (subtotal + taxAmount).toFixed(2)
   }
@@ -208,13 +280,13 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   const fetchMaterialSuggestions = async (query, callback) => {
     if (!query || query.length < 1) { callback([]); return }
     try {
-      const searchResults = await searchMaterials(baseDataApi, query.trim(), { pageSize: 500, includeAll: true })
+      const searchResults = await searchMaterials(baseDataApi, query.trim(), { includeAll: true })
       const suggestions = searchResults.map(item => ({
         value: item.code || '无编码', code: item.code || '无编码', name: item.name || '未命名',
         specs: item.specification || item.specs || '', stock_quantity: item.stock_quantity || 0,
         id: item.id, unit_name: item.unit_name || '个', unit_id: item.unit_id,
-        cost_price: item.cost_price || 0, price: item.price || 0,
-        tax_rate: item.tax_rate || 0, supplier_id: item.supplier_id
+        cost_price: item.cost_price ?? null,
+        tax_rate: item.tax_rate ?? null, supplier_id: item.supplier_id
       }))
       filteredProducts.value = suggestions; callback(suggestions)
     } catch (error) { console.error('搜索物料失败:', error); ElMessage.error('搜索物料失败'); callback([]) }
@@ -225,18 +297,15 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     if (item.tax_rate !== undefined && item.tax_rate !== null) orderForm.items[index].tax_rate = parseFloat(item.tax_rate)
     try {
       const res = await purchaseApi.getLatestPrice({ material_id: item.id, supplier_id: orderForm.supplier_id || item.supplier_id || '' })
-      if (res && res.data && res.data.price > 0) {
-        orderForm.items[index].price = res.data.price
-        let sourceMsg = ''
-        if (res.data.source === 'supplier_history') sourceMsg = `已自动带入该供应商最近成交价: ￥${res.data.price}`
-        else if (res.data.source === 'other_supplier_history') sourceMsg = `已参考其他供应商历史价: ￥${res.data.price}`
-        else sourceMsg = `已带入物料预估参考价: ￥${res.data.price}`
-        ElMessage({ message: sourceMsg, type: 'success', duration: 2000 })
-      } else { orderForm.items[index].price = 0 }
+      const priceInfo = parseResponseData(res, {})
+      if (canAutoFillPurchasePrice(priceInfo)) {
+        orderForm.items[index].price = priceInfo.price
+        ElMessage({ message: getPurchasePriceMessage(priceInfo), type: 'success', duration: 2000 })
+      } else { orderForm.items[index].price = '' }
     } catch (e) {
       console.error('获取实时指导价抛出异常，执行降级策略:', e)
-      const defaultPrice = parseFloat(item.cost_price) || parseFloat(item.price) || 0
-      orderForm.items[index].price = defaultPrice > 0 ? defaultPrice : 0
+      const defaultPrice = toNumberOrNull(item.cost_price)
+      orderForm.items[index].price = defaultPrice && defaultPrice > 0 ? defaultPrice : ''
     }
     recalculatePrice(orderForm.items[index])
     if (!orderForm.supplier_id && item.supplier_id) orderForm.supplier_id = item.supplier_id
@@ -295,8 +364,8 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     const deliveryDate = new Date()
     deliveryDate.setDate(deliveryDate.getDate() + DEFAULT_DELIVERY_DAYS)
     Object.assign(orderForm, {
-      order_number: '', order_date: new Date().toISOString().split('T')[0],
-      expected_delivery_date: deliveryDate.toISOString().split('T')[0],
+      order_number: '', order_date: formatLocalDate(new Date()),
+      expected_delivery_date: formatLocalDate(deliveryDate),
       supplier_id: '', supplier_name: '', contact_person: '', contact_phone: '',
       notes: '', requisition_id: null, requisition_number: '', status: 'draft',
       tax_rate: defaultVATRate.value, subtotal: 0, tax_amount: 0, items: []
@@ -310,14 +379,15 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     try {
       const res = await purchaseApi.getOrder(id)
       if (res.data) {
-        const data = res.data?.data || res.data
+        const data = parseResponseData(res)
         const processedItems = (data.items || []).map(item => {
-          let taxRate = parseFloat(item.tax_rate || 0)
-          if (taxRate > 1) taxRate = taxRate / 100
-          if (!taxRate || taxRate === 0) taxRate = defaultVATRate.value
-          const quantity = parseFloat(item.quantity || 0); const price = parseFloat(item.price || item.unit_price || 0)
-          const totalPrice = parseFloat(item.total_price || item.amount || (quantity * price) || 0)
-          const taxAmount = (item.tax_amount && parseFloat(item.tax_amount) > 0) ? parseFloat(item.tax_amount) : totalPrice * taxRate
+          const taxRate = normalizeTaxRate(item.tax_rate, defaultVATRate.value)
+          const quantity = toNumberOrNull(item.quantity) ?? 0
+          const price = toNumberOrNull(item.price ?? item.unit_price)
+          const explicitTotalPrice = toNumberOrNull(item.total_price ?? item.amount)
+          const totalPrice = explicitTotalPrice ?? (price === null ? null : quantity * price)
+          const explicitTaxAmount = toNumberOrNull(item.tax_amount)
+          const taxAmount = explicitTaxAmount ?? (totalPrice === null ? null : totalPrice * taxRate)
           return { ...item, tax_rate: taxRate, tax_amount: taxAmount, price, quantity, total_price: totalPrice }
         })
         Object.assign(orderForm, {
@@ -352,22 +422,44 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     if (orderForm.items.length === 0) { ElMessage.warning('请至少添加一个物料'); return }
     try {
       await orderFormRef.value.validate()
+      const invalidPriceRows = orderForm.items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => item.material_id && toNumberOrNull(item.price) === null)
+        .map(({ index }) => index + 1)
+      if (invalidPriceRows.length > 0) {
+        ElMessage.error(`第 ${invalidPriceRows.join(', ')} 行采购单价缺失，请确认价格权限或维护采购价后再提交`)
+        return
+      }
+      const validItems = orderForm.items.filter(item => item.material_id)
+      const subtotal = validItems.reduce((sum, item) => sum + ((toNumberOrNull(item.quantity) ?? 0) * (toNumberOrNull(item.price) ?? 0)), 0)
+      const taxAmount = validItems.reduce((sum, item) => {
+        const quantity = toNumberOrNull(item.quantity) ?? 0
+        const price = toNumberOrNull(item.price) ?? 0
+        const totalPrice = quantity * price
+        return sum + (toNumberOrNull(item.tax_amount) ?? (totalPrice * normalizeTaxRate(item.tax_rate, defaultVATRate.value)))
+      }, 0)
       const formDataToSubmit = {
         order_date: orderForm.order_date, supplier_id: orderForm.supplier_id,
         expected_delivery_date: orderForm.expected_delivery_date,
         contact_person: orderForm.contact_person, contact_phone: orderForm.contact_phone,
-        notes: orderForm.notes, total_amount: parseFloat(calculateTotalAmount()),
-        tax_rate: orderForm.tax_rate || DEFAULT_VAT_RATE, tax_amount: orderForm.tax_amount || 0,
-        subtotal: orderForm.subtotal || 0, status: 'draft',
+        notes: orderForm.notes, total_amount: Number((subtotal + taxAmount).toFixed(2)),
+        tax_rate: normalizeTaxRate(orderForm.tax_rate, defaultVATRate.value), tax_amount: Number(taxAmount.toFixed(2)),
+        subtotal: Number(subtotal.toFixed(2)), status: 'draft',
         requisition_id: orderForm.requisition_id || null,
         requisition_number: orderForm.requisition_number || '',
-        items: orderForm.items.map(item => ({
-          material_id: item.material_id, material_code: item.material_code,
-          material_name: item.material_name, specification: item.specification,
-          unit: item.unit, unit_id: item.unit_id, quantity: parseFloat(item.quantity),
-          price: parseFloat(item.price), total_price: parseFloat(item.quantity * item.price),
-          tax_rate: parseFloat(item.tax_rate || 0), tax_amount: parseFloat(item.tax_amount || 0)
-        }))
+        items: validItems.map(item => {
+          const quantity = toNumberOrNull(item.quantity) ?? 0
+          const price = toNumberOrNull(item.price) ?? 0
+          const taxRate = normalizeTaxRate(item.tax_rate, defaultVATRate.value)
+          const totalPrice = Number((quantity * price).toFixed(2))
+          return {
+            material_id: item.material_id, material_code: item.material_code,
+            material_name: item.material_name, specification: item.specification,
+            unit: item.unit, unit_id: item.unit_id, quantity,
+            price, total_price: totalPrice,
+            tax_rate: taxRate, tax_amount: Number((totalPrice * taxRate).toFixed(2))
+          }
+        })
       }
       if (orderDialog.isEdit) { await purchaseApi.updateOrder(orderDialog.editId, formDataToSubmit); ElMessage.success('采购订单更新成功') }
       else { await purchaseApi.createOrder(formDataToSubmit); ElMessage.success('采购订单创建成功') }
@@ -422,37 +514,47 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
         orderForm.requisition_id = firstMaterial.requisition_id
         orderForm.requisition_number = firstMaterial.requisition_number
       }
-      const loadingInstance = ElLoading.service({ lock: true, text: '正在同步最新物料价格和税率...', background: 'rgba(0, 0, 0, 0.7)' })
+      const loadingInstance = ElLoading.service({ lock: true, text: '正在同步最新物料价格和税率...', background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)' })
       try {
         let addedCount = 0
-        const materialsWithDetails = await Promise.all(selectedMaterials.value.map(async (item) => {
-          try {
-            const response = await baseDataApi.getMaterial(item.material_id)
-            const detail = response.data || response
-            let latestPrice = 0
-            try {
-              const priceRes = await purchaseApi.getLatestPrice({ material_id: item.material_id, supplier_id: orderForm.supplier_id || '' })
-              if (priceRes && priceRes.data && priceRes.data.price > 0) latestPrice = priceRes.data.price
-            } catch { console.warn(`获取物料 ${item.material_code} 历史报价失败，降级使用物料主数据价格`) }
-            if (latestPrice === 0) latestPrice = parseFloat(detail.cost_price) || parseFloat(detail.price) || 0
-            return { ...item, latestDetail: detail, latestPrice }
-          } catch (e) { console.warn(`获取物料 ${item.material_code} 详情失败，将使用申请单中的数据`, e); return { ...item, latestDetail: null, latestPrice: 0 } }
-        }))
+        const selectedMaterialIds = [...new Set(selectedMaterials.value.map(item => item.material_id).filter(Boolean))]
+        const detailMap = {}
+        let priceMap = {}
+        try {
+          const [materialsRes, pricesRes] = await Promise.all([
+            baseDataApi.getMaterialsByIds(selectedMaterialIds),
+            purchaseApi.getLatestPrices({ material_ids: selectedMaterialIds, supplier_id: orderForm.supplier_id || '' })
+          ])
+          parseListData(materialsRes, { enableLog: false }).forEach(material => {
+            detailMap[String(material.id)] = material
+          })
+          priceMap = normalizePriceMap(pricesRes)
+        } catch (error) {
+          console.warn('批量同步物料详情或价格失败，将使用请购单数据降级处理:', error)
+        }
+        const materialsWithDetails = selectedMaterials.value.map(item => {
+          const detail = detailMap[String(item.material_id)] || null
+          const priceInfo = priceMap[String(item.material_id)] || {}
+          const latestPrice = canAutoFillPurchasePrice(priceInfo)
+            ? toNumberOrNull(priceInfo.price)
+            : toNumberOrNull(detail?.cost_price)
+          return { ...item, latestDetail: detail, latestPrice }
+        })
         for (const item of materialsWithDetails) {
           const existingIndex = orderForm.items.findIndex(i => i.material_id === item.material_id)
-          let latestTaxRate = 0
+          let latestTaxRate = defaultVATRate.value
           if (item.latestDetail) {
-            latestTaxRate = parseFloat(item.latestDetail.tax_rate) || 0
+            latestTaxRate = normalizeTaxRate(item.latestDetail.tax_rate, defaultVATRate.value)
             if (!orderForm.supplier_id && item.latestDetail.supplier_id) orderForm.supplier_id = item.latestDetail.supplier_id
           }
           if (existingIndex >= 0) {
             orderForm.items[existingIndex].quantity += parseFloat(item.quantity)
-            if (orderForm.items[existingIndex].price === 0 && item.latestPrice > 0) orderForm.items[existingIndex].price = item.latestPrice
+            if (toNumberOrNull(orderForm.items[existingIndex].price) === null && item.latestPrice > 0) orderForm.items[existingIndex].price = item.latestPrice
             if (!orderForm.items[existingIndex].tax_rate && latestTaxRate > 0) orderForm.items[existingIndex].tax_rate = latestTaxRate
             recalculatePrice(orderForm.items[existingIndex])
           } else {
             const specs = item.material_specs || item.specification || item.specs || ''
-            orderForm.items.push({ material_id: item.material_id, material_code: item.material_code || '', material_name: item.material_name || '', specification: specs, specs, unit: item.unit, unit_name: item.unit, unit_id: item.unit_id, quantity: parseFloat(item.quantity), price: item.latestPrice, tax_rate: latestTaxRate, total_price: 0 })
+            orderForm.items.push({ material_id: item.material_id, material_code: item.material_code || '', material_name: item.material_name || '', specification: specs, specs, unit: item.unit, unit_name: item.unit, unit_id: item.unit_id, quantity: parseFloat(item.quantity), price: item.latestPrice ?? '', tax_rate: latestTaxRate, total_price: null })
             recalculatePrice(orderForm.items[orderForm.items.length - 1])
           }
           addedCount++

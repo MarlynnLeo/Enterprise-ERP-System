@@ -1,5 +1,6 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 const assetInventoryModel = require('../../../models/assetInventory');
 
 const INVENTORY_ITEM_STATUS = new Set(['盘点相符', '盘亏', '盘盈', '未盘点']);
@@ -10,18 +11,20 @@ const inventoryController = {
      */
     getInventories: async (req, res) => {
         try {
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
+            const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+                defaultPageSize: 10,
+                maxPageSize: 100,
+            });
             const status = req.query.status || null;
 
-            const result = await assetInventoryModel.getInventories({ status }, page, limit);
+            const result = await assetInventoryModel.getInventories({ status }, pagination.page, pagination.pageSize);
 
             return ResponseHandler.paginated(
                 res,
                 result.inventories || [],
                 result.pagination?.total || 0,
-                page,
-                limit,
+                pagination.page,
+                pagination.pageSize,
                 '获取盘点单列表成功'
             );
         } catch (error) {

@@ -192,10 +192,10 @@
             </el-table-column>
             <el-table-column prop="amount" label="金额" min-width="120">
               <template #default="scope">
-                {{ scope.row.amount ? `¥${scope.row.amount.toLocaleString()}` : '-' }}
+                {{ formatMoney(scope.row.amount) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right">
+            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="primary"
@@ -226,7 +226,7 @@
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router';
-import Chart from 'chart.js/auto';
+import Chart from '@/utils/chartCore';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
 import { purchaseApi } from '@/services/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
@@ -263,6 +263,12 @@ const {
 // 待处理采购事项数据
 const pendingItems = ref([]);
 const search = ref('');
+const formatMoney = (value) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const amount = Number(value)
+  if (Number.isNaN(amount)) return '-'
+  return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 const currentPage = ref(1);
 const pageSize = ref(10);
 // 加载采购数据
@@ -306,7 +312,7 @@ async function loadPurchaseData() {
           type: item.type,
           number: item.number,
           supplier: item.supplier || item.requester || '-',
-          amount: Number(item.amount || 0),
+          amount: item.amount === null || item.amount === undefined || item.amount === '' ? null : Number(item.amount),
           date: item.date,
           status: item.status
       }));

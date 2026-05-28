@@ -230,7 +230,7 @@ async function assertMenuIsValid(connection, menuData, id = null) {
 const systemModel = {
   // 用户管理
   async getAllUsers(page = 1, pageSize = 10, filters = {}) {
-    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 200 });
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
     let whereClause = '1=1';
     const params = [];
 
@@ -241,6 +241,10 @@ const systemModel = {
     if (filters.name) {
       whereClause += ' AND u.real_name LIKE ?';
       params.push(`%${filters.name}%`);
+    }
+    if (filters.keyword) {
+      whereClause += ' AND (u.username LIKE ? OR u.real_name LIKE ? OR u.email LIKE ?)';
+      params.push(`%${filters.keyword}%`, `%${filters.keyword}%`, `%${filters.keyword}%`);
     }
     if (filters.departmentId) {
       whereClause += ' AND u.department_id = ?';
@@ -479,6 +483,10 @@ const systemModel = {
           position = ?,
           role = ?,
           status = ?,
+          token_version = CASE
+            WHEN status <> ? THEN COALESCE(token_version, 0) + 1
+            ELSE COALESCE(token_version, 0)
+          END,
           updated_at = NOW()
          WHERE id = ?`,
         [
@@ -487,6 +495,7 @@ const systemModel = {
           userData.department_id || null,
           userData.position || null,
           roleCode,
+          status,
           status,
           userId,
         ]
@@ -519,7 +528,7 @@ const systemModel = {
   async updateUserStatus(id, status) {
     const normalizedStatus = normalizeBinaryStatus(status);
     const [result] = await pool.execute(
-      'UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?',
+      'UPDATE users SET status = ?, token_version = COALESCE(token_version, 0) + 1, updated_at = NOW() WHERE id = ?',
       [normalizedStatus, id]
     );
     return result.affectedRows > 0;
@@ -534,7 +543,7 @@ const systemModel = {
     const hashedPassword = await PasswordSecurity.hashPassword(password);
 
     const [result] = await pool.execute(
-      'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
+      'UPDATE users SET password = ?, token_version = COALESCE(token_version, 0) + 1, updated_at = NOW() WHERE id = ?',
       [hashedPassword, id]
     );
     return result.affectedRows > 0;
@@ -716,7 +725,7 @@ const systemModel = {
 
   // 角色管理
   async getAllRoles(page = 1, pageSize = 10, filters = {}) {
-    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 200 });
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
     let whereClause = '1=1';
     const params = [];
 

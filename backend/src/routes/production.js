@@ -11,51 +11,58 @@ const router = express.Router();
 const productionController = require('../controllers/business/production');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../middleware/priceAccessControl');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 // 应用认证中间件
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // 仪表盘数据接口
-router.get('/dashboard/statistics', productionController.getDashboardStatistics);
-router.get('/dashboard/trends', productionController.getDashboardTrends);
-router.get('/dashboard/process-completion', productionController.getProcessCompletionRates);
-router.get('/dashboard/pending-tasks', productionController.getPendingTasks);
+router.get('/dashboard/statistics', requirePermission(['production:plans:view', 'production:tasks:view', 'production:reports:view']), productionController.getDashboardStatistics);
+router.get('/dashboard/trends', requirePermission(['production:plans:view', 'production:tasks:view', 'production:reports:view']), productionController.getDashboardTrends);
+router.get('/dashboard/process-completion', requirePermission(['production:plans:view', 'production:tasks:view', 'production:reports:view']), productionController.getProcessCompletionRates);
+router.get('/dashboard/pending-tasks', requirePermission(['production:tasks:view', 'production:plans:view']), productionController.getPendingTasks);
 // 仪表盘生产计划接口 - 所有用户都可访问
-router.get('/dashboard/plans', productionController.getDashboardProductionPlans);
+router.get('/dashboard/plans', requirePermission('production:plans:view'), productionController.getDashboardProductionPlans);
 
 // ===== 排程与冲突检测接口 =====
 const SchedulingService = require('../services/business/SchedulingService');
 
 // 获取产品标准工时
-router.get('/scheduling/standard-hours/:productId', async (req, res) => {
+router.get('/scheduling/standard-hours/:productId', requirePermission('production:tasks:view'), async (req, res) => {
   try {
     const result = await SchedulingService.getProductStandardHours(parseInt(req.params.productId));
-    res.json({ success: true, data: result });
+    ResponseHandler.success(res, result);
   } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
   }
 });
 
 // 计算排程（预计耗时+结束时间+工序时间表）
-router.post('/scheduling/calculate', async (req, res) => {
+router.post('/scheduling/calculate', requirePermission('production:tasks:view'), async (req, res) => {
   try {
     const { productId, quantity, startTime } = req.body;
     if (!productId || !quantity || !startTime) {
-      return res.status(400).json({ success: false, message: '缺少必填参数: productId, quantity, startTime' });
+      return ResponseHandler.error(res, '缺少必填参数: productId, quantity, startTime', 'VALIDATION_ERROR', 400);
     }
     const result = await SchedulingService.calculateSchedule({
       productId: parseInt(productId),
       quantity: parseFloat(quantity),
       startTime,
     });
-    res.json({ success: true, data: result });
+    ResponseHandler.success(res, result);
   } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
   }
 });
 
 // 检测冲突
-router.post('/scheduling/check-conflicts', async (req, res) => {
+router.post('/scheduling/check-conflicts', requirePermission('production:tasks:view'), async (req, res) => {
   try {
     const { manager, startTime, endTime, excludeTaskId } = req.body;
     const result = await SchedulingService.checkConflicts({
@@ -64,36 +71,46 @@ router.post('/scheduling/check-conflicts', async (req, res) => {
       endTime,
       excludeTaskId: excludeTaskId ? parseInt(excludeTaskId) : null,
     });
-    res.json({ success: true, data: result });
+    ResponseHandler.success(res, result);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
   }
 });
 
 // 获取班次配置
-router.get('/scheduling/calendar', async (req, res) => {
+router.get('/scheduling/calendar', requirePermission('production:tasks:view'), async (req, res) => {
   try {
     const calendar = await SchedulingService.getDefaultCalendar();
-    res.json({ success: true, data: calendar });
+    ResponseHandler.success(res, calendar);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    ResponseHandler.error(res, error.message, 'ERROR', 500, error);
   }
 });
 
 // 批量排程（一键排程）
-router.post('/scheduling/batch', async (req, res) => {
+router.post('/scheduling/batch', requirePermission('production:tasks:update'), async (req, res) => {
   try {
-    const { taskIds, startTime } = req.body;
-    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0 || !startTime) {
-      return res.status(400).json({ success: false, message: '缺少参数: taskIds(数组), startTime' });
+    const { taskIds, groups, startTime } = req.body;
+    const hasTaskIds = Array.isArray(taskIds) && taskIds.length > 0;
+    const hasGroups = Array.isArray(groups) && groups.some(
+      (group) => Array.isArray(group?.taskIds) && group.taskIds.length > 0
+    );
+    if ((!hasTaskIds && !hasGroups) || !startTime) {
+      return ResponseHandler.error(res, '缺少参数: taskIds/groups, startTime', 'VALIDATION_ERROR', 400);
     }
     const result = await SchedulingService.batchSchedule({
-      taskIds: taskIds.map(id => parseInt(id)),
+      taskIds: hasTaskIds ? taskIds.map(id => parseInt(id)) : undefined,
+      groups: hasGroups
+        ? groups.map((group) => ({
+            name: group.name,
+            taskIds: group.taskIds.map((id) => parseInt(id)),
+          }))
+        : undefined,
       startTime,
     });
-    res.json({ success: true, data: result });
+    ResponseHandler.success(res, result);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
   }
 });
 
@@ -101,9 +118,9 @@ router.post('/scheduling/batch', async (req, res) => {
 router.get('/scheduling/gantt', requirePermission('production:gantt'), async (req, res) => {
   try {
     const data = await SchedulingService.getGanttData(req.query);
-    return res.json({ success: true, data });
+    return ResponseHandler.success(res, data);
   } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
   }
 });
 
@@ -130,7 +147,7 @@ router.put(
 );
 router.put(
   '/plans/:id/status',
-  requirePermission('production:plans:update'),
+  requirePermission(['production:plans:update', 'production:plans:cancel', 'production:plans:close']),
   productionController.updateProductionPlanStatus
 );
 router.delete(

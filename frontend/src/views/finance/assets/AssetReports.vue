@@ -21,13 +21,13 @@
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card" v-loading="loading">
           <div class="stat-title">总资产原值</div>
-          <div class="stat-value text-success">¥ {{ formatMoney(summary.totalValue || 0) }}</div>
+          <div class="stat-value text-success">{{ formatMoney(summary.totalValue) }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card" v-loading="loading">
           <div class="stat-title">总资产净值</div>
-          <div class="stat-value text-warning">¥ {{ formatMoney(summary.netValue || 0) }}</div>
+          <div class="stat-value text-warning">{{ formatMoney(summary.netValue) }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
@@ -98,12 +98,14 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, onBeforeUnmount } from 'vue'
 import { Refresh, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
+import { echarts } from '@/utils/echartsCore'
 import { api } from '@/services/api'
 import { parseDataObject } from '@/utils/responseParser'
+import { alphaColor, getCssTokenValue } from '@/utils/designTokens'
 
 const loading = ref(false)
 const forecastLoading = ref(false)
@@ -141,7 +143,10 @@ let trendChart = null
 let forecastChart = null
 
 const formatMoney = (val) => {
-  return Number(val).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (val === null || val === undefined || val === '') return '-'
+  const value = Number(val)
+  if (Number.isNaN(value)) return '-'
+  return `¥ ${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 const loadData = async () => {
@@ -206,7 +211,12 @@ const renderStatusChart = (data = []) => {
   const option = {
     tooltip: { trigger: 'item', formatter: '{a} <br/>{b}: {c} ({d}%)' },
     legend: { orient: 'vertical', left: '10', top: 'center' },
-    color: ['#409EFF', '#E6A23C', '#F56C6C', '#909399'],
+    color: [
+      getCssTokenValue('primary'),
+      getCssTokenValue('warning'),
+      getCssTokenValue('danger'),
+      getCssTokenValue('info')
+    ],
     series: [
       {
         name: '资产状态',
@@ -214,7 +224,7 @@ const renderStatusChart = (data = []) => {
         radius: ['40%', '70%'],
         center: ['60%', '50%'],
         avoidLabelOverlap: false,
-        itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+        itemStyle: { borderRadius: 10, borderColor: getCssTokenValue('surface'), borderWidth: 2 },
         label: { show: false, position: 'center' },
         emphasis: {
           label: { show: true, fontSize: '18', fontWeight: 'bold' }
@@ -248,7 +258,7 @@ const renderCategoryChart = (data = []) => {
         center: ['60%', '50%'],
         data: chartData,
         emphasis: {
-          itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
+          itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: alphaColor('textPrimary', 0.5) }
         }
       }
     ]
@@ -268,7 +278,7 @@ const renderTrendChart = (data = []) => {
   const option = {
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'cross', crossStyle: { color: '#999' } }
+      axisPointer: { type: 'cross', crossStyle: { color: getCssTokenValue('textMuted') } }
     },
     legend: { data: ['新增数量', '新增原值'] },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
@@ -284,9 +294,9 @@ const renderTrendChart = (data = []) => {
         barWidth: '40%',
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#83bff6' },
-            { offset: 0.5, color: '#188df0' },
-            { offset: 1, color: '#188df0' }
+            { offset: 0, color: getCssTokenValue('primary') },
+            { offset: 0.5, color: getCssTokenValue('primary') },
+            { offset: 1, color: getCssTokenValue('primary') }
           ])
         },
         data: values
@@ -297,7 +307,7 @@ const renderTrendChart = (data = []) => {
         yAxisIndex: 1,
         symbol: 'circle',
         symbolSize: 8,
-        itemStyle: { color: 'var(--color-danger)' },
+        itemStyle: { color: getCssTokenValue('danger') },
         lineStyle: { width: 3 },
         data: counts
       }
@@ -325,11 +335,11 @@ const renderForecastChart = (data = []) => {
         type: 'line',
         smooth: true,
         symbolSize: 10,
-        itemStyle: { color: 'var(--color-success)' },
+        itemStyle: { color: getCssTokenValue('success') },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(103, 194, 58, 0.5)' },
-            { offset: 1, color: 'rgba(103, 194, 58, 0.1)' }
+            { offset: 0, color: alphaColor('success', 0.5) },
+            { offset: 1, color: alphaColor('success', 0.1) }
           ])
         },
         data: amounts
@@ -371,7 +381,7 @@ const exportReports = () => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `固定资产报表-${new Date().toISOString().slice(0, 10)}.csv`
+  link.download = `固定资产报表-${formatLocalDate(new Date())}.csv`
   link.click()
   URL.revokeObjectURL(url)
   ElMessage.success('导出成功')

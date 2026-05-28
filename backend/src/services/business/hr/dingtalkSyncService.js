@@ -4,9 +4,16 @@ const pool = db.pool;
 const dingtalkConfig = require('../../../config/dingtalkConfig');
 const { logger } = require('../../../utils/logger');
 
-const DINGTALK_ROOT_DEPT_ID = 1;
+const DINGTALK_ROOT_DEPT_ID = dingtalkConfig.rootDeptId;
+const DINGTALK_USER_PAGE_SIZE = dingtalkConfig.defaultUserPageSize;
+const DEFAULT_EMPLOYEE = dingtalkConfig.defaultEmployee;
 
-// 注意：钉钉 HTTPS 请求单独设置 rejectUnauthorized: false（见 requestJSON 方法第29行）
+const buildDingtalkUrl = (endpoint) => {
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${dingtalkConfig.apiBaseUrl}${normalizedEndpoint}`;
+};
+
+// DingTalk certificate verification is controlled by dingtalkConfig.rejectUnauthorized.
 
 class DingtalkSyncService {
 
@@ -27,7 +34,7 @@ class DingtalkSyncService {
         hostname: url.hostname,
         path: url.pathname + url.search,
         port: url.port || 443,
-        rejectUnauthorized: false,
+        rejectUnauthorized: dingtalkConfig.rejectUnauthorized,
         headers: {},
       };
 
@@ -63,7 +70,7 @@ class DingtalkSyncService {
       throw new Error('未配置钉钉参数 (appKey或appSecret)，请检查 dingtalkConfig 配置！');
     }
 
-    const url = 'https://oapi.dingtalk.com/gettoken';
+    const url = buildDingtalkUrl('/gettoken');
     const resp = await this.requestJSON('GET', url, { appkey: appKey, appsecret: appSecret });
 
     if (resp.errcode !== 0) {
@@ -74,7 +81,7 @@ class DingtalkSyncService {
 
   // 获取子部门
   static async listSubDepartments(accessToken, deptId) {
-    const url = 'https://oapi.dingtalk.com/topapi/v2/department/listsub';
+    const url = buildDingtalkUrl('/topapi/v2/department/listsub');
     const resp = await this.requestJSON('POST', url, { access_token: accessToken }, { dept_id: deptId });
     if (resp.errcode !== 0) throw new Error(`获取子部门失败: errcode=${resp.errcode}, errmsg=${resp.errmsg}`);
 
@@ -98,7 +105,7 @@ class DingtalkSyncService {
   }
 
   // 递归获取所有部门 (根节点一般为1)
-  static async getAllDepartmentIds(accessToken, rootDeptId = 1) {
+  static async getAllDepartmentIds(accessToken, rootDeptId = DINGTALK_ROOT_DEPT_ID) {
     const allIds = new Set();
     const queue = [rootDeptId];
 
@@ -117,8 +124,8 @@ class DingtalkSyncService {
   }
 
   // 获取某个部门下用户
-  static async listUsersInDepartment(accessToken, deptId, pageSize = 100) {
-    const url = 'https://oapi.dingtalk.com/topapi/v2/user/list';
+  static async listUsersInDepartment(accessToken, deptId, pageSize = DINGTALK_USER_PAGE_SIZE) {
+    const url = buildDingtalkUrl('/topapi/v2/user/list');
     const users = [];
     let cursor = 0;
     let hasMore = true;
@@ -152,7 +159,7 @@ class DingtalkSyncService {
     const deptParentMap = {}; // deptId -> parentDeptId
     for (const deptId of deptIds) {
       try {
-        const resp = await this.requestJSON('POST', 'https://oapi.dingtalk.com/topapi/v2/department/get',
+        const resp = await this.requestJSON('POST', buildDingtalkUrl('/topapi/v2/department/get'),
           { access_token: accessToken }, { dept_id: deptId });
         if (resp.errcode === 0 && resp.result) {
           deptNameMap[deptId] = (resp.result.name || '').trim();
@@ -214,7 +221,7 @@ class DingtalkSyncService {
     const userMap = new Map(); // userId -> { user, _dingDeptId }
 
     for (const deptId of deptIds) {
-      const users = await this.listUsersInDepartment(accessToken, deptId, 100);
+      const users = await this.listUsersInDepartment(accessToken, deptId);
       for (const u of users) {
         const userId = u.userid || u.userId;
         if (!userId) continue;
@@ -256,7 +263,7 @@ class DingtalkSyncService {
           await connection.query(`
             INSERT INTO hr_employees (employee_no, name, department_id, base_salary, split_base_salary, insurance_type, employment_status)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `, [userId, name, departmentId, 3070.0, 1215.0, '有社有公', 'active']);
+          `, [userId, name, departmentId, DEFAULT_EMPLOYEE.baseSalary, DEFAULT_EMPLOYEE.splitBaseSalary, DEFAULT_EMPLOYEE.insuranceType, 'active']);
           newCount++;
         }
       }
@@ -276,7 +283,7 @@ class DingtalkSyncService {
 
   // 通过 getupdatedata 逐用户逐日获取考勤结果
   static async fetchUserDayAttendance(accessToken, userId, dateStr) {
-    const url = 'https://oapi.dingtalk.com/topapi/attendance/getupdatedata';
+    const url = buildDingtalkUrl('/topapi/attendance/getupdatedata');
     const resp = await this.requestJSON('POST', url, { access_token: accessToken }, {
       userid: userId,
       work_date: dateStr,
@@ -421,7 +428,7 @@ class DingtalkSyncService {
             overtime_hours = VALUES(overtime_hours),
             full_attendance = VALUES(full_attendance),
             status = 'confirmed'
-        `, [emp.id, period, 21.75, totalLeave, publicHolidays, stat.overtimeHours || 0, fullAttendance]);
+        `, [emp.id, period, DEFAULT_EMPLOYEE.monthlyWorkDays, totalLeave, publicHolidays, stat.overtimeHours || 0, fullAttendance]);
         savedCount++;
       }
 

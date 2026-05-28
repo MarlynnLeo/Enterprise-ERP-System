@@ -1,198 +1,128 @@
 import { api } from '../services/axiosInstance';
 
 export const qualityApi = {
+  getIncomingInspections: (params) => api.get('/quality/inspections/incoming', { params }),
+  getIncomingInspectionStats: () => api.get('/quality/inspections/incoming/stats'),
+  getIncomingInspection: (id, params) => api.get(`/quality/inspections/${id}`, { params }),
+  createIncomingInspection: (data) => api.post('/quality/inspections', data),
+  updateIncomingInspection: (id, data) => api.put(`/quality/inspections/${id}`, data),
 
-    // 获取来料检验单列表
-    getIncomingInspections: (params) => api.get('/quality/inspections/incoming', { params }),
-    getIncomingInspection: (id, params) => api.get(`/quality/inspections/${id}`, { params }),
-    createIncomingInspection: (data) => api.post('/quality/inspections', data),
-    updateIncomingInspection: (id, data) => api.put(`/quality/inspections/${id}`, data),
+  getProcessInspections: (params) => api.get('/quality/inspections/process', { params }),
+  getProcessInspectionStats: () => api.get('/quality/inspections/process/stats'),
+  getProcessInspection: (id) => api.get(`/quality/inspections/${id}`),
+  createProcessInspection: (data) => api.post('/quality/inspections', data),
+  updateProcessInspection: (id, data) => api.put(`/quality/inspections/${id}`, data),
+  deleteProcessInspection: (id) => api.delete(`/quality/inspections/${id}`),
 
-    // 获取过程检验单列表
-    getProcessInspections: (params) => api.get('/quality/inspections/process', { params }),
-    getProcessInspection: (id) => api.get(`/quality/inspections/${id}`),
-    createProcessInspection: (data) => api.post('/quality/inspections', data),
-    updateProcessInspection: (id, data) => api.put(`/quality/inspections/${id}`, data),
-    deleteProcessInspection: (id) => api.delete(`/quality/inspections/${id}`),
+  getFinalInspections: (params) => api.get('/quality/inspections/final', { params }),
+  getFinalInspectionStats: () => api.get('/quality/inspections/final/stats'),
+  getFinalInspection: (id) => api.get(`/quality/inspections/${id}`),
+  createFinalInspection: (data) => api.post('/quality/inspections', data),
+  updateFinalInspection: (id, data) => api.put(`/quality/inspections/${id}`, data),
+  deleteFinalInspection: (id) => api.delete(`/quality/inspections/${id}`),
 
-    // 获取成品检验单列表
-    getFinalInspections: (params) => api.get('/quality/inspections/final', { params }),
-    getFinalInspection: (id) => api.get(`/quality/inspections/${id}`),
-    createFinalInspection: (data) => api.post('/quality/inspections', data),
-    updateFinalInspection: (id, data) => api.put(`/quality/inspections/${id}`, data),
-    deleteFinalInspection: (id) => api.delete(`/quality/inspections/${id}`),
+  getFirstArticleInspections: (params) => api.get('/quality/inspections/first-article', { params }),
+  getFirstArticleStats: () => api.get('/quality/inspections/first-article/stats'),
+  createFirstArticleInspection: (data) => api.post('/quality/inspections/first-article', data),
+  updateFirstArticleResult: (id, data) => api.put(`/quality/inspections/first-article/${id}/result`, data),
+  getFirstArticleInspection: (id) => api.get(`/quality/inspections/${id}`),
 
-    // 首检管理
-    getFirstArticleInspections: (params) => api.get('/quality/inspections/first-article', { params }),
-    getFirstArticleStats: () => api.get('/quality/inspections/first-article/stats'),
-    createFirstArticleInspection: (data) => api.post('/quality/inspections/first-article', data),
-    updateFirstArticleResult: (id, data) => api.put(`/quality/inspections/first-article/${id}/result`, data),
-    getFirstArticleInspection: (id) => api.get(`/quality/inspections/${id}`),
+  getFirstArticleRules: () => api.get('/quality/first-article-rules'),
+  getFirstArticleRuleByProduct: (productId) => api.get(`/quality/first-article-rules/${productId}`),
+  createFirstArticleRule: (data) => api.post('/quality/first-article-rules', data),
+  updateFirstArticleRule: (id, data) => api.put(`/quality/first-article-rules/${id}`, data),
+  deleteFirstArticleRule: (id) => api.delete(`/quality/first-article-rules/${id}`),
 
-    // 首检规则配置
-    getFirstArticleRules: () => api.get('/quality/first-article-rules'),
-    getFirstArticleRuleByProduct: (productId) => api.get(`/quality/first-article-rules/${productId}`),
-    createFirstArticleRule: (data) => api.post('/quality/first-article-rules', data),
-    updateFirstArticleRule: (id, data) => api.put(`/quality/first-article-rules/${id}`, data),
-    deleteFirstArticleRule: (id) => api.delete(`/quality/first-article-rules/${id}`),
-
-    // 获取物料默认检验模板
-    getMaterialDefaultTemplate: (materialId, inspectionType = 'incoming') => api.get('/quality/templates', {
-        params: {
-            material_type: materialId,
-            inspection_type: inspectionType,
-            include_general: true,
-            status: 'active',
-            pageSize: 100,
-            page: 1
-        }
-    }),
-    // 获取模板列表
-    getTemplates: (params) => api.get('/quality/templates', { params }),
-    // 获取模板详情
-    getTemplate: (id) => api.get(`/quality/templates/${id}`),
-    // 创建模板
-    createTemplate: (data) => api.post('/quality/templates', data),
-    // 更新模板
-    updateTemplate: (id, data) => api.put(`/quality/templates/${id}`, data),
-    // 删除模板
-    deleteTemplate: (id) => api.delete(`/quality/templates/${id}`),
-    // 更改模板状态
-    updateTemplateStatus: (id, status) => api.put(`/quality/templates/${id}/status`, { status }),
-    // 复制模板
-    copyTemplate: (id) => api.post(`/quality/templates/${id}/copy`),
-    // 获取可复用的检验项目
-    getReusableItems: (params) => api.get('/quality/templates/reusable-items', { params }),
-
-    // 创建可复用的检验标准项目
-    createReusableItem: (data) => api.post('/quality/templates/reusable-items', data),
-
-
-    // ==================== 追溯管理（已迁移至 /batch-traceability） ====================
-    // 以下方法已重定向到新版批次追溯API，旧版 /quality/traceability 路由不再存在
-    getTraceabilityRecords: (params) => api.get('/batch-traceability/latest-batches', { params }),
-    getTraceabilityRecord: (id) => api.get(`/batch-traceability/batch/details`, { params: { batchNumber: id } }),
-
-    // 获取质检记录的检验项目详情
-    getInspectionItems: async (inspectionId) => {
-        const response = await api.get(`/quality/inspections/${inspectionId}/items`);
-        return response;
+  getMaterialDefaultTemplate: (materialId, inspectionType = 'incoming') => api.get('/quality/templates', {
+    params: {
+      material_type: materialId,
+      inspection_type: inspectionType,
+      include_general: true,
+      status: 'active',
+      pageSize: 50,
+      page: 1,
     },
+  }),
+  getTemplates: (params) => api.get('/quality/templates', { params }),
+  getTemplate: (id) => api.get(`/quality/templates/${id}`),
+  createTemplate: (data) => api.post('/quality/templates', data),
+  updateTemplate: (id, data) => api.put(`/quality/templates/${id}`, data),
+  deleteInspectionTemplate: (id) => api.delete(`/quality/templates/${id}`),
+  updateTemplateStatus: (id, status) => api.put(`/quality/templates/${id}/status`, { status }),
+  copyTemplate: (id) => api.post(`/quality/templates/${id}/copy`),
+  getReusableItems: (params) => api.get('/quality/templates/reusable-items', { params }),
+  createReusableItem: (data) => api.post('/quality/templates/reusable-items', data),
 
-    // 获取全链路追溯数据（已迁移至 batch-traceability）
-    getFullTraceability: (data) => api.get('/batch-traceability/chain', { params: data }),
+  getQualityStatistics: (params = {}) => api.get('/quality/statistics', { params }),
+  getDefectItems: (params = {}) => api.get('/quality/defect-items', { params }),
+  getQualityTrends: (params = {}) => api.get('/quality/trends', { params }),
+  getReworkStatusByInspectionIds: (inspectionIds) => api.post('/quality/rework-tasks/by-inspections', { inspection_ids: inspectionIds }),
 
+  getProcessInspectionRules: () => api.get('/quality/process-inspection/rules'),
+  createProcessInspectionRule: (data) => api.post('/quality/process-inspection/rules', data),
+  updateProcessInspectionRule: (id, data) => api.put(`/quality/process-inspection/rules/${id}`, data),
+  deleteProcessInspectionRule: (id) => api.delete(`/quality/process-inspection/rules/${id}`),
 
-    // 获取质量检验数据统计信息
-    getQualityStatistics: async (params = {}) => {
-        const response = await api.get('/quality/statistics', { params });
-        return response.data;
-    },
+  getProcessInspectionPunchToday: () => api.get('/quality/process-inspection/punch/today'),
+  getProcessInspectionPunchList: (params) => api.get('/quality/process-inspection/punch/list', { params }),
+  createProcessInspectionPunch: (data) => api.post('/quality/process-inspection/punch', data),
 
-    // 获取不合格项目列表
-    getDefectItems: async (params = {}) => {
-        const response = await api.get('/quality/defect-items', { params });
-        return response.data;
-    },
+  punchProcessInspection: (id, data) => api.post(`/quality/inspections/process/${id}/punch`, data),
 
-    // 获取质量趋势数据
-    getQualityTrends: async (params = {}) => {
-        const response = await api.get('/quality/trends', { params });
-        return response.data;
-    },
+  getAqlStandards: (params) => api.get('/quality/aql-standards', { params }),
+  createAqlStandard: (data) => api.post('/quality/aql-standards', data),
+  updateAqlStandard: (id, data) => api.put(`/quality/aql-standards/${id}`, data),
+  deleteAqlStandard: (id) => api.delete(`/quality/aql-standards/${id}`),
+  getAqlLevels: () => api.get('/quality/aql-levels'),
+  calculateAqlSampling: (data) => api.post('/quality/aql-sampling/calculate', {
+    batch_size: data.batchSize || data.batch_size,
+    aql_level: data.aqlLevel || data.aql_level,
+  }),
 
+  getGauges: (params) => api.get('/quality/gauges', { params }),
+  getGaugeById: (id) => api.get(`/quality/gauges/${id}`),
+  getDueGauges: () => api.get('/quality/gauges/due'),
+  createGauge: (data) => api.post('/quality/gauges', data),
+  updateGauge: (id, data) => api.put(`/quality/gauges/${id}`, data),
+  deleteGauge: (id) => api.delete(`/quality/gauges/${id}`),
+  getCalibrationRecords: (params) => api.get('/quality/calibrations', { params }),
+  createCalibrationRecord: (data) => api.post('/quality/calibrations', data),
 
-    // 根据批次号查询检验单详情（包括检验项目）
-    getInspectionByBatchNo: (batchNo) => api.get(`/quality/inspections/batch/${batchNo}`),
+  getSpcPlans: (params) => api.get('/quality/spc/plans', { params }),
+  createSpcPlan: (data) => api.post('/quality/spc/plans', data),
+  updateSpcPlan: (id, data) => api.put(`/quality/spc/plans/${id}`, data),
+  deleteSpcPlan: (id) => api.delete(`/quality/spc/plans/${id}`),
+  addSpcDataPoints: (data) => api.post('/quality/spc/data', data),
+  getSpcCpk: (planId) => api.get(`/quality/spc/plans/${planId}/cpk`),
+  getSpcChart: (planId) => api.get(`/quality/spc/plans/${planId}/chart`),
 
-    // 批次号追溯相关API（已迁移至 batch-traceability）
-    getPurchaseByBatch: (batchNumber) => api.get('/batch-traceability/chain', { params: { materialCode: batchNumber, direction: 'backward' } }),
-    getProductionByBatch: (batchNumber) => api.get('/batch-traceability/chain', { params: { materialCode: batchNumber, direction: 'forward' } }),
-    getMaterialByBatch: (batchNumber) => api.get('/batch-traceability/batch/details', { params: { batchNumber } }),
-
-    // 追溯图数据（已迁移至 batch-traceability）
-    getTraceabilityChart: (id) => api.get('/batch-traceability/chain', { params: { batchNumber: id } }),
-
-    // 过程检验规则配置
-    getProcessInspectionRules: () => api.get('/quality/process-inspection/rules'),
-    createProcessInspectionRule: (data) => api.post('/quality/process-inspection/rules', data),
-    updateProcessInspectionRule: (id, data) => api.put(`/quality/process-inspection/rules/${id}`, data),
-    deleteProcessInspectionRule: (id) => api.delete(`/quality/process-inspection/rules/${id}`),
-
-    // 过程检验打卡
-    getProcessInspectionPunchToday: () => api.get('/quality/process-inspection/punch/today'),
-    getProcessInspectionPunchList: (params) => api.get('/quality/process-inspection/punch/list', { params }),
-    createProcessInspectionPunch: (data) => api.post('/quality/process-inspection/punch', data),
-
-    // 对指定检验单打卡（标记检验员已到达开始检验）
-    punchProcessInspection: (id, data) => api.post(`/quality/inspections/process/${id}/punch`, data),
-
-    // AQL 抽样标准相关
-    getAqlStandards: (params) => api.get('/quality/aql-standards', { params }),
-    createAqlStandard: (data) => api.post('/quality/aql-standards', data),
-    updateAqlStandard: (id, data) => api.put(`/quality/aql-standards/${id}`, data),
-    deleteAqlStandard: (id) => api.delete(`/quality/aql-standards/${id}`),
-    getAqlLevels: () => api.get('/quality/aql-levels'),
-    calculateAqlSampling: (data) => api.post('/quality/aql-sampling/calculate', {
-        batch_size: data.batchSize || data.batch_size,
-        aql_level: data.aqlLevel || data.aql_level
-    }),
-
-    // ==================== 量具管理 ====================
-    getGauges: (params) => api.get('/quality/gauges', { params }),
-    getGaugeById: (id) => api.get(`/quality/gauges/${id}`),
-    getDueGauges: () => api.get('/quality/gauges/due'),
-    createGauge: (data) => api.post('/quality/gauges', data),
-    updateGauge: (id, data) => api.put(`/quality/gauges/${id}`, data),
-    deleteGauge: (id) => api.delete(`/quality/gauges/${id}`),
-    getCalibrationRecords: (params) => api.get('/quality/calibrations', { params }),
-    createCalibrationRecord: (data) => api.post('/quality/calibrations', data),
-
-    // ==================== SPC 控制图 ====================
-    getSpcPlans: (params) => api.get('/quality/spc/plans', { params }),
-    createSpcPlan: (data) => api.post('/quality/spc/plans', data),
-    updateSpcPlan: (id, data) => api.put(`/quality/spc/plans/${id}`, data),
-    deleteSpcPlan: (id) => api.delete(`/quality/spc/plans/${id}`),
-    addSpcDataPoints: (data) => api.post('/quality/spc/data', data),
-    getSpcCpk: (planId) => api.get(`/quality/spc/plans/${planId}/cpk`),
-    getSpcChart: (planId) => api.get(`/quality/spc/plans/${planId}/chart`),
-
-    // ==================== 供应商质量计分卡 ====================
-    getSupplierScores: (params) => api.get('/quality/supplier-quality/scores', { params }),
-    getSupplierRanking: (params) => api.get('/quality/supplier-quality/ranking', { params }),
-    getSupplierTrend: (supplierId, params) => api.get(`/quality/supplier-quality/trend/${supplierId}`, { params }),
-    calculateSupplierScores: (data) => api.post('/quality/supplier-quality/calculate', data),
+  getSupplierScores: (params) => api.get('/quality/supplier-quality/scores', { params }),
+  getSupplierRanking: (params) => api.get('/quality/supplier-quality/ranking', { params }),
+  getSupplierTrend: (supplierId, params) => api.get(`/quality/supplier-quality/trend/${supplierId}`, { params }),
+  calculateSupplierScores: (data) => api.post('/quality/supplier-quality/calculate', data),
 };
 
-// 质量统计报表API（QualityStatistics.vue 使用）
 export const qualityStatisticsApi = {
-    // 获取综合统计概览
-    getOverview: (params) => api.get('/quality-statistics/overview', { params }),
-    // 获取处理方式统计
-    getDispositionStatistics: (params) => api.get('/quality-statistics/disposition', { params }),
-    // 获取趋势分析
-    getTrendAnalysis: (params) => api.get('/quality-statistics/trend', { params }),
-    // 获取供应商质量分析
-    getSupplierQualityAnalysis: (params) => api.get('/quality-statistics/supplier', { params }),
-    // 获取物料缺陷分析
-    getMaterialDefectAnalysis: (params) => api.get('/quality-statistics/material', { params }),
-    // 获取成本分析
-    getCostAnalysis: (params) => api.get('/quality-statistics/cost', { params })
+  getOverview: (params) => api.get('/quality/statistics/overview', { params }),
+  getDispositionStatistics: (params) => api.get('/quality/statistics/disposition', { params }),
+  getTrendAnalysis: (params) => api.get('/quality/statistics/trend', { params }),
+  getSupplierQualityAnalysis: (params) => api.get('/quality/statistics/supplier', { params }),
+  getMaterialDefectAnalysis: (params) => api.get('/quality/statistics/material', { params }),
+  getCostAnalysis: (params) => api.get('/quality/statistics/cost', { params }),
 };
 
-// 8D报告管理API
 export const eightDReportApi = {
-    getReports: (params) => api.get('/eight-d-reports', { params }),
-    getReportById: (id) => api.get(`/eight-d-reports/${id}`),
-    getReportLogs: (id) => api.get(`/eight-d-reports/${id}/logs`),
-    createReport: (data) => api.post('/eight-d-reports', data),
-    updateReport: (id, data) => api.put(`/eight-d-reports/${id}`, data),
-    submitReview: (id) => api.post(`/eight-d-reports/${id}/submit-review`),
-    submitPhase2Review: (id) => api.post(`/eight-d-reports/${id}/submit-phase2-review`),
-    reviewReport: (id, data) => api.post(`/eight-d-reports/${id}/review`, data),
-    completeReport: (id) => api.post(`/eight-d-reports/${id}/complete`),
-    closeReport: (id) => api.post(`/eight-d-reports/${id}/close`),
-    deleteReport: (id) => api.delete(`/eight-d-reports/${id}`),
-    getStatistics: () => api.get('/eight-d-reports/statistics'),
-    aiAnalyze: (data) => api.post('/eight-d-reports/ai-analyze', data, { timeout: 60000 })
+  getReports: (params) => api.get('/quality/eight-d-reports', { params }),
+  getReportById: (id) => api.get(`/quality/eight-d-reports/${id}`),
+  getReportLogs: (id) => api.get(`/quality/eight-d-reports/${id}/logs`),
+  createReport: (data) => api.post('/quality/eight-d-reports', data),
+  updateReport: (id, data) => api.put(`/quality/eight-d-reports/${id}`, data),
+  submitReview: (id) => api.post(`/quality/eight-d-reports/${id}/submit-review`),
+  submitPhase2Review: (id) => api.post(`/quality/eight-d-reports/${id}/submit-phase2-review`),
+  reviewReport: (id, data) => api.post(`/quality/eight-d-reports/${id}/review`, data),
+  completeReport: (id) => api.post(`/quality/eight-d-reports/${id}/complete`),
+  closeReport: (id) => api.post(`/quality/eight-d-reports/${id}/close`),
+  deleteReport: (id) => api.delete(`/quality/eight-d-reports/${id}`),
+  getStatistics: () => api.get('/quality/eight-d-reports/statistics'),
+  aiAnalyze: (data) => api.post('/quality/eight-d-reports/ai-analyze', data, { timeout: 60000 }),
 };

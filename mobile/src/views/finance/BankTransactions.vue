@@ -15,10 +15,11 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { showToast } from 'vant'
+  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { financeApi } from '@/services/api'
 
+  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '银行交易',
@@ -54,7 +55,7 @@
     return await financeApi.getBankTransactions(params)
   }
 
-  const handleItemClick = () => {
-    showToast('手机端暂未开放银行交易详情')
+  const handleItemClick = (item) => {
+    router.push(`/finance/cash/bank-transactions/${item.id}`)
   }
 </script>

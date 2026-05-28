@@ -493,13 +493,13 @@ const selectCategory = (category) => {
 const viewDetail = (item) => {
   // 根据类型跳转到详情页
   const routeMap = {
-    'material': `/baseData/materials/${item.id || 'detail'}`,
-    'customer': `/baseData/customers/${item.id || 'detail'}`,
-    'supplier': `/baseData/suppliers/${item.id || 'detail'}`,
+    'material': `/basedata/materials/${item.id || 'detail'}`,
+    'customer': `/basedata/customers/${item.id || 'detail'}`,
+    'supplier': `/basedata/suppliers/${item.id || 'detail'}`,
     'order': `/sales/orders/${item.id || 'detail'}`,
     'task': `/production/tasks/${item.id || 'detail'}`,
-    'location': `/baseData/locations/${item.id || 'detail'}`,
-    'bom': `/baseData/boms/${item.id || 'detail'}`
+    'location': `/basedata/locations/${item.id || 'detail'}`,
+    'bom': `/basedata/boms/${item.id || 'detail'}`
   };
 
   const route = routeMap[item.type];
@@ -591,7 +591,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .global-search-page {
-  min-height: 100vh;
+  min-height: 100%;
   background-color: var(--bg-primary);
 }
 
@@ -664,7 +664,7 @@ onMounted(() => {
       font-size: 12px;
       color: var(--text-secondary);
       border-radius: 6px;
-      transition: all 0.2s;
+      transition: color 0.2s, background-color 0.2s;
       white-space: nowrap;
 
       &.active {

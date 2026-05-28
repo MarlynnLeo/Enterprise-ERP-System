@@ -174,7 +174,10 @@ const getReports = async (req, res) => {
         const total = countResult[0].total;
 
         // 分页 — 使用安全分页工具
-        const { limit: safeLimit, offset: safeOffset } = parsePagination(page, pageSize);
+        const { limit: safeLimit, offset: safeOffset, page: safePage, pageSize: safePageSize } = parsePagination(page, pageSize, {
+            defaultPageSize: 10,
+            maxPageSize: 100,
+        });
         sql = appendPaginationSQL(sql + ' ORDER BY created_at DESC', safeLimit, safeOffset);
 
 
@@ -183,8 +186,8 @@ const getReports = async (req, res) => {
         return ResponseHandler.success(res, {
             list: rows,
             total,
-            page: parseInt(page),
-            pageSize: parseInt(pageSize)
+            page: safePage,
+            pageSize: safePageSize
         });
     } catch (error) {
         logger.error('获取8D报告列表失败:', error);
@@ -387,7 +390,7 @@ const updateReport = async (req, res) => {
         await conn.beginTransaction();
 
         // 检查报告是否存在
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
@@ -480,176 +483,203 @@ const updateReport = async (req, res) => {
  * 提交审核（含阶段门控校验）
  */
 const submitReview = async (req, res) => {
+    let conn;
     try {
         const { id } = req.params;
 
-        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
-            return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
+            await conn.rollback();
+            return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
         }
 
         const report = existing[0];
 
-        // 状态校验：只有进行中/被驳回的才能提交审核
         if (!['in_progress', 'draft'].includes(report.status)) {
-            return ResponseHandler.error(res, `当前状态"${report.status}"不允许提交审核`, 'VALIDATION_ERROR', 400);
+            await conn.rollback();
+            return ResponseHandler.error(res, `Current status "${report.status}" cannot be submitted for review`, 'VALIDATION_ERROR', 400);
         }
 
         if (!['draft', 'd1_d3'].includes(report.current_phase)) {
-            return ResponseHandler.error(res, '当前阶段不能提交D1-D3初审', 'VALIDATION_ERROR', 400);
+            await conn.rollback();
+            return ResponseHandler.error(res, 'Current phase cannot be submitted for D1-D3 review', 'VALIDATION_ERROR', 400);
         }
 
         parseJsonFields(report);
 
-        // 阶段门控校验
         const gate = validatePhaseGate(report, 'd1_d3');
         if (!gate.pass) {
-            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'VALIDATION_ERROR', 400);
+            await conn.rollback();
+            return ResponseHandler.error(res, `Missing required fields: ${gate.missing.join(', ')}`, 'VALIDATION_ERROR', 400);
         }
 
-        await pool.query(
+        await conn.query(
             'UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?',
             ['review', 'd1_d3', id]
         );
 
         const userName = await getCurrentUserName(req);
-        await insertAuditLog(pool, id, 'submit_review', report.current_phase, 'd1_d3', '提交了报告初审', userName);
+        await insertAuditLog(conn, id, 'submit_review', report.current_phase, 'd1_d3', 'Submitted D1-D3 review', userName);
 
-        return ResponseHandler.success(res, null, '已提交审核');
+        await conn.commit();
+        return ResponseHandler.success(res, null, 'Submitted for review');
     } catch (error) {
-        logger.error('提交审核失败:', error);
-        return ResponseHandler.error(res, '提交审核失败', 'OPERATION_ERROR', 500, error);
+        if (conn) await conn.rollback();
+        logger.error('鎻愪氦瀹℃牳澶辫触:', error);
+        return ResponseHandler.error(res, '鎻愪氦瀹℃牳澶辫触', 'OPERATION_ERROR', 500, error);
+    } finally {
+        if (conn) conn.release();
     }
 };
 
 /**
- * 审核8D报告（支持两阶段审批：初审 D1-D3 / 结案审核 D4-D7）
+ * 瀹℃牳8D鎶ュ憡锛堟敮鎸佷袱闃舵瀹℃壒锛氬垵瀹?D1-D3 / 缁撴瀹℃牳 D4-D7锛?
  */
 const reviewReport = async (req, res) => {
+    let conn;
     try {
         const { id } = req.params;
         const { approved, comments } = req.body;
         const reviewer = await getCurrentUserName(req);
 
-        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
-            return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
+            await conn.rollback();
+            return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
         }
 
         const report = existing[0];
 
         if (report.status !== 'review') {
-            return ResponseHandler.error(res, '只有"待审核"状态的报告才能审核', 'VALIDATION_ERROR', 400);
+            await conn.rollback();
+            return ResponseHandler.error(res, 'Only reports in review status can be reviewed', 'VALIDATION_ERROR', 400);
         }
 
         let newStatus, newPhase, msg;
 
-        // 根据当前阶段判断是初审还是结案审核
         if (report.current_phase === 'd1_d3') {
-            // 初审（D1-D3阶段提交的）
             if (approved) {
                 newStatus = 'in_progress';
                 newPhase = 'd4_d7';
-                msg = '初审通过，进入D4-D7整改阶段';
-                await pool.query(
+                msg = 'D1-D3 review approved';
+                await conn.query(
                     `UPDATE eight_d_reports SET status = ?, current_phase = ?, phase1_approved_by = ?, phase1_approved_at = NOW(), review_comments = ? WHERE id = ?`,
                     [newStatus, newPhase, reviewer, comments || '', id]
                 );
             } else {
                 newStatus = 'in_progress';
                 newPhase = 'd1_d3';
-                msg = '初审驳回，已退回修改D1-D3';
-                await pool.query(
+                msg = 'D1-D3 review rejected';
+                await conn.query(
                     `UPDATE eight_d_reports SET status = ?, current_phase = ?, review_comments = ? WHERE id = ?`,
                     [newStatus, newPhase, comments || '', id]
                 );
             }
-            await insertAuditLog(pool, id, approved ? 'review_approve' : 'review_reject', report.current_phase, newPhase, comments || msg, reviewer);
         } else if (report.current_phase === 'd4_d7') {
-            // 结案审核
             if (approved) {
                 newStatus = 'in_progress';
                 newPhase = 'd8';
-                msg = '结案审核通过，进入D8总结阶段';
-                await pool.query(
+                msg = 'D4-D7 review approved';
+                await conn.query(
                     `UPDATE eight_d_reports SET status = ?, current_phase = ?, phase2_approved_by = ?, phase2_approved_at = NOW(), reviewed_by = ?, reviewed_at = NOW(), review_comments = ? WHERE id = ?`,
                     [newStatus, newPhase, reviewer, reviewer, comments || '', id]
                 );
             } else {
                 newStatus = 'in_progress';
                 newPhase = 'd4_d7';
-                msg = '结案审核驳回，退回修改D4-D7';
-                await pool.query(
+                msg = 'D4-D7 review rejected';
+                await conn.query(
                     `UPDATE eight_d_reports SET status = ?, current_phase = ?, review_comments = ? WHERE id = ?`,
                     [newStatus, newPhase, comments || '', id]
                 );
             }
-            await insertAuditLog(pool, id, approved ? 'review_approve' : 'review_reject', report.current_phase, newPhase, comments || msg, reviewer);
         } else {
-            // 兼容旧逻辑
             newStatus = approved ? 'completed' : 'in_progress';
-            newPhase = report.current_phase; // keep same phase
-            await pool.query(
+            newPhase = report.current_phase;
+            msg = approved ? 'Review approved' : 'Review rejected';
+            await conn.query(
                 `UPDATE eight_d_reports SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_comments = ? WHERE id = ?`,
                 [newStatus, reviewer, comments || '', id]
             );
-            msg = approved ? '审核通过' : '审核驳回';
-            await insertAuditLog(pool, id, approved ? 'review_approve' : 'review_reject', report.current_phase, newPhase, comments || msg, reviewer);
         }
+
+        await insertAuditLog(conn, id, approved ? 'review_approve' : 'review_reject', report.current_phase, newPhase, comments || msg, reviewer);
+        await conn.commit();
 
         return ResponseHandler.success(res, null, msg);
     } catch (error) {
-        logger.error('审核8D报告失败:', error);
-        return ResponseHandler.error(res, '审核8D报告失败', 'OPERATION_ERROR', 500, error);
+        if (conn) await conn.rollback();
+        logger.error('瀹℃牳8D鎶ュ憡澶辫触:', error);
+        return ResponseHandler.error(res, '瀹℃牳8D鎶ュ憡澶辫触', 'OPERATION_ERROR', 500, error);
+    } finally {
+        if (conn) conn.release();
     }
 };
 
 /**
- * 提交结案审核（D4-D7阶段完成后提交）
+ * 鎻愪氦缁撴瀹℃牳锛圖4-D7闃舵瀹屾垚鍚庢彁浜わ級
  */
 const submitPhase2Review = async (req, res) => {
+    let conn;
     try {
         const { id } = req.params;
 
-        const [existing] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
-            return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
+            await conn.rollback();
+            return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
         }
 
         const report = existing[0];
 
         if (report.current_phase !== 'd4_d7') {
-            return ResponseHandler.error(res, '当前阶段不是D4-D7，不能提交结案审核', 'VALIDATION_ERROR', 400);
+            await conn.rollback();
+            return ResponseHandler.error(res, 'Current phase is not D4-D7 and cannot be submitted for close review', 'VALIDATION_ERROR', 400);
         }
 
         if (report.status !== 'in_progress') {
-            return ResponseHandler.error(res, `当前状态"${report.status}"不允许提交结案审核`, 'VALIDATION_ERROR', 400);
+            await conn.rollback();
+            return ResponseHandler.error(res, `Current status "${report.status}" cannot be submitted for close review`, 'VALIDATION_ERROR', 400);
         }
 
         parseJsonFields(report);
 
         const gate = validatePhaseGate(report, 'd4_d7');
         if (!gate.pass) {
-            return ResponseHandler.error(res, `以下必填项未完成：${gate.missing.join('、')}`, 'VALIDATION_ERROR', 400);
+            await conn.rollback();
+            return ResponseHandler.error(res, `Missing required fields: ${gate.missing.join(', ')}`, 'VALIDATION_ERROR', 400);
         }
 
-        await pool.query(
+        await conn.query(
             'UPDATE eight_d_reports SET status = ?, current_phase = ? WHERE id = ?',
             ['review', 'd4_d7', id]
         );
 
         const userName = await getCurrentUserName(req);
-        await insertAuditLog(pool, id, 'submit_phase2_review', report.current_phase, 'd4_d7', '提交了结案审核', userName);
+        await insertAuditLog(conn, id, 'submit_phase2_review', report.current_phase, 'd4_d7', 'Submitted D4-D7 review', userName);
 
-        return ResponseHandler.success(res, null, '已提交结案审核');
+        await conn.commit();
+        return ResponseHandler.success(res, null, 'Submitted for close review');
     } catch (error) {
-        logger.error('提交结案审核失败:', error);
-        return ResponseHandler.error(res, '提交结案审核失败', 'OPERATION_ERROR', 500, error);
+        if (conn) await conn.rollback();
+        logger.error('鎻愪氦缁撴瀹℃牳澶辫触:', error);
+        return ResponseHandler.error(res, '鎻愪氦缁撴瀹℃牳澶辫触', 'OPERATION_ERROR', 500, error);
+    } finally {
+        if (conn) conn.release();
     }
 };
 
 /**
- * 完成8D报告（D8总结后关闭）
+ * 瀹屾垚8D鎶ュ憡锛圖8鎬荤粨鍚庡叧闂級
  */
 const completeReport = async (req, res) => {
     let conn;
@@ -659,7 +689,7 @@ const completeReport = async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
@@ -719,7 +749,7 @@ const closeReport = async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
@@ -757,29 +787,38 @@ const closeReport = async (req, res) => {
  * 删除8D报告
  */
 const deleteReport = async (req, res) => {
+    let conn;
     try {
         const { id } = req.params;
 
-        const [existing] = await pool.query('SELECT id, status FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+        conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        const [existing] = await conn.query('SELECT id, status FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
-            return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
+            await conn.rollback();
+            return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
         }
 
         if (existing[0].status !== 'draft') {
-            return ResponseHandler.error(res, '只有草稿状态的报告才能删除', 'VALIDATION_ERROR', 400);
+            await conn.rollback();
+            return ResponseHandler.error(res, 'Only draft reports can be deleted', 'VALIDATION_ERROR', 400);
         }
 
-        // ✅ 软删除替代硬删除
-        await softDelete(pool, 'eight_d_reports', 'id', id);
-        return ResponseHandler.success(res, null, '8D报告已删除');
+        await softDelete(conn, 'eight_d_reports', 'id', id);
+        await conn.commit();
+        return ResponseHandler.success(res, null, '8D report deleted');
     } catch (error) {
-        logger.error('删除8D报告失败:', error);
-        return ResponseHandler.error(res, '删除8D报告失败', 'OPERATION_ERROR', 500, error);
+        if (conn) await conn.rollback();
+        logger.error('鍒犻櫎8D鎶ュ憡澶辫触:', error);
+        return ResponseHandler.error(res, '鍒犻櫎8D鎶ュ憡澶辫触', 'OPERATION_ERROR', 500, error);
+    } finally {
+        if (conn) conn.release();
     }
 };
 
 /**
- * 获取8D报告统计数据
+ * 鑾峰彇8D鎶ュ憡缁熻鏁版嵁
  */
 const getStatistics = async (req, res) => {
     try {

@@ -17,6 +17,9 @@ router.get('/', notificationController.getNotifications);
 // 获取未读通知数量
 router.get('/unread-count', notificationController.getUnreadCount);
 
+// 获取单条通知详情
+router.get('/:id', notificationController.getNotificationById);
+
 // 标记通知为已读
 router.put('/:id/read', notificationController.markAsRead);
 
@@ -24,11 +27,10 @@ router.put('/:id/read', notificationController.markAsRead);
 router.put('/mark-all-read', notificationController.markAllAsRead);
 
 // 删除通知
-router.delete(
-  '/:id',
-  requirePermission('system:notifications:delete'),
-  notificationController.deleteNotification
-);
+router.delete('/:id', notificationController.deleteNotification);
+
+// 批量删除通知
+router.post('/batch-delete', notificationController.batchDeleteNotifications);
 
 // 创建通知
 router.post('/', requirePermission('system:notifications:create'), notificationController.createNotification);

@@ -11,9 +11,15 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { authenticateToken } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../../../middleware/priceAccessControl');
 
 // 所有路由需要认证
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 const VALID_COST_CENTER_TYPES = new Set(['production', 'service', 'administration']);
 
@@ -205,7 +211,7 @@ router.delete('/:id', requirePermission('finance:cost:delete'), async (req, res)
 
 // ==================== 注意 ====================
 // 制造费用分摊配置的 API 已统一迁移至 financeEnhancement.js
-// 路由路径: /api/finance-enhancement/cost/overhead-allocation
+// 路由路径: /api/finance/cost/overhead-allocation
 // 前端入口: CostSettings.vue → "制费分摊规则" 标签页
 
 module.exports = router;

@@ -8,9 +8,15 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { authenticateToken } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../../../middleware/priceAccessControl');
 
 // 所有路由需要认证
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // 获取成本动因类型选项
 router.get('/driver-types', requirePermission('finance:cost:view'), (req, res) => {

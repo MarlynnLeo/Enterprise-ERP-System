@@ -249,6 +249,11 @@ export default {
         },
         // 现金管理模块路由
         {
+            path: 'cash',
+            name: 'finance-cash',
+            redirect: '/finance/cash/accounts'
+        },
+        {
             path: 'cash/accounts',
             name: 'cash-accounts',
             component: () => import('../../views/finance/cash/BankAccounts.vue'),
@@ -318,7 +323,7 @@ export default {
             component: () => import('../../views/finance/reports/StandardCashFlow.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:reports:standard-cash-flow'
+                permission: 'finance:reports:standard-cash-flow:view'
             }
         },
         // 财务自动化模块路由
@@ -332,6 +337,11 @@ export default {
             }
         },
         // 税务管理模块路由
+        {
+            path: 'tax',
+            name: 'finance-tax',
+            redirect: '/finance/tax/invoices'
+        },
         {
             path: 'tax/invoices',
             name: 'tax-invoices',
@@ -360,6 +370,11 @@ export default {
             }
         },
         // 预算管理模块路由
+        {
+            path: 'budget',
+            name: 'finance-budget',
+            redirect: '/finance/budget/list'
+        },
         {
             path: 'budget/list',
             name: 'budget-list',
@@ -433,6 +448,11 @@ export default {
             }
         },
         // 成本核算模块路由
+        {
+            path: 'cost',
+            name: 'finance-cost',
+            redirect: '/finance/cost/dashboard'
+        },
         {
             path: 'cost/dashboard',
             name: 'cost-dashboard',
@@ -567,7 +587,7 @@ export default {
             component: () => import('../../views/finance/settings/ExchangeRates.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'finance:exchange-rates'
+                permission: 'finance:exchange-rates:view'
             }
         }
     ]

@@ -1,132 +1,226 @@
-/**
- * 智能日志管理工具
- * 统一管理应用中的日志输出，支持开发和生产环境的不同日志级别
- */
-// 检查是否为生产环境
-const isProduction = import.meta.env.PROD || process.env.NODE_ENV === 'production';
-/**
- * 日志级别枚举
- */
-const LOG_LEVELS = {
-  ERROR: 0,   // 错误：总是显示
-  WARN: 1,    // 警告：生产环境显示
-  INFO: 2,    // 信息：仅开发环境显示
-  DEBUG: 3    // 调试：仅开发环境显示
+const isProduction = import.meta.env.PROD;
+const isDevelopment = import.meta.env.DEV;
+
+const LEVELS = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  debug: 3
 };
-/**
- * 当前环境的日志级别
- */
-const CURRENT_LOG_LEVEL = isProduction ? LOG_LEVELS.WARN : LOG_LEVELS.DEBUG;
-/**
- * 智能日志记录器
- */
-class SafeLogger {
-  constructor() {
-    this.isProduction = isProduction;
-    this.logLevel = CURRENT_LOG_LEVEL;
-  }
-  /**
-   * 错误日志 - 总是显示
-   */
-  error(message, ...args) {
-    if (this.logLevel >= LOG_LEVELS.ERROR) {
-      console.error(`[ERROR] ${message}`, ...args);
-    }
-  }
-  /**
-   * 警告日志 - 生产环境也显示
-   */
-  warn() {}
-  /**
-   * 信息日志 - 仅开发环境显示
-   */
-  info( ..._args) {
-    if (this.logLevel >= LOG_LEVELS.INFO) {
-    }
-  }
-  /**
-   * 开发跟踪日志 - 仅开发环境显示
-   */
-  debug( ..._args) {
-    if (this.logLevel >= LOG_LEVELS.DEBUG) {
-    }
-  }
-  /**
-   * 权限相关的跟踪日志 - 可以单独控制
-   */
-  permission( ..._args) {
-    const enablePermissionDebug = !this.isProduction &&
-                                 localStorage.getItem('debug_permissions') === 'true';
-    if (enablePermissionDebug) {
-    }
-  }
-  /**
-   * API请求日志 - 生产环境完全禁用
-   */
-  api(method, url, data = null) {
-    if (!this.isProduction && this.isDebugEnabled) {
-      console.group(`[API] ${method.toUpperCase()} ${url}`);
-      if (data) {
-      }
-      console.groupEnd();
-    }
-  }
-  /**
-   * API响应日志 - 生产环境完全禁用
-   */
-  apiResponse(url) {
-    if (!this.isProduction && this.isDebugEnabled) {
-      console.group(`[API Response] ${url}`);
-      console.groupEnd();
-    }
-  }
-  /**
-   * 性能日志 - 生产环境简化
-   */
-  performance(label, duration) {
-    if (this.isProduction) {
-      // 生产环境只记录性能标签，不记录具体数值
-      if (duration > 1000) { // 只记录超过1秒的操作
-        }
-    } else {
-      }
-  }
-  /**
-   * 清理敏感对象信息
-   */
-  sanitizeObject(obj) {
-    if (!obj || typeof obj !== 'object') {
-      return obj;
-    }
-    const sensitiveFields = [
-      'password', 'token', 'secret', 'key', 'auth',
-      'authorization', 'cookie', 'session', 'csrf',
-      'api_key', 'access_token', 'refresh_token'
-    ];
-    const sanitized = {};
-    for (const [key, value] of Object.entries(obj)) {
-      const lowerKey = key.toLowerCase();
-      if (sensitiveFields.some(field => lowerKey.includes(field))) {
-        sanitized[key] = '[REDACTED]';
-      } else if (typeof value === 'object' && value !== null) {
-        sanitized[key] = this.sanitizeObject(value);
-      } else {
-        sanitized[key] = value;
-      }
-    }
-    return sanitized;
-  }
-  /**
-   * 用户操作日志 - 生产环境记录但不包含敏感信息
-   */
-  userAction(_action) {
-    if (this.isProduction) {
-      } else {
-      }
-  }
+
+const currentLevel = isProduction ? LEVELS.warn : LEVELS.debug;
+
+const SENSITIVE_KEYS = [
+  'password',
+  'token',
+  'secret',
+  'key',
+  'auth',
+  'authorization',
+  'cookie',
+  'session',
+  'csrf',
+  'api_key',
+  'access_token',
+  'refresh_token'
+];
+
+function shouldLog(level) {
+  return currentLevel >= LEVELS[level];
 }
-// 创建全局日志实例
-const logger = new SafeLogger();
+
+function sanitize(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (seen.has(value)) {
+    return '[Circular]';
+  }
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitize(item, seen));
+  }
+
+  return Object.entries(value).reduce((result, [key, itemValue]) => {
+    const normalizedKey = key.toLowerCase();
+    const isSensitive = SENSITIVE_KEYS.some((field) => normalizedKey.includes(field));
+    result[key] = isSensitive ? '[REDACTED]' : sanitize(itemValue, seen);
+    return result;
+  }, {});
+}
+
+function sanitizeArgs(args) {
+  return args.map((item) => sanitize(item));
+}
+
+const logger = {
+  isProduction,
+  isDevelopment,
+
+  error(message, ...args) {
+    if (shouldLog('error')) {
+      console.error(`[ERROR] ${message}`, ...sanitizeArgs(args));
+    }
+  },
+
+  warn(message, ...args) {
+    if (shouldLog('warn')) {
+      console.warn(`[WARN] ${message}`, ...sanitizeArgs(args));
+    }
+  },
+
+  info(message, ...args) {
+    if (shouldLog('info')) {
+      console.info(`[INFO] ${message}`, ...sanitizeArgs(args));
+    }
+  },
+
+  log(message, ...args) {
+    if (shouldLog('info')) {
+      console.info(message, ...sanitizeArgs(args));
+    }
+  },
+
+  debug(message, ...args) {
+    if (shouldLog('debug')) {
+      console.info(`[DEBUG] ${message}`, ...sanitizeArgs(args));
+    }
+  },
+
+  dev(message, ...args) {
+    if (isDevelopment) {
+      console.info(`[DEV] ${message}`, ...sanitizeArgs(args));
+    }
+  },
+
+  permission(message, ...args) {
+    const enablePermissionDebug = isDevelopment && localStorage.getItem('debug_permissions') === 'true';
+    if (enablePermissionDebug) {
+      console.info(`[PERMISSION] ${message}`, ...sanitizeArgs(args));
+    }
+  },
+
+  api(method, url, data = null) {
+    if (!isDevelopment) {
+      return;
+    }
+
+    console.groupCollapsed(`[API] ${String(method).toUpperCase()} ${url}`);
+    if (data) {
+      console.info(sanitize(data));
+    }
+    console.groupEnd();
+  },
+
+  apiResponse(url, data = null) {
+    if (!isDevelopment) {
+      return;
+    }
+
+    console.groupCollapsed(`[API Response] ${url}`);
+    if (data) {
+      console.info(sanitize(data));
+    }
+    console.groupEnd();
+  },
+
+  performance(label, duration) {
+    if (isProduction && duration <= 1000) {
+      return;
+    }
+
+    const method = duration > 1000 ? 'warn' : 'info';
+    console[method](`[PERF] ${label}: ${duration}ms`);
+  },
+
+  userAction(action, payload = null) {
+    const args = payload ? [sanitize(payload)] : [];
+    if (isProduction) {
+      console.info(`[USER_ACTION] ${action}`, ...args);
+      return;
+    }
+    console.info(`[USER_ACTION] ${action}`, ...args);
+  },
+
+  sanitizeObject: sanitize
+};
+
+export const diagnosticLogger = {
+  log: (...args) => {
+    if (isDevelopment) {
+      console.info(...sanitizeArgs(args));
+    }
+  },
+  warn: (...args) => {
+    if (isDevelopment) {
+      console.warn(...sanitizeArgs(args));
+    }
+  },
+  debug: (...args) => {
+    if (isDevelopment) {
+      console.info(...sanitizeArgs(args));
+    }
+  },
+  info: (...args) => {
+    if (isDevelopment) {
+      console.info(...sanitizeArgs(args));
+    }
+  },
+  error: (...args) => {
+    if (shouldLog('error')) {
+      console.error(...sanitizeArgs(args));
+    }
+  },
+  table: (data) => {
+    if (isDevelopment) {
+      console.table(sanitize(data));
+    }
+  },
+  group: (label) => {
+    if (isDevelopment) {
+      console.group(label);
+    }
+  },
+  groupCollapsed: (label) => {
+    if (isDevelopment) {
+      console.groupCollapsed(label);
+    }
+  },
+  groupEnd: () => {
+    if (isDevelopment) {
+      console.groupEnd();
+    }
+  },
+  time: (label) => {
+    if (isDevelopment) {
+      console.time(label);
+    }
+  },
+  timeEnd: (label) => {
+    if (isDevelopment) {
+      console.timeEnd(label);
+    }
+  }
+};
+
+export const createLogger = (prefix) => ({
+  log: (...args) => diagnosticLogger.log(prefix, ...args),
+  warn: (...args) => diagnosticLogger.warn(prefix, ...args),
+  error: (...args) => diagnosticLogger.error(prefix, ...args),
+  debug: (...args) => diagnosticLogger.debug(prefix, ...args),
+  info: (...args) => diagnosticLogger.info(prefix, ...args)
+});
+
 export default logger;
-// 便捷导出
-export const { dev, debug, info, warn, error, api, apiResponse, performance, userAction } = logger;
+
+export const dev = (...args) => logger.dev(...args);
+export const debug = (...args) => logger.debug(...args);
+export const info = (...args) => logger.info(...args);
+export const warn = (...args) => logger.warn(...args);
+export const error = (...args) => logger.error(...args);
+export const api = (...args) => logger.api(...args);
+export const apiResponse = (...args) => logger.apiResponse(...args);
+export const performance = (...args) => logger.performance(...args);
+export const userAction = (...args) => logger.userAction(...args);

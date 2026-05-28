@@ -463,31 +463,31 @@ export const PurchaseHelper = {
       return {
         text: `已逾期${Math.abs(days)}天`,
         type: 'danger',
-        color: '#F56C6C'
+        color: 'var(--color-danger)'
       };
     } else if (days === 0) {
       return {
         text: '今天到期',
         type: 'warning',
-        color: '#E6A23C'
+        color: 'var(--color-warning)'
       };
     } else if (days <= 3) {
       return {
         text: `${days}天后到期`,
         type: 'warning',
-        color: '#E6A23C'
+        color: 'var(--color-warning)'
       };
     } else if (days <= 7) {
       return {
         text: `${days}天后到期`,
         type: 'primary',
-        color: '#409EFF'
+        color: 'var(--color-primary)'
       };
     } else {
       return {
         text: `${days}天后到期`,
         type: 'success',
-        color: '#67C23A'
+        color: 'var(--color-success)'
       };
     }
   },

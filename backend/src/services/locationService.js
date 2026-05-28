@@ -1,6 +1,29 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
+
+const WRITABLE_LOCATION_COLUMNS = new Set([
+  'code',
+  'name',
+  'warehouse_name',
+  'type',
+  'status',
+  'remark',
+]);
+
+function pickWritableLocationData(data = {}) {
+  const result = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (!WRITABLE_LOCATION_COLUMNS.has(key)) {
+      continue;
+    }
+    if (value !== '' || value === 0) {
+      result[key] = key === 'status' ? Number(value) : value;
+    }
+  }
+  return result;
+}
 
 const locationService = {
   async getWarehouses() {
@@ -49,9 +72,10 @@ const locationService = {
 
   async getAllLocations(filters = {}, page = 1, pageSize = 10) {
     try {
-      const pageNum = Number(page);
-      const pageSizeNum = Number(pageSize);
-      const offset = (pageNum - 1) * pageSizeNum;
+      const noPagination = pageSize === null || pageSize === undefined;
+      const pagination = noPagination
+        ? null
+        : parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
       const conditions = ['deleted_at IS NULL'];
       const params = [];
@@ -82,23 +106,23 @@ const locationService = {
       }
 
       let query = 'SELECT * FROM locations WHERE ' + conditions.join(' AND ');
-      query += ' ORDER BY id DESC LIMIT ?, ?';
-
-      params.push(offset, pageSizeNum);
+      query += ' ORDER BY id DESC';
+      if (!noPagination) {
+        query = appendPaginationSQL(query, pagination.limit, pagination.offset);
+      }
 
       const [rows] = await pool.query(query, params);
 
       const countQuery = 'SELECT COUNT(*) as total FROM locations WHERE ' + conditions.join(' AND ');
 
-      const countParams = params.slice(0, -2);
-      const [countResult] = await pool.query(countQuery, countParams);
+      const [countResult] = await pool.query(countQuery, params);
       const total = countResult[0].total;
 
       return {
         items: rows,
         total,
-        page: pageNum,
-        pageSize: pageSizeNum,
+        page: noPagination ? 1 : pagination.page,
+        pageSize: noPagination ? rows.length : pagination.pageSize,
       };
     } catch (error) {
       logger.error('获取库位列表失败:', error);
@@ -132,20 +156,9 @@ const locationService = {
         throw new Error(`Location code '${data.code}' already exists`);
       }
 
-      const locationData = { ...data };
-      if (locationData.id === '' || locationData.id === undefined || locationData.id === null) {
-        delete locationData.id;
-      }
-
-      const filteredData = {};
-      for (const [key, value] of Object.entries(locationData)) {
-        if (value !== '' || value === 0) {
-          filteredData[key] = value;
-        }
-      }
-
-      if (filteredData.status !== undefined) {
-        filteredData.status = Number(filteredData.status);
+      const filteredData = pickWritableLocationData(data);
+      if (Object.keys(filteredData).length === 0) {
+        throw new Error('No valid fields to create');
       }
 
       const fields = Object.keys(filteredData).join(', ');
@@ -189,13 +202,9 @@ const locationService = {
         }
       }
 
-      const locationData = { ...data };
-      if (locationData.status !== undefined) {
-        locationData.status = Number(locationData.status);
-      }
-
-      if (locationData.location_name !== undefined) {
-        delete locationData.location_name;
+      const locationData = pickWritableLocationData(data);
+      if (Object.keys(locationData).length === 0) {
+        throw new Error('No valid fields to update');
       }
 
       const setClause = Object.keys(locationData)

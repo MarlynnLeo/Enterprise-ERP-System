@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="report-container">
+  <div class="module-page report-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -23,8 +23,15 @@
     </el-card>
 
     <!-- 查询条件区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="queryParams" class="search-form">
+    <FinanceQueryCard
+      :model="queryParams"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="generateReport"
+      @reset="resetQuery"
+    >
+      <template #basic>
         <el-form-item label="报表日期" required>
           <el-date-picker
             v-model="queryParams.reportDate"
@@ -35,6 +42,8 @@
 
           ></el-date-picker>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="比较日期">
           <el-date-picker
             v-model="queryParams.compareDate"
@@ -52,8 +61,8 @@
             <el-option label="万元" :value="10000"></el-option>
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 报表区域 -->
     <el-card class="data-card" v-loading="loading">
@@ -78,22 +87,22 @@
                 :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
               >
                 <el-table-column prop="name" label="资产" width="280"></el-table-column>
-                <el-table-column label="行次" width="60" align="center">
+                <el-table-column label="行次" width="60">
                   <template #default="scope">
                     {{ scope.row.rowNum }}
                   </template>
                 </el-table-column>
-                <el-table-column prop="amount" label="期末余额" align="right">
+                <el-table-column prop="amount" label="期末余额">
                   <template #default="scope">
                     {{ formatAmount(scope.row.amount) }}
                   </template>
                 </el-table-column>
-                <el-table-column prop="compareAmount" label="期初余额" align="right" v-if="queryParams.compareDate">
+                <el-table-column prop="compareAmount" label="期初余额" v-if="queryParams.compareDate">
                   <template #default="scope">
                     {{ formatAmount(scope.row.compareAmount) }}
                   </template>
                 </el-table-column>
-                <el-table-column label="变动" align="right" v-if="queryParams.compareDate">
+                <el-table-column label="变动" v-if="queryParams.compareDate">
                   <template #default="scope">
                     <span :class="getChangeClass(scope.row.change)">
                       {{ formatAmount(scope.row.change) }}
@@ -116,22 +125,22 @@
                 :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
               >
                 <el-table-column prop="name" label="负债和所有者权益" width="280"></el-table-column>
-                <el-table-column label="行次" width="60" align="center">
+                <el-table-column label="行次" width="60">
                   <template #default="scope">
                     {{ scope.row.rowNum }}
                   </template>
                 </el-table-column>
-                <el-table-column prop="amount" label="期末余额" align="right">
+                <el-table-column prop="amount" label="期末余额">
                   <template #default="scope">
                     {{ formatAmount(scope.row.amount) }}
                   </template>
                 </el-table-column>
-                <el-table-column prop="compareAmount" label="期初余额" align="right" v-if="queryParams.compareDate">
+                <el-table-column prop="compareAmount" label="期初余额" v-if="queryParams.compareDate">
                   <template #default="scope">
                     {{ formatAmount(scope.row.compareAmount) }}
                   </template>
                 </el-table-column>
-                <el-table-column label="变动" align="right" v-if="queryParams.compareDate">
+                <el-table-column label="变动" v-if="queryParams.compareDate">
                   <template #default="scope">
                     <span :class="getChangeClass(scope.row.change)">
                       {{ formatAmount(scope.row.change) }}
@@ -153,6 +162,7 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ReportHelper } from '@/utils/commonHelpers'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
@@ -160,10 +170,10 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import printService from '@/services/printService';
-import ExcelJS from 'exceljs';
+import { loadExcelJS } from '@/utils/lazyVendors';
 // 查询参数
 const queryParams = reactive({
-  reportDate: new Date().toISOString().slice(0, 10), // 默认为今天
+  reportDate: formatLocalDate(new Date()), // 默认为今天
   compareDate: '',
   unit: 1 // 默认单位为元
 });
@@ -171,6 +181,7 @@ const queryParams = reactive({
 // 报表数据
 const reportData = ref({});
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 
 // 计算资产数据和负债权益数据
 // 计算资产数据和负债权益数据
@@ -214,6 +225,13 @@ const generateReport = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const resetQuery = () => {
+  queryParams.reportDate = formatLocalDate(new Date());
+  queryParams.compareDate = '';
+  queryParams.unit = 1;
+  reportData.value = {};
 };
 
 const flattenBalanceRows = (rows, side, level = 0, result = []) => {
@@ -266,6 +284,7 @@ const printReport = async () => {
 // 导出Excel
 const exportExcel = async () => {
   try {
+    const ExcelJS = await loadExcelJS();
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('资产负债表');
 
@@ -427,7 +446,6 @@ onMounted(() => {
   gap: 10px;
 }
 
-/* 使用全局common-styles.css中的样式，无需重复定义 */
 /* .filter-card 和 .report-card 已在全局定义 */
 
 .report-title {

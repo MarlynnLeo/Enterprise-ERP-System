@@ -15,9 +15,11 @@
 
 <script setup>
   import { computed } from 'vue'
+  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { financeApi } from '@/services/api'
 
+  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '现金交易',
@@ -39,5 +41,7 @@
     return await financeApi.getCashTransactions(params)
   }
 
-  const handleItemClick = () => {}
+  const handleItemClick = (item) => {
+    router.push(`/finance/cash/cash-transactions/${item.id}`)
+  }
 </script>

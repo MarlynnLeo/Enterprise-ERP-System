@@ -8,6 +8,7 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { CodeGenerators } = require('../../utils/codeGenerator');
+const PeriodValidationService = require('./PeriodValidationService');
 
 class InventoryConsistencyService {
   /**
@@ -213,6 +214,12 @@ class InventoryConsistencyService {
       }
 
       const adjustmentNo = await CodeGenerators.generateAdjustmentCode(connection);
+      const adjustmentDate = new Date().toISOString().slice(0, 10);
+      const inventoryCheck =
+        await PeriodValidationService.validateInventoryTransaction(adjustmentDate);
+      if (!inventoryCheck.allowed) {
+        throw new Error(inventoryCheck.message);
+      }
 
       let adjustedCount = 0;
 
@@ -225,8 +232,8 @@ class InventoryConsistencyService {
           INSERT INTO inventory_ledger (
             material_id, location_id, transaction_type, transaction_no,
             reference_no, reference_type, quantity, before_quantity, after_quantity,
-            operator, remark
-          ) VALUES (?, ?, 'adjustment_in', ?, ?, 'inventory_adjustment', ?, ?, ?, ?, ?)
+            operator, remark, transaction_date
+          ) VALUES (?, ?, 'adjustment_in', ?, ?, 'inventory_adjustment', ?, ?, ?, ?, ?, CURRENT_DATE)
         `,
           [
             item.material_id,

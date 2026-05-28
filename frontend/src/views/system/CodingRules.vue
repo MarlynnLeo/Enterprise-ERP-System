@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -11,23 +11,26 @@
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="搜索">
-          <el-input v-model="keyword" placeholder="业务类型/名称/前缀" clearable @keyup.enter="filterList">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
+    <FinanceQueryCard
+      @search="filterList"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="规则名称">
+          <el-input v-model="keyword" placeholder="规则名称" clearable @keyup.enter="filterList" />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="重置周期">
           <el-select v-model="filterCycle" placeholder="全部" clearable @change="filterList">
             <el-option v-for="(l,k) in cycleLabel" :key="k" :label="l" :value="k" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-tag type="info" size="small">共 {{ filteredData.length }} 条</el-tag>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+      <template #actions>
+        <el-tag type="info" size="small">共 {{ filteredData.length }} 条</el-tag>
+      </template>
+    </FinanceQueryCard>
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="filteredData" v-loading="loading" border stripe
@@ -50,7 +53,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="reset_cycle" label="重置周期" width="100" align="center">
+        <el-table-column prop="reset_cycle" label="重置周期" width="100">
           <template #default="{ row }">
             <el-tag :type="cycleType[row.reset_cycle]" size="small" effect="plain">{{ cycleLabel[row.reset_cycle] }}</el-tag>
           </template>
@@ -60,13 +63,13 @@
             <span class="preview-code">{{ row._preview || '--' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="is_active" label="状态" width="75" align="center">
+        <el-table-column prop="is_active" label="状态" width="75">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'danger'" size="small" effect="dark">{{ row.is_active ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" min-width="140" show-overflow-tooltip />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" v-permission="'system:settings:edit'" @click="openForm(row)">编辑</el-button>
             <el-button link type="warning" v-permission="'system:settings:view'" @click="openSequences(row)">序列</el-button>
@@ -165,7 +168,7 @@
             <span class="code-text">{{ s.period_key }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="当前值">
-            <span style="font-size:18px;font-weight:bold;color:#409EFF">{{ s.current_value }}</span>
+            <span style="font-size:18px;font-weight:bold;color:var(--color-primary)">{{ s.current_value }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ s.updated_at }}</el-descriptions-item>
         </el-descriptions>
@@ -184,7 +187,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import { codingRuleApi } from '@/api/enhanced'
 import 'dayjs'
 const loading = ref(false)
@@ -242,10 +245,14 @@ const livePreview = computed(() => {
   return parts.join(sep)
 })
 const filterList = () => { /* computed 自动处理 */ }
+const resetSearch = () => {
+  keyword.value = ''
+  filterCycle.value = ''
+}
 const fetchList = async () => {
   loading.value = true
   try {
-    const res = await codingRuleApi.getList({ pageSize: 200 })
+    const res = await codingRuleApi.getList({ pageSize: 50 })
     const d = res.data || res
     const list = d.list || d || []
     // 后端已通过 LEFT JOIN 一次性计算好 _preview，无需逐条请求

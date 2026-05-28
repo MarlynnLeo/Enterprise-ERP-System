@@ -44,7 +44,7 @@
             <el-col :span="6">
               <el-card shadow="hover" class="stat-card gradient-blue">
                 <div class="stat-label">建议总预算</div>
-                <div class="stat-value">¥{{ formatNum(recommendation.total_recommended_budget) }}</div>
+                <div class="stat-value">{{ formatMoney(recommendation.total_recommended_budget) }}</div>
               </el-card>
             </el-col>
             <el-col :span="6">
@@ -102,20 +102,20 @@
               <el-table-column type="selection" width="50" />
               <el-table-column prop="account_code" label="科目代码" width="100" />
               <el-table-column prop="account_name" label="科目名称" min-width="130" />
-              <el-table-column label="建议预算" width="130" align="right">
-                <template #default="{ row }"><strong class="text-blue">¥{{ formatNum(row.recommended_budget) }}</strong></template>
+              <el-table-column label="建议预算" width="130">
+                <template #default="{ row }"><strong class="text-blue">{{ formatMoney(row.recommended_budget) }}</strong></template>
               </el-table-column>
-              <el-table-column label="历史均值" width="120" align="right">
-                <template #default="{ row }">¥{{ formatNum(row.historical_avg) }}</template>
+              <el-table-column label="历史均值" width="120">
+                <template #default="{ row }">{{ formatMoney(row.historical_avg) }}</template>
               </el-table-column>
-              <el-table-column label="增长率" width="100" align="center">
+              <el-table-column label="增长率" width="100">
                 <template #default="{ row }">
                   <span :class="row.growth_rate > 0 ? 'text-red' : 'text-green'">
                     {{ row.growth_rate > 0 ? '↑' : '↓' }}{{ Math.abs(row.growth_rate) }}%
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column label="置信度" width="80" align="center">
+              <el-table-column label="置信度" width="80">
                 <template #default="{ row }">
                   <el-tag :type="row.confidence === '高' ? 'success' : row.confidence === '中' ? 'warning' : 'info'" size="small" effect="dark">{{ row.confidence }}</el-tag>
                 </template>
@@ -200,7 +200,7 @@
           <!-- 异常列表 -->
           <el-card shadow="hover" style="margin-top:16px"><template #header>异常清单</template>
             <el-table :data="anomalies.anomalies" border stripe max-height="400">
-              <el-table-column label="严重度" width="80" align="center">
+              <el-table-column label="严重度" width="80">
                 <template #default="{ row }">
                   <el-tag :type="row.severity === '严重' ? 'danger' : row.severity === '警告' ? 'warning' : 'info'" effect="dark" size="small">{{ row.severity }}</el-tag>
                 </template>
@@ -208,18 +208,18 @@
               <el-table-column prop="account_code" label="科目" width="90" />
               <el-table-column prop="account_name" label="名称" width="130" />
               <el-table-column prop="department" label="部门" width="80" />
-              <el-table-column label="预算/已用" width="160" align="right">
+              <el-table-column label="预算/已用" width="160">
                 <template #default="{ row }">
-                  <div>预算: ¥{{ formatNum(row.budget_amount) }}</div>
-                  <div>已用: ¥{{ formatNum(row.used_amount) }}</div>
+                  <div>预算: {{ formatMoney(row.budget_amount) }}</div>
+                  <div>已用: {{ formatMoney(row.used_amount) }}</div>
                 </template>
               </el-table-column>
-              <el-table-column label="执行率" width="85" align="center">
+              <el-table-column label="执行率" width="85">
                 <template #default="{ row }">
                   <span :class="row.execution_rate > 100 ? 'text-red' : row.execution_rate < 20 ? 'text-orange' : 'text-green'" style="font-weight:bold">{{ row.execution_rate }}%</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="type" label="类型" width="80" align="center">
+              <el-table-column prop="type" label="类型" width="80">
                 <template #default="{ row }"><el-tag size="small" :type="row.type === '超支' ? 'danger' : 'warning'">{{ row.type }}</el-tag></template>
               </el-table-column>
               <el-table-column prop="diagnosis" label="AI 诊断" min-width="170" show-overflow-tooltip />
@@ -266,13 +266,13 @@
             <el-col :span="6">
               <el-card shadow="hover" class="stat-card gradient-green">
                 <div class="stat-label">可调配资金</div>
-                <div class="stat-value">¥{{ formatNum(optimization.transferable_amount) }}</div>
+                <div class="stat-value">{{ formatMoney(optimization.transferable_amount) }}</div>
               </el-card>
             </el-col>
             <el-col :span="6">
               <el-card shadow="hover" class="stat-card gradient-red">
                 <div class="stat-label">资金缺口</div>
-                <div class="stat-value">¥{{ formatNum(optimization.shortfall_amount) }}</div>
+                <div class="stat-value">{{ formatMoney(optimization.shortfall_amount) }}</div>
               </el-card>
             </el-col>
             <el-col :span="6">
@@ -296,25 +296,25 @@
           <!-- 资金调配方案 -->
           <el-card shadow="hover" style="margin-top:16px"><template #header>资金调配方案</template>
             <el-table :data="optimization.adjustments" border stripe max-height="350">
-              <el-table-column label="优先级" width="70" align="center">
+              <el-table-column label="优先级" width="70">
                 <template #default="{ row }"><el-tag :type="row.priority === '高' ? 'danger' : row.priority === '中' ? 'warning' : 'info'" size="small">{{ row.priority }}</el-tag></template>
               </el-table-column>
-              <el-table-column label="方向" width="70" align="center">
+              <el-table-column label="方向" width="70">
                 <template #default="{ row }"><el-tag :type="row.direction === '调入' ? 'success' : 'warning'" effect="dark" size="small">{{ row.direction }}</el-tag></template>
               </el-table-column>
               <el-table-column prop="account_code" label="科目" width="90" />
               <el-table-column prop="account_name" label="名称" width="130" />
               <el-table-column prop="department" label="部门" width="80" />
-              <el-table-column label="当前预算" width="110" align="right">
-                <template #default="{ row }">¥{{ formatNum(row.current_budget) }}</template>
+              <el-table-column label="当前预算" width="110">
+                <template #default="{ row }">{{ formatMoney(row.current_budget) }}</template>
               </el-table-column>
-              <el-table-column label="执行率" width="80" align="center">
+              <el-table-column label="执行率" width="80">
                 <template #default="{ row }">{{ row.execution_rate?.toFixed?.(1) || row.execution_rate }}%</template>
               </el-table-column>
-              <el-table-column label="建议调配" width="120" align="right">
+              <el-table-column label="建议调配" width="120">
                 <template #default="{ row }">
                   <strong :class="row.suggested_amount > 0 ? 'text-green' : 'text-red'">
-                    {{ row.suggested_amount > 0 ? '+' : '' }}¥{{ formatNum(Math.abs(row.suggested_amount)) }}
+                    {{ formatSignedMoney(row.suggested_amount) }}
                   </strong>
                 </template>
               </el-table-column>
@@ -344,7 +344,7 @@
           <el-form :inline="true" class="search-form" >
             <el-form-item label="对比年度">
               <el-date-picker v-model="cmpYear1" type="year" placeholder="第一年" value-format="YYYY" />
-              <span style="margin:0 8px;color:#909399">vs</span>
+              <span style="margin:0 8px;color:var(--color-text-secondary)">vs</span>
               <el-date-picker v-model="cmpYear2" type="year" placeholder="第二年" value-format="YYYY" />
             </el-form-item>
             <el-form-item>
@@ -362,11 +362,11 @@
           <el-row :gutter="20" class="summary-row">
             <el-col :span="6"><el-card shadow="hover" class="stat-card gradient-blue">
               <div class="stat-label">{{ cmpYear1 }}年总预算</div>
-              <div class="stat-value-sm">¥{{ formatNum(comparison.summary?.year1_total_budget) }}</div>
+              <div class="stat-value-sm">{{ formatMoney(comparison.summary?.year1_total_budget) }}</div>
             </el-card></el-col>
             <el-col :span="6"><el-card shadow="hover" class="stat-card gradient-purple">
               <div class="stat-label">{{ cmpYear2 }}年总预算</div>
-              <div class="stat-value-sm">¥{{ formatNum(comparison.summary?.year2_total_budget) }}</div>
+              <div class="stat-value-sm">{{ formatMoney(comparison.summary?.year2_total_budget) }}</div>
             </el-card></el-col>
             <el-col :span="6"><el-card shadow="hover" class="stat-card gradient-green">
               <div class="stat-label">对比科目数</div>
@@ -457,7 +457,7 @@
             <template #header><span class="report-header"><el-icon style="vertical-align: middle; color: var(--color-danger);"><Warning /></el-icon> 异常项清单</span></template>
             <el-table :data="report.report.anomalies" border stripe size="small">
               <el-table-column prop="account" label="科目" min-width="120" />
-              <el-table-column label="严重度" width="80" align="center">
+              <el-table-column label="严重度" width="80">
                 <template #default="{ row }"><el-tag :type="row.severity === '严重' ? 'danger' : row.severity === '警告' ? 'warning' : 'info'" size="small" effect="dark">{{ row.severity }}</el-tag></template>
               </el-table-column>
               <el-table-column prop="issue" label="问题" min-width="200" />
@@ -469,7 +469,7 @@
           <el-card v-if="report.report?.action_plan?.length" shadow="hover" class="report-section">
             <template #header><span class="report-header"><el-icon style="vertical-align: middle;"><List /></el-icon> 行动计划</span></template>
             <el-table :data="report.report.action_plan" border stripe size="small">
-              <el-table-column label="优先级" width="80" align="center">
+              <el-table-column label="优先级" width="80">
                 <template #default="{ row }"><el-tag :type="row.priority === '紧急' ? 'danger' : row.priority === '重要' ? 'warning' : 'info'" size="small" effect="dark">{{ row.priority }}</el-tag></template>
               </el-table-column>
               <el-table-column prop="action" label="行动" min-width="200" />
@@ -494,9 +494,21 @@
 import { ref, onMounted, nextTick, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/services/axiosInstance'
+import { API_CONFIG } from '@/config/app'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MagicStick, Warning, Promotion, TrendCharts, Document } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import {
+  MagicStick,
+  Warning,
+  Promotion,
+  TrendCharts,
+  Document,
+  List,
+  Memo,
+  Stamp,
+  View
+} from '@element-plus/icons-vue'
+import { echarts } from '@/utils/echartsCore'
+import { alphaColor, getCssTokenValue } from '@/utils/designTokens'
 
 const router = useRouter()
 
@@ -510,13 +522,13 @@ const AiThinking = (props) => {
       h('div', { class: 'ai-radar-sweep' }),
       h('div', { class: 'ai-radar-core' }, [
         h('div', { class: 'ai-radar-icon' }, [
-          h('svg', { viewBox: '0 0 24 24', width: '28', height: '28', fill: 'none', stroke: '#409eff', 'stroke-width': '1.5', 'stroke-linecap': 'round' }, [
+          h('svg', { viewBox: '0 0 24 24', width: '28', height: '28', fill: 'none', stroke: 'var(--color-primary)', 'stroke-width': '1.5', 'stroke-linecap': 'round' }, [
             h('path', { d: 'M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11h2a3 3 0 0 1 3 3v1' }),
             h('path', { d: 'M8 6a4 4 0 0 1 4-4' }),
             h('path', { d: 'M5 14a3 3 0 0 1 3-3h2V9.5A4 4 0 0 1 8 6' }),
             h('path', { d: 'M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3' }),
-            h('circle', { cx: '9', cy: '17', r: '1', fill: '#409eff', stroke: 'none' }),
-            h('circle', { cx: '15', cy: '17', r: '1', fill: '#409eff', stroke: 'none' }),
+            h('circle', { cx: '9', cy: '17', r: '1', fill: 'var(--color-primary)', stroke: 'none' }),
+            h('circle', { cx: '15', cy: '17', r: '1', fill: 'var(--color-primary)', stroke: 'none' }),
           ]),
         ]),
       ]),
@@ -545,7 +557,7 @@ UsageBadge.props = ['usage']
 
 // ==================== 状态 ====================
 const activeTab = ref('recommendation')
-const AI_TIMEOUT = { timeout: 120000 }
+const AI_TIMEOUT = { timeout: API_CONFIG.longTimeoutMs }
 const loading = ref({ recommendation: false, anomalies: false, optimization: false, comparison: false, report: false, createBudget: false })
 const budgetList = ref([])
 const usageStats = ref({ call_count: 0, total_tokens: 0 })
@@ -574,7 +586,25 @@ const sankeyChart = ref(null)
 const comparisonBarChart = ref(null)
 
 // ==================== 工具函数 ====================
-const formatNum = (val) => parseFloat(val || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const isBlankAmount = (val) => val === null || val === undefined || val === ''
+const toNumberOrNull = (val) => {
+  if (isBlankAmount(val)) return null
+  const number = Number(val)
+  return Number.isNaN(number) ? null : number
+}
+const formatNum = (val) => {
+  const number = toNumberOrNull(val)
+  return number === null ? '-' : number.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+const formatMoney = (val) => {
+  const text = formatNum(val)
+  return text === '-' ? text : `¥${text}`
+}
+const formatSignedMoney = (val) => {
+  const number = toNumberOrNull(val)
+  if (number === null) return '-'
+  return `${number > 0 ? '+' : ''}${formatMoney(number)}`
+}
 const formatTokens = (n) => n >= 10000 ? (n / 10000).toFixed(1) + '万' : n
 
 const fetchUsageStats = async () => {
@@ -607,8 +637,8 @@ const renderRecCharts = () => {
         xAxis: { type: 'category', data: recs.map(r => r.account_name), axisLabel: { rotate: 30, fontSize: 11 } },
         yAxis: { type: 'value', axisLabel: { formatter: v => '¥' + (v >= 10000 ? (v/10000).toFixed(0) + '万' : v) } },
         series: [
-          { name: '建议预算', type: 'bar', data: recs.map(r => r.recommended_budget), itemStyle: { color: 'var(--color-primary)', borderRadius: [4,4,0,0] } },
-          { name: '历史均值', type: 'bar', data: recs.map(r => r.historical_avg || 0), itemStyle: { color: 'var(--color-warning)', borderRadius: [4,4,0,0] } },
+          { name: '建议预算', type: 'bar', data: recs.map(r => r.recommended_budget), itemStyle: { color: getCssTokenValue('primary'), borderRadius: [4,4,0,0] } },
+          { name: '历史均值', type: 'bar', data: recs.map(r => r.historical_avg || 0), itemStyle: { color: getCssTokenValue('warning'), borderRadius: [4,4,0,0] } },
         ],
       })
     }
@@ -621,7 +651,7 @@ const renderRecCharts = () => {
           type: 'pie', radius: ['35%', '65%'], center: ['50%', '50%'],
           label: { formatter: '{b}\n{d}%', fontSize: 11 },
           data: recs.map(r => ({ name: r.account_name, value: r.recommended_budget })),
-          emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },
+          emphasis: { itemStyle: { shadowBlur: 10, shadowColor: alphaColor('textPrimary', 0.3) } },
         }],
       })
     }
@@ -635,10 +665,10 @@ const renderAnomalyChart = () => {
     const chart = initChart(anomalyScatterChart.value)
     if (!chart) return
     chart.setOption({
-      tooltip: { formatter: p => `${p.data[3]}<br>预算: ¥${formatNum(p.data[0])}<br>执行率: ${p.data[1]}%<br>部门: ${p.data[2]}` },
+      tooltip: { formatter: p => `${p.data[3]}<br>预算: ${formatMoney(p.data[0])}<br>执行率: ${p.data[1]}%<br>部门: ${p.data[2]}` },
       xAxis: { name: '预算金额', type: 'value', axisLabel: { formatter: v => '¥' + (v >= 10000 ? (v/10000).toFixed(0)+'万' : v) } },
       yAxis: { name: '执行率(%)', type: 'value' },
-      visualMap: { min: 0, max: 150, dimension: 1, inRange: { color: ['#67c23a', '#e6a23c', '#f56c6c'] }, show: false },
+      visualMap: { min: 0, max: 150, dimension: 1, inRange: { color: [getCssTokenValue('success'), getCssTokenValue('warning'), getCssTokenValue('danger')] }, show: false },
       series: [{ type: 'scatter', symbolSize: 14, data: scatter.map(d => [d.budget, d.rate, d.department, d.name]) }],
     })
   })
@@ -654,7 +684,7 @@ const renderHealthGauge = () => {
       series: [{
         type: 'gauge', radius: '90%', startAngle: 200, endAngle: -20,
         min: 0, max: 100,
-        axisLine: { lineStyle: { width: 15, color: [[0.3, '#f56c6c'], [0.5, '#e6a23c'], [0.7, '#409eff'], [1, '#67c23a']] } },
+        axisLine: { lineStyle: { width: 15, color: [[0.3, getCssTokenValue('danger')], [0.5, getCssTokenValue('warning')], [0.7, getCssTokenValue('primary')], [1, getCssTokenValue('success')]] } },
         axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
         pointer: { width: 4, length: '60%' },
         detail: { formatter: `${score}\n${optimization.value.health_level}`, fontSize: 16, offsetCenter: [0, '60%'], color: 'auto' },
@@ -671,7 +701,7 @@ const renderSankeyChart = () => {
     const chart = initChart(sankeyChart.value)
     if (!chart) return
     chart.setOption({
-      tooltip: { trigger: 'item', formatter: p => p.dataType === 'edge' ? `${p.data.source} → ${p.data.target}: ¥${formatNum(p.data.value)}` : p.name },
+      tooltip: { trigger: 'item', formatter: p => p.dataType === 'edge' ? `${p.data.source} → ${p.data.target}: ${formatMoney(p.data.value)}` : p.name },
       series: [{
         type: 'sankey', layout: 'none', emphasis: { focus: 'adjacency' },
         nodeAlign: 'left', orient: 'horizontal',
@@ -696,10 +726,10 @@ const renderComparisonChart = () => {
       xAxis: { type: 'category', data: data.map(d => d.name), axisLabel: { rotate: 30, fontSize: 11 } },
       yAxis: { type: 'value', axisLabel: { formatter: v => '¥' + (v >= 10000 ? (v/10000).toFixed(0)+'万' : v) } },
       series: [
-        { name: `${cmpYear1.value}预算`, type: 'bar', data: data.map(d => d.y1_budget || 0), itemStyle: { color: 'var(--color-primary)' } },
-        { name: `${cmpYear1.value}实际`, type: 'bar', data: data.map(d => d.y1_used || 0), itemStyle: { color: '#a0cfff' } },
-        { name: `${cmpYear2.value}预算`, type: 'bar', data: data.map(d => d.y2_budget || 0), itemStyle: { color: 'var(--color-success)' } },
-        { name: `${cmpYear2.value}实际`, type: 'bar', data: data.map(d => d.y2_used || 0), itemStyle: { color: '#b3e19d' } },
+        { name: `${cmpYear1.value}预算`, type: 'bar', data: data.map(d => d.y1_budget || 0), itemStyle: { color: getCssTokenValue('primary') } },
+        { name: `${cmpYear1.value}实际`, type: 'bar', data: data.map(d => d.y1_used || 0), itemStyle: { color: getCssTokenValue('border') } },
+        { name: `${cmpYear2.value}预算`, type: 'bar', data: data.map(d => d.y2_budget || 0), itemStyle: { color: getCssTokenValue('success') } },
+        { name: `${cmpYear2.value}实际`, type: 'bar', data: data.map(d => d.y2_used || 0), itemStyle: { color: getCssTokenValue('borderLight') } },
       ],
     })
   })
@@ -731,7 +761,7 @@ const createBudgetFromAI = async () => {
   }
   try {
     await ElMessageBox.confirm(
-      `将为 ${recYear.value} 年创建预算，包含 ${selectedRecs.value.length} 个科目，总金额 ¥${formatNum(selectedRecs.value.reduce((s, r) => s + (parseFloat(r.recommended_budget) || 0), 0))}`,
+      `将为 ${recYear.value} 年创建预算，包含 ${selectedRecs.value.length} 个科目，总金额 ${formatMoney(selectedRecs.value.reduce((s, r) => s + (parseFloat(r.recommended_budget) || 0), 0))}`,
       '确认生成预算',
       { type: 'info', confirmButtonText: '生成预算', cancelButtonText: '取消' }
     )
@@ -832,9 +862,9 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 
 /* ===== 标签页（CostSettings风格：圆角+渐变+hover） ===== */
 .ai-tabs {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent);
   border: none;
   overflow: hidden;
 }
@@ -851,13 +881,13 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
   font-size: 14px;
   height: auto;
   line-height: 1.5;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 .ai-tabs :deep(.el-tabs__item:hover) {
-  background: rgba(64, 158, 255, 0.05);
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
 }
 .ai-tabs :deep(.el-tabs__item.is-active) {
-  background: white;
+  background: var(--color-bg-base);
   color: var(--color-primary) !important;
   font-weight: 600;
 }
@@ -869,8 +899,8 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 /* ===== 统计卡片 ===== */
 .summary-row { margin-bottom: 16px; }
 .summary-row :deep(.el-col) { display: flex; }
-.stat-card { text-align: center; padding: 16px; border-radius: 8px !important; transition: all .3s; width: 100%; box-shadow: 0 2px 12px 0 rgba(0,0,0,.05) !important; display: flex; flex-direction: column; justify-content: center; min-height: 110px; }
-.stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1) !important; transform: translateY(-2px); }
+.stat-card { text-align: center; padding: 16px; border-radius: 8px !important; transition: border-color .2s ease, background-color .2s ease; width: 100%; box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent) !important; display: flex; flex-direction: column; justify-content: center; min-height: 110px; }
+.stat-card:hover { box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent) !important; transform: none; background: var(--color-bg-section); }
 .stat-label { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 8px; }
 .stat-value { font-size: 24px; font-weight: 700; color: var(--color-text-primary); }
 .stat-value small { font-size: 14px; font-weight: 400; color: var(--color-text-secondary); margin-left: 2px; }
@@ -878,15 +908,15 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 .ai-model-tag { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
 
 /* ===== 渐变卡片 ===== */
-.gradient-blue { border-top: 3px solid #409eff; }
+.gradient-blue { border-top: 3px solid var(--color-primary); }
 .gradient-blue .stat-value { color: var(--color-primary); }
-.gradient-purple { border-top: 3px solid #9b59b6; }
-.gradient-purple .stat-value { color: #9b59b6; }
-.gradient-green { border-top: 3px solid #67c23a; }
+.gradient-purple { border-top: 3px solid var(--color-info); }
+.gradient-purple .stat-value { color: var(--color-info); }
+.gradient-green { border-top: 3px solid var(--color-success); }
 .gradient-green .stat-value { color: var(--color-success); }
-.gradient-orange { border-top: 3px solid #e6a23c; }
+.gradient-orange { border-top: 3px solid var(--color-warning); }
 .gradient-orange .stat-value { color: var(--color-warning); }
-.gradient-red { border-top: 3px solid #f56c6c; }
+.gradient-red { border-top: 3px solid var(--color-danger); }
 .gradient-red .stat-value { color: var(--color-danger); }
 
 /* ===== 颜色工具 ===== */
@@ -904,8 +934,8 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
   display: flex; align-items: center; justify-content: center;
   flex-direction: column; padding: 50px 20px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #f0f7ff 0%, #e8f2ff 50%, #f5f9ff 100%);
-  border: 1px solid #d9ecff;
+  background: linear-gradient(135deg, var(--ds-blue-bg) 0%, var(--ds-blue-bg) 50%, var(--ds-blue-bg) 100%);
+  border: 1px solid var(--color-primary-light-8);
   min-height: 240px;
   gap: 28px;
 }
@@ -918,25 +948,25 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 .ai-radar-ring {
   position: absolute; inset: 0;
   border-radius: 50%;
-  border: 2px solid rgba(64, 158, 255, 0.15);
+  border: 2px solid color-mix(in srgb, var(--color-primary) 15%, transparent);
   animation: radar-spin 6s linear infinite;
 }
 .ai-radar-ring::before {
   content: ''; position: absolute;
   top: -2px; left: 50%; width: 8px; height: 8px;
-  background: #409eff; border-radius: 50%;
+  background: var(--color-primary); border-radius: 50%;
   transform: translateX(-50%);
-  box-shadow: 0 0 12px rgba(64,158,255,0.6);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-primary) 60%, transparent);
 }
 .ai-radar-ring-2 {
   inset: 10px;
-  border-color: rgba(64, 158, 255, 0.25);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
   animation-direction: reverse;
   animation-duration: 4s;
 }
 .ai-radar-ring-2::before {
-  background: #67c23a;
-  box-shadow: 0 0 12px rgba(103,194,58,0.6);
+  background: var(--color-success);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-success) 60%, transparent);
 }
 @keyframes radar-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
@@ -944,23 +974,23 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 .ai-radar-sweep {
   position: absolute; inset: 0;
   border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(64,158,255,0.12) 60deg, transparent 120deg);
+  background: conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--color-primary) 12%, transparent) 60deg, transparent 120deg);
   animation: radar-spin 3s linear infinite;
 }
 
 /* 中心核心 */
 .ai-radar-core {
   width: 44px; height: 44px; border-radius: 50%;
-  background: white;
+  background: var(--color-bg-base);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 2px 16px rgba(64,158,255,0.2);
+  box-shadow: 0 2px 16px color-mix(in srgb, var(--color-primary) 20%, transparent);
   z-index: 2;
   animation: core-breathe 2s ease-in-out infinite;
 }
 .ai-radar-icon { display: flex; align-items: center; justify-content: center; }
 @keyframes core-breathe {
-  0%, 100% { box-shadow: 0 2px 16px rgba(64,158,255,0.2); }
-  50% { box-shadow: 0 2px 24px rgba(64,158,255,0.4), 0 0 40px rgba(64,158,255,0.1); }
+  0%, 100% { box-shadow: 0 2px 16px color-mix(in srgb, var(--color-primary) 20%, transparent); }
+  50% { box-shadow: 0 2px 24px color-mix(in srgb, var(--color-primary) 40%, transparent), 0 0 40px color-mix(in srgb, var(--color-primary) 10%, transparent); }
 }
 
 /* 文字区 */
@@ -978,12 +1008,12 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 /* 进度条 */
 .ai-progress-bar {
   width: 200px; height: 3px; border-radius: 3px;
-  background: rgba(64,158,255,0.12);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   margin-top: 4px; overflow: hidden;
 }
 .ai-progress-fill {
   width: 40%; height: 100%; border-radius: 3px;
-  background: linear-gradient(90deg, #409eff, #67c23a);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-success));
   animation: progress-slide 2s ease-in-out infinite;
 }
 @keyframes progress-slide {
@@ -993,7 +1023,7 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 }
 
 /* ===== Token 用量徽章 ===== */
-.usage-badge { display: inline-flex; gap: 8px; font-size: 12px; color: var(--color-primary); background: var(--color-primary-light-9); padding: 4px 12px; border-radius: 12px; border: 1px solid #d9ecff; }
+.usage-badge { display: inline-flex; gap: 8px; font-size: 12px; color: var(--color-primary); background: var(--color-primary-light-9); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--color-primary-light-8); }
 
 /* ===== 提示卡片 ===== */
 .tip-card { border-radius: 4px !important; }
@@ -1010,7 +1040,7 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 /* ===== 战略建议卡片（等高） ===== */
 .suggestion-card { height: 100%; display: flex; flex-direction: column; }
 .suggestion-card :deep(.el-card__body) { flex: 1; display: flex; flex-direction: column; }
-.suggestion-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #f0f2f5; }
+.suggestion-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--color-bg-hover); }
 .suggestion-title { font-weight: 600; color: var(--color-text-primary); font-size: 15px; }
 .suggestion-content { color: var(--color-text-regular); font-size: 13px; line-height: 1.7; margin: 0; flex: 1; }
 
@@ -1030,5 +1060,5 @@ onMounted(() => { fetchBudgetList(); fetchUsageStats() })
 .metric-value { font-size: 16px; font-weight: 700; }
 
 /* ===== 表格 ===== */
-.ai-tabs :deep(.el-table th) { background: #f8f9fb !important; font-weight: 600; font-size: 13px; }
+.ai-tabs :deep(.el-table th) { background: var(--color-bg-section) !important; font-weight: 600; font-size: 13px; }
 </style>

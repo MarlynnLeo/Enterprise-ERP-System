@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * RequisitionDetail.vue - 采购申请详情
  * @description 采购申请单详情页面 - 对齐网页端操作逻辑
@@ -84,6 +84,7 @@
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/services/api'
+  import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()
   const router = useRouter()
@@ -108,7 +109,7 @@
   const loadDetail = async () => {
     try {
       const response = await purchaseApi.getRequisition(route.params.id)
-      detail.value = response.data?.data || response.data || response
+      detail.value = extractApiData(response, null)
     } catch (error) {
       console.error('加载采购申请详情失败:', error)
       showToast('加载详情失败')
@@ -167,7 +168,7 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--van-background-2);
   }
   .content-container {

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="module-page base-data-list-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -12,13 +12,16 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="搜索">
-          <el-input v-model="keyword" placeholder="编号/标题" clearable @keyup.enter="fetchList">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
+    <FinanceQueryCard
+      @search="fetchList"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="变更标题">
+          <el-input v-model="keyword" placeholder="变更标题" clearable @keyup.enter="fetchList" />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="状态">
           <el-select v-model="filterStatus" placeholder="全部" clearable @change="fetchList">
             <el-option label="草稿" value="draft" /><el-option label="待审批" value="pending_approval" />
@@ -26,11 +29,8 @@
             <el-option label="已完成" value="completed" /><el-option label="已拒绝" value="rejected" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchList">查询</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 数据表格 -->
     <el-card class="data-card">
@@ -54,7 +54,7 @@
       </el-table-column>
       <el-table-column prop="requested_by_name" label="申请人" width="100" />
       <el-table-column prop="effective_date" label="生效日期" width="110" />
-      <el-table-column label="操作" width="280" fixed="right">
+      <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button link type="primary" @click="viewDetail(row)">详情</el-button>
           <!-- 草稿 → 提交审批 -->
@@ -209,7 +209,7 @@
               <span v-else>{{ row.new_value }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isEditable" label="操作" width="60">
+          <el-table-column v-if="isEditable" label="操作" width="60" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
               <el-button link type="danger" size="small" @click="removeItem($index)">删除</el-button>
             </template>
@@ -231,7 +231,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
 import { ecnApi } from '@/api/enhanced'
 import { baseDataApi } from '@/api/baseData'
 import { bomApi } from '@/api/bom'
@@ -357,6 +356,13 @@ const fetchList = async () => {
   finally { loading.value = false }
 }
 
+const resetSearch = () => {
+  keyword.value = ''
+  filterStatus.value = ''
+  page.value = 1
+  fetchList()
+}
+
 // 新建表单
 const openForm = () => {
   formData.value = { type: 'ecn', priority: 'medium', title: '', reason: '', items: [] }
@@ -449,7 +455,3 @@ const removeItem = (index) => {
 
 onMounted(fetchList)
 </script>
-
-<style scoped>
-/* 页面专属样式已由 common-styles.css 统一提供 */
-</style>

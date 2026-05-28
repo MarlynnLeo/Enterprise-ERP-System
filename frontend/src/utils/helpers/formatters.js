@@ -70,7 +70,7 @@ export function formatDateTime(date) {
  * @returns {string} 格式化后的金额字符串
  */
 export function formatCurrency(amount, currency = '￥', decimals = 2) {
-  if (amount === null || amount === undefined || isNaN(amount)) return '';
+  if (amount === null || amount === undefined || amount === '' || isNaN(amount)) return '-';
   const num = Number(amount);
   const abs = Math.abs(num);
   const sign = num < 0 ? '-' : '';

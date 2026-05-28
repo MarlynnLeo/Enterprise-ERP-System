@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Depreciation.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="depreciation-container">
+  <div class="module-page depreciation-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -26,8 +26,15 @@
     </el-card>
 
     <!-- 搜索表单 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" ref="searchFormRef" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="calculateDepreciation"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="计提年月" prop="depreciationDate" required>
           <el-date-picker
             v-model="searchForm.depreciationDate"
@@ -37,6 +44,8 @@
             value-format="YYYY-MM"
           ></el-date-picker>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="资产类别">
           <el-select v-model="searchForm.categoryId" placeholder="选择资产类别" clearable>
             <el-option
@@ -57,8 +66,8 @@
             ></el-option>
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row" v-if="hasDepreciation">
@@ -111,7 +120,7 @@
         show-summary
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="45" :selectable="row => row.depreciationAmount > 0 && !row.submitted"></el-table-column>
+        <el-table-column type="selection" width="45" :selectable="row => row.depreciationAmount> 0 && !row.submitted"></el-table-column>
         <el-table-column type="expand" width="55">
           <template #default="scope">
             <div class="asset-details">
@@ -136,24 +145,24 @@
         </el-table-column>
         <el-table-column prop="department" label="使用部门" width="110" show-overflow-tooltip></el-table-column>
         <el-table-column prop="purchaseDate" label="购入日期" width="100"></el-table-column>
-        <el-table-column prop="originalValue" label="原值" width="110" align="right">
+        <el-table-column prop="originalValue" label="原值" width="110">
           <template #default="scope">
             {{ formatCurrency(scope.row.originalValue) }}
           </template>
         </el-table-column>
-        <el-table-column prop="netValueBefore" label="计提前净值" width="110" align="right">
+        <el-table-column prop="netValueBefore" label="计提前净值" width="110">
           <template #default="scope">
             {{ formatCurrency(scope.row.netValueBefore) }}
           </template>
         </el-table-column>
-        <el-table-column prop="depreciationAmount" label="折旧额" width="120" align="right">
+        <el-table-column prop="depreciationAmount" label="折旧额" width="120">
           <template #default="scope">
             <span :class="{ 'zero-value': scope.row.depreciationAmount <= 0 }">
               {{ formatCurrency(scope.row.depreciationAmount) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="netValueAfter" label="计提后净值" width="120" align="right">
+        <el-table-column prop="netValueAfter" label="计提后净值" width="120">
           <template #default="scope">
             {{ formatCurrency(scope.row.netValueAfter) }}
           </template>
@@ -183,7 +192,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="90" fixed="right" align="center">
+        <el-table-column label="操作" width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               v-if="scope.row.depreciationAmount > 0 && !scope.row.submitted"
@@ -221,13 +230,16 @@
   </div>
 </template>
 <script setup>
-import { parseListData } from '@/utils/responseParser';
-import { formatCurrency } from '@/utils/format'
+import { parseListData, parseResponseData } from '@/utils/responseParser';
+import { formatCurrency, formatLocalMonth } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '../../../services/api';
+import { buildApiUrl } from '@/config/app';
+import { loadDepartmentOptions as loadCachedDepartmentOptions } from '@/utils/optionLoaders';
 // 数据加载状态
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 const savingDepreciation = ref(false);
 // 对话框状态
 const confirmDialogVisible = ref(false);
@@ -241,14 +253,16 @@ const depreciationSubmitted = ref(false);
 const selectedAssets = ref([]);
 const depTableRef = ref(null);
 const pendingSubmitAssets = ref([]);
+const getDefaultDepreciationMonth = () => {
+  const date = new Date();
+  date.setMonth(date.getMonth() - 1);
+  return formatLocalMonth(date);
+};
+
 // 搜索表单
 const searchForm = reactive({
   // 默认设置为上个月而不是当前月，避免使用未来日期
-  depreciationDate: (() => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - 1); // 上个月
-    return date.toISOString().slice(0, 7); // 格式为YYYY-MM
-  })(),
+  depreciationDate: getDefaultDepreciationMonth(),
   categoryId: '',
   department: ''
 });
@@ -266,6 +280,15 @@ const hasDepreciation = computed(() => assetsList.value.length > 0);
 const pendingSubmitTotal = computed(() =>
   pendingSubmitAssets.value.reduce((sum, a) => sum + a.depreciationAmount, 0)
 );
+
+const resetSearch = () => {
+  searchForm.depreciationDate = getDefaultDepreciationMonth();
+  searchForm.categoryId = '';
+  searchForm.department = '';
+  assetsList.value = [];
+  filteredAssetsList.value = [];
+  selectedAssets.value = [];
+};
 import { getAssetStatusText, getAssetStatusColor } from '@/constants/systemConstants'
 // 获取状态类型
 const getStatusType = (status) => {
@@ -314,250 +337,27 @@ const calculateDepreciation = async () => {
   depreciationSubmitted.value = false;
 
   try {
-    ElMessage.info('正在获取资产数据并计算折旧...');
-    // 获取在用资产列表
-    const response = await api.get('/finance/assets', {
+    ElMessage.info('正在由服务端试算折旧...');
+    const response = await api.get('/finance/assets/depreciation/calculate', {
       params: {
+        depreciationDate: searchForm.depreciationDate,
         categoryId: searchForm.categoryId || '',
-        department: searchForm.department || '',
-        status: '在用', // 只获取在用的资产
-        pageSize: 1000 // 获取足够多的资产
+        department: searchForm.department || ''
       }
     });
-    // 使用统一响应解析器
-    const assets = parseListData(response, { enableLog: false });
-    if (assets.length === 0) {
+    const calculatedAssets = parseResponseData(response, []);
+    if (!Array.isArray(calculatedAssets) || calculatedAssets.length === 0) {
       ElMessage.warning('没有找到符合条件的资产');
       loading.value = false;
       return;
     }
-
-    // 前端计算折旧逻辑
-    // 映射字段名称以适应后端返回的不同字段格式
-    const fieldMapping = {
-      id: ['id', 'asset_id'],
-      assetCode: ['assetCode', 'asset_code', 'code'],
-      assetName: ['assetName', 'asset_name', 'name'],
-      originalValue: ['originalValue', 'acquisition_cost', 'acquisitionCost', 'original_value'],
-      netValue: ['netValue', 'current_value', 'currentValue', 'net_value'],
-      accumulatedDepreciation: ['accumulatedDepreciation', 'accumulated_depreciation'],
-      depreciationMethod: ['depreciationMethod', 'depreciation_method', 'method'],
-      salvageRate: ['salvageRate', 'salvage_rate'],
-      salvageValue: ['salvageValue', 'salvage_value'],
-      usefulLife: ['usefulLife', 'useful_life'],
-      department: ['department', 'department_name', 'departmentName'],
-      location: ['location', 'location_name', 'locationName'],
-      purchaseDate: ['purchaseDate', 'acquisition_date', 'acquisitionDate', 'purchase_date'],
-      status: ['status']
-    };
-
-    // 获取资产的字段值，适应不同的字段名称
-    const getFieldValue = (asset, fieldNames) => {
-      for (const name of fieldNames) {
-        if (asset[name] !== undefined) {
-          return asset[name];
-        }
-      }
-      return undefined;
-    };
-
-    // 为每个资产计算折旧
-    const calculatedAssets = assets.map(asset => {
-      try {
-        const id = getFieldValue(asset, fieldMapping.id);
-        const assetCode = getFieldValue(asset, fieldMapping.assetCode);
-        const assetName = getFieldValue(asset, fieldMapping.assetName);
-        let originalValue = parseFloat(getFieldValue(asset, fieldMapping.originalValue) || 0);
-        const currentValue = parseFloat(getFieldValue(asset, fieldMapping.netValue) || 0);
-        const accumulatedDepreciation = parseFloat(getFieldValue(asset, fieldMapping.accumulatedDepreciation) || 0);
-        let depreciationMethod = getFieldValue(asset, fieldMapping.depreciationMethod);
-        const salvageValue = parseFloat(getFieldValue(asset, fieldMapping.salvageValue) || 0);
-        const salvageRate = parseFloat(getFieldValue(asset, fieldMapping.salvageRate) || 0);
-        let usefulLife = parseInt(getFieldValue(asset, fieldMapping.usefulLife) || 0);
-        const department = getFieldValue(asset, fieldMapping.department);
-        const location = getFieldValue(asset, fieldMapping.location);
-        const status = getFieldValue(asset, fieldMapping.status);
-        const purchaseDate = getFieldValue(asset, fieldMapping.purchaseDate);
-
-        // 尝试获取资产类别信息
-        let categoryName = asset.categoryName || asset.category_name || '';
-        const categoryId = asset.categoryId || asset.category_id;
-
-        // 如果有类别ID但没有类别名称，从分类列表中查找
-        let category = null;
-        if (categoryId && categoryOptions.value.length > 0) {
-          category = categoryOptions.value.find(c => c.id == categoryId);
-          if (category && !categoryName) {
-            categoryName = category.name;
-          }
-        }
-
-        // 尝试从类别获取缺失的属性
-        if (category) {
-          // 如果资产没有使用年限，使用类别的默认使用年限
-          if (!usefulLife && category.default_useful_life) {
-            usefulLife = parseInt(category.default_useful_life);
-            }
-
-          // 如果资产没有折旧方法，使用类别的默认折旧方法
-          if (!depreciationMethod && category.default_depreciation_method) {
-            depreciationMethod = category.default_depreciation_method;
-            }
-        }
-
-        // 为缺失的关键值设置默认值
-        if (!usefulLife) {
-          usefulLife = 5; // 默认5年
-          }
-
-        if (!depreciationMethod) {
-          depreciationMethod = 'straight_line'; // 默认直线法
-          }
-
-        // 检查净值和原值
-        if (originalValue <= 0 && currentValue > 0) {
-          originalValue = currentValue;
-        }
-
-        // 如果原值为0，标记为无需计提折旧
-        if (originalValue <= 0) {
-          return {
-            id,
-            assetCode,
-            assetName,
-            originalValue: 0,
-            netValueBefore: 0,
-            depreciationAmount: 0,
-            netValueAfter: 0,
-            usedMonths: 0,
-            usefulLife,
-            salvageRate: salvageRate || (salvageValue > 0 ? (salvageValue / originalValue * 100) : 5), // 默认5%
-            depreciationMethod,
-            department,
-            location,
-            status,
-            purchaseDate,
-            categoryName
-          };
-        }
-
-        // 计算已使用月份数
-        let usedMonths = 0;
-        if (purchaseDate) {
-          const purchaseDateObj = new Date(purchaseDate);
-          if (!isNaN(purchaseDateObj.getTime())) {
-            const depreciationDate = new Date(`${searchForm.depreciationDate}-01`);
-            usedMonths = (depreciationDate.getFullYear() - purchaseDateObj.getFullYear()) * 12 +
-                        (depreciationDate.getMonth() - purchaseDateObj.getMonth());
-          } else {
-          }
-        } else {
-          usedMonths = 12; // 假设已使用1年
-        }
-
-        // 使用资产当前净值，如果当前净值不存在，则用原值减去累计折旧
-        const netValueBefore = currentValue > 0 ? currentValue : (originalValue - accumulatedDepreciation);
-
-        // 计算折旧额
-        let depreciationAmount = 0;
-        let netValueAfter = netValueBefore;
-
-        // 如果净值为0或者负数，或者已经超过使用年限，不计提折旧
-        if (netValueBefore <= 0 || usedMonths >= usefulLife * 12) {
-          depreciationAmount = 0;
-          } else if (depreciationMethod === 'no_depreciation' || depreciationMethod === '不计提') {
-          // 不计提折旧
-          depreciationAmount = 0;
-          } else {
-          // 根据折旧方法计算
-          try {
-            const effectiveSalvageRate = salvageValue > 0 ?
-              (salvageValue / originalValue) :
-              (salvageRate > 0 ? salvageRate / 100 : 0.05); // 默认5%残值率
-            const residualValue = originalValue * effectiveSalvageRate; // 残值
-
-            if (depreciationMethod === '直线法' || depreciationMethod === 'straight_line' || depreciationMethod.includes('线性')) {
-              // 直线法：(原值 - 残值) / 使用年限 / 12
-              const monthlyDepreciation = (originalValue - residualValue) / (usefulLife * 12);
-              depreciationAmount = Math.round(monthlyDepreciation * 100) / 100;
-            } else if (depreciationMethod === '双倍余额递减法' || depreciationMethod === 'double_declining' || depreciationMethod.includes('递减')) {
-              const totalMonths = usefulLife * 12;
-              const remainingMonths = totalMonths - usedMonths;
-              if (remainingMonths <= 24) {
-                // 最后两年改用直线法：(净值 - 残值) / 剩余月数
-                const monthlyDepreciation = Math.max(0, (netValueBefore - residualValue)) / remainingMonths;
-                depreciationAmount = Math.round(monthlyDepreciation * 100) / 100;
-              } else {
-                // 双倍余额递减法：净值 * 2 / 使用年限 / 12
-                const monthlyDepreciation = netValueBefore * 2 / totalMonths;
-                depreciationAmount = Math.round(monthlyDepreciation * 100) / 100;
-              }
-            } else if (depreciationMethod === '年数总和法' || depreciationMethod === 'sum_of_years') {
-              // 年数总和法
-              const totalYears = usefulLife;
-              const currentYear = Math.floor(usedMonths / 12) + 1;
-              const sumOfYears = totalYears * (totalYears + 1) / 2;
-              const remainingYears = totalYears - currentYear + 1;
-              const yearlyDepreciation = (originalValue - residualValue) * remainingYears / sumOfYears;
-              depreciationAmount = Math.round((yearlyDepreciation / 12) * 100) / 100;
-            } else {
-              // 默认按直线法（安全兜底）
-              const monthlyDepreciation = (originalValue - residualValue) / (usefulLife * 12);
-              depreciationAmount = Math.round(monthlyDepreciation * 100) / 100;
-            }
-
-            // 确保折旧后净值不低于残值
-            if (netValueBefore - depreciationAmount < residualValue) {
-              depreciationAmount = Math.max(0, Math.round((netValueBefore - residualValue) * 100) / 100);
-            }
-
-            // 计算计提后净值
-            netValueAfter = Math.max(residualValue, netValueBefore - depreciationAmount);
-          } catch (error) {
-            console.error(`计算资产 ${assetCode || id} 折旧时出错:`, error);
-            depreciationAmount = 0;
-          }
-        }
-
-        return {
-          id,
-          assetCode,
-          assetName,
-          originalValue,
-          netValueBefore,
-          depreciationAmount,
-          netValueAfter,
-          usedMonths,
-          usefulLife,
-          salvageRate: salvageRate || (salvageValue > 0 ? (salvageValue / originalValue * 100) : 5), // 默认5%
-          depreciationMethod,
-          department,
-          location,
-          status,
-          purchaseDate,
-          categoryName
-        };
-      } catch (calcError) {
-        console.error(`计算资产折旧出错 (${asset.assetCode || asset.asset_code || asset.id}):`, calcError);
-        return {
-          ...asset,
-          id: asset.id,
-          assetCode: asset.assetCode || asset.asset_code,
-          assetName: asset.assetName || asset.asset_name,
-          originalValue: parseFloat(asset.originalValue || asset.acquisition_cost || 0),
-          netValueBefore: parseFloat(asset.netValue || asset.current_value || 0),
-          depreciationAmount: 0,
-          netValueAfter: parseFloat(asset.netValue || asset.current_value || 0)
-        };
-      }
-    });
 
     // 先检查该月份是否已经计提过（在渲染表格前完成，避免视觉闪烁）
     try {
       const depCheckRes = await api.get(`/finance/assets/depreciation/records`, {
         params: { depreciationDate: searchForm.depreciationDate }
       });
-      const records = depCheckRes.data?.data || depCheckRes.data || [];
+      const records = parseResponseData(depCheckRes, []);
       if (Array.isArray(records) && records.length > 0) {
         depreciationSubmitted.value = true;
       }
@@ -701,8 +501,12 @@ const exportData = () => {
   }
 
   // 使用环境变量配置的API基础URL，默认为相对路径
-  const baseURL = import.meta.env.VITE_API_URL || '';
-  window.open(`${baseURL}/api/finance/assets/depreciation/export?depreciationDate=${searchForm.depreciationDate}&categoryId=${searchForm.categoryId || ''}&department=${searchForm.department || ''}`);
+  const params = new URLSearchParams({
+    depreciationDate: searchForm.depreciationDate,
+    categoryId: searchForm.categoryId || '',
+    department: searchForm.department || ''
+  });
+  window.open(buildApiUrl(`/finance/assets/depreciation/export?${params.toString()}`));
 };
 // 表格合计行
 const getSummaries = (param) => {
@@ -746,8 +550,7 @@ const loadCategoryOptions = async () => {
 // 加载部门选项
 const loadDepartmentOptions = async () => {
   try {
-    const response = await api.get(`/system/departments/list`);
-    departmentOptions.value = parseListData(response, { enableLog: false }).filter(item => item);
+    departmentOptions.value = (await loadCachedDepartmentOptions()).filter(item => item);
   } catch (error) {
     console.error('加载部门列表失败:', error);
     ElMessage.error('加载部门列表失败');

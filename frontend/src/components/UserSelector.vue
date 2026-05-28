@@ -1,13 +1,12 @@
 <!--
 /**
  * UserSelector.vue
- * @description 用户选择器组件，支持按用户和部门选择
+ * @description 用户与部门选择组件
  */
 -->
 <template>
   <div class="user-selector">
     <el-tabs v-model="activeTab">
-      <!-- 按用户选择 -->
       <el-tab-pane label="选择用户" name="users">
         <el-select
           v-model="selectedUsers"
@@ -24,31 +23,29 @@
           <el-option
             v-for="user in userList"
             :key="user.id"
-            :label="`${user.real_name} (${user.username}) - ${user.department || '无部门'}`"
+            :label="formatUserOption(user)"
             :value="user.id"
           >
             <div class="user-option">
               <span class="user-name">{{ user.real_name }}</span>
-              <span class="user-info">{{ user.department }} - {{ user.position }}</span>
+              <span class="user-info">{{ user.department || '无部门' }} - {{ user.position || '未设置岗位' }}</span>
             </div>
           </el-option>
         </el-select>
 
-        <!-- 已选用户列表 -->
         <div v-if="selectedUsers.length > 0" class="selected-list">
           <el-tag
             v-for="userId in selectedUsers"
             :key="userId"
             closable
-            @close="removeUser(userId)"
             style="margin: 5px"
+            @close="removeUser(userId)"
           >
             {{ getUserName(userId) }}
           </el-tag>
         </div>
       </el-tab-pane>
 
-      <!-- 按部门选择 -->
       <el-tab-pane label="选择部门" name="departments">
         <el-select
           v-model="selectedDepartments"
@@ -66,15 +63,14 @@
           />
         </el-select>
 
-        <!-- 已选部门列表 -->
         <div v-if="selectedDepartments.length > 0" class="selected-list">
           <el-tag
             v-for="deptId in selectedDepartments"
             :key="deptId"
             closable
             type="success"
-            @close="removeDepartment(deptId)"
             style="margin: 5px"
+            @close="removeDepartment(deptId)"
           >
             {{ getDepartmentName(deptId) }}
           </el-tag>
@@ -82,7 +78,6 @@
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 统计信息 -->
     <div class="stats">
       <el-alert
         :title="`已选择 ${selectedUsers.length} 个用户，${selectedDepartments.length} 个部门`"
@@ -96,8 +91,14 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue';
-import { api } from '@/services/api';
-import { parseListData } from '@/utils/responseParser';
+import { loadDepartmentOptions, searchUserOptions } from '@/utils/optionLoaders';
+
+const normalizeUsers = (users = []) => users.map(user => ({
+  ...user,
+  department: user.department || user.departmentName || user.department_name || '',
+  position: user.position || user.positionName || user.position_name || '',
+  real_name: user.real_name || user.name || user.username || ''
+}));
 
 const props = defineProps({
   modelValue: {
@@ -115,104 +116,87 @@ const departmentList = ref([]);
 const selectedUsers = ref([]);
 const selectedDepartments = ref([]);
 
-// 搜索用户
+const formatUserOption = (user) => {
+  const username = user.username ? ` (${user.username})` : '';
+  const department = user.department || '无部门';
+  return `${user.real_name}${username} - ${department}`;
+};
+
 const searchUsers = async (query) => {
   if (!query) {
     await loadUsers();
     return;
   }
+
   loading.value = true;
   try {
-    const res = await api.get('/api/system/users', {
-      params: { keyword: query, pageSize: 50 }
-    });
-    // 使用统一解析器
-    userList.value = parseListData(res, { enableLog: false });
+    const users = await searchUserOptions(query, { pageSize: 50 });
+    userList.value = normalizeUsers(users);
   } catch (error) {
-    // ✅ 优化: 如果是权限不足,静默处理
-    if (error.response?.status === 403) {
-      userList.value = [];
-    } else {
+    if (error.response?.status !== 403) {
       console.error('搜索用户失败:', error);
-      userList.value = [];
     }
+    userList.value = [];
   } finally {
     loading.value = false;
   }
 };
 
-// 加载用户列表
 const loadUsers = async () => {
   loading.value = true;
   try {
-    const res = await api.get('/api/system/users', {
-      params: { pageSize: 100 }
-    });
-    // 使用统一解析器
-    userList.value = parseListData(res, { enableLog: false });
+    const users = await searchUserOptions('', { pageSize: 50 });
+    userList.value = normalizeUsers(users);
   } catch (error) {
-    // ✅ 优化: 如果是权限不足,静默处理
-    if (error.response?.status === 403) {
-      userList.value = [];
-    } else {
+    if (error.response?.status !== 403) {
       console.error('加载用户失败:', error);
-      userList.value = [];
     }
+    userList.value = [];
   } finally {
     loading.value = false;
   }
 };
 
-// 加载部门列表
 const loadDepartments = async () => {
   try {
-    const res = await api.get('/api/system/departments');
-    // 拦截器已解包，res.data 就是业务数据
-    departmentList.value = Array.isArray(res.data) ? res.data : (res.data?.list || []);
+    const departments = await loadDepartmentOptions();
+    departmentList.value = departments.filter(dept => String(dept.status ?? 1) === '1');
   } catch (error) {
-    // ✅ 优化: 如果是权限不足,静默处理
-    if (error.response?.status === 403) {
-      departmentList.value = [];
-    } else {
+    if (error.response?.status !== 403) {
       console.error('加载部门失败:', error);
-      departmentList.value = [];
     }
+    departmentList.value = [];
   }
 };
 
-// 获取用户名称
 const getUserName = (userId) => {
-  const user = userList.value.find(u => u.id === userId);
+  const user = userList.value.find(item => item.id === userId);
   return user ? `${user.real_name} (${user.department || '无部门'})` : userId;
 };
 
-// 获取部门名称
 const getDepartmentName = (deptId) => {
-  const dept = departmentList.value.find(d => d.id === deptId);
+  const dept = departmentList.value.find(item => item.id === deptId);
   return dept ? dept.name : deptId;
 };
 
-// 移除用户
 const removeUser = (userId) => {
   selectedUsers.value = selectedUsers.value.filter(id => id !== userId);
+  emitChange();
 };
 
-// 移除部门
 const removeDepartment = (deptId) => {
   selectedDepartments.value = selectedDepartments.value.filter(id => id !== deptId);
+  emitChange();
 };
 
-// 处理用户变更
 const handleUserChange = () => {
   emitChange();
 };
 
-// 处理部门变更
 const handleDepartmentChange = () => {
   emitChange();
 };
 
-// 发送变更事件
 const emitChange = () => {
   emit('update:modelValue', {
     users: selectedUsers.value,
@@ -220,15 +204,11 @@ const emitChange = () => {
   });
 };
 
-// 监听外部值变化
 watch(() => props.modelValue, (newVal) => {
-  if (newVal) {
-    selectedUsers.value = newVal.users || [];
-    selectedDepartments.value = newVal.departments || [];
-  }
+  selectedUsers.value = newVal?.users || [];
+  selectedDepartments.value = newVal?.departments || [];
 }, { immediate: true, deep: true });
 
-// 初始化
 onMounted(() => {
   loadUsers();
   loadDepartments();
@@ -247,18 +227,18 @@ onMounted(() => {
 
 .user-name {
   font-weight: bold;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 
 .user-info {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 
 .selected-list {
   margin-top: 10px;
   padding: 10px;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   border-radius: 4px;
   min-height: 40px;
 }
@@ -267,4 +247,3 @@ onMounted(() => {
   margin-top: 15px;
 }
 </style>
-

@@ -159,9 +159,9 @@
 
 <style lang="scss" scoped>
   .create-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 120px;
+    padding-bottom: var(--app-bottom-space);
   }
   .content-wrapper {
     padding: 12px;
@@ -171,7 +171,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .section-title {
     font-size: 0.875rem;

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * MaterialShortage.vue
  * @description 生产计划缺料统计页面
@@ -9,13 +9,13 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import axios from '@/services/api'
+import { productionApi, purchaseApi } from '@/services/api'
 import { formatQuantity } from '@/utils/helpers/quantity'
 import { parseApiResponse, parsePaginatedData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { Download, Search, Refresh, ShoppingCart, Select, Close, InfoFilled } from '@element-plus/icons-vue'
-
+import { Download, ShoppingCart, Select, Close, InfoFilled } from '@element-plus/icons-vue'
+import { loadExcelJS } from '@/utils/lazyVendors'
 const props = defineProps({
   pageTitle: {
     type: String,
@@ -98,7 +98,7 @@ const fetchShortageData = async (force = false) => {
     }
     if (searchForm.value.material) params.material = searchForm.value.material
     if (searchForm.value.purchaseStatus) params.purchaseStatus = searchForm.value.purchaseStatus
-    const response = await axios.get('/production/material-shortage-summary', { params })
+    const response = await productionApi.getMaterialShortageSummary(params)
     // 使用统一解析器处理分页数据
     const { list, total, statistics: stats } = parsePaginatedData(response, { enableLog: false })
     shortageList.value = list
@@ -137,7 +137,7 @@ const handleExport = async () => {
   }
   try {
     // 动态导入 ExcelJS 库
-    const { default: ExcelJS } = await import('exceljs')
+    const ExcelJS = await loadExcelJS()
     // 创建工作簿
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('缺料统计')
@@ -297,7 +297,7 @@ const confirmSubmitRequisition = async () => {
     // 生成备注信息
     const remarks = `根据生产计划缺料统计自动生成 - 涉及计划: ${planCodes.join(', ')}`
     // 创建采购申请
-    const response = await axios.post('/purchase/requisitions', {
+    const response = await purchaseApi.createRequisition({
       request_date: dayjs().format('YYYY-MM-DD'),
       materials: materials,
       remarks: remarks
@@ -336,7 +336,7 @@ onMounted(() => {
 })
 </script>
 <template>
-  <div class="material-shortage-container">
+  <div class="module-page material-shortage-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -349,27 +349,26 @@ onMounted(() => {
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="物料">
-          <el-input  v-model="searchForm.material" placeholder="搜索物料编码、名称或规格" clearable />
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input  v-model="searchForm.material" placeholder="物料名称" clearable />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="采购状态">
           <el-select v-model="searchForm.purchaseStatus" placeholder="全部" clearable @change="handleSearch">
             <el-option label="待申请" value="pending" />
             <el-option label="已申请" value="requested" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -434,7 +433,7 @@ onMounted(() => {
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="计划数量" width="100" align="right">
+        <el-table-column label="计划数量" width="100">
           <template #default="scope">
             {{ formatQuantity(scope.row.plan_quantity) }}
           </template>
@@ -457,25 +456,25 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="需求数量" width="110" align="right">
+        <el-table-column label="需求数量" width="110">
           <template #default="scope">
             {{ formatQuantity(scope.row.required_quantity) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="当前库存" width="110" align="right">
+        <el-table-column label="当前库存" width="110">
           <template #default="scope">
             <span class="text-info">{{ formatQuantity(scope.row.current_stock_quantity) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="本次可用" width="110" align="right">
+        <el-table-column label="本次可用" width="110">
           <template #default="scope">
             <span class="text-info">{{ formatQuantity(scope.row.stock_quantity) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="缺料数量" width="110" align="right">
+        <el-table-column label="缺料数量" width="110">
           <template #default="scope">
             <span class="text-danger shortage-quantity">
               {{ formatQuantity(scope.row.shortage_quantity) }}
@@ -483,7 +482,7 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="采购状态" width="100" align="center" fixed="right">
+        <el-table-column label="采购状态" width="100" fixed="right">
           <template #default="scope">
             <el-tag :type="scope.row.purchase_status === 'requested' ? 'success' : 'warning'">
               {{ scope.row.purchase_status === 'requested' ? '已申请' : '待申请' }}
@@ -491,7 +490,7 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column prop="unit" label="单位" width="80" align="center" fixed="right" />
+        <el-table-column prop="unit" label="单位" width="80" fixed="right" />
       </el-table>
       <!-- 分页 -->
       <div class="pagination-container">
@@ -523,7 +522,7 @@ onMounted(() => {
           style="width: 100%"
           max-height="400"
         >
-          <el-table-column type="index" label="序号" width="60" align="center" />
+          <el-table-column type="index" label="序号" width="60" />
 
           <el-table-column prop="material_code" label="物料编码" width="110" />
 
@@ -541,13 +540,13 @@ onMounted(() => {
             </template>
           </el-table-column>
 
-          <el-table-column label="缺料数量" width="100" align="right">
+          <el-table-column label="缺料数量" width="100">
             <template #default="scope">
               <span class="text-danger">{{ formatQuantity(scope.row.shortage_quantity) }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column label="采购数量" width="110" align="center">
+          <el-table-column label="采购数量" width="110">
             <template #default="scope">
               <el-input
                 v-model.number="scope.row.edit_quantity"
@@ -558,7 +557,7 @@ onMounted(() => {
             </template>
           </el-table-column>
 
-          <el-table-column prop="unit" label="单位" width="70" align="center" />
+          <el-table-column prop="unit" label="单位" width="70" />
         </el-table>
         <div class="dialog-summary">
           <el-icon><InfoFilled /></el-icon>
@@ -617,60 +616,6 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
-}
-/* 浮动批量操作栏样式 */
-.floating-batch-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4), 0 4px 16px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  gap: 32px;
-  min-width: 400px;
-}
-.floating-batch-bar .batch-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-on-primary, #fff);
-  font-size: 14px;
-}
-.floating-batch-bar .batch-info .el-icon {
-  font-size: 20px;
-}
-.floating-batch-bar .batch-info strong {
-  color: #ffd700;
-  font-size: 18px;
-  margin: 0 2px;
-}
-.floating-batch-bar .batch-buttons {
-  display: flex;
-  gap: 12px;
-}
-.floating-batch-bar .batch-buttons .el-button {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-}
-.floating-batch-bar .batch-buttons .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-/* 浮动栏进入/离开动画 */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
-}
-.slide-up-enter-from,
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 100%);
 }
 .text-danger {
   color: var(--color-danger);
@@ -772,9 +717,9 @@ onMounted(() => {
   margin-top: var(--spacing-base);
   padding: 12px;
   background: var(--color-primary-light-9);
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--color-primary);
   border-radius: var(--radius-sm);
-  color: #1e40af;
+  color: var(--color-primary-dark-2, var(--color-primary));
   font-size: 14px;
 }
 .dialog-summary .el-icon {
@@ -782,7 +727,7 @@ onMounted(() => {
   color: var(--color-primary);
 }
 .dialog-summary strong {
-  color: #1e3a8a;
+  color: var(--color-primary-dark-2, var(--color-primary));
   font-size: 15px;
 }
 .dialog-footer {

@@ -15,7 +15,7 @@
         <el-table-column prop="account_code" label="科目代码" width="150" />
         <el-table-column prop="account_name" label="科目名称" width="200" />
         <el-table-column prop="description" label="说明" show-overflow-tooltip />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleEdit(row)"
               v-permission="'finance:tax:update'">编辑</el-button>

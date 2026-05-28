@@ -1,14 +1,29 @@
 <template>
-  <div class="budget-list-container">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>预算管理</span>
-          <el-button v-permission="'finance:budgets:create'" type="primary" @click="handleCreate">新增预算</el-button>
+  <div class="module-page budget-list-container">
+    <el-card class="header-card">
+      <div class="header-content">
+        <div class="title-section">
+          <h2>预算管理</h2>
+          <p class="subtitle">管理预算方案、审批状态与执行周期</p>
         </div>
+        <el-button v-permission="'finance:budgets:create'" type="primary" @click="handleCreate">新增预算</el-button>
+      </div>
+    </el-card>
+
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="关键字">
+          <el-input v-model="searchForm.keyword" placeholder="预算编号/名称" clearable />
+        </el-form-item>
       </template>
-      <!-- 搜索表单 -->
-      <el-form :inline="true" :model="searchForm" class="search-form">
+      <template #advanced>
         <el-form-item label="预算年度">
           <el-date-picker
             v-model="searchForm.budget_year"
@@ -32,14 +47,10 @@
             <el-option label="已关闭" value="已关闭" />
           </el-select>
         </el-form-item>
-        <el-form-item label="关键字">
-          <el-input v-model="searchForm.keyword" placeholder="预算编号/名称" clearable />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">查询</el-button>
-          <el-button @click="handleReset" :loading="loading">重置</el-button>
-        </el-form-item>
-      </el-form>
+      </template>
+    </FinanceQueryCard>
+
+    <el-card class="data-card">
       <!-- 数据表格 -->
       <el-table :data="tableData" v-loading="loading" border stripe>
         <template #empty>
@@ -47,20 +58,20 @@
         </template>
         <el-table-column prop="budget_no" label="预算编号" width="140" />
         <el-table-column prop="budget_name" label="预算名称" min-width="180" />
-        <el-table-column prop="budget_year" label="预算年度" width="100" align="center" />
-        <el-table-column prop="budget_type" label="预算类型" width="100" align="center" />
+        <el-table-column prop="budget_year" label="预算年度" width="100" />
+        <el-table-column prop="budget_type" label="预算类型" width="100" />
         <el-table-column prop="department_name" label="部门" width="120" />
-        <el-table-column prop="total_amount" label="预算总额" width="120" align="right">
+        <el-table-column prop="total_amount" label="预算总额" width="120">
           <template #default="{ row }">
             {{ formatAmount(row.total_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="used_amount" label="已使用" width="120" align="right">
+        <el-table-column prop="used_amount" label="已使用" width="120">
           <template #default="{ row }">
             {{ formatAmount(row.used_amount) }}
           </template>
         </el-table-column>
-        <el-table-column label="执行率" width="100" align="center">
+        <el-table-column label="执行率" width="100">
           <template #default="{ row }">
             <el-progress
               :percentage="Math.min(Math.max(calculateExecutionRate(row), 0), 100)"
@@ -70,14 +81,14 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="creator_name" label="创建人" width="100" />
         <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleView(row)">查看</el-button>
             <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="row.status === '草稿'"
@@ -144,6 +155,7 @@ import { useRouter } from 'vue-router';
 import { api } from '@/services/axiosInstance';
 import { formatAmount } from '@/utils/format'
 const router = useRouter();
+const showAdvancedSearch = ref(false);
 // 搜索表单
 const searchForm = reactive({
   budget_year: '',
@@ -303,9 +315,9 @@ const calculateExecutionRate = (row) => {
 };
 // 获取进度条颜色
 const getProgressColor = (percentage) => {
-  if (percentage >= 100) return '#f56c6c';
-  if (percentage >= 80) return '#e6a23c';
-  return '#67c23a';
+  if (percentage >= 100) return 'var(--color-danger)';
+  if (percentage >= 80) return 'var(--color-warning)';
+  return 'var(--color-success)';
 };
 // 获取状态类型
 const getStatusType = (status) => {

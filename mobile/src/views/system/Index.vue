@@ -406,7 +406,7 @@
 
 <style lang="scss" scoped>
   .system-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
   }
 
@@ -517,7 +517,7 @@
           display: flex;
           align-items: center;
           padding: 16px;
-          border-bottom: 1px solid var(--glass-border);
+          border-bottom: 1px solid var(--surface-border, var(--border-subtle));
           transition: background-color 0.2s;
 
           &:last-child {

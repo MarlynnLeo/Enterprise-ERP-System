@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * TaskDetail.vue - 生产任务详情
  * @description 统一卡片风格
@@ -242,9 +242,9 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 120px;
+    padding-bottom: var(--app-bottom-space);
   }
   .detail-body {
     padding: 12px;
@@ -260,7 +260,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .hero-icon {
     width: 44px;
@@ -327,7 +327,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .progress-header {
     display: flex;
@@ -347,7 +347,7 @@
   }
   .progress-bar {
     height: 8px;
-    background: var(--glass-border);
+    background: var(--surface-border, var(--border-subtle));
     border-radius: 4px;
     overflow: hidden;
   }
@@ -378,7 +378,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .section-title {
     font-size: 0.875rem;

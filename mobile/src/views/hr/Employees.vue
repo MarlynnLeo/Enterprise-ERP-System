@@ -10,9 +10,11 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { showToast } from 'vant'
+  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { hrApi } from '@/services/api'
+
+  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '员工档案',
@@ -53,7 +55,7 @@
     },
 
     headerActions: [
-      { icon: 'plus', label: '新员工入职', action: 'create', handler: () => showToast('手机端暂未开放员工新建') }
+      { icon: 'plus', label: '新员工入职', action: 'create', handler: () => router.push('/hr/employees/create') }
     ]
   }))
 

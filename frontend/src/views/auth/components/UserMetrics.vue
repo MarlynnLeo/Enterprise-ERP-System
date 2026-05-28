@@ -59,7 +59,7 @@
             </div>
           </div>
           <div class="metric-trend">
-            <el-icon color="#67C23A"><Promotion /></el-icon>
+            <el-icon><Promotion /></el-icon>
             <span>效率提升</span>
           </div>
         </div>
@@ -127,7 +127,7 @@
             </div>
             <div class="chart-stats-grid">
               <div class="stat-grid-item">
-                <div class="stat-grid-icon" style="background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%)">
+                <div class="stat-grid-icon stat-grid-icon--success">
                   <el-icon><CircleCheck /></el-icon>
                 </div>
                 <div class="stat-grid-info">
@@ -136,7 +136,7 @@
                 </div>
               </div>
               <div class="stat-grid-item">
-                <div class="stat-grid-icon" style="background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%)">
+                <div class="stat-grid-icon stat-grid-icon--primary">
                   <el-icon><Document /></el-icon>
                 </div>
                 <div class="stat-grid-info">
@@ -185,7 +185,7 @@
             </div>
             <div class="chart-stats-grid">
               <div class="stat-grid-item">
-                <div class="stat-grid-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">
+                <div class="stat-grid-icon stat-grid-icon--danger">
                   <el-icon><User /></el-icon>
                 </div>
                 <div class="stat-grid-info">
@@ -194,7 +194,7 @@
                 </div>
               </div>
               <div class="stat-grid-item">
-                <div class="stat-grid-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
+                <div class="stat-grid-icon stat-grid-icon--info">
                   <el-icon><CircleCheck /></el-icon>
                 </div>
                 <div class="stat-grid-info">
@@ -287,9 +287,9 @@ const monthlyActivity = computed(() => {
 .stats-icon-wrapper {
   width: 48px;
   height: 48px;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  border-radius: 12px;
+  background: var(--el-color-primary);
+  color: var(--el-color-white);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -319,10 +319,10 @@ const monthlyActivity = computed(() => {
   flex-direction: column;
   justify-content: space-between;
   padding: 20px;
-  border-radius: 16px;
+  border-radius: 10px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  transition: all 0.3s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
   min-height: 140px;
   position: relative;
   overflow: hidden;
@@ -330,24 +330,17 @@ const monthlyActivity = computed(() => {
 }
 
 .metric-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: color-mix(in srgb, var(--metric-color, var(--el-color-primary)) 35%, var(--el-border-color-lighter));
+  background: var(--el-fill-color-extra-light);
 }
 
 .metric-bg-decoration {
-  position: absolute;
-  top: -50px;
-  right: -50px;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  opacity: 0.1;
-  background: currentColor;
+  display: none;
 }
 
-.metric-card-1 { color: var(--el-color-primary); }
-.metric-card-2 { color: var(--el-color-success); }
-.metric-card-3 { color: var(--el-color-warning); }
+.metric-card-1 { --metric-color: var(--el-color-primary); color: var(--el-color-primary); }
+.metric-card-2 { --metric-color: var(--el-color-success); color: var(--el-color-success); }
+.metric-card-3 { --metric-color: var(--el-color-warning); color: var(--el-color-warning); }
 
 .metric-content {
   display: flex;
@@ -358,14 +351,13 @@ const monthlyActivity = computed(() => {
 .metric-icon-wrapper {
   width: 50px;
   height: 50px;
-  border-radius: 12px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  color: var(--color-on-primary, #fff);
-  background: currentColor;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  color: var(--el-color-white);
+  background: var(--metric-color, var(--el-color-primary));
 }
 
 .metric-info {
@@ -436,7 +428,7 @@ const monthlyActivity = computed(() => {
 
 .chart-card {
   background: var(--el-bg-color);
-  border-radius: 16px;
+  border-radius: 10px;
   border: 1px solid var(--el-border-color-lighter);
   padding: 24px;
   height: 100%;
@@ -456,12 +448,16 @@ const monthlyActivity = computed(() => {
 }
 
 .chart-icon {
-  font-size: 24px;
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  padding: 8px;
-  border-radius: 8px;
-  height: fit-content;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  color: var(--el-color-white);
+  background: var(--el-color-primary);
+  border-radius: 50%;
 }
 
 .chart-title {
@@ -520,15 +516,30 @@ const monthlyActivity = computed(() => {
 }
 
 .stat-grid-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-primary, #fff);
+  color: var(--el-color-white);
   font-size: 18px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.stat-grid-icon--success {
+  background: var(--el-color-success);
+}
+
+.stat-grid-icon--primary {
+  background: var(--el-color-primary);
+}
+
+.stat-grid-icon--danger {
+  background: var(--el-color-danger);
+}
+
+.stat-grid-icon--info {
+  background: var(--el-color-info);
 }
 
 .stat-grid-info {

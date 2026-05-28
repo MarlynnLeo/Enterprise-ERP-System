@@ -9,6 +9,7 @@
 const { doubleCsrf } = require('csrf-csrf');
 const crypto = require('crypto');
 const { logger } = require('../utils/logger');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isTest = process.env.NODE_ENV === 'test';
@@ -25,17 +26,20 @@ if (!isProduction && !isTest && !process.env.CSRF_SECRET) {
 const getCsrfSecret = () => process.env.CSRF_SECRET || developmentCsrfSecret;
 
 // 配置 CSRF 保护
+// __Host- 前缀要求 Secure=true，开发环境（HTTP）下需要使用普通 cookie 名
+const csrfCookieName = isProduction ? '__Host-psifi.x-csrf-token' : 'psifi.x-csrf-token';
+
 const {
   generateCsrfToken, // 生成 CSRF token（新版 API）
   doubleCsrfProtection, // CSRF 保护中间件
 } = doubleCsrf({
   getSecret: getCsrfSecret,
-  getSessionIdentifier: (req) => req.ip || 'anonymous', // v4 必需：会话标识符
-  cookieName: '__Host-psifi.x-csrf-token', // 推荐的安全 cookie 名称
+  getSessionIdentifier: (req) => req.ip || 'anonymous', // 使用客户端 IP 作为会话标识
+  cookieName: csrfCookieName,
   cookieOptions: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProduction,
+    sameSite: isProduction ? 'strict' : 'lax', // 开发环境使用 lax，兼容代理转发
     path: '/',
     maxAge: 86400000, // 24小时
   },
@@ -72,11 +76,12 @@ const csrfErrorHandler = (err, req, res, next) => {
       error: err.message,
     });
 
-    return res.status(403).json({
-      success: false,
-      message: 'CSRF令牌无效或已过期，请刷新页面后重试',
-      code: 'INVALID_CSRF_TOKEN',
-    });
+    return ResponseHandler.error(
+      res,
+      'CSRF令牌无效或已过期，请刷新页面后重试',
+      'INVALID_CSRF_TOKEN',
+      403
+    );
   }
 
   next(err);
@@ -106,24 +111,20 @@ const conditionalCsrfProtection = (req, res, next) => {
     return next();
   }
 
-  // 跳过打印API端点（打印功能使用token认证）
-  if (req.path.startsWith('/api/print/')) {
-    return next();
-  }
-
-  // 跳过钉钉集成API端点（回调和内部同步，使用独立的签名验证）
-  if (req.path.startsWith('/api/dingtalk/')) {
+  // 跳过钉钉事件回调端点（使用独立的签名验证）
+  if (req.path === '/api/dingtalk/callback') {
     return next();
   }
 
   // ✅ 安全修复: 已移除基于 User-Agent 的跳过（可被伪造）
   // ✅ 安全修复: 已移除 /api/admin/ 无条件跳过
 
-  // 带 Authorization: Bearer 头的请求由 JS 代码手动附加，
-  // 浏览器在 CSRF 攻击中不会自动携带 Authorization 头（与 Cookie 不同），
-  // 因此 Bearer Token 认证的请求天然免疫 CSRF 攻击，无需校验。
+  // Pure Bearer API clients do not rely on browser cookies, so they can skip
+  // CSRF. Browser cookie sessions must still pass CSRF even if a legacy
+  // Authorization header is also present.
   const authHeader = req.get('Authorization') || '';
-  if (authHeader.startsWith('Bearer ')) {
+  const hasAuthCookie = Boolean(req.cookies?.accessToken || req.cookies?.refreshToken);
+  if (authHeader.startsWith('Bearer ') && !hasAuthCookie) {
     return next();
   }
 

@@ -149,7 +149,7 @@
       order: id ? `/sales/orders/${id}` : '/sales/orders',
       task: id ? `/production/tasks/${id}` : '/production/tasks',
       inspection: id ? `/quality/incoming/${id}` : '/quality/incoming',
-      approval: '/notifications'
+      approval: '/system/notifications'
     }
     const target = routeMap[notification.value?.related_type]
     if (target) {
@@ -166,7 +166,7 @@
 
 <style scoped>
   .notification-detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
   }
 

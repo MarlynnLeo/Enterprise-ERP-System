@@ -9,6 +9,8 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const BusinessError = require('../../utils/BusinessError');
 const globalConfigManager = require('../../config/globalConfig');
+const businessConfig = require('../../config/businessConfig');
+const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
 
 /**
  * 成本核算服务
@@ -35,6 +37,568 @@ class CostAccountingService {
     LABOR: 'labor', // 直接人工
     OVERHEAD: 'overhead', // 制造费用
   };
+
+  static moneyToCents(value) {
+    const amount = Number.parseFloat(value);
+    if (!Number.isFinite(amount)) return 0;
+    return Math.round(amount * 100);
+  }
+
+  static toDateOnly(value) {
+    if (!value) return null;
+    return toLocalDateString(value);
+  }
+
+  static toNumber(value, fallback = 0) {
+    const number = Number.parseFloat(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  static parseJsonArray(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  static getMovementUnitCost(row, quantity) {
+    const explicitPrice = this.toNumber(row.price, 0);
+    if (explicitPrice > 0) return explicitPrice;
+
+    const totalAmount = this.toNumber(row.total_amount, 0);
+    if (totalAmount > 0 && Math.abs(quantity) > 0) {
+      return totalAmount / Math.abs(quantity);
+    }
+
+    return this.toNumber(row.cost_price, 0);
+  }
+
+  static allocateOutboundRowToTasks(row, taskMap, tasksByPlan, planTotalMap) {
+    const targetTaskIds = new Set(taskMap.keys());
+    const itemQuantity = this.toNumber(
+      row.actual_quantity === null || row.actual_quantity === undefined
+        ? row.quantity
+        : row.actual_quantity,
+      0
+    );
+
+    if (itemQuantity === 0) return [];
+
+    const directTaskId =
+      row.production_task_id ||
+      (row.reference_type === 'production_task' ? row.reference_id : null);
+    if (directTaskId && targetTaskIds.has(Number(directTaskId))) {
+      return [{ taskId: Number(directTaskId), quantity: itemQuantity }];
+    }
+
+    if (row.reference_type === 'batch_production_tasks') {
+      const sourceTasks = this.parseJsonArray(row.source_tasks);
+      const allocations = [];
+      for (const sourceTask of sourceTasks) {
+        const taskId = Number(
+          sourceTask.task_id || sourceTask.taskId || sourceTask.id || sourceTask.production_task_id
+        );
+        if (!targetTaskIds.has(taskId)) continue;
+        const sourceQuantity = this.toNumber(
+          sourceTask.actual_quantity ?? sourceTask.actualQuantity ?? sourceTask.quantity,
+          0
+        );
+        if (sourceQuantity > 0) {
+          allocations.push({ taskId, quantity: sourceQuantity });
+        }
+      }
+
+      if (allocations.length > 0) return allocations;
+
+      const sourceTaskIds = this.parseJsonArray(row.source_task_ids)
+        .map((id) => Number(id))
+        .filter((id) => targetTaskIds.has(id));
+      if (sourceTaskIds.length === 0) return [];
+
+      const fallbackQuantity = itemQuantity / sourceTaskIds.length;
+      return sourceTaskIds.map((taskId) => ({ taskId, quantity: fallbackQuantity }));
+    }
+
+    if (row.reference_type === 'production_plan' && row.reference_id) {
+      const planId = Number(row.reference_id);
+      const planTasks = tasksByPlan.get(planId) || [];
+      const planTotalQuantity =
+        planTotalMap.get(planId) ||
+        planTasks.reduce((sum, task) => sum + this.toNumber(task.quantity, 0), 0);
+      if (planTotalQuantity <= 0) return [];
+
+      return planTasks
+        .map((task) => ({
+          taskId: Number(task.id),
+          quantity: itemQuantity * (this.toNumber(task.quantity, 0) / planTotalQuantity),
+        }))
+        .filter((allocation) => allocation.quantity > 0);
+    }
+
+    return [];
+  }
+
+  static async collectTaskMaterialMovements(connection, taskIds, options = {}) {
+    const normalizedTaskIds = [...new Set((taskIds || []).map((id) => Number(id)).filter(Boolean))];
+    if (normalizedTaskIds.length === 0) return [];
+
+    const taskPh = normalizedTaskIds.map(() => '?').join(',');
+    const [taskRows] = await connection.execute(
+      `SELECT id, plan_id, quantity
+       FROM production_tasks
+       WHERE id IN (${taskPh})`,
+      normalizedTaskIds
+    );
+    const taskMap = new Map(taskRows.map((task) => [Number(task.id), task]));
+    const tasksByPlan = new Map();
+    for (const task of taskRows) {
+      if (!task.plan_id) continue;
+      const planId = Number(task.plan_id);
+      if (!tasksByPlan.has(planId)) tasksByPlan.set(planId, []);
+      tasksByPlan.get(planId).push(task);
+    }
+
+    const planIds = [...tasksByPlan.keys()];
+    const planTotalMap = new Map();
+    if (planIds.length > 0) {
+      const planPh = planIds.map(() => '?').join(',');
+      const [planTotals] = await connection.execute(
+        `SELECT plan_id, COALESCE(SUM(quantity), 0) as total_quantity
+         FROM production_tasks
+         WHERE plan_id IN (${planPh}) AND status <> 'cancelled'
+         GROUP BY plan_id`,
+        planIds
+      );
+      for (const row of planTotals) {
+        planTotalMap.set(Number(row.plan_id), this.toNumber(row.total_quantity, 0));
+      }
+    }
+
+    const relationParams = [];
+    const relationConditions = [
+      `io.production_task_id IN (${taskPh})`,
+      `(io.reference_type = 'production_task' AND io.reference_id IN (${taskPh}))`,
+    ];
+    relationParams.push(...normalizedTaskIds, ...normalizedTaskIds);
+
+    if (planIds.length > 0) {
+      const planPh = planIds.map(() => '?').join(',');
+      relationConditions.push(`(io.reference_type = 'production_plan' AND io.reference_id IN (${planPh}))`);
+      relationParams.push(...planIds);
+    }
+
+    relationConditions.push(
+      `(
+        io.reference_type = 'batch_production_tasks'
+        AND io.source_task_ids IS NOT NULL
+        AND JSON_VALID(io.source_task_ids)
+        AND (${normalizedTaskIds.map(() => 'JSON_CONTAINS(io.source_task_ids, CAST(? AS JSON))').join(' OR ')})
+      )`
+    );
+    relationParams.push(...normalizedTaskIds.map((id) => String(id)));
+
+    const queryParams = ['completed', 'partial_completed'];
+    let dateFilter = '';
+    if (options.cutoffDate) {
+      dateFilter = 'AND COALESCE(io.outbound_date, DATE(io.created_at)) <= ?';
+      queryParams.push(options.cutoffDate);
+    }
+
+    const [outboundRows] = await connection.execute(
+      `SELECT
+          io.id as document_id,
+          io.outbound_no as document_no,
+          COALESCE(io.outbound_date, DATE(io.created_at)) as movement_date,
+          io.reference_type,
+          io.reference_id,
+          io.production_task_id,
+          io.source_task_ids,
+          ioi.id as item_id,
+          ioi.material_id,
+          ioi.quantity,
+          ioi.actual_quantity,
+          ioi.price,
+          ioi.total_amount,
+          ioi.source_tasks,
+          m.name as material_name,
+          m.code as material_code,
+          m.product_category_id as category,
+          m.cost_price
+       FROM inventory_outbound io
+       JOIN inventory_outbound_items ioi ON ioi.outbound_id = io.id
+       JOIN materials m ON ioi.material_id = m.id
+       WHERE io.status IN (?, ?)
+         ${dateFilter}
+         AND (${relationConditions.join(' OR ')})
+       ORDER BY COALESCE(io.outbound_date, DATE(io.created_at)), io.id, ioi.id`,
+      [...queryParams, ...relationParams]
+    );
+
+    const movements = [];
+    for (const row of outboundRows) {
+      const allocations = this.allocateOutboundRowToTasks(row, taskMap, tasksByPlan, planTotalMap);
+      for (const allocation of allocations) {
+        const unitCost = this.getMovementUnitCost(row, allocation.quantity);
+        movements.push({
+          taskId: allocation.taskId,
+          task_id: allocation.taskId,
+          movementType: 'issue',
+          movement_type: 'issue',
+          documentId: row.document_id,
+          id: row.item_id,
+          documentNo: row.document_no,
+          movementDate: row.movement_date,
+          issue_date: row.movement_date,
+          itemId: row.item_id,
+          materialId: row.material_id,
+          material_id: row.material_id,
+          materialCode: row.material_code,
+          material_code: row.material_code,
+          materialName: row.material_name,
+          material_name: row.material_name,
+          category: row.category,
+          quantity: allocation.quantity,
+          unitCost,
+          unit_cost: unitCost,
+          totalCost: allocation.quantity * unitCost,
+          total_cost: allocation.quantity * unitCost,
+          batch_number: null,
+        });
+      }
+    }
+
+    const inboundRelationParams = [];
+    const inboundRelationConditions = [`(ii.reference_type = 'production_task' AND ii.reference_id IN (${taskPh}))`];
+    inboundRelationParams.push(...normalizedTaskIds);
+    if (planIds.length > 0) {
+      const planPh = planIds.map(() => '?').join(',');
+      inboundRelationConditions.push(`(ii.reference_type = 'production_plan' AND ii.reference_id IN (${planPh}))`);
+      inboundRelationParams.push(...planIds);
+    }
+
+    const inboundParams = ['confirmed', 'completed'];
+    let inboundDateFilter = '';
+    if (options.cutoffDate) {
+      inboundDateFilter = 'AND COALESCE(ii.inbound_date, DATE(ii.created_at)) <= ?';
+      inboundParams.push(options.cutoffDate);
+    }
+
+    const [returnRows] = await connection.execute(
+      `SELECT
+          ii.id as document_id,
+          ii.inbound_no as document_no,
+          COALESCE(ii.inbound_date, DATE(ii.created_at)) as movement_date,
+          ii.reference_type,
+          ii.reference_id,
+          iii.id as item_id,
+          iii.material_id,
+          iii.quantity,
+          NULL as actual_quantity,
+          NULL as price,
+          NULL as total_amount,
+          NULL as source_tasks,
+          m.name as material_name,
+          m.code as material_code,
+          m.product_category_id as category,
+          m.cost_price
+       FROM inventory_inbound ii
+       JOIN inventory_inbound_items iii ON iii.inbound_id = ii.id
+       JOIN materials m ON iii.material_id = m.id
+       WHERE ii.inbound_type = 'production_return'
+         AND ii.status IN (?, ?)
+         ${inboundDateFilter}
+         AND (${inboundRelationConditions.join(' OR ')})
+       ORDER BY COALESCE(ii.inbound_date, DATE(ii.created_at)), ii.id, iii.id`,
+      [...inboundParams, ...inboundRelationParams]
+    );
+
+    for (const row of returnRows) {
+      const allocations = this.allocateOutboundRowToTasks(row, taskMap, tasksByPlan, planTotalMap);
+      for (const allocation of allocations) {
+        const unitCost = this.getMovementUnitCost(row, allocation.quantity);
+        const quantity = -allocation.quantity;
+        movements.push({
+          taskId: allocation.taskId,
+          task_id: allocation.taskId,
+          movementType: 'return',
+          movement_type: 'return',
+          documentId: row.document_id,
+          id: row.item_id,
+          documentNo: row.document_no,
+          movementDate: row.movement_date,
+          issue_date: row.movement_date,
+          itemId: row.item_id,
+          materialId: row.material_id,
+          material_id: row.material_id,
+          materialCode: row.material_code,
+          material_code: row.material_code,
+          materialName: row.material_name,
+          material_name: row.material_name,
+          category: row.category,
+          quantity,
+          unitCost,
+          unit_cost: unitCost,
+          totalCost: quantity * unitCost,
+          total_cost: quantity * unitCost,
+          batch_number: null,
+        });
+      }
+    }
+
+    return movements;
+  }
+
+  static sumMaterialMovementsByTask(movements = []) {
+    const result = new Map();
+    for (const movement of movements) {
+      const current = result.get(movement.taskId) || 0;
+      result.set(movement.taskId, Precision.round2(current + this.toNumber(movement.totalCost, 0)));
+    }
+    return result;
+  }
+
+  static isExpectedWIPVoucher(items, totalWIP, wipAccountId, productionCostAccountId) {
+    const targetCents = this.moneyToCents(totalWIP);
+    if (targetCents <= 0) {
+      return false;
+    }
+
+    let wipDebitCents = 0;
+    let productionCreditCents = 0;
+    let unexpectedLineCount = 0;
+
+    for (const item of items) {
+      const accountId = Number(item.account_id);
+      const debitCents = this.moneyToCents(item.debit_amount);
+      const creditCents = this.moneyToCents(item.credit_amount);
+
+      if (accountId === Number(wipAccountId) && debitCents === targetCents && creditCents === 0) {
+        wipDebitCents += debitCents;
+      } else if (
+        accountId === Number(productionCostAccountId) &&
+        creditCents === targetCents &&
+        debitCents === 0
+      ) {
+        productionCreditCents += creditCents;
+      } else {
+        unexpectedLineCount += 1;
+      }
+    }
+
+    return (
+      items.length === 2 &&
+      unexpectedLineCount === 0 &&
+      wipDebitCents === targetCents &&
+      productionCreditCents === targetCents
+    );
+  }
+
+  static getGLItemCompareKey(item) {
+    return [
+      Number(item.account_id),
+      this.moneyToCents(item.debit_amount),
+      this.moneyToCents(item.credit_amount),
+      item.cost_center_id === undefined || item.cost_center_id === null
+        ? ''
+        : Number(item.cost_center_id),
+    ].join('|');
+  }
+
+  static areGLItemsExpected(existingItems, expectedItems) {
+    if (existingItems.length !== expectedItems.length) return false;
+    const expectedCounts = new Map();
+    for (const item of expectedItems) {
+      const key = this.getGLItemCompareKey(item);
+      expectedCounts.set(key, (expectedCounts.get(key) || 0) + 1);
+    }
+
+    for (const item of existingItems) {
+      const key = this.getGLItemCompareKey(item);
+      const count = expectedCounts.get(key) || 0;
+      if (count <= 0) return false;
+      if (count === 1) {
+        expectedCounts.delete(key);
+      } else {
+        expectedCounts.set(key, count - 1);
+      }
+    }
+
+    return expectedCounts.size === 0;
+  }
+
+  static async releaseExistingWIPVoucherIfNeeded(
+    connection,
+    periodId,
+    entryDate,
+    totalWIP,
+    wipAccountId,
+    productionCostAccountId
+  ) {
+    const [entries] = await connection.execute(
+      `SELECT id, entry_number, document_type, document_number, transaction_type, transaction_id,
+              is_posted, COALESCE(is_reversed, 0) as is_reversed
+         FROM gl_entries
+        WHERE period_id = ?
+          AND COALESCE(is_reversed, 0) = 0
+          AND (
+            document_type = '期末WIP结转'
+            OR transaction_type = '期末WIP结转'
+            OR document_number = ?
+          )
+        FOR UPDATE`,
+      [periodId, `WIP-${periodId}`]
+    );
+
+    if (entries.length === 0) {
+      return null;
+    }
+
+    for (const entry of entries) {
+      const [items] = await connection.execute(
+        'SELECT * FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
+        [entry.id]
+      );
+
+      if (this.isExpectedWIPVoucher(items, totalWIP, wipAccountId, productionCostAccountId)) {
+        return {
+          reused: true,
+          entryId: entry.id,
+          entryNumber: entry.entry_number,
+        };
+      }
+
+      if (Number(entry.is_posted) === 1 || entry.is_posted === true) {
+        const reversalEntryId = await GLService.createEntry(
+          {
+            entry_date: entryDate,
+            posting_date: entryDate,
+            period_id: periodId,
+            document_type: '期末WIP结转冲销',
+            document_number: `R-WIP-${periodId}-${entry.id}`.slice(0, 50),
+            description: `自动冲销无效WIP凭证 ${entry.entry_number || entry.id}`,
+            transaction_type: '期末WIP结转冲销',
+            transaction_id: entry.id,
+            created_by: 'system',
+            status: 'posted',
+            is_posted: 1,
+          },
+          items.map((item) => ({
+            account_id: item.account_id,
+            debit_amount: item.credit_amount,
+            credit_amount: item.debit_amount,
+            currency_code: item.currency_code || 'CNY',
+            exchange_rate: item.exchange_rate || 1,
+            cost_center_id: item.cost_center_id || null,
+            description: `自动冲销无效WIP凭证明细: ${item.description || ''}`,
+          })),
+          connection
+        );
+
+        await connection.execute(
+          `UPDATE gl_entries
+              SET is_reversed = 1,
+                  reversal_entry_id = ?,
+                  status = 'reversed',
+                  transaction_type = CONCAT(COALESCE(transaction_type, '期末WIP结转'), '_REVERSED'),
+                  transaction_id = NULL
+            WHERE id = ?`,
+          [reversalEntryId, entry.id]
+        );
+
+        await connection.execute(
+          `INSERT INTO operation_logs (module, operation, username, request_data, created_at)
+           VALUES (?, ?, ?, ?, NOW())`,
+          [
+            'finance',
+            'repair_invalid_wip_voucher',
+            'system',
+            JSON.stringify({ periodId, entryId: entry.id, reversalEntryId }),
+          ]
+        );
+      } else {
+        await connection.execute('DELETE FROM gl_entry_items WHERE entry_id = ?', [entry.id]);
+        await connection.execute('DELETE FROM gl_entries WHERE id = ?', [entry.id]);
+      }
+    }
+
+    return { repaired: true, repairedCount: entries.length };
+  }
+
+  static normalizeClassificationValue(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+  }
+
+  static getNormalizedSet(values = []) {
+    return new Set(
+      values
+        .map((value) => this.normalizeClassificationValue(value))
+        .filter(Boolean)
+    );
+  }
+
+  static matchesClassificationToken(value, tokens) {
+    const normalizedValue = this.normalizeClassificationValue(value);
+    if (!normalizedValue) return false;
+    return tokens.some((token) => normalizedValue === token || normalizedValue.includes(token));
+  }
+
+  static classifyWIPProduct(task = {}) {
+    const classificationConfig = businessConfig.cost?.classification || {};
+    const categoryCodes = this.getNormalizedSet(classificationConfig.semiFinishedCategoryCodes || []);
+    const categoryNames = Array.from(
+      this.getNormalizedSet(classificationConfig.semiFinishedCategoryNames || [])
+    );
+    const materialTypes = Array.from(
+      this.getNormalizedSet(classificationConfig.semiFinishedMaterialTypes || [])
+    );
+
+    const codeFields = [
+      ['product_category_code', task.product_category_code],
+      ['category_code', task.category_code],
+    ];
+    for (const [source, value] of codeFields) {
+      const normalizedValue = this.normalizeClassificationValue(value);
+      if (normalizedValue && categoryCodes.has(normalizedValue)) {
+        return { isSemiFinished: true, type: 'semi_finished', source };
+      }
+    }
+
+    const nameFields = [
+      ['product_category_name', task.product_category_name],
+      ['category_name', task.category_name],
+    ];
+    for (const [source, value] of nameFields) {
+      if (this.matchesClassificationToken(value, categoryNames)) {
+        return { isSemiFinished: true, type: 'semi_finished', source };
+      }
+    }
+
+    if (this.matchesClassificationToken(task.material_type, materialTypes)) {
+      return { isSemiFinished: true, type: 'semi_finished', source: 'material_type' };
+    }
+
+    const productCode = String(task.product_code || '').trim().toLowerCase();
+    const codePrefixes = classificationConfig.semiFinishedProductCodePrefixes || [];
+    for (const prefix of codePrefixes) {
+      const normalizedPrefix = String(prefix || '').trim().toLowerCase();
+      if (normalizedPrefix && productCode.startsWith(normalizedPrefix)) {
+        return {
+          isSemiFinished: true,
+          type: 'semi_finished',
+          source: 'configured_product_code_prefix',
+        };
+      }
+    }
+
+    return { isSemiFinished: false, type: 'finished', source: 'default_finished' };
+  }
 
   /**
    * 多级BOM成本展开（递归计算半成品成本）
@@ -82,7 +646,7 @@ class CostAccountingService {
       const bomId = bomMaster[0].id;
 
       // 获取BOM明细，包含has_sub_bom标志
-      // 价格优先级: standard_costs表 > cost_price(采购成本) > price(销售价格)
+      // 价格优先级: standard_costs表 > cost_price(采购成本)
       const [items] = await db.pool.execute(
         `SELECT bd.material_id, bd.quantity, bd.has_sub_bom,
                 m.code as material_code, m.name as material_name,
@@ -93,7 +657,7 @@ class CostAccountingService {
                    AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
                    ORDER BY sc.effective_date DESC LIMIT 1),
                   m.cost_price,
-                  m.price
+                  0
                 ) as unit_price
          FROM bom_details bd
          JOIN materials m ON bd.material_id = m.id
@@ -224,7 +788,7 @@ class CostAccountingService {
 
           if (bomMaster.length > 0) {
             const bomId = bomMaster[0].id;
-            // 价格优先级: standard_costs表 > cost_price(采购成本) > price(销售价格)
+            // 价格优先级: standard_costs表 > cost_price(采购成本)
             const [items] = await db.pool.execute(
               `SELECT bd.material_id, bd.quantity,
                       m.code as material_code, m.name as material_name,
@@ -235,7 +799,7 @@ class CostAccountingService {
                          AND (sc.expiry_date IS NULL OR sc.expiry_date > CURDATE())
                          ORDER BY sc.effective_date DESC LIMIT 1),
                         m.cost_price,
-                        m.price
+                        0
                       ) as unit_price
                FROM bom_details bd
                JOIN materials m ON bd.material_id = m.id
@@ -313,7 +877,7 @@ class CostAccountingService {
       // 获取可用的分摊规则 (全局 + 该产品的专属重载)
       let allocationRules = [];
       try {
-        const calcDate = new Date().toISOString().split('T')[0];
+        const calcDate = currentDateString();
         const [configs] = await db.pool.execute(
           `SELECT * FROM overhead_allocation_config
             WHERE is_active = 1
@@ -354,16 +918,16 @@ class CostAccountingService {
 
           // 确定分摊基础与量级
           if (rule.allocation_base === 'labor_cost') {
-             baseValue = laborCost;
+            baseValue = laborCost;
           } else if (rule.allocation_base === 'material_cost') {
-             baseValue = materialCost;
+            baseValue = materialCost;
           } else if (rule.allocation_base === 'quantity') {
-             baseValue = quantity;
+            baseValue = quantity;
           } else if (rule.allocation_base === 'labor_hours') {
-             baseValue = laborDetails.reduce((sum, step) => sum + (step.standardHours || 0), 0);
+            baseValue = laborDetails.reduce((sum, step) => sum + (step.standardHours || 0), 0);
           } else {
-             // Fallback
-             baseValue = laborCost;
+            // Fallback
+            baseValue = laborCost;
           }
 
           ruleCost = baseValue * parseFloat(rule.rate || 0);
@@ -416,7 +980,7 @@ class CostAccountingService {
    */
   static async calculateActualCost(productionOrderId, externalConn = null) {
     const isExternalConn = !!externalConn;
-    const connection = externalConn || await db.pool.getConnection();
+    const connection = externalConn || (await db.pool.getConnection());
     try {
       if (!isExternalConn) await connection.beginTransaction();
 
@@ -430,7 +994,7 @@ class CostAccountingService {
       }
 
       const order = orderInfo[0];
-      const completionDate = order.completed_at || new Date(); // 使用完工日期作为记账日期
+      const completionDate = this.toDateOnly(order.completed_at || currentDateString()); // 使用完工日期作为记账日期
 
       // 检查期间是否开启 (GL Check) - 修正错误的调法
       const periodId = await GLService.getPeriodIdByDate(completionDate);
@@ -456,7 +1020,6 @@ class CostAccountingService {
       const totalActualCost = materialCost.totalCost + laborCost.totalCost + overheadCost.totalCost;
 
       // 保存实际成本记录
-
 
       // ===== 回写成本到 production_tasks 表 =====
       await connection.execute(
@@ -498,7 +1061,9 @@ class CostAccountingService {
           productionOrderId,
         ]
       );
-      logger.info(`生产任务 ${productionOrderId} 成本已回写: 总计=${totalActualCost}, 材料=${materialCost.totalCost}, 人工=${laborCost.totalCost}, 制造费用=${overheadCost.totalCost}`);
+      logger.info(
+        `生产任务 ${productionOrderId} 成本已回写: 总计=${totalActualCost}, 材料=${materialCost.totalCost}, 人工=${laborCost.totalCost}, 制造费用=${overheadCost.totalCost}`
+      );
 
       // ========== 计算并保存成本差异 (Cost Variance) ==========
       try {
@@ -513,7 +1078,8 @@ class CostAccountingService {
           const laborVariance = standardLaborCost - laborCost.totalCost;
           const overheadVariance = standardOverheadCost - overheadCost.totalCost;
           const totalVariance = standardTotalCost - totalActualCost;
-          const varianceRate = standardTotalCost > 0 ? (totalVariance / standardTotalCost) * 100 : 0;
+          const varianceRate =
+            standardTotalCost > 0 ? (totalVariance / standardTotalCost) * 100 : 0;
           const isFavorable = totalVariance >= 0 ? 1 : 0;
 
           await connection.execute(
@@ -540,14 +1106,28 @@ class CostAccountingService {
               variance_rate = VALUES(variance_rate),
               is_favorable = VALUES(is_favorable)`,
             [
-              productionOrderId, order.product_id, order.quantity,
-              standardMaterialCost, standardLaborCost, standardOverheadCost, standardTotalCost,
-              materialCost.totalCost, laborCost.totalCost, overheadCost.totalCost, totalActualCost,
-              materialVariance, laborVariance, overheadVariance, totalVariance,
-              varianceRate, isFavorable
+              productionOrderId,
+              order.product_id,
+              order.quantity,
+              standardMaterialCost,
+              standardLaborCost,
+              standardOverheadCost,
+              standardTotalCost,
+              materialCost.totalCost,
+              laborCost.totalCost,
+              overheadCost.totalCost,
+              totalActualCost,
+              materialVariance,
+              laborVariance,
+              overheadVariance,
+              totalVariance,
+              varianceRate,
+              isFavorable,
             ]
           );
-          logger.info(`生产任务 ${productionOrderId} 成本差异记录已保存: 标准=${standardTotalCost}, 实际=${totalActualCost}, 差异=${totalVariance}`);
+          logger.info(
+            `生产任务 ${productionOrderId} 成本差异记录已保存: 标准=${standardTotalCost}, 实际=${totalActualCost}, 差异=${totalVariance}`
+          );
         }
       } catch (varianceErr) {
         logger.warn(`生产任务 ${productionOrderId} 计算/保存成本差异失败: ${varianceErr.message}`);
@@ -559,9 +1139,9 @@ class CostAccountingService {
       // 1. 获取所有需要的科目映射 (纯净的 SSOT 节点提取，杜绝防呆字面量)
       const config = globalConfigManager.getConfig();
       const accountCodes = [
-        config.accounting.accounts.INVENTORY_GOODS,  // 库存商品 (借)
-        config.accounting.accounts.PRODUCTION_COST,  // 生产成本/在制品 (借/贷)
-        config.accounting.accounts.RAW_MATERIALS,    // 原材料 (贷)
+        config.accounting.accounts.INVENTORY_GOODS, // 库存商品 (借)
+        config.accounting.accounts.PRODUCTION_COST, // 生产成本/在制品 (借/贷)
+        config.accounting.accounts.RAW_MATERIALS, // 原材料 (贷)
         config.accounting.accounts.EMPLOYEE_PAYABLE, // 应付职工薪酬 (贷)
         config.accounting.accounts.MANUFACTURING_EXPENSE, // 制造费用-转出 (贷)
       ];
@@ -577,30 +1157,87 @@ class CostAccountingService {
       if (accFG && accWIP) {
         try {
           const baseEntryData = {
-              period_id: periodId,
-              entry_date: completionDate,
-              document_type: '生产成本结转',
-              document_number: order.code,
-              transaction_id: productionOrderId,
-              created_by: 'system',
-              voucher_word: '转',
-              status: 'posted',
-              is_posted: 1,
+            period_id: periodId,
+            entry_date: completionDate,
+            document_type: '生产成本结转',
+            document_number: order.code,
+            transaction_id: productionOrderId,
+            created_by: 'system',
+            voucher_word: '转',
+            status: 'posted',
+            is_posted: 1,
           };
 
           const createProductionEntry = async (transactionType, entryData, items) => {
             const typedDocumentNumber = `${String(order.code).slice(0, 30)}-${transactionType.replace('PRODUCTION_', '')}`;
+            const itemsWithCostCenter = items.map((item) => ({
+              ...item,
+              cost_center_id: item.cost_center_id ?? order.cost_center_id ?? null,
+            }));
             const [existing] = await connection.execute(
-              `SELECT id FROM gl_entries
+              `SELECT id, entry_number, is_posted
+               FROM gl_entries
                WHERE transaction_type = ?
                  AND (transaction_id = ? OR document_number IN (?, ?))
-               LIMIT 1`,
+                 AND COALESCE(is_reversed, 0) = 0
+               LIMIT 1
+               FOR UPDATE`,
               [transactionType, productionOrderId, order.code, typedDocumentNumber]
             );
 
             if (existing.length > 0) {
-              logger.info(`Production cost entry skipped: type=${transactionType}, task=${productionOrderId}`);
-              return existing[0].id;
+              const existingEntry = existing[0];
+              const [existingItems] = await connection.execute(
+                'SELECT * FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
+                [existingEntry.id]
+              );
+
+              if (this.areGLItemsExpected(existingItems, itemsWithCostCenter)) {
+                logger.info(
+                  `Production cost entry skipped: type=${transactionType}, task=${productionOrderId}`
+                );
+                return existingEntry.id;
+              }
+
+              if (Number(existingEntry.is_posted) === 1 || existingEntry.is_posted === true) {
+                const reversalEntryId = await GLService.createEntry(
+                  {
+                    ...baseEntryData,
+                    ...entryData,
+                    document_type: `${entryData.document_type || baseEntryData.document_type || transactionType}冲销`,
+                    document_number: `R-${typedDocumentNumber}-${existingEntry.id}`.slice(0, 50),
+                    description: `自动冲销失配生产成本凭证 ${existingEntry.entry_number || existingEntry.id}`,
+                    transaction_type: `${transactionType}_REVERSAL`,
+                    transaction_id: existingEntry.id,
+                  },
+                  existingItems.map((item) => ({
+                    account_id: item.account_id,
+                    debit_amount: item.credit_amount,
+                    credit_amount: item.debit_amount,
+                    currency_code: item.currency_code || 'CNY',
+                    exchange_rate: item.exchange_rate || 1,
+                    cost_center_id: item.cost_center_id || order.cost_center_id || null,
+                    description: `自动冲销失配生产成本凭证明细: ${item.description || ''}`,
+                  })),
+                  connection
+                );
+
+                await connection.execute(
+                  `UPDATE gl_entries
+                      SET is_reversed = 1,
+                          reversal_entry_id = ?,
+                          status = 'reversed',
+                          transaction_type = ?,
+                          transaction_id = NULL
+                    WHERE id = ?`,
+                  [reversalEntryId, `${transactionType}_REVERSED`, existingEntry.id]
+                );
+              } else {
+                await connection.execute('DELETE FROM gl_entry_items WHERE entry_id = ?', [
+                  existingEntry.id,
+                ]);
+                await connection.execute('DELETE FROM gl_entries WHERE id = ?', [existingEntry.id]);
+              }
             }
 
             return GLService.createEntry(
@@ -610,7 +1247,7 @@ class CostAccountingService {
                 document_number: typedDocumentNumber,
                 transaction_type: transactionType,
               },
-              items,
+              itemsWithCostCenter,
               connection
             );
           };
@@ -619,10 +1256,24 @@ class CostAccountingService {
           if (accRaw && materialCost.totalCost > 0) {
             await createProductionEntry(
               'PRODUCTION_MATERIAL',
-              { ...baseEntryData, description: `生产领料结转: ${order.code}`, transaction_type: 'PRODUCTION_MATERIAL' },
+              {
+                ...baseEntryData,
+                description: `生产领料结转: ${order.code}`,
+                transaction_type: 'PRODUCTION_MATERIAL',
+              },
               [
-                { account_id: accWIP, debit_amount: materialCost.totalCost, credit_amount: 0, description: `生产领料: ${order.code}` },
-                { account_id: accRaw, debit_amount: 0, credit_amount: materialCost.totalCost, description: `生产领料出库: ${order.code}` }
+                {
+                  account_id: accWIP,
+                  debit_amount: materialCost.totalCost,
+                  credit_amount: 0,
+                  description: `生产领料: ${order.code}`,
+                },
+                {
+                  account_id: accRaw,
+                  debit_amount: 0,
+                  credit_amount: materialCost.totalCost,
+                  description: `生产领料出库: ${order.code}`,
+                },
               ],
               connection
             );
@@ -630,12 +1281,26 @@ class CostAccountingService {
 
           // --- 凭证 2: 直接人工 (借: 生产成本 / 贷: 应付职工薪酬) ---
           if (accWages && laborCost.totalCost > 0) {
-             await createProductionEntry(
+            await createProductionEntry(
               'PRODUCTION_LABOR',
-              { ...baseEntryData, description: `分配生产人工: ${order.code}`, transaction_type: 'PRODUCTION_LABOR' },
+              {
+                ...baseEntryData,
+                description: `分配生产人工: ${order.code}`,
+                transaction_type: 'PRODUCTION_LABOR',
+              },
               [
-                { account_id: accWIP, debit_amount: laborCost.totalCost, credit_amount: 0, description: `分配生产人工: ${order.code}` },
-                { account_id: accWages, debit_amount: 0, credit_amount: laborCost.totalCost, description: `计提生产人工: ${order.code}` }
+                {
+                  account_id: accWIP,
+                  debit_amount: laborCost.totalCost,
+                  credit_amount: 0,
+                  description: `分配生产人工: ${order.code}`,
+                },
+                {
+                  account_id: accWages,
+                  debit_amount: 0,
+                  credit_amount: laborCost.totalCost,
+                  description: `计提生产人工: ${order.code}`,
+                },
               ],
               connection
             );
@@ -645,32 +1310,64 @@ class CostAccountingService {
           if (accOverhead && overheadCost.totalCost > 0) {
             await createProductionEntry(
               'PRODUCTION_OVERHEAD',
-              { ...baseEntryData, description: `分配制造费用: ${order.code}`, transaction_type: 'PRODUCTION_OVERHEAD' },
+              {
+                ...baseEntryData,
+                description: `分配制造费用: ${order.code}`,
+                transaction_type: 'PRODUCTION_OVERHEAD',
+              },
               [
-                { account_id: accWIP, debit_amount: overheadCost.totalCost, credit_amount: 0, description: `分配制造费用: ${order.code}` },
-                { account_id: accOverhead, debit_amount: 0, credit_amount: overheadCost.totalCost, description: `制造费用结转: ${order.code}` }
+                {
+                  account_id: accWIP,
+                  debit_amount: overheadCost.totalCost,
+                  credit_amount: 0,
+                  description: `分配制造费用: ${order.code}`,
+                },
+                {
+                  account_id: accOverhead,
+                  debit_amount: 0,
+                  credit_amount: overheadCost.totalCost,
+                  description: `制造费用结转: ${order.code}`,
+                },
               ],
               connection
             );
           }
 
           // --- 凭证 4: 完工入库 (借: 库存商品 / 贷: 生产成本) ---
-          await createProductionEntry(
-            'PRODUCTION_COMPLETE',
-            { ...baseEntryData, description: `生产完工入库: ${order.code}`, transaction_type: 'PRODUCTION_COMPLETE' },
-            [
-              { account_id: accFG, debit_amount: totalActualCost, credit_amount: 0, description: `生产完工入库: ${order.code}` },
-              { account_id: accWIP, debit_amount: 0, credit_amount: totalActualCost, description: `结转生产成本: ${order.code}` }
-            ],
-            connection
-          );
+          if (totalActualCost > 0) {
+            await createProductionEntry(
+              'PRODUCTION_COMPLETE',
+              {
+                ...baseEntryData,
+                description: `生产完工入库: ${order.code}`,
+                transaction_type: 'PRODUCTION_COMPLETE',
+              },
+              [
+                {
+                  account_id: accFG,
+                  debit_amount: totalActualCost,
+                  credit_amount: 0,
+                  description: `生产完工入库: ${order.code}`,
+                },
+                {
+                  account_id: accWIP,
+                  debit_amount: 0,
+                  credit_amount: totalActualCost,
+                  description: `结转生产成本: ${order.code}`,
+                },
+              ],
+              connection
+            );
+          }
         } catch (glError) {
           logger.error(`GL Entry Creation Failed for Order ${productionOrderId}:`, glError);
           // 财务合规要求一致性: 必须回滚
           throw glError;
         }
       } else {
-        logger.warn(`未配置GL标准化科目映射 (4001 或 1405 缺失)，跳过生成凭证: Order ${productionOrderId}`);
+        logger.warn(
+          `未配置GL标准化科目映射 (4001 或 1405 缺失)，跳过生成凭证: Order ${productionOrderId}`
+        );
         throw new Error(`未配置生产成本总账科目映射，不能完成成本结转: Order ${productionOrderId}`);
       }
 
@@ -695,7 +1392,11 @@ class CostAccountingService {
       };
     } catch (error) {
       if (connection && !isExternalConn) {
-         try { await connection.rollback(); } catch(rbErr) { logger.error('Rollback failed:', rbErr); }
+        try {
+          await connection.rollback();
+        } catch (rbErr) {
+          logger.error('Rollback failed:', rbErr);
+        }
       }
       logger.error('计算实际成本产生全局异常:', error);
       throw error;
@@ -716,51 +1417,16 @@ class CostAccountingService {
     productionOrderId,
     method = this.COSTING_METHOD.WEIGHTED_AVERAGE
   ) {
-    // 获取材料领用记录（原 material_issues，现对应 inventory_outbound+items）
-    const [materialIssues] = await connection.execute(
-      `SELECT
-              ioi.id,
-              ioi.material_id,
-              CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END as quantity,
-              ioi.quantity as planned_quantity,
-              io.created_at as issue_date,
-              m.name as material_name, m.code as material_code, m.product_category_id as category,
-              MAX(it.transaction_type) as transaction_type,
-              GROUP_CONCAT(DISTINCT it.batch_number) as batch_number,
-              COALESCE(
-                NULLIF(ioi.price, 0),
-                CASE
-                  WHEN (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) > 0
-                  THEN NULLIF(ioi.total_amount / (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END), 0)
-                  ELSE NULL
-                END,
-                NULLIF(m.cost_price, 0),
-                NULLIF(m.price, 0),
-                0
-              ) as unit_cost
-       FROM inventory_outbound io
-       JOIN inventory_outbound_items ioi ON ioi.outbound_id = io.id
-       JOIN materials m ON ioi.material_id = m.id
-       LEFT JOIN inventory_ledger it ON it.reference_no = io.outbound_no
-                                    AND it.material_id = ioi.material_id
-                                    AND it.transaction_type IN ('production_outbound', 'material_issue')
-       WHERE (io.reference_type = 'production_task' OR io.production_task_id = ?)
-         AND (io.reference_id = ? OR io.production_task_id = ?)
-         AND io.status IN ('completed', 'confirmed')
-       GROUP BY
-              ioi.id, ioi.material_id, ioi.actual_quantity, ioi.quantity, ioi.price,
-              ioi.total_amount, io.created_at, m.name, m.code, m.product_category_id,
-              m.cost_price, m.price
-       ORDER BY io.created_at, ioi.id`,
-      [productionOrderId, productionOrderId, productionOrderId]
-    );
+    const materialIssues = await this.collectTaskMaterialMovements(connection, [
+      productionOrderId,
+    ]);
 
     let totalCost = 0;
     const details = [];
     const costVariances = [];
 
     // ✅ 性能优化: 批量预取所有物料的标准成本，消除 N+1 查询
-    const uniqueMaterialIds = [...new Set(materialIssues.map(i => i.material_id))];
+    const uniqueMaterialIds = [...new Set(materialIssues.map((i) => i.material_id))];
     const standardCostMap = await this.getBatchStandardMaterialCosts(connection, uniqueMaterialIds);
 
     for (const issue of materialIssues) {
@@ -777,17 +1443,27 @@ class CostAccountingService {
             issue.issue_date
           );
         } catch (error) {
-          logger.warn(`获取物料 ${issue.material_id} 的实际成本失败，回溯至标准成本:`, error.message);
+          logger.warn(
+            `获取物料 ${issue.material_id} 的实际成本失败，回溯至标准成本:`,
+            error.message
+          );
           // ✅ 使用预取的标准成本映射，不再单独查询
           const stdCost = standardCostMap[issue.material_id];
           if (stdCost === undefined) {
-             throw new BusinessError(
-               `物料 ${issue.material_code} 的出库计价获取失败：既无实际成本记录也未维护标准成本。请先前往物料库完善基础财务定价，确保出库账务精准无误。`,
-               { route: '/basedata/materials', buttonText: '前往物料字典修复' }
-             );
+            throw new BusinessError(
+              `物料 ${issue.material_code} 的出库计价获取失败：既无实际成本记录也未维护标准成本。请先前往物料库完善基础财务定价，确保出库账务精准无误。`,
+              { route: '/basedata/materials', buttonText: '前往物料字典修复' }
+            );
           }
           actualUnitCost = stdCost;
         }
+      }
+
+      if (Math.abs(issueQuantity) > 0 && actualUnitCost <= 0) {
+        throw new BusinessError(
+          `物料 ${issue.material_code || issue.material_id} 缺少有效出库成本，不能生成生产实际成本。请先维护物料标准成本或库存成本价。`,
+          { route: '/finance/cost/settings', buttonText: '维护成本价格' }
+        );
       }
 
       const itemCost = issueQuantity * actualUnitCost;
@@ -856,8 +1532,13 @@ class CostAccountingService {
       [productionOrderId]
     );
 
+    const totalRecordedHours = laborRecords.reduce(
+      (sum, record) => sum + (parseFloat(record.hours_worked) || 0),
+      0
+    );
+
     // SSOT 强校验：如果未找到该生产任务的报工工时记录，拒绝使用 0 元人工费进行妥协记账，直接抛异常倒逼前端补充报工。
-    if (laborRecords.length === 0) {
+    if (laborRecords.length === 0 || totalRecordedHours <= 0) {
       throw new BusinessError(
         `无法核算人工成本：生产订单 ${productionOrderId} 缺少必须的报工及工时耗用记录，请先执行流转定额报工。`,
         { route: '/production/tasks', buttonText: '返回单据查勘报工' } // 或指向特定的报工维护页
@@ -959,7 +1640,7 @@ class CostAccountingService {
         quantity,
         materialCost,
         productCategory: options.productCategory,
-        date: new Date().toISOString().split('T')[0],
+        date: currentDateString(),
       });
 
       return {
@@ -984,7 +1665,7 @@ class CostAccountingService {
       logger.error('[CostAccounting] 制造费用分摊服务调用异常，抛出错误交还上层处理', error);
       throw new BusinessError(
         `制造费用核算阻断: ${error.message}，请进入财务管理配置适用的分摊参数`,
-        { route: '/finance/cost/overhead', buttonText: '去配置制造费分摊' }
+        { route: '/finance/cost/settings', buttonText: '去配置制造费分摊' }
       );
     }
   }
@@ -1201,10 +1882,7 @@ class CostAccountingService {
    * @param {Date} asOfDate 截止日期
    * @returns {number} 单位成本
    */
-  static async getMaterialUnitCost(
-    connection,
-    materialId
-  ) {
+  static async getMaterialUnitCost(connection, materialId) {
     // 注意：由于系统的库存台账 inventory_ledger 仅记录数量不记录金额，
     // 且 inventory_transactions 表不存在，FIFO/LIFO/加权平均无法使用。
     // 统一使用标准成本或物料主数据价格作为单位成本。
@@ -1214,45 +1892,6 @@ class CostAccountingService {
       logger.error(`获取物料 ${materialId} 单位成本失败:`, error);
       return 0;
     }
-  }
-
-  /**
-   * 计算先进先出成本
-   * @param {Object} connection 数据库连接
-   * @param {number} materialId 物料ID
-   * @param {string} asOfDate 截止日期
-   * @returns {number} FIFO单位成本
-   */
-  static async calculateFIFOCost(connection, materialId) {
-    // @deprecated inventory_transactions 表不存在，降级为标准成本
-    logger.warn('[CostAccounting] calculateFIFOCost 已降级为标准成本');
-    return await this.getStandardMaterialCost(connection, materialId);
-  }
-
-  /**
-   * 计算后进先出成本
-   * @param {Object} connection 数据库连接
-   * @param {number} materialId 物料ID
-   * @param {string} asOfDate 截止日期
-   * @returns {number} LIFO单位成本
-   */
-  static async calculateLIFOCost(connection, materialId) {
-    // @deprecated inventory_transactions 表不存在，降级为标准成本
-    logger.warn('[CostAccounting] calculateLIFOCost 已降级为标准成本');
-    return await this.getStandardMaterialCost(connection, materialId);
-  }
-
-  /**
-   * 计算加权平均成本
-   * @param {Object} connection 数据库连接
-   * @param {number} materialId 物料ID
-   * @param {string} asOfDate 截止日期
-   * @returns {number} 加权平均单位成本
-   */
-  static async calculateWeightedAverageCost(connection, materialId) {
-    // @deprecated inventory_transactions 表不存在，降级为标准成本
-    logger.warn('[CostAccounting] calculateWeightedAverageCost 已降级为标准成本');
-    return await this.getStandardMaterialCost(connection, materialId);
   }
 
   /**
@@ -1275,11 +1914,20 @@ class CostAccountingService {
         return parseFloat(standardCosts[0].standard_price);
       }
 
+      const [materialRows] = await connection.execute(
+        'SELECT cost_price FROM materials WHERE id = ? LIMIT 1',
+        [materialId]
+      );
+
+      const materialCostPrice = parseFloat(materialRows[0]?.cost_price) || 0;
+      if (materialCostPrice > 0) {
+        return materialCostPrice;
+      }
+
       // 如果没有活跃版本的标准成本，不要抛出异常卡死车间工序报工。
       // 返回 0 让主流程先过去，方便月底财务根据这笔 0 元入账反查并核算实际制造成本。
       logger.warn(`物料 ID:${materialId} 未配置生效版本的标准成本。下发成本: 0`);
       return 0;
-
     } catch (error) {
       logger.error(`获取物料 ${materialId} 标准成本失败:`, error.message);
       // 遇到纯粹查数据库失败才退回 0
@@ -1318,6 +1966,22 @@ class CostAccountingService {
 
       for (const row of rows) {
         costMap[row.material_id] = parseFloat(row.standard_price) || 0;
+      }
+
+      const missingIds = materialIds.filter((id) => costMap[id] === undefined);
+      if (missingIds.length > 0) {
+        const materialPlaceholders = missingIds.map(() => '?').join(',');
+        const [materialRows] = await connection.execute(
+          `SELECT id, cost_price
+           FROM materials
+           WHERE id IN (${materialPlaceholders})
+             AND COALESCE(cost_price, 0) > 0`,
+          missingIds
+        );
+
+        for (const row of materialRows) {
+          costMap[row.id] = parseFloat(row.cost_price) || 0;
+        }
       }
 
       // 对未找到标准成本的物料赋值 0 并记录警告
@@ -1548,10 +2212,10 @@ class CostAccountingService {
     );
 
     if (rows.length === 0) {
-      throw new BusinessError(
-        '系统成本基础配置缺失，请在「财务管理 → 成本设置」中完成初始化配置',
-        { route: '/finance/cost/settings', buttonText: '去配置成本参数' }
-      );
+      throw new BusinessError('系统成本基础配置缺失，请在「财务管理 → 成本设置」中完成初始化配置', {
+        route: '/finance/cost/settings',
+        buttonText: '去配置成本参数',
+      });
     }
 
     const row = rows[0];
@@ -1589,7 +2253,7 @@ class CostAccountingService {
         const [outboundCosts] = await connection.execute(
           `SELECT SUM(
               (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-              * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+              * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), 0)
             ) as total_material_cost
             FROM inventory_outbound io
             JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
@@ -1689,7 +2353,7 @@ class CostAccountingService {
           laborHours: actualHours,
           quantity,
           materialCost,
-          date: new Date().toISOString().split('T')[0],
+          date: currentDateString(),
         });
         overheadCost = ohResult.overhead;
       }
@@ -1814,8 +2478,7 @@ class CostAccountingService {
   }
 
   /**
-   * 初始化成本核算相关表
-   * @deprecated 表结构已迁移至 Knex migration 文件管理
+   * 补齐成本核算默认配置，表结构由 Knex migration 管理。
    */
   static async initializeCostAccountingTables() {
     const connection = await db.pool.getConnection();
@@ -1829,10 +2492,17 @@ class CostAccountingService {
       if (existingSettings.length === 0) {
         // 从全局配置读取初始值，严禁硬编码
         const costConfig = globalConfigManager.getConfig().cost;
-        await connection.execute(`
+        await connection.execute(
+          `
           INSERT INTO cost_settings (setting_name, overhead_rate, labor_rate, costing_method, is_active, description)
           VALUES ('默认成本配置', ?, ?, ?, true, '系统默认成本核算配置')
-        `, [costConfig.overheadRate, costConfig.laborRate, costConfig.costingMethod || 'weighted_average']);
+        `,
+          [
+            costConfig.overheadRate,
+            costConfig.laborRate,
+            costConfig.costingMethod || 'weighted_average',
+          ]
+        );
         logger.info('[CostAccountingService] 已创建默认成本配置');
       }
 
@@ -1857,15 +2527,19 @@ class CostAccountingService {
 
       const endDateStr = period
         ? this.parsePeriodRange(period).endDate
-        : new Date().toISOString().split('T')[0];
+        : currentDateString();
 
       const [wipTasks] = await connection.execute(
         `
         SELECT pt.id, pt.code, pt.product_id, pt.quantity, pt.quantity AS planned_quantity,
                pt.cost_center_id, pt.created_at,
-               m.name as product_name, m.code as product_code
+               m.name as product_name, m.code as product_code, m.material_type,
+               c.code as category_code, c.name as category_name,
+               pc.code as product_category_code, pc.name as product_category_name
         FROM production_tasks pt
         LEFT JOIN materials m ON pt.product_id = m.id
+        LEFT JOIN categories c ON m.category_id = c.id
+        LEFT JOIN categories pc ON m.product_category_id = pc.id
         WHERE pt.created_at <= ?
           AND (pt.status NOT IN ('completed', 'cancelled') OR pt.actual_end_date > ?)
       `,
@@ -1873,33 +2547,20 @@ class CostAccountingService {
       );
 
       let totalWIPCost = 0;
-      let semiFinishedWIPCost = 0; // 半成品（3开头）
+      let semiFinishedWIPCost = 0;
       let finishedWIPCost = 0; // 成品
 
       const semiFinishedDetails = [];
       const finishedDetails = [];
 
       if (wipTasks.length > 0) {
-        const taskIds = wipTasks.map(t => t.id);
+        const taskIds = wipTasks.map((t) => t.id);
         const taskPh = taskIds.map(() => '?').join(',');
 
-        // 批量获取所有任务的材料投入成本（消除 N+1）
-        const [allMatCosts] = await connection.execute(
-          `SELECT io.production_task_id AS task_id,
-                  SUM(
-                    (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-                    * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
-                  ) as cost
-           FROM inventory_outbound_items ioi
-           JOIN inventory_outbound io ON ioi.outbound_id = io.id
-           JOIN materials m ON ioi.material_id = m.id
-           WHERE io.production_task_id IN (${taskPh})
-             AND io.outbound_date <= ?
-             AND io.status IN ('confirmed', 'completed')
-           GROUP BY io.production_task_id`,
-          [...taskIds, endDateStr]
-        );
-        const matCostMap = new Map(allMatCosts.map(r => [r.task_id, parseFloat(r.cost) || 0]));
+        const materialMovements = await this.collectTaskMaterialMovements(connection, taskIds, {
+          cutoffDate: endDateStr,
+        });
+        const matCostMap = this.sumMaterialMovementsByTask(materialMovements);
 
         // 批量获取所有任务的工时数据（消除 N+1）
         const [allLaborData] = await connection.execute(
@@ -1909,7 +2570,9 @@ class CostAccountingService {
            GROUP BY task_id`,
           [...taskIds, `${endDateStr} 23:59:59`]
         );
-        const laborMap = new Map(allLaborData.map(r => [r.task_id, parseFloat(r.total_hours) || 0]));
+        const laborMap = new Map(
+          allLaborData.map((r) => [r.task_id, parseFloat(r.total_hours) || 0])
+        );
 
         // 获取成本配置（只查一次，移到循环外）
         const settings = await this.getCostSettings();
@@ -1946,10 +2609,11 @@ class CostAccountingService {
               totalCost: taskTotalCost,
             };
 
-            // 判断是否为半成品（物料编码3开头）
-            const isSemiFinished = task.product_code && task.product_code.startsWith('3');
+            const productClassification = this.classifyWIPProduct(task);
+            detail.productClassification = productClassification.type;
+            detail.classificationSource = productClassification.source;
 
-            if (isSemiFinished) {
+            if (productClassification.isSemiFinished) {
               semiFinishedWIPCost += taskTotalCost;
               semiFinishedDetails.push(detail);
             } else {
@@ -2000,7 +2664,7 @@ class CostAccountingService {
     try {
       const endDateStr = period
         ? this.parsePeriodRange(period).endDate
-        : new Date().toISOString().split('T')[0];
+        : currentDateString();
 
       // 查询已确认但未完成的委外加工单
       const [wipOrders] = await connection.execute(
@@ -2026,20 +2690,22 @@ class CostAccountingService {
       const supplierSummary = {};
 
       if (wipOrders.length > 0) {
-        const orderIds = wipOrders.map(o => o.id);
+        const orderIds = wipOrders.map((o) => o.id);
         const orderPh = orderIds.map(() => '?').join(',');
 
         // 批量获取所有订单的发料成本（消除 N+1）
         const [allMaterials] = await connection.execute(
           `SELECT opm.processing_id,
-                  SUM(opm.quantity * COALESCE(m.cost_price, m.price, 0)) as material_cost
+                  SUM(opm.quantity * COALESCE(m.cost_price, 0)) as material_cost
            FROM outsourced_processing_materials opm
            LEFT JOIN materials m ON opm.material_id = m.id
            WHERE opm.processing_id IN (${orderPh})
            GROUP BY opm.processing_id`,
           orderIds
         );
-        const matCostMap = new Map(allMaterials.map(r => [r.processing_id, parseFloat(r.material_cost) || 0]));
+        const matCostMap = new Map(
+          allMaterials.map((r) => [r.processing_id, parseFloat(r.material_cost) || 0])
+        );
 
         // 批量获取所有订单的预计加工费（消除 N+1）
         const [allProducts] = await connection.execute(
@@ -2049,7 +2715,9 @@ class CostAccountingService {
            GROUP BY processing_id`,
           orderIds
         );
-        const feeMap = new Map(allProducts.map(r => [r.processing_id, parseFloat(r.estimated_fee) || 0]));
+        const feeMap = new Map(
+          allProducts.map((r) => [r.processing_id, parseFloat(r.estimated_fee) || 0])
+        );
 
         // 批量获取所有订单的已入库价值（消除 N+1）
         const [allReceipts] = await connection.execute(
@@ -2061,7 +2729,9 @@ class CostAccountingService {
            GROUP BY opr.processing_id`,
           orderIds
         );
-        const receiptMap = new Map(allReceipts.map(r => [r.processing_id, parseFloat(r.received_value) || 0]));
+        const receiptMap = new Map(
+          allReceipts.map((r) => [r.processing_id, parseFloat(r.received_value) || 0])
+        );
 
         for (const order of wipOrders) {
           const orderMaterialCost = matCostMap.get(order.id) || 0;
@@ -2134,7 +2804,7 @@ class CostAccountingService {
       return accounts.length > 0 ? accounts[0].id : null;
     } catch (error) {
       logger.error(`获取科目ID失败 (${accountCode}):`, error);
-      return null;
+      throw error;
     }
   }
 
@@ -2187,7 +2857,7 @@ class CostAccountingService {
              SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) as total_quantity,
              SUM(
                (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-               * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+               * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), 0)
              ) as total_cost,
              io.is_excess,
              io.issue_reason
@@ -2216,7 +2886,7 @@ class CostAccountingService {
              SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) as total_quantity,
              SUM(
                (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-               * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+               * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), 0)
              ) as total_cost
            FROM inventory_outbound io
            JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
@@ -2264,7 +2934,7 @@ class CostAccountingService {
       }
 
       // 5. 获取会计期间
-      const entryDate = new Date().toISOString().split('T')[0];
+      const entryDate = currentDateString();
       const periodId = await GLService.getPeriodIdByDate(entryDate);
 
       // 6. 构建分录明细
@@ -2297,6 +2967,29 @@ class CostAccountingService {
         is_posted: 1,
       };
 
+      const [existingEntries] = await conn.execute(
+        `SELECT id
+         FROM gl_entries
+         WHERE transaction_type = ?
+           AND transaction_id = ?
+           AND COALESCE(is_reversed, 0) = 0
+         LIMIT 1
+         FOR UPDATE`,
+        [entryData.transaction_type, taskId]
+      );
+      if (existingEntries.length > 0) {
+        if (shouldManageTransaction) {
+          await conn.commit();
+        }
+        return {
+          skipped: true,
+          reason: '生产领料凭证已存在',
+          entryId: existingEntries[0].id,
+          totalMaterialCost,
+          itemCount: outboundItems.length,
+        };
+      }
+
       const entryId = await GLService.createEntry(entryData, entryItems, conn);
 
       if (shouldManageTransaction) {
@@ -2326,334 +3019,6 @@ class CostAccountingService {
     }
   }
 
-  // ===================== 以下方法已移除（未使用）=====================
-  // generateLaborOverheadVoucher - 功能由 ProductionCostService.generateLaborCostEntry 替代
-  // generateFinishedGoodsVoucher - 功能由 ProductionCostService.generateProductionCompletionEntry 替代
-  // ===================== 移除结束 =====================
-
-  // ===================== 在制品(WIP)成本模块 =====================
-
-  /**
-   * 计算期末在制品成本
-   * 使用约当产量法：WIP成本 = 已投入成本 × 完工率权重
-   *
-   * @param {number} taskId 生产任务ID
-   * @param {number} laborCost 人工成本
-   * @param {number} overheadCost 制造费用
-   * @param {Object} connection 数据库连接（用于事务）
-   * @returns {Promise<Object>} 凭证信息
-   */
-  static async generateLaborOverheadVoucher(taskId, laborCost, overheadCost, connection = null) {
-    const conn = connection || (await db.pool.getConnection());
-    const shouldManageTransaction = !connection;
-
-    try {
-      if (shouldManageTransaction) {
-        await conn.beginTransaction();
-      }
-
-      // 使用 Precision 确保精度
-      const labor = Precision.round2(laborCost || 0);
-      const overhead = Precision.round2(overheadCost || 0);
-
-      // 如果都为0，跳过
-      if (labor <= 0 && overhead <= 0) {
-        logger.info(`[LaborOverheadVoucher] 任务 ${taskId} 人工和制造费用都为0，跳过`);
-        if (shouldManageTransaction) await conn.commit();
-        return { skipped: true, reason: '人工和制造费用都为0' };
-      }
-
-      // 获取任务信息
-      const [tasks] = await conn.execute(
-        `SELECT pt.*, m.name as product_name, m.code as product_code
-         FROM production_tasks pt
-         LEFT JOIN materials m ON pt.product_id = m.id
-         WHERE pt.id = ?`,
-        [taskId]
-      );
-
-      if (tasks.length === 0) {
-        throw new Error('生产任务不存在');
-      }
-
-      const task = tasks[0];
-
-      // 获取会计科目
-      const { accountingConfig } = require('../../config/accountingConfig');
-      await accountingConfig.loadFromDatabase(db);
-
-      const productionCostCode = accountingConfig.getAccountCode('PRODUCTION_COST');
-      const employeePayableCode = accountingConfig.getAccountCode('EMPLOYEE_PAYABLE');
-      const manufacturingExpenseCode = accountingConfig.getAccountCode('MANUFACTURING_EXPENSE');
-
-      const productionCostAccountId = await this.getAccountIdByCode(conn, productionCostCode);
-      const employeePayableAccountId = await this.getAccountIdByCode(conn, employeePayableCode);
-      const manufacturingExpenseAccountId = await this.getAccountIdByCode(
-        conn,
-        manufacturingExpenseCode
-      );
-
-      // 获取会计期间
-      const entryDate = new Date().toISOString().split('T')[0];
-      const periodId = await GLService.getPeriodIdByDate(entryDate);
-
-      // 构建分录明细
-      const entryItems = [];
-
-      // 借方：生产成本-直接人工
-      if (labor > 0 && productionCostAccountId) {
-        entryItems.push({
-          account_id: productionCostAccountId,
-          debit_amount: labor,
-          credit_amount: 0,
-          description: `直接人工成本-${task.code || taskId}`,
-        });
-      }
-
-      // 借方：生产成本-制造费用
-      if (overhead > 0 && productionCostAccountId) {
-        entryItems.push({
-          account_id: productionCostAccountId,
-          debit_amount: overhead,
-          credit_amount: 0,
-          description: `制造费用分配-${task.code || taskId}`,
-        });
-      }
-
-      // 贷方：应付职工薪酬
-      if (labor > 0 && employeePayableAccountId) {
-        entryItems.push({
-          account_id: employeePayableAccountId,
-          debit_amount: 0,
-          credit_amount: labor,
-          description: `计提直接人工-${task.code || taskId}`,
-        });
-      }
-
-      // 贷方：制造费用
-      if (overhead > 0 && manufacturingExpenseAccountId) {
-        entryItems.push({
-          account_id: manufacturingExpenseAccountId,
-          debit_amount: 0,
-          credit_amount: overhead,
-          description: `制造费用结转-${task.code || taskId}`,
-        });
-      }
-
-      if (entryItems.length === 0) {
-        logger.warn(`[LaborOverheadVoucher] 任务 ${taskId} 无有效分录项`);
-        if (shouldManageTransaction) await conn.commit();
-        return { skipped: true, reason: '无有效分录项' };
-      }
-
-      // 创建凭证
-      const entryData = {
-        entry_date: entryDate,
-        period_id: periodId,
-        document_type: '人工及费用',
-        document_number: task.code || `TASK-${taskId}`,
-        description: `人工与制造费用凭证 - ${task.product_name || ''}`,
-        transaction_type: '生产人工', // 业务类型：人工成本
-        transaction_id: taskId, // 关联的生产任务ID
-        created_by: 'system',
-        status: 'posted',
-        is_posted: 1,
-      };
-
-      const entryId = await GLService.createEntry(entryData, entryItems, conn);
-
-      if (shouldManageTransaction) {
-        await conn.commit();
-      }
-
-      logger.info(
-        `[LaborOverheadVoucher] 任务 ${taskId} 凭证生成成功: 分录ID=${entryId}, 人工=${labor}, 费用=${overhead}`
-      );
-
-      return {
-        success: true,
-        entryId,
-        laborCost: labor,
-        overheadCost: overhead,
-      };
-    } catch (error) {
-      if (shouldManageTransaction) {
-        await conn.rollback();
-      }
-      logger.error(`[LaborOverheadVoucher] 生成凭证失败 (Task ${taskId}):`, error);
-      throw error;
-    } finally {
-      if (shouldManageTransaction && conn) {
-        conn.release();
-      }
-    }
-  }
-
-  /**
-   * 生成完工入库凭证（改造版，保留成本明细）
-   * Dr: 库存商品 (totalCost)
-   * Cr: 生产成本-直接材料 (materialCost)
-   * Cr: 生产成本-直接人工 (laborCost)
-   * Cr: 生产成本-制造费用 (overheadCost)
-   *
-   * @param {number} taskId 生产任务ID
-   * @param {Object} costBreakdown 成本明细 { materialCost, laborCost, overheadCost }
-   * @param {Object} connection 数据库连接（用于事务）
-   * @returns {Promise<Object>} 凭证信息
-   */
-  static async generateFinishedGoodsVoucher(taskId, costBreakdown, connection = null) {
-    const conn = connection || (await db.pool.getConnection());
-    const shouldManageTransaction = !connection;
-
-    try {
-      if (shouldManageTransaction) {
-        await conn.beginTransaction();
-      }
-
-      // 使用 Precision 确保精度
-      const materialCost = Precision.round2(costBreakdown.materialCost || 0);
-      const laborCost = Precision.round2(costBreakdown.laborCost || 0);
-      const overheadCost = Precision.round2(costBreakdown.overheadCost || 0);
-
-      // 计算总成本（使用精确加法）
-      const totalCost = Precision.sumRound2(materialCost, laborCost, overheadCost);
-
-      if (totalCost <= 0) {
-        logger.info(`[FinishedGoodsVoucher] 任务 ${taskId} 总成本为0，跳过`);
-        if (shouldManageTransaction) await conn.commit();
-        return { skipped: true, reason: '总成本为0' };
-      }
-
-      // 获取任务信息
-      const [tasks] = await conn.execute(
-        `SELECT pt.*, m.name as product_name, m.code as product_code
-         FROM production_tasks pt
-         LEFT JOIN materials m ON pt.product_id = m.id
-         WHERE pt.id = ?`,
-        [taskId]
-      );
-
-      if (tasks.length === 0) {
-        throw new Error('生产任务不存在');
-      }
-
-      const task = tasks[0];
-
-      // 获取会计科目
-      const { accountingConfig } = require('../../config/accountingConfig');
-      await accountingConfig.loadFromDatabase(db);
-
-      const finishedGoodsCode =
-        accountingConfig.getAccountCode('FINISHED_GOODS') ||
-        accountingConfig.getAccountCode('INVENTORY_GOODS');
-      const productionCostCode = accountingConfig.getAccountCode('PRODUCTION_COST');
-
-      const finishedGoodsAccountId = await this.getAccountIdByCode(conn, finishedGoodsCode);
-      const productionCostAccountId = await this.getAccountIdByCode(conn, productionCostCode);
-
-      if (!finishedGoodsAccountId || !productionCostAccountId) {
-        throw new Error(
-          `科目配置缺失: 库存商品(${finishedGoodsCode})=${finishedGoodsAccountId}, 生产成本(${productionCostCode})=${productionCostAccountId}`
-        );
-      }
-
-      // 获取会计期间
-      const entryDate = new Date().toISOString().split('T')[0];
-      const periodId = await GLService.getPeriodIdByDate(entryDate);
-
-      // 构建贷方分项（保留成本明细）
-      const creditItems = [];
-
-      if (materialCost > 0) {
-        creditItems.push({
-          account_id: productionCostAccountId,
-          debit_amount: 0,
-          credit_amount: materialCost,
-          description: `结转直接材料成本-${task.code || taskId}`,
-        });
-      }
-
-      if (laborCost > 0) {
-        creditItems.push({
-          account_id: productionCostAccountId,
-          debit_amount: 0,
-          credit_amount: laborCost,
-          description: `结转直接人工成本-${task.code || taskId}`,
-        });
-      }
-
-      if (overheadCost > 0) {
-        creditItems.push({
-          account_id: productionCostAccountId,
-          debit_amount: 0,
-          credit_amount: overheadCost,
-          description: `结转制造费用-${task.code || taskId}`,
-        });
-      }
-
-      // 使用 Precision.adjustTail 确保贷方合计等于借方（总成本）
-      Precision.adjustTail(creditItems, totalCost, 'credit_amount');
-
-      // 构建完整分录
-      const entryItems = [
-        // 借方：库存商品
-        {
-          account_id: finishedGoodsAccountId,
-          debit_amount: totalCost,
-          credit_amount: 0,
-          description: `生产完工入库-${task.product_name || ''} ${task.quantity}个`,
-        },
-        // 贷方：生产成本明细
-        ...creditItems,
-      ];
-
-      // 创建凭证
-      const entryData = {
-        entry_date: entryDate,
-        period_id: periodId,
-        document_type: '生产完工',
-        document_number: task.code || `TASK-${taskId}`,
-        description: `生产完工入库凭证 - ${task.product_name || ''}`,
-        transaction_type: '生产完工', // 业务类型：生产完工
-        transaction_id: taskId, // 关联的生产任务ID
-        created_by: 'system',
-        status: 'posted',
-        is_posted: 1,
-      };
-
-      const entryId = await GLService.createEntry(entryData, entryItems, conn);
-
-      if (shouldManageTransaction) {
-        await conn.commit();
-      }
-
-      logger.info(
-        `[FinishedGoodsVoucher] 任务 ${taskId} 完工凭证生成成功: 分录ID=${entryId}, 总成本=${totalCost}`
-      );
-
-      return {
-        success: true,
-        entryId,
-        totalCost,
-        costBreakdown: {
-          materialCost,
-          laborCost,
-          overheadCost,
-        },
-      };
-    } catch (error) {
-      if (shouldManageTransaction) {
-        await conn.rollback();
-      }
-      logger.error(`[FinishedGoodsVoucher] 生成完工凭证失败 (Task ${taskId}):`, error);
-      throw error;
-    } finally {
-      if (shouldManageTransaction && conn) {
-        conn.release();
-      }
-    }
-  }
-
   // ===================== 在制品(WIP)成本模块 =====================
 
   /**
@@ -2670,7 +3035,7 @@ class CostAccountingService {
       await connection.beginTransaction();
 
       // 确定快照日期
-      const snapDate = snapshotDate || new Date().toISOString().split('T')[0];
+      let snapDate = this.toDateOnly(snapshotDate || new Date());
 
       // 获取会计期间
       let actualPeriodId = periodId;
@@ -2679,12 +3044,30 @@ class CostAccountingService {
       }
       await this.assertOpenPeriod(connection, actualPeriodId);
 
-      // 查询所有未完工任务（状态不是 completed/cancelled）
-      const [wipTasks] = await connection.execute(`
+      const [periodRows] = await connection.execute(
+        "SELECT DATE_FORMAT(start_date, '%Y-%m-%d') as start_date, DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM gl_periods WHERE id = ?",
+        [actualPeriodId]
+      );
+      if (periodRows.length === 0) {
+        throw new Error('会计期间不存在');
+      }
+      const periodStartDate = this.toDateOnly(periodRows[0].start_date);
+      const periodEndDate = this.toDateOnly(periodRows[0].end_date);
+      if (periodId && !snapshotDate) {
+        snapDate = periodEndDate;
+      }
+      if (snapDate < periodStartDate || snapDate > periodEndDate) {
+        throw new Error(`WIP快照日期 ${snapDate} 不在会计期间 ${periodStartDate} 至 ${periodEndDate} 内`);
+      }
+
+      // 查询快照日仍在制的任务：快照日之前已创建，且未取消/未入库，或完工日期晚于快照日。
+      const [wipTasks] = await connection.execute(
+        `
         SELECT
           pt.id as task_id,
           pt.code as task_code,
           pt.product_id,
+          pt.cost_center_id,
           m.name as product_name,
           pt.quantity as planned_quantity,
           pt.completed_quantity,
@@ -2692,9 +3075,16 @@ class CostAccountingService {
           pt.created_at
         FROM production_tasks pt
         LEFT JOIN materials m ON pt.product_id = m.id
-        WHERE pt.status NOT IN ('completed', 'cancelled', 'warehoused')
+        WHERE DATE(pt.created_at) <= ?
+          AND pt.status <> 'cancelled'
+          AND (
+            pt.status NOT IN ('completed', 'warehoused')
+            OR COALESCE(pt.completed_at, pt.actual_end_date) > ?
+          )
         ORDER BY pt.id
-      `);
+      `,
+        [snapDate, `${snapDate} 23:59:59`]
+      );
 
       const wipDetails = [];
       let totalWIPMaterial = 0;
@@ -2702,52 +3092,45 @@ class CostAccountingService {
       let totalWIPOverhead = 0;
 
       if (wipTasks.length > 0) {
-        const taskIds = wipTasks.map(t => t.task_id);
+        const taskIds = wipTasks.map((t) => t.task_id);
         const taskPh = taskIds.map(() => '?').join(',');
 
-        // 批量获取所有任务的领料成本（消除 N+1）
-        const [allMatCosts] = await connection.execute(
-          `SELECT io.production_task_id as task_id,
-                  COALESCE(SUM(
-                    (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-                    * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
-                  ), 0) as total
-           FROM inventory_outbound io
-           JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
-           JOIN materials m ON ioi.material_id = m.id
-           WHERE io.production_task_id IN (${taskPh}) AND io.status IN ('completed', 'confirmed')
-           GROUP BY io.production_task_id`,
-          taskIds
-        );
-        const matCostMap = new Map(allMatCosts.map(r => [r.task_id, Precision.round2(parseFloat(r.total) || 0)]));
+        const materialMovements = await this.collectTaskMaterialMovements(connection, taskIds, {
+          cutoffDate: snapDate,
+        });
+        const matCostMap = this.sumMaterialMovementsByTask(materialMovements);
 
         // 批量获取所有任务的工序进度（消除 N+1）
         const [allProgress] = await connection.execute(
           `SELECT task_id,
                   COUNT(*) as total_processes,
-                  SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_processes
+                  SUM(
+                    CASE
+                      WHEN status = 'completed'
+                       AND DATE(COALESCE(actual_end_time, updated_at, created_at)) <= ?
+                      THEN 1
+                      ELSE 0
+                    END
+                  ) as completed_processes
            FROM production_processes
            WHERE task_id IN (${taskPh})
            GROUP BY task_id`,
-          taskIds
+          [snapDate, ...taskIds]
         );
-        const progressMap = new Map(allProgress.map(r => [r.task_id, r]));
+        const progressMap = new Map(allProgress.map((r) => [r.task_id, r]));
 
         // 批量获取所有任务的实际工时（消除 N+1）
         const [allLaborData] = await connection.execute(
-          `SELECT pp.task_id,
-                  COALESCE(SUM(
-                    CASE WHEN pp.status = 'completed'
-                    THEN COALESCE(ptd.standard_hours, 1)
-                    ELSE 0 END
-                  ), 0) as actual_hours
-           FROM production_processes pp
-           LEFT JOIN process_template_details ptd ON pp.process_name = ptd.name
-           WHERE pp.task_id IN (${taskPh})
-           GROUP BY pp.task_id`,
-          taskIds
+          `SELECT pr.task_id, COALESCE(SUM(pr.work_hours), 0) as actual_hours
+           FROM production_reports pr
+           WHERE pr.task_id IN (${taskPh})
+             AND pr.report_time <= ?
+           GROUP BY pr.task_id`,
+          [...taskIds, `${snapDate} 23:59:59`]
         );
-        const laborMap = new Map(allLaborData.map(r => [r.task_id, parseFloat(r.actual_hours) || 0]));
+        const laborMap = new Map(
+          allLaborData.map((r) => [r.task_id, parseFloat(r.actual_hours) || 0])
+        );
 
         // 获取成本配置（只查一次，移到循环外）
         const settings = await this.getCostSettings();
@@ -2783,7 +3166,7 @@ class CostAccountingService {
             laborHours: actualHours,
             quantity: task.planned_quantity,
             materialCost: materialCost,
-            date: new Date().toISOString().split('T')[0],
+            date: snapDate,
           });
           const overheadCost = Precision.round2(ohResult.overhead);
 
@@ -2810,10 +3193,11 @@ class CostAccountingService {
             `
             INSERT INTO wip_snapshots (
               period_id, snapshot_date, task_id, task_code, product_id, product_name,
-              planned_quantity, completed_quantity, material_cost, labor_cost, overhead_cost, total_cost,
+              cost_center_id, planned_quantity, completed_quantity, material_cost, labor_cost, overhead_cost, total_cost,
               completion_rate, equivalent_units, wip_material_cost, wip_labor_cost, wip_overhead_cost, wip_total_cost
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
+              cost_center_id = VALUES(cost_center_id),
               material_cost = VALUES(material_cost),
               labor_cost = VALUES(labor_cost),
               overhead_cost = VALUES(overhead_cost),
@@ -2832,6 +3216,7 @@ class CostAccountingService {
               task.task_code,
               task.product_id,
               task.product_name,
+              task.cost_center_id || null,
               task.planned_quantity,
               task.completed_quantity || 0,
               materialCost,
@@ -2898,7 +3283,7 @@ class CostAccountingService {
 
   /**
    * 生成在制品凭证（月末结转）
-   * 借: 生产成本-期末在制品
+   * 借: 期末在制品
    * 贷: 生产成本-本期投入
    *
    * @param {number} periodId 会计期间ID
@@ -2926,43 +3311,78 @@ class CostAccountingService {
 
       const totalWIP = Precision.round2(parseFloat(wipSummary[0]?.total_cost) || 0);
 
-      if (totalWIP <= 0) {
-        logger.info(`[WIPVoucher] 期间 ${periodId} 无在制品成本，跳过凭证生成`);
-        await connection.commit();
-        return { skipped: true, reason: '无在制品成本' };
-      }
-
       // 获取科目
       const { accountingConfig } = require('../../config/accountingConfig');
       await accountingConfig.loadFromDatabase(db);
 
       const productionCostCode = accountingConfig.getAccountCode('PRODUCTION_COST');
+      const wipCode =
+        accountingConfig.getAccountCode('WORK_IN_PROCESS') || accountingConfig.getAccountCode('WIP');
       const productionCostAccountId = await this.getAccountIdByCode(connection, productionCostCode);
+      const wipAccountId = await this.getAccountIdByCode(connection, wipCode);
 
-      if (!productionCostAccountId) {
-        throw new Error(`科目配置缺失: 生产成本(${productionCostCode})`);
+      if (!productionCostAccountId || !wipAccountId) {
+        throw new Error(
+          `科目配置缺失: 期末在制品(${wipCode})=${wipAccountId}, 生产成本(${productionCostCode})=${productionCostAccountId}`
+        );
+      }
+
+      if (wipAccountId === productionCostAccountId) {
+        throw new Error('期末在制品科目不能与生产成本科目相同，请检查 WORK_IN_PROCESS/WIP 科目配置');
       }
 
       // 获取会计期间信息
       const [periodInfo] = await connection.execute(
-        'SELECT end_date FROM gl_periods WHERE id = ?',
+        "SELECT DATE_FORMAT(end_date, '%Y-%m-%d') as end_date FROM gl_periods WHERE id = ?",
         [periodId]
       );
-      const entryDate = periodInfo[0]?.end_date || new Date().toISOString().split('T')[0];
+      const entryDate = toLocalDateString(periodInfo[0]?.end_date || currentDateString());
+
+      const existingWIPVoucherResult = await this.releaseExistingWIPVoucherIfNeeded(
+        connection,
+        periodId,
+        entryDate,
+        totalWIP,
+        wipAccountId,
+        productionCostAccountId
+      );
+
+      if (existingWIPVoucherResult?.reused) {
+        await connection.commit();
+        return {
+          success: true,
+          reused: true,
+          entryId: existingWIPVoucherResult.entryId,
+          entryNumber: existingWIPVoucherResult.entryNumber,
+          totalWIPCost: totalWIP,
+          debitAccountCode: wipCode,
+          creditAccountCode: productionCostCode,
+        };
+      }
+
+      if (totalWIP <= 0) {
+        logger.info(`[WIPVoucher] 期间 ${periodId} 无在制品成本，跳过凭证生成`);
+        await connection.commit();
+        return {
+          skipped: true,
+          reason: '无在制品成本',
+          repair: existingWIPVoucherResult || null,
+        };
+      }
 
       // 构建分录（期末 WIP 结转）
       const entryItems = [
         {
-          account_id: productionCostAccountId,
+          account_id: wipAccountId,
           debit_amount: totalWIP,
           credit_amount: 0,
-          description: '期末在制品结转-借方',
+          description: '期末在制品结转',
         },
         {
           account_id: productionCostAccountId,
           debit_amount: 0,
           credit_amount: totalWIP,
-          description: '期末在制品结转-贷方（冲销本期投入）',
+          description: '冲销本期生产成本投入',
         },
       ];
 
@@ -2992,6 +3412,9 @@ class CostAccountingService {
         success: true,
         entryId,
         totalWIPCost: totalWIP,
+        debitAccountCode: wipCode,
+        creditAccountCode: productionCostCode,
+        repair: existingWIPVoucherResult || null,
       };
     } catch (error) {
       await connection.rollback();
@@ -3154,8 +3577,8 @@ class CostAccountingService {
 
   /**
    * 生成销售成本结转凭证
-   * 借: 主营业务成本 (6401)
-   * 贷: 库存商品 (1406)
+   * 借: 主营业务成本 (MAIN_BUSINESS_COST)
+   * 贷: 库存商品 (INVENTORY_GOODS)
    *
    * @param {number} salesId 销售单ID
    * @param {number} productId 产品ID
@@ -3205,7 +3628,7 @@ class CostAccountingService {
       }
 
       // 获取会计期间
-      const entryDate = new Date().toISOString().split('T')[0];
+      const entryDate = currentDateString();
       const periodId = await GLService.getPeriodIdByDate(entryDate);
 
       // 构建分录
@@ -3236,6 +3659,31 @@ class CostAccountingService {
         status: 'posted',
         is_posted: 1,
       };
+
+      const [existingEntries] = await conn.execute(
+        `SELECT id
+         FROM gl_entries
+         WHERE transaction_type = ?
+           AND transaction_id = ?
+           AND COALESCE(is_reversed, 0) = 0
+         LIMIT 1
+         FOR UPDATE`,
+        [entryData.transaction_type, salesId]
+      );
+      if (existingEntries.length > 0) {
+        if (shouldManageTransaction) {
+          await conn.commit();
+        }
+        return {
+          skipped: true,
+          reason: '销售成本凭证已存在',
+          entryId: existingEntries[0].id,
+          totalCost,
+          productId,
+          quantity,
+          unitCost,
+        };
+      }
 
       const entryId = await GLService.createEntry(entryData, entryItems, conn);
 
@@ -3304,7 +3752,9 @@ class CostAccountingService {
     }
 
     if (Number(periods[0].is_closed) === 1 || periods[0].is_closed === true) {
-      throw new Error(`会计期间 ${periods[0].period_name || periodId} 已关闭，不能执行成本期末动作`);
+      throw new Error(
+        `会计期间 ${periods[0].period_name || periodId} 已关闭，不能执行成本期末动作`
+      );
     }
 
     return periods[0];
@@ -3318,37 +3768,60 @@ class CostAccountingService {
    * @param {string[]} fields 查询字段列表
    * @returns {Promise<Object>}
    */
-  static async getCostSummaryForPeriod(startDate, endDate, fields = ['materialCost', 'laborCost', 'overheadCost', 'totalCost']) {
+  static async getCostSummaryForPeriod(
+    startDate,
+    endDate,
+    fields = ['materialCost', 'laborCost', 'overheadCost', 'totalCost']
+  ) {
     const defaultResult = {};
-    fields.forEach(f => { defaultResult[f] = 0; });
+    fields.forEach((f) => {
+      defaultResult[f] = 0;
+    });
 
-    const fieldMap = {
+    const actualFieldMap = {
       materialCost: 'COALESCE(SUM(material_cost), 0) as materialCost',
       laborCost: 'COALESCE(SUM(labor_cost), 0) as laborCost',
       overheadCost: 'COALESCE(SUM(overhead_cost), 0) as overheadCost',
       totalCost: 'COALESCE(SUM(total_cost), 0) as totalCost',
     };
-    const selectClause = fields.map(f => fieldMap[f]).filter(Boolean).join(', ');
+    const wipFieldMap = {
+      materialCost: 'COALESCE(SUM(wip_material_cost), 0) as materialCost',
+      laborCost: 'COALESCE(SUM(wip_labor_cost), 0) as laborCost',
+      overheadCost: 'COALESCE(SUM(wip_overhead_cost), 0) as overheadCost',
+      totalCost: 'COALESCE(SUM(wip_total_cost), 0) as totalCost',
+    };
+    const actualSelectClause = fields
+      .map((f) => actualFieldMap[f])
+      .filter(Boolean)
+      .join(', ');
+    const wipSelectClause = fields
+      .map((f) => wipFieldMap[f])
+      .filter(Boolean)
+      .join(', ');
 
     // 1. 优先从 actual_costs 获取
     try {
       const [costData] = await db.pool.execute(
-        `SELECT ${selectClause} FROM actual_costs WHERE calculated_at BETWEEN ? AND ?`,
+        `SELECT ${actualSelectClause} FROM actual_costs WHERE calculated_at BETWEEN ? AND ?`,
         [startDate, endDate]
       );
       const row = costData[0];
-      if (fields.some(f => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
-    } catch { /* actual_costs表可能不存在 */ }
+      if (fields.some((f) => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
+    } catch {
+      /* actual_costs表可能不存在 */
+    }
 
     // 2. 从 wip_snapshots 同期数据获取
     try {
       const [wipData] = await db.pool.execute(
-        `SELECT ${selectClause} FROM wip_snapshots WHERE snapshot_date BETWEEN ? AND ?`,
+        `SELECT ${wipSelectClause} FROM wip_snapshots WHERE snapshot_date BETWEEN ? AND ?`,
         [startDate, endDate]
       );
       const row = wipData[0];
-      if (fields.some(f => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
-    } catch { /* 降级 */ }
+      if (fields.some((f) => parseFloat(row[f]) > 0)) return this._parseNumericFields(row, fields);
+    } catch {
+      /* 降级 */
+    }
 
     return defaultResult;
   }
@@ -3375,7 +3848,9 @@ class CostAccountingService {
   /** @private 将查询结果字段统一转为 number */
   static _parseNumericFields(row, fields) {
     const result = {};
-    fields.forEach(f => { result[f] = parseFloat(row[f]) || 0; });
+    fields.forEach((f) => {
+      result[f] = parseFloat(row[f]) || 0;
+    });
     return result;
   }
 }

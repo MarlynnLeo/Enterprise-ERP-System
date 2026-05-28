@@ -11,7 +11,7 @@
           <el-icon v-if="menu.icon">
             <component :is="getIconComponent(menu.icon)" />
           </el-icon>
-          <span>{{ menu.name }}</span>
+          <span>{{ getMenuLabel(menu) }}</span>
         </template>
         <!-- 递归渲染子菜单（过滤掉按钮权限） -->
         <sidebar-menu :menus="getVisibleChildren(menu)" />
@@ -24,13 +24,19 @@
         <el-icon v-if="menu.icon">
           <component :is="getIconComponent(menu.icon)" />
         </el-icon>
-        <span>{{ menu.name }}</span>
+        <span>{{ getMenuLabel(menu) }}</span>
       </el-menu-item>
     </template>
   </template>
 </template>
 <script setup>
-import { House, DataAnalysis, DataLine, Calendar, Tickets, SetUp, Warning, Goods, Document, List, Box, TakeawayBox, Files, Fold, DocumentCopy, Van, ShoppingBag, Money, Wallet, Timer, ArrowRight, User, Lock, Menu, Collection, Setting, Tools, Connection, Monitor, Histogram, TrendCharts, PieChart, Grid, Share, Management, OfficeBuilding, CreditCard, Coin, PriceTag, DCaret, Link, Postcard, Edit, Search, Delete, Plus, Minus, Check, Close, InfoFilled, WarningFilled, CircleCheck, CircleClose, QuestionFilled, Refresh, Upload, Download, View, Hide, Expand, Operation, Switch, FullScreen, Position, Location, Compass, HomeFilled, Memo, Notebook, Stamp, Trophy, FirstAidKit, Suitcase, HelpFilled, Sunny, Moon, Clock, Promotion, VideoCamera, Microphone, Aim, Ticket, Odometer, Printer, ChatDotRound, Avatar, Briefcase, Sell, ShoppingCart, RefreshLeft } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+import {
+  getIconComponent,
+  getMenuIndex,
+  getVisibleChildren,
+  hasVisibleChildren
+} from '../../utils/menuNavigation'
 defineOptions({
   name: 'SidebarMenu' // 递归组件需要名称
 })
@@ -40,135 +46,233 @@ const _props = defineProps({
     default: () => []
   }
 })
-// 图标映射表
-const iconMap = {
-  'icon-home': House,
-  'icon-dashboard': Histogram,
-  'icon-data-analysis': DataAnalysis,
-  'icon-data-line': DataLine,
-  'icon-calendar': Calendar,
-  'icon-tickets': Tickets,
-  'icon-set-up': SetUp,
-  'icon-warning': Warning,
-  'icon-goods': Goods,
-  'icon-document': Document,
-  'icon-list': List,
-  'icon-box': Box,
-  'icon-takeaway-box': TakeawayBox,
-  'icon-files': Files,
-  'icon-fold': Fold,
-  'icon-document-copy': DocumentCopy,
-  'icon-van': Van,
-  'icon-shopping-bag': ShoppingBag,
-  'icon-money': Money,
-  'icon-wallet': Wallet,
-  'icon-timer': Timer,
-  'icon-arrow-right': ArrowRight,
-  'icon-user': User,
-  'icon-lock': Lock,
-  'icon-menu': Menu,
-  'icon-collection': Collection,
-  'icon-setting': Setting,
-  'icon-tools': Tools,
-  'icon-connection': Connection,
-  'icon-monitor': Monitor,
-  'icon-histogram': Histogram,
-  'icon-trend-charts': TrendCharts,
-  'icon-pie-chart': PieChart,
-  'icon-grid': Grid,
-  'icon-share': Share,
-  'icon-management': Management,
-  'icon-office-building': OfficeBuilding,
-  'icon-credit-card': CreditCard,
-  'icon-coin': Coin,
-  'icon-price-tag': PriceTag,
-  'icon-d-caret': DCaret,
-  'icon-link': Link,
-  'icon-postcard': Postcard,
-  'icon-edit': Edit,
-  'icon-search': Search,
-  'icon-delete': Delete,
-  'icon-plus': Plus,
-  'icon-minus': Minus,
-  'icon-check': Check,
-  'icon-close': Close,
-  'icon-info-filled': InfoFilled,
-  'icon-warning-filled': WarningFilled,
-  'icon-circle-check': CircleCheck,
-  'icon-circle-close': CircleClose,
-  'icon-question-filled': QuestionFilled,
-  'icon-refresh': Refresh,
-  'icon-upload': Upload,
-  'icon-download': Download,
-  'icon-view': View,
-  'icon-hide': Hide,
-  'icon-expand': Expand,
-  'icon-operation': Operation,
-  'icon-switch': Switch,
-  'icon-full-screen': FullScreen,
-  'icon-position': Position,
-  'icon-location': Location,
-  'icon-compass': Compass,
-  'icon-home-filled': HomeFilled,
-  'icon-memo': Memo,
-  'icon-notebook': Notebook,
-  'icon-stamp': Stamp,
-  'icon-trophy': Trophy,
-  'icon-first-aid-kit': FirstAidKit,
-  'icon-suitcase': Suitcase,
-  'icon-help-filled': HelpFilled,
-  'icon-sunny': Sunny,
-  'icon-moon': Moon,
-  'icon-clock': Clock,
-  'icon-promotion': Promotion,
-  'icon-video-camera': VideoCamera,
-  'icon-microphone': Microphone,
-  'icon-aim': Aim,
-  'icon-ticket': Ticket,
-  'icon-stock': Box,
-  'icon-sales': TrendCharts,
-  'icon-quality': CircleCheck,
-  'icon-data-board': Histogram,
-  'icon-odometer': Odometer,
-  'icon-printer': Printer,
-  'icon-robot': ChatDotRound,
-  'icon-customer': Avatar,
-  'icon-outbound': Briefcase,
-  'icon-sell': Sell,
-  'icon-shopping-cart': ShoppingCart,
-  'icon-return': RefreshLeft,
-  'icon-finished': CircleCheck,
-  'icon-order': Tickets,
-  'icon-exchange': Switch,
-  'icon-quotation': Postcard
+
+const { t } = useI18n()
+
+/**
+ * 菜单路径到 i18n 翻译 key 的映射表
+ * 根据数据库 menus 表的 path 字段，映射到 locales 文件中的 menu.* key
+ * 当用户切换语言时，菜单名称会自动随之改变
+ */
+const pathToI18nKey = {
+  // 一级模块菜单
+  '/production': 'menu.production',
+  '/basedata': 'menu.baseData',
+  '/inventory': 'menu.inventory',
+  '/purchase': 'menu.purchase',
+  '/sales': 'menu.sales',
+  '/system': 'menu.system',
+  '/quality': 'menu.quality',
+  '/finance': 'menu.finance',
+  '/equipment': 'menu.equipment',
+  '/hr': 'menu.hr',
+
+  // 数据概览
+  '/dataoverview/production': 'menu.productionBoard',
+  '/dataoverview/inventory': 'menu.inventoryBoard',
+  '/dataoverview/sales': 'menu.salesBoard',
+  '/dataoverview/finance': 'menu.financeBoard',
+  '/dataoverview/quality': 'menu.qualityBoard',
+  '/dataoverview/purchase': 'menu.purchaseBoard',
+
+  // 生产管理
+  '/production/plan': 'menu.productionPlan',
+  '/production/task': 'menu.productionTask',
+  '/production/process': 'menu.productionProcess',
+  '/production/report': 'menu.productionReport',
+  '/production/equipment-monitoring': 'menu.equipmentMonitoring',
+  '/production/material-shortage': 'menu.materialShortage',
+  '/production/mrp': 'menu.mrpPlanning',
+  '/production/data-view': 'menu.productionDataView',
+  '/production/gantt': 'menu.productionGantt',
+
+  // 基础数据
+  '/basedata/materials': 'menu.materials',
+  '/basedata/boms': 'menu.boms',
+  '/basedata/customers': 'menu.customers',
+  '/basedata/suppliers': 'menu.suppliers',
+  '/basedata/categories': 'menu.categories',
+  '/basedata/units': 'menu.units',
+  '/basedata/locations': 'menu.locations',
+  '/basedata/process-templates': 'menu.processTemplates',
+  '/basedata/product-categories': 'menu.productCategories',
+  '/basedata/ecn': 'menu.ecnManagement',
+
+  // 库存管理
+  '/inventory/stock': 'menu.stock',
+  '/inventory/inbound': 'menu.inbound',
+  '/inventory/outbound': 'menu.outbound',
+  '/inventory/transfer': 'menu.transfer',
+  '/inventory/check': 'menu.check',
+  '/inventory/report': 'menu.inventoryReport',
+  '/inventory/transaction': 'menu.transaction',
+  '/inventory/manual-transaction': 'menu.manualTransaction',
+  '/inventory/year-end': 'menu.yearEnd',
+
+  // 采购管理
+  '/purchase/requisitions': 'menu.requisitions',
+  '/purchase/orders': 'menu.orders',
+  '/purchase/receipts': 'menu.receipts',
+  '/purchase/returns': 'menu.returns',
+  '/purchase/processing': 'menu.processing',
+  '/purchase/processing-receipts': 'menu.processingReceipts',
+  '/purchase/history': 'menu.purchaseHistory',
+
+  // 销售管理
+  '/sales/orders': 'menu.salesOrders',
+  '/sales/outbound': 'menu.salesOutbound',
+  '/sales/returns': 'menu.salesReturns',
+  '/sales/exchanges': 'menu.exchanges',
+  '/sales/quotations': 'menu.quotations',
+  '/sales/packing-lists': 'menu.packingLists',
+  '/sales/delivery-stats': 'menu.deliveryStats',
+  '/sales/contracts': 'menu.contracts',
+
+  // 质量管理
+  '/quality/incoming': 'menu.incoming',
+  '/quality/process': 'menu.processInspection',
+  '/quality/first-article': 'menu.firstArticle',
+  '/quality/final': 'menu.final',
+  '/quality/templates': 'menu.templates',
+  '/quality/traceability': 'menu.traceability',
+  '/quality/nonconforming': 'menu.nonconforming',
+  '/quality/8d-reports': 'menu.eightDReport',
+  '/quality/aql-standards': 'menu.aqlStandards',
+  '/quality/replacement-orders': 'menu.replacementOrders',
+  '/quality/rework-tasks': 'menu.reworkTasks',
+  '/quality/scrap-records': 'menu.scrapRecords',
+  '/quality/statistics': 'menu.qualityStatistics',
+  '/quality/gauges': 'menu.gaugeManagement',
+  '/quality/spc': 'menu.spcControlChart',
+  '/quality/supplier-quality': 'menu.supplierQuality',
+
+  // 设备管理
+  '/equipment/list': 'menu.equipmentList',
+  '/equipment/maintenance': 'menu.maintenance',
+  '/equipment/inspection': 'menu.inspection',
+  '/equipment/status': 'menu.equipmentStatus',
+
+  // 人力资源
+  '/hr/employees': 'menu.employees',
+  '/hr/attendance': 'menu.attendance',
+  '/hr/salary': 'menu.salary',
+  '/hr/performance': 'menu.performance',
+
+  // 系统管理
+  '/system/users': 'menu.users',
+  '/system/departments': 'menu.departments',
+  '/system/permissions': 'menu.permissions',
+  '/system/print': 'menu.print',
+  '/system/notifications': 'menu.notifications',
+  '/system/business-types': 'menu.businessTypes',
+  '/system/technical-communication': 'menu.technicalCommunication',
+  '/system/workflow': 'menu.workflow',
+  '/system/coding-rules': 'menu.codingRules',
+  '/system/documents': 'menu.documents',
+  '/system/business-alerts': 'menu.businessAlerts',
+
+  // 财务管理 - 总账
+  '/finance/gl/accounts': 'menu.accounts',
+  '/finance/gl/entries': 'menu.entries',
+  '/finance/gl/periods': 'menu.periods',
+  '/finance/gl/trial-balance': 'menu.trialBalance',
+  '/finance/gl/period-closing': 'menu.periodClosing',
+  '/finance/gl/opening-balances': 'menu.openingBalances',
+  '/finance/gl/entries/receipt': 'menu.entries',
+  '/finance/gl/entries/payment': 'menu.entries',
+  '/finance/gl/entries/transfer': 'menu.entries',
+  '/finance/gl/entries/general': 'menu.entries',
+
+  // 财务管理 - 应收
+  '/finance/ar/invoices': 'menu.arInvoices',
+  '/finance/ar/receipts': 'menu.receiptsManagement',
+  '/finance/ar/aging': 'menu.arAging',
+
+  // 财务管理 - 应付
+  '/finance/ap/invoices': 'menu.apInvoices',
+  '/finance/ap/payments': 'menu.payments',
+  '/finance/ap/aging': 'menu.apAging',
+
+  // 财务管理 - 固定资产
+  '/finance/assets/list': 'menu.assets',
+  '/finance/assets/categories': 'menu.assetCategories',
+  '/finance/assets/depreciation': 'menu.depreciation',
+  '/finance/assets/cip': 'menu.assetCIP',
+  '/finance/assets/inventory': 'menu.assetInventory',
+  '/finance/assets/reports': 'menu.assetReports',
+
+  // 财务管理 - 出纳
+  '/finance/cash': 'menu.cashierManagement',
+  '/finance/cash/accounts': 'menu.bankAccounts',
+  '/finance/cash/bank-transactions': 'menu.bankTransactions',
+  '/finance/cash/cash-transactions': 'menu.cashTransactions',
+  '/finance/cash/reconciliation': 'menu.reconciliation',
+
+  // 财务管理 - 报表
+  '/finance/reports/balance-sheet': 'menu.balanceSheet',
+  '/finance/reports/income-statement': 'menu.incomeStatement',
+  '/finance/reports/cash-flow': 'menu.cashFlow',
+  '/finance/reports/standard-cash-flow': 'menu.standardCashFlow',
+
+  // 财务管理 - 自动化/税务/预算/成本/费用/定价/设置
+  '/finance/automation': 'menu.financeAutomation',
+  '/finance/tax/invoices': 'menu.taxInvoices',
+  '/finance/tax/returns': 'menu.taxReturns',
+  '/finance/tax/account-config': 'menu.taxAccountConfig',
+  '/finance/budget/list': 'menu.budgetList',
+  '/finance/budget/edit': 'menu.budgetManagement',
+  '/finance/budget/execution': 'menu.budgetExecution',
+  '/finance/budget/ai': 'menu.budgetAI',
+  '/finance/cost/dashboard': 'menu.costDashboard',
+  '/finance/cost/standard': 'menu.standardCost',
+  '/finance/cost/actual': 'menu.actualCost',
+  '/finance/cost/variance': 'menu.costVariance',
+  '/finance/cost/settings': 'menu.costSettings',
+  '/finance/cost/center': 'menu.costCenter',
+  '/finance/cost/ledger': 'menu.costLedger',
+  '/finance/cost/profitability': 'menu.profitability',
+  '/finance/cost/abc': 'menu.activityBasedCosting',
+  '/finance/cost/versions': 'menu.standardCost',
+  '/finance/expenses': 'menu.expenses',
+  '/finance/expenses/categories': 'menu.expenseCategories',
+  '/finance/pricing': 'menu.productPricing',
+  '/finance/settings': 'menu.financeSettings',
+  '/finance/settings/exchange-rates': 'menu.exchangeRates'
 }
-// 获取图标组件
-const getIconComponent = (iconName) => {
-  if (!iconName) return null
-  return iconMap[iconName] || iconMap['icon-document'] || Document
-}
-// 判断是否有可显示的子菜单（过滤掉 type=2 的按钮权限和没有 path 的项）
-const hasVisibleChildren = (menu) => {
-  if (!menu.children || menu.children.length === 0) return false
-  // 检查是否有 type=1 或 type 不存在（默认为菜单项）且有 path 或者有可见子菜单的项
-  return menu.children.some(child =>
-    child.type !== 2 && (child.path || hasVisibleChildren(child))
-  )
-}
-// 获取菜单索引（用于 sub-menu）
-const getMenuIndex = (menu) => {
-  // 关键修复：包含子菜单时返回随机或固定id作为index，防止 router = true 触发路由跳转导致白屏
-  if (hasVisibleChildren(menu)) {
-    return `menu-${menu.id}`
+
+/**
+ * 获取菜单的翻译后显示名称
+ * 优先根据 path 查找 i18n key，找不到则回退显示数据库原始 name
+ */
+const getMenuLabel = (menu) => {
+  // 1. 尝试通过 path 查找映射
+  if (menu.path && pathToI18nKey[menu.path]) {
+    return t(pathToI18nKey[menu.path])
   }
-  // 优先使用 path，如果没有则用 id
-  return menu.path || `menu-${menu.id}`
+
+  // 2. 对于没有 path 的父级菜单（如"数据概览"、"总账"等分组节点），
+  //    尝试根据 permission 匹配
+  if (menu.permission) {
+    const permissionMap = {
+      'dataoverview': 'menu.dataOverview',
+      'finance:gl': 'menu.entries',
+      'finance:ar': 'menu.arInvoices',
+      'finance:ap': 'menu.apInvoices',
+      'finance:assets': 'menu.assets',
+      'finance:cash': 'menu.cashierManagement',
+      'finance:reports': 'menu.balanceSheet',
+      'finance:tax': 'menu.taxManagement',
+      'finance:budgets': 'menu.budgetManagement',
+      'finance:cost': 'menu.costAccounting',
+      'finance:expenses': 'menu.expenses'
+    }
+    if (permissionMap[menu.permission]) {
+      return t(permissionMap[menu.permission])
+    }
+  }
+
+  // 3. 回退：直接返回数据库原始名称
+  return menu.name
 }
-// 获取可显示的子菜单列表（过滤掉 type=2 的按钮权限）
-const getVisibleChildren = (menu) => {
-  if (!menu.children) return []
-  return menu.children.filter(child =>
-    child.type !== 2 && (child.path || hasVisibleChildren(child))
-  )
-}
+
 </script>

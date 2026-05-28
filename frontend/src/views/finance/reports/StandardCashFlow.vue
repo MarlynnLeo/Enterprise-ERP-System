@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="report-container">
+  <div class="module-page report-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -23,8 +23,15 @@
     </el-card>
 
     <!-- 查询条件区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="queryParams" class="search-form">
+    <FinanceQueryCard
+      :model="queryParams"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="generateReport"
+      @reset="resetQuery"
+    >
+      <template #basic>
         <el-form-item label="开始日期" required>
           <el-date-picker
             v-model="queryParams.startDate"
@@ -45,6 +52,8 @@
 
           ></el-date-picker>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="单位">
           <el-select v-model="queryParams.unit" placeholder="选择金额单位">
             <el-option label="元" :value="1"></el-option>
@@ -52,8 +61,8 @@
             <el-option label="万元" :value="10000"></el-option>
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 报表统计摘要 -->
     <div class="statistics-row" v-if="reportData.summary">
@@ -139,23 +148,24 @@
 
 <script setup>
 import { ReportHelper } from '@/utils/commonHelpers';
-import { formatCurrency, formatAmount } from '@/utils/format'
+import { formatCurrency, formatAmount, formatLocalDate } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
 import printService from '@/services/printService';
-import ExcelJS from 'exceljs';
+import { loadExcelJS } from '@/utils/lazyVendors';
 
 // 查询参数
 const queryParams = reactive({
-  startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
-  endDate: new Date().toISOString().slice(0, 10),
+  startDate: formatLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+  endDate: formatLocalDate(new Date()),
   unit: 1
 });
 
 // 报表数据
 const reportData = ref({});
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 const companyName = ref('');
 
 // 计算金额单位显示文本
@@ -199,6 +209,13 @@ const generateReport = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const resetQuery = () => {
+  queryParams.startDate = formatLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  queryParams.endDate = formatLocalDate(new Date());
+  queryParams.unit = 1;
+  reportData.value = {};
 };
 
 // 格式化报表期间
@@ -248,6 +265,7 @@ const exportExcel = async () => {
   }
 
   try {
+    const ExcelJS = await loadExcelJS();
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('现金流量表');
 
@@ -523,7 +541,7 @@ onMounted(async () => {
   }
 
   .report-container {
-    background: white;
+    background: var(--color-bg-base);
     padding: 0;
   }
 }

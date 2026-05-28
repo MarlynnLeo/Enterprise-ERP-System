@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryReport.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inventory-report-container">
+  <div class="module-page inventory-report-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -18,8 +18,23 @@
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input
+            v-model="searchForm.materialName"
+            placeholder="物料名称"
+            clearable
+            @input="handleSearchInput"
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="报表类型">
           <el-select v-model="searchForm.reportType" placeholder="选择报表类型" clearable @change="handleReportTypeChange">
             <el-option label="库存汇总报表" value="summary" />
@@ -51,15 +66,6 @@
             <el-button size="small" @click="setDateRange('lastYear')">去年</el-button>
           </el-button-group>
         </el-form-item>
-        <el-form-item label="型号编码">
-          <el-input
-            v-model="searchForm.materialName"
-            placeholder="型号编码"
-            clearable
-            @input="handleSearchInput"
-            @keyup.enter="handleSearch"
-          />
-        </el-form-item>
         <el-form-item label="物料类别">
           <el-select v-model="searchForm.categoryId" placeholder="选择类别" clearable>
             <el-option
@@ -80,16 +86,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            查询
-          </el-button>
-          <el-button @click="handleReset">
-            重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计信息 -->
     <div class="statistics-row">
       <!-- 期间库存报表统计 -->
@@ -240,7 +238,7 @@
         <el-table-column prop="specification" label="规格" width="220" />
         <el-table-column prop="categoryName" label="类别" width="100" />
         <el-table-column prop="unitName" label="单位" width="60" />
-        <el-table-column label="期初结存" align="center">
+        <el-table-column label="期初结存">
           <el-table-column prop="beginningQuantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.beginningQuantity) }}
@@ -252,7 +250,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="本期收入" align="center">
+        <el-table-column label="本期收入">
           <el-table-column prop="inboundQuantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.inboundQuantity) }}
@@ -264,7 +262,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="本期发出" align="center">
+        <el-table-column label="本期发出">
           <el-table-column prop="outboundQuantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.outboundQuantity) }}
@@ -276,7 +274,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="期末结存" align="center">
+        <el-table-column label="期末结存">
           <el-table-column prop="endingQuantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.endingQuantity) }}
@@ -288,7 +286,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="分析指标" align="center">
+        <el-table-column label="分析指标">
           <el-table-column prop="turnoverRate" label="周转率" width="80">
             <template #default="scope">
               {{ scope.row.turnoverRate }}
@@ -343,7 +341,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="documentNo" label="单据号" width="150" />
-        <el-table-column label="收入" align="center">
+        <el-table-column label="收入">
           <el-table-column prop="inQuantity" label="数量" width="100">
             <template #default="scope">
               {{ scope.row.inQuantity > 0 ? formatNumber(scope.row.inQuantity) : '-' }}
@@ -355,7 +353,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="发出" align="center">
+        <el-table-column label="发出">
           <el-table-column prop="outQuantity" label="数量" width="100">
             <template #default="scope">
               {{ scope.row.outQuantity > 0 ? formatNumber(scope.row.outQuantity) : '-' }}
@@ -367,7 +365,7 @@
             </template>
           </el-table-column>
         </el-table-column>
-        <el-table-column label="结存" align="center">
+        <el-table-column label="结存">
           <el-table-column prop="balanceQuantity" label="数量" width="100">
             <template #default="scope">
               {{ formatNumber(scope.row.balanceQuantity) }}
@@ -717,9 +715,9 @@ import { debounce } from '@/utils/commonHelpers'
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import ExcelJS from 'exceljs'
-import { api as axios, baseDataApi } from '@/services/api'
-import { parseListData } from '@/utils/responseParser'
+import { baseDataApi } from '@/services/api'
+import { inventoryApi } from '@/api/inventory'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 // 页面数据
 const loading = ref(false)
 const reportData = ref([])
@@ -849,14 +847,14 @@ const fetchReportData = async () => {
       }
     }
     // 根据报表类型选择不同的API端点
-    let apiUrl = '/inventory/report'
+    let reportRequest = inventoryApi.getInventoryReport
     if (searchForm.value.reportType === 'ledger') {
-      apiUrl = '/inventory/ledger'
+      reportRequest = inventoryApi.getTransactionList
     } else if (searchForm.value.reportType === 'turnover') {
       // 周转分析使用期间报表API，但reportType设为period
       params.reportType = 'period'
     }
-    const response = await axios.get(apiUrl, { params })
+    const response = await reportRequest(params)
     // 拦截器已解包，response.data 就是业务数据
     const responseData = response.data
 
@@ -914,8 +912,8 @@ const fetchBaseData = async () => {
     categoryOptions.value = parseListData(categoryResponse, { enableLog: false })
 
     // 获取仓库位置
-    const locationResponse = await axios.get('/inventory/locations')
-    const locationData = locationResponse.data?.data || locationResponse.data
+    const locationResponse = await inventoryApi.getWarehouseLocations()
+    const locationData = parseResponseData(locationResponse)
     locationOptions.value = locationData.items || locationData.list || locationData || []
   } catch (error) {
     console.error('获取基础数据失败:', error)
@@ -924,305 +922,49 @@ const fetchBaseData = async () => {
 // 导出报表
 const handleExport = async () => {
   try {
-
-    // 构造请求参数，请求全部数据（设定非常大的pageSize）
     const params = {
-      page: 1,
-      pageSize: 100000,
-      reportType: searchForm.value.reportType,
+      reportType: searchForm.value.reportType === 'turnover' ? 'period' : searchForm.value.reportType,
       materialName: searchForm.value.materialName || '',
       categoryId: searchForm.value.categoryId || '',
       locationId: searchForm.value.locationId || ''
     }
+
     if (['period', 'ledger', 'turnover'].includes(searchForm.value.reportType)) {
       if (searchForm.value.dateRange && searchForm.value.dateRange.length === 2) {
         params.startDate = searchForm.value.dateRange[0]
         params.endDate = searchForm.value.dateRange[1]
       }
     }
-    let apiUrl = '/inventory/report'
-    if (searchForm.value.reportType === 'ledger') {
-      apiUrl = '/inventory/ledger'
-    } else if (searchForm.value.reportType === 'turnover') {
-      params.reportType = 'period'
-    }
-    const response = await axios.get(apiUrl, { params })
-    const allData = response.data?.items || response.data?.data?.items || response.data || []
-    if (!Array.isArray(allData) || allData.length === 0) {
+
+    const exportRequest = searchForm.value.reportType === 'ledger'
+      ? inventoryApi.exportInventoryLedger
+      : inventoryApi.exportInventoryReport
+    const response = await exportRequest(params)
+    const blob = response.data instanceof Blob
+      ? response.data
+      : new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+
+    if (!blob || blob.size === 0) {
       ElMessage.warning('暂无可导出的数据')
       return
     }
-    const workbook = new ExcelJS.Workbook()
-    const sheetName = getReportTypeText()
-    const worksheet = workbook.addWorksheet(sheetName)
-    // 通用的表头样式函数
-    const applyHeaderStyle = (row) => {
-      row.eachCell({ includeEmpty: true }, cell => {
-        cell.font = { bold: true }
-        cell.alignment = { horizontal: 'center', vertical: 'middle' }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } }
-        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
-      })
-    }
-    const applyDataStyle = (row) => {
-      row.eachCell({ includeEmpty: true }, cell => {
-        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
-        cell.alignment = { vertical: 'middle' }
-      })
-    }
-    const reportType = searchForm.value.reportType
-    if (reportType === 'summary') {
-      worksheet.columns = [
-        { header: '物料编码', key: 'materialCode', width: 15 },
-        { header: '物料名称', key: 'materialName', width: 25 },
-        { header: '规格', key: 'specification', width: 25 },
-        { header: '类别', key: 'categoryName', width: 12 },
-        { header: '库存数量', key: 'quantity', width: 12 },
-        { header: '单位', key: 'unitName', width: 8 },
-        { header: '单价', key: 'unitPrice', width: 12 },
-        { header: '总价值', key: 'totalValue', width: 15 },
-        { header: '安全库存', key: 'safetyStock', width: 12 }
-      ]
-      applyHeaderStyle(worksheet.getRow(1))
-      allData.forEach(item => {
-        const row = worksheet.addRow({
-          materialCode: item.materialCode,
-          materialName: item.materialName,
-          specification: item.specification,
-          categoryName: item.categoryName,
-          quantity: item.quantity || 0,
-          unitName: item.unitName,
-          unitPrice: item.unitPrice || 0,
-          totalValue: item.totalValue || 0,
-          safetyStock: item.safetyStock || 0
-        })
-        applyDataStyle(row)
-        row.getCell('quantity').numFmt = '#,##0.00'
-        row.getCell('unitPrice').numFmt = '¥#,##0.00'
-        row.getCell('totalValue').numFmt = '¥#,##0.00'
-        row.getCell('safetyStock').numFmt = '#,##0.00'
-      })
-    } else if (reportType === 'period' || reportType === 'turnover') {
-      const isTurnover = reportType === 'turnover'
 
-      const _baseRows = []
-      if (!isTurnover) {
-        worksheet.mergeCells('A1:A2'); worksheet.getCell('A1').value = '物料编码'
-        worksheet.mergeCells('B1:B2'); worksheet.getCell('B1').value = '物料名称'
-        worksheet.mergeCells('C1:C2'); worksheet.getCell('C1').value = '规格'
-        worksheet.mergeCells('D1:D2'); worksheet.getCell('D1').value = '类别'
-        worksheet.mergeCells('E1:E2'); worksheet.getCell('E1').value = '单位'
-
-        worksheet.mergeCells('F1:G1'); worksheet.getCell('F1').value = '期初结存'
-        worksheet.getCell('F2').value = '数量'; worksheet.getCell('G2').value = '金额'
-        worksheet.mergeCells('H1:I1'); worksheet.getCell('H1').value = '本期收入'
-        worksheet.getCell('H2').value = '数量'; worksheet.getCell('I2').value = '金额'
-        worksheet.mergeCells('J1:K1'); worksheet.getCell('J1').value = '本期发出'
-        worksheet.getCell('J2').value = '数量'; worksheet.getCell('K2').value = '金额'
-        worksheet.mergeCells('L1:M1'); worksheet.getCell('L1').value = '期末结存'
-        worksheet.getCell('L2').value = '数量'; worksheet.getCell('M2').value = '金额'
-        worksheet.mergeCells('N1:O1'); worksheet.getCell('N1').value = '分析指标'
-        worksheet.getCell('N2').value = '周转率'; worksheet.getCell('O2').value = '周转天数'
-
-        worksheet.columns = [
-          { key: 'col1', width: 15 }, { key: 'col2', width: 20 }, { key: 'col3', width: 22 },
-          { key: 'col4', width: 10 }, { key: 'col5', width: 6 },
-          { key: 'col6', width: 10 }, { key: 'col7', width: 12 },
-          { key: 'col8', width: 10 }, { key: 'col9', width: 12 },
-          { key: 'col10', width: 10 }, { key: 'col11', width: 12 },
-          { key: 'col12', width: 10 }, { key: 'col13', width: 12 },
-          { key: 'col14', width: 8 }, { key: 'col15', width: 9 },
-        ]
-
-        applyHeaderStyle(worksheet.getRow(1))
-        applyHeaderStyle(worksheet.getRow(2))
-        allData.forEach(item => {
-          const row = worksheet.addRow([
-            item.materialCode, item.materialName, item.specification, item.categoryName, item.unitName,
-            item.beginningQuantity || 0, item.beginningValue || 0,
-            item.inboundQuantity || 0, item.inboundValue || 0,
-            item.outboundQuantity || 0, item.outboundValue || 0,
-            item.endingQuantity || 0, item.endingValue || 0,
-            item.turnoverRate, `${item.turnoverDays || 0}天`
-          ])
-          applyDataStyle(row)
-          ;[6, 8, 10, 12].forEach(i => row.getCell(i).numFmt = '#,##0.00')
-          ;[7, 9, 11, 13].forEach(i => row.getCell(i).numFmt = '¥#,##0.00')
-        })
-      } else {
-        worksheet.columns = [
-          { header: '物料编码', key: 'c1', width: 15 },
-          { header: '物料名称', key: 'c2', width: 20 },
-          { header: '规格', key: 'c3', width: 24 },
-          { header: '类别', key: 'c4', width: 10 },
-          { header: '单位', key: 'c5', width: 6 },
-          { header: '期初金额', key: 'c6', width: 12 },
-          { header: '期末金额', key: 'c7', width: 12 },
-          { header: '本期金额', key: 'c8', width: 12 },
-          { header: '周转率', key: 'c9', width: 10 },
-          { header: '周转天数', key: 'c10', width: 12 },
-          { header: '周转评级', key: 'c11', width: 10 },
-          { header: '建议', key: 'c12', width: 25 }
-        ]
-        applyHeaderStyle(worksheet.getRow(1))
-        allData.forEach(item => {
-          const row = worksheet.addRow([
-            item.materialCode, item.materialName, item.specification, item.categoryName, item.unitName,
-            item.beginningValue || 0, item.endingValue || 0, item.outboundValue || 0,
-            item.turnoverRate, `${item.turnoverDays || 0}天`,
-            getTurnoverGrade(item.turnoverRate) || '-',
-            getTurnoverSuggestion(item.turnoverRate, item.turnoverDays) || '-'
-          ])
-          applyDataStyle(row)
-          ;[6, 7, 8].forEach(i => row.getCell(i).numFmt = '¥#,##0.00')
-        })
-      }
-    } else if (reportType === 'ledger') {
-      worksheet.mergeCells('A1:A2'); worksheet.getCell('A1').value = '日期'
-      worksheet.mergeCells('B1:B2'); worksheet.getCell('B1').value = '物料编码'
-      worksheet.mergeCells('C1:C2'); worksheet.getCell('C1').value = '物料名称'
-      worksheet.mergeCells('D1:D2'); worksheet.getCell('D1').value = '业务类型'
-      worksheet.mergeCells('E1:E2'); worksheet.getCell('E1').value = '单据号'
-      worksheet.mergeCells('F1:G1'); worksheet.getCell('F1').value = '收入'
-      worksheet.getCell('F2').value = '数量'; worksheet.getCell('G2').value = '金额'
-      worksheet.mergeCells('H1:I1'); worksheet.getCell('H1').value = '发出'
-      worksheet.getCell('H2').value = '数量'; worksheet.getCell('I2').value = '金额'
-      worksheet.mergeCells('J1:K1'); worksheet.getCell('J1').value = '结存'
-      worksheet.getCell('J2').value = '数量'; worksheet.getCell('K2').value = '金额'
-      worksheet.mergeCells('L1:L2'); worksheet.getCell('L1').value = '库位'
-      worksheet.mergeCells('M1:M2'); worksheet.getCell('M1').value = '操作员'
-
-      worksheet.columns = [
-        { key: 'c1', width: 12 }, { key: 'c2', width: 15 }, { key: 'c3', width: 22 },
-        { key: 'c4', width: 12 }, { key: 'c5', width: 16 }, { key: 'c6', width: 10 },
-        { key: 'c7', width: 12 }, { key: 'c8', width: 10 }, { key: 'c9', width: 12 },
-        { key: 'c10', width: 10 }, { key: 'c11', width: 12 }, { key: 'c12', width: 15 },
-        { key: 'c13', width: 12 }
-      ]
-
-      applyHeaderStyle(worksheet.getRow(1))
-      applyHeaderStyle(worksheet.getRow(2))
-      allData.forEach(item => {
-        const row = worksheet.addRow([
-          formatDate(item.date), item.materialCode, item.materialName,
-          getTransactionTypeText(item.transactionType), item.documentNo,
-          item.inQuantity || '', item.inValue || '',
-          item.outQuantity || '', item.outValue || '',
-          item.balanceQuantity || 0, item.balanceValue || 0,
-          item.locationName, item.operator
-        ])
-        applyDataStyle(row)
-        ;[6, 8, 10].forEach(i => row.getCell(i).numFmt = '#,##0.00')
-        ;[7, 9, 11].forEach(i => row.getCell(i).numFmt = '¥#,##0.00')
-      })
-    } else if (reportType === 'aging') {
-      worksheet.columns = [
-        { header: '物料编码', key: 'c1', width: 15 },
-        { header: '物料名称', key: 'c2', width: 23 },
-        { header: '规格', key: 'c3', width: 32 },
-        { header: '类别', key: 'c4', width: 10 },
-        { header: '库存数量', key: 'c5', width: 10 },
-        { header: '单位', key: 'c6', width: 6 },
-        { header: '库存金额', key: 'c7', width: 12 },
-        { header: '首次入库日期', key: 'c8', width: 12 },
-        { header: '库龄(天)', key: 'c9', width: 11 },
-        { header: '库龄分段', key: 'c10', width: 12 },
-        { header: '状态', key: 'c11', width: 10 }
-      ]
-      applyHeaderStyle(worksheet.getRow(1))
-      allData.forEach(item => {
-        const row = worksheet.addRow([
-          item.materialCode, item.materialName, item.specification, item.categoryName,
-          item.quantity || 0, item.unitName, item.totalValue || 0,
-          formatDate(item.firstInboundDate), item.agingDays || 0,
-          getAgingLevelText(item.agingDays), getAgingStatusText(item.agingDays)
-        ])
-        applyDataStyle(row)
-        row.getCell(5).numFmt = '#,##0.00'
-        row.getCell(7).numFmt = '¥#,##0.00'
-      })
-    } else if (reportType === 'location') {
-      worksheet.columns = [
-        { header: '物料编码', key: 'c1', width: 15 },
-        { header: '物料名称', key: 'c2', width: 25 },
-        { header: '规格', key: 'c3', width: 30 },
-        { header: '仓库位置', key: 'c4', width: 15 },
-        { header: '库存数量', key: 'c5', width: 15 },
-        { header: '单位', key: 'c6', width: 8 },
-        { header: '存储条件', key: 'c7', width: 15 },
-        { header: '最后移动日期', key: 'c8', width: 20 }
-      ]
-      applyHeaderStyle(worksheet.getRow(1))
-      allData.forEach(item => {
-        const row = worksheet.addRow([
-          item.materialCode, item.materialName, item.specification, item.locationName,
-          item.quantity || 0, item.unitName, item.storageConditions, formatDate(item.lastMoveDate)
-        ])
-        applyDataStyle(row)
-        row.getCell(5).numFmt = '#,##0.00'
-      })
-    } else if (reportType === 'value') {
-      worksheet.columns = [
-        { header: '物料类别', key: 'c1', width: 25 },
-        { header: '物料数量', key: 'c2', width: 25 },
-        { header: '总库存量', key: 'c3', width: 25 },
-        { header: '总价值', key: 'c4', width: 25 },
-        { header: '价值占比', key: 'c5', width: 25 },
-        { header: '平均单价', key: 'c6', width: 30 }
-      ]
-      applyHeaderStyle(worksheet.getRow(1))
-      allData.forEach(item => {
-        const row = worksheet.addRow([
-          item.categoryName, item.materialCount, item.totalQuantity || 0,
-          item.totalValue || 0, formatPercent(item.valuePercent), item.avgUnitPrice || 0
-        ])
-        applyDataStyle(row)
-        row.getCell(3).numFmt = '#,##0.00'
-        row.getCell(4).numFmt = '¥#,##0.00'
-        row.getCell(6).numFmt = '¥#,##0.00'
-      })
-    } else if (reportType === 'warning') {
-      worksheet.columns = [
-        { header: '物料编码', key: 'c1', width: 17 },
-        { header: '物料名称', key: 'c2', width: 18 },
-        { header: '规格', key: 'c3', width: 26 },
-        { header: '当前库存', key: 'c4', width: 12 },
-        { header: '安全库存', key: 'c5', width: 12 },
-        { header: '差额', key: 'c6', width: 12 },
-        { header: '单位', key: 'c7', width: 10 },
-        { header: '预警等级', key: 'c8', width: 12 },
-        { header: '建议采购', key: 'c9', width: 10 },
-        { header: '最后采购日期', key: 'c10', width: 15 }
-      ]
-      applyHeaderStyle(worksheet.getRow(1))
-      allData.forEach(item => {
-        const row = worksheet.addRow([
-          item.materialCode, item.materialName, item.specification,
-          item.quantity || 0, item.safetyStock || 0, item.gap || 0, item.unitName,
-          getWarningLevelText(item), item.suggestedPurchase || 0, formatDate(item.lastPurchaseDate)
-        ])
-        applyDataStyle(row)
-        ;[4, 5, 6, 9].forEach(i => row.getCell(i).numFmt = '#,##0.00')
-      })
-    }
-    // 写入文件并下载
-    const buffer = await workbook.xlsx.writeBuffer()
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `库存${sheetName}_${dayjs().format('YYYYMMDD')}.xlsx`
+    link.download = `库存${getReportTypeText()}_${dayjs().format('YYYYMMDD')}.xlsx`
     document.body.appendChild(link)
     link.click()
-    document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
+    document.body.removeChild(link)
+
     ElMessage.success('导出成功')
   } catch (error) {
     console.error('导出报表失败:', error)
-    ElMessage.error('导出报表加载失败，请重试或缩小时间范围')
+    ElMessage.error('导出报表失败')
   }
 }
-// 获取报表类型文本
+
 const getReportTypeText = () => {
   const typeMap = {
     summary: '汇总报表',
@@ -1298,7 +1040,6 @@ const getAgingStatusText = (days) => {
   if (days <= 180) return '预警'
   return '呆滞'
 }
-// Removed unused exportReport
 // 分页处理
 const handleSizeChange = (val) => {
   if (pagination) {
@@ -1430,7 +1171,6 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
 }
-/* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
 .period-info {
   font-size: 14px;
   color: var(--color-text-regular);

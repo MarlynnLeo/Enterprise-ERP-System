@@ -77,7 +77,7 @@ const handleCancel = () => {
   padding: 10px;
   border: 1px solid var(--color-border-lighter);
   border-radius: var(--radius-sm);
-  transition: all var(--transition-base);
+  transition: background-color var(--transition-base), border-color var(--transition-base);
 }
 .template-option:hover { background-color: var(--color-bg-hover); }
 

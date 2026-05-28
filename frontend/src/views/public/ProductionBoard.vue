@@ -99,7 +99,7 @@
         <!-- 今日统计卡片 -->
         <div v-if="cardKey === 'statsCards' && cardConfig.includes('statsCards')" class="stats-cards">
           <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);">
+            <div class="stat-icon stat-icon--primary">
               <el-icon :size="32"><Document /></el-icon>
             </div>
             <div class="stat-info">
@@ -109,7 +109,7 @@
             </div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);">
+            <div class="stat-icon stat-icon--warning">
               <el-icon :size="32"><List /></el-icon>
             </div>
             <div class="stat-info">
@@ -119,7 +119,7 @@
             </div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%);">
+            <div class="stat-icon stat-icon--info">
               <el-icon :size="32"><Setting /></el-icon>
             </div>
             <div class="stat-info">
@@ -129,7 +129,7 @@
             </div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);">
+            <div class="stat-icon stat-icon--success">
               <el-icon :size="32"><CircleCheck /></el-icon>
             </div>
             <div class="stat-info">
@@ -181,7 +181,7 @@
               :percentage="boardData.flowStats?.planCompletionRate || 0"
               :width="150"
               :stroke-width="12"
-              color="#67c23a"
+              color="var(--color-success)"
             >
               <template #default="{ percentage }">
                 <span class="percentage-value">{{ percentage }}%</span>
@@ -198,7 +198,7 @@
               :percentage="boardData.flowStats?.taskCompletionRate || 0"
               :width="150"
               :stroke-width="12"
-              color="#409eff"
+              color="var(--color-primary)"
             >
               <template #default="{ percentage }">
                 <span class="percentage-value">{{ percentage }}%</span>
@@ -215,7 +215,7 @@
               :percentage="boardData.inboundStats?.completionRate || 0"
               :width="150"
               :stroke-width="12"
-              color="#e6a23c"
+              color="var(--color-warning)"
             >
               <template #default="{ percentage }">
                 <span class="percentage-value">{{ percentage }}%</span>
@@ -252,7 +252,7 @@
               <el-table-column prop="name" label="计划名称" min-width="130" />
               <el-table-column prop="product_code" label="产品编码" width="200" />
               <el-table-column prop="product_name" label="产品名称" min-width="200" />
-              <el-table-column prop="quantity" label="数量" width="150" align="right">
+              <el-table-column prop="quantity" label="数量" width="150">
                 <template #default="scope">
                   {{ scope.row.quantity }} {{ scope.row.unit }}
                 </template>
@@ -291,11 +291,13 @@ import {
 } from '@element-plus/icons-vue'
 import api from '@/services/api'
 import { PRODUCTION_FLOW_STEPS } from '@/constants/systemConstants'
+import { parseResponseData } from '@/utils/responseParser'
 // 数据
 const loading = ref(true)
 const boardData = ref({})
 const updateTime = ref('')
 let refreshTimer = null
+let boardDataRequest = null
 // ========== 看板配置相关 ==========
 const STORAGE_KEY = 'production_board_config'
 // 所有可用的卡片选项
@@ -427,13 +429,18 @@ const resetSettings = () => {
 const flowSteps = PRODUCTION_FLOW_STEPS
 // 获取看板数据
 const fetchBoardData = async () => {
+  if (boardDataRequest) {
+    return boardDataRequest
+  }
+
+  boardDataRequest = (async () => {
   try {
     // 使用封装层 api（自动附带 Token、错误拦截）
     const response = await api.get('/public/production-board', {
       params: { limit: recentPlansLimit.value }
     })
     // 封装层已剥离外层 wrapper，response.data 即为业务数据
-    const resData = response.data?.data || response.data
+    const resData = parseResponseData(response)
     if (resData) {
       boardData.value = resData
       updateTime.value = new Date(resData.updatedAt).toLocaleString('zh-CN')
@@ -442,7 +449,11 @@ const fetchBoardData = async () => {
     console.error('获取看板数据失败:', error)
   } finally {
     loading.value = false
+    boardDataRequest = null
   }
+  })()
+
+  return boardDataRequest
 }
 // 获取步骤数量
 const getStepCount = (status) => {
@@ -482,10 +493,10 @@ const getStatusText = (status) => {
 }
 // 获取进度条颜色
 const getProgressColor = (percentage) => {
-  if (percentage >= 100) return '#67c23a'
-  if (percentage >= 80) return '#409eff'
-  if (percentage >= 50) return '#e6a23c'
-  return '#f56c6c'
+  if (percentage >= 100) return 'var(--color-success)'
+  if (percentage >= 80) return 'var(--color-primary)'
+  if (percentage >= 50) return 'var(--color-warning)'
+  return 'var(--color-danger)'
 }
 // ========== 自动滚动相关 ==========
 const startAutoScroll = () => {
@@ -561,15 +572,15 @@ onUnmounted(() => {
 <style scoped>
 .production-board {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a2a3a 0%, #2c3e50 50%, #34495e 100%);
+  background: linear-gradient(135deg, var(--color-bg-page) 0%, var(--color-bg-hover) 50%, var(--color-bg-section) 100%);
   padding: 20px;
 }
 .board-header {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
 }
 .header-content {
   display: flex;
@@ -587,7 +598,7 @@ onUnmounted(() => {
 }
 .title-icon {
   font-size: 32px;
-  color: #2980b9;
+  color: var(--color-primary);
 }
 .header-actions {
   display: flex;
@@ -628,11 +639,11 @@ onUnmounted(() => {
   background: var(--color-bg-hover);
   border-radius: 8px;
   cursor: grab;
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s;
 }
 .card-order-item:hover {
-  background: #e6f7ff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--color-bg-section);
+  box-shadow: var(--shadow-sm);
 }
 .card-order-item:active {
   cursor: grabbing;
@@ -691,7 +702,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  color: var(--color-on-primary, #fff);
+  color: var(--color-on-primary);
   font-size: 18px;
 }
 .board-content {
@@ -706,27 +717,44 @@ onUnmounted(() => {
   gap: 20px;
 }
 .stat-card {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: 12px;
   padding: 24px;
   display: flex;
   align-items: center;
   gap: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s, box-shadow 0.3s;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+  border: 1px solid var(--color-border-lighter);
 }
 .stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border-color: var(--color-border-light);
+  background: var(--color-bg-section);
 }
 .stat-icon {
   width: 64px;
   height: 64px;
-  border-radius: 12px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-primary, #fff);
+  color: var(--color-on-primary);
+}
+
+.stat-icon--primary {
+  background: var(--color-primary);
+}
+
+.stat-icon--warning {
+  background: var(--color-warning);
+}
+
+.stat-icon--info {
+  background: var(--color-info);
+}
+
+.stat-icon--success {
+  background: var(--color-success);
 }
 .stat-info {
   flex: 1;
@@ -749,10 +777,10 @@ onUnmounted(() => {
 }
 /* 流程步骤 */
 .flow-section {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
 }
 .section-title {
   font-size: 20px;
@@ -780,7 +808,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #e0e0e0;
+  background: var(--color-border-lighter);
   color: var(--color-text-regular);
   display: flex;
   align-items: center;
@@ -789,18 +817,18 @@ onUnmounted(() => {
   font-size: 14px;
 }
 .flow-step.has-data .step-number {
-  background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
-  color: var(--color-on-primary, #fff);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark-2, var(--color-primary)) 100%);
+  color: var(--color-on-primary);
 }
 .step-content {
-  background: #f5f5f5;
+  background: var(--color-bg-hover);
   border-radius: 8px;
   padding: 12px 16px;
   min-width: 120px;
 }
 .flow-step.has-data .step-content {
-  background: linear-gradient(135deg, #e8f4fc 0%, #d4edfc 100%);
-  border: 2px solid #2980b9;
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-bg-base));
+  border: 2px solid var(--color-primary);
 }
 .step-name {
   font-weight: bold;
@@ -822,7 +850,7 @@ onUnmounted(() => {
 }
 .step-stat .stat-value {
   font-weight: bold;
-  color: #2980b9;
+  color: var(--color-primary);
   margin-left: 4px;
 }
 .step-arrow {
@@ -836,11 +864,11 @@ onUnmounted(() => {
   gap: 20px;
 }
 .completion-card {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: 12px;
   padding: 24px;
   text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
 }
 .card-title {
   font-size: 16px;
@@ -859,10 +887,10 @@ onUnmounted(() => {
 }
 /* 最近计划 */
 .recent-plans-section {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
 }
 .scroll-indicator {
   display: inline-flex;

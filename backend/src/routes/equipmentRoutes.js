@@ -17,6 +17,8 @@ router.get('/stats', authenticateToken, requirePermission('production:equipment:
 router.get('/maintenance', authenticateToken, requirePermission('production:equipment:view'), equipmentController.getMaintenanceRecords);
 router.get('/failures', authenticateToken, requirePermission('production:equipment:view'), equipmentController.getFailureRecords);
 router.get('/inspections', authenticateToken, requirePermission('production:equipment:view'), equipmentController.getInspectionRecords);
+router.get('/types', authenticateToken, requirePermission('production:equipment:view'), equipmentController.getEquipmentTypes);
+router.post('/types', authenticateToken, requirePermission('production:equipment:create'), equipmentController.createEquipmentType);
 router.get('/:id', authenticateToken, requirePermission('production:equipment:view'), equipmentController.getEquipmentById);
 router.post('/', authenticateToken, requirePermission('production:equipment:create'), equipmentController.createEquipment);
 router.put('/:id', authenticateToken, requirePermission('production:equipment:update'), equipmentController.updateEquipment);

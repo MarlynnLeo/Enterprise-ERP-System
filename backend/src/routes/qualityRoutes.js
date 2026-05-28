@@ -12,6 +12,14 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../middleware/priceAccessControl');
+
+router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // 拆分后的控制器
 const inspectionCtrl = require('../controllers/business/quality/inspectionController');
@@ -28,12 +36,12 @@ const ncpController = require('../controllers/business/quality/nonconformingProd
 /**
  * AQL 标准管理
  */
-router.get('/aql-standards', authenticateToken, requirePermission('quality:aql:view'), aqlController.getStandards);
-router.post('/aql-standards', authenticateToken, requirePermission('quality:aql:create'), aqlController.createStandard);
-router.put('/aql-standards/:id', authenticateToken, requirePermission('quality:aql:update'), aqlController.updateStandard);
-router.delete('/aql-standards/:id', authenticateToken, requirePermission('quality:aql:delete'), aqlController.deleteStandard);
-router.get('/aql-levels', authenticateToken, requirePermission('quality:aql:view'), aqlController.getAqlLevels);
-router.post('/aql-sampling/calculate', authenticateToken, requirePermission('quality:inspections:view'), aqlController.calculateSampling);
+router.get('/aql-standards', requirePermission('quality:aql:view'), aqlController.getStandards);
+router.post('/aql-standards', requirePermission('quality:aql:create'), aqlController.createStandard);
+router.put('/aql-standards/:id', requirePermission('quality:aql:update'), aqlController.updateStandard);
+router.delete('/aql-standards/:id', requirePermission('quality:aql:delete'), aqlController.deleteStandard);
+router.get('/aql-levels', requirePermission('quality:aql:view'), aqlController.getAqlLevels);
+router.post('/aql-sampling/calculate', requirePermission('quality:inspections:view'), aqlController.calculateSampling);
 
 /**
  * 质量检验相关路由
@@ -41,10 +49,12 @@ router.post('/aql-sampling/calculate', authenticateToken, requirePermission('qua
 
 // 来料检验
 router.get('/inspections/incoming', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getIncomingInspections);
+router.get('/inspections/incoming/stats', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getIncomingInspectionStats);
 router.post('/inspections/incoming', authenticateToken, requirePermission('quality:inspections:create'), inspectionCtrl.createInspection);
 
 // 过程检验
 router.get('/inspections/process', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getProcessInspections);
+router.get('/inspections/process/stats', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getProcessInspectionStats);
 router.post('/inspections/process', authenticateToken, requirePermission('quality:inspections:create'), inspectionCtrl.createInspection);
 router.post(
   '/inspections/process/:id/punch',
@@ -66,6 +76,7 @@ router.post('/process-inspection/punch', authenticateToken, requirePermission('q
 
 // 成品检验
 router.get('/inspections/final', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getFinalInspections);
+router.get('/inspections/final/stats', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getFinalInspectionStats);
 router.post('/inspections/final', authenticateToken, requirePermission('quality:inspections:create'), inspectionCtrl.createInspection);
 
 // 首检管理
@@ -135,16 +146,10 @@ router.delete('/quality-standards/:id', authenticateToken, requirePermission('qu
 router.get('/target-options/:targetType', authenticateToken, requirePermission('quality:standards:view'), standardCtrl.getTargetOptions);
 
 /**
- * 追溯管理相关路由已废弃，迁移至 batchTraceabilityRoutes
- */
-
-/**
  * 不合格品 (NCP) 特采相关路由（未变更）
  */
 router.post('/ncp/:id/concession/apply', authenticateToken, requirePermission('quality:nonconforming:update'), ncpController.applyConcession);
 router.post('/ncp/:id/concession/approve', authenticateToken, requirePermission('quality:nonconforming:update'), ncpController.approveConcession);
-
-// 自动追溯相关的旧接口已移动到 batchTraceabilityRoutes 或废弃
 
 /**
  * 质量统计相关路由

@@ -167,11 +167,14 @@ class BudgetControlService {
    * @param {Object} params - 参数
    * @returns {Promise<Object>} 执行结果
    */
-  static async executeBudgetControl(params) {
-    const connection = await db.pool.getConnection();
+  static async executeBudgetControl(params, externalConnection = null) {
+    const connection = externalConnection || (await db.pool.getConnection());
+    const ownsTransaction = !externalConnection;
 
     try {
-      await connection.beginTransaction();
+      if (ownsTransaction) {
+        await connection.beginTransaction();
+      }
 
       const {
         accountId,
@@ -184,6 +187,7 @@ class BudgetControlService {
         glEntryId,
         description,
         userId,
+        skipIfNoBudget = false,
       } = params;
 
       // 检查预算可用性
@@ -196,6 +200,23 @@ class BudgetControlService {
       );
 
       if (!checkResult.available) {
+        if (skipIfNoBudget && !checkResult.budget) {
+          if (ownsTransaction) {
+            await connection.commit();
+          }
+          logger.info('未找到适用预算，跳过预算控制', {
+            accountId,
+            departmentId,
+            amount,
+            documentType,
+            documentId,
+          });
+          return {
+            success: true,
+            skipped: true,
+            reason: checkResult.reason,
+          };
+        }
         throw new Error(checkResult.reason);
       }
 
@@ -208,9 +229,9 @@ class BudgetControlService {
       await connection.execute(
         `UPDATE budgets SET
            used_amount = COALESCE(used_amount, 0) + ?,
-           remaining_amount = total_amount - (COALESCE(used_amount, 0) + ?)
+           remaining_amount = total_amount - COALESCE(used_amount, 0)
          WHERE id = ?`,
-        [amount, amount, budget.budget_id]
+        [amount, budget.budget_id]
       );
 
       // 创建预算执行记录
@@ -238,10 +259,12 @@ class BudgetControlService {
           warning_type: '接近预算',
           warning_level: checkResult.warningLevel === 'high' ? '高' : '中',
           warning_message: `预算 ${budget.budget_no} 使用率已达 ${checkResult.usageRate.toFixed(2)}%`,
-        });
+        }, connection);
       }
 
-      await connection.commit();
+      if (ownsTransaction) {
+        await connection.commit();
+      }
 
       logger.info('预算控制执行成功', { executionId, amount });
 
@@ -251,11 +274,15 @@ class BudgetControlService {
         usageRate: checkResult.usageRate,
       };
     } catch (error) {
-      await connection.rollback();
+      if (ownsTransaction) {
+        await connection.rollback();
+      }
       logger.error('执行预算控制失败:', error);
       throw error;
     } finally {
-      connection.release();
+      if (ownsTransaction) {
+        connection.release();
+      }
     }
   }
 }

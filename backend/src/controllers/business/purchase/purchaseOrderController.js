@@ -9,7 +9,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
-const pool = db.pool; // 正确引用连接池
+const pool = db.pool;
 const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
 const {
@@ -18,7 +18,31 @@ const {
   getStatusLabel,
 } = require('../../../constants/purchaseConstants');
 const PurchaseOrderService = require('../../../services/PurchaseOrderService');
+const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
+const PurchaseReceiveInspectionService = require('../../../services/business/PurchaseReceiveInspectionService');
+const PurchasePriceService = require('../../../services/business/PurchasePriceService');
 const DBManager = require('../../../utils/dbManager');
+const { desensitizeDataForUser } = require('../../../utils/desensitizer');
+const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
+const { parsePagination } = require('../../../utils/safePagination');
+
+function assertPurchaseItemPrices(items = []) {
+  const invalidRows = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
+      const rawPrice = item.price ?? item.unit_price ?? item.unitPrice;
+      if (rawPrice === null || rawPrice === undefined || rawPrice === '') return true;
+      const price = Number(rawPrice);
+      return !Number.isFinite(price) || price < 0;
+    })
+    .map(({ index }) => index + 1);
+
+  if (invalidRows.length > 0) {
+    const error = new Error(`第 ${invalidRows.join(', ')} 行采购单价缺失或无效，请先维护采购价格`);
+    error.statusCode = 400;
+    throw error;
+  }
+}
 
 // 获取采购订单列表
 const getOrders = async (req, res) => {
@@ -34,7 +58,7 @@ const getOrders = async (req, res) => {
       endDate,
       status,
     } = req.query;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
     let query = `
       SELECT o.*, s.name as supplier_name, s.code as supplier_code,
@@ -67,7 +91,6 @@ const getOrders = async (req, res) => {
     }
 
     // 注意: operator 字段在 purchase_orders 表中不存在，已移除相关过滤
-
     if (supplierId) {
       query += ' AND o.supplier_id = ?';
       queryParams.push(supplierId);
@@ -89,14 +112,13 @@ const getOrders = async (req, res) => {
     }
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const actualPageSize = parseInt(pageSize);
-    const actualOffset = parseInt(offset);
-    query += ` ORDER BY o.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(actualOffset))||0)}`;
+    const actualPageSize = pagination.limit;
+    const actualOffset = pagination.offset;
+    query += ` ORDER BY o.created_at DESC LIMIT ${actualPageSize} OFFSET ${actualOffset}`;
 
     // 使用正确的连接池查询方法
     const [rows] = await pool.query(query, queryParams);
 
-    // 获取订单的物料详情
     const items = [];
     if (rows.length > 0) {
       const orderIds = rows.map((row) => row.id);
@@ -127,7 +149,6 @@ const getOrders = async (req, res) => {
     const orders = rows.map((row) => {
       const orderItems = items.filter((item) => item.order_id === row.id);
 
-      // 添加前端期望的字段，映射数据库字段
       const orderWithMappedFields = {
         ...row,
         items: orderItems,
@@ -139,13 +160,14 @@ const getOrders = async (req, res) => {
     });
 
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+    await desensitizeDataForUser(orders, req.user, 'view', req.userPermissions);
 
     return ResponseHandler.success(res, {
       items: orders,
       total: totalCount,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
-      totalPages: Math.ceil(totalCount / pageSize),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalPages: Math.ceil(totalCount / pagination.pageSize),
     });
   } catch (error) {
     logger.error('获取采购订单列表失败:', error);
@@ -158,7 +180,6 @@ const getOrder = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 判断传入的是ID还是订单号
     const isNumericId = /^\d+$/.test(id);
     let orderId;
 
@@ -171,19 +192,19 @@ const getOrder = async (req, res) => {
       const [rows] = await pool.query(query, [id]);
 
       if (rows.length === 0) {
-        return ResponseHandler.notFound(res, '采购订单不存在');
+        return ResponseHandler.notFound(res, 'purchase order not found');
       }
 
       orderId = rows[0].id;
     }
 
-    // 使用getOrderById函数获取完整的订单信息（包含收货进度）
     const order = await getOrderById(orderId);
 
     if (!order) {
-      return ResponseHandler.notFound(res, '采购订单不存在');
+      return ResponseHandler.notFound(res, 'purchase order not found');
     }
 
+    await desensitizeDataForUser(order, req.user, 'view', req.userPermissions);
     return ResponseHandler.success(res, order);
   } catch (error) {
     logger.error('获取采购订单详情失败:', error);
@@ -201,7 +222,7 @@ const createOrder = async (req, res) => {
       contact_person: contactPerson,
       contact_phone: contactPhone,
       remarks,
-      total_amount: totalAmount,
+      total_amount: _totalAmount,
       requisition_id: requisitionId,
       requisition_number: requisitionNumber,
       contract_code: contractCode,
@@ -209,16 +230,19 @@ const createOrder = async (req, res) => {
     } = req.body;
 
     const createdOrder = await DBManager.executeTransaction(async (connection) => {
-      // 验证供应商并获取供应商名称
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
 
       // 生成订单号（传入连接确保事务一致性）
       const orderNo = await purchaseModel.generateOrderNo(connection);
 
-      // 创建采购订单（含税率字段）
-      const taxRate = req.body.tax_rate !== undefined ? req.body.tax_rate : 0.13;
-      const subtotal = req.body.subtotal || totalAmount / (1 + taxRate);
-      const taxAmount = req.body.tax_amount || totalAmount - subtotal;
+      assertPurchaseItemPrices(items || []);
+      const orderAmounts = calculateLines(items || [], {
+        defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : 0.13,
+      });
+      const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, 0.13);
+      const subtotal = orderAmounts.subtotal;
+      const taxAmount = orderAmounts.taxAmount;
+      const calculatedTotalAmount = orderAmounts.totalAmount;
 
       const insertQuery = `
         INSERT INTO purchase_orders (
@@ -237,7 +261,7 @@ const createOrder = async (req, res) => {
         expectedDeliveryDate,
         contactPerson,
         contactPhone,
-        totalAmount || 0,
+        calculatedTotalAmount,
         taxRate,
         taxAmount,
         subtotal,
@@ -249,24 +273,24 @@ const createOrder = async (req, res) => {
 
       const orderId = result.insertId;
 
-      // 更新采购申请状态（如果有关联申请单）
       if (requisitionId) {
         await PurchaseOrderService.updateRequisitionStatus(connection, requisitionId, 'completed');
       }
 
       // 插入订单物料项目
-      await PurchaseOrderService.insertOrderItems(connection, orderId, items);
+      await PurchaseOrderService.insertOrderItems(connection, orderId, orderAmounts.items);
 
       return orderId;
     });
 
-    // 获取完整的订单信息
     const orderDetails = await getOrderById(createdOrder);
+    await desensitizeDataForUser(orderDetails, req.user, 'view', req.userPermissions);
+
 
     ResponseHandler.success(res, orderDetails, '创建成功', 201);
   } catch (error) {
     logger.error('创建采购订单失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, error.message || '操作失败', 'OPERATION_ERROR', error.statusCode || 500, error);
   }
 };
 
@@ -281,7 +305,7 @@ const updateOrder = async (req, res) => {
       contact_person: contactPerson,
       contact_phone: contactPhone,
       remarks,
-      total_amount: totalAmount,
+      total_amount: _totalAmount,
       requisition_id: requisitionId,
       requisition_number: requisitionNumber,
       contract_code: contractCode,
@@ -289,18 +313,21 @@ const updateOrder = async (req, res) => {
     } = req.body;
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
-      // 验证订单是否可编辑
       await PurchaseOrderService.validateOrderEditable(connection, id);
-
-      // 验证供应商并获取供应商名称
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
+      assertPurchaseItemPrices(items || []);
+      const orderAmounts = calculateLines(items || [], {
+        defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : 0.13,
+      });
+      const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, 0.13);
+
 
       // 更新采购订单基本信息
       const updateQuery = `
         UPDATE purchase_orders
         SET order_date = ?, supplier_id = ?, supplier_name = ?, contract_code = ?,
             expected_delivery_date = ?, contact_person = ?, contact_phone = ?,
-            total_amount = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP,
+            total_amount = ?, tax_rate = ?, tax_amount = ?, subtotal = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP,
             requisition_id = ?, requisition_number = ?
         WHERE id = ?
       `;
@@ -312,14 +339,16 @@ const updateOrder = async (req, res) => {
         expectedDeliveryDate,
         contactPerson,
         contactPhone,
-        totalAmount || 0,
+        orderAmounts.totalAmount,
+        taxRate,
+        orderAmounts.taxAmount,
+        orderAmounts.subtotal,
         remarks,
         requisitionId || null,
         requisitionNumber || null,
         id,
       ]);
 
-      // 更新采购申请状态（如果有关联申请单）
       if (requisitionId) {
         await PurchaseOrderService.updateRequisitionStatus(connection, requisitionId, 'completed');
       }
@@ -328,18 +357,19 @@ const updateOrder = async (req, res) => {
       await connection.query('DELETE FROM purchase_order_items WHERE order_id = ?', [id]);
 
       // 插入新的物料项目
-      await PurchaseOrderService.insertOrderItems(connection, id, items);
+      await PurchaseOrderService.insertOrderItems(connection, id, orderAmounts.items);
 
       return id;
     });
 
     // 获取更新后的订单信息
     const orderDetails = await getOrderById(updatedOrder);
+    await desensitizeDataForUser(orderDetails, req.user, 'view', req.userPermissions);
 
     return ResponseHandler.success(res, orderDetails);
   } catch (error) {
     logger.error('更新采购订单失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, error.message || '操作失败', 'OPERATION_ERROR', error.statusCode || 500, error);
   }
 };
 
@@ -349,10 +379,20 @@ const deleteOrder = async (req, res) => {
     const { id } = req.params;
 
     await DBManager.executeTransaction(async (connection) => {
-      // 验证订单是否可编辑（删除）
-      await PurchaseOrderService.validateOrderEditable(connection, id);
+      const [orders] = await connection.query(
+        'SELECT id, status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [id]
+      );
+      if (orders.length === 0) {
+        throw new Error('purchase order not found');
+      }
+      if (!['draft', 'pending', 'rejected', 'cancelled'].includes(orders[0].status)) {
+        const err = new Error('current purchase order status cannot be deleted');
+        err.statusCode = 400;
+        throw err;
+      }
 
-      // ✅ 软删除替代硬删除 (物料项目FK仍在，但主表不再物理删除)
+      // 软删除替代硬删除 (物料项目FK仍在，但主表不再物理删除)
       await softDelete(connection, 'purchase_orders', 'id', id);
     });
 
@@ -363,7 +403,6 @@ const deleteOrder = async (req, res) => {
   }
 };
 
-// 更新采购订单状态
 const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -377,44 +416,48 @@ const updateOrderStatus = async (req, res) => {
     } else if (typeof req.body === 'string') {
       newStatus = req.body;
     } else {
-      return ResponseHandler.error(res, '无效的状态格式', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, 'invalid status format', 'VALIDATION_ERROR', 400);
     }
 
-    // 检查状态值是否有效（使用统一常量）
     const validStatuses = Object.values(PURCHASE_STATUS);
     if (!validStatuses.includes(newStatus)) {
-      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, 'invalid status', 'VALIDATION_ERROR', 400);
     }
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
-      // 检查订单是否存在
-      const [checkRows] = await connection.query('SELECT * FROM purchase_orders WHERE id = ?', [
+      const [checkRows] = await connection.query('SELECT * FROM purchase_orders WHERE id = ? FOR UPDATE', [
         id,
       ]);
 
       if (checkRows.length === 0) {
-        throw new Error('采购订单不存在');
+        throw new Error('purchase order not found');
       }
 
       const currentOrder = checkRows[0];
       const currentStatus = currentOrder.status;
 
-      // ✅ approved 状态保留给工作流回调专用，前端不可直接设置
-      // confirmed 状态允许主管在页面上直接审批
+      // approved 状态保留给工作流回调专用，前端不可直接设置
       if (newStatus === 'approved') {
         throw new Error('approved 状态仅限工作流回调设置，主管审批请使用"批准"按钮(confirmed)');
       }
 
       // 如果状态没有变化，直接返回（允许保持相同状态）
       if (currentStatus === newStatus) {
+        if (newStatus === PURCHASE_STATUS.COMPLETED) {
+          const normalizedStatus = await PurchaseOrderStatusService.updateOrderStatus(id, connection);
+          if (normalizedStatus?.status !== PURCHASE_STATUS.COMPLETED) {
+            throw new Error(
+              `采购订单尚未全部入库，不能设置为已完成。订单数量=${normalizedStatus?.totalQuantity || 0}, 已入库=${normalizedStatus?.totalWarehoused || 0}`
+            );
+          }
+        }
         logger.info(`订单状态保持不变: ${currentStatus}`);
         return id;
       }
 
-      // ✅ 使用统一的状态流转规则
       if (!isValidStatusTransition(currentStatus, newStatus)) {
         throw new Error(
-          `无效的状态变更: 从 ${getStatusLabel(currentStatus)} 到 ${getStatusLabel(newStatus)}`
+          `无效的状态变更：${getStatusLabel(currentStatus)} -> ${getStatusLabel(newStatus)}`
         );
       }
 
@@ -432,13 +475,20 @@ const updateOrderStatus = async (req, res) => {
         }
       }
 
-      // 更新状态
+      if (finalStatus === PURCHASE_STATUS.COMPLETED) {
+        await PurchaseOrderStatusService.assertOrderCanComplete(id, connection);
+      }
+
       const updateQuery = `
         UPDATE purchase_orders
         SET status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `;
       await connection.query(updateQuery, [finalStatus, id]);
+
+      if (finalStatus === PURCHASE_STATUS.COMPLETED) {
+        await PurchaseOrderStatusService.updateOrderStatus(id, connection);
+      }
 
       return id;
     });
@@ -448,8 +498,116 @@ const updateOrderStatus = async (req, res) => {
 
     return ResponseHandler.success(res, orderDetails);
   } catch (error) {
-    logger.error('更新采购订单状态失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    logger.error('更新采购订单状态失败', error);
+    const businessErrorMessages = [
+      'purchase order not found',
+      'approved status',
+      'invalid status',
+      'purchase order is not fully warehoused',
+    ];
+    const isBusinessError = businessErrorMessages.some((message) =>
+      error.message?.startsWith(message)
+    );
+    const statusCode = error.message === 'purchase order not found' ? 404 : isBusinessError ? 400 : 500;
+    const errorCode = statusCode === 404 ? 'NOT_FOUND' : statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR';
+    const message = isBusinessError ? error.message : '操作失败';
+    return ResponseHandler.error(res, message, errorCode, statusCode, error);
+  }
+};
+
+const batchUpdateOrderStatus = async (req, res) => {
+  try {
+    const orderIds = Array.isArray(req.body?.order_ids)
+      ? req.body.order_ids.map((id) => parseInt(id, 10)).filter(Boolean)
+      : [];
+    const newStatus = req.body?.newStatus || req.body?.status;
+    const uniqueIds = [...new Set(orderIds)];
+
+    if (uniqueIds.length === 0) {
+      return ResponseHandler.error(res, '请选择采购订单', 'VALIDATION_ERROR', 400);
+    }
+    if (uniqueIds.length > 100) {
+      return ResponseHandler.error(res, 'too many purchase orders in one batch', 'VALIDATION_ERROR', 400);
+    }
+
+    const validStatuses = Object.values(PURCHASE_STATUS);
+    if (!validStatuses.includes(newStatus) || newStatus === 'approved') {
+      return ResponseHandler.error(res, 'invalid status', 'VALIDATION_ERROR', 400);
+    }
+
+    const result = await DBManager.executeTransaction(async (connection) => {
+      const [orders] = await connection.query(
+        'SELECT id, order_no, status FROM purchase_orders WHERE id IN (?) FOR UPDATE',
+        [uniqueIds]
+      );
+      const orderMap = new Map(orders.map((order) => [Number(order.id), order]));
+      const successes = [];
+      const failures = [];
+      const updatesByStatus = {};
+
+      for (const id of uniqueIds) {
+        const order = orderMap.get(id);
+        if (!order) {
+          failures.push({ id, message: 'purchase order not found' });
+          continue;
+        }
+
+        if (order.status === newStatus) {
+          successes.push({ id, order_no: order.order_no, status: order.status });
+          continue;
+        }
+
+        if (!isValidStatusTransition(order.status, newStatus)) {
+          failures.push({
+            id,
+            order_no: order.order_no,
+            message: `无效的状态变更：${getStatusLabel(order.status)} -> ${getStatusLabel(newStatus)}`,
+          });
+          continue;
+        }
+
+        let finalStatus = newStatus;
+        if (newStatus === 'pending') {
+          const WorkflowService = require('../../../services/business/WorkflowService');
+          const userId = req.user?.userId || req.user?.id;
+          const wfResult = await WorkflowService.tryStartWorkflow(
+            'purchase_order',
+            id,
+            order.order_no,
+            `采购订单 ${order.order_no} 审批`,
+            userId
+          );
+          if (wfResult.auto_approved) {
+            finalStatus = 'approved';
+          }
+        }
+
+        if (!updatesByStatus[finalStatus]) {
+          updatesByStatus[finalStatus] = [];
+        }
+        updatesByStatus[finalStatus].push(id);
+        successes.push({ id, order_no: order.order_no, status: finalStatus });
+      }
+
+      for (const [status, ids] of Object.entries(updatesByStatus)) {
+        await connection.query(
+          'UPDATE purchase_orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (?)',
+          [status, ids]
+        );
+      }
+
+      return { successes, failures };
+    });
+
+    return ResponseHandler.success(res, {
+      successCount: result.successes.length,
+      failCount: result.failures.length,
+      successes: result.successes,
+      failures: result.failures,
+    });
+  } catch (error) {
+    logger.error('批量更新采购订单状态失败', error);
+    return ResponseHandler.error(res, 'batch update purchase order status failed', 'OPERATION_ERROR', 500, error);
   }
 };
 
@@ -484,7 +642,6 @@ const getStatistics = async (req, res) => {
       lastDayOfMonth.toISOString().split('T')[0],
     ]);
 
-    // 获取Top5供应商
     const topSuppliersQuery = `
       SELECT supplier_id, supplier_name, COUNT(*) as order_count, SUM(total_amount) as total_spent
       FROM purchase_orders
@@ -509,7 +666,6 @@ const getStatistics = async (req, res) => {
 // 根据ID获取采购订单信息（内部使用）
 const getOrderById = async (id) => {
   try {
-    // 获取订单基本信息,包含供应商编码
     const query = `
       SELECT o.*, s.code as supplier_code
       FROM purchase_orders o
@@ -524,7 +680,6 @@ const getOrderById = async (id) => {
 
     const order = rows[0];
 
-    // 获取订单物料，关联单位表获取单位名称，包含收货进度信息
     const itemsQuery = `
       SELECT
         poi.*,
@@ -561,7 +716,6 @@ const getOrderById = async (id) => {
     `;
     const [itemRows] = await pool.query(itemsQuery, [id]);
 
-    // 计算订单整体完成度
     let totalQuantity = 0;
     let totalReceived = 0;
     let totalWarehoused = 0;
@@ -582,7 +736,6 @@ const getOrderById = async (id) => {
       totalQuantity > 0 ? Math.round((totalWarehoused / totalQuantity) * 100 * 100) / 100 : 0;
     order.pending_quantity = totalQuantity - totalReceived;
 
-    // 添加前端期望的字段，映射数据库字段
     order.order_number = order.order_no;
     order.notes = order.remarks;
 
@@ -593,14 +746,12 @@ const getOrderById = async (id) => {
   }
 };
 
-// 获取供应商列表（用于采购订单中选择）
 const getSuppliers = async (req, res) => {
   try {
     const { status, limit } = req.query;
     let query = 'SELECT id, code, name, contact_person, contact_phone, status FROM suppliers';
     const queryParams = [];
 
-    // 如果指定了状态，则添加过滤条件
     if (status !== undefined) {
       query += ' WHERE status = ?';
       queryParams.push(status);
@@ -608,17 +759,16 @@ const getSuppliers = async (req, res) => {
 
     query += ' ORDER BY code';
 
-    // 如果指定了限制数量
     if (limit) {
-      const safeLimit = parseInt(limit, 10) || 100;
-      query += ` LIMIT ${Math.max(1,Math.min(Math.floor(Number(safeLimit))||20,500))}`;
+      const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 100, 100));
+      query += ` LIMIT ${safeLimit}`;
     }
 
     const [rows] = await pool.query(query, queryParams);
 
     return ResponseHandler.success(res, rows);
   } catch (error) {
-    logger.error('获取供应商列表失败:', error);
+    logger.error('获取供应商列表失败', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -626,9 +776,8 @@ const getSuppliers = async (req, res) => {
 const getRequisitions = async (req, res) => {
   try {
     const { page = 1, pageSize = 10, requisitionNo, status } = req.query;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
-    // 默认只显示已批准的采购申请，除非明确指定其他状态
     const defaultStatus = status || 'approved';
 
     let query = `
@@ -646,9 +795,9 @@ const getRequisitions = async (req, res) => {
     }
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const actualPageSize = Number(pageSize);
-    const actualOffset = Number(offset);
-    query += ` ORDER BY r.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(actualOffset))||0)}`;
+    const actualPageSize = pagination.limit;
+    const actualOffset = pagination.offset;
+    query += ` ORDER BY r.created_at DESC LIMIT ${actualPageSize} OFFSET ${actualOffset}`;
 
     const [rows] = await pool.query(query, queryParams);
 
@@ -675,7 +824,6 @@ const getRequisitions = async (req, res) => {
       `;
       const [orderedRows] = await pool.query(orderedQuery, [requisitionIds]);
 
-      // 将已订购信息附加到items上
       items.forEach((item) => {
         const orderedInfo = orderedRows.find(
           (r) => r.requisition_id === item.requisition_id && r.material_code === item.material_code
@@ -684,7 +832,6 @@ const getRequisitions = async (req, res) => {
       });
     }
 
-    // 整合申请单及其物料，确保real_name有值
     const requisitions = rows.map((row) => {
       const requisitionItems = items.filter((item) => item.requisition_id === row.id);
 
@@ -721,9 +868,9 @@ const getRequisitions = async (req, res) => {
     return ResponseHandler.success(res, {
       items: requisitions,
       total: totalCount,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
-      totalPages: Math.ceil(totalCount / pageSize),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      totalPages: Math.ceil(totalCount / pagination.pageSize),
     });
   } catch (error) {
     logger.error('获取采购申请列表失败:', error);
@@ -735,13 +882,12 @@ const getRequisition = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 获取申请单基本信息，包括real_name字段，允许获取已批准或已完成状态的申请单
     const query =
       'SELECT r.*, u.real_name as user_real_name FROM purchase_requisitions r LEFT JOIN users u ON r.requester = u.username WHERE r.id = ? AND r.status IN (?, ?)';
     const [rows] = await pool.query(query, [id, 'approved', 'completed']);
 
     if (rows.length === 0) {
-      return ResponseHandler.notFound(res, '采购申请不存在或状态不是已批准/已完成');
+      return ResponseHandler.notFound(res, 'purchase requisition not found');
     }
 
     const requisition = rows[0];
@@ -754,7 +900,6 @@ const getRequisition = async (req, res) => {
     // 移除查询辅助字段
     delete requisition.user_real_name;
 
-    // 获取申请单物料
     const itemsQuery =
       'SELECT * FROM purchase_requisition_items WHERE requisition_id = ? ORDER BY id';
     const [itemRows] = await pool.query(itemsQuery, [id]);
@@ -788,7 +933,6 @@ const getRequisition = async (req, res) => {
 // 获取采购综合统计数据（用于数据概览）
 const getPurchaseDashboardStats = async (req, res) => {
   try {
-    // 使用服务层获取数据
     const PurchaseDashboardService = require('../../../services/business/PurchaseDashboardService');
     const dashboardData = await PurchaseDashboardService.getDashboardData();
 
@@ -809,116 +953,93 @@ const updateOrderItemsReceived = async (req, res) => {
       return ResponseHandler.error(res, '缺少物料收货信息', 'VALIDATION_ERROR', 400);
     }
 
-    // 引入采购订单状态服务
-    const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
+    const result = await PurchaseReceiveInspectionService.receiveWithIncomingInspection(id, items);
 
-    // 使用事务更新所有物料的收货数量
-    await DBManager.executeTransaction(async (connection) => {
-      for (const item of items) {
-        if (item.material_id && item.receive_quantity > 0) {
-          await PurchaseOrderStatusService.updateOrderItemReceivedQuantity(
-            id,
-            item.material_id,
-            parseFloat(item.receive_quantity) || 0, // 已收货数量
-            0, // ✅ 到货时不更新已入库数量，等检验合格后入库时再更新
-            connection
-          );
-        }
-      }
-    });
-
-    return ResponseHandler.success(res, null, '收货数量更新成功');
+    return ResponseHandler.success(res, result, '收货并生成来料检验单成功');
   } catch (error) {
     logger.error('更新采购订单物料收货数量失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    const statusCode = error.statusCode || 500;
+    const errorCode =
+      error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
+    const message = statusCode < 500 ? error.message : '收货并生成来料检验单失败';
+    return ResponseHandler.error(res, message, errorCode, statusCode, error);
+  }
+};
+
+// 收货并自动生成来料检验单
+const receiveWithIncomingInspection = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { items } = req.body;
+
+    const result = await PurchaseReceiveInspectionService.receiveWithIncomingInspection(
+      id,
+      items
+    );
+
+    return ResponseHandler.success(res, result, '收货并生成来料检验单成功');
+  } catch (error) {
+    logger.error('收货并生成来料检验单失败:', error);
+    const statusCode = error.statusCode || 500;
+    const errorCode =
+      error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
+    const message = statusCode < 500 ? error.message : '收货并生成来料检验单失败';
+    return ResponseHandler.error(res, message, errorCode, statusCode, error);
   }
 };
 
 /**
  * 获取物料的最新采购指导价 (Purchase Info Record)
- * 三级降级策略：供应商历史价 → 全局历史价 → 物料主数据预估价
+ * 三级降级策略：供应商历史价 -> 全局历史价 -> 物料主数据预估价
  */
 const getLatestPrice = async (req, res) => {
   try {
     const { material_id, material_code, supplier_id } = req.query;
 
-    // 物料标识是必须的，供应商可选（未选供应商时直接走全局历史查询）
     if (!material_id && !material_code) {
       return ResponseHandler.error(res, '缺少必要参数 (物料编码或物料ID)', 'VALIDATION_ERROR', 400);
     }
 
-    // 第一层：查找该供应商历史上卖给我们这个物料的最新有效价格（仅当供应商已选定时）
-    if (supplier_id) {
-      const supplierQuery = `
-        SELECT poi.price, po.order_date
-        FROM purchase_order_items poi
-        JOIN purchase_orders po ON poi.order_id = po.id
-        WHERE (poi.material_id = ? OR poi.material_code = ?)
-          AND po.supplier_id = ?
-          AND po.status NOT IN ('cancelled')
-          AND poi.price > 0
-        ORDER BY po.order_date DESC, po.id DESC
-        LIMIT 1
-      `;
-      const [supplierRows] = await pool.execute(supplierQuery, [material_id || null, material_code || '', supplier_id]);
+    const price = await PurchasePriceService.resolvePurchasePrice(pool, {
+      materialId: material_id,
+      materialCode: material_code,
+      supplierId: supplier_id,
+    });
 
-      if (supplierRows.length > 0) {
-        return ResponseHandler.success(res, {
-          price: supplierRows[0].price,
-          source: 'supplier_history',
-          last_date: supplierRows[0].order_date
-        }, '获取供应商历史最新价成功');
-      }
-    }
-
-    // 第二层：查找所有供应商历史上卖给我们这个物料的最新有效价格
-    const globalQuery = `
-      SELECT poi.price, po.order_date, s.name as supplier_name
-      FROM purchase_order_items poi
-      JOIN purchase_orders po ON poi.order_id = po.id
-      LEFT JOIN suppliers s ON po.supplier_id = s.id
-      WHERE (poi.material_id = ? OR poi.material_code = ?)
-        AND po.status NOT IN ('cancelled')
-        AND poi.price > 0
-      ORDER BY po.order_date DESC, po.id DESC
-      LIMIT 1
-    `;
-    const [globalRows] = await pool.execute(globalQuery, [material_id || null, material_code || '']);
-
-    if (globalRows.length > 0) {
-      return ResponseHandler.success(res, {
-        price: globalRows[0].price,
-        source: 'other_supplier_history',
-        last_supplier: globalRows[0].supplier_name,
-        last_date: globalRows[0].order_date
-      }, '获取全局历史最新参考价成功');
-    }
-
-    // 第三层：从物料主数据提取预估成本价作为兜底
-    const matQuery = `
-      SELECT cost_price, price FROM materials
-      WHERE (id = ? OR code = ?)
-      LIMIT 1
-    `;
-    const [matRows] = await pool.execute(matQuery, [material_id || null, material_code || '']);
-
-    if (matRows.length > 0) {
-      const mat = matRows[0];
-      const fallbackPrice = parseFloat(mat.cost_price) || parseFloat(mat.price) || 0;
-      return ResponseHandler.success(res, {
-        price: fallbackPrice,
-        source: 'material_master',
-      }, '获取物料默认预估价成功');
-    }
-
-    return ResponseHandler.success(res, {
-      price: 0,
-      source: 'none'
-    }, '无历史价格参考');
-
+    return ResponseHandler.success(res, price, 'latest purchase price loaded');
   } catch (error) {
     logger.error('获取最新指导价失败:', error);
-    return ResponseHandler.error(res, '获取指导价失败', 'SERVER_ERROR', 500, error);
+    return ResponseHandler.error(res, 'failed to load latest price', 'SERVER_ERROR', 500, error);
+  }
+};
+
+const getLatestPrices = async (req, res) => {
+  try {
+    const { material_ids = [], supplier_id } = req.body || {};
+    const materialIds = [...new Set((Array.isArray(material_ids) ? material_ids : [])
+      .map((id) => Number(id))
+      .filter(Number.isInteger))];
+
+    if (materialIds.length === 0) {
+      return ResponseHandler.error(res, '缺少有效的物料ID数组', 'VALIDATION_ERROR', 400);
+    }
+    if (materialIds.length > 100) {
+      return ResponseHandler.error(res, 'batch query cannot exceed 100 materials', 'VALIDATION_ERROR', 400);
+    }
+
+    const prices = await PurchasePriceService.resolvePurchasePrices(
+      pool,
+      materialIds.map((id) => ({ materialId: id, supplierId: supplier_id }))
+    );
+    const resultMap = {};
+    prices.forEach((price, index) => {
+      resultMap[String(materialIds[index])] = price;
+    });
+
+    return ResponseHandler.success(res, resultMap, 'latest prices loaded');
+  } catch (error) {
+    logger.error('批量获取最新指导价失败:', error);
+    return ResponseHandler.error(res, 'failed to load latest prices', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -929,11 +1050,14 @@ module.exports = {
   updateOrder,
   deleteOrder,
   updateOrderStatus,
+  batchUpdateOrderStatus,
   updateOrderItemsReceived,
+  receiveWithIncomingInspection,
   getStatistics,
   getPurchaseDashboardStats,
   getSuppliers,
   getRequisitions,
   getRequisition,
   getLatestPrice,
+  getLatestPrices,
 };

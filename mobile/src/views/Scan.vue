@@ -555,10 +555,10 @@
     if (!resultData.value) return
 
     const routeMap = {
-      material: `/baseData/materials/${resultData.value.id}`,
+      material: `/basedata/materials/${resultData.value.id}`,
       location: `/inventory/stock?locationId=${resultData.value.id}`,
       order: `/sales/orders/${resultData.value.id}`,
-      product: `/baseData/materials/${resultData.value.id}`
+      product: `/basedata/materials/${resultData.value.id}`
     }
 
     const targetRoute = routeMap[selectedType.value]
@@ -645,12 +645,25 @@
     }
   }
 
+  const getCameraAccessMessage = (error) => {
+    const rawMessage = `${error?.name || ''} ${error?.message || error || ''}`
+    if (/NotFoundError|Requested device not found|DevicesNotFoundError/i.test(rawMessage)) {
+      return '未检测到摄像头'
+    }
+    if (/NotAllowedError|PermissionDeniedError|permission denied/i.test(rawMessage)) {
+      return '摄像头权限未授权'
+    }
+    if (/NotReadableError|TrackStartError/i.test(rawMessage)) {
+      return '摄像头正在被其他应用占用'
+    }
+    return '无法访问摄像头'
+  }
+
   // 检查相机权限并启动
   const checkCameraPermissionAndStart = async () => {
     try {
       // HTTP 环境下 navigator.mediaDevices 不存在（需要 HTTPS 或 localhost）
       if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-        console.warn('当前环境不支持摄像头 API（需要 HTTPS 或 localhost）')
         showToast('请使用 HTTPS 访问以启用摄像头，或使用手动输入')
         return
       }
@@ -677,9 +690,7 @@
         showToast('未检测到摄像头')
       }
     } catch (err) {
-      console.error('获取摄像头失败:', err)
-      const errMsg = (err && (err.message || String(err))) || '无法访问摄像头'
-      showToast(`${errMsg}，请使用手动输入`)
+      showToast(`${getCameraAccessMessage(err)}，请使用手动输入`)
     }
   }
 
@@ -727,9 +738,7 @@
 
       // 后置摄像头可能有闪光灯
       hasFlash.value = true
-    } catch (err) {
-      console.error('启动扫描失败:', err)
-
+    } catch {
       // 如果 facingMode 方式失败，回退到最后一个摄像头（通常是后置）
       if (typeof cameraIdOrConstraints === 'object' && cameras.value.length > 0) {
         // facingMode 方式失败，回退到最后一个摄像头
@@ -748,8 +757,8 @@
           cameraId.value = lastDevice.id
           hasFlash.value = true
           return
-        } catch (fallbackErr) {
-          console.error('回退启动也失败:', fallbackErr)
+        } catch {
+          // 保持静默降级，下面统一给出用户提示。
         }
       }
 
@@ -865,7 +874,7 @@
     border: none;
     color: var(--text-primary);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -885,6 +894,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 1.5rem;
+    padding-bottom: calc(1.5rem + var(--app-bottom-space));
   }
 
   .page-content::-webkit-scrollbar {
@@ -915,11 +925,11 @@
     padding: 0.75rem 0.5rem;
     border-radius: 0.75rem;
     background: var(--bg-secondary);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     font-size: 0.75rem;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.3s;
+    transition: background 0.3s, border-color 0.3s, color 0.3s, transform 0.3s;
     white-space: nowrap;
     flex: 1;
     min-width: 0;
@@ -948,7 +958,7 @@
     background: var(--bg-black, #000);
     border-radius: 1rem;
     overflow: hidden;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
 
   .scan-video {
@@ -1047,7 +1057,7 @@
     background: var(--bg-secondary);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 0.75rem;
     padding: 1.25rem;
   }
@@ -1085,7 +1095,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 0;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   }
 
   .result-item:last-child {
@@ -1124,7 +1134,7 @@
   .check-select-section {
     margin: 1rem 0;
     padding-top: 1rem;
-    border-top: 1px solid var(--glass-border);
+    border-top: 1px solid var(--surface-border, var(--border-subtle));
   }
   .check-section-title {
     font-size: 0.8125rem;
@@ -1153,9 +1163,9 @@
     padding: 10px 14px;
     background: var(--bg-primary);
     border-radius: 10px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
     &:active {
       transform: scale(0.98);
       border-color: var(--color-primary);
@@ -1208,14 +1218,14 @@
     background: var(--bg-secondary);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 0.75rem;
     padding: 1rem 1.25rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   }
 
   .input-card:active {
@@ -1258,7 +1268,7 @@
     background: var(--bg-secondary);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 0.75rem;
     padding: 1rem;
     display: flex;
@@ -1266,7 +1276,7 @@
     align-items: center;
     gap: 0.75rem;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   }
 
   .action-card:active {

@@ -7,9 +7,15 @@ const router = express.Router();
 const scrapRecordController = require('../../controllers/business/quality/scrapRecordController');
 const { authenticateToken } = require('../../middleware/auth');
 const { requirePermission } = require('../../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../../middleware/priceAccessControl');
 
 // 所有路由需要认证
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // 获取报废记录列表
 router.get('/', requirePermission('quality:scrap:view'), scrapRecordController.getScrapRecords);

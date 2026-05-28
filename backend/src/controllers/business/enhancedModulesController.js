@@ -6,11 +6,12 @@
 
 const CodeGeneratorService = require('../../services/business/CodeGeneratorService');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const FileAccessService = require('../../services/FileAccessService');
 const { pool } = require('../../config/db');
 const { softDelete } = require('../../utils/softDelete');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
-const { parsePagination } = require('../../utils/safePagination');
+const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 
 // ==================== 编码规则 ====================
 const codingRules = {
@@ -51,11 +52,11 @@ const codingRules = {
 // ==================== 单据关联 ====================
 const docLinks = {
   async getLinks(req, res) {
-    try { ResponseHandler.success(res, await DocumentLinkService.getLinks(req.query.business_type, req.query.business_id)); }
+    try { ResponseHandler.success(res, await DocumentLinkService.getLinks(req.query.business_type, req.query.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions })); }
     catch (e) { ResponseHandler.error(res, e.message); }
   },
   async getFullChain(req, res) {
-    try { ResponseHandler.success(res, await DocumentLinkService.getFullChain(req.query.business_type, req.query.business_id)); }
+    try { ResponseHandler.success(res, await DocumentLinkService.getFullChain(req.query.business_type, req.query.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions })); }
     catch (e) { ResponseHandler.error(res, e.message); }
   },
   async createLink(req, res) {
@@ -77,16 +78,18 @@ const exchangeRates = {
   async getList(req, res) {
     try {
       const { from_currency, to_currency } = req.query;
-      const pagination = parsePagination(req.query.page, req.query.pageSize, { defaultPageSize: 50, maxPageSize: 200 });
+      const pagination = parsePagination(req.query.page, req.query.pageSize, { defaultPageSize: 50, maxPageSize: 100 });
       let where = 'WHERE deleted_at IS NULL';
       const vals = [];
       if (from_currency) { where += ' AND from_currency = ?'; vals.push(from_currency); }
       if (to_currency) { where += ' AND to_currency = ?'; vals.push(to_currency); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM exchange_rates ${where}`, vals);
-      const [rows] = await pool.query(
-        `SELECT * FROM exchange_rates ${where} ORDER BY effective_date DESC, from_currency LIMIT ? OFFSET ?`,
-        [...vals, pagination.limit, pagination.offset]
+      const listSql = appendPaginationSQL(
+        `SELECT * FROM exchange_rates ${where} ORDER BY effective_date DESC, from_currency`,
+        pagination.limit,
+        pagination.offset
       );
+      const [rows] = await pool.query(listSql, vals);
       ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
@@ -134,13 +137,19 @@ const performance = {
   async getIndicators(req, res) {
     try {
       const { category, keyword, page = 1, pageSize = 50 } = req.query;
+      const pagination = parsePagination(page, pageSize, { defaultPageSize: 50, maxPageSize: 100 });
       let where = 'WHERE deleted_at IS NULL';
       const vals = [];
       if (category) { where += ' AND category = ?'; vals.push(category); }
       if (keyword) { where += ' AND (name LIKE ? OR code LIKE ?)'; vals.push(`%${keyword}%`, `%${keyword}%`); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM performance_indicators ${where}`, vals);
-      const [rows] = await pool.query(`SELECT * FROM performance_indicators ${where} ORDER BY category, code LIMIT ? OFFSET ?`, [...vals, Number(pageSize), (page - 1) * pageSize]);
-      ResponseHandler.success(res, { list: rows, total });
+      const listSql = appendPaginationSQL(
+        `SELECT * FROM performance_indicators ${where} ORDER BY category, code`,
+        pagination.limit,
+        pagination.offset
+      );
+      const [rows] = await pool.query(listSql, vals);
+      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async createIndicator(req, res) {
@@ -198,21 +207,24 @@ const performance = {
   async getEvaluations(req, res) {
     try {
       const { period_id, department_id, status, page = 1, pageSize = 20 } = req.query;
+      const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
       let where = 'WHERE 1=1';
       const vals = [];
       if (period_id) { where += ' AND pe.period_id = ?'; vals.push(period_id); }
       if (department_id) { where += ' AND pe.department_id = ?'; vals.push(department_id); }
       if (status) { where += ' AND pe.status = ?'; vals.push(status); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM performance_evaluations pe ${where}`, vals);
-      const [rows] = await pool.query(
+      const listSql = appendPaginationSQL(
         `SELECT pe.*, pp.name AS period_name, u.real_name AS evaluator_name
          FROM performance_evaluations pe
          LEFT JOIN performance_periods pp ON pp.id = pe.period_id
          LEFT JOIN users u ON u.id = pe.evaluator_id
-         ${where} ORDER BY pe.created_at DESC LIMIT ? OFFSET ?`,
-        [...vals, Number(pageSize), (page - 1) * pageSize]
+         ${where} ORDER BY pe.created_at DESC`,
+        pagination.limit,
+        pagination.offset
       );
-      ResponseHandler.success(res, { list: rows, total });
+      const [rows] = await pool.query(listSql, vals);
+      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async getEvaluationById(req, res) {
@@ -386,18 +398,21 @@ const ecn = {
   async getList(req, res) {
     try {
       const { keyword, type, status, page = 1, pageSize = 20 } = req.query;
+      const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
       let where = 'WHERE e.deleted_at IS NULL';
       const vals = [];
       if (keyword) { where += ' AND (e.code LIKE ? OR e.title LIKE ?)'; vals.push(`%${keyword}%`, `%${keyword}%`); }
       if (type) { where += ' AND e.type = ?'; vals.push(type); }
       if (status) { where += ' AND e.status = ?'; vals.push(status); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM ecn_orders e ${where}`, vals);
-      const [rows] = await pool.query(
+      const listSql = appendPaginationSQL(
         `SELECT e.*, u.real_name AS requested_by_name FROM ecn_orders e LEFT JOIN users u ON u.id = e.requested_by
-         ${where} ORDER BY e.created_at DESC LIMIT ? OFFSET ?`,
-        [...vals, Number(pageSize), (page - 1) * pageSize]
+         ${where} ORDER BY e.created_at DESC`,
+        pagination.limit,
+        pagination.offset
       );
-      ResponseHandler.success(res, { list: rows, total });
+      const [rows] = await pool.query(listSql, vals);
+      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async getById(req, res) {
@@ -443,147 +458,172 @@ const ecn = {
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async updateStatus(req, res) {
+    const conn = await pool.getConnection();
     try {
       const { status } = req.body;
       const userId = req.user?.userId || req.user?.id;
 
-      // 审批状态(approved/rejected)只能由工作流回调变更，前端禁止直接传
+      if (!status) {
+        return ResponseHandler.error(res, 'status is required', 'VALIDATION_ERROR', 400);
+      }
+
       if (['approved', 'rejected'].includes(status)) {
         return ResponseHandler.error(
           res,
-          '审批通过/拒绝只能通过工作流完成，请先提交审批(pending_approval)',
+          'Approval result can only be changed by workflow callback; submit pending_approval first',
           'VALIDATION_ERROR',
           400
         );
       }
 
-      // 状态流转合法性校验（前端可操作的状态转换）
+      await conn.beginTransaction();
+
       const allowedTransitions = {
         draft: ['pending_approval', 'cancelled'],
-        pending_approval: [],           // 等待工作流处理，前端不可操作
+        pending_approval: [],
         approved: ['implementing', 'cancelled'],
         implementing: ['completed', 'cancelled'],
         rejected: ['draft'],
       };
-      const [[current]] = await pool.query('SELECT * FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
-      if (!current) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
+
+      const [[current]] = await conn.query('SELECT * FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
+      if (!current) {
+        await conn.rollback();
+        return ResponseHandler.error(res, 'ECN not found', 'NOT_FOUND', 404);
+      }
+
       const allowed = allowedTransitions[current.status] || [];
       if (!allowed.includes(status)) {
+        await conn.rollback();
         return ResponseHandler.error(
           res,
-          `不允许从 [${current.status}] 转换到 [${status}]`,
+          `Cannot change ECN status from [${current.status}] to [${status}]`,
           'VALIDATION_ERROR',
           400
         );
       }
 
-      // 提交审批时发起工作流
       let finalStatus = status;
       if (status === 'pending_approval') {
-        const [items] = await pool.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [req.params.id]);
+        const [items] = await conn.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [req.params.id]);
         const validationError = validateEcnPayload({ ...current, items }, { requireItems: true });
-        if (validationError) return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
+        if (validationError) {
+          await conn.rollback();
+          return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
+        }
 
         const WorkflowService = require('../../services/business/WorkflowService');
         const wfResult = await WorkflowService.tryStartWorkflow(
-          'ecn', req.params.id, current.code, `ECN ${current.code} ${current.title} 审批`, userId
+          'ecn', req.params.id, current.code, `ECN ${current.code} ${current.title} review`, userId
         );
         if (wfResult.auto_approved) { finalStatus = 'approved'; }
       }
 
-      const conn = await pool.getConnection();
-      try {
-        await conn.beginTransaction();
-        let extra = '';
-        const vals = [finalStatus];
-        if (finalStatus === 'approved') {
-          // 从WorkflowService映射表统一获取ECN审批通过的附加SQL，避免重复维护
-          const WorkflowSvc = require('../../services/business/WorkflowService');
-          const ecnCfg = WorkflowSvc.BUSINESS_STATUS_MAP?.ecn;
-          extra = ecnCfg?.extra || ', approved_by = ?, approved_at = NOW()';
-          if (extra.includes('approved_by')) vals.push(userId);
-        }
-        if (finalStatus === 'completed') { extra += ', completed_at = NOW()'; }
+      let extra = '';
+      const vals = [finalStatus];
+      if (finalStatus === 'approved') {
+        const WorkflowSvc = require('../../services/business/WorkflowService');
+        const ecnCfg = WorkflowSvc.BUSINESS_STATUS_MAP?.ecn;
+        extra = ecnCfg?.extra || ', approved_by = ?, approved_at = NOW()';
+        if (extra.includes('approved_by')) vals.push(userId);
+      }
+      if (finalStatus === 'completed') { extra += ', completed_at = NOW()'; }
 
-        if (finalStatus === 'implementing') {
-          await applyEcnChanges(req.params.id, userId, conn);
-        }
-
-        vals.push(req.params.id);
-        await conn.query(`UPDATE ecn_orders SET status = ?${extra} WHERE id = ? AND deleted_at IS NULL`, vals);
-        await conn.commit();
-      } catch (err) {
-        await conn.rollback();
-        throw err;
-      } finally {
-        conn.release();
+      if (finalStatus === 'implementing') {
+        await applyEcnChanges(req.params.id, userId, conn);
       }
 
-      ResponseHandler.success(res, null, '状态已更新');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+      vals.push(req.params.id);
+      await conn.query(`UPDATE ecn_orders SET status = ?${extra} WHERE id = ? AND deleted_at IS NULL`, vals);
+      await conn.commit();
+      ResponseHandler.success(res, null, 'Status updated');
+    } catch (e) {
+      await conn.rollback();
+      ResponseHandler.error(res, e.message);
+    } finally {
+      conn.release();
+    }
   },
   async update(req, res) {
+    const conn = await pool.getConnection();
     try {
       const d = req.body;
       const validationError = validateEcnPayload(d);
       if (validationError) return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
       const items = Array.isArray(d.items) ? d.items.map(normalizeEcnItem) : [];
-      const conn = await pool.getConnection();
-      try {
-        // 仅草稿状态允许编辑
-        const [[current]] = await conn.query('SELECT code, status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
-        if (!current) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
-        if (current.status !== 'draft') {
-          return ResponseHandler.error(res, '仅草稿状态允许编辑', 'VALIDATION_ERROR', 400);
-        }
 
-        await conn.beginTransaction();
-        await conn.query(
-          `UPDATE ecn_orders SET title=?, type=?, priority=?, reason=?, description=?, impact_analysis=?, effective_date=?, disposition=?, updated_at=NOW()
-           WHERE id=? AND deleted_at IS NULL`,
-          [d.title, d.type || 'ecn', d.priority || 'medium', d.reason, d.description, d.impact_analysis, d.effective_date, d.disposition || 'use_existing', req.params.id]
-        );
-        // 重建变更明细（先删后插）
-        await conn.query('DELETE FROM ecn_order_items WHERE ecn_id = ?', [req.params.id]);
-        if (items.length) {
-          for (const item of items) {
-            await conn.query(
-              `INSERT INTO ecn_order_items (ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark)
-               VALUES (?,?,?,?,?,?,?,?,?,?)`,
-              [req.params.id, item.change_type, item.material_id, item.material_code, item.material_name, item.bom_id, item.field_name, item.old_value, item.new_value, item.remark]
-            );
-          }
+      await conn.beginTransaction();
+
+      const [[current]] = await conn.query('SELECT code, status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
+      if (!current) {
+        await conn.rollback();
+        return ResponseHandler.error(res, 'ECN not found', 'NOT_FOUND', 404);
+      }
+      if (current.status !== 'draft') {
+        await conn.rollback();
+        return ResponseHandler.error(res, 'Only draft ECN can be edited', 'VALIDATION_ERROR', 400);
+      }
+
+      await conn.query(
+        `UPDATE ecn_orders SET title=?, type=?, priority=?, reason=?, description=?, impact_analysis=?, effective_date=?, disposition=?, updated_at=NOW()
+         WHERE id=? AND deleted_at IS NULL`,
+        [d.title, d.type || 'ecn', d.priority || 'medium', d.reason, d.description, d.impact_analysis, d.effective_date, d.disposition || 'use_existing', req.params.id]
+      );
+      await conn.query('DELETE FROM ecn_order_items WHERE ecn_id = ?', [req.params.id]);
+      if (items.length) {
+        for (const item of items) {
+          await conn.query(
+            `INSERT INTO ecn_order_items (ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            [req.params.id, item.change_type, item.material_id, item.material_code, item.material_name, item.bom_id, item.field_name, item.old_value, item.new_value, item.remark]
+          );
         }
-        await syncEcnDocumentLinks(conn, req.params.id, current.code, items, req.user?.userId || req.user?.id);
-        await conn.commit();
-        ResponseHandler.success(res, null, '更新成功');
-      } catch (err) { await conn.rollback(); throw err; }
-      finally { conn.release(); }
-    } catch (e) { ResponseHandler.error(res, e.message); }
+      }
+      await syncEcnDocumentLinks(conn, req.params.id, current.code, items, req.user?.userId || req.user?.id);
+      await conn.commit();
+      ResponseHandler.success(res, null, 'Updated');
+    } catch (err) {
+      await conn.rollback();
+      ResponseHandler.error(res, err.message);
+    } finally {
+      conn.release();
+    }
   },
   async delete(req, res) {
+    const conn = await pool.getConnection();
     try {
-      // 仅草稿/已拒绝/已取消状态允许删除
-      const [[current]] = await pool.query('SELECT status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
-      if (!current) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
+      await conn.beginTransaction();
+
+      const [[current]] = await conn.query('SELECT status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
+      if (!current) {
+        await conn.rollback();
+        return ResponseHandler.error(res, 'ECN not found', 'NOT_FOUND', 404);
+      }
       if (!['draft', 'rejected', 'cancelled'].includes(current.status)) {
+        await conn.rollback();
         return ResponseHandler.error(
           res,
-          `当前状态[${current.status}]不允许删除`,
+          `Current status [${current.status}] cannot be deleted`,
           'VALIDATION_ERROR',
           400
         );
       }
-      await pool.query("DELETE FROM document_links WHERE source_type = 'ecn' AND source_id = ?", [req.params.id]);
-      await softDelete(pool, 'ecn_orders', 'id', req.params.id);
-      ResponseHandler.success(res, null, '已删除');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+      await conn.query("DELETE FROM document_links WHERE source_type = 'ecn' AND source_id = ?", [req.params.id]);
+      await softDelete(conn, 'ecn_orders', 'id', req.params.id);
+      await conn.commit();
+      ResponseHandler.success(res, null, 'Deleted');
+    } catch (e) {
+      await conn.rollback();
+      ResponseHandler.error(res, e.message);
+    } finally {
+      conn.release();
+    }
   },
 };
 
 /** 应用ECN变更明细到BOM/物料。必须在调用方事务内执行，失败即抛错回滚状态。 */
 async function applyEcnChanges(ecnId, userId, conn) {
-  const [[order]] = await conn.query('SELECT code, title, reason FROM ecn_orders WHERE id = ? AND deleted_at IS NULL', [ecnId]);
+  const [[order]] = await conn.query('SELECT code, title, reason FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [ecnId]);
   if (!order) throw new Error('ECN不存在');
 
   const [rawItems] = await conn.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [ecnId]);
@@ -601,20 +641,20 @@ async function applyEcnChanges(ecnId, userId, conn) {
     }
 
     const [[material]] = await conn.query(
-      'SELECT id, code, name, unit_id, specs, safety_stock, min_stock, max_stock, price FROM materials WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id, code, name, unit_id, specs, safety_stock, min_stock, max_stock, price FROM materials WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [item.material_id]
     );
     if (!material) throw new Error(`第${row}行物料不存在或已删除`);
 
     if (ECN_BOM_CHANGE_TYPES.has(item.change_type)) {
-      const [[bom]] = await conn.query('SELECT id, version FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [item.bom_id]);
+      const [[bom]] = await conn.query('SELECT id, version FROM bom_masters WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [item.bom_id]);
       if (!bom) throw new Error(`第${row}行BOM不存在或已删除`);
       changedBomIds.add(item.bom_id);
     }
 
     if (item.change_type === 'bom_add') {
       const [[existing]] = await conn.query(
-        'SELECT id FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1',
+        'SELECT id FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1 FOR UPDATE',
         [item.bom_id, item.material_id]
       );
       if (existing) throw new Error(`第${row}行BOM中已存在该物料，不能重复新增`);
@@ -630,7 +670,7 @@ async function applyEcnChanges(ecnId, userId, conn) {
 
     if (item.change_type === 'bom_remove') {
       const [[detail]] = await conn.query(
-        'SELECT id FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1',
+        'SELECT id FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1 FOR UPDATE',
         [item.bom_id, item.material_id]
       );
       if (!detail) throw new Error(`第${row}行BOM中不存在该物料，不能移除`);
@@ -641,7 +681,7 @@ async function applyEcnChanges(ecnId, userId, conn) {
     if (item.change_type === 'bom_modify') {
       const [[detail]] = await conn.query(
         `SELECT id, quantity, remark, unit_id, level, parent_id
-         FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1`,
+         FROM bom_details WHERE bom_id = ? AND material_id = ? LIMIT 1 FOR UPDATE`,
         [item.bom_id, item.material_id]
       );
       if (!detail) throw new Error(`第${row}行BOM中不存在该物料，不能修改`);
@@ -670,7 +710,7 @@ async function applyEcnChanges(ecnId, userId, conn) {
   }
 
   for (const bomId of changedBomIds) {
-    const [[bom]] = await conn.query('SELECT version FROM bom_masters WHERE id = ?', [bomId]);
+    const [[bom]] = await conn.query('SELECT version FROM bom_masters WHERE id = ? FOR UPDATE', [bomId]);
     const ver = bom?.version || 'V1.0';
     const match = ver.match(/^(.*?)(\d+)$/);
     const newVer = match ? `${match[1]}${parseInt(match[2], 10) + 1}` : `${ver}.1`;
@@ -695,11 +735,13 @@ const documents = {
       if (business_type) { where += ' AND d.business_type = ?'; vals.push(business_type); }
       if (business_id) { where += ' AND d.business_id = ?'; vals.push(business_id); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM documents d ${where}`, vals);
-      const [rows] = await pool.query(
+      const listSql = appendPaginationSQL(
         `SELECT d.*, u.real_name AS created_by_name FROM documents d LEFT JOIN users u ON u.id = d.created_by
-         ${where} ORDER BY d.created_at DESC LIMIT ? OFFSET ?`,
-        [...vals, pagination.limit, pagination.offset]
+         ${where} ORDER BY d.created_at DESC`,
+        pagination.limit,
+        pagination.offset
       );
+      const [rows] = await pool.query(listSql, vals);
       ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
@@ -717,6 +759,20 @@ const documents = {
         [code, d.name, d.category || 'other', d.file_url, d.file_name, d.file_size || 0, d.file_type, d.version || '1.0', d.description,
          d.business_type, d.business_id, d.tags ? JSON.stringify(d.tags) : null, d.is_public || 0, userId, d.department_id]
       );
+      await FileAccessService.safeRecordUpload({
+        fileUrl: d.file_url,
+        businessType: d.business_type,
+        businessId: d.business_id,
+        source: 'documents',
+        uploadedBy: userId,
+        isPublic: d.is_public || 0,
+        metadata: {
+          documentId: r.insertId,
+          fileName: d.file_name,
+          fileType: d.file_type,
+          fileSize: d.file_size || 0,
+        },
+      });
       ResponseHandler.success(res, { id: r.insertId }, '上传成功');
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
@@ -733,8 +789,12 @@ const documents = {
   },
   async delete(req, res) {
     try {
+      const [[doc]] = await pool.query('SELECT file_url FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
       const affected = await softDelete(pool, 'documents', 'id', req.params.id);
       if (!affected) return ResponseHandler.notFound(res, '文档不存在');
+      if (doc?.file_url) {
+        await FileAccessService.safeMarkDeleted(doc.file_url);
+      }
       ResponseHandler.success(res, null, '已删除');
     }
     catch (e) { ResponseHandler.error(res, e.message); }

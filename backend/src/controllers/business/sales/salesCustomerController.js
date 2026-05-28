@@ -15,10 +15,12 @@ const materialService = require('../../../services/materialService');
 
 exports.getCustomersList = async (req, res) => {
   try {
-    // 获取所有客户，不分页
-    const result = await customerService.getAllCustomers(1, 1000);
+    const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1), 100);
+    const result = await customerService.getAllCustomers(1, pageSize, {
+      search: req.query.keyword || req.query.search || '',
+      status: req.query.status,
+    });
 
-    // 返回客户列表，直接返回items数组
     return ResponseHandler.success(res, result.items || []);
   } catch (error) {
     logger.error('Error getting customers list:', error);
@@ -26,13 +28,13 @@ exports.getCustomersList = async (req, res) => {
   }
 };
 
-
 exports.getProductsList = async (req, res) => {
   try {
-    // 不使用type过滤，获取所有物料
-    const products = await materialService.getAllMaterials(1, 1000);
-
-    // materialService.getAllMaterials 返回 { data, pagination }
+    const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1), 100);
+    const products = await materialService.getAllMaterials(1, pageSize, {
+      search: req.query.keyword || req.query.search || '',
+      status: req.query.status ?? 1,
+    });
     const items = products?.data || products?.list || products?.items || [];
     return ResponseHandler.success(res, items);
   } catch (error) {
@@ -62,8 +64,8 @@ exports.getCustomers = async (req, res) => {
 
     // 添加限制条数
     if (limit) {
-      const safeLimit = parseInt(limit, 10) || 100;
-      query += ` LIMIT ${Math.max(1,Math.min(Math.floor(Number(safeLimit))||20,500))}`;
+      const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 100, 100));
+      query += ` LIMIT ${safeLimit}`;
     }
 
     const { getConnection } = require('../../../config/db');

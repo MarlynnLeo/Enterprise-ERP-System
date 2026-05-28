@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Outbound.vue - 库存出库列表
  * @description 移动端出库管理页面
@@ -263,9 +263,9 @@ onMounted(() => {
 .page-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100%;
   background: var(--bg-primary);
-  padding-bottom: 80px;
+  padding-bottom: var(--app-bottom-space);
 }
 .content-container {
   flex: 1;
@@ -282,9 +282,9 @@ onMounted(() => {
 }
 .filter-chip {
   display: flex; align-items: center; gap: 4px; padding: 6px 14px;
-  border-radius: 20px; background: var(--bg-secondary); border: 1.5px solid var(--glass-border);
+  border-radius: 20px; background: var(--bg-secondary); border: 1.5px solid var(--surface-border, var(--border-subtle));
   white-space: nowrap; flex-shrink: 0; font-size: 0.8125rem;
-  color: var(--text-secondary); transition: all 0.25s ease; cursor: pointer;
+  color: var(--text-secondary); transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease, transform 0.25s ease; cursor: pointer;
   .chip-text { font-weight: 500; }
   &.active {
     background: var(--color-accent-bg, rgba(59,130,246,0.1));
@@ -299,8 +299,8 @@ onMounted(() => {
   border-radius: 10px;
   margin-bottom: 8px;
   overflow: hidden;
-  border: 1px solid var(--glass-border);
-  transition: all 0.2s;
+  border: 1px solid var(--surface-border, var(--border-subtle));
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s;
   animation: fadeInUp 0.35s ease-out both;
   cursor: pointer;
   &:active {

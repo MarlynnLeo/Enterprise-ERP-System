@@ -109,7 +109,7 @@
               ></el-input-number>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" align="center">
+          <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button v-permission="'finance:entries:create'" type="danger" circle size="small" @click="removeItem(scope.$index)" :disabled="entryForm.items.length <= 2">删</el-button>
             </template>
@@ -133,7 +133,9 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
+import { loadDepartmentOptions, loadUserListOptions } from '@/utils/optionLoaders'
 
 const router = useRouter();
 const route = useRoute();
@@ -166,7 +168,7 @@ const _createEmptItem = () => ({
 });
 
 const entryForm = reactive({
-  entry_date: new Date().toISOString().split('T')[0],
+  entry_date: formatLocalDate(new Date()),
   voucher_word: (() => {
     const typeMap = {
       '收款凭证': '收', '收款单': '收',
@@ -230,7 +232,7 @@ const loadOptions = async () => {
   try {
     const accRes = await api.get('/finance/accounts/options');
 
-    const accounts = accRes.data.hasOwnProperty('data') ? accRes.data.data : accRes.data;
+    const accounts = parseListData(accRes, { enableLog: false });
     const processAccounts = (list) => {
       return list.map(item => {
         const processed = {
@@ -249,23 +251,21 @@ const loadOptions = async () => {
     // Load aux options gracefully
     try {
       const custRes = await api.get('/sales/customers').catch(()=>({data:[]}));
-      customerOptions.value = custRes?.data?.data || custRes?.data || [];
+      customerOptions.value = parseResponseData(custRes, []);
     } catch(e) { console.warn('加载客户选项失败:', e.message) }
 
     try {
-      const userRes = await api.get('/system/users/list').catch(()=>({data:[]}));
-      userOptions.value = userRes?.data?.data || userRes?.data || [];
+      userOptions.value = await loadUserListOptions();
     } catch(e) { console.warn('加载用户选项失败:', e.message) }
 
     try {
-      const deptRes = await api.get('/system/departments/list').catch(()=>({data:[]}));
-      departmentOptions.value = deptRes?.data?.data || deptRes?.data || [];
+      departmentOptions.value = await loadDepartmentOptions();
     } catch(e) { console.warn('加载部门选项失败:', e.message) }
 
     // Attempt suppliers and projects if routes exist
     try {
       const suppRes = await api.get('/purchase/suppliers').catch(()=>({data:[]}));
-      supplierOptions.value = suppRes?.data?.data || suppRes?.data || [];
+      supplierOptions.value = parseResponseData(suppRes, []);
     } catch(e) { console.warn('加载供应商选项失败:', e.message) }
   } catch (err) {
     console.error('加载选项失败', err);
@@ -361,7 +361,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 15px;
-  border-top: 1px dashed #eee;
+  border-top: 1px dashed var(--color-border-lighter);
   padding-top: 15px;
 }
 .aux-area {

@@ -65,6 +65,7 @@
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button as VanButton, Icon as VanIcon, Loading, showToast } from 'vant'
   import { baseDataApi } from '@/services/api'
+  import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()
   const router = useRouter()
@@ -73,7 +74,7 @@
   const loadDetail = async () => {
     try {
       const response = await baseDataApi.getSupplier(route.params.id)
-      supplier.value = response.data?.data || response.data || response
+      supplier.value = extractApiData(response, null)
     } catch (error) {
       console.error('加载供应商详情失败:', error)
       showToast('加载详情失败')
@@ -90,7 +91,7 @@
 
   // 编辑供应商
   const handleEdit = () => {
-    router.push(`/baseData/suppliers/${supplier.value.id}/edit`)
+    router.push(`/basedata/suppliers/${supplier.value.id}/edit`)
   }
 
   onMounted(() => {
@@ -100,7 +101,7 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--van-background-2);
   }
   .content-container {

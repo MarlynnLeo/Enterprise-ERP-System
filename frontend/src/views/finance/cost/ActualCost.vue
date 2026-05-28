@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="actual-cost-container">
+  <div class="module-page actual-cost-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -11,14 +11,23 @@
     </el-card>
 
     <!-- 搜索表单 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="loadActualCosts"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="生产订单号">
           <el-input v-model="searchForm.orderNumber" placeholder="请输入订单号" clearable></el-input>
         </el-form-item>
         <el-form-item label="产品名称">
           <el-input v-model="searchForm.productName" placeholder="请输入产品名称" clearable></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="日期范围">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -30,12 +39,8 @@
 
           ></el-date-picker>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadActualCosts">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 数据表格 -->
     <el-card class="data-card">
@@ -43,36 +48,36 @@
         <el-table-column prop="order_number" label="生产订单号" width="150"></el-table-column>
         <el-table-column prop="product_code" label="产品编码" width="150"></el-table-column>
         <el-table-column prop="product_name" label="产品名称" width="260"></el-table-column>
-        <el-table-column prop="quantity" label="生产数量" width="110" align="right"></el-table-column>
-        <el-table-column label="材料成本" width="130" align="right">
+        <el-table-column prop="quantity" label="生产数量" width="110"></el-table-column>
+        <el-table-column label="材料成本" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.material_cost) }}
           </template>
         </el-table-column>
-        <el-table-column label="人工成本" width="120" align="right">
+        <el-table-column label="人工成本" width="120">
           <template #default="scope">
             {{ formatCurrency(scope.row.labor_cost) }}
           </template>
         </el-table-column>
-        <el-table-column label="制造费用" width="130" align="right">
+        <el-table-column label="制造费用" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.overhead_cost) }}
           </template>
         </el-table-column>
-        <el-table-column label="总成本" width="140" align="right">
+        <el-table-column label="总成本" width="140">
           <template #default="scope">
             <span style="font-weight: bold; color: var(--color-primary);">
               {{ formatCurrency(scope.row.total_cost) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="单位成本" width="140" align="right">
+        <el-table-column label="单位成本" width="140">
           <template #default="scope">
             {{ formatCurrency(scope.row.unit_cost) }}
           </template>
         </el-table-column>
         <el-table-column prop="completion_date" label="完工日期" width="110"></el-table-column>
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
           </template>
@@ -121,30 +126,41 @@
             <el-table :data="currentDetail.material_details" border size="small" max-height="300">
               <el-table-column prop="material_code" label="物料编码" width="100"></el-table-column>
               <el-table-column prop="material_name" label="物料名称" width="170"></el-table-column>
-              <el-table-column prop="quantity" label="消耗数量" width="100" align="right"></el-table-column>
-              <el-table-column prop="unit_cost" label="单位成本" width="100" align="right"></el-table-column>
-              <el-table-column prop="total_cost" label="总成本" width="100" align="right"></el-table-column>
+              <el-table-column prop="quantity" label="消耗数量" width="100"></el-table-column>
+              <el-table-column prop="unit_cost" label="单位成本" width="100"></el-table-column>
+              <el-table-column prop="total_cost" label="总成本" width="100"></el-table-column>
+              <el-table-column prop="issue_type" label="类型" width="96"></el-table-column>
               <el-table-column prop="batch_number" label="批次号" width="138"></el-table-column>
               <el-table-column prop="issue_date" label="领用日期" width="110"></el-table-column>
+              <el-table-column prop="document_numbers" label="来源单据" min-width="180"></el-table-column>
             </el-table>
           </el-tab-pane>
           <el-tab-pane label="人工工时明细" name="labor">
             <el-table :data="currentDetail.labor_details" border size="small" max-height="300">
               <el-table-column prop="workstation" label="工作中心" width="200"></el-table-column>
               <el-table-column prop="operator" label="操作员" width="120"></el-table-column>
-              <el-table-column prop="work_hours" label="工时(小时)" width="125" align="right"></el-table-column>
-              <el-table-column prop="hourly_rate" label="小时费率" width="120" align="right"></el-table-column>
-              <el-table-column prop="total_cost" label="总成本" width="120" align="right"></el-table-column>
+              <el-table-column prop="work_hours" label="工时(小时)" width="125"></el-table-column>
+              <el-table-column prop="hourly_rate" label="小时费率" width="120"></el-table-column>
+              <el-table-column prop="total_cost" label="总成本" width="120"></el-table-column>
               <el-table-column prop="work_date" label="工作日期" width="130"></el-table-column>
             </el-table>
           </el-tab-pane>
           <el-tab-pane label="制造费用明细" name="overhead">
-            <el-descriptions :column="2" border>
-              <el-descriptions-item label="分摊基础">{{ currentDetail.overhead_details?.allocation_base }}</el-descriptions-item>
-              <el-descriptions-item label="分摊率">{{ currentDetail.overhead_details?.rate }}</el-descriptions-item>
-              <el-descriptions-item label="基础成本">{{ formatCurrency(currentDetail.overhead_details?.base_cost) }}</el-descriptions-item>
-              <el-descriptions-item label="计算费用">{{ formatCurrency(currentDetail.overhead_details?.calculated_cost) }}</el-descriptions-item>
-            </el-descriptions>
+            <el-table :data="currentDetail.overhead_details || []" border size="small" max-height="300" empty-text="暂无制造费用分摊明细">
+              <el-table-column prop="rule_name" label="分摊规则" min-width="180"></el-table-column>
+              <el-table-column prop="allocation_base" label="分摊基础" width="120"></el-table-column>
+              <el-table-column prop="rate" label="分摊率" width="100"></el-table-column>
+              <el-table-column label="基础成本" width="130">
+                <template #default="scope">
+                  {{ formatCurrency(scope.row.base_cost) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="计算费用" width="130">
+                <template #default="scope">
+                  {{ formatCurrency(scope.row.calculated_cost) }}
+                </template>
+              </el-table-column>
+            </el-table>
           </el-tab-pane>
 
           <el-tab-pane label="财务凭证" name="vouchers">
@@ -163,7 +179,7 @@
                     </el-tag>
                   </template>
               </el-table-column>
-              <el-table-column prop="total_amount" label="金额" width="100" align="right">
+              <el-table-column prop="total_amount" label="金额" width="100">
                  <template #default="scope">
                     {{ formatCurrency(scope.row.total_amount) }}
                  </template>
@@ -175,10 +191,10 @@
                   </el-tag>
                 </template>
               </el-table-column>
-               <el-table-column prop="is_posted" label="过账" width="80" align="center">
+               <el-table-column prop="is_posted" label="过账" width="80">
                 <template #default="scope">
-                  <el-icon v-if="scope.row.is_posted" color="#67C23A"><Check /></el-icon>
-                  <el-icon v-else color="#909399"><Minus /></el-icon>
+                  <el-icon v-if="scope.row.is_posted" color="var(--color-success)"><Check /></el-icon>
+                  <el-icon v-else color="var(--color-text-secondary)"><Minus /></el-icon>
                 </template>
               </el-table-column>
             </el-table>
@@ -196,8 +212,10 @@ import { Check, Minus } from '@element-plus/icons-vue';
 import api from '@/services/api';
 import { getCostingMethodText, getGLTransactionTypeText, getGLTransactionTypeColor } from '@/constants/systemConstants';
 import { formatCurrency } from '@/utils/helpers/formatters';
+import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 
 const loading = ref(false);
+const showAdvancedSearch = ref(false);
 const detailDialogVisible = ref(false);
 const activeTab = ref('material');
 
@@ -238,19 +256,10 @@ const loadActualCosts = async () => {
       params.endDate = searchForm.dateRange[1];
     }
 
-    const res = await api.get('/finance-enhancement/cost/actual', { params });
-    // axios拦截器已解包，res.data即为{ list, total }
-    if (res.data && res.data.list) {
-      costList.value = res.data.list;
-      pagination.total = Number(res.data.total) || 0;
-    } else if (res.data && res.data.data) {
-      // 兼容未解包的情况
-      costList.value = res.data.data.list || [];
-      pagination.total = Number(res.data.data.total) || 0;
-    } else {
-      costList.value = [];
-      pagination.total = 0;
-    }
+    const res = await api.get('/finance/cost/actual', { params });
+    const { list, total } = parsePaginatedData(res, { enableLog: false });
+    costList.value = list;
+    pagination.total = Number(total) || 0;
   } catch (error) {
     console.error('加载实际成本失败:', error);
     ElMessage.error('加载实际成本失败');
@@ -265,10 +274,10 @@ const viewDetail = async (row) => {
   try {
     // 从order_number中提取taskId，或者使用id
     const taskId = row.id;
-    const res = await api.get(`/finance-enhancement/cost/actual/${taskId}`);
+    const res = await api.get(`/finance/cost/actual/${taskId}`);
     // axios拦截器已解包
     if (res.data) {
-      currentDetail.value = res.data.data || res.data;
+      currentDetail.value = parseResponseData(res);
     } else {
       currentDetail.value = row;
     }
@@ -279,7 +288,8 @@ const viewDetail = async (row) => {
       ...row,
       material_details: [],
       labor_details: [],
-      overhead_details: {}
+      overhead_details: [],
+      related_vouchers: []
     };
   }
   detailDialogVisible.value = true;
@@ -344,4 +354,3 @@ onMounted(() => {
   justify-content: flex-end;
 }
 </style>
-

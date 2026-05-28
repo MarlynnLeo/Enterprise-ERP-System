@@ -10,6 +10,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const { parsePagination } = require('../../../utils/safePagination');
+const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 
 const saveStandardCostSnapshot = async (productId, standardCost = {}) => {
   const normalizedProductId = parseInt(productId);
@@ -217,7 +218,7 @@ const costController = {
                     ${whereClause}
                     GROUP BY COALESCE(psc.product_id, psc.material_id), p.code, p.name
                     ORDER BY MAX(psc.updated_at) DESC, MAX(psc.id) DESC
-                    LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+                    LIMIT ${pageSize} OFFSET ${offset}
                 `,
           params
         );
@@ -386,7 +387,7 @@ const costController = {
                 cs.wage_payment_method || 'hourly',
                 cs.piece_rate || 0,
                 cs.overhead_allocation_rules || null,
-                cs.updated_at ? cs.updated_at.toISOString().split('T')[0] : '2020-01-01',
+                cs.updated_at ? toLocalDateString(cs.updated_at) : '2020-01-01',
                 req.user?.name || 'system',
                 '费率变更',
               ]
@@ -560,7 +561,7 @@ const costController = {
    */
   getCostSettingsHistory: async (req, res) => {
     try {
-      const { page, pageSize } = parsePagination(req.query.page, req.query.pageSize, {
+      const { page, pageSize, offset } = parsePagination(req.query.page, req.query.pageSize, {
         defaultPageSize: 20,
         maxPageSize: 100,
       });
@@ -568,7 +569,7 @@ const costController = {
       const [rows] = await db.pool.query(`
                 SELECT * FROM cost_settings_history
                 ORDER BY COALESCE(effective_from, created_at) DESC, id DESC
-                LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number((page - 1) * pageSize))||0)}
+                LIMIT ${pageSize} OFFSET ${offset}
             `);
 
       const [countResult] = await db.pool.execute(
@@ -593,7 +594,7 @@ const costController = {
   getCostSettingsByDate: async (req, res) => {
     try {
       const { date } = req.query;
-      const queryDate = date || new Date().toISOString().split('T')[0];
+      const queryDate = date || currentDateString();
 
       const [settings] = await db.pool.execute(
         `
@@ -755,7 +756,10 @@ const costController = {
   getActualCostList: async (req, res) => {
     try {
       const { orderNumber, productName, startDate, endDate, page = 1, pageSize = 20 } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(pageSize);
+      const pagination = parsePagination(page, pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
       let whereClause = '1=1';
       const params = [];
@@ -810,7 +814,7 @@ const costController = {
                 LEFT JOIN materials m ON pt.product_id = m.id
                 WHERE ${whereClause}
                 ORDER BY ac.calculated_at DESC
-                LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+                LIMIT ${pagination.pageSize} OFFSET ${pagination.offset}
             `,
         params
       );
@@ -818,8 +822,8 @@ const costController = {
       ResponseHandler.success(res, {
         list,
         total: countResult[0].total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       });
     } catch (error) {
       logger.error('获取实际成本列表失败:', error);
@@ -840,6 +844,7 @@ const costController = {
                 SELECT
                     ac.id,
                     ac.production_order_id as production_task_id,
+                    pt.product_id as product_id,
                     pt.code as order_number,
                     m.code as product_code,
                     m.name as product_name,
@@ -869,40 +874,49 @@ const costController = {
       // 🔥 从实际出库记录获取材料明细（包含补料）
       let materialDetails = [];
       try {
-        const [outboundMaterials] = await db.pool.execute(
-          `
-                    SELECT
-                        m.code as material_code,
-                        m.name as material_name,
-                        SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END) as quantity,
-                        ROUND(
-                          SUM(
-                            (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-                            * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
-                          ) / NULLIF(SUM(CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END), 0),
-                          4
-                        ) as unit_cost,
-                        ROUND(SUM(
-                          (CASE WHEN ioi.actual_quantity IS NULL THEN ioi.quantity ELSE ioi.actual_quantity END)
-                          * COALESCE(NULLIF(ioi.price, 0), NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
-                        ), 2) as total_cost,
-                        GROUP_CONCAT(DISTINCT il.batch_number) as batch_number,
-                        DATE_FORMAT(MAX(io.outbound_date), '%Y-%m-%d') as issue_date,
-                        CASE WHEN io.is_excess = 1 OR io.issue_reason IS NOT NULL THEN '补料' ELSE '正常' END as issue_type
-                    FROM inventory_outbound io
-                    JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
-                    JOIN materials m ON ioi.material_id = m.id
-                    LEFT JOIN inventory_ledger il ON il.material_id = ioi.material_id
-                        AND il.reference_no = io.outbound_no
-                    WHERE io.production_task_id = ?
-                        AND io.status IN ('completed', 'confirmed')
-                    GROUP BY ioi.material_id, m.code, m.name, io.is_excess, io.issue_reason
-                    ORDER BY m.code
-                `,
+        const materialMovements = await CostAccountingService.collectTaskMaterialMovements(
+          db.pool,
           [prodTaskId]
         );
+        const detailMap = new Map();
 
-        materialDetails = outboundMaterials;
+        for (const movement of materialMovements) {
+          const key = `${movement.material_id}:${movement.movement_type}`;
+          const current = detailMap.get(key) || {
+            material_code: movement.material_code,
+            material_name: movement.material_name,
+            quantity: 0,
+            total_cost: 0,
+            batch_number: '-',
+            issue_date: null,
+            issue_type: movement.movement_type === 'return' ? '生产退料' : '生产领料',
+            document_numbers: new Set(),
+          };
+
+          const quantity = parseFloat(movement.quantity) || 0;
+          const totalCost = parseFloat(movement.total_cost) || 0;
+          current.quantity += quantity;
+          current.total_cost += totalCost;
+          if (!current.issue_date || movement.issue_date > current.issue_date) {
+            current.issue_date = movement.issue_date;
+          }
+          if (movement.documentNo) current.document_numbers.add(movement.documentNo);
+          detailMap.set(key, current);
+        }
+
+        materialDetails = [...detailMap.values()]
+          .map((item) => ({
+            ...item,
+            quantity: Math.round(item.quantity * 10000) / 10000,
+            unit_cost:
+              Math.abs(item.quantity) > 0
+                ? Math.round((Math.abs(item.total_cost) / Math.abs(item.quantity)) * 10000) / 10000
+                : 0,
+            total_cost: Math.round(item.total_cost * 100) / 100,
+            issue_date: item.issue_date ? toLocalDateString(item.issue_date) : null,
+            document_numbers: [...item.document_numbers].join(', '),
+          }))
+          .sort((a, b) => String(a.material_code || '').localeCompare(String(b.material_code || '')));
         logger.info(
           `[实际成本详情] 任务 ${prodTaskId} 找到 ${materialDetails.length} 条材料消耗记录`
         );
@@ -926,11 +940,17 @@ const costController = {
                         ge.transaction_type,
                         (SELECT SUM(debit_amount) FROM gl_entry_items WHERE entry_id = ge.id) as total_amount
                     FROM gl_entries ge
-                    WHERE (ge.transaction_type IN ('PRODUCTION', 'MATERIAL_ISSUE') AND ge.transaction_id = ?)
+                    WHERE (ge.transaction_type IN (
+                              'PRODUCTION_MATERIAL',
+                              'PRODUCTION_LABOR',
+                              'PRODUCTION_OVERHEAD',
+                              'PRODUCTION_COMPLETE'
+                          ) AND ge.transaction_id = ?)
                        OR ge.document_number = ?
-                    ORDER BY ge.entry_date, ge.id
-                `,
-          [prodTaskId, taskCode]
+                       OR ge.document_number LIKE ?
+                     ORDER BY ge.entry_date, ge.id
+                 `,
+          [prodTaskId, taskCode, `${taskCode}-%`]
         );
         relatedVouchers = vouchers;
       } catch (err) {
@@ -971,7 +991,7 @@ const costController = {
       const laborDetails = laborRecords;
 
       // 制造费用明细：直接从分摊规则表读取该产品适用的规则
-      const calcDate = new Date().toISOString().split('T')[0];
+      const calcDate = currentDateString();
       const prodId = costInfo[0].product_id;
       const [ohRules] = await db.pool.execute(
         `SELECT name, allocation_base, rate FROM overhead_allocation_config
@@ -1008,7 +1028,10 @@ const costController = {
   getCostVarianceList: async (req, res) => {
     try {
       const { orderNumber, productName, varianceType, page = 1, pageSize = 20 } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(pageSize);
+      const pagination = parsePagination(page, pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
       let whereClause = '1=1';
       const params = [];
@@ -1070,7 +1093,7 @@ const costController = {
                     LEFT JOIN materials m ON cv.product_id = m.id
                     WHERE ${whereClause}
                     ORDER BY cv.created_at DESC
-                    LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+                    LIMIT ${pagination.pageSize} OFFSET ${pagination.offset}
                 `,
           params
         );
@@ -1078,8 +1101,8 @@ const costController = {
         return ResponseHandler.success(res, {
           list,
           total: countResult[0].total,
-          page: parseInt(page),
-          pageSize: parseInt(pageSize),
+          page: pagination.page,
+          pageSize: pagination.pageSize,
         });
       }
 
@@ -1087,8 +1110,8 @@ const costController = {
       ResponseHandler.success(res, {
         list: [],
         total: 0,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       });
     } catch (error) {
       logger.error('获取成本差异列表失败:', error);
@@ -1342,7 +1365,10 @@ const costController = {
   getCostAlerts: async (req, res) => {
     try {
       const { page = 1, pageSize = 20 } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(pageSize);
+      const pagination = parsePagination(page, pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
       // 获取预警阈值配置
       const [settings] = await db.pool.execute(
@@ -1377,8 +1403,8 @@ const costController = {
                 ) psc ON pt.product_id = psc.p_id
                 HAVING ABS(variance_rate) > ${threshold}
                 ORDER BY ABS(variance_rate) DESC
-                LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
-            `, [parseInt(pageSize)]);
+                LIMIT ${pagination.pageSize} OFFSET ${pagination.offset}
+            `);
 
       // 处理 alert_level
       const alertsList = rows.map((row) => ({
@@ -1408,8 +1434,8 @@ const costController = {
         list: alertsList,
         total: totalCount,
         threshold,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       });
     } catch (error) {
       logger.error('获取成本预警失败:', error.stack || error.message || error);
@@ -1823,7 +1849,7 @@ const costController = {
                 LEFT JOIN materials m ON sc.material_id = m.id
                 WHERE ${whereClause} AND sc.material_id IS NOT NULL
                 ORDER BY sc.created_at DESC
-                LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+                LIMIT ${pageSize} OFFSET ${offset}
             `,
         params
       );

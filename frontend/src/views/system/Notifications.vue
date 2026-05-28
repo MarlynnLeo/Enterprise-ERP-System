@@ -22,7 +22,7 @@
       <el-col :xs="12" :sm="8" :md="4" :lg="4">
         <el-card class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="stat-icon stat-icon--primary">
               <el-icon :size="32"><Bell /></el-icon>
             </div>
             <div class="stat-info">
@@ -35,7 +35,7 @@
       <el-col :xs="12" :sm="8" :md="4" :lg="4">
         <el-card class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+            <div class="stat-icon stat-icon--danger">
               <el-icon :size="32"><Message /></el-icon>
             </div>
             <div class="stat-info">
@@ -48,7 +48,7 @@
       <el-col :xs="12" :sm="8" :md="4" :lg="4">
         <el-card class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+            <div class="stat-icon stat-icon--info">
               <el-icon :size="32"><InfoFilled /></el-icon>
             </div>
             <div class="stat-info">
@@ -61,7 +61,7 @@
       <el-col :xs="12" :sm="8" :md="4" :lg="4">
         <el-card class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+            <div class="stat-icon stat-icon--success">
               <el-icon :size="32"><Document /></el-icon>
             </div>
             <div class="stat-info">
@@ -74,7 +74,7 @@
       <el-col :xs="12" :sm="8" :md="4" :lg="4">
         <el-card class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #f56c6c 0%, #e74c3c 100%);">
+            <div class="stat-icon stat-icon--warning">
               <el-icon :size="32"><Warning /></el-icon>
             </div>
             <div class="stat-info">
@@ -157,7 +157,7 @@
                 >
                   查看详情
                 </el-button>
-                <el-button v-permission="'system:notifications:delete'"
+                <el-button
                   link
                   type="danger"
                   size="small"
@@ -254,6 +254,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Bell, Message, InfoFilled, Document, Check, Warning, Link } from '@element-plus/icons-vue'
 import notificationApi from '@/services/notificationApi'
+import { parseResponseData } from '@/utils/responseParser'
 import {
   getNotificationIcon,
   getNotificationColor,
@@ -283,8 +284,6 @@ const pagination = reactive({
 const detailDialogVisible = ref(false)
 const currentNotification = ref(null)
 
-// axios拦截器已自动解包ResponseHandler格式
-const parseResponseData = (res) => res.data
 
 // 方法
 const loadNotifications = async () => {
@@ -464,12 +463,12 @@ onMounted(() => {
 
 .stat-card {
   cursor: pointer;
-  transition: all 0.3s;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  border-color: var(--el-color-primary-light-6);
+  background: var(--el-fill-color-extra-light);
 }
 
 .stat-content {
@@ -479,13 +478,30 @@ onMounted(() => {
 }
 
 .stat-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-primary, #fff);
+  color: var(--color-on-primary);
+}
+
+.stat-icon--primary {
+  background: var(--el-color-primary);
+}
+
+.stat-icon--danger,
+.stat-icon--warning {
+  background: var(--el-color-danger);
+}
+
+.stat-icon--info {
+  background: var(--el-color-info);
+}
+
+.stat-icon--success {
+  background: var(--el-color-success);
 }
 
 .stat-info {
@@ -520,7 +536,7 @@ onMounted(() => {
   display: flex;
   padding: 20px;
   border-bottom: 1px solid var(--el-border-color-lighter);
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
 .notification-item:hover {
@@ -528,7 +544,7 @@ onMounted(() => {
 }
 
 .notification-item.unread {
-  background-color: rgba(64, 158, 255, 0.05);
+  background-color: color-mix(in srgb, var(--color-primary) 5%, transparent);
   border-left: 4px solid var(--el-color-primary);
 }
 
@@ -623,4 +639,3 @@ onMounted(() => {
   margin-bottom: 10px;
 }
 </style>
-

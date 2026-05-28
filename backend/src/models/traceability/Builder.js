@@ -34,7 +34,6 @@ class TraceabilityBuilder {
           id: `material_${material.material_code}_${material.batch_number}`,
           name: `${material.material_name} (${material.batch_number})`,
           category: 'material',
-          itemStyle: { color: '#91cc75' },
         });
       }
 
@@ -44,7 +43,6 @@ class TraceabilityBuilder {
           id: `purchase_${receipt.receipt_id}`,
           name: `入库单: ${receipt.receipt_no}`,
           category: 'purchase',
-          itemStyle: { color: '#fac858' },
         });
       });
 
@@ -54,7 +52,6 @@ class TraceabilityBuilder {
           id: `production_${task.task_id}`,
           name: `生产任务: ${task.task_no}`,
           category: 'production',
-          itemStyle: { color: '#5470c6' },
         });
       });
 
@@ -64,7 +61,6 @@ class TraceabilityBuilder {
           id: `product_${task.product_code}_${task.product_batch}`,
           name: `${task.product_name} (${task.product_batch})`,
           category: 'product',
-          itemStyle: { color: '#ee6666' },
         });
       });
 
@@ -74,7 +70,6 @@ class TraceabilityBuilder {
           id: `quality_${inspection.inspection_id}`,
           name: `质检: ${inspection.inspection_no}`,
           category: 'quality',
-          itemStyle: { color: '#73c0de' },
         });
       });
 
@@ -84,7 +79,6 @@ class TraceabilityBuilder {
           id: `outbound_${outbound.outbound_id}`,
           name: `出库单: ${outbound.outbound_no}`,
           category: 'outbound',
-          itemStyle: { color: '#3ba272' },
         });
       });
     } else {
@@ -96,7 +90,6 @@ class TraceabilityBuilder {
           id: `outbound_${outbound.outbound_id}`,
           name: `出库单: ${outbound.outbound_no}`,
           category: 'outbound',
-          itemStyle: { color: '#3ba272' },
         });
       });
 
@@ -107,7 +100,6 @@ class TraceabilityBuilder {
           id: `product_${product.product_code}_${product.product_batch}`,
           name: `${product.product_name} (${product.product_batch})`,
           category: 'product',
-          itemStyle: { color: '#ee6666' },
         });
       }
 
@@ -117,7 +109,6 @@ class TraceabilityBuilder {
           id: `production_${task.task_id}`,
           name: `生产任务: ${task.task_no}`,
           category: 'production',
-          itemStyle: { color: '#5470c6' },
         });
       });
 
@@ -127,7 +118,6 @@ class TraceabilityBuilder {
           id: `quality_${inspection.inspection_id}`,
           name: `质检: ${inspection.inspection_no}`,
           category: 'quality',
-          itemStyle: { color: '#73c0de' },
         });
       });
 
@@ -137,7 +127,6 @@ class TraceabilityBuilder {
           id: `material_${material.material_code}_${material.batch_number}`,
           name: `${material.material_name} (${material.batch_number})`,
           category: 'material',
-          itemStyle: { color: '#91cc75' },
         });
       });
 
@@ -147,7 +136,6 @@ class TraceabilityBuilder {
           id: `purchase_${receipt.receipt_id}`,
           name: `入库单: ${receipt.receipt_no}`,
           category: 'purchase',
-          itemStyle: { color: '#fac858' },
         });
       });
     }

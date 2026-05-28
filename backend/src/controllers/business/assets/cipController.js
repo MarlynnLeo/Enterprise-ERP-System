@@ -6,6 +6,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 const cipModel = require('../../../models/cip');
 const db = require('../../../config/db');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -17,8 +18,10 @@ const cipController = {
      */
     getCipProjects: async (req, res) => {
         try {
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
+            const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+                defaultPageSize: 10,
+                maxPageSize: 100,
+            });
 
             const filters = {
                 project_code: req.query.projectCode || null,
@@ -26,15 +29,15 @@ const cipController = {
                 status: req.query.status || null,
             };
 
-            const result = await cipModel.getCipProjects(filters, page, limit);
+            const result = await cipModel.getCipProjects(filters, pagination.page, pagination.pageSize);
 
             // 返回成功响应
             return ResponseHandler.paginated(
                 res,
                 result.projects || [],
                 result.pagination?.total || 0,
-                page,
-                limit,
+                pagination.page,
+                pagination.pageSize,
                 '获取在建工程列表成功'
             );
         } catch (error) {

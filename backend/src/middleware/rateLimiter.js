@@ -14,6 +14,7 @@ const { RedisStore } = require('rate-limit-redis');
 const { logger } = require('../utils/logger');
 const { RATE_LIMIT_CONFIG } = require('../config/security');
 const { getRedisClient } = require('../config/redisClient');
+const { ResponseHandler } = require('../utils/responseHandler');
 
 /**
  * 为指定配置创建 RedisStore（每个 limiter 独立实例）
@@ -80,7 +81,12 @@ async function initLimiters() {
       skip: RATE_LIMIT_CONFIG.global.skip,
       handler: (req, res, _next, options) => {
         logger.warn(`API Rate Limit Exceeded: ${req.ip} -> ${req.originalUrl}`);
-        res.status(options.statusCode).json(options.message);
+        ResponseHandler.error(
+          res,
+          options.message?.message || '请求过于频繁，请稍后再试',
+          options.message?.code || 'RATE_LIMIT_EXCEEDED',
+          options.statusCode
+        );
       },
     }
   );
@@ -94,7 +100,12 @@ async function initLimiters() {
       skipSuccessfulRequests: RATE_LIMIT_CONFIG.login.skipSuccessfulRequests,
       handler: (req, res, _next, options) => {
         logger.warn(`Auth Rate Limit Exceeded: ${req.ip}`);
-        res.status(options.statusCode).json(options.message);
+        ResponseHandler.error(
+          res,
+          options.message?.message || '登录尝试次数过多，请稍后再试',
+          options.message?.code || 'AUTH_RATE_LIMIT_EXCEEDED',
+          options.statusCode
+        );
       },
     }
   );

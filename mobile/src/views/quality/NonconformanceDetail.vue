@@ -53,6 +53,7 @@
   import { useRoute } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
   import { qualityApi } from '@/services/api'
+  import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()
   const record = ref(null)
@@ -81,8 +82,7 @@
   const loadDetail = async () => {
     try {
       const res = await qualityApi.getNonconformanceRecord(route.params.id)
-      // ResponseHandler 包裹: { success, data: {...} }
-      record.value = res.data?.data || res.data
+      record.value = extractApiData(res, null)
     } catch {
       showToast('加载详情失败')
     }
@@ -123,7 +123,7 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
   }
 

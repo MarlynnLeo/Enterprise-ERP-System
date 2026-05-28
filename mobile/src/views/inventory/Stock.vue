@@ -181,6 +181,7 @@
   import { NavBar, Search, Icon, Empty, PullRefresh, List, Popup, Picker, showToast } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
   import { inventoryApi } from '@/services/api'
+  import { extractApiList, extractApiPaginated } from '@/utils/apiHelper'
 
   const router = useRouter()
   const searchValue = ref('')
@@ -252,13 +253,12 @@
       else if (stockStatus.value === 'outOfStock') params.in_stock = false
 
       const response = await inventoryApi.getInventoryStock(params)
-      const rd = response.data?.data || response.data || response
-      const items = rd.list || rd.items || rd.rows || []
+      const { list: items, total } = extractApiPaginated(response)
 
       if (pagination.page === 1) stockList.value = items
       else stockList.value.push(...items)
 
-      pagination.total = rd.total || stockList.value.length
+      pagination.total = total || stockList.value.length
       finished.value = stockList.value.length >= pagination.total || items.length === 0
       pagination.page++
     } catch (e) {
@@ -273,9 +273,8 @@
 
   const getWarehouses = async () => {
     try {
-      const res = await inventoryApi.getLocations()
-      const rd = res.data?.data || res.data || res
-      const items = rd.list || rd.items || rd.rows || (Array.isArray(rd) ? rd : [])
+      const res = await inventoryApi.getLocations({ page: 1, pageSize: 50, status: 1 })
+      const items = extractApiList(res)
       warehouseColumns.value = [
         { text: '全部仓库', value: '' },
         ...items.map((i) => ({ text: i.name, value: String(i.id) }))
@@ -292,12 +291,12 @@
 
 <style lang="scss" scoped>
   .stock-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-bottom-space);
   }
   .content-wrapper {
-    padding: 0 12px 12px;
+    padding: 0 12px var(--app-bottom-space);
   }
   .search-section {
     padding: 4px 0;
@@ -324,12 +323,12 @@
     padding: 6px 14px;
     border-radius: 20px;
     background: var(--bg-secondary);
-    border: 1.5px solid var(--glass-border);
+    border: 1.5px solid var(--surface-border, var(--border-subtle));
     white-space: nowrap;
     flex-shrink: 0;
     font-size: 0.8125rem;
     color: var(--text-secondary);
-    transition: all 0.25s;
+    transition: background-color 0.25s, border-color 0.25s, color 0.25s, box-shadow 0.25s, opacity 0.25s, transform 0.25s;
     cursor: pointer;
     .chip-text {
       font-weight: 500;
@@ -353,7 +352,7 @@
     border-radius: 12px;
     margin-bottom: 10px;
     overflow: hidden;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     animation: fadeInUp 0.35s ease-out both;
     &:active {
       transform: scale(0.98);
@@ -451,7 +450,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   }
   .popup-title {
     font-size: 1rem;
@@ -469,7 +468,7 @@
     align-items: flex-start;
     padding: 10px 16px;
     &:not(:last-child) {
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--surface-border, var(--border-subtle));
     }
   }
   .popup-label {

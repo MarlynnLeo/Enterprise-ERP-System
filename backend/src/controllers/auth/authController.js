@@ -100,13 +100,10 @@ const login = async (req, res) => {
     // 设置令牌到HttpOnly Cookie
     setTokensToCookies(res, accessToken, refreshToken);
 
-    // 返回用户信息（向后兼容，也返回token）
+    // Access/refresh tokens are set only as HttpOnly cookies.
     ResponseHandler.success(
       res,
       {
-        token: accessToken, // 兼容旧版前端
-        accessToken, // 新增：明确返回accessToken
-        // ✅ 安全修复: refreshToken 不再通过响应体返回，仅通过 HttpOnly Cookie 传递
         user: {
           id: user.id,
           username: user.username,
@@ -392,14 +389,18 @@ const getUserPermissions = async (req, res) => {
 const updateAvatarFrame = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { frameId } = req.body;
+    const frameId = req.body.frameId || req.body.avatar_frame;
 
-    // 验证主题preset - 支持7种主题
+    const decorativeFrameIds = new Set([
+      'festival-lantern',
+      'aurora-butterfly',
+      'laurel-medal',
+      'live-crown',
+      'galaxy-orbit',
+      'crown-gem',
+    ]);
 
-
-    // 支持 frame1~frame999 + lottie-* 主题 + none
-    const framePattern = /^(frame\d+|lottie-[a-z]+|none)$/;
-    if (!framePattern.test(frameId)) {
+    if (!frameId || (!decorativeFrameIds.has(frameId) && frameId !== 'none')) {
       return ResponseHandler.error(res, '无效的头像特效ID', 'VALIDATION_ERROR', 400);
     }
 
@@ -448,7 +449,7 @@ const refreshToken = async (req, res) => {
 
     // 从数据库重新获取用户信息
     const [users] = await pool.execute(
-      'SELECT id, username, role, real_name, email, token_version FROM users WHERE id = ?',
+      'SELECT id, username, role, real_name, email, status, token_version FROM users WHERE id = ?',
       [userId]
     );
 
@@ -458,8 +459,16 @@ const refreshToken = async (req, res) => {
 
     const user = users[0];
 
+    if (Number(user.status) !== 1) {
+      clearTokenCookies(res);
+      return ResponseHandler.error(res, '账号已被禁用，请联系管理员', 'ACCOUNT_DISABLED', 403);
+    }
+
     // 检查token版本（用于token撤销）
-    if (req.user.tokenVersion !== undefined && user.token_version !== req.user.tokenVersion) {
+    if (
+      req.user.tokenVersion === undefined ||
+      Number(user.token_version || 0) !== Number(req.user.tokenVersion)
+    ) {
       clearTokenCookies(res);
       return ResponseHandler.error(res, 'Token has been revoked', 'UNAUTHORIZED', 401);
     }
@@ -473,9 +482,6 @@ const refreshToken = async (req, res) => {
     ResponseHandler.success(
       res,
       {
-        token: accessToken, // 兼容旧版前端
-        accessToken, // 新增：明确返回accessToken
-        // ✅ 安全修复: refreshToken 不再通过响应体返回，仅通过 HttpOnly Cookie 传递
         user: {
           id: user.id,
           username: user.username,
@@ -505,9 +511,9 @@ const getUserMenus = async (req, res) => {
     const isAdmin = await PermissionService.isAdmin(userId);
     if (isAdmin) {
       const [menus] = await pool.execute(
-        `SELECT id, parent_id, name, path, icon, permission, type, sort_order as sort
+        `SELECT id, parent_id, name, path, icon, permission, type, visible, sort_order as sort
          FROM menus
-         WHERE status = 1
+         WHERE status = 1 AND visible = 1 AND type <> 2
          ORDER BY sort_order, id`
       );
 
@@ -563,22 +569,22 @@ const getUserMenus = async (req, res) => {
 
     // 3. 获取菜单详情
     const [menus] = await pool.execute(
-      `SELECT id, parent_id, name, path, icon, permission, type, sort_order as sort
+      `SELECT id, parent_id, name, path, icon, permission, type, visible, sort_order as sort
        FROM menus
-       WHERE id IN (${menuIds.map(() => '?').join(',')}) AND status = 1
+       WHERE id IN (${menuIds.map(() => '?').join(',')}) AND status = 1 AND visible = 1 AND type <> 2
        ORDER BY sort_order`,
       menuIds
     );
 
     // 4. 递归获取所有父菜单
-    const allMenuIds = new Set(menuIds);
+    const allMenuIds = new Set(menus.map((m) => m.id));
     let currentParentIds = [...new Set(menus.filter(m => m.parent_id && m.parent_id !== 0).map(m => m.parent_id))];
 
     while (currentParentIds.length > 0) {
       const [parents] = await pool.execute(
-        `SELECT id, parent_id, name, path, icon, permission, type, sort_order as sort
+        `SELECT id, parent_id, name, path, icon, permission, type, visible, sort_order as sort
          FROM menus
-         WHERE id IN (${currentParentIds.map(() => '?').join(',')}) AND status = 1`,
+         WHERE id IN (${currentParentIds.map(() => '?').join(',')}) AND status = 1 AND visible = 1 AND type <> 2`,
         currentParentIds
       );
 

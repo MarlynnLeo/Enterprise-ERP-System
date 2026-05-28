@@ -1,26 +1,22 @@
 ﻿<template>
   <div class="rework-tasks-container">
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="fetchData"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input  v-model="searchForm.materialCode" placeholder="物料名称/编码" clearable @keyup.enter="fetchData" />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="返工单号">
           <el-input  v-model="searchForm.reworkNo" placeholder="请输入返工单号" clearable @keyup.enter="fetchData" />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchData">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-          <el-button class="advanced-search-btn" @click="showAdvancedSearch = !showAdvancedSearch">
-            {{ showAdvancedSearch ? '收起筛选' : '高级搜索' }}
-            <el-icon style="margin-left: 4px;"><ArrowUp v-if="showAdvancedSearch" /><ArrowDown v-else /></el-icon>
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <!-- 高级搜索区域 -->
-      <el-form :inline="true" :model="searchForm" class="search-form" v-show="showAdvancedSearch" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dcdfe6;">
         <el-form-item label="不合格品编号">
           <el-input  v-model="searchForm.ncpNo" placeholder="请输入不合格品编号" clearable @keyup.enter="fetchData" />
-        </el-form-item>
-        <el-form-item label="物料编码">
-          <el-input  v-model="searchForm.materialCode" placeholder="请输入物料编码" clearable @keyup.enter="fetchData" />
         </el-form-item>
         <el-form-item label="负责人">
           <el-input  v-model="searchForm.assignedTo" placeholder="请输入负责人" clearable @keyup.enter="fetchData" />
@@ -40,8 +36,8 @@
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="stats-row">
@@ -82,12 +78,12 @@
     <!-- 数据表格 -->
     <el-card class="table-card">
       <el-table :data="tableData" border stripe v-loading="loading">
-        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="rework_no" label="返工单号" width="140" />
         <el-table-column prop="ncp_no" label="不合格品编号" width="140" />
         <el-table-column prop="material_code" label="物料编码" width="120" />
         <el-table-column prop="material_name" label="物料名称" width="150" show-overflow-tooltip />
-        <el-table-column label="返工数量" width="100" align="right">
+        <el-table-column label="返工数量" width="100">
           <template #default="{ row }">
             {{ row.quantity }}
           </template>
@@ -95,12 +91,12 @@
         <el-table-column prop="assigned_to" label="负责人" width="100" />
         <el-table-column prop="planned_date" label="计划完成日期" width="120" />
         <el-table-column prop="actual_date" label="实际完成日期" width="120" />
-        <el-table-column label="返工成本" width="100" align="right">
+        <el-table-column label="返工成本" width="100">
           <template #default="{ row }">
-            {{ row.rework_cost ? `¥${row.rework_cost}` : '-' }}
+            {{ formatMoney(row.rework_cost) }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
               {{ getStatusLabel(row.status) }}
@@ -108,7 +104,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" min-width="250" fixed="right" align="center">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
             <el-button
@@ -263,7 +259,7 @@
         <el-descriptions-item label="负责人">{{ detailData.assigned_to || '-' }}</el-descriptions-item>
         <el-descriptions-item label="计划完成日期">{{ detailData.planned_date }}</el-descriptions-item>
         <el-descriptions-item label="实际完成日期">{{ detailData.actual_date || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="返工成本">{{ detailData.rework_cost ? `¥${detailData.rework_cost}` : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="返工成本">{{ formatMoney(detailData.rework_cost) }}</el-descriptions-item>
         <el-descriptions-item label="返工原因" :span="2">{{ detailData.rework_reason }}</el-descriptions-item>
         <el-descriptions-item label="返工说明" :span="2">{{ detailData.rework_instructions || '-' }}</el-descriptions-item>
         <el-descriptions-item label="缺陷描述" :span="2">{{ detailData.defect_description }}</el-descriptions-item>
@@ -278,11 +274,12 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import api from '@/services/api'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'
+import { parseResponseData } from '@/utils/responseParser'
 const searchForm = reactive({
   reworkNo: '',
   ncpNo: '',
@@ -294,13 +291,18 @@ const searchForm = reactive({
 const dateRange = ref([])
 const loading = ref(false)
 const tableData = ref([])
-const showAdvancedSearch = ref(false)
-
 const pagination = reactive({
   current: 1,
   pageSize: 10,
   total: 0
 })
+
+const formatMoney = (value) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const amount = Number(value)
+  if (Number.isNaN(amount)) return '-'
+  return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 
 const statistics = ref({
   total: 0,
@@ -348,7 +350,7 @@ const fetchData = async () => {
       params.endDate = dateRange.value[1]
     }
 
-    const response = await api.get('/rework-tasks', { params })
+    const response = await api.get('/quality/rework-tasks', { params })
     const pageData = normalizePaginationData(response)
     tableData.value = pageData.items
     pagination.total = pageData.total
@@ -369,9 +371,9 @@ const fetchStatistics = async () => {
       params.startDate = dateRange.value[0]
       params.endDate = dateRange.value[1]
     }
-    const response = await api.get('/rework-tasks/statistics', { params })
+    const response = await api.get('/quality/rework-tasks/statistics', { params })
     // 后端 ResponseHandler 返回格式: { success, data, message }
-    statistics.value = response.data?.data || response.data || {}
+    statistics.value = parseResponseData(response, {})
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
@@ -388,9 +390,9 @@ const resetSearch = () => {
 
 const viewDetail = async (row) => {
   try {
-    const response = await api.get(`/rework-tasks/${row.id}`)
+    const response = await api.get(`/quality/rework-tasks/${row.id}`)
     // 后端 ResponseHandler 返回格式: { success, data, message }
-    detailData.value = response.data?.data || response.data
+    detailData.value = parseResponseData(response)
     detailDialogVisible.value = true
   } catch (error) {
     console.error('获取返工任务详情失败:', error)
@@ -410,7 +412,7 @@ const submitAssign = async () => {
     return
   }
   try {
-    await api.post(`/rework-tasks/${currentRow.value.id}/assign`, assignForm)
+    await api.post(`/quality/rework-tasks/${currentRow.value.id}/assign`, assignForm)
     ElMessage.success('任务分配成功')
     assignDialogVisible.value = false
     fetchData()
@@ -422,15 +424,15 @@ const submitAssign = async () => {
 
 const completeTask = (row) => {
   currentRow.value = row
-  completeForm.actual_date = new Date().toISOString().slice(0, 10)
-  completeForm.rework_cost = row.rework_cost || 0
+  completeForm.actual_date = formatLocalDate(new Date())
+  completeForm.rework_cost = row.rework_cost ?? null
   completeForm.note = ''
   completeDialogVisible.value = true
 }
 
 const submitComplete = async () => {
   try {
-    await api.post(`/rework-tasks/${currentRow.value.id}/complete`, completeForm)
+    await api.post(`/quality/rework-tasks/${currentRow.value.id}/complete`, completeForm)
     ElMessage.success('返工任务完成')
     completeDialogVisible.value = false
     fetchData()
@@ -450,7 +452,7 @@ const editTask = (row) => {
 
 const submitEdit = async () => {
   try {
-    await api.put(`/rework-tasks/${currentRow.value.id}`, editForm)
+    await api.put(`/quality/rework-tasks/${currentRow.value.id}`, editForm)
     ElMessage.success('更新成功')
     editDialogVisible.value = false
     fetchData()
@@ -500,24 +502,26 @@ onMounted(() => {
 
 .stat-card {
   cursor: pointer;
-  transition: all 0.3s;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: none;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  background: var(--color-bg-section);
 }
 
 .stat-card.pending {
-  border-left: 4px solid #e6a23c;
+  border-left: 4px solid var(--color-warning);
 }
 
 .stat-card.in-progress {
-  border-left: 4px solid #409eff;
+  border-left: 4px solid var(--color-primary);
 }
 
 .stat-card.completed {
-  border-left: 4px solid #67c23a;
+  border-left: 4px solid var(--color-success);
 }
 
 .stat-content {
@@ -546,4 +550,3 @@ onMounted(() => {
   justify-content: flex-end;
 }
 </style>
-

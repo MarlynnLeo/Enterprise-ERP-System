@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="bom-management-container">
+  <div class="module-page bom-management-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,8 +19,13 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="产品">
           <el-select
             v-model="searchForm.productId"
@@ -44,6 +49,8 @@
             </el-option>
           </el-select>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="版本">
           <el-input  v-model="searchForm.version" placeholder="请输入版本" clearable ></el-input>
         </el-form-item>
@@ -53,13 +60,8 @@
             <el-option :value="false" label="未审核"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" style="margin-right: 10px" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch" style="margin-right: 20px" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
+      </template>
+      <template #actions>
           <el-dropdown @command="handleMoreCommand">
             <el-button type="primary">
               <el-icon><MoreFilled /></el-icon> 更多
@@ -78,9 +80,8 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <BomStatCards :stats="stats" />
@@ -111,7 +112,6 @@
 
     <!-- 新增/编辑对话框 -->
     <BomFormDialog
-      v-if="dialogVisible"
       v-model="dialogVisible"
       :title="dialogTitle"
       :editData="currentEditBom"
@@ -120,7 +120,6 @@
 
     <!-- 查看对话框 -->
     <BomViewDialog
-      v-if="viewDialogVisible"
       v-model="viewDialogVisible"
       :bomData="currentViewBom"
     />
@@ -158,8 +157,8 @@
         <el-table-column prop="version" label="BOM版本" width="100" />
         <el-table-column prop="material_code" label="物料编码" width="130" />
         <el-table-column prop="material_name" label="物料名称" min-width="130" />
-        <el-table-column prop="quantity" label="用量" width="80" align="right" />
-        <el-table-column prop="unit" label="单位" width="70" align="center" />
+        <el-table-column prop="quantity" label="用量" width="80" />
+        <el-table-column prop="unit" label="单位" width="70" />
       </el-table>
       <template #footer>
         <el-button @click="locateDialogVisible = false">关闭</el-button>
@@ -230,14 +229,14 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Search, Refresh, MoreFilled, Select, CopyDocument, Files, Position, Download, Upload, Switch } from '@element-plus/icons-vue';
+import { Plus, MoreFilled, Select, CopyDocument, Files, Position, Download, Upload, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { materialApi } from '@/api/material';
 import { bomApi } from '@/api/bom';
-import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
-
+import { parsePaginatedData, parseListData, parseDataObject, parseResponseData } from '@/utils/responseParser';
 // 引入新组件
 import BomTable from './components/BomTable.vue';
 import BomStatCards from './components/BomStatCards.vue';
@@ -504,7 +503,7 @@ const handleExportBom = async () => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `BOM_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.download = `BOM_${formatLocalDate(new Date())}.xlsx`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -529,7 +528,7 @@ const handleImportBom = () => {
       const formData = new FormData();
       formData.append('file', file);
       const response = await bomApi.importBoms(formData);
-      const result = response.data?.data || response.data || {};
+      const result = parseResponseData(response, {});
       ElMessage.success(`导入完成：成功 ${result.success || 0} 条，失败 ${result.failed || 0} 条`);
       fetchData();
     } catch (error) {
@@ -682,28 +681,3 @@ const handleReplaceBom = async () => {
 };
 
 </script>
-
-<style scoped>
-.bom-management-container {
-  padding: 20px;
-}
-.header-card {
-  margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.search-card {
-  margin-bottom: 20px;
-}
-.data-card {
-  margin-bottom: 20px;
-}
-.pagination-container {
-  margin-top: 15px;
-  display: flex;
-  justify-content: flex-end;
-}
-</style>

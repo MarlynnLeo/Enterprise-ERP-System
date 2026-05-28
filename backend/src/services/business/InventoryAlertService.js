@@ -7,6 +7,7 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const NotificationService = require('../NotificationService');
 
 class InventoryAlertService {
   /**
@@ -177,7 +178,7 @@ class InventoryAlertService {
       logger.info(`✅ 自动创建采购申请 ${requisitionNo}，包含 ${newLowStockItems.length} 个物料`);
 
       // 6. 发送系统通知
-      await this.sendLowStockNotification(newLowStockItems, requisitionNo);
+      await this.sendLowStockNotification(newLowStockItems, requisitionNo, requisitionId);
 
       return {
         success: true,
@@ -209,7 +210,7 @@ class InventoryAlertService {
    * @param {Array} lowStockItems - 低库存物料列表
    * @param {string} requisitionNo - 采购申请单号（可选）
    */
-  static async sendLowStockNotification(lowStockItems, requisitionNo = null) {
+  static async sendLowStockNotification(lowStockItems, requisitionNo = null, requisitionId = null) {
     try {
       const itemList = lowStockItems
         .slice(0, 5)
@@ -225,13 +226,19 @@ class InventoryAlertService {
         ? `系统已自动生成采购申请 ${requisitionNo}\n\n低库存物料:\n${itemList}${moreText}`
         : `发现${lowStockItems.length}个低库存物料:\n${itemList}${moreText}`;
 
-      // 保存到系统通知表
-      await db.pool.execute(
-        `
-        INSERT INTO notifications (title, content, type, priority, created_at)
-        VALUES (?, ?, 'inventory_alert', 1, NOW())
-      `,
-        ['库存预警通知', content]
+      await NotificationService.notifyByPermissions(
+        ['inventory:stock', 'purchase:requisitions'],
+        {
+          type: 'inventory_alert',
+          title: '库存预警通知',
+          content,
+          link: requisitionNo ? '/purchase/requisitions' : '/inventory/stock',
+          linkParams: requisitionId ? { id: requisitionId } : null,
+          priority: 1,
+          sourceType: requisitionId ? 'low_stock_requisition' : 'low_stock',
+          sourceId: requisitionId || Number(new Date().toISOString().slice(0, 10).replace(/-/g, '')),
+        },
+        { dedupeByDay: true }
       );
 
       logger.info('📢 低库存预警通知已发送');
@@ -350,12 +357,18 @@ class InventoryAlertService {
         if (expiringSoon.length > 3) content += `\n...等${expiringSoon.length}个批次`;
       }
 
-      await db.pool.execute(
-        `
-        INSERT INTO notifications (title, content, type, priority, created_at)
-        VALUES (?, ?, 'batch_expiry', ?, NOW())
-      `,
-        ['批次过期预警', content, expired.length > 0 ? 2 : 1]
+      await NotificationService.notifyByPermissions(
+        ['inventory:stock', 'inventory:report'],
+        {
+          type: 'batch_expiry',
+          title: '批次过期预警',
+          content,
+          link: '/inventory/stock',
+          priority: expired.length > 0 ? 2 : 1,
+          sourceType: 'batch_expiry',
+          sourceId: Number(new Date().toISOString().slice(0, 10).replace(/-/g, '')),
+        },
+        { dedupeByDay: true }
       );
 
       logger.info('📢 批次过期预警通知已发送');
@@ -387,17 +400,19 @@ class InventoryAlertService {
           `⚠️ 物料 ${material.code} ${material.name} 库存预警: 当前${newQuantity}, 安全库存${material.min_stock}`
         );
 
-        // 可以在这里触发即时通知或记录预警日志
-        await db.pool.execute(
-          `
-          INSERT INTO notifications (title, content, type, priority, created_at)
-          VALUES (?, ?, 'inventory_alert', 1, NOW())
-          ON DUPLICATE KEY UPDATE content = VALUES(content), created_at = NOW()
-        `,
-          [
-            '库存预警',
-            `物料 ${material.code} ${material.name} 库存不足: 当前${newQuantity}, 安全库存${material.min_stock}`,
-          ]
+        await NotificationService.notifyByPermissions(
+          ['inventory:stock'],
+          {
+            type: 'inventory_alert',
+            title: '库存预警',
+            content: `物料 ${material.code} ${material.name} 库存不足: 当前${newQuantity}, 安全库存${material.min_stock}`,
+            link: '/inventory/stock',
+            linkParams: { materialId },
+            priority: 1,
+            sourceType: 'inventory_low_stock',
+            sourceId: materialId,
+          },
+          { dedupeByDay: true }
         );
       }
     } catch (error) {

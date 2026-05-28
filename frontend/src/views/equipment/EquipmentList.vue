@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="equipment-list-container">
+  <div class="module-page equipment-list-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -24,13 +24,20 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form" :model="searchForm">
-        <el-form-item label="设备编号">
-          <el-input  v-model="searchForm.code" placeholder="请输入设备编号" clearable ></el-input>
-        </el-form-item>
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="fetchEquipmentList"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="设备名称">
           <el-input  v-model="searchForm.name" placeholder="请输入设备名称" clearable ></el-input>
+        </el-form-item>
+      </template>
+      <template #advanced>
+        <el-form-item label="设备编号">
+          <el-input  v-model="searchForm.code" placeholder="请输入设备编号" clearable ></el-input>
         </el-form-item>
         <el-form-item label="设备状态">
           <el-select  v-model="searchForm.status" placeholder="请选择状态" clearable>
@@ -40,12 +47,8 @@
             <el-option label="已报废" value="scrapped"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :icon="Search" @click="fetchEquipmentList" :loading="loading">搜索</el-button>
-          <el-button :icon="Refresh" @click="resetSearch" :loading="loading">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -110,7 +113,7 @@
             {{ formatDate(scope.row.next_inspection_date) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="200" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" @click="viewEquipment(scope.row)">查看</el-button>
             <el-button
@@ -366,7 +369,7 @@
         <div class="upload-section">
           <el-upload
             ref="uploadRef"
-            class="upload-demo"
+            class="import-upload"
             drag
             :auto-upload="false"
             :on-change="handleFileChange"
@@ -449,14 +452,14 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { equipmentApi } from '@/services/api'
-import { Plus, Search, Refresh, Download, Upload } from '@element-plus/icons-vue'
+import { Plus, Download, Upload } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-
+import { loadExcelJS } from '@/utils/lazyVendors'
 // 权限store
 const authStore = useAuthStore()
 
@@ -741,7 +744,7 @@ const handleExceed = () => {
 
 const parseExcelFile = async (file) => {
   try {
-    const { default: ExcelJS } = await import('exceljs')
+    const ExcelJS = await loadExcelJS()
     const reader = new FileReader()
 
     reader.onload = async (e) => {
@@ -836,12 +839,12 @@ const formatExcelDate = (excelDate) => {
   if (typeof excelDate === 'number') {
     // Excel日期转换
     const date = new Date((excelDate - 25569) * 86400 * 1000)
-    return date.toISOString().split('T')[0]
+    return formatLocalDate(date)
   } else if (typeof excelDate === 'string') {
     // 尝试解析字符串日期
     const date = new Date(excelDate)
     if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0]
+      return formatLocalDate(date)
     }
   }
   return ''
@@ -893,7 +896,7 @@ const executeImport = async () => {
 
 const downloadTemplate = async () => {
   try {
-    const { default: ExcelJS } = await import('exceljs')
+    const ExcelJS = await loadExcelJS()
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('设备导入模板')
 
@@ -1009,7 +1012,7 @@ const downloadTemplate = async () => {
 }
 
 .stat-card.scrapped .stat-value {
-  color: var(--color-text-secondary, #909399);
+  color: var(--color-text-secondary);
 }
 
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
@@ -1044,7 +1047,7 @@ const downloadTemplate = async () => {
   }
 }
 
-.upload-demo {
+.import-upload {
   width: 100%;
 }
 

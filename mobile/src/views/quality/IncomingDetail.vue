@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * IncomingDetail.vue
  * @description 来料检验详情页面（与网页端对齐）
@@ -191,6 +191,7 @@
     showConfirmDialog
   } from 'vant'
   import { qualityApi } from '@/services/api'
+  import { extractApiData, extractApiList } from '@/utils/apiHelper'
 
   const route = useRoute()
   const inspection = ref(null)
@@ -284,7 +285,7 @@
     try {
       // 从通用API获取检验详情
       const response = await qualityApi.getIncomingInspection(route.params.id)
-      const data = response?.data?.data || response?.data || response
+      const data = extractApiData(response, null)
       if (data && data.id) {
         inspection.value = data
 
@@ -293,8 +294,7 @@
         if (itemsList.length === 0) {
           try {
             const itemsRes = await qualityApi.getInspectionItems(data.id)
-            const itemsData = itemsRes?.data?.data || itemsRes?.data || itemsRes
-            itemsList = Array.isArray(itemsData) ? itemsData : (itemsData?.items || [])
+            itemsList = extractApiList(itemsRes)
           } catch (error) {
             console.warn('检验项目加载失败:', error)
           }
@@ -461,9 +461,9 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
-    padding-bottom: 100px;
+    padding-bottom: var(--app-bottom-space);
   }
 
   .content-container {
@@ -476,7 +476,7 @@
     padding: 20px;
     margin-bottom: 12px;
     text-align: center;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
 
   .status-card .status-badge {
@@ -561,7 +561,7 @@
     background: var(--bg-secondary);
     border-radius: 12px;
     padding: 14px 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     transition: border-color 0.2s;
 
     &.item-passed {
@@ -621,7 +621,7 @@
     border: 1.5px solid;
     background: transparent;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s;
 
     &.btn-pass {
       border-color: rgba(16, 185, 129, 0.3);

@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { parsePagination } = require('../../utils/safePagination');
 
 
 // 记录用户活动
@@ -29,6 +30,10 @@ exports.getUserActivities = async (req, res) => {
     const userId = req.user.id;
     const { page = 1, limit = 20, category, startDate, endDate } = req.query;
     const { AuditService } = require('../../services/AuditService');
+    const pagination = parsePagination(page, limit, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
 
     // 调用真实的审计查询引擎
     const result = await AuditService.query({
@@ -36,8 +41,8 @@ exports.getUserActivities = async (req, res) => {
       module: category,
       startDate,
       endDate,
-      page: parseInt(page) || 1,
-      pageSize: parseInt(limit) || 20,
+      page: pagination.page,
+      pageSize: pagination.pageSize,
     });
 
     // 适配前端期望的数据结构
@@ -221,6 +226,8 @@ exports.getUserStatistics = async (req, res) => {
       todoStats: {
         total: totalTodos,
         completed: completedTodos,
+        totalTodos,
+        completedTodos,
         completionRate,
       },
       loginStats: {
@@ -358,14 +365,11 @@ exports.exportActivities = async (req, res) => {
     const { category, startDate, endDate, format = 'csv' } = req.query;
     const { AuditService } = require('../../services/AuditService');
 
-    // 导出时获取大批量数据
-    const result = await AuditService.query({
+    const result = await AuditService.queryForExport({
       userId,
       module: category,
       startDate,
       endDate,
-      page: 1,
-      pageSize: 5000,
     });
 
     const activities = result.list.map((log) => ({

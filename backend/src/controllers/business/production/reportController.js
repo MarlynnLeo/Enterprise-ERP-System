@@ -13,6 +13,7 @@ const ExcelJS = require('exceljs');
 const businessConfig = require('../../../config/businessConfig');
 const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
+const { parsePagination } = require('../../../utils/safePagination');
 
 // 状态常量（统一引用 businessConfig，消除硬编码）
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -79,7 +80,10 @@ exports.getReportSummary = async (req, res) => {
 exports.getReportDetail = async (req, res) => {
   try {
     const { page = 1, pageSize = 10, taskId, operator, startDate, endDate } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 10,
+      maxPageSize: 100,
+    });
 
     const conditions = [];
     const params = [];
@@ -118,7 +122,7 @@ exports.getReportDetail = async (req, res) => {
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       ORDER BY pr.report_time DESC, pr.created_at DESC
-      LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+      LIMIT ${pagination.pageSize} OFFSET ${pagination.offset}
     `;
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
@@ -127,8 +131,8 @@ exports.getReportDetail = async (req, res) => {
     return ResponseHandler.success(res, {
       items: reports,
       total: total[0].count,
-      page: parseInt(page),
-      pageSize: parseInt(pageSize),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
     });
   } catch (error) {
     logger.error('获取报工明细失败:', error);
@@ -273,16 +277,52 @@ exports.createReport = async (req, res) => {
 
     // 获取任务信息
     const [taskCheck] = await connection.query(
-      'SELECT id, status, quantity FROM production_tasks WHERE id = ?',
+      'SELECT id, status, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [task_id]
     );
 
     if (taskCheck.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
     }
 
     const task = taskCheck[0];
+    const reportableStatuses = [TASK_STATUS.IN_PROGRESS];
+    if (!reportableStatuses.includes(task.status)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '生产报工必须在生产中状态下进行，请先从生产过程页开始任务', 'INVALID_STATUS', 400);
+    }
+
     const planQuantity = parseFloat(task.quantity) || 0;
+    const completedQty = Number(completed_quantity ?? report_quantity ?? 0);
+    const qualifiedQty = Number(qualified_quantity || 0);
+    const defectiveQty = Number(defective_quantity ?? unqualified_quantity ?? 0);
+    const unqualifiedQty = Number(unqualified_quantity ?? defectiveQty ?? 0);
+
+    if (!Number.isFinite(completedQty) || completedQty <= 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '报工完成数量必须大于0', 'VALIDATION_ERROR', 400);
+    }
+
+    if (qualifiedQty > completedQty) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '合格数量不能超过完成数量', 'VALIDATION_ERROR', 400);
+    }
+
+    const [reportedRows] = await connection.query(
+      'SELECT COALESCE(SUM(completed_quantity), 0) as total_reported FROM production_reports WHERE task_id = ?',
+      [task_id]
+    );
+    const alreadyReported = Number(reportedRows[0]?.total_reported || 0);
+    if (alreadyReported + completedQty > planQuantity) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        `累计报工数量不能超过任务数量，剩余可报工 ${Math.max(0, planQuantity - alreadyReported)}`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
 
     // 生成报工单号
     const reportNo = await CodeGenerators.generateReportCode(connection);
@@ -303,11 +343,11 @@ exports.createReport = async (req, res) => {
         operator_id || 0,
         operator_name || '未知',
         report_time || new Date(),
-        report_quantity || completed_quantity || 0,
-        completed_quantity || 0,
-        qualified_quantity || 0,
-        defective_quantity || 0,
-        unqualified_quantity || 0,
+        report_quantity || completedQty,
+        completedQty,
+        qualifiedQty,
+        defectiveQty,
+        unqualifiedQty,
         work_hours || 0,
         remarks || '',
       ]
@@ -364,12 +404,56 @@ exports.updateReport = async (req, res) => {
       remarks,
     } = req.body;
 
-    const [reportCheck] = await connection.query('SELECT id, task_id, process_id as old_process_id FROM production_reports WHERE id = ?', [
+    const [reportCheck] = await connection.query('SELECT id, task_id, process_id as old_process_id FROM production_reports WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
     if (reportCheck.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '报工记录不存在', 'NOT_FOUND', 404);
+    }
+
+    const task_id = reportCheck[0].task_id;
+    const newCompletedQty = Number(completed_quantity || 0);
+    const newQualifiedQty = Number(qualified_quantity || 0);
+
+    if (!Number.isFinite(newCompletedQty) || newCompletedQty <= 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '报工完成数量必须大于0', 'VALIDATION_ERROR', 400);
+    }
+
+    if (newQualifiedQty > newCompletedQty) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '合格数量不能超过完成数量', 'VALIDATION_ERROR', 400);
+    }
+
+    const [taskRows] = await connection.query(
+      'SELECT status, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [task_id]
+    );
+    if (taskRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
+    }
+    if (taskRows[0].status !== TASK_STATUS.IN_PROGRESS) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '只能修改生产中任务的报工记录', 'INVALID_STATUS', 400);
+    }
+
+    const [otherReportRows] = await connection.query(
+      'SELECT COALESCE(SUM(completed_quantity), 0) as total_reported FROM production_reports WHERE task_id = ? AND id != ?',
+      [task_id, id]
+    );
+    const planQuantity = Number(taskRows[0].quantity || 0);
+    const otherReported = Number(otherReportRows[0]?.total_reported || 0);
+    if (otherReported + newCompletedQty > planQuantity) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        `累计报工数量不能超过任务数量，剩余可报工 ${Math.max(0, planQuantity - otherReported)}`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     await connection.query(
@@ -385,8 +469,8 @@ exports.updateReport = async (req, res) => {
         process_name || null,
         operator_name,
         report_time,
-        completed_quantity,
-        qualified_quantity,
+        newCompletedQty,
+        newQualifiedQty,
         defective_quantity,
         unqualified_quantity || 0,
         work_hours || 0,
@@ -395,7 +479,6 @@ exports.updateReport = async (req, res) => {
       ]
     );
 
-    const task_id = reportCheck[0].task_id;
     const old_process_id = reportCheck[0].old_process_id;
 
     // 如果修改了工序关联，需要将原工序的进度也刷新一下
@@ -426,16 +509,30 @@ exports.deleteReport = async (req, res) => {
 
     const { id } = req.params;
 
-    const [reportCheck] = await connection.query('SELECT id, task_id, process_id FROM production_reports WHERE id = ?', [
+    const [reportCheck] = await connection.query('SELECT id, task_id, process_id FROM production_reports WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
     if (reportCheck.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '报工记录不存在', 'NOT_FOUND', 404);
     }
 
     const task_id = reportCheck[0].task_id;
     const process_id = reportCheck[0].process_id;
+
+    const [taskRows] = await connection.query(
+      'SELECT status FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [task_id]
+    );
+    if (taskRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
+    }
+    if (taskRows[0].status !== TASK_STATUS.IN_PROGRESS) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '只能删除生产中任务的报工记录', 'INVALID_STATUS', 400);
+    }
 
     await connection.query('DELETE FROM production_reports WHERE id = ?', [id]);
 
@@ -632,7 +729,7 @@ exports.getReportStatistics = async (req, res) => {
 async function syncProgressAndStatus(connection, task_id, process_id) {
   // 1. 同步工序状态
   if (process_id) {
-    const [procCheck] = await connection.query('SELECT id, quantity FROM production_processes WHERE id = ?', [process_id]);
+    const [procCheck] = await connection.query('SELECT id, quantity FROM production_processes WHERE id = ? FOR UPDATE', [process_id]);
     if (procCheck.length > 0) {
       const procQuantity = parseFloat(procCheck[0].quantity) || 0;
       const [procStats] = await connection.query('SELECT COALESCE(SUM(completed_quantity), 0) as total_proc_reported FROM production_reports WHERE process_id = ?', [process_id]);
@@ -647,13 +744,21 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   }
 
   // 2. 同步任务状态
-  const [taskCheck] = await connection.query('SELECT id, status, quantity FROM production_tasks WHERE id = ?', [task_id]);
+  const [taskCheck] = await connection.query('SELECT id, status, quantity FROM production_tasks WHERE id = ? FOR UPDATE', [task_id]);
   if (taskCheck.length === 0) return null;
   const task = taskCheck[0];
   const planQuantity = parseFloat(task.quantity) || 0;
 
   const [reportStats] = await connection.query('SELECT COALESCE(SUM(completed_quantity), 0) as total_reported FROM production_reports WHERE task_id = ?', [task_id]);
   const totalReported = parseFloat(reportStats[0].total_reported) || 0;
+  const taskProgress = planQuantity > 0
+    ? Math.min(100, Math.round((totalReported / planQuantity) * 100))
+    : (totalReported > 0 ? 100 : 0);
+
+  await connection.query(
+    'UPDATE production_tasks SET completed_quantity = ?, progress = ? WHERE id = ?',
+    [Math.min(totalReported, planQuantity), taskProgress, task_id]
+  );
 
   const [processes] = await connection.query('SELECT id, status FROM production_processes WHERE task_id = ?', [task_id]);
 
@@ -664,14 +769,30 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
 
     if (allCompleted) {
       apiStatus = TASK_STATUS.INSPECTION;
-    } else if (anyInProgress && task.status === TASK_STATUS.PENDING) {
+    } else if (
+      anyInProgress &&
+      [
+        TASK_STATUS.PENDING,
+        TASK_STATUS.ALLOCATED,
+        TASK_STATUS.MATERIAL_ISSUED,
+        TASK_STATUS.MATERIAL_PARTIAL_ISSUED,
+      ].includes(task.status)
+    ) {
       apiStatus = TASK_STATUS.IN_PROGRESS;
     }
   } else {
     // 兼容当任务没有配置工序时，沿用老逻辑
     if (totalReported >= planQuantity && planQuantity > 0) {
       apiStatus = TASK_STATUS.INSPECTION;
-    } else if (totalReported > 0 && task.status === TASK_STATUS.PENDING) {
+    } else if (
+      totalReported > 0 &&
+      [
+        TASK_STATUS.PENDING,
+        TASK_STATUS.ALLOCATED,
+        TASK_STATUS.MATERIAL_ISSUED,
+        TASK_STATUS.MATERIAL_PARTIAL_ISSUED,
+      ].includes(task.status)
+    ) {
       apiStatus = TASK_STATUS.IN_PROGRESS;
     }
   }
@@ -685,4 +806,3 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   }
   return { totalReported, apiStatus };
 }
-

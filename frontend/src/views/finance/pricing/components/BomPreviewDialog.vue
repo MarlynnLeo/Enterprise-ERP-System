@@ -37,30 +37,30 @@
 
         <!-- BOM明细表格 -->
         <el-table :data="data.details" border stripe max-height="350">
-          <el-table-column type="index" label="#" width="50" align="center" />
+          <el-table-column type="index" label="#" width="50" />
           <el-table-column prop="material_code" label="物料编码" width="130" />
           <el-table-column prop="material_name" label="物料名称" min-width="160" show-overflow-tooltip />
           <el-table-column prop="material_specs" label="规格型号" width="130" show-overflow-tooltip />
-          <el-table-column prop="quantity" label="用量" width="80" align="center" />
-          <el-table-column label="单价" width="150" align="right">
+          <el-table-column prop="quantity" label="用量" width="80" />
+          <el-table-column label="单价" width="150">
             <template #default="{ row }">
               <div class="price-display">
                 <span v-if="row.has_adjustment" class="original-price line-through">
-                  ¥{{ formatNumber(row.original_price) }}
+                  {{ formatPrice(row.original_price) }}
                 </span>
                 <span :class="{ 'adjusted-price': row.has_adjustment }">
-                  ¥{{ formatNumber(row.effective_price || row.current_price) }}
+                  {{ formatPrice(firstPresent(row.effective_price, row.current_price)) }}
                 </span>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="subtotal" label="小计" width="110" align="right">
+          <el-table-column prop="subtotal" label="小计" width="110">
             <template #default="{ row }">
-              <span class="font-semibold">¥{{ formatNumber(row.subtotal) }}</span>
+              <span class="font-semibold">{{ formatPrice(row.subtotal) }}</span>
             </template>
           </el-table-column>
           <!-- 编辑模式下显示操作列 -->
-          <el-table-column v-if="mode === 'edit'" label="操作" width="130" align="center" fixed="right">
+          <el-table-column v-if="mode === 'edit'" label="操作" width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
                 {{ row.has_adjustment ? '重新调整' : '调整' }}
@@ -78,20 +78,20 @@
             <el-col :span="8">
               <div class="stat-item">
                 <div class="stat-title">当前BOM总成本</div>
-                <div class="stat-value text-primary">¥{{ formatNumber(data.totalCost) }}</div>
+                <div class="stat-value text-primary">{{ formatPrice(data.totalCost) }}</div>
               </div>
             </el-col>
             <el-col :span="8">
               <div class="stat-item">
                 <div class="stat-title">上次定价成本</div>
-                <div class="stat-value">¥{{ formatNumber(data.lastSavedCost) }}</div>
+                <div class="stat-value">{{ formatPrice(data.lastSavedCost) }}</div>
               </div>
             </el-col>
             <el-col :span="8">
               <div class="stat-item">
                 <div class="stat-title">成本变动</div>
                 <div class="stat-value" :class="{ 'text-danger': data.costVariance > 0, 'text-success': data.costVariance < 0 }">
-                  {{ data.costVariance > 0 ? '+' : '' }}¥{{ formatNumber(data.costVariance) }}
+                  {{ formatSignedPrice(data.costVariance) }}
                 </div>
               </div>
             </el-col>
@@ -147,7 +147,23 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 });
 
-const formatNumber = (num) => Number(num || 0).toFixed(2);
+const isBlankValue = (value) => value === null || value === undefined || value === '';
+const firstPresent = (...values) => values.find((value) => !isBlankValue(value));
+const formatNumber = (num) => {
+  if (isBlankValue(num)) return '-';
+  const value = Number(num);
+  return Number.isNaN(value) ? '-' : value.toFixed(2);
+};
+const formatPrice = (num) => {
+  const formatted = formatNumber(num);
+  return formatted === '-' ? '-' : `¥${formatted}`;
+};
+const formatSignedPrice = (num) => {
+  if (isBlankValue(num)) return '-';
+  const value = Number(num);
+  if (Number.isNaN(value)) return '-';
+  return `${value > 0 ? '+' : ''}¥${value.toFixed(2)}`;
+};
 </script>
 
 <style scoped>
@@ -160,12 +176,12 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
 .header-icon {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 50%;
+  background: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-primary, #fff);
+  color: var(--color-on-primary);
   flex-shrink: 0;
 }
 
@@ -214,7 +230,7 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
 }
 
 .original-price {
-  color: #9ca3af;
+  color: var(--ds-gray);
   font-size: 12px;
 }
 
@@ -231,7 +247,7 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
   font-weight: 600;
 }
 
-.text-gray-500 { color: #6b7280; }
+.text-gray-500 { color: var(--color-text-secondary); }
 
 .strategy-grid {
   display: grid;

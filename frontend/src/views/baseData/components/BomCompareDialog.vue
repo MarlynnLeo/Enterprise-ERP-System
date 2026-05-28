@@ -17,8 +17,11 @@
               v-model="selectedBomA"
               placeholder="请选择第一个BOM"
               filterable
+              remote
+              reserve-keyword
               style="width: 100%"
               :loading="loadingList"
+              :remote-method="searchBomOptions"
             >
               <el-option
                 v-for="bom in allBomList"
@@ -31,7 +34,7 @@
           </el-card>
         </el-col>
         <el-col :span="2" style="display: flex; align-items: center; justify-content: center;">
-          <el-icon :size="28" color="#409EFF"><Switch /></el-icon>
+          <el-icon :size="28" color="var(--color-primary)"><Switch /></el-icon>
         </el-col>
         <el-col :span="11">
           <el-card shadow="hover">
@@ -40,8 +43,11 @@
               v-model="selectedBomB"
               placeholder="请选择第二个BOM"
               filterable
+              remote
+              reserve-keyword
               style="width: 100%"
               :loading="loadingList"
+              :remote-method="searchBomOptions"
             >
               <el-option
                 v-for="bom in allBomList"
@@ -111,7 +117,7 @@
 
       <!-- 差异明细表 -->
       <el-table :data="compareResult.diffRows" border style="width: 100%" :row-class-name="diffRowClass">
-        <el-table-column label="差异类型" width="90" align="center">
+        <el-table-column label="差异类型" width="90">
           <template #default="{ row }">
             <el-tag v-if="row.type === 'added'" type="success" size="small">新增</el-tag>
             <el-tag v-else-if="row.type === 'removed'" type="danger" size="small">删除</el-tag>
@@ -121,14 +127,14 @@
         </el-table-column>
         <el-table-column label="物料编码" prop="material_code" width="120" />
         <el-table-column label="物料名称" prop="material_name" min-width="150" />
-        <el-table-column label="BOM A 用量" width="110" align="center">
+        <el-table-column label="BOM A 用量" width="110">
           <template #default="{ row }">
             <span :class="{ 'diff-value': row.type === 'changed' && row.qty_a !== row.qty_b }">
               {{ row.qty_a !== null ? row.qty_a : '-' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="BOM B 用量" width="110" align="center">
+        <el-table-column label="BOM B 用量" width="110">
           <template #default="{ row }">
             <span :class="{ 'diff-value': row.type === 'changed' && row.qty_a !== row.qty_b }">
               {{ row.qty_b !== null ? row.qty_b : '-' }}
@@ -154,7 +160,7 @@ import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Switch, ArrowLeft } from '@element-plus/icons-vue'
 import { bomApi } from '@/api/bom'
-import { parsePaginatedData } from '@/utils/responseParser'
+import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 const props = defineProps({
   modelValue: Boolean,
   bomList: {
@@ -172,6 +178,46 @@ const compareResult = ref(null)
 // 包含历史版本的完整BOM列表（用于版本对比选择）
 const allBomList = ref([])
 const loadingList = ref(false)
+let bomSearchId = 0
+
+const mergeBomOptions = (items = []) => {
+  const selectedIds = new Set([selectedBomA.value, selectedBomB.value].filter(Boolean))
+  const selectedItems = allBomList.value.filter(item => selectedIds.has(item.id))
+  const next = []
+  ;[...selectedItems, ...items].forEach(item => {
+    if (item?.id && !next.some(existing => existing.id === item.id)) {
+      next.push(item)
+    }
+  })
+  allBomList.value = next
+}
+
+const searchBomOptions = async (query = '') => {
+  const searchId = ++bomSearchId
+  loadingList.value = true
+  try {
+    const keyword = String(query || '').trim()
+    const res = await bomApi.getBoms({
+      page: 1,
+      pageSize: 50,
+      includeHistory: true,
+      ...(keyword && { keyword })
+    })
+    const { list } = parsePaginatedData(res)
+    if (searchId === bomSearchId) {
+      mergeBomOptions(list || [])
+    }
+  } catch (err) {
+    console.error('获取BOM列表失败:', err)
+    if (searchId === bomSearchId) {
+      allBomList.value = props.bomList
+    }
+  } finally {
+    if (searchId === bomSearchId) {
+      loadingList.value = false
+    }
+  }
+}
 
 // 每次弹窗打开时重新获取包含历史版本的BOM列表
 watch(() => props.modelValue, async (visible) => {
@@ -181,18 +227,7 @@ watch(() => props.modelValue, async (visible) => {
     selectedBomB.value = null
     compareResult.value = null
 
-    loadingList.value = true
-    try {
-      const res = await bomApi.getBoms({ page: 1, pageSize: 500, includeHistory: true })
-      const { list } = parsePaginatedData(res)
-      allBomList.value = list || []
-    } catch (err) {
-      console.error('获取BOM列表失败:', err)
-      // 兜底使用父组件传入的列表
-      allBomList.value = props.bomList
-    } finally {
-      loadingList.value = false
-    }
+    await searchBomOptions('')
   }
 })
 
@@ -211,8 +246,8 @@ const doCompare = async () => {
       bomApi.getBom(selectedBomB.value)
     ])
 
-    const bomA = resA.data?.data || resA.data || resA
-    const bomB = resB.data?.data || resB.data || resB
+    const bomA = parseResponseData(resA)
+    const bomB = parseResponseData(resB)
 
     // 执行差异对比
     compareResult.value = computeDiff(bomA, bomB)
@@ -343,14 +378,14 @@ const diffRowClass = ({ row }) => {
 }
 
 :deep(.diff-row-added) {
-  background-color: #f0f9eb !important;
+  background-color: var(--ds-green-bg) !important;
 }
 
 :deep(.diff-row-removed) {
-  background-color: #fef0f0 !important;
+  background-color: var(--ds-red-bg) !important;
 }
 
 :deep(.diff-row-changed) {
-  background-color: #fdf6ec !important;
+  background-color: var(--ds-yellow-bg) !important;
 }
 </style>

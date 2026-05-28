@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -7,18 +7,21 @@
           <h2>合同管理</h2>
           <p class="subtitle">管理采购、销售、服务等合同的全生命周期</p>
         </div>
-        <el-button type="primary" @click="openForm()">新建合同</el-button>
+        <el-button type="primary" v-permission="'contract:create'" @click="openForm()">新建合同</el-button>
       </div>
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="搜索">
-          <el-input v-model="keyword" placeholder="合同编号/名称/甲乙方" clearable @keyup.enter="fetchList">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
+    <FinanceQueryCard
+      @search="fetchList"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="合同名称">
+          <el-input v-model="keyword" placeholder="合同名称" clearable @keyup.enter="fetchList" />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="类型">
           <el-select v-model="filterType" placeholder="全部" clearable @change="fetchList">
             <el-option label="采购合同" value="purchase" />
@@ -38,11 +41,8 @@
             <el-option label="已过期" value="expired" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchList">查询</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 数据表格 -->
     <el-card class="data-card">
@@ -60,17 +60,17 @@
         </template>
       </el-table-column>
       <el-table-column prop="party_b" label="对方单位" min-width="160" show-overflow-tooltip />
-      <el-table-column prop="total_amount" label="金额" width="130" align="right">
+      <el-table-column prop="total_amount" label="金额" width="130">
         <template #default="{ row }">{{ formatAmount(row.total_amount) }}</template>
       </el-table-column>
       <el-table-column prop="effective_date" label="生效日期" width="110" />
       <el-table-column prop="expiry_date" label="到期日期" width="110" />
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button link type="primary" @click="viewDetail(row)">查看</el-button>
-          <el-button link type="primary" @click="openForm(row)">编辑</el-button>
+          <el-button link type="primary" v-permission="'contract:edit'" @click="openForm(row)">编辑</el-button>
           <el-popconfirm title="确定删除此合同？" @confirm="handleDelete(row.id)">
-            <template #reference><el-button link type="danger">删除</el-button></template>
+            <template #reference><el-button link type="danger" v-permission="'contract:delete'">删除</el-button></template>
           </el-popconfirm>
         </template>
       </el-table-column>
@@ -140,7 +140,7 @@
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="formData.id ? 'contract:edit' : 'contract:create'" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
 
@@ -195,7 +195,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
 import { contractApi } from '@/api/contract'
 
 const loading = ref(false)
@@ -228,6 +227,14 @@ const fetchList = async () => {
     total.value = d.total || 0
   } catch { ElMessage.error('获取合同列表失败') }
   finally { loading.value = false }
+}
+
+const resetSearch = () => {
+  keyword.value = ''
+  filterType.value = ''
+  filterStatus.value = ''
+  page.value = 1
+  fetchList()
 }
 
 const openForm = (row) => {
@@ -270,5 +277,4 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
-/* 页面专属样式已由 common-styles.css 统一提供 */
 </style>

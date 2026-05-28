@@ -2,14 +2,14 @@ import { api, fastApi } from '../services/axiosInstance';
 
 export const salesApi = {
   // 客户管理
-  getCustomers: () => api.get('/sales/customers'),
+  getCustomers: (params) => api.get('/sales/customers', { params }),
   getCustomer: (id) => api.get(`/sales/customers/${id}`),
   createCustomer: (customer) => api.post('/sales/customers', customer),
   updateCustomer: (id, customer) => api.put(`/sales/customers/${id}`, customer),
 
   // 产品列表（用于报价单和订单）
-  getProductsList: () => api.get('/sales/products-list'),
-  getCustomersList: () => api.get('/sales/customers-list'),
+  getProductsList: (params) => api.get('/sales/products-list', { params }),
+  getCustomersList: (params) => api.get('/sales/customers-list', { params }),
 
   // 报价单管理
   getQuotations: (params) => api.get('/sales/quotations', { params }),
@@ -21,6 +21,8 @@ export const salesApi = {
 
   // 销售订单管理
   getOrders: (params) => fastApi.get('/sales/orders', { params }),
+  getOrderStats: () => fastApi.get('/sales/orders/statistics'),
+  getOrderOperators: () => fastApi.get('/sales/orders/operators'),
   getOrder: (id) => fastApi.get(`/sales/orders/${id}`),
   getOrderDetails: (id) => api.get(`/sales/orders/${id}`),
   getOrderUnshippedItems: (id) => fastApi.get(`/sales/orders/${id}/unshipped-items`),
@@ -46,6 +48,7 @@ export const salesApi = {
 
   // 销售出库管理
   getOutbounds: (params) => fastApi.get('/sales/outbound', { params }),
+  getOutboundStats: () => fastApi.get('/sales/outbound/statistics'),
   getOutbound: (id) => fastApi.get(`/sales/outbound/${id}`),
   createOutbound: (outbound) => api.post('/sales/outbound', outbound),
   updateOutbound: (id, outbound) => api.put(`/sales/outbound/${id}`, outbound),

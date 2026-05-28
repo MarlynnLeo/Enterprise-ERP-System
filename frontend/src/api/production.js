@@ -76,18 +76,14 @@ export const productionApi = {
   // Plans
   getTodayMaxSequence: () => api.get('/production/today-sequence'),
   getTodaySequence: () => api.get('/production/today-sequence'),
-  getProductionPlans: (params = {}) => api.get('/production/plans', {
-    params,
-    headers: {
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache'
-    }
-  }),
+  getProductionPlans: (params = {}) => api.get('/production/plans', { params }),
   getProductionPlan: (id) => api.get(`/production/plans/${id}`),
   createProductionPlan: (data) => api.post('/production/plans', data),
   updateProductionPlan: (id, data) => api.put(`/production/plans/${id}`, data),
   deleteProductionPlan: (id) => api.delete(`/production/plans/${id}`),
   updateProductionPlanStatus: (id, data) => api.put(`/production/plans/${id}/status`, data),
+  calculateMaterialsByBom: (bomId, params = {}) =>
+    api.get(`/production/calculate-materials/${bomId}`, { params }),
 
   // Tasks
   getProductionTasks: (params) => api.get('/production/tasks', { params }),
@@ -108,6 +104,10 @@ export const productionApi = {
   getProductionReportSummary: (params) => api.get('/production/reports/summary', { params }),
   getProductionReportDetail: (params) => api.get('/production/reports/detail', { params }),
   getProductionReportStatistics: (params) => api.get('/production/reports/statistics', { params }),
+  exportProductionReports: (params) => api.get('/production/reports/export', {
+    params,
+    responseType: 'blob'
+  }),
   getTaskReportStats: (taskId) => api.get(`/production/reports/task/${taskId}/stats`),
   getTaskProcesses: (taskId) => api.get(`/production/reports/task/${taskId}/processes`),
   createProductionReport: (data) => api.post('/production/reports', data),
@@ -149,8 +149,13 @@ export const productionApi = {
     return { data: response.data }
   },
 
+  calculateSchedule: (data) => api.post('/production/scheduling/calculate', data),
+  checkScheduleConflicts: (data) => api.post('/production/scheduling/check-conflicts', data),
+  batchSchedule: (data) => api.post('/production/scheduling/batch', data),
+
   // 任务完成
   completeTask: (id, data) => api.post(`/production/tasks/${id}/complete`, data),
+  getTaskManagers: () => api.get('/production/tasks/managers'),
 
   // 获取任务负责人列表
   getTaskManagers: () => api.get('/production/tasks/managers'),
@@ -160,6 +165,8 @@ export const productionApi = {
 
   // 获取任务BOM
   getTaskBom: (id) => api.get(`/production/tasks/${id}/bom`),
+  getPlanMaterials: (id) => api.get(`/production/plans/${id}/materials`),
+  getMaterialShortageSummary: (params) => api.get('/production/material-shortage-summary', { params }),
 
   // 获取计划物料需求
   getPlanMaterials: (id) => api.get(`/production/plans/${id}/materials`),

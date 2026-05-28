@@ -1,21 +1,121 @@
-<!--
-/**
- * Material Symbols Icon 组件
- * @description 根据 Google Design 规范全局映射原 Heroicons 到 Material Symbols Rounded
- */
--->
 <template>
-  <span
-    class="material-symbols-sharp"
+  <component
+    :is="resolvedIcon"
+    v-if="resolvedIcon"
+    class="app-svg-icon"
     :class="className"
     :style="customStyle"
-  >
-    {{ materialName }}
-  </span>
+    aria-hidden="true"
+  />
+  <VanIcon
+    v-else
+    class="app-vant-icon"
+    :class="className"
+    :name="vantIconName"
+    :size="sizeValue"
+    :color="color"
+    aria-hidden="true"
+  />
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed } from 'vue'
+import { Icon as VanIcon } from 'vant'
+import {
+  ArchiveBoxIcon,
+  ArrowDownIcon,
+  ArrowDownTrayIcon,
+  ArrowLeftEndOnRectangleIcon,
+  ArrowLeftIcon,
+  ArrowPathIcon,
+  ArrowRightEndOnRectangleIcon,
+  ArrowRightIcon,
+  ArrowTrendingDownIcon,
+  ArrowTrendingUpIcon,
+  ArrowUpTrayIcon,
+  ArrowUturnLeftIcon,
+  ArrowsRightLeftIcon,
+  BanknotesIcon,
+  BeakerIcon,
+  BellIcon,
+  BookOpenIcon,
+  BriefcaseIcon,
+  BuildingLibraryIcon,
+  BuildingOffice2Icon,
+  BuildingStorefrontIcon,
+  CalendarDaysIcon,
+  CameraIcon,
+  ChartBarIcon,
+  ChartPieIcon,
+  ChatBubbleLeftRightIcon,
+  CheckBadgeIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  ClipboardDocumentCheckIcon,
+  ClipboardDocumentListIcon,
+  ClipboardDocumentIcon,
+  ClockIcon,
+  Cog6ToothIcon,
+  ComputerDesktopIcon,
+  CreditCardIcon,
+  CubeIcon,
+  CurrencyYenIcon,
+  DocumentTextIcon,
+  EllipsisHorizontalIcon,
+  EnvelopeIcon,
+  ExclamationTriangleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  FireIcon,
+  FolderIcon,
+  FunnelIcon,
+  GiftIcon,
+  HeartIcon,
+  HomeIcon,
+  HomeModernIcon,
+  InboxArrowDownIcon,
+  InformationCircleIcon,
+  LifebuoyIcon,
+  LockClosedIcon,
+  LockOpenIcon,
+  MagnifyingGlassIcon,
+  MapIcon,
+  MapPinIcon,
+  MoonIcon,
+  PaintBrushIcon,
+  PencilSquareIcon,
+  PhoneIcon,
+  PlayCircleIcon,
+  PlusIcon,
+  PrinterIcon,
+  QrCodeIcon,
+  QuestionMarkCircleIcon,
+  ReceiptPercentIcon,
+  RectangleStackIcon,
+  ServerStackIcon,
+  ShieldCheckIcon,
+  ShieldExclamationIcon,
+  ShoppingBagIcon,
+  ShoppingCartIcon,
+  SparklesIcon,
+  Squares2X2Icon,
+  StarIcon,
+  SunIcon,
+  TagIcon,
+  TrashIcon,
+  TruckIcon,
+  UserCircleIcon,
+  UserGroupIcon,
+  UserIcon,
+  UsersIcon,
+  WalletIcon,
+  WrenchScrewdriverIcon,
+  XCircleIcon,
+  XMarkIcon
+} from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   name: {
@@ -42,182 +142,252 @@ const props = defineProps({
     type: Boolean,
     default: false
   }
-});
+})
 
-// 计算出最终渲染的 Material Symbol 名称
-const materialName = computed(() => {
-  const map = {
-    // ---- 库存与基础业务 ----
-    'cube': 'inventory_2',
-    'archive': 'inventory',
-    'beaker': 'science',
-    'clipboard-check': 'assignment_turned_in',
-    'document-text': 'description',
-    'notes': 'receipt_long',
-    'receipt': 'receipt',
-    'truck': 'local_shipping',
-    'export': 'output',           // 出库图标
-    'import': 'input',            // 入库图标
-    'outbound': 'output',         // 出库别名
-    'inbound': 'input',           // 入库别名
-    'transfer': 'swap_horiz',     // 调拨
-    'inventory-check': 'fact_check', // 盘点
-    'warehouse': 'warehouse',     // 仓库
-    'package': 'package_2',       // 包裹
+const iconMap = {
+  'account_tree': ClipboardDocumentListIcon,
+  'archive': ArchiveBoxIcon,
+  'apps': Squares2X2Icon,
+  'arrow': ArrowRightIcon,
+  'arrow-down': ArrowDownIcon,
+  'arrow-left': ArrowLeftIcon,
+  'arrow_downward': ArrowDownIcon,
+  'arrow_back': ArrowLeftIcon,
+  'arrow_forward': ArrowRightIcon,
+  'assignment': ClipboardDocumentIcon,
+  'assignment_turned_in': ClipboardDocumentCheckIcon,
+  'badge-check': CheckBadgeIcon,
+  'bag-o': ShoppingBagIcon,
+  'bank': BuildingLibraryIcon,
+  'banknotes': BanknotesIcon,
+  'beaker': BeakerIcon,
+  'bell': BellIcon,
+  'book-open': BookOpenIcon,
+  'briefcase': BriefcaseIcon,
+  'brush-o': PaintBrushIcon,
+  'calendar': CalendarDaysIcon,
+  'calendar-o': CalendarDaysIcon,
+  'camera': CameraIcon,
+  'camera-o': CameraIcon,
+  'cart': ShoppingCartIcon,
+  'cash': BanknotesIcon,
+  'chart-bar': ChartBarIcon,
+  'chart-bar-alt': ChartBarIcon,
+  'chart-pie': ChartPieIcon,
+  'chart-trending-o': ArrowTrendingUpIcon,
+  'chat-o': ChatBubbleLeftRightIcon,
+  'check': CheckIcon,
+  'check-circle': CheckCircleIcon,
+  'check_circle': CheckCircleIcon,
+  'chevron-down': ChevronDownIcon,
+  'chevron-right': ChevronRightIcon,
+  'chevron-up': ChevronUpIcon,
+  'clipboard-check': ClipboardDocumentCheckIcon,
+  'clipboard-list': ClipboardDocumentListIcon,
+  'clock': ClockIcon,
+  'clock-o': ClockIcon,
+  'close': XMarkIcon,
+  'cluster-o': ClipboardDocumentListIcon,
+  'closed-eye': EyeSlashIcon,
+  'cog': Cog6ToothIcon,
+  'coin': CurrencyYenIcon,
+  'completed': CheckCircleIcon,
+  'contact': UserCircleIcon,
+  'contact-o': UserCircleIcon,
+  'credit-card': CreditCardIcon,
+  'cross': XMarkIcon,
+  'cube': CubeIcon,
+  'database-o': ServerStackIcon,
+  'delete-o': TrashIcon,
+  'description': DocumentTextIcon,
+  'desktop-o': ComputerDesktopIcon,
+  'document-text': DocumentTextIcon,
+  'download': ArrowDownTrayIcon,
+  'edit': PencilSquareIcon,
+  'envelop-o': EnvelopeIcon,
+  'exchange': ArrowsRightLeftIcon,
+  'export': ArrowUpTrayIcon,
+  'eye-o': EyeIcon,
+  'filter': FunnelIcon,
+  'fire-o': FireIcon,
+  'flower-o': SparklesIcon,
+  'folder': FolderIcon,
+  'friends-o': UserGroupIcon,
+  'gem-o': SparklesIcon,
+  'gift': GiftIcon,
+  'guide-o': MapIcon,
+  'heart': HeartIcon,
+  'home': HomeIcon,
+  'home-o': HomeIcon,
+  'import': InboxArrowDownIcon,
+  'information-circle': InformationCircleIcon,
+  'inventory-check': ClipboardDocumentCheckIcon,
+  'label-o': TagIcon,
+  'layers': RectangleStackIcon,
+  'location': MapPinIcon,
+  'location-marker': MapPinIcon,
+  'location-o': MapPinIcon,
+  'lock': LockClosedIcon,
+  'lock-closed': LockClosedIcon,
+  'lock-open': LockOpenIcon,
+  'login': ArrowRightEndOnRectangleIcon,
+  'logistics': TruckIcon,
+  'logout': ArrowLeftEndOnRectangleIcon,
+  'mail': EnvelopeIcon,
+  'manager-o': UserCircleIcon,
+  'medal-o': SparklesIcon,
+  'moon': MoonIcon,
+  'more-o': EllipsisHorizontalIcon,
+  'notes': ReceiptPercentIcon,
+  'notes-o': ClipboardDocumentListIcon,
+  'office-building': BuildingOffice2Icon,
+  'orders-o': ClipboardDocumentListIcon,
+  'outbound': ArrowUpTrayIcon,
+  'package': CubeIcon,
+  'passed': CheckCircleIcon,
+  'pencil': PencilSquareIcon,
+  'people': UsersIcon,
+  'phone': PhoneIcon,
+  'phone-o': PhoneIcon,
+  'photograph': CameraIcon,
+  'play-circle-o': PlayCircleIcon,
+  'plus': PlusIcon,
+  'printer': PrinterIcon,
+  'qrcode': QrCodeIcon,
+  'question-mark-circle': QuestionMarkCircleIcon,
+  'receipt': ReceiptPercentIcon,
+  'records': ReceiptPercentIcon,
+  'refresh': ArrowPathIcon,
+  'replay': ArrowPathIcon,
+  'revoke': ArrowUturnLeftIcon,
+  'safe': WalletIcon,
+  'scan': QrCodeIcon,
+  'search': MagnifyingGlassIcon,
+  'service-o': LifebuoyIcon,
+  'setting-o': Cog6ToothIcon,
+  'settings': Cog6ToothIcon,
+  'shield': ShieldCheckIcon,
+  'shield-check': ShieldCheckIcon,
+  'shield-exclamation': ShieldExclamationIcon,
+  'shield-o': ShieldCheckIcon,
+  'shop-o': BuildingStorefrontIcon,
+  'shopping-bag': ShoppingBagIcon,
+  'shopping-cart': ShoppingCartIcon,
+  'star': StarIcon,
+  'success': CheckCircleIcon,
+  'sun': SunIcon,
+  'tag': TagIcon,
+  'todo-list': ClipboardDocumentListIcon,
+  'todo-list-o': ClipboardDocumentListIcon,
+  'tools': WrenchScrewdriverIcon,
+  'transfer': ArrowsRightLeftIcon,
+  'tree': SparklesIcon,
+  'trending-down': ArrowTrendingDownIcon,
+  'truck': TruckIcon,
+  'undo': ArrowUturnLeftIcon,
+  'upload': ArrowUpTrayIcon,
+  'upgrade': ArrowUpTrayIcon,
+  'user': UserIcon,
+  'user-group': UserGroupIcon,
+  'user-o': UserIcon,
+  'users': UsersIcon,
+  'wap-home-o': HomeModernIcon,
+  'warehouse': ArchiveBoxIcon,
+  'warning-o': ExclamationTriangleIcon,
+  'wrench': WrenchScrewdriverIcon,
+  'x-circle': XCircleIcon
+}
 
-    // ---- 销售、采购与财务 ----
-    'shopping-bag': 'local_mall',
-    'shopping-cart': 'shopping_cart',
-    'cart': 'shopping_cart',
-    'coin': 'monetization_on',
-    'cash': 'payments',
-    'credit-card': 'credit_card',
-    'bank': 'account_balance',
-    'safe': 'savings',
-    'exchange': 'swap_horiz',
-    'gift': 'card_giftcard',
+const materialAliases = {
+  account_balance: 'bank',
+  add: 'plus',
+  bar_chart: 'chart-bar',
+  build: 'wrench',
+  calendar_month: 'calendar',
+  card_giftcard: 'gift',
+  checklist: 'todo-list',
+  chrome_reader_mode: 'book-open',
+  close: 'cross',
+  credit_card: 'credit-card',
+  database: 'database-o',
+  delete: 'delete-o',
+  diamond: 'gem-o',
+  diversity_3: 'friends-o',
+  domain: 'office-building',
+  edit: 'edit',
+  expand_less: 'chevron-up',
+  expand_more: 'chevron-down',
+  fact_check: 'inventory-check',
+  favorite: 'heart',
+  filter_alt: 'filter',
+  gpp_good: 'shield-check',
+  gpp_maybe: 'shield-exclamation',
+  group: 'user-group',
+  groups: 'users',
+  help: 'question-mark-circle',
+  input: 'import',
+  inventory: 'archive',
+  inventory_2: 'cube',
+  label: 'label-o',
+  light_mode: 'sun',
+  list_alt: 'orders-o',
+  local_mall: 'shopping-bag',
+  local_shipping: 'truck',
+  location_on: 'location-marker',
+  monetization_on: 'coin',
+  nature: 'tree',
+  navigation: 'guide-o',
+  output: 'export',
+  package_2: 'package',
+  payments: 'cash',
+  person: 'user',
+  person_outline: 'user-o',
+  photo_camera: 'camera',
+  pie_chart: 'chart-pie',
+  print: 'printer',
+  qr_code: 'qrcode',
+  qr_code_scanner: 'scan',
+  receipt_long: 'records',
+  savings: 'safe',
+  science: 'beaker',
+  security: 'shield-o',
+  sell: 'tag',
+  storefront: 'shop-o',
+  support_agent: 'service-o',
+  swap_horiz: 'transfer',
+  task_alt: 'completed',
+  trending_up: 'chart-trending-o',
+  verified: 'badge-check',
+  visibility: 'eye-o',
+  warning: 'warning-o',
+  work: 'briefcase',
+  workspace_premium: 'medal-o'
+}
 
-    // ---- 安全、验证与质量 ----
-    'lock-closed': 'lock',
-    'lock-open': 'lock_open',
-    'shield-check': 'gpp_good',
-    'shield': 'gpp_good',
-    'badge-check': 'verified',
-    'shield-exclamation': 'gpp_maybe',
+const normalizedName = computed(() => materialAliases[props.name] || props.name)
+const resolvedIcon = computed(() => iconMap[normalizedName.value] || null)
+const vantIconName = computed(() => normalizedName.value)
+const sizeValue = computed(() => (typeof props.size === 'number' ? `${props.size}px` : props.size))
 
-    // ---- 用户、客户与供应商 ----
-    'user': 'person',
-    'users': 'groups',
-    'user-group': 'group',
-    'office-building': 'domain',
-    'briefcase': 'work',
-
-    // ---- 系统行为 ----
-    'logout': 'logout',
-    'login': 'login',
-    'camera': 'photo_camera',
-    'photograph': 'photo_camera',
-    'information-circle': 'info',
-    'question-mark-circle': 'help',
-    'qrcode': 'qr_code',
-    'search': 'search',
-    'home': 'home',
-    'bell': 'notifications',
-    'calendar': 'calendar_month',
-    'clock': 'schedule',
-    'plus': 'add',
-    'refresh': 'refresh',
-    'cog': 'settings',
-    'filter': 'filter_alt',
-    'download': 'download',
-    'upload': 'upload',
-    'trash': 'delete',
-    'pencil': 'edit',
-    'eye': 'visibility',
-    'printer': 'print',
-    'mail': 'mail',
-    'phone': 'phone',
-    'location-marker': 'location_on',
-    'tag': 'sell',
-    'star': 'star',
-    'heart': 'favorite',
-    'book-open': 'chrome_reader_mode',
-    'apps': 'apps',
-    'folder': 'folder',
-    'wrench': 'build',
-    'undo': 'undo',
-    'sun': 'light_mode',
-    'moon': 'dark_mode',
-    'settings': 'settings',
-    'layers': 'layers',
-
-    // ---- 图表 ----
-    'chart-bar': 'bar_chart',
-    'chart-bar-alt': 'bar_chart',
-    'chart-pie': 'pie_chart',
-    'chart-trending-o': 'trending_up',
-    'trending-down': 'trending_down',
-
-    // ---- 状态与方向 ----
-    'chevron-right': 'chevron_right',
-    'chevron-down': 'expand_more',
-    'chevron-up': 'expand_less',
-    'arrow-left': 'arrow_back',
-    'check': 'check',
-    'check-circle': 'check_circle',
-    'x-circle': 'cancel',
-
-    // ---- Vant 及扩展兼容 ----
-    'contact': 'person_pin',
-    'friends-o': 'diversity_3',
-    'people': 'people',
-    'desktop-o': 'desktop_windows',
-    'play-circle-o': 'play_circle',
-    'setting-o': 'settings',
-    'warning-o': 'warning',
-    'passed': 'check_circle',
-    'completed': 'task_alt',
-    'clock-o': 'schedule',
-    'cluster-o': 'account_tree',
-    'tools': 'build',
-    'notes-o': 'assignment',
-    'calendar-o': 'calendar_month',
-    'todo-list-o': 'checklist',
-    'orders-o': 'list_alt',
-    'scan': 'qr_code_scanner',
-    'eye-o': 'visibility',
-    'label-o': 'label',
-    'location': 'location_on',
-    'logistics': 'local_shipping',
-    'medal-o': 'workspace_premium',
-    'records': 'receipt_long',
-    'replay': 'replay',
-    'revoke': 'undo',
-    'service-o': 'support_agent',
-    'shield-o': 'security',
-    'tree': 'nature',
-    'upgrade': 'upgrade',
-    'clipboard-list': 'assignment',
-    'user-o': 'person_outline',
-    'shop-o': 'storefront',
-    'contact-o': 'contact_mail',
-    'gem-o': 'diamond',
-    'more-o': 'more_horiz',
-    'database-o': 'database',
-    'camera-o': 'photo_camera',
-    'envelop-o': 'mail',
-    'cross': 'close',
-    'guide-o': 'navigation',
-    'arrow': 'arrow_forward',
-    'arrow-down': 'arrow_downward',
-    'success': 'check_circle'
-  };
-
-  return map[props.name] || props.name; // 若未命中则直接传原值尝试渲染
-});
-
-// 计算 CSS 变量：字体粗细和填充、字号
-const customStyle = computed(() => {
-  const sizeValue = typeof props.size === 'number' ? `${props.size}px` : props.size;
-  return {
-    fontSize: sizeValue,
-    color: props.color,
-    fontVariationSettings: `'FILL' ${props.fill ? 1 : 0}, 'wght' ${props.weight}, 'GRAD' 0, 'opsz' 24`
-  };
-});
+const customStyle = computed(() => ({
+  width: sizeValue.value,
+  height: sizeValue.value,
+  color: props.color,
+  strokeWidth: props.weight >= 600 ? 2 : 1.75,
+  fill: props.fill ? 'currentColor' : 'none'
+}))
 </script>
 
 <style scoped>
-.material-symbols-sharp {
+.app-svg-icon,
+.app-vant-icon {
   display: inline-block;
+  flex-shrink: 0;
   line-height: 1;
-  text-transform: none;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  -webkit-font-feature-settings: 'liga';
-  -webkit-font-smoothing: antialiased;
-  /* 确保图标与附近文字对齐 */
   vertical-align: middle;
+}
+
+.app-svg-icon {
+  stroke: currentColor;
 }
 </style>

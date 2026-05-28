@@ -81,7 +81,7 @@
 
 <style lang="scss" scoped>
   .equipment-detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
   }
 

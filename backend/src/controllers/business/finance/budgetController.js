@@ -78,7 +78,7 @@ const budgetController = {
       const { page = 1, pageSize = 20, ...filters } = req.query;
 
       const safePage = Math.max(parseInt(page, 10) || 1, 1);
-      const safePageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
+      const safePageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
       const offset = (safePage - 1) * safePageSize;
       const budgets = await budgetModel.getBudgets({
         ...filters,

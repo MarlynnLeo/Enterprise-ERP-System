@@ -137,9 +137,9 @@
 </script>
 
 <style lang="scss" scoped>
-  .create-page { height: 100vh; background: var(--bg-primary); display: flex; flex-direction: column; overflow: hidden; }
+  .create-page { height: 100%; background: var(--bg-primary); display: flex; flex-direction: column; overflow: hidden; }
   .content-container { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .form-section { background: var(--bg-secondary); margin-bottom: 12px;
-    .section-title { padding: 16px; font-size: 1rem; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--glass-border); }
+    .section-title { padding: 16px; font-size: 1rem; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--surface-border, var(--border-subtle)); }
   }
 </style>

@@ -1,6 +1,7 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 const materialSourceService = {
   /**
@@ -8,9 +9,10 @@ const materialSourceService = {
    */
   async getAllMaterialSources(filters = {}, page = 1, pageSize = 10) {
     try {
-      const pageNum = Number(page);
-      const pageSizeNum = Number(pageSize);
-      const offset = (pageNum - 1) * pageSizeNum;
+      const pagination = parsePagination(page, pageSize, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
 
       const conditions = ['deleted_at IS NULL'];
       const params = [];
@@ -41,22 +43,24 @@ const materialSourceService = {
       }
 
       let query = 'SELECT * FROM material_sources WHERE ' + conditions.join(' AND ');
-      query += ' ORDER BY sort ASC, id DESC LIMIT ?, ?';
-
-      params.push(offset, pageSizeNum);
+      query = appendPaginationSQL(
+        query + ' ORDER BY sort ASC, id DESC',
+        pagination.limit,
+        pagination.offset
+      );
 
       const [rows] = await pool.query(query, params);
 
       // 获取总数
       const countQuery = 'SELECT COUNT(*) as total FROM material_sources WHERE ' + conditions.join(' AND ');
-      const [countResult] = await pool.query(countQuery, params.slice(0, -2));
+      const [countResult] = await pool.query(countQuery, params);
       const total = countResult[0].total;
 
       return {
         items: rows,
         total,
-        page: pageNum,
-        pageSize: pageSizeNum,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       };
     } catch (error) {
       logger.error('getAllMaterialSources error:', error);

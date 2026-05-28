@@ -194,10 +194,10 @@ watch(() => props.modelValue, async (newValue) => {
 
 <style scoped>
 .rich-text-editor {
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--color-border-base);
   border-radius: 4px;
   overflow: hidden;
-  background-color: var(--color-bg-base, #fff);
+  background-color: var(--color-bg-base, var(--ds-white));
 }
 
 .editor-toolbar {
@@ -206,27 +206,27 @@ watch(() => props.modelValue, async (newValue) => {
   gap: 4px;
   align-items: center;
   padding: 6px;
-  border-bottom: 1px solid #dcdfe6;
-  background-color: #f5f7fa;
+  border-bottom: 1px solid var(--color-border-base);
+  background-color: var(--color-bg-hover);
 }
 
 .toolbar-btn {
   min-width: 30px;
   height: 28px;
   padding: 0 8px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--color-border-base);
   border-radius: 4px;
-  color: #303133;
-  background: #fff;
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
   cursor: pointer;
   font-size: 12px;
   line-height: 26px;
 }
 
 .toolbar-btn:hover {
-  color: #409eff;
-  border-color: #a0cfff;
-  background-color: #ecf5ff;
+  color: var(--color-primary);
+  border-color: var(--color-primary-light-5);
+  background-color: var(--ds-blue-bg);
 }
 
 .toolbar-btn.strong {
@@ -249,7 +249,7 @@ watch(() => props.modelValue, async (newValue) => {
   width: 1px;
   height: 20px;
   margin: 0 4px;
-  background-color: #dcdfe6;
+  background-color: var(--color-border-base);
 }
 
 .editor-surface {
@@ -258,14 +258,14 @@ watch(() => props.modelValue, async (newValue) => {
   padding: 12px;
   outline: none;
   overflow-y: auto;
-  color: #303133;
+  color: var(--color-text-primary);
   font-size: 14px;
   line-height: 1.6;
   word-break: break-word;
 }
 
 .editor-surface:empty::before {
-  color: #a8abb2;
+  color: var(--color-text-placeholder);
   content: attr(data-placeholder);
   pointer-events: none;
 }
@@ -273,21 +273,21 @@ watch(() => props.modelValue, async (newValue) => {
 .editor-surface :deep(blockquote) {
   margin: 10px 0;
   padding-left: 16px;
-  color: #666;
-  border-left: 4px solid #409eff;
+  color: var(--color-text-regular);
+  border-left: 4px solid var(--color-primary);
 }
 
 .editor-surface :deep(pre),
 .editor-surface :deep(code) {
   padding: 2px 4px;
   border-radius: 4px;
-  background-color: #f5f7fa;
-  color: #333;
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
   font-family: 'Courier New', monospace;
 }
 
 .editor-surface :deep(a) {
-  color: #409eff;
+  color: var(--color-primary);
   text-decoration: none;
 }
 
@@ -311,11 +311,11 @@ watch(() => props.modelValue, async (newValue) => {
 .editor-surface :deep(table td),
 .editor-surface :deep(table th) {
   padding: 8px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--color-border-base);
 }
 
 .editor-surface :deep(table th) {
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-hover);
   font-weight: 700;
 }
 </style>

@@ -185,7 +185,7 @@
 
 <style lang="scss" scoped>
   .create-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--van-background-2);
   }
 

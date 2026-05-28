@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ManualTransaction.vue
  * @description 手工出入管理页面
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="manual-transaction-container">
+  <div class="module-page manual-transaction-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -22,8 +22,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input v-model="searchForm.materialName" placeholder="物料名称" clearable @keyup.enter="handleSearch" />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="单据编号">
           <el-input v-model="searchForm.transactionNo" placeholder="单据编号" clearable />
         </el-form-item>
@@ -54,16 +64,8 @@
             <el-option label="已拒绝" value="rejected" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -116,7 +118,7 @@
             {{ row.material_specs || '无规格' }}
           </template>
         </el-table-column>
-        <el-table-column label="明细数" width="80" align="center">
+        <el-table-column label="明细数" width="80">
           <template #default="{ row }">
             {{ row.item_count || 0 }}
           </template>
@@ -127,7 +129,7 @@
             {{ row.operator_name || row.operator || '未知' }}
           </template>
         </el-table-column>
-        <el-table-column label="审批状态" width="100" align="center">
+        <el-table-column label="审批状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getApprovalStatusTag(row.approval_status)">
               {{ getApprovalStatusText(row.approval_status) }}
@@ -135,7 +137,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
-        <el-table-column label="操作" min-width="200" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" @click="handleView(row)">查看</el-button>
             <el-button
@@ -251,7 +253,7 @@
             show-summary
             :summary-method="getSummaries"
           >
-            <el-table-column label="序号" width="55" type="index" align="center" />
+            <el-table-column label="序号" width="55" type="index" />
 
             <el-table-column label="物料编码" width="160" show-overflow-tooltip>
               <template #default="{ row, $index }">
@@ -320,9 +322,9 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="库存" width="80" align="right">
+            <el-table-column label="库存" width="80">
               <template #default="{ row }">
-                <span :style="{ color: row.stock_quantity > 0 ? '#67c23a' : '#909399' }">
+                <span :style="{ color: row.stock_quantity > 0 ? 'var(--color-success)' : 'var(--color-text-secondary)' }">
                   {{ row.stock_quantity || 0 }}
                 </span>
               </template>
@@ -344,7 +346,7 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="操作" width="60" fixed="right" align="center">
+            <el-table-column label="操作" width="60" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ $index }">
                 <el-button
                   link
@@ -416,7 +418,7 @@
             {{ row.location_name }}
           </template>
         </el-table-column>
-        <el-table-column label="数量" width="100" align="right">
+        <el-table-column label="数量" width="100">
           <template #default="{ row }">
             {{ row.quantity }}
           </template>
@@ -624,15 +626,16 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi, systemApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { getBusinessTypeCategoryColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
-
+import { loadLocationOptions } from '@/utils/optionLoaders'
 const authStore = useAuthStore()
 
 // 权限控制
@@ -644,6 +647,7 @@ const businessTypesMap = ref({})
 
 // 搜索表单
 const searchForm = reactive({
+  materialName: '',
   transactionNo: '',
   transactionType: '',
   locationId: '',
@@ -825,9 +829,7 @@ const getApprovalStatusTag = (status) => {
 // 加载仓库列表
 const loadLocations = async () => {
   try {
-    const res = await baseDataApi.getLocations()
-    // 使用统一解析器
-    const locationList = parseListData(res, { enableLog: false })
+    const locationList = await loadLocationOptions()
     // 过滤掉没有id的项
     locations.value = locationList.filter(item => item.id !== undefined && item.id !== null)
   } catch (error) {
@@ -869,7 +871,6 @@ const fetchMaterialSuggestions = async (query, callback) => {
   try {
     // 使用统一的搜索函数
     const searchResults = await searchMaterials(baseDataApi, query.trim(), {
-      pageSize: 500,
       includeAll: true
     })
 
@@ -1035,6 +1036,9 @@ const loadTableData = async () => {
     if (searchForm.transactionNo) {
       params.transaction_no = searchForm.transactionNo
     }
+    if (searchForm.materialName) {
+      params.material_name = searchForm.materialName
+    }
     if (searchForm.transactionType) {
       params.transaction_type = searchForm.transactionType
     }
@@ -1077,6 +1081,7 @@ const handleSearch = () => {
 // 重置搜索
 const resetSearch = () => {
   Object.assign(searchForm, {
+    materialName: '',
     transactionNo: '',
     transactionType: '',
     locationId: '',
@@ -1103,7 +1108,7 @@ const handleCreate = () => {
   Object.assign(form, {
     transaction_no: '',
     transaction_type: 'in',
-    transaction_date: new Date().toISOString().split('T')[0],
+    transaction_date: formatLocalDate(new Date()),
     operator: authStore.realName || authStore.user?.username || '',
     remark: '',
     items: []
@@ -1365,7 +1370,7 @@ const handleIssueMaterialChange = (materialId) => {
 // 打开调货对话框
 const handleExchange = () => {
   Object.assign(exchangeForm, {
-    transaction_date: new Date().toISOString().split('T')[0],
+    transaction_date: formatLocalDate(new Date()),
     remark: '',
     return_material_id: null,
     return_location_id: null,
@@ -1557,7 +1562,6 @@ onMounted(() => {
   padding: 20px;
 }
 
-/* 使用全局 common-styles.css 中的 .page-header, .search-card, .statistics-row, .stat-card, .stat-value, .stat-label, .data-card, .pagination-container */
 
 /* 修复表格内输入框宽度问题 */
 :deep(.el-table .el-autocomplete) {
@@ -1623,4 +1627,3 @@ onMounted(() => {
   max-height: 300px;
 }
 </style>
-

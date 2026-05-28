@@ -8,6 +8,12 @@ const { financeConfig } = require('../../config/financeConfig');
 const { getUserIdByIdentifier } = require('../../utils/userUtils');
 const DocumentLinkService = require('../business/DocumentLinkService');
 const logger = require('../../utils/logger');
+const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
+const {
+  addDaysToDateString,
+  currentDateString,
+  toLocalDateString,
+} = require('../../utils/dateUtils');
 
 class FinanceIntegrationService {
   /**
@@ -79,7 +85,7 @@ class FinanceIntegrationService {
    * 获取当前打开的会计期间
    */
   static async getCurrentPeriod(connection, date = null) {
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date ? toLocalDateString(date) : currentDateString();
     const [periods] = await connection.execute(
       'SELECT id FROM gl_periods WHERE is_closed = 0 AND start_date <= ? AND end_date >= ?',
       [targetDate, targetDate]
@@ -250,10 +256,8 @@ class FinanceIntegrationService {
       }, 0) / 100;
 
       const paymentTermDays = financeConfig.get('invoice.defaultPaymentTermDays', 30);
-      const invoiceDate = new Date();
-      const dueDate = new Date(invoiceDate);
-      dueDate.setDate(dueDate.getDate() + paymentTermDays);
-      const invoiceDateStr = invoiceDate.toISOString().split('T')[0];
+      const invoiceDateStr = currentDateString();
+      const dueDateStr = addDaysToDateString(invoiceDateStr, paymentTermDays);
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
       const createdByIdentifier = financeConfig.get('system.defaultCreator', 'system');
       const createdBy = await getUserIdByIdentifier(connection, createdByIdentifier);
@@ -262,7 +266,7 @@ class FinanceIntegrationService {
         invoice_number: invoiceNumber,
         customer_id: salesOrder.customer_id || null,
         invoice_date: invoiceDateStr,
-        due_date: dueDate.toISOString().split('T')[0],
+        due_date: dueDateStr,
         total_amount: totalAmount,
         currency_code: salesOrder.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: salesOrder.exchange_rate || financeConfig.get('invoice.defaultExchangeRate', 1.0),
@@ -404,8 +408,7 @@ class FinanceIntegrationService {
         return { skipped: true, message: '退货金额为0' };
       }
 
-      const invoiceDate = salesReturn.return_date ? new Date(salesReturn.return_date) : new Date();
-      const invoiceDateStr = invoiceDate.toISOString().split('T')[0];
+      const invoiceDateStr = toLocalDateString(salesReturn.return_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
 
       const invoiceData = {
@@ -502,7 +505,9 @@ class FinanceIntegrationService {
       const invoiceNumber = await this.generateInvoiceNumber('AP', connection);
 
       const [receiptItems] = await connection.execute(
-        `SELECT pri.material_id, pri.qualified_quantity as quantity, COALESCE(poi.price, m.cost_price, m.price, 0) as price, m.name as material_name, m.code as material_code
+        `SELECT pri.material_id, pri.qualified_quantity as quantity,
+                COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0) as price,
+                m.name as material_name, m.code as material_code
          FROM purchase_receipt_items pri
          LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
@@ -523,7 +528,7 @@ class FinanceIntegrationService {
         await connection.rollback();
         return { skipped: true, message: '入库单物料金额为0，跳过应付发票生成' };
       }
-      const invoiceDateStr = purchaseReceipt.receipt_date || new Date().toISOString().split('T')[0];
+      const invoiceDateStr = toLocalDateString(purchaseReceipt.receipt_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
       const createdBy = await getUserIdByIdentifier(connection, userId || purchaseReceipt.operator || 'system');
 
@@ -622,7 +627,7 @@ class FinanceIntegrationService {
       const [returnItems] = await connection.execute(
         `SELECT pri.material_id, pri.material_name, pri.material_code,
                 pri.return_quantity, pri.price,
-                COALESCE(pri.price, poi.price, m.cost_price, m.price, 0) AS unit_price
+                COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0) AS unit_price
          FROM purchase_return_items pri
          LEFT JOIN purchase_returns pr ON pri.return_id = pr.id
          LEFT JOIN purchase_receipts prec ON pr.receipt_id = prec.id
@@ -646,7 +651,7 @@ class FinanceIntegrationService {
         return { skipped: true, message: '金额为0' };
       }
 
-      const invoiceDateStr = (purchaseReturn.return_date ? new Date(purchaseReturn.return_date) : new Date()).toISOString().split('T')[0];
+      const invoiceDateStr = toLocalDateString(purchaseReturn.return_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
 
       const invoiceData = {
@@ -738,7 +743,9 @@ class FinanceIntegrationService {
       const inventoryAccountId = accountIds.INVENTORY;
 
       const [outboundItems] = await connection.execute(
-        `SELECT soi.product_id, soi.quantity, m.cost_price, m.price, m.name as material_name
+        `SELECT soi.product_id, soi.quantity,
+                COALESCE(NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0) AS cost_price,
+                m.name as material_name
          FROM sales_outbound_items soi
          LEFT JOIN materials m ON soi.product_id = m.id
          WHERE soi.outbound_id = ?`,
@@ -751,7 +758,7 @@ class FinanceIntegrationService {
       }
 
       // ✅ 精度修复：整数运算
-      const totalCost = outboundItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.cost_price || item.price || 0) * 100), 0) / 100;
+      const totalCost = outboundItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.cost_price || 0) * 100), 0) / 100;
       if (totalCost <= 0) {
         await connection.rollback();
         return { skipped: true, message: '成本为0' };
@@ -760,14 +767,15 @@ class FinanceIntegrationService {
       const outboundDate = salesOutbound.delivery_date
         || salesOutbound.outbound_date
         || salesOutbound.transaction_date
-        || new Date().toISOString().split('T')[0];
-      const currentPeriod = await this.getCurrentPeriod(connection, outboundDate);
+        || currentDateString();
+      const outboundDateStr = toLocalDateString(outboundDate);
+      const currentPeriod = await this.getCurrentPeriod(connection, outboundDateStr);
       const createdBy = await getUserIdByIdentifier(connection, salesOutbound.created_by || 'system');
 
       const entryData = {
         period_id: currentPeriod.id || null,
-        entry_date: outboundDate,
-        posting_date: outboundDate,
+        entry_date: outboundDateStr,
+        posting_date: outboundDateStr,
         document_type: 'sales_outbound',
         document_number: salesOutbound.outbound_no || null,
         description: `销售成本结转 - 销售出库单 ${salesOutbound.outbound_no}`,
@@ -850,7 +858,9 @@ class FinanceIntegrationService {
                 COALESCE(NULLIF(soi.price, 0), soitm.unit_price, m.price, 0) AS price
          FROM sales_outbound_items soi
          LEFT JOIN sales_outbound so ON soi.outbound_id = so.id
-         LEFT JOIN sales_order_items soitm ON so.order_id = soitm.order_id AND soi.product_id = soitm.material_id
+         LEFT JOIN sales_order_items soitm
+           ON COALESCE(soi.source_order_id, so.order_id) = soitm.order_id
+          AND soi.product_id = soitm.material_id
          LEFT JOIN materials m ON soi.product_id = m.id
          WHERE soi.outbound_id = ?`,
         [salesOutbound.id]
@@ -860,16 +870,20 @@ class FinanceIntegrationService {
       const amountExcludingTax = outboundItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
       // 从财务设置获取税率（前端设置的小数格式，如 0.13 = 13%）
       await this.loadConfigurations();
-      const taxRate = financeConfig.get('tax.defaultVATRate', 0.13);
-      const taxRatePercent = taxRate * 100; // 用于存储显示
-      const taxAmount = amountExcludingTax * taxRate;
-      const totalAmount = amountExcludingTax + taxAmount;
+      const taxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0.13), 0.13);
+      const taxRatePercent = roundMoney(taxRate * 100); // 税务发票表使用百分比制
+      const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
+      const totalAmount = roundMoney(amountExcludingTax + taxAmount);
+      if (totalAmount <= 0) {
+        await connection.rollback();
+        return { skipped: true, message: '出库单金额为0，跳过销项税务发票生成' };
+      }
 
       const invoiceData = {
         invoice_type: '销项',
         invoice_number: invoiceNumber,
         invoice_code: null,
-        invoice_date: salesOutbound.outbound_date || new Date().toISOString().split('T')[0],
+        invoice_date: toLocalDateString(salesOutbound.outbound_date || currentDateString()),
         customer_id: salesOutbound.customer_id || null,
         supplier_id: null,
         supplier_or_customer_name: salesOutbound.customer_name || null,
@@ -943,7 +957,8 @@ class FinanceIntegrationService {
       const invoiceNumber = `待补录-${purchaseReceipt.receipt_no}`;
 
       const [receiptItems] = await connection.execute(
-        `SELECT pri.qualified_quantity, COALESCE(poi.price, m.cost_price, m.price, 0) as price
+        `SELECT pri.qualified_quantity,
+                COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0) as price
          FROM purchase_receipt_items pri
          JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
@@ -957,16 +972,20 @@ class FinanceIntegrationService {
       const amountExcludingTax = receiptItems.reduce((sum, item) => sum + Math.round(parseFloat(item.qualified_quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
       // 从财务设置获取税率（前端设置的小数格式，如 0.13 = 13%）
       await this.loadConfigurations();
-      const taxRate = financeConfig.get('tax.defaultVATRate', 0.13);
-      const taxRatePercent = taxRate * 100; // 用于存储显示
-      const taxAmount = amountExcludingTax * taxRate;
-      const totalAmount = amountExcludingTax + taxAmount;
+      const taxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0.13), 0.13);
+      const taxRatePercent = roundMoney(taxRate * 100); // 税务发票表使用百分比制
+      const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
+      const totalAmount = roundMoney(amountExcludingTax + taxAmount);
+      if (totalAmount <= 0) {
+        await connection.rollback();
+        return { skipped: true, message: '入库单金额为0，跳过进项税务发票生成' };
+      }
 
       const invoiceData = {
         invoice_type: '进项',
         invoice_number: invoiceNumber,
         invoice_code: null,
-        invoice_date: purchaseReceipt.receipt_date || new Date().toISOString().split('T')[0],
+        invoice_date: toLocalDateString(purchaseReceipt.receipt_date || currentDateString()),
         supplier_id: purchaseReceipt.supplier_id || null,
         customer_id: null,
         supplier_or_customer_name: purchaseReceipt.supplier_name || null,
@@ -1020,6 +1039,30 @@ class FinanceIntegrationService {
 
 
       const exchangeNo = salesExchange.exchange_no;
+      const existingEntry = await this.findExistingActiveGlEntry(
+        connection,
+        'sales_exchange',
+        exchangeNo
+      );
+      if (existingEntry) {
+        await DocumentLinkService.tryAutoLink(
+          'sales_exchange',
+          salesExchange.id,
+          exchangeNo,
+          'finance_voucher',
+          existingEntry.id,
+          existingEntry.entry_number,
+          salesExchange.created_by || null,
+          connection
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          entryId: existingEntry.id,
+          entryNumber: existingEntry.entry_number,
+          message: 'Exchange difference voucher already exists',
+        };
+      }
 
       // 查询差价金额（从主表获取）
       const differenceAmount = parseFloat(salesExchange.difference_amount || 0);
@@ -1051,7 +1094,7 @@ class FinanceIntegrationService {
       }
 
       // 获取会计期间
-      const now = new Date().toISOString().split('T')[0];
+      const now = toLocalDateString(salesExchange.exchange_date || currentDateString());
       let currentPeriod;
       try {
         currentPeriod = await this.getCurrentPeriod(connection, now);
@@ -1112,8 +1155,8 @@ class FinanceIntegrationService {
 
   /**
    * 外委发料自动生成会计分录
-   * 借：委托加工物资 (1408)
-   * 贷：原材料 (1403)
+   * 借：委托加工物资 (OUTSOURCED_MATERIALS)
+   * 贷：原材料 (RAW_MATERIALS)
    *
    * @param {Object} processing - 加工单数据（含 processing_no, id 等）
    * @param {Array} materials - 物料明细（含 material_id, material_name, quantity, unit_price 等）
@@ -1184,7 +1227,7 @@ class FinanceIntegrationService {
       }
 
       // 获取会计期间
-      const now = new Date().toISOString().split('T')[0];
+      const now = toLocalDateString(processing.issue_date || processing.processing_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, now);
       const createdBy = processing.created_by || 0;
 
@@ -1253,9 +1296,9 @@ class FinanceIntegrationService {
 
   /**
    * 外委收货入库自动生成会计分录
-   * 借：库存商品 (1405)  — 物料成本 + 加工费
-   * 贷：委托加工物资 (1408)  — 原物料成本
-   * 贷：应付账款 (2202)  — 加工费部分
+   * 借：库存商品 (INVENTORY_GOODS)  — 物料成本 + 加工费
+   * 贷：委托加工物资 (OUTSOURCED_MATERIALS)  — 原物料成本
+   * 贷：应付账款 (ACCOUNTS_PAYABLE)  — 加工费部分
    *
    * @param {Object} receipt - 入库单数据（含 receipt_no, processing_id 等）
    * @param {Array} items - 入库明细（含 product_id, actual_quantity, unit_price, total_price 等）
@@ -1324,7 +1367,7 @@ class FinanceIntegrationService {
       let materialCost = 0;
       if (receipt.processing_id) {
         const [materialRows] = await connection.execute(
-          `SELECT COALESCE(SUM(opm.quantity * COALESCE(m.cost_price, m.price, 0)), 0) AS total_cost
+          `SELECT COALESCE(SUM(opm.quantity * COALESCE(m.cost_price, 0)), 0) AS total_cost
            FROM outsourced_processing_materials opm
            LEFT JOIN materials m ON opm.material_id = m.id
            WHERE opm.processing_id = ?`,
@@ -1343,7 +1386,7 @@ class FinanceIntegrationService {
       }
 
       // 获取会计期间
-      const now = new Date().toISOString().split('T')[0];
+      const now = toLocalDateString(receipt.receipt_date || receipt.created_at || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, now);
 
       // 构建 GL 分录

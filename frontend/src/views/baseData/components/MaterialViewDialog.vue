@@ -5,6 +5,7 @@
     @update:model-value="val => emit('update:modelValue', val)"
     width="fit-content"
     style="min-width: 600px; max-width: 90vw;"
+    destroy-on-close
   >
     <div v-if="viewData">
       <el-descriptions :column="2" border class="custom-descriptions">
@@ -57,10 +58,10 @@
           {{ viewData.location_detail || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item v-if="canViewPrice" label="销售价格">
-          ¥{{ viewData.price || 0 }}
+          {{ formatCurrency(viewData.price) }}
         </el-descriptions-item>
         <el-descriptions-item v-if="canViewCost" label="采购成本">
-          ¥{{ viewData.cost_price || 0 }}
+          {{ formatCurrency(viewData.cost_price) }}
         </el-descriptions-item>
         <el-descriptions-item label="安全库存">
           {{ viewData.safety_stock || 0 }}
@@ -72,7 +73,7 @@
           {{ viewData.max_stock || 0 }}
         </el-descriptions-item>
         <el-descriptions-item label="税率">
-          {{ viewData.tax_rate ? (Number(viewData.tax_rate) * 100) + '%' : '0%' }}
+          {{ formatTaxRate(viewData.tax_rate) }}
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="String(viewData.status) === '1' ? 'success' : 'danger'">
@@ -107,7 +108,7 @@
 </template>
 
 <script setup>
-import { formatDate } from '@/utils/format'
+import { formatCurrency, formatDate } from '@/utils/format'
 import { Document } from '@element-plus/icons-vue'
 
 defineProps({
@@ -117,6 +118,13 @@ defineProps({
   canViewPrice: { type: Boolean, default: false }  // 🔒 查看销售价格权限
 })
 const emit = defineEmits(['update:modelValue'])
+
+const formatTaxRate = (value) => {
+  if (value === null || value === undefined || value === '') return '-';
+  const rate = Number(value);
+  if (Number.isNaN(rate)) return '-';
+  return `${(rate * 100).toFixed(0)}%`;
+}
 </script>
 
 <style scoped>

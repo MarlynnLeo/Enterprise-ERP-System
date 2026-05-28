@@ -53,7 +53,7 @@
         { label: '评级', field: 'rating' }
       ]
     },
-    detailRoute: '/baseData/suppliers/:id'
+    detailRoute: '/basedata/suppliers/:id'
   }))
 
   // API 函数
@@ -69,7 +69,7 @@
 
   // 事件处理
   const handleAdd = () => {
-    router.push('/baseData/suppliers/create')
+    router.push('/basedata/suppliers/create')
   }
 
   const handleFilter = () => {
@@ -77,6 +77,6 @@
   }
 
   const handleItemClick = (item) => {
-    router.push(`/baseData/suppliers/${item.id}`)
+    router.push(`/basedata/suppliers/${item.id}`)
   }
 </script>

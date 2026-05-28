@@ -7,6 +7,7 @@
 
 const { logger } = require('../../../utils/logger');
 const businessConfig = require('../../../config/businessConfig');
+const PeriodValidationService = require('../../../services/business/PeriodValidationService');
 
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
@@ -71,6 +72,7 @@ const insertInventoryLedgerLocal = async (connection, {
   remark = null,
   beforeQuantity = null,
   afterQuantity = null,
+  transactionDate = null,
   checkStockSufficiency = false,
   allowNegativeStock = true
 }) => {
@@ -118,6 +120,12 @@ const insertInventoryLedgerLocal = async (connection, {
     }
 
     // 构建完整备注
+    const ledgerDate = transactionDate || new Date().toISOString().slice(0, 10);
+    const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(ledgerDate);
+    if (!inventoryCheck.allowed) {
+      throw new Error(inventoryCheck.message);
+    }
+
     const fullRemark = remark || `${transaction_type} - ${reference_no || 'N/A'}`;
 
     // 插入库存流水记录
@@ -134,8 +142,9 @@ const insertInventoryLedgerLocal = async (connection, {
       remark,
       before_quantity,
       after_quantity,
+      transaction_date,
       created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
 
     const params = [
       transaction_type,
@@ -150,7 +159,8 @@ const insertInventoryLedgerLocal = async (connection, {
       fullRemark,
 
       calculatedBeforeQuantity,
-      calculatedAfterQuantity
+      calculatedAfterQuantity,
+      ledgerDate
     ];
 
     const [result] = await connection.execute(sql, params);

@@ -83,7 +83,7 @@
 
 <style scoped>
   .config-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
   }
 

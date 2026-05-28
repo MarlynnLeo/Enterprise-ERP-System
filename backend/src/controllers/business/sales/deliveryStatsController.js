@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const { getConnection } = require('../../../config/db');
 
@@ -28,6 +29,8 @@ exports.getDeliveryStats = async (req, res) => {
       customerId = '',
       orderId = '',
     } = req.query;
+
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
     connection = await getConnection();
 
@@ -171,12 +174,11 @@ exports.getDeliveryStats = async (req, res) => {
     const total = countResult[0].total;
 
     // 分页查询
-    const offset = (page - 1) * pageSize;
     const dataQuery = `
       ${mainQuery}
       ${statusFilter}
       ORDER BY so.created_at DESC, so.order_no, m.code
-      LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
@@ -210,8 +212,8 @@ exports.getDeliveryStats = async (req, res) => {
     return ResponseHandler.success(res, {
         items: results,
         total: total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
         stats: stats,
       });
   } catch (error) {

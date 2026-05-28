@@ -139,7 +139,7 @@
 
   // 编辑客户
   const editCustomer = () => {
-    router.push(`/baseData/customers/${customer.value.id}/edit`)
+    router.push(`/basedata/customers/${customer.value.id}/edit`)
   }
 
   // 查看订单
@@ -166,7 +166,7 @@
 
 <style lang="scss" scoped>
   .customer-detail-page {
-    height: 100vh;
+    height: 100%;
     background-color: var(--bg-secondary);
     display: flex;
     flex-direction: column;
@@ -192,7 +192,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
 
     h3 {
       margin: 0;

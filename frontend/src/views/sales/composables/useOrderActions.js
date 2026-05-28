@@ -1,3 +1,4 @@
+import { formatLocalDate } from '@/utils/format';
 /**
  * useOrderActions.js
  * @description 销售订单操作逻辑的组合式函数（从 SalesOrders.vue 抽取）
@@ -85,7 +86,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
       if (items.length === 0) { ElMessage.warning('订单没有物料明细，无法发货'); return }
       const outboundData = {
         order_id: row.id,
-        delivery_date: new Date().toISOString().split('T')[0],
+        delivery_date: formatLocalDate(new Date()),
         status: 'draft',
         remarks: `从销售订单 ${row.order_no} 创建`,
         items: items.map(item => ({ product_id: item.material_id, quantity: item.quantity }))
@@ -208,7 +209,16 @@ export function useOrderActions(fetchDataCallback, tableData) {
   // 状态判断函数
   const canConfirm = (row) => ['draft', 'pending'].includes(row.status)
   const canShip = (row) => ['ready_to_ship', 'partial_shipped'].includes(row.status) && !row.has_draft_outbound
-  const canCancel = (row) => ['draft', 'pending', 'confirmed', 'in_production', 'ready_to_ship'].includes(row.status)
+  const canCancel = (row) => [
+    'draft',
+    'pending',
+    'confirmed',
+    'in_production',
+    'in_procurement',
+    'ready_to_ship',
+    'shortage',
+    'partial_shipped'
+  ].includes(row.status)
   const canLock = (row) => {
     const allowedStatuses = ['in_production', 'in_procurement']
     return !row.is_locked && allowedStatuses.includes(row.status)

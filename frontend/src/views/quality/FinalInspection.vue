@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * FinalInspection.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inspection-container">
+  <div class="module-page inspection-container">
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -147,7 +147,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="200">
+        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -484,7 +484,7 @@
           <el-descriptions-item label="引用模板">{{ currentInspection.template_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="合格率">
             <span v-if="currentInspection.qualified_quantity !== null && currentInspection.quantity"
-                  :style="{ color: (currentInspection.qualified_quantity / currentInspection.quantity) >= 1 ? '#67C23A' : '#F56C6C', fontWeight: 'bold' }">
+                  :style="{ color: (currentInspection.qualified_quantity / currentInspection.quantity) >= 1 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 'bold' }">
               {{ ((currentInspection.qualified_quantity / currentInspection.quantity) * 100).toFixed(1) }}%
             </span>
             <span v-else style="color: var(--color-text-secondary);">-</span>
@@ -497,8 +497,8 @@
           <el-table :data="currentInspection.items" border style="width: 100%">
             <el-table-column prop="item_name" label="项目名称" min-width="140" />
             <el-table-column prop="standard" label="标准" min-width="160" />
-            <el-table-column prop="actual_value" label="实测值" min-width="100" align="center" />
-            <el-table-column label="结果" min-width="90" align="center">
+            <el-table-column prop="actual_value" label="实测值" min-width="100" />
+            <el-table-column label="结果" min-width="90">
               <template #default="scope">
                 <el-tag v-if="scope.row.result === 'passed' || scope.row.result === 'pass'" type="success" size="small">合格</el-tag>
                 <el-tag v-else-if="scope.row.result === 'failed' || scope.row.result === 'fail'" type="danger" size="small">不合格</el-tag>
@@ -717,16 +717,16 @@
   </div>
 </template>
 <script setup>
-import { parseListData } from '@/utils/responseParser';
+import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, StarFilled } from '@element-plus/icons-vue'
+import { Search, Select, StarFilled } from '@element-plus/icons-vue'
 import 'dayjs'
 import { qualityApi, productionApi } from '@/services/api'
-import api from '@/services/api'
 import printService from '@/services/printService'
 import { useAuthStore } from '@/stores/auth'
+import { tokenManager } from '@/utils/unifiedStorage'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import {
   getTemplateItems,
@@ -736,6 +736,10 @@ import {
 } from '@/utils/inspectionTemplateResolver'
 // 权限store
 const authStore = useAuthStore()
+const getCurrentUserDisplayName = () => {
+  const currentUser = authStore.user || tokenManager.getUser()
+  return currentUser?.real_name || currentUser?.realName || currentUser?.name || currentUser?.username || ''
+}
 // 搜索相关 - 使用统一的filters对象
 const filters = reactive({
   keyword: '',
@@ -826,7 +830,7 @@ const fetchProductionOrders = async () => {
   try {
     const response = await productionApi.getProductionTasks({
       status: 'completed',
-      pageSize: 1000
+      pageSize: 50
     });
     const taskItems = parseListData(response, { enableLog: false });
     if (taskItems.length > 0) {
@@ -861,7 +865,7 @@ const fetchInspectionTemplate = async (materialId) => {
       inspection_type: 'final',
       status: 'active',
       include_general: true,  // 同时查询通用模板
-      pageSize: 100,
+      pageSize: 50,
       page: 1
     });
     const templatesData = parseListData(response, { enableLog: false });
@@ -899,19 +903,14 @@ const fetchInspectionTemplate = async (materialId) => {
 // 从后端获取各状态的统计总数（使用轻量请求 limit=1 只取 total 字段）
 const calculateInspectionStats = async () => {
   try {
-    const [pendingRes, passedRes, failedRes, reviewRes] = await Promise.all([
-      qualityApi.getFinalInspections({ status: 'pending', page: 1, limit: 1 }),
-      qualityApi.getFinalInspections({ status: 'passed', page: 1, limit: 1 }),
-      qualityApi.getFinalInspections({ status: 'failed', page: 1, limit: 1 }),
-      qualityApi.getFinalInspections({ status: 'review', page: 1, limit: 1 }),
-    ])
-    const getTotal = (res) => res?.data?.total || 0
-    const pending = getTotal(pendingRes)
-    const passed = getTotal(passedRes)
-    const failed = getTotal(failedRes)
-    const review = getTotal(reviewRes)
+    const response = await qualityApi.getFinalInspectionStats()
+    const data = parseResponseData(response, {})
+    const pending = Number(data.pending) || 0
+    const passed = Number(data.passed) || 0
+    const failed = Number(data.failed) || 0
+    const review = Number(data.review) || 0
     inspectionStats.value = {
-      total: pending + passed + failed + review,
+      total: Number(data.total) || pending + passed + failed + review,
       pending,
       passed,
       failed,
@@ -1004,18 +1003,17 @@ const fetchData = async () => {
 const fetchReworkStatusForFailedInspections = async () => {
   const failedInspections = inspectionList.value.filter(row => row.status === 'failed');
   if (failedInspections.length === 0) return;
-  // 并行查询所有 failed 检验单的返工状态
-  const promises = failedInspections.map(async (row) => {
-    try {
-      const res = await api.get(`/rework-tasks/by-inspection/${row.id}`);
-      const data = res.data?.data || res.data;
-      reworkStatusMap.value[row.id] = data;
-    } catch {
-      // 查询失败时默认不允许复检
+  try {
+    const res = await qualityApi.getReworkStatusByInspectionIds(failedInspections.map(row => row.id));
+    const data = parseResponseData(res, {});
+    failedInspections.forEach(row => {
+      reworkStatusMap.value[row.id] = data[row.id] || { allow_reinspection: false };
+    });
+  } catch {
+    failedInspections.forEach(row => {
       reworkStatusMap.value[row.id] = { allow_reinspection: false };
-    }
-  });
-  await Promise.all(promises);
+    });
+  }
 }
 /**
  * 根据检验单的返工闭环状态，返回对应的提示文字
@@ -1322,19 +1320,7 @@ const handleInspect = async (row) => {
 
     // 打印最终要使用的检验项目
     // 自动填入当前登录用户的真实姓名作为检验员
-    const currentUser = authStore.user;
-    if (currentUser) {
-      // 优先使用real_name字段作为真实姓名
-      inspectForm.inspector_name = currentUser.real_name || currentUser.name || '';
-      } else {
-      // 如果authStore中没有用户信息，尝试从localStorage获取
-      const localUser = JSON.parse(localStorage.getItem('user') || 'null');
-      if (localUser) {
-        inspectForm.inspector_name = localUser.real_name || localUser.name || '';
-        } else {
-        inspectForm.inspector_name = '';
-      }
-    }
+    inspectForm.inspector_name = getCurrentUserDisplayName();
 
     inspectForm.inspectionDate = new Date();
     inspectForm.note = inspection.note || '';
@@ -1456,19 +1442,7 @@ const handleReview = (row) => {
       }));
 
       // 自动填入当前登录用户的真实姓名作为检验员
-      const currentUser = authStore.user;
-      if (currentUser) {
-        // 优先使用real_name字段作为真实姓名
-        inspectForm.inspector_name = currentUser.real_name || currentUser.name || '';
-        } else {
-        // 如果authStore中没有用户信息，尝试从localStorage获取
-        const localUser = JSON.parse(localStorage.getItem('user') || 'null');
-        if (localUser) {
-          inspectForm.inspector_name = localUser.real_name || localUser.name || '';
-          } else {
-          inspectForm.inspector_name = '';
-        }
-      }
+      inspectForm.inspector_name = getCurrentUserDisplayName();
 
       inspectForm.inspectionDate = new Date();
       inspectForm.note = currentInspection.value.note + ' (复检)';
@@ -1630,7 +1604,6 @@ const handlePrintCertificate = async () => {
   display: flex;
   gap: 8px;
 }
-/* 使用全局样式 common-styles.css 中的 .statistics-row 和 .stat-card */
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -1651,7 +1624,7 @@ const handlePrintCertificate = async () => {
 .criteria-item {
   margin-bottom: 15px;
   padding-bottom: 15px;
-  border-bottom: 1px dashed #eee;
+  border-bottom: 1px dashed var(--color-border-lighter);
 }
 .criteria-item:last-child {
   border-bottom: none;
@@ -1660,7 +1633,7 @@ const handlePrintCertificate = async () => {
   padding: 20px;
   border: 1px solid var(--color-border-base);
   border-radius: var(--radius-sm);
-  background-color: #f7f7f7;
+  background-color: var(--color-bg-hover);
 }
 .certificate-header {
   text-align: center;
@@ -1701,10 +1674,10 @@ const handlePrintCertificate = async () => {
 /* 检验结果选择器样式 */
 .result-select-passed :deep(.el-input__wrapper) {
   border-color: var(--color-success) !important;
-  box-shadow: 0 0 0 1px #67C23A inset !important;
+  box-shadow: 0 0 0 1px var(--color-success) inset !important;
 }
 .result-select-failed :deep(.el-input__wrapper) {
   border-color: var(--color-danger) !important;
-  box-shadow: 0 0 0 1px #F56C6C inset !important;
+  box-shadow: 0 0 0 1px var(--color-danger) inset !important;
 }
 </style>

@@ -5,6 +5,7 @@
  */
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { calculateLines, normalizeTaxRate } = require('../utils/money');
 
 class SalesDao {
   // ==========================================
@@ -87,22 +88,25 @@ class SalesDao {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
+      const quotationAmounts = calculateLines(Array.isArray(items) ? items : [], {
+        defaultTaxRate: quotation.taxRate ?? quotation.tax_rate ?? 0,
+      });
 
       const [result] = await connection.execute(
         'INSERT INTO sales_quotations (quotation_no, customer_id, total_amount, validity_date, status, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [quotation.quotationNo, quotation.customerId, quotation.totalAmount, quotation.validityDate, quotation.status, quotation.remarks, quotation.createdBy]
+        [quotation.quotationNo, quotation.customerId, quotationAmounts.totalAmount, quotation.validityDate, quotation.status, quotation.remarks, quotation.createdBy]
       );
       const quotationId = result.insertId;
 
-      for (const item of items) {
+      for (const item of quotationAmounts.items) {
         await connection.execute(
           'INSERT INTO sales_quotation_items (quotation_id, product_id, quantity, unit_price, discount_percent, tax_percent, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [quotationId, item.productId, item.quantity, item.unitPrice, item.discountPercent, item.taxPercent, item.totalPrice]
+          [quotationId, item.productId ?? item.product_id, item.quantity, item.unit_price, item.discountPercent ?? item.discount_percent ?? 0, item.tax_percent, item.total_price]
         );
       }
 
       await connection.commit();
-      return { id: quotationId, ...quotation, items };
+      return { id: quotationId, ...quotation, totalAmount: quotationAmounts.totalAmount, items: quotationAmounts.items };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -192,7 +196,7 @@ class SalesDao {
 
       const [result] = await connection.execute(
         'INSERT INTO sales_orders (order_no, customer_id, quotation_id, contract_code, total_amount, tax_rate, tax_amount, subtotal, payment_terms, delivery_date, status, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [order.orderNo, order.customerId, order.quotationId, order.contractCode, order.totalAmount, order.taxRate || 0.13, order.taxAmount || 0, order.subtotal || 0, order.paymentTerms, order.deliveryDate, order.status, order.remarks, order.createdBy]
+        [order.orderNo, order.customerId, order.quotationId, order.contractCode, order.totalAmount, normalizeTaxRate(order.taxRate, 0.13), order.taxAmount || 0, order.subtotal || 0, order.paymentTerms, order.deliveryDate, order.status, order.remarks, order.createdBy]
       );
       const orderId = result.insertId;
 
@@ -218,11 +222,14 @@ class SalesDao {
     try {
       await connection.beginTransaction();
 
-      const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0), 0);
       const remarks = order.notes || order.remarks || '';
-      const taxRate = order.tax_rate !== undefined ? order.tax_rate : 0.13;
-      const subtotal = order.subtotal || totalAmount / (1 + taxRate);
-      const taxAmount = order.tax_amount || (totalAmount - subtotal);
+      const orderAmounts = calculateLines(items || [], {
+        defaultTaxRate: order.tax_rate !== undefined ? order.tax_rate : 0.13,
+      });
+      const totalAmount = orderAmounts.totalAmount;
+      const taxRate = normalizeTaxRate(order.tax_rate !== undefined ? order.tax_rate : orderAmounts.taxRate, 0.13);
+      const subtotal = orderAmounts.subtotal;
+      const taxAmount = orderAmounts.taxAmount;
 
       await connection.execute(
         'UPDATE sales_orders SET customer_id = ?, contract_code = ?, total_amount = ?, tax_rate = ?, tax_amount = ?, subtotal = ?, payment_terms = ?, delivery_date = ?, status = ?, remarks = ?, updated_at = NOW() WHERE id = ?',
@@ -231,17 +238,17 @@ class SalesDao {
 
       await connection.execute('DELETE FROM sales_order_items WHERE order_id = ?', [id]);
 
-      for (const item of items) {
-        const qty = parseFloat(item.quantity) || 0;
-        const price = parseFloat(item.unit_price) || 0;
+      for (const item of orderAmounts.items) {
+        const qty = item.quantity;
+        const price = item.unit_price;
         await connection.execute(
           'INSERT INTO sales_order_items (order_id, material_id, quantity, unit_price, amount, tax_percent, remark) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [id, item.material_id, qty, price, item.amount || (qty * price), item.tax_percent !== undefined ? item.tax_percent : (item.tax_rate !== undefined ? item.tax_rate : 0.13), item.remark || '']
+          [id, item.material_id, qty, price, item.amount, item.tax_percent, item.remark || '']
         );
       }
 
       await connection.commit();
-      return { id, ...order, total_amount: totalAmount, items };
+      return { id, ...order, total_amount: totalAmount, items: orderAmounts.items };
     } catch (error) {
       await connection.rollback();
       throw error;

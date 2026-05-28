@@ -271,7 +271,7 @@ const goBack = () => {
 
 // 编辑
 const handleEdit = () => {
-  router.push(`/baseData/materials/${route.params.id}/edit`)
+  router.push(`/basedata/materials/${route.params.id}/edit`)
 }
 
 // 页面加载时获取数据
@@ -282,19 +282,22 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .material-detail {
-  min-height: 100vh;
-  background: var(--color-bg-primary);
-  padding-bottom: 2rem;
+  min-height: 100%;
+  background: var(--bg-primary);
+  padding-bottom: var(--app-bottom-space);
 }
 
 .nav-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
-  background: var(--color-glass-light);
-  backdrop-filter: blur(var(--effect-blur));
-  border-bottom: 1px solid var(--color-border-light);
+  min-height: calc(48px + var(--safe-area-top, 0px));
+  margin: 0;
+  padding: var(--safe-area-top, 0px) 12px 0;
+  background: var(--bg-secondary);
+  border: 0;
+  border-bottom: 1px solid var(--van-border-color, var(--surface-border));
+  border-radius: 0;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -309,7 +312,7 @@ onMounted(() => {
   justify-content: center;
   background: none;
   border: none;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   cursor: pointer;
 
   svg {
@@ -321,7 +324,7 @@ onMounted(() => {
 .title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -334,21 +337,21 @@ onMounted(() => {
 }
 
 .content {
-  padding: 1rem;
+  padding: 0 12px var(--app-bottom-space);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 12px;
 }
 
 .header-card {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1.5rem;
-  background: var(--color-glass-medium);
-  backdrop-filter: blur(var(--effect-blur));
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-lg);
+  min-height: 72px;
+  padding: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--surface-border, var(--border-subtle));
+  border-radius: 12px;
   box-shadow: none;
 }
 
@@ -359,7 +362,8 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 2rem;
-  background: var(--color-gradient-primary);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border-radius: var(--radius-md);
 }
 
@@ -370,13 +374,13 @@ onMounted(() => {
 .material-name {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   margin: 0 0 0.25rem 0;
 }
 
 .material-code {
   font-size: 0.875rem;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -388,25 +392,24 @@ onMounted(() => {
 }
 
 .status-active {
-  background: rgba(34, 197, 94, 0.2);
-  color: rgb(134, 239, 172);
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .status-inactive {
-  background: rgba(148, 163, 184, 0.2);
-  color: rgb(203, 213, 225);
+  background: var(--color-info-bg);
+  color: var(--color-info);
 }
 
 .status-discontinued {
-  background: rgba(239, 68, 68, 0.2);
-  color: rgb(252, 165, 165);
+  background: var(--color-error-bg);
+  color: var(--color-error);
 }
 
 .info-section {
-  background: var(--color-glass-light);
-  backdrop-filter: blur(var(--effect-blur));
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  border: 1px solid var(--surface-border, var(--border-subtle));
+  border-radius: 12px;
   padding: 1.25rem;
   box-shadow: none;
 }
@@ -414,10 +417,10 @@ onMounted(() => {
 .section-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   margin: 0 0 1rem 0;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
 }
 
 .info-grid {
@@ -438,12 +441,12 @@ onMounted(() => {
 
 .label {
   font-size: 0.75rem;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .value {
   font-size: 0.875rem;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   font-weight: 500;
 
   &.highlight {

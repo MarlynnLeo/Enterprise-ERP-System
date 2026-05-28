@@ -13,6 +13,7 @@
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const businessConfig = require('../../config/businessConfig');
+const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 
 class PurchaseReceiptService {
   /**
@@ -23,25 +24,73 @@ class PurchaseReceiptService {
    * @param {object} originalInspection - 原始请求体
    * @returns {Promise<{receiptId: number, receiptNo: string}>}
    */
-  static async autoCreateFromInspection(inspectionResult, originalInspection) {
-    const connection = await db.pool.getConnection();
+  static async autoCreateFromInspection(inspectionResult, originalInspection, externalConnection = null) {
+    const connection = externalConnection || await db.pool.getConnection();
+    const useOwnConnection = !externalConnection;
     try {
-      await connection.beginTransaction();
+      if (useOwnConnection) {
+        await connection.beginTransaction();
+      }
 
       // 提取基本参数
       const orderId = inspectionResult.reference_id || originalInspection.reference_id;
       const materialId = inspectionResult.material_id || originalInspection.material_id;
-      const qty = parseFloat(inspectionResult.quantity || originalInspection.quantity || 0);
+      const qualifiedQty =
+        inspectionResult.qualified_quantity ?? originalInspection.qualified_quantity;
+      const qty = parseFloat(
+        qualifiedQty ?? inspectionResult.quantity ?? originalInspection.quantity ?? 0
+      );
       const inspectionId = inspectionResult.id;
       const inspectionNo = inspectionResult.inspection_no;
       const batchNo = inspectionResult.batch_no || originalInspection.batch_no || '';
+      const isExempt = Boolean(inspectionResult.is_exempt || originalInspection.is_exempt);
+      const operator = isExempt
+        ? '系统(自动免检)'
+        : inspectionResult.inspector_name || originalInspection.inspector_name || '系统(检验放行)';
+      const sourceRemark = isExempt ? '免检来料自动生成' : '来料检验合格自动生成';
 
       if (!orderId) {
         throw new Error('缺少采购订单引用ID，无法创建入库单');
       }
 
+      if (qty <= 0) {
+        throw new Error('合格数量必须大于0，无法创建采购入库单');
+      }
+
+      if (inspectionId) {
+        const [lockedInspections] = await connection.query(
+          'SELECT id FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+          [inspectionId]
+        );
+        if (!lockedInspections || lockedInspections.length === 0) {
+          throw new Error(`检验单 ${inspectionId} 不存在，无法创建采购入库单`);
+        }
+
+        const [existingReceipts] = await connection.query(
+          "SELECT id, receipt_no FROM purchase_receipts WHERE inspection_id = ? AND status != 'cancelled' LIMIT 1",
+          [inspectionId]
+        );
+        if (existingReceipts.length > 0) {
+          logger.info(
+            `检验单 ${inspectionNo} 已存在采购入库单 ${existingReceipts[0].receipt_no}，跳过重复创建`
+          );
+          if (useOwnConnection) {
+            await connection.commit();
+          }
+          return {
+            receiptId: existingReceipts[0].id,
+            receiptNo: existingReceipts[0].receipt_no,
+            existed: true,
+          };
+        }
+      }
+
       // 1. 一次 JOIN 查询获取完整订单上下文（订单、供应商、物料、采购价格）
       const context = await this._getOrderContext(connection, orderId, materialId);
+      const taxRate = normalizeTaxRate(context.taxRate, 0.13);
+      const amountExcludingTax = lineAmount(qty, context.price);
+      const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
+      const totalAmount = roundMoney(amountExcludingTax + taxAmount);
 
       // 2. 安全仓库路由
       const { warehouseId, warehouseName } = await this._resolveWarehouse(
@@ -51,15 +100,15 @@ class PurchaseReceiptService {
 
       // 3. 生成入库单号
       const purchaseModel = require('../../models/purchase');
-      const receiptNo = await purchaseModel.generateReceiptNo();
+      const receiptNo = await purchaseModel.generateReceiptNo(connection);
 
       // 4. 插入采购入库单主表
       const [receiptResult] = await connection.query(
         `INSERT INTO purchase_receipts (
           receipt_no, order_id, order_no, supplier_id, supplier_name,
           warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
-          from_inspection, inspection_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          total_amount, total_tax_amount, from_inspection, inspection_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptNo,
           orderId,
@@ -69,9 +118,11 @@ class PurchaseReceiptService {
           warehouseId,
           warehouseName,
           new Date(),
-          '系统(自动免检)',
-          `免检来料自动生成 - 检验单 ${inspectionNo}`,
+          operator,
+          `${sourceRemark} - 检验单 ${inspectionNo}`,
           'draft',
+          totalAmount,
+          taxAmount,
           1,
           inspectionId,
         ]
@@ -85,8 +136,9 @@ class PurchaseReceiptService {
           receipt_id, material_id, material_code, material_name,
           specification, unit_id, ordered_quantity, quantity,
           received_quantity, qualified_quantity, batch_number, price,
+          tax_rate, amount_excluding_tax, tax_amount, total_amount,
           remarks, from_inspection
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptId,
           materialId,
@@ -100,22 +152,32 @@ class PurchaseReceiptService {
           qty,
           batchNo,
           context.price,
-          `免检自动入库 - ${inspectionNo}`,
+          taxRate,
+          amountExcludingTax,
+          taxAmount,
+          totalAmount,
+          `${sourceRemark} - ${inspectionNo}`,
           1,
         ]
       );
 
-      await connection.commit();
+      if (useOwnConnection) {
+        await connection.commit();
+      }
       logger.info(
         `📦 自动创建采购入库单 ${receiptNo} (ID: ${receiptId})，来源检验单 ${inspectionNo}`
       );
 
       return { receiptId, receiptNo };
     } catch (error) {
-      await connection.rollback();
+      if (useOwnConnection) {
+        await connection.rollback();
+      }
       throw error;
     } finally {
-      connection.release();
+      if (useOwnConnection) {
+        connection.release();
+      }
     }
   }
 
@@ -140,7 +202,9 @@ class PurchaseReceiptService {
         m.specs      AS material_specs,
         m.location_id AS material_location_id,
         m.unit_id,
-        poi.price
+        poi.id       AS order_item_id,
+        poi.price,
+        poi.tax_rate
       FROM purchase_orders po
         LEFT JOIN suppliers s       ON po.supplier_id = s.id
         LEFT JOIN materials m       ON m.id = ?
@@ -156,6 +220,13 @@ class PurchaseReceiptService {
     }
 
     const row = rows[0];
+    if (!row.order_item_id) {
+      throw new Error(`采购订单 ${orderId} 中不存在物料 ${materialId}，无法创建入库单`);
+    }
+    if (!row.material_code || !row.material_name) {
+      throw new Error(`物料 ${materialId} 基础资料不完整，无法创建入库单`);
+    }
+
     return {
       orderNo: row.order_no || '',
       supplierId: row.supplier_id,
@@ -166,6 +237,7 @@ class PurchaseReceiptService {
       materialLocationId: row.material_location_id,
       unitId: row.unit_id,
       price: parseFloat(row.price) || 0,
+      taxRate: row.tax_rate,
     };
   }
 

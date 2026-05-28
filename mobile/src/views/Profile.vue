@@ -226,7 +226,7 @@ const handleFileChange = async (event) => {
     closeToast()
     showToast({ type: 'success', message: '头像上传成功' })
     showAvatarUpload.value = false
-    authStore.fetchUserProfile()
+    await authStore.fetchUserProfile()
     if (fileInput.value) fileInput.value.value = ''
   } catch (error) {
     closeToast()
@@ -260,29 +260,33 @@ onMounted(() => { loadStatistics() })
 
 <style lang="scss" scoped>
 .profile-page {
-  position: absolute;
-  inset: 0;
+  min-height: 100%;
   background: var(--bg-primary);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .scroll-container {
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0) + 70px);
+  padding: calc(var(--safe-area-top, 0px) + 8px) 12px var(--app-bottom-space);
 }
 
 /* === 头部 === */
 .profile-header {
-  padding: 16px 16px 8px;
+  padding: 0 0 8px;
 }
 
 .user-card {
+  min-height: 72px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
-  border-radius: 14px;
+  border: 1px solid var(--surface-border, var(--border-subtle));
+  border-radius: 12px;
   padding: 14px;
+  box-shadow: none;
 }
 
 .user-card-top {
@@ -301,7 +305,7 @@ onMounted(() => { loadStatistics() })
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-primary, var(--color-primary)), #7c3aed);
+  background: linear-gradient(135deg, var(--color-primary), var(--ds-purple));
   padding: 2px;
   display: flex;
   align-items: center;
@@ -331,7 +335,7 @@ onMounted(() => { loadStatistics() })
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--color-primary, var(--color-primary));
+  background: var(--color-primary);
   border: 2px solid var(--bg-secondary);
   display: flex;
   align-items: center;
@@ -355,8 +359,8 @@ onMounted(() => { loadStatistics() })
   display: inline-block;
   font-size: 0.625rem;
   font-weight: 600;
-  color: var(--color-primary, var(--color-primary));
-  background: color-mix(in srgb, var(--color-primary, var(--color-primary)) 10%, transparent);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   padding: 1px 8px;
   border-radius: 99px;
 }
@@ -373,16 +377,19 @@ onMounted(() => { loadStatistics() })
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  max-width: min(42vw, 160px);
   font-size: 0.625rem;
   color: var(--text-tertiary);
   background: var(--bg-tertiary, var(--bg-primary));
   padding: 3px 8px;
   border-radius: 99px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* === 通用 Section === */
 .section {
-  padding: 0 16px;
   margin-bottom: 20px;
 }
 .section-label {
@@ -407,7 +414,7 @@ onMounted(() => { loadStatistics() })
   gap: 6px;
   padding: 12px 4px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
+  border: 1px solid var(--border-subtle, color-mix(in srgb, var(--ds-black) 6%, transparent));
   border-radius: 12px;
   cursor: pointer;
   transition: transform 0.15s;
@@ -421,10 +428,13 @@ onMounted(() => { loadStatistics() })
   align-items: center;
   justify-content: center;
   color: var(--text-primary);
-  &.bg-indigo { background: linear-gradient(135deg, #6366f1, #818cf8); }
-  &.bg-rose { background: linear-gradient(135deg, #f43f5e, #fb7185); }
-  &.bg-cyan { background: linear-gradient(135deg, #06b6d4, #22d3ee); }
-  &.bg-emerald { background: linear-gradient(135deg, var(--color-success), #34d399); }
+  background: var(--bg-tertiary, var(--bg-primary));
+  &.bg-indigo,
+  &.bg-rose,
+  &.bg-cyan,
+  &.bg-emerald {
+    background: var(--bg-tertiary, var(--bg-primary));
+  }
 }
 .stat-num {
   font-size: 1.25rem;
@@ -441,7 +451,7 @@ onMounted(() => { loadStatistics() })
 /* === 个人信息列表 === */
 .info-list {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
+  border: 1px solid var(--border-subtle, color-mix(in srgb, var(--ds-black) 6%, transparent));
   border-radius: 12px;
   overflow: hidden;
 }
@@ -450,7 +460,7 @@ onMounted(() => { loadStatistics() })
   justify-content: space-between;
   align-items: center;
   padding: 12px 14px;
-  & + & { border-top: 1px solid var(--border-subtle, rgba(0,0,0,0.06)); }
+  & + & { border-top: 1px solid var(--border-subtle, color-mix(in srgb, var(--ds-black) 6%, transparent)); }
 }
 .info-key {
   font-size: 0.8125rem;
@@ -465,7 +475,7 @@ onMounted(() => { loadStatistics() })
 /* === 功能菜单 === */
 .menu-list {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
+  border: 1px solid var(--border-subtle, color-mix(in srgb, var(--ds-black) 6%, transparent));
   border-radius: 12px;
   overflow: hidden;
 }
@@ -476,8 +486,8 @@ onMounted(() => { loadStatistics() })
   padding: 13px 14px;
   cursor: pointer;
   transition: background 0.15s;
-  & + & { border-top: 1px solid var(--border-subtle, rgba(0,0,0,0.06)); }
-  &:active { background: var(--surface-hover, rgba(0,0,0,0.03)); }
+  & + & { border-top: 1px solid var(--border-subtle, color-mix(in srgb, var(--ds-black) 6%, transparent)); }
+  &:active { background: var(--surface-hover, color-mix(in srgb, var(--ds-black) 3%, transparent)); }
 }
 .menu-icon-box {
   width: 32px;
@@ -502,14 +512,14 @@ onMounted(() => { loadStatistics() })
 
 /* === 退出登录 === */
 .section-logout {
-  padding-bottom: 16px;
+  padding-bottom: 0;
 }
 .logout-btn {
   width: 100%;
   height: 44px;
   border-radius: 12px;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid color-mix(in srgb, var(--ds-red) 20%, transparent);
+  background: color-mix(in srgb, var(--ds-red) 6%, transparent);
   color: var(--color-danger);
   font-size: 0.875rem;
   font-weight: 600;
@@ -518,9 +528,9 @@ onMounted(() => { loadStatistics() })
   justify-content: center;
   gap: 6px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.15s;
   &:active {
-    background: rgba(239, 68, 68, 0.12);
+    background: color-mix(in srgb, var(--ds-red) 12%, transparent);
     transform: scale(0.98);
   }
 }
@@ -548,5 +558,11 @@ onMounted(() => { loadStatistics() })
   font-size: 0.6875rem;
   color: var(--text-tertiary);
   text-align: center;
+}
+
+@media (max-width: 390px) {
+  .user-contacts {
+    display: none;
+  }
 }
 </style>

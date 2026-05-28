@@ -1,11 +1,11 @@
 /**
- * KACON 主题基础令牌
- * @description 与颜色无关的通用设计令牌（间距、圆角、动画、Vant结构映射）
+ * KACON base design tokens.
+ * Color-independent tokens for spacing, radius, motion, utilities, and Vant mappings.
  * @version 2.0.0
  */
 
 :root {
-  /* ==================== 字体系统（与 PC 端统一） ==================== */
+  /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Noto Sans SC',
     'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei',
     sans-serif;
@@ -13,7 +13,7 @@
     monospace;
   --font-display: 'DIN Alternate', 'Inter', var(--font-sans);
 
-  /* ==================== 圆角系统 ==================== */
+  /* Radius */
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
@@ -21,7 +21,7 @@
   --radius-2xl: 2rem;
   --radius-full: 9999px;
 
-  /* ==================== 间距系统 ==================== */
+  /* Spacing */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 1rem;
@@ -29,13 +29,91 @@
   --spacing-xl: 2rem;
   --spacing-2xl: 3rem;
 
-  /* ==================== 过渡动画 ==================== */
+  /* Motion */
   --transition-fast: 0.15s ease;
   --transition-base: 0.2s ease;
   --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Enterprise semantic palette. Component styles should reference these tokens. */
+  --color-on-primary: #ffffff;
+  --color-primary-active: color-mix(in srgb, var(--color-primary, #1a73e8) 82%, black);
+  --color-accent-bg: var(--color-primary-bg, color-mix(in srgb, var(--color-primary, #1a73e8) 12%, transparent));
+  --color-brand: var(--color-on-primary);
+  --color-danger: var(--color-error, #d93025);
+  --color-danger-bg: var(--color-error-bg, color-mix(in srgb, var(--color-danger) 12%, transparent));
+  --color-danger-light: var(--color-danger-bg);
+  --color-text-primary: var(--text-primary, #202124);
+  --color-text-secondary: var(--text-secondary, #5f6368);
+  --color-text-tertiary: var(--text-tertiary, #80868b);
+  --color-text-disabled: var(--text-disabled, #bdc1c6);
+  --color-bg-base: var(--bg-secondary, #ffffff);
+  --color-bg-page: var(--bg-primary, #f8f9fa);
+  --color-bg-section: var(--bg-secondary, #ffffff);
+  --color-bg-hover: var(--surface-hover, #f8f9fa);
+  --surface-card: var(--surface-elevated, var(--bg-secondary, #ffffff));
+  --surface-card-hover: var(--surface-elevated-hover, var(--surface-hover, #f8f9fa));
+  --surface-card-active: var(--surface-elevated-active, var(--surface-active, #eef2f7));
+  --color-border-base: var(--van-border-color, #dadce0);
+  --color-border-lighter: var(--border-subtle, rgba(0, 0, 0, 0.06));
+  --glass-border: var(--surface-border, var(--border-subtle, rgba(0, 0, 0, 0.06)));
+  --ds-blue: var(--color-info, #1a73e8);
+  --ds-blue-bg: var(--color-info-bg, color-mix(in srgb, var(--ds-blue) 12%, transparent));
+  --ds-blue-strong: color-mix(in srgb, var(--ds-blue) 72%, white);
+  --ds-indigo: var(--color-primary, #1a73e8);
+  --ds-indigo-bg: color-mix(in srgb, var(--ds-indigo) 12%, transparent);
+  --ds-indigo-strong: color-mix(in srgb, var(--ds-indigo) 72%, white);
+  --ds-cyan: var(--color-info, #1a73e8);
+  --ds-cyan-bg: color-mix(in srgb, var(--ds-cyan) 12%, transparent);
+  --ds-cyan-strong: color-mix(in srgb, var(--ds-cyan) 72%, white);
+  --ds-purple: #7c3aed;
+  --ds-purple-bg: color-mix(in srgb, var(--ds-purple) 12%, transparent);
+  --ds-purple-strong: #a78bfa;
+  --ds-green: var(--color-success, #1e8e3e);
+  --ds-green-bg: var(--color-success-bg, color-mix(in srgb, var(--ds-green) 12%, transparent));
+  --ds-green-strong: color-mix(in srgb, var(--ds-green) 72%, white);
+  --ds-red: var(--color-error, #d93025);
+  --ds-red-bg: var(--color-error-bg, color-mix(in srgb, var(--ds-red) 12%, transparent));
+  --ds-red-strong: color-mix(in srgb, var(--ds-red) 72%, white);
+  --ds-yellow: var(--color-warning, #b06000);
+  --ds-yellow-bg: var(--color-warning-bg, color-mix(in srgb, var(--ds-yellow) 14%, transparent));
+  --ds-yellow-strong: color-mix(in srgb, var(--ds-yellow) 70%, white);
+  --ds-teal: var(--color-success, #14b8a6);
+  --ds-teal-bg: color-mix(in srgb, var(--ds-teal) 12%, transparent);
+  --ds-teal-strong: color-mix(in srgb, var(--ds-teal) 72%, white);
+  --ds-orange: #ea580c;
+  --ds-orange-bg: color-mix(in srgb, var(--ds-orange) 12%, transparent);
+  --ds-orange-strong: #fb923c;
+  --ds-pink: #db2777;
+  --ds-pink-bg: color-mix(in srgb, var(--ds-pink) 12%, transparent);
+  --ds-gray: var(--text-tertiary, #64748b);
+  --ds-gray-bg: color-mix(in srgb, var(--ds-gray) 14%, transparent);
+  --ds-gray-strong: color-mix(in srgb, var(--ds-gray) 70%, white);
+  --ds-slate: var(--text-primary, #202124);
+  --ds-slate-bg: color-mix(in srgb, var(--ds-slate) 10%, transparent);
+  --ds-slate-strong: color-mix(in srgb, var(--ds-slate) 78%, white);
+  --ds-white: #ffffff;
+  --ds-black: #000000;
+  --ds-white-soft: color-mix(in srgb, var(--ds-white) 88%, transparent);
+  --ds-black-soft: color-mix(in srgb, var(--ds-black) 8%, transparent);
+  --module-blue: var(--ds-blue);
+  --module-purple: var(--ds-purple);
+  --module-green: var(--ds-green);
+  --module-red: var(--ds-red);
+  --module-yellow: var(--ds-yellow);
+  --module-orange: var(--ds-orange);
+  --module-pink: var(--ds-pink);
+  --module-gray: var(--ds-gray);
+  --module-blue-light: var(--ds-blue-bg);
+  --module-purple-light: var(--ds-purple-bg);
+  --module-green-light: var(--ds-green-bg);
+  --module-red-light: var(--ds-red-bg);
+  --module-yellow-light: var(--ds-yellow-bg);
+  --module-orange-light: var(--ds-orange-bg);
+  --border-light: var(--surface-border);
+  --bg-black: #000000;
 }
 
-/* ==================== 通用动画 ==================== */
+/* Motion utilities */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -63,7 +141,7 @@
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* ==================== 通用工具类 ==================== */
+/* Utilities */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -75,64 +153,57 @@
   transform: scale(0.95);
 }
 
-/* 文字颜色 */
-.text-primary {
-  color: var(--text-primary);
-}
-.text-secondary {
-  color: var(--text-secondary);
-}
-.text-tertiary {
-  color: var(--text-tertiary);
-}
-.text-success {
-  color: var(--color-success);
-}
-.text-warning {
-  color: var(--color-warning);
-}
-.text-error {
-  color: var(--color-error);
-}
-.text-info {
-  color: var(--color-info);
-}
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary { color: var(--text-tertiary); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-error { color: var(--color-error); }
+.text-info { color: var(--color-info); }
 
-/* 背景颜色 */
-.bg-primary {
-  background-color: var(--bg-primary);
-}
-.bg-secondary {
-  background-color: var(--bg-secondary);
-}
+.bg-primary { background-color: var(--bg-primary); }
+.bg-secondary { background-color: var(--bg-secondary); }
 
-/* 圆角 */
-.rounded-sm {
-  border-radius: var(--radius-sm);
-}
-.rounded-md {
-  border-radius: var(--radius-md);
-}
-.rounded-lg {
-  border-radius: var(--radius-lg);
-}
-.rounded-xl {
-  border-radius: var(--radius-xl);
-}
-.rounded-2xl {
-  border-radius: var(--radius-2xl);
-}
-.rounded-full {
-  border-radius: var(--radius-full);
-}
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-xl { border-radius: var(--radius-xl); }
+.rounded-2xl { border-radius: var(--radius-2xl); }
+.rounded-full { border-radius: var(--radius-full); }
 
-/* 阴影 */
-.shadow-sm {
-  box-shadow: var(--shadow-sm);
-}
-.shadow-md {
-  box-shadow: var(--shadow-md);
-}
-.shadow-lg {
-  box-shadow: var(--shadow-lg);
+.shadow-sm { box-shadow: var(--shadow-sm); }
+.shadow-md { box-shadow: var(--shadow-md); }
+.shadow-lg { box-shadow: var(--shadow-lg); }
+
+/* Cross-theme Vant compatibility tokens. */
+:root,
+:root[data-theme] {
+
+
+  --van-cell-active-color: var(--surface-active);
+  --van-cell-group-background: var(--bg-secondary);
+  --van-cell-group-title-color: var(--text-secondary);
+  --van-cell-label-color: var(--text-tertiary);
+  --van-cell-value-color: var(--text-secondary);
+
+  --van-dialog-header-color: var(--text-primary);
+  --van-dialog-message-text-color: var(--text-secondary);
+  --van-empty-description-color: var(--text-tertiary);
+  --van-field-disabled-text-color: var(--text-disabled);
+  --van-field-input-text-color: var(--text-primary);
+  --van-field-label-color: var(--text-secondary);
+  --van-field-placeholder-text-color: var(--text-tertiary);
+  --van-list-text-color: var(--text-secondary);
+  --van-nav-bar-arrow-size: 20px;
+  --van-nav-bar-text-color: var(--text-secondary);
+  --van-picker-background: var(--bg-secondary);
+  --van-picker-option-text-color: var(--text-secondary);
+  --van-picker-title-text-color: var(--text-primary);
+  --van-pull-refresh-text-color: var(--text-secondary);
+  --van-search-action-text-color: var(--color-primary);
+  --van-tabbar-height: 56px;
+  --van-tabbar-background: var(--bg-secondary);
+  --van-tabbar-item-active-background: transparent;
+  --van-toast-background: rgba(32, 33, 36, 0.9);
+  --van-toast-text-color: #ffffff;
 }

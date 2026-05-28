@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const db = require('../../../config/db');
 
 const PeriodEndService = require('../../../services/business/PeriodEndService');
 const DepreciationService = require('../../../services/business/DepreciationService');
@@ -17,6 +18,37 @@ const ScheduledTaskService = require('../../../services/business/ScheduledTaskSe
  * 处理财务自动化相关的API请求
  */
 class FinanceAutomationController {
+  static async assertOpenPeriod(periodId, actionName = '执行成本处理') {
+    const pid = parseInt(periodId, 10);
+    if (!Number.isInteger(pid)) {
+      const error = new Error('会计期间无效');
+      error.code = 'BAD_REQUEST';
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const [periodRows] = await db.pool.execute(
+      'SELECT id, period_name, is_closed FROM gl_periods WHERE id = ?',
+      [pid]
+    );
+
+    if (periodRows.length === 0) {
+      const error = new Error('会计期间不存在');
+      error.code = 'NOT_FOUND';
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (periodRows[0].is_closed) {
+      const error = new Error(`会计期间已关闭，不能${actionName}`);
+      error.code = 'PERIOD_CLOSED';
+      error.statusCode = 400;
+      throw error;
+    }
+
+    return { pid, period: periodRows[0] };
+  }
+
   /**
    * 生产完工自动生成成本分录
    */
@@ -42,14 +74,6 @@ class FinanceAutomationController {
         error
       );
     }
-  }
-
-  /**
-   * 生产领料自动生成分录
-   */
-  static async generateMaterialIssueEntry(req, res) {
-    // 已废弃单独生成领料凭证的操作
-    return ResponseHandler.success(res, null, '生产领料凭证现已在完工时自动统筹生成，无需单独触发');
   }
 
   /**
@@ -210,15 +234,29 @@ class FinanceAutomationController {
 
   /**
    * 计算期末在制品成本
-   * GET /api/finance/automation/wip/calculate?periodId=&snapshotDate=
+   * POST /api/finance/automation/wip/calculate?periodId=&snapshotDate=
    */
   static async calculateWIPCost(req, res) {
     try {
       const { periodId, snapshotDate } = req.query;
+      let pid = null;
+      if (periodId) {
+        try {
+          ({ pid } = await FinanceAutomationController.assertOpenPeriod(periodId, '计算在制品成本'));
+        } catch (periodError) {
+          return ResponseHandler.error(
+            res,
+            periodError.message,
+            periodError.code || 'BAD_REQUEST',
+            periodError.statusCode || 400,
+            periodError
+          );
+        }
+      }
 
       const CostAccountingService = require('../../../services/business/CostAccountingService');
       const result = await CostAccountingService.calculateWIPCost(
-        periodId ? parseInt(periodId) : null,
+        pid,
         snapshotDate || null
       );
 
@@ -241,8 +279,21 @@ class FinanceAutomationController {
         return ResponseHandler.error(res, '期间ID不能为空', 'BAD_REQUEST', 400);
       }
 
+      let pid;
+      try {
+        ({ pid } = await FinanceAutomationController.assertOpenPeriod(periodId, '生成WIP凭证'));
+      } catch (periodError) {
+        return ResponseHandler.error(
+          res,
+          periodError.message,
+          periodError.code || 'BAD_REQUEST',
+          periodError.statusCode || 400,
+          periodError
+        );
+      }
+
       const CostAccountingService = require('../../../services/business/CostAccountingService');
-      const result = await CostAccountingService.generateWIPVoucher(parseInt(periodId));
+      const result = await CostAccountingService.generateWIPVoucher(pid);
 
       ResponseHandler.success(res, result, 'WIP凭证生成完成');
     } catch (error) {
@@ -263,8 +314,21 @@ class FinanceAutomationController {
         return ResponseHandler.error(res, '期间ID不能为空', 'BAD_REQUEST', 400);
       }
 
+      let pid;
+      try {
+        ({ pid } = await FinanceAutomationController.assertOpenPeriod(periodId, '分摊成本差异'));
+      } catch (periodError) {
+        return ResponseHandler.error(
+          res,
+          periodError.message,
+          periodError.code || 'BAD_REQUEST',
+          periodError.statusCode || 400,
+          periodError
+        );
+      }
+
       const CostAccountingService = require('../../../services/business/CostAccountingService');
-      const result = await CostAccountingService.allocateVariance(parseInt(periodId));
+      const result = await CostAccountingService.allocateVariance(pid);
 
       ResponseHandler.success(res, result, '成本差异分摊完成');
     } catch (error) {
@@ -285,7 +349,29 @@ class FinanceAutomationController {
         return ResponseHandler.error(res, '期间ID不能为空', 'BAD_REQUEST', 400);
       }
 
-      const pid = parseInt(periodId);
+      let pid;
+      try {
+        ({ pid } = await FinanceAutomationController.assertOpenPeriod(periodId, '执行成本结转'));
+      } catch (periodError) {
+        return ResponseHandler.error(
+          res,
+          periodError.message,
+          periodError.code || 'BAD_REQUEST',
+          periodError.statusCode || 400,
+          periodError
+        );
+      }
+      const [periodRows] = await db.pool.execute(
+        'SELECT id, period_name, is_closed FROM gl_periods WHERE id = ?',
+        [pid]
+      );
+      if (periodRows.length === 0) {
+        return ResponseHandler.error(res, '会计期间不存在', 'NOT_FOUND', 404);
+      }
+      if (periodRows[0].is_closed) {
+        return ResponseHandler.error(res, '会计期间已关闭，不能执行成本结转', 'PERIOD_CLOSED', 400);
+      }
+
       const CostAccountingService = require('../../../services/business/CostAccountingService');
       const results = {
         wip: null,

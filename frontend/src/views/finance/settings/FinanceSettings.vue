@@ -177,7 +177,7 @@
                   <el-input v-model="scope.row.value" placeholder="代码值" />
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="80" align="center">
+              <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="scope">
                   <el-button v-permission="'finance:settings:update'" type="danger" link @click="removePaymentMethod(scope.$index)">删除</el-button>
                 </template>
@@ -273,7 +273,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import request from '@/utils/request'
+import { api } from '@/services/axiosInstance'
 
 const activeTab = ref('base')
 
@@ -352,15 +352,16 @@ const formatPercent = (value) => {
 const loadSettings = async () => {
   loading.value = true
   try {
-    const res = await request.get('/finance/settings')
-    if (res.success && res.data) {
+    const res = await api.get('/finance/settings')
+    const data = res.data || {}
+    if (data) {
       // 深度合并或手动赋值，确保响应式丢失
       // Tax
-      if (res.data.tax) Object.assign(settings.tax, res.data.tax)
+      if (data.tax) Object.assign(settings.tax, data.tax)
 
       // Invoice
-      if (res.data.invoice) {
-        Object.assign(settings.invoice, res.data.invoice)
+      if (data.invoice) {
+        Object.assign(settings.invoice, data.invoice)
         // 确保 invoiceNumberPrefix 存在
         if (!settings.invoice.invoiceNumberPrefix) {
             settings.invoice.invoiceNumberPrefix = { AR: 'AR', AP: 'AP' }
@@ -368,22 +369,22 @@ const loadSettings = async () => {
       }
 
       // Bank
-      if (res.data.bank) {
-          settings.bank.paymentMethods = res.data.bank.paymentMethods || []
-          settings.bank.transactionTypes = res.data.bank.transactionTypes || []
-          settings.bank.transactionCategories = res.data.bank.transactionCategories || { income: [], expense: [], transfer: [] }
+      if (data.bank) {
+          settings.bank.paymentMethods = data.bank.paymentMethods || []
+          settings.bank.transactionTypes = data.bank.transactionTypes || []
+          settings.bank.transactionCategories = data.bank.transactionCategories || { income: [], expense: [], transfer: [] }
       }
 
       // GL
-      if (res.data.gl) {
-          settings.gl.documentTypes = res.data.gl.documentTypes || []
-          settings.gl.entryStatuses = res.data.gl.entryStatuses || []
+      if (data.gl) {
+          settings.gl.documentTypes = data.gl.documentTypes || []
+          settings.gl.entryStatuses = data.gl.entryStatuses || []
       }
 
       // Other
-      if (res.data.businessRules) Object.assign(settings.businessRules, res.data.businessRules)
-      if (res.data.period) Object.assign(settings.period, res.data.period)
-      if (res.data.system) Object.assign(settings.system, res.data.system)
+      if (data.businessRules) Object.assign(settings.businessRules, data.businessRules)
+      if (data.period) Object.assign(settings.period, data.period)
+      if (data.system) Object.assign(settings.system, data.system)
     }
   } catch (error) {
     console.error('加载设置失败:', error)
@@ -396,12 +397,8 @@ const loadSettings = async () => {
 const handleSave = async () => {
   saving.value = true
   try {
-    const res = await request.put('/finance/settings', settings)
-    if (res.success) {
-      ElMessage.success('设置已保存')
-    } else {
-      ElMessage.error(res.message || '保存失败')
-    }
+    await api.put('/finance/settings', settings)
+    ElMessage.success('设置已保存')
   } catch (error) {
     console.error('保存设置失败:', error)
     ElMessage.error('保存失败')
@@ -417,8 +414,8 @@ const handleReset = async () => {
     })
 
     resetting.value = true
-    const res = await request.post('/finance/settings/reset')
-    if (res.success && res.data) {
+    const res = await api.post('/finance/settings/reset')
+    if (res.data) {
       Object.assign(settings, res.data)
       ElMessage.success('已重置为默认配置')
     }
@@ -465,9 +462,9 @@ onMounted(() => {
 }
 
 .settings-tabs {
-  background: white;
+  background: var(--color-bg-base);
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent);
   border: none;
   overflow: hidden;
 }
@@ -483,15 +480,15 @@ onMounted(() => {
   border-radius: 8px 8px 0 0;
   padding: 12px 24px;
   font-weight: 500;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
 .settings-tabs :deep(.el-tabs__item:hover) {
-  background: rgba(64, 158, 255, 0.05);
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
 }
 
 .settings-tabs :deep(.el-tabs__item.is-active) {
-  background: white;
+  background: var(--color-bg-base);
   color: var(--color-primary);
 }
 
@@ -504,15 +501,15 @@ onMounted(() => {
   border-radius: 12px;
   border: 1px solid var(--color-border-light);
   overflow: hidden;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
 .inner-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ds-black) 8%, transparent);
 }
 
 .inner-card :deep(.el-card__header) {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-lighter) 100%);
   color: var(--color-text-primary);
   font-weight: 600;
   padding: 14px 20px;
@@ -544,12 +541,12 @@ onMounted(() => {
 .settings-tabs :deep(.el-input__wrapper),
 .settings-tabs :deep(.el-input-number__wrapper) {
   border-radius: 8px;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
 .settings-tabs :deep(.el-input__wrapper:hover),
 .settings-tabs :deep(.el-input-number__wrapper:hover) {
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .settings-tabs :deep(.el-select__wrapper) {
@@ -566,7 +563,7 @@ onMounted(() => {
 }
 
 .settings-tabs :deep(.el-divider__text) {
-  background-color: var(--color-on-primary, #fff);
+  background-color: var(--color-on-primary);
   font-weight: 500;
   color: var(--color-text-regular);
 }

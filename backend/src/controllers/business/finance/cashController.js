@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 const cash = require('../../../models/cash');
 const { validationResult } = require('express-validator');
 const cashTransactionService = require('../../../services/cashTransactionService');
@@ -16,15 +17,14 @@ const ReconciliationModel = require('../../../models/cash/Reconciliation');
 const CashReportsModel = require('../../../models/cash/Reports');
 const CashTransactionModel = require('../../../models/cash/CashTransaction');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 
 function normalizeExcelDate(value) {
   if (!value) return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) return toLocalDateString(value);
   if (typeof value === 'number') {
     const excelEpoch = new Date(1899, 11, 30);
-    return new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
+    return toLocalDateString(new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000));
   }
   const text = String(value).trim();
   if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(text)) {
@@ -37,7 +37,13 @@ function normalizeExcelDate(value) {
   }
   const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
+  return toLocalDateString(parsed);
+}
+
+function addMonthsToCurrentDateString(months) {
+  const date = new Date();
+  date.setMonth(date.getMonth() + Number(months || 0));
+  return toLocalDateString(date);
 }
 
 function normalizeStatementType(value, amount) {
@@ -117,12 +123,12 @@ function formatBankAccountForClient(account) {
     currency: account.currency_code || 'CNY',
     balance: account.current_balance !== undefined ? parseFloat(account.current_balance) : 0,
     initialBalance: account.opening_balance !== undefined ? parseFloat(account.opening_balance) : 0,
-    openDate: createdAt.toISOString().split('T')[0],
+    openDate: toLocalDateString(createdAt),
     status: account.is_active ? 'active' : 'frozen',
     accountType,
     purpose: accountType,
     notes: account.notes || '',
-    lastTransactionDate: lastTxDate ? lastTxDate.toISOString().split('T')[0] : '',
+    lastTransactionDate: lastTxDate ? toLocalDateString(lastTxDate) : '',
   };
 }
 
@@ -327,20 +333,22 @@ const cashController = {
       }
 
       // 处理分页参数
-      const page = req.query.page ? parseInt(req.query.page) : 1;
-      const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+      const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
 
-      filters.page = page;
-      filters.limit = limit;
+      filters.page = pagination.page;
+      filters.limit = pagination.pageSize;
 
-      const result = await BankTransactionModel.getBankTransactions(filters, page, limit);
+      const result = await BankTransactionModel.getBankTransactions(filters, pagination.page, pagination.pageSize);
 
       ResponseHandler.paginated(
         res,
         result.transactions,
         result.pagination.total,
-        page,
-        limit,
+        pagination.page,
+        pagination.pageSize,
         '获取交易记录成功'
       );
     } catch (error) {
@@ -496,13 +504,17 @@ const cashController = {
    */
   getReconciliations: async (req, res) => {
     try {
+      const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
       const filters = {
         startDate: req.query.startDate,
         endDate: req.query.endDate,
         accountId: req.query.accountId ? parseInt(req.query.accountId) : null,
         status: req.query.status,
-        page: req.query.page ? parseInt(req.query.page) : 1,
-        limit: req.query.limit ? parseInt(req.query.limit) : 10,
+        page: pagination.page,
+        limit: pagination.pageSize,
       };
 
       const result = await ReconciliationModel.getReconciliations(filters);
@@ -638,10 +650,8 @@ const cashController = {
    */
   getCashFlowForecast: async (req, res) => {
     try {
-      const startDate = req.query.startDate || new Date().toISOString().slice(0, 10);
-      const endDate =
-        req.query.endDate ||
-        new Date(new Date().setMonth(new Date().getMonth() + 3)).toISOString().slice(0, 10);
+      const startDate = req.query.startDate || currentDateString();
+      const endDate = req.query.endDate || addMonthsToCurrentDateString(3);
 
       const forecast = await CashReportsModel.getCashFlowForecast(startDate, endDate);
 
@@ -703,8 +713,12 @@ const cashController = {
       };
 
       // 处理分页参数
-      const page = req.query.page ? parseInt(req.query.page) : 1;
-      const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+      const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
+      const page = pagination.page;
+      const limit = pagination.pageSize;
 
       // 参数验证
       if (page < 1 || limit < 1 || limit > 100) {
@@ -910,8 +924,12 @@ const cashController = {
         status: req.query.status || null,
       };
 
-      const page = req.query.page ? parseInt(req.query.page) : 1;
-      const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+      const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
+      const page = pagination.page;
+      const limit = pagination.pageSize;
 
       const result = await BankTransactionModel.getBankTransactions(filters, page, limit);
 
@@ -933,6 +951,35 @@ const cashController = {
   /**
    * 获取单笔银行交易详情
    */
+  getBankTransactionsForPrint: async (req, res) => {
+    try {
+      const isReconciled =
+        req.query.isReconciled !== undefined
+          ? ['true', '1', true, 1].includes(req.query.isReconciled)
+          : req.query.is_reconciled !== undefined
+            ? ['true', '1', true, 1].includes(req.query.is_reconciled)
+            : undefined;
+
+      const filters = {
+        startDate: req.query.startDate,
+        endDate: req.query.endDate,
+        transaction_type: normalizeBankTransactionTypeFilter(req.query.transactionType),
+        bank_account_id: req.query.accountId ? parseInt(req.query.accountId) : null,
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount) : null,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount) : null,
+        is_reconciled: isReconciled,
+        status: req.query.status || null,
+        noPagination: true,
+      };
+
+      const result = await BankTransactionModel.getBankTransactions(filters);
+      ResponseHandler.success(res, { list: result.transactions || [] }, '获取银行交易打印数据成功');
+    } catch (error) {
+      logger.error('Error fetching bank transaction print data:', error);
+      ResponseHandler.error(res, '获取银行交易打印数据失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
   getBankTransactionById: async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -1299,16 +1346,16 @@ const cashController = {
 
       // 获取未对账和已对账交易统计
       const [unreconciledResult, reconciledResult] = await Promise.all([
-        BankTransactionModel.getBankTransactions(
-          { ...bankTransactionFilters, is_reconciled: false },
-          1,
-          10000
-        ),
-        BankTransactionModel.getBankTransactions(
-          { ...bankTransactionFilters, is_reconciled: true },
-          1,
-          10000
-        ),
+        BankTransactionModel.getBankTransactions({
+          ...bankTransactionFilters,
+          is_reconciled: false,
+          noPagination: true,
+        }),
+        BankTransactionModel.getBankTransactions({
+          ...bankTransactionFilters,
+          is_reconciled: true,
+          noPagination: true,
+        }),
       ]);
 
       const unreconciledTransactions = unreconciledResult?.transactions || [];
@@ -1372,7 +1419,7 @@ const cashController = {
         return ResponseHandler.error(res, '缺少交易ID', 'VALIDATION_ERROR', 400);
       }
 
-      const reconciliationDate = new Date().toISOString().split('T')[0];
+      const reconciliationDate = currentDateString();
 
       // 更新数据库中的交易记录
       const success = await cash.reconcileBankTransaction(transactionId, {
@@ -1402,6 +1449,29 @@ const cashController = {
   /**
    * 提交交易审核
    */
+  batchMarkTransactionsAsReconciled: async (req, res) => {
+    try {
+      const { transactionIds, accountId, reconciliationDate } = req.body;
+
+      if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+        return ResponseHandler.error(res, '缺少交易ID列表', 'VALIDATION_ERROR', 400);
+      }
+
+      const result = await ReconciliationModel.batchReconcileBankTransactions(transactionIds, {
+        reconciliation_date: reconciliationDate,
+      });
+
+      return ResponseHandler.success(
+        res,
+        { ...result, accountId, status: 'reconciled' },
+        `成功对账 ${result.count} 条交易`
+      );
+    } catch (error) {
+      logger.error('批量标记交易为已对账失败:', error);
+      return sendCashBusinessError(res, error, '批量标记交易为已对账失败');
+    }
+  },
+
   submitForAudit: async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -1613,7 +1683,7 @@ const cashController = {
       };
 
       // 获取所有符合条件的交易数据（不分页）
-      const result = await BankTransactionModel.getBankTransactions(filters, 1, 10000);
+      const result = await BankTransactionModel.getBankTransactions({ ...filters, noPagination: true });
       const transactions = result.transactions || [];
 
       if (transactions.length === 0) {
@@ -1778,13 +1848,13 @@ const cashController = {
           try {
             if (row['交易日期'] instanceof Date) {
               // 已经是Date对象
-              transactionDate = row['交易日期'].toISOString().split('T')[0];
+              transactionDate = toLocalDateString(row['交易日期']);
             } else if (typeof row['交易日期'] === 'number') {
               // Excel日期序列号，需要转换
               // Excel的日期基准是1900年1月1日，但实际上是1899年12月30日
               const excelEpoch = new Date(1899, 11, 30); // 1899年12月30日
               const date = new Date(excelEpoch.getTime() + row['交易日期'] * 24 * 60 * 60 * 1000);
-              transactionDate = date.toISOString().split('T')[0];
+              transactionDate = toLocalDateString(date);
             } else if (typeof row['交易日期'] === 'string') {
               // 字符串格式的日期
               const dateStr = row['交易日期'].trim();
@@ -1804,7 +1874,7 @@ const cashController = {
                 if (isNaN(parsedDate.getTime())) {
                   throw new Error('无法解析日期');
                 }
-                transactionDate = parsedDate.toISOString().split('T')[0];
+                transactionDate = toLocalDateString(parsedDate);
               }
             } else {
               throw new Error('不支持的日期格式');
@@ -1868,7 +1938,7 @@ const cashController = {
             totalRecords: data.length,
             successCount,
             errorCount,
-            importDate: new Date().toISOString().split('T')[0],
+            importDate: currentDateString(),
           },
         },
         `导入完成！成功：${successCount}条，失败：${errorCount}条`
@@ -2128,6 +2198,7 @@ const cashController = {
         counterparty: req.body.counterparty,
         description: req.body.description,
         reference_number: req.body.referenceNumber || req.body.reference_number,
+        updated_by: getAuthenticatedUserId(req),
       };
 
       const updated = await CashTransactionModel.updateCashTransaction(id, transactionData);
@@ -2167,6 +2238,27 @@ const cashController = {
   /**
    * 获取现金交易统计
    */
+  getCashTransactionsForPrint: async (req, res) => {
+    try {
+      const { type, category, startDate, endDate, search } = req.query;
+      const result = await CashTransactionModel.getCashTransactionsForExport({
+        type,
+        category,
+        startDate,
+        endDate,
+        search,
+      });
+
+      return ResponseHandler.success(
+        res,
+        { transactions: result.transactions || [] },
+        '获取现金交易打印数据成功'
+      );
+    } catch (error) {
+      return ResponseHandler.error(res, '获取现金交易打印数据失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
   getCashTransactionStats: async (req, res) => {
     try {
       const { type, category, startDate, endDate } = req.query;
@@ -2205,7 +2297,7 @@ const cashController = {
       );
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename*=UTF-8''${encodeURIComponent('现金交易记录_' + new Date().toISOString().slice(0, 10) + '.xlsx')}`
+        `attachment; filename*=UTF-8''${encodeURIComponent('现金交易记录_' + currentDateString() + '.xlsx')}`
       );
 
       // 发送Excel文件
@@ -2272,10 +2364,19 @@ const cashController = {
       }
 
       const userId = getAuthenticatedUserId(req);
-      const success = await CashTransactionModel.approveTransaction(id, userId);
+      const result = await CashTransactionModel.approveTransaction(id, userId);
 
-      if (success) {
-        return ResponseHandler.success(res, { id, status: 'approved' }, '现金交易审核通过');
+      if (result) {
+        return ResponseHandler.success(
+          res,
+          {
+            id,
+            status: 'approved',
+            entryId: result.entryId,
+            entryNumber: result.entryNumber,
+          },
+          '现金交易审核通过'
+        );
       } else {
         return ResponseHandler.error(res, '审核操作失败', 'SERVER_ERROR', 500);
       }
@@ -2296,7 +2397,7 @@ const cashController = {
       }
 
       const userId = getAuthenticatedUserId(req);
-      const reason = (req.body && req.body.reason) || '';
+      const reason = (req.body && (req.body.reason || req.body.remark)) || '';
       const success = await CashTransactionModel.rejectTransaction(id, userId, reason);
 
       if (success) {

@@ -27,7 +27,7 @@ router.use(authenticateToken);
 router.get('/users', requirePermission('system:users'), systemController.getAllUsers);
 
 // 获取用户简单列表（无分页）- 用于下拉选择，仅需登录
-router.get('/users/list', systemController.getUsersList);
+router.get('/users/list', requirePermission('system:users'), systemController.getUsersList);
 
 // ✅ 安全修复：用户管理操作添加权限检查
 router.get(
@@ -61,6 +61,7 @@ router.put(
 // 获取部门列表（无分页，用于下拉选择）- 仅需登录
 router.get(
   '/departments/list',
+  requirePermission('system:departments'),
   systemController.getAllDepartments
 );
 router.get(
@@ -247,13 +248,18 @@ router.put(
 );
 
 // ✅ 新增: 系统信息端点
-router.get('/info', systemController.getSystemInfo);
+router.get('/info', requirePermission('system:settings:read'), systemController.getSystemInfo);
 
 // ✅ 新增: 系统日志端点
 router.get('/logs', requirePermission('system:logs'), systemController.getSystemLogs);
 
 // 异步副作用失败任务（死信队列）运维入口
 router.get('/failed-jobs', requirePermission('system:monitor'), systemController.getFailedJobs);
+router.post(
+  '/failed-jobs/retry',
+  requirePermission('system:admin'),
+  systemController.retryFailedJobs
+);
 router.put(
   '/failed-jobs/:id/resolve',
   validateIdParam,
@@ -273,15 +279,20 @@ router.get('/backups/:filename', requirePermission('system:backup:download'), sy
 // 原端点: POST /exec-sql (已禁用)
 
 // ========== 业务类型管理路由 ==========
-router.get('/business-types', businessTypeController.getAllBusinessTypes);
-router.get('/business-types/groups', businessTypeController.getBusinessTypeGroups);
-router.get('/business-types/category/:category', businessTypeController.getBusinessTypesByCategory);
+router.get('/business-types', requirePermission('system:business-types'), businessTypeController.getAllBusinessTypes);
+router.get('/business-types/groups', requirePermission('system:business-types'), businessTypeController.getBusinessTypeGroups);
+router.get('/business-types/category/:category', requirePermission('system:business-types'), businessTypeController.getBusinessTypesByCategory);
 router.put(
   '/business-types/sort',
   requirePermission('system:business-types:update'),
   businessTypeController.updateSortOrder
 );
-router.get('/business-types/:id', validateIdParam, businessTypeController.getBusinessTypeById);
+router.get(
+  '/business-types/:id',
+  validateIdParam,
+  requirePermission('system:business-types'),
+  businessTypeController.getBusinessTypeById
+);
 router.post(
   '/business-types',
   requirePermission('system:business-types:create'),

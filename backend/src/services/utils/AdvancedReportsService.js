@@ -6,7 +6,7 @@
  */
 
 const { logger } = require('../../utils/logger');
-const db = require('../../config/db');
+const FinancialReportsService = require('../business/FinancialReportsService');
 
 /**
  * 高级财务报表服务
@@ -84,103 +84,121 @@ class AdvancedReportsService {
    * @returns {Object} 财务数据
    */
   static async getFinancialData(startDate, endDate) {
-    // 获取资产数据
-    const [assets] = await db.pool.execute(
-      `
-      SELECT
-        SUM(CASE WHEN a.account_type = '资产' AND a.account_code LIKE '1001%' THEN pb.debit_balance ELSE 0 END) as cash_and_equivalents,
-        SUM(CASE WHEN a.account_type = '资产' AND a.account_code LIKE '1122%' THEN pb.debit_balance ELSE 0 END) as accounts_receivable,
-        SUM(CASE WHEN a.account_type = '资产' AND a.account_code LIKE '1123%' THEN pb.debit_balance ELSE 0 END) as inventory,
-        SUM(CASE WHEN a.account_type = '资产' AND a.account_code LIKE '11%' THEN pb.debit_balance ELSE 0 END) as current_assets,
-        SUM(CASE WHEN a.account_type = '资产' AND a.account_code LIKE '15%' THEN pb.debit_balance ELSE 0 END) as fixed_assets,
-        SUM(CASE WHEN a.account_type = '资产' THEN pb.debit_balance ELSE 0 END) as total_assets
-      FROM gl_accounts a
-      LEFT JOIN gl_period_balances pb ON a.id = pb.account_id
-      LEFT JOIN gl_periods p ON pb.period_id = p.id
-      WHERE p.end_date BETWEEN ? AND ?
-    `,
-      [startDate, endDate]
+    const yearStartDate = `${endDate.substring(0, 4)}-01-01`;
+    const [
+      assets,
+      liabilities,
+      equity,
+      income,
+      costs,
+      expenses,
+      ytdIncome,
+      ytdCosts,
+      ytdExpenses,
+      reportAccountGroups,
+      cashFlowAccountGroups,
+    ] = await Promise.all([
+      FinancialReportsService.calculateAccountBalance('资产', endDate),
+      FinancialReportsService.calculateAccountBalance('负债', endDate),
+      FinancialReportsService.calculateAccountBalance('所有者权益', endDate),
+      FinancialReportsService.calculatePeriodAmount('收入', startDate, endDate),
+      FinancialReportsService.calculatePeriodAmount('成本', startDate, endDate),
+      FinancialReportsService.calculatePeriodAmount('费用', startDate, endDate),
+      FinancialReportsService.calculatePeriodAmount('收入', yearStartDate, endDate),
+      FinancialReportsService.calculatePeriodAmount('成本', yearStartDate, endDate),
+      FinancialReportsService.calculatePeriodAmount('费用', yearStartDate, endDate),
+      FinancialReportsService.getReportAccountGroups(),
+      FinancialReportsService.getCashFlowAccountCodes(),
+    ]);
+
+    const cashAndEquivalents = this.sumAccountsByConfiguredCodes(
+      assets.accounts,
+      cashFlowAccountGroups.cashEquivalents
+    );
+    const accountsReceivable = this.sumAccountsByConfiguredCodes(
+      assets.accounts,
+      cashFlowAccountGroups.receivables
+    );
+    const inventory = this.sumAccountsByConfiguredCodes(
+      assets.accounts,
+      cashFlowAccountGroups.inventory
+    );
+    const currentAssets = this.sumAccountsByConfiguredCodes(
+      assets.accounts,
+      reportAccountGroups.currentAssets
+    );
+    const fixedAssetsGross = this.sumAccountsByConfiguredCodes(
+      assets.accounts,
+      cashFlowAccountGroups.fixedAssets
+    );
+    const accumulatedDepreciation = this.sumAccountsByConfiguredCodes(
+      assets.accounts,
+      cashFlowAccountGroups.depreciation
+    );
+    const fixedAssetImpairment = this.sumAccountsByConfiguredCodes(
+      assets.accounts,
+      cashFlowAccountGroups.fixedAssetImpairment
+    );
+    const accountsPayable = this.sumAccountsByConfiguredCodes(
+      liabilities.accounts,
+      cashFlowAccountGroups.payables
+    );
+    const currentLiabilities = this.sumAccountsByConfiguredCodes(
+      liabilities.accounts,
+      reportAccountGroups.currentLiabilities
+    );
+    const longTermLiabilities = this.sumAccountsByConfiguredCodes(
+      liabilities.accounts,
+      reportAccountGroups.nonCurrentLiabilities
     );
 
-    // 获取负债数据
-    const [liabilities] = await db.pool.execute(
-      `
-      SELECT
-        SUM(CASE WHEN a.account_type = '负债' AND a.account_code LIKE '2001%' THEN pb.credit_balance ELSE 0 END) as accounts_payable,
-        SUM(CASE WHEN a.account_type = '负债' AND a.account_code LIKE '20%' THEN pb.credit_balance ELSE 0 END) as current_liabilities,
-        SUM(CASE WHEN a.account_type = '负债' AND a.account_code LIKE '25%' THEN pb.credit_balance ELSE 0 END) as long_term_liabilities,
-        SUM(CASE WHEN a.account_type = '负债' THEN pb.credit_balance ELSE 0 END) as total_liabilities
-      FROM gl_accounts a
-      LEFT JOIN gl_period_balances pb ON a.id = pb.account_id
-      LEFT JOIN gl_periods p ON pb.period_id = p.id
-      WHERE p.end_date BETWEEN ? AND ?
-    `,
-      [startDate, endDate]
-    );
-
-    // 获取权益数据
-    const [equity] = await db.pool.execute(
-      `
-      SELECT
-        SUM(CASE WHEN a.account_type = '权益' THEN pb.credit_balance ELSE 0 END) as total_equity
-      FROM gl_accounts a
-      LEFT JOIN gl_period_balances pb ON a.id = pb.account_id
-      LEFT JOIN gl_periods p ON pb.period_id = p.id
-      WHERE p.end_date BETWEEN ? AND ?
-    `,
-      [startDate, endDate]
-    );
-
-    // 获取收入费用数据
-    const [incomeExpense] = await db.pool.execute(
-      `
-      SELECT
-        SUM(CASE WHEN a.account_type = '收入' THEN ei.credit_amount - ei.debit_amount ELSE 0 END) as total_revenue,
-        SUM(CASE WHEN a.account_type = '费用' AND a.account_code LIKE '5001%' THEN ei.debit_amount - ei.credit_amount ELSE 0 END) as cost_of_sales,
-        SUM(CASE WHEN a.account_type = '费用' THEN ei.debit_amount - ei.credit_amount ELSE 0 END) as total_expenses
-      FROM gl_accounts a
-      LEFT JOIN gl_entry_items ei ON a.id = ei.account_id
-      LEFT JOIN gl_entries e ON ei.entry_id = e.id
-      WHERE e.entry_date BETWEEN ? AND ? AND e.is_posted = true
-    `,
-      [startDate, endDate]
-    );
-
-    const assetData = assets[0] || {};
-    const liabilityData = liabilities[0] || {};
-    const equityData = equity[0] || {};
-    const incomeData = incomeExpense[0] || {};
-
-    // 计算净利润
-    const netIncome = (incomeData.total_revenue || 0) - (incomeData.total_expenses || 0);
-    const grossProfit = (incomeData.total_revenue || 0) - (incomeData.cost_of_sales || 0);
+    const totalRevenue = income.totalAmount || 0;
+    const costOfSales = costs.totalAmount || 0;
+    const operatingExpenses = expenses.totalAmount || 0;
+    const totalExpenses = costOfSales + operatingExpenses;
+    const grossProfit = totalRevenue - costOfSales;
+    const netIncome = grossProfit - operatingExpenses;
+    const currentYearProfit =
+      (ytdIncome.totalAmount || 0) - (ytdCosts.totalAmount || 0) - (ytdExpenses.totalAmount || 0);
 
     return {
       assets: {
-        cashAndEquivalents: parseFloat(assetData.cash_and_equivalents || 0),
-        accountsReceivable: parseFloat(assetData.accounts_receivable || 0),
-        inventory: parseFloat(assetData.inventory || 0),
-        currentAssets: parseFloat(assetData.current_assets || 0),
-        fixedAssets: parseFloat(assetData.fixed_assets || 0),
-        totalAssets: parseFloat(assetData.total_assets || 0),
+        cashAndEquivalents,
+        accountsReceivable,
+        inventory,
+        currentAssets,
+        fixedAssets: fixedAssetsGross - Math.abs(accumulatedDepreciation) - Math.abs(fixedAssetImpairment),
+        totalAssets: assets.totalBalance || 0,
       },
       liabilities: {
-        accountsPayable: parseFloat(liabilityData.accounts_payable || 0),
-        currentLiabilities: parseFloat(liabilityData.current_liabilities || 0),
-        longTermLiabilities: parseFloat(liabilityData.long_term_liabilities || 0),
-        totalLiabilities: parseFloat(liabilityData.total_liabilities || 0),
+        accountsPayable,
+        currentLiabilities,
+        longTermLiabilities,
+        totalLiabilities: liabilities.totalBalance || 0,
       },
       equity: {
-        totalEquity: parseFloat(equityData.total_equity || 0),
+        totalEquity: (equity.totalBalance || 0) + currentYearProfit,
       },
       income: {
-        totalRevenue: parseFloat(incomeData.total_revenue || 0),
-        costOfSales: parseFloat(incomeData.cost_of_sales || 0),
-        totalExpenses: parseFloat(incomeData.total_expenses || 0),
+        totalRevenue,
+        costOfSales,
+        operatingExpenses,
+        totalExpenses,
         grossProfit,
         netIncome,
       },
     };
+  }
+
+  static sumAccountsByConfiguredCodes(accounts, accountCodes) {
+    const prefixes = [...new Set((accountCodes || []).filter(Boolean).map((code) => String(code)))];
+    if (prefixes.length === 0) return 0;
+
+    return accounts
+      .filter((account) =>
+        prefixes.some((prefix) => String(account.code || '').startsWith(prefix))
+      )
+      .reduce((sum, account) => sum + parseFloat(account.currentBalance || 0), 0);
   }
 
   /**

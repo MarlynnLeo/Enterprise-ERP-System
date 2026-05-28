@@ -147,19 +147,6 @@ const getConnection = async () => {
   return await pool.getConnection();
 };
 
-/**
- * @deprecated 表结构已迁移至 Knex 迁移文件 (migrations/) 管理，种子数据由 seeds/ 管理
- * 此函数保留为空操作以维持向后兼容
- */
-async function initDatabase() {
-  // 表结构由 migrations/20260312000001-000010 管理
-  // 种子数据由 seeds/001_default_admin_and_roles.js 管理
-  // 启动时由 index.js 中 knex.migrate.latest() 自动执行迁移
-}
-
-// Initialize database on module load
-initDatabase();
-
 // Database access functions
 module.exports = {
   pool,
@@ -167,5 +154,4 @@ module.exports = {
   getClient,
   getConnection,
   ensureNumber,
-  initDatabase,
 };

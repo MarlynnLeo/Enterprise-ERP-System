@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PurchaseOrderService.js
  * @description 采购订单服务类 - 统一处理重复的业务逻辑
  * @date 2025-09-29
@@ -6,6 +6,7 @@
  */
 
 const { logger } = require('../utils/logger');
+const { lineAmount, normalizeTaxRate, roundMoney, taxAmount, toNumber } = require('../utils/money');
 
 
 class PurchaseOrderService {
@@ -50,7 +51,7 @@ class PurchaseOrderService {
    * 更新采购申请状态
    * @param {Object} connection - 数据库连接
    * @param {number} requisitionId - 申请单ID
-   * @param {string} status - 新状态，默认为'completed'
+   * @param {string} status - 新状态，默认 'completed'
    */
   static async updateRequisitionStatus(connection, requisitionId, status = 'completed') {
     if (!requisitionId) return;
@@ -80,15 +81,15 @@ class PurchaseOrderService {
         ]);
 
         if (updateResult.affectedRows === 0) {
-          logger.error(`更新采购申请状态失败，ID:${requisitionId}，未影响任何行`);
+          logger.error(`Failed to update purchase requisition status, id=${requisitionId}, no rows affected`);
         } else {
           logger.info(`采购申请状态更新成功，ID:${requisitionId}`);
         }
       } else {
-        logger.error(`找不到ID为${requisitionId}的采购申请，无法更新状态`);
+        logger.error(`Purchase requisition ${requisitionId} not found, cannot update status`);
       }
     } catch (error) {
-      logger.error('更新采购申请状态失败:', error);
+      logger.error('更新采购申请状态失败', error);
       // 不抛出错误，避免影响主要业务流程
     }
   }
@@ -113,10 +114,22 @@ class PurchaseOrderService {
     } = item;
 
     // 兼容price和unit_price字段
-    const itemPrice = price || unit_price || 0;
+    const rawPrice = price ?? unit_price;
+    if (rawPrice === null || rawPrice === undefined || rawPrice === '') {
+      throw new Error(`物料 ${material_code || material_id} 的单价缺失，请先维护采购价格`);
+    }
+    const itemPrice = toNumber(rawPrice, Number.NaN);
+    const itemQuantity = toNumber(quantity, 0);
+    const itemTaxRate = normalizeTaxRate(item.tax_rate ?? item.taxPercent ?? item.tax_percent, 0);
+    const itemAmount = totalPrice !== undefined
+      ? roundMoney(totalPrice)
+      : lineAmount(itemQuantity, itemPrice);
+    const itemTaxAmount = item.tax_amount !== undefined || item.taxAmount !== undefined
+      ? roundMoney(item.tax_amount ?? item.taxAmount)
+      : taxAmount(itemAmount, itemTaxRate);
 
-    // 如果缺少物料代码或物料名称，从数据库中查询补充
     let itemCode = material_code;
+    // 如果缺少物料代码或物料名称，从数据库中查询补全
     let itemName = material_name;
     let itemSpec = specification || '';
     let itemUnitId = unit_id;
@@ -137,11 +150,11 @@ class PurchaseOrderService {
       throw new Error(`物料信息不完整，ID: ${material_id}, 编码: ${itemCode}, 名称: ${itemName}`);
     }
 
-    // ✅ 数据完整性校验：价格和数量必须为非负数
-    if (typeof quantity !== 'number' || quantity <= 0) {
+    // 数据完整性校验：价格和数量必须为非负数
+    if (itemQuantity <= 0) {
       throw new Error(`物料 ${itemCode} 的数量必须大于0，当前值: ${quantity}`);
     }
-    if (itemPrice < 0) {
+    if (!Number.isFinite(itemPrice) || itemPrice < 0) {
       throw new Error(`物料 ${itemCode} 的单价不能为负数，当前值: ${itemPrice}`);
     }
 
@@ -152,10 +165,10 @@ class PurchaseOrderService {
       specification: itemSpec,
       unit_id: itemUnitId,
       price: itemPrice,
-      quantity,
-      tax_rate: item.tax_rate || 0,
-      tax_amount: item.tax_amount || 0,
-      amount: totalPrice || itemPrice * quantity,
+      quantity: itemQuantity,
+      tax_rate: itemTaxRate,
+      tax_amount: itemTaxAmount,
+      amount: itemAmount,
     };
   }
 
@@ -196,8 +209,7 @@ class PurchaseOrderService {
       return;
     }
 
-    // ✅ 性能优化: 批量 INSERT 替代逐条插入，N 次 SQL → 1 次
-    const placeholders = processedItems.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+    const placeholders = processedItems.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
     const values = [];
     for (const item of processedItems) {
       values.push(
@@ -210,15 +222,16 @@ class PurchaseOrderService {
         item.unit_id,
         item.price,
         item.quantity,
-        item.amount, // amount 对应 total 列
-        item.tax_rate
+        item.amount,
+        item.amount,
+        item.tax_rate,
+        item.tax_amount
       );
     }
 
-    // 使用数据库实际列名：price, total (不是 unit_price, amount)
     await connection.query(
       `INSERT INTO purchase_order_items
-      (order_id, material_id, material_code, material_name, specification, unit, unit_id, price, quantity, total, tax_rate)
+      (order_id, material_id, material_code, material_name, specification, unit, unit_id, price, quantity, total, amount_excluding_tax, tax_rate, tax_amount)
       VALUES ${placeholders}`,
       values
     );
@@ -249,12 +262,12 @@ class PurchaseOrderService {
    * @throws {Error} 订单不存在或状态不可编辑时抛出错误
    */
   static async validateOrderEditable(connection, orderId) {
-    const [checkRows] = await connection.query('SELECT status FROM purchase_orders WHERE id = ?', [
+    const [checkRows] = await connection.query('SELECT status FROM purchase_orders WHERE id = ? FOR UPDATE', [
       orderId,
     ]);
 
     if (checkRows.length === 0) {
-      throw new Error('采购订单不存在');
+      throw new Error('purchase order not found');
     }
 
     const currentStatus = checkRows[0].status;

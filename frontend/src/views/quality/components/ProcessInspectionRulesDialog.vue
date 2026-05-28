@@ -35,7 +35,7 @@
           <el-tag :type="row.is_enabled ? 'success' : 'info'" size="small">{{ row.is_enabled ? '启用' : '禁用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button size="small" @click="handleEdit(row)"
             v-permission="'quality:settings:update'">编辑</el-button>
@@ -109,8 +109,8 @@ import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { qualityApi } from '@/api/quality'
 import { materialApi } from '@/api/material'
-import { productionApi } from '@/api/production'
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig'
+import { loadProductionProcessOptions, loadQualityTemplateOptions } from '@/utils/optionLoaders'
 
 const props = defineProps({ visible: Boolean })
 const emit = defineEmits(['update:visible'])
@@ -170,9 +170,11 @@ const fetchRules = async () => {
 
 const fetchProcesses = async () => {
   try {
-    const res = await productionApi.getProductionProcesses({ pageSize: 500 })
-    const data = res.data?.data || res.data || res
-    processOptions.value = data.list || data || []
+    const processes = await loadProductionProcessOptions({ pageSize: 50 })
+    processOptions.value = processes.map(process => ({
+      ...process,
+      name: process.name || process.process_name || process.task_code || ''
+    }))
   } catch (error) {
     console.error('获取工序列表失败:', error)
   }
@@ -209,13 +211,12 @@ const debouncedSearchProducts = (query) => {
         loadingProducts.value = false
       }
     }
-  }, SEARCH_CONFIG.debounceTime)
+  }, SEARCH_CONFIG.SEARCH_DEBOUNCE_DELAY)
 }
 
 const fetchTemplates = async () => {
   try {
-    const res = await qualityApi.getTemplates({ inspection_type: 'process', status: 'active', pageSize: 100 })
-    templateOptions.value = (res.data || res)?.list || res.data || res || []
+    templateOptions.value = await loadQualityTemplateOptions({ inspection_type: 'process', pageSize: 50 })
   } catch (error) {
     console.error('获取模板列表失败:', error)
   }

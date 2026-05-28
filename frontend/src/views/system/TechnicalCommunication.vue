@@ -6,7 +6,7 @@
  */
 -->
 <template>
-  <div class="technical-communication-container">
+  <div class="module-page technical-communication-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -18,8 +18,22 @@
     </el-card>
 
     <!-- 筛选栏 -->
-    <el-card class="filter-card">
-      <el-form :inline="true" class="search-form" :model="filterForm">
+    <FinanceQueryCard
+      :model="filterForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="关键词">
+          <el-input
+            v-model="filterForm.keyword"
+            placeholder="搜索标题或内容"
+            clearable
+            @keyup.enter="handleSearch" />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="分类">
           <el-select  v-model="filterForm.category" placeholder="全部分类" clearable>
             <el-option v-for="item in $dict.getOptions('communication_category')" :key="item.value" :label="item.label" :value="item.value" />
@@ -30,23 +44,8 @@
             <el-option v-for="item in $dict.getOptions('communication_status')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="关键词">
-          <el-input
-            v-model="filterForm.keyword"
-            placeholder="搜索标题或内容"
-            clearable
-            @keyup.enter="handleSearch" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 搜索
-          </el-button>
-          <el-button @click="handleReset">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 通讯列表 -->
     <el-card class="list-card">
@@ -65,7 +64,7 @@
           <div class="item-header">
             <h3 class="item-title">
               <!-- 私有标识 -->
-              <el-icon v-if="item.visibility === 'private'" color="#e6a23c" style="margin-right: 5px;">
+              <el-icon v-if="item.visibility === 'private'" color="var(--color-warning)" style="margin-right: 5px;">
                 <Lock />
               </el-icon>
               {{ item.title }}
@@ -377,7 +376,7 @@ import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Search, Refresh, User, Clock, View, Star, Collection, ChatDotRound,
+  Plus, User, Clock, View, Star, Collection, ChatDotRound,
   Lock, Warning, ArrowDown, ArrowUp
 } from '@element-plus/icons-vue'
 import technicalCommunicationApi from '@/services/technicalCommunicationApi'
@@ -386,7 +385,7 @@ import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import UserSelector from '@/components/UserSelector.vue'
 import RecipientsList from '@/components/RecipientsList.vue'
 import DOMPurify from 'dompurify'
-
+import { parseResponseData } from '@/utils/responseParser'
 // 路由 - 必须在 setup 顶层调用
 const route = useRoute()
 
@@ -469,11 +468,6 @@ watch(selectedRecipients, (val) => {
   form.departmentRecipients = val.departments
 }, { deep: true })
 
-// 辅助函数：统一解析API响应数据
-const parseResponseData = (res) => {
-  // axios拦截器已自动解包ResponseHandler格式
-  return res.data
-}
 
 // 方法
 const loadCommunications = async () => {
@@ -882,7 +876,7 @@ onMounted(async () => {
   padding: 20px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
   position: relative;
 }
 
@@ -1149,4 +1143,3 @@ onMounted(async () => {
   gap: 8px;
 }
 </style>
-

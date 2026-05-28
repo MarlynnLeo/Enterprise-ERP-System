@@ -210,64 +210,87 @@ const enhancedReportsController = {
          ORDER BY bank_name, account_name`
       );
 
-      // 构建报表数据（批量查询消除 N+1）
-      if (accounts.length === 0) {
-        return ResponseHandler.success(res, { list: [], totals: {} });
-      }
-
-      const accountIds = accounts.map(a => a.id);
-      const ph = accountIds.map(() => '?').join(',');
       const incomeTypes = "('存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest')";
       const expenseTypes = "('取款', '转出', '费用', 'expense', '支出', 'withdrawal', 'transfer_out', 'fee')";
+      const cashIncomeTypes = "('income', 'receipt', 'cash_income', '收入', '现金收入')";
+      const cashExpenseTypes = "('expense', 'payment', 'cash_expense', '支出', '现金支出')";
       const effectiveTransactionStatus = "(status IS NULL OR status = 'approved')";
+      let incomeMap = new Map();
+      let expenseMap = new Map();
+      let histIncomeMap = new Map();
+      let histExpenseMap = new Map();
 
-      // 一次性查出本月收入
-      const [incomeRows] = await db.pool.execute(
-        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
-         FROM bank_transactions
-         WHERE bank_account_id IN (${ph}) AND transaction_date BETWEEN ? AND ?
-           AND transaction_type IN ${incomeTypes}
-           AND ${effectiveTransactionStatus}
-         GROUP BY bank_account_id`,
-        [...accountIds, startDate, endDate]
-      );
-      const incomeMap = new Map(incomeRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+      if (accounts.length > 0) {
+        const accountIds = accounts.map(a => a.id);
+        const ph = accountIds.map(() => '?').join(',');
 
-      // 一次性查出本月支出
-      const [expenseRows] = await db.pool.execute(
-        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
-         FROM bank_transactions
-         WHERE bank_account_id IN (${ph}) AND transaction_date BETWEEN ? AND ?
-           AND transaction_type IN ${expenseTypes}
-           AND ${effectiveTransactionStatus}
-         GROUP BY bank_account_id`,
-        [...accountIds, startDate, endDate]
-      );
-      const expenseMap = new Map(expenseRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+        // 一次性查出本月收入
+        const [incomeRows] = await db.pool.execute(
+          `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
+           FROM bank_transactions
+           WHERE bank_account_id IN (${ph}) AND transaction_date BETWEEN ? AND ?
+             AND transaction_type IN ${incomeTypes}
+             AND ${effectiveTransactionStatus}
+           GROUP BY bank_account_id`,
+          [...accountIds, startDate, endDate]
+        );
+        incomeMap = new Map(incomeRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
 
-      // 一次性查出历史总收入（startDate 之前）
-      const [histIncomeRows] = await db.pool.execute(
-        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
-         FROM bank_transactions
-         WHERE bank_account_id IN (${ph}) AND transaction_date < ?
-           AND transaction_type IN ${incomeTypes}
-           AND ${effectiveTransactionStatus}
-         GROUP BY bank_account_id`,
-        [...accountIds, startDate]
-      );
-      const histIncomeMap = new Map(histIncomeRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+        // 一次性查出本月支出
+        const [expenseRows] = await db.pool.execute(
+          `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
+           FROM bank_transactions
+           WHERE bank_account_id IN (${ph}) AND transaction_date BETWEEN ? AND ?
+             AND transaction_type IN ${expenseTypes}
+             AND ${effectiveTransactionStatus}
+           GROUP BY bank_account_id`,
+          [...accountIds, startDate, endDate]
+        );
+        expenseMap = new Map(expenseRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
 
-      // 一次性查出历史总支出（startDate 之前）
-      const [histExpenseRows] = await db.pool.execute(
-        `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
-         FROM bank_transactions
-         WHERE bank_account_id IN (${ph}) AND transaction_date < ?
-           AND transaction_type IN ${expenseTypes}
-           AND ${effectiveTransactionStatus}
-         GROUP BY bank_account_id`,
-        [...accountIds, startDate]
+        // 一次性查出历史总收入（startDate 之前）
+        const [histIncomeRows] = await db.pool.execute(
+          `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
+           FROM bank_transactions
+           WHERE bank_account_id IN (${ph}) AND transaction_date < ?
+             AND transaction_type IN ${incomeTypes}
+             AND ${effectiveTransactionStatus}
+           GROUP BY bank_account_id`,
+          [...accountIds, startDate]
+        );
+        histIncomeMap = new Map(histIncomeRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+
+        // 一次性查出历史总支出（startDate 之前）
+        const [histExpenseRows] = await db.pool.execute(
+          `SELECT bank_account_id, COALESCE(SUM(amount), 0) as total
+           FROM bank_transactions
+           WHERE bank_account_id IN (${ph}) AND transaction_date < ?
+             AND transaction_type IN ${expenseTypes}
+             AND ${effectiveTransactionStatus}
+           GROUP BY bank_account_id`,
+          [...accountIds, startDate]
+        );
+        histExpenseMap = new Map(histExpenseRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+      }
+
+      const [[cashCurrentRow]] = await db.pool.execute(
+        `SELECT
+           COALESCE(SUM(CASE WHEN transaction_type IN ${cashIncomeTypes} THEN amount ELSE 0 END), 0) as income,
+           COALESCE(SUM(CASE WHEN transaction_type IN ${cashExpenseTypes} THEN amount ELSE 0 END), 0) as expense
+         FROM cash_transactions
+         WHERE transaction_date BETWEEN ? AND ?
+           AND ${effectiveTransactionStatus}`,
+        [startDate, endDate]
       );
-      const histExpenseMap = new Map(histExpenseRows.map(r => [r.bank_account_id, parseFloat(r.total) || 0]));
+      const [[cashHistoryRow]] = await db.pool.execute(
+        `SELECT
+           COALESCE(SUM(CASE WHEN transaction_type IN ${cashIncomeTypes} THEN amount ELSE 0 END), 0) as income,
+           COALESCE(SUM(CASE WHEN transaction_type IN ${cashExpenseTypes} THEN amount ELSE 0 END), 0) as expense
+         FROM cash_transactions
+         WHERE transaction_date < ?
+           AND ${effectiveTransactionStatus}`,
+        [startDate]
+      );
 
       const reportData = [];
       for (const account of accounts) {
@@ -287,6 +310,23 @@ const enhancedReportsController = {
           currentMonthIncome: currentIncome / unitValue,
           currentMonthExpense: currentExpense / unitValue,
           currentMonthBalance: currentBalance / unitValue,
+        });
+      }
+
+      const cashCurrentIncome = parseFloat(cashCurrentRow?.income || 0);
+      const cashCurrentExpense = parseFloat(cashCurrentRow?.expense || 0);
+      const cashOpeningBalance =
+        (parseFloat(cashHistoryRow?.income || 0) - parseFloat(cashHistoryRow?.expense || 0));
+      const cashCurrentBalance = cashOpeningBalance + cashCurrentIncome - cashCurrentExpense;
+      if (cashOpeningBalance !== 0 || cashCurrentIncome !== 0 || cashCurrentExpense !== 0) {
+        reportData.push({
+          id: 'cash',
+          name: '库存现金',
+          type: 'cash',
+          lastMonthBalance: cashOpeningBalance / unitValue,
+          currentMonthIncome: cashCurrentIncome / unitValue,
+          currentMonthExpense: cashCurrentExpense / unitValue,
+          currentMonthBalance: cashCurrentBalance / unitValue,
         });
       }
 

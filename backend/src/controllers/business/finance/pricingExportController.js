@@ -2,6 +2,7 @@ const ExcelJS = require('exceljs');
 const { getConnection } = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const logger = require('../../../utils/logger');
+const { currentDateString } = require('../../../utils/dateUtils');
 
 // 导出产品定价列表为 Excel
 exports.exportPricingList = async (req, res) => {
@@ -92,7 +93,7 @@ exports.exportPricingList = async (req, res) => {
     });
 
     // 设置响应头
-    const fileName = `产品定价表_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const fileName = `产品定价表_${currentDateString()}.xlsx`;
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

@@ -157,6 +157,7 @@ class ProductSalesTraceabilityService {
             operator: operator || 'system',
             remark: `销售出库给客户: ${customer.name}`,
             batchNumber: batch.batch_number,
+            transactionDate: delivery_date,
           },
           connection
         );
@@ -230,12 +231,20 @@ class ProductSalesTraceabilityService {
       const [productBatch] = await connection.execute(
         `
         SELECT
-          vbs.*,
+          il.material_id,
+          il.batch_number,
+          SUM(il.quantity) as current_quantity,
+          SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as original_quantity,
+          COALESCE(MIN(CASE WHEN il.quantity > 0 THEN il.created_at END), MIN(il.created_at)) as receipt_date,
           m.code as material_code,
-          m.name as material_name
-        FROM v_batch_stock vbs
-        LEFT JOIN materials m ON vbs.material_id = m.id
-        WHERE m.code = ? AND vbs.batch_number = ?
+          m.name as material_name,
+          m.specs as product_specs,
+          u.name as unit
+        FROM inventory_ledger il
+        LEFT JOIN materials m ON il.material_id = m.id
+        LEFT JOIN units u ON m.unit_id = u.id
+        WHERE m.code = ? AND il.batch_number = ?
+        GROUP BY il.material_id, il.batch_number, m.code, m.name, m.specs, u.name
           `,
         [productCode, batchNumber]
       );
@@ -252,17 +261,34 @@ class ProductSalesTraceabilityService {
         SELECT
           m.code as raw_material_code,
           m.name as raw_material_name,
+          m.specs as specification,
+          u.name as unit,
           br.parent_batch_number as raw_material_batch,
-          vbs.supplier_name,
-          vbs.receipt_date,
+          (SELECT COALESCE(NULLIF(il_s.supplier_name, ''), s.name)
+           FROM inventory_ledger il_s
+           LEFT JOIN suppliers s ON il_s.supplier_id = s.id
+           WHERE il_s.material_id = m.id
+             AND il_s.batch_number = br.parent_batch_number
+             AND il_s.quantity > 0
+           ORDER BY il_s.created_at ASC
+           LIMIT 1) as supplier_name,
+          (SELECT il_dt.created_at
+           FROM inventory_ledger il_dt
+           WHERE il_dt.material_id = m.id
+             AND il_dt.batch_number = br.parent_batch_number
+             AND il_dt.quantity > 0
+           ORDER BY il_dt.created_at ASC
+           LIMIT 1) as receipt_date,
           br.consumed_quantity as consumed_quantity
         FROM batch_relationships br
-        LEFT JOIN v_batch_stock vbs ON br.parent_batch_number = vbs.batch_number
-        LEFT JOIN materials m ON vbs.material_id = m.id
-        WHERE br.child_batch_number = ? AND br.relationship_type = 'consume'
-        ORDER BY vbs.receipt_date ASC
+        LEFT JOIN materials m ON m.code = br.parent_material_code
+        LEFT JOIN units u ON m.unit_id = u.id
+        WHERE br.child_batch_number = ?
+          AND br.child_material_code = ?
+          AND br.relationship_type = 'consume'
+        ORDER BY receipt_date ASC, m.code ASC
           `,
-        [batchNumber]
+        [batchNumber, productCode]
       );
 
       // 获取销售记录（使用batch_number）
@@ -280,9 +306,10 @@ class ProductSalesTraceabilityService {
         LEFT JOIN sales_orders so ON pst.order_id = so.id
         LEFT JOIN customers c ON pst.customer_id = c.id
         WHERE pst.product_batch_number = ?
+          AND pst.product_code = ?
           ORDER BY pst.created_at DESC
           `,
-        [batchNumber]
+        [batchNumber, productCode]
       );
 
       return {

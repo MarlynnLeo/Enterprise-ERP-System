@@ -5,6 +5,7 @@
 
 const db = require('../config/db');
 const logger = require('../utils/logger');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 const assetInventoryModel = {
     /**
@@ -12,6 +13,7 @@ const assetInventoryModel = {
      */
     getInventories: async (filters, page = 1, limit = 10) => {
         try {
+            const pagination = parsePagination(page, limit, { defaultPageSize: 10, maxPageSize: 100 });
             let query = `
                 SELECT i.*, i.inventory_name as title,
                        (SELECT COUNT(*) FROM asset_inventory_items item WHERE item.inventory_id = i.id) as total_items,
@@ -36,9 +38,7 @@ const assetInventoryModel = {
             const total = countResult[0].total;
 
             // 分页
-            const offset = (page - 1) * limit;
-            query += ` LIMIT ? OFFSET ?`;
-            params.push(limit, offset);
+            query = appendPaginationSQL(query, pagination.limit, pagination.offset);
 
             const [inventories] = await db.pool.query(query, params);
 
@@ -46,9 +46,9 @@ const assetInventoryModel = {
                 inventories,
                 pagination: {
                     total,
-                    page,
-                    limit,
-                    totalPages: Math.ceil(total / limit)
+                    page: pagination.page,
+                    limit: pagination.pageSize,
+                    totalPages: Math.ceil(total / pagination.pageSize)
                 }
             };
         } catch (error) {

@@ -1,5 +1,5 @@
-﻿<template>
-  <div class="tax-invoices-container">
+<template>
+  <div class="module-page tax-invoices-container">
     <!-- 页面标题头 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -8,14 +8,26 @@
           <p class="subtitle">管理进项和销项发票，支持认证与抵扣操作</p>
         </div>
         <div class="header-actions">
-          <el-button v-permission="'finance:tax:create'" type="primary" @click="handleCreate" :icon="Plus">新增发票</el-button>
+          <el-button v-if="canCreateTaxInvoice" type="primary" @click="handleCreate" :icon="Plus">新增发票</el-button>
         </div>
       </div>
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="发票号码">
+          <el-input v-model="searchForm.invoice_number" placeholder="请输入发票号码" clearable />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="发票类型">
           <el-select v-model="searchForm.invoice_type" placeholder="请选择" clearable>
             <el-option label="进项" value="进项" />
@@ -43,17 +55,8 @@
 
           />
         </el-form-item>
-
-        <el-form-item label="发票号码">
-          <el-input v-model="searchForm.invoice_number" placeholder="请输入发票号码" clearable />
-        </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :icon="Search">查询</el-button>
-          <el-button @click="handleReset" :icon="Refresh">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stats-row">
@@ -84,7 +87,7 @@
           <div class="stat-content">
             <div class="stat-info">
               <div class="stat-label">进项税额</div>
-              <div class="stat-value success">¥{{ formatAmount(stats.inputTax) }}</div>
+              <div class="stat-value success">{{ formatMoney(stats.inputTax) }}</div>
             </div>
             <el-icon class="stat-icon success"><Download /></el-icon>
           </div>
@@ -95,7 +98,7 @@
           <div class="stat-content">
             <div class="stat-info">
               <div class="stat-label">销项税额</div>
-              <div class="stat-value warning">¥{{ formatAmount(stats.outputTax) }}</div>
+              <div class="stat-value warning">{{ formatMoney(stats.outputTax) }}</div>
             </div>
             <el-icon class="stat-icon warning"><Upload /></el-icon>
           </div>
@@ -112,8 +115,8 @@
         stripe
         style="width: 100%"
       >
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="invoice_type" label="类型" width="80" align="center">
+        <el-table-column type="index" label="序号" width="60" />
+        <el-table-column prop="invoice_type" label="类型" width="80">
           <template #default="{ row }">
             <el-tag :type="row.invoice_type === '进项' ? 'success' : 'warning'" size="small">
               {{ row.invoice_type }}
@@ -131,36 +134,36 @@
             <span v-else>{{ row.invoice_number }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="invoice_date" label="开票日期" width="110" align="center" />
+        <el-table-column prop="invoice_date" label="开票日期" width="110" />
         <el-table-column prop="supplier_or_customer_name" label="供应商/客户" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="amount_excluding_tax" label="不含税金额" width="120" align="right">
+        <el-table-column prop="amount_excluding_tax" label="不含税金额" width="120">
           <template #default="{ row }">
             {{ formatAmount(row.amount_excluding_tax) }}
           </template>
         </el-table-column>
-        <el-table-column prop="tax_rate" label="税率" width="90" align="center">
+        <el-table-column prop="tax_rate" label="税率" width="90">
           <template #default="{ row }">
-            {{ row.tax_rate }}%
+            {{ formatTaxRate(row.tax_rate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="tax_amount" label="税额" width="100" align="right">
+        <el-table-column prop="tax_amount" label="税额" width="100">
           <template #default="{ row }">
             {{ formatAmount(row.tax_amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="total_amount" label="价税合计" width="120" align="right">
+        <el-table-column prop="total_amount" label="价税合计" width="120">
           <template #default="{ row }">
             <span class="amount-highlight">{{ formatAmount(row.total_amount) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
               {{ row.status }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="关联单据" width="220" align="center">
+        <el-table-column label="关联单据" width="220">
           <template #default="{ row }">
             <template v-if="row.linked_document_number">
               <el-tag :type="getDocTypeTagType(row.related_document_type)" size="small" effect="plain">
@@ -171,7 +174,7 @@
             <span v-else style="color: var(--color-text-disabled); font-size: 12px">未关联</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="center" fixed="right">
+        <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-dropdown trigger="click" @command="(cmd) => handleCommand(cmd, row)">
               <el-button type="primary" size="small" link>
@@ -181,40 +184,34 @@
                 <el-dropdown-menu>
                   <el-dropdown-item command="view" :icon="View">查看详情</el-dropdown-item>
                   <el-dropdown-item
-                    v-permission="'finance:tax:update'"
-                    v-if="row.status === '未认证'"
+                    v-if="canUpdateTaxInvoice && row.status === '未认证'"
                     command="certify"
                     :icon="Check"
                   >认证发票</el-dropdown-item>
                   <el-dropdown-item
-                    v-permission="'finance:tax:update'"
-                    v-if="row.status === '已认证' && row.invoice_type === '进项'"
+                    v-if="canUpdateTaxInvoice && row.status === '已认证' && row.invoice_type === '进项'"
                     command="deduct"
                     :icon="Discount"
                   >抵扣发票</el-dropdown-item>
                   <el-dropdown-item
-                    v-permission="'finance:tax:update'"
-                    v-if="row.status === '未认证'"
+                    v-if="canUpdateTaxInvoice && row.status === '未认证'"
                     command="void"
                     :icon="Delete"
                     divided
                   >作废发票</el-dropdown-item>
                   <el-dropdown-item
-                    v-permission="'finance:tax:update'"
-                    v-if="row.status === '未认证' && !row.gl_entry_id"
+                    v-if="canUpdateTaxInvoice && row.status === '未认证' && !row.gl_entry_id"
                     command="editNumber"
                     :icon="EditPen"
                     divided
                   >编辑发票号</el-dropdown-item>
                   <el-dropdown-item
-                    v-permission="'finance:tax:update'"
-                    v-if="canChangeDocumentLink(row) && !row.linked_document_number"
+                    v-if="canUpdateTaxInvoice && canChangeDocumentLink(row) && !row.linked_document_number"
                     command="link"
                     :icon="Link"
                   >关联AP/AR单据</el-dropdown-item>
                   <el-dropdown-item
-                    v-permission="'finance:tax:update'"
-                    v-if="canChangeDocumentLink(row) && row.linked_document_number"
+                    v-if="canUpdateTaxInvoice && canChangeDocumentLink(row) && row.linked_document_number"
                     command="unlink"
                     :icon="Unlink"
                   >取消关联</el-dropdown-item>
@@ -258,18 +255,18 @@
         <el-descriptions-item label="发票号码">{{ currentInvoice.invoice_number }}</el-descriptions-item>
         <el-descriptions-item label="发票代码">{{ currentInvoice.invoice_code || '-' }}</el-descriptions-item>
         <el-descriptions-item label="开票日期">{{ currentInvoice.invoice_date }}</el-descriptions-item>
-        <el-descriptions-item label="税率">{{ currentInvoice.tax_rate }}%</el-descriptions-item>
+        <el-descriptions-item label="税率">{{ formatTaxRate(currentInvoice.tax_rate) }}</el-descriptions-item>
         <el-descriptions-item label="供应商/客户" :span="2">{{ currentInvoice.supplier_or_customer_name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="税号">{{ currentInvoice.supplier_tax_number || '-' }}</el-descriptions-item>
         <el-descriptions-item label="创建人">{{ currentInvoice.creator_name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="不含税金额">
-          <span class="detail-amount primary">¥ {{ formatAmount(currentInvoice.amount_excluding_tax) }}</span>
+          <span class="detail-amount primary">{{ formatMoney(currentInvoice.amount_excluding_tax) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="税额">
-          <span class="detail-amount warning">¥ {{ formatAmount(currentInvoice.tax_amount) }}</span>
+          <span class="detail-amount warning">{{ formatMoney(currentInvoice.tax_amount) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="价税合计" :span="2">
-          <span class="detail-amount danger large">¥ {{ formatAmount(currentInvoice.total_amount) }}</span>
+          <span class="detail-amount danger large">{{ formatMoney(currentInvoice.total_amount) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="认证日期" v-if="currentInvoice.certification_date">{{ currentInvoice.certification_date }}</el-descriptions-item>
         <el-descriptions-item label="抵扣日期" v-if="currentInvoice.deduction_date">{{ currentInvoice.deduction_date }}</el-descriptions-item>
@@ -278,8 +275,8 @@
             {{ getDocTypeLabel(currentInvoice.related_document_type) }}
           </el-tag>
           <span style="font-weight: 600">{{ currentInvoice.linked_document_number }}</span>
-          <span v-if="currentInvoice.linked_document_amount" style="margin-left: 12px; color: #409eff">
-            ¥{{ formatAmount(currentInvoice.linked_document_amount) }}
+          <span v-if="currentInvoice.linked_document_amount !== null && currentInvoice.linked_document_amount !== undefined" style="margin-left: 12px; color: var(--color-primary)">
+            {{ formatMoney(currentInvoice.linked_document_amount) }}
           </span>
           <el-tag v-if="currentInvoice.linked_document_status" size="small" style="margin-left: 8px">
             {{ currentInvoice.linked_document_status }}
@@ -348,13 +345,13 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="不含税金额" prop="amount_excluding_tax">
-              <el-input-number
-                v-model="createForm.amount_excluding_tax"
-                :precision="2"
-                :min="0"
-                :controls="false"
-                style="width: 100%"
-                @change="calculateTax"
+                <el-input-number
+                  v-model="createForm.amount_excluding_tax"
+                  :precision="2"
+                  :min="0.01"
+                  :controls="false"
+                  style="width: 100%"
+                  @change="calculateTax"
               />
             </el-form-item>
           </el-col>
@@ -397,7 +394,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:tax:create'" type="primary" @click="submitCreate" :loading="submitting">确认</el-button>
+        <el-button v-if="canCreateTaxInvoice" type="primary" @click="submitCreate" :loading="submitting">确认</el-button>
       </template>
     </el-dialog>
 
@@ -435,25 +432,25 @@
           >
             <el-table-column prop="invoice_number" label="发票号" width="160" />
             <el-table-column :prop="linkForm.document_type === 'ap_invoice' ? 'supplier_name' : 'customer_name'" :label="linkForm.document_type === 'ap_invoice' ? '供应商' : '客户'" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="total_amount" label="金额" width="120" align="right">
+            <el-table-column prop="total_amount" label="金额" width="120">
               <template #default="{ row }">
-                ¥{{ formatAmount(row.total_amount) }}
+                {{ formatMoney(row.total_amount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="90" align="center">
+            <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">
                 <el-tag size="small">{{ row.status }}</el-tag>
               </template>
             </el-table-column>
           </el-table>
-          <div v-if="linkForm.selected_id" style="margin-top: 12px; padding: 8px 12px; background: var(--color-success-light); border-radius: 4px; color: #67c23a">
+          <div v-if="linkForm.selected_id" style="margin-top: 12px; padding: 8px 12px; background: var(--color-success-light); border-radius: 4px; color: var(--color-success)">
             已选择: {{ linkForm.selected_number }}
           </div>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="linkDialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:tax:update'" type="primary" @click="submitLink" :loading="linkSubmitting" :disabled="!linkForm.selected_id">确认关联</el-button>
+        <el-button v-if="canUpdateTaxInvoice" type="primary" @click="submitLink" :loading="linkSubmitting" :disabled="!linkForm.selected_id">确认关联</el-button>
       </template>
     </el-dialog>
 
@@ -478,18 +475,23 @@
       </el-form>
       <template #footer>
         <el-button @click="editNumberDialogVisible = false">取消</el-button>
-        <el-button v-permission="'finance:tax:update'" type="primary" @click="submitEditInvoiceNumber" :loading="editNumberSubmitting">确认</el-button>
+        <el-button v-if="canUpdateTaxInvoice" type="primary" @click="submitEditInvoiceNumber" :loading="editNumberSubmitting">确认</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { formatAmount } from '@/utils/format'
-import { Search, Refresh, Plus, View, Check, Discount, Delete, ArrowDown, Document, Clock, Download, Upload, Link, CircleClose as Unlink, EditPen } from '@element-plus/icons-vue';
-import { api } from '@/services/axiosInstance';
+import { formatAmount, formatLocalDate } from '@/utils/format'
+import { Plus, View, Check, Discount, Delete, ArrowDown, Document, Clock, Download, Upload, Link, CircleClose as Unlink, EditPen } from '@element-plus/icons-vue';
+import { financeApi } from '@/api/finance';
+import { useAuthStore } from '@/stores/auth';
+
+const authStore = useAuthStore();
+const canCreateTaxInvoice = computed(() => authStore.hasPermission('finance:tax:create'));
+const canUpdateTaxInvoice = computed(() => authStore.hasPermission('finance:tax:update'));
 
 // 搜索表单
 const searchForm = reactive({
@@ -499,6 +501,7 @@ const searchForm = reactive({
 });
 
 const dateRange = ref([]);
+const showAdvancedSearch = ref(false);
 const loading = ref(false);
 const tableData = ref([]);
 
@@ -527,7 +530,7 @@ const createFormRef = ref(null);
 const submitting = ref(false);
 const createForm = reactive({
   invoice_type: '进项',
-  invoice_date: new Date().toISOString().slice(0, 10),
+  invoice_date: formatLocalDate(new Date()),
   invoice_number: '',
   invoice_code: '',
   supplier_or_customer_name: '',
@@ -539,12 +542,21 @@ const createForm = reactive({
   remark: ''
 });
 
+const validatePositiveAmount = (_rule, value, callback) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    callback(new Error('请输入大于0的金额'));
+    return;
+  }
+  callback();
+};
+
 const createRules = {
   invoice_type: [{ required: true, message: '请选择发票类型', trigger: 'change' }],
   invoice_date: [{ required: true, message: '请选择开票日期', trigger: 'change' }],
   invoice_number: [{ required: true, message: '请输入发票号码', trigger: 'blur' }],
   supplier_or_customer_name: [{ required: true, message: '请输入供应商/客户名称', trigger: 'blur' }],
-  amount_excluding_tax: [{ required: true, message: '请输入金额', trigger: 'blur' }],
+  amount_excluding_tax: [{ validator: validatePositiveAmount, trigger: 'blur' }],
   tax_rate: [{ required: true, message: '请选择税率', trigger: 'change' }]
 };
 
@@ -560,6 +572,17 @@ const calculateTax = () => {
 };
 
 // 格式化金额 - 已统一使用 @/utils/format 导入
+const isBlankAmount = (value) => value === null || value === undefined || value === '';
+const formatMoney = (value) => {
+  const formatted = formatAmount(value);
+  return formatted === '-' ? '-' : `¥${formatted}`;
+};
+const formatTaxRate = (value) => {
+  if (isBlankAmount(value)) return '-';
+  const rate = Number(value);
+  if (Number.isNaN(rate)) return '-';
+  return `${rate}%`;
+};
 
 // 获取状态类型
 const getStatusType = (status) => {
@@ -620,7 +643,7 @@ const loadData = async () => {
       }
     });
 
-    const response = await api.get('/finance/tax/invoices', { params });
+    const response = await financeApi.tax.getInvoices(params);
     const data = response.data;
 
     if (Array.isArray(data)) {
@@ -648,12 +671,14 @@ const loadData = async () => {
 const calculateStats = () => {
   stats.total = tableData.value.length;
   stats.pending = tableData.value.filter(item => item.status === '未认证').length;
-  stats.inputTax = tableData.value
-    .filter(item => item.invoice_type === '进项' && item.status !== '已作废')
-    .reduce((sum, item) => sum + parseFloat(item.tax_amount || 0), 0);
-  stats.outputTax = tableData.value
-    .filter(item => item.invoice_type === '销项' && item.status !== '已作废')
-    .reduce((sum, item) => sum + parseFloat(item.tax_amount || 0), 0);
+  const inputTaxRows = tableData.value.filter(item => item.invoice_type === '进项' && item.status !== '已作废');
+  const outputTaxRows = tableData.value.filter(item => item.invoice_type === '销项' && item.status !== '已作废');
+  stats.inputTax = inputTaxRows.some(item => isBlankAmount(item.tax_amount))
+    ? null
+    : inputTaxRows.reduce((sum, item) => sum + parseFloat(item.tax_amount), 0);
+  stats.outputTax = outputTaxRows.some(item => isBlankAmount(item.tax_amount))
+    ? null
+    : outputTaxRows.reduce((sum, item) => sum + parseFloat(item.tax_amount), 0);
 };
 
 // 搜索
@@ -677,7 +702,7 @@ const handleCreate = () => {
   // 重置表单
   Object.assign(createForm, {
     invoice_type: '进项',
-    invoice_date: new Date().toISOString().slice(0, 10),
+    invoice_date: formatLocalDate(new Date()),
     invoice_number: '',
     invoice_code: '',
     supplier_or_customer_name: '',
@@ -697,7 +722,7 @@ const submitCreate = async () => {
     await createFormRef.value.validate();
     submitting.value = true;
 
-    await api.post('/finance/tax/invoices', createForm);
+    await financeApi.tax.createInvoice(createForm);
 
     ElMessage.success('发票创建成功');
     createDialogVisible.value = false;
@@ -758,8 +783,8 @@ const handleCertify = async (row) => {
       }
     );
 
-    await api.post(`/finance/tax/invoices/${row.id}/certify`, {
-      certification_date: new Date().toISOString().split('T')[0]
+    await financeApi.tax.certifyInvoice(row.id, {
+      certification_date: formatLocalDate(new Date())
     });
 
     ElMessage.success('发票认证成功，会计分录已自动生成');
@@ -785,8 +810,8 @@ const handleDeduct = async (row) => {
       }
     );
 
-    await api.post(`/finance/tax/invoices/${row.id}/deduct`, {
-      deduction_date: new Date().toISOString().split('T')[0]
+    await financeApi.tax.deductInvoice(row.id, {
+      deduction_date: formatLocalDate(new Date())
     });
 
     ElMessage.success('发票抵扣成功');
@@ -812,7 +837,7 @@ const handleVoid = async (row) => {
       }
     );
 
-    await api.post(`/finance/tax/invoices/${row.id}/void`);
+    await financeApi.tax.voidInvoice(row.id);
 
     ElMessage.success('发票已作废');
     loadData();
@@ -842,7 +867,7 @@ const submitEditInvoiceNumber = async () => {
   }
   try {
     editNumberSubmitting.value = true;
-    await api.put(`/finance/tax/invoices/${editNumberForm.id}/invoice-number`, {
+    await financeApi.tax.updateInvoiceNumber(editNumberForm.id, {
       invoice_number: editNumberForm.invoice_number.trim()
     });
     ElMessage.success('发票号码更新成功');
@@ -899,9 +924,7 @@ const searchAvailableDocuments = async () => {
   linkLoading.value = true;
   try {
     const type = linkForm.document_type === 'ap_invoice' ? 'ap' : 'ar';
-    const response = await api.get('/finance/tax/available-documents', {
-      params: { type, keyword: linkForm.keyword }
-    });
+    const response = await financeApi.tax.getAvailableDocuments({ type, keyword: linkForm.keyword });
     availableDocuments.value = response.data || [];
   } catch (error) {
     console.error('搜索单据失败:', error);
@@ -943,7 +966,7 @@ const submitLink = async () => {
   if (!linkForm.selected_id) return;
   linkSubmitting.value = true;
   try {
-    await api.post(`/finance/tax/invoices/${linkingInvoiceId.value}/link`, {
+    await financeApi.tax.linkInvoice(linkingInvoiceId.value, {
       document_type: linkForm.document_type,
       document_id: linkForm.selected_id
     });
@@ -966,7 +989,7 @@ const handleUnlink = async (row) => {
       '取消关联',
       { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
     );
-    await api.post(`/finance/tax/invoices/${row.id}/unlink`);
+    await financeApi.tax.unlinkInvoice(row.id);
     ElMessage.success('已取消关联');
     loadData();
   } catch (error) {
@@ -1021,6 +1044,16 @@ const handleUnlink = async (row) => {
 
 .stat-card {
   border-radius: 8px;
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--color-border-light);
+  background: var(--color-bg-section);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent) !important;
+  transform: none !important;
 }
 
 .stat-content {
@@ -1058,24 +1091,32 @@ const handleUnlink = async (row) => {
 }
 
 .stat-icon {
-  font-size: 40px;
-  opacity: 0.6;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 48px;
+  font-size: 22px;
+  opacity: 1;
+  color: var(--color-on-primary);
 }
 
 .stat-icon.total {
-  color: var(--color-primary);
+  background: var(--color-primary);
 }
 
 .stat-icon.pending {
-  color: var(--color-warning);
+  background: var(--color-warning);
 }
 
 .stat-icon.success {
-  color: var(--color-success);
+  background: var(--color-success);
 }
 
 .stat-icon.warning {
-  color: var(--color-warning);
+  background: var(--color-warning);
 }
 
 .data-card {

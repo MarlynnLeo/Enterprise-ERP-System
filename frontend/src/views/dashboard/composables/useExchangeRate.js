@@ -3,9 +3,10 @@
  * @description 汇率与图表数据的组合式函数（从 Dashboard.vue 抽取）
  */
 import { ref, computed } from 'vue'
-import * as echarts from 'echarts/core'
+import { echarts } from '@/utils/echartsCore'
 import { ElMessage } from 'element-plus'
 import { exchangeRateApi } from '../../../api/enhanced'
+import { alphaColor, getCssTokenValue } from '../../../utils/designTokens'
 
 const DASHBOARD_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY']
 
@@ -175,7 +176,7 @@ export function useExchangeRate() {
       smooth: true,
       symbol: 'none',
       lineStyle: {
-        color: isPositive ? '#67C23A' : '#F56C6C',
+        color: isPositive ? getCssTokenValue('success') : getCssTokenValue('danger'),
         width: 1.5
       },
       areaStyle: {
@@ -183,8 +184,8 @@ export function useExchangeRate() {
           type: 'linear',
           x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: isPositive ? 'rgba(103, 194, 58, 0.3)' : 'rgba(245, 108, 108, 0.3)' },
-            { offset: 1, color: isPositive ? 'rgba(103, 194, 58, 0.1)' : 'rgba(245, 108, 108, 0.1)' }
+            { offset: 0, color: isPositive ? alphaColor('success', 0.3) : alphaColor('danger', 0.3) },
+            { offset: 1, color: isPositive ? alphaColor('success', 0.1) : alphaColor('danger', 0.1) }
           ]
         }
       },
@@ -224,15 +225,15 @@ export function useExchangeRate() {
           series: [{
             data: history.map(item => item.value || item.price),
             lineStyle: {
-              color: isPositive ? '#67C23A' : '#F56C6C'
+              color: isPositive ? getCssTokenValue('success') : getCssTokenValue('danger')
             },
             areaStyle: {
               color: {
                 type: 'linear',
                 x: 0, y: 0, x2: 0, y2: 1,
                 colorStops: [
-                  { offset: 0, color: isPositive ? 'rgba(103, 194, 58, 0.3)' : 'rgba(245, 108, 108, 0.3)' },
-                  { offset: 1, color: isPositive ? 'rgba(103, 194, 58, 0.1)' : 'rgba(245, 108, 108, 0.1)' }
+                  { offset: 0, color: isPositive ? alphaColor('success', 0.3) : alphaColor('danger', 0.3) },
+                  { offset: 1, color: isPositive ? alphaColor('success', 0.1) : alphaColor('danger', 0.1) }
                 ]
               }
             }
@@ -301,19 +302,19 @@ export function useExchangeRate() {
           symbol: 'circle',
           symbolSize: 4,
           lineStyle: {
-            color: '#409EFF',
+            color: getCssTokenValue('primary'),
             width: 2
           },
           itemStyle: {
-            color: '#409EFF'
+            color: getCssTokenValue('primary')
           },
           areaStyle: {
             color: {
               type: 'linear',
               x: 0, y: 0, x2: 0, y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
-                { offset: 1, color: 'rgba(64, 158, 255, 0.1)' }
+                { offset: 0, color: alphaColor('primary', 0.3) },
+                { offset: 1, color: alphaColor('primary', 0.1) }
               ]
             }
           },
@@ -326,11 +327,11 @@ export function useExchangeRate() {
           symbol: 'circle',
           symbolSize: 4,
           lineStyle: {
-            color: '#67C23A',
+            color: getCssTokenValue('success'),
             width: 2
           },
           itemStyle: {
-            color: '#67C23A'
+            color: getCssTokenValue('success')
           },
           data: []
         },
@@ -341,11 +342,11 @@ export function useExchangeRate() {
           symbol: 'circle',
           symbolSize: 4,
           lineStyle: {
-            color: '#E6A23C',
+            color: getCssTokenValue('warning'),
             width: 2
           },
           itemStyle: {
-            color: '#E6A23C'
+            color: getCssTokenValue('warning')
           },
           data: []
         }

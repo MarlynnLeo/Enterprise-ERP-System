@@ -325,7 +325,7 @@
       const response = await purchaseApi.getOrders({
         status: 'confirmed', // 只获取已确认的订单
         page: 1,
-        pageSize: 1000
+        pageSize: 50
       })
       orderList.value = response.data?.items || response.data || []
     } catch (error) {
@@ -340,7 +340,7 @@
       const params = {
         status: 'confirmed',
         page: 1,
-        pageSize: 1000
+        pageSize: 50
       }
 
       if (orderSearchValue.value) {
@@ -400,7 +400,7 @@
     try {
       const response = await inventoryApi.getWarehouses({
         page: 1,
-        pageSize: 1000,
+        pageSize: 50,
         status: 1 // 只获取启用的仓库
       })
       warehouseList.value = response.data?.items || response.data || []
@@ -571,7 +571,7 @@
 
 <style lang="scss" scoped>
   .create-receipt-page {
-    height: 100vh;
+    height: 100%;
     background-color: var(--bg-secondary);
     display: flex;
     flex-direction: column;
@@ -593,7 +593,7 @@
       font-size: 1rem;
       font-weight: 600;
       color: var(--text-primary);
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--surface-border, var(--border-subtle));
     }
   }
 
@@ -626,7 +626,7 @@
   }
 
   .item-card {
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 12px;
@@ -672,7 +672,7 @@
   }
 
   .item-input {
-    border-top: 1px solid var(--glass-border);
+    border-top: 1px solid var(--surface-border, var(--border-subtle));
     padding-top: 12px;
   }
 
@@ -718,7 +718,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
 
     .picker-title {
       font-size: 1rem;
@@ -735,7 +735,7 @@
 
   .picker-search {
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   }
 
   .picker-content {
@@ -750,7 +750,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 12px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 6px;
     margin-bottom: 8px;
     cursor: pointer;

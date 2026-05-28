@@ -127,7 +127,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { qualityApi } from '@/services/api'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { calculateInspectionStatus, validateInspectionItems, createReceiptFromInspection } from '@/utils/inspectionHelpers'
+import { calculateInspectionStatus, validateInspectionItems } from '@/utils/inspectionHelpers'
 import dayjs from 'dayjs'
 
 const props = defineProps({
@@ -330,9 +330,14 @@ const handleSubmit = async () => {
       ElMessage.success('复检提交成功')
 
       // 根据结果处理后续流程
+      const resultData = respData?.data || respData
+      const receiptAutoCreated = resultData?.receipt_auto_created === true
       if (status === 'passed') {
-        await promptCreateReceipt(submitData.id, true)
+        if (receiptAutoCreated) ElMessage.success('系统已自动创建采购入库单')
+        else ElMessage.warning('复检已提交，但后端未返回入库单创建结果，请刷新后确认')
       } else if (status === 'partial') {
+        if (receiptAutoCreated) ElMessage.success('系统已自动创建采购入库单（仅合格部分）')
+        else ElMessage.warning('复检已提交，但后端未返回入库单创建结果，请刷新后确认')
         await handlePartialReviewResult(submitData.id, submitData.qualified_quantity, submitData.unqualified_quantity)
       } else if (status === 'failed') {
         await handleFailedReviewResult(submitData.id, submitData.unqualified_quantity)
@@ -351,47 +356,17 @@ const handleSubmit = async () => {
   }
 }
 
-// 入库单创建提示
-const promptCreateReceipt = async (inspectionId, isReview) => {
-  try {
-    await ElMessageBox.confirm(`复检已完成，是否自动创建采购入库单？`, '提示', {
-      confirmButtonText: '创建入库单', cancelButtonText: '暂不创建', type: 'success'
-    })
-    const inspectionDetail = await qualityApi.getIncomingInspection(inspectionId)
-    const inspection = inspectionDetail.data
-    await createReceiptFromInspection(inspection, authStore, isReview)
-    ElMessage.success('采购入库单创建成功')
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('创建入库单失败:', error)
-      ElMessage.error(`创建入库单失败: ${error.message}`)
-    } else {
-      ElMessage.info('已取消创建入库单')
-    }
-  }
-}
-
 // 部分合格处理
 const handlePartialReviewResult = async (inspectionId, qualifiedQty, unqualifiedQty) => {
   try {
-    const result = await ElMessageBox.confirm(
-      `复检完成！合格数量: ${qualifiedQty}, 不合格数量: ${unqualifiedQty}\n\n• 合格部分可以创建入库单进行入库\n• 不合格部分需要重新选择处理方式\n\n是否现在创建入库单(仅入库合格部分)?`,
-      '复检部分合格 - 需要处理', { confirmButtonText: '创建入库单', cancelButtonText: '稍后处理', type: 'warning', distinguishCancelAndClose: true }
+    await ElMessageBox.confirm(
+      `复检完成！合格数量: ${qualifiedQty}, 不合格数量: ${unqualifiedQty}\n\n合格部分已由后端自动创建采购入库单，不合格部分需要重新处理。\n\n是否前往不合格品管理页面？`,
+      '复检部分合格 - 需要处理', { confirmButtonText: '前往处理', cancelButtonText: '稍后处理', type: 'warning', distinguishCancelAndClose: true }
     )
-    if (result === 'confirm') {
-      const inspectionDetail = await qualityApi.getIncomingInspection(inspectionId)
-      await createReceiptFromInspection(inspectionDetail.data, authStore, true)
-      ElMessage.success('入库单创建成功(仅入库合格部分)')
-      setTimeout(() => {
-        ElMessageBox.confirm(`入库单已创建。\n\n复检后仍不合格的部分(${unqualifiedQty})需要重新处理,是否前往不合格品管理页面?`, '提示',
-          { confirmButtonText: '前往处理', cancelButtonText: '稍后处理', type: 'info' }
-        ).then(() => { router.push({ path: '/quality/nonconforming', query: { inspection_id: inspectionId } }) })
-          .catch(() => { ElMessage.info('请记得及时处理不合格品') })
-      }, 500)
-    }
+    router.push({ path: '/quality/nonconforming', query: { inspection_id: inspectionId } })
   } catch (error) {
     if (error === 'cancel' || error === 'close') {
-      ElMessageBox.alert(`复检已完成,但未创建入库单。\n\n• 合格部分(${qualifiedQty})可稍后创建入库单\n• 不合格部分(${unqualifiedQty})请前往"质量管理 > 不合格品管理"重新处理`, '温馨提示',
+      ElMessageBox.alert(`复检已完成。\n\n• 合格部分(${qualifiedQty})已由后端创建入库单\n• 不合格部分(${unqualifiedQty})请前往"质量管理 > 不合格品管理"重新处理`, '温馨提示',
         { confirmButtonText: '我知道了', type: 'info' })
     } else {
       ElMessage.error(`处理失败: ${error.message}`)
@@ -416,12 +391,12 @@ const handleFailedReviewResult = async (inspectionId, unqualifiedQty) => {
 .inspection-items { width: 100%; max-width: 100%; overflow: hidden; }
 
 /* 结果选择器样式 - 合格显示绿色 */
-:deep(.result-select-passed .el-input__wrapper) { background-color: #f0f9ff !important; border-color: var(--color-success) !important; box-shadow: 0 0 0 1px #67C23A inset !important; }
+:deep(.result-select-passed .el-input__wrapper) { background-color: var(--ds-blue-bg) !important; border-color: var(--color-success) !important; box-shadow: 0 0 0 1px var(--color-success) inset !important; }
 :deep(.result-select-passed .el-input__inner) { color: var(--color-success) !important; font-weight: var(--font-weight-bold) !important; }
-:deep(.result-select-passed.el-select .el-input.is-focus .el-input__wrapper) { box-shadow: 0 0 0 1px #67C23A inset !important; }
+:deep(.result-select-passed.el-select .el-input.is-focus .el-input__wrapper) { box-shadow: 0 0 0 1px var(--color-success) inset !important; }
 
 /* 结果选择器样式 - 不合格显示红色 */
-:deep(.result-select-failed .el-input__wrapper) { background-color: #fef0f0 !important; border-color: var(--color-danger) !important; box-shadow: 0 0 0 1px #F56C6C inset !important; }
+:deep(.result-select-failed .el-input__wrapper) { background-color: var(--ds-red-bg) !important; border-color: var(--color-danger) !important; box-shadow: 0 0 0 1px var(--color-danger) inset !important; }
 :deep(.result-select-failed .el-input__inner) { color: var(--color-danger) !important; font-weight: var(--font-weight-bold) !important; }
-:deep(.result-select-failed.el-select .el-input.is-focus .el-input__wrapper) { box-shadow: 0 0 0 1px #F56C6C inset !important; }
+:deep(.result-select-failed.el-select .el-input.is-focus .el-input__wrapper) { box-shadow: 0 0 0 1px var(--color-danger) inset !important; }
 </style>

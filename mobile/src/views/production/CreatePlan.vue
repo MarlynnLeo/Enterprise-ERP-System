@@ -210,6 +210,7 @@
     closeToast
   } from 'vant'
   import { productionApi, baseDataApi } from '@/services/api'
+  import { extractApiData, extractApiList } from '@/utils/apiHelper'
 
   const router = useRouter()
   const formRef = ref()
@@ -260,21 +261,12 @@
   // 获取产品列表
   const fetchProducts = async () => {
     try {
-      // 获取所有产品，设置较大的分页大小
       const response = await baseDataApi.getMaterials({
         page: 1,
-        pageSize: 1000 // 获取更多数据
+        pageSize: 50,
+        status: 1
       })
-      const resData = response.data || response
-      const materials = Array.isArray(resData)
-        ? resData
-        : Array.isArray(resData.list)
-          ? resData.list
-          : Array.isArray(resData.items)
-            ? resData.items
-            : Array.isArray(resData.data)
-              ? resData.data
-              : []
+      const materials = extractApiList(response)
 
       // 为每个产品添加单位信息
       productList.value = materials.map((material) => ({
@@ -292,7 +284,8 @@
     try {
       const params = {
         page: 1,
-        pageSize: 1000
+        pageSize: 50,
+        status: 1
       }
 
       // 如果有搜索关键词，搜索名称、编码和规格
@@ -304,7 +297,7 @@
       }
 
       const response = await baseDataApi.getMaterials(params)
-      const materials = response.data?.items || response.data || []
+      const materials = extractApiList(response)
 
       // 为每个产品添加单位信息
       productList.value = materials.map((material) => ({
@@ -348,18 +341,7 @@
 
       // 先获取产品的BOM信息
       const bomResponse = await productionApi.getProductBom(planForm.productId)
-      // 处理不同的响应格式
-      let bomData = null
-      if (bomResponse.data?.success && bomResponse.data?.data) {
-        // 格式: { success: true, data: {...} }
-        bomData = bomResponse.data.data
-      } else if (bomResponse.data?.data) {
-        // 格式: { data: {...} }
-        bomData = bomResponse.data.data
-      } else if (bomResponse.data?.id) {
-        // 直接是BOM数据
-        bomData = bomResponse.data
-      }
+      const bomData = extractApiData(bomResponse, null)
 
       if (!bomData || !bomData.id) {
         showToast('该产品没有配置BOM，无法计算物料需求')
@@ -374,7 +356,7 @@
         quantity: planForm.quantity
       })
 
-      materialRequirements.value = response.data || []
+      materialRequirements.value = extractApiList(response)
     } catch (error) {
       console.error('计算物料需求失败:', error)
       console.error('错误详情:', error.response?.data)
@@ -462,7 +444,7 @@
 
 <style lang="scss" scoped>
   .create-plan-page {
-    height: 100vh;
+    height: 100%;
     background-color: var(--bg-secondary);
     display: flex;
     flex-direction: column;
@@ -484,7 +466,7 @@
       font-size: 1rem;
       font-weight: 600;
       color: var(--text-primary);
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--surface-border, var(--border-subtle));
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -554,7 +536,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
 
     .picker-title {
       font-size: 1rem;
@@ -571,7 +553,7 @@
 
   .picker-search {
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   }
 
   .picker-content {
@@ -585,7 +567,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 12px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 6px;
     margin-bottom: 8px;
     cursor: pointer;

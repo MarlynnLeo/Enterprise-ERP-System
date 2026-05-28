@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="opening-balances-container">
+  <div class="module-page opening-balances-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -36,7 +36,7 @@
         <div class="stat-content">
           <div class="stat-icon debit"><el-icon><TrendCharts /></el-icon></div>
           <div class="stat-info">
-            <div class="stat-value">¥{{ formatAmount(totalDebit) }}</div>
+            <div class="stat-value">{{ formatCurrency(totalDebit) }}</div>
             <div class="stat-label">借方合计</div>
           </div>
         </div>
@@ -45,7 +45,7 @@
         <div class="stat-content">
           <div class="stat-icon credit"><el-icon><TrendCharts /></el-icon></div>
           <div class="stat-info">
-            <div class="stat-value">¥{{ formatAmount(totalCredit) }}</div>
+            <div class="stat-value">{{ formatCurrency(totalCredit) }}</div>
             <div class="stat-label">贷方合计</div>
           </div>
         </div>
@@ -57,7 +57,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value" :class="{ 'text-success': isBalanced, 'text-danger': !isBalanced }">
-              ¥{{ formatAmount(Math.abs(totalDebit - totalCredit)) }}
+              {{ formatCurrency(Math.abs(totalDebit - totalCredit)) }}
             </div>
             <div class="stat-label">{{ isBalanced ? '借贷平衡' : '差额' }}</div>
           </div>
@@ -126,14 +126,15 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { formatAmount } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { Check, TrendCharts, Warning, CircleCheck } from '@element-plus/icons-vue'
-import request from '@/utils/request'
+import { api } from '@/services/axiosInstance'
+import { parseListData } from '@/utils/responseParser'
 
 const loading = ref(false)
 const saving = ref(false)
 const accountList = ref([])
-const balanceDate = ref(new Date().toISOString().split('T')[0])
+const balanceDate = ref(formatLocalDate(new Date()))
 
 // 计算借方合计
 const totalDebit = computed(() => {
@@ -168,14 +169,12 @@ const getAccountTypeTag = (type) => {
 const loadBalances = async () => {
   loading.value = true
   try {
-    const res = await request.get('/finance/opening-balances')
-    if (res.success) {
-      accountList.value = res.data.map(item => ({
-        ...item,
-        opening_debit: parseFloat(item.opening_debit) || 0,
-        opening_credit: parseFloat(item.opening_credit) || 0
-      }))
-    }
+    const res = await api.get('/finance/opening-balances')
+    accountList.value = parseListData(res, { enableLog: false }).map(item => ({
+      ...item,
+      opening_debit: parseFloat(item.opening_debit) || 0,
+      opening_credit: parseFloat(item.opening_credit) || 0
+    }))
   } catch (error) {
     ElMessage.error('加载期初余额失败: ' + (error.message || '未知错误'))
   } finally {
@@ -197,9 +196,8 @@ const handleBatchSave = async () => {
 
   saving.value = true
   try {
-    // 筛选有金额的科目
+    // 保存全部科目，确保已清零的期初余额也能同步到后端
     const balancesToSave = accountList.value
-      .filter(acc => (acc.opening_debit > 0 || acc.opening_credit > 0))
       .map(acc => ({
         accountId: acc.id,
         debit: acc.opening_debit || 0,
@@ -211,15 +209,13 @@ const handleBatchSave = async () => {
       return
     }
 
-    const res = await request.post('/finance/opening-balances/batch', {
+    await api.post('/finance/opening-balances/batch', {
       balances: balancesToSave,
       balanceDate: balanceDate.value
     })
 
-    if (res.success) {
-      ElMessage.success(`成功保存${balancesToSave.length}个科目的期初余额`)
-      loadBalances() // 重新加载
-    }
+    ElMessage.success(`成功保存${balancesToSave.length}个科目的期初余额`)
+    loadBalances() // 重新加载
   } catch (error) {
     ElMessage.error('保存失败: ' + (error.message || '未知错误'))
   } finally {
@@ -284,7 +280,7 @@ onMounted(() => {
 .stat-icon {
   width: 60px;
   height: 60px;
-  border-radius: 12px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -293,23 +289,23 @@ onMounted(() => {
 }
 
 .stat-icon.debit {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: var(--color-on-primary, #fff);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .stat-icon.credit {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: var(--color-on-primary, #fff);
+  background: var(--color-warning);
+  color: var(--color-on-primary);
 }
 
 .stat-icon.balanced {
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-  color: var(--color-on-primary, #fff);
+  background: var(--color-success);
+  color: var(--color-on-primary);
 }
 
 .stat-icon.unbalanced {
-  background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-  color: var(--color-on-primary, #fff);
+  background: var(--color-danger);
+  color: var(--color-on-primary);
 }
 
 .stat-info {

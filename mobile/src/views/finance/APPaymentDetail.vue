@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * APPaymentDetail.vue - 付款详情
  * @date 2026-04-15
@@ -182,9 +182,9 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 100px;
+    padding-bottom: var(--app-bottom-space);
   }
   .detail-body {
     padding: 12px;
@@ -199,7 +199,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .hero-icon {
     width: 44px;
@@ -245,7 +245,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -277,7 +277,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .section-title {
     font-size: 0.875rem;
@@ -322,7 +322,7 @@
     padding: 20px 16px;
   }
   .void-dialog {
-    padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+    padding: 18px 16px calc(18px + var(--safe-area-bottom, 0px));
     background: var(--bg-secondary);
   }
   .dialog-title {

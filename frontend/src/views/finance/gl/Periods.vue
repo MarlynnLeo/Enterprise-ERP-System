@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="periods-container">
+  <div class="module-page periods-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,8 +19,15 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="searchPeriods"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="财政年度">
           <el-select v-model="searchForm.fiscalYear" placeholder="选择财政年度" clearable>
             <el-option
@@ -31,18 +38,16 @@
             ></el-option>
           </el-select>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="状态">
           <el-select v-model="searchForm.isClosed" placeholder="选择状态" clearable>
             <el-option label="已关闭" :value="true"></el-option>
             <el-option label="未关闭" :value="false"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchPeriods">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
@@ -78,7 +83,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="250" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               v-if="!scope.row.isClosed"
@@ -174,12 +179,15 @@
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { api } from '@/services/api';
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
+const showAdvancedSearch = ref(false);
+const router = useRouter();
 
 // 分页相关
 const total = ref(0);
@@ -345,26 +353,11 @@ const handleEdit = (row) => {
   dialogVisible.value = true;
 };
 
-  // 关闭会计期间
 const handleClose = (row) => {
-  ElMessageBox.confirm(
-    '关闭会计期间会执行未过账检查、损益结转、期末余额快照，并阻止该期间继续创建或过账凭证。确认要关闭此期间吗？',
-    '警告',
-    {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(async () => {
-    try {
-      const response = await api.patch(`/finance/periods/${row.id}/close`);
-      ElMessage.success(response.data?.message || response._message || '会计期间已关闭');
-      loadPeriods();
-    } catch (error) {
-      console.error('关闭会计期间失败:', error);
-      ElMessage.error(getErrorMessage(error, '关闭会计期间失败'));
-    }
-  }).catch(() => {});
+  router.push({
+    name: 'gl-period-closing',
+    query: { periodId: row.id }
+  });
 };
 
   // 重新开启会计期间

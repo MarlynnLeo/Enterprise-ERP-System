@@ -13,6 +13,7 @@ const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { accountingConfig } = require('../../../config/accountingConfig');
+const { currentDateString } = require('../../../utils/dateUtils');
 
 /**
  * 财务总账控制器
@@ -23,18 +24,8 @@ const financeController = {
    */
   initFinanceTables: async (req, res) => {
     try {
-      const taxModel = require('../../../models/tax');
-
-      // 创建财务所需表格
-      await financeModel.createTables();
-
-      // 初始化会计科目和会计期间
+      // 表结构统一由 Knex migration 管理，此接口只补齐会计科目和会计期间等基础数据。
       await financeModel.initializeGLAccounts();
-
-      // 银行账户表结构由 migrations/20260312000008 管理，无需显式初始化
-
-      // 初始化税务模块表结构
-      await taxModel.createTables();
 
       ResponseHandler.success(res, null, '财务系统数据初始化成功');
     } catch (error) {
@@ -361,7 +352,11 @@ const financeController = {
         return ResponseHandler.error(res, '请提供有效的余额数据', 'VALIDATION_ERROR', 400);
       }
 
-      const result = await financeModel.setBatchOpeningBalance(balances, balanceDate);
+      const result = await financeModel.setBatchOpeningBalance(
+        balances,
+        balanceDate,
+        getAuthenticatedUserId(req)
+      );
       ResponseHandler.success(res, result, `成功设置${result.count}个科目的期初余额`);
     } catch (error) {
       logger.error('批量设置期初余额失败:', error);
@@ -958,7 +953,7 @@ const financeController = {
       const result = await PeriodEndService.closePeriod({
         period_id: parseInt(id),
         closed_by: req.user?.id || 'system',
-        closing_date: new Date().toISOString().slice(0, 10),
+        closing_date: currentDateString(),
       });
 
       ResponseHandler.success(res, result, '会计期间关闭成功');

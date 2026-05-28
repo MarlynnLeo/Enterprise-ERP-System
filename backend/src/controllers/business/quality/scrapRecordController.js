@@ -34,7 +34,7 @@ const getScrapRecords = async (req, res) => {
 
     const pagination = parsePagination(page, pageSize, {
       defaultPageSize: 10,
-      maxPageSize: 200,
+      maxPageSize: 100,
     });
 
     const whereConditions = [];
@@ -153,7 +153,7 @@ const updateScrapRecord = async (req, res) => {
     const { scrap_cost, scrap_date } = req.body;
 
     // 检查报废记录是否存在
-    const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ?', [
+    const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -198,7 +198,7 @@ const approveScrap = async (req, res) => {
     const { approved, approver } = req.body;
 
     // 检查报废记录是否存在
-    const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ?', [
+    const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -267,7 +267,7 @@ const completeScrap = async (req, res) => {
     const { scrap_cost } = req.body;
 
     // 获取报废记录信息
-    const [records] = await connection.query('SELECT * FROM scrap_records WHERE id = ?', [id]);
+    const [records] = await connection.query('SELECT * FROM scrap_records WHERE id = ? FOR UPDATE', [id]);
 
     if (records.length === 0) {
       await connection.rollback();
@@ -338,7 +338,7 @@ const updateStatus = async (req, res) => {
     }
 
     // 获取报废记录信息（completed 状态需要做额外处理）
-    const [records] = await connection.query('SELECT * FROM scrap_records WHERE id = ?', [id]);
+    const [records] = await connection.query('SELECT * FROM scrap_records WHERE id = ? FOR UPDATE', [id]);
     if (records.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '报废记录不存在', 'NOT_FOUND', 404);

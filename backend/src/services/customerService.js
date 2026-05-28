@@ -6,8 +6,9 @@ const customerService = {
   async getAllCustomers(page = 1, pageSize = 10, filters = {}) {
     try {
       const safePage = Math.max(1, parseInt(page, 10) || 1);
-      const safePageSize = Math.max(1, Math.min(10000, parseInt(pageSize, 10) || 10));
-      const offset = (safePage - 1) * safePageSize;
+      const noPagination = pageSize === null || pageSize === undefined;
+      const safePageSize = noPagination ? null : Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
+      const offset = noPagination ? 0 : (safePage - 1) * safePageSize;
       let whereClause = 'deleted_at IS NULL';
       const params = [];
 
@@ -51,16 +52,16 @@ const customerService = {
 
       // 获取分页数据
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-      const [rows] = await pool.query(
-        `SELECT * FROM customers WHERE ${whereClause} ORDER BY id DESC LIMIT ${safePageSize} OFFSET ${offset}`,
-        params
-      );
+      const listQuery = noPagination
+        ? `SELECT * FROM customers WHERE ${whereClause} ORDER BY id DESC`
+        : `SELECT * FROM customers WHERE ${whereClause} ORDER BY id DESC LIMIT ${safePageSize} OFFSET ${offset}`;
+      const [rows] = await pool.query(listQuery, params);
 
       return {
         items: rows,
         total,
         page,
-        pageSize,
+        pageSize: noPagination ? rows.length : safePageSize,
       };
     } catch (error) {
       logger.error('获取客户列表失败:', error);

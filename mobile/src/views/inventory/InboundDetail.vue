@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InboundDetail.vue - 入库单详情
  * @description 移动端入库单详情页，操作流程与网页端完全一致
@@ -317,9 +317,9 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .page-container {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-fixed-control-space);
     display: flex;
     flex-direction: column;
 }
@@ -328,9 +328,13 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem;
+    min-height: calc(48px + var(--safe-area-top, 0px));
+    margin: 0;
+    padding: var(--safe-area-top, 0px) 12px 0;
     background: var(--bg-secondary);
-    backdrop-filter: blur(20px);
+    border: 0;
+    border-bottom: 1px solid var(--van-border-color, var(--surface-border));
+    border-radius: 0;
     position: sticky;
     top: 0;
     z-index: 50;
@@ -346,16 +350,15 @@ onMounted(() => {
 }
 
 .page-title {
-    font-size: 1.125rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 700;
     color: var(--text-primary);
 }
 
 .nav-actions { width: 2rem; }
 
 .content-scroll {
-    padding: 1rem;
-    padding-bottom: 6rem;
+    padding: 0 12px var(--app-fixed-control-space);
 }
 
 .status-section { margin-bottom: 1.5rem; }
@@ -363,8 +366,9 @@ onMounted(() => {
 .detail-card {
     background: var(--bg-secondary);
     border-radius: 12px;
-    padding: 16px;
-    border: 1px solid var(--glass-border);
+    padding: 14px;
+    border: 1px solid var(--surface-border, var(--border-subtle));
+    box-shadow: none;
 }
 
 .status-card {
@@ -446,12 +450,12 @@ onMounted(() => {
     background: var(--bg-secondary);
     border-radius: 8px;
     padding: 12px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
 }
 .item-title-row {
     margin-bottom: 8px;
     padding-bottom: 8px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
 }
 .item-title {
     font-size: 14px;
@@ -496,10 +500,10 @@ onMounted(() => {
     bottom: 0;
     left: 0;
     right: 0;
-    padding: 1rem;
+    padding: 12px 16px;
+    padding-bottom: var(--app-fixed-control-padding-bottom);
     background: var(--bg-secondary);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--glass-border);
+    border-top: 1px solid var(--surface-border, var(--border-subtle));
     z-index: 40;
     display: flex;
     gap: 12px;

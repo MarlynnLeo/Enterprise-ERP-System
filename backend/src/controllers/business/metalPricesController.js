@@ -27,6 +27,7 @@ const MARKET_PRICE_CONFIG = {
   exchangeRateUrl:
     process.env.METAL_PRICE_EXCHANGE_RATE_URL ||
     'https://api.frankfurter.app/latest?from=USD&to=CNY',
+  exchangeRateTimeoutMs: parseNumber(process.env.METAL_PRICE_EXCHANGE_RATE_TIMEOUT_MS, 5000),
   exchangeRateFallback: parseNumber(process.env.METAL_PRICE_USD_CNY_FALLBACK, 7.24),
   refreshCron: process.env.METAL_PRICE_REFRESH_CRON || '0 */4 * * *',
   startupDelayMs: parseNumber(process.env.METAL_PRICE_STARTUP_DELAY_MS, 5000),
@@ -244,7 +245,9 @@ let cachedExchangeRate = MARKET_PRICE_CONFIG.exchangeRateFallback;
  */
 const fetchExchangeRate = async () => {
   try {
-    const response = await axios.get(MARKET_PRICE_CONFIG.exchangeRateUrl, { timeout: 5000 });
+    const response = await axios.get(MARKET_PRICE_CONFIG.exchangeRateUrl, {
+      timeout: MARKET_PRICE_CONFIG.exchangeRateTimeoutMs,
+    });
     if (response.data && response.data.rates && response.data.rates.CNY) {
       cachedExchangeRate = response.data.rates.CNY;
       logger.info(`汇率更新成功: 1 USD = ${cachedExchangeRate} CNY`);

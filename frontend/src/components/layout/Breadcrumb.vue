@@ -53,6 +53,24 @@ const breadcrumbs = computed(() => {
 
 // 根据路径获取标题，考虑前一级路径
 const getTitleByPath = (path, prevPath = '') => {
+  if (path === 'outbound') {
+    if (prevPath === 'sales') {
+      return t('menu.salesOutbound')
+    } else if (prevPath === 'inventory') {
+      return t('menu.outbound')
+    }
+  }
+
+  if (path === 'returns') {
+    if (prevPath === 'sales') {
+      return t('menu.salesReturns')
+    } else if (prevPath === 'purchase') {
+      return t('menu.returns')
+    } else if (prevPath === 'tax') {
+      return t('menu.taxReturns')
+    }
+  }
+
   // 处理特殊情况：相同路径名在不同模块下的映射
 
   // 处理receipts在不同模块下
@@ -67,7 +85,7 @@ const getTitleByPath = (path, prevPath = '') => {
   // 处理orders在不同模块下
   if (path === 'orders') {
     if (prevPath === 'sales') {
-      return '销售订单'
+      return t('menu.salesOrders')
     } else if (prevPath === 'purchase') {
       return t('menu.orders')
     }
@@ -76,11 +94,13 @@ const getTitleByPath = (path, prevPath = '') => {
   // 处理list在不同模块下
   if (path === 'list') {
     if (prevPath === 'assets') {
-      return '资产列表'
+      return t('menu.assets')
     } else if (prevPath === 'equipment') {
-      return '设备列表'
+      return t('menu.equipmentList')
+    } else if (prevPath === 'budget') {
+      return t('menu.budgetList')
     }
-    return '列表'
+    return path
   }
 
   // 处理categories在不同模块下
@@ -89,8 +109,10 @@ const getTitleByPath = (path, prevPath = '') => {
       return t('menu.assetCategories')
     } else if (prevPath === 'basedata' || prevPath === '基础数据') {
       return t('menu.categories')
+    } else if (prevPath === 'expenses') {
+      return t('menu.expenseCategories')
     }
-    return '分类'
+    return path
   }
 
   // 处理report在不同模块下
@@ -100,7 +122,7 @@ const getTitleByPath = (path, prevPath = '') => {
     } else if (prevPath === 'production') {
       return t('menu.productionReport')
     }
-    return '报表'
+    return path
   }
 
   // 处理财务管理下的现金管理路径
@@ -118,42 +140,42 @@ const getTitleByPath = (path, prevPath = '') => {
 
   // 处理费用管理下的路径
   if (path === 'expenses' && prevPath === 'finance') {
-    return '费用管理'
+    return t('menu.expenses')
   }
   if (path === 'categories' && prevPath === 'expenses') {
-    return '费用类型'
+    return t('menu.expenseCategories')
   }
 
   // 处理成本管理下的路径
   if (path === 'cost' && prevPath === 'finance') {
-    return '成本管理'
+    return t('menu.costAccounting')
   }
   if (path === 'dashboard' && prevPath === 'cost') {
-    return '成本驾驶舱'
+    return t('menu.costDashboard')
   }
   if (path === 'standard' && prevPath === 'cost') {
-    return '标准成本'
+    return t('menu.standardCost')
   }
   if (path === 'actual' && prevPath === 'cost') {
-    return '实际成本'
+    return t('menu.actualCost')
   }
   if (path === 'variance' && prevPath === 'cost') {
-    return '成本差异'
+    return t('menu.costVariance')
   }
   if (path === 'settings' && prevPath === 'cost') {
-    return '成本设置'
+    return t('menu.costSettings')
   }
   if (path === 'center' && prevPath === 'cost') {
-    return '成本中心'
+    return t('menu.costCenter')
   }
   if (path === 'ledger' && prevPath === 'cost') {
-    return '成本明细账'
+    return t('menu.costLedger')
   }
   if (path === 'profitability' && prevPath === 'cost') {
-    return '盈利分析'
+    return t('menu.profitability')
   }
   if (path === 'abc' && prevPath === 'cost') {
-    return '作业成本法'
+    return t('menu.activityBasedCosting')
   }
 
   // 处理invoices在不同模块下的显示（ar=销售发票，ap=采购发票）
@@ -163,7 +185,7 @@ const getTitleByPath = (path, prevPath = '') => {
     } else if (prevPath === 'ap') {
       return t('menu.apInvoices')
     } else if (prevPath === 'tax') {
-      return '税务发票'
+      return t('menu.taxInvoices')
     }
   }
 
@@ -188,10 +210,11 @@ const getTitleByPath = (path, prevPath = '') => {
     'plan': t('menu.productionPlan'),
     'task': t('menu.productionTask'),
     'process': t('menu.productionProcess'),
-    'equipment-monitoring': '设备监控',
-    'material-shortage': '缺料统计',
-    'mrp': '生产需求',
-    'data-view': '数据视图',
+    'equipment-monitoring': t('menu.equipmentMonitoring'),
+    'material-shortage': t('menu.materialShortage'),
+    'mrp': t('menu.mrpPlanning'),
+    'data-view': t('menu.productionDataView'),
+    'gantt': t('menu.productionGantt'),
 
     // 基础数据
     'basedata': t('menu.baseData'),
@@ -210,8 +233,9 @@ const getTitleByPath = (path, prevPath = '') => {
     '库位管理': t('menu.locations'),
     'process-templates': t('menu.processTemplates'),
     '工序模板': t('menu.processTemplates'),
-    'product-categories': '产品分类',
-    '产品分类': '产品分类',
+    'product-categories': t('menu.productCategories'),
+    '产品分类': t('menu.productCategories'),
+    'ecn': t('menu.ecnManagement'),
     '物料分类': t('menu.categories'),
 
     // 库存管理
@@ -222,7 +246,8 @@ const getTitleByPath = (path, prevPath = '') => {
     'transfer': t('menu.transfer'),
     'check': t('menu.check'),
     'transaction': t('menu.transaction'),
-    'manual-transaction': '手工出入库',
+    'manual-transaction': t('menu.manualTransaction'),
+    'year-end': t('menu.yearEnd'),
 
     // 采购管理
     'purchase': t('menu.purchase'),
@@ -231,61 +256,67 @@ const getTitleByPath = (path, prevPath = '') => {
     'returns': t('menu.returns'),
     'processing': t('menu.processing'),
     'processing-receipts': t('menu.processingReceipts'),
+    'history': t('menu.purchaseHistory'),
 
     // 销售管理
     'sales': t('menu.sales'),
     'quotations': t('menu.quotations'),
     'exchanges': t('menu.exchanges'),
-    'packing-lists': '装箱单',
-    'delivery-stats': '交付统计',
+    'packing-lists': t('menu.packingLists'),
+    'delivery-stats': t('menu.deliveryStats'),
+    'contracts': t('menu.contracts'),
 
     // 财务管理
     'finance': t('menu.finance'),
-    'gl': '总账',
+    'gl': t('menu.entries'),
     'accounts': t('menu.accounts'),
     'entries': t('menu.entries'),
     'periods': t('menu.periods'),
-    'trial-balance': '试算平衡表',
-    'period-closing': '期间结账',
-    'ar': '应收账款',
+    'trial-balance': t('menu.trialBalance'),
+    'period-closing': t('menu.periodClosing'),
+    'opening-balances': t('menu.openingBalances'),
+    'ar': t('menu.arInvoices'),
     'invoices': t('menu.arInvoices'),
     'aging': t('menu.arAging'),
-    'ap': '应付账款',
+    'ap': t('menu.apInvoices'),
     'payments': t('menu.payments'),
     'assets': t('menu.assets'),
     'depreciation': t('menu.depreciation'),
+    'cip': t('menu.assetCIP'),
     'cash': t('menu.cashierManagement'),
     'bank-transactions': t('menu.bankTransactions'),
     'cash-transactions': t('menu.cashTransactions'),
     'transactions': t('menu.transactions'),
     'reconciliation': t('menu.reconciliation'),
-    'reports': '报表',
+    'reports': t('menu.balanceSheet'),
     'balance-sheet': t('menu.balanceSheet'),
     'income-statement': t('menu.incomeStatement'),
     'cash-flow': t('menu.cashFlow'),
-    'automation': '自动化',
-    'expenses': '费用管理',
-    'pricing': '产品定价',
+    'standard-cash-flow': t('menu.standardCashFlow'),
+    'automation': t('menu.financeAutomation'),
+    'expenses': t('menu.expenses'),
+    'pricing': t('menu.productPricing'),
 
     // 税务管理
-    'tax': '税务管理',
-    'returns': '纳税申报',
-    'account-config': '税务科目配置',
+    'tax': t('menu.taxManagement'),
+    'account-config': t('menu.taxAccountConfig'),
 
     // 预算管理
-    'budget': '预算管理',
-    'execution': '预算执行',
-    'analysis': '预算分析',
+    'budget': t('menu.budgetManagement'),
+    'execution': t('menu.budgetExecution'),
+    'analysis': t('menu.budgetManagement'),
+    'ai': t('menu.budgetAI'),
 
     // 成本管理
-    'cost': '成本管理',
-    'standard': '标准成本',
-    'actual': '实际成本',
-    'variance': '成本差异',
-    'center': '成本中心',
-    'ledger': '成本明细账',
-    'profitability': '盈利分析',
-    'abc': '作业成本法',
+    'cost': t('menu.costAccounting'),
+    'standard': t('menu.standardCost'),
+    'actual': t('menu.actualCost'),
+    'variance': t('menu.costVariance'),
+    'center': t('menu.costCenter'),
+    'ledger': t('menu.costLedger'),
+    'profitability': t('menu.profitability'),
+    'abc': t('menu.activityBasedCosting'),
+    'versions': t('menu.standardCost'),
 
     // 质量管理
     'quality': t('menu.quality'),
@@ -293,18 +324,23 @@ const getTitleByPath = (path, prevPath = '') => {
     'templates': t('menu.templates'),
     'traceability': t('menu.traceability'),
     'final': t('menu.final'),
-    'first-article': '首检管理',
-    'nonconforming': '不合格品',
-    'replacement-orders': '换货单管理',
-    'rework-tasks': '返工任务',
-    'scrap-records': '废品记录',
-    'traceability-monitor': '追溯监控',
+    'first-article': t('menu.firstArticle'),
+    'nonconforming': t('menu.nonconforming'),
+    '8d-reports': t('menu.eightDReport'),
+    'aql-standards': t('menu.aqlStandards'),
+    'replacement-orders': t('menu.replacementOrders'),
+    'rework-tasks': t('menu.reworkTasks'),
+    'scrap-records': t('menu.scrapRecords'),
+    'statistics': t('menu.qualityStatistics'),
+    'gauges': t('menu.gaugeManagement'),
+    'spc': t('menu.spcControlChart'),
+    'supplier-quality': t('menu.supplierQuality'),
 
     // 设备管理
     'equipment': t('menu.equipment'),
     'maintenance': t('menu.maintenance'),
     'inspection': t('menu.inspection'),
-    'status': '设备状态',
+    'status': t('menu.equipmentStatus'),
 
     // 人力资源
     'hr': t('menu.hr'),
@@ -319,17 +355,23 @@ const getTitleByPath = (path, prevPath = '') => {
     'departments': t('menu.departments'),
     'permissions': t('menu.permissions'),
     'print': t('menu.print'),
-    'business-types': '业务类型',
-    'technical-communication': '技术沟通',
-    'settings': '系统设置',
+    'business-types': t('menu.businessTypes'),
+    'technical-communication': t('menu.technicalCommunication'),
+    'workflow': t('menu.workflow'),
+    'coding-rules': t('menu.codingRules'),
+    'documents': t('menu.documents'),
+    'business-alerts': t('menu.businessAlerts'),
+    'notifications': t('menu.notifications'),
+    'settings': t('menu.financeSettings'),
+    'exchange-rates': t('menu.exchangeRates'),
 
     // 个人中心
-    'profile': '个人中心',
+    'profile': t('user.profile'),
 
     // 通用操作
-    'create': '新建',
-    'edit': '编辑',
-    'detail': '详情'
+    'create': t('common.add'),
+    'edit': t('common.edit'),
+    'detail': t('common.detail')
   }
   return titleMap[path] || path
 }

@@ -7,6 +7,7 @@
 
 const logger = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
+const { parsePagination } = require('../utils/safePagination');
 const pool = require('../config/db');
 
 /**
@@ -33,6 +34,7 @@ const productCategoryModel = {
    * 获取过滤后的产品大类（平铺结构，支持分页）   */
   async getFilteredProductCategories(filters = {}, page = 1, limit = 20) {
     try {
+      const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
       let query = `
         SELECT
           pc.id,
@@ -91,8 +93,7 @@ const productCategoryModel = {
 
       // 添加排序和分页
       query += ' ORDER BY pc.sort ASC, pc.id ASC';
-      const offset = (page - 1) * limit;
-      query += ` LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+      query += ` LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
 
       const result = await pool.query(query, queryParams);
 
@@ -111,11 +112,73 @@ const productCategoryModel = {
       return {
         data: data,
         total: total,
-        page: page,
-        limit: limit,
+        page: pagination.page,
+        limit: pagination.pageSize,
       };
     } catch (error) {
       logger.error('获取过滤产品大类失败:', error);
+      throw error;
+    }
+  },
+
+  async getProductCategoryTreePage(filters = {}, page = 1, limit = 20) {
+    try {
+      let query = `
+        SELECT
+          pc.id,
+          pc.parent_id,
+          pc.name,
+          pc.code,
+          pc.level,
+          pc.sort,
+          pc.status,
+          pc.created_at,
+          pc.updated_at,
+          parent.name as parent_name
+        FROM categories pc
+        LEFT JOIN categories parent ON pc.parent_id = parent.id
+        WHERE pc.deleted_at IS NULL
+      `;
+      const queryParams = [];
+
+      if (filters.name) {
+        query += ' AND pc.name LIKE ?';
+        queryParams.push(`%${filters.name}%`);
+      }
+      if (filters.code) {
+        query += ' AND pc.code LIKE ?';
+        queryParams.push(`%${filters.code}%`);
+      }
+      if (filters.status !== undefined) {
+        query += ' AND pc.status = ?';
+        queryParams.push(filters.status);
+      }
+
+      query += ' ORDER BY pc.sort ASC, pc.id ASC';
+      const result = await pool.query(query, queryParams);
+
+      let rows;
+      if (Array.isArray(result)) {
+        rows = result[0];
+      } else if (result && result.rows) {
+        rows = result.rows;
+      } else {
+        rows = result;
+      }
+
+      const treeData = this.buildTree(Array.isArray(rows) ? rows : [], 0);
+      const safePage = Math.max(parseInt(page, 10) || 1, 1);
+      const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+      const start = (safePage - 1) * safeLimit;
+
+      return {
+        data: treeData.slice(start, start + safeLimit),
+        total: treeData.length,
+        page: safePage,
+        limit: safeLimit,
+      };
+    } catch (error) {
+      logger.error('获取产品分类树失败:', error);
       throw error;
     }
   },

@@ -138,14 +138,14 @@ exports.up = async function up(knex) {
     await updateChildBySort(trx, ecn?.id, 2, 'basedata:ecn:update');
     await updateChildBySort(trx, ecn?.id, 3, 'basedata:ecn:delete');
 
-    const exchangeRates = await updateMenuByPath(trx, '/finance/settings/exchange-rates', 'finance:exchange-rates');
+    const exchangeRates = await updateMenuByPath(trx, '/finance/settings/exchange-rates', 'finance:exchange-rates:view');
     await updateChildBySort(trx, exchangeRates?.id, 0, 'finance:exchange-rates:view');
     await updateChildBySort(trx, exchangeRates?.id, 1, 'finance:exchange-rates:update');
 
     const standardCashFlow = await updateMenuByPath(
       trx,
       '/finance/reports/standard-cash-flow',
-      'finance:reports:standard-cash-flow'
+      'finance:reports:standard-cash-flow:view'
     );
     await updateChildBySort(trx, standardCashFlow?.id, 0, 'finance:reports:standard-cash-flow:view');
     await updateChildBySort(trx, standardCashFlow?.id, 1, 'finance:reports:standard-cash-flow:create');

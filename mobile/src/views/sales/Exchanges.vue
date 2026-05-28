@@ -18,10 +18,11 @@
 
 <script setup>
   import { computed } from 'vue'
-  import { showToast } from 'vant'
+  import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { salesApi } from '@/services/api'
 
+  const router = useRouter()
 
   const pageConfig = computed(() => ({
     title: '销售换货',
@@ -59,7 +60,7 @@
     return response
   }
 
-  const handleItemClick = () => {
-    showToast('手机端暂未开放换货详情')
+  const handleItemClick = (item) => {
+    router.push(`/sales/exchanges/${item.id}`)
   }
 </script>

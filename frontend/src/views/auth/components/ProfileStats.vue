@@ -1,28 +1,15 @@
 ﻿<template>
-  <el-card class="glass-card user-info-card" shadow="hover">
+  <el-card class="profile-card user-info-card" shadow="hover">
     <div class="user-header">
       <div class="avatar-wrapper">
-        <!-- 动态特效容器 -->
-        <div class="avatar-frame-container" style="position: relative; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center;">
-          <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2;">
-            <Vue3Lottie
-              v-if="lottieData"
-              :animationData="lottieData"
-              :height="125"
-              :width="125"
-            />
-          </div>
-          <!-- 头像本体 -->
-          <el-avatar
-            :size="100"
-            :src="avatar || '/default-avatar.webp'"
-            class="user-avatar"
-            style="position: relative; z-index: 1;"
-            @error="handleError"
-          >
-            {{ name ? name[0].toUpperCase() : 'U' }}
-          </el-avatar>
-        </div>
+        <DecorativeAvatarFrame
+          :frame="activeAvatarFrame"
+          :avatar="avatar"
+          :name="name"
+          :size="150"
+          :avatar-size="100"
+          @avatar-error="handleError"
+        />
 
         <el-upload
           v-if="isEditing"
@@ -77,7 +64,8 @@
 <script setup>
 import { Edit, Clock, Timer } from '@element-plus/icons-vue'
 import { computed } from 'vue'
-import { getLottieAnimation } from '../../../assets/lottie'
+import { DEFAULT_AVATAR_FRAME, getAvatarFrameConfig } from '@/utils/avatarFrames'
+import DecorativeAvatarFrame from './DecorativeAvatarFrame.vue'
 const props = defineProps({
   name: String,
   role: String,
@@ -85,6 +73,10 @@ const props = defineProps({
   avatarFrame: {
     type: String,
     default: 'frame1'
+  },
+  avatarFrameConfig: {
+    type: Object,
+    default: null
   },
   isEditing: Boolean,
   stats: {
@@ -95,7 +87,17 @@ const props = defineProps({
   totalOnline: String,
   lastLogin: String
 })
-const lottieData = computed(() => getLottieAnimation(props.avatarFrame))
+const activeAvatarFrame = computed(() => {
+  if (props.avatarFrameConfig) {
+    return props.avatarFrameConfig
+  }
+
+  if (props.avatarFrame === 'none') {
+    return { id: 'none', name: '无特效', variant: 'none' }
+  }
+
+  return getAvatarFrameConfig(props.avatarFrame, DEFAULT_AVATAR_FRAME)
+})
 const emit = defineEmits(['update:avatar', 'avatar-error'])
 const handleChange = (file) => {
   emit('update:avatar', file)
@@ -110,102 +112,115 @@ const handleError = () => {
 <style scoped>
 .user-info-card {
   text-align: center;
-  border-radius: 16px;
+  width: 100%;
+  border-radius: 12px;
   overflow: visible;
   height: 100%;
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
 }
+
+.user-info-card :deep(.el-card__body) {
+  padding: 24px 20px;
+}
+
 .user-header {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
+  padding: 8px 0 18px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .avatar-wrapper {
   position: relative;
   margin-bottom: 15px;
-  width: 140px;
-  height: 140px;
+  width: 150px;
+  height: 150px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.user-avatar {
-  border: 4px solid var(--el-bg-color);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-  background: var(--el-fill-color);
-  font-size: 32px;
-  color: var(--el-text-color-secondary);
-}
 .avatar-uploader {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  z-index: 10;
+  bottom: 6px;
+  right: 6px;
+  z-index: 20;
+  border-radius: 50%;
 }
 .user-name {
   margin: 10px 0 5px;
+  max-width: 100%;
+  overflow: hidden;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--el-text-color-primary);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .user-role {
   font-size: 14px;
   color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
-  padding: 4px 12px;
+  padding: 5px 12px;
   border-radius: 20px;
-  font-weight: 500;
+  font-weight: 700;
 }
 .user-stats {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  margin: 25px 0;
+  gap: 10px;
+  margin: 18px 0;
 }
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 12px 15px;
-  background: var(--el-fill-color-light);
-  border-radius: 12px;
-  transition: all 0.3s ease;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-extra-light);
+  border-radius: 10px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 .stat-item:hover {
-  transform: translateX(5px);
-  background: var(--el-fill-color);
+  border-color: var(--el-color-primary-light-6);
+  background: var(--el-bg-color);
 }
 .stat-icon-wrapper {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  flex: 0 0 40px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .stat-icon {
   font-size: 20px;
-  color: var(--color-on-primary, #fff);
+  color: currentColor;
 }
 .stat-icon-1 {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+  color: var(--el-color-white);
+  background: var(--el-color-primary);
 }
 .stat-icon-2 {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  box-shadow: 0 4px 10px rgba(240, 147, 251, 0.3);
+  color: var(--el-color-white);
+  background: var(--el-color-success);
 }
 .stat-icon-3 {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  box-shadow: 0 4px 10px rgba(79, 172, 254, 0.3);
+  color: var(--el-color-white);
+  background: var(--el-color-warning);
 }
 .stat-content {
   flex: 1;
   text-align: left;
+  min-width: 0;
 }
 .stat-value {
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--el-text-color-primary);
   line-height: 1.2;
 }
@@ -215,18 +230,19 @@ const handleError = () => {
 }
 .online-time-display {
   margin: 20px 0;
-  padding: 15px;
-  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-light-3) 100%);
-  border-radius: 12px;
-  box-shadow: 0 8px 16px rgba(64, 158, 255, 0.2);
-  color: var(--color-on-primary, #fff);
+  padding: 14px;
+  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  color: var(--el-text-color-primary);
 }
 .time-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .time-item:last-child {
   border-bottom: none;
@@ -234,22 +250,32 @@ const handleError = () => {
 .time-label {
   flex: 1;
   text-align: left;
-  margin-left: 8px;
   font-size: 13px;
-  opacity: 0.9;
+  color: var(--el-text-color-secondary);
 }
 .time-value {
-  font-weight: 700;
+  color: var(--el-color-primary);
+  font-weight: 800;
   font-family: monospace;
   font-size: 15px;
+  white-space: nowrap;
 }
 .last-login {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--el-fill-color-extra-light);
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+  .user-info-card :deep(.el-card__body) {
+    padding: 20px 16px;
+  }
 }
 </style>

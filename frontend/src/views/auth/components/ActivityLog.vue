@@ -1,9 +1,9 @@
 <template>
-  <el-card class="glass-card activity-card" shadow="hover">
+  <el-card class="profile-card activity-card" shadow="hover">
     <template #header>
       <div class="card-header">
         <div class="header-left">
-          <el-icon class="header-icon" color="#909399"><Clock /></el-icon>
+          <el-icon class="header-icon"><Clock /></el-icon>
           <span class="header-title">活动记录</span>
         </div>
         <el-button type="primary" size="small" @click="exportActivities">
@@ -14,11 +14,11 @@
 
     <div class="activity-filters">
       <el-select v-model="filterType" placeholder="筛选类型" @change="handleFilterChange">
-        <el-option label="📋 全部" value="all" />
-        <el-option label="👤 登录" value="login" />
-        <el-option label="⚙️ 系统" value="system" />
-        <el-option label="📝 资料" value="profile" />
-        <el-option label="✅ 任务" value="task" />
+        <el-option label="全部" value="all" />
+        <el-option label="登录" value="login" />
+        <el-option label="系统" value="system" />
+        <el-option label="资料" value="profile" />
+        <el-option label="任务" value="task" />
       </el-select>
       <el-date-picker
         v-model="dateRange"
@@ -113,12 +113,12 @@ const exportActivities = () => {
 
 const getActivityColor = (category) => {
   const map = {
-    login: '#409EFF',
-    system: '#E6A23C',
-    profile: '#67C23A',
-    task: '#F56C6C'
+    login: 'var(--el-color-primary)',
+    system: 'var(--el-color-warning)',
+    profile: 'var(--el-color-success)',
+    task: 'var(--el-color-danger)'
   }
-  return map[category] || '#909399'
+  return map[category] || 'var(--el-text-color-secondary)'
 }
 
 const getActivityIconComponent = (category) => {
@@ -143,10 +143,19 @@ const getActivityCategoryName = (category) => {
 </script>
 
 <style scoped>
-.glass-card {
-  border-radius: 16px;
+.profile-card {
+  border-radius: 12px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+}
+
+.profile-card :deep(.el-card__header) {
+  padding: 16px 18px;
+}
+
+.profile-card :deep(.el-card__body) {
+  padding: 20px;
 }
 
 .card-header {
@@ -162,16 +171,21 @@ const getActivityCategoryName = (category) => {
 }
 
 .header-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 20px;
-  background: var(--el-fill-color-light);
-  padding: 8px;
-  border-radius: 8px;
-  box-sizing: content-box;
+  color: var(--el-color-white);
+  background: var(--el-color-primary);
+  border-radius: 50%;
+  box-sizing: border-box;
 }
 
 .header-title {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 800;
   color: var(--el-text-color-primary);
 }
 
@@ -180,6 +194,10 @@ const getActivityCategoryName = (category) => {
   gap: 12px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-extra-light);
 }
 
 .activity-timeline {
@@ -187,8 +205,9 @@ const getActivityCategoryName = (category) => {
 }
 
 .activity-item-card {
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--el-border-color-lighter);
+  box-shadow: none;
 }
 
 .activity-content {
@@ -198,11 +217,17 @@ const getActivityCategoryName = (category) => {
 }
 
 .activity-icon {
-  font-size: 24px;
-  background: var(--el-fill-color-lighter);
-  padding: 8px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 50%;
-  box-sizing: content-box;
+  box-sizing: border-box;
 }
 
 .activity-text {
@@ -226,5 +251,26 @@ const getActivityCategoryName = (category) => {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid var(--el-border-color-lighter);
+}
+
+@media (max-width: 768px) {
+  .profile-card :deep(.el-card__body) {
+    padding: 16px;
+  }
+
+  .card-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-header :deep(.el-button) {
+    width: 100%;
+  }
+
+  .activity-filters :deep(.el-select),
+  .activity-filters :deep(.el-date-editor) {
+    width: 100%;
+  }
 }
 </style>

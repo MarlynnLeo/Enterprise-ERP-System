@@ -10,30 +10,30 @@
       <div v-if="data.hasBom">
         <!-- BOM明细表格 -->
         <el-table :data="data.details" border stripe max-height="450">
-          <el-table-column type="index" label="#" width="50" align="center" />
+          <el-table-column type="index" label="#" width="50" />
           <el-table-column prop="material_code" label="物料编码" width="130" />
           <el-table-column prop="material_name" label="物料名称" min-width="160" show-overflow-tooltip />
           <el-table-column prop="material_specs" label="规格型号" width="130" show-overflow-tooltip />
-          <el-table-column prop="quantity" label="用量" width="80" align="center" />
-          <el-table-column label="单价" width="180" align="right">
+          <el-table-column prop="quantity" label="用量" width="80" />
+          <el-table-column label="单价" width="180">
             <template #default="{ row }">
               <div class="price-cell-container">
                 <div class="price-cell" :class="{ 'line-through text-gray-400': row.has_adjustment }">
-                  <span class="price-value">¥{{ formatNumber(row.original_price || row.current_price) }}</span>
+                  <span class="price-value">{{ formatPrice(firstPresent(row.original_price, row.current_price)) }}</span>
                 </div>
                 <div v-if="row.has_adjustment" class="adjusted-price-display">
-                  <span class="adjusted-price-value">¥{{ formatNumber(row.adjusted_price) }}</span>
+                  <span class="adjusted-price-value">{{ formatPrice(row.adjusted_price) }}</span>
                   <el-tag size="small" type="success">已调整</el-tag>
                 </div>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="subtotal" label="小计" width="110" align="right">
+          <el-table-column prop="subtotal" label="小计" width="110">
             <template #default="{ row }">
-              <span class="subtotal-value">¥{{ formatNumber(row.subtotal) }}</span>
+              <span class="subtotal-value">{{ formatPrice(row.subtotal) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="130" align="center" fixed="right">
+          <el-table-column label="操作" width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <div class="bom-actions">
                 <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
@@ -56,7 +56,7 @@
         <!-- 总成本 -->
         <div class="mt-4 text-right">
           <el-tag size="large" type="primary">
-            总成本: ¥{{ formatNumber(data.totalCost) }}
+            总成本: {{ formatPrice(data.totalCost) }}
           </el-tag>
         </div>
       </div>
@@ -87,7 +87,17 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 });
 
-const formatNumber = (num) => Number(num || 0).toFixed(2);
+const isBlankValue = (value) => value === null || value === undefined || value === '';
+const firstPresent = (...values) => values.find((value) => !isBlankValue(value));
+const formatNumber = (num) => {
+  if (isBlankValue(num)) return '-';
+  const value = Number(num);
+  return Number.isNaN(value) ? '-' : value.toFixed(2);
+};
+const formatPrice = (num) => {
+  const formatted = formatNumber(num);
+  return formatted === '-' ? '-' : `¥${formatted}`;
+};
 </script>
 
 <style scoped>
@@ -102,7 +112,7 @@ const formatNumber = (num) => Number(num || 0).toFixed(2);
 }
 
 .text-gray-400 {
-  color: #9ca3af;
+  color: var(--ds-gray);
 }
 
 .adjusted-price-display {

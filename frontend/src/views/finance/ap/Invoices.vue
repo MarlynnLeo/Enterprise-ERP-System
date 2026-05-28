@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="invoices-container">
+  <div class="module-page invoices-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -18,35 +18,41 @@
           type="primary"
           :icon="Plus"
           @click="showAddDialog"
-          v-permission="'finance:ap:create'">
+          v-permission="'finance:ap:create'"
+        >
           新增发票
         </el-button>
       </div>
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="searchInvoices"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="发票编号">
           <el-input v-model="searchForm.invoiceNumber" placeholder="系统编号"></el-input>
         </el-form-item>
         <el-form-item label="供应商发票号">
-          <el-input v-model="searchForm.supplierInvoiceNumber" placeholder="供应商发票号"></el-input>
+          <el-input
+            v-model="searchForm.supplierInvoiceNumber"
+            placeholder="供应商发票号"
+          ></el-input>
         </el-form-item>
         <el-form-item label="供应商">
-          <el-input  v-model="searchForm.supplierName" placeholder="输入供应商名称" clearable ></el-input>
+          <el-input
+            v-model="searchForm.supplierName"
+            placeholder="输入供应商名称"
+            clearable
+          ></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchInvoices" :loading="loading">查询</el-button>
-          <el-button @click="resetSearch" :loading="loading">重置</el-button>
-          <el-button class="advanced-search-btn" @click="showAdvancedSearch = !showAdvancedSearch">
-            {{ showAdvancedSearch ? '收起筛选' : '高级搜索' }}
-            <el-icon style="margin-left: 4px;"><ArrowUp v-if="showAdvancedSearch" /><ArrowDown v-else /></el-icon>
-          </el-button>
-        </el-form-item>
-      </el-form>
-      <!-- 高级搜索区域 -->
-      <el-form :inline="true" :model="searchForm" class="search-form" v-show="showAdvancedSearch" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dcdfe6;">
+      </template>
+      <template #advanced>
         <el-form-item label="开票日期">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -68,17 +74,12 @@
             <el-option label="已取消" value="已取消"></el-option>
           </el-select>
         </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
-      <el-table
-        :data="invoiceList"
-        style="width: 100%"
-        border
-        v-loading="loading"
-      >
+      <el-table :data="invoiceList" style="width: 100%" border v-loading="loading">
         <template #empty>
           <el-empty description="暂无发票数据" />
         </template>
@@ -87,17 +88,17 @@
         <el-table-column prop="supplierName" label="供应商" min-width="180"></el-table-column>
         <el-table-column prop="invoiceDate" label="开票日期" width="110"></el-table-column>
         <el-table-column prop="dueDate" label="到期日期" width="110"></el-table-column>
-        <el-table-column prop="amount" label="金额" width="130" align="right">
+        <el-table-column prop="amount" label="金额" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="paidAmount" label="已付金额" width="130" align="right">
+        <el-table-column prop="paidAmount" label="已付金额" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.paidAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="balance" label="剩余金额" width="130" align="right">
+        <el-table-column prop="balance" label="剩余金额" width="130">
           <template #default="scope">
             {{ formatCurrency(scope.row.amount - scope.row.paidAmount) }}
           </template>
@@ -109,14 +110,15 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="340" fixed="right">
+        <el-table-column label="操作" min-width="340" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               v-if="scope.row.status === '草稿'"
               type="primary"
               size="small"
               @click="handleEdit(scope.row)"
-              v-permission="'finance:ap:update'">
+              v-permission="'finance:ap:update'"
+            >
               编辑
             </el-button>
             <el-button
@@ -124,7 +126,8 @@
               type="success"
               size="small"
               @click="handleStatusChange(scope.row, '已确认')"
-              v-permission="'finance:ap:update'">
+              v-permission="'finance:ap:update'"
+            >
               确认
             </el-button>
             <el-button
@@ -132,18 +135,25 @@
               type="warning"
               size="small"
               @click="handleStatusChange(scope.row, '已取消')"
-              v-permission="'finance:ap:update'">
+              v-permission="'finance:ap:update'"
+            >
               取消
             </el-button>
             <el-button
-              v-if="['已确认', '部分付款', '已逾期'].includes(scope.row.status) && (scope.row.amount - scope.row.paidAmount) > 0"
+              v-if="
+                ['已确认', '部分付款', '已逾期'].includes(scope.row.status) &&
+                scope.row.amount - scope.row.paidAmount > 0
+              "
               v-permission="'finance:ap:pay'"
               type="success"
               size="small"
-              @click="handleRecordPayment(scope.row)">
+              @click="handleRecordPayment(scope.row)"
+            >
               付款
             </el-button>
-            <el-button type="info" size="small" @click="handleViewDetails(scope.row)">查看</el-button>
+            <el-button type="info" size="small" @click="handleViewDetails(scope.row)"
+              >查看</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -167,31 +177,35 @@
     </el-card>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
-      v-model="dialogVisible"
-      width="700px"
-    >
+    <el-dialog :title="dialogTitle" v-model="dialogVisible" width="700px">
       <el-form :model="invoiceForm" :rules="invoiceRules" ref="invoiceFormRef" label-width="110px">
-          <!-- 第一行：系统编号 + 供应商发票号 -->
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="系统编号" prop="invoiceNumber">
-                <el-input v-model="invoiceForm.invoiceNumber" placeholder="系统自动生成" disabled />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="供应商发票号" prop="supplierInvoiceNumber">
-                <el-input v-model="invoiceForm.supplierInvoiceNumber" placeholder="请输入供应商发票号" />
-              </el-form-item>
-            </el-col>
-          </el-row>
+        <!-- 第一行：系统编号 + 供应商发票号 -->
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="系统编号" prop="invoiceNumber">
+              <el-input v-model="invoiceForm.invoiceNumber" placeholder="系统自动生成" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="供应商发票号" prop="supplierInvoiceNumber">
+              <el-input
+                v-model="invoiceForm.supplierInvoiceNumber"
+                placeholder="请输入供应商发票号"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-          <!-- 第二行：供应商 -->
+        <!-- 第二行：供应商 -->
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="供应商" prop="supplierId">
-              <el-select v-model="invoiceForm.supplierId" placeholder="请选择供应商" filterable style="width: 100%">
+              <el-select
+                v-model="invoiceForm.supplierId"
+                placeholder="请选择供应商"
+                filterable
+                style="width: 100%"
+              >
                 <el-option
                   v-for="supplier in supplierOptions"
                   :key="supplier.id"
@@ -235,7 +249,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="付款期限">
-              <el-select v-model="paymentTerms" placeholder="选择付款期限" style="width: 100%" @change="handlePaymentTermsChange">
+              <el-select
+                v-model="paymentTerms"
+                placeholder="选择付款期限"
+                style="width: 100%"
+                @change="handlePaymentTermsChange"
+              >
                 <el-option
                   v-for="term in paymentTermOptions"
                   :key="term"
@@ -249,7 +268,7 @@
 
         <!-- 发票明细项 -->
         <div class="invoice-items">
-          <h3 style="margin-bottom: 12px; font-size: 14px;">发票明细</h3>
+          <h3 style="margin-bottom: 12px; font-size: 14px">发票明细</h3>
           <div class="details-table-container">
             <el-table :data="invoiceForm.items" border size="small" style="width: 100%">
               <el-table-column label="物料/服务" width="140">
@@ -276,25 +295,39 @@
               </el-table-column>
               <el-table-column label="描述" width="120">
                 <template #default="scope">
-                  <el-input v-model="scope.row.description" placeholder="描述" size="small"></el-input>
+                  <el-input
+                    v-model="scope.row.description"
+                    placeholder="描述"
+                    size="small"
+                  ></el-input>
                 </template>
               </el-table-column>
               <el-table-column label="数量" width="80">
                 <template #default="scope">
-                  <el-input v-model="scope.row.quantity" placeholder="数量" size="small" @input="calculateItemAmount(scope.row)"></el-input>
+                  <el-input
+                    v-model="scope.row.quantity"
+                    placeholder="数量"
+                    size="small"
+                    @input="calculateItemAmount(scope.row)"
+                  ></el-input>
                 </template>
               </el-table-column>
               <el-table-column label="单价" width="100">
                 <template #default="scope">
-                  <el-input v-model="scope.row.unitPrice" placeholder="单价" size="small" @input="calculateItemAmount(scope.row)"></el-input>
+                  <el-input
+                    v-model="scope.row.unitPrice"
+                    placeholder="单价"
+                    size="small"
+                    @input="calculateItemAmount(scope.row)"
+                  ></el-input>
                 </template>
               </el-table-column>
-              <el-table-column label="金额" width="100" align="right">
+              <el-table-column label="金额" width="100">
                 <template #default="scope">
                   {{ formatCurrency(scope.row.amount) }}
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="60" align="center" :resizable="false">
+              <el-table-column label="操作" width="60" :resizable="false" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="scope">
                   <el-button
                     type="danger"
@@ -302,24 +335,44 @@
                     link
                     @click="removeInvoiceItem(scope.$index)"
                     v-permission="'finance:ap:update'"
-                    style="padding: 4px 0;">
+                    style="padding: 4px 0"
+                  >
                     删除
                   </el-button>
                 </template>
               </el-table-column>
             </el-table>
           </div>
-          <div class="add-item" style="margin-top: 10px;">
-            <el-button v-permission="'finance:ap:create'" type="primary" size="small" @click="addInvoiceItem">添加明细项</el-button>
+          <div class="add-item" style="margin-top: 10px">
+            <el-button
+              v-permission="'finance:ap:create'"
+              type="primary"
+              size="small"
+              @click="addInvoiceItem"
+              >添加明细项</el-button
+            >
           </div>
         </div>
 
         <!-- 税率和总计 -->
-        <div class="invoice-total" style="margin-top: 16px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
+        <div
+          class="invoice-total"
+          style="
+            margin-top: 16px;
+            padding: 12px;
+            background: var(--color-bg-hover);
+            border-radius: 4px;
+          "
+        >
           <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="税率" label-width="60px">
-                <el-select v-model="invoiceForm.taxRate" placeholder="税率" size="small" style="width: 100%">
+                <el-select
+                  v-model="invoiceForm.taxRate"
+                  placeholder="税率"
+                  size="small"
+                  style="width: 100%"
+                >
                   <el-option
                     v-for="rate in vatRateOptions"
                     :key="rate"
@@ -330,16 +383,25 @@
               </el-form-item>
             </el-col>
             <el-col :span="16">
-              <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 4px;">
-                <div style="display: flex; justify-content: space-between; font-size: 13px;">
+              <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 4px">
+                <div style="display: flex; justify-content: space-between; font-size: 13px">
                   <span>小计：</span>
                   <span>{{ formatCurrency(calculateSubtotal()) }}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; font-size: 13px">
                   <span>税额：</span>
                   <span>{{ formatCurrency(calculateTax()) }}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; color: var(--color-primary); margin-top: 4px;">
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 15px;
+                    font-weight: bold;
+                    color: var(--color-primary);
+                    margin-top: 4px;
+                  "
+                >
                   <span>总计：</span>
                   <span>{{ formatCurrency(calculateTotal()) }}</span>
                 </div>
@@ -348,7 +410,7 @@
           </el-row>
         </div>
 
-        <el-form-item label="备注" label-width="60px" style="margin-top: 16px;">
+        <el-form-item label="备注" label-width="60px" style="margin-top: 16px">
           <el-input
             v-model="invoiceForm.notes"
             type="textarea"
@@ -360,17 +422,19 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-permission="invoiceForm.id ? 'finance:ap:update' : 'finance:ap:create'" type="primary" @click="saveInvoice" :loading="saveLoading">确认</el-button>
+          <el-button
+            v-permission="invoiceForm.id ? 'finance:ap:update' : 'finance:ap:create'"
+            type="primary"
+            @click="saveInvoice"
+            :loading="saveLoading"
+            >确认</el-button
+          >
         </span>
       </template>
     </el-dialog>
 
     <!-- 记录付款对话框 -->
-    <el-dialog
-      title="记录付款"
-      v-model="paymentDialogVisible"
-      width="600px"
-    >
+    <el-dialog title="记录付款" v-model="paymentDialogVisible" width="600px">
       <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
         <el-form-item label="发票编号">
           <el-input v-model="paymentForm.invoiceNumber" disabled></el-input>
@@ -398,10 +462,20 @@
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="付款金额" prop="amount">
-          <el-input-number v-model="paymentForm.amount" :precision="2" :min="0" :max="paymentForm.balanceValue" style="width: 100%"></el-input-number>
+          <el-input-number
+            v-model="paymentForm.amount"
+            :precision="2"
+            :min="0"
+            :max="paymentForm.balanceValue"
+            style="width: 100%"
+          ></el-input-number>
         </el-form-item>
         <el-form-item label="付款方式" prop="paymentMethod">
-          <el-select v-model="paymentForm.paymentMethod" placeholder="请选择付款方式" style="width: 100%">
+          <el-select
+            v-model="paymentForm.paymentMethod"
+            placeholder="请选择付款方式"
+            style="width: 100%"
+          >
             <el-option label="现金" value="cash"></el-option>
             <el-option label="银行转账" value="bank_transfer"></el-option>
             <el-option label="支票" value="check"></el-option>
@@ -409,7 +483,11 @@
             <el-option label="其他" value="other"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="银行账户" prop="bankAccountId" v-if="['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod)">
+        <el-form-item
+          label="银行账户"
+          prop="bankAccountId"
+          v-if="['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod)"
+        >
           <el-select
             v-model="paymentForm.bankAccountId"
             placeholder="请选择银行账户"
@@ -425,7 +503,9 @@
             >
               <div style="display: flex; justify-content: space-between; align-items: center">
                 <span>{{ account.bankName }} - {{ account.accountName }}</span>
-                <span style="color: var(--color-text-muted); font-size: 13px">{{ formatCurrency(account.balance) }}</span>
+                <span style="color: var(--color-text-muted); font-size: 13px">{{
+                  formatCurrency(account.balance)
+                }}</span>
               </div>
             </el-option>
           </el-select>
@@ -442,33 +522,53 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="paymentDialogVisible = false">取消</el-button>
-          <el-button v-permission="'finance:ap:pay'" type="primary" @click="savePayment" :loading="savePaymentLoading">确认</el-button>
+          <el-button
+            v-permission="'finance:ap:pay'"
+            type="primary"
+            @click="savePayment"
+            :loading="savePaymentLoading"
+            >确认</el-button
+          >
         </span>
       </template>
     </el-dialog>
 
     <!-- 发票明细查看对话框 -->
-    <el-dialog
-      title="发票详情查看"
-      v-model="detailsDialogVisible"
-      width="800px"
-    >
+    <el-dialog title="发票详情查看" v-model="detailsDialogVisible" width="800px">
       <div v-loading="detailsLoading">
         <!-- 基本信息 -->
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="系统编号">{{ invoiceDetail.invoiceNumber }}</el-descriptions-item>
-          <el-descriptions-item label="供应商发票号">{{ invoiceDetail.supplierInvoiceNumber }}</el-descriptions-item>
-          <el-descriptions-item label="供应商">{{ invoiceDetail.supplierName }}</el-descriptions-item>
-          <el-descriptions-item label="开票日期">{{ invoiceDetail.invoiceDate }}</el-descriptions-item>
+          <el-descriptions-item label="系统编号">{{
+            invoiceDetail.invoiceNumber
+          }}</el-descriptions-item>
+          <el-descriptions-item label="供应商发票号">{{
+            invoiceDetail.supplierInvoiceNumber
+          }}</el-descriptions-item>
+          <el-descriptions-item label="供应商">{{
+            invoiceDetail.supplierName
+          }}</el-descriptions-item>
+          <el-descriptions-item label="开票日期">{{
+            invoiceDetail.invoiceDate
+          }}</el-descriptions-item>
           <el-descriptions-item label="到期日期">{{ invoiceDetail.dueDate }}</el-descriptions-item>
-          <el-descriptions-item label="总金额">{{ formatCurrency(invoiceDetail.amount) }}</el-descriptions-item>
-          <el-descriptions-item label="已付金额">{{ formatCurrency(invoiceDetail.paidAmount) }}</el-descriptions-item>
-          <el-descriptions-item label="剩余金额">{{ formatCurrency(invoiceDetail.balance) }}</el-descriptions-item>
+          <el-descriptions-item label="总金额">{{
+            formatCurrency(invoiceDetail.amount)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="已付金额">{{
+            formatCurrency(invoiceDetail.paidAmount)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="剩余金额">{{
+            formatCurrency(invoiceDetail.balance)
+          }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(invoiceDetail)">{{ getStatusText(invoiceDetail) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ invoiceDetail.createdAt }}</el-descriptions-item>
-          <el-descriptions-item label="备注" :span="2">{{ invoiceDetail.notes || '无' }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{
+            invoiceDetail.createdAt
+          }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="2">{{
+            invoiceDetail.notes || '无'
+          }}</el-descriptions-item>
         </el-descriptions>
 
         <!-- 明细项 -->
@@ -478,13 +578,13 @@
         <el-table :data="invoiceDetail.items || []" border style="width: 100%">
           <el-table-column prop="materialName" label="物料/服务" min-width="150"></el-table-column>
           <el-table-column prop="description" label="描述" min-width="200"></el-table-column>
-          <el-table-column prop="quantity" label="数量" width="100" align="right"></el-table-column>
-          <el-table-column prop="unitPrice" label="单价" width="120" align="right">
+          <el-table-column prop="quantity" label="数量" width="100"></el-table-column>
+          <el-table-column prop="unitPrice" label="单价" width="120">
             <template #default="scope">
               {{ formatCurrency(scope.row.unitPrice) }}
             </template>
           </el-table-column>
-          <el-table-column prop="amount" label="金额" width="120" align="right">
+          <el-table-column prop="amount" label="金额" width="120">
             <template #default="scope">
               {{ formatCurrency(scope.row.amount) }}
             </template>
@@ -497,9 +597,16 @@
           <el-button
             type="primary"
             @click="handleRecordPayment(invoiceDetail)"
-            v-if="['已确认', '部分付款', '已逾期'].includes(invoiceDetail.status) && invoiceDetail.balance > 0"
-              v-permission="'finance:ap:pay'">记录付款</el-button>
-          <el-button v-permission="'finance:ap:view'" type="primary" @click="printInvoiceDetail">打印</el-button>
+            v-if="
+              ['已确认', '部分付款', '已逾期'].includes(invoiceDetail.status) &&
+              invoiceDetail.balance > 0
+            "
+            v-permission="'finance:ap:pay'"
+            >记录付款</el-button
+          >
+          <el-button v-permission="'finance:ap:view'" type="primary" @click="printInvoiceDetail"
+            >打印</el-button
+          >
         </span>
       </template>
     </el-dialog>
@@ -508,17 +615,18 @@
 <script setup>
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig';
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
-import api, { baseDataApi } from '@/services/api';
-import { useFinanceStore } from '@/stores/finance'
-import { storeToRefs } from 'pinia'
-import '@/utils/request' // Import request utility
-import printService from '@/services/printService'
-const financeStore = useFinanceStore()
-const { vatRateOptions, defaultVATRate, paymentTermOptions, defaultPaymentTermDays, pagination } = storeToRefs(financeStore)
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import { baseDataApi } from '@/services/api';
+import { financeApi } from '@/api/finance';
+import { useFinanceStore } from '@/stores/finance';
+import { storeToRefs } from 'pinia';
+import printService from '@/services/printService';
+const financeStore = useFinanceStore();
+const { vatRateOptions, defaultVATRate, paymentTermOptions, defaultPaymentTermDays, pagination } =
+  storeToRefs(financeStore);
 // 高级搜索展开状态
 const showAdvancedSearch = ref(false);
 // 数据加载状态
@@ -553,7 +661,7 @@ const searchForm = reactive({
   supplierInvoiceNumber: '',
   supplierName: '',
   dateRange: [],
-  status: ''
+  status: '',
 });
 // 发票表单
 const invoiceForm = reactive({
@@ -561,12 +669,12 @@ const invoiceForm = reactive({
   invoiceNumber: '',
   supplierInvoiceNumber: '',
   supplierId: null,
-  invoiceDate: new Date().toISOString().slice(0, 10),
+  invoiceDate: formatLocalDate(new Date()),
   dueDate: '',
   items: [],
   notes: '',
   taxRate: defaultVATRate.value, // 使用动态配置的默认税率
-  status: '草稿'
+  status: '草稿',
 });
 // 付款期限
 const paymentTerms = ref(defaultPaymentTermDays.value || 30); // 默认付款期限
@@ -579,64 +687,51 @@ const paymentForm = reactive({
   paidAmount: '',
   balance: '',
   balanceValue: 0,
-  paymentDate: new Date().toISOString().slice(0, 10),
+  paymentDate: formatLocalDate(new Date()),
   amount: 0,
   paymentMethod: 'bank_transfer',
   bankAccountId: null,
-  notes: ''
+  notes: '',
 });
 // 表单验证规则
 const invoiceRules = {
-  invoiceNumber: [
-    { required: false, message: '系统自动生成', trigger: 'blur' }
-  ],
-  supplierInvoiceNumber: [
-    { required: true, message: '请输入供应商发票号', trigger: 'blur' }
-  ],
-  supplierId: [
-    { required: true, message: '请选择供应商', trigger: 'change' }
-  ],
-  invoiceDate: [
-    { required: true, message: '请选择开票日期', trigger: 'change' }
-  ],
-  dueDate: [
-    { required: true, message: '请选择到期日期', trigger: 'change' }
-  ]
+  invoiceNumber: [{ required: false, message: '系统自动生成', trigger: 'blur' }],
+  supplierInvoiceNumber: [{ required: true, message: '请输入供应商发票号', trigger: 'blur' }],
+  supplierId: [{ required: true, message: '请选择供应商', trigger: 'change' }],
+  invoiceDate: [{ required: true, message: '请选择开票日期', trigger: 'change' }],
+  dueDate: [{ required: true, message: '请选择到期日期', trigger: 'change' }],
 };
 const paymentRules = {
-  paymentDate: [
-    { required: true, message: '请选择付款日期', trigger: 'change' }
-  ],
-  amount: [
-    { required: true, message: '请输入付款金额', trigger: 'blur' }
-  ],
-  paymentMethod: [
-    { required: true, message: '请选择付款方式', trigger: 'change' }
-  ],
+  paymentDate: [{ required: true, message: '请选择付款日期', trigger: 'change' }],
+  amount: [{ required: true, message: '请输入付款金额', trigger: 'blur' }],
+  paymentMethod: [{ required: true, message: '请选择付款方式', trigger: 'change' }],
   bankAccountId: [
     {
       required: true,
       message: '请选择银行账户',
       trigger: 'change',
       validator: (rule, value, callback) => {
-        if (['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) && !value) {
+        if (
+          ['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) &&
+          !value
+        ) {
           callback(new Error('请选择银行账户'));
         } else {
           callback();
         }
-      }
-    }
-  ]
+      },
+    },
+  ],
 };
 // 获取状态类型
 const getStatusType = (invoice) => {
   const statusMap = {
-    '草稿': 'info',
-    '已确认': 'primary',
-    '部分付款': 'warning',
-    '已付款': 'success',
-    '已逾期': 'danger',
-    '已取消': 'info'
+    草稿: 'info',
+    已确认: 'primary',
+    部分付款: 'warning',
+    已付款: 'success',
+    已逾期: 'danger',
+    已取消: 'info',
   };
   return statusMap[invoice.status] || 'info';
 };
@@ -648,7 +743,7 @@ const getStatusText = (invoice) => {
 // 处理物料选择变化
 const handleMaterialChange = (item) => {
   // 根据选择的物料自动填充描述和单价
-  const selectedMaterial = materialOptions.value.find(m => m.id === item.materialId);
+  const selectedMaterial = materialOptions.value.find((m) => m.id === item.materialId);
   if (selectedMaterial) {
     item.description = selectedMaterial.name;
     item.unitPrice = selectedMaterial.price || 0;
@@ -663,7 +758,10 @@ const calculateItemAmount = (item) => {
 };
 // 计算小计（整数化累加，避免多行累计误差放大）
 const calculateSubtotal = () => {
-  const totalCents = invoiceForm.items.reduce((sum, item) => sum + Math.round((item.amount || 0) * 100), 0);
+  const totalCents = invoiceForm.items.reduce(
+    (sum, item) => sum + Math.round((item.amount || 0) * 100),
+    0
+  );
   return totalCents / 100;
 };
 // 计算税额
@@ -680,7 +778,7 @@ const handleInvoiceDateChange = (date) => {
     const invoiceDate = new Date(date);
     const dueDate = new Date(invoiceDate);
     dueDate.setDate(dueDate.getDate() + paymentTerms.value);
-    invoiceForm.dueDate = dueDate.toISOString().slice(0, 10);
+    invoiceForm.dueDate = formatLocalDate(dueDate);
   }
 };
 // 处理付款期限变化
@@ -689,11 +787,10 @@ const handlePaymentTermsChange = (days) => {
     const invoiceDate = new Date(invoiceForm.invoiceDate);
     const dueDate = new Date(invoiceDate);
     dueDate.setDate(dueDate.getDate() + days);
-    invoiceForm.dueDate = dueDate.toISOString().slice(0, 10);
+    invoiceForm.dueDate = formatLocalDate(dueDate);
   }
 };
 // 自动生成发票编号
-;
 // 添加发票明细项
 const addInvoiceItem = () => {
   invoiceForm.items.push({
@@ -701,7 +798,7 @@ const addInvoiceItem = () => {
     description: '',
     quantity: 1,
     unitPrice: 0,
-    amount: 0
+    amount: 0,
   });
 };
 // 移除发票明细项
@@ -719,10 +816,10 @@ const loadInvoices = async () => {
       supplierName: searchForm.supplierName,
       startDate: searchForm.dateRange?.[0] || '',
       endDate: searchForm.dateRange?.[1] || '',
-      status: searchForm.status
+      status: searchForm.status,
     };
 
-    const response = await api.get('/finance/ap/invoices', { params });
+    const response = await financeApi.getAPInvoices(params);
     const { list, total: totalCount } = parsePaginatedData(response);
     invoiceList.value = list;
     total.value = totalCount;
@@ -739,12 +836,12 @@ const loadInvoices = async () => {
 // 加载供应商选项
 const loadSupplierOptions = async () => {
   try {
-    const response = await baseDataApi.getSuppliers({ pageSize: 1000 });
+    const response = await baseDataApi.getSuppliers({ pageSize: 50 });
     const suppliers = parseListData(response, { enableLog: false });
     if (suppliers.length > 0) {
-      supplierOptions.value = suppliers.map(supplier => ({
+      supplierOptions.value = suppliers.map((supplier) => ({
         id: parseInt(supplier.id),
-        name: supplier.name || supplier.supplierName || supplier.supplier_name || '未命名供应商'
+        name: supplier.name || supplier.supplierName || supplier.supplier_name || '未命名供应商',
       }));
     } else {
       supplierOptions.value = [];
@@ -770,8 +867,8 @@ const debouncedSearchMaterials = (query) => {
   searchTimeout = setTimeout(async () => {
     loadingMaterials.value = true;
     try {
-      const results = await searchMaterials(api, query, {
-        pageSize: 50 // Invoices 通常也只需要前50项来展示
+      const results = await searchMaterials(baseDataApi, query, {
+        pageSize: 50, // Invoices 通常也只需要前50项来展示
       });
 
       if (searchId === currentSearchId) {
@@ -793,16 +890,16 @@ const debouncedSearchMaterials = (query) => {
 const loadBankAccounts = async () => {
   bankAccountsLoading.value = true;
   try {
-    const response = await api.get('/finance/baseData/bankAccounts');
+    const response = await financeApi.getBankAccounts();
     // 使用统一解析器
     if (response.data) {
       const data = parseListData(response, { enableLog: false });
-      bankAccounts.value = data.map(account => ({
+      bankAccounts.value = data.map((account) => ({
         id: account.id,
         accountName: account.accountName || account.account_name,
         accountNumber: account.accountNumber || account.account_number,
         bankName: account.bankName || account.bank_name,
-        balance: parseFloat(account.balance || account.current_balance || 0)
+        balance: parseFloat(account.balance || account.current_balance || 0),
       }));
     } else {
       bankAccounts.value = [];
@@ -842,7 +939,7 @@ const handleStatusChange = async (row, status) => {
       `${actionText}发票`,
       { type: status === '已确认' ? 'success' : 'warning' }
     );
-    await api.put(`/finance/ap/invoices/${row.id}/status`, { status });
+    await financeApi.updateAPInvoiceStatus(row.id, { status });
     ElMessage.success(`发票已${status === '已确认' ? '确认' : '取消'}`);
     loadInvoices();
   } catch (error) {
@@ -860,7 +957,7 @@ const handleEdit = async (row) => {
       await loadSupplierOptions();
     }
 
-    const response = await api.get(`/finance/ap/invoices/${row.id}`);
+    const response = await financeApi.getAPInvoice(row.id);
     const invoice = response.data;
 
     resetInvoiceForm();
@@ -881,7 +978,10 @@ const handleEdit = async (row) => {
       invoiceForm.taxRate = invoice.taxRate;
     } else if (invoice.amount !== undefined && invoiceForm.items.length > 0) {
       // 尝试推导原单据的税率（后端未存储/返回税率，但返回了总金额和明细）
-      const subtotal = invoiceForm.items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+      const subtotal = invoiceForm.items.reduce(
+        (sum, item) => sum + (parseFloat(item.amount) || 0),
+        0
+      );
       if (subtotal > 0 && invoice.amount >= subtotal) {
         // 推导出的税率保留两位小数，如 0.13
         const impliedTaxRate = (parseFloat(invoice.amount) - subtotal) / subtotal;
@@ -902,15 +1002,18 @@ const handleEdit = async (row) => {
 const handleViewDetails = async (row) => {
   detailsLoading.value = true;
   try {
-    const response = await api.get(`/finance/ap/invoices/${row.id}`);
+    const response = await financeApi.getAPInvoice(row.id);
     // 拦截器已解包，response.data 就是业务数据
     const invoice = response.data;
     invoiceDetail.value = invoice;
     // 加载相关付款记录
     try {
-      const paymentsResponse = await api.get(`/finance/ap/invoices/${row.id}/payments`);
+      const paymentsResponse = await financeApi.getAPInvoicePayments(row.id);
       // 拦截器已解包，response.data 可能是 {data: [...]} 格式，也可能是直接的数组
-      invoiceDetail.value.paymentRecords = paymentsResponse.data || paymentsResponse.list || (Array.isArray(paymentsResponse) ? paymentsResponse : []);
+      invoiceDetail.value.paymentRecords =
+        paymentsResponse.data ||
+        paymentsResponse.list ||
+        (Array.isArray(paymentsResponse) ? paymentsResponse : []);
     } catch {
       invoiceDetail.value.paymentRecords = [];
     }
@@ -930,12 +1033,17 @@ const printInvoiceDetail = async () => {
       material_name: item.materialName || item.material_name || item.description || '',
       specification: item.specification || item.specs || '',
       quantity: item.quantity?.toString() || '0',
-      unit_price: formatCurrency(item.unitPrice || item.unit_price || 0),
-      tax_amount: formatCurrency(item.taxAmount || item.tax_amount || 0),
-      amount: formatCurrency(item.amount || 0)
+      unit_price: formatCurrency(item.unitPrice ?? item.unit_price),
+      tax_amount: formatCurrency(item.taxAmount ?? item.tax_amount),
+      amount: formatCurrency(item.amount),
     }));
-    const subtotal = (invoiceDetail.value.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const taxAmount = Number(invoiceDetail.value.taxAmount || invoiceDetail.value.tax_amount || 0);
+    const visibleAmounts = (invoiceDetail.value.items || []).every(
+      (item) => item.amount !== null && item.amount !== undefined && item.amount !== ''
+    );
+    const subtotal = visibleAmounts
+      ? (invoiceDetail.value.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)
+      : null;
+    const taxAmount = invoiceDetail.value.taxAmount ?? invoiceDetail.value.tax_amount;
 
     const html = await printService.generateByDefaultTemplate('finance', 'ap_invoice', {
       invoice_number: invoiceDetail.value.invoiceNumber || '-',
@@ -944,14 +1052,14 @@ const printInvoiceDetail = async () => {
       invoice_date: invoiceDetail.value.invoiceDate || '-',
       due_date: invoiceDetail.value.dueDate || '-',
       status: getStatusText(invoiceDetail.value),
-      subtotal: formatCurrency(invoiceDetail.value.subtotal || subtotal),
+      subtotal: formatCurrency(invoiceDetail.value.subtotal ?? subtotal),
       tax_amount: formatCurrency(taxAmount),
       total_amount: formatCurrency(invoiceDetail.value.amount),
       paid_amount: formatCurrency(invoiceDetail.value.paidAmount),
       balance_amount: formatCurrency(invoiceDetail.value.balance),
       notes: invoiceDetail.value.notes || '无',
       print_time: new Date().toLocaleString(),
-      items
+      items,
     });
 
     printService.previewDocument(html);
@@ -1009,16 +1117,16 @@ const saveInvoice = async () => {
         // 准备提交的数据
         const data = {
           ...invoiceForm,
-          amount: calculateTotal() // 设置总金额
+          amount: calculateTotal(), // 设置总金额
         };
 
         if (invoiceForm.id) {
           // 更新
-          await api.put(`/finance/ap/invoices/${invoiceForm.id}`, data);
+          await financeApi.updateAPInvoice(invoiceForm.id, data);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          await api.post('/finance/ap/invoices', data);
+          await financeApi.createAPInvoice(data);
           ElMessage.success('添加成功');
         }
 
@@ -1037,7 +1145,10 @@ const savePayment = async () => {
   if (!paymentFormRef.value) return;
 
   // 银行转账必须关联银行账户
-  if (['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) && !paymentForm.bankAccountId) {
+  if (
+    ['bank_transfer', 'credit_card', 'check'].includes(paymentForm.paymentMethod) &&
+    !paymentForm.bankAccountId
+  ) {
     ElMessage.warning('请选择银行账户');
     return;
   }
@@ -1053,10 +1164,10 @@ const savePayment = async () => {
           amount: paymentForm.amount,
           paymentMethod: paymentForm.paymentMethod,
           bankAccountId: paymentForm.bankAccountId,
-          notes: paymentForm.notes
+          notes: paymentForm.notes,
         };
 
-        const response = await api.post('/finance/ap/payments', data);
+        const response = await financeApi.createPayment(data);
         ElMessage.success('付款记录已保存');
 
         // 拦截器已解包，response.data 就是业务数据
@@ -1064,7 +1175,7 @@ const savePayment = async () => {
           ElMessage({
             message: `付款单号: ${response.data.details.paymentNumber}, 金额: ${formatCurrency(response.data.details.amount)}`,
             type: 'success',
-            duration: 3000
+            duration: 3000,
           });
         }
 
@@ -1088,7 +1199,7 @@ const resetInvoiceForm = () => {
   invoiceForm.id = null;
   invoiceForm.invoiceNumber = '';
   invoiceForm.supplierId = null;
-  invoiceForm.invoiceDate = new Date().toISOString().slice(0, 10);
+  invoiceForm.invoiceDate = formatLocalDate(new Date());
   invoiceForm.dueDate = '';
   invoiceForm.items = [];
   invoiceForm.notes = '';

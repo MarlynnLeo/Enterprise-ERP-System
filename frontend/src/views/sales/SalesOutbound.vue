@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesOutbound.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="outbound-container">
+  <div class="module-page outbound-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -15,21 +15,26 @@
           <h2>销售出库管理</h2>
           <p class="subtitle">管理销售出库单据</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="showCreateDialog">增加出库单</el-button>
+        <el-button type="primary" :icon="Plus" v-permission="'sales:outbound:create'" @click="showCreateDialog">增加出库单</el-button>
       </div>
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="出库单号/客户">
+    <FinanceQueryCard
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchQuery"
-            placeholder="出库单号/订单号/客户名称"
+            placeholder="物料名称"
             @keyup.enter="handleSearch"
             clearable ></el-input>
         </el-form-item>
-
+      </template>
+      <template #advanced>
         <el-form-item label="出库状态">
           <el-select v-model="statusFilter" placeholder="出库状态" clearable @change="handleSearch">
             <el-option
@@ -52,17 +57,8 @@
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover" @click="resetStatusFilter">
@@ -163,7 +159,7 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" @click="showDetails(scope.row)">
               查看
@@ -190,6 +186,7 @@
               v-if="scope.row.status === 'draft'"
               size="small"
               type="primary"
+              v-permission="'sales:outbound:update'"
               @click="handleStatusChange(scope.row, 'processing')"
             >
               开始处理
@@ -198,6 +195,7 @@
               v-if="scope.row.status === 'processing'"
               size="small"
               type="primary"
+              v-permission="'sales:outbound:update'"
               @click="handleStatusChange(scope.row, 'completed')"
             >
               完成
@@ -252,8 +250,8 @@
           <el-table-column prop="product_code" label="物料编码" width="120" />
           <el-table-column prop="product_name" label="物料名称" min-width="150" show-overflow-tooltip />
           <el-table-column prop="specification" label="规格" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="quantity" label="数量" width="100" align="center" />
-          <el-table-column prop="unit" label="单位" width="80" align="center" />
+          <el-table-column prop="quantity" label="数量" width="100" />
+          <el-table-column prop="unit" label="单位" width="80" />
         </el-table>
       </div>
       </div>
@@ -390,7 +388,7 @@
               <el-table-column label="物料编码" prop="material_code" width="120" />
               <el-table-column label="物料名称" prop="product_name" width="160" show-overflow-tooltip />
               <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
-              <el-table-column label="订单总量" width="90" align="center">
+              <el-table-column label="订单总量" width="90">
                 <template #default="{ row }">
                   <div>
                     <span style="color: var(--color-primary); font-weight: bold;">{{ row.order_quantity || row.quantity }}</span>
@@ -400,12 +398,12 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="已发货" width="80" align="center">
+              <el-table-column label="已发货" width="80">
                 <template #default="{ row }">
                   <span style="color: var(--color-warning); font-weight: bold;">{{ row.shipped_quantity || 0 }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="剩余" width="80" align="center">
+              <el-table-column label="剩余" width="80">
                 <template #default="{ row }">
                   <span style="color: var(--color-danger); font-weight: bold;">{{ row.remaining_quantity || row.quantity }}</span>
                 </template>
@@ -421,22 +419,22 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="单位" prop="unit_name" width="60" align="center" />
-              <el-table-column label="库存" width="80" align="center">
+              <el-table-column label="单位" prop="unit_name" width="60" />
+              <el-table-column label="库存" width="80">
                 <template #default="{ row }">
-                  <span :style="{ color: (row.stock_quantity || 0) > 0 ? '#67c23a' : '#f56c6c' }">
+                  <span :style="{ color: (row.stock_quantity || 0) > 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
                     {{ row.stock_quantity || 0 }}
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="100" fixed="right">
+              <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="{ $index }">
                   <el-button
                     type="danger"
                     size="small"
                     @click="removeItem($index)"
 
-                    v-permission="'sales:outbound:update'">
+                    v-permission="dialogType === 'create' ? 'sales:outbound:create' : 'sales:outbound:update'">
                     删除
                   </el-button>
                 </template>
@@ -454,7 +452,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="submittingOutbound" @click="submitOutbound">确认</el-button>
+          <el-button type="primary" v-permission="dialogType === 'create' ? 'sales:outbound:create' : 'sales:outbound:update'" :loading="submittingOutbound" @click="submitOutbound">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -530,13 +528,13 @@
           <el-table-column prop="material_code" label="物料编码" width="110" />
           <el-table-column prop="material_name" label="物料名称" min-width="140" />
           <el-table-column prop="specification" label="规格" width="110" />
-          <el-table-column prop="remaining_quantity" label="剩余数量" width="100" align="center">
+          <el-table-column prop="remaining_quantity" label="剩余数量" width="100">
             <template #default="{ row }">
               <el-tag type="warning" v-if="row.remaining_quantity > 0">{{ row.remaining_quantity }}</el-tag>
               <el-tag type="success" v-else>已完成</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="stock_quantity" label="库存数量" width="100" align="center">
+          <el-table-column prop="stock_quantity" label="库存数量" width="100">
             <template #default="{ row }">
               <el-tag :type="row.stock_quantity >= row.remaining_quantity ? 'success' : 'danger'">
                 {{ Number(row.stock_quantity || 0).toFixed(1) }}
@@ -570,7 +568,7 @@
   </div>
 </template>
 <script setup>
-import { parseListData } from '@/utils/responseParser';
+import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import dayjs from 'dayjs'
 import { ref, computed, onMounted, onActivated } from 'vue'
@@ -672,12 +670,18 @@ const calculateOutboundStats = (dataToCount) => {
 // 获取全量出库单统计数据
 const fetchStats = async () => {
   try {
-    // 获取所有出库单数据用于统计
-    const response = await salesApi.getOutbounds({ pageSize: 100000 });
-    const allOutbounds = parseListData(response, { enableLog: false });
-    calculateOutboundStats(allOutbounds);
+    const response = await salesApi.getOutboundStats();
+    const stats = parseResponseData(response, {});
+    outboundStats.value = {
+      total: Number(stats.total) || 0,
+      draft: Number(stats.draft) || 0,
+      processing: Number(stats.processing) || 0,
+      completed: Number(stats.completed) || 0,
+      cancelled: Number(stats.cancelled) || 0
+    };
   } catch (error) {
     console.error('获取出库单统计数据失败:', error);
+    calculateOutboundStats(outbounds.value || []);
   }
 }
 // 使用统一的分页数据获取Hook
@@ -737,7 +741,7 @@ const fetchOrders = async () => {
   try {
     // 获取可以发货的订单（包括已确认、生产中、可发货等状态）
     const response = await salesApi.getOrders({
-      pageSize: 200 // 增加数量，支持更多订单选择
+      pageSize: 50
     })
     // 使用统一解析器
     const allOrders = parseListData(response, { enableLog: false })
@@ -1141,35 +1145,18 @@ const addOrderToOutbound = async () => {
           .map(item => item.code || item.material_code)
           .filter(code => code) // 过滤掉空的编码
         if (materialCodes.length > 0) {
-          // 为每个物料编码查询库存
-          const stockPromises = materialCodes.map(async (code) => {
-            try {
-              const stockResponse = await inventoryApi.getMaterialsWithStock({
-                keyword: code,
-                include_stock: true
-              })
-              const stockData = stockResponse.data || []
-              // 找到匹配的物料并返回库存信息
-              const matchedMaterial = stockData.find(item =>
-                item.code === code || item.material_code === code
-              )
-              return {
-                code: code,
-                materialId: matchedMaterial?.id || matchedMaterial?.material_id,
-                stock: matchedMaterial?.stock_quantity || matchedMaterial?.quantity || 0
-              }
-            } catch {
-              return { code, materialId: null, stock: 0 }
-            }
+          const stockResponse = await inventoryApi.getMaterialsWithStock({
+            codes: [...new Set(materialCodes)].join(','),
+            include_stock: true
           })
-          const stockResults = await Promise.all(stockPromises)
-          // 将结果映射到物料ID
-          stockResults.forEach(result => {
-            if (result.materialId) {
-              stockInfo[result.materialId] = result.stock
+          const stockData = stockResponse.data || []
+          stockData.forEach(item => {
+            const materialId = item.id || item.material_id
+            const stock = item.stock_quantity || item.quantity || 0
+            if (materialId) {
+              stockInfo[materialId] = stock
             }
-            // 同时按编码存储，以备查找
-            stockInfo[result.code] = result.stock
+            stockInfo[item.code || item.material_code] = stock
           })
         }
       } catch {
@@ -1350,7 +1337,7 @@ const searchCustomers = async (query) => {
       limit: 20
     })
 
-    const customers = response.data?.data || response.data || []
+    const customers = parseResponseData(response, [])
 
     // 过滤结果，确保包含搜索关键词
     customerOptions.value = customers.filter(customer => {
@@ -1381,7 +1368,7 @@ const handleCustomerChange = async (customerId) => {
     // 如果没找到，可能是编辑模式，需要重新获取客户详情
     if (!selectedCustomer) {
       const response = await salesApi.getCustomer(customerId)
-      selectedCustomer = response.data?.data || response.data
+      selectedCustomer = parseResponseData(response)
     }
     if (selectedCustomer) {
       outboundForm.value.customer_name = selectedCustomer.name || ''
@@ -1421,7 +1408,7 @@ const fetchCustomerProducts = async (searchKeyword = '') => {
     // 调用后端API获取客户所有订单的产品明细，支持搜索
     const params = { search: searchKeyword.trim() }
     const response = await salesApi.getCustomerOrderProducts(currentCustomer.value.id, params)
-    const products = response.data?.data || response.data || []
+    const products = parseResponseData(response, [])
 
     // 为每个产品添加选择数量字段，默认为剩余发货数量
     customerProducts.value = products.map(product => ({
@@ -1911,7 +1898,7 @@ const printOutbound = async (row) => {
   width: 100%;
 }
 .related-orders {
-  border: 1px dashed #dcdfe6;
+  border: 1px dashed var(--color-border-base);
   border-radius: var(--radius-sm);
   padding: 10px;
   background-color: var(--color-bg-hover);
@@ -1941,17 +1928,17 @@ const printOutbound = async (row) => {
   padding: 10px 0;
 }
 .outbound-detail-content :deep(.el-descriptions) {
-  background: #fafbfc;
+  background: var(--color-bg-section);
   border-radius: 8px;
   padding: 12px;
 }
 .outbound-detail-content :deep(.el-descriptions__label) {
   font-weight: 500;
-  color: #64748b;
-  background: #f1f5f9;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-hover);
 }
 .outbound-detail-content :deep(.el-descriptions__content) {
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 .outbound-detail-content :deep(.el-divider) {
   margin: 20px 0 16px 0;
@@ -1961,13 +1948,13 @@ const printOutbound = async (row) => {
   overflow: hidden;
 }
 .outbound-detail-content :deep(.el-table th) {
-  background: #f1f5f9 !important;
-  color: #475569;
+  background: var(--color-bg-hover) !important;
+  color: var(--color-text-secondary);
   font-weight: 600;
   font-size: 13px;
 }
 .outbound-detail-content :deep(.el-table td) {
   font-size: 13px;
-  color: #334155;
+  color: var(--color-text-regular);
 }
 </style>

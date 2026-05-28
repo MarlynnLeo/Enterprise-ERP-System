@@ -260,13 +260,13 @@
 
 <style lang="scss" scoped>
   .trace-detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
-    padding-bottom: 40px;
+    padding-bottom: var(--app-bottom-space);
   }
 
   .content-wrapper {
-    padding: 12px;
+    padding: 0 12px var(--app-bottom-space);
   }
 
   // 加载状态
@@ -287,11 +287,12 @@
 
   // 摘要卡片
   .summary-card {
+    min-height: 72px;
     background: var(--bg-secondary);
-    border-radius: 14px;
-    padding: 16px;
+    border-radius: 12px;
+    padding: 14px;
     margin-bottom: 12px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     box-shadow: none;
   }
 
@@ -395,7 +396,7 @@
     border-radius: 14px;
     padding: 14px 16px;
     margin-bottom: 12px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     box-shadow: none;
   }
 
@@ -478,7 +479,7 @@
       top: 8px;
       bottom: 8px;
       width: 2px;
-      background: var(--glass-border);
+      background: var(--surface-border, var(--border-subtle));
       border-radius: 1px;
     }
   }

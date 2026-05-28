@@ -1,31 +1,27 @@
 /**
- * 移动�?- 科技主题
- * @description 科技感深蓝配色，信息密集场景
- * @version 1.0.0
- *
- * 色系来源：与 PC �?tech.css 对齐
- * 切换方式：html[data-theme="tech"] 激�? */
+ * Mobile tech theme.
+ * @description High-contrast dark palette aligned with the PC tech theme.
+ */
 
 :root[data-theme="tech"] {
-  /* ==================== 背景�?==================== */
+  /* Background */
   --bg-primary: #0B1120;
   --bg-secondary: #111827;
   --bg-tertiary: #1F2937;
   --bg-header: #111827;
 
-  /* ==================== 边框与遮�?==================== */
+  /* Border and surfaces */
   --border-subtle: rgba(0, 195, 255, 0.1);
-  --border-card: rgba(0, 195, 255, 0.06);
   --surface-hover: rgba(0, 195, 255, 0.05);
   --surface-active: rgba(0, 195, 255, 0.1);
 
-  --glass-bg: rgba(17, 24, 39, 0.95);
-  --glass-bg-hover: var(--surface-hover);
-  --glass-bg-active: var(--surface-active);
-  --glass-border: var(--border-subtle);
-  --glass-border-hover: rgba(0, 195, 255, 0.2);
+  --surface-elevated: rgba(17, 24, 39, 0.95);
+  --surface-elevated-hover: var(--surface-hover);
+  --surface-elevated-active: var(--surface-active);
+  --surface-border: var(--border-subtle);
+  --surface-border-hover: rgba(0, 195, 255, 0.2);
 
-  /* ==================== 文字�?==================== */
+  /* Text */
   --text-primary: #e0f2fe;
   --text-secondary: #7dd3fc;
   --text-tertiary: #38bdf8;
@@ -33,7 +29,7 @@
   --text-on-dark: #ffffff;
   --text-on-dark-secondary: rgba(255, 255, 255, 0.8);
 
-  /* ==================== 功能色（科技霓虹�?==================== */
+  /* Functional colors */
   --color-primary: #00c3ff;
   --color-primary-bg: rgba(0, 195, 255, 0.12);
 
@@ -51,7 +47,7 @@
 
   --color-accent: #7c4dff;
 
-  /* ==================== 模块�?==================== */
+  /* Module colors */
   --module-blue: #00c3ff;
   --module-green: #00e676;
   --module-red: #ff5252;
@@ -59,13 +55,13 @@
   --module-purple: #7c4dff;
   --module-yellow: #ffd740;
 
-  /* ==================== 阴影 ==================== */
+  /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.7);
   --shadow-glow: 0 0 20px rgba(0, 195, 255, 0.15);
 
-  /* ==================== Vant 变量映射 ==================== */
+  /* Vant mappings */
   --van-primary-color: var(--color-primary);
   --van-success-color: var(--color-success);
   --van-danger-color: var(--color-error);
@@ -73,7 +69,7 @@
   --van-text-color: var(--text-primary);
   --van-text-color-2: var(--text-secondary);
   --van-text-color-3: var(--text-tertiary);
-  --van-active-color: var(--glass-bg-active);
+  --van-active-color: var(--surface-elevated-active);
   --van-background: var(--bg-secondary);
   --van-background-2: var(--bg-primary);
   --van-border-color: rgba(0, 195, 255, 0.12);
@@ -81,19 +77,17 @@
   --van-nav-bar-background: var(--bg-header);
   --van-nav-bar-title-text-color: var(--text-primary);
   --van-nav-bar-icon-color: var(--color-primary);
+  --van-nav-bar-text-color: var(--text-secondary);
   --van-search-background: var(--bg-primary);
   --van-search-content-background: var(--bg-tertiary);
   --van-search-action-text-color: var(--color-primary);
   --van-cell-background: var(--bg-secondary);
   --van-cell-text-color: var(--text-primary);
   --van-cell-value-color: var(--text-secondary);
+  --van-cell-label-color: var(--text-tertiary);
   --van-cell-border-color: rgba(0, 195, 255, 0.08);
-  --van-cell-active-color: var(--glass-bg-active);
+  --van-cell-active-color: var(--surface-elevated-active);
   --van-cell-group-background: var(--bg-secondary);
-  --van-card-background: var(--bg-secondary);
-  --van-button-default-background: var(--bg-secondary);
-  --van-button-default-border-color: rgba(0, 195, 255, 0.15);
-  --van-button-default-color: var(--text-primary);
   --van-field-label-color: var(--text-secondary);
   --van-field-input-text-color: var(--text-primary);
   --van-field-placeholder-text-color: var(--text-tertiary);
@@ -107,7 +101,6 @@
   --van-tabbar-item-text-color: var(--text-secondary);
   --van-tabbar-item-active-color: var(--color-primary);
 
-  /* ״̬ɫ���� �� ������������Ӳ���� */
   --status-pending: #fbbf24;
   --status-in-progress: #60a5fa;
   --status-completed: #4ade80;

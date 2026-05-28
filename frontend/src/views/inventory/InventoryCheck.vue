@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inventory-check-container">
+  <div class="module-page inventory-check-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,8 +19,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :model="searchForm" :inline="true" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input v-model="searchForm.materialName" placeholder="物料名称" clearable @keyup.enter="handleSearch"></el-input>
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="盘点单号">
           <el-input  v-model="searchForm.check_no" placeholder="请输入盘点单号" clearable ></el-input>
         </el-form-item>
@@ -44,16 +54,8 @@
             value-format="YYYY-MM-DD"
           ></el-date-picker>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -97,7 +99,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="warehouse" label="仓库/库区" min-width="150" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="item_count" label="盘点物料数" min-width="100" align="center"></el-table-column>
+        <el-table-column prop="item_count" label="盘点物料数" min-width="100"></el-table-column>
         <el-table-column prop="status" label="状态" min-width="100">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
@@ -112,7 +114,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="220" fixed="right" align="center">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-btns">
               <el-button size="small" v-permission="'inventory:check:view'" @click="viewCheck(scope.row.id)">查看</el-button>
@@ -305,7 +307,7 @@
               <el-input v-model="scope.row.remarks" placeholder="备注"></el-input>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" v-if="selectionType === 'manual'">
+          <el-table-column label="操作" width="80" v-if="selectionType === 'manual'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 type="danger"
@@ -422,7 +424,7 @@
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Search, Refresh, ArrowDown, Delete, RefreshRight } from '@element-plus/icons-vue';
+import { Plus, ArrowDown, Delete, RefreshRight } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/services/api';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
@@ -447,6 +449,7 @@ const checkTypeOptions = [
 ];
 // 搜索表单
 const searchForm = reactive({
+  materialName: '',
   check_no: '',
   status: '',
   check_type: '',
@@ -671,6 +674,7 @@ const handleSearch = async () => {
 };
 // 重置搜索
 const resetSearch = async () => {
+  searchForm.materialName = '';
   searchForm.check_no = '';
   searchForm.status = '';
   searchForm.check_type = '';
@@ -1019,7 +1023,7 @@ const fetchMaterials = async () => {
 // 获取仓库列表
 const fetchWarehouses = async () => {
   try {
-    const response = await inventoryApi.getLocations({ pageSize: 10000, limit: 10000 });
+    const response = await inventoryApi.getWarehouseLocations();
     warehouseOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
     console.error('获取仓库列表失败:', error);
@@ -1034,6 +1038,7 @@ const loadCheckList = async () => {
     const params = {
       page: pagination.currentPage,
       limit: pagination.pageSize,
+      materialName: searchForm.materialName,
       check_no: searchForm.check_no,
       status: searchForm.status,
       check_type: searchForm.check_type
@@ -1162,7 +1167,6 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
 }
-/* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
 .action-bar {
   margin-bottom: 15px;
   display: flex;

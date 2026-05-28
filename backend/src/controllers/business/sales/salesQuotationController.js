@@ -9,11 +9,30 @@ const { logger } = require('../../../utils/logger');
 
 
 const { softDelete } = require('../../../utils/softDelete');
-const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 const { getConnection, formatDateToMySQLDate } = require('./salesShared');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
+const { calculateLines } = require('../../../utils/money');
+const { parsePagination } = require('../../../utils/safePagination');
+
+function assertQuotationItemPrices(items = []) {
+  const invalidRows = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
+      const rawPrice = item.unit_price ?? item.unitPrice ?? item.price;
+      if (rawPrice === null || rawPrice === undefined || rawPrice === '') return true;
+      const price = Number(rawPrice);
+      return !Number.isFinite(price) || price < 0;
+    })
+    .map(({ index }) => index + 1);
+
+  if (invalidRows.length > 0) {
+    const error = new Error(`第 ${invalidRows.join(', ')} 行销售报价单价缺失或无效，请先维护销售价格`);
+    error.statusCode = 400;
+    throw error;
+  }
+}
 
 exports.getSalesQuotations = async (req, res) => {
   try {
@@ -41,8 +60,12 @@ exports.getSalesQuotations = async (req, res) => {
 
     // 计算分页参数
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const actualPageSize = parseInt(pageSize);
-    const offset = (parseInt(page) - 1) * actualPageSize;
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
+    const actualPageSize = pagination.pageSize;
+    const offset = pagination.offset;
 
     // 获取连接
     const conn = await getConnection();
@@ -67,7 +90,7 @@ exports.getSalesQuotations = async (req, res) => {
          LEFT JOIN users u ON q.created_by = u.id
          WHERE 1=1 ${whereClause}
          ORDER BY q.created_at DESC
-         LIMIT ${Math.max(1,Math.min(Math.floor(Number(actualPageSize))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
+         LIMIT ${actualPageSize} OFFSET ${offset}`,
         params
       );
 
@@ -100,8 +123,8 @@ exports.getSalesQuotations = async (req, res) => {
       return ResponseHandler.success(res, {
         items: quotations,
         total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       });
     } finally {
       // 释放连接
@@ -220,6 +243,11 @@ exports.createSalesQuotation = async (req, res) => {
     await conn.beginTransaction();
 
     const { quotation, items } = req.body;
+    const quotationItems = Array.isArray(items) ? items : [];
+    assertQuotationItemPrices(quotationItems);
+    const quotationAmounts = calculateLines(quotationItems, {
+      defaultTaxRate: quotation?.tax_rate ?? quotation?.taxRate ?? 0,
+    });
 
     // ✅ 使用统一编码规则引擎生成报价单号
     const quotationNo = await CodeGenerators.generateSalesQuotationCode(conn);
@@ -232,7 +260,7 @@ exports.createSalesQuotation = async (req, res) => {
       [
         quotationNo,
         quotation.customer_id,
-        quotation.total_amount || 0,
+        quotationAmounts.totalAmount,
         formatDateToMySQLDate(quotation.validity_date) ||
         formatDateToMySQLDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
         quotation.status === '待确认' ? 'draft' : quotation.status || 'draft',
@@ -244,8 +272,8 @@ exports.createSalesQuotation = async (req, res) => {
     const quotationId = result.insertId;
 
     // ✅ 批量校验产品存在性
-    if (items && items.length > 0) {
-      const productIds = items.map(i => i.product_id).filter(Boolean);
+    if (quotationItems.length > 0) {
+      const productIds = quotationItems.map(i => i.product_id).filter(Boolean);
       if (productIds.length > 0) {
         const placeholders = productIds.map(() => '?').join(',');
         const [existingProducts] = await conn.query(
@@ -260,20 +288,21 @@ exports.createSalesQuotation = async (req, res) => {
       }
 
       // ✅ 批量 INSERT
-      const valuesPlaceholders = items.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const valuesPlaceholders = quotationAmounts.items.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
       const values = [];
-      for (const item of items) {
+      for (const item of quotationAmounts.items) {
         values.push(
           quotationId,
           item.product_id || null,
           item.quantity,
           item.unit_price,
-          item.total_price || item.quantity * item.unit_price
+          item.tax_percent,
+          item.total_price
         );
       }
       await conn.query(
         `INSERT INTO sales_quotation_items
-         (quotation_id, product_id, quantity, unit_price, total_price)
+         (quotation_id, product_id, quantity, unit_price, tax_percent, total_price)
          VALUES ${valuesPlaceholders}`,
         values
       );
@@ -296,7 +325,7 @@ exports.createSalesQuotation = async (req, res) => {
     // 回滚事务
     await conn.rollback();
     logger.error('Error creating sales quotation:', error);
-    ResponseHandler.error(res, 'Error creating sales quotation', 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(res, error.message || 'Error creating sales quotation', 'SERVER_ERROR', error.statusCode || 500, error);
   } finally {
     // 释放连接
     conn.release();
@@ -314,6 +343,11 @@ exports.updateSalesQuotation = async (req, res) => {
 
     const { id } = req.params;
     const { quotation, items } = req.body;
+    const quotationItems = Array.isArray(items) ? items : [];
+    assertQuotationItemPrices(quotationItems);
+    const quotationAmounts = calculateLines(quotationItems, {
+      defaultTaxRate: quotation?.tax_rate ?? quotation?.taxRate ?? 0,
+    });
 
     // 更新报价单主表
     await conn.query(
@@ -326,7 +360,7 @@ exports.updateSalesQuotation = async (req, res) => {
        WHERE id = ?`,
       [
         quotation.customer_id,
-        quotation.total_amount || 0,
+        quotationAmounts.totalAmount,
         formatDateToMySQLDate(quotation.validity_date) ||
         formatDateToMySQLDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
         quotation.status === '待确认' ? 'draft' : quotation.status || 'draft',
@@ -339,8 +373,8 @@ exports.updateSalesQuotation = async (req, res) => {
     await conn.query('DELETE FROM sales_quotation_items WHERE quotation_id = ?', [id]);
 
     // ✅ 批量校验 + 插入
-    if (items && items.length > 0) {
-      const productIds = items.map(i => i.product_id).filter(Boolean);
+    if (quotationItems.length > 0) {
+      const productIds = quotationItems.map(i => i.product_id).filter(Boolean);
       if (productIds.length > 0) {
         const placeholders = productIds.map(() => '?').join(',');
         const [existingProducts] = await conn.query(
@@ -354,20 +388,21 @@ exports.updateSalesQuotation = async (req, res) => {
         }
       }
 
-      const valuesPlaceholders = items.map(() => '(?, ?, ?, ?, ?)').join(', ');
+      const valuesPlaceholders = quotationAmounts.items.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
       const values = [];
-      for (const item of items) {
+      for (const item of quotationAmounts.items) {
         values.push(
           id,
           item.product_id || null,
           item.quantity,
           item.unit_price,
-          item.total_price || item.quantity * item.unit_price
+          item.tax_percent,
+          item.total_price
         );
       }
       await conn.query(
         `INSERT INTO sales_quotation_items
-         (quotation_id, product_id, quantity, unit_price, total_price)
+         (quotation_id, product_id, quantity, unit_price, tax_percent, total_price)
          VALUES ${valuesPlaceholders}`,
         values
       );
@@ -385,7 +420,7 @@ exports.updateSalesQuotation = async (req, res) => {
       await conn.rollback();
     }
     logger.error('Error updating sales quotation:', error);
-    ResponseHandler.error(res, 'Error updating sales quotation', 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(res, error.message || 'Error updating sales quotation', 'SERVER_ERROR', error.statusCode || 500, error);
   } finally {
     if (conn) {
       conn.release();
@@ -406,7 +441,7 @@ exports.deleteSalesQuotation = async (req, res) => {
     const { id } = req.params;
 
     // 检查报价单状态
-    const [statusRows] = await conn.query('SELECT status FROM sales_quotations WHERE id = ?', [id]);
+    const [statusRows] = await conn.query('SELECT status FROM sales_quotations WHERE id = ? FOR UPDATE', [id]);
 
     if (statusRows.length === 0) {
       return ResponseHandler.error(res, 'Quotation not found', 'NOT_FOUND', 404);
@@ -457,7 +492,8 @@ exports.convertQuotationToOrder = async (req, res) => {
       `SELECT q.*, c.name as customer_name, c.contact_person, c.contact_phone, c.address
        FROM sales_quotations q
        LEFT JOIN customers c ON q.customer_id = c.id
-       WHERE q.id = ?`,
+       WHERE q.id = ?
+       FOR UPDATE`,
       [id]
     );
 
@@ -489,6 +525,13 @@ exports.convertQuotationToOrder = async (req, res) => {
     }
 
     // ✅ 使用统一编码规则引擎生成销售订单号
+    const orderAmounts = calculateLines(itemRows.map((item) => ({
+      material_id: item.product_id,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      tax_percent: item.tax_percent,
+    })), { defaultTaxRate: 0 });
+
     const orderNo = await CodeGenerators.generateSalesOrderCode(conn);
 
     // 创建销售订单主表数据
@@ -496,34 +539,32 @@ exports.convertQuotationToOrder = async (req, res) => {
       order_no: orderNo,
       customer_id: quotation.customer_id,
       quotation_id: quotation.id,
-      order_date: new Date().toISOString().split('T')[0],
       delivery_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 默认7天后交货
-      delivery_address: quotation.address || '',
-      contact_person: quotation.contact_person || '',
-      contact_phone: quotation.contact_phone || '',
-      total_amount: quotation.total_amount,
+      total_amount: orderAmounts.totalAmount,
+      subtotal: orderAmounts.subtotal,
+      tax_amount: orderAmounts.taxAmount,
+      tax_rate: orderAmounts.taxRate,
       status: 'pending',
       remarks: `由报价单 ${quotation.quotation_no} 转换生成`,
-      created_by: await getCurrentUserName(req),
+      created_by: getAuthenticatedUserId(req),
     };
 
     // 插入销售订单主表
     const [orderResult] = await conn.query(
       `INSERT INTO sales_orders (
-        order_no, customer_id, quotation_id, order_date, delivery_date,
-        delivery_address, contact_person, contact_phone, total_amount,
+        order_no, customer_id, quotation_id, delivery_date,
+        total_amount, tax_rate, tax_amount, subtotal,
         status, remarks, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         orderData.order_no,
         orderData.customer_id,
         orderData.quotation_id,
-        orderData.order_date,
         orderData.delivery_date,
-        orderData.delivery_address,
-        orderData.contact_person,
-        orderData.contact_phone,
         orderData.total_amount,
+        orderData.tax_rate,
+        orderData.tax_amount,
+        orderData.subtotal,
         orderData.status,
         orderData.remarks,
         orderData.created_by,
@@ -533,12 +574,12 @@ exports.convertQuotationToOrder = async (req, res) => {
     const orderId = orderResult.insertId;
 
     // 插入销售订单明细
-    for (const item of itemRows) {
+    for (const item of orderAmounts.items) {
       await conn.query(
         `INSERT INTO sales_order_items (
-          order_id, material_id, quantity, unit_price, amount
-        ) VALUES (?, ?, ?, ?, ?)`,
-        [orderId, item.product_id, item.quantity, item.unit_price, item.total_price]
+          order_id, material_id, quantity, unit_price, amount, tax_percent
+        ) VALUES (?, ?, ?, ?, ?, ?)`,
+        [orderId, item.material_id, item.quantity, item.unit_price, item.amount, item.tax_percent]
       );
     }
 

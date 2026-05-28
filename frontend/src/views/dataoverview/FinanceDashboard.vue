@@ -175,13 +175,13 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right">
+            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="primary"
                   link
                   size="small"
-                  @click="$router.push('/finance/cash/transactions?account=' + scope.row.id)"
+                  @click="$router.push('/finance/cash/bank-transactions?account=' + scope.row.id)"
                 >查看</el-button>
               </template>
             </el-table-column>
@@ -202,12 +202,12 @@
               <div class="metric-value">
                 <span :class="getMetricColorClass(metric)">{{ metric.value }}</span>
                 <el-tooltip v-if="metric.tooltip" :content="metric.tooltip" placement="top">
-                  <el-icon class="info-icon"><info-filled /></el-icon>
+                  <el-icon class="info-icon"><InfoFilled /></el-icon>
                 </el-tooltip>
               </div>
               <div class="metric-trend" v-if="metric.trend">
                 <el-icon :class="[metric.trendDirection === 'up' ? 'text-success' : 'text-danger']">
-                  <component :is="metric.trendDirection === 'up' ? 'arrow-up' : 'arrow-down'" />
+                  <component :is="getTrendIcon(metric.trendDirection)" />
                 </el-icon>
                 <span>{{ metric.trend }}</span>
               </div>
@@ -219,13 +219,14 @@
   </div>
 </template>
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router';
-import Chart from 'chart.js/auto';
+import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
 import { financeApi } from '@/services/api';
 // 权限计算属性
-import { ArrowRight } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowRight, ArrowUp, InfoFilled } from '@element-plus/icons-vue'
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import {
   handleDashboardError,
@@ -234,6 +235,8 @@ import {
   generateMonthLabels
 } from '@/utils/dashboardUtils';
 import { createBarChartConfig, chartColors } from '@/utils/chartConfig'
+import { alphaColor, getCssTokenValue } from '@/utils/designTokens'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 const _router = useRouter();
 // 图表引用
 const incomeExpense = ref(null);
@@ -275,6 +278,10 @@ function getMetricColorClass(metric) {
     }
   }
   return '';
+}
+
+function getTrendIcon(direction) {
+  return direction === 'up' ? ArrowUp : ArrowDown;
 }
 // 加载财务数据
 async function loadFinanceData() {
@@ -376,8 +383,8 @@ async function getMonthlyTrendData(months = 12) {
     const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
     const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const response = await financeApi.getCashFlowStatistics({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
+      startDate: formatLocalDate(startDate),
+      endDate: formatLocalDate(endDate)
     });
     // 处理返回数据
     const data = response.data || response;
@@ -490,8 +497,8 @@ async function initIncomeCategoryChart() {
     const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
     const response = await financeApi.getCashFlowStatistics({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
+      startDate: formatLocalDate(startDate),
+      endDate: formatLocalDate(endDate)
     });
 
     const data = response.data || response;
@@ -523,9 +530,9 @@ async function initIncomeCategoryChart() {
     chartColors.warning[0],
     chartColors.info[0],
     chartColors.danger[0],
-    'rgba(156, 39, 176, 0.7)',
-    'rgba(0, 150, 136, 0.7)',
-    'rgba(255, 152, 0, 0.7)'
+    alphaColor('purple', 0.7),
+    alphaColor('success', 0.7),
+    alphaColor('warning', 0.7)
   ];
   const chartConfig = chartType.value === 'bar'
     ? createBarChartConfig({ yAxisTitle: '金额(元)' })
@@ -539,8 +546,7 @@ async function initIncomeCategoryChart() {
           tooltip: {
             callbacks: {
               label: function(context) {
-                const value = context.raw;
-                return `${context.label}: ¥${value.toLocaleString()}`;
+                return `${context.label}: ${formatCurrency(context.raw)}`;
               }
             }
           }
@@ -555,7 +561,7 @@ async function initIncomeCategoryChart() {
           data: categoryData,
           backgroundColor: colors.slice(0, labels.length),
           borderWidth: 2,
-          borderColor: '#fff'
+          borderColor: getCssTokenValue('surface')
         }
       ]
     },
@@ -746,19 +752,18 @@ async function _loadDashboardData() {
 // 获取本月开始日期
 function getMonthStart() {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth(), 1));
 }
 // 获取本月结束日期
 function getMonthEnd() {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 }
 // 加载银行账户数据
 async function loadBankAccounts() {
   try {
     const response = await financeApi.getBankAccounts({ limit: 10 });
-    // API返回格式: { data: { list: [...], total, page, pageSize } }
-    const accounts = response.data?.list || response.data?.data?.list || response.data?.data || [];
+    const accounts = parseListData(response, { enableLog: false });
     if (accounts && accounts.length > 0) {
       bankAccounts.value = accounts.map(account => ({
         id: account.id || 0,
@@ -965,14 +970,14 @@ async function _getHistoricalFinanceData(monthCount) {
     for (let i = monthCount - 1; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
-      const startDate = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
-      const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
+      const startDate = formatLocalDate(new Date(date.getFullYear(), date.getMonth(), 1));
+      const endDate = formatLocalDate(new Date(date.getFullYear(), date.getMonth() + 1, 0));
       try {
         const response = await financeApi.getCashFlowStatistics({
           startDate,
           endDate
         });
-        const summary = response.data?.data?.summary || {};
+        const summary = parseResponseData(response, {})?.summary || {};
         const income = summary.totalIncome || 0;
         const expense = Math.abs(summary.totalExpense || 0);
         const profit = income - expense;
@@ -1116,11 +1121,10 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
   padding: 10px;
   border-radius: var(--radius-md);
   background-color: var(--el-bg-color-page);
-  transition: all var(--transition-base);
+  transition: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base), box-shadow var(--transition-base), opacity var(--transition-base), transform var(--transition-base);
 }
 .metric-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: none;
 }
 .metric-label {
   font-size: 14px;

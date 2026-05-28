@@ -34,7 +34,15 @@ class ResponseHandler {
    * @param {Number} pageSize - 每页大小
    * @param {String} message - 成功消息
    */
-  static paginated(res, list = [], total = 0, page = 1, pageSize = 20, message = '查询成功') {
+  static paginated(
+    res,
+    list = [],
+    total = 0,
+    page = 1,
+    pageSize = 20,
+    message = '查询成功',
+    extra = {}
+  ) {
     return res.status(200).json({
       success: true,
       message,
@@ -44,6 +52,7 @@ class ResponseHandler {
         page: parseInt(page),
         pageSize: parseInt(pageSize),
         totalPages: Math.ceil(total / pageSize),
+        ...(extra && typeof extra === 'object' ? extra : {}),
       },
       timestamp: new Date().toISOString(),
     });
@@ -58,9 +67,15 @@ class ResponseHandler {
    * @param {Error} error - 错误对象（可选）
    */
   static error(res, message = '操作失败', errorCode = 'ERROR', statusCode = 500, error = null) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isServerError = Number(statusCode) >= 500;
+    const safeMessage = isProduction && isServerError
+      ? '服务器内部错误，请稍后重试'
+      : message;
+
     const response = {
       success: false,
-      message,
+      message: safeMessage,
       errorCode,
       timestamp: new Date().toISOString(),
     };
@@ -70,8 +85,12 @@ class ResponseHandler {
       response.action = error.action;
     }
 
+    if (error && error.details && (!isProduction || !isServerError)) {
+      response.details = error.details;
+    }
+
     // 开发环境下包含详细错误信息
-    if (process.env.NODE_ENV !== 'production' && error) {
+    if (!isProduction && error) {
       response.error = {
         message: error.message,
         stack: error.stack,
@@ -225,7 +244,7 @@ class DataTransformer {
    */
   static extractPagination(query) {
     const page = Math.max(1, parseInt(query.page) || 1);
-    const pageSize = Math.max(1, Math.min(10000, parseInt(query.pageSize) || 20));
+    const pageSize = Math.max(1, Math.min(100, parseInt(query.pageSize, 10) || 20));
     const offset = (page - 1) * pageSize;
 
     return {

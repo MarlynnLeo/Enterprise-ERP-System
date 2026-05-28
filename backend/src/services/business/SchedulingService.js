@@ -151,10 +151,11 @@ class SchedulingService {
    * @param {number} [params.excludeTaskId] - 排除的任务ID（编辑时排除自身）
    * @returns {Object} { hasConflict, conflicts: [] }
    */
-  static async checkConflicts({ manager, startTime, endTime, excludeTaskId = null }) {
+  static async checkConflicts({ manager, startTime, endTime, excludeTaskId = null, ignoreTaskIds = [] }, connection = null) {
     if (!manager || !startTime || !endTime) {
       return { hasConflict: false, conflicts: [] };
     }
+    const conn = connection || pool;
 
     // 查询同一生产组中活跃且有时间交叉的任务
     // 使用 actual_start_time 或 start_date 作为任务开始时间
@@ -180,10 +181,17 @@ class SchedulingService {
       query += ' AND t.id != ?';
       params.push(excludeTaskId);
     }
+    const ignoredIds = (Array.isArray(ignoreTaskIds) ? ignoreTaskIds : [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0 && id !== Number(excludeTaskId));
+    if (ignoredIds.length > 0) {
+      query += ` AND t.id NOT IN (${ignoredIds.map(() => '?').join(',')})`;
+      params.push(...ignoredIds);
+    }
 
     query += ' GROUP BY t.id';
 
-    const [tasks] = await pool.query(query, params);
+    const [tasks] = await conn.query(query, params);
 
     const newStart = new Date(startTime).getTime();
     const newEnd = new Date(endTime).getTime();
@@ -287,163 +295,28 @@ class SchedulingService {
    * @param {string} params.startTime - 第一个任务的开始时间
    * @returns {Object} { scheduled: [{ taskId, code, productName, startTime, endTime, totalMinutes }] }
    */
-  static async batchSchedule({ taskIds, startTime }) {
+  static async batchSchedule({ taskIds, groups, startTime }) {
+    if (Array.isArray(groups) && groups.length > 0) {
+      return this.batchScheduleGroups({ groups, startTime });
+    }
+
     if (!taskIds || taskIds.length === 0) {
       return { scheduled: [] };
     }
 
-    const connection = await pool.getConnection();
-    const calendar = await this.getDefaultCalendar();
-    const scheduled = [];
-
-    try {
-      await connection.beginTransaction();
-
-      let cursor = new Date(startTime);
-
-      for (const taskId of taskIds) {
-        // 获取任务信息
-        // 查询任务信息（排除已完成/已取消的任务）
-        const [taskRows] = await connection.query(
-          `SELECT t.id, t.code, t.product_id, t.quantity, t.manager, t.status, t.plan_id,
-                  m.name as product_name,
-                  pp.delivery_date
-           FROM production_tasks t
-           LEFT JOIN materials m ON t.product_id = m.id
-           LEFT JOIN production_plans pp ON t.plan_id = pp.id
-           WHERE t.id = ? AND t.deleted_at IS NULL
-             AND t.status NOT IN ('completed', 'cancelled')`,
-          [taskId]
-        );
-
-        if (taskRows.length === 0) {
-          logger.warn(`[批量排程] 任务 ${taskId} 不存在或状态不可排程，跳过`);
-          continue;
-        }
-
-        const task = taskRows[0];
-        const quantity = parseFloat(task.quantity) || 0;
-
-        // 获取产品工时
-        const { totalMinutesPerUnit } = await this.getProductStandardHours(task.product_id, connection);
-        const totalMinutes = Math.ceil(totalMinutesPerUnit * quantity);
-        const hasStandardHours = totalMinutesPerUnit > 0;
-
-        const taskStart = new Date(cursor);
-        let taskEnd;
-
-        if (totalMinutes > 0) {
-          taskEnd = this._advanceWorkMinutes(new Date(cursor), totalMinutes, calendar);
-        } else {
-          // 无工时数据，默认占1天
-          taskEnd = this._advanceWorkMinutes(new Date(cursor), 480, calendar);
-          logger.warn(`[批量排程] 任务 ${task.code} 工时数据缺失，已按默认1天排程`);
-        }
-
-        const startStr = this._formatDateTime(taskStart);
-        const endStr = this._formatDateTime(taskEnd);
-
-        // 排程只回写日期，不改变状态（状态由「发料」操作驱动）
-        await connection.query(
-          `UPDATE production_tasks
-           SET start_date = ?, expected_end_date = ?
-           WHERE id = ?`,
-          [startStr.split(' ')[0], endStr.split(' ')[0], taskId]
-        );
-
-        // 填充工序时间
-        const [processes] = await connection.query(
-          `SELECT id, standard_hours, sequence FROM production_processes
-           WHERE task_id = ? ORDER BY sequence`,
-          [taskId]
-        );
-
-        let procCursor = new Date(taskStart);
-        for (const proc of processes) {
-          const minutes = Math.ceil((parseFloat(proc.standard_hours) || 0) * quantity);
-          const procStart = new Date(procCursor);
-          const procEnd = this._advanceWorkMinutes(new Date(procCursor), minutes, calendar);
-
-          await connection.query(
-            `UPDATE production_processes
-             SET planned_start_time = ?, planned_end_time = ?
-             WHERE id = ?`,
-            [this._formatDateTime(procStart), this._formatDateTime(procEnd), proc.id]
-          );
-          procCursor = new Date(procEnd);
-        }
-
-        // 交期对比
-        let deliveryStatus = null;
-        let overdueDays = 0;
-        const deliveryDate = task.delivery_date ? new Date(task.delivery_date) : null;
-        if (deliveryDate) {
-          const endDate = new Date(endStr.split(' ')[0]);
-          const diffMs = deliveryDate - endDate;
-          overdueDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-          deliveryStatus = overdueDays >= 0 ? 'ok' : 'overdue';
-        }
-
-        scheduled.push({
-          taskId: task.id,
-          code: task.code,
-          productName: task.product_name,
-          manager: task.manager,
-          quantity: task.quantity,
-          totalMinutes,
-          totalHours: (totalMinutes / 60).toFixed(1),
-          startTime: startStr,
-          endTime: endStr,
-          hasStandardHours,
-          warning: !hasStandardHours ? '工时数据缺失，时间不准确' : null,
-          deliveryDate: task.delivery_date ? this._formatDateTime(deliveryDate).split(' ')[0] : null,
-          deliveryStatus,
-          overdueDays: deliveryStatus === 'overdue' ? Math.abs(overdueDays) : 0,
-        });
-
-        // 下一个任务的开始 = 当前任务的结束
-        cursor = new Date(taskEnd);
-      }
-
-      // ===== 反写时间到关联的生产计划 =====
-      // 收集本次排程涉及的所有 plan_id
-      const planIds = [...new Set(
-        (await connection.query(
-          `SELECT DISTINCT plan_id FROM production_tasks WHERE id IN (${taskIds.map(() => '?').join(',')}) AND plan_id IS NOT NULL`,
-          taskIds
-        ))[0].map(r => r.plan_id)
-      )];
-
-      for (const planId of planIds) {
-        // 查询该计划下所有已排程任务的时间范围
-        const [timeRange] = await connection.query(
-          `SELECT MIN(start_date) as earliest_start, MAX(expected_end_date) as latest_end
-           FROM production_tasks
-           WHERE plan_id = ? AND start_date IS NOT NULL AND deleted_at IS NULL
-             AND status NOT IN ('cancelled')`,
-          [planId]
-        );
-
-        if (timeRange[0]?.earliest_start) {
-          await connection.query(
-            `UPDATE production_plans SET start_date = ?, end_date = ? WHERE id = ?`,
-            [timeRange[0].earliest_start, timeRange[0].latest_end, planId]
-          );
-          logger.info(`[排程反写] 计划 ${planId} 时间已更新: ${timeRange[0].earliest_start} ~ ${timeRange[0].latest_end}`);
-        }
-      }
-
-      await connection.commit();
-      logger.info(`[批量排程] 已排程 ${scheduled.length} 个任务`);
-
-      return { scheduled };
-    } catch (error) {
-      await connection.rollback();
-      logger.error('[批量排程] 失败:', error);
-      throw error;
-    } finally {
-      connection.release();
+    const normalizedTaskIds = [...new Set(
+      taskIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )];
+    if (normalizedTaskIds.length === 0) {
+      return { scheduled: [] };
     }
+
+    return this.batchScheduleGroups({
+      groups: [{ name: 'default', taskIds: normalizedTaskIds }],
+      startTime,
+    });
   }
 
   // ============ 内部工具方法 ============
@@ -455,6 +328,296 @@ class SchedulingService {
    * @param {Object} calendar - 班次配置
    * @returns {Date} 结束时间
    */
+  static async batchScheduleGroups({ groups, startTime }) {
+    const normalizedGroups = this._normalizeBatchScheduleGroups(groups);
+    if (normalizedGroups.length === 0) {
+      return { scheduled: [], groups: [] };
+    }
+
+    const start = new Date(startTime);
+    if (isNaN(start)) {
+      const error = new Error('Invalid startTime');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const connection = await pool.getConnection();
+    const calendar = await this.getDefaultCalendar();
+    const scheduled = [];
+    const groupResults = [];
+
+    try {
+      await connection.beginTransaction();
+
+      for (const group of normalizedGroups) {
+        const groupScheduled = await this._scheduleTaskSequence({
+          connection,
+          calendar,
+          taskIds: group.taskIds,
+          startTime,
+          groupName: group.name,
+        });
+
+        groupResults.push({
+          name: group.name,
+          taskIds: group.taskIds,
+          scheduled: groupScheduled,
+        });
+        scheduled.push(...groupScheduled);
+      }
+
+      await this._syncScheduledPlanDates(connection, scheduled.map((item) => item.taskId));
+
+      await connection.commit();
+      logger.info(`[批量排程] 已排程 ${scheduled.length} 个任务，生产组 ${groupResults.length} 个`);
+
+      return { scheduled, groups: groupResults };
+    } catch (error) {
+      await connection.rollback();
+      logger.error('[批量排程] 失败:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  static _normalizeBatchScheduleGroups(groups) {
+    const grouped = new Map();
+    const seenTaskIds = new Set();
+
+    for (const [index, group] of groups.entries()) {
+      const name = String(group?.name || `group_${index + 1}`);
+      const taskIds = (Array.isArray(group?.taskIds) ? group.taskIds : [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+
+      if (taskIds.length === 0) continue;
+      if (!grouped.has(name)) grouped.set(name, []);
+
+      for (const taskId of taskIds) {
+        if (seenTaskIds.has(taskId)) {
+          const error = new Error(`Task ${taskId} appears in multiple scheduling groups`);
+          error.statusCode = 400;
+          throw error;
+        }
+        seenTaskIds.add(taskId);
+        grouped.get(name).push(taskId);
+      }
+    }
+
+    return Array.from(grouped.entries()).map(([name, taskIds]) => ({ name, taskIds }));
+  }
+
+  static async _scheduleTaskSequence({
+    connection,
+    calendar,
+    taskIds,
+    startTime,
+    groupName,
+  }) {
+    const scheduled = [];
+    let cursor = new Date(startTime);
+
+    for (const taskId of taskIds) {
+      const [taskRows] = await connection.query(
+        `SELECT t.id, t.code, t.product_id, t.quantity, t.manager, t.status, t.plan_id,
+                m.name as product_name,
+                pp.delivery_date
+         FROM production_tasks t
+         LEFT JOIN materials m ON t.product_id = m.id
+         LEFT JOIN production_plans pp ON t.plan_id = pp.id
+         WHERE t.id = ? AND t.deleted_at IS NULL
+         FOR UPDATE`,
+        [taskId]
+      );
+
+      if (taskRows.length === 0) {
+        const error = new Error(`Task ${taskId} does not exist or has been deleted`);
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const task = taskRows[0];
+      await this._assertTaskSchedulable(connection, task);
+      const quantity = parseFloat(task.quantity) || 0;
+      const { totalMinutesPerUnit } = await this.getProductStandardHours(task.product_id, connection);
+      const totalMinutes = Math.ceil(totalMinutesPerUnit * quantity);
+      const hasStandardHours = totalMinutesPerUnit > 0;
+
+      const taskStart = new Date(cursor);
+      const taskEnd = totalMinutes > 0
+        ? this._advanceWorkMinutes(new Date(cursor), totalMinutes, calendar)
+        : this._advanceWorkMinutes(new Date(cursor), 480, calendar);
+
+      if (totalMinutes <= 0) {
+        logger.warn(`[批量排程] 任务 ${task.code} 缺少标准工时，已按 1 个工作日排程`);
+      }
+
+      const startStr = this._formatDateTime(taskStart);
+      const endStr = this._formatDateTime(taskEnd);
+      const manager = task.manager || groupName;
+
+      const conflictResult = await this.checkConflicts({
+        manager,
+        startTime: startStr,
+        endTime: endStr,
+        excludeTaskId: task.id,
+        ignoreTaskIds: taskIds,
+      }, connection);
+      if (conflictResult.hasConflict) {
+        const firstConflict = conflictResult.conflicts[0];
+        const error = new Error(
+          `任务 ${task.code} 与 ${manager} 的既有排程 ${firstConflict.taskCode} 冲突，请调整起始时间或先处理冲突任务`
+        );
+        error.statusCode = 409;
+        error.details = conflictResult.conflicts;
+        throw error;
+      }
+
+      await connection.query(
+        `UPDATE production_tasks
+         SET start_date = ?, expected_end_date = ?
+         WHERE id = ?`,
+        [startStr.split(' ')[0], endStr.split(' ')[0], taskId]
+      );
+
+      const [processes] = await connection.query(
+        `SELECT id, standard_hours, sequence FROM production_processes
+         WHERE task_id = ? ORDER BY sequence`,
+        [taskId]
+      );
+
+      let procCursor = new Date(taskStart);
+      for (const proc of processes) {
+        const minutes = Math.ceil((parseFloat(proc.standard_hours) || 0) * quantity);
+        const procStart = new Date(procCursor);
+        const procEnd = this._advanceWorkMinutes(new Date(procCursor), minutes, calendar);
+
+        await connection.query(
+          `UPDATE production_processes
+           SET planned_start_time = ?, planned_end_time = ?
+           WHERE id = ?`,
+          [this._formatDateTime(procStart), this._formatDateTime(procEnd), proc.id]
+        );
+        procCursor = new Date(procEnd);
+      }
+
+      let deliveryStatus = null;
+      let overdueDays = 0;
+      const deliveryDate = task.delivery_date ? new Date(task.delivery_date) : null;
+      if (deliveryDate) {
+        const endDate = new Date(endStr.split(' ')[0]);
+        const diffMs = deliveryDate - endDate;
+        overdueDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        deliveryStatus = overdueDays >= 0 ? 'ok' : 'overdue';
+      }
+
+      scheduled.push({
+        taskId: task.id,
+        code: task.code,
+        productName: task.product_name,
+        manager,
+        groupName,
+        quantity: task.quantity,
+        totalMinutes,
+        totalHours: (totalMinutes / 60).toFixed(1),
+        startTime: startStr,
+        endTime: endStr,
+        hasStandardHours,
+        warning: !hasStandardHours ? '标准工时缺失，排程时间按默认值估算' : null,
+        deliveryDate: task.delivery_date ? this._formatDateTime(deliveryDate).split(' ')[0] : null,
+        deliveryStatus,
+        overdueDays: deliveryStatus === 'overdue' ? Math.abs(overdueDays) : 0,
+      });
+
+      cursor = new Date(taskEnd);
+    }
+
+    return scheduled;
+  }
+
+  static async _assertTaskSchedulable(connection, task) {
+    const schedulableStatuses = new Set(['pending', 'allocated', 'preparing']);
+    if (!schedulableStatuses.has(task.status)) {
+      const error = new Error(
+        `任务 ${task.code} 当前状态为 ${task.status}，只能对未发料、未报工、未检验的任务排程`
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const [usageRows] = await connection.query(
+      `SELECT
+         (SELECT COUNT(*)
+          FROM inventory_outbound o
+          WHERE o.status NOT IN ('cancelled', 'reversed')
+            AND o.deleted_at IS NULL
+            AND (
+              o.production_task_id = ?
+              OR (o.reference_type = 'production_task' AND o.reference_id = ?)
+              OR (
+                o.reference_type = 'batch_production_tasks'
+                AND o.source_task_ids IS NOT NULL
+                AND JSON_CONTAINS(o.source_task_ids, CAST(? AS JSON))
+              )
+            )) as outbound_count,
+         (SELECT COUNT(*) FROM production_reports WHERE task_id = ?) as report_count,
+         (SELECT COUNT(*)
+          FROM quality_inspections qi
+          WHERE qi.task_id = ?
+            AND qi.deleted_at IS NULL
+            AND (qi.status IS NULL OR qi.status NOT IN ('cancelled'))) as inspection_count`,
+      [task.id, task.id, String(task.id), task.id, task.id]
+    );
+
+    const usage = usageRows[0] || {};
+    if (
+      Number(usage.outbound_count || 0) > 0 ||
+      Number(usage.report_count || 0) > 0 ||
+      Number(usage.inspection_count || 0) > 0
+    ) {
+      const error = new Error(
+        `任务 ${task.code} 已有关联发料、报工或检验单据，不能重新排程；请先走撤销/关闭流程`
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  static async _syncScheduledPlanDates(connection, scheduledTaskIds) {
+    const taskIds = [...new Set(
+      (scheduledTaskIds || [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )];
+    if (taskIds.length === 0) return;
+
+    const [planRows] = await connection.query(
+      `SELECT DISTINCT plan_id
+       FROM production_tasks
+       WHERE id IN (${taskIds.map(() => '?').join(',')}) AND plan_id IS NOT NULL`,
+      taskIds
+    );
+
+    for (const { plan_id: planId } of planRows) {
+      const [timeRange] = await connection.query(
+        `SELECT MIN(start_date) as earliest_start, MAX(expected_end_date) as latest_end
+         FROM production_tasks
+         WHERE plan_id = ? AND start_date IS NOT NULL AND deleted_at IS NULL
+           AND status NOT IN ('cancelled')`,
+        [planId]
+      );
+
+      if (timeRange[0]?.earliest_start) {
+        await connection.query(
+          `UPDATE production_plans SET start_date = ?, end_date = ? WHERE id = ?`,
+          [timeRange[0].earliest_start, timeRange[0].latest_end, planId]
+        );
+        logger.info(`[排程反写] 计划 ${planId} 时间已更新: ${timeRange[0].earliest_start} ~ ${timeRange[0].latest_end}`);
+      }
+    }
+  }
+
   static _advanceWorkMinutes(start, minutes, calendar) {
     const cursor = new Date(start);
     let remaining = minutes;
@@ -583,10 +746,21 @@ class SchedulingService {
       WHERE t.deleted_at IS NULL
         AND t.status <> 'cancelled'
         AND (
-          t.start_date <= ?
-          OR t.expected_end_date >= ?
-          OR p.planned_start_time <= CONCAT(?, ' 23:59:59')
-          OR p.planned_end_time >= CONCAT(?, ' 00:00:00')
+          (
+            t.start_date IS NOT NULL
+            AND t.start_date <= ?
+            AND COALESCE(t.expected_end_date, t.start_date) >= ?
+          )
+          OR (
+            t.actual_start_time IS NOT NULL
+            AND DATE(t.actual_start_time) <= ?
+            AND COALESCE(t.actual_end_date, t.expected_end_date, DATE(t.actual_start_time)) >= ?
+          )
+          OR (
+            p.planned_start_time IS NOT NULL
+            AND p.planned_start_time <= CONCAT(?, ' 23:59:59')
+            AND COALESCE(p.planned_end_time, p.planned_start_time) >= CONCAT(?, ' 00:00:00')
+          )
         )
       GROUP BY
         t.id, t.code, t.quantity, t.manager, t.status, t.start_date,
@@ -594,7 +768,7 @@ class SchedulingService {
         m.name, m.code, u.name, pp.code, pp.name, pp.delivery_date
       ORDER BY manager ASC, COALESCE(MIN(p.planned_start_time), t.actual_start_time, t.start_date, t.created_at) ASC
       `,
-      [end, start, end, start]
+      [end, start, end, start, end, start]
     );
 
     const today = this._formatDateOnly(new Date());

@@ -53,7 +53,7 @@
         { label: '信用等级', field: 'credit_level' }
       ]
     },
-    detailRoute: '/baseData/customers/:id'
+    detailRoute: '/basedata/customers/:id'
   }))
 
   // API 函数
@@ -69,7 +69,7 @@
 
   // 事件处理
   const handleAdd = () => {
-    router.push('/baseData/customers/create')
+    router.push('/basedata/customers/create')
   }
 
   const handleFilter = () => {
@@ -77,6 +77,6 @@
   }
 
   const handleItemClick = (item) => {
-    router.push(`/baseData/customers/${item.id}`)
+    router.push(`/basedata/customers/${item.id}`)
   }
 </script>

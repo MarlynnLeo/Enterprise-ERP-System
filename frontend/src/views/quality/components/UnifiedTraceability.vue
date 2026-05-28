@@ -5,40 +5,40 @@
       <p>统一追溯查询：输入物料编码和批次号,自动识别物料类型并展示完整追溯链路</p>
     </el-card>
 
-    <el-card class="search-card">
-      <!-- 统一搜索区域 -->
-      <div class="search-section">
-        <el-form :model="searchForm" inline>
-          <el-form-item label="物料编码">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+          <el-form-item label="物料名称">
             <el-input
               v-model="searchForm.materialCode"
-              placeholder="请输入物料编码或产品编码"
+              placeholder="物料名称/编码"
 
               clearable
               @keyup.enter="handleSearch"
             />
           </el-form-item>
+      </template>
+      <template #advanced>
           <el-form-item label="批次号">
             <el-input
               v-model="searchForm.batchNumber"
-              placeholder="请输入批次号(可选)"
+              placeholder="请输入批次号"
 
               clearable
               @keyup.enter="handleSearch"
             />
           </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="handleSearch" :loading="loading">
-              <el-icon><Search /></el-icon> 查询追溯
-            </el-button>
-            <el-button @click="resetSearch">
-              <el-icon><Refresh /></el-icon> 重置
-            </el-button>
+      </template>
+      <template #actions>
             <el-button type="success" @click="exportReport" :disabled="!hasData">
               <el-icon><Download /></el-icon> 导出报告
             </el-button>
-          </el-form-item>
-        </el-form>
+      </template>
+    </FinanceQueryCard>
 
         <!-- 最近批次 -->
         <div class="test-cases" style="margin-top: 10px;">
@@ -66,8 +66,6 @@
             {{ batch.label }}
           </el-button>
         </div>
-      </div>
-    </el-card>
 
     <!-- 追溯结果展示 -->
     <div v-if="traceabilityData" class="traceability-results">
@@ -80,8 +78,8 @@
           <el-table-column prop="raw_material_code" label="物料编码" min-width="120" />
           <el-table-column prop="raw_material_name" label="物料名称" min-width="150" />
           <el-table-column prop="specification" label="规格型号" min-width="120" />
-          <el-table-column prop="consumed_quantity" label="单套用量" width="100" align="right" />
-          <el-table-column prop="unit" label="单位" width="80" align="center" />
+          <el-table-column prop="consumed_quantity" label="单套用量" width="100" />
+          <el-table-column prop="unit" label="单位" width="80" />
           <el-table-column prop="supplier_name" label="供应商" min-width="120">
             <template #default="{ row }">
               <span v-if="row.supplier_name">{{ row.supplier_name }}</span>
@@ -206,14 +204,19 @@
           <el-table-column prop="raw_material_name" label="原材料名称" min-width="150" />
           <el-table-column prop="raw_material_batch" label="批次号" min-width="150">
             <template #default="{ row }">
-              <span v-if="row.raw_material_batch && row.raw_material_batch !== '-'">
+              <el-tag
+                v-if="row.raw_material_batch && row.raw_material_batch !== '-'"
+                type="primary"
+                style="cursor: pointer;"
+                @click="navigateToTrace(row.raw_material_code, row.raw_material_batch)"
+              >
                 {{ row.raw_material_batch }}
-              </span>
+              </el-tag>
               <span v-else style="color: var(--color-text-secondary);">-</span>
             </template>
           </el-table-column>
           <el-table-column prop="supplier_name" label="供应商" min-width="120" />
-          <el-table-column prop="consumed_quantity" label="消耗数量" width="100" align="right" />
+          <el-table-column prop="consumed_quantity" label="消耗数量" width="100" />
           <el-table-column prop="specification" label="规格" min-width="120" />
           <el-table-column prop="receipt_date" label="入库时间" width="160" :formatter="(row) => formatDateTime(row.receipt_date)" />
         </el-table>
@@ -229,11 +232,16 @@
           <el-table-column prop="outbound_no" label="出库单号" min-width="150" />
           <el-table-column v-if="traceabilityData.type !== 'product'" label="制成成品" min-width="150">
             <template #default="{ row }">
-              {{ row.product_name }}<span v-if="row.product_specification" style="color: var(--color-text-secondary); font-size: 12px; margin-left: 4px;">({{ row.product_specification }})</span>
+              <div>
+                {{ row.product_name }}<span v-if="row.product_specification" style="color: var(--color-text-secondary); font-size: 12px; margin-left: 4px;">({{ row.product_specification }})</span>
+              </div>
+              <el-tag v-if="row.product_batch" size="small" type="info" style="margin-top: 4px;">
+                批次 {{ row.product_batch }}
+              </el-tag>
             </template>
           </el-table-column>
           <el-table-column prop="customer_name" label="客户名称" min-width="150" />
-          <el-table-column prop="allocated_quantity" label="消耗/销售量" width="100" align="right" />
+          <el-table-column prop="allocated_quantity" label="消耗/销售量" width="100" />
           <el-table-column prop="delivery_date" label="交货时间" width="160" :formatter="(row) => formatDateTime(row.delivery_date)" />
         </el-table>
       </el-card>
@@ -271,11 +279,10 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Download } from '@element-plus/icons-vue'
+import { Refresh, Download } from '@element-plus/icons-vue'
 import { api } from '@/services/api'
 import dayjs from 'dayjs'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
-
 const route = useRoute()
 
 // 搜索表单
@@ -299,6 +306,10 @@ const handleSearch = async () => {
     ElMessage.warning('请输入物料编码')
     return
   }
+  if (!searchForm.value.batchNumber) {
+    ElMessage.warning('请输入批次号')
+    return
+  }
 
   loading.value = true
   try {
@@ -306,9 +317,7 @@ const handleSearch = async () => {
     const params = {
       materialCode: searchForm.value.materialCode
     }
-    if (searchForm.value.batchNumber) {
-      params.batchNumber = searchForm.value.batchNumber
-    }
+    params.batchNumber = searchForm.value.batchNumber
 
     // axiosInstance 拦截器会自动补齐 /api 和 Token，这里无需写 /api 前缀
     // 注意不能以 / 开头，否则 baseURL 结合在一起可能会诱发环境下的直接 404
@@ -380,54 +389,50 @@ const parseTraceabilityData = (data) => {
     if (rawMaterials.length === 0 && data.bom_components) {
       data.bom_components.forEach(comp => {
         rawMaterials.push({
-          raw_material_code: comp.material_code,
-          raw_material_name: comp.material_name,
-          raw_material_batch: '-',
-          supplier_name: '-',
+          raw_material_code: comp.raw_material_code || comp.material_code,
+          raw_material_name: comp.raw_material_name || comp.material_name,
+          raw_material_batch: comp.raw_material_batch || '-',
+          supplier_name: comp.supplier_name || '-',
           consumed_quantity: comp.quantity || 0,
           specification: comp.specification || '-',
-          receipt_date: '-'
+          receipt_date: comp.purchase_date || '-'
         })
       })
     }
 
+    const productBatchInfo = data.batch_info || data.product_batch || data.product || {}
+    const salesSource = Array.isArray(data.sales_records) ? data.sales_records : []
+    const salesSteps = salesSource.length > 0
+      ? salesSource
+      : (Array.isArray(data.steps) ? data.steps.filter(s => s.step_type === 'SALES_OUT') : [])
+
     traceabilityData.value = {
       type: 'product',
       batch_info: {
-        material_code: data.product_code,
-        material_name: data.product_name,
-        batch_number: data.batch_number,
-        specification: data.product_specs,
-        original_quantity: data.inventory_info?.original_quantity || 0,
-        current_quantity: data.inventory_info?.current_quantity || 0,
-        production_date: data.production_date,
+        material_code: productBatchInfo.material_code || data.product_code,
+        material_name: productBatchInfo.material_name || data.product_name,
+        batch_number: productBatchInfo.batch_number || data.batch_number || data.product_batch,
+        specification: productBatchInfo.specification || data.product_specs,
+        original_quantity: productBatchInfo.original_quantity || data.inventory_info?.original_quantity || 0,
+        current_quantity: productBatchInfo.current_quantity || data.inventory_info?.current_quantity || 0,
+        production_date: productBatchInfo.receipt_date || productBatchInfo.created_at || data.production_date,
         status: data.status || 'active',
-        unit: data.inventory_info?.unit || '个'
+        unit: productBatchInfo.unit || data.inventory_info?.unit || '个'
       },
       steps: data.steps || [],
       raw_materials: rawMaterials,
-      sales_records: [],  // 从steps中提取销售记录
+      sales_records: salesSteps.map(s => ({
+        outbound_no: s.outbound_no || s.reference_no,
+        customer_name: s.customer_name || s.remarks || '未知客户',
+        allocated_quantity: s.allocated_quantity || s.quantity || 0,
+        delivery_date: s.sales_created_at || s.delivery_date || s.start_time || s.created_at
+      })),
       summary: {
         raw_material_batches: rawMaterials.length,
-        total_sales: 0,  // 需要从steps中计算
-        customers_count: 0,
-        remaining_quantity: data.inventory_info?.current_quantity || 0
+        total_sales: data.traceability_summary?.total_sales ?? salesSteps.reduce((sum, s) => sum + (Number(s.allocated_quantity ?? s.quantity) || 0), 0),
+        customers_count: data.traceability_summary?.customers_count ?? new Set(salesSteps.map(s => s.customer_name || s.remarks)).size,
+        remaining_quantity: data.traceability_summary?.remaining_quantity ?? productBatchInfo.current_quantity ?? data.inventory_info?.current_quantity ?? 0
       }
-    }
-
-    // 从steps中提取销售记录
-    if (data.steps) {
-      const salesSteps = data.steps.filter(s => s.step_type === 'SALES_OUT')
-      traceabilityData.value.sales_records = salesSteps.map(s => ({
-        outbound_no: s.reference_no,
-        customer_name: s.remarks || '未知客户',
-        allocated_quantity: s.quantity || 0,
-        delivery_date: s.start_time || s.created_at
-      }))
-
-      // 计算销售汇总
-      traceabilityData.value.summary.total_sales = salesSteps.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0)
-      traceabilityData.value.summary.customers_count = new Set(salesSteps.map(s => s.remarks)).size
     }
   } else {
     // 原材料追溯数据 - 及正向追踪成品流向
@@ -462,7 +467,7 @@ const parseTraceabilityData = (data) => {
           quantity: s.quantity,
           unit: batchInfo.unit,
           operator: '系统追溯',
-          location: s.product_name + (s.product_specification ? ` (${s.product_specification})` : ''),
+          location: [s.product_name, s.product_batch ? `批次 ${s.product_batch}` : '', s.product_specification ? `(${s.product_specification})` : ''].filter(Boolean).join(' ') || '-',
           remarks: s.remarks,
           created_at: s.created_at
        })));
@@ -481,8 +486,32 @@ const parseTraceabilityData = (data) => {
          delivery_date: s.created_at,
          product_name: s.product_name,
          product_code: s.product_code,
+         product_batch: s.product_batch,
          product_specification: s.product_specification
       }));
+    }
+    if (data.transaction_history && data.transaction_history.length > 0) {
+      const transactionSales = data.transaction_history
+        .filter(t => t.transaction_type === 'sales_outbound')
+        .map(t => {
+          const customerMatch = String(t.remark || '').match(/客户[:：]\s*(.+)$/)
+          return {
+            outbound_no: t.reference_no,
+            customer_name: customerMatch?.[1] || t.remark || '未知客户',
+            allocated_quantity: Math.abs(Number(t.quantity) || 0),
+            delivery_date: t.created_at,
+            product_name: batchInfo.material_name,
+            product_code: batchInfo.material_code,
+            product_specification: batchInfo.specification
+          }
+        })
+      const existingKeys = new Set(salesRecords.map(s => `${s.outbound_no || ''}_${s.customer_name || ''}`))
+      transactionSales.forEach(record => {
+        const key = `${record.outbound_no || ''}_${record.customer_name || ''}`
+        if (!existingKeys.has(key)) {
+          salesRecords.push(record)
+        }
+      })
     }
 
     traceabilityData.value = {
@@ -535,10 +564,12 @@ const loadLatestBatch = (batch) => {
 // 获取最新批次
 const loadLatestBatches = async () => {
   try {
-    const response = await fetch('/api/batch-traceability/latest-batches?limit=5')
-    const result = await response.json()
-    if (result.success && result.data) {
-      latestBatches.value = result.data.map((batch, index) => ({
+    const response = await api.get('/batch-traceability/latest-batches', {
+      params: { limit: 5 }
+    })
+    const batches = Array.isArray(response.data) ? response.data : (response.data?.list || [])
+    if (batches.length) {
+      latestBatches.value = batches.map((batch, index) => ({
         id: index + 1,
         label: `${batch.material_code} - ${batch.batch_number}`,
         materialCode: batch.material_code,
@@ -558,17 +589,26 @@ const exportReport = async () => {
     ElMessage.warning('请先查询追溯信息')
     return
   }
+  if (!searchForm.value.batchNumber) {
+    ElMessage.warning('请输入批次号')
+    return
+  }
 
   try {
-    const response = await fetch(`/api/batch-traceability/export/report?materialCode=${searchForm.value.materialCode}&batchNumber=${searchForm.value.batchNumber || ''}`, {
+    const response = await api.get('/batch-traceability/export/report', {
+      params: {
+        materialCode: searchForm.value.materialCode,
+        batchNumber: searchForm.value.batchNumber,
+        direction: traceabilityData.value.type === 'product' ? 'backward' : 'forward'
+      },
       responseType: 'blob'
     })
 
-    const blob = await response.blob()
+    const blob = response.data
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `追溯报告_${searchForm.value.materialCode}_${searchForm.value.batchNumber || 'all'}_${dayjs().format('YYYYMMDDHHmmss')}.xlsx`
+    link.download = `追溯报告_${searchForm.value.materialCode}_${searchForm.value.batchNumber}_${dayjs().format('YYYYMMDDHHmmss')}.xlsx`
     link.click()
     window.URL.revokeObjectURL(url)
 
@@ -723,4 +763,3 @@ watch(
   }
 }
 </style>
-

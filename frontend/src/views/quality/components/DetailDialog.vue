@@ -46,21 +46,21 @@
             <el-table-column label="标准" min-width="80" show-overflow-tooltip>
               <template #default="{ row }">{{ row.standard || row.dimension_info || '-' }}</template>
             </el-table-column>
-            <el-table-column label="测量值" align="center">
-              <el-table-column v-for="n in 6" :key="n" :label="`${n}#`" min-width="55" align="center">
+            <el-table-column label="测量值">
+              <el-table-column v-for="n in 6" :key="n" :label="`${n}#`" min-width="55">
                 <template #default="{ row }">
-                  <span :style="{ color: row[`measure_${n}`] ? '#303133' : '#C0C4CC' }">{{ row[`measure_${n}`] || '-' }}</span>
+                  <span :style="{ color: row[`measure_${n}`] ? 'var(--color-text-primary)' : 'var(--color-text-placeholder)' }">{{ row[`measure_${n}`] || '-' }}</span>
                 </template>
               </el-table-column>
             </el-table-column>
-            <el-table-column label="范围/平均" width="100" align="center">
+            <el-table-column label="范围/平均" width="100">
               <template #default="{ row }">
-                <span :style="{ color: row.result === 'passed' || row.result === 'pass' ? '#67C23A' : row.result === 'failed' || row.result === 'fail' ? '#F56C6C' : '', fontWeight: 'bold' }">
+                <span :style="{ color: row.result === 'passed' || row.result === 'pass' ? 'var(--color-success)' : row.result === 'failed' || row.result === 'fail' ? 'var(--color-danger)' : '', fontWeight: 'bold' }">
                   {{ row.actual_value || '-' }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="结果" width="80" align="center">
+            <el-table-column label="结果" width="80">
               <template #default="{ row }">
                 <el-tag v-if="row.result === 'pass' || row.result === 'passed' || row.result === '合格'" type="success" size="small">合格</el-tag>
                 <el-tag v-else-if="row.result === 'fail' || row.result === 'failed' || row.result === '不合格'" type="danger" size="small">不合格</el-tag>

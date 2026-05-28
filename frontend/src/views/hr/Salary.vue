@@ -34,7 +34,7 @@
         <el-table-column prop="employee_name" label="姓名" width="100" fixed />
 
         <!-- 左侧: 薪酬明细 -->
-        <el-table-column label="薪酬计算明细" align="center">
+        <el-table-column label="薪酬计算明细">
           <el-table-column prop="base_salary" label="基本工资" width="100" />
           <el-table-column prop="daily_wage" label="日工资" width="80" :formatter="fmt" />
           <el-table-column prop="overtime_pay" label="加班费" width="90" />
@@ -43,14 +43,14 @@
           <el-table-column prop="meal_allowance" label="餐补" width="90" />
           <el-table-column prop="full_attendance_bonus" label="满勤奖" width="80" />
           <el-table-column prop="leave_deduction" label="缺勤扣款" width="90" />
-          <el-table-column prop="gross_salary" label="应发项" width="100" class-name="gross-col" />
+          <el-table-column prop="gross_salary" label="应发项" width="100" class-name="gross-col operation-column" />
           <el-table-column prop="pension" label="扣社保" width="90" />
           <el-table-column prop="housing_fund" label="扣公积金" width="90" />
-          <el-table-column prop="net_salary" label="纯实发" width="110" class-name="net-col" fixed="right"/>
+          <el-table-column prop="net_salary" label="纯实发" width="110" class-name="net-col operation-column" fixed="right"/>
         </el-table-column>
 
         <!-- 操作 -->
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-tag v-if="row.status==='approved'" type="success">已确认</el-tag>
             <el-button v-else size="small" type="primary" @click="handleConfirm(row)">确认</el-button>
@@ -67,6 +67,7 @@ import { hrApi } from '@/api/hr'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Download, Check } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
+import { parseResponseData } from '@/utils/responseParser'
 
 const queryPeriod = ref(dayjs().format('YYYY-MM'))
 const tableData = ref([])
@@ -80,7 +81,7 @@ const fetchData = async () => {
   try {
     loading.value = true
     const res = await hrApi.getSalaryRecords(queryPeriod.value)
-    tableData.value = res.data.data || res.data || []
+    tableData.value = parseResponseData(res, [])
   } catch (error) {
     ElMessage.error(error.message || '获取薪资数据失败')
   } finally {
@@ -171,7 +172,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.gross-col { background-color: #fdf6ec !important; font-weight: bold; }
-.net-col { background-color: #f0f9eb !important; font-weight: bold; color: var(--color-success); }
+.gross-col { background-color: var(--ds-yellow-bg) !important; font-weight: bold; }
+.net-col { background-color: var(--ds-green-bg) !important; font-weight: bold; color: var(--color-success); }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 </style>

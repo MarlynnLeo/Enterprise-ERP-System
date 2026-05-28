@@ -14,26 +14,48 @@ const db = require('../../../config/db');
 const ExcelJS = require('exceljs');
 
 const toRows = (result) => (Array.isArray(result.rows) ? result.rows : (result.rows ? [result.rows] : []));
+const toPlainRows = (result) => {
+  if (Array.isArray(result)) {
+    return Array.isArray(result[0]) ? result[0] : result;
+  }
+  return toRows(result);
+};
 
 const getBatchDetailsData = async (materialCode, batchNumber) => {
   const batchQuery = `
     SELECT
-      il.location_id,
+      MIN(il.location_id) as location_id,
       il.material_id,
       il.batch_number,
       SUM(il.quantity) as current_quantity,
       SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as original_quantity,
+      COALESCE(MIN(CASE WHEN il.quantity > 0 THEN il.created_at END), MIN(il.created_at)) as receipt_date,
       MIN(il.created_at) as created_at,
       m.code as material_code,
       m.name as material_name,
+      m.specs as specification,
       u.name as unit,
-      NULL as supplier_name,
+      (SELECT COALESCE(NULLIF(il2.supplier_name, ''), s.name)
+       FROM inventory_ledger il2
+       LEFT JOIN suppliers s ON il2.supplier_id = s.id
+       WHERE il2.material_id = il.material_id
+         AND il2.batch_number = il.batch_number
+         AND il2.quantity > 0
+       ORDER BY il2.created_at ASC
+       LIMIT 1) as supplier_name,
+      (SELECT l2.name
+       FROM inventory_ledger il3
+       LEFT JOIN locations l2 ON il3.location_id = l2.id
+       WHERE il3.material_id = il.material_id
+         AND il3.batch_number = il.batch_number
+       ORDER BY il3.created_at ASC
+       LIMIT 1) as location,
       'active' as status
     FROM inventory_ledger il
     LEFT JOIN materials m ON il.material_id = m.id
     LEFT JOIN units u ON m.unit_id = u.id
     WHERE m.code = ? AND il.batch_number = ?
-    GROUP BY il.location_id, il.material_id, il.batch_number, m.code, m.name, u.name
+    GROUP BY il.material_id, il.batch_number, m.code, m.name, m.specs, u.name
     LIMIT 1
   `;
   const batchRows = toRows(await db.query(batchQuery, [materialCode, batchNumber]));
@@ -82,10 +104,12 @@ const batchTraceabilityController = {
           il.batch_number,
           SUM(il.quantity) as current_quantity,
           SUM(CASE WHEN il.quantity > 0 THEN il.quantity ELSE 0 END) as original_quantity,
+          COALESCE(MIN(CASE WHEN il.quantity > 0 THEN il.created_at END), MIN(il.created_at)) as receipt_date,
           MIN(il.created_at) as created_at,
           m.code as material_code,
           m.name as material_name,
           m.specs as specification,
+          m.material_type,
           u.name as unit,
           (SELECT COALESCE(NULLIF(il2.supplier_name, ''), s.name)
            FROM inventory_ledger il2
@@ -98,7 +122,7 @@ const batchTraceabilityController = {
         LEFT JOIN materials m ON il.material_id = m.id
         LEFT JOIN units u ON m.unit_id = u.id
         WHERE m.code = ? AND il.batch_number = ?
-        GROUP BY il.material_id, il.batch_number, m.code, m.name, m.specs, u.name
+        GROUP BY il.material_id, il.batch_number, m.code, m.name, m.specs, m.material_type, u.name
         LIMIT 1
       `;
 
@@ -159,7 +183,7 @@ const batchTraceabilityController = {
           specification: batchInfo.specification,
           original_quantity: batchInfo.original_quantity,
           current_quantity: batchInfo.current_quantity,
-          receipt_date: batchInfo.created_at,
+          receipt_date: batchInfo.receipt_date || batchInfo.created_at,
           supplier_name: batchInfo.supplier_name,
           status: batchInfo.status || 'active',
           unit: batchInfo.unit,
@@ -170,15 +194,49 @@ const batchTraceabilityController = {
 
       // 智能探测物料类型并扩展全链路数据
       try {
-        const materialTypeResult = await db.query(
-          `SELECT material_type FROM materials WHERE code = ?`,
-          [materialCode]
+        const [typeSignals] = await db.pool.execute(
+          `
+          SELECT
+            m.material_type,
+            EXISTS(
+              SELECT 1
+              FROM product_sales_traceability pst
+              WHERE pst.product_code = m.code
+                AND pst.product_batch_number = ?
+              LIMIT 1
+            ) as has_sales_trace,
+            EXISTS(
+              SELECT 1
+              FROM batch_relationships br
+              WHERE br.child_material_code = m.code
+                AND br.child_batch_number = ?
+                AND br.relationship_type = 'consume'
+              LIMIT 1
+            ) as has_child_relation,
+            EXISTS(
+              SELECT 1
+              FROM inventory_ledger il
+              WHERE il.material_id = m.id
+                AND il.batch_number = ?
+                AND il.transaction_type = 'production_inbound'
+              LIMIT 1
+            ) as has_production_inbound
+          FROM materials m
+          WHERE m.code = ?
+          LIMIT 1
+          `,
+          [batchNumber, batchNumber, batchNumber, materialCode]
         );
-        const matType = materialTypeResult.rows?.[0]?.material_type || 'material';
-        responseData.isProduct = matType === 'product';
-        responseData.type = matType;
+        const signal = typeSignals[0] || {};
+        const isProduct = signal.material_type === 'product' ||
+          Boolean(signal.has_sales_trace) ||
+          Boolean(signal.has_child_relation) ||
+          Boolean(signal.has_production_inbound);
 
-        if (matType === 'material' || matType === 'raw_material') {
+        responseData.isProduct = isProduct;
+        responseData.type = isProduct ? 'product' : (signal.material_type || 'material');
+
+        if (!isProduct) {
           // 原材料：正向追溯查询生产去向及最终客户
           const traceChainResult = await db.pool.execute(
             `
@@ -187,7 +245,7 @@ const batchTraceabilityController = {
               m2.name as product_name,
               m2.specs as product_specification,
               br.child_batch_number as product_batch,
-              target_vbs.receipt_date as production_date,
+              COALESCE(target_vbs.receipt_date, prod_tx.production_date, br.created_at) as production_date,
               pst.customer_name,
               pst.outbound_no,
               pst.allocated_quantity,
@@ -195,16 +253,30 @@ const batchTraceabilityController = {
               pst.created_at as sales_created_at,
               br.consumed_quantity
             FROM batch_relationships br
-            LEFT JOIN v_batch_stock target_vbs ON br.child_batch_number = target_vbs.batch_number
-            LEFT JOIN materials m2 ON target_vbs.material_id = m2.id
-            LEFT JOIN product_sales_traceability pst ON br.child_batch_number = pst.product_batch_number
-            WHERE br.parent_batch_number = ? AND br.relationship_type = 'consume'
+            LEFT JOIN materials m2 ON m2.code = br.child_material_code
+            LEFT JOIN v_batch_stock target_vbs
+              ON target_vbs.material_id = m2.id
+             AND target_vbs.batch_number = br.child_batch_number
+            LEFT JOIN (
+              SELECT material_id, batch_number, MIN(created_at) as production_date
+              FROM inventory_ledger
+              WHERE quantity > 0
+              GROUP BY material_id, batch_number
+            ) prod_tx
+              ON prod_tx.material_id = m2.id
+             AND prod_tx.batch_number = br.child_batch_number
+            LEFT JOIN product_sales_traceability pst
+              ON pst.product_code = br.child_material_code
+             AND pst.product_batch_number = br.child_batch_number
+            WHERE br.parent_material_code = ?
+              AND br.parent_batch_number = ?
+              AND br.relationship_type = 'consume'
             ORDER BY target_vbs.receipt_date ASC, pst.created_at ASC
             `,
-            [batchNumber]
+            [materialCode, batchNumber]
           );
 
-          const traceRecords = traceChainResult[0] || [];
+          const traceRecords = toPlainRows(traceChainResult);
           if (traceRecords.length > 0) {
             responseData.steps = traceRecords.map(r => ({
               step_type: r.customer_name ? 'SALES_OUT' : 'PRODUCTION_IN',
@@ -214,17 +286,23 @@ const batchTraceabilityController = {
               created_at: r.sales_created_at || r.delivery_date || r.production_date,
               product_name: r.product_name,
               product_code: r.product_code,
-              product_specification: r.product_specification
+              product_specification: r.product_specification,
+              product_batch: r.product_batch
             }));
           }
         }
-        else if (matType === 'product') {
+        else {
           // 成品：调用反向追溯查询使用的材料及后续销售情况
           const fullTraceResult = await ProductSalesTraceabilityService.getProductFullTraceability(materialCode, batchNumber);
 
           if (fullTraceResult.success && fullTraceResult.data) {
             responseData.product_code = materialCode;
+            responseData.product_name = batchInfo.material_name;
+            responseData.product_batch = batchNumber;
             responseData.production_materials = fullTraceResult.data.raw_materials || [];
+            responseData.raw_materials = fullTraceResult.data.raw_materials || [];
+            responseData.sales_records = fullTraceResult.data.sales_records || [];
+            responseData.traceability_summary = fullTraceResult.data.traceability_summary || null;
             responseData.steps = (fullTraceResult.data.sales_records || []).map(r => ({
               step_type: 'SALES_OUT',
               reference_no: r.outbound_no,
@@ -668,40 +746,89 @@ const batchTraceabilityController = {
    */
   async exportTraceabilityReport(req, res) {
     try {
-      const { materialCode, batchNumber, direction = 'forward' } = req.query;
+      const { materialCode, batchNumber } = req.query;
+      const requestedDirection = req.query.direction;
+      let direction = requestedDirection || 'forward';
 
       if (!materialCode || !batchNumber) {
         return ResponseHandler.error(res, '物料编码和批次号不能为空', 'VALIDATION_ERROR', 400);
       }
 
       // 获取批次详情
-      const batches = await BatchManagementService.getBatchByMaterialAndBatch(
-        materialCode,
-        batchNumber
-      );
-      if (!batches || batches.length === 0) {
+      const batchDetails = await getBatchDetailsData(materialCode, batchNumber);
+      if (!batchDetails) {
         return ResponseHandler.error(res, `未找到批次: ${materialCode} - ${batchNumber}`, 'NOT_FOUND', 404);
       }
-      const batch = batches[0];
+      const batch = batchDetails.batch_info;
+      batch.available_quantity = batch.available_quantity ?? batch.current_quantity;
+
+      if (!requestedDirection) {
+        const [typeSignals] = await db.pool.execute(
+          `
+          SELECT
+            m.material_type,
+            EXISTS(
+              SELECT 1
+              FROM product_sales_traceability pst
+              WHERE pst.product_code = m.code
+                AND pst.product_batch_number = ?
+              LIMIT 1
+            ) as has_sales_trace,
+            EXISTS(
+              SELECT 1
+              FROM batch_relationships br
+              WHERE br.child_material_code = m.code
+                AND br.child_batch_number = ?
+                AND br.relationship_type = 'consume'
+              LIMIT 1
+            ) as has_child_relation,
+            EXISTS(
+              SELECT 1
+              FROM inventory_ledger il
+              WHERE il.material_id = m.id
+                AND il.batch_number = ?
+                AND il.transaction_type = 'production_inbound'
+              LIMIT 1
+            ) as has_production_inbound
+          FROM materials m
+          WHERE m.code = ?
+          LIMIT 1
+          `,
+          [batchNumber, batchNumber, batchNumber, materialCode]
+        );
+        const signal = typeSignals[0] || {};
+        const isProduct = signal.material_type === 'product' ||
+          Boolean(signal.has_sales_trace) ||
+          Boolean(signal.has_child_relation) ||
+          Boolean(signal.has_production_inbound);
+        direction = isProduct ? 'backward' : 'forward';
+      }
 
       // 获取追溯链路
-      const traceabilityChain = await InventoryTraceabilityService.getBatchTraceabilityChain(
-        materialCode,
-        batchNumber,
-        direction
-      );
+      let traceabilityChain = null;
+      try {
+        traceabilityChain = await InventoryTraceabilityService.getBatchTraceabilityChain(
+          materialCode,
+          batchNumber,
+          direction
+        );
+      } catch (traceErr) {
+        logger.warn('导出追溯链路查询失败，仅导出基本信息和流转历史:', traceErr);
+      }
 
       // 获取流转历史 (✅ 单表架构: 使用 inventory_ledger)
       const transactionQuery = `
         SELECT
-          transaction_type, quantity, unit_id, before_quantity, after_quantity,
-          reference_type, reference_no, operator, remark as remarks,
-          DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as formatted_date
-        FROM inventory_ledger
-        WHERE batch_number = ?
-        ORDER BY created_at DESC
+          il.transaction_type, il.quantity, u.name as unit, il.before_quantity, il.after_quantity,
+          il.reference_type, il.reference_no, il.operator, il.remark as remarks,
+          DATE_FORMAT(il.created_at, '%Y-%m-%d %H:%i:%s') as formatted_date
+        FROM inventory_ledger il
+        LEFT JOIN materials m ON il.material_id = m.id
+        LEFT JOIN units u ON m.unit_id = u.id
+        WHERE il.batch_number = ? AND m.code = ?
+        ORDER BY il.created_at DESC
       `;
-      const transactionResult = await db.query(transactionQuery, [batchNumber]);
+      const transactionResult = await db.query(transactionQuery, [batchNumber, materialCode]);
       const transactions = transactionResult.rows || transactionResult[0] || [];
 
       // 创建Excel工作簿
@@ -710,15 +837,18 @@ const batchTraceabilityController = {
 
       // 设置列宽
       worksheet.columns = [
-        { width: 15 },
+        { width: 16 },
+        { width: 22 },
         { width: 20 },
+        { width: 15 },
+        { width: 15 },
+        { width: 16 },
         { width: 20 },
-        { width: 15 },
-        { width: 15 },
+        { width: 30 },
       ];
 
       // 添加标题
-      worksheet.mergeCells('A1:E1');
+      worksheet.mergeCells('A1:H1');
       const titleCell = worksheet.getCell('A1');
       titleCell.value = '批次追溯报告';
       titleCell.font = { size: 16, bold: true };
@@ -726,9 +856,8 @@ const batchTraceabilityController = {
       worksheet.getRow(1).height = 30;
 
       // 添加批次基本信息
-      let currentRow = 3;
-      worksheet.addRow(['批次基本信息']).font = { bold: true, size: 12 };
-      currentRow++;
+      const batchInfoTitleRow = worksheet.addRow(['批次基本信息']);
+      batchInfoTitleRow.font = { bold: true, size: 12 };
 
       worksheet.addRow(['物料编码', batch.material_code || '-']);
       worksheet.addRow(['物料名称', batch.material_name || '-']);
@@ -740,26 +869,24 @@ const batchTraceabilityController = {
         '入库时间',
         batch.receipt_date ? new Date(batch.receipt_date).toLocaleString('zh-CN') : '-',
       ]);
-      worksheet.addRow(['仓库位置', `${batch.warehouse_name || '-'} - ${batch.location || '-'}`]);
+      worksheet.addRow(['仓库位置', [batch.warehouse_name, batch.location].filter(Boolean).join(' - ') || '-']);
       worksheet.addRow(['状态', batch.status || '-']);
-      currentRow += 9;
 
       // 添加追溯链路
-      currentRow += 2;
-      worksheet.addRow([`${direction === 'forward' ? '正向' : '反向'}追溯链路`]).font = {
+      worksheet.addRow([]);
+      const chainTitleRow = worksheet.addRow([`${direction === 'forward' ? '正向' : '反向'}追溯链路`]);
+      chainTitleRow.font = {
         bold: true,
         size: 12,
       };
-      currentRow++;
 
       if (
         traceabilityChain &&
         traceabilityChain.traceability_chain &&
         traceabilityChain.traceability_chain.length > 0
       ) {
-        worksheet.addRow(['关系类型', '物料编码', '批次号', '消耗数量', '产出数量']);
-        worksheet.getRow(currentRow).font = { bold: true };
-        currentRow++;
+        const chainHeaderRow = worksheet.addRow(['关系类型', '物料编码', '批次号', '消耗数量', '产出数量']);
+        chainHeaderRow.font = { bold: true };
 
         traceabilityChain.traceability_chain.forEach((item) => {
           const relationshipText =
@@ -779,22 +906,19 @@ const batchTraceabilityController = {
             item.consumed_quantity || 0,
             item.produced_quantity || 0,
           ]);
-          currentRow++;
         });
       } else {
         worksheet.addRow(['暂无追溯链路数据']);
-        currentRow++;
       }
 
       // 添加流转历史
-      currentRow += 2;
-      worksheet.addRow(['批次流转历史']).font = { bold: true, size: 12 };
-      currentRow++;
+      worksheet.addRow([]);
+      const transactionTitleRow = worksheet.addRow(['批次流转历史']);
+      transactionTitleRow.font = { bold: true, size: 12 };
 
       if (transactions && transactions.length > 0) {
-        worksheet.addRow(['交易类型', '数量', '变更前', '变更后', '操作员', '交易时间']);
-        worksheet.getRow(currentRow).font = { bold: true };
-        currentRow++;
+        const transactionHeaderRow = worksheet.addRow(['交易类型', '单据号', '数量', '变更前', '变更后', '操作员', '交易时间', '备注']);
+        transactionHeaderRow.font = { bold: true };
 
         transactions.forEach((trans) => {
           const typeText =
@@ -805,21 +929,26 @@ const batchTraceabilityController = {
               adjust: '调整',
               reserve: '预留',
               unreserve: '取消预留',
+              purchase_inbound: '采购入库',
+              production_inbound: '生产入库',
+              production_outbound: '生产领料',
+              sales_outbound: '销售出库',
+              return_inbound: '退货入库',
             }[trans.transaction_type] || trans.transaction_type;
 
           worksheet.addRow([
             typeText,
+            trans.reference_no || '-',
             `${trans.quantity || 0} ${trans.unit || ''}`,
             trans.before_quantity || 0,
             trans.after_quantity || 0,
             trans.operator || '-',
             trans.formatted_date || '-',
+            trans.remarks || '-',
           ]);
-          currentRow++;
         });
       } else {
         worksheet.addRow(['暂无流转历史数据']);
-        currentRow++;
       }
 
       // 设置响应头
@@ -848,20 +977,52 @@ const batchTraceabilityController = {
     try {
       const { limit = 10 } = req.query;
 
-      const safeLimit = parseInt(limit, 10) || 10;
+      const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 10, 100));
 
-      // 使用 v_batch_stock 统一获取
+      // 使用库存台账汇总，避免 v_batch_stock 漏掉当前库存为 0 的已售罄批次
       const query = `
         SELECT
           m.code as material_code,
-          vbs.batch_number,
-          vbs.receipt_date as created_at,
-          IF(m.material_type = 'product', 'product', 'material') as type
-        FROM v_batch_stock vbs
-        LEFT JOIN materials m ON vbs.material_id = m.id
-        WHERE vbs.batch_number IS NOT NULL AND vbs.batch_number != ''
-        ORDER BY created_at DESC
-        LIMIT ${Math.max(1,Math.min(Math.floor(Number(safeLimit))||20,500))}
+          b.batch_number,
+          b.receipt_date as created_at,
+          CASE
+            WHEN m.material_type = 'product'
+              OR EXISTS(
+                SELECT 1 FROM product_sales_traceability pst
+                WHERE pst.product_code = m.code
+                  AND pst.product_batch_number = b.batch_number
+                LIMIT 1
+              )
+              OR EXISTS(
+                SELECT 1 FROM batch_relationships br
+                WHERE br.child_material_code = m.code
+                  AND br.child_batch_number = b.batch_number
+                  AND br.relationship_type = 'consume'
+                LIMIT 1
+              )
+              OR EXISTS(
+                SELECT 1 FROM inventory_ledger il
+                WHERE il.material_id = m.id
+                  AND il.batch_number = b.batch_number
+                  AND il.transaction_type = 'production_inbound'
+                LIMIT 1
+              )
+            THEN 'product'
+            ELSE 'material'
+          END as type
+        FROM (
+          SELECT
+            il.material_id,
+            il.batch_number,
+            COALESCE(MIN(CASE WHEN il.quantity > 0 THEN il.created_at END), MIN(il.created_at)) as receipt_date,
+            MAX(il.created_at) as last_transaction_at
+          FROM inventory_ledger il
+          WHERE il.batch_number IS NOT NULL AND il.batch_number != ''
+          GROUP BY il.material_id, il.batch_number
+        ) b
+        LEFT JOIN materials m ON b.material_id = m.id
+        ORDER BY b.receipt_date DESC, b.last_transaction_at DESC
+        LIMIT ${safeLimit}
       `;
 
       const result = await db.query(query);

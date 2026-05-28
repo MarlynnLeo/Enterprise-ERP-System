@@ -23,29 +23,9 @@ import systemRoute from './modules/system'
 import equipmentRoute from './modules/equipment'
 import hrRoute from './modules/hr'
 
-// 创建路由重定向映射
-const redirects = [
-  // 基础数据：从旧的中文路径重定向到新的英文路径
-  { from: '/基础数据', to: '/basedata' },
-  { from: '/基础数据/物料管理', to: '/basedata/materials' },
-  { from: '/基础数据/BOM管理', to: '/basedata/boms' },
-  { from: '/基础数据/客户管理', to: '/basedata/customers' },
-  { from: '/基础数据/供应商管理', to: '/basedata/suppliers' },
-  { from: '/基础数据/物料分类', to: '/basedata/categories' },
-  { from: '/基础数据/计量单位', to: '/basedata/units' },
-  { from: '/基础数据/库位管理', to: '/basedata/locations' },
-  { from: '/基础数据/工序模板', to: '/basedata/process-templates' },
-  { from: '/基础数据/产品分类', to: '/basedata/product-categories' }
-];
-
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    // 添加重定向路由
-    ...redirects.map(({ from, to }) => ({
-      path: from,
-      redirect: to
-    })),
     {
       path: '/login',
       name: 'login',
@@ -129,12 +109,6 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
-  // 处理旧的 dataOverview 驼峰式路径，重定向到小写路径
-  if (to.path.includes('/dataOverview')) {
-    const newPath = to.path.replace('/dataOverview', '/dataoverview')
-    return { path: newPath, replace: true }
-  }
-
   // 设置页面标题
   if (to.meta.title) {
     document.title = `${to.meta.title} - ERP系统`
@@ -142,20 +116,27 @@ router.beforeEach(async (to) => {
     document.title = 'ERP系统'
   }
 
-  // 检查用户是否登录
+  // 检查用户是否登录。PC 端认证令牌在 HttpOnly Cookie 中，刷新页面或新标签页
+  // 没有本地 user 缓存时，先向后端探测一次会话。
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return '/login'
+    try {
+      await authStore.fetchUserProfile()
+    } catch {
+      return '/login'
+    }
+
+    if (!authStore.isAuthenticated) {
+      return '/login'
+    }
   }
 
-  // 如果用户已登录且主题未加载，异步加载主题设置（只触发一次）
+  // 如果用户已登录，按用户维度异步加载主题设置，避免同页切换账号时沿用旧主题
   if (authStore.isAuthenticated && to.path !== '/login') {
-    // 使用全局变量避免每次路由切换都创建新的 import Promise
-    if (!window.__themeLoaded) {
-      window.__themeLoaded = true
+    const themeOwner = authStore.user?.id || authStore.user?.username || authStore.user?.name || 'authenticated'
+    if (window.__themeLoadedFor !== themeOwner) {
+      window.__themeLoadedFor = themeOwner
       const themeStore = useThemeStore()
-      if (!themeStore.isLoaded) {
-        themeStore.loadThemeFromServer().catch(() => {})
-      }
+      themeStore.loadThemeFromServer().catch(() => {})
     }
   }
 

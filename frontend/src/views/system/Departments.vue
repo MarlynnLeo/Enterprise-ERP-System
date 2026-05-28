@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="departments-container">
+  <div class="module-page departments-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,11 +19,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="searchDepartments"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="部门名称">
           <el-input  v-model="searchForm.name" placeholder="输入部门名称" clearable ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="部门编码">
           <el-input  v-model="searchForm.code" placeholder="输入部门编码" clearable ></el-input>
         </el-form-item>
@@ -33,12 +40,8 @@
             <el-option label="禁用" :value="0"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchDepartments" :loading="loading">查询</el-button>
-          <el-button @click="resetSearch" :loading="loading">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 表格区域 -->
     <el-card class="data-card">
@@ -74,7 +77,7 @@
             {{ scope.row && scope.row.created_at ? new Date(scope.row.created_at).toLocaleString() : '' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div style="display: flex; gap: 5px; flex-wrap: wrap;">
               <el-popconfirm
@@ -241,7 +244,8 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue';
-import { api } from '../../services/api';
+import { systemApi } from '../../services/api';
+import { parseListData } from '@/utils/responseParser';
 // 权限计算属性
 
 
@@ -349,7 +353,7 @@ const loadDepartments = async () => {
       status: searchForm.status
     };
 
-    const response = await api.get('/system/departments', { params });
+    const response = await systemApi.getDepartments(params);
 
     // 确保我们处理的是数组数据
     const responseData = response.data;
@@ -402,15 +406,8 @@ const loadDepartments = async () => {
 // 加载用户列表用于选择部门负责人
 const loadUserOptions = async () => {
   try {
-    const response = await api.get('/api/system/users/list');
-    let usersData = [];
-    if (response.data && Array.isArray(response.data)) {
-      usersData = response.data;
-    } else if (response.data && Array.isArray(response.data.data)) {
-      usersData = response.data.data;
-    } else if (response.data && Array.isArray(response.data.list)) {
-      usersData = response.data.list;
-    }
+    const response = await systemApi.getUsersList();
+    const usersData = parseListData(response, { enableLog: false });
     // 过滤掉已禁用的用户
     userOptions.value = usersData.filter(user => user.status === 1 || String(user.status) === '1');
   } catch (error) {
@@ -489,7 +486,7 @@ const handleDelete = (row) => {
     }
   ).then(async () => {
     try {
-      await api.delete(`/system/departments/${row.id}`)
+      await systemApi.deleteDepartment(row.id)
       ElMessage.success('删除成功')
       loadDepartments()
     } catch (error) {
@@ -521,7 +518,7 @@ const handleToggleStatus = (row) => {
     }
   ).then(async () => {
     try {
-      await api.put(`/system/departments/${row.id}/status`, { status: newStatus })
+      await systemApi.updateDepartmentStatus(row.id, { status: newStatus })
       ElMessage.success(`${statusText}成功`)
       loadDepartments()
     } catch (error) {
@@ -568,11 +565,11 @@ const saveDepartment = async () => {
 
     if (departmentForm.id) {
       // 更新
-      await api.put(`/system/departments/${departmentForm.id}`, formData)
+      await systemApi.updateDepartment(departmentForm.id, formData)
       ElMessage.success('更新成功')
     } else {
       // 新增
-      await api.post('/system/departments', formData)
+      await systemApi.createDepartment(formData)
       ElMessage.success('添加成功')
     }
 

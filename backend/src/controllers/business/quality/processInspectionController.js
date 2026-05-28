@@ -282,7 +282,7 @@ const processInspectionController = {
             const { page = 1, pageSize = 20, startDate, endDate, inspector_id } = req.query;
             const pagination = parsePagination(page, pageSize, {
                 defaultPageSize: 20,
-                maxPageSize: 200,
+                maxPageSize: 100,
             });
 
             let whereClause = 'WHERE 1=1';

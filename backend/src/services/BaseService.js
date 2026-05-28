@@ -5,6 +5,9 @@
 const { getConnection } = require('../config/db');
 const { validateData, cleanData } = require('../utils/validator');
 
+const IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const QUALIFIED_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$/;
+
 class BaseService {
   /**
    * @param {string} tableName
@@ -13,9 +16,48 @@ class BaseService {
    * @param {boolean} [options.softDelete=true] - 是否启用软删除
    */
   constructor(tableName, primaryKey = 'id', options = {}) {
+    this.assertIdentifier(tableName, 'tableName');
+    this.assertIdentifier(primaryKey, 'primaryKey');
     this.tableName = tableName;
     this.primaryKey = primaryKey;
     this.softDelete = options.softDelete !== false; // 默认启用
+    this.allowedColumns = Array.isArray(options.allowedColumns)
+      ? new Set(options.allowedColumns)
+      : null;
+    this.writableColumns = Array.isArray(options.writableColumns)
+      ? new Set(options.writableColumns)
+      : this.allowedColumns;
+  }
+
+  assertIdentifier(identifier, label = 'identifier', { qualified = false } = {}) {
+    const value = String(identifier || '');
+    const pattern = qualified ? QUALIFIED_IDENTIFIER_PATTERN : IDENTIFIER_PATTERN;
+    if (!pattern.test(value)) {
+      throw new Error(`Invalid SQL ${label}: ${value}`);
+    }
+    return value;
+  }
+
+  assertKnownColumn(column, label = 'column', { qualified = false, writable = false } = {}) {
+    const value = this.assertIdentifier(column, label, { qualified });
+    const leaf = value.split('.').pop();
+    const allowList = writable ? this.writableColumns : this.allowedColumns;
+    if (allowList && !allowList.has(leaf)) {
+      throw new Error(`Unsupported ${label}: ${value}`);
+    }
+    return value;
+  }
+
+  filterWritableData(data) {
+    const cleanedData = cleanData(data);
+    const safeData = {};
+
+    Object.keys(cleanedData).forEach((field) => {
+      this.assertKnownColumn(field, 'field', { writable: true });
+      safeData[field] = cleanedData[field];
+    });
+
+    return safeData;
   }
 
   /**
@@ -40,6 +82,7 @@ class BaseService {
     const whereConditions = [];
 
     Object.keys(cleanConditions).forEach((key) => {
+      this.assertKnownColumn(key, 'condition column', { qualified: true });
       const value = cleanConditions[key];
       if (value !== null && value !== undefined && value !== '') {
         if (typeof value === 'string' && value.includes('%')) {
@@ -61,7 +104,10 @@ class BaseService {
     if (!sort) return `ORDER BY ${this.primaryKey} DESC`;
 
     // 安全校验：排序字段只允许合法的列名字符（字母、数字、下划线、点号）
-    if (!/^[a-zA-Z_][a-zA-Z0-9_.]*$/.test(sort)) {
+    if (!QUALIFIED_IDENTIFIER_PATTERN.test(sort)) {
+      return `ORDER BY ${this.primaryKey} DESC`;
+    }
+    if (this.allowedColumns && !this.allowedColumns.has(sort.split('.').pop())) {
       return `ORDER BY ${this.primaryKey} DESC`;
     }
 
@@ -74,7 +120,7 @@ class BaseService {
    */
   buildLimitClause(page = 1, pageSize = 10) {
     const safePage = Math.max(1, parseInt(page, 10) || 1);
-    const safePageSize = Math.max(1, Math.min(10000, parseInt(pageSize, 10) || 10));
+    const safePageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
     const offset = (safePage - 1) * safePageSize;
     return `LIMIT ${safePageSize} OFFSET ${offset}`;
   }
@@ -198,13 +244,16 @@ class BaseService {
       }
     }
 
-    const cleanedData = cleanData(data);
+    const cleanedData = this.filterWritableData(data);
     const connection = await this.getConnection();
 
     try {
       await connection.beginTransaction();
 
       const fields = Object.keys(cleanedData);
+      if (fields.length === 0) {
+        throw new Error('No fields to create');
+      }
       const placeholders = fields.map(() => '?').join(', ');
       const values = Object.values(cleanedData);
 
@@ -250,6 +299,9 @@ class BaseService {
       }
 
       const fields = Object.keys(cleanedData);
+      if (fields.length === 0) {
+        return existing;
+      }
       const setClause = fields.map((field) => `${field} = ?`).join(', ');
       const values = [...Object.values(cleanedData), id];
 

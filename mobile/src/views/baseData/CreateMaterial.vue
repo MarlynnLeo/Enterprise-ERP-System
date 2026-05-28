@@ -337,7 +337,8 @@
   import { ref, reactive, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
-  import { baseDataApi } from '@/services/api'
+  import { baseDataApi, systemApi } from '@/services/api'
+  import { extractApiData } from '@/utils/apiHelper'
 
   const router = useRouter()
   const route = useRoute()
@@ -614,7 +615,7 @@
     try {
       showLoadingToast({ message: '加载中...', forbidClick: true })
       const res = await baseDataApi.getMaterial(editId.value)
-      const data = res?.data?.data || res?.data || res
+      const data = extractApiData(res, null)
       if (data) {
         // 回填表单数据
         Object.keys(form).forEach(key => {
@@ -670,8 +671,8 @@
         baseDataApi.getProductCategoryOptions().catch(() => ({ data: [] })),
         baseDataApi.getMaterialSources().catch(() => ({ data: [] })),
         baseDataApi.getInspectionMethods().catch(() => ({ data: [] })),
-        baseDataApi.getLocations().catch(() => ({ data: [] })),
-        baseDataApi.getUsersList().catch(() => ({ data: [] }))
+        baseDataApi.getLocations({ page: 1, pageSize: 50, status: 1 }).catch(() => ({ data: [] })),
+        systemApi.getUsers({ page: 1, pageSize: 50, status: 1 }).catch(() => ({ data: [] }))
       ])
 
       categories.value = parseList(catRes)
@@ -709,7 +710,7 @@
 
 <style lang="scss" scoped>
   .create-page {
-    height: 100vh;
+    height: 100%;
     background: var(--bg-primary);
     display: flex;
     flex-direction: column;
@@ -731,7 +732,7 @@
       font-size: 0.95rem;
       font-weight: 600;
       color: var(--text-primary);
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--surface-border, var(--border-subtle));
       display: flex;
       align-items: center;
       gap: 6px;
@@ -764,7 +765,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 14px 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   }
 
   .search-picker-cancel {
@@ -786,7 +787,7 @@
   .search-picker-search {
     padding: 8px 12px;
     background: var(--bg-secondary);
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
 
     :deep(.van-field) {
       background: var(--bg-primary);
@@ -805,7 +806,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 14px 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
     cursor: pointer;
     transition: background 0.15s;
 

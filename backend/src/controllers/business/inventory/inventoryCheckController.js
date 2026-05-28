@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
@@ -63,8 +64,18 @@ const getCheckStatistics = async (req, res) => {
 
 const getCheckList = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search = '', status = '' } = req.query;
-    const offset = (page - 1) * limit;
+    const {
+      page = 1,
+      limit = 20,
+      search = '',
+      check_no = '',
+      status = '',
+      check_type = '',
+      start_date = '',
+      end_date = '',
+      materialName = '',
+    } = req.query;
+    const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
 
     let whereClause = 'WHERE 1=1';
     const params = [];
@@ -74,9 +85,40 @@ const getCheckList = async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
+    if (check_no) {
+      whereClause += ' AND c.check_no LIKE ?';
+      params.push(`%${check_no}%`);
+    }
+
     if (status) {
       whereClause += ' AND c.status = ?';
       params.push(status);
+    }
+
+    if (check_type) {
+      whereClause += ' AND c.check_type = ?';
+      params.push(check_type);
+    }
+
+    if (start_date) {
+      whereClause += ' AND c.check_date >= ?';
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      whereClause += ' AND c.check_date <= ?';
+      params.push(end_date);
+    }
+
+    if (materialName) {
+      whereClause += ` AND EXISTS (
+        SELECT 1
+        FROM inventory_check_items ci_search
+        LEFT JOIN materials m_search ON ci_search.material_id = m_search.id
+        WHERE ci_search.check_id = c.id
+          AND (m_search.name LIKE ? OR m_search.code LIKE ? OR m_search.specs LIKE ?)
+      )`;
+      params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
     }
 
     const countQuery = `
@@ -110,7 +152,7 @@ const getCheckList = async (req, res) => {
       LEFT JOIN users u ON c.created_by = u.id
       ${whereClause}
       ORDER BY c.created_at DESC
-      LIMIT ${parseInt(limit, 10)} OFFSET ${offset}
+      LIMIT ${pagination.limit} OFFSET ${pagination.offset}
     `;
 
     const [checks] = await db.pool.execute(listQuery, params);
@@ -127,8 +169,8 @@ const getCheckList = async (req, res) => {
       res,
       processedChecks,
       total,
-      parseInt(page),
-      parseInt(limit),
+      pagination.page,
+      pagination.pageSize,
       '获取库存盘点列表成功'
     );
   } catch (error) {
@@ -454,7 +496,7 @@ const updateCheck = async (req, res) => {
 
     // 检查盘点单是否存在
     const [checkResult] = await connection.execute(
-      'SELECT status FROM inventory_checks WHERE id = ?',
+      'SELECT status FROM inventory_checks WHERE id = ? FOR UPDATE',
       [id]
     );
 
@@ -484,12 +526,21 @@ const updateCheck = async (req, res) => {
     // 如果提供了物料明细，更新明细
     if (items && Array.isArray(items) && items.length > 0) {
       for (const item of items) {
-        if (!item.id || !item.actual_quantity) {
+        if (
+          !item.id ||
+          item.actual_quantity === undefined ||
+          item.actual_quantity === null ||
+          item.actual_quantity === ''
+        ) {
           continue;
         }
 
         const systemQuantity = parseFloat(item.system_quantity) || 0;
-        const actualQuantity = parseFloat(item.actual_quantity) || 0;
+        const actualQuantity = parseFloat(item.actual_quantity);
+        if (!Number.isFinite(actualQuantity)) {
+          await connection.rollback();
+          return ResponseHandler.error(res, 'actual_quantity must be a valid number', 'BAD_REQUEST', 400);
+        }
         const difference = actualQuantity - systemQuantity;
 
         await connection.execute(
@@ -573,7 +624,7 @@ const submitCheckResult = async (req, res) => {
     const { items } = req.body;
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT * FROM inventory_checks WHERE id = ?', [
+    const [checkResult] = await connection.execute('SELECT * FROM inventory_checks WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -653,7 +704,7 @@ const updateCheckStatus = async (req, res) => {
     }
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT * FROM inventory_checks WHERE id = ?', [
+    const [checkResult] = await connection.execute('SELECT * FROM inventory_checks WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -676,9 +727,12 @@ const updateCheckStatus = async (req, res) => {
 
     if (!validTransitions[currentStatus].includes(status)) {
       await connection.rollback();
-      return res.status(400).json({
-        message: `无法从"${currentStatus}"状态转换为"${status}"状态`,
-      });
+      return ResponseHandler.error(
+        res,
+        `无法从"${currentStatus}"状态转换为"${status}"状态`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 更新状态
@@ -717,7 +771,7 @@ const adjustInventory = async (req, res) => {
     const { id } = req.params;
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT * FROM inventory_checks WHERE id = ?', [
+    const [checkResult] = await connection.execute('SELECT * FROM inventory_checks WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -754,31 +808,36 @@ const adjustInventory = async (req, res) => {
     // 处理每个物料的库存调整
     for (const item of items) {
       // 只处理有差异的物料
-      if (parseFloat(item.difference) === 0) {
-        continue;
-      }
-
       // 获取当前库存（移除HAVING条件，获取真实库存数量）
       const [stockResult] = await connection.execute(
-        'SELECT material_id, location_id, SUM(il.quantity) as quantity FROM inventory_ledger il JOIN materials mat ON il.material_id = mat.id WHERE il.material_id = ? AND il.location_id = ? AND (mat.location_id IS NULL OR il.location_id = mat.location_id) GROUP BY material_id, location_id',
+        'SELECT material_id, location_id, SUM(il.quantity) as quantity FROM inventory_ledger il JOIN materials mat ON il.material_id = mat.id WHERE il.material_id = ? AND il.location_id = ? AND (mat.location_id IS NULL OR il.location_id = mat.location_id) GROUP BY material_id, location_id FOR UPDATE',
         [item.material_id, check.location_id]
       );
 
       const currentQuantity = stockResult.length > 0 ? parseFloat(stockResult[0].quantity) : 0;
       const newQuantity = parseFloat(item.actual_quantity);
-      const difference = parseFloat(item.difference);
+      if (!Number.isFinite(newQuantity)) {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Inventory check item actual quantity is invalid', 'BAD_REQUEST', 400);
+      }
+
+      const adjustmentQuantity = newQuantity - currentQuantity;
+      if (adjustmentQuantity === 0) {
+        continue;
+      }
 
       // 记录库存交易日志
       await _insertInventoryLedgerLocal(connection, {
         material_id: item.material_id,
         location_id: check.location_id,
         transaction_type: 'check',
-        quantity: difference,
+        quantity: adjustmentQuantity,
         unit_id: item.unit_id,
         reference_no: check.check_no,
         reference_type: 'check',
         operator: await getCurrentUserName(req),
-        remark: `盘点调整：系统库存${currentQuantity}，实际库存${newQuantity}，差异${difference}`,
+        remark: `Inventory check adjustment: current stock ${currentQuantity}, counted stock ${newQuantity}, adjustment ${adjustmentQuantity}`,
+        transaction_date: check.check_date,
         beforeQuantity: currentQuantity,
         afterQuantity: newQuantity,
       });

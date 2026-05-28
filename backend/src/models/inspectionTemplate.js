@@ -90,12 +90,12 @@ module.exports = (sequelize) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
-        comment: '鏄惁鍚敤 AQL 鎶芥牱',
+        comment: '是否启用 AQL 抽样',
       },
       aql_level: {
         type: DataTypes.STRING(20),
         allowNull: true,
-        comment: '榛樿 AQL 绛夌骇',
+        comment: '默认 AQL 等级',
       },
       created_by: {
         type: DataTypes.BIGINT,

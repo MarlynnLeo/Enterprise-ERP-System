@@ -11,7 +11,7 @@
     <!-- 标准 Vant NavBar 改装为悬浮卡片 -->
     <NavBar :title="title" left-arrow @click-left="$emit('back')">
       <template #right>
-        <SvgIcon name="plus" size="18" @click="$emit('add')" />
+        <SvgIcon v-if="showAddButton" name="plus" size="18" @click="$emit('add')" />
       </template>
     </NavBar>
 
@@ -37,7 +37,7 @@
             class="quick-item"
             @click="$emit('navigate', action.path)"
           >
-            <div class="quick-icon" :style="{ background: action.gradient }">
+            <div class="quick-icon" :style="{ '--quick-action-bg': action.gradient }">
               <SvgIcon :name="action.icon" size="1.25rem" />
             </div>
             <span class="quick-text">{{ action.label }}</span>
@@ -90,17 +90,22 @@
 </template>
 
 <script setup>
+  import { computed, getCurrentInstance } from 'vue'
   import { NavBar } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
 
-  defineProps({
+  const props = defineProps({
     title: { type: String, required: true },
     stats: { type: Array, default: () => [] },
     actions: { type: Array, default: () => [] },
-    groups: { type: Array, default: () => [] }
+    groups: { type: Array, default: () => [] },
+    showAdd: { type: Boolean, default: undefined }
   })
 
   defineEmits(['back', 'add', 'navigate'])
+
+  const instance = getCurrentInstance()
+  const showAddButton = computed(() => props.showAdd ?? Boolean(instance?.vnode?.props?.onAdd))
 
   // 根据分组索引分配色条颜色
   const accentColors = [
@@ -116,16 +121,16 @@
 
 <style lang="scss" scoped>
   .module-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: 0;
   }
 
   .module-body {
-    padding: 0 12px 12px;
+    padding: 0 12px var(--app-bottom-space);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
   }
 
   // ========== 统计概览 — 横排 ==========
@@ -135,9 +140,10 @@
     justify-content: space-around;
     background: var(--bg-secondary);
     border-radius: 12px;
-    padding: 14px 8px;
-    margin-top: 8px;
-    border: 1px solid var(--glass-border);
+    min-height: 74px;
+    padding: 12px 8px;
+    margin: 8px 0 12px;
+    border: 1px solid var(--surface-border, var(--border-subtle));
     box-shadow: none;
   }
 
@@ -152,27 +158,6 @@
     font-size: 1.25rem;
     font-weight: 800;
     color: var(--text-primary);
-    &.bg-blue {
-      color: #3b82f6;
-    }
-    &.bg-purple {
-      color: #a855f7;
-    }
-    &.bg-yellow {
-      color: #fbbf24;
-    }
-    &.bg-green {
-      color: #34d399;
-    }
-    &.bg-red {
-      color: #ef4444;
-    }
-    &.bg-orange {
-      color: #f97316;
-    }
-    &.bg-pink {
-      color: #ec4899;
-    }
   }
 
   .stat-label {
@@ -183,7 +168,7 @@
   .stat-divider {
     width: 1px;
     height: 28px;
-    background: var(--glass-border);
+    background: var(--van-border-color, var(--surface-border));
   }
 
   // ========== 快捷操作 ==========
@@ -220,13 +205,15 @@
   }
 
   .quick-icon {
+    --quick-action-bg: var(--color-primary);
     width: 40px;
     height: 40px;
     border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--color-on-primary);
+    background: var(--quick-action-bg, var(--color-primary));
   }
 
   .quick-text {
@@ -273,9 +260,9 @@
     background: var(--bg-secondary);
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border);
     box-shadow: none;
-    transition: all 0.2s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     animation: fadeInUp 0.35s ease-out both;
     cursor: pointer;
 
@@ -301,22 +288,22 @@
     width: 4px;
     flex-shrink: 0;
     &.accent-blue {
-      background: linear-gradient(180deg, #3b82f6, #60a5fa);
+      background: linear-gradient(180deg, var(--ds-blue), var(--ds-blue-strong));
     }
     &.accent-purple {
-      background: linear-gradient(180deg, #a855f7, #c084fc);
+      background: linear-gradient(180deg, var(--ds-purple), var(--ds-purple-strong));
     }
     &.accent-green {
-      background: linear-gradient(180deg, #10b981, #34d399);
+      background: linear-gradient(180deg, var(--ds-green), var(--ds-green-strong));
     }
     &.accent-orange {
-      background: linear-gradient(180deg, #f97316, #fb923c);
+      background: linear-gradient(180deg, var(--ds-orange), var(--ds-orange-strong));
     }
     &.accent-red {
-      background: linear-gradient(180deg, #ef4444, #f87171);
+      background: linear-gradient(180deg, var(--ds-red), var(--ds-red-strong));
     }
     &.accent-yellow {
-      background: linear-gradient(180deg, #f59e0b, #fbbf24);
+      background: linear-gradient(180deg, var(--ds-yellow), var(--ds-yellow-strong));
     }
   }
 
@@ -349,28 +336,28 @@
     flex-shrink: 0;
 
     &.accent-blue {
-      background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
+      background: var(--ds-blue-bg);
+      color: var(--ds-blue);
     }
     &.accent-purple {
-      background: rgba(168, 85, 247, 0.1);
-      color: #a855f7;
+      background: var(--ds-purple-bg);
+      color: var(--ds-purple);
     }
     &.accent-green {
-      background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      background: var(--ds-green-bg);
+      color: var(--ds-green);
     }
     &.accent-orange {
-      background: rgba(249, 115, 22, 0.1);
-      color: #f97316;
+      background: var(--ds-orange-bg);
+      color: var(--ds-orange);
     }
     &.accent-red {
-      background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
+      background: var(--ds-red-bg);
+      color: var(--ds-red);
     }
     &.accent-yellow {
-      background: rgba(245, 158, 11, 0.1);
-      color: #f59e0b;
+      background: var(--ds-yellow-bg);
+      color: var(--ds-yellow);
     }
   }
 
@@ -396,8 +383,8 @@
   .card-badge {
     padding: 1px 8px;
     border-radius: 10px;
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
+    background: var(--ds-red-bg);
+    color: var(--ds-red);
     font-size: 0.625rem;
     font-weight: 700;
   }
@@ -408,24 +395,24 @@
 
   // ========== 辅助类 ==========
   .text-blue-400 {
-    color: #3b82f6;
+    color: var(--ds-blue);
   }
   .text-purple-400 {
-    color: #a855f7;
+    color: var(--ds-purple);
   }
   .text-green-400 {
-    color: #10b981;
+    color: var(--ds-green);
   }
   .text-orange-400 {
-    color: #f97316;
+    color: var(--ds-orange);
   }
   .text-red-400 {
-    color: #ef4444;
+    color: var(--ds-red);
   }
   .text-yellow-400 {
-    color: #f59e0b;
+    color: var(--ds-yellow);
   }
   .text-pink-400 {
-    color: #ec4899;
+    color: var(--ds-pink);
   }
 </style>

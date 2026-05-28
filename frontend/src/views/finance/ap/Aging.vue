@@ -1,41 +1,51 @@
-﻿<!--
+<!--
 /**
  * Aging.vue
- * @description 前端界面组件文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * @description 应付账款账龄分析页面（与AR应收账龄统一布局和逻辑）
+ * @date 2025-08-27
+ * @version 2.0.0
  */
 -->
 <template>
-  <div class="aging-container">
+  <div class="module-page aging-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
           <h2>应付账款账龄分析</h2>
           <p class="subtitle">分析供应商账款账龄</p>
         </div>
-        <div class="action-buttons">
-          <el-button type="primary" @click="generateReport" :loading="loading" v-permission="'finance:reports:view'">生成报表</el-button>
-          <el-button v-permission="'finance:reports:view'" type="success" @click="exportToExcel" :disabled="!hasData">导出Excel</el-button>
-          <el-button v-permission="'finance:reports:view'" type="info" @click="printReport" :disabled="!hasData">打印报表</el-button>
+        <div class="header-actions">
+          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!hasData">导出Excel</el-button>
+          <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!hasData">打印报表</el-button>
         </div>
       </div>
     </el-card>
 
-    <!-- 搜索表单 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" ref="searchFormRef" class="search-form">
-        <el-form-item label="报表日期" prop="reportDate" required>
+    <!-- 搜索条件区域 -->
+    <FinanceQueryCard
+      :model="queryParams"
+      :expanded="showAdvancedSearch"
+      :loading="loading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="generateReport"
+      @reset="resetQuery"
+    >
+      <template #basic>
+        <el-form-item label="截止日期" required>
           <el-date-picker
-            v-model="searchForm.reportDate"
+            v-model="queryParams.reportDate"
             type="date"
-            placeholder="选择报表截止日期"
+            placeholder="选择截止日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
           ></el-date-picker>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="供应商类型">
-          <el-select  v-model="searchForm.supplierType" placeholder="全部类型" clearable>
+          <el-select v-model="queryParams.supplierType" placeholder="选择供应商类型" clearable>
+            <el-option label="全部" value=""></el-option>
             <el-option label="生产物料" value="production"></el-option>
             <el-option label="辅助物料" value="auxiliary"></el-option>
             <el-option label="包装物料" value="packaging"></el-option>
@@ -44,205 +54,133 @@
           </el-select>
         </el-form-item>
         <el-form-item label="供应商名称">
-          <el-input  v-model="searchForm.supplierName" placeholder="输入供应商名称" clearable ></el-input>
+          <el-input v-model="queryParams.supplierName" placeholder="输入供应商名称" clearable></el-input>
         </el-form-item>
-      </el-form>
-    </el-card>
-
-    <!-- 统计卡片 -->
-    <div class="statistics-row" v-if="hasData">
-      <el-card class="stat-card" shadow="hover">
-        <template #header>
-          <div class="card-header">
-            <span>总应付账款</span>
-          </div>
-        </template>
-        <div class="stat-value">{{ formatCurrency(summaryData.totalAmount) }}</div>
-      </el-card>
-
-      <el-card class="stat-card" shadow="hover">
-        <template #header>
-          <div class="card-header">
-            <span>30天内</span>
-          </div>
-        </template>
-        <div class="stat-value">{{ formatCurrency(summaryData.within30Days) }}</div>
-        <div class="stat-percent">{{ calculatePercent(summaryData.within30Days, summaryData.totalAmount) }}%</div>
-      </el-card>
-
-      <el-card class="stat-card" shadow="hover">
-        <template #header>
-          <div class="card-header">
-            <span>31-60天</span>
-          </div>
-        </template>
-        <div class="stat-value">{{ formatCurrency(summaryData.days31to60) }}</div>
-        <div class="stat-percent">{{ calculatePercent(summaryData.days31to60, summaryData.totalAmount) }}%</div>
-      </el-card>
-
-      <el-card class="stat-card" shadow="hover">
-        <template #header>
-          <div class="card-header">
-            <span>61-90天</span>
-          </div>
-        </template>
-        <div class="stat-value">{{ formatCurrency(summaryData.days61to90) }}</div>
-        <div class="stat-percent">{{ calculatePercent(summaryData.days61to90, summaryData.totalAmount) }}%</div>
-      </el-card>
-
-      <el-card class="stat-card" shadow="hover">
-        <template #header>
-          <div class="card-header">
-            <span>90天以上</span>
-          </div>
-        </template>
-        <div class="stat-value">{{ formatCurrency(summaryData.over90Days) }}</div>
-        <div class="stat-percent">{{ calculatePercent(summaryData.over90Days, summaryData.totalAmount) }}%</div>
-      </el-card>
-    </div>
-
-    <!-- 图表展示 -->
-    <el-card class="chart-card" v-if="hasData">
-      <template #header>
-        <div class="card-header">
-          <span>账龄分布图</span>
-        </div>
       </template>
-      <div class="charts-container">
-        <div id="pieChart" class="chart"></div>
-        <div id="barChart" class="chart"></div>
+    </FinanceQueryCard>
+
+    <!-- 报表区域 -->
+    <el-card class="data-card" v-loading="loading">
+      <div class="report-title" v-if="hasData">
+        <h1>应付账款账龄分析表</h1>
+        <h3>截至：{{ formatDate(queryParams.reportDate) }}</h3>
+        <h4>单位：元</h4>
       </div>
-    </el-card>
-
-    <!-- 数据表格 -->
-    <el-card class="data-card">
-      <template #header>
-        <div class="card-header">
-          <span>应付账款账龄明细</span>
-        </div>
-      </template>
-
-      <div v-if="!hasData" class="empty-container">
-        <el-empty description='请选择报表日期并点击"生成报表"按钮'></el-empty>
-      </div>
-
-      <el-table
-        v-else
-        :data="safeTableData"
-        style="width: 100%"
-        border
-        stripe
-        :summary-method="getSummaries"
-        show-summary
-      >
-        <el-table-column prop="supplierName" label="供应商名称" min-width="180"></el-table-column>
-        <el-table-column prop="supplierType" label="供应商类型" width="120">
-          <template #default="scope">
-            {{ getSupplierTypeText(scope.row.supplierType) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="totalAmount" label="应付总额" width="150" align="right">
-          <template #default="scope">
-            {{ formatCurrency(scope.row.totalAmount) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="within30Days" label="30天内" width="120" align="right">
-          <template #default="scope">
-            {{ formatCurrency(scope.row.within30Days) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="days31to60" label="31-60天" width="120" align="right">
-          <template #default="scope">
-            {{ formatCurrency(scope.row.days31to60) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="days61to90" label="61-90天" width="120" align="right">
-          <template #default="scope">
-            {{ formatCurrency(scope.row.days61to90) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="over90Days" label="90天以上" width="120" align="right">
-          <template #default="scope">
-            {{ formatCurrency(scope.row.over90Days) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" min-width="120" fixed="right">
-          <template #default="scope">
-            <el-button type="primary" size="small" @click="showDetails(scope.row)">查看明细</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-
-    <!-- 明细对话框 -->
-    <el-dialog
-      title="应付账款明细"
-      v-model="detailsDialogVisible"
-      width="800px"
-    >
-      <el-descriptions title="供应商信息" :column="2" border>
-        <el-descriptions-item label="供应商名称">{{ selectedSupplier.supplierName }}</el-descriptions-item>
-        <el-descriptions-item label="供应商类型">{{ getSupplierTypeText(selectedSupplier.supplierType) }}</el-descriptions-item>
-        <el-descriptions-item label="联系人">{{ selectedSupplier.contactPerson }}</el-descriptions-item>
-        <el-descriptions-item label="联系电话">{{ selectedSupplier.contactPhone }}</el-descriptions-item>
-      </el-descriptions>
-
-      <div style="margin-top: 20px">
-        <h4>未付发票列表</h4>
-        <el-table :data="detailsList" border style="width: 100%">
-          <el-table-column prop="invoiceNumber" label="发票编号" width="150"></el-table-column>
-          <el-table-column prop="invoiceDate" label="发票日期" width="120"></el-table-column>
-          <el-table-column prop="dueDate" label="到期日期" width="120"></el-table-column>
-          <el-table-column prop="amount" label="发票金额" width="120" align="right">
+      <!-- 报表主体 -->
+      <div class="report-body" v-if="hasData">
+        <el-table
+          :data="safeReportData"
+          style="width: 100%"
+          :summary-method="getSummaries"
+          show-summary
+          border
+        >
+          <el-table-column prop="supplierName" label="供应商名称" width="200" fixed="left"></el-table-column>
+          <el-table-column prop="supplierType" label="供应商类型" width="100">
             <template #default="scope">
-              {{ formatCurrency(scope.row.amount) }}
+              {{ getSupplierTypeText(scope.row.supplierType) }}
             </template>
           </el-table-column>
-          <el-table-column prop="paidAmount" label="已付金额" width="120" align="right">
+          <el-table-column prop="totalAmount" label="应付金额" width="120">
             <template #default="scope">
-              {{ formatCurrency(scope.row.paidAmount) }}
+              {{ formatAmount(scope.row.totalAmount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="balance" label="未付金额" width="120" align="right">
+          <el-table-column prop="currentAmount" label="未逾期" width="120">
             <template #default="scope">
-              {{ formatCurrency(scope.row.balance) }}
+              {{ formatAmount(scope.row.currentAmount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="agingDays" label="账龄(天)" width="100" align="center"></el-table-column>
+          <el-table-column prop="within30Days" label="1-30天" width="120">
+            <template #default="scope">
+              {{ formatAmount(scope.row.within30Days) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="within60Days" label="31-60天" width="120">
+            <template #default="scope">
+              {{ formatAmount(scope.row.within60Days) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="within90Days" label="61-90天" width="120">
+            <template #default="scope">
+              {{ formatAmount(scope.row.within90Days) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="over90Days" label="90天以上" width="120">
+            <template #default="scope">
+              {{ formatAmount(scope.row.over90Days) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="逾期比例" width="120">
+            <template #default="scope">
+              {{ calculateOverduePercentage(scope.row) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="lastPaymentDate" label="最近付款" width="120"></el-table-column>
+          <el-table-column prop="contactPerson" label="联系人" width="120"></el-table-column>
+          <el-table-column prop="contactPhone" label="联系电话" width="150"></el-table-column>
         </el-table>
       </div>
-    </el-dialog>
+
+      <!-- 图表展示 -->
+      <div class="chart-container" v-if="hasData">
+        <div class="chart-title">账龄分析图表</div>
+        <div class="charts">
+          <div class="chart-item">
+            <div ref="pieChart" style="width: 100%; height: 300px;"></div>
+          </div>
+          <div class="chart-item">
+            <div ref="barChart" style="width: 100%; height: 300px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- 无数据提示 -->
+      <div class="empty-tip" v-if="!loading && !hasData">
+        <el-empty description='请选择截止日期并点击"生成报表"按钮'></el-empty>
+      </div>
+    </el-card>
   </div>
 </template>
-
 <script setup>
-
-import { formatCurrency } from '@/utils/format'
-
-// 版本标识 - 应付账款账龄分析修复版 v1.0
+import { formatAmount, formatLocalDate } from '@/utils/format';
+import { formatDate } from '@/utils/helpers/dateUtils'
+// 版本标识 - 应付账款账龄分析 v2.0 - 与AR统一布局
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/services/api';
+import { parseListData } from '@/utils/responseParser';
 import printService from '@/services/printService';
-import * as echarts from 'echarts';
-import ExcelJS from 'exceljs';
+import { echarts } from '@/utils/echartsCore';
+import { loadExcelJS } from '@/utils/lazyVendors';
 // 权限计算属性
+// 查询参数
+const queryParams = reactive({
+  reportDate: formatLocalDate(new Date()), // 默认为今天
+  supplierType: '',
+  supplierName: ''
+});
+// 报表数据 - 使用响应式数据，确保始终是数组
+const reportData = ref([]);
 const loading = ref(false);
-const tableData = ref([]);
-
-// 安全的数据访问器
-const safeTableData = computed(() => {
-  const data = tableData.value;
+const showAdvancedSearch = ref(false);
+// 创建一个安全的数据访问器
+const safeReportData = computed(() => {
+  const data = reportData.value;
   if (!data || !Array.isArray(data)) {
     return [];
   }
   return data;
 });
-
-// 安全的hasData计算属性
+// 确保reportData始终是数组的辅助函数
+const ensureReportDataIsArray = () => {
+  if (!reportData.value || !Array.isArray(reportData.value)) {
+    reportData.value = [];
+  }
+};
+// 计算属性：是否有数据 - 使用安全的数据访问器
 const hasData = computed(() => {
   try {
-    const data = safeTableData.value;
+    const data = safeReportData.value;
     return Array.isArray(data) && data.length > 0;
   } catch (error) {
     console.error('[hasData计算属性错误]:', error);
@@ -250,43 +188,31 @@ const hasData = computed(() => {
   }
 });
 
-// 搜索表单
-const searchForm = reactive({
-  reportDate: new Date().toISOString().slice(0, 10),
-  supplierType: '',
-  supplierName: ''
-});
-
-// 摘要数据
-const summaryData = reactive({
-  totalAmount: 0,
-  within30Days: 0,
-  days31to60: 0,
-  days61to90: 0,
-  over90Days: 0
-});
-
-// 明细对话框
-const detailsDialogVisible = ref(false);
-const selectedSupplier = ref({});
-const detailsList = ref([]);
-
-// ECharts 图表实例引用（用于清理）
+const resetQuery = () => {
+  queryParams.reportDate = formatLocalDate(new Date());
+  queryParams.supplierType = '';
+  queryParams.supplierName = '';
+  reportData.value = [];
+};
+// 图表实例
 let pieChartInstance = null;
 let barChartInstance = null;
-
+const pieChart = ref(null);
+const barChart = ref(null);
 // 统一的 resize 处理函数（具名引用，确保可移除）
 const handleChartResize = () => {
   if (pieChartInstance && !pieChartInstance.isDisposed()) pieChartInstance.resize();
   if (barChartInstance && !barChartInstance.isDisposed()) barChartInstance.resize();
 };
+// 计算逾期比例
+const calculateOverduePercentage = (row) => {
+  if (!row.totalAmount || row.totalAmount === 0) return '0.00%';
 
-// 计算百分比
-const calculatePercent = (value, total) => {
-  if (!total) return 0;
-  return ((value / total) * 100).toFixed(2);
+  const overdueAmount = row.within30Days + row.within60Days + row.within90Days + row.over90Days;
+  const percentage = (overdueAmount / row.totalAmount) * 100;
+
+  return percentage.toFixed(2) + '%';
 };
-
 // 获取供应商类型文本
 const getSupplierTypeText = (type) => {
   const typeMap = {
@@ -294,136 +220,147 @@ const getSupplierTypeText = (type) => {
     auxiliary: '辅助物料',
     packaging: '包装物料',
     office: '办公用品',
-    service: '服务提供商'
+    service: '服务提供商',
+    '供应商': '供应商'
   };
   return typeMap[type] || type;
 };
-
-// 生成报表
-const generateReport = async () => {
-  if (!searchForm.reportDate) {
-    ElMessage.warning('请选择报表日期');
-    return;
-  }
-
-  loading.value = true;
-  // 重置数据，避免竞态条件
-  tableData.value = [];
-
-  try {
-    const params = {
-      reportDate: searchForm.reportDate,
-      supplierType: searchForm.supplierType,
-      supplierName: searchForm.supplierName
-    };
-
-    const response = await api.get('/finance/ap/aging', { params });
-
-    // 安全设置数据
-    if (response.data && Array.isArray(response.data.details)) {
-      tableData.value = response.data.details;
-    } else {
-      tableData.value = [];
-    }
-
-    // 计算汇总数据
-    calculateSummary();
-
-    // 渲染图表
-    nextTick(() => {
-      renderCharts();
-    });
-  } catch (error) {
-    console.error('获取账龄分析数据失败:', error);
-    ElMessage.error('获取账龄分析数据失败');
-    // 确保在错误情况下数据是安全的
-    tableData.value = [];
-  } finally {
-    loading.value = false;
-  }
-};
-
-// 计算汇总数据
-const calculateSummary = () => {
-  summaryData.totalAmount = 0;
-  summaryData.within30Days = 0;
-  summaryData.days31to60 = 0;
-  summaryData.days61to90 = 0;
-  summaryData.over90Days = 0;
-
-  const data = safeTableData.value;
-  if (Array.isArray(data)) {
-    data.forEach(item => {
-      summaryData.totalAmount += item.totalAmount || 0;
-      summaryData.within30Days += item.within30Days || 0;
-      summaryData.days31to60 += item.days31to60 || 0;
-      summaryData.days61to90 += item.days61to90 || 0;
-      summaryData.over90Days += item.over90Days || 0;
-    });
-  }
-};
-
-// 表格合计行
+// 获取表格合计 - 增强错误处理
 const getSummaries = (param) => {
   try {
-    const { columns } = param;
+    // 确保参数安全
+    if (!param || typeof param !== 'object') {
+      return [];
+    }
+    const { columns, data } = param;
+    // 确保reportData安全
+    ensureReportDataIsArray();
+    // 安全检查
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return Array.isArray(columns) ? columns.map((_, index) => index === 0 ? '总计' : '') : [];
+    }
+    if (!Array.isArray(columns)) {
+      return [];
+    }
     const sums = [];
-    const data = safeTableData.value;
-
-    if (!Array.isArray(data) || data.length === 0) {
-      return columns.map((_, index) => index === 0 ? '合计' : '');
+    columns.forEach((column, index) => {
+    if (index === 0) {
+      sums[index] = '总计';
+      return;
     }
 
-    columns.forEach((column, index) => {
-      if (index === 0) {
-        sums[index] = '合计';
-        return;
-      }
+    if (index === 1) {
+      sums[index] = '';
+      return;
+    }
 
-      if (index === 1) {
-        sums[index] = '';
-        return;
-      }
+    const values = data.map(item => Number(item[column.property]) || 0);
 
-      const values = data.map(item => {
-        if (column.property === 'totalAmount') return item.totalAmount || 0;
-        if (column.property === 'within30Days') return item.within30Days || 0;
-        if (column.property === 'days31to60') return item.days31to60 || 0;
-        if (column.property === 'days61to90') return item.days61to90 || 0;
-        if (column.property === 'over90Days') return item.over90Days || 0;
-        return 0;
-      });
-
-    if (['totalAmount', 'within30Days', 'days31to60', 'days61to90', 'over90Days'].includes(column.property)) {
+    if (values.every(value => Number.isNaN(value))) {
+      sums[index] = 'N/A';
+    } else {
       const sum = values.reduce((prev, curr) => {
         const value = Number(curr);
-        if (!isNaN(value)) {
+        if (!Number.isNaN(value)) {
           return prev + value;
         } else {
           return prev;
         }
       }, 0);
 
-      sums[index] = formatCurrency(sum);
-    } else {
-      sums[index] = '';
+      if (index === 8) { // 逾期比例列
+        const totalAmount = data.reduce((prev, curr) => prev + (curr.totalAmount || 0), 0);
+        const overdueAmount = data.reduce((prev, curr) => {
+          return prev + (curr.within30Days || 0) + (curr.within60Days || 0) +
+                 (curr.within90Days || 0) + (curr.over90Days || 0);
+        }, 0);
+
+        const percentage = totalAmount ? (overdueAmount / totalAmount) * 100 : 0;
+        sums[index] = percentage.toFixed(2) + '%';
+      } else if (index >= 2 && index <= 7) { // 金额列
+        sums[index] = formatAmount(sum);
+      } else {
+        sums[index] = '';
+      }
     }
   });
-
   return sums;
   } catch (error) {
     console.error('[getSummaries错误]:', error);
-    return param?.columns ? param.columns.map((_, index) => index === 0 ? '合计' : '') : [];
+    // 返回安全的默认值
+    return Array.isArray(param?.columns) ? param.columns.map((_, index) => index === 0 ? '总计' : '') : [];
   }
 };
+// 生成报表
+const generateReport = async () => {
+  if (!queryParams.reportDate) {
+    ElMessage.warning('请选择截止日期');
+    return;
+  }
+  loading.value = true;
+  // 重置数据，避免竞态条件
+  reportData.value = [];
+  try {
+    const response = await api.get('/finance/ap/aging', {
+      params: {
+        reportDate: queryParams.reportDate,
+        supplierType: queryParams.supplierType,
+        supplierName: queryParams.supplierName
+      }
+    });
+    const list = parseListData(response, { enableLog: false });
+    reportData.value = list;
+    if (list.length === 0) {
+      ElMessage.info('暂无符合条件的应付账款数据');
+    }
 
-// 渲染图表
-const renderCharts = () => {
-  // 饼图
-  const pieChart = echarts.init(document.getElementById('pieChart'));
+    // 更新图表
+    nextTick(() => {
+      const data = safeReportData.value;
+      if (Array.isArray(data) && data.length > 0) {
+        initCharts();
+      }
+    });
+  } catch (error) {
+    console.error('获取账龄分析数据失败:', error);
+    ElMessage.error('获取账龄分析数据失败');
+    reportData.value = []; // 确保在错误情况下也设置为空数组
+  } finally {
+    loading.value = false;
+  }
+};
+// 初始化图表
+const initCharts = () => {
+  // 初始化饼图
+  initPieChart();
+
+  // 初始化柱状图
+  initBarChart();
+};
+// 初始化饼图
+const initPieChart = () => {
+  if (!pieChart.value) return;
+  const data = safeReportData.value;
+  if (!Array.isArray(data) || data.length === 0) return;
+  // 计算各账龄段合计金额
+  const _totalAmount = data.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+  const currentAmount = data.reduce((sum, item) => sum + (item.currentAmount || 0), 0);
+  const within30Days = data.reduce((sum, item) => sum + (item.within30Days || 0), 0);
+  const within60Days = data.reduce((sum, item) => sum + (item.within60Days || 0), 0);
+  const within90Days = data.reduce((sum, item) => sum + (item.within90Days || 0), 0);
+  const over90Days = data.reduce((sum, item) => sum + (item.over90Days || 0), 0);
+
+  // 销毁旧图表
+  if (pieChartInstance) {
+    pieChartInstance.dispose();
+  }
+
+  // 创建新图表
+  pieChartInstance = echarts.init(pieChart.value);
+
   const pieOption = {
     title: {
-      text: '应付账款账龄分布',
+      text: '应付账款账龄比例',
       left: 'center'
     },
     tooltip: {
@@ -433,50 +370,73 @@ const renderCharts = () => {
     legend: {
       orient: 'vertical',
       left: 'left',
-      data: ['30天内', '31-60天', '61-90天', '90天以上']
+      data: ['未逾期', '1-30天', '31-60天', '61-90天', '90天以上']
     },
     series: [
       {
-        name: '账龄分布',
+        name: '账龄分析',
         type: 'pie',
-        radius: '60%',
-        center: ['50%', '60%'],
-        data: [
-          { value: summaryData.within30Days, name: '30天内' },
-          { value: summaryData.days31to60, name: '31-60天' },
-          { value: summaryData.days61to90, name: '61-90天' },
-          { value: summaryData.over90Days, name: '90天以上' }
-        ],
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        label: {
+          show: false,
+          position: 'center'
+        },
         emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          label: {
+            show: true,
+            fontSize: '18',
+            fontWeight: 'bold'
           }
         },
-        itemStyle: {
-          color: function(params) {
-            const colorList = ['#91cc75', '#fac858', '#ee6666', '#73c0de'];
-            return colorList[params.dataIndex];
-          }
-        }
+        labelLine: {
+          show: false
+        },
+        data: [
+          { value: currentAmount, name: '未逾期' },
+          { value: within30Days, name: '1-30天' },
+          { value: within60Days, name: '31-60天' },
+          { value: within90Days, name: '61-90天' },
+          { value: over90Days, name: '90天以上' }
+        ]
       }
     ]
   };
-  pieChart.setOption(pieOption);
 
-  // 柱状图
-  const barChart = echarts.init(document.getElementById('barChart'));
+  pieChartInstance.setOption(pieOption);
+};
+// 初始化柱状图
+const initBarChart = () => {
+  if (!barChart.value) return;
+  const data = safeReportData.value;
+  if (!Array.isArray(data) || data.length === 0) return;
+  // 筛选出有逾期金额的前10名供应商
+  const top10Suppliers = [...data]
+    .sort((a, b) => {
+      const aOverdue = (a.within30Days || 0) + (a.within60Days || 0) + (a.within90Days || 0) + (a.over90Days || 0);
+      const bOverdue = (b.within30Days || 0) + (b.within60Days || 0) + (b.within90Days || 0) + (b.over90Days || 0);
+      return bOverdue - aOverdue;
+    })
+    .slice(0, 10);
 
-  // 获取金额最高的5个供应商
-  const data = safeTableData.value;
-  const top5Suppliers = Array.isArray(data) ? [...data]
-    .sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0))
-    .slice(0, 5) : [];
+  // 准备数据
+  const supplierNames = top10Suppliers.map(item => item.supplierName);
+  const within30DaysData = top10Suppliers.map(item => item.within30Days || 0);
+  const within60DaysData = top10Suppliers.map(item => item.within60Days || 0);
+  const within90DaysData = top10Suppliers.map(item => item.within90Days || 0);
+  const over90DaysData = top10Suppliers.map(item => item.over90Days || 0);
+
+  // 销毁旧图表
+  if (barChartInstance) {
+    barChartInstance.dispose();
+  }
+
+  // 创建新图表
+  barChartInstance = echarts.init(barChart.value);
 
   const barOption = {
     title: {
-      text: '前5大供应商应付账款',
+      text: '逾期TOP10供应商账龄分布',
       left: 'center'
     },
     tooltip: {
@@ -486,32 +446,33 @@ const renderCharts = () => {
       }
     },
     legend: {
-      data: ['30天内', '31-60天', '61-90天', '90天以上'],
-      top: 30
+      data: ['1-30天', '31-60天', '61-90天', '90天以上'],
+      top: 'bottom'
     },
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      bottom: '15%',
       containLabel: true
     },
     xAxis: {
-      type: 'value',
-      axisLabel: {
-        formatter: (value) => {
-          return value >= 10000
-            ? (value / 10000).toFixed(1) + '万'
-            : value;
-        }
-      }
+      type: 'value'
     },
     yAxis: {
       type: 'category',
-      data: top5Suppliers.map(item => item.supplierName)
+      data: supplierNames,
+      axisLabel: {
+        formatter: function(value) {
+          if (value.length > 8) {
+            return value.substring(0, 8) + '...';
+          }
+          return value;
+        }
+      }
     },
     series: [
       {
-        name: '30天内',
+        name: '1-30天',
         type: 'bar',
         stack: 'total',
         label: {
@@ -520,10 +481,7 @@ const renderCharts = () => {
         emphasis: {
           focus: 'series'
         },
-        data: top5Suppliers.map(item => item.within30Days),
-        itemStyle: {
-          color: '#91cc75'
-        }
+        data: within30DaysData
       },
       {
         name: '31-60天',
@@ -535,10 +493,7 @@ const renderCharts = () => {
         emphasis: {
           focus: 'series'
         },
-        data: top5Suppliers.map(item => item.days31to60),
-        itemStyle: {
-          color: '#fac858'
-        }
+        data: within60DaysData
       },
       {
         name: '61-90天',
@@ -550,10 +505,7 @@ const renderCharts = () => {
         emphasis: {
           focus: 'series'
         },
-        data: top5Suppliers.map(item => item.days61to90),
-        itemStyle: {
-          color: '#ee6666'
-        }
+        data: within90DaysData
       },
       {
         name: '90天以上',
@@ -565,105 +517,78 @@ const renderCharts = () => {
         emphasis: {
           focus: 'series'
         },
-        data: top5Suppliers.map(item => item.over90Days),
-        itemStyle: {
-          color: '#73c0de'
-        }
+        data: over90DaysData
       }
     ]
   };
-  barChart.setOption(barOption);
 
-  pieChartInstance = pieChart;
-  barChartInstance = barChart;
-
-  // 注册统一的 resize 监听
-  window.addEventListener('resize', handleChartResize);
+  barChartInstance.setOption(barOption);
 };
-
-// 查看明细
-const showDetails = async (supplier) => {
-  selectedSupplier.value = supplier;
-
-  try {
-    // 使用正确的API路由: /finance/ap/aging/:id
-    const response = await api.get(`/finance/ap/aging/${supplier.supplierId || supplier.id}`, {
-      params: {
-        reportDate: searchForm.reportDate
-      }
-    });
-
-    // 后端返回的是完整的账龄数据，包含 invoices 明细
-    if (response.data?.invoices) {
-      detailsList.value = response.data.invoices;
-    } else if (Array.isArray(response.data)) {
-      detailsList.value = response.data;
-    } else {
-      detailsList.value = [];
-    }
-    detailsDialogVisible.value = true;
-  } catch (error) {
-    console.error('获取应付账款明细失败:', error);
-    ElMessage.error('获取应付账款明细失败');
-  }
-};
-
-// 导出到Excel
-const exportToExcel = async () => {
-  const data = safeTableData.value;
+// 导出Excel
+const exportExcel = async () => {
+  const data = safeReportData.value;
+  // 安全检查
   if (!Array.isArray(data) || data.length === 0) {
     ElMessage.warning('没有数据可以导出');
     return;
   }
-
-  try {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('应付账款账龄分析');
-    worksheet.columns = [
-      { header: '供应商名称', key: 'supplierName', width: 22 },
-      { header: '供应商类型', key: 'supplierType', width: 14 },
-      { header: '应付总额', key: 'totalAmount', width: 16 },
-      { header: '30天内', key: 'within30Days', width: 14 },
-      { header: '31-60天', key: 'days31to60', width: 14 },
-      { header: '61-90天', key: 'days61to90', width: 14 },
-      { header: '90天以上', key: 'over90Days', width: 14 }
-    ];
-
-    data.forEach(item => {
-      worksheet.addRow({
-        supplierName: item.supplierName,
-        supplierType: getSupplierTypeText(item.supplierType),
-        totalAmount: item.totalAmount || 0,
-        within30Days: item.within30Days || 0,
-        days31to60: item.days31to60 || 0,
-        days61to90: item.days61to90 || 0,
-        over90Days: item.over90Days || 0
-      });
-    });
-
+  const ExcelJS = await loadExcelJS();
+  // 创建工作簿
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('应付账款账龄分析');
+  // 设置列
+  worksheet.columns = [
+    { header: '供应商名称', key: 'supplierName', width: 20 },
+    { header: '供应商类型', key: 'supplierType', width: 12 },
+    { header: '应付金额', key: 'totalAmount', width: 15 },
+    { header: '未逾期', key: 'currentAmount', width: 15 },
+    { header: '1-30天', key: 'within30Days', width: 12 },
+    { header: '31-60天', key: 'within60Days', width: 12 },
+    { header: '61-90天', key: 'within90Days', width: 12 },
+    { header: '90天以上', key: 'over90Days', width: 12 },
+    { header: '逾期比例', key: 'overduePercentage', width: 12 },
+    { header: '最近付款', key: 'lastPaymentDate', width: 15 },
+    { header: '联系人', key: 'contactPerson', width: 12 },
+    { header: '联系电话', key: 'contactPhone', width: 15 }
+  ];
+  // 添加数据
+  data.forEach(item => {
     worksheet.addRow({
-      supplierName: '合计',
-      totalAmount: summaryData.totalAmount,
-      within30Days: summaryData.within30Days,
-      days31to60: summaryData.days31to60,
-      days61to90: summaryData.days61to90,
-      over90Days: summaryData.over90Days
+      supplierName: item.supplierName,
+      supplierType: getSupplierTypeText(item.supplierType),
+      totalAmount: item.totalAmount,
+      currentAmount: item.currentAmount,
+      within30Days: item.within30Days,
+      within60Days: item.within60Days,
+      within90Days: item.within90Days,
+      over90Days: item.over90Days,
+      overduePercentage: calculateOverduePercentage(item),
+      lastPaymentDate: item.lastPaymentDate,
+      contactPerson: item.contactPerson,
+      contactPhone: item.contactPhone
     });
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `应付账款账龄分析_${searchForm.reportDate}.xlsx`;
-    link.click();
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('导出Excel失败:', error);
-    ElMessage.error('导出Excel失败');
-  }
+  });
+  // 生成Excel文件并下载
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `应付账款账龄分析_${queryParams.reportDate}.xlsx`;
+  link.click();
+  window.URL.revokeObjectURL(url);
+};
+const getAgingTotals = () => {
+  const data = safeReportData.value;
+  return data.reduce((totals, item) => {
+    totals.totalAmount += Number(item.totalAmount || 0);
+    totals.currentAmount += Number(item.currentAmount || 0);
+    totals.within30Days += Number(item.within30Days || 0);
+    totals.within60Days += Number(item.within60Days || 0);
+    totals.within90Days += Number(item.within90Days || 0);
+    totals.over90Days += Number(item.over90Days || 0);
+    return totals;
+  }, { totalAmount: 0, currentAmount: 0, within30Days: 0, within60Days: 0, within90Days: 0, over90Days: 0 });
 };
 
 // 打印报表
@@ -674,27 +599,28 @@ const printReport = async () => {
   }
 
   try {
+    const totals = getAgingTotals();
     const html = await printService.generateByDefaultTemplate('finance', 'ap_aging', {
-      report_date: searchForm.reportDate,
+      report_date: formatDate(queryParams.reportDate),
       entity_label: '供应商',
-      total_amount: formatCurrency(summaryData.totalAmount),
-      current_amount: '',
-      within_30_days: formatCurrency(summaryData.within30Days),
-      days_31_to_60: formatCurrency(summaryData.days31to60),
-      days_61_to_90: formatCurrency(summaryData.days61to90),
-      over_90_days: formatCurrency(summaryData.over90Days),
+      total_amount: formatAmount(totals.totalAmount),
+      current_amount: formatAmount(totals.currentAmount),
+      within_30_days: formatAmount(totals.within30Days),
+      days_31_to_60: formatAmount(totals.within60Days),
+      days_61_to_90: formatAmount(totals.within90Days),
+      over_90_days: formatAmount(totals.over90Days),
       print_time: new Date().toLocaleString(),
-      items: safeTableData.value.map((item, index) => ({
+      items: safeReportData.value.map((item, index) => ({
         index: index + 1,
         entity_name: item.supplierName || '',
         entity_type: getSupplierTypeText(item.supplierType),
-        total_amount: formatCurrency(item.totalAmount),
-        current_amount: '',
-        within_30_days: formatCurrency(item.within30Days),
-        days_31_to_60: formatCurrency(item.days31to60),
-        days_61_to_90: formatCurrency(item.days61to90),
-        over_90_days: formatCurrency(item.over90Days),
-        overdue_ratio: calculatePercent((item.days31to60 || 0) + (item.days61to90 || 0) + (item.over90Days || 0), item.totalAmount || 0) + '%',
+        total_amount: formatAmount(item.totalAmount),
+        current_amount: formatAmount(item.currentAmount),
+        within_30_days: formatAmount(item.within30Days),
+        days_31_to_60: formatAmount(item.within60Days),
+        days_61_to_90: formatAmount(item.within90Days),
+        over_90_days: formatAmount(item.over90Days),
+        overdue_ratio: calculateOverduePercentage(item),
         contact_person: item.contactPerson || '',
         contact_phone: item.contactPhone || ''
       }))
@@ -706,15 +632,13 @@ const printReport = async () => {
     ElMessage.error('打印应付账龄分析失败');
   }
 };
-
-// 初始化
+// 页面加载时执行
 onMounted(() => {
   // 确保初始数据安全
-  if (!Array.isArray(tableData.value)) {
-    tableData.value = [];
-  }
+  ensureReportDataIsArray();
+  // 注册统一的 resize 监听
+  window.addEventListener('resize', handleChartResize);
 });
-
 onUnmounted(() => {
   // 移除 resize 监听
   window.removeEventListener('resize', handleChartResize);
@@ -724,87 +648,98 @@ onUnmounted(() => {
   if (barChartInstance) { barChartInstance.dispose(); barChartInstance = null; }
 });
 </script>
-
 <style scoped>
 .header-card {
   margin-bottom: 20px;
 }
-
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
   color: var(--color-text-primary);
 }
-
 .subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
 }
-
-.action-buttons {
+.header-actions {
   display: flex;
   gap: 10px;
 }
-
-.stat-percent {
-  font-size: 16px;
-  color: var(--color-text-regular);
-  margin-top: 5px;
-}
-
-.chart-card {
-  margin-bottom: var(--spacing-base);
-}
-
-.charts-container {
+.search-form {
   display: flex;
   flex-wrap: wrap;
 }
-
-.chart {
-  height: 400px;
-  width: 50%;
+.report-title {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
 }
-
-@media (max-width: 1200px) {
-  .chart {
-    width: 100%;
-  }
+.report-title h1 {
+  font-size: 24px;
+  margin-bottom: 10px;
 }
-
-
-
-.empty-container {
+.report-title h3 {
+  font-size: 16px;
+  font-weight: normal;
+  margin-bottom: 8px;
+}
+.report-title h4 {
+  font-size: 14px;
+  font-weight: normal;
+  color: var(--color-text-regular);
+}
+.report-body {
+  margin-top: var(--spacing-lg);
+}
+.chart-container {
+  margin-top: 40px;
+}
+.chart-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+}
+.charts {
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-wrap: wrap;
+}
+.chart-item {
+  flex: 1;
+  min-width: 500px;
+  margin-bottom: var(--spacing-lg);
+}
+.empty-tip {
   padding: 40px 0;
 }
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* 对话框高度 - 页面特定，其他样式使用全局主题 */
+:deep(.el-dialog__body) {
+  max-height: 60vh;
+  overflow-y: auto;
 }
+/* 打印样式 */
+@media print {
+  .filter-card,
+  .header-actions {
+    display: none;
+  }
 
+  .aging-container {
+    padding: 0;
+  }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .report-card {
+    box-shadow: none;
+    border: none;
+  }
 
-:deep(.el-table__cell) {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  .chart-container {
+    page-break-before: always;
+  }
 }
 </style>

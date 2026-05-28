@@ -6,6 +6,7 @@
 
 const { pool } = require('../../config/db');
 const { softDelete } = require('../../utils/softDelete');
+const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 const CodeGeneratorService = require('./CodeGeneratorService');
 
 class ContractService {
@@ -13,6 +14,7 @@ class ContractService {
   /** 获取合同列表 */
   async getList(params = {}) {
     const { keyword, type, status, party_b_id, department_id, page = 1, pageSize = 20 } = params;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
     let where = 'WHERE c.deleted_at IS NULL';
     const values = [];
 
@@ -26,17 +28,18 @@ class ContractService {
     if (department_id) { where += ' AND c.department_id = ?'; values.push(department_id); }
 
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM contracts c ${where}`, values);
-    const offset = (page - 1) * pageSize;
-    const [rows] = await pool.query(
+    const listSql = appendPaginationSQL(
       `SELECT c.*, u.real_name AS created_by_name, d.name AS department_name
        FROM contracts c
        LEFT JOIN users u ON u.id = c.created_by
        LEFT JOIN departments d ON d.id = c.department_id
-       ${where} ORDER BY c.updated_at DESC LIMIT ? OFFSET ?`,
-      [...values, Number(pageSize), offset]
+       ${where} ORDER BY c.updated_at DESC`,
+      pagination.limit,
+      pagination.offset
     );
+    const [rows] = await pool.query(listSql, values);
 
-    return { list: rows, total, page: Number(page), pageSize: Number(pageSize) };
+    return { list: rows, total, page: pagination.page, pageSize: pagination.pageSize };
   }
 
   /** 获取合同详情 */
@@ -128,6 +131,17 @@ class ContractService {
     try {
       await conn.beginTransaction();
 
+      const [[current]] = await conn.query(
+        'SELECT status FROM contracts WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [id]
+      );
+      if (!current) {
+        throw new Error('合同不存在');
+      }
+      if (!['draft', 'rejected'].includes(current.status)) {
+        throw new Error(`当前状态[${current.status}]不允许直接编辑合同正文，请走变更或终止流程`);
+      }
+
       await conn.query(
         `UPDATE contracts SET name = ?, type = ?, status = ?, party_a = ?, party_b = ?,
          party_b_id = ?, party_b_type = ?, total_amount = ?, currency = ?, tax_rate = ?,
@@ -135,7 +149,7 @@ class ContractService {
          payment_terms = ?, delivery_terms = ?, warranty_terms = ?, content = ?,
          attachment_urls = ?, signer_id = ?, department_id = ?
          WHERE id = ? AND deleted_at IS NULL`,
-        [data.name, data.type, data.status, data.party_a, data.party_b,
+        [data.name, data.type, current.status, data.party_a, data.party_b,
          data.party_b_id || null, data.party_b_type || null,
          data.total_amount || 0, data.currency || 'CNY', data.tax_rate || 0,
          data.sign_date || null, data.effective_date || null, data.expiry_date || null,
@@ -182,35 +196,48 @@ class ContractService {
       throw new Error('审批通过/拒绝只能通过工作流完成，请先提交审批(pending_approval)');
     }
 
-    // 校验当前状态是否允许目标转换
-    const [[current]] = await pool.query('SELECT status FROM contracts WHERE id = ? AND deleted_at IS NULL', [id]);
-    if (!current) throw new Error('合同不存在');
-    const allowedTransitions = {
-      draft:            ['pending_approval', 'cancelled'],
-      pending_approval: ['cancelled'],        // 等待工作流处理
-      active:           ['executing', 'terminated', 'cancelled'],
-      executing:        ['completed', 'terminated'],
-      completed:        [],
-      terminated:       [],
-      cancelled:        ['draft'],
-      rejected:         ['draft'],
-    };
-    const allowed = allowedTransitions[current.status] || [];
-    if (!allowed.includes(status)) {
-      throw new Error(`不允许从 [${current.status}] 转换到 [${status}]`);
-    }
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
 
-    let finalStatus = status;
-    if (status === 'pending_approval') {
-      const WorkflowService = require('./WorkflowService');
-      const [[contract]] = await pool.query('SELECT code, name FROM contracts WHERE id = ? AND deleted_at IS NULL', [id]);
-      const wfResult = await WorkflowService.tryStartWorkflow(
-        'contract', id, contract?.code, `合同 ${contract?.code} ${contract?.name} 审批`, userId
+      const [[current]] = await conn.query(
+        'SELECT status, code, name FROM contracts WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [id]
       );
-      if (wfResult.auto_approved) { finalStatus = 'active'; }
+      if (!current) throw new Error('合同不存在');
+      const allowedTransitions = {
+        draft:            ['pending_approval', 'cancelled'],
+        pending_approval: ['cancelled'],        // 等待工作流处理
+        active:           ['executing', 'terminated', 'cancelled'],
+        executing:        ['completed', 'terminated'],
+        completed:        [],
+        terminated:       [],
+        cancelled:        ['draft'],
+        rejected:         ['draft'],
+      };
+      const allowed = allowedTransitions[current.status] || [];
+      if (!allowed.includes(status)) {
+        throw new Error(`不允许从 [${current.status}] 转换到 [${status}]`);
+      }
+
+      let finalStatus = status;
+      if (status === 'pending_approval') {
+        const WorkflowService = require('./WorkflowService');
+        const wfResult = await WorkflowService.tryStartWorkflow(
+          'contract', id, current.code, `合同 ${current.code} ${current.name} 审批`, userId
+        );
+        if (wfResult.auto_approved) { finalStatus = 'active'; }
+      }
+      await conn.query('UPDATE contracts SET status = ? WHERE id = ? AND deleted_at IS NULL', [finalStatus, id]);
+
+      await conn.commit();
+      return this.getById(id);
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
     }
-    await pool.query('UPDATE contracts SET status = ? WHERE id = ? AND deleted_at IS NULL', [finalStatus, id]);
-    return this.getById(id);
   }
 
   /** 记录合同执行 */

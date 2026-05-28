@@ -30,7 +30,12 @@ const productSalesTraceabilityController = {
       if (result.success) {
         return ResponseHandler.success(res, result);
       } else {
-        res.status(404).json(result);
+        return ResponseHandler.error(
+          res,
+          result.message || '追溯数据不存在',
+          result.errorCode || 'NOT_FOUND',
+          404
+        );
       }
     } catch (error) {
       logger.error('获取成品完整追溯失败:', error);
@@ -58,7 +63,12 @@ const productSalesTraceabilityController = {
       if (result.success) {
         return ResponseHandler.success(res, result);
       } else {
-        res.status(404).json(result);
+        return ResponseHandler.error(
+          res,
+          result.message || '追溯数据不存在',
+          result.errorCode || 'NOT_FOUND',
+          404
+        );
       }
     } catch (error) {
       logger.error('获取客户原材料追溯失败:', error);

@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="cost-ledger-container">
+  <div class="module-page cost-ledger-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -7,17 +7,32 @@
           <h2>成本明细账</h2>
           <p class="subtitle">多维度成本查询与分析</p>
         </div>
+        <div class="header-actions">
+          <el-button v-permission="'finance:cost:export'" type="primary" @click="exportLedger" :loading="exporting">
+            <el-icon><Download /></el-icon>
+            导出Excel
+          </el-button>
+        </div>
       </div>
     </el-card>
 
     <!-- 筛选条件 -->
-    <el-card class="filter-card">
-      <el-form :inline="true" class="search-form filter-form" :model="filters">
+    <FinanceQueryCard
+      :model="filters"
+      :expanded="showAdvancedSearch"
+      :loading="loading || summaryLoading"
+      @update:expanded="showAdvancedSearch = $event"
+      @search="loadData"
+      @reset="resetFilters"
+    >
+      <template #basic>
         <el-form-item label="日期范围">
           <el-date-picker v-model="dateRange" type="daterange" range-separator="至"
                           start-placeholder="开始日期" end-placeholder="结束日期"
                           value-format="YYYY-MM-DD"></el-date-picker>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="成本中心">
           <el-select v-model="filters.costCenterId" clearable placeholder="全部">
             <el-option v-for="c in costCenterOptions" :key="c.id" :label="`${c.code} - ${c.name}`" :value="c.id"></el-option>
@@ -29,15 +44,8 @@
             <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code} - ${p.name}`" :value="p.id"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadData">查询</el-button>
-          <el-button @click="resetFilters">重置</el-button>
-          <el-button v-permission="'finance:cost:export'" type="success" @click="exportLedger" :loading="exporting">
-            <el-icon><Download /></el-icon> 导出Excel
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 标签页 -->
     <el-card class="data-card">
@@ -56,22 +64,22 @@
             <el-table-column prop="cost_center_name" label="成本中心" width="180">
               <template #default="scope">{{ scope.row.cost_center_name || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="quantity" label="数量" width="120" align="right"></el-table-column>
-            <el-table-column prop="material_cost" label="材料成本" width="120" align="right">
+            <el-table-column prop="quantity" label="数量" width="120"></el-table-column>
+            <el-table-column prop="material_cost" label="材料成本" width="120">
               <template #default="scope">{{ formatCurrency(scope.row.material_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="labor_cost" label="人工成本" width="120" align="right">
+            <el-table-column prop="labor_cost" label="人工成本" width="120">
               <template #default="scope">{{ formatCurrency(scope.row.labor_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="overhead_cost" label="制造费用" width="120" align="right">
+            <el-table-column prop="overhead_cost" label="制造费用" width="120">
               <template #default="scope">{{ formatCurrency(scope.row.overhead_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="total_cost" label="总成本" width="160" align="right">
+            <el-table-column prop="total_cost" label="总成本" width="160">
               <template #default="scope">
                 <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="unit_cost" label="单位成本" width="130" align="right">
+            <el-table-column prop="unit_cost" label="单位成本" width="130">
               <template #default="scope">{{ formatCurrency(scope.row.unit_cost) }}</template>
             </el-table-column>
           </el-table>
@@ -91,23 +99,23 @@
           <el-table :data="productSummary" border v-loading="summaryLoading" show-summary>
             <el-table-column prop="dimension_code" label="产品编码" width="170"></el-table-column>
             <el-table-column prop="dimension_name" label="产品名称" min-width="300"></el-table-column>
-            <el-table-column prop="task_count" label="任务数" width="120" align="center"></el-table-column>
-            <el-table-column prop="total_quantity" label="总产量" width="150" align="right"></el-table-column>
-            <el-table-column prop="material_cost" label="材料成本" width="180" align="right">
+            <el-table-column prop="task_count" label="任务数" width="120"></el-table-column>
+            <el-table-column prop="total_quantity" label="总产量" width="150"></el-table-column>
+            <el-table-column prop="material_cost" label="材料成本" width="180">
               <template #default="scope">{{ formatCurrency(scope.row.material_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="labor_cost" label="人工成本" width="150" align="right">
+            <el-table-column prop="labor_cost" label="人工成本" width="150">
               <template #default="scope">{{ formatCurrency(scope.row.labor_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="overhead_cost" label="制造费用" width="150" align="right">
+            <el-table-column prop="overhead_cost" label="制造费用" width="150">
               <template #default="scope">{{ formatCurrency(scope.row.overhead_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="total_cost" label="总成本" width="160" align="right">
+            <el-table-column prop="total_cost" label="总成本" width="160">
               <template #default="scope">
                 <span style="font-weight: bold;">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="avg_unit_cost" label="平均单位成本" width="160" align="right">
+            <el-table-column prop="avg_unit_cost" label="平均单位成本" width="160">
               <template #default="scope">{{ formatCurrency(scope.row.avg_unit_cost) }}</template>
             </el-table-column>
           </el-table>
@@ -118,18 +126,18 @@
           <el-table :data="costCenterSummary" border v-loading="summaryLoading" show-summary>
             <el-table-column prop="dimension_code" label="成本中心编码" width="200"></el-table-column>
             <el-table-column prop="dimension_name" label="成本中心名称" min-width="300"></el-table-column>
-            <el-table-column prop="task_count" label="任务数" width="120" align="center"></el-table-column>
-            <el-table-column prop="total_quantity" label="总产量" width="150" align="right"></el-table-column>
-            <el-table-column prop="material_cost" label="材料成本" width="180" align="right">
+            <el-table-column prop="task_count" label="任务数" width="120"></el-table-column>
+            <el-table-column prop="total_quantity" label="总产量" width="150"></el-table-column>
+            <el-table-column prop="material_cost" label="材料成本" width="180">
               <template #default="scope">{{ formatCurrency(scope.row.material_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="labor_cost" label="人工成本" width="150" align="right">
+            <el-table-column prop="labor_cost" label="人工成本" width="150">
               <template #default="scope">{{ formatCurrency(scope.row.labor_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="overhead_cost" label="制造费用" width="150" align="right">
+            <el-table-column prop="overhead_cost" label="制造费用" width="150">
               <template #default="scope">{{ formatCurrency(scope.row.overhead_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="total_cost" label="总成本" width="200" align="right">
+            <el-table-column prop="total_cost" label="总成本" width="200">
               <template #default="scope">
                 <span style="font-weight: bold;">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
@@ -141,18 +149,18 @@
         <el-tab-pane label="按月份汇总" name="month">
           <el-table :data="monthSummary" border v-loading="summaryLoading" show-summary>
             <el-table-column prop="dimension_name" label="月份" width="200"></el-table-column>
-            <el-table-column prop="task_count" label="任务数" width="150" align="center"></el-table-column>
-            <el-table-column prop="total_quantity" label="总产量" width="180" align="right"></el-table-column>
-            <el-table-column prop="material_cost" label="材料成本" width="200" align="right">
+            <el-table-column prop="task_count" label="任务数" width="150"></el-table-column>
+            <el-table-column prop="total_quantity" label="总产量" width="180"></el-table-column>
+            <el-table-column prop="material_cost" label="材料成本" width="200">
               <template #default="scope">{{ formatCurrency(scope.row.material_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="labor_cost" label="人工成本" width="180" align="right">
+            <el-table-column prop="labor_cost" label="人工成本" width="180">
               <template #default="scope">{{ formatCurrency(scope.row.labor_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="overhead_cost" label="制造费用" width="180" align="right">
+            <el-table-column prop="overhead_cost" label="制造费用" width="180">
               <template #default="scope">{{ formatCurrency(scope.row.overhead_cost) }}</template>
             </el-table-column>
-            <el-table-column prop="total_cost" label="总成本" min-width="200" align="right">
+            <el-table-column prop="total_cost" label="总成本" min-width="200">
               <template #default="scope">
                 <span style="font-weight: bold;">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
@@ -182,11 +190,11 @@
         <el-table :data="drilldownData.materials" border size="small" max-height="200" style="width: 100%;">
           <el-table-column prop="material_code" label="物料编码" width="150"></el-table-column>
           <el-table-column prop="material_name" label="物料名称" min-width="200"></el-table-column>
-          <el-table-column prop="quantity" label="消耗数量" width="120" align="right"></el-table-column>
-          <el-table-column prop="unit_cost" label="单价" width="120" align="right">
+          <el-table-column prop="quantity" label="消耗数量" width="120"></el-table-column>
+          <el-table-column prop="unit_cost" label="单价" width="120">
             <template #default="scope">{{ formatCurrency(scope.row.unit_cost) }}</template>
           </el-table-column>
-          <el-table-column prop="total_cost" label="金额" width="130" align="right">
+          <el-table-column prop="total_cost" label="金额" width="130">
             <template #default="scope">{{ formatCurrency(scope.row.total_cost) }}</template>
           </el-table-column>
         </el-table>
@@ -195,17 +203,17 @@
         <h4 style="margin: 20px 0 10px;">工序工时明细</h4>
         <el-table :data="drilldownData.processes" border size="small" max-height="200" style="width: 100%;">
           <el-table-column prop="process_name" label="工序名称" width="150"></el-table-column>
-          <el-table-column label="标准工时" width="120" align="right">
+          <el-table-column label="标准工时" width="120">
             <template #default="scope">
               {{ formatHours(scope.row.standard_hours) }}
             </template>
           </el-table-column>
-          <el-table-column label="实际工时" width="120" align="right">
+          <el-table-column label="实际工时" width="120">
             <template #default="scope">
               {{ formatHours(scope.row.actual_hours) }}
             </template>
           </el-table-column>
-          <el-table-column label="效率率" width="120" align="center">
+          <el-table-column label="效率率" width="120">
             <template #default="scope">
               <el-tag v-if="scope.row.efficiency_rate && scope.row.efficiency_rate > 0"
                       :type="scope.row.efficiency_rate <= 1 ? 'success' : 'danger'" size="small">
@@ -214,7 +222,7 @@
               <span v-else>-</span>
             </template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" min-width="100" align="center">
+          <el-table-column prop="status" label="状态" min-width="100">
             <template #default="scope">
               <el-tag :type="getStatusType(scope.row.status)" size="small">{{ getStatusText(scope.row.status) }}</el-tag>
             </template>
@@ -226,9 +234,9 @@
         <el-table :data="drilldownData.vouchers" border size="small" max-height="150" style="width: 100%;">
           <el-table-column prop="entry_number" label="凭证号" width="150"></el-table-column>
           <el-table-column prop="description" label="摘要" min-width="200"></el-table-column>
-          <el-table-column prop="transaction_type" label="类型" width="120" align="center"></el-table-column>
-          <el-table-column prop="entry_date" label="日期" width="120" align="center"></el-table-column>
-          <el-table-column prop="total_amount" label="金额" width="130" align="right">
+          <el-table-column prop="transaction_type" label="类型" width="120"></el-table-column>
+          <el-table-column prop="entry_date" label="日期" width="120"></el-table-column>
+          <el-table-column prop="total_amount" label="金额" width="130">
             <template #default="scope">{{ formatCurrency(scope.row.total_amount) }}</template>
           </el-table-column>
         </el-table>
@@ -242,8 +250,9 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Download } from '@element-plus/icons-vue';
 import api, { baseDataApi } from '@/services/api';
+import { buildApiUrl } from '@/config/app';
 import { formatCurrency } from '@/utils/helpers/formatters';
-import { parseListData } from '@/utils/responseParser';
+import { parseListData, parseResponseData } from '@/utils/responseParser';
 
 const activeTab = ref('detail');
 const loading = ref(false);
@@ -251,6 +260,7 @@ const summaryLoading = ref(false);
 const drilldownLoading = ref(false);
 const drilldownVisible = ref(false);
 const exporting = ref(false);
+const showAdvancedSearch = ref(false);
 
 // 筛选条件
 const dateRange = ref([]);
@@ -283,7 +293,7 @@ const drilldownData = ref(null);
 const loadCostCenterOptions = async () => {
   try {
     const res = await api.get('/finance/cost-centers/options');
-    costCenterOptions.value = res.data?.data || res.data || [];
+    costCenterOptions.value = parseResponseData(res, []);
   } catch (error) {
     console.error('加载成本中心选项失败:', error);
   }
@@ -327,7 +337,7 @@ const loadLedger = async () => {
       params.endDate = dateRange.value[1];
     }
     const res = await api.get('/finance/cost-ledger', { params });
-    const data = res.data?.data || res.data || {};
+    const data = parseResponseData(res, {});
     ledgerList.value = data.list || [];
     pagination.total = Number(data.total) || 0;
   } catch (error) {
@@ -351,7 +361,7 @@ const loadSummary = async (dimension) => {
       params.endDate = dateRange.value[1];
     }
     const res = await api.get(`/finance/cost-ledger/summary/${dimension}`, { params });
-    const data = res.data?.data || res.data || [];
+    const data = parseResponseData(res, []);
 
     switch (dimension) {
       case 'product':
@@ -387,7 +397,7 @@ const showDrilldown = async (row) => {
   drilldownLoading.value = true;
   try {
     const res = await api.get(`/finance/cost-ledger/task/${row.task_id}`);
-    drilldownData.value = res.data?.data || res.data || null;
+    drilldownData.value = parseResponseData(res, null);
   } catch (error) {
     console.error('加载钻取详情失败:', error);
     ElMessage.error('加载钻取详情失败');
@@ -418,7 +428,8 @@ const exportLedger = async () => {
     if (filters.productId) params.append('productId', filters.productId);
 
     // 直接下载文件
-    const url = `/api/finance-enhancement/cost/export/ledger?${params.toString()}`;
+    const query = params.toString();
+    const url = buildApiUrl(`/finance/cost/export/ledger${query ? `?${query}` : ''}`);
     window.open(url, '_blank');
     ElMessage.success('导出已开始，请查看下载文件');
   } catch (error) {

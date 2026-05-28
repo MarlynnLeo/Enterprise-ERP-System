@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesOrders.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="outbound-container">
+  <div class="module-page outbound-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -19,17 +19,23 @@
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item :label="$t('page.sales.orders.orderNoCustomer')">
+    <FinanceQueryCard
+      :loading="loading"
+      @search="handleSearch(true)"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchQuery"
-            :placeholder="$t('page.sales.orders.orderNoCustomerPlaceholder')"
+            placeholder="物料名称"
             @keyup.enter="() => handleSearch(true)"
             @input="handleSearch"
             clearable
           ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item :label="$t('page.sales.orders.status')">
           <el-select v-model="statusFilter" :placeholder="$t('page.sales.orders.status')" clearable @change="() => handleSearch(true)" style="width: 110px !important">
             <el-option
@@ -61,14 +67,8 @@
             @change="() => handleSearch(true)"
           />
         </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="() => handleSearch(true)" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch" style="margin-left: 12px;" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
+      </template>
+      <template #actions>
           <el-dropdown style="margin-left: 12px;">
             <el-button type="primary">
               更多操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -84,9 +84,8 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -161,7 +160,7 @@
                 <el-table-column prop="quantity" label="数量" width="100" show-overflow-tooltip />
                 <el-table-column prop="stock_quantity" label="库存数量" width="100" show-overflow-tooltip>
                   <template #default="{ row }">
-                    <span :style="{ color: (row.stock_quantity || 0) >= (row.quantity || 0) ? '#67C23A' : '#F56C6C' }">
+                    <span :style="{ color: (row.stock_quantity || 0) >= (row.quantity || 0) ? 'var(--color-success)' : 'var(--color-danger)' }">
                       {{ (typeof row.stock_quantity === 'number' ? row.stock_quantity : parseFloat(row.stock_quantity) || 0).toFixed(2) }}
                     </span>
                   </template>
@@ -169,12 +168,12 @@
                 <el-table-column prop="unit_name" label="单位" width="80" show-overflow-tooltip />
                 <el-table-column prop="unit_price" label="单价" width="100" show-overflow-tooltip>
                   <template #default="{ row }">
-                    ¥{{ (typeof row.unit_price === 'number' ? row.unit_price : parseFloat(row.unit_price) || 0).toFixed(2) }}
+                    {{ formatCurrency(row.unit_price) }}
                   </template>
                 </el-table-column>
                 <el-table-column prop="amount" label="金额" width="120" show-overflow-tooltip>
                   <template #default="{ row }">
-                    ¥{{ (typeof row.amount === 'number' ? row.amount : parseFloat(row.amount) || 0).toFixed(2) }}
+                    {{ formatCurrency(row.amount) }}
                   </template>
                 </el-table-column>
                 <el-table-column prop="remark" label="备注" width="120" show-overflow-tooltip>
@@ -187,78 +186,36 @@
           </template>
         </el-table-column>
 
-        <el-table-column
-          prop="order_no"
-          label="订单编号"
-          width="120"
-          fixed
-          resizable
-          show-overflow-tooltip>
+        <el-table-column prop="order_no" label="订单编号" width="120" fixed resizable show-overflow-tooltip>
         </el-table-column>
-        <el-table-column
-          prop="customer"
-          label="客户名称"
-          width="250"
-          resizable
-          show-overflow-tooltip>
+        <el-table-column prop="customer" label="客户名称" width="250" resizable show-overflow-tooltip>
         </el-table-column>
-        <el-table-column
-          prop="created_by_real_name"
-          label="操作人"
-          width="100"
-          resizable
-          show-overflow-tooltip>
+        <el-table-column prop="created_by_real_name" label="操作人" width="100" resizable show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.created_by_real_name || row.created_by_name || '-' }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="contract_code"
-          label="合同编码"
-          width="170"
-          resizable
-          show-overflow-tooltip>
+        <el-table-column prop="contract_code" label="合同编码" width="170" resizable show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.contract_code || '-' }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="totalAmount"
-          label="订单金额"
-          width="120"
-          resizable
-          show-overflow-tooltip>
+        <el-table-column prop="totalAmount" label="订单金额" width="120" resizable show-overflow-tooltip>
           <template #default="{ row }">
-            ¥{{ (typeof row.totalAmount === 'number' ? row.totalAmount : parseFloat(row.totalAmount) || 0).toFixed(2) }}
+            {{ formatCurrency(row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="order_no"
-          label="下单日期"
-          width="120"
-          sortable="custom"
-          resizable
-          show-overflow-tooltip>
+        <el-table-column prop="order_no" label="下单日期" width="120" sortable="custom" resizable show-overflow-tooltip>
           <template #default="{ row }">
             {{ getOrderDateFromOrderNo(row.order_no) }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="deliveryDate"
-          label="交付日期"
-          width="120"
-          resizable
-          show-overflow-tooltip>
+        <el-table-column prop="deliveryDate" label="交付日期" width="120" resizable show-overflow-tooltip>
           <template #default="{ row }">
             {{ formatDate(row.deliveryDate) }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="status"
-          label="状态"
-          width="110"
-          resizable
-          show-overflow-tooltip>
+        <el-table-column prop="status" label="状态" width="110" resizable show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag
               :type="getSalesStatusColor(row.status)"
@@ -267,11 +224,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column
-          label="锁定状态"
-          width="100"
-          resizable
-          show-overflow-tooltip>
+        <el-table-column label="锁定状态" width="100" resizable show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag
               :type="row.is_locked ? 'danger' : 'success'"
@@ -281,10 +234,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column
-          label="操作"
-          min-width="280"
-          fixed="right">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button
               size="small"
@@ -503,7 +453,7 @@
                 <template #default="{ row, $index }">
                   <el-input
                     v-model="row.unit_price"
-                    @input="(val) => { row.unit_price = Number(val) || 0; calculateItemAmount($index); }"
+                    @input="(val) => { row.unit_price = isBlankAmount(val) ? null : Number(val); calculateItemAmount($index); }"
                     placeholder="单价"
                     type="number"
                     min="0"
@@ -515,7 +465,7 @@
               <el-table-column label="单位" prop="unit_name" width="70" />
               <el-table-column label="金额" width="100">
                 <template #default="{ row }">
-                    ¥{{ row.amount ? row.amount.toFixed(2) : '0.00' }}
+                    {{ formatCurrency(row.amount) }}
                 </template>
               </el-table-column>
               <el-table-column label="税率" width="100">
@@ -538,7 +488,7 @@
               </el-table-column>
               <el-table-column label="税额" width="90">
                 <template #default="{ row }">
-                  ¥{{ row.tax_amount ? row.tax_amount.toFixed(2) : '0.00' }}
+                  {{ formatCurrency(row.tax_amount) }}
                 </template>
               </el-table-column>
               <el-table-column label="备注" width="125">
@@ -551,14 +501,14 @@
                     clearable />
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="80" fixed="right">
+              <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="{ $index }">
                   <el-button
                     type="danger"
                     size="small"
                     @click="removeMaterial($index)"
 
-                    v-permission="'sales:orders'">
+                    v-permission="dialogType === 'add' ? 'sales:orders:create' : 'sales:orders:update'">
                     删除
                   </el-button>
                 </template>
@@ -575,13 +525,13 @@
         <div class="order-summary" style="margin-top: 15px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
           <el-row :gutter="20">
             <el-col :span="8" style="text-align: right;">
-              <span style="color: var(--color-text-regular);">小计: ￥{{ form.subtotal?.toFixed(2) || '0.00' }}</span>
+              <span style="color: var(--color-text-regular);">小计: {{ formatCurrency(form.subtotal) }}</span>
             </el-col>
             <el-col :span="8" style="text-align: right;">
-              <span style="color: var(--color-warning);">税额: ￥{{ form.tax_amount?.toFixed(2) || '0.00' }}</span>
+              <span style="color: var(--color-warning);">税额: {{ formatCurrency(form.tax_amount) }}</span>
             </el-col>
             <el-col :span="8" style="text-align: right;">
-              <span style="font-weight: bold; color: var(--color-primary); font-size: 16px;">合计: ￥{{ form.total_amount?.toFixed(2) || '0.00' }}</span>
+              <span style="font-weight: bold; color: var(--color-primary); font-size: 16px;">合计: {{ formatCurrency(form.total_amount) }}</span>
             </el-col>
           </el-row>
         </div>
@@ -593,7 +543,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-permission="'sales:orders:update'" type="primary" @click="handleSubmit" :loading="dialogLoading">保存</el-button>
+          <el-button v-permission="dialogType === 'add' ? 'sales:orders:create' : 'sales:orders:update'" type="primary" @click="handleSubmit" :loading="dialogLoading">保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -615,7 +565,7 @@
             <el-descriptions-item label="合同编码">{{ currentOrder.contract_code || '-' }}</el-descriptions-item>
             <el-descriptions-item label="交付日期">{{ formatDate(currentOrder.deliveryDate) }}</el-descriptions-item>
             <el-descriptions-item label="订单金额">
-              <span style="font-weight: bold; color: var(--color-primary);">¥{{ (parseFloat(currentOrder.totalAmount) || 0).toFixed(2) }}</span>
+              <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(currentOrder.totalAmount) }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="联系人">{{ currentOrder.contact || '-' }}</el-descriptions-item>
             <el-descriptions-item label="联系电话">{{ currentOrder.phone || '-' }}</el-descriptions-item>
@@ -627,16 +577,16 @@
             <el-table-column prop="material_code" label="物料编码" width="140" show-overflow-tooltip />
             <el-table-column prop="material_name" label="物料名称" min-width="160" show-overflow-tooltip />
             <el-table-column prop="specification" label="规格" width="120" show-overflow-tooltip />
-            <el-table-column prop="quantity" label="数量" width="90" align="center" />
-            <el-table-column prop="unit_name" label="单位" width="70" align="center" />
-            <el-table-column label="单价" width="100" align="right">
+            <el-table-column prop="quantity" label="数量" width="90" />
+            <el-table-column prop="unit_name" label="单位" width="70" />
+            <el-table-column label="单价" width="100">
               <template #default="{ row }">
-                ¥{{ (parseFloat(row.unit_price) || 0).toFixed(2) }}
+                {{ formatCurrency(row.unit_price) }}
               </template>
             </el-table-column>
-            <el-table-column label="金额" width="120" align="right">
+            <el-table-column label="金额" width="120">
               <template #default="{ row }">
-                ¥{{ (parseFloat(row.amount) || 0).toFixed(2) }}
+                {{ formatCurrency(row.amount) }}
               </template>
             </el-table-column>
             <el-table-column prop="remark" label="备注" width="120" show-overflow-tooltip>
@@ -659,40 +609,27 @@
       v-model="importDialogVisible"
       width="500px"
     >
-      <el-tabs v-model="importMethod">
-        <el-tab-pane label="文件导入" name="template">
-          <div class="import-tips">
-            <p>1. 请先 <el-link type="primary" @click="downloadTemplate">下载模板</el-link></p>
-            <p>2. 按照模板格式填写数据</p>
-            <p>3. 选择填好的文件并导入</p>
-          </div>
-          <el-upload
-            ref="uploadRef"
-            action=""
-            :auto-upload="false"
-            :limit="1"
-            accept=".xlsx, .xls"
-            :on-change="handleFileChange"
-            style="margin-top: 15px;"
-          >
-            <template #trigger>
-              <el-button type="primary">选择文件</el-button>
-            </template>
-            <template #tip>
-              <div class="el-upload__tip">只支持 .xlsx, .xls 格式文件，不超过 10MB</div>
-            </template>
-          </el-upload>
-        </el-tab-pane>
-        <el-tab-pane label="JSON导入" name="json">
-          <el-input
-            v-model="importJsonData"
-            type="textarea"
-            :rows="10"
-            placeholder="说明：当前系统暂未开启纯 JSON 批量直导支持"
-            disabled
-          ></el-input>
-        </el-tab-pane>
-      </el-tabs>
+      <div class="import-tips">
+        <p>1. 请先 <el-link type="primary" @click="downloadTemplate">下载模板</el-link></p>
+        <p>2. 按照模板格式填写数据</p>
+        <p>3. 选择填好的文件并导入</p>
+      </div>
+      <el-upload
+        ref="uploadRef"
+        action=""
+        :auto-upload="false"
+        :limit="1"
+        accept=".xlsx, .xls"
+        :on-change="handleFileChange"
+        style="margin-top: 15px;"
+      >
+        <template #trigger>
+          <el-button type="primary">选择文件</el-button>
+        </template>
+        <template #tip>
+          <div class="el-upload__tip">只支持 .xlsx, .xls 格式文件，不超过 10MB</div>
+        </template>
+      </el-upload>
       <div v-if="importResult" class="import-result">
         <h4>导入结果</h4>
         <el-alert
@@ -722,14 +659,15 @@
 import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { salesApi, api } from '@/api'
+import { formatCurrency } from '@/utils/format'
+import { salesApi } from '@/api'
 import { usePaginatedFetching } from '@/composables/useDataFetching'
-import { parseListData } from '@/utils/responseParser'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
 const _router = useRouter()
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
-import { Search, Plus, Upload, Download, Refresh } from '@element-plus/icons-vue'
+import { Plus, Upload, Download } from '@element-plus/icons-vue'
 import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
 import printService from '@/services/printService'
 // ========== 组合式函数导入 ==========
@@ -758,6 +696,16 @@ const orderStats = ref({
   total: 0, pending: 0, confirmed: 0, inProduction: 0,
   readyToShip: 0, shipped: 0, cancelled: 0
 })
+const isBlankAmount = (value) => value === null || value === undefined || value === ''
+const normalizeAmount = (value) => {
+  if (isBlankAmount(value)) return null
+  const amount = Number(value)
+  return Number.isNaN(amount) ? null : amount
+}
+const formatPrintAmount = (value) => {
+  const amount = normalizeAmount(value)
+  return amount === null ? '-' : amount.toFixed(2)
+}
 // 数据规范化处理函数
 const normalizeOrdersData = (orders) => {
   if (!Array.isArray(orders)) return []
@@ -765,7 +713,7 @@ const normalizeOrdersData = (orders) => {
     ...order,
     deliveryDate: order.deliveryDate || order.delivery_date,
     updated_at: order.updated_at || order.created_at || order.order_date || new Date().toISOString(),
-    totalAmount: parseFloat(order.totalAmount) || 0,
+    totalAmount: normalizeAmount(order.totalAmount ?? order.total_amount),
     items: Array.isArray(order.items) ? order.items : []
   })).sort((a, b) => {
     const orderNoA = a.order_no || ''
@@ -824,7 +772,7 @@ const {
   canConfirm, canShip, canCancel, canLock, canUnlock
 } = useOrderActions(fetchData, tableData)
 const {
-  importDialogVisible, importMethod, uploadRef, importJsonData,
+  importDialogVisible, uploadRef,
   importing, importResult,
   handleImport, closeImportDialog, downloadTemplate,
   handleFileChange, submitImport, handleExport
@@ -851,17 +799,26 @@ const calculateOrderStats = (data = null) => {
 // 获取全量订单统计数据
 const fetchStats = async () => {
   try {
-    const response = await salesApi.getOrders({ pageSize: 100000 })
-    const allOrders = parseListData(response, { enableLog: false })
-    calculateOrderStats(allOrders)
+    const response = await salesApi.getOrderStats()
+    const stats = parseResponseData(response, {})
+    orderStats.value = {
+      total: Number(stats.total) || 0,
+      pending: Number(stats.pending) || 0,
+      confirmed: Number(stats.confirmed) || 0,
+      inProduction: Number(stats.inProduction) || 0,
+      readyToShip: Number(stats.readyToShip) || 0,
+      shipped: Number(stats.shipped) || 0,
+      cancelled: Number(stats.cancelled) || 0
+    }
   } catch (error) {
     console.error('获取订单统计数据失败:', error)
+    calculateOrderStats()
   }
 }
 // 获取操作人列表
 const fetchOperators = async () => {
   try {
-    const response = await api.get('/sales/orders/operators')
+    const response = await salesApi.getOrderOperators()
     operators.value = response.data || []
   } catch (error) {
     console.error('获取操作人列表失败:', error)
@@ -908,7 +865,7 @@ const handlePrintOrder = async () => {
       customer_name: order.customer_name || order.customer || '',
       contact_phone: order.phone || '',
       delivery_address: order.address || '',
-      total_amount: (parseFloat(order.totalAmount) || 0).toFixed(2),
+      total_amount: formatPrintAmount(order.totalAmount ?? order.total_amount),
       remark: order.remark || '',
       operator: order.created_by_real_name || order.created_by_name || '',
       items: (order.items || []).map((item, idx) => ({
@@ -918,8 +875,8 @@ const handlePrintOrder = async () => {
         specification: item.specification || '',
         quantity: parseFloat(item.quantity || 0).toFixed(2),
         unit_name: item.unit_name || '',
-        unit_price: (parseFloat(item.unit_price) || 0).toFixed(2),
-        amount: (parseFloat(item.amount) || 0).toFixed(2)
+        unit_price: formatPrintAmount(item.unit_price),
+        amount: formatPrintAmount(item.amount)
       }))
     }
     const html = await printService.generateByDefaultTemplate('sales', 'sales_order', printData)
@@ -985,7 +942,7 @@ onActivated(() => {
 }
 .order-detail {
   padding: 20px;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(135deg, var(--color-bg-section) 0%, var(--color-bg-hover) 100%);
   border-radius: 8px;
   margin: 10px 0;
 }
@@ -993,15 +950,15 @@ onActivated(() => {
   background: var(--color-bg-base);
   border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ds-black) 5%, transparent);
 }
 .order-detail :deep(.el-descriptions__label) {
   font-weight: 500;
-  color: #64748b;
+  color: var(--color-text-secondary);
   background: var(--color-bg-section);
 }
 .order-detail :deep(.el-descriptions__content) {
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 .order-detail :deep(.el-divider) {
   margin: 20px 0 16px 0;
@@ -1010,34 +967,34 @@ onActivated(() => {
 .order-detail :deep(.el-table) {
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ds-black) 8%, transparent);
 }
 .order-detail :deep(.el-table th) {
-  background: #f1f5f9 !important;
-  color: #475569;
+  background: var(--color-bg-hover) !important;
+  color: var(--color-text-secondary);
   font-weight: 600;
   font-size: 13px;
 }
 .order-detail :deep(.el-table td) {
   font-size: 13px;
-  color: #334155;
+  color: var(--color-text-regular);
 }
 .order-detail :deep(.el-table--striped .el-table__body tr.el-table__row--striped td) {
-  background: #fafbfc;
+  background: var(--color-bg-section);
 }
 /* 查看对话框中的订单详情样式 */
 .order-details {
   padding: 10px 0;
 }
 .order-details :deep(.el-descriptions) {
-  background: #fafbfc;
+  background: var(--color-bg-section);
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 10px;
 }
 .order-details :deep(.el-descriptions__label) {
   font-weight: 500;
-  color: #64748b;
+  color: var(--color-text-secondary);
 }
 .order-details :deep(.el-divider) {
   margin: 20px 0 16px 0;
@@ -1047,14 +1004,14 @@ onActivated(() => {
   overflow: hidden;
 }
 .order-details :deep(.el-table th) {
-  background: #f1f5f9 !important;
-  color: #475569;
+  background: var(--color-bg-hover) !important;
+  color: var(--color-text-secondary);
   font-weight: 600;
   font-size: 13px;
 }
 .order-details :deep(.el-table td) {
   font-size: 13px;
-  color: #334155;
+  color: var(--color-text-regular);
 }
 .operation-group {
   display: flex;
@@ -1111,7 +1068,7 @@ onActivated(() => {
   margin-top: 10px;
   padding: 10px;
   background-color: var(--color-primary-light-9);
-  border: 1px solid #b3d8ff;
+  border: 1px solid var(--color-primary-light-7);
   border-radius: var(--radius-sm);
   font-size: 12px;
   color: var(--color-text-regular);
@@ -1162,7 +1119,7 @@ onActivated(() => {
 /* 必填字段样式 */
 .is-required-field :deep(.el-input__wrapper) {
   border-color: var(--color-danger) !important;
-  background-color: #fef0f0 !important;
+  background-color: var(--ds-red-bg) !important;
 }
 .is-required-field :deep(.el-input__wrapper):hover {
   border-color: var(--color-danger) !important;

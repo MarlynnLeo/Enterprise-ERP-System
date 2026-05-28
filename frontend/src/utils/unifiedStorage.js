@@ -217,64 +217,6 @@ class UnifiedStorage {
     }
   }
 
-  // ==================== 兼容性方法（保持向后兼容） ====================
-
-  /**
-   * 设置localStorage数据（兼容旧的 StorageUtils.setLocal）
-   */
-  setLocal(key, value, expireTime = null) {
-    return this.set(key, value, {
-      expires: expireTime,
-      session: false,
-      usePrefix: false
-    });
-  }
-
-  /**
-   * 获取localStorage数据（兼容旧的 StorageUtils.getLocal）
-   */
-  getLocal(key, defaultValue = null) {
-    return this.get(key, {
-      defaultValue,
-      session: false,
-      usePrefix: false
-    });
-  }
-
-  /**
-   * 移除localStorage数据（兼容旧的 StorageUtils.removeLocal）
-   */
-  removeLocal(key) {
-    return this.remove(key, { session: false, usePrefix: false });
-  }
-
-  /**
-   * 设置sessionStorage数据（兼容旧的 StorageUtils.setSession）
-   */
-  setSession(key, value) {
-    return this.set(key, value, {
-      session: true,
-      usePrefix: false
-    });
-  }
-
-  /**
-   * 获取sessionStorage数据（兼容旧的 StorageUtils.getSession）
-   */
-  getSession(key, defaultValue = null) {
-    return this.get(key, {
-      defaultValue,
-      session: true,
-      usePrefix: false
-    });
-  }
-
-  /**
-   * 移除sessionStorage数据（兼容旧的 StorageUtils.removeSession）
-   */
-  removeSession(key) {
-    return this.remove(key, { session: true, usePrefix: false });
-  }
 }
 
 /**
@@ -287,6 +229,7 @@ class TokenManager {
     this.tokenKey = 'auth_token';
     this.refreshTokenKey = 'refresh_token';
     this.userKey = 'user_info';
+    this.removeRefreshToken();
   }
 
   /**
@@ -294,18 +237,18 @@ class TokenManager {
    * @param {string} token - 访问token
    */
   setToken(token) {
-    // 访问token默认2小时过期
-    return this.storage.set(this.tokenKey, token, {
-      expires: 2 * 60 * 60 * 1000,
-      session: true
-    });
+    // Access tokens are delivered by the backend through HttpOnly cookies.
+    // Keep this method as a compatibility no-op so older callers do not
+    // accidentally reintroduce browser-readable bearer tokens.
+    void token;
+    return this.removeToken();
   }
 
   /**
    * 获取访问token
    */
   getToken() {
-    return this.storage.get(this.tokenKey, { session: true });
+    return null;
   }
 
   /**
@@ -319,19 +262,15 @@ class TokenManager {
    * 设置刷新token
    * @param {string} refreshToken - 刷新token
    */
-  setRefreshToken(refreshToken) {
-    // 刷新token默认7天过期
-    return this.storage.set(this.refreshTokenKey, refreshToken, {
-      expires: 7 * 24 * 60 * 60 * 1000,
-      session: false
-    });
+  setRefreshToken(_refreshToken) {
+    return this.removeRefreshToken();
   }
 
   /**
    * 获取刷新token
    */
   getRefreshToken() {
-    return this.storage.get(this.refreshTokenKey);
+    return null;
   }
 
   /**
@@ -373,43 +312,11 @@ class TokenManager {
   }
 
   /**
-   * 清除所有认证信息（向后兼容的别名）
-   * @deprecated 请使用 clearAll() 方法
-   */
-  clearAuth() {
-    return this.clearAll();
-  }
-
-  /**
    * 检查token是否有效
    * @returns {boolean} token是否有效
    */
   isTokenValid() {
-    const token = this.getToken();
-    if (!token) {
-      return false;
-    }
-
-    try {
-      // 简单的token格式检查
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        return false;
-      }
-
-      // 检查token是否过期（如果包含过期时间）
-      const payload = JSON.parse(atob(parts[1]));
-      if (payload.exp && Date.now() > payload.exp * 1000) {
-        this.clearAll();
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Token验证失败:', error);
-      this.clearAll();
-      return false;
-    }
+    return Boolean(this.getUser());
   }
 }
 
@@ -420,76 +327,30 @@ class TokenManager {
 class PermissionManager {
   constructor(storage) {
     this.storage = storage;
-    this.rolePermissionsPrefix = 'role_permissions_';
-    this.cachedMenusKey = 'cached_menus';
     this.userPermissionsKey = 'user_permissions';
+    this.clearLegacyAuthorityCaches();
   }
 
-  /**
-   * 设置角色权限数据
-   * @param {number} roleId - 角色ID
-   * @param {Object} permissionData - 权限数据
-   */
-  setRolePermissions(roleId, permissionData) {
-    const key = this.rolePermissionsPrefix + roleId;
-    const data = {
-      ...permissionData,
-      timestamp: Date.now(),
-      roleId
-    };
-    return this.storage.set(key, data, { expires: 30 * 60 * 1000 }); // 30分钟过期
-  }
+  clearLegacyAuthorityCaches() {
+    const legacyExactKeys = ['cachedMenus', 'cached_menus'];
+    const removeLegacyKey = (key, options = {}) => this.storage.remove(key, options);
 
-  /**
-   * 获取角色权限数据
-   * @param {number} roleId - 角色ID
-   */
-  getRolePermissions(roleId) {
-    const key = this.rolePermissionsPrefix + roleId;
-    return this.storage.get(key);
-  }
+    legacyExactKeys.forEach((key) => {
+      removeLegacyKey(key);
+      removeLegacyKey(key, { usePrefix: false });
+    });
 
-  /**
-   * 移除角色权限数据
-   * @param {number} roleId - 角色ID
-   */
-  removeRolePermissions(roleId) {
-    const key = this.rolePermissionsPrefix + roleId;
-    return this.storage.remove(key);
-  }
-
-  /**
-   * 清除所有角色权限缓存
-   */
-  clearAllRolePermissions() {
-    const keys = this.storage.keys();
-    keys.forEach(key => {
-      if (key.startsWith(this.rolePermissionsPrefix)) {
-        this.storage.remove(key);
+    this.storage.keys().forEach((key) => {
+      if (key.startsWith('role_permissions_')) {
+        removeLegacyKey(key);
       }
     });
-  }
 
-  /**
-   * 设置菜单缓存
-   * @param {Array} menus - 菜单数据
-   */
-  setCachedMenus(menus) {
-    return this.storage.set(this.cachedMenusKey, menus, { expires: 60 * 60 * 1000 }); // 1小时过期
-  }
-
-  /**
-   * 获取菜单缓存
-   */
-  getCachedMenus() {
-    return this.storage.get(this.cachedMenusKey);
-  }
-
-  /**
-   * 清除菜单缓存
-   */
-  clearCachedMenus() {
-    return this.storage.remove(this.cachedMenusKey);
+    this.storage.keys({ onlyPrefixed: false }).forEach((key) => {
+      if (key.startsWith('role_permissions_')) {
+        removeLegacyKey(key, { usePrefix: false });
+      }
+    });
   }
 
   /**
@@ -518,8 +379,7 @@ class PermissionManager {
    * 清除所有权限相关缓存
    */
   clearAll() {
-    this.clearAllRolePermissions();
-    this.clearCachedMenus();
+    this.clearLegacyAuthorityCaches();
     this.clearUserPermissions();
   }
 }
@@ -529,106 +389,10 @@ const unifiedStorage = new UnifiedStorage();
 const tokenManager = new TokenManager(unifiedStorage);
 const permissionManager = new PermissionManager(unifiedStorage);
 
-// ==================== 向后兼容的静态类 ====================
-
-/**
- * StorageUtils 兼容类
- * 保持与原 storage.js 的 API 兼容性
- */
-class StorageUtils {
-  static setLocal(key, value, expireTime = null) {
-    return unifiedStorage.setLocal(key, value, expireTime);
-  }
-
-  static getLocal(key, defaultValue = null) {
-    return unifiedStorage.getLocal(key, defaultValue);
-  }
-
-  static removeLocal(key) {
-    return unifiedStorage.removeLocal(key);
-  }
-
-  static clearLocal() {
-    return unifiedStorage.clear({ session: false, onlyPrefixed: false });
-  }
-
-  static setSession(key, value) {
-    return unifiedStorage.setSession(key, value);
-  }
-
-  static getSession(key, defaultValue = null) {
-    return unifiedStorage.getSession(key, defaultValue);
-  }
-
-  static removeSession(key) {
-    return unifiedStorage.removeSession(key);
-  }
-
-  static clearSession() {
-    return unifiedStorage.clear({ session: true, onlyPrefixed: false });
-  }
-}
-
-/**
- * PermissionStorage 兼容类
- * 保持与原 storage.js 中 PermissionStorage 的 API 兼容性
- */
-class PermissionStorage {
-  static ROLE_PERMISSIONS_PREFIX = 'role_permissions_';
-  static CACHED_MENUS_KEY = 'cachedMenus';
-  static USER_PERMISSIONS_KEY = 'userPermissions';
-
-  static setRolePermissions(roleId, permissionData) {
-    return permissionManager.setRolePermissions(roleId, permissionData);
-  }
-
-  static getRolePermissions(roleId) {
-    return permissionManager.getRolePermissions(roleId);
-  }
-
-  static removeRolePermissions(roleId) {
-    return permissionManager.removeRolePermissions(roleId);
-  }
-
-  static clearAllRolePermissions() {
-    return permissionManager.clearAllRolePermissions();
-  }
-
-  static setCachedMenus(menus) {
-    return permissionManager.setCachedMenus(menus);
-  }
-
-  static getCachedMenus() {
-    return permissionManager.getCachedMenus();
-  }
-
-  static clearCachedMenus() {
-    return permissionManager.clearCachedMenus();
-  }
-
-  static setUserPermissions(permissions) {
-    return permissionManager.setUserPermissions(permissions);
-  }
-
-  static getUserPermissions() {
-    return permissionManager.getUserPermissions();
-  }
-
-  static clearUserPermissions() {
-    return permissionManager.clearUserPermissions();
-  }
-
-  static clearAll() {
-    return permissionManager.clearAll();
-  }
-}
-
 export {
   UnifiedStorage,
   TokenManager,
   PermissionManager,
-  StorageUtils,
-  PermissionStorage,
   unifiedStorage,
   tokenManager,
   permissionManager

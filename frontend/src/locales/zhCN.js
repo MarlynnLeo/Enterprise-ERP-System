@@ -2,7 +2,7 @@
  * zhCN.js
  * @description 前端界面组件文件
   * @date 2025-08-27
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 export default {
@@ -61,7 +61,24 @@ export default {
     maxStock: '最大库存',
     referencePrice: '参考价格',
     currency: '元',
-    adjust: '调整'
+    adjust: '调整',
+    enable: '启用',
+    disable: '停用',
+    all: '全部',
+    query: '查询',
+    expand: '展开',
+    collapse: '收起',
+    approve: '审批',
+    reject: '驳回',
+    draft: '草稿',
+    inProgress: '进行中',
+    review: '审核',
+    archive: '归档',
+    avatarEffect: '头像特效',
+    expandCollapseSidebar: '展开/收起侧边栏',
+    themeSettings: '主题设置',
+    notificationCenter: '通知中心',
+    userMenu: '用户菜单'
   },
 
   // 导航菜单
@@ -84,6 +101,10 @@ export default {
     productionProcess: '生产过程',
     productionReport: '生产报工',
     equipmentMonitoring: '设备监控',
+    materialShortage: '缺料统计',
+    mrpPlanning: '生产需求',
+    productionDataView: '生产数据看板',
+    productionGantt: '排程甘特图',
 
     // 基础数据
     baseData: '基础数据',
@@ -95,6 +116,8 @@ export default {
     units: '单位管理',
     locations: '库位管理',
     processTemplates: '工序模板',
+    productCategories: '产品分类',
+    ecnManagement: 'ECN变更管理',
 
     // 库存管理
     inventory: '库存管理',
@@ -105,6 +128,8 @@ export default {
     check: '库存盘点',
     inventoryReport: '库存报表',
     transaction: '流水报表',
+    manualTransaction: '手工交易',
+    yearEnd: '年终盘点',
 
     // 采购管理
     purchase: '采购管理',
@@ -114,6 +139,7 @@ export default {
     returns: '采购退货',
     processing: '外委加工',
     processingReceipts: '外委入库',
+    purchaseHistory: '采购历史',
 
     // 销售管理
     sales: '销售管理',
@@ -122,12 +148,18 @@ export default {
     salesReturns: '销售退货',
     exchanges: '销售换货',
     quotations: '报价单统计',
+    packingLists: '装箱单',
+    deliveryStats: '配送统计',
+    contracts: '合同管理',
 
     // 财务管理
     finance: '财务管理',
     accounts: '会计科目',
     entries: '会计凭证',
     periods: '会计期间',
+    openingBalances: '期初余额',
+    trialBalance: '试算平衡表',
+    periodClosing: '期末结账',
     arInvoices: '销售发票',
     receiptsManagement: '收款记录',
     arAging: '应收账龄',
@@ -137,6 +169,9 @@ export default {
     assets: '固定资产',
     assetCategories: '资产类别',
     depreciation: '折旧管理',
+    assetCIP: '在建工程',
+    assetInventory: '资产盘点',
+    assetReports: '资产报表',
     cashierManagement: '出纳管理',
     bankAccounts: '银行账户',
     bankTransactions: '银行交易',
@@ -146,6 +181,31 @@ export default {
     balanceSheet: '资产负债表',
     incomeStatement: '利润表',
     cashFlow: '出纳报表',
+    standardCashFlow: '标准现金流量表',
+    financeAutomation: '财务自动化',
+    taxManagement: '税务管理',
+    taxInvoices: '税务发票',
+    taxReturns: '纳税申报',
+    taxAccountConfig: '税务科目配置',
+    budgetManagement: '预算管理',
+    budgetList: '预算列表',
+    budgetExecution: '预算执行',
+    budgetAI: '智能预算',
+    costAccounting: '成本核算',
+    costDashboard: '成本总览',
+    standardCost: '标准成本',
+    actualCost: '实际成本',
+    costVariance: '成本差异',
+    costSettings: '成本设置',
+    costCenter: '成本中心',
+    costLedger: '成本分类账',
+    profitability: '盈利分析',
+    activityBasedCosting: '作业成本法',
+    productPricing: '产品定价',
+    expenses: '费用管理',
+    expenseCategories: '费用类别',
+    financeSettings: '财务设置',
+    exchangeRates: '汇率管理',
 
     // 质量管理
     quality: '质量管理',
@@ -156,6 +216,15 @@ export default {
     templates: '检验模板',
     traceability: '追溯管理',
     nonconforming: '不合格品',
+    eightDReport: '8D报告',
+    aqlStandards: 'AQL抽样标准',
+    replacementOrders: '换货单管理',
+    reworkTasks: '返工任务',
+    scrapRecords: '报废记录',
+    qualityStatistics: '质量统计',
+    gaugeManagement: '量具管理',
+    spcControlChart: 'SPC控制图',
+    supplierQuality: '供应商质量计分卡',
 
     // 设备管理
     equipment: '设备管理',
@@ -177,6 +246,13 @@ export default {
     departments: '部门管理',
     permissions: '权限设置',
     print: '打印设置',
+    notifications: '通知管理',
+    technicalCommunication: '技术沟通',
+    workflow: '工作流管理',
+    codingRules: '编码规则',
+    documents: '文档管理',
+    businessAlerts: '业务预警',
+    businessTypes: '业务类型',
 
     backup: '数据备份'
   },
@@ -258,7 +334,15 @@ export default {
     dataNotFound: '数据不存在',
     operationConfirm: '确定要执行此操作吗？',
     deleteConfirm: '确定要删除吗？此操作不可恢复',
-    unsavedChanges: '有未保存的更改，确定要离开吗？'
+    unsavedChanges: '有未保存的更改，确定要离开吗？',
+    loadFailed: '加载失败',
+    syncSuccess: '同步完毕',
+    syncFailed: '同步失败',
+    exportSuccess: '导出成功',
+    exportFailed: '导出失败',
+    resetSuccess: '重置成功',
+    resetFailed: '重置失败',
+    menuLoadFailed: '菜单加载失败，请刷新后重试'
   },
 
   // 页面标题和内容
@@ -477,6 +561,116 @@ export default {
         startTime: '开始时间',
         endTime: '结束时间',
         status: '任务状态'
+      },
+      gantt: {
+        title: '排程甘特图',
+        subtitle: '按生产组查看任务排程、延期和日期异常',
+        productionGroup: '生产组',
+        tasks: '任务',
+        active: '在制',
+        overdue: '逾期',
+        dateIssue: '日期异常',
+        source: '来源',
+        noTasks: '所选时间范围内没有排程任务',
+        goToSchedule: '前往生产任务排程',
+        taskSchedule: '任务排程',
+        quantity: '数量',
+        startTime: '开始',
+        endTime: '结束',
+        plan: '计划',
+        deliveryDate: '交期',
+        alreadyOverdue: '已逾期',
+        endBeforeStart: '计划结束早于开始'
+      }
+    },
+
+    // 质量管理
+    quality: {
+      title: '质量管理',
+      eightD: {
+        title: '8D问题解决报告',
+        add: '新增8D报告',
+        reportNo: '报告编号',
+        reportTitle: '标题',
+        ncpNo: '关联NCP',
+        materialName: '物料名称',
+        initiatedBy: '发起人',
+        owner: '主负责人',
+        priority: '优先级',
+        currentPhase: '当前阶段',
+        progress: '进度',
+        targetCloseDate: '目标关闭',
+        allReports: '全部报告',
+        inProgress: '进行中',
+        pendingReview: '待审核',
+        completed: '已完成',
+        critical: '紧急',
+        filing: '立案',
+        firstReview: '初审',
+        rectification: '整改',
+        closingReview: '结案审核',
+        summary: '总结',
+        complete: '完成',
+        submitFirstReview: '提交初审',
+        submitClosing: '提交结案',
+        aiGenerate: 'AI辅助生成',
+        exportPdf: '导出 PDF',
+        auditLog: '8D生命周期审计流转记录'
+      }
+    },
+
+    // 人力资源
+    hr: {
+      employees: {
+        title: '员工档案与薪酬基数设定',
+        syncDingtalk: '钉钉通讯录全量拉取',
+        manualAdd: '手动新增',
+        employeeNo: '工号',
+        name: '姓名',
+        department: '部门',
+        insuranceType: '社保类型',
+        baseSalary: '基本工资',
+        splitBaseSalary: '拆分报税基数',
+        positionAllowance: '职位/外补',
+        housingAllowance: '房补/交补',
+        mealAllowance: '餐补',
+        overtimeRate: '加班时薪',
+        employmentStatus: '在职状态',
+        active: '在职',
+        left: '离职',
+        salaryBase: '薪酬基数',
+        subsidySettings: '补贴设定',
+        basicInfo: '基本信息'
+      }
+    },
+
+    // 系统管理
+    systemMgmt: {
+      codingRules: {
+        title: '编码规则管理',
+        subtitle: '配置各业务单据的自动编号规则，支持前缀、日期、流水号组合',
+        addRule: '新增规则',
+        businessType: '业务类型',
+        ruleName: '规则名称',
+        codeRule: '编码规则',
+        resetCycle: '重置周期',
+        nextNumber: '下一个编号',
+        description: '说明',
+        prefix: '前缀',
+        dateFormat: '日期格式',
+        separator: '分隔符',
+        sequenceLength: '流水号位数',
+        initialValue: '起始值',
+        step: '步长',
+        preview: '编号预览',
+        noReset: '不重置',
+        daily: '每日',
+        monthly: '每月',
+        yearly: '每年',
+        sequenceDetail: '序列详情',
+        periodKey: '周期键',
+        currentValue: '当前值',
+        resetAllSequences: '重置全部序列'
       }
     }
   }

@@ -1,5 +1,6 @@
 const { pool } = require('../../config/db');
 const logger = require('../../utils/logger');
+const { appendPaginationSQL } = require('../../utils/safePagination');
 
 class AqlStandard {
     /**
@@ -100,8 +101,7 @@ class AqlStandard {
 
         // 分页
         if (params.limit && params.offset !== undefined) {
-            query += ' LIMIT ? OFFSET ?';
-            values.push(Number(params.limit), Number(params.offset));
+            query = appendPaginationSQL(query, Number(params.limit), Number(params.offset));
         }
 
         const [rows] = await pool.query(query, values);

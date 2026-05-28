@@ -1,14 +1,6 @@
-﻿<!--
-/**
- * Login.vue
- * @description 前端登录界面 - KACON Teal Split-Screen Style
- * @date 2026-03-25
- */
--->
 <template>
   <div class="login-wrapper">
-    <!-- 左侧品牌与插画区 -->
-    <div class="login-left">
+    <aside class="login-panel" aria-label="KACON ERP">
       <div class="brand">
         <svg class="brand-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M75 25 H25 V75 H75 V55 H45 V45 H75 V25 Z" fill="currentColor" />
@@ -17,144 +9,130 @@
         <span class="brand-text">KACON</span>
       </div>
 
-      <!-- 纯CSS构建的抽象插画，用于左侧视觉区域 -->
-      <div class="illustration-container">
-        <!--巨型圆环背景-->
-        <div class="float-ring"></div>
-        <div class="float-ring small"></div>
+      <div class="panel-copy">
+        <p class="eyebrow">Enterprise Resource Planning</p>
+        <h1>企业级 AI ERP 工作台</h1>
+        <p>统一连接财务、供应链、生产、质量和组织协同，让核心业务流程保持清晰、可追踪、可闭环。</p>
+      </div>
 
-        <!-- 数据面板背景 -->
-        <div class="dashboard-panel panel-bg">
-          <div class="panel-header">
-            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="workspace-preview" aria-hidden="true">
+        <div class="preview-header">
+          <span></span>
+          <span></span>
+          <span></span>
+          <strong>运营总览</strong>
+        </div>
+        <div class="preview-metrics">
+          <div class="metric-block">
+            <span>本月收入</span>
+            <strong>¥ 8.42M</strong>
           </div>
-          <div class="panel-body">
-            <div class="line" style="width: 40%"></div>
-            <div class="line" style="width: 70%"></div>
-            <div class="line" style="width: 50%"></div>
-            <div class="chart-area">
-              <svg viewBox="0 0 200 60" preserveAspectRatio="none">
-                 <path d="M0,50 Q25,20 50,40 T100,30 T150,40 T200,10" fill="none" stroke="#00a896" stroke-width="4" stroke-linecap="round"/>
-              </svg>
-            </div>
+          <div class="metric-block">
+            <span>库存周转</span>
+            <strong>92.6%</strong>
+          </div>
+          <div class="metric-block">
+            <span>生产达成</span>
+            <strong>96.8%</strong>
           </div>
         </div>
-
-        <!-- 悬浮的主 Logo 卡片 -->
-        <div class="dashboard-panel panel-fg">
-          <svg class="fg-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M75 25 H25 V75 H75 V55 H45 V45 H75 V25 Z" fill="#fff" />
-            <circle cx="60" cy="50" r="5" fill="#fff" />
-          </svg>
+        <div class="preview-chart">
+          <i></i>
+          <i></i>
+          <i></i>
+          <i></i>
+          <i></i>
         </div>
       </div>
-    </div>
 
-    <!-- 右侧表单区 -->
-    <div class="login-right">
-      <div class="login-form-container">
-        <!-- 顶部 Logo 与 Slogan -->
+      <div class="value-list">
+        <span>财务凭证与业务单据一致</span>
+        <span>审批、权限、审计日志全链路留痕</span>
+        <span>移动端和桌面端体验统一</span>
+      </div>
+    </aside>
+
+    <main class="login-content">
+      <section class="login-card" aria-label="账号登录">
         <div class="form-header">
           <div class="form-brand">
             <svg class="form-brand-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M75 25 H25 V75 H75 V55 H45 V45 H75 V25 Z" fill="currentColor" />
               <circle cx="60" cy="50" r="5" fill="currentColor" />
             </svg>
-            <span class="form-brand-text">KACON</span>
+            <span>KACON</span>
           </div>
-          <p class="form-slogan">新一代的开源 AI ERP系统</p>
+          <h2>账号登录</h2>
+          <p>使用企业账号进入 ERP 管理系统</p>
         </div>
 
-        <!-- 表单主体 -->
-        <div class="form-box">
-          <h2 class="form-title">账号登录</h2>
+        <el-form
+          ref="loginFormRef"
+          :model="loginForm"
+          :rules="rules"
+          class="login-form"
+          :show-message="false"
+        >
+          <el-form-item prop="username">
+            <el-input
+              v-model="loginForm.username"
+              placeholder="请输入手机号或邮箱"
+              class="brand-input"
+              clearable
+              @keyup.enter="handleLogin"
+            />
+          </el-form-item>
 
-          <el-form :model="loginForm" :rules="rules" ref="loginFormRef" class="login-form" :show-message="false">
-            <el-form-item prop="username">
-              <el-input
-                v-model="loginForm.username"
-                placeholder="请输入手机号或邮箱"
-                class="brand-input"
-                clearable
-                @keyup.enter="handleLogin" />
-            </el-form-item>
+          <el-form-item prop="password">
+            <el-input
+              v-model="loginForm.password"
+              type="password"
+              placeholder="请输入密码"
+              show-password
+              class="brand-input"
+              @keyup.enter="handleLogin"
+            />
+          </el-form-item>
 
-            <el-form-item prop="password">
-              <el-input
-                v-model="loginForm.password"
-                type="password"
-                placeholder="请输入密码"
-                show-password
-                class="brand-input"
-                @keyup.enter="handleLogin"
-                @input="checkPasswordStrength"
-              />
-            </el-form-item>
+          <transition name="error-fade">
+            <div v-if="loginError" class="login-error-text">{{ loginError }}</div>
+          </transition>
 
-            <transition name="error-fade">
-              <div v-if="loginError" class="login-error-text">{{ loginError }}</div>
-            </transition>
-
-            <el-form-item>
-              <el-button
-                type="primary"
-                :loading="loading"
-                @click="handleLogin"
-                class="submit-btn"
-              >
-                {{ loading ? '登录中...' : '登录' }}
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-      </div>
-    </div>
+          <el-form-item>
+            <el-button
+              type="primary"
+              :loading="loading"
+              class="submit-btn"
+              @click="handleLogin"
+            >
+              {{ loading ? '登录中...' : '登录' }}
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </section>
+    </main>
   </div>
 </template>
+
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../../stores/auth'
 import { useDictionaryStore } from '../../stores/dictionary'
-import { ElMessage } from 'element-plus'
 import { unifiedStorage } from '@/utils/unifiedStorage'
-const _systemName = 'ERP 管理系统'
+
 const router = useRouter()
 const authStore = useAuthStore()
 const loginFormRef = ref(null)
 const loading = ref(false)
 const loginError = ref('')
-const passwordStrength = ref(0)
-const strengthText = ref('')
-const strengthColor = ref('')
-const checkPasswordStrength = () => {
-  const password = loginForm.password
-  let strength = 0
 
-  if (password.length >= 6) strength++
-  if (password.length >= 10) strength++
-  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) strength++
-  if (/\d/.test(password)) strength++
-  if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++
-
-  strength = Math.min(strength, 4)
-  passwordStrength.value = strength
-
-  const strengthMap = {
-    0: { text: '', color: '' },
-    1: { text: '弱', color: 'var(--color-danger)' },
-    2: { text: '中等', color: 'var(--color-warning)' },
-    3: { text: '强', color: 'var(--color-primary)' },
-    4: { text: '非常强', color: 'var(--color-success)' }
-  }
-
-  strengthText.value = strengthMap[strength].text
-  strengthColor.value = strengthMap[strength].color
-}
 const loginForm = reactive({
   username: '',
   password: ''
 })
+
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
@@ -163,10 +141,12 @@ const rules = {
     { required: true, message: '请输入密码', trigger: 'blur' }
   ]
 }
+
 onMounted(() => {
   loadSavedCredentials()
 })
-const loadSavedCredentials = () => {
+
+function loadSavedCredentials() {
   try {
     const savedUsername = unifiedStorage.get('saved_username', { defaultValue: '' })
     if (savedUsername) {
@@ -176,352 +156,406 @@ const loadSavedCredentials = () => {
     console.error('读取保存的登录信息失败:', error)
   }
 }
-const saveCredentials = () => {
+
+function saveCredentials() {
   try {
-    // 安全策略：仅保存用户名，绝不在客户端持久化密码
     unifiedStorage.set('saved_username', loginForm.username, { expires: 30 * 24 * 60 * 60 * 1000 })
   } catch (error) {
     console.error('保存登录信息失败:', error)
   }
 }
-const _clearSavedCredentials = () => {
-  try {
-    unifiedStorage.remove('saved_username')
-  } catch (error) {
-    console.error('清除保存的登录信息失败:', error)
+
+function resolveLoginError(error) {
+  if (error.response) {
+    const status = error.response.status
+    const message = error.response.data?.message || error.response.data?.error || ''
+    const statusMessageMap = {
+      400: '请求参数错误',
+      401: '用户名或密码错误',
+      403: '账号已被禁用',
+      404: '登录服务未找到',
+      500: '服务器内部错误'
+    }
+
+    return statusMessageMap[status] || message || '登录失败'
   }
+
+  if (error.request) {
+    return '网络错误'
+  }
+
+  return '请求失败'
 }
-const handleLogin = async () => {
+
+async function handleLogin() {
   if (!loginFormRef.value) return
+
   loginError.value = ''
+
   try {
     const valid = await loginFormRef.value.validate()
-    if (valid) {
-      loading.value = true
-      try {
-        await authStore.login(loginForm)
+    if (!valid) return
 
-        try {
-          const dictStore = useDictionaryStore()
-          await dictStore.fetchDictionary()
-        } catch {
-        }
-        ElMessage.success({
-          message: '登录成功！欢迎回来 🎉',
-          type: 'success',
-          duration: 2000
-        })
-        saveCredentials()
-        router.push('/')
-      } catch (error) {
-        console.error('Login error:', error)
-        if (error.response) {
-          const status = error.response.status
-          const message = error.response.data?.message || error.response.data?.error || ''
-          switch (status) {
-            case 400:
-              loginError.value = '请求参数错误'
-              break
-            case 401:
-              loginError.value = '用户名或密码错误'
-              break
-            case 403:
-              loginError.value = '账号已被禁用'
-              break
-            case 404:
-              loginError.value = '登录服务未找到'
-              break
-            case 500:
-              loginError.value = '服务器内部错误'
-              break
-            default:
-              loginError.value = message || '登录失败'
-          }
-          ElMessage.error(loginError.value)
-        } else if (error.request) {
-          loginError.value = '网络错误'
-          ElMessage.error(loginError.value)
-        } else {
-          loginError.value = '请求失败'
-          ElMessage.error(loginError.value)
-        }
-      } finally {
-        loading.value = false
+    loading.value = true
+    try {
+      await authStore.login(loginForm)
+
+      try {
+        const dictStore = useDictionaryStore()
+        await dictStore.fetchDictionary()
+      } catch {
+        // Dictionary loading is non-blocking after authentication succeeds.
       }
+
+      ElMessage.success({
+        message: '登录成功，欢迎回来',
+        type: 'success',
+        duration: 2000
+      })
+      saveCredentials()
+      router.push('/')
+    } catch (error) {
+      console.error('登录失败:', error)
+      loginError.value = resolveLoginError(error)
+      ElMessage.error(loginError.value)
+    } finally {
+      loading.value = false
     }
   } catch (error) {
     console.error('登录处理失败:', error)
     loading.value = false
   }
 }
-const _handleForgotPassword = () => {
-  ElMessage.info('请联系管理员重置密码')
-}
 </script>
+
 <style scoped>
-/* 全局充置与变量 */
 * {
   box-sizing: border-box;
 }
+
 .login-wrapper {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(520px, 1.05fr) minmax(420px, 0.95fr);
   min-height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background-color: var(--color-bg-base);
+  background: var(--color-bg-page);
 }
-/* ================= 左侧：品牌与插画 ================= */
-.login-left {
-  flex: 1;
+
+.login-panel {
   position: relative;
-  background: linear-gradient(135deg, #02d1c6 0%, #009689 100%);
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  overflow: hidden;
+  gap: 32px;
+  padding: 48px clamp(48px, 7vw, 96px);
+  color: var(--color-text-primary);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-base)), var(--color-bg-page));
+  border-right: 1px solid var(--color-border-lighter);
 }
+
 .brand {
   position: absolute;
   top: 40px;
-  left: 40px;
+  left: clamp(48px, 7vw, 96px);
   display: flex;
   align-items: center;
   gap: 12px;
-  z-index: 10;
-  color: var(--color-on-primary, #fff);
+  color: var(--color-primary);
 }
+
 .brand-icon {
   width: 36px;
   height: 36px;
 }
+
 .brand-text {
+  color: var(--color-text-primary);
   font-size: 28px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 0;
 }
-/* 抽象插画效果 */
-.illustration-container {
-  position: relative;
-  width: 600px;
-  height: 500px;
+
+.panel-copy {
+  max-width: 560px;
 }
-.float-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 480px;
-  height: 480px;
-  border: 80px solid rgba(255, 255, 255, 0.15);
-  border-radius: 50%;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
-  animation: floatRing 8s ease-in-out infinite;
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
-.float-ring.small {
-  width: 150px;
-  height: 150px;
-  border: 40px solid rgba(255, 255, 255, 0.2);
-  top: 85%;
-  left: 80%;
-  animation: floatRing 6s ease-in-out infinite reverse;
+
+.panel-copy h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 42px;
+  line-height: 1.18;
+  letter-spacing: 0;
 }
-.dashboard-panel {
-  position: absolute;
-  border-radius: 12px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.15);
+
+.panel-copy p:last-child {
+  margin: 18px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  line-height: 1.8;
 }
-.panel-bg {
-  width: 380px;
-  height: 250px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  top: 20%;
-  left: 10%;
-  padding: 16px;
-  transform: rotate(-5deg);
-  animation: floatPanelBg 7s ease-in-out infinite 1s;
-}
-.panel-header {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 20px;
-}
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #E0E0E0;
-}
-.dot:nth-child(1) { background: #FF5F56; }
-.dot:nth-child(2) { background: #FFBD2E; }
-.dot:nth-child(3) { background: #27C93F; }
-.panel-body .line {
-  height: 12px;
-  background: #F0F0F0;
-  border-radius: 6px;
-  margin-bottom: 16px;
-}
-.chart-area {
-  margin-top: 30px;
-  height: 80px;
-  background: #f8fcfb;
+
+.workspace-preview {
+  width: min(100%, 560px);
+  padding: 20px;
+  border: 1px solid var(--color-border-lighter);
   border-radius: 8px;
-  padding: 10px;
-}
-.panel-fg {
-  width: 200px;
-  height: 140px;
-  background: linear-gradient(135deg, #02d1c6 0%, #00a095 100%);
-  bottom: 25%;
-  left: 60%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: rotate(5deg);
-  animation: floatPanelFg 7s ease-in-out infinite;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-.fg-logo {
-  width: 60px;
-  height: 60px;
-}
-@keyframes floatRing {
-  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
-  50% { transform: translate(-50%, -50%) translateY(-20px); }
-}
-@keyframes floatPanelBg {
-  0%, 100% { transform: rotate(-5deg) translateY(0); }
-  50% { transform: rotate(-5deg) translateY(-20px); }
-}
-@keyframes floatPanelFg {
-  0%, 100% { transform: rotate(5deg) translateY(0); }
-  50% { transform: rotate(5deg) translateY(-20px); }
-}
-/* ================= 右侧：表单区 ================= */
-.login-right {
-  flex: 1;
   background: var(--color-bg-base);
+  box-shadow: var(--shadow-card, 0 12px 36px color-mix(in srgb, var(--color-text-primary) 8%, transparent));
+}
+
+.preview-header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border-lighter);
+}
+
+.preview-header span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border-base);
+}
+
+.preview-header strong {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.metric-block {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--color-border-lighter);
+  border-radius: 8px;
+  background: var(--color-bg-section);
+}
+
+.metric-block span {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.metric-block strong {
+  display: block;
+  margin-top: 8px;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.preview-chart {
+  height: 112px;
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--color-border-lighter);
+  border-radius: 8px;
+  background: var(--color-bg-base);
+}
+
+.preview-chart i {
+  flex: 1;
+  min-width: 0;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-light-5, var(--color-primary)));
+}
+
+.preview-chart i:nth-child(1) { height: 42%; }
+.preview-chart i:nth-child(2) { height: 70%; }
+.preview-chart i:nth-child(3) { height: 54%; }
+.preview-chart i:nth-child(4) { height: 86%; }
+.preview-chart i:nth-child(5) { height: 62%; }
+
+.value-list {
+  width: min(100%, 560px);
+  display: grid;
+  gap: 10px;
+}
+
+.value-list span {
+  position: relative;
+  padding-left: 18px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.value-list span::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.65em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.login-content {
+  display: flex;
   align-items: center;
   justify-content: center;
+  padding: 40px;
+  background: var(--color-bg-base);
 }
-.login-form-container {
-  width: 100%;
-  max-width: 480px;
-  padding: 0 40px;
+
+.login-card {
+  width: min(100%, 420px);
+  padding: 36px;
+  border: 1px solid var(--color-border-lighter);
+  border-radius: 8px;
+  background: var(--color-bg-base);
+  box-shadow: var(--shadow-card, 0 12px 36px color-mix(in srgb, var(--color-text-primary) 8%, transparent));
 }
+
 .form-header {
-  text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 30px;
 }
+
 .form-brand {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: #334155;
-  margin-bottom: 10px;
-}
-.form-brand-icon {
-  width: 40px;
-  height: 40px;
-  color: #00A896;
-}
-.form-brand-text {
-  font-size: 32px;
+  gap: 10px;
+  margin-bottom: 22px;
+  color: var(--color-text-primary);
+  font-size: 24px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 0;
 }
-.form-slogan {
-  color: #00A896;
-  font-size: 15px;
-  letter-spacing: 1px;
+
+.form-brand-icon {
+  width: 34px;
+  height: 34px;
+  color: var(--color-primary);
+}
+
+.form-header h2 {
   margin: 0;
+  color: var(--color-text-primary);
+  font-size: 24px;
+  line-height: 1.3;
 }
-.form-box {
-  background: var(--color-bg-base);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
-  border: 1px solid #f1f5f9;
-  border-radius: 12px;
-  padding: 40px;
+
+.form-header p {
+  margin: 8px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
 }
-.form-title {
-  color: #00A896;
-  font-size: 18px;
-  font-weight: 600;
-  margin-top: 0;
-  margin-bottom: 30px;
-}
+
 .login-form {
   width: 100%;
 }
+
 :deep(.brand-input .el-input__wrapper) {
-  box-shadow: 0 0 0 1px #e2e8f0 inset !important;
-  border-radius: 4px;
-  padding: 0 15px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 6px;
   background: var(--color-bg-base);
-  transition: all 0.3s;
+  box-shadow: 0 0 0 1px var(--color-border-base) inset !important;
+  transition: box-shadow var(--transition-base, 0.2s ease), background var(--transition-base, 0.2s ease);
 }
+
 :deep(.brand-input .el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #00A896 inset !important;
+  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
 }
+
 :deep(.brand-input .el-input__inner) {
-  height: 48px;
+  height: 46px;
+  color: var(--color-text-primary);
   font-size: 15px;
 }
+
 :deep(.el-form-item) {
-  margin-bottom: 24px;
+  margin-bottom: 22px;
 }
+
 .submit-btn {
   width: 100%;
-  height: 50px;
-  background-color: #00A896;
-  border-color: #00A896;
+  height: 48px;
+  border-radius: 6px;
+  color: var(--el-color-white) !important;
   font-size: 16px;
-  font-weight: 500;
-  border-radius: 4px;
-  margin-top: 10px;
-  transition: background-color 0.3s;
+  font-weight: 600;
 }
-.submit-btn:hover, .submit-btn:focus {
-  background-color: #009686;
-  border-color: #009686;
-}
+
 .login-error-text {
+  margin: -12px 0 10px;
+  padding-left: 2px;
   color: var(--color-danger);
   font-size: 13px;
-  margin-top: -16px;
-  margin-bottom: 8px;
-  padding-left: 2px;
 }
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: -10px;
+
+.error-fade-enter-active,
+.error-fade-leave-active {
+  transition: opacity var(--transition-base, 0.2s ease), transform var(--transition-base, 0.2s ease);
 }
-:deep(.el-checkbox__input.is-checked .el-checkbox__inner),
-:deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner) {
-  background-color: #00A896;
-  border-color: #00A896;
+
+.error-fade-enter-from,
+.error-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
-:deep(.el-checkbox__input.is-checked + .el-checkbox__label) {
-  color: #00A896;
-}
-.forgot-link {
-  color: #94a3b8;
-  font-size: 14px;
-  text-decoration: none;
-  transition: color 0.3s;
-}
-.forgot-link:hover {
-  color: #00A896;
-}
-/* 响应式调整 */
-@media screen and (max-width: 1024px) {
-  .login-left {
+
+@media screen and (max-width: 1100px) {
+  .login-wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .login-panel {
     display: none;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .login-wrapper {
+    min-height: 100dvh;
+  }
+
+  .login-content {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .login-card {
+    width: 100%;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 32px 22px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 }
 </style>

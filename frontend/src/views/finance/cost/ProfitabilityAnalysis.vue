@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="profitability-container">
+  <div class="module-page profitability-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -78,25 +78,25 @@
             <el-table-column type="index" label="#" width="50" />
             <el-table-column prop="product_code" label="产品编码" width="120" />
             <el-table-column prop="product_name" label="产品名称" min-width="180" />
-            <el-table-column prop="total_quantity" label="销售数量" width="100" align="right" />
-            <el-table-column label="销售收入" width="130" align="right">
+            <el-table-column prop="total_quantity" label="销售数量" width="100" />
+            <el-table-column label="销售收入" width="130">
               <template #default="{ row }">
                 {{ formatCurrency(row.total_revenue) }}
               </template>
             </el-table-column>
-            <el-table-column label="销售成本" width="130" align="right">
+            <el-table-column label="销售成本" width="130">
               <template #default="{ row }">
                 {{ formatCurrency(row.total_cost) }}
               </template>
             </el-table-column>
-            <el-table-column label="毛利润" width="130" align="right">
+            <el-table-column label="毛利润" width="130">
               <template #default="{ row }">
                 <span :class="{ positive: row.gross_profit >= 0, negative: row.gross_profit < 0 }">
                   {{ formatCurrency(row.gross_profit) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="毛利率" width="100" align="center">
+            <el-table-column label="毛利率" width="100">
               <template #default="{ row }">
                 <el-tag :type="getMarginType(row.gross_margin)" size="small">
                   {{ row.gross_margin }}%
@@ -112,25 +112,25 @@
             <el-table-column type="index" label="#" width="50" />
             <el-table-column prop="customer_code" label="客户编码" width="120" />
             <el-table-column prop="customer_name" label="客户名称" min-width="200" />
-            <el-table-column prop="order_count" label="订单数" width="80" align="center" />
-            <el-table-column label="销售总额" width="130" align="right">
+            <el-table-column prop="order_count" label="订单数" width="80" />
+            <el-table-column label="销售总额" width="130">
               <template #default="{ row }">
                 {{ formatCurrency(row.total_revenue) }}
               </template>
             </el-table-column>
-            <el-table-column label="成本总额" width="130" align="right">
+            <el-table-column label="成本总额" width="130">
               <template #default="{ row }">
                 {{ formatCurrency(row.total_cost) }}
               </template>
             </el-table-column>
-            <el-table-column label="贡献毛利" width="130" align="right">
+            <el-table-column label="贡献毛利" width="130">
               <template #default="{ row }">
                 <span :class="{ positive: row.gross_profit >= 0, negative: row.gross_profit < 0 }">
                   {{ formatCurrency(row.gross_profit) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="毛利率" width="100" align="center">
+            <el-table-column label="毛利率" width="100">
               <template #default="{ row }">
                 <el-tag :type="getMarginType(row.gross_margin)" size="small">
                   {{ row.gross_margin }}%
@@ -154,8 +154,10 @@ import { ref, onMounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh, Money, Goods, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
 import { api } from '@/services/api'
-import * as echarts from 'echarts'
+import { echarts } from '@/utils/echartsCore'
 import { formatCurrency } from '@/utils/helpers/formatters'
+import { getCssTokenValue } from '@/utils/designTokens'
+import { parseResponseData } from '@/utils/responseParser'
 
 // 数据
 const activeTab = ref('products')
@@ -196,7 +198,7 @@ const getQueryParams = () => {
 const loadSummary = async () => {
   try {
     const res = await api.get('/finance/profitability/summary', { params: getQueryParams() })
-    summary.value = res.data?.data || res.data || {}
+    summary.value = parseResponseData(res, {})
   } catch (error) {
     console.error('加载盈利汇总失败:', error)
   }
@@ -207,7 +209,7 @@ const loadProducts = async () => {
   productsLoading.value = true
   try {
     const res = await api.get('/finance/profitability/products', { params: { ...getQueryParams(), limit: 50 } })
-    productList.value = res.data?.data || res.data || []
+    productList.value = parseResponseData(res, [])
   } catch (error) {
     console.error('加载产品盈利失败:', error)
     ElMessage.error('加载产品盈利数据失败')
@@ -221,7 +223,7 @@ const loadCustomers = async () => {
   customersLoading.value = true
   try {
     const res = await api.get('/finance/profitability/customers', { params: { ...getQueryParams(), limit: 50 } })
-    customerList.value = res.data?.data || res.data || []
+    customerList.value = parseResponseData(res, [])
   } catch (error) {
     console.error('加载客户盈利失败:', error)
     ElMessage.error('加载客户盈利数据失败')
@@ -234,7 +236,7 @@ const loadCustomers = async () => {
 const loadTrend = async () => {
   try {
     const res = await api.get('/finance/profitability/trend', { params: getQueryParams() })
-    trendData.value = res.data?.data || res.data || []
+    trendData.value = parseResponseData(res, [])
     renderTrendChart()
   } catch (error) {
     console.error('加载盈利趋势失败:', error)
@@ -286,19 +288,19 @@ const renderTrendChart = () => {
           name: '收入',
           type: 'bar',
           data: trendData.value.map(d => d.total_revenue),
-          itemStyle: { color: 'var(--color-primary)' }
+          itemStyle: { color: getCssTokenValue('primary') }
         },
         {
           name: '成本',
           type: 'bar',
           data: trendData.value.map(d => d.total_cost),
-          itemStyle: { color: 'var(--color-warning)' }
+          itemStyle: { color: getCssTokenValue('warning') }
         },
         {
           name: '毛利',
           type: 'line',
           data: trendData.value.map(d => d.gross_profit),
-          itemStyle: { color: 'var(--color-success)' },
+          itemStyle: { color: getCssTokenValue('success') },
           lineStyle: { width: 3 }
         }
       ]
@@ -370,12 +372,12 @@ onMounted(() => {
 
 .stat-card {
   cursor: pointer;
-  transition: all 0.3s;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: var(--el-color-primary-light-6);
+  background: var(--el-fill-color-extra-light);
 }
 
 .stat-card :deep(.el-card__body) {
@@ -387,19 +389,19 @@ onMounted(() => {
 .stat-icon {
   width: 60px;
   height: 60px;
-  border-radius: 12px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 15px;
   font-size: 28px;
-  color: var(--color-on-primary, #fff);
+  color: var(--color-on-primary);
 }
 
-.stat-card.revenue .stat-icon { background: linear-gradient(135deg, #409EFF 0%, #66b1ff 100%); }
-.stat-card.cost .stat-icon { background: linear-gradient(135deg, #E6A23C 0%, #f0c78a 100%); }
-.stat-card.profit .stat-icon { background: linear-gradient(135deg, #67C23A 0%, #85ce61 100%); }
-.stat-card.margin .stat-icon { background: linear-gradient(135deg, #909399 0%, #b1b3b8 100%); }
+.stat-card.revenue .stat-icon { background: var(--color-primary); }
+.stat-card.cost .stat-icon { background: var(--color-warning); }
+.stat-card.profit .stat-icon { background: var(--color-success); }
+.stat-card.margin .stat-icon { background: var(--color-text-secondary); }
 
 .stat-value {
   font-size: 24px;

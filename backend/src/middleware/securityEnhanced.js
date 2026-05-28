@@ -8,6 +8,7 @@
 
 const helmet = require('helmet');
 const { logger } = require('../utils/logger');
+const { ResponseHandler } = require('../utils/responseHandler');
 const { UnifiedAppError } = require('./unifiedErrorHandler');
 
 // SQL 注入检测模式（严格）— 用于普通字段
@@ -58,7 +59,7 @@ const sqlInjectionDetection = (req, res, next) => {
       }
     }
     // 技术交流API的富文本内容字段
-    if (req.path.startsWith('/api/technical-communications')) {
+    if (req.path.startsWith('/api/system/technical-communications')) {
       if (['content', 'solution', 'description'].some((f) => fieldPath.endsWith(f))) {
         return true;
       }
@@ -98,6 +99,13 @@ const sqlInjectionDetection = (req, res, next) => {
       'remark',
       'remarks',
       'description',
+      'name',
+      'reason_name',
+      'reasonName',
+      'issue_reason',
+      'reason',
+      'title',
+      'label',
       'location_detail',
       'location',
     ];
@@ -205,10 +213,7 @@ const pathTraversalDetection = (req, res, next) => {
         userAgent: req.get('User-Agent'),
       });
 
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request path',
-      });
+      return ResponseHandler.error(res, 'Invalid request path', 'INVALID_REQUEST_PATH', 400);
     }
   }
 
@@ -241,18 +246,12 @@ const fileUploadSecurity = (req, res, next) => {
           userAgent: req.get('User-Agent'),
         });
 
-        return res.status(400).json({
-          success: false,
-          message: '不支持的文件类型',
-        });
+        return ResponseHandler.error(res, '不支持的文件类型', 'UNSUPPORTED_FILE_TYPE', 400);
       }
 
       // 检查文件大小（10MB 限制）
       if (file.size > 10 * 1024 * 1024) {
-        return res.status(400).json({
-          success: false,
-          message: '文件大小超过限制',
-        });
+        return ResponseHandler.error(res, '文件大小超过限制', 'FILE_TOO_LARGE', 400);
       }
     }
   }

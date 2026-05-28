@@ -9,6 +9,7 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const QualityStandard = require('../../../models/qualityStandard');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const qualityStandardController = {
     /**
@@ -17,6 +18,10 @@ const qualityStandardController = {
     async getAllStandards(req, res) {
         try {
             const { page = 1, pageSize = 20, keyword, targetType, standardType, isActive } = req.query;
+            const pagination = parsePagination(page, pageSize, {
+                defaultPageSize: 20,
+                maxPageSize: 100,
+            });
 
             const filters = {
                 keyword,
@@ -26,10 +31,10 @@ const qualityStandardController = {
             };
 
             const result = await QualityStandard.getStandards(
-                filters, parseInt(page), parseInt(pageSize)
+                filters, pagination.page, pagination.pageSize
             );
 
-            ResponseHandler.paginated(res, result.rows, result.total, parseInt(page), parseInt(pageSize));
+            ResponseHandler.paginated(res, result.rows, result.total, pagination.page, pagination.pageSize);
         } catch (error) {
             logger.error('获取质量标准列表失败:', error);
             ResponseHandler.error(res, '获取质量标准列表失败', 'SERVER_ERROR', 500, error);

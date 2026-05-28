@@ -63,6 +63,7 @@
   import { useRoute } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/services/api'
+  import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()
   const detail = ref(null)
@@ -83,7 +84,7 @@
   const loadDetail = async () => {
     try {
       const response = await purchaseApi.getReturn(route.params.id)
-      detail.value = response.data?.data || response.data || response
+      detail.value = extractApiData(response, null)
     } catch (error) {
       console.error('加载采购退货详情失败:', error)
       showToast('加载详情失败')
@@ -121,9 +122,9 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--van-background-2);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-bottom-space);
   }
   .content-container {
     padding: 12px;

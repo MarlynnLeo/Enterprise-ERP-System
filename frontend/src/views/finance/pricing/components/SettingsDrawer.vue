@@ -69,22 +69,22 @@
                 <code>{{ row.field_name }}</code>
               </template>
             </el-table-column>
-            <el-table-column prop="field_type" label="类型" width="80" align="center">
+            <el-table-column prop="field_type" label="类型" width="80">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.field_type === 'amount' ? 'primary' : 'warning'">
                   {{ row.field_type === 'amount' ? '金额' : '百分比' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="unit" label="单位" width="60" align="center" />
-            <el-table-column label="计入成本" width="80" align="center">
+            <el-table-column prop="unit" label="单位" width="60" />
+            <el-table-column label="计入成本" width="80">
               <template #default="{ row }">
-                <el-icon v-if="row.is_additive" color="#67C23A"><Check /></el-icon>
-                <el-icon v-else color="#909399"><Close /></el-icon>
+                <el-icon v-if="row.is_additive" color="var(--color-success)"><Check /></el-icon>
+                <el-icon v-else color="var(--color-text-secondary)"><Close /></el-icon>
               </template>
             </el-table-column>
             <el-table-column prop="description" label="描述" show-overflow-tooltip />
-            <el-table-column prop="is_active" label="状态" width="80" align="center">
+            <el-table-column prop="is_active" label="状态" width="80">
               <template #default="{ row }">
                 <el-switch
                   :model-value="row.is_active"
@@ -94,7 +94,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right" align="center">
+            <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="$emit('edit-field', row)" v-permission="'finance:pricing:update'">编辑</el-button>
                 <el-button type="danger" link size="small" @click="$emit('delete-field', row)" v-permission="'finance:pricing:delete'">删除</el-button>

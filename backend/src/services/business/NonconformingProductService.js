@@ -2,6 +2,7 @@ const NonconformingProduct = require('../../models/nonconformingProduct');
 const { logger } = require('../../utils/logger');
 const businessConfig = require('../../config/businessConfig');
 const QualityIntegrationService = require('./QualityIntegrationService');
+const NotificationService = require('../NotificationService');
 
 // Centralized NCP statuses from business config.
 const STATUS = {
@@ -142,16 +143,18 @@ class NonconformingProductService {
    * Auto create NCP when inspection completed with unqualified items
    * 增强版:根据检验类型和供应商信息自动判断责任方和严重程度
    */
-  static async autoCreateFromInspection(inspection) {
+  static async autoCreateFromInspection(inspection, externalConnection = null) {
     try {
       if (!inspection.unqualified_quantity || inspection.unqualified_quantity <= 0) {
         return null;
       }
 
+      const db = require('../../config/db');
+      const client = externalConnection || db.pool;
+
       // 幂等校验：防止同一检验单重复创建 NCP（双路径触发保护）
       if (inspection.id) {
-        const db = require('../../config/db');
-        const [existing] = await db.pool.query(
+        const [existing] = await client.query(
           'SELECT id, ncp_no FROM nonconforming_products WHERE inspection_id = ? AND deleted_at IS NULL',
           [inspection.id]
         );
@@ -202,10 +205,9 @@ class NonconformingProductService {
         inspectionTypeMap[inspection.inspection_type] || inspection.inspection_type;
 
       // 获取物料编码
-      const db = require('../../config/db');
       let materialCode = inspection.product_code;
       if (inspection.material_id) {
-        const [materialRows] = await db.pool.query('SELECT code FROM materials WHERE id = ?', [
+        const [materialRows] = await client.query('SELECT code FROM materials WHERE id = ?', [
           inspection.material_id,
         ]);
         if (materialRows && materialRows.length > 0) {
@@ -251,7 +253,7 @@ class NonconformingProductService {
         created_by: 'system',
       };
 
-      const result = await NonconformingProduct.create(data);
+      const result = await NonconformingProduct.create(data, externalConnection);
 
       logger.info(
         `✅ Auto-created NCP ${result.ncp_no} for inspection ${inspection.inspection_no}`,
@@ -267,7 +269,7 @@ class NonconformingProductService {
       );
 
       // 🤖 尝试自动处理决策
-      if (AUTO_DISPOSITION_CONFIG.enable) {
+      if (AUTO_DISPOSITION_CONFIG.enable && !externalConnection) {
         try {
           const autoRule = await this.autoDisposition(result.id, inspection);
           if (autoRule) {
@@ -955,13 +957,19 @@ class NonconformingProductService {
 
       // 发送通知给采购部门
       try {
-        await connection.query(
-          `INSERT INTO notifications (title, content, type, priority, created_at)
-           VALUES (?, ?, 'purchase_return', 1, NOW())`,
-          [
-            '采购退货通知',
-            `退货单 ${returnNo} 已自动创建。供应商: ${inspection.supplier_name}，物料: ${materialName}，退货数量: ${quantity}，原因: ${ncp.disposition_reason || '质量不合格'}。请及时跟进处理。`,
-          ]
+        await NotificationService.notifyByPermissions(
+          ['purchase:returns'],
+          {
+            type: 'purchase_return',
+            title: '采购退货通知',
+            content: `退货单 ${returnNo} 已自动创建。供应商: ${inspection.supplier_name}，物料: ${materialName}，退货数量: ${quantity}，原因: ${ncp.disposition_reason || '质量不合格'}。请及时跟进处理。`,
+            link: '/purchase/returns',
+            linkParams: { id: returnId },
+            priority: 1,
+            sourceType: 'purchase_return',
+            sourceId: returnId,
+          },
+          { dedupeByDay: true }
         );
         logger.info(`📧 退货通知已发送给采购部门，退货单: ${returnNo}`);
       } catch (notifyError) {

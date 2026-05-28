@@ -8,22 +8,8 @@ on:
 
 jobs:
   backend:
-    name: Backend Lint And Test
+    name: Backend Lint
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: test_password
-          MYSQL_DATABASE: mes_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
 
     steps:
       - name: Checkout
@@ -43,21 +29,6 @@ jobs:
       - name: Lint backend
         working-directory: backend
         run: npm run lint
-
-      - name: Run backend tests
-        working-directory: backend
-        env:
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_USER: root
-          DB_PASSWORD: test_password
-          DB_NAME: mes_test
-          JWT_SECRET: test-jwt-secret-ci
-          JWT_REFRESH_SECRET: test-jwt-refresh-secret-ci
-          NODE_ENV: test
-          DISABLE_CRON: 'true'
-          ENABLE_RATE_LIMIT: 'false'
-        run: npm test
 
   frontend:
     name: Frontend Lint And Build

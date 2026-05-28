@@ -1,29 +1,32 @@
 ﻿<template>
-  <div class="asset-inventory-container">
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>资产盘点管理</span>
-          <div class="header-actions">
-            <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新建盘点</el-button>
-          </div>
+  <div class="module-page asset-inventory-container">
+    <el-card class="header-card">
+      <div class="header-content">
+        <div class="title-section">
+          <h2>资产盘点管理</h2>
+          <p class="subtitle">管理固定资产盘点任务与盘点结果</p>
         </div>
-      </template>
+        <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新建盘点</el-button>
+      </div>
+    </el-card>
 
-      <!-- 搜索栏 -->
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="searchInventories"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="盘点状态">
           <el-select v-model="searchForm.status" placeholder="选择状态" clearable>
             <el-option label="进行中" value="进行中"></el-option>
             <el-option label="已完成" value="已完成"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchInventories">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
+      </template>
+    </FinanceQueryCard>
 
+    <el-card class="data-card">
       <!-- 表格 -->
       <el-table :data="inventoryList" v-loading="loading" border style="width: 100%; margin-top: 15px;">
         <el-table-column prop="inventory_no" label="盘点单号" width="160"></el-table-column>
@@ -35,8 +38,8 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="total_items" label="总资产数" width="100" align="center"></el-table-column>
-        <el-table-column label="盘点进度/结果" width="220" align="center">
+        <el-table-column prop="total_items" label="总资产数" width="100"></el-table-column>
+        <el-table-column label="盘点进度/结果" width="220">
           <template #default="scope">
             <template v-if="scope.row.status === '已完成'">
               <span class="text-success" v-if="scope.row.matched_items">一致: {{ scope.row.matched_items }}</span>
@@ -53,7 +56,7 @@
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" type="primary" @click="viewDetail(scope.row)">
               {{ scope.row.status === '进行中' ? '去盘点' : '查看报告' }}
@@ -137,8 +140,8 @@
           <el-table-column prop="asset_name" label="资产名称" min-width="200"></el-table-column>
           <el-table-column prop="category_name" label="类别" width="110"></el-table-column>
           <el-table-column prop="department" label="部门" width="100"></el-table-column>
-          <el-table-column prop="book_quantity" label="账面数量" width="100" align="center"></el-table-column>
-          <el-table-column label="实盘数量" width="100" align="center">
+          <el-table-column prop="book_quantity" label="账面数量" width="100"></el-table-column>
+          <el-table-column label="实盘数量" width="100">
             <template #default="scope">
               <span v-if="detailData.status === '已完成'">{{ scope.row.actual_quantity !== null ? scope.row.actual_quantity : '-' }}</span>
               <el-input-number
@@ -152,7 +155,7 @@
               ></el-input-number>
             </template>
           </el-table-column>
-          <el-table-column label="盘点状态" width="120" align="center">
+          <el-table-column label="盘点状态" width="120">
             <template #default="scope">
               <el-tag :type="getItemStatusType(scope.row.status)">
                 {{ scope.row.status }}
@@ -165,7 +168,7 @@
               <el-input v-else v-model="scope.row.editNotes" size="small" placeholder="差异说明..." @blur="saveItemNotes(scope.row)"></el-input>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right" v-if="detailData.status === '进行中'">
+          <el-table-column label="操作" width="100" fixed="right" v-if="detailData.status === '进行中'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-permission="'finance:assets:update'"

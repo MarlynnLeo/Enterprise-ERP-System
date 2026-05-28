@@ -10,6 +10,16 @@
 const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { financeConfig } = require('../../config/financeConfig');
+const PurchasePriceService = require('./PurchasePriceService');
+const {
+  lineAmount,
+  normalizeTaxRate,
+  roundMoney,
+  sumMoney,
+  taxAmount: calculateTaxAmount,
+  toNumber,
+} = require('../../utils/money');
+const { currentDateString } = require('../../utils/dateUtils');
 
 /**
  * 采购申请批准后自动生成采购订单
@@ -29,7 +39,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
 
     // 获取采购申请的基本信息
     const [requisitionRows] = await conn.execute(
-      'SELECT * FROM purchase_requisitions WHERE id = ?',
+      'SELECT * FROM purchase_requisitions WHERE id = ? FOR UPDATE',
       [requisitionId]
     );
     if (requisitionRows.length === 0) {
@@ -46,7 +56,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
         m.name as material_name,
         m.specs as material_specs,
         m.unit_id,
-        COALESCE(m.cost_price, m.price, 0) as material_price,
+        COALESCE(m.cost_price, 0) as material_price,
         u.name as unit_name,
         s.id as supplier_id,
         s.name as supplier_name,
@@ -96,33 +106,67 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
     }
 
     const purchaseModel = require('../../models/purchase');
-    const taxRate = Number(financeConfig.get('tax.defaultVATRate', 0));
+    const defaultTaxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0), 0);
+    const resolvedPrices = await PurchasePriceService.resolvePurchasePrices(
+      conn,
+      itemsRows.map((item) => ({
+        materialId: item.material_id,
+        materialCode: item.material_code,
+        supplierId: item.supplier_id,
+      }))
+    );
+
+    itemsRows.forEach((item, index) => {
+      const priceInfo = resolvedPrices[index] || {};
+      const resolvedTaxRate = normalizeTaxRate(priceInfo.tax_rate, defaultTaxRate);
+      item.material_price = toNumber(priceInfo.price, 0);
+      item.tax_rate = resolvedTaxRate > 0 ? resolvedTaxRate : defaultTaxRate;
+      item.price_source = priceInfo.source || 'none';
+    });
 
     // 为每个供应商生成采购订单
     for (const supplierId in itemsBySupplier) {
       const supplierData = itemsBySupplier[supplierId];
       const orderNo = await purchaseModel.generateOrderNo(conn);
 
-      let totalAmount = 0;
-      for (const item of supplierData.items) {
-        totalAmount += (parseFloat(item.quantity) || 0) * (parseFloat(item.material_price) || 0);
-      }
+      const calculatedItems = supplierData.items.map((item) => {
+        const quantity = toNumber(item.quantity, 0);
+        const price = toNumber(item.material_price, 0);
+        const subtotal = lineAmount(quantity, price);
+        const taxRate = normalizeTaxRate(item.tax_rate, defaultTaxRate);
+        const taxAmount = calculateTaxAmount(subtotal, taxRate);
+
+        return {
+          ...item,
+          quantity,
+          price,
+          subtotal,
+          tax_rate: taxRate,
+          tax_amount: taxAmount,
+        };
+      });
+      const subtotal = sumMoney(calculatedItems.map((item) => item.subtotal));
+      const taxAmountTotal = sumMoney(calculatedItems.map((item) => item.tax_amount));
+      const totalAmount = roundMoney(subtotal + taxAmountTotal);
 
       const [orderResult] = await conn.execute(
         `INSERT INTO purchase_orders (
           order_no, order_date, supplier_id, supplier_name, contract_code,
           expected_delivery_date, contact_person, contact_phone,
-          total_amount, remarks, status, requisition_id, requisition_number
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          subtotal, tax_rate, tax_amount, total_amount, remarks, status, requisition_id, requisition_number
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderNo,
-          new Date().toISOString().split('T')[0],
+          currentDateString(),
           supplierData.supplier_id,
           supplierData.supplier_name,
           requisition.contract_code || null,
           null,
           supplierData.contact_person,
           supplierData.contact_phone,
+          subtotal,
+          defaultTaxRate,
+          taxAmountTotal,
           totalAmount,
           `由采购申请 ${requisition.requisition_number || requisitionId} 自动生成`,
           'draft',
@@ -132,21 +176,16 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       );
       const orderId = orderResult.insertId;
 
-      for (const item of supplierData.items) {
-        const quantity = parseFloat(item.quantity) || 0;
-        const price = parseFloat(item.material_price) || 0;
-        const total = quantity * price;
-        const taxAmount = total * taxRate;
-
+      for (const item of calculatedItems) {
         await conn.execute(
           `INSERT INTO purchase_order_items (
             order_id, material_id, material_code, material_name,
-            specification, quantity, price, total,
+            specification, quantity, price, unit_price, total, amount,
             unit, unit_id, tax_rate, tax_amount
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.material_id, item.material_code, item.material_name,
-           item.material_specs, quantity, price, total,
-           item.unit_name, item.unit_id, taxRate, taxAmount]
+           item.material_specs, item.quantity, item.price, item.price, item.subtotal, item.subtotal,
+           item.unit_name, item.unit_id, item.tax_rate, item.tax_amount]
         );
       }
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -27,13 +27,13 @@
         <el-table-column prop="business_type" label="业务类型" width="140">
           <template #default="{ row }">{{ btLabel[row.business_type] || row.business_type }}</template>
         </el-table-column>
-        <el-table-column prop="node_count" label="节点数" width="80" align="center" />
+        <el-table-column prop="node_count" label="节点数" width="80" />
         <el-table-column prop="is_active" label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="210" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewTemplate(row)">详情</el-button>
             <el-button link type="primary" v-permission="'system:workflow:edit'" @click="openTemplateForm(row)">编辑</el-button>
@@ -60,7 +60,7 @@
             <el-tag :type="sTag[row.status || row.instance_status] || 'info'" size="small">{{ sLabel[row.status || row.instance_status] || row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="200" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewInstance(row)">详情</el-button>
             <template v-if="activeTab === 'pending'">
@@ -266,5 +266,4 @@ onMounted(fetchData)
 </script>
 
 <style scoped>
-/* 页面专属样式已由 common-styles.css 统一提供 */
 </style>

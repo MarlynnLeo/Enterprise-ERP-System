@@ -18,10 +18,30 @@ const {
 const { PRODUCTION_STATUS_KEYS, PRODUCTION_PLAN_STATUS_FLOW, getProductionStatusText } = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
-const { appendPaginationSQL } = require('../../../utils/safePagination');
+const { appendPaginationSQL, parsePagination } = require('../../../utils/safePagination');
+const PermissionService = require('../../../services/PermissionService');
+const { PermissionUtils } = require('../../../utils/authUtils');
 
 // 计划状态常量别名
 const PLAN_STATUS = businessConfig.status.productionPlan;
+
+const PLAN_STATUS_PERMISSION_MAP = {
+  [PRODUCTION_STATUS_KEYS.CANCELLED]: 'production:plans:cancel',
+  [PRODUCTION_STATUS_KEYS.COMPLETED]: 'production:plans:close',
+};
+
+async function ensurePlanStatusPermission(req, res, targetStatus) {
+  const requiredPermission = PLAN_STATUS_PERMISSION_MAP[targetStatus] || 'production:plans:update';
+  const userPermissions = req.userPermissions || await PermissionService.getUserPermissions(req.user.id);
+
+  if (PermissionUtils.hasAnyPermission(userPermissions, ['production:plans:update', requiredPermission])) {
+    req.userPermissions = userPermissions;
+    return true;
+  }
+
+  ResponseHandler.forbidden(res, `权限不足，需要权限 ${requiredPermission}`);
+  return false;
+}
 
 /**
  * 获取当天的最大序号
@@ -49,9 +69,10 @@ exports.getTodayMaxSequence = async (req, res) => {
  */
 exports.getProductionPlans = async (req, res) => {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const pageSize = parseInt(req.query.pageSize, 10) || 10;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+      defaultPageSize: 10,
+      maxPageSize: 100,
+    });
     const code = req.query.code || '';
     const contract_code = req.query.contract_code || '';
     const product = req.query.product || '';
@@ -74,7 +95,7 @@ exports.getProductionPlans = async (req, res) => {
     }
 
     // 构建查询条件
-    const conditions = [];
+    const conditions = ['pp.deleted_at IS NULL'];
     const params = [];
 
     // 优先使用 keyword 参数（合并搜索）
@@ -156,19 +177,35 @@ exports.getProductionPlans = async (req, res) => {
 
     // 查询数据（添加库存状态检查）
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
-    const actualPageSize = parseInt(pageSize);
-    const actualOffset = parseInt(offset);
-    const query = `
+    const query = appendPaginationSQL(`
       SELECT
         pp.id, pp.code, pp.name, pp.start_date, pp.end_date, pp.delivery_date,
         pp.quantity, pp.pushed_quantity, pp.status, pp.remark, pp.created_at, pp.updated_at,
         pp.product_id, pp.contract_code, pp.bom_id, pp.bom_version,
+        COALESCE(ts.completed_quantity, 0) as completed_quantity,
+        COALESCE(ts.task_quantity, 0) as task_quantity,
+        COALESCE(ts.task_count, 0) as task_count,
+        CASE
+          WHEN pp.quantity > 0 THEN LEAST(100, ROUND((COALESCE(ts.completed_quantity, 0) / pp.quantity) * 100))
+          WHEN pp.status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 100
+          ELSE 0
+        END as progress,
         m.name as productName,
         m.code as product_code,
         m.specs as specification,
         u.name as unit,
         ms.material_stock_status
       FROM production_plans pp
+      LEFT JOIN (
+        SELECT
+          plan_id,
+          SUM(CASE WHEN status <> '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN quantity ELSE 0 END) as task_quantity,
+          SUM(CASE WHEN status <> '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN completed_quantity ELSE 0 END) as completed_quantity,
+          SUM(CASE WHEN status <> '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as task_count
+        FROM production_tasks
+        WHERE deleted_at IS NULL
+        GROUP BY plan_id
+      ) ts ON ts.plan_id = pp.id
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       LEFT JOIN (
@@ -191,12 +228,10 @@ exports.getProductionPlans = async (req, res) => {
       ) ms ON ms.plan_id = pp.id
       ${whereClause}
       ORDER BY pp.code DESC
-      LIMIT ? OFFSET ?
-    `;
+    `, pagination.limit, pagination.offset);
 
     // LIMIT/OFFSET 使用参数化查询
-    const paginatedParams = [...params, actualPageSize, actualOffset];
-    const [plans] = await pool.query(query, paginatedParams);
+    const [plans] = await pool.query(query, params);
 
     // 处理数据格式
     const formattedPlans = plans.map((plan) => ({
@@ -207,20 +242,15 @@ exports.getProductionPlans = async (req, res) => {
       unit: plan.unit || '',
     }));
 
-    // 手动构建响应，额外包含统计数据（ResponseHandler.paginated 不支持扩展字段）
-    res.status(200).json({
-      success: true,
-      message: '查询成功',
-      data: {
-        list: formattedPlans,
-        total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
-        totalPages: Math.ceil(total / pageSize),
-        statistics,
-      },
-      timestamp: new Date().toISOString(),
-    });
+    ResponseHandler.paginated(
+      res,
+      formattedPlans,
+      total,
+      pagination.page,
+      pagination.pageSize,
+      '查询成功',
+      { statistics }
+    );
   } catch (error) {
     logger.error('获取生产计划列表失败:', error);
     handleError(res, error);
@@ -348,14 +378,32 @@ exports.getProductionPlanById = async (req, res) => {
     const [plans] = await pool.query(
       `
       SELECT pp.*,
+             COALESCE(ts.completed_quantity, 0) as completed_quantity,
+             COALESCE(ts.task_quantity, 0) as task_quantity,
+             COALESCE(ts.task_count, 0) as task_count,
+             CASE
+               WHEN pp.quantity > 0 THEN LEAST(100, ROUND((COALESCE(ts.completed_quantity, 0) / pp.quantity) * 100))
+               WHEN pp.status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 100
+               ELSE 0
+             END as progress,
              m.name as productName,
              m.code as product_code,
              m.specs as specification,
              u.name as unit
       FROM production_plans pp
+      LEFT JOIN (
+        SELECT
+          plan_id,
+          SUM(CASE WHEN status <> '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN quantity ELSE 0 END) as task_quantity,
+          SUM(CASE WHEN status <> '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN completed_quantity ELSE 0 END) as completed_quantity,
+          SUM(CASE WHEN status <> '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as task_count
+        FROM production_tasks
+        WHERE deleted_at IS NULL
+        GROUP BY plan_id
+      ) ts ON ts.plan_id = pp.id
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
-      WHERE pp.id = ?
+      WHERE pp.id = ? AND pp.deleted_at IS NULL
     `,
       [id]
     );
@@ -553,11 +601,12 @@ exports.updateProductionPlan = async (req, res) => {
     const formattedDeliveryDate = delivery_date ? new Date(delivery_date).toISOString().split('T')[0] : null;
 
     // 检查计划状态
-    const [plans] = await connection.query('SELECT status, quantity FROM production_plans WHERE id = ?', [
+    const [plans] = await connection.query('SELECT status, quantity FROM production_plans WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
     if (plans.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
     }
 
@@ -574,9 +623,11 @@ exports.updateProductionPlan = async (req, res) => {
       // pushed_quantity 为增量值时的目标值
       const targetPushed = Number(pushed_quantity);
       if (targetPushed < 0) {
+        await connection.rollback();
         return ResponseHandler.error(res, '下推数量不能为负数', 'VALIDATION_ERROR', 400);
       }
       if (targetPushed > currentQuantity) {
+        await connection.rollback();
         return ResponseHandler.error(
           res,
           `下推数量(${targetPushed})不能超过计划总数量(${currentQuantity})`,
@@ -596,6 +647,7 @@ exports.updateProductionPlan = async (req, res) => {
 
     // 其他字段只能在草稿状态修改
     if (plans[0].status !== 'draft') {
+      await connection.rollback();
       return ResponseHandler.error(res, '只能修改草稿状态的生产计划', 'VALIDATION_ERROR', 400);
     }
 
@@ -645,15 +697,17 @@ exports.deleteProductionPlan = async (req, res) => {
     const { id } = req.params;
 
     // 检查计划状态
-    const [plans] = await connection.query('SELECT status FROM production_plans WHERE id = ?', [
+    const [plans] = await connection.query('SELECT status FROM production_plans WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
     if (plans.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
     }
 
     if (plans[0].status !== 'draft') {
+      await connection.rollback();
       return ResponseHandler.error(res, '只能删除草稿状态的生产计划', 'VALIDATION_ERROR', 400);
     }
 
@@ -689,7 +743,13 @@ exports.updateProductionPlanStatus = async (req, res) => {
     // 验证状态值是否有效（使用统一状态流转规则的 key 集合）
     const validStatuses = Object.keys(PRODUCTION_PLAN_STATUS_FLOW);
     if (!validStatuses.includes(status)) {
+      await connection.rollback();
       return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!(await ensurePlanStatusPermission(req, res, status))) {
+      await connection.rollback();
+      return;
     }
 
     // 检查生产计划是否存在（使用 FOR UPDATE 加行级锁防止并发）
@@ -699,6 +759,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     );
 
     if (plans.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
     }
 
@@ -706,6 +767,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     const allowedTargets = PRODUCTION_PLAN_STATUS_FLOW[currentStatus] || [];
 
     if (!allowedTargets.includes(status)) {
+      await connection.rollback();
       return ResponseHandler.error(
         res,
         `不允许从「${getProductionStatusText(currentStatus)}」变更为「${getProductionStatusText(status)}」`,
@@ -731,6 +793,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
 
       // 统一使用状态常量
       if (status === PRODUCTION_STATUS_KEYS.COMPLETED && activeTotal > 0 && stats.completed_count < activeTotal) {
+        await connection.rollback();
         return ResponseHandler.error(
           res,
           `还有 ${activeTotal - stats.completed_count} 个任务未完成，无法将计划标记为已完成`,
@@ -748,6 +811,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     );
 
     if (updateResult.affectedRows === 0) {
+      await connection.rollback();
       return ResponseHandler.error(
         res,
         '计划已被其他用户修改，请刷新后重试',
@@ -825,7 +889,7 @@ exports.getDashboardProductionPlans = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
-    const safeLimit = parseInt(limit, 10) || 10;
+    const safeLimit = Math.max(1, Math.min(parseInt(limit, 10) || 10, 100));
 
     const dashboardStatuses = [
       PRODUCTION_STATUS_KEYS.IN_PROGRESS,

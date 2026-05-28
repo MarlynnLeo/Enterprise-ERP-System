@@ -18,9 +18,43 @@ const {
 } = require('../constants/financeConstants');
 const { getUserIdByIdentifier } = require('../utils/userUtils');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { currentDateString, toLocalDateString } = require('../utils/dateUtils');
 
-const toCents = value => Math.round((parseFloat(value) || 0) * 100);
-const fromCents = value => value / 100;
+const toCents = (value) => Math.round((parseFloat(value) || 0) * 100);
+const fromCents = (value) => value / 100;
+
+const resolveInvoiceItemAmount = (item) =>
+  item.amount !== undefined && item.amount !== null
+    ? parseFloat(item.amount)
+    : (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
+
+const assertInvoiceItemsMatchTotal = (items, totalAmount) => {
+  if (!Array.isArray(items) || items.length === 0) return;
+
+  const totalCents = toCents(totalAmount);
+  const itemTotalCents = items.reduce(
+    (sum, item) => sum + toCents(resolveInvoiceItemAmount(item)),
+    0
+  );
+  if (itemTotalCents !== totalCents) {
+    throw new Error(
+      `应收发票明细合计 ${fromCents(itemTotalCents).toFixed(2)} 与发票总额 ${fromCents(totalCents).toFixed(2)} 不一致`
+    );
+  }
+};
+
+const normalizeInvoiceAmountPolicy = (invoiceData) => {
+  const totalCents = toCents(invoiceData.total_amount);
+  if (totalCents < 0 && invoiceData.source_type !== 'sales_return') {
+    throw new Error('Negative AR invoices must be sales_return credit notes');
+  }
+
+  return {
+    totalAmount: fromCents(totalCents),
+    absoluteAmount: Math.abs(totalCents) / 100,
+    isCreditNote: totalCents < 0,
+  };
+};
 
 const SETTLEMENT_STATUSES = new Set([
   INVOICE_STATUS.CONFIRMED,
@@ -29,7 +63,7 @@ const SETTLEMENT_STATUSES = new Set([
 ]);
 
 const getOpenPeriodIdByDate = async (connection, entryDate) => {
-  const date = entryDate || new Date().toISOString().slice(0, 10);
+  const date = toLocalDateString(entryDate || currentDateString());
   const [periods] = await connection.execute(
     `SELECT id, period_name
      FROM gl_periods
@@ -92,10 +126,9 @@ const ensureNoActiveInvoiceEntry = async (connection, documentNumber) => {
 
 const getEntryNumberById = async (connection, entryId) => {
   if (!entryId) return null;
-  const [entries] = await connection.execute(
-    'SELECT entry_number FROM gl_entries WHERE id = ?',
-    [entryId]
-  );
+  const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [
+    entryId,
+  ]);
   return entries[0]?.entry_number || null;
 };
 
@@ -150,15 +183,16 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = '
   await financeConfig.loadFromDatabase(db);
   const receivableAccountId = await getAccountIdByCode(
     connection,
-    accountingConfig.getAccountCode('ACCOUNTS_RECEIVABLE') || '1122',
+    accountingConfig.getAccountCode('ACCOUNTS_RECEIVABLE'),
     '应收账款'
   );
   const incomeAccountId = await getAccountIdByCode(
     connection,
-    accountingConfig.getAccountCode('SALES_REVENUE') || '6001',
+    accountingConfig.getAccountCode('SALES_REVENUE'),
     '销售收入'
   );
   const periodId = await getOpenPeriodIdByDate(connection, invoice.invoice_date);
+  const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
 
   const entryId = await financeModel.createEntry(
     {
@@ -175,16 +209,16 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = '
     [
       {
         account_id: receivableAccountId,
-        debit_amount: invoice.total_amount,
-        credit_amount: 0,
+        debit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
+        credit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
         currency_code: invoice.currency_code || 'CNY',
         exchange_rate: invoice.exchange_rate || 1,
         description: `应收账款 - 发票号: ${invoice.invoice_number}`,
       },
       {
         account_id: incomeAccountId,
-        debit_amount: 0,
-        credit_amount: invoice.total_amount,
+        debit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
+        credit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
         currency_code: invoice.currency_code || 'CNY',
         exchange_rate: invoice.exchange_rate || 1,
         description: `销售收入 - 发票号: ${invoice.invoice_number}`,
@@ -213,13 +247,13 @@ const buildReceiptGlEntry = async (connection, receiptData) => {
   await accountingConfig.loadFromDatabase(db);
   const receivableAccountId = await getAccountIdByCode(
     connection,
-    accountingConfig.getAccountCode('ACCOUNTS_RECEIVABLE') || '1122',
+    accountingConfig.getAccountCode('ACCOUNTS_RECEIVABLE'),
     '应收账款'
   );
   const cashOrBankCode =
     receiptData.payment_method === '现金'
-      ? accountingConfig.getAccountCode('CASH') || '1001'
-      : accountingConfig.getAccountCode('BANK_DEPOSIT') || '1002';
+      ? accountingConfig.getAccountCode('CASH')
+      : accountingConfig.getAccountCode('BANK_DEPOSIT');
   const bankAccountId = await getAccountIdByCode(connection, cashOrBankCode, '银行/现金');
   const periodId = await getOpenPeriodIdByDate(connection, receiptData.receipt_date);
 
@@ -248,7 +282,9 @@ const arModel = {
       }
 
       // 计算余额
-      const balanceAmount = invoiceData.total_amount;
+      const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
+      const balanceAmount = amountPolicy.totalAmount;
+      assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount);
 
       // 插入应收账款发票
       const [result] = await connection.query(
@@ -262,7 +298,7 @@ const arModel = {
           invoiceData.customer_id,
           invoiceData.invoice_date,
           invoiceData.due_date,
-          invoiceData.total_amount,
+          amountPolicy.totalAmount,
           0, // 初始已付金额为0
           balanceAmount,
           invoiceData.currency_code || 'CNY',
@@ -279,7 +315,7 @@ const arModel = {
 
       // 批量插入发票明细项（1次SQL替代N次）
       if (invoiceData.items && Array.isArray(invoiceData.items) && invoiceData.items.length > 0) {
-        const itemValues = invoiceData.items.map(item => [
+        const itemValues = invoiceData.items.map((item) => [
           invoiceId,
           item.product_id || null,
           item.description || item.product_name || '',
@@ -336,8 +372,8 @@ const arModel = {
           // 借：应收账款
           {
             account_id: invoiceData.gl_entry.receivable_account_id ?? null,
-            debit_amount: invoiceData.total_amount ?? 0,
-            credit_amount: 0,
+            debit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
+            credit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
             currency_code: invoiceData.currency_code ?? 'CNY',
             exchange_rate: invoiceData.exchange_rate ?? 1,
             description: `应收账款 - 发票号: ${invoiceData.invoice_number}`,
@@ -345,8 +381,8 @@ const arModel = {
           // 贷：销售收入
           {
             account_id: invoiceData.gl_entry.income_account_id ?? null,
-            debit_amount: 0,
-            credit_amount: invoiceData.total_amount ?? 0,
+            debit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
+            credit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
             currency_code: invoiceData.currency_code ?? 'CNY',
             exchange_rate: invoiceData.exchange_rate ?? 1,
             description: `销售收入 - 发票号: ${invoiceData.invoice_number}`,
@@ -409,9 +445,11 @@ const arModel = {
     let connection = null;
 
     // 限制一次获取的数据量
-    const actualPageSize = Math.min(pageSize, 10000);
+    const actualPageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
     try {
+      connection = await db.getConnection();
+
       // 构建基本查询
       let query = `
         SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
@@ -462,48 +500,8 @@ const arModel = {
       const offset = parseInt((page - 1) * actualPageSize);
       query += ` ORDER BY a.invoice_date DESC, a.id DESC LIMIT ${limit} OFFSET ${offset}`;
 
-      // 安全获取连接
-      try {
-        connection = await db.getConnection();
-      } catch (connError) {
-        logger.error('获取数据库连接失败:', connError);
-        // 如果获取连接失败，返回空结果
-        return {
-          invoices: [],
-          pagination: {
-            total: 0,
-            page: page,
-            pageSize: actualPageSize,
-            totalPages: 0,
-          },
-        };
-      }
-
-      // 执行发票查询
-      let invoices = [];
-      try {
-        const [invoiceResults] = await connection.execute(query, params);
-        invoices = invoiceResults || [];
-      } catch (queryError) {
-        logger.error('执行发票查询失败:', queryError);
-        if (connection) {
-          try {
-            connection.release();
-          } catch (releaseError) {
-            logger.error('释放连接失败:', releaseError);
-          }
-          connection = null;
-        }
-        return {
-          invoices: [],
-          pagination: {
-            total: 0,
-            page: page,
-            pageSize: actualPageSize,
-            totalPages: 0,
-          },
-        };
-      }
+      const [invoiceResults] = await connection.execute(query, params);
+      const invoices = invoiceResults || [];
 
       // 计算总记录数
       const countQuery = `
@@ -514,13 +512,14 @@ const arModel = {
         ${filters.invoice_number ? ' AND a.invoice_number LIKE ?' : ''}
         ${filters.customer_id ? ' AND a.customer_id = ?' : ''}
         ${filters.customer_name ? ' AND c.name LIKE ?' : ''}
-        ${filters.start_date && filters.end_date
-          ? ' AND a.invoice_date BETWEEN ? AND ?'
-          : filters.start_date
-            ? ' AND a.invoice_date >= ?'
-            : filters.end_date
-              ? ' AND a.invoice_date <= ?'
-              : ''
+        ${
+          filters.start_date && filters.end_date
+            ? ' AND a.invoice_date BETWEEN ? AND ?'
+            : filters.start_date
+              ? ' AND a.invoice_date >= ?'
+              : filters.end_date
+                ? ' AND a.invoice_date <= ?'
+                : ''
         }
         ${filters.status ? ' AND a.status = ?' : ''}
       `;
@@ -539,25 +538,8 @@ const arModel = {
       }
       if (filters.status) countParams.push(filters.status);
 
-      // 执行总数查询
-      let total = 0;
-      try {
-        const [countResult] = await connection.execute(countQuery, countParams);
-        total = countResult[0]?.total || 0;
-      } catch {
-        // 如果获取总数失败，使用已获取记录的长度
-        total = invoices.length;
-      }
-
-      // 在结果返回前确保释放连接
-      if (connection) {
-        try {
-          connection.release();
-          connection = null;
-        } catch {
-          // 释放连接失败
-        }
-      }
+      const [countResult] = await connection.execute(countQuery, countParams);
+      const total = countResult[0]?.total || 0;
 
       return {
         invoices,
@@ -568,24 +550,12 @@ const arModel = {
           totalPages: Math.ceil(total / actualPageSize),
         },
       };
-    } catch {
-      // 返回空结果而不是抛出错误，确保前端不会崩溃
-      return {
-        invoices: [],
-        pagination: {
-          total: 0,
-          page: page,
-          pageSize: pageSize,
-          totalPages: 0,
-        },
-      };
+    } catch (error) {
+      logger.error('获取应收账款发票列表失败:', error);
+      throw error;
     } finally {
       if (connection) {
-        try {
-          connection.release();
-        } catch {
-          // 在finally中释放数据库连接失败
-        }
+        connection.release();
       }
     }
   },
@@ -597,71 +567,44 @@ const arModel = {
     let connection = null;
 
     try {
-      // 尝试获取连接
-      try {
-        connection = await db.getConnection();
-      } catch (connError) {
-        logger.error('获取数据库连接失败:', connError);
+      connection = await db.getConnection();
+
+      const [invoices] = await connection.execute(
+        `SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
+                DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
+                DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
+                a.total_amount, a.paid_amount, a.balance_amount,
+                a.status, a.currency_code, a.terms, a.notes,
+                a.source_type, a.source_id
+         FROM ar_invoices a
+         LEFT JOIN customers c ON a.customer_id = c.id
+         WHERE a.id = ?`,
+        [id]
+      );
+
+      if (invoices.length === 0) {
         return null;
       }
 
-      // 执行查询
-      let invoice = null;
-      try {
-        const [invoices] = await connection.execute(
-          `SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
-                  DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
-                  DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
-                  a.total_amount, a.paid_amount, a.balance_amount,
-                  a.status, a.currency_code, a.terms, a.notes,
-                  a.source_type, a.source_id
-           FROM ar_invoices a
-           LEFT JOIN customers c ON a.customer_id = c.id
-           WHERE a.id = ?`,
-          [id]
-        );
-
-        if (invoices.length > 0) {
-          invoice = invoices[0];
-
-          // 查询发票明细项
-          const [items] = await connection.execute(
-            `SELECT i.id, i.product_id as productId, i.description,
-                    i.quantity, i.unit_price as unitPrice, i.amount,
-                    p.name as productName
-             FROM ar_invoice_items i
-             LEFT JOIN materials p ON i.product_id = p.id
-             WHERE i.invoice_id = ?
-             ORDER BY i.id ASC`,
-            [id]
-          );
-          invoice.items = items;
-        }
-      } catch (queryError) {
-        logger.error('查询发票详情失败:', queryError);
-        return null;
-      } finally {
-        // 确保连接被释放
-        if (connection) {
-          try {
-            connection.release();
-            connection = null;
-          } catch (releaseError) {
-            logger.error('释放连接失败:', releaseError);
-          }
-        }
-      }
-
+      const invoice = invoices[0];
+      const [items] = await connection.execute(
+        `SELECT i.id, i.product_id as productId, i.description,
+                i.quantity, i.unit_price as unitPrice, i.amount,
+                p.name as productName
+         FROM ar_invoice_items i
+         LEFT JOIN materials p ON i.product_id = p.id
+         WHERE i.invoice_id = ?
+         ORDER BY i.id ASC`,
+        [id]
+      );
+      invoice.items = items;
       return invoice;
-    } catch {
-      return null; // 返回null而不是抛出异常，防止应用崩溃
+    } catch (error) {
+      logger.error('查询应收账款发票详情失败:', error);
+      throw error;
     } finally {
       if (connection) {
-        try {
-          connection.release();
-        } catch {
-          // 在finally中释放数据库连接失败
-        }
+        connection.release();
       }
     }
   },
@@ -695,7 +638,8 @@ const arModel = {
       assertManualStatusTransition(invoice.status, status);
 
       if (invoice.status !== status && status === INVOICE_STATUS.CONFIRMED) {
-        if (toCents(invoice.total_amount) <= 0) {
+        const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
+        if (!amountPolicy.isCreditNote && toCents(invoice.total_amount) <= 0) {
           throw new Error('发票金额必须大于0才能确认');
         }
         await createInvoiceConfirmationEntry(
@@ -765,14 +709,17 @@ const arModel = {
         const requestedTotal = invoiceData.total_amount;
         const hasFinancialChange =
           (requestedTotal !== undefined &&
-            Math.abs(parseFloat(requestedTotal || 0) - parseFloat(currentInvoice.total_amount || 0)) >
-              0.01) ||
+            Math.abs(
+              parseFloat(requestedTotal || 0) - parseFloat(currentInvoice.total_amount || 0)
+            ) > 0.01) ||
           (invoiceData.invoice_number &&
             invoiceData.invoice_number !== currentInvoice.invoice_number) ||
           (invoiceData.customer_id &&
             Number(invoiceData.customer_id) !== Number(currentInvoice.customer_id)) ||
-          (invoiceData.invoice_date && String(invoiceData.invoice_date) !== String(currentInvoice.invoice_date)) ||
-          (invoiceData.due_date && String(invoiceData.due_date) !== String(currentInvoice.due_date)) ||
+          (invoiceData.invoice_date &&
+            String(invoiceData.invoice_date) !== String(currentInvoice.invoice_date)) ||
+          (invoiceData.due_date &&
+            String(invoiceData.due_date) !== String(currentInvoice.due_date)) ||
           (Array.isArray(invoiceData.items) && invoiceData.items.length > 0);
 
         if (hasFinancialChange) {
@@ -787,11 +734,7 @@ const arModel = {
                notes = ?,
                updated_at = NOW()
            WHERE id = ?`,
-          [
-            invoiceData.customer_invoice_number || null,
-            invoiceData.notes ?? null,
-            invoiceData.id,
-          ]
+          [invoiceData.customer_invoice_number || null, invoiceData.notes ?? null, invoiceData.id]
         );
 
         await connection.commit();
@@ -805,8 +748,10 @@ const arModel = {
       }
 
       const paidAmount = parseFloat(currentInvoice.paid_amount || 0);
-      const totalAmount = parseFloat(invoiceData.total_amount || 0);
+      const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
+      const totalAmount = amountPolicy.totalAmount;
       const balanceAmount = totalAmount - paidAmount;
+      assertInvoiceItemsMatchTotal(invoiceData.items, totalAmount);
 
       // 更新发票主表
       await connection.execute(
@@ -836,19 +781,21 @@ const arModel = {
 
       // 更新明细项: 先删除旧明细，再按当前提交重建
       if (invoiceData.items && Array.isArray(invoiceData.items)) {
-        await connection.execute(
-          'DELETE FROM ar_invoice_items WHERE invoice_id = ?',
-          [invoiceData.id]
-        );
+        await connection.execute('DELETE FROM ar_invoice_items WHERE invoice_id = ?', [
+          invoiceData.id,
+        ]);
 
         if (invoiceData.items.length > 0) {
-          const itemValues = invoiceData.items.map(item => [
+          const itemValues = invoiceData.items.map((item) => [
             invoiceData.id,
             item.product_id || null,
             item.description || '',
             item.quantity || 0,
             item.unit_price || 0,
-            item.amount || Math.round((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0) * 100) / 100,
+            item.amount ||
+              Math.round(
+                (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0) * 100
+              ) / 100,
           ]);
           await connection.query(
             `INSERT INTO ar_invoice_items
@@ -866,7 +813,11 @@ const arModel = {
           'SELECT source_type, source_id FROM ar_invoices WHERE id = ?',
           [invoiceData.id]
         );
-        if (arSource.length > 0 && arSource[0].source_type === 'sales_order' && arSource[0].source_id) {
+        if (
+          arSource.length > 0 &&
+          arSource[0].source_type === 'sales_order' &&
+          arSource[0].source_id
+        ) {
           // 通过销售订单ID查找对应的销售出库单
           const [outbounds] = await connection.execute(
             'SELECT id FROM sales_outbound WHERE order_id = ?',
@@ -876,14 +827,17 @@ const arModel = {
             const [syncResult] = await connection.execute(
               `UPDATE tax_invoices
                SET invoice_number = ?, updated_at = NOW()
-               WHERE related_document_type = '销售出库单' AND related_document_id = ?`,
+               WHERE related_document_type = '销售出库单'
+                 AND related_document_id = ?
+                 AND status = '未认证'
+                 AND gl_entry_id IS NULL`,
               [invoiceData.customer_invoice_number, ob.id]
             );
             if (syncResult.affectedRows > 0) {
               logger.info('[AR→Tax同步] 开票号码已同步到税务发票', {
                 arInvoiceId: invoiceData.id,
                 customerInvoiceNumber: invoiceData.customer_invoice_number,
-                outboundId: ob.id
+                outboundId: ob.id,
               });
             }
           }
@@ -898,13 +852,21 @@ const arModel = {
     } catch (error) {
       logger.error('更新应收账款发票失败:', error);
       if (connection) {
-        try { await connection.rollback(); } catch { /* 忽略 */ }
+        try {
+          await connection.rollback();
+        } catch {
+          /* 忽略 */
+        }
         // 静默忽略该错误
       }
       throw error;
     } finally {
       if (connection) {
-        try { connection.release(); } catch { /* 忽略 */ }
+        try {
+          connection.release();
+        } catch {
+          /* 忽略 */
+        }
         // 静默忽略该错误
       }
     }
@@ -978,7 +940,9 @@ const arModel = {
         const invoice = invoices[0];
         linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
         if (!SETTLEMENT_STATUSES.has(invoice.status)) {
-          throw new Error(`发票 ${invoice.invoice_number} 当前状态为"${invoice.status}"，不能直接收款`);
+          throw new Error(
+            `发票 ${invoice.invoice_number} 当前状态为"${invoice.status}"，不能直接收款`
+          );
         }
 
         // 插入收款明细
@@ -992,7 +956,9 @@ const arModel = {
         const receiveAmount = toCents(item.amount);
         if (receiveAmount > currentBalance + 1) {
           // 允许1分钱容差（浮点数取整误差）
-          throw new Error(`收款金额 ${item.amount} 超过发票 ${invoice.invoice_number} 余额 ${invoice.balance_amount}`);
+          throw new Error(
+            `收款金额 ${item.amount} 超过发票 ${invoice.invoice_number} 余额 ${invoice.balance_amount}`
+          );
         }
 
         // ===== [H-2] 整数化精度控制 =====
@@ -1249,7 +1215,7 @@ const arModel = {
     let connection;
     try {
       // 限制一次获取的数据量
-      const actualPageSize = Math.min(pageSize, 10000);
+      const actualPageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
       let query = `
         SELECT r.*, c.name as customer_name,
@@ -1329,23 +1295,26 @@ const arModel = {
         ${filters.receipt_number ? ' AND r.receipt_number LIKE ?' : ''}
         ${filters.customer_id ? ' AND r.customer_id = ?' : ''}
         ${filters.customer_name ? ' AND c.name LIKE ?' : ''}
-        ${filters.start_date && filters.end_date
-          ? ' AND r.receipt_date BETWEEN ? AND ?'
-          : filters.start_date
-            ? ' AND r.receipt_date >= ?'
-            : filters.end_date
-              ? ' AND r.receipt_date <= ?'
-              : ''
+        ${
+          filters.start_date && filters.end_date
+            ? ' AND r.receipt_date BETWEEN ? AND ?'
+            : filters.start_date
+              ? ' AND r.receipt_date >= ?'
+              : filters.end_date
+                ? ' AND r.receipt_date <= ?'
+                : ''
         }
         ${filters.payment_method ? ' AND r.payment_method = ?' : ''}
         ${filters.status ? ' AND r.status = ?' : ''}
-        ${filters.invoice_number
-          ? ` AND EXISTS (
+        ${
+          filters.invoice_number
+            ? ` AND EXISTS (
               SELECT 1 FROM ar_receipt_items ri
               JOIN ar_invoices i ON ri.invoice_id = i.id
               WHERE ri.receipt_id = r.id AND i.invoice_number = ?
             )`
-          : ''}
+            : ''
+        }
       `;
 
       // 重新构建计数查询参数
@@ -1457,7 +1426,9 @@ const arModel = {
         const invoice = invoices[0];
 
         // [H-2 补链] 计算恢复后的金额 — 整数化精度控制（与 createReceipt 对齐）
-        const paidAmountCents = Math.round(parseFloat(invoice.paid_amount) * 100) - Math.round(parseFloat(item.item_amount) * 100);
+        const paidAmountCents =
+          Math.round(parseFloat(invoice.paid_amount) * 100) -
+          Math.round(parseFloat(item.item_amount) * 100);
         const totalAmountCents = Math.round(parseFloat(invoice.total_amount) * 100);
         const newPaidAmount = Math.max(0, paidAmountCents) / 100;
         const newBalanceAmount = (totalAmountCents - Math.max(0, paidAmountCents)) / 100;
@@ -1482,10 +1453,7 @@ const arModel = {
       }
 
       // 5. 如果有银行交易记录，创建冲销交易
-      if (
-        receipt.bank_account_id &&
-        BANK_BACKED_PAYMENT_METHODS.has(receipt.payment_method)
-      ) {
+      if (receipt.bank_account_id && BANK_BACKED_PAYMENT_METHODS.has(receipt.payment_method)) {
         try {
           // 获取原银行交易记录
           const [bankTxs] = await connection.execute(
@@ -1498,7 +1466,7 @@ const arModel = {
 
           if (bankTxs.length > 0) {
             const originalTx = bankTxs[0];
-            const reversalDate = new Date().toISOString().slice(0, 10);
+            const reversalDate = currentDateString();
             originalBankTransactionId = originalTx.id;
             originalBankTransactionNumber = originalTx.transaction_number;
             reversalBankTransactionNumber = `${receipt.receipt_number}-VOID`;
@@ -1564,7 +1532,7 @@ const arModel = {
             );
 
             const reversalDocumentNumber = `${receipt.receipt_number}-VOID`;
-            const reversalDate = new Date().toISOString().slice(0, 10);
+            const reversalDate = currentDateString();
             const periodId = await getOpenPeriodIdByDate(connection, reversalDate);
 
             const reversalEntryId = await financeModel.createEntry(
@@ -1632,24 +1600,27 @@ const arModel = {
         );
 
         if (originalBankTransactionId) {
-          await DocumentLinkService.createLink({
-            source_type: 'bank_transaction',
-            source_id: originalBankTransactionId,
-            source_code: originalBankTransactionNumber,
-            target_type: 'bank_transaction',
-            target_id: reversalBankTransactionId,
-            target_code: reversalBankTransactionNumber,
-            link_type: 'related',
-            remark: 'AR receipt void reversal',
-            created_by: voidedBy,
-          }, connection);
+          await DocumentLinkService.createLink(
+            {
+              source_type: 'bank_transaction',
+              source_id: originalBankTransactionId,
+              source_code: originalBankTransactionNumber,
+              target_type: 'bank_transaction',
+              target_id: reversalBankTransactionId,
+              target_code: reversalBankTransactionNumber,
+              link_type: 'related',
+              remark: 'AR receipt void reversal',
+              created_by: voidedBy,
+            },
+            connection
+          );
         }
 
         if (reversalEntries.length > 0) {
-          await connection.execute(
-            'UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?',
-            [reversalEntries[0].entryId, reversalBankTransactionId]
-          );
+          await connection.execute('UPDATE bank_transactions SET gl_entry_id = ? WHERE id = ?', [
+            reversalEntries[0].entryId,
+            reversalBankTransactionId,
+          ]);
           for (const reversalEntry of reversalEntries) {
             await DocumentLinkService.tryAutoLink(
               'bank_transaction',
@@ -1743,7 +1714,7 @@ const arModel = {
     let connection;
     try {
       // 如果没有指定日期，使用当前日期
-      const currentDate = asOfDate || new Date().toISOString().split('T')[0];
+      const currentDate = toLocalDateString(asOfDate || currentDateString());
 
       let query = `
         SELECT
@@ -1931,7 +1902,7 @@ const arModel = {
       return invoices || [];
     } catch (error) {
       logger.error('获取逾期应收发票失败:', error);
-      return [];
+      throw error;
     } finally {
       if (connection) {
         try {

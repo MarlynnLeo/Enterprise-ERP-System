@@ -160,11 +160,11 @@ const generateBatchNumber = async (supplierCode = '', supplierId = null) => {
 // 获取采购单列表
 const fetchPurchaseOrders = async () => {
   try {
-    const response = await purchaseApi.getOrders({ pageSize: 100 })
+    const response = await purchaseApi.getOrders({ pageSize: 50 })
     const orders = parseListData(response, { enableLog: false })
 
     if (orders.length > 0) {
-      const validStatuses = ['approved', 'received', 'partial_received', 'inspecting', 'inspected']
+      const validStatuses = ['confirmed', 'approved', 'received', 'partial_received', 'inspecting', 'inspected', 'warehousing']
       purchaseOrderOptions.value = orders
         .filter(item => validStatuses.includes(item.status))
         .map(item => ({

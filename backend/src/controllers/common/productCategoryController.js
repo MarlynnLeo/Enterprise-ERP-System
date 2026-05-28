@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { parsePagination } = require('../../utils/safePagination');
 
 const productCategoryModel = require('../../models/productCategory');
 
@@ -29,18 +30,22 @@ const productCategoryController = {
       };
 
       // 添加分页参数 - 支持 pageSize 和 limit 两种参数名
-      const page = parseInt(req.query.page, 10) || 1;
-      const pageSize = parseInt(req.query.pageSize, 10) || parseInt(req.query.limit, 10) || 20;
+      const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
-      const result = await productCategoryModel.getAllProductCategories(filters, page, pageSize);
+      const result = req.query.tree === 'true' || req.query.tree === '1'
+        ? await productCategoryModel.getProductCategoryTreePage(filters, pagination.page, pagination.pageSize)
+        : await productCategoryModel.getAllProductCategories(filters, pagination.page, pagination.pageSize);
 
       // 返回统一的分页格式
       return ResponseHandler.success(res, {
           list: result.data,
           total: result.total,
-          page: page,
-          pageSize: pageSize,
-          totalPages: Math.ceil(result.total / pageSize),
+          page: pagination.page,
+          pageSize: pagination.pageSize,
+          totalPages: Math.ceil(result.total / pagination.pageSize),
         }, '获取产品大类列表成功');
     } catch (error) {
       logger.error('获取产品大类列表失败:', error);

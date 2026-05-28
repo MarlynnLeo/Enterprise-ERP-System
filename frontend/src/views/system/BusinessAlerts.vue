@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -23,11 +23,11 @@
           <el-tag :type="{ critical:'danger', warning:'warning', info:'info' }[row.severity] || 'info'" size="small">{{ { critical:'严重', warning:'警告', info:'提示' }[row.severity] || row.severity }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="check_interval_minutes" label="检查间隔(分)" width="110" align="center" />
+      <el-table-column prop="check_interval_minutes" label="检查间隔(分)" width="110" />
       <el-table-column prop="is_active" label="状态" width="70">
         <template #default="{ row }"><el-switch v-model="row.is_active" v-permission="'system:business-alerts:edit'" :active-value="1" :inactive-value="0" @change="toggleActive(row)" /></template>
       </el-table-column>
-      <el-table-column label="操作" width="80">
+      <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }"><el-button link type="primary" v-permission="'system:business-alerts:edit'" @click="openEdit(row)">配置</el-button></template>
       </el-table-column>
       </el-table>
@@ -90,5 +90,4 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
-/* 页面专属样式已由 common-styles.css 统一提供 */
 </style>

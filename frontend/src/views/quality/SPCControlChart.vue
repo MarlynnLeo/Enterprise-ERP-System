@@ -42,7 +42,7 @@
             <div class="card-header">
               <div>
                 <span style="font-size:16px;font-weight:600">{{ selectedPlan.plan_name }}</span>
-                <span style="margin-left:12px;color:#909399;font-size:13px">{{ selectedPlan.characteristic }}</span>
+                <span style="margin-left:12px;color:var(--color-text-secondary);font-size:13px">{{ selectedPlan.characteristic }}</span>
               </div>
               <div>
                 <el-button v-permission="'quality:spc:update'" type="success" size="small" @click="showDataInput = true">
@@ -108,10 +108,12 @@
                 <el-table-column prop="subgroup" label="子组#" width="80" />
                 <el-table-column prop="value" label="X̄ 值">
                   <template #default="scope">
-                    <span :style="{
-                      color: scope.row.value > chartData.xbarChart.ucl || scope.row.value < chartData.xbarChart.lcl ? '#F56C6C' : '#303133',
-                      fontWeight: scope.row.value > chartData.xbarChart.ucl || scope.row.value < chartData.xbarChart.lcl ? 'bold' : 'normal'
-                    }">{{ scope.row.value }}</span>
+                    <span
+                      class="control-value"
+                      :class="{ 'control-value--alarm': isXbarOutOfControl(scope.row.value) }"
+                    >
+                      {{ scope.row.value }}
+                    </span>
                   </template>
                 </el-table-column>
               </el-table>
@@ -127,10 +129,12 @@
                 <el-table-column prop="subgroup" label="子组#" width="80" />
                 <el-table-column prop="value" label="R 值">
                   <template #default="scope">
-                    <span :style="{
-                      color: scope.row.value > chartData.rChart.ucl ? '#F56C6C' : '#303133',
-                      fontWeight: scope.row.value > chartData.rChart.ucl ? 'bold' : 'normal'
-                    }">{{ scope.row.value }}</span>
+                    <span
+                      class="control-value"
+                      :class="{ 'control-value--alarm': isROutOfControl(scope.row.value) }"
+                    >
+                      {{ scope.row.value }}
+                    </span>
                   </template>
                 </el-table-column>
               </el-table>
@@ -241,11 +245,11 @@ const dataForm = reactive({
 });
 
 const cpkColor = (cpk) => {
-  if (cpk == null) return '#909399';
-  if (cpk >= 1.67) return '#67C23A';
-  if (cpk >= 1.33) return '#409EFF';
-  if (cpk >= 1.0) return '#E6A23C';
-  return '#F56C6C';
+  if (cpk == null) return 'var(--color-text-secondary)';
+  if (cpk >= 1.67) return 'var(--color-success)';
+  if (cpk >= 1.33) return 'var(--color-primary)';
+  if (cpk >= 1.0) return 'var(--color-warning)';
+  return 'var(--color-danger)';
 };
 
 const cpkLevel = (cpk) => {
@@ -254,6 +258,16 @@ const cpkLevel = (cpk) => {
   if (cpk >= 1.33) return '良好';
   if (cpk >= 1.0) return '一般';
   return '不足';
+};
+
+const isXbarOutOfControl = (value) => {
+  const limits = chartData.value?.xbarChart;
+  return Boolean(limits && (value > limits.ucl || value < limits.lcl));
+};
+
+const isROutOfControl = (value) => {
+  const limits = chartData.value?.rChart;
+  return Boolean(limits && value > limits.ucl);
 };
 
 const fetchPlans = async () => {
@@ -330,9 +344,9 @@ onMounted(fetchPlans);
 .spc-container { padding: 20px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .plan-list { max-height: 600px; overflow-y: auto; }
-.plan-item { padding: 12px; border: 1px solid var(--color-border-lighter); border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+.plan-item { padding: 12px; border: 1px solid var(--color-border-lighter); border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s; }
 .plan-item:hover { border-color: var(--color-primary); background: var(--color-bg-hover); }
-.plan-item.active { border-color: var(--color-primary); background: #ECF5FF; }
+.plan-item.active { border-color: var(--color-primary); background: var(--ds-blue-bg); }
 .plan-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
 .plan-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--color-text-regular); }
 .plan-detail { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
@@ -343,4 +357,6 @@ onMounted(fetchPlans);
 .chart-section { margin-top: 20px; }
 .chart-section h4 { margin-bottom: 8px; color: var(--color-text-primary); }
 .chart-info { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 8px; }
+.control-value { color: var(--color-text-primary); font-weight: 400; }
+.control-value--alarm { color: var(--color-danger); font-weight: 700; }
 </style>

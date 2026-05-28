@@ -7,11 +7,13 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const db = require('../../../config/db');
 const pool = db.pool; // 正确引用连接池
 const purchaseModel = require('../../../models/purchase');
 const DLQService = require('../../../services/business/DLQService');
+const { lineAmount, sumMoney } = require('../../../utils/money');
 
 
 // 状态常量
@@ -24,12 +26,80 @@ const STATUS = {
   },
 };
 
-/**
- * @deprecated 采购退货表结构已迁移至 Knex 迁移文件 20260312000007 管理，此函数保留为空操作
- */
+const createValidationError = (message) => {
+  const error = new Error(message);
+  error.statusCode = 400;
+  error.code = 'VALIDATION_ERROR';
+  return error;
+};
 
+const validateReturnItemsAgainstReceipt = async (connection, items = [], currentReturnId = null) => {
+  const validItems = Array.isArray(items)
+    ? items.filter((item) => parseFloat(item.returnQuantity || item.return_quantity) > 0)
+    : [];
+
+  for (const item of validItems) {
+    const receiptItemId = item.id || item.receipt_item_id;
+    const returnQuantity = parseFloat(item.returnQuantity || item.return_quantity) || 0;
+
+    if (!receiptItemId) {
+      throw createValidationError('退货明细缺少原入库单明细ID，不能创建退货单');
+    }
+
+    const [receiptItems] = await connection.query(
+      `SELECT id, material_name, received_quantity, qualified_quantity, quantity
+       FROM purchase_receipt_items
+       WHERE id = ?
+       FOR UPDATE`,
+      [receiptItemId]
+    );
+
+    if (!receiptItems || receiptItems.length === 0) {
+      throw createValidationError(`原入库单明细不存在: ${receiptItemId}`);
+    }
+
+    const receiptItem = receiptItems[0];
+    const maxReturnQuantity =
+      parseFloat(receiptItem.qualified_quantity) ||
+      parseFloat(receiptItem.received_quantity) ||
+      parseFloat(receiptItem.quantity) ||
+      0;
+
+    const params = [receiptItemId];
+    let excludeClause = '';
+    if (currentReturnId) {
+      excludeClause = ' AND pr.id <> ?';
+      params.push(currentReturnId);
+    }
+
+    const [returnedRows] = await connection.query(
+      `SELECT COALESCE(SUM(pri.return_quantity), 0) AS returned_quantity
+       FROM purchase_return_items pri
+       JOIN purchase_returns pr ON pr.id = pri.return_id
+       WHERE pri.receipt_item_id = ?
+         AND pr.status != 'cancelled'
+         ${excludeClause}`,
+      params
+    );
+
+    const returnedQuantity = parseFloat(returnedRows[0]?.returned_quantity) || 0;
+    if (returnedQuantity + returnQuantity > maxReturnQuantity + 0.0001) {
+      throw createValidationError(
+        `物料 ${receiptItem.material_name || receiptItemId} 退货数量超过可退数量: 可退=${maxReturnQuantity - returnedQuantity}, 本次=${returnQuantity}`
+      );
+    }
+  }
+};
 
 // 获取采购退货列表
+const calculatePurchaseReturnTotal = (items = []) => {
+  const amounts = (Array.isArray(items) ? items : [])
+    .filter((item) => parseFloat(item.returnQuantity || item.return_quantity) > 0)
+    .map((item) => lineAmount(item.returnQuantity || item.return_quantity, item.price || 0));
+
+  return sumMoney(amounts);
+};
+
 const getReturns = async (req, res) => {
   try {
     const {
@@ -42,7 +112,7 @@ const getReturns = async (req, res) => {
       endDate,
       status,
     } = req.query;
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
     // 创建两个查询：一个用于获取分页数据，一个用于计算总数
     let dataQuery = `
@@ -115,7 +185,7 @@ const getReturns = async (req, res) => {
     }
 
     // 添加排序和分页
-    dataQuery += ` ORDER BY r.created_at DESC LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(parseInt(offset)))||0)}`;
+    dataQuery += ` ORDER BY r.created_at DESC LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
 
     // 执行数据查询
     const [result] = await pool.query(dataQuery, queryParams);
@@ -137,8 +207,8 @@ const getReturns = async (req, res) => {
       data: returns,
       pagination: {
         total: totalCount,
-        current: parseInt(page),
-        pageSize: parseInt(pageSize),
+        current: pagination.page,
+        pageSize: pagination.pageSize,
       },
     });
   } catch (error) {
@@ -211,7 +281,6 @@ const createReturn = async (req, res) => {
       reason,
       remarks,
       items,
-      totalAmount,
       operator: operatorFromBody, // ✅ 接收前端传来的operator
     } = req.body;
 
@@ -249,6 +318,9 @@ const createReturn = async (req, res) => {
       finalOperator: operator,
     });
 
+    await validateReturnItemsAgainstReceipt(connection, items);
+    const calculatedTotalAmount = calculatePurchaseReturnTotal(items);
+
     // 创建采购退货单
     const insertQuery = `
       INSERT INTO purchase_returns (
@@ -269,7 +341,7 @@ const createReturn = async (req, res) => {
       warehouseName,
       returnDate,
       reason,
-      totalAmount || 0,
+      calculatedTotalAmount,
       operator,
       remarks,
       'draft',
@@ -314,7 +386,10 @@ const createReturn = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('创建采购退货单失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    const statusCode = error.statusCode || 500;
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
+    const message = statusCode === 400 ? error.message : '操作失败';
+    return ResponseHandler.error(res, message, errorCode, statusCode, error);
   } finally {
     connection.release();
   }
@@ -333,12 +408,11 @@ const updateReturn = async (req, res) => {
       reason,
       remarks,
       items,
-      totalAmount,
       operator: operatorFromBody, // ✅ 接收前端传来的operator
     } = req.body;
 
     // 检查退货单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_returns WHERE id = ?';
+    const checkQuery = 'SELECT status FROM purchase_returns WHERE id = ? FOR UPDATE';
     const [checkResult] = await connection.query(checkQuery, [id]);
 
     if (checkResult.length === 0) {
@@ -355,6 +429,9 @@ const updateReturn = async (req, res) => {
     // ✅ 优先使用前端传来的operator,否则使用当前登录用户
     const operator = operatorFromBody || req.user?.real_name || req.user?.username || 'system';
 
+    await validateReturnItemsAgainstReceipt(connection, items, id);
+    const calculatedTotalAmount = calculatePurchaseReturnTotal(items);
+
     // 更新退货单基本信息
     const updateQuery = `
       UPDATE purchase_returns
@@ -366,7 +443,7 @@ const updateReturn = async (req, res) => {
       returnDate,
       reason,
       remarks,
-      totalAmount || 0,
+      calculatedTotalAmount,
       operator,
       id,
     ]);
@@ -411,7 +488,10 @@ const updateReturn = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('更新采购退货单失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    const statusCode = error.statusCode || 500;
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
+    const message = statusCode === 400 ? error.message : '操作失败';
+    return ResponseHandler.error(res, message, errorCode, statusCode, error);
   } finally {
     connection.release();
   }
@@ -472,7 +552,7 @@ const updateReturnStatus = async (req, res) => {
     }
 
     // 检查退货单是否存在
-    const checkQuery = 'SELECT status, warehouse_id FROM purchase_returns WHERE id = ?';
+    const checkQuery = 'SELECT status, warehouse_id FROM purchase_returns WHERE id = ? FOR UPDATE';
     const [checkResult] = await connection.query(checkQuery, [id]);
 
     if (checkResult.length === 0) {
@@ -629,6 +709,33 @@ const updateReturnStatus = async (req, res) => {
               `扣减采购订单项目：订单ID=${orderId}, 物料ID=${item.material_id}, 退货数量=${returnQty}`
             );
 
+            const [orderItemRows] = await connection.query(
+              `SELECT received_quantity, warehoused_quantity
+               FROM purchase_order_items
+               WHERE order_id = ? AND material_id = ?
+               FOR UPDATE`,
+              [orderId, item.material_id]
+            );
+
+            if (!orderItemRows || orderItemRows.length === 0) {
+              throw createValidationError(
+                `采购订单项目不存在，不能完成退货: 订单ID=${orderId}, 物料ID=${item.material_id}`
+              );
+            }
+
+            const currentReceived = parseFloat(orderItemRows[0].received_quantity) || 0;
+            const currentWarehoused = parseFloat(orderItemRows[0].warehoused_quantity) || 0;
+            if (currentReceived + 0.0001 < returnQty) {
+              throw createValidationError(
+                `采购订单已收货数量不足，不能完成退货: 当前已收=${currentReceived}, 退货=${returnQty}`
+              );
+            }
+            if (shouldDeductStock && currentWarehoused + 0.0001 < returnQty) {
+              throw createValidationError(
+                `采购订单已入库数量不足，不能完成退货: 当前已入库=${currentWarehoused}, 退货=${returnQty}`
+              );
+            }
+
             // ✅ 修复: 根据库存是否实际扣减（shouldDeductStock）来决定是否扣减已入库数量
             // 如果 shouldDeductStock 为 true，说明物料实际在库，需同时扣减 received_quantity 和 warehoused_quantity
             // 否则（未在库退回，或者仓库本身没货），只扣减 received_quantity
@@ -762,7 +869,10 @@ const updateReturnStatus = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('更新采购退货状态失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    const statusCode = error.statusCode || 500;
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
+    const message = statusCode === 400 ? error.message : '操作失败';
+    return ResponseHandler.error(res, message, errorCode, statusCode, error);
   } finally {
     connection.release();
   }

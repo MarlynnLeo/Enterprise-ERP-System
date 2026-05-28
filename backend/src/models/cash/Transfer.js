@@ -11,6 +11,7 @@ const financeModel = require('../finance');
 const { accountingConfig } = require('../../config/accountingConfig');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const { toLocalDateString } = require('../../utils/dateUtils');
 
 function requirePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(value, 10);
@@ -45,6 +46,10 @@ async function getOpenAccountingPeriodId(connection, accountingDate) {
 }
 
 async function getActiveGlAccountId(connection, accountCode, accountName) {
+  if (!accountCode) {
+    throw new Error(`资金调拨${accountName}科目编码未配置`);
+  }
+
   const [accounts] = await connection.execute(
     'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = true LIMIT 1',
     [accountCode]
@@ -71,7 +76,7 @@ class FundTransferModel {
       const createdBy = requirePositiveInteger(transferData.created_by, 'created_by');
       const amount = roundMoney(transferData.amount);
       const transactionNumber = String(transferData.transaction_number || '').trim();
-      const transactionDate = String(transferData.transaction_date || '').slice(0, 10);
+      const transactionDate = toLocalDateString(transferData.transaction_date);
 
       if (!transactionNumber) {
         throw new Error('资金调拨缺少交易编号');
@@ -84,6 +89,32 @@ class FundTransferModel {
       }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(transactionDate)) {
         throw new Error('资金调拨日期格式不正确');
+      }
+
+      const [duplicates] = await connection.execute(
+        `SELECT transaction_number
+         FROM bank_transactions
+         WHERE transaction_number IN (?, ?)
+         LIMIT 1
+         FOR UPDATE`,
+        [`${transactionNumber}-OUT`, `${transactionNumber}-IN`]
+      );
+      if (duplicates.length > 0) {
+        throw new Error(`资金调拨单号 ${transactionNumber} 已生成银行流水，不能重复调拨`);
+      }
+
+      const [existingEntries] = await connection.execute(
+        `SELECT id
+         FROM gl_entries
+         WHERE document_type = ?
+           AND document_number = ?
+           AND COALESCE(is_reversed, 0) = 0
+         LIMIT 1
+         FOR UPDATE`,
+        [DOCUMENT_TYPE_MAPPING.BANK_TRANSFER, transactionNumber]
+      );
+      if (existingEntries.length > 0) {
+        throw new Error(`资金调拨单号 ${transactionNumber} 已生成会计凭证，不能重复调拨`);
       }
 
       const orderedAccountIds = [fromAccountId, toAccountId].sort((a, b) => a - b);
@@ -117,7 +148,7 @@ class FundTransferModel {
         throw new Error('源账户余额不足');
       }
 
-      const bankAccountCode = accountingConfig.getAccountCode('BANK_DEPOSIT') || '1002';
+      const bankAccountCode = accountingConfig.getAccountCode('BANK_DEPOSIT');
       const bankGlAccountId = await getActiveGlAccountId(connection, bankAccountCode, '银行存款');
       const periodId = await getOpenAccountingPeriodId(connection, transactionDate);
 

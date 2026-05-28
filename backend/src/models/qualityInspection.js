@@ -9,7 +9,7 @@ const logger = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
 const { apiStatusToDbStatus } = require('../utils/statusMapper');
-const { appendPaginationSQL } = require('../utils/safePagination');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const businessConfig = require('../config/businessConfig');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 const InspectionTemplateResolver = require('../services/business/InspectionTemplateResolverService');
@@ -32,8 +32,11 @@ class QualityInspection {
    * @returns {Promise<{rows: Array, total: number}>} 检验单列表和总数
    */
   static async getInspections(type, filters = {}, page = 1, pageSize = 20) {
-    const limit = parseInt(pageSize, 10) || 20;
-    const offset = (parseInt(page, 10) - 1) * limit || 0;
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
+    const { limit, offset } = pagination;
 
     // 根据传入的额外参数决定是否加载供应商和参考数据
     const includeSupplier = filters.include_supplier === true;
@@ -315,22 +318,22 @@ class QualityInspection {
         !inspection.reference_id &&
         inspection.reference_no
       ) {
-        try {
-          const [orderRows] = await connection.query(
-            'SELECT id FROM purchase_orders WHERE order_no = ?',
-            [inspection.reference_no]
+        const [orderRows] = await connection.query(
+          'SELECT id FROM purchase_orders WHERE order_no = ?',
+          [inspection.reference_no]
+        );
+        if (orderRows && orderRows.length > 0) {
+          inspection.reference_id = orderRows[0].id;
+          logger.info(
+            `✅ 自动查找到采购订单ID: ${inspection.reference_id} (订单号: ${inspection.reference_no})`
           );
-          if (orderRows && orderRows.length > 0) {
-            inspection.reference_id = orderRows[0].id;
-            logger.info(
-              `✅ 自动查找到采购订单ID: ${inspection.reference_id} (订单号: ${inspection.reference_no})`
-            );
-          } else {
-            logger.warn(`⚠️ 未找到采购订单: ${inspection.reference_no} `);
-          }
-        } catch (error) {
-          logger.error('查询采购订单ID失败:', error);
+        } else {
+          throw new Error(`来料检验单缺少有效采购订单引用: ${inspection.reference_no}`);
         }
+      }
+
+      if (inspection.inspection_type === 'incoming' && !inspection.reference_id) {
+        throw new Error('来料检验单必须关联采购订单，不能创建无来源的来料检验单');
       }
 
       // 如果product_id存在但product_code或product_name为空，从materials表查询
@@ -415,11 +418,11 @@ class QualityInspection {
         `
           INSERT INTO quality_inspections(
           inspection_no, inspection_type, reference_id, reference_no,
-          material_id, product_id, product_name, product_code, task_id,
+          material_id, supplier_id, product_id, product_name, product_code, task_id,
           batch_no, quantity, unit, unit_id, standard_type, standard_no,
           planned_date, actual_date, note, inspector_name, status,
           is_aql, aql_level
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         [
           inspectionNo,
@@ -427,6 +430,7 @@ class QualityInspection {
           inspection.reference_id,
           inspection.reference_no,
           inspection.material_id || null,
+          inspection.supplier_id || null,
           inspection.product_id || null,
           inspection.product_name || null,
           inspection.product_code || null,
@@ -621,14 +625,17 @@ class QualityInspection {
    * @param {object} data 更新数据
    * @returns {Promise<object>} 更新后的检验单
    */
-  static async updateInspection(id, data) {
+  static async updateInspection(id, data, externalConnection = null) {
     let connection;
+    const useOwnConnection = !externalConnection;
     try {
       logger.info('开始更新检验单，ID:', id);
       logger.info('更新数据:', JSON.stringify(data));
 
-      connection = await db.pool.getConnection();
-      await connection.beginTransaction();
+      connection = externalConnection || await db.pool.getConnection();
+      if (useOwnConnection) {
+        await connection.beginTransaction();
+      }
 
       try {
         // 获取当前检验单的信息
@@ -859,8 +866,11 @@ class QualityInspection {
                       [taskId]
                     );
 
-                    if (taskInfo.length > 0) {
-                      const task = taskInfo[0];
+                    if (taskInfo.length === 0) {
+                      throw new Error(`成品检验单 ${id} 关联的生产任务不存在，不能自动创建入库单`);
+                    }
+
+                    const task = taskInfo[0];
 
                       // 检查是否已经存在入库单
                       const [existingInbound] = await connection.query(
@@ -879,7 +889,7 @@ class QualityInspection {
                         }
 
                         if (!locationId) {
-                          logger.warn('未找到默认仓库位置，无法自动创建入库单');
+                          throw new Error(`产品 ${task.product_id} 未配置可用仓库，不能自动创建入库单`);
                         } else {
                           // 生成入库单号 — 使用统一编码引擎
                           const { CodeGenerators } = require('../utils/codeGenerator');
@@ -933,6 +943,11 @@ class QualityInspection {
                             );
                           }
 
+                          const inboundQuantity = Number(data.qualified_quantity ?? inspection.qualified_quantity ?? 0);
+                          if (!Number.isFinite(inboundQuantity) || inboundQuantity <= 0) {
+                            throw new Error(`成品检验单 ${id} 合格数量必须大于0，不能自动创建入库单`);
+                          }
+
                           // 创建入库单明细（批次号已保证非空）
                           await connection.execute(
                             `INSERT INTO inventory_inbound_items(
@@ -941,7 +956,7 @@ class QualityInspection {
                             [
                               inboundId,
                               task.product_id,
-                              data.qualified_quantity ?? inspection.qualified_quantity, // 取本次检验的合格数
+                              inboundQuantity,
                               unitId,
                               locationId,
                               itemBatchNo,
@@ -956,7 +971,6 @@ class QualityInspection {
                       } else {
                         logger.info(`检验单 ${id} 已存在入库单，跳过创建`);
                       }
-                    }
                   } catch (inboundError) {
                     logger.error(`检验单 ${id} 自动创建入库单失败: `, inboundError);
                     throw inboundError;
@@ -970,13 +984,15 @@ class QualityInspection {
           }
         }
 
-        await connection.commit();
+        if (useOwnConnection) {
+          await connection.commit();
+        }
         logger.info('提交事务成功');
 
         return { id, ...data };
       } catch (error) {
         logger.error('更新检验单过程中出错:', error);
-        if (connection) {
+        if (connection && useOwnConnection) {
           await connection.rollback();
           logger.info('事务已回滚');
         }
@@ -987,7 +1003,7 @@ class QualityInspection {
       logger.error('错误堆栈:', error.stack);
       throw error;
     } finally {
-      if (connection) {
+      if (connection && useOwnConnection) {
         connection.release();
         logger.info('数据库连接已释放');
       }
@@ -1005,6 +1021,17 @@ class QualityInspection {
       await connection.beginTransaction();
 
       try {
+        const [inspections] = await connection.execute(
+          'SELECT id, status FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+          [id]
+        );
+        if (inspections.length === 0) {
+          throw new Error('检验单不存在');
+        }
+        if (inspections[0].status !== 'pending') {
+          throw new Error('只有待检验状态的检验单才能删除');
+        }
+
         // 删除检验项
         await connection.execute('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [
           id,
@@ -1042,7 +1069,8 @@ class QualityInspection {
         SELECT po.id, po.order_no, po.supplier_id, s.name as supplier_name
         FROM purchase_orders po
         JOIN suppliers s ON po.supplier_id = s.id
-        WHERE po.status = 'approved'
+        WHERE po.deleted_at IS NULL
+          AND po.status IN ('confirmed', 'approved', 'received', 'partial_received', 'inspecting', 'inspected', 'warehousing')
         ORDER BY po.created_at DESC
         LIMIT 100
         `);

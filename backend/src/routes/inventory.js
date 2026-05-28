@@ -19,9 +19,19 @@ const inventoryManualController = require('../controllers/business/inventory/inv
 const inventoryConsistencyController = require('../controllers/business/inventory/inventoryConsistencyController');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../middleware/priceAccessControl');
+const { PRICE_EXPORT_PERMISSIONS } = require('../utils/desensitizer');
 const { getUserIdentifierFromRequest } = require('../utils/userUtils');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 const inventoryDashboardController = require('../controllers/business/inventory/inventoryDashboardController');
+const { ResponseHandler } = require('../utils/responseHandler');
+
+router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // 库存列表
 router.get(
@@ -49,6 +59,7 @@ router.post(
   '/stock/export',
   authenticateToken,
   requirePermission('inventory:stock:view'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
   inventoryStockController.exportStockData
 );
 
@@ -151,6 +162,14 @@ router.post(
   inventoryOutboundController.createOutbound
 );
 
+router.get(
+  '/outbound/export',
+  authenticateToken,
+  requirePermission('inventory:outbound:view'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
+  inventoryOutboundController.exportOutbound
+);
+
 // 获取出库单详情
 router.get(
   '/outbound/:id',
@@ -210,6 +229,12 @@ router.get(
   inventoryInboundController.getInboundList
 );
 router.get(
+  '/inbound/statistics',
+  authenticateToken,
+  requirePermission('inventory:inbound:view'),
+  inventoryInboundController.getInboundStatistics
+);
+router.get(
   '/inbound/:id',
   authenticateToken,
   requirePermission('inventory:inbound:view'),
@@ -226,6 +251,12 @@ router.post(
   authenticateToken,
   requirePermission('inventory:inbound:create'),
   inventoryInboundController.createInboundFromQuality
+);
+router.put(
+  '/inbound/:id',
+  authenticateToken,
+  requirePermission('inventory:inbound:update'),
+  inventoryInboundController.updateInbound
 );
 router.put(
   '/inbound/status/:id',
@@ -278,6 +309,7 @@ router.get(
   '/transactions/export',
   authenticateToken,
   requirePermission('inventory:transactions:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
   inventoryLedgerController.exportTransactionReport
 );
 
@@ -292,6 +324,7 @@ router.get(
   '/report/export',
   authenticateToken,
   requirePermission('inventory:report:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
   inventoryLedgerController.exportInventoryReport
 );
 
@@ -301,6 +334,13 @@ router.get(
   authenticateToken,
   requirePermission('inventory:ledger:view'),
   inventoryLedgerController.getInventoryLedger
+);
+router.get(
+  '/ledger/export',
+  authenticateToken,
+  requirePermission('inventory:report:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
+  inventoryLedgerController.exportTransactionReport
 );
 
 // 获取物料库存台账
@@ -347,6 +387,7 @@ router.put('/transfer/:id', authenticateToken, requirePermission('inventory:tran
 router.delete('/transfer/:id', authenticateToken, requirePermission('inventory:transfer:delete'), inventoryTransferController.deleteTransfer);
 router.put('/transfer/:id/status', authenticateToken, requirePermission('inventory:transfer:update'), inventoryTransferController.updateTransferStatus);
 // 调拨单导出和批量删除
+router.post('/transfers/details', authenticateToken, requirePermission('inventory:transfer:view'), inventoryTransferController.getTransferDetails);
 router.post('/transfers/export', authenticateToken, requirePermission('inventory:transfer:export'), inventoryTransferController.exportTransfers);
 router.post('/transfers/batch-delete', authenticateToken, requirePermission('inventory:transfer:delete'), inventoryTransferController.batchDeleteTransfers);
 
@@ -453,15 +494,31 @@ router.get(
     try {
       const { year } = req.params;
       const result = await InventoryYearEndService.getYearEndStatus(parseInt(year));
-      res.json({ success: true, data: result });
+      ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('获取年度结存状态失败:', error);
-      res.status(500).json({ success: false, message: error.message || '获取年度结存状态失败' });
+      ResponseHandler.error(res, error.message || '获取年度结存状态失败', 'SERVER_ERROR', 500, error);
     }
   }
 );
 
 // 执行年度库存结存
+router.get(
+  '/year-end/preview/:year',
+  authenticateToken,
+  requirePermission('inventory:stock:view'),
+  async (req, res) => {
+    try {
+      const { year } = req.params;
+      const result = await InventoryYearEndService.previewYearEndClosing(parseInt(year, 10));
+      ResponseHandler.success(res, result, '获取年度库存结存预览成功');
+    } catch (error) {
+      logger.error('获取年度库存结存预览失败:', error);
+      ResponseHandler.error(res, error.message || '获取年度库存结存预览失败', 'SERVER_ERROR', 500, error);
+    }
+  }
+);
+
 router.post(
   '/year-end/execute',
   authenticateToken,
@@ -471,10 +528,10 @@ router.post(
       const { year } = req.body;
       const operator = getUserIdentifierFromRequest(req);
       const result = await InventoryYearEndService.executeYearEndClosing({ year, operator });
-      res.json({ success: true, data: result, message: '年度库存结存执行成功' });
+      ResponseHandler.success(res, result, '年度库存结存执行成功');
     } catch (error) {
       logger.error('年度库存结存失败:', error);
-      res.status(500).json({ success: false, message: error.message || '年度库存结存失败' });
+      ResponseHandler.error(res, error.message || '年度库存结存失败', 'SERVER_ERROR', 500, error);
     }
   }
 );
@@ -489,15 +546,32 @@ router.post(
       const { year } = req.body;
       const operator = getUserIdentifierFromRequest(req);
       const result = await InventoryYearEndService.freezeYearEndBalance({ year, operator });
-      res.json({ success: true, data: result, message: '年度库存结存冻结成功' });
+      ResponseHandler.success(res, result, '年度库存结存冻结成功');
     } catch (error) {
       logger.error('冻结年度结存失败:', error);
-      res.status(500).json({ success: false, message: error.message || '冻结年度结存失败' });
+      ResponseHandler.error(res, error.message || '冻结年度结存失败', 'SERVER_ERROR', 500, error);
     }
   }
 );
 
 // 获取年度结存明细列表
+router.post(
+  '/year-end/unfreeze',
+  authenticateToken,
+  requirePermission('inventory:stock:adjust'),
+  async (req, res) => {
+    try {
+      const { year } = req.body;
+      const operator = getUserIdentifierFromRequest(req);
+      const result = await InventoryYearEndService.unfreezeYearEndBalance({ year, operator });
+      ResponseHandler.success(res, result, '年度库存结存反冻结成功');
+    } catch (error) {
+      logger.error('年度库存结存反冻结失败:', error);
+      ResponseHandler.error(res, error.message || '年度库存结存反冻结失败', 'SERVER_ERROR', 500, error);
+    }
+  }
+);
+
 router.get(
   '/year-end/list',
   authenticateToken,
@@ -506,10 +580,10 @@ router.get(
     try {
       const params = req.query;
       const result = await InventoryYearEndService.getYearEndBalanceList(params);
-      res.json({ success: true, data: result });
+      ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('获取年度结存明细失败:', error);
-      res.status(500).json({ success: false, message: error.message || '获取年度结存明细失败' });
+      ResponseHandler.error(res, error.message || '获取年度结存明细失败', 'SERVER_ERROR', 500, error);
     }
   }
 );
@@ -519,14 +593,15 @@ router.get(
   '/year-end/export/:year',
   authenticateToken,
   requirePermission('inventory:stock:view'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
   async (req, res) => {
     try {
       const { year } = req.params;
       const data = await InventoryYearEndService.exportYearEndReport(parseInt(year));
-      res.json({ success: true, data });
+      ResponseHandler.success(res, data);
     } catch (error) {
       logger.error('导出年度结存报表失败:', error);
-      res.status(500).json({ success: false, message: error.message || '导出年度结存报表失败' });
+      ResponseHandler.error(res, error.message || '导出年度结存报表失败', 'SERVER_ERROR', 500, error);
     }
   }
 );
@@ -545,10 +620,10 @@ router.get(
         autoCreate: false,
         operator: getUserIdentifierFromRequest(req),
       });
-      res.json({ success: true, data: result });
+      ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('检查低库存预警失败:', error);
-      res.status(500).json({ success: false, message: error.message || '检查低库存预警失败' });
+      ResponseHandler.error(res, error.message || '检查低库存预警失败', 'SERVER_ERROR', 500, error);
     }
   }
 );
@@ -564,10 +639,10 @@ router.post(
         autoCreate: true,
         operator: getUserIdentifierFromRequest(req),
       });
-      res.json({ success: true, data: result, message: result.message });
+      ResponseHandler.success(res, result, result.message);
     } catch (error) {
       logger.error('自动生成采购申请失败:', error);
-      res.status(500).json({ success: false, message: error.message || '自动生成采购申请失败' });
+      ResponseHandler.error(res, error.message || '自动生成采购申请失败', 'SERVER_ERROR', 500, error);
     }
   }
 );
@@ -581,10 +656,10 @@ router.get(
     try {
       const daysBeforeExpiry = parseInt(req.query.days) || 30;
       const result = await InventoryAlertService.checkBatchExpiry(daysBeforeExpiry);
-      res.json({ success: true, data: result });
+      ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('检查批次过期预警失败:', error);
-      res.status(500).json({ success: false, message: error.message || '检查批次过期预警失败' });
+      ResponseHandler.error(res, error.message || '检查批次过期预警失败', 'SERVER_ERROR', 500, error);
     }
   }
 );

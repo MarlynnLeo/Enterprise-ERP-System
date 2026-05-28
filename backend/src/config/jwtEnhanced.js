@@ -46,6 +46,7 @@ const generateTokens = (user) => {
   const payload = {
     id: user.id,
     username: user.username,
+    tokenVersion: Number(user.token_version || 0),
     // ❌ 不再存储: role, permissions等敏感信息
   };
 

@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="template-container">
-    <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; background-color: var(--color-bg-base); padding: 12px 20px; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,21,41,0.08);">
+    <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; background-color: var(--color-bg-base); padding: 12px 20px; border-radius: 4px; box-shadow: 0 1px 4px color-mix(in srgb, var(--ds-slate) 8%, transparent);">
       <div style="font-size: 16px; font-weight: bold; color: var(--color-text-primary);">检验控制库</div>
       <el-radio-group v-model="viewType" size="default">
         <el-radio-button value="templates">检验模板</el-radio-button>
@@ -135,7 +135,7 @@
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="220">
+        <el-table-column label="操作" fixed="right" min-width="360" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -431,7 +431,7 @@
                       <span v-else style="color: var(--color-text-secondary);">仅尺寸类型</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" width="80" fixed="right">
+                  <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                     <template #default="scope">
                       <el-button
                         size="small"
@@ -609,7 +609,7 @@
                 <span v-else>-</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="100" fixed="right">
+            <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button link type="primary" @click="selectStandard(scope.row)">选择</el-button>
               </template>
@@ -691,9 +691,10 @@ import AQLStandards from './AQLStandards.vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
-import { baseDataApi, systemApi, qualityApi } from '@/services/api'
+import { baseDataApi, qualityApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
-import { parseListData } from '@/utils/responseParser'
+
+import { loadUserListOptions } from '@/utils/optionLoaders'
 import { SEARCH_CONFIG, mapMaterialData, searchMaterials as performSearchMaterials } from '@/utils/searchConfig'
 import { handleApiError, handleSuccess, handleWarning } from '@/utils/errorHandler'
 import {
@@ -920,8 +921,7 @@ const getUserRealName = (userId) => {
 // 获取用户列表
 const fetchUsers = async () => {
   try {
-    const response = await systemApi.getUsers()
-    const userData = parseListData(response)
+    const userData = await loadUserListOptions()
     // 创建用户ID到信息的映射
     userData.forEach(user => {
       userMap.value[user.id] = user
@@ -1784,7 +1784,7 @@ const handleGeneralChange = (val) => {
 .selected-materials-list {
   margin-top: 8px;
   padding: 8px 12px;
-  background-color: var(--color-bg-secondary, #f5f7fa);
+  background-color: var(--color-bg-secondary, var(--color-bg-hover));
   border-radius: 4px;
   display: flex;
   flex-wrap: wrap;
@@ -1792,7 +1792,7 @@ const handleGeneralChange = (val) => {
   gap: 6px;
 }
 .selected-label {
-  color: var(--color-text-secondary, #606266);
+  color: var(--color-text-secondary, var(--color-text-regular));
   font-size: 13px;
   margin-right: 4px;
   flex-shrink: 0;

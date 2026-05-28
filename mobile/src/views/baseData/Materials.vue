@@ -54,7 +54,7 @@
         { label: '分类', field: 'category_name' }
       ]
     },
-    detailRoute: '/baseData/materials/:id'
+    detailRoute: '/basedata/materials/:id'
   }))
 
   // API 函数
@@ -71,7 +71,7 @@
 
   // 事件处理
   const handleAdd = () => {
-    router.push('/baseData/materials/create')
+    router.push('/basedata/materials/create')
   }
 
   const handleFilter = () => {
@@ -79,6 +79,6 @@
   }
 
   const handleItemClick = (item) => {
-    router.push(`/baseData/materials/${item.id}`)
+    router.push(`/basedata/materials/${item.id}`)
   }
 </script>

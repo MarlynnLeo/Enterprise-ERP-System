@@ -12,23 +12,14 @@
 const arModel = require('../models/ar');
 const apModel = require('../models/ap');
 const logger = require('../utils/logger');
-const { pool } = require('../config/db');
+const NotificationService = require('./NotificationService');
 
 /**
  * 获取拥有指定权限（或 admin 角色）的用户 ID 列表
  */
-async function getNotificationUsers(permissionCode) {
+async function getNotificationUsers(permissionCodes) {
   try {
-    const [users] = await pool.query(`
-      SELECT DISTINCT u.id
-      FROM users u
-      JOIN user_roles ur ON u.id = ur.user_id
-      JOIN roles r ON ur.role_id = r.id AND r.status = 1
-      LEFT JOIN role_menus rm ON r.id = rm.role_id
-      LEFT JOIN menus m ON rm.menu_id = m.id AND m.status = 1
-      WHERE u.status = 1 AND (r.code = 'admin' OR m.permission = ?)
-    `, [permissionCode]);
-    return users.map(u => u.id);
+    return await NotificationService.getUserIdsByPermissions(permissionCodes, { includeAdmins: true });
   } catch (error) {
     logger.error('[逾期检查] 获取通知用户失败:', error);
     return [];
@@ -79,32 +70,16 @@ async function checkOverdueInvoices({ model, type, label, counterpartyField, cou
     }
 
     // 获取有权限接收通知的用户
-    const notifyUserIds = await getNotificationUsers('finance:overdue:notify');
+    const notifyUserIds = await getNotificationUsers([
+      'finance:overdue:notify',
+      type === 'ar' ? 'finance:ar:view' : 'finance:ap:view',
+    ]);
     if (notifyUserIds.length === 0) {
       logger.warn('[逾期检查] 没有配置通知接收人，跳过发送');
       return { success: true, count: overdueInvoices.length, invoices: overdueInvoices };
     }
 
-    // 去重：查询今天已发过的通知（按 source_type + source_id + user_id）
-    const invoiceIds = overdueInvoices.map(inv => inv.id);
-    const [existingNotifications] = await pool.query(
-      `SELECT source_id, user_id FROM notifications
-       WHERE source_type = 'overdue_invoice'
-         AND source_id IN (?)
-         AND user_id IN (?)
-         AND DATE(created_at) = CURDATE()`,
-      [invoiceIds, notifyUserIds]
-    );
-
-    // 构建已通知集合：key = "invoiceId-userId"
-    const notifiedSet = new Set(
-      existingNotifications.map(n => `${n.source_id}-${n.user_id}`)
-    );
-
-    // 组装通知数据
-    const notificationsToInsert = [];
-
-    for (const invoice of overdueInvoices) {
+    const notificationJobs = overdueInvoices.map((invoice) => {
       const overdueDays = calculateOverdueDays(invoice.due_date, today);
       const priority = getOverduePriority(overdueDays);
       const counterpartyName = invoice[counterpartyField] || '未知';
@@ -113,38 +88,25 @@ async function checkOverdueInvoices({ model, type, label, counterpartyField, cou
 
       logger.warn(content);
 
-      for (const userId of notifyUserIds) {
-        // 去重检查：今天是否已发过
-        const key = `${invoice.id}-${userId}`;
-        if (notifiedSet.has(key)) continue;
+      return {
+        userIds: notifyUserIds,
+        notification: {
+          type: 'overdue_invoice',
+          title,
+          content,
+          link: `/finance/${type}/invoices`,
+          linkParams: { invoice_id: invoice.id },
+          priority,
+          sourceType: 'overdue_invoice',
+          sourceId: invoice.id,
+        },
+      };
+    });
 
-        notificationsToInsert.push([
-          userId,                                     // user_id
-          'overdue_invoice',                          // type
-          title,                                      // title
-          content,                                    // content
-          `/finance/${type}/invoices`,                // link（跳转到对应发票页面）
-          JSON.stringify({ invoice_id: invoice.id }), // link_params
-          priority,                                   // priority
-          'overdue_invoice',                          // source_type
-          invoice.id,                                 // source_id
-          null,                                       // created_by
-        ]);
-      }
-    }
-
-    // 批量写入通知表
-    if (notificationsToInsert.length > 0) {
-      await pool.query(
-        `INSERT INTO notifications
-         (user_id, type, title, content, link, link_params, priority, source_type, source_id, created_by)
-         VALUES ?`,
-        [notificationsToInsert]
-      );
-      logger.info(`[逾期检查] 已发送 ${notificationsToInsert.length} 条${label}逾期通知`);
-    } else {
-      logger.info(`[逾期检查] ${label}逾期通知已去重，无新通知需发送`);
-    }
+    const notifyResult = await NotificationService.notifyMany(notificationJobs);
+    logger.info(
+      `[逾期检查] ${label}逾期通知发送完成 inserted=${notifyResult.inserted}, skipped=${notifyResult.skipped}`
+    );
 
     return {
       success: true,

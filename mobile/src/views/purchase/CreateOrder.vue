@@ -329,6 +329,7 @@
     Icon as VanIcon
   } from 'vant'
   import { purchaseApi, baseDataApi } from '@/services/api'
+  import { extractApiData, extractApiList } from '@/utils/apiHelper'
 
   const router = useRouter()
   const route = useRoute()
@@ -404,11 +405,10 @@
     try {
       const response = await baseDataApi.getSuppliers({
         page: 1,
-        pageSize: 1000,
+        pageSize: 50,
         status: 1 // 只获取启用的供应商
       })
-      const data = response.data || response
-      supplierList.value = data.items || data.list || (Array.isArray(data) ? data : [])
+      supplierList.value = extractApiList(response)
     } catch (error) {
       console.error('获取供应商列表失败:', error)
       showToast('获取供应商列表失败')
@@ -420,7 +420,7 @@
     try {
       const params = {
         page: 1,
-        pageSize: 1000,
+        pageSize: 50,
         status: 1
       }
 
@@ -430,8 +430,7 @@
       }
 
       const response = await baseDataApi.getSuppliers(params)
-      const data = response.data || response
-      supplierList.value = data.items || data.list || (Array.isArray(data) ? data : [])
+      supplierList.value = extractApiList(response)
     } catch (error) {
       console.error('搜索供应商失败:', error)
       showToast('搜索供应商失败')
@@ -466,18 +465,10 @@
     try {
       const response = await baseDataApi.getMaterials({
         page: 1,
-        pageSize: 1000
+        pageSize: 50,
+        status: 1
       })
-      const resData = response.data || response
-      const materials = Array.isArray(resData)
-        ? resData
-        : Array.isArray(resData.list)
-          ? resData.list
-          : Array.isArray(resData.items)
-            ? resData.items
-            : Array.isArray(resData.data)
-              ? resData.data
-              : []
+      const materials = extractApiList(response)
       materialList.value = materials.map((material) => ({
         ...material,
         unit: material.unit || '件'
@@ -493,7 +484,8 @@
     try {
       const params = {
         page: 1,
-        pageSize: 1000
+        pageSize: 50,
+        status: 1
       }
 
       if (materialSearchValue.value) {
@@ -504,16 +496,7 @@
       }
 
       const response = await baseDataApi.getMaterials(params)
-      const resData2 = response.data || response
-      const materials = Array.isArray(resData2)
-        ? resData2
-        : Array.isArray(resData2.list)
-          ? resData2.list
-          : Array.isArray(resData2.items)
-            ? resData2.items
-            : Array.isArray(resData2.data)
-              ? resData2.data
-              : []
+      const materials = extractApiList(response)
       materialList.value = materials.map((material) => ({
         ...material,
         unit: material.unit || '件'
@@ -629,7 +612,7 @@
     if (!isEdit.value) return
     try {
       const response = await purchaseApi.getOrder(route.params.id)
-      const order = response.data?.data || response.data || response
+      const order = extractApiData(response, null)
       if (!order) return
 
       Object.assign(orderForm, {
@@ -754,7 +737,7 @@
 
 <style lang="scss" scoped>
   .create-order-page {
-    height: 100vh;
+    height: 100%;
     background-color: var(--bg-secondary);
     display: flex;
     flex-direction: column;
@@ -776,7 +759,7 @@
       font-size: 1rem;
       font-weight: 600;
       color: var(--text-primary);
-      border-bottom: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--surface-border, var(--border-subtle));
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -788,7 +771,7 @@
   }
 
   .item-card {
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 12px;
@@ -890,7 +873,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
 
     .picker-title {
       font-size: 1rem;
@@ -907,7 +890,7 @@
 
   .picker-search {
     padding: 16px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   }
 
   .picker-content {
@@ -922,7 +905,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 12px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
     border-radius: 6px;
     margin-bottom: 8px;
     cursor: pointer;

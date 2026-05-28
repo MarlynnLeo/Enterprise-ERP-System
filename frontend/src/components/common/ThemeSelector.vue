@@ -1,228 +1,219 @@
 <!--
 /**
  * ThemeSelector.vue
- * @description 主题选择器组件 - 支持多主题预设切换
- * @date 2025-10-23
- * @version 1.0.0
+ * @description 主题选择器组件
  */
 -->
 <template>
   <el-dropdown @command="handleThemeChange" trigger="click" placement="bottom-end">
-    <div class="theme-selector">
+    <button class="theme-selector" type="button" :aria-label="currentPresetAriaLabel">
       <el-icon :size="20">
         <component :is="themeIcon" />
       </el-icon>
-    </div>
+    </button>
+
     <template #dropdown>
       <el-dropdown-menu class="theme-dropdown">
         <el-dropdown-item disabled>
-          <span style="font-weight: bold; color: var(--el-text-color-primary);">
-            选择主题
-          </span>
+          <div class="theme-dropdown__title">选择主题</div>
         </el-dropdown-item>
-        <el-dropdown-item divided command="default">
-          <div class="theme-item">
-            <el-icon v-if="currentPreset === 'default'" color="var(--el-color-primary)">
-              <Check />
+
+        <el-dropdown-item
+          v-for="preset in themePresetList"
+          :key="preset.id"
+          :command="preset.id"
+          :divided="preset.id === firstPresetId"
+        >
+          <div class="theme-item" :class="{ 'is-active': currentPreset === preset.id }">
+            <span class="theme-item__check" aria-hidden="true">
+              <el-icon v-if="currentPreset === preset.id">
+                <Check />
+              </el-icon>
+            </span>
+            <el-icon class="theme-item__icon">
+              <component :is="preset.icon" />
             </el-icon>
-            <span :class="{ 'active-theme': currentPreset === 'default' }">
-              🎨 默认主题
+            <span class="theme-item__content">
+              <span class="theme-item__name">{{ preset.name }}</span>
+              <span class="theme-item__description">{{ preset.description }}</span>
             </span>
           </div>
         </el-dropdown-item>
-        <el-dropdown-item command="tech">
-          <div class="theme-item">
-            <el-icon v-if="currentPreset === 'tech'" color="var(--el-color-primary)">
-              <Check />
-            </el-icon>
-            <span :class="{ 'active-theme': currentPreset === 'tech' }">
-              🚀 科技主题
-            </span>
-          </div>
-        </el-dropdown-item>
-        <el-dropdown-item command="business">
-          <div class="theme-item">
-            <el-icon v-if="currentPreset === 'business'" color="var(--el-color-primary)">
-              <Check />
-            </el-icon>
-            <span :class="{ 'active-theme': currentPreset === 'business' }">
-              💼 商务主题
-            </span>
-          </div>
-        </el-dropdown-item>
-        <el-dropdown-item command="vibrant">
-          <div class="theme-item">
-            <el-icon v-if="currentPreset === 'vibrant'" color="var(--el-color-primary)">
-              <Check />
-            </el-icon>
-            <span :class="{ 'active-theme': currentPreset === 'vibrant' }">
-              🎉 活力主题
-            </span>
-          </div>
-        </el-dropdown-item>
-        <el-dropdown-item command="nature">
-          <div class="theme-item">
-            <el-icon v-if="currentPreset === 'nature'" color="var(--el-color-primary)">
-              <Check />
-            </el-icon>
-            <span :class="{ 'active-theme': currentPreset === 'nature' }">
-              🌿 自然主题
-            </span>
-          </div>
-        </el-dropdown-item>
-        <el-dropdown-item command="dark">
-          <div class="theme-item">
-            <el-icon v-if="currentPreset === 'dark'" color="var(--el-color-primary)">
-              <Check />
-            </el-icon>
-            <span :class="{ 'active-theme': currentPreset === 'dark' }">
-              🌙 深色主题
-            </span>
-          </div>
-        </el-dropdown-item>
-        <el-dropdown-item command="professional">
-          <div class="theme-item">
-            <el-icon v-if="currentPreset === 'professional'" color="var(--el-color-primary)">
-              <Check />
-            </el-icon>
-            <span :class="{ 'active-theme': currentPreset === 'professional' }">
-              💼 专业主题
-            </span>
-          </div>
-        </el-dropdown-item>
-        <el-dropdown-item command="kacon">
-          <div class="theme-item">
-            <el-icon v-if="currentPreset === 'kacon'" color="var(--el-color-primary)">
-              <Check />
-            </el-icon>
-            <span :class="{ 'active-theme': currentPreset === 'kacon' }">
-              🏢 KACON品牌
-            </span>
-          </div>
-        </el-dropdown-item>
+
         <el-dropdown-item divided disabled>
-          <span style="font-size: 12px; color: var(--el-text-color-secondary);">
-            当前: {{ currentPresetName }}
-          </span>
+          <div class="theme-dropdown__current">当前：{{ currentPresetName }}</div>
         </el-dropdown-item>
       </el-dropdown-menu>
     </template>
   </el-dropdown>
 </template>
+
 <script setup>
 import { computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { Check, Sunny, Moon } from '@element-plus/icons-vue'
+import { Check, Moon, Sunny } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-const themeStore = useThemeStore()
-// 当前主题预设
-const currentPreset = computed(() => themeStore.appearance.preset || 'default')
-// 当前主题预设名称
-const currentPresetName = computed(() => {
-  const preset = themeStore.themePresets[currentPreset.value]
-  return preset ? preset.name : '默认主题'
-})
-// 主题图标
-const themeIcon = computed(() => {
-  if (themeStore.isDark) {
-    return Moon
-  }
-  return Sunny
-})
-// 按钮类型
-const _buttonType = computed(() => {
-  return themeStore.isDark ? 'warning' : 'primary'
-})
-// 处理主题切换
-const handleThemeChange = (presetId) => {
-  try {
-    themeStore.applyPreset(presetId)
 
-    const preset = themeStore.themePresets[presetId]
-    ElMessage.success({
-      message: `已切换到 ${preset.name}`,
+const themeStore = useThemeStore()
+
+const themePresetList = computed(() => themeStore.themePresetList)
+const firstPresetId = computed(() => themePresetList.value[0]?.id)
+const currentPreset = computed(() => themeStore.appearance.preset || themeStore.currentPreset.id)
+const currentPresetName = computed(() => themeStore.currentPreset.name)
+const currentPresetAriaLabel = computed(() => `当前主题：${currentPresetName.value}`)
+
+const themeIcon = computed(() => {
+  return themeStore.isDark ? Moon : Sunny
+})
+
+const handleThemeChange = async (presetId) => {
+  const preset = themeStore.themePresets[presetId]
+  if (!preset) {
+    ElMessage.error({
+      message: '主题不存在，请刷新后重试',
       duration: 2000
     })
-  } catch (error) {
-    console.error('切换主题失败:', error)
-    ElMessage.error({
-      message: '切换主题失败，请重试',
-      duration: 2000
+    return
+  }
+
+  const synced = await themeStore.applyPreset(presetId)
+  if (synced) {
+    ElMessage.success({
+      message: `已切换到 ${preset.name}`,
+      duration: 1800
+    })
+  } else {
+    ElMessage.warning({
+      message: `已本地切换到 ${preset.name}，服务器同步失败`,
+      duration: 2400
     })
   }
 }
 </script>
+
 <style scoped>
 .theme-selector {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  background: transparent;
+  color: var(--el-text-color-primary);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  transition:
+    background-color var(--transition-base, 0.2s),
+    border-color var(--transition-base, 0.2s),
+    color var(--transition-base, 0.2s);
+}
+
+.theme-selector:hover,
+.theme-selector:focus-visible {
+  color: var(--el-color-primary);
+  background: var(--color-bg-hover, var(--el-fill-color-light));
+  border-color: var(--color-border-light, var(--el-border-color-lighter));
+  outline: none;
+}
+
+.theme-dropdown {
+  min-width: 248px;
+  padding: 8px;
+  border: 1px solid var(--color-border-light, var(--el-border-color-lighter));
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg-base, var(--el-bg-color));
+  box-shadow: var(--shadow-lg, var(--el-box-shadow-light));
+}
+
+.theme-dropdown__title {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--el-text-color-primary);
 }
-.theme-selector:hover .el-icon {
-  color: var(--tech-primary);
-  animation: themeRotate 0.6s ease;
+
+.theme-dropdown__current {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
-@keyframes themeRotate {
-  0% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(180deg) scale(1.1); }
-  100% { transform: rotate(360deg) scale(1); }
-}
-.theme-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 180px;
-  padding: 2px 0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.theme-item .el-icon {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  transition: all 0.3s ease;
-}
-.active-theme {
-  font-weight: 600;
-  color: var(--el-color-primary);
-}
-/* 下拉菜单优化 */
-.theme-dropdown {
-  padding: 8px;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border);
-}
+
 :deep(.el-dropdown-menu__item) {
-  padding: 10px 16px;
-  border-radius: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px);
   margin: 2px 0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  line-height: 1.35;
+  transition:
+    background-color var(--transition-base, 0.2s),
+    color var(--transition-base, 0.2s);
 }
+
 :deep(.el-dropdown-menu__item:not(.is-disabled):hover) {
-  background: linear-gradient(90deg, rgba(0, 195, 255, 0.1), rgba(0, 195, 255, 0.05));
-  transform: translateX(4px);
-  box-shadow: 0 2px 8px rgba(0, 195, 255, 0.2);
+  background: var(--color-primary-light-9, var(--color-bg-hover));
 }
-:deep(.el-dropdown-menu__item:not(.is-disabled):hover .theme-item .el-icon) {
-  transform: scale(1.2) rotate(10deg);
-  color: var(--tech-primary);
-}
+
 :deep(.el-dropdown-menu__item.is-divided) {
   margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-lighter, var(--el-border-color-lighter));
 }
+
 :deep(.el-dropdown-menu__item.is-disabled) {
-  opacity: 0.6;
-  cursor: not-allowed;
+  cursor: default;
+  opacity: 1;
 }
-:deep(.el-button.is-circle:active) {
-  transform: translateY(0);
+
+.theme-item {
+  display: grid;
+  grid-template-columns: 18px 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 212px;
+  color: var(--el-text-color-regular, var(--color-text-regular));
+}
+
+.theme-item__check,
+.theme-item__icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-color-primary);
+}
+
+.theme-item__icon {
+  width: 24px;
+  height: 24px;
+  color: var(--color-text-secondary, var(--el-text-color-secondary));
+}
+
+.theme-item__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.theme-item__name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.theme-item__description {
+  max-width: 168px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.theme-item.is-active .theme-item__name,
+.theme-item.is-active .theme-item__icon {
+  color: var(--el-color-primary);
 }
 </style>

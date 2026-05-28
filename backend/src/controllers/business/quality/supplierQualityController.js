@@ -30,7 +30,7 @@ const supplierQualityController = {
             const { page = 1, pageSize = 20, supplier_id, period, grade } = req.query;
             const pagination = parsePagination(page, pageSize, {
                 defaultPageSize: 20,
-                maxPageSize: 200,
+                maxPageSize: 100,
             });
 
             let whereClause = 'WHERE 1=1';
@@ -95,7 +95,7 @@ const supplierQualityController = {
         LEFT JOIN suppliers s ON sqs.supplier_id = s.id
         WHERE sqs.supplier_id = ?
         ORDER BY sqs.period DESC
-        LIMIT ${Math.max(1,Math.min(Math.floor(Number(limit))||20,500))}
+        LIMIT ${limit}
       `,
                 [supplierId]
             );

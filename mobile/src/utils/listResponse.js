@@ -1,30 +1,21 @@
-export const getResponseList = (response) => {
-  const data = response?.data ?? response
+import { extractApiList } from './apiHelper'
 
-  if (Array.isArray(data)) return data
-  if (Array.isArray(data?.list)) return data.list
-  if (Array.isArray(data?.items)) return data.items
-  if (Array.isArray(data?.data)) return data.data
-  if (Array.isArray(data?.data?.list)) return data.data.list
-  if (Array.isArray(data?.data?.items)) return data.data.items
+export const getResponseList = extractApiList
 
-  return []
-}
-
-export const toPagedResponse = (list) => ({
-  data: {
-    list,
-    total: list.length
-  }
-})
-
-export const filterByKeyword = (list, keyword, fields) => {
-  const normalizedKeyword = String(keyword || '').trim().toLowerCase()
-  if (!normalizedKeyword) return list
+export const filterByKeyword = (list = [], keyword = '', fields = []) => {
+  const text = String(keyword || '').trim().toLowerCase()
+  if (!text) return list
 
   return list.filter((item) =>
-    fields.some((field) =>
-      String(item[field] ?? '').toLowerCase().includes(normalizedKeyword)
-    )
+    fields.some((field) => String(item?.[field] || '').toLowerCase().includes(text))
   )
 }
+
+export const toPagedResponse = (list = []) => ({
+  data: {
+    list,
+    total: list.length,
+    page: 1,
+    pageSize: list.length || 20
+  }
+})

@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inspection-container">
+  <div class="module-page inspection-container">
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -130,7 +130,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="200">
+        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -338,6 +338,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { qualityApi } from '@/api/quality'
 import { productionApi } from '@/api/production'
 import printService from '@/services/printService'
+import { parseResponseData } from '@/utils/responseParser'
 
 // 异步加载规则和打卡弹窗组件
 const RulesDialog = defineAsyncComponent(() => import('./components/ProcessInspectionRulesDialog.vue'))
@@ -431,12 +432,12 @@ const fetchData = async () => {
     const response = await qualityApi.getProcessInspections(params)
 
     // 解析响应数据
-    const responseData = response.data?.data || response.data || {}
+    const responseData = parseResponseData(response, {})
     inspectionList.value = responseData.rows || responseData.items || responseData.list || []
     pagination.total = Number(responseData.total) || 0
 
     // 更新统计数据
-    updateStats()
+    await updateStats()
   } catch (error) {
     console.error('获取过程检验列表失败:', error)
     ElMessage.error('获取过程检验列表失败')
@@ -448,26 +449,38 @@ const fetchData = async () => {
 }
 
 // 更新统计数据
-const updateStats = () => {
-  inspectionStats.value.total = inspectionList.value.length
-  inspectionStats.value.pending = inspectionList.value.filter(item => item.status === 'pending').length
-  inspectionStats.value.passed = inspectionList.value.filter(item => item.status === 'passed').length
-  inspectionStats.value.failed = inspectionList.value.filter(item => item.status === 'failed').length
-  inspectionStats.value.rework = inspectionList.value.filter(item => item.status === 'rework').length
+const updateStats = async () => {
+  try {
+    const response = await qualityApi.getProcessInspectionStats()
+    const data = parseResponseData(response, {})
+    inspectionStats.value.total = Number(data.total) || 0
+    inspectionStats.value.pending = Number(data.pending) || 0
+    inspectionStats.value.passed = Number(data.passed) || 0
+    inspectionStats.value.failed = Number(data.failed) || 0
+    inspectionStats.value.rework = Number(data.rework) || 0
+  } catch (error) {
+    console.error('获取过程检验统计失败:', error)
+    inspectionStats.value.total = inspectionList.value.length
+    inspectionStats.value.pending = inspectionList.value.filter(item => item.status === 'pending').length
+    inspectionStats.value.passed = inspectionList.value.filter(item => item.status === 'passed').length
+    inspectionStats.value.failed = inspectionList.value.filter(item => item.status === 'failed').length
+    inspectionStats.value.rework = inspectionList.value.filter(item => item.status === 'rework').length
+  }
 }
 
 
 // 获取生产工单选项
-const fetchPurchaseOrders = async () => {
+const fetchPurchaseOrders = async (query = '') => {
   orderLoading.value = true
   try {
     // 获取生产任务列表
     const tasksResponse = await productionApi.getProductionTasks({
-      pageSize: 1000,
+      pageSize: 50,
+      search: query,
       status: 'in_progress' // 只获取进行中的任务
     })
 
-    const tasksData = tasksResponse.data?.data || tasksResponse.data || {}
+    const tasksData = parseResponseData(tasksResponse, {})
     const tasksList = tasksData.list || tasksData.rows || tasksData.items || []
 
     // 转换为工单选项格式
@@ -481,10 +494,10 @@ const fetchPurchaseOrders = async () => {
 
     // 获取工序数据
     const processesResponse = await productionApi.getProductionProcesses({
-      pageSize: 1000
+      pageSize: 50
     })
 
-    const processesData = processesResponse.data?.data || processesResponse.data || {}
+    const processesData = parseResponseData(processesResponse, {})
     allProcesses.value = processesData.list || processesData.rows || processesData.items || []
   } catch (error) {
     console.error('获取生产工单列表失败:', error)
@@ -636,7 +649,7 @@ const handleView = async (row) => {
     const res = await qualityApi.getProcessInspectionPunchList({
       inspection_id: row.id,
       page: 1,
-      pageSize: 100
+      pageSize: 50
     })
     punchRecords.value = res.data?.list || []
   } catch (error) {
@@ -780,7 +793,6 @@ const handlePrint = async (row) => {
   gap: 8px;
 }
 
-/* 使用全局样式 common-styles.css 中的 .statistics-row 和 .stat-card */
 
 
 
@@ -811,7 +823,7 @@ const handlePrint = async (row) => {
 .criteria-item {
   margin-bottom: 15px;
   padding-bottom: 15px;
-  border-bottom: 1px dashed #eee;
+  border-bottom: 1px dashed var(--color-border-lighter);
 }
 
 .criteria-item:last-child {

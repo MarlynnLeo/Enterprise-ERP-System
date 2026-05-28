@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="product-categories-container">
+  <div class="module-page base-data-list-page product-categories-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -37,11 +37,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="类型名称">
           <el-input  v-model="searchForm.name" placeholder="请输入类型名称" clearable ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="类型编码">
           <el-input  v-model="searchForm.code" placeholder="请输入类型编码" clearable ></el-input>
         </el-form-item>
@@ -51,16 +58,8 @@
             <el-option :value="0" label="禁用"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -126,7 +125,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述"></el-table-column>
-        <el-table-column label="操作" min-width="30" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               v-if="canCreate && Number(scope.row.status) !== 1"
@@ -208,7 +207,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="description" label="描述"></el-table-column>
-          <el-table-column label="操作" width="280" fixed="right">
+          <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-if="canUpdate && Number(scope.row.status) !== 1"
@@ -276,7 +275,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="description" label="描述"></el-table-column>
-          <el-table-column label="操作" width="280" fixed="right">
+          <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-if="canUpdate && Number(scope.row.status) !== 1"
@@ -491,13 +490,11 @@
 
 <script setup>
 import { parsePaginatedData } from '@/utils/responseParser';
-
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Search, Refresh, Edit, Delete, ArrowDown } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, ArrowDown } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { baseDataApi } from '@/api/baseData';
-
 // 权限store
 const authStore = useAuthStore()
 const canCreate = computed(() =>
@@ -525,12 +522,14 @@ const sourceTypeMap = {
 // ==================== 通用工具函数 ====================
 
 // 使用统一响应解析器，保持向后兼容的返回格式
-const parseResponseData = (response) => {
+
+const parsePagedResponse = (response) => {
   const { list, total } = parsePaginatedData(response);
   return { data: list, total };
 };
 
 // 通用对话框关闭函数
+
 const closeDialog = (dialogRef, formRefValue) => {
   dialogRef.value = false;
   formRefValue.value?.resetFields();
@@ -556,6 +555,7 @@ const loading = ref(false);
 const submitLoading = ref(false);
 const tableData = ref([]);
 const categoryOptions = ref([]);
+const categoryOptionsLoaded = ref(false);
 const stats = ref({});
 const viewType = ref('categories'); // 视图切换：categories 或 sources
 
@@ -596,6 +596,7 @@ const categoryPagination = reactive({
 });
 
 // 计算属性：是否有搜索过滤条件
+
 const hasSearchFilters = computed(() => {
   return !!(searchForm.name || searchForm.code || searchForm.status !== undefined);
 });
@@ -726,30 +727,22 @@ const loadData = async () => {
       };
 
       const response = await baseDataApi.getProductCategories(params);
-      const { data, total } = parseResponseData(response);
+      const { data, total } = parsePagedResponse(response);
 
       tableData.value = data;
       categoryPagination.total = total || data.length;
     } else {
-      // 没有搜索条件时，加载所有数据并构建树形结构
       const params = {
-        page: 1,
-        pageSize: 10000 // 加载所有数据
+        tree: true,
+        page: categoryPagination.current,
+        pageSize: categoryPagination.size
       };
 
       const response = await baseDataApi.getProductCategories(params);
-      const { data } = parseResponseData(response);
+      const { data, total } = parsePagedResponse(response);
 
-      // 将平铺数据转换为树形结构
-      const fullTree = buildTreeFromFlatData(data);
-
-      // 更新分页总数为根节点数量
-      categoryPagination.total = fullTree.length;
-
-      // 执行前端树形结构分页截取
-      const start = (categoryPagination.current - 1) * categoryPagination.size;
-      const end = start + categoryPagination.size;
-      tableData.value = fullTree.slice(start, end);
+      tableData.value = data;
+      categoryPagination.total = total || data.length;
     }
 
     // 同时加载分类选项
@@ -762,51 +755,13 @@ const loadData = async () => {
   }
 };
 
-// 将平铺数据转换为树形结构
-const buildTreeFromFlatData = (flatData) => {
-  if (!flatData || flatData.length === 0) return [];
-
-  const map = {};
-  const tree = [];
-
-  // 首先创建所有节点的映射
-  flatData.forEach(item => {
-    map[item.id] = { ...item, children: [] };
-  });
-
-  // 然后构建树形结构
-  flatData.forEach(item => {
-    const node = map[item.id];
-    if (item.parent_id && map[item.parent_id]) {
-      // 如果有父节点，添加到父节点的children中
-      map[item.parent_id].children.push(node);
-    } else {
-      // 如果没有父节点，添加到根节点
-      tree.push(node);
-    }
-  });
-
-  // 清理空的children数组
-  const cleanEmptyChildren = (nodes) => {
-    nodes.forEach(node => {
-      if (node.children && node.children.length === 0) {
-        delete node.children;
-      } else if (node.children && node.children.length > 0) {
-        cleanEmptyChildren(node.children);
-      }
-    });
-  };
-
-  cleanEmptyChildren(tree);
-
-  return tree;
-};
-
-const loadCategoryOptions = async () => {
+const loadCategoryOptions = async (force = false) => {
+  if (categoryOptionsLoaded.value && !force) return;
   try {
     const response = await baseDataApi.getProductCategoryOptions();
     // 拦截器已解包，response.data 就是业务数据
     categoryOptions.value = buildTreeOptions(response.data || []);
+    categoryOptionsLoaded.value = true;
   } catch (error) {
     console.error('加载分类选项失败:', error);
   }
@@ -841,7 +796,7 @@ const loadInspectionData = async () => {
     };
 
     const response = await baseDataApi.getInspectionMethods(params);
-    const { data, total } = parseResponseData(response);
+    const { data, total } = parsePagedResponse(response);
 
     inspectionTableData.value = data;
     inspectionPagination.total = total || data.length;
@@ -964,6 +919,7 @@ const handleDelete = async (row) => {
 
     await baseDataApi.deleteProductCategory(row.id);
     ElMessage.success('删除成功');
+    categoryOptionsLoaded.value = false;
     // 删除后重新加载所有数据
     loadAllData();
   } catch (error) {
@@ -989,6 +945,7 @@ const handleSubmit = async () => {
     }
 
     dialogVisible.value = false;
+    categoryOptionsLoaded.value = false;
     // 操作成功后重新加载所有数据
     loadAllData();
   } catch (error) {
@@ -1024,6 +981,7 @@ const handleToggleStatus = async (row) => {
       status: newStatus
     });
     ElMessage.success(`${statusText}成功`);
+    categoryOptionsLoaded.value = false;
     loadAllData();
   } catch (error) {
     if (error !== 'cancel') {
@@ -1180,7 +1138,7 @@ const loadSourceData = async () => {
     };
 
     const response = await baseDataApi.getMaterialSources(params);
-    const { data, total } = parseResponseData(response);
+    const { data, total } = parsePagedResponse(response);
 
     sourceTableData.value = data;
     sourcePagination.total = total;
@@ -1282,33 +1240,6 @@ watch(viewType, (newType) => {
 </script>
 
 <style scoped>
-.header-card {
-  margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-}
-
 .dialog-footer {
   text-align: right;
 }

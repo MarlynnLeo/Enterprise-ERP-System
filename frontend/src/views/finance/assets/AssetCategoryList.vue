@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="category-container">
+  <div class="module-page category-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -18,18 +18,20 @@
       </div>
     </el-card>
 
-    <!-- 搜索与表格 -->
-    <el-card class="data-card">
-      <el-form :inline="true" class="search-form">
+    <FinanceQueryCard
+      :loading="loading"
+      @search="loadCategories"
+      @reset="resetSearch"
+    >
+      <template #basic>
         <el-form-item label="类别名称">
           <el-input v-model="searchKeyword" placeholder="搜索名称/编码" clearable @clear="loadCategories" @keyup.enter="loadCategories"></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadCategories">查询</el-button>
-          <el-button @click="searchKeyword = ''; loadCategories()">重置</el-button>
-        </el-form-item>
-      </el-form>
+      </template>
+    </FinanceQueryCard>
 
+    <!-- 表格 -->
+    <el-card class="data-card">
       <el-table
         :data="filteredCategoryList"
         style="width: 100%"
@@ -38,7 +40,7 @@
       >
         <el-table-column prop="code" label="类别编码" width="130" show-overflow-tooltip></el-table-column>
         <el-table-column prop="name" label="类别名称" width="180" show-overflow-tooltip></el-table-column>
-        <el-table-column label="折旧年限" width="100" align="center">
+        <el-table-column label="折旧年限" width="100">
           <template #default="scope">
             {{ scope.row.default_useful_life }} 年
           </template>
@@ -48,19 +50,19 @@
             {{ getDepreciationMethodText(scope.row.default_depreciation_method) }}
           </template>
         </el-table-column>
-        <el-table-column label="残值率" width="100" align="center">
+        <el-table-column label="残值率" width="100">
           <template #default="scope">
             {{ scope.row.default_salvage_rate }}%
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="asset_count" label="资产数量" width="100" align="center">
+        <el-table-column prop="asset_count" label="资产数量" width="100">
           <template #default="scope">
             <el-tag v-if="scope.row.asset_count > 0" type="success" size="small">{{ scope.row.asset_count }}</el-tag>
-            <span v-else style="color: #909399">0</span>
+            <span v-else style="color: var(--color-text-secondary)">0</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" type="primary" @click="handleEdit(scope.row)"
               v-permission="'finance:assets:update'">编辑</el-button>
@@ -178,6 +180,11 @@ const filteredCategoryList = computed(() => {
     (item.code && item.code.toLowerCase().includes(keyword))
   );
 });
+
+const resetSearch = () => {
+  searchKeyword.value = '';
+  loadCategories();
+};
 
 // 类别表单
 const categoryForm = reactive({

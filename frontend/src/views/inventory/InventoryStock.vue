@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryStock.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inventory-stock-container">
+  <div class="module-page inventory-stock-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,8 +19,15 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
+    <FinanceQueryCard
+      :expanded="showAdvancedFilter"
+      :loading="loading"
+      expand-label="高级筛选"
+      @update:expanded="showAdvancedFilter = $event"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
         <el-form-item :label="$t('page.inventory.stock.materialName')">
           <el-input
             v-model="searchQuery"
@@ -32,13 +39,13 @@
             @clear="handleSearch"
           />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item :label="$t('page.inventory.stock.location')">
           <el-select
             v-model="locationFilter"
             :placeholder="$t('page.inventory.stock.location')"
             clearable
-
-            @change="handleSearch"
           >
             <el-option
               v-for="item in locations"
@@ -53,8 +60,6 @@
             v-model="categoryFilter"
             :placeholder="$t('page.baseData.materials.category')"
             clearable
-
-            @change="handleSearch"
           >
             <el-option
               v-for="item in categories"
@@ -69,8 +74,6 @@
             v-model="stockStatusFilter"
             placeholder="全部"
             clearable
-
-            @change="handleSearch"
           >
             <el-option label="全部" value="" />
             <el-option label="正常" value="normal" />
@@ -78,75 +81,51 @@
             <el-option label="零库存" value="zero" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> {{ $t('common.search') }}
-          </el-button>
-          <el-button @click="handleReset" style="margin-left: 8px;" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> {{ $t('common.reset') }}
-          </el-button>
-          <el-button @click="showAdvancedFilter = !showAdvancedFilter" style="margin-left: 8px;">
-            <el-icon><Filter /></el-icon> 高级筛选
-          </el-button>
-          <el-dropdown @command="handleExportCommand" style="margin-left: 8px;">
-            <el-button type="warning">
-              <el-icon><Download /></el-icon> {{ $t('common.export') }}
-              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="summary">导出库存汇总</el-dropdown-item>
-                <el-dropdown-item command="detail">导出库存汇总+明细</el-dropdown-item>
-                <el-dropdown-item command="selected" :disabled="selectedRows.length === 0">导出选中项</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </el-form-item>
-      </el-form>
-
-      <!-- 高级筛选区域 -->
-      <el-collapse-transition>
-        <div v-show="showAdvancedFilter" class="advanced-filter">
-          <el-form :inline="true" class="search-form" >
-            <el-form-item label="库存数量">
-              <el-input-number
+        <el-form-item label="库存数量">
+          <div class="query-range-inputs">
+              <el-input
                 v-model="minQuantity"
-                :min="0"
-                :precision="2"
                 placeholder="最小值"
-
-                controls-position="right"
+                clearable
+                inputmode="decimal"
               />
-              <span style="margin: 0 8px;">-</span>
-              <el-input-number
+              <span class="query-range-separator">-</span>
+              <el-input
                 v-model="maxQuantity"
-                :min="0"
-                :precision="2"
                 placeholder="最大值"
-
-                controls-position="right"
+                clearable
+                inputmode="decimal"
               />
-            </el-form-item>
-            <el-form-item label="更新时间">
-              <el-date-picker
-                v-model="dateRange"
-                type="daterange"
-                range-separator="-"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DD"
-
-              />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" @click="handleSearch">应用筛选</el-button>
-              <el-button @click="handleResetAdvanced">清空</el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-      </el-collapse-transition>
-    </el-card>
+          </div>
+        </el-form-item>
+        <el-form-item label="更新时间">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="-"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+          />
+        </el-form-item>
+      </template>
+      <template #actions>
+        <el-dropdown @command="handleExportCommand">
+          <el-button type="warning">
+            <el-icon><Download /></el-icon> {{ $t('common.export') }}
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="summary">导出库存汇总</el-dropdown-item>
+              <el-dropdown-item command="detail">导出库存汇总+明细</el-dropdown-item>
+              <el-dropdown-item command="selected" :disabled="selectedRows.length === 0">导出选中项</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </template>
+    </FinanceQueryCard>
 
 
     <!-- 统计信息 -->
@@ -184,38 +163,12 @@
           <el-empty description="暂无库存数据" />
         </template>
         <el-table-column type="selection" width="55" />
-        <el-table-column
-          prop="material_code"
-          label="物料编码"
-          width="140"
-          sortable="custom"
-        />
-        <el-table-column
-          prop="material_name"
-          label="物料名称"
-          min-width="250"
-          sortable="custom"
-        />
+        <el-table-column prop="material_code" label="物料编码" width="140" sortable="custom" />
+        <el-table-column prop="material_name" label="物料名称" min-width="250" sortable="custom" />
         <el-table-column prop="specification" label="规格" width="340" />
-        <el-table-column
-          prop="location_name"
-          label="仓库"
-          width="130"
-          sortable="custom"
-        />
-        <el-table-column
-          prop="category_name"
-          label="类别"
-          width="110"
-          sortable="custom"
-        />
-        <el-table-column
-          label="库存数量"
-          width="110"
-          align="right"
-          sortable="custom"
-          prop="quantity"
-        >
+        <el-table-column prop="location_name" label="仓库" width="130" sortable="custom" />
+        <el-table-column prop="category_name" label="类别" width="110" sortable="custom" />
+        <el-table-column label="库存数量" width="110" sortable="custom" prop="quantity">
           <template #default="scope">
             <span :class="{ 'low-stock': isLowStock(scope.row), 'out-of-stock': isOutOfStock(scope.row) }">
               {{ formatQuantity(scope.row.quantity) }}
@@ -223,17 +176,12 @@
           </template>
         </el-table-column>
         <el-table-column prop="unit_name" label="单位" width="70" />
-        <el-table-column
-          prop="updated_at"
-          label="更新时间"
-          width="150"
-          sortable="custom"
-        >
+        <el-table-column prop="updated_at" label="更新时间" width="150" sortable="custom">
           <template #default="scope">
             {{ formatDateTime(scope.row.updated_at, 'YYYY-MM-DD HH:mm') }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="180" fixed="right">
+        <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-btns">
               <el-button size="small" @click="handleViewDetail(scope.row)" v-permission="'inventory:stock:view-detail'">查看明细</el-button>
@@ -303,7 +251,7 @@
                 <el-tag type="primary" style="cursor: pointer;" @click="goToTraceability(row.batch_number, currentDetail.material_code)" title="点击跳转至追溯页面">{{ row.batch_number }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="current_quantity" label="当前数量" width="120" align="right">
+            <el-table-column prop="current_quantity" label="当前数量" width="120">
               <template #default="{ row }">
                 <span style="font-weight: bold; color: var(--color-primary);">{{ formatQuantity(row.current_quantity) }}</span>
               </template>
@@ -319,7 +267,7 @@
                 {{ formatDateTime(row.last_transaction_date, 'YYYY-MM-DD HH:mm:ss') }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120">
+            <el-table-column label="操作" width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
                 <el-button size="small" type="primary" link @click="showBatchTransactions(row.batch_number)">
                   查看流水
@@ -351,7 +299,7 @@
                       {{ group.type }}
                     </el-tag>
                     <span :style="{
-                      color: group.totalQuantity > 0 ? '#67C23A' : '#F56C6C',
+                      color: group.totalQuantity > 0 ? 'var(--color-success)' : 'var(--color-danger)',
                       fontWeight: 'bold',
                       fontSize: '14px'
                     }">
@@ -379,22 +327,22 @@
                       <span v-else style="color: var(--color-text-secondary);">-</span>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="quantity" label="数量" width="80" align="right">
+                  <el-table-column prop="quantity" label="数量" width="80">
                     <template #default="{ row }">
                       <span :style="{
-                        color: row.quantity > 0 ? '#67C23A' : '#F56C6C',
+                        color: row.quantity > 0 ? 'var(--color-success)' : 'var(--color-danger)',
                         fontWeight: 'bold'
                       }">
                         {{ row.quantity > 0 ? '+' : '' }}{{ formatQuantity(row.quantity) }}
                       </span>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="before_quantity" label="变动前" width="80" align="right">
+                  <el-table-column prop="before_quantity" label="变动前" width="80">
                     <template #default="{ row }">
                       {{ formatQuantity(row.before_quantity) }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="after_quantity" label="变动后" width="80" align="right">
+                  <el-table-column prop="after_quantity" label="变动后" width="80">
                     <template #default="{ row }">
                       {{ formatQuantity(row.after_quantity) }}
                     </template>
@@ -424,19 +372,19 @@
           <el-table :data="purchaseHistory" border v-loading="purchaseLoading">
             <el-table-column prop="receipt_no" label="入库单号" width="120" />
             <el-table-column prop="supplier_name" label="供应商" width="230" />
-            <el-table-column prop="quantity" label="数量" width="100" align="right">
+            <el-table-column prop="quantity" label="数量" width="100">
               <template #default="{ row }">
                 {{ formatQuantity(row.quantity) }}
               </template>
             </el-table-column>
-            <el-table-column prop="unit_price" label="单价" width="100" align="right">
+            <el-table-column prop="unit_price" label="单价" width="100">
               <template #default="{ row }">
-                ¥{{ Number(row.unit_price || 0).toFixed(2) }}
+                {{ formatCurrency(row.unit_price) }}
               </template>
             </el-table-column>
-            <el-table-column prop="total_amount" label="总金额" width="120" align="right">
+            <el-table-column prop="total_amount" label="总金额" width="120">
               <template #default="{ row }">
-                ¥{{ Number(row.total_amount || 0).toFixed(2) }}
+                {{ formatCurrency(row.total_amount) }}
               </template>
             </el-table-column>
             <el-table-column prop="receipt_date" label="入库日期" width="110">
@@ -473,19 +421,19 @@
           <el-table :data="salesHistory" border v-loading="salesLoading">
             <el-table-column prop="outbound_no" label="出库单号" width="130" />
             <el-table-column prop="customer_name" label="客户" width="240" />
-            <el-table-column prop="quantity" label="数量" width="77" align="right">
+            <el-table-column prop="quantity" label="数量" width="77">
               <template #default="{ row }">
                 {{ formatQuantity(row.quantity) }}
               </template>
             </el-table-column>
-            <el-table-column prop="unit_price" label="单价" width="90" align="right">
+            <el-table-column prop="unit_price" label="单价" width="90">
               <template #default="{ row }">
-                ¥{{ Number(row.unit_price || 0).toFixed(2) }}
+                {{ formatCurrency(row.unit_price) }}
               </template>
             </el-table-column>
-            <el-table-column prop="total_amount" label="总金额" width="110" align="right">
+            <el-table-column prop="total_amount" label="总金额" width="110">
               <template #default="{ row }">
-                ¥{{ Number(row.total_amount || 0).toFixed(2) }}
+                {{ formatCurrency(row.total_amount) }}
               </template>
             </el-table-column>
             <el-table-column prop="outbound_date" label="出库日期" width="120">
@@ -557,15 +505,16 @@
 </template>
 
 <script setup>
-import { parseListData } from '@/utils/responseParser';
+import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, onMounted, reactive, computed } from 'vue'
-import { Search, Download, Plus, Refresh, ArrowDown, Document, Filter, Close, Printer, Select } from '@element-plus/icons-vue'
+import { Download, Plus, ArrowDown, Document, Close, Printer, Select } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { inventoryApi, baseDataApi } from '@/services/api'
 import InventoryStockAdd from './InventoryStockAdd.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getDocumentType as getDocTypeHelper } from '@/constants/documentTypes'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
+import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { useRouter } from 'vue-router'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { debounce } from '@/utils/commonHelpers'
@@ -586,8 +535,8 @@ const locationFilter = ref('')
 const categoryFilter = ref('')
 const stockStatusFilter = ref('') // 库存状态筛选
 const showAdvancedFilter = ref(false) // 显示高级筛选
-const minQuantity = ref(null) // 最小库存数量
-const maxQuantity = ref(null) // 最大库存数量
+const minQuantity = ref('') // 最小库存数量
+const maxQuantity = ref('') // 最大库存数量
 const dateRange = ref([]) // 更新时间范围
 const sortField = ref('updated_at') // 排序字段
 const sortOrder = ref('DESC') // 排序方向
@@ -691,6 +640,8 @@ const pagination = reactive({
   total: 0
 })
 
+const normalizeQuantityFilter = (value) => String(value ?? '').trim()
+
 // 获取数据
 const fetchData = async () => {
   loading.value = true
@@ -702,8 +653,8 @@ const fetchData = async () => {
       location_id: locationFilter.value,
       category_id: categoryFilter.value,
       stock_status: stockStatusFilter.value,
-      min_quantity: minQuantity.value,
-      max_quantity: maxQuantity.value,
+      min_quantity: normalizeQuantityFilter(minQuantity.value),
+      max_quantity: normalizeQuantityFilter(maxQuantity.value),
       start_date: dateRange.value && dateRange.value[0] ? dateRange.value[0] : '',
       end_date: dateRange.value && dateRange.value[1] ? dateRange.value[1] : '',
       sort_field: sortField.value,
@@ -713,7 +664,7 @@ const fetchData = async () => {
 
     const response = await inventoryApi.getStocks(params)
     // 后端使用 ResponseHandler.paginated 格式返回，数据在 data.data.list 中
-    const responseData = response.data?.data || response.data || {}
+    const responseData = parseResponseData(response, {})
     tableData.value = responseData.list || responseData.items || []
     pagination.total = Number(responseData.total) || 0
 
@@ -755,8 +706,8 @@ const updateStatistics = async () => {
 const fetchBaseData = async () => {
   try {
     const [locationsRes, categoriesRes] = await Promise.all([
-      inventoryApi.getLocations({ limit: 1000 }),
-      baseDataApi.getCategories({ limit: 1000 })
+      inventoryApi.getLocations({ limit: 50 }),
+      baseDataApi.getCategories({ limit: 50 })
     ])
 
     // 使用统一解析器处理数据
@@ -810,17 +761,17 @@ const handleSearch = () => {
 // 重置搜索条件
 const handleReset = () => {
   searchQuery.value = ''
-  locationFilter.value = ''
-  categoryFilter.value = ''
-  stockStatusFilter.value = ''
   handleResetAdvanced()
   fetchData()
 }
 
 // 重置高级筛选
 const handleResetAdvanced = () => {
-  minQuantity.value = null
-  maxQuantity.value = null
+  locationFilter.value = ''
+  categoryFilter.value = ''
+  stockStatusFilter.value = ''
+  minQuantity.value = ''
+  maxQuantity.value = ''
   dateRange.value = []
 }
 
@@ -895,7 +846,7 @@ const handleBatchPrint = async () => {
     batchLoading.value = true
 
     const printData = {
-      stock_no: `STOCK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
+      stock_no: `STOCK-${formatLocalDate(new Date()).replace(/-/g, '')}`,
       stock_date: new Date().toLocaleDateString(),
       location_name: locationFilter.value || '全部仓库',
       filter_summary: searchQuery.value || categoryFilter.value || stockStatusFilter.value || '当前选择库存',
@@ -928,8 +879,9 @@ const handleBatchPrint = async () => {
 const handleQuickPurchase = (row) => {
   // 跳转到采购申请页面,并预填物料信息
   router.push({
-    path: '/purchase/requisition/create',
+    path: '/purchase/requisitions',
     query: {
+      source: 'quick_purchase',
       material_id: row.material_id,
       material_code: row.material_code,
       material_name: row.material_name,
@@ -990,7 +942,7 @@ const loadPurchaseHistory = async (materialId) => {
       sortOrder: 'DESC'
     })
 
-    const responseData = response.data?.data || response.data || {}
+    const responseData = parseResponseData(response, {})
     purchaseHistory.value = responseData.list || responseData.items || parseListData(response, { enableLog: false })
     purchasePagination.total = Number(responseData.total) || purchaseHistory.value.length
   } catch (error) {
@@ -1017,7 +969,7 @@ const loadSalesHistory = async (materialId) => {
       sortOrder: 'DESC'
     })
 
-    const responseData = response.data?.data || response.data || {}
+    const responseData = parseResponseData(response, {})
     salesHistory.value = responseData.list || responseData.items || parseListData(response, { enableLog: false })
     salesPagination.total = Number(responseData.total) || salesHistory.value.length
   } catch (error) {
@@ -1092,8 +1044,8 @@ const handleExport = async (includeDetails = false, exportType = '库存汇总')
       location_id: locationFilter.value,
       category_id: categoryFilter.value,
       stock_status: stockStatusFilter.value,
-      min_quantity: minQuantity.value,
-      max_quantity: maxQuantity.value,
+      min_quantity: normalizeQuantityFilter(minQuantity.value),
+      max_quantity: normalizeQuantityFilter(maxQuantity.value),
       start_date: dateRange.value && dateRange.value[0] ? dateRange.value[0] : '',
       end_date: dateRange.value && dateRange.value[1] ? dateRange.value[1] : '',
       includeDetails: includeDetails
@@ -1236,7 +1188,6 @@ const isOutOfStock = (row) => {
   flex-wrap: wrap;
 }
 
-/* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
 /* 如需特殊样式，在此覆盖 */
 
 /* 库存状态样式 */
@@ -1279,81 +1230,6 @@ const isOutOfStock = (row) => {
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* 高级筛选区域 */
-.advanced-filter {
-  padding: 15px;
-  background-color: var(--color-bg-hover);
-  border-radius: 4px;
-  margin-top: 15px;
-}
-
-.advanced-filter .el-form-item {
-  margin-bottom: 0;
-}
-
-/* 浮动批量操作栏样式 */
-.floating-batch-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4), 0 4px 16px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  gap: 32px;
-  min-width: 400px;
-}
-
-.floating-batch-bar .batch-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-on-primary, #fff);
-  font-size: 14px;
-}
-
-.floating-batch-bar .batch-info .el-icon {
-  font-size: 20px;
-}
-
-.floating-batch-bar .batch-info strong {
-  color: #ffd700;
-  font-size: 18px;
-  margin: 0 2px;
-}
-
-.floating-batch-bar .batch-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.floating-batch-bar .batch-buttons .el-button {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-}
-
-.floating-batch-bar .batch-buttons .el-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-/* 浮动栏进入/离开动画 */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-up-enter-from,
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 100%);
 }
 
 /* 对话框头部 */

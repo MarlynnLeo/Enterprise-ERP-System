@@ -14,6 +14,7 @@ const { getCurrentUserName } = require('../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../utils/authContext');
 const { pool: dbPool } = require('../../config/db');
 const DLQService = require('../../services/business/DLQService');
+const FileAccessService = require('../../services/FileAccessService');
 
 const categoryService = require('../../services/categoryService');
 const unitService = require('../../services/unitService');
@@ -54,6 +55,19 @@ const baseDataController = {
         return ResponseHandler.error(res, '没有上传文件', 'VALIDATION_ERROR', 400);
       }
       const fileUrl = `/uploads/${req.file.filename}`;
+      await FileAccessService.safeRecordUpload({
+        fileUrl,
+        businessType: req.body.business_type || req.body.businessType,
+        businessId: req.body.business_id || req.body.businessId,
+        source: 'baseData',
+        uploadedBy: req.user?.id || req.user?.userId || null,
+        isPublic: req.body.is_public || req.body.isPublic,
+        metadata: {
+          originalName: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+        },
+      });
       ResponseHandler.success(res, { fileUrl, filename: req.file.filename }, '上传成功');
     } catch (error) {
       logger.error('文件上传失败:', error);
@@ -187,6 +201,15 @@ const baseDataController = {
   createUnit: baseUnitController.create,
   updateUnit: baseUnitController.update,
   deleteUnit: baseUnitController.delete,
+  async getUnitStats(req, res) {
+    try {
+      const stats = await unitService.getUnitStats();
+      ResponseHandler.success(res, stats, '获取单位统计成功');
+    } catch (error) {
+      logger.error('获取单位统计失败:', error);
+      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+    }
+  },
 
   // 单位导出
   async exportUnits(req, res) {
@@ -288,6 +311,40 @@ const baseDataController = {
     }
   },
 
+  async getMaterialsByCodes(req, res) {
+    try {
+      const codes = Array.isArray(req.body?.codes)
+        ? [...new Set(req.body.codes.map((code) => String(code || '').trim()).filter(Boolean))]
+        : [];
+
+      if (codes.length === 0) {
+        return ResponseHandler.error(res, '请提供有效的物料编码数组', 'VALIDATION_ERROR', 400);
+      }
+      if (codes.length > 100) {
+        return ResponseHandler.error(res, '批量查询数量不能超过100条', 'VALIDATION_ERROR', 400);
+      }
+
+      const { pool: dbPool } = require('../../config/db');
+      const placeholders = codes.map(() => '?').join(',');
+      const [materials] = await dbPool.query(
+        `SELECT m.*, c.name as category_name, u.name as unit_name
+         FROM materials m
+         LEFT JOIN categories c ON m.category_id = c.id
+         LEFT JOIN units u ON m.unit_id = u.id
+         WHERE m.code IN (${placeholders}) AND m.deleted_at IS NULL`,
+        codes
+      );
+
+      const hasPerm = await hasFinancePermission(req.user);
+      const filteredMaterials = desensitizeData(materials, hasPerm);
+
+      ResponseHandler.success(res, filteredMaterials, '批量按编码获取物料成功');
+    } catch (error) {
+      logger.error('批量按编码获取物料失败:', error);
+      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+    }
+  },
+
   async createMaterial(req, res) {
     try {
       const newMaterial = await materialService.createMaterial(req.body);
@@ -333,7 +390,11 @@ const baseDataController = {
   // 获取物料选项列表 (用于下拉选择)
   async getMaterialOptions(req, res) {
     try {
-      const result = await materialService.getAllMaterials(1, 1000, {});
+      const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1), 100);
+      const result = await materialService.getAllMaterials(1, pageSize, {
+        search: req.query.keyword || req.query.search || '',
+        status: req.query.status ?? 1,
+      });
       const options = result.data.map((m) => ({
         id: m.id,
         code: m.code,
@@ -937,7 +998,7 @@ const baseDataController = {
       const { filters = {} } = req.body || {};
 
       // 获取所有物料数据（不分页）
-      const result = await materialService.getAllMaterials(1, 100000, filters);
+      const result = await materialService.getAllMaterials(1, null, filters);
 
       if (!result.data || result.data.length === 0) {
         return ResponseHandler.error(res, '没有可导出的数据', 'VALIDATION_ERROR', 400);
@@ -1411,7 +1472,12 @@ const baseDataController = {
   async getSupplierOptions(req, res) {
     try {
 
-      const result = await supplierService.getAllSuppliers(1, 10000, { status: 1 });
+      const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1), 100);
+      const keyword = req.query.search || req.query.keyword || req.query.name || '';
+      const result = await supplierService.getAllSuppliers(1, pageSize, {
+        status: 1,
+        keyword,
+      });
       const options = result.list.map((s) => ({
         id: s.id,
         code: s.code,
@@ -1758,6 +1824,18 @@ const baseDataController = {
       };
 
       const attachment = await materialService.addMaterialAttachment(attachmentData);
+      await FileAccessService.safeRecordUpload({
+        fileUrl: attachmentData.file_path,
+        businessType: 'material',
+        businessId: id,
+        source: 'material_attachments',
+        uploadedBy: req.user?.id || req.user?.userId || null,
+        metadata: {
+          originalName: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+        },
+      });
       ResponseHandler.success(res, attachment, '上传附件成功');
     } catch (error) {
       logger.error('上传物料附件失败:', error);
@@ -1769,7 +1847,14 @@ const baseDataController = {
   async deleteMaterialAttachment(req, res) {
     try {
       const { attachmentId } = req.params;
+      const [[attachment]] = await dbPool.execute(
+        'SELECT file_path FROM material_attachments WHERE id = ?',
+        [attachmentId]
+      );
       await materialService.deleteMaterialAttachment(attachmentId);
+      if (attachment?.file_path) {
+        await FileAccessService.safeMarkDeleted(attachment.file_path);
+      }
       ResponseHandler.success(res, null, '删除附件成功');
     } catch (error) {
       logger.error('删除物料附件失败:', error);

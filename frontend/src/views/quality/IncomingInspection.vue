@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * IncomingInspection.vue
  * @description 来料检验管理主页面
@@ -12,7 +12,7 @@
  */
 -->
 <template>
-  <div class="inspection-container">
+  <div class="module-page inspection-container">
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -124,12 +124,12 @@
           </template>
         </el-table-column>
         <el-table-column prop="supplierName" label="供应商" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="quantity" label="检验数" min-width="90" show-overflow-tooltip align="center">
+        <el-table-column prop="quantity" label="检验数" min-width="90" show-overflow-tooltip>
           <template #default="scope">
             {{ Math.floor(scope.row.quantity || 0) }}
           </template>
         </el-table-column>
-        <el-table-column prop="qualified_quantity" label="合格数" min-width="90" show-overflow-tooltip align="center">
+        <el-table-column prop="qualified_quantity" label="合格数" min-width="90" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">
               {{ Math.floor(scope.row.qualified_quantity) }}
@@ -137,7 +137,7 @@
             <span v-else style="color: var(--color-text-secondary);">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="unqualified_quantity" label="不合格" min-width="70" show-overflow-tooltip align="center">
+        <el-table-column prop="unqualified_quantity" label="不合格" min-width="70" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.unqualified_quantity !== null && scope.row.unqualified_quantity !== undefined && scope.row.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">
               {{ Math.floor(scope.row.unqualified_quantity) }}
@@ -160,7 +160,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="batchNo" label="批次号" min-width="170" show-overflow-tooltip />
-        <el-table-column label="操作" fixed="right" min-width="190">
+        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" @click="handleView(scope.row)">查看</el-button>
             <el-button
@@ -250,13 +250,11 @@ import { ref, onMounted } from 'vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { qualityApi, baseDataApi } from '@/services/api'
-import api from '@/services/api'
-import { parsePaginatedData } from '@/utils/responseParser'
+import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import 'dayjs'
 import { getQualityStatusText, getQualityStatusColor } from '@/constants/systemConstants'
 import { extractMaterialNameSimple, extractSupplierNameSimple, extractMaterialSpecsSimple, fetchInspectionDetailWithItems } from '@/utils/inspectionHelpers'
 import { formatDate } from '@/utils/helpers/dateUtils'
-
 // 子组件
 import CreateInspectionDialog from './components/CreateInspectionDialog.vue'
 import InspectDialog from './components/InspectDialog.vue'
@@ -265,7 +263,6 @@ import DetailDialog from './components/DetailDialog.vue'
 import ReportDialog from './components/ReportDialog.vue'
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-
 // ===== 搜索相关 =====
 const authStore = useAuthStore()
 const searchKeyword = ref('')
@@ -354,6 +351,19 @@ const fetchData = async () => {
 }
 
 // ===== 异步物料信息加载 =====
+const applyMaterialInfoToList = (materialId, info) => {
+  if (!materialId || !info) return
+
+  inspectionList.value.forEach(item => {
+    if (String(item.material_id) === String(materialId)) {
+      const materialName = info.name || info.material_name
+      const specs = info.specs || info.specification
+      if (materialName) item.materialName = materialName
+      if (specs && (!item.specs || item.specs === '-')) item.specs = specs
+    }
+  })
+}
+
 const asyncLoadMaterialInfo = () => {
   setTimeout(async () => {
     const itemsNeedInfo = inspectionList.value.filter(item =>
@@ -364,42 +374,30 @@ const asyncLoadMaterialInfo = () => {
 
     if (itemsNeedInfo.length === 0) return
 
-    const materialIds = [...new Set(itemsNeedInfo.map(i => i.material_id))]
-    for (const materialId of materialIds) {
-      try {
-        const info = await getMaterialInfo(materialId)
-        if (info) {
-          inspectionList.value.forEach(item => {
-            if (item.material_id === materialId) {
-              if (info.name) item.materialName = info.name
-              if (info.specs && (!item.specs || item.specs === '-')) item.specs = info.specs
-            }
-          })
-        }
-      } catch (error) {
-        console.error(`加载物料ID ${materialId} 信息失败:`, error)
+    const materialIds = [...new Set(itemsNeedInfo.map(i => i.material_id).filter(Boolean))]
+    const missingMaterialIds = materialIds.filter(materialId => !materialCache.value[materialId])
+
+    try {
+      if (missingMaterialIds.length > 0) {
+        const response = await baseDataApi.getMaterialsByIds(missingMaterialIds)
+        const materials = parseListData(response, { enableLog: false })
+        materials.forEach(material => {
+          if (!material?.id) return
+          materialCache.value[material.id] = {
+            ...material,
+            name: material.name || material.material_name,
+            specs: material.specs || material.specification
+          }
+        })
       }
+
+      materialIds.forEach(materialId => {
+        applyMaterialInfoToList(materialId, materialCache.value[materialId])
+      })
+    } catch (error) {
+      console.error('批量加载物料信息失败:', error)
     }
   }, 100)
-}
-
-const getMaterialInfo = async (materialId) => {
-  if (!materialId) return null
-  if (materialCache.value[materialId]) return materialCache.value[materialId]
-
-  try {
-    const response = await baseDataApi.getMaterial(materialId)
-    if (response?.data) {
-      const data = response.data
-      if (!data.name && data.material_name) data.name = data.material_name
-      materialCache.value[materialId] = data
-      return data
-    }
-    return null
-  } catch (error) {
-    console.error(`获取物料ID ${materialId} 信息失败:`, error)
-    return null
-  }
 }
 
 // ===== 物料名称提取 =====
@@ -418,18 +416,19 @@ const extractMaterialName = (item) => {
 // ===== 统计数据 =====
 const calculateInspectionStats = async () => {
   try {
-    const [pendingRes, passedRes, failedRes, partialRes] = await Promise.all([
-      qualityApi.getIncomingInspections({ status: 'pending', page: 1, limit: 1 }),
-      qualityApi.getIncomingInspections({ status: 'passed', page: 1, limit: 1 }),
-      qualityApi.getIncomingInspections({ status: 'failed', page: 1, limit: 1 }),
-      qualityApi.getIncomingInspections({ status: 'partial', page: 1, limit: 1 }),
-    ])
-    const getTotal = (res) => res?.data?.total || 0
-    const pending = getTotal(pendingRes)
-    const passed = getTotal(passedRes)
-    const failed = getTotal(failedRes)
-    const partial = getTotal(partialRes)
-    inspectionStats.value = { total: pending + passed + failed + partial, pending, passed, failed, partial }
+    const response = await qualityApi.getIncomingInspectionStats()
+    const data = parseResponseData(response, {})
+    const pending = Number(data.pending) || 0
+    const passed = Number(data.passed) || 0
+    const failed = Number(data.failed) || 0
+    const partial = Number(data.partial) || 0
+    inspectionStats.value = {
+      total: Number(data.total) || pending + passed + failed + partial,
+      pending,
+      passed,
+      failed,
+      partial
+    }
   } catch (err) {
     console.error('获取统计数据失败:', err)
     const stats = { total: total.value, pending: 0, passed: 0, failed: 0, partial: 0 }
@@ -448,15 +447,17 @@ const fetchReworkStatusForFailedInspections = async () => {
   const failedItems = inspectionList.value.filter(row => row.status === 'failed')
   if (failedItems.length === 0) return
 
-  const promises = failedItems.map(async (row) => {
-    try {
-      const res = await api.get(`/rework-tasks/by-inspection/${row.id}`)
-      reworkStatusMap.value[row.id] = res.data?.data || res.data
-    } catch {
+  try {
+    const res = await qualityApi.getReworkStatusByInspectionIds(failedItems.map(row => row.id))
+    const data = parseResponseData(res, {})
+    failedItems.forEach(row => {
+      reworkStatusMap.value[row.id] = data[row.id] || { allow_reinspection: false }
+    })
+  } catch {
+    failedItems.forEach(row => {
       reworkStatusMap.value[row.id] = { allow_reinspection: false }
-    }
-  })
-  await Promise.all(promises)
+    })
+  }
 }
 
 const getReworkHintText = (inspectionId) => {

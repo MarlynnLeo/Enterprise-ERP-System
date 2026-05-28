@@ -54,16 +54,16 @@ html {
 
 /* 浅色主题 */
 html.light {
-  --app-bg-color: #ffffff;
-  --app-text-color: #303133;
-  --app-border-color: #dcdfe6;
+  --app-bg-color: var(--color-bg-base);
+  --app-text-color: var(--color-text-primary);
+  --app-border-color: var(--color-border-base);
 }
 
 /* 深色主题 */
-html.dark {
-  --app-bg-color: #141414;
-  --app-text-color: #e5eaf3;
-  --app-border-color: #4c4d4f;
+html.dark[data-theme] {
+  --app-bg-color: var(--color-bg-base);
+  --app-text-color: var(--color-text-primary);
+  --app-border-color: var(--color-border-base);
 }
 
 /* 应用主题变量到body */
@@ -74,6 +74,13 @@ body {
               color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* 全局盒模型 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 /* 主题切换时的平滑过渡 */
 * {
   transition-property: background-color, color, border-color, box-shadow;
@@ -81,69 +88,51 @@ body {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 确保深色主题下的Element Plus组件正确显示 */
-html.dark .el-card {
-  background-color: var(--el-bg-color-page);
-  border-color: var(--el-border-color);
-}
-
-html.dark .el-menu {
-  background-color: var(--el-bg-color-page);
-}
-
-html.dark .el-table {
-  background-color: var(--el-bg-color-page);
-}
-
-html.dark .el-table th.el-table__cell {
-  background-color: var(--el-fill-color-light);
-}
-
-/* ==================== 对话框圆角强制应用 ==================== */
-/* 这些样式必须在最后加载，确保覆盖所有组件的样式 */
+/* ==================== 对话框基础结构 ==================== */
+/* 仅保留结构默认值；主题视觉由 theme-compat.css 覆盖 */
 
 .el-overlay .el-overlay-dialog .el-dialog,
 .el-dialog {
-  border-radius: 12px !important;
-  overflow: hidden !important;
+  border-radius: var(--theme-dialog-radius, 12px);
+  overflow: hidden;
 }
 
 .el-dialog .el-dialog__header {
-  background: linear-gradient(135deg, var(--el-fill-color-light, #f5f7fa) 0%, var(--el-bg-color, #ffffff) 100%) !important;
-  border-bottom: 1px solid var(--el-border-color-lighter, #EBEEF5) !important;
-  padding: 18px 24px !important;
-  margin: 0 !important;
+  background: var(--theme-dialog-header-bg, linear-gradient(135deg, var(--el-fill-color-light, var(--color-bg-hover)) 0%, var(--el-bg-color, var(--color-bg-base)) 100%));
+  border-bottom: 1px solid var(--el-border-color-lighter, var(--color-border-lighter));
+  padding: 18px 24px;
+  margin: 0;
 }
 
 .el-dialog .el-dialog__title {
-  font-size: 18px !important;
-  font-weight: 600 !important;
-  color: var(--el-text-color-primary, #303133) !important;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--el-text-color-primary, var(--color-text-primary));
 }
 
 .el-dialog .el-dialog__body {
-  padding: 24px !important;
+  padding: 24px;
 }
 
 .el-dialog .el-dialog__footer {
-  border-top: 1px solid var(--el-border-color-lighter, #EBEEF5) !important;
-  padding: 16px 24px !important;
-  background-color: var(--el-fill-color-blank, #FAFAFA) !important;
+  border-top: 1px solid var(--el-border-color-lighter, var(--color-border-lighter));
+  padding: 16px 24px;
+  background-color: var(--theme-dialog-footer-bg, var(--el-fill-color-blank, var(--color-bg-section)));
 }
 
 /* Descriptions 组件圆角 */
 .el-descriptions {
-  border-radius: 8px !important;
-  overflow: hidden !important;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .el-descriptions .el-descriptions__header {
-  background-color: var(--el-fill-color-light, #F5F7FA) !important;
-  font-weight: 600 !important;
-  padding: 12px 16px !important;
+  background-color: var(--el-fill-color-light, var(--color-bg-hover));
+  font-weight: 600;
+  padding: 12px 16px;
 }
 
 .el-descriptions .el-descriptions__label {
-  background-color: var(--el-fill-color-blank, #FAFAFA) !important;
-  font-weight: 500 !important;
+  background-color: var(--el-fill-color-blank, var(--color-bg-section));
+  font-weight: 500;
 }

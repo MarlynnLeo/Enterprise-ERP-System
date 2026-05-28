@@ -83,7 +83,13 @@
 
       <!-- 筛选条件 -->
       <div class="filter-section">
-        <el-form :inline="true" class="search-form filter-form" :model="filters">
+        <FinanceQueryCard
+          :model="filters"
+          :loading="loading"
+          @search="handleSearch"
+          @reset="resetFilters"
+        >
+          <template #basic>
           <el-form-item label="设备类型">
             <el-select  v-model="filters.equipment_type" placeholder="全部类型" clearable>
               <el-option label="生产设备" value="production" />
@@ -93,7 +99,8 @@
               <el-option label="辅助设备" value="auxiliary" />
             </el-select>
           </el-form-item>
-
+          </template>
+          <template #advanced>
           <el-form-item label="设备状态">
             <el-select  v-model="filters.status" placeholder="全部状态" clearable>
               <el-option label="在线" value="online" />
@@ -103,15 +110,8 @@
               <el-option label="空闲" value="idle" />
             </el-select>
           </el-form-item>
-
-          <el-form-item>
-            <el-button type="primary" @click="handleSearch">
-              <el-icon><Search /></el-icon>
-              查询
-            </el-button>
-            <el-button @click="resetFilters">重置</el-button>
-          </el-form-item>
-        </el-form>
+          </template>
+        </FinanceQueryCard>
       </div>
 
       <!-- 设备表格 -->
@@ -147,7 +147,7 @@
             {{ formatDateTime(row.updated_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="200" fixed="right">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" @click.stop="viewDetail(row)">
               详情
@@ -219,12 +219,12 @@
 </template>
 
 <script setup>
-import { parsePaginatedData } from '@/utils/responseParser';
+import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Monitor, Warning, Bell, Tools, Refresh, Search, ArrowDown
+  Monitor, Warning, Bell, Tools, Refresh, ArrowDown
 } from '@element-plus/icons-vue'
 import EquipmentDetail from './components/EquipmentDetail.vue'
 import EquipmentRealTimeData from './components/EquipmentRealTimeData.vue'
@@ -280,7 +280,7 @@ const fetchStatistics = async () => {
   try {
     const response = await equipmentMonitoringAPI.getStatistics()
     // axios拦截器已自动解包ResponseHandler格式
-    const stats = response.data?.data || response.data || {}
+    const stats = parseResponseData(response, {})
 
     // 确保 statusDistribution 和 alarmDistribution 是数组
     const statusDistribution = Array.isArray(stats.statusDistribution) ? stats.statusDistribution : []
@@ -436,8 +436,21 @@ onUnmounted(() => {
   margin-bottom: var(--spacing-lg);
 }
 
+.stat-card {
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--color-border-light);
+  background: var(--color-bg-section);
+  box-shadow: var(--shadow-sm) !important;
+  transform: none !important;
+}
+
 .stat-card.online {
-  border-left: 4px solid #67c23a;
+  border-left: 4px solid var(--color-success);
 }
 
 .stat-card.offline {
@@ -445,11 +458,11 @@ onUnmounted(() => {
 }
 
 .stat-card.alarm {
-  border-left: 4px solid #f56c6c;
+  border-left: 4px solid var(--color-danger);
 }
 
 .stat-card.maintenance {
-  border-left: 4px solid #e6a23c;
+  border-left: 4px solid var(--color-warning);
 }
 
 .stat-content {
@@ -458,9 +471,32 @@ onUnmounted(() => {
 }
 
 .stat-icon {
-  font-size: 32px;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
   margin-right: 16px;
-  color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.stat-card.online .stat-icon {
+  background: var(--color-success);
+}
+
+.stat-card.offline .stat-icon {
+  background: var(--color-text-secondary);
+}
+
+.stat-card.alarm .stat-icon {
+  background: var(--color-danger);
+}
+
+.stat-card.maintenance .stat-icon {
+  background: var(--color-warning);
 }
 
 .stat-info {
@@ -468,7 +504,7 @@ onUnmounted(() => {
 }
 
 .equipment-list-card {
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
 }
 
 .card-header {

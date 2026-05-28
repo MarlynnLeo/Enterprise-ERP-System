@@ -7,14 +7,14 @@
  */
 -->
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, onMounted, reactive, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { productionApi, purchaseApi, baseDataApi } from '@/services/api'
+import { productionApi, purchaseApi, baseDataApi, systemApi } from '@/services/api'
 import { bomApi } from '@/api/bom'
-import axios from '@/services/api'
 import { Plus } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity } from '@/utils/helpers/quantity'
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig'
@@ -102,6 +102,7 @@ import {
   getProductionStatusText,
   getProductionStatusColor,
   PRODUCTION_STATUS_KEYS,
+  PRODUCTION_PLAN_CANCELABLE_STATUSES,
   PRODUCTION_PLAN_PUSHABLE_STATUSES,
   PRODUCTION_PLAN_STATUS_OPTIONS
 } from '@/constants/systemConstants'
@@ -124,7 +125,9 @@ const canPushDownPlan = (row) => (
   PRODUCTION_PLAN_PUSHABLE_STATUSES.includes(row.status) &&
   (row.quantity || 0) - (row.pushed_quantity || 0) > 0
 )
-const canCancelPlan = (row) => PRODUCTION_PLAN_PUSHABLE_STATUSES.includes(row.status)
+const canEditPlan = (row) => row.status === PRODUCTION_STATUS_KEYS.DRAFT
+const canDeletePlan = canEditPlan
+const canCancelPlan = (row) => PRODUCTION_PLAN_CANCELABLE_STATUSES.includes(row.status)
 const planStats = ref({
   total: 0,
   draft: 0,
@@ -184,8 +187,8 @@ const getLevelTagType = (level) => {
 };
 const getLevelTagStyle = (level) => {
   const l = level || 1;
-  if (l === 2) return { backgroundColor: '#e6a23c', borderColor: '#e6a23c', color: '#fff' };
-  if (l >= 3) return { backgroundColor: '#7c3aed', borderColor: '#7c3aed', color: '#fff' };
+  if (l === 2) return { backgroundColor: 'var(--color-warning)', borderColor: 'var(--color-warning)', color: 'var(--color-on-primary)' };
+  if (l >= 3) return { backgroundColor: 'color-mix(in srgb, var(--color-primary) 60%, var(--color-danger))', borderColor: 'color-mix(in srgb, var(--color-primary) 60%, var(--color-danger))', color: 'var(--color-on-primary)' };
   return {};
 };
 // 通用工具函数：获取规格信息
@@ -407,7 +410,7 @@ const calculateMaterials = async () => {
     // 1. 先获取BOM详情，包含规格信息
     const bomDetailResponse = await bomApi.getBom(formData.value.bomId);
     // 2. 计算物料需求（已包含智能分析）
-    const response = await axios.post('/production/calculate-materials', {
+    const response = await productionApi.calculateMaterials({
       productId: formData.value.productId,
       bomId: formData.value.bomId,
       quantity: formData.value.quantity
@@ -502,34 +505,37 @@ const calculateMaterials = async () => {
     modalLoading.value = false
   }
 }
-// 在script部分，改进申请状态跟踪对象，添加localStorage持久化
+// 采购申请状态以服务端为准，避免多用户/多设备场景下 localStorage 状态失真
 const purchaseRequestStatus = ref({});
-// 添加localStorage存取函数
-const savePurchaseRequestStatus = () => {
-  try {
-    const planId = currentPlan.value?.id;
-    if (planId) {
-      localStorage.setItem(`purchaseRequestStatus_${planId}`, JSON.stringify(purchaseRequestStatus.value));
-      }
-  } catch (e) {
-    console.error('保存采购申请状态失败:', e);
-  }
+
+const collectPurchaseStatusMaterialIds = () => {
+  const materials = currentPlan.value?.materials || [];
+  const ids = new Set();
+  materials.forEach((material) => {
+    const materialId = material.materialId || material.material_id || material.id;
+    if (materialId) ids.add(String(materialId));
+    const missingMaterials = material.substitutionInfo?.missingMaterials || [];
+    missingMaterials.forEach((missing) => {
+      const missingId = missing.materialId || missing.material_id || missing.id;
+      if (missingId) ids.add(String(missingId));
+    });
+  });
+  return [...ids];
 };
-const loadPurchaseRequestStatus = (planId) => {
+
+const loadPurchaseRequestStatus = async (planId) => {
+  purchaseRequestStatus.value = {};
+  if (!planId) return;
+
   try {
-    if (planId) {
-      const savedStatus = localStorage.getItem(`purchaseRequestStatus_${planId}`);
-      if (savedStatus) {
-        purchaseRequestStatus.value = JSON.parse(savedStatus);
-        } else {
-        purchaseRequestStatus.value = {};
-      }
-    } else {
-      purchaseRequestStatus.value = {};
-    }
+    const materialIds = collectPurchaseStatusMaterialIds();
+    const response = await purchaseApi.getProductionPlanRequisitionStatus({
+      planId,
+      ...(materialIds.length > 0 ? { materialIds: materialIds.join(',') } : {})
+    });
+    purchaseRequestStatus.value = response.data || {};
   } catch (e) {
     console.error('加载采购申请状态失败:', e);
-    purchaseRequestStatus.value = {};
   }
 };
 // 查看计划详情 - 优化版本
@@ -543,8 +549,6 @@ const viewPlanDetail = async (row) => {
     const response = await productionApi.getProductionPlan(row.id);
     // 创建当前计划对象的副本以避免引用原始对象
     currentPlan.value = JSON.parse(JSON.stringify(response.data));
-    // 加载该计划的采购申请状态（异步，不阻塞弹窗显示）
-    loadPurchaseRequestStatus(row.id);
 
     // 简化产品名称设置
     currentPlan.value.productName = row.productName || currentPlan.value.product_name || '未知产品';
@@ -556,8 +560,8 @@ const viewPlanDetail = async (row) => {
       try {
         const bom = await fetchActiveBom(currentPlan.value.product_id || row.product_id);
         if (bom) {
-          const calcResponse = await axios.get(`/production/calculate-materials/${bom.id}`, {
-            params: { quantity: currentPlan.value.quantity || 1 }
+          const calcResponse = await productionApi.calculateMaterialsByBom(bom.id, {
+            quantity: currentPlan.value.quantity || 1
           });
 
           if (calcResponse.data?.materials && calcResponse.data.materials.length > 0) {
@@ -585,7 +589,7 @@ const viewPlanDetail = async (row) => {
       } else {
         // 对于未完成的计划，使用智能分析API获取准确的物料状态
         try {
-          const materialsResponse = await axios.get(`/production/plans/${row.id}/materials`);
+          const materialsResponse = await productionApi.getPlanMaterials(row.id);
           if (materialsResponse.data && materialsResponse.data.length > 0) {
             currentPlan.value.materials = materialsResponse.data.map(material => {
               const reqQty = material.requiredQuantity || material.required_quantity || 0;
@@ -612,6 +616,7 @@ const viewPlanDetail = async (row) => {
         }
       }
     }
+    await loadPurchaseRequestStatus(row.id);
   } catch (error) {
     console.error('获取计划详情失败:', error);
     ElMessage.error('获取计划详情失败');
@@ -788,7 +793,7 @@ const handleModalOk = async () => {
     if (modalTitle.value === '编辑生产计划') {
       // 编辑现有计划
       const planId = formData.value.id
-      await axios.put(`/production/plans/${planId}`, data)
+      await productionApi.updateProductionPlan(planId, data)
       ElMessage.success('生产计划更新成功')
         } else {
       // 创建新计划
@@ -874,28 +879,19 @@ const handleEdit = async (row) => {
     }
   })
 }
-const _handleDelete = async (row) => {
+const handleDelete = async (row) => {
   try {
     await productionApi.deleteProductionPlan(row.id)
     ElMessage.success('删除成功')
     await fetchPlanList(true)
-  } catch {
-    ElMessage.error('删除失败')
-  }
-}
-const _handleStatusChange = async (row, targetStatus) => {
-  try {
-    await axios.put(`/production/plans/${row.id}/status`, { status: targetStatus })
-    ElMessage.success(`状态已变更为「${getStatusText(targetStatus)}」`)
-    await fetchPlanList(true)
   } catch (error) {
-    const msg = error.response?.data?.message || error.message || '状态变更失败'
+    const msg = error.response?.data?.message || error.message || '删除失败'
     ElMessage.error(msg)
   }
 }
 const handleCancelPlan = async (row) => {
   try {
-    await axios.put(`/production/plans/${row.id}/status`, { status: PRODUCTION_STATUS_KEYS.CANCELLED })
+    await productionApi.updateProductionPlanStatus(row.id, { status: PRODUCTION_STATUS_KEYS.CANCELLED })
     ElMessage.success('生产计划已取消')
     await fetchPlanList(true)
   } catch (error) {
@@ -952,7 +948,7 @@ const confirmPushDown = async () => {
       // 产品本身就是物料，直接使用其production_group_id
       if (product && product.production_group_id) {
         // 获取生产组（部门）信息
-        const deptResponse = await axios.get('/system/departments');
+        const deptResponse = await systemApi.getDepartments();
         const departments = parseListData(deptResponse, { enableLog: false });
         // 找到对应的生产组
         const productionGroup = departments.find(dept => dept.id === product.production_group_id);
@@ -977,14 +973,7 @@ const confirmPushDown = async () => {
     const response = await productionApi.createProductionTask(taskData);
     // 拦截器已解包，response.data 就是业务数据
     // 如果业务失败，拦截器会抛出错误
-    // 3. 更新生产计划的已下推数量
-    try {
-      await productionApi.updateProductionPlan(row.id, {
-        pushed_quantity: (row.pushed_quantity || 0) + taskQuantity
-      });
-    } catch (updateError) {
-      console.error('更新已下推数量失败:', updateError);
-    }
+    // 3. 已下推数量由创建生产任务接口在同一事务内维护，避免任务已创建但数量回写失败
     // 4. 不再直接更新生产计划状态，让后端根据任务状态自动同步
     // 生产计划状态会根据任务状态自动更新：
     // - 当有任务在分配中时 → 计划状态为"preparing"
@@ -1048,7 +1037,7 @@ const materialSpecCache = ref({});
 // 预加载物料规格信息
 const preloadMaterialSpecs = async () => {
   try {
-    const response = await baseDataApi.getMaterials({ page: 1, pageSize: 100 });
+    const response = await baseDataApi.getMaterials({ page: 1, pageSize: SEARCH_CONFIG.DEFAULT_PAGE_SIZE });
     // 拦截器已解包，response.data 就是业务数据
     const materialsData = response.data?.list || response.data || [];
     if (Array.isArray(materialsData)) {
@@ -1164,8 +1153,11 @@ const createPurchaseRequestForMaterial = async (material) => {
 
     // 准备采购申请数据
     const requestData = {
-      requestDate: new Date().toISOString().split('T')[0],
+      requestDate: formatLocalDate(new Date()),
       remarks: `从生产计划${currentPlan.value?.code || ''}自动生成的采购申请，考虑最小库存${minStock}`,
+      sourceType: 'production_plan',
+      sourceId: currentPlan.value?.id || null,
+      sourceMaterialId: materialId,
       materials: [
         {
           materialId,
@@ -1182,16 +1174,17 @@ const createPurchaseRequestForMaterial = async (material) => {
     try {
       // 直接创建采购申请
       const response = await purchaseApi.createRequisition(requestData);
+      const requisition = parseDataObject(response, { enableLog: false }) || response.data || response;
 
-      ElMessage.success(`已成功创建采购申请: ${response.requisition_number || '采购'}`);
+      ElMessage.success(`已成功创建采购申请: ${requisition.requisition_number || '采购'}`);
       // 更新申请状态
       purchaseRequestStatus.value[materialId] = {
         requested: true,
+        requisitionId: requisition.id || null,
         requestTime: new Date(),
-        requestNumber: response.requisition_number || null
+        requestNumber: requisition.requisition_number || null,
+        requisitionStatus: requisition.status || 'draft'
       };
-      // 保存状态到localStorage
-      savePurchaseRequestStatus();
     } catch (apiError) {
       console.error('采购申请API错误:', apiError);
 
@@ -1211,8 +1204,6 @@ const createPurchaseRequestForMaterial = async (material) => {
           requestTime: new Date(),
           requestNumber: '已存在申请'
         };
-        // 保存状态到localStorage
-        savePurchaseRequestStatus();
         return;
       }
 
@@ -1272,7 +1263,7 @@ const formatMaterialForDisplay = (material) => {
 };
 </script>
 <template>
-  <div class="production-plan-container">
+  <div class="module-page production-plan-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -1284,16 +1275,23 @@ const formatMaterialForDisplay = (material) => {
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="查询">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="searchPlans"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="计划编号/合同编码/产品"
+            placeholder="物料名称"
             clearable
             @keyup.enter="searchPlans"
           />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="时间范围">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -1316,19 +1314,13 @@ const formatMaterialForDisplay = (material) => {
             />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="searchPlans" v-permission="'production:plans:view'">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
+      </template>
+      <template #actions>
           <el-button type="success" @click="handleExport" v-permission="'production:plans:export'">
             <el-icon><Download /></el-icon> 导出
           </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -1501,7 +1493,7 @@ const formatMaterialForDisplay = (material) => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="库存" width="75">
+        <el-table-column label="库存" width="82">
           <template #default="scope">
             <div v-if="scope.row.status !== 'completed'">
               <el-tag v-if="scope.row.material_stock_status === 'shortage'" type="danger">
@@ -1516,36 +1508,65 @@ const formatMaterialForDisplay = (material) => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="250" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" @click="viewPlanDetail(scope.row)" v-permission="'production:plans:view'">查看</el-button>
-            <el-button
-              size="small"
-              type="primary"
-              @click="handleEdit(scope.row)"
-              v-if="scope.row.status === PRODUCTION_STATUS_KEYS.DRAFT"
-              v-permission="'production:plans:update'"
-            >
-              编辑
-            </el-button>
-            <el-button
-              size="small"
-              type="success"
-              @click="handlePushDown(scope.row)"
-              v-if="canPushDownPlan(scope.row)"
-              v-permission="'production:plans:update'"
-            >
-              下推
-            </el-button>
-            <el-popconfirm
-              title="确认取消此生产计划？"
-              @confirm="handleCancelPlan(scope.row)"
-              v-if="canCancelPlan(scope.row)"
-            >
-              <template #reference>
-                <el-button size="small" type="danger" v-permission="'production:plans:update'">取消</el-button>
-              </template>
-            </el-popconfirm>
+            <div class="table-actions">
+              <el-button size="small" @click="viewPlanDetail(scope.row)" v-permission="'production:plans:view'">查看</el-button>
+              <el-button
+                size="small"
+                type="primary"
+                @click="handleEdit(scope.row)"
+                :disabled="!canEditPlan(scope.row)"
+                v-permission="'production:plans:update'"
+              >
+                编辑
+              </el-button>
+              <el-popconfirm
+                v-if="canDeletePlan(scope.row)"
+                title="确认删除此生产计划？"
+                @confirm="handleDelete(scope.row)"
+              >
+                <template #reference>
+                  <el-button size="small" type="danger" v-permission="'production:plans:delete'">删除</el-button>
+                </template>
+              </el-popconfirm>
+              <el-button
+                v-else
+                size="small"
+                type="danger"
+                disabled
+                v-permission="'production:plans:delete'"
+              >
+                删除
+              </el-button>
+              <el-button
+                size="small"
+                type="success"
+                @click="handlePushDown(scope.row)"
+                :disabled="!canPushDownPlan(scope.row)"
+                v-permission="'production:plans:pushdown'"
+              >
+                下推
+              </el-button>
+              <el-popconfirm
+                v-if="canCancelPlan(scope.row)"
+                title="确认取消此生产计划？"
+                @confirm="handleCancelPlan(scope.row)"
+              >
+                <template #reference>
+                  <el-button size="small" type="warning" v-permission="'production:plans:cancel'">取消</el-button>
+                </template>
+              </el-popconfirm>
+              <el-button
+                v-else
+                size="small"
+                type="warning"
+                disabled
+                v-permission="'production:plans:cancel'"
+              >
+                取消
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -1745,7 +1766,7 @@ const formatMaterialForDisplay = (material) => {
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80">
+          <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-if="shouldShowPurchaseButton(scope.row) && currentPlan && currentPlan.status !== 'completed'"
@@ -1797,7 +1818,7 @@ const formatMaterialForDisplay = (material) => {
           <!-- 物料需求 -->
           <el-divider content-position="left">物料需求</el-divider>
           <el-table :data="currentPlan.materials || []" border style="width: 100%" max-height="350">
-            <el-table-column label="层级" width="70" align="center">
+            <el-table-column label="层级" width="70">
               <template #default="{ row }">
                 <el-tag size="small" :type="getLevelTagType(row.level)" :style="getLevelTagStyle(row.level)">L{{ row.level || 1 }}</el-tag>
               </template>
@@ -1810,11 +1831,11 @@ const formatMaterialForDisplay = (material) => {
               <template #default="{ row }">{{ row.name || row.material_name || '-' }}</template>
             </el-table-column>
             <el-table-column prop="specification" label="规格" width="200" show-overflow-tooltip />
-            <el-table-column label="需求数量" width="100" align="center">
+            <el-table-column label="需求数量" width="100">
               <template #default="{ row }">{{ formatQuantity(row.requiredQuantity || row.quantity || 0) }}</template>
             </el-table-column>
-            <el-table-column prop="unit_name" label="单位" width="70" align="center" />
-            <el-table-column label="库存状态" width="100" align="center">
+            <el-table-column prop="unit_name" label="单位" width="70" />
+            <el-table-column label="库存状态" width="100">
               <template #default="{ row }">
                 <el-tag v-if="row.stockStatus === 'sufficient'" type="success" size="small">充足</el-tag>
                 <el-tag v-else-if="row.stockStatus === 'shortage'" type="danger" size="small">缺料</el-tag>
@@ -1897,28 +1918,6 @@ const formatMaterialForDisplay = (material) => {
   </div>
 </template>
 <style scoped>
-.header-card {
-  margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-}
 .text-danger {
   color: var(--color-danger);
 }
@@ -1956,10 +1955,6 @@ const formatMaterialForDisplay = (material) => {
   max-width: 500px;
   word-break: break-word;
 }
-/* 操作列样式 */
-.el-table .el-button + .el-button {
-  margin-left: 8px;
-}
 /* 产品搜索选项样式 */
 .no-bom {
   color: var(--color-text-secondary) !important;
@@ -1989,20 +1984,21 @@ const formatMaterialForDisplay = (material) => {
 /* 自定义状态标签颜色 */
 /* 生产中 - 深蓝色 */
 .status-in-progress {
-  --el-tag-bg-color: #1e40af !important;
-  --el-tag-border-color: #1e40af !important;
-  --el-tag-text-color: #ffffff !important;
-  background-color: #1e40af !important;
-  border-color: #1e40af !important;
-  color: #ffffff !important;
+  --el-tag-bg-color: var(--color-primary) !important;
+  --el-tag-border-color: var(--color-primary) !important;
+  --el-tag-text-color: var(--color-on-primary) !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 /* 待检验 - 紫色 */
 .status-inspection {
-  --el-tag-bg-color: #7c3aed !important;
-  --el-tag-border-color: #7c3aed !important;
-  --el-tag-text-color: #ffffff !important;
-  background-color: #7c3aed !important;
-  border-color: #7c3aed !important;
-  color: #ffffff !important;
+  --inspection-status-color: color-mix(in srgb, var(--color-primary) 60%, var(--color-danger));
+  --el-tag-bg-color: var(--inspection-status-color) !important;
+  --el-tag-border-color: var(--inspection-status-color) !important;
+  --el-tag-text-color: var(--color-on-primary) !important;
+  background-color: var(--inspection-status-color) !important;
+  border-color: var(--inspection-status-color) !important;
+  color: var(--color-on-primary) !important;
 }
 </style>

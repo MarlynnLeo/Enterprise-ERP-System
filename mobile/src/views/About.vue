@@ -50,7 +50,7 @@
 
 <style scoped>
   .about-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
   }
 
@@ -70,7 +70,7 @@
     width: 72px;
     height: 72px;
     border-radius: 18px;
-    background: linear-gradient(135deg, var(--color-primary, var(--color-primary)), #7c3aed);
+    background: linear-gradient(135deg, var(--color-primary), var(--ds-purple));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -99,8 +99,8 @@
   .version-badge {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--color-primary, var(--color-primary));
-    background: color-mix(in srgb, var(--color-primary, var(--color-primary)) 10%, transparent);
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
     padding: 2px 12px;
     border-radius: 99px;
   }

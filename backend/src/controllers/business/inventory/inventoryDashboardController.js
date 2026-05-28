@@ -8,7 +8,7 @@ const getDashboardSummary = async (req, res) => {
     const stockQuery = `
       SELECT
         COUNT(DISTINCT current_stock.material_id) as totalItems,
-        COALESCE(SUM(current_stock.quantity * COALESCE(m.price, 0)), 0) as totalValue
+        COALESCE(SUM(current_stock.quantity * COALESCE(m.cost_price, 0)), 0) as totalValue
       FROM (
         SELECT il.material_id, SUM(il.quantity) as quantity
         FROM inventory_ledger il

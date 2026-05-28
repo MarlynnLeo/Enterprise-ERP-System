@@ -25,8 +25,13 @@ const unitService = {
 
       // 添加排序和分页
       query += ' ORDER BY id ASC';
-      const offset = (page - 1) * pageSize;
-      query += ` LIMIT ${parseInt(pageSize)} OFFSET ${parseInt(offset)}`;
+      const noPagination = pageSize === null || pageSize === undefined;
+      if (!noPagination) {
+        const safePageSize = Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 100);
+        const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * safePageSize;
+        query += ` LIMIT ${safePageSize} OFFSET ${offset}`;
+        pageSize = safePageSize;
+      }
 
       const [data] = await pool.query(query, queryParams);
 
@@ -34,7 +39,7 @@ const unitService = {
         data: data,
         total: total,
         page: page,
-        pageSize: pageSize,
+        pageSize: noPagination ? data.length : pageSize,
       };
     } catch (error) {
       logger.error('获取单位列表失败:', error);
@@ -134,6 +139,28 @@ const unitService = {
   },
 
   // ========== 统一命名别名 - 保持向后兼容 ==========
+  async getUnitStats() {
+    try {
+      const [rows] = await pool.query(`
+        SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
+          SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as inactive
+        FROM units
+        WHERE deleted_at IS NULL
+      `);
+      const stats = rows[0] || {};
+      return {
+        total: Number(stats.total) || 0,
+        active: Number(stats.active) || 0,
+        inactive: Number(stats.inactive) || 0,
+      };
+    } catch (error) {
+      logger.error('获取单位统计失败:', error);
+      throw error;
+    }
+  },
+
   getAll(page = 1, pageSize = 10, filters = {}) {
     return this.getAllUnits(filters, page, pageSize);
   },

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryInbound.vue
  * @description 前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inventory-inbound-container">
+  <div class="module-page inventory-inbound-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,10 +19,20 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input v-model="searchForm.materialName" placeholder="物料名称" clearable @keyup.enter="handleSearch" />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="入库单号">
-          <el-input  v-model="searchForm.inboundNo" placeholder="入库单号" clearable />
+          <el-input v-model="searchForm.inboundNo" placeholder="入库单号" clearable />
         </el-form-item>
         <el-form-item label="仓库">
           <el-select v-model="searchForm.locationId" placeholder="仓库" clearable>
@@ -44,16 +54,8 @@
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <div class="statistics-row">
@@ -118,7 +120,7 @@
             <span v-else style="color: var(--color-text-disabled);">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="first_item_quantity" label="数量" width="80" align="right">
+        <el-table-column prop="first_item_quantity" label="数量" width="80">
           <template #default="{ row }">
             <span v-if="row.first_item_quantity">{{ row.first_item_quantity }}</span>
             <span v-else-if="row.total_quantity" style="color: var(--color-primary);" :title="`总数量：${row.total_quantity}`">{{ row.total_quantity }}</span>
@@ -140,7 +142,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" width="180" show-overflow-tooltip />
-        <el-table-column label="操作" min-width="200" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" @click="handleView(row.id)">查看</el-button>
             <el-popconfirm
@@ -367,7 +369,7 @@
                 clearable />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" fixed="right">
+          <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
               <el-button
                 type="danger"
@@ -433,7 +435,7 @@
       title="选择物料"
       width="40%"
     >
-      <el-form :inline="true" class="search-form demo-form-inline" :model="materialSearchForm">
+      <el-form :inline="true" class="search-form material-search-form" :model="materialSearchForm">
         <el-form-item label="物料编码">
           <el-input  v-model="materialSearchForm.code" placeholder="物料编码" clearable />
         </el-form-item>
@@ -455,7 +457,7 @@
         <el-table-column prop="name" label="物料名称" width="180" />
         <el-table-column prop="specs" label="规格" width="220" />
         <el-table-column prop="unit_name" label="单位" width="80" />
-        <el-table-column label="操作" width="100">
+        <el-table-column label="操作" width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleAddSingleMaterial(row)">
               选择
@@ -510,13 +512,13 @@
         <el-table-column prop="code" label="任务编号" width="150" />
         <el-table-column prop="product_code" label="产品编码" width="130" />
         <el-table-column prop="product_name" label="产品名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="quantity" label="生产数量" width="100" align="right" />
+        <el-table-column prop="quantity" label="生产数量" width="100" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getTaskStatusType(row.status)">{{ getTaskStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100">
+        <el-table-column label="操作" width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click.stop="selectTask(row)">选择</el-button>
           </template>
@@ -543,17 +545,17 @@
           <el-table-column prop="material_code" label="物料编码" width="130" />
           <el-table-column prop="material_name" label="物料名称" min-width="150" show-overflow-tooltip />
           <el-table-column prop="material_specs" label="规格" width="150" show-overflow-tooltip />
-          <el-table-column prop="issued_quantity" label="领料数量" width="100" align="right" />
-          <el-table-column prop="returned_quantity" label="已退数量" width="100" align="right">
+          <el-table-column prop="issued_quantity" label="领料数量" width="100" />
+          <el-table-column prop="returned_quantity" label="已退数量" width="100">
             <template #default="{ row }">
-              <span :style="{ color: row.returned_quantity > 0 ? '#E6A23C' : '' }">
+              <span :style="{ color: row.returned_quantity > 0 ? 'var(--color-warning)' : '' }">
                 {{ row.returned_quantity || 0 }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="max_returnable_quantity" label="可退数量" width="100" align="right">
+          <el-table-column prop="max_returnable_quantity" label="可退数量" width="100">
             <template #default="{ row }">
-              <span :style="{ color: row.max_returnable_quantity > 0 ? '#67C23A' : '#909399' }">
+              <span :style="{ color: row.max_returnable_quantity > 0 ? 'var(--color-success)' : 'var(--color-text-secondary)' }">
                 {{ row.max_returnable_quantity }}
               </span>
             </template>
@@ -587,23 +589,31 @@
   </div>
 </template>
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Search, Refresh } from '@element-plus/icons-vue'
-import { inventoryApi, baseDataApi } from '@/services/api'
+import { Plus } from '@element-plus/icons-vue'
+import { inventoryApi, baseDataApi, productionApi } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { tokenManager } from '@/utils/unifiedStorage'
 import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
-import { parseListData, parsePaginatedData } from '@/utils/responseParser'
+import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
+import { loadLocationOptions } from '@/utils/optionLoaders'
 import printService from '@/services/printService'
 const route = useRoute()
 // 权限store
 const authStore = useAuthStore()
+const getCurrentUserDisplayName = () => {
+  const currentUser = authStore.user || tokenManager.getUser()
+  return currentUser?.real_name || currentUser?.realName || currentUser?.name || currentUser?.username || ''
+}
 // 权限计算属性
 const canCreate = computed(() => authStore.hasPermission && authStore.hasPermission('inventory:inbound:create'));
 // 搜索表单
 const searchForm = reactive({
+  materialName: '',
   inboundNo: '',
   locationId: '',
   dateRange: []
@@ -738,8 +748,7 @@ const getInboundTypeTagType = (type) => {
 // 加载仓库列表
 const loadLocations = async () => {
   try {
-    const response = await baseDataApi.getLocations();
-    locations.value = parseListData(response, { enableLog: false });
+    locations.value = await loadLocationOptions();
     if (locations.value.length === 0) {
       ElMessage.warning('未找到可用的仓库，请先在基础数据中添加仓库');
     }
@@ -789,6 +798,7 @@ const loadInbounds = async () => {
     const params = {
       page: pagination.currentPage,
       pageSize: pagination.pageSize,
+      materialName: searchForm.materialName,
       inboundNo: searchForm.inboundNo,
       locationId: searchForm.locationId,
       startDate: searchForm.dateRange && searchForm.dateRange[0] ? searchForm.dateRange[0] : '',
@@ -816,7 +826,7 @@ const handleSearch = () => {
 // 新建入库单
 const handleCreate = () => {
   dialogType.value = 'create'
-  form.inbound_date = new Date().toISOString().split('T')[0]
+  form.inbound_date = formatLocalDate(new Date())
   form.location_id = ''
   form.inbound_type = 'other'
   form.reference_type = null
@@ -824,17 +834,7 @@ const handleCreate = () => {
   form.reference_no = null
   selectedTask.value = null
   // 设置当前用户为操作人（使用真实姓名）
-  if (authStore.user && (authStore.user.real_name || authStore.user.name)) {
-    form.operator = authStore.user.real_name || authStore.user.name
-  } else {
-    // 尝试从localStorage获取
-    const localUser = JSON.parse(localStorage.getItem('user'))
-    if (localUser && (localUser.real_name || localUser.name)) {
-      form.operator = localUser.real_name || localUser.name
-    } else {
-      form.operator = ''
-    }
-  }
+  form.operator = getCurrentUserDisplayName()
 
   form.remark = ''
   form.status = 'draft'
@@ -879,8 +879,8 @@ const handleView = async (id) => {
   viewLoading.value = true
   try {
     const res = await inventoryApi.getInboundDetail(id)
-    // 后端使用 ResponseHandler.success 返回，数据在 res.data.data 中
-    const inboundData = res.data?.data || res.data
+    // 后端使用 ResponseHandler.success 返回，统一由 parser 解包
+    const inboundData = parseResponseData(res)
     Object.assign(currentInbound, inboundData)
   } catch (error) {
     console.error('获取入库单详情失败:', error)
@@ -894,7 +894,7 @@ const handleUpdateStatus = async (id, newStatus) => {
   try {
     // 确保使用正确的参数格式
     await inventoryApi.updateInboundStatus(id, { newStatus });
-    // 追溯记录已改为由底层的 batch_relationships 统一管理，由于旧版单独的质量追溯API已在架构重构中全面废弃，此处不再重复发起 /api/quality/traceability/purchase 请求。
+    // 追溯记录由底层 batch_relationships 统一管理，此处只更新入库状态。
     ElMessage.success('状态更新成功');
     // 刷新数据
     handleSearch();
@@ -954,7 +954,6 @@ const fetchMaterialSuggestions = async (queryString, callback) => {
   try {
     // 使用统一的搜索函数
     const searchResults = await searchMaterials(baseDataApi, queryString.trim(), {
-      pageSize: 500,
       includeAll: true
     })
     // 映射搜索结果为自动完成需要的格式
@@ -1064,14 +1063,12 @@ const openTaskSelectDialog = async () => {
 const searchProductionTasks = async () => {
   try {
     taskLoading.value = true
-    // 调用生产任务API
-    const response = await fetch(`/api/production/tasks?keyword=${taskSearchKeyword.value}&status=in_progress,material_issued,completed&limit=50`)
-    const result = await response.json()
-    if (result.success) {
-      productionTasks.value = result.data?.list || result.data || []
-    } else {
-      productionTasks.value = []
-    }
+    const response = await productionApi.getProductionTasks({
+      keyword: taskSearchKeyword.value,
+      status: 'in_progress,material_issued,completed',
+      limit: 50
+    })
+    productionTasks.value = response.data?.list || response.data || []
   } catch (error) {
     console.error('查询生产任务失败:', error)
     productionTasks.value = []
@@ -1093,7 +1090,7 @@ const loadTaskMaterialRecords = async (taskId) => {
   try {
     taskMaterialLoading.value = true
     const response = await inventoryApi.getTaskMaterialIssueRecords(taskId)
-    const data = response.data?.data || response.data
+    const data = parseResponseData(response)
     taskMaterialRecords.value = (data?.records || []).map(r => ({
       ...r,
       return_quantity: r.max_returnable_quantity > 0 ? r.max_returnable_quantity : 0
@@ -1387,6 +1384,7 @@ const handleAddSingleMaterial = async (material) => {
 }
 // 重置搜索
 const resetSearch = () => {
+  searchForm.materialName = '';
   searchForm.inboundNo = '';
   searchForm.locationId = '';
   searchForm.dateRange = [];
@@ -1396,18 +1394,22 @@ const resetSearch = () => {
 // 更新统计数据 - 从服务端获取真实统计
 const updateStats = async () => {
   try {
-    // 请求所有入库单的状态统计（不带分页限制）
-    const response = await inventoryApi.getInboundList({
-      page: 1,
-      pageSize: 9999  // 获取所有数据来统计
-    });
-    const { list, total } = parsePaginatedData(response);
-    // 使用真实总数
-    inboundStats.total = total;
-    inboundStats.draftCount = list.filter(item => item.status === 'draft').length;
-    inboundStats.confirmedCount = list.filter(item => item.status === 'confirmed').length;
-    inboundStats.completedCount = list.filter(item => item.status === 'completed').length;
-    inboundStats.cancelledCount = list.filter(item => item.status === 'cancelled').length;
+    const params = {
+      materialName: searchForm.materialName || undefined,
+      inboundNo: searchForm.inboundNo || undefined,
+      locationId: searchForm.locationId || undefined
+    };
+    if (searchForm.dateRange && searchForm.dateRange.length === 2) {
+      params.startDate = searchForm.dateRange[0];
+      params.endDate = searchForm.dateRange[1];
+    }
+    const response = await inventoryApi.getInboundStatistics(params);
+    const stats = parseResponseData(response, {});
+    inboundStats.total = Number(stats.total) || 0;
+    inboundStats.draftCount = Number(stats.draftCount) || 0;
+    inboundStats.confirmedCount = Number(stats.confirmedCount) || 0;
+    inboundStats.completedCount = Number(stats.completedCount) || 0;
+    inboundStats.cancelledCount = Number(stats.cancelledCount) || 0;
   } catch (error) {
     console.error('获取统计数据失败:', error);
     // 失败时使用当前分页的数据作为fallback
@@ -1498,7 +1500,6 @@ const handleReturnFromProduction = async (taskId, taskCode) => {
   display: flex;
   flex-wrap: wrap;
 }
-/* 使用全局 common-styles.css 中的 .statistics-row 和 .stat-card */
 .table-toolbar {
   margin-bottom: 10px;
 }

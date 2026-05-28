@@ -7,6 +7,7 @@
 
 const { getConnection } = require('../config/db');
 const logger = require('../utils/logger');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 /**
  * 审计操作类型枚举
@@ -193,14 +194,16 @@ class AuditService {
         params.push(endDate);
       }
 
-      const offset = (page - 1) * pageSize;
+      const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
       connection = await getConnection();
 
-      const [rows] = await connection.query(
-        `SELECT * FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-        [...params, parseInt(pageSize), parseInt(offset)]
+      const auditSql = appendPaginationSQL(
+        `SELECT * FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC`,
+        pagination.limit,
+        pagination.offset
       );
+      const [rows] = await connection.query(auditSql, params);
 
       const [countResult] = await connection.query(
         `SELECT COUNT(*) as total FROM audit_logs WHERE ${whereClause}`,
@@ -210,11 +213,62 @@ class AuditService {
       return {
         list: rows,
         total: countResult[0].total,
-        page,
-        pageSize,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
       };
     } catch (error) {
       logger.error('查询审计日志失败:', error);
+      throw error;
+    } finally {
+      if (connection) connection.release();
+    }
+  }
+
+  static async queryForExport(filters = {}) {
+    let connection;
+    try {
+      const { module, action, entityType, entityId, userId, startDate, endDate } = filters;
+      let whereClause = '1=1';
+      const params = [];
+
+      if (module) {
+        whereClause += ' AND module = ?';
+        params.push(module);
+      }
+      if (action) {
+        whereClause += ' AND action = ?';
+        params.push(action);
+      }
+      if (entityType) {
+        whereClause += ' AND entity_type = ?';
+        params.push(entityType);
+      }
+      if (entityId) {
+        whereClause += ' AND entity_id = ?';
+        params.push(entityId);
+      }
+      if (userId) {
+        whereClause += ' AND user_id = ?';
+        params.push(userId);
+      }
+      if (startDate) {
+        whereClause += ' AND created_at >= ?';
+        params.push(startDate);
+      }
+      if (endDate) {
+        whereClause += ' AND created_at <= ?';
+        params.push(endDate);
+      }
+
+      connection = await getConnection();
+      const [rows] = await connection.query(
+        `SELECT * FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC`,
+        params
+      );
+
+      return { list: rows, total: rows.length };
+    } catch (error) {
+      logger.error('导出审计日志查询失败:', error);
       throw error;
     } finally {
       if (connection) connection.release();

@@ -13,11 +13,6 @@ const DocumentLinkService = require('../../../services/business/DocumentLinkServ
 
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 
-/**
- * @deprecated 装箱单表结构由 Knex 迁移管理；保留为空操作用于兼容旧调用。
- */
-async function ensurePackingListTablesExist() {}
-
 async function generatePackingListNo(connection) {
   return await CodeGenerators.generatePackingListCode(connection);
 }
@@ -43,7 +38,7 @@ exports.getPackingLists = async (req, res) => {
 
     // 确保分页参数是有效的数字
     const currentPage = Math.max(1, parseInt(page) || 1);
-    const currentPageSize = Math.max(1, Math.min(10000, parseInt(pageSize) || 20));
+    const currentPageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 20));
     const offset = (currentPage - 1) * currentPageSize;
 
     const whereConditions = [];
@@ -90,7 +85,7 @@ exports.getPackingLists = async (req, res) => {
       FROM packing_lists pl
       ${whereClause}
       ORDER BY pl.created_at DESC
-      LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+      LIMIT ${currentPageSize} OFFSET ${offset}
       `;
 
 
@@ -542,8 +537,6 @@ exports.updatePackingListStatus = async (req, res) => {
 
 exports.getPackingListStatistics = async (req, res) => {
   try {
-    await ensurePackingListTablesExist();
-
     const { startDate, endDate } = req.query;
 
     let dateCondition = '';

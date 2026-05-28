@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="business-types-container">
+  <div class="module-page business-types-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -11,8 +11,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="关键词">
+          <el-input v-model="searchForm.keyword" placeholder="编码/名称/描述" clearable />
+        </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="字典分组">
           <el-select v-model="searchForm.group_code" placeholder="全部分组" clearable>
             <el-option
@@ -39,22 +49,15 @@
             <el-option label="禁用" :value="0" />
           </el-select>
         </el-form-item>
-        <el-form-item label="关键词">
-          <el-input v-model="searchForm.keyword" placeholder="编码/名称/描述" clearable />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
-          <el-button :icon="Refresh" @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="tableData" v-loading="loading" border stripe>
         <el-table-column prop="group_code" label="字典分组" width="180" show-overflow-tooltip>
           <template #default="{ row }">
-            <span style="font-weight: bold; color: #409EFF">{{ row.group_code || 'inventory_transaction' }}</span>
+            <span style="font-weight: bold; color: var(--color-primary)">{{ row.group_code || 'inventory_transaction' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="code" label="业务编码" width="180" show-overflow-tooltip />
@@ -67,34 +70,34 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="标签颜色" width="100" align="center">
+        <el-table-column label="标签颜色" width="100">
           <template #default="{ row }">
             <el-tag :type="row.tag_type || 'info'">{{ row.tag_type || '默认(info)' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
-        <el-table-column label="图标" width="80" align="center">
+        <el-table-column label="图标" width="80">
           <template #default="{ row }">
-            <el-icon v-if="row.icon" :style="{ color: row.color || '#409EFF' }">
+            <el-icon v-if="row.icon" :style="{ color: row.color || 'var(--color-primary)' }">
               <component :is="getIconComponent(row.icon)" />
             </el-icon>
           </template>
         </el-table-column>
-        <el-table-column prop="sort_order" label="排序" width="80" align="center" />
-        <el-table-column label="类型" width="120" align="center">
+        <el-table-column prop="sort_order" label="排序" width="80" />
+        <el-table-column label="类型" width="120">
           <template #default="{ row }">
             <el-tag v-if="row.is_system" type="info" size="small">系统内置</el-tag>
             <el-tag v-else type="success" size="small">自定义</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="80" align="center">
+        <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 || String(row.status) === '1' ? 'success' : 'danger'">
               {{ row.status === 1 || String(row.status) === '1' ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <div style="display: flex; gap: 5px; flex-wrap: wrap;">
               <el-popconfirm
@@ -258,7 +261,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue'
+import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue'
 import { systemApi } from '@/services/api'
 import {
   BUSINESS_TYPE_CATEGORY_OPTIONS,
@@ -515,4 +518,3 @@ onMounted(() => {
   min-height: 400px;
 }
 </style>
-

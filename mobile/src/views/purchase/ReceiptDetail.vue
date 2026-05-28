@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ReceiptDetail.vue
  * @description 采购入库详情 - 对齐网页端操作逻辑
@@ -128,6 +128,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog, Button } from 'vant'
 import { purchaseApi } from '@/services/api'
+import { extractApiData } from '@/utils/apiHelper'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
 
@@ -154,7 +155,7 @@ const fetchDetail = async () => {
     loading.value = true
     try {
         const res = await purchaseApi.getReceipt(id)
-        receiptOrder.value = res.data?.data || res.data || res
+        receiptOrder.value = extractApiData(res, null)
     } catch (error) {
         console.error('获取采购入库单详情失败:', error)
         showToast('加载失败')
@@ -243,16 +244,16 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .page-container {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 80px;
+    padding-bottom: var(--app-bottom-space);
     display: flex;
     flex-direction: column;
 }
 
 .content-scroll {
     padding: 1rem;
-    padding-bottom: 6rem;
+    padding-bottom: var(--app-bottom-space);
 }
 
 .status-section {
@@ -269,7 +270,7 @@ onMounted(() => {
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
 }
 
 .status-icon {
@@ -409,11 +410,11 @@ onMounted(() => {
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 8px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--surface-border, var(--border-subtle));
 }
 .item-title-row {
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--surface-border, var(--border-subtle));
   padding-bottom: 8px;
 }
 .item-title {

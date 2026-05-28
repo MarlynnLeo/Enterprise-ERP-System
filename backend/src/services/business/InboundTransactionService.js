@@ -6,7 +6,6 @@
 const { logger } = require('../../utils/logger');
 const InventoryService = require('../InventoryService');
 const { ENABLE_TRACEABILITY } = require('../../config/features');
-const { qualityApi } = require('./QualityService');
 const db = require('../../config/db');
 const NonconformingProduct = require('../../models/nonconformingProduct');
 
@@ -230,6 +229,7 @@ class InboundTransactionService {
         remark: inboundData.remark || '',
         unitId: unitId,
         batchNumber: finalBatchNumber,
+        transactionDate: inboundData.inbound_date,
       }, connection);
 
       // 根据入库类型确定追溯触发类型
@@ -266,8 +266,62 @@ class InboundTransactionService {
       );
     }
 
+    await this.syncProductionCompletion(connection, inboundInfo[0], inboundItems, inspection_id);
+
     // 异步创建成品入库追溯记录及NCP生成（无阻塞副流）
     this._handleSideEffects(inboundId, inboundInfo[0], inboundItems, inspection_id);
+  }
+
+  static async syncProductionCompletion(connection, inboundData, inboundItems, inspection_id) {
+    if (inboundData.inbound_type !== 'production' || !inspection_id) return;
+
+    const [inspections] = await connection.query(
+      "SELECT reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'final' FOR UPDATE",
+      [inspection_id]
+    );
+    if (inspections.length === 0 || !inspections[0].reference_id) return;
+
+    const taskId = inspections[0].reference_id;
+    const dbStatus = 'completed';
+    const [taskResult] = await connection.query(
+      'SELECT id, plan_id, code FROM production_tasks WHERE id = ? FOR UPDATE',
+      [taskId]
+    );
+    if (taskResult.length === 0) {
+      throw new Error(`成品入库关联的生产任务不存在: ${taskId}`);
+    }
+
+    const planId = taskResult[0].plan_id;
+    await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
+      dbStatus,
+      taskId,
+    ]);
+    await connection.execute('UPDATE production_processes SET status = ? WHERE task_id = ?', [
+      dbStatus,
+      taskId,
+    ]);
+
+    if (planId) {
+      const [planTasks] = await connection.query(
+        'SELECT status FROM production_tasks WHERE plan_id = ? FOR UPDATE',
+        [planId]
+      );
+
+      const totalTasks = planTasks.length;
+      const targetCount = planTasks.filter((task) => task.status === dbStatus).length;
+      const cancelledCount = planTasks.filter((task) => task.status === 'cancelled').length;
+
+      if (totalTasks > 0 && targetCount === totalTasks - cancelledCount) {
+        await connection.execute('UPDATE production_plans SET status = ? WHERE id = ?', [
+          dbStatus,
+          planId,
+        ]);
+      }
+    }
+
+    logger.info(
+      `生产入库 ${inboundData.inbound_no} 已同步完成生产任务 ${taskResult[0].code || taskId} 状态`
+    );
   }
 
   /**
@@ -313,15 +367,6 @@ class InboundTransactionService {
               }
               const batchNumber = item.batch_number;
 
-              await qualityApi.autoCreateTraceability('product_warehouse', {
-                location_id: inboundId,
-                product_id: item.material_id,
-                product_code: productCode,
-                product_name: productName,
-                quantity: item.quantity,
-                batch_number: batchNumber,
-              });
-
               if (inspection_id) {
                 const conn = await db.pool.getConnection();
                 try {
@@ -345,9 +390,9 @@ class InboundTransactionService {
       });
     }
 
-    // ✅ 处理生产入库的生产单据状态更新（异步）+ 建立原料→成品批次追溯关系
+    // 建立原料→成品批次追溯关系；生产任务/计划状态已在主事务中同步完成
     if (inboundData.inbound_type === 'production' && inspection_id) {
-      DLQService.runWithRetry(`生产单据状态更新-${inboundData.inbound_no}`, { inboundData, inspection_id }, async () => {
+      DLQService.runWithRetry(`生产入库批次关系-${inboundData.inbound_no}`, { inboundData, inspection_id }, async () => {
         const connection = await db.pool.getConnection();
         try {
           // 查找绑定的成品质检单，获取关联的生产任务ID
@@ -357,7 +402,6 @@ class InboundTransactionService {
           );
           if (inspections.length > 0 && inspections[0].reference_id) {
             const taskId = inspections[0].reference_id;
-            const dbStatus = 'completed'; // 入库完成
 
             // 查找生产任务和计划
             const [taskResult] = await connection.query(
@@ -366,46 +410,7 @@ class InboundTransactionService {
             );
 
             if (taskResult.length > 0) {
-              const planId = taskResult[0].plan_id;
               const taskCode = taskResult[0].code;
-
-              // 更新生产任务状态为已完成
-              await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
-                dbStatus,
-                taskId,
-              ]);
-
-              // 同步更新生产过程状态
-              await connection.execute(
-                'UPDATE production_processes SET status = ? WHERE task_id = ?',
-                [dbStatus, taskId]
-              );
-
-              if (planId) {
-                // 检查该计划下所有有效任务状态
-                const [taskStats] = await connection.query(
-                  `SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as target_count,
-                    SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count
-                   FROM production_tasks
-                   WHERE plan_id = ?`,
-                  [dbStatus, planId]
-                );
-
-                const stats = taskStats[0] || {};
-                const totalTasks = Number(stats.total) || 0;
-                const targetCount = Number(stats.target_count) || 0;
-                const cancelledCount = Number(stats.cancelled_count) || 0;
-
-                // 若所有有效任务都达到目标状态，则更新计划状态
-                if (totalTasks > 0 && targetCount === totalTasks - cancelledCount) {
-                  await connection.execute(
-                    'UPDATE production_plans SET status = ? WHERE id = ?',
-                    [dbStatus, planId]
-                  );
-                }
-              }
 
               // ✅ 建立原料 → 成品的 batch_relationships 追溯消耗关系
               // 思路：生产入库时成品已有批次号，从 inventory_ledger 查该生产任务
@@ -532,7 +537,7 @@ class InboundTransactionService {
             }
           }
         } catch (err) {
-          logger.error('异步更新生产单据状态(入库后)失败:', err);
+          logger.error('异步建立生产入库批次关系失败:', err);
           throw err;
         } finally {
           connection.release();

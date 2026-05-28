@@ -8,34 +8,34 @@
             <div class="stat-number">{{ stats.total }}</div>
             <div class="stat-label">量具总数</div>
           </div>
-          <el-icon class="stat-icon" style="color: var(--color-primary)"><Odometer /></el-icon>
+          <el-icon class="stat-icon primary"><Odometer /></el-icon>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-number" style="color: #67C23A">{{ stats.inUse }}</div>
+            <div class="stat-number" style="color: var(--color-success)">{{ stats.inUse }}</div>
             <div class="stat-label">使用中</div>
           </div>
-          <el-icon class="stat-icon" style="color: #67C23A"><CircleCheck /></el-icon>
+          <el-icon class="stat-icon success"><CircleCheck /></el-icon>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-number" style="color: #E6A23C">{{ stats.dueSoon }}</div>
+            <div class="stat-number" style="color: var(--color-warning)">{{ stats.dueSoon }}</div>
             <div class="stat-label">即将到期</div>
           </div>
-          <el-icon class="stat-icon" style="color: #E6A23C"><Warning /></el-icon>
+          <el-icon class="stat-icon warning"><Warning /></el-icon>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-number" style="color: #F56C6C">{{ stats.overdue }}</div>
+            <div class="stat-number" style="color: var(--color-danger)">{{ stats.overdue }}</div>
             <div class="stat-label">已逾期</div>
           </div>
-          <el-icon class="stat-icon" style="color: #F56C6C"><CircleClose /></el-icon>
+          <el-icon class="stat-icon danger"><CircleClose /></el-icon>
         </el-card>
       </el-col>
     </el-row>
@@ -92,7 +92,7 @@
         </el-table-column>
         <el-table-column label="下次校准" width="120">
           <template #default="scope">
-            <span :style="{ color: scope.row.days_until_due < 0 ? '#F56C6C' : scope.row.days_until_due <= 30 ? '#E6A23C' : '' }">
+            <span :style="{ color: scope.row.days_until_due < 0 ? 'var(--color-danger)' : scope.row.days_until_due <= 30 ? 'var(--color-warning)' : '' }">
               {{ scope.row.next_calibration_date ? formatDate(scope.row.next_calibration_date) : '-' }}
             </span>
           </template>
@@ -105,7 +105,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="200">
+        <el-table-column label="操作" fixed="right" min-width="300" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button v-permission="'quality:gauges:create'" size="small" type="primary" link @click.stop="handleCalibrate(scope.row)">校准</el-button>
             <el-button size="small" type="warning" link @click.stop="handleEdit(scope.row)"
@@ -394,12 +394,38 @@ onMounted(fetchData);
 <style scoped>
 .gauge-management-container { padding: 20px; }
 .stats-row { margin-bottom: 16px; }
-.stat-card { cursor: pointer; }
+.stat-card {
+  cursor: pointer;
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.stat-card:hover {
+  border-color: var(--color-border-light);
+  background: var(--color-bg-section);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent) !important;
+  transform: none !important;
+}
 .stat-card .el-card__body { display: flex; justify-content: space-between; align-items: center; }
 .stat-content { text-align: left; }
 .stat-number { font-size: 28px; font-weight: 700; color: var(--color-text-primary); }
 .stat-label { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
-.stat-icon { font-size: 40px; opacity: 0.6; }
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 48px;
+  font-size: 22px;
+  color: var(--color-on-primary);
+  opacity: 1;
+}
+.stat-icon.primary { background: var(--color-primary); }
+.stat-icon.success { background: var(--color-success); }
+.stat-icon.warning { background: var(--color-warning); }
+.stat-icon.danger { background: var(--color-danger); }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .search-container { margin-bottom: 20px; }
 .pagination-container { margin-top: 20px; display: flex; justify-content: flex-end; }

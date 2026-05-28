@@ -15,6 +15,7 @@ const db = require('../../../config/db');
 const BankAccountModel = require('../../../models/cash/Account');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+const { currentDateString } = require('../../../utils/dateUtils');
 const {
   INVOICE_STATUS,
   BANK_BACKED_PAYMENT_METHODS,
@@ -596,7 +597,7 @@ const apController = {
         payment_number: paymentData.paymentNumber || await CodeGeneratorService.nextCode('ap_payment'),
         supplier_id: invoice.supplierId,
         supplier_name: invoice.supplierName,
-        payment_date: paymentData.paymentDate || new Date().toISOString().split('T')[0],
+        payment_date: paymentData.paymentDate || currentDateString(),
         total_amount: parseFloat(paymentData.amount),
         payment_method: paymentMethod,
         reference_number: paymentData.referenceNumber || null,
@@ -870,7 +871,7 @@ const apController = {
           params.push(`%${supplierName}%`);
         }
 
-        // 执行查询，获取应付账款数据
+        // 执行查询，获取应付账款数据（字段名与AR对齐）
         const [payables] = await connection.execute(
           `
           SELECT
@@ -878,19 +879,23 @@ const apController = {
             s.name AS supplierName,
             COALESCE(SUM(i.balance_amount), 0) AS totalAmount,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(i.due_date, CURDATE()) >= 0 AND DATEDIFF(i.due_date, CURDATE()) <= 30 THEN i.balance_amount
+              WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN i.balance_amount
               ELSE 0
-            END), 0) AS within30Days,
+            END), 0) AS currentAmount,
             COALESCE(SUM(CASE
               WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount
               ELSE 0
-            END), 0) AS days31to60,
+            END), 0) AS within30Days,
             COALESCE(SUM(CASE
               WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount
               ELSE 0
-            END), 0) AS days61to90,
+            END), 0) AS within60Days,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(CURDATE(), i.due_date) > 60 THEN i.balance_amount
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN i.balance_amount
+              ELSE 0
+            END), 0) AS within90Days,
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) > 90 THEN i.balance_amount
               ELSE 0
             END), 0) AS over90Days,
             s.contact_person AS contactPerson,
@@ -898,40 +903,41 @@ const apController = {
           FROM
             suppliers s
           LEFT JOIN
-            ap_invoices i ON s.id = i.supplier_id AND i.status IN ('已确认', '部分付款')
+            ap_invoices i ON s.id = i.supplier_id AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
           WHERE
             s.status = 1 ${whereClause}
           GROUP BY
             s.id, s.name, s.contact_person, s.contact_phone
           HAVING
-            totalAmount >= 0
+            totalAmount > 0
           ORDER BY
             totalAmount DESC
         `,
           params
         );
 
-        // 格式化数据
+        // 格式化数据（字段名与AR对齐）
         const formattedData = payables.map((item) => ({
           supplierId: item.supplierId,
           supplierName: item.supplierName,
-          supplierType: '供应商', // 使用默认值代替不存在的列
+          supplierType: '供应商',
           totalAmount: parseFloat(item.totalAmount || 0),
+          currentAmount: parseFloat(item.currentAmount || 0),
           within30Days: parseFloat(item.within30Days || 0),
-          days31to60: parseFloat(item.days31to60 || 0),
-          days61to90: parseFloat(item.days61to90 || 0),
+          within60Days: parseFloat(item.within60Days || 0),
+          within90Days: parseFloat(item.within90Days || 0),
           over90Days: parseFloat(item.over90Days || 0),
-          lastPaymentDate: null, // 移除对不存在的列的引用
+          lastPaymentDate: null,
           contactPerson: item.contactPerson,
           contactPhone: item.contactPhone,
         }));
 
-        // 返回数据
+        // 返回数据（结构与AR对齐，使用 data 而非 details）
         return ResponseHandler.success(
           res,
           {
-            details: formattedData,
-            reportDate: reportDate || new Date().toISOString().slice(0, 10),
+            data: formattedData,
+            reportDate: reportDate || currentDateString(),
           },
           '获取应付账款账龄分析成功'
         );
@@ -956,7 +962,7 @@ const apController = {
       const connection = await db.pool.getConnection();
 
       try {
-        // 查询供应商账龄数据
+        // 查询供应商账龄数据（字段名与AR对齐）
         const [aging] = await connection.execute(
           `
           SELECT
@@ -966,26 +972,30 @@ const apController = {
             s.contact_phone AS contactPhone,
             COALESCE(SUM(i.balance_amount), 0) AS totalAmount,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(i.due_date, CURDATE()) >= 0 AND DATEDIFF(i.due_date, CURDATE()) <= 30 THEN i.balance_amount
+              WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN i.balance_amount
               ELSE 0
-            END), 0) AS within30Days,
+            END), 0) AS currentAmount,
             COALESCE(SUM(CASE
               WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount
               ELSE 0
-            END), 0) AS days31to60,
+            END), 0) AS within30Days,
             COALESCE(SUM(CASE
               WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount
               ELSE 0
-            END), 0) AS days61to90,
+            END), 0) AS within60Days,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(CURDATE(), i.due_date) > 60 THEN i.balance_amount
+              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN i.balance_amount
+              ELSE 0
+            END), 0) AS within90Days,
+            COALESCE(SUM(CASE
+              WHEN DATEDIFF(CURDATE(), i.due_date) > 90 THEN i.balance_amount
               ELSE 0
             END), 0) AS over90Days,
             MAX(i.invoice_date) AS lastInvoiceDate,
             COUNT(i.id) AS invoiceCount
           FROM suppliers s
           LEFT JOIN ap_invoices i ON s.id = i.supplier_id
-            AND i.status IN ('已确认', '部分付款')
+            AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
           WHERE s.id = ? AND s.status = 1
           GROUP BY s.id, s.name, s.contact_person, s.contact_phone
         `,
@@ -1017,7 +1027,7 @@ const apController = {
           [supplierId]
         );
 
-        // 格式化返回数据
+        // 格式化返回数据（字段名与AR对齐）
         const result = {
           supplierId: aging[0].supplierId,
           supplierName: aging[0].supplierName,
@@ -1025,9 +1035,10 @@ const apController = {
           contactPhone: aging[0].contactPhone,
           supplierType: '供应商',
           totalAmount: parseFloat(aging[0].totalAmount || 0),
+          currentAmount: parseFloat(aging[0].currentAmount || 0),
           within30Days: parseFloat(aging[0].within30Days || 0),
-          days31to60: parseFloat(aging[0].days31to60 || 0),
-          days61to90: parseFloat(aging[0].days61to90 || 0),
+          within60Days: parseFloat(aging[0].within60Days || 0),
+          within90Days: parseFloat(aging[0].within90Days || 0),
           over90Days: parseFloat(aging[0].over90Days || 0),
           lastInvoiceDate: aging[0].lastInvoiceDate,
           invoiceCount: parseInt(aging[0].invoiceCount || 0),

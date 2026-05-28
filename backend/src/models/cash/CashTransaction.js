@@ -8,9 +8,17 @@
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
 const CodeGeneratorService = require('../../services/business/CodeGeneratorService');
+const financeModel = require('../finance');
+const { accountingConfig } = require('../../config/accountingConfig');
+const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
+const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const { parsePagination } = require('../../utils/safePagination');
+const { toLocalDateString } = require('../../utils/dateUtils');
 
 const EDITABLE_CASH_STATUSES = new Set(['draft', 'rejected']);
 const AUDITABLE_CASH_STATUSES = new Set(['pending', 'reviewed']);
+const CASH_INFLOW_TYPES = new Set(['income', 'receipt', 'cash_income', '收入', '现金收入']);
+const CASH_OUTFLOW_TYPES = new Set(['expense', 'payment', 'cash_expense', '支出', '现金支出']);
 
 function normalizeStatus(status) {
   return status || 'draft';
@@ -30,6 +38,254 @@ function ensureAuditableCashTransaction(transaction) {
   }
 }
 
+function normalizePositiveAmount(value, fieldName) {
+  const amount = Number.parseFloat(value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`${fieldName} must be greater than 0`);
+  }
+  return Math.round(amount * 100) / 100;
+}
+
+function formatDateOnly(value) {
+  const text = toLocalDateString(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    throw new Error('Cash transaction date must use YYYY-MM-DD format');
+  }
+  return text;
+}
+
+async function getOpenAccountingPeriodId(connection, accountingDate) {
+  const [periods] = await connection.execute(
+    `SELECT id, period_name
+     FROM gl_periods
+     WHERE start_date <= ?
+       AND end_date >= ?
+       AND is_closed = 0
+     ORDER BY start_date DESC
+     LIMIT 1
+     FOR UPDATE`,
+    [accountingDate, accountingDate]
+  );
+
+  if (periods.length === 0) {
+    throw new Error(`No open accounting period found for ${accountingDate}`);
+  }
+
+  return periods[0].id;
+}
+
+async function getActiveGlAccountId(connection, accountCode, accountLabel) {
+  if (!accountCode) {
+    throw new Error(`${accountLabel} account code is not configured`);
+  }
+
+  const [accounts] = await connection.execute(
+    'SELECT id FROM gl_accounts WHERE account_code = ? AND (is_active = 1 OR is_active IS NULL) LIMIT 1',
+    [accountCode]
+  );
+
+  if (accounts.length === 0) {
+    throw new Error(`${accountLabel} account ${accountCode} does not exist or is inactive`);
+  }
+
+  return accounts[0].id;
+}
+
+function resolveProvidedAccountId(glEntry, ...keys) {
+  if (!glEntry || typeof glEntry !== 'object') return null;
+  for (const key of keys) {
+    const value = Number.parseInt(glEntry[key], 10);
+    if (Number.isInteger(value) && value > 0) return value;
+  }
+  return null;
+}
+
+function getCashContraAccountKey(transaction) {
+  const type = transaction.transaction_type;
+  const category = transaction.category || '';
+
+  if (category === 'sales' || category === 'sales_income') {
+    return 'SALES_REVENUE';
+  }
+
+  if (category === 'other_income' || CASH_INFLOW_TYPES.has(type)) {
+    return 'OTHER_REVENUE';
+  }
+
+  if (category === 'purchase_expense') {
+    return 'PURCHASE_COST';
+  }
+
+  if (category === 'finance_fee') {
+    return 'FINANCE_EXPENSE';
+  }
+
+  if (CASH_OUTFLOW_TYPES.has(type)) {
+    return 'ADMIN_EXPENSE';
+  }
+
+  throw new Error(`Unsupported cash transaction type: ${type}`);
+}
+
+function getCashDocumentType(transactionType) {
+  if (CASH_INFLOW_TYPES.has(transactionType)) {
+    return DOCUMENT_TYPE_MAPPING.CASH_RECEIPT;
+  }
+  if (CASH_OUTFLOW_TYPES.has(transactionType)) {
+    return DOCUMENT_TYPE_MAPPING.CASH_PAYMENT;
+  }
+  throw new Error(`Unsupported cash transaction type: ${transactionType}`);
+}
+
+async function createApprovedCashTransactionGlEntry(connection, transaction, operatorId) {
+  if (transaction.gl_entry_id) {
+    const [existing] = await connection.execute(
+      'SELECT id, entry_number FROM gl_entries WHERE id = ? LIMIT 1',
+      [transaction.gl_entry_id]
+    );
+    if (existing.length > 0) {
+      return { entryId: existing[0].id, entryNumber: existing[0].entry_number };
+    }
+  }
+
+  const transactionNumber = String(transaction.transaction_number || '').trim();
+  if (!transactionNumber) {
+    throw new Error('Cash transaction number is required to generate a voucher');
+  }
+
+  const amount = normalizePositiveAmount(transaction.amount, 'amount');
+  const transactionDate = formatDateOnly(transaction.transaction_date);
+  const documentType = getCashDocumentType(transaction.transaction_type);
+
+  const [existingEntries] = await connection.execute(
+    `SELECT id, entry_number
+     FROM gl_entries
+     WHERE document_type = ?
+       AND document_number = ?
+       AND (is_reversed IS NULL OR is_reversed = 0)
+     LIMIT 1
+     FOR UPDATE`,
+    [documentType, transactionNumber]
+  );
+
+  if (existingEntries.length > 0) {
+    await connection.execute('UPDATE cash_transactions SET gl_entry_id = ? WHERE id = ?', [
+      existingEntries[0].id,
+      transaction.id,
+    ]);
+    await DocumentLinkService.tryAutoLink(
+      'cash_transaction',
+      transaction.id,
+      transactionNumber,
+      'finance_voucher',
+      existingEntries[0].id,
+      existingEntries[0].entry_number,
+      operatorId || transaction.created_by || null,
+      connection
+    );
+    return { entryId: existingEntries[0].id, entryNumber: existingEntries[0].entry_number };
+  }
+
+  await accountingConfig.loadFromDatabase(db);
+  const providedGlEntry =
+    transaction.gl_entry && typeof transaction.gl_entry === 'object' ? transaction.gl_entry : {};
+  const periodId =
+    resolveProvidedAccountId(providedGlEntry, 'period_id') ||
+    (await getOpenAccountingPeriodId(connection, transactionDate));
+  const cashAccountId =
+    resolveProvidedAccountId(providedGlEntry, 'cash_gl_account_id', 'cash_account_id') ||
+    (await getActiveGlAccountId(
+      connection,
+      accountingConfig.getAccountCode('CASH'),
+      'Cash'
+    ));
+  const contraAccountKey = getCashContraAccountKey(transaction);
+  const contraAccountId =
+    resolveProvidedAccountId(
+      providedGlEntry,
+      'contra_account_id',
+      'counterparty_account_id',
+      'income_account_id',
+      'expense_account_id'
+    ) ||
+    (await getActiveGlAccountId(
+      connection,
+      accountingConfig.getAccountCode(contraAccountKey),
+      contraAccountKey
+    ));
+
+  const isInflow = CASH_INFLOW_TYPES.has(transaction.transaction_type);
+  const entryItems = isInflow
+    ? [
+      {
+        account_id: cashAccountId,
+        debit_amount: amount,
+        credit_amount: 0,
+        description: `Cash receipt - ${transaction.description || transactionNumber}`,
+      },
+      {
+        account_id: contraAccountId,
+        debit_amount: 0,
+        credit_amount: amount,
+        description: `Cash receipt contra - ${transaction.counterparty || transaction.category || ''}`,
+      },
+    ]
+    : [
+      {
+        account_id: contraAccountId,
+        debit_amount: amount,
+        credit_amount: 0,
+        description: `Cash payment contra - ${transaction.counterparty || transaction.category || ''}`,
+      },
+      {
+        account_id: cashAccountId,
+        debit_amount: 0,
+        credit_amount: amount,
+        description: `Cash payment - ${transaction.description || transactionNumber}`,
+      },
+    ];
+
+  const entryId = await financeModel.createEntry(
+    {
+      entry_number: providedGlEntry.entry_number,
+      entry_date: transactionDate,
+      posting_date: transactionDate,
+      document_type: documentType,
+      document_number: transactionNumber,
+      period_id: periodId,
+      description: transaction.description || `Cash transaction: ${transaction.transaction_type}`,
+      created_by: providedGlEntry.created_by || operatorId || transaction.created_by,
+      status: 'posted',
+      is_posted: 1,
+    },
+    entryItems,
+    connection
+  );
+
+  const [entries] = await connection.execute(
+    'SELECT entry_number FROM gl_entries WHERE id = ?',
+    [entryId]
+  );
+  const entryNumber = entries[0]?.entry_number || providedGlEntry.entry_number || null;
+
+  await connection.execute('UPDATE cash_transactions SET gl_entry_id = ? WHERE id = ?', [
+    entryId,
+    transaction.id,
+  ]);
+  await DocumentLinkService.tryAutoLink(
+    'cash_transaction',
+    transaction.id,
+    transactionNumber,
+    'finance_voucher',
+    entryId,
+    entryNumber,
+    operatorId || transaction.created_by || null,
+    connection
+  );
+
+  return { entryId, entryNumber };
+}
+
 class CashTransactionModel {
   /**
    * 创建现金交易
@@ -46,8 +302,8 @@ class CashTransactionModel {
         `INSERT INTO cash_transactions
         (transaction_type, transaction_date, amount, category,
          counterparty, description, reference_number, transaction_number,
-         created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+         status, created_by, updated_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, NOW(), NOW())`,
         [
           transactionData.transaction_type,
           transactionData.transaction_date,
@@ -57,6 +313,7 @@ class CashTransactionModel {
           transactionData.description,
           transactionData.reference_number || '',
           transactionNumber,
+          transactionData.created_by || null,
           transactionData.created_by || null,
         ]
       );
@@ -85,9 +342,10 @@ class CashTransactionModel {
    */
   static async getCashTransactions(filters = {}) {
     try {
-      const page = Math.max(parseInt(filters.page, 10) || 1, 1);
-      const pageSize = Math.min(Math.max(parseInt(filters.pageSize, 10) || 10, 1), 100);
-      const offset = (page - 1) * pageSize;
+      const pagination = parsePagination(filters.page, filters.pageSize || filters.limit, {
+        defaultPageSize: 10,
+        maxPageSize: 100,
+      });
 
       let whereClause = 'WHERE 1=1';
       const params = [];
@@ -142,13 +400,17 @@ class CashTransactionModel {
           reference_number as referenceNumber,
           transaction_number as transactionNumber,
           status,
+          gl_entry_id as glEntryId,
+          approved_by as approvedBy,
+          approved_at as approvedAt,
+          reject_reason as rejectReason,
           created_by as createdBy,
           created_at as createdAt,
           updated_at as updatedAt
         FROM cash_transactions
         ${whereClause}
         ORDER BY transaction_date DESC, created_at DESC
-        LIMIT ${pageSize} OFFSET ${offset}
+        LIMIT ${pagination.limit} OFFSET ${pagination.offset}
       `;
 
       const [rows] = await db.pool.execute(dataQuery, params);
@@ -157,13 +419,77 @@ class CashTransactionModel {
         transactions: rows,
         pagination: {
           total,
-          page,
-          pageSize,
-          totalPages: Math.ceil(total / pageSize),
+          page: pagination.page,
+          pageSize: pagination.pageSize,
+          totalPages: Math.ceil(total / pagination.pageSize),
         },
       };
     } catch (error) {
       logger.error('[现金交易] 获取现金交易列表失败:', error);
+      throw error;
+    }
+  }
+
+  static async getCashTransactionsForExport(filters = {}) {
+    try {
+      let whereClause = 'WHERE 1=1';
+      const params = [];
+
+      if (filters.type) {
+        whereClause += ' AND transaction_type = ?';
+        params.push(filters.type);
+      }
+      if (filters.category) {
+        whereClause += ' AND category = ?';
+        params.push(filters.category);
+      }
+      if (filters.startDate) {
+        whereClause += ' AND transaction_date >= ?';
+        params.push(filters.startDate);
+      }
+      if (filters.endDate) {
+        whereClause += ' AND transaction_date <= ?';
+        params.push(filters.endDate);
+      }
+      if (filters.search) {
+        whereClause += ` AND (
+          transaction_number LIKE ?
+          OR counterparty LIKE ?
+          OR description LIKE ?
+          OR reference_number LIKE ?
+        )`;
+        const keyword = `%${filters.search}%`;
+        params.push(keyword, keyword, keyword, keyword);
+      }
+
+      const [rows] = await db.pool.execute(
+        `SELECT
+          id,
+          transaction_date as transactionDate,
+          transaction_type as type,
+          amount,
+          category,
+          counterparty,
+          description,
+          reference_number as referenceNumber,
+          transaction_number as transactionNumber,
+          status,
+          gl_entry_id as glEntryId,
+          approved_by as approvedBy,
+          approved_at as approvedAt,
+          reject_reason as rejectReason,
+          created_by as createdBy,
+          created_at as createdAt,
+          updated_at as updatedAt
+        FROM cash_transactions
+        ${whereClause}
+        ORDER BY transaction_date DESC, created_at DESC`,
+        params
+      );
+
+      return { transactions: rows };
+    } catch (error) {
+      logger.error('[现金交易] 导出现金交易列表失败:', error);
       throw error;
     }
   }
@@ -232,6 +558,10 @@ class CashTransactionModel {
           reference_number as referenceNumber,
           transaction_number as transactionNumber,
           status,
+          gl_entry_id as glEntryId,
+          approved_by as approvedBy,
+          approved_at as approvedAt,
+          reject_reason as rejectReason,
           created_by as createdBy,
           created_at as createdAt,
           updated_at as updatedAt
@@ -268,6 +598,10 @@ class CashTransactionModel {
          SET transaction_type = ?, transaction_date = ?, amount = ?, category = ?,
              counterparty = ?, description = ?, reference_number = ?,
              status = CASE WHEN status = 'rejected' THEN 'draft' ELSE status END,
+             approved_by = CASE WHEN status = 'rejected' THEN NULL ELSE approved_by END,
+             approved_at = CASE WHEN status = 'rejected' THEN NULL ELSE approved_at END,
+             reject_reason = CASE WHEN status = 'rejected' THEN NULL ELSE reject_reason END,
+             updated_by = ?,
              updated_at = NOW()
          WHERE id = ?`,
         [
@@ -278,6 +612,7 @@ class CashTransactionModel {
           transactionData.counterparty || '',
           transactionData.description,
           transactionData.reference_number || '',
+          transactionData.updated_by || transactionData.created_by || null,
           id,
         ]
       );
@@ -352,8 +687,8 @@ class CashTransactionModel {
           `INSERT INTO cash_transactions
           (transaction_type, transaction_date, amount, category,
            counterparty, description, reference_number, transaction_number,
-           created_by, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+           status, created_by, updated_by, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, NOW(), NOW())`,
           [
             transactionData.transaction_type,
             transactionData.transaction_date,
@@ -363,6 +698,7 @@ class CashTransactionModel {
             transactionData.description,
             transactionData.reference_number || '',
             transactionNumber,
+            transactionData.created_by || null,
             transactionData.created_by || null,
           ]
         );
@@ -395,42 +731,49 @@ class CashTransactionModel {
    * @param {number} id 交易ID
    * @param {number} userId 提交人ID
    */
-  static async submitForAudit(id) {
+  static async submitForAudit(id, userId = null) {
+    const connection = await db.pool.getConnection();
     try {
-      // status 字段由 migrations/20260312000010 管理
+      await connection.beginTransaction();
 
-
-      // 检查当前状态
-      const [current] = await db.pool.execute('SELECT status FROM cash_transactions WHERE id = ?', [
-        id,
-      ]);
-
+      const [current] = await connection.execute(
+        'SELECT status FROM cash_transactions WHERE id = ? FOR UPDATE',
+        [id]
+      );
       if (current.length === 0) {
-        throw new Error('现金交易不存在');
+        throw new Error('Cash transaction does not exist');
       }
 
       const currentStatus = normalizeStatus(current[0].status);
       if (!EDITABLE_CASH_STATUSES.has(currentStatus)) {
-        throw new Error(`交易当前状态为 ${currentStatus}，无法重复提交审核`);
+        throw new Error(`Cash transaction status ${currentStatus} cannot be submitted`);
       }
 
-      // 更新状态为待审核
-      const [result] = await db.pool.execute(
+      const [result] = await connection.execute(
         `UPDATE cash_transactions
-                 SET status = 'pending', updated_at = NOW()
-                 WHERE id = ? AND (status IS NULL OR status IN ('draft', 'rejected'))`,
-        [id]
+         SET status = 'pending',
+             approved_by = NULL,
+             approved_at = NULL,
+             reject_reason = NULL,
+             updated_by = ?,
+             updated_at = NOW()
+         WHERE id = ? AND (status IS NULL OR status IN ('draft', 'rejected'))`,
+        [userId || null, id]
       );
 
       if (result.affectedRows === 0) {
-        throw new Error('现金交易不存在');
+        throw new Error('Cash transaction status changed during submit');
       }
 
-      logger.info(`现金交易 ${id} 已提交审核`);
+      await connection.commit();
+      logger.info(`Cash transaction ${id} submitted for audit`);
       return true;
     } catch (error) {
-      logger.error('提交审核失败:', error);
+      await connection.rollback();
+      logger.error('Submit cash transaction audit failed:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
@@ -439,28 +782,54 @@ class CashTransactionModel {
    * @param {number} id 交易ID
    * @param {number} userId 审核人ID
    */
-  static async approveTransaction(id) {
+  static async approveTransaction(id, userId = null) {
+    const connection = await db.pool.getConnection();
     try {
-      const [result] = await db.pool.execute(
-        `UPDATE cash_transactions
-         SET status = 'approved', updated_at = NOW()
-         WHERE id = ? AND status IN ('pending', 'reviewed')`,
+      await connection.beginTransaction();
+
+      const [current] = await connection.execute(
+        'SELECT * FROM cash_transactions WHERE id = ? FOR UPDATE',
         [id]
       );
 
+      if (current.length === 0) {
+        throw new Error('Cash transaction does not exist');
+      }
+      ensureAuditableCashTransaction(current[0]);
+
+      const entryInfo = await createApprovedCashTransactionGlEntry(
+        connection,
+        current[0],
+        userId
+      );
+
+      const [result] = await connection.execute(
+        `UPDATE cash_transactions
+         SET status = 'approved',
+             approved_by = ?,
+             approved_at = COALESCE(approved_at, NOW()),
+             updated_at = NOW()
+         WHERE id = ? AND status IN ('pending', 'reviewed')`,
+        [userId || null, id]
+      );
+
       if (result.affectedRows === 0) {
-        const [current] = await db.pool.execute('SELECT status FROM cash_transactions WHERE id = ?', [id]);
-        if (current.length > 0) {
-          ensureAuditableCashTransaction(current[0]);
-        }
-        throw new Error('现金交易不存在');
+        throw new Error('Cash transaction status changed during approval');
       }
 
+      await connection.commit();
       logger.info(`现金交易 ${id} 审核通过`);
-      return true;
+      return {
+        success: true,
+        entryId: entryInfo.entryId,
+        entryNumber: entryInfo.entryNumber,
+      };
     } catch (error) {
+      await connection.rollback();
       logger.error('审核通过失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 
@@ -471,27 +840,44 @@ class CashTransactionModel {
    * @param {string} reason 拒绝原因
    */
   static async rejectTransaction(id, userId, reason) {
+    const connection = await db.pool.getConnection();
     try {
-      const [result] = await db.pool.execute(
-        `UPDATE cash_transactions
-         SET status = 'rejected', updated_at = NOW()
-         WHERE id = ? AND status IN ('pending', 'reviewed')`,
+      await connection.beginTransaction();
+
+      const [current] = await connection.execute(
+        'SELECT status FROM cash_transactions WHERE id = ? FOR UPDATE',
         [id]
+      );
+      if (current.length === 0) {
+        throw new Error('Cash transaction does not exist');
+      }
+      ensureAuditableCashTransaction(current[0]);
+
+      const [result] = await connection.execute(
+        `UPDATE cash_transactions
+         SET status = 'rejected',
+             approved_by = ?,
+             approved_at = NOW(),
+             reject_reason = ?,
+             updated_by = ?,
+             updated_at = NOW()
+         WHERE id = ? AND status IN ('pending', 'reviewed')`,
+        [userId || null, reason || null, userId || null, id]
       );
 
       if (result.affectedRows === 0) {
-        const [current] = await db.pool.execute('SELECT status FROM cash_transactions WHERE id = ?', [id]);
-        if (current.length > 0) {
-          ensureAuditableCashTransaction(current[0]);
-        }
-        throw new Error('现金交易不存在');
+        throw new Error('Cash transaction status changed during rejection');
       }
 
+      await connection.commit();
       logger.info(`现金交易 ${id} 审核拒绝: ${reason || '无'}`);
       return true;
     } catch (error) {
+      await connection.rollback();
       logger.error('审核拒绝失败:', error);
       throw error;
+    } finally {
+      connection.release();
     }
   }
 }

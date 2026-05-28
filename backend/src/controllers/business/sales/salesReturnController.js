@@ -41,6 +41,57 @@ const canTransitionSalesReturnStatus = (currentStatus, nextStatus) => {
   return (SALES_RETURN_STATUS_TRANSITIONS[currentStatus] || []).includes(nextStatus);
 };
 
+const assertSalesReturnQuantities = async (connection, orderId, items = [], excludeReturnId = null) => {
+  if (!orderId || !Array.isArray(items) || items.length === 0) return;
+
+  for (const item of items) {
+    const productId = item.product_id || item.material_id;
+    const returnQty = parseFloat(item.quantity) || 0;
+    if (!productId || returnQty <= 0) continue;
+
+    const [shippedRows] = await connection.query(
+      `SELECT COALESCE(SUM(sobi.quantity), 0) AS shipped_qty
+       FROM sales_outbound_items sobi
+       JOIN sales_outbound sob ON sob.id = sobi.outbound_id
+       WHERE sob.deleted_at IS NULL
+         AND sob.status IN ('processing', 'completed')
+         AND sobi.product_id = ?
+         AND (sob.order_id = ? OR sobi.source_order_id = ?)`,
+      [productId, orderId, orderId]
+    );
+
+    const params = [orderId, productId];
+    let excludeClause = '';
+    if (excludeReturnId) {
+      excludeClause = ' AND sr.id <> ?';
+      params.push(excludeReturnId);
+    }
+
+    const [returnedRows] = await connection.query(
+      `SELECT COALESCE(SUM(sri.quantity), 0) AS returned_qty
+       FROM sales_return_items sri
+       JOIN sales_returns sr ON sr.id = sri.return_id
+       WHERE sr.deleted_at IS NULL
+         AND sr.order_id = ?
+         AND sri.product_id = ?
+         AND sr.status NOT IN ('rejected', 'cancelled', 'draft')
+         ${excludeClause}`,
+      params
+    );
+
+    const shippedQty = parseFloat(shippedRows[0]?.shipped_qty) || 0;
+    const returnedQty = parseFloat(returnedRows[0]?.returned_qty) || 0;
+    const returnableQty = Math.max(0, shippedQty - returnedQty);
+
+    if (returnQty > returnableQty + 0.0001) {
+      const error = new Error(`销售退货数量超过已出库可退数量：产品${productId}，已出库${shippedQty}，已退${returnedQty}，可退${returnableQty}，本次${returnQty}`);
+      error.statusCode = 400;
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+  }
+};
+
 const getSalesReturnUpdatePayload = async (connection, id, status) => {
   const [returns] = await connection.query('SELECT * FROM sales_returns WHERE id = ?', [id]);
   if (returns.length === 0) {
@@ -66,7 +117,7 @@ exports.getSalesReturns = async (req, res) => {
   let conn;
   try {
     const { page = 1, pageSize = 10, search, startDate, endDate, status } = req.query;
-    const pagination = parsePagination(page, pageSize, { maxPageSize: 200, defaultPageSize: 10 });
+    const pagination = parsePagination(page, pageSize, { maxPageSize: 100, defaultPageSize: 10 });
 
     conn = await getConnection();
 
@@ -120,35 +171,50 @@ exports.getSalesReturns = async (req, res) => {
     const [results] = await conn.query(query, queryParams);
 
     // 获取状态明细
-    for (let i = 0; i < results.length; i++) {
-      const returnItem = results[i];
-
-      results[i].status_label = SALES_RETURN_STATUS_LABELS[returnItem.status] || returnItem.status;
-
-      const detailsQuery = `
-      SELECT
-      sri.*,
-        m.code as material_code,
-        m.code as productCode,
-        m.name as material_name,
-        m.name as productName,
-        m.specs as specification,
-        u.name as unit_name,
-        COALESCE(soi.unit_price, m.price, 0) as unit_price,
-        ROUND(sri.quantity * COALESCE(soi.unit_price, m.price, 0), 2) as amount
+    const detailsByReturnId = new Map();
+    if (results.length > 0) {
+      const returnIds = results.map((item) => item.id);
+      const placeholders = returnIds.map(() => '?').join(',');
+      const [allDetails] = await conn.query(
+        `
+        SELECT
+          sri.*,
+          m.code as material_code,
+          m.code as productCode,
+          m.name as material_name,
+          m.name as productName,
+          m.specs as specification,
+          u.name as unit_name,
+          COALESCE(soi.unit_price, m.price, 0) as unit_price,
+          ROUND(sri.quantity * COALESCE(soi.unit_price, m.price, 0), 2) as amount
         FROM sales_return_items sri
+        JOIN sales_returns sr ON sri.return_id = sr.id
         LEFT JOIN materials m ON sri.product_id = m.id
         LEFT JOIN units u ON m.unit_id = u.id
-        LEFT JOIN sales_order_items soi ON soi.order_id = ? AND soi.material_id = sri.product_id
-        WHERE sri.return_id = ?
-        `;
+        LEFT JOIN sales_order_items soi ON soi.order_id = sr.order_id AND soi.material_id = sri.product_id
+        WHERE sri.return_id IN (${placeholders})
+        `,
+        returnIds
+      );
 
-      const [detailsResults] = await conn.query(detailsQuery, [returnItem.order_id, returnItem.id]);
-      results[i].items = detailsResults;
+      allDetails.forEach((detail) => {
+        if (!detailsByReturnId.has(detail.return_id)) {
+          detailsByReturnId.set(detail.return_id, []);
+        }
+        detailsByReturnId.get(detail.return_id).push(detail);
+      });
+    }
+
+    results.forEach((returnItem) => {
+      const detailsResults = detailsByReturnId.get(returnItem.id) || [];
+
+      returnItem.status_label = SALES_RETURN_STATUS_LABELS[returnItem.status] || returnItem.status;
+
+      returnItem.items = detailsResults;
 
       // 汇总退货总额
-      results[i].total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
-    }
+      returnItem.total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
+    });
 
     // 统计不同状态的数量
     const statusQuery = `
@@ -335,6 +401,8 @@ exports.createSalesReturn = async (req, res) => {
       }
     }
 
+    await assertSalesReturnQuantities(connection, finalOrderId, items);
+
     // 插入退货单主表
     const insertQuery = `
       INSERT INTO sales_returns(
@@ -392,7 +460,12 @@ exports.createSalesReturn = async (req, res) => {
       await connection.rollback();
     }
     logger.error('创建销售退货单失败:', error);
-    ResponseHandler.error(res, '创建销售退货单失败', 'SERVER_ERROR', 500);
+    ResponseHandler.error(
+      res,
+      error.message || '创建销售退货单失败',
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500
+    );
   } finally {
     if (connection) {
       connection.release();
@@ -414,6 +487,36 @@ exports.updateSalesReturn = async (req, res) => {
 
     connection = await getConnection();
     await connection.beginTransaction();
+
+    const [returnRows] = await connection.query(
+      'SELECT id, status FROM sales_returns WHERE id = ? FOR UPDATE',
+      [id]
+    );
+    if (returnRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.notFound(res, 'Sales return not found');
+    }
+
+    const currentStatus = returnRows[0].status;
+    if ([STATUS.SALES_RETURN.COMPLETED, STATUS.SALES_RETURN.REJECTED, STATUS.SALES_RETURN.CANCELLED].includes(currentStatus)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, `Sales return in status ${currentStatus} cannot be edited`, 'INVALID_STATUS_TRANSITION', 400);
+    }
+
+    if (status && status !== currentStatus && !canTransitionSalesReturnStatus(currentStatus, status)) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        `Sales return status cannot transition from ${currentStatus} to ${status}`,
+        'INVALID_STATUS_TRANSITION',
+        400
+      );
+    }
+
+    if (!status && currentStatus === STATUS.SALES_RETURN.APPROVED) {
+      await connection.rollback();
+      return ResponseHandler.error(res, 'Approved sales return can only be completed or cancelled', 'INVALID_STATUS_TRANSITION', 400);
+    }
 
     // 如果是基于出库单的退货，需要获取订单信息
     const finalOrderId = order_id;
@@ -460,6 +563,8 @@ exports.updateSalesReturn = async (req, res) => {
     }
 
     // 更新主表
+    await assertSalesReturnQuantities(connection, finalOrderId, items, id);
+
     const updateQuery = `
       UPDATE sales_returns SET
       return_date = ?,
@@ -502,6 +607,7 @@ exports.updateSalesReturn = async (req, res) => {
     }
 
     let pendingReturnForFinance = null;
+    const pendingSalesReturnCostTasks = [];
 
      if (status === STATUS.SALES_RETURN.COMPLETED && items && items.length > 0) {
       for (const item of items) {
@@ -515,7 +621,7 @@ exports.updateSalesReturn = async (req, res) => {
         // 获取物料信息、单位和默认仓库
         const [materialResults] = await connection.query(
           `
-          SELECT m.code, m.name, m.unit_id, m.location_id, m.location_name,
+          SELECT m.code, m.name, m.unit_id, m.location_id, m.location_name, m.cost_price,
         u.name as unit_name, loc.name as warehouse_name
           FROM materials m
           LEFT JOIN units u ON m.unit_id = u.id
@@ -577,6 +683,18 @@ exports.updateSalesReturn = async (req, res) => {
             connection
           );
 
+          const unitCost = parseFloat(material.cost_price || 0);
+          if (changeQuantity > 0 && unitCost > 0) {
+            pendingSalesReturnCostTasks.push({
+              material_id: productId,
+              quantity: changeQuantity,
+              unit_cost: unitCost,
+              reference_no: actualReturnNo,
+              reference_type: 'sales_return',
+              transaction_type: 'sales_return',
+            });
+          }
+
           logger.info(`销售退货入库完成（统一服务） 物料${productId}, 数量${changeQuantity}`);
         }
       }
@@ -612,6 +730,26 @@ exports.updateSalesReturn = async (req, res) => {
       });
     }
 
+    if (pendingSalesReturnCostTasks.length > 0) {
+      setImmediate(async () => {
+        try {
+          const InventoryCostService = require('../../../services/business/InventoryCostService');
+          for (const task of pendingSalesReturnCostTasks) {
+            await InventoryCostService.generateInboundCostEntry(task, {
+              userId: req.user?.username || req.user?.id || 'system',
+            });
+          }
+          logger.info(`销售退货成本冲回分录生成完成 - 退货单: ${pendingReturnForFinance?.return_no || id}`);
+        } catch (costError) {
+          await DLQService.recordSideEffectFailure(
+            'FinanceIntegration:SalesReturnCostReversal',
+            { returnId: id, tasks: pendingSalesReturnCostTasks },
+            costError
+          );
+        }
+      });
+    }
+
     return ResponseHandler.success(res, {
       message: '销售退货单更新成功',
       id: parseInt(id),
@@ -621,7 +759,12 @@ exports.updateSalesReturn = async (req, res) => {
       await connection.rollback();
     }
     logger.error('更新销售退货单失败:', error);
-    ResponseHandler.error(res, '更新销售退货单失败', 'SERVER_ERROR', 500);
+    ResponseHandler.error(
+      res,
+      error.message || '更新销售退货单失败',
+      error.code || 'SERVER_ERROR',
+      error.statusCode || 500
+    );
   } finally {
     if (connection) {
       connection.release();

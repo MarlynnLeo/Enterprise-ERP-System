@@ -87,7 +87,7 @@
           />
         </div>
         <div class="add-btn-wrapper">
-          <Button plain type="primary" size="small" icon="plus" @click="addItem" block
+          <Button plain type="default" size="small" icon="plus" @click="addItem"
             >添加物料需求</Button
           >
         </div>
@@ -204,9 +204,9 @@
 
 <style lang="scss" scoped>
   .create-page {
-    min-height: 100vh;
+    min-height: 100%;
     background-color: var(--van-background-2);
-    padding-bottom: 30px;
+    padding-bottom: var(--app-bottom-space);
   }
   .material-item {
     background: var(--van-background);

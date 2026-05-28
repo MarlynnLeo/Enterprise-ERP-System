@@ -7,6 +7,7 @@ const db = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { appendPaginationSQL } = require('../../utils/safePagination');
+const NotificationService = require('../../services/NotificationService');
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
@@ -647,49 +648,42 @@ class TechnicalCommunicationController {
    */
   async sendNotificationToAllUsers(communicationId, title, summary, category) {
     try {
-      // 获取所有用户ID
       const [users] = await db.pool.query('SELECT id FROM users WHERE status = 1');
+      const userIds = users.map((user) => user.id);
 
-      if (users.length === 0) {
+      if (userIds.length === 0) {
         logger.info('没有活跃用户，跳过发送通知');
         return;
       }
 
-      // 分类文本映射
       const categoryMap = {
         update: '更新日志',
         guide: '操作指南',
         specification: '技术规范',
         announcement: '公告',
       };
-
       const categoryText = categoryMap[category] || category;
 
-      // 批量创建通知
-      const notifications = users.map((user) => [
-        user.id, // user_id
-        'info', // type
-        `新即时通讯：${title}`, // title
-        `${categoryText} - ${summary}`, // content
-        '/system/technical-communication', // link (跳转到技术通讯列表页)
-        JSON.stringify({ id: communicationId }), // link_params (传递ID参数)
-        0, // priority (普通)
-        'technical_communication', // source_type
-        communicationId, // source_id
-        null, // created_by
-      ]);
-
-      await db.pool.query(
-        `INSERT INTO notifications
-         (user_id, type, title, content, link, link_params, priority, source_type, source_id, created_by)
-         VALUES ?`,
-        [notifications]
+      const notifyResult = await NotificationService.notifyUsers(
+        userIds,
+        {
+          type: 'info',
+          title: `新即时通讯：${title}`,
+          content: `${categoryText} - ${summary || ''}`,
+          link: '/system/technical-communication',
+          linkParams: { id: communicationId },
+          priority: 0,
+          sourceType: 'technical_communication',
+          sourceId: communicationId,
+        },
+        { dedupeBySource: true }
       );
 
-      logger.info(`即时通讯通知已发送给 ${users.length} 个用户`);
+      logger.info(
+        `即时通讯通知发送完成 inserted=${notifyResult.inserted}, skipped=${notifyResult.skipped}, updated=${notifyResult.updated}`
+      );
     } catch (error) {
       logger.error('发送即时通讯通知失败:', error);
-      // 不抛出错误，避免影响主流程
     }
   }
 
@@ -949,9 +943,9 @@ class TechnicalCommunicationController {
    */
   async sendNotificationToRecipients(communicationId, title, summary, category, recipients) {
     try {
-      if (!recipients || recipients.length === 0) return;
+      const userIds = normalizeIdList(recipients);
+      if (userIds.length === 0) return;
 
-      // 分类文本映射
       const categoryMap = {
         update: '更新日志',
         guide: '操作指南',
@@ -960,27 +954,24 @@ class TechnicalCommunicationController {
       };
       const categoryText = categoryMap[category] || category;
 
-      const notificationValues = recipients.map((userId) => [
-        userId,                                       // user_id
-        'info',                                       // type
-        `新即时通讯：${title}`,                        // title
-        `${categoryText} - ${summary || ''}`,         // content
-        '/system/technical-communication',            // link
-        JSON.stringify({ id: communicationId }),       // link_params
-        0,                                            // priority
-        'technical_communication',                    // source_type
-        communicationId,                              // source_id
-        null,                                         // created_by
-      ]);
-
-      await db.pool.query(
-        `INSERT INTO notifications
-         (user_id, type, title, content, link, link_params, priority, source_type, source_id, created_by)
-         VALUES ?`,
-        [notificationValues]
+      const notifyResult = await NotificationService.notifyUsers(
+        userIds,
+        {
+          type: 'info',
+          title: `新即时通讯：${title}`,
+          content: `${categoryText} - ${summary || ''}`,
+          link: '/system/technical-communication',
+          linkParams: { id: communicationId },
+          priority: 0,
+          sourceType: 'technical_communication',
+          sourceId: communicationId,
+        },
+        { dedupeBySource: true }
       );
 
-      logger.info(`私有即时通讯通知已发送给 ${recipients.length} 个抄送人员`);
+      logger.info(
+        `私有即时通讯通知发送完成 inserted=${notifyResult.inserted}, skipped=${notifyResult.skipped}, updated=${notifyResult.updated}`
+      );
     } catch (error) {
       logger.error('发送抄送通知失败:', error);
     }

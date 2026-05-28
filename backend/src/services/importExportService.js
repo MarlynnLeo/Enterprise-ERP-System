@@ -201,7 +201,7 @@ class ImportExportService {
    * 导出供应商
    */
   static async exportSuppliers(filters = {}) {
-    const result = await supplierService.getAllSuppliers(1, 100000, filters);
+    const result = await supplierService.getAllSuppliers(1, null, filters);
 
     if (!result.list || result.list.length === 0) {
       throw new Error('没有可导出的数据');
@@ -373,9 +373,10 @@ class ImportExportService {
    * 导出BOM
    */
   static async exportBoms(filters = {}) {
-    const result = await bomService.getAllBoms(1, 100000, filters);
+    const result = await bomService.getAllBoms(1, null, filters);
 
-    if (!result.data || result.data.length === 0) {
+    const boms = result.items || result.data || [];
+    if (boms.length === 0) {
       throw new Error('没有可导出的数据');
     }
 
@@ -395,7 +396,7 @@ class ImportExportService {
     const exportData = [];
 
     // 展开BOM明细
-    for (const bom of result.data) {
+    for (const bom of boms) {
       if (bom.details && bom.details.length > 0) {
         for (const detail of bom.details) {
           exportData.push({
@@ -421,7 +422,7 @@ class ImportExportService {
    * 导出单位
    */
   static async exportUnits(filters = {}) {
-    const result = await unitService.getAllUnits(filters, 1, 100000);
+    const result = await unitService.getAllUnits(filters, 1, null);
 
     if (!result.data || result.data.length === 0) {
       throw new Error('没有可导出的数据');
@@ -448,9 +449,10 @@ class ImportExportService {
    * 导出库位
    */
   static async exportLocations(filters = {}) {
-    const result = await locationService.getAllLocations(filters, 1, 100000);
+    const result = await locationService.getAllLocations(filters, 1, null);
+    const locations = result.items || result.data || [];
 
-    if (!result.data || result.data.length === 0) {
+    if (locations.length === 0) {
       throw new Error('没有可导出的数据');
     }
 
@@ -462,7 +464,7 @@ class ImportExportService {
       { header: '备注', key: 'remark', width: 30 },
     ];
 
-    const exportData = result.data.map((item) => ({
+    const exportData = locations.map((item) => ({
       code: item.code || '',
       name: item.name,
       type: item.type || '',
@@ -559,7 +561,7 @@ class ImportExportService {
    * 导出客户
    */
   static async exportCustomers(filters = {}) {
-    const result = await customerService.getAllCustomers(1, 100000, filters);
+    const result = await customerService.getAllCustomers(1, null, filters);
 
     if (!result.items || result.items.length === 0) {
       throw new Error('没有可导出的数据');
@@ -599,7 +601,7 @@ class ImportExportService {
    */
   static async exportProcessTemplates(filters = {}) {
     const processTemplateService = require('./processTemplateService');
-    const result = await processTemplateService.getAll(1, 100000, filters);
+    const result = await processTemplateService.getAll(1, null, filters);
 
     if (!result.list || result.list.length === 0) {
       throw new Error('没有可导出的数据');

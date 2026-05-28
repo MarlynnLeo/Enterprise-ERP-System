@@ -3,6 +3,7 @@ const purchaseModel = require('../../models/purchase');
 const InventoryService = require('../InventoryService');
 const InventoryTraceabilityService = require('./InventoryTraceabilityService');
 const DocumentLinkService = require('./DocumentLinkService');
+const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 
 class QualityIntegrationService {
   static toNumber(value, fallback = 0) {
@@ -153,12 +154,11 @@ class QualityIntegrationService {
 
     const unitPrice =
       this.toNumber(orderContext.price, 0) ||
-      this.toNumber(material.costPrice, 0) ||
-      this.toNumber(material.price, 0);
-    const taxRate = this.toNumber(orderContext.tax_rate, 13);
-    const amountExcludingTax = receiveQty * unitPrice;
-    const taxAmount = amountExcludingTax * (taxRate / 100);
-    const totalAmount = amountExcludingTax + taxAmount;
+      this.toNumber(material.costPrice, 0);
+    const taxRate = normalizeTaxRate(orderContext.tax_rate, 0.13);
+    const amountExcludingTax = roundMoney(receiveQty * unitPrice);
+    const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
+    const totalAmount = roundMoney(amountExcludingTax + taxAmount);
     const remarks = [
       `Replacement receipt ${replacementOrder.replacement_no}`,
       replacementOrder.ncp_no ? `NCP ${replacementOrder.ncp_no}` : null,

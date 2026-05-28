@@ -20,6 +20,10 @@ function toDateString(value) {
   return String(value).slice(0, 10);
 }
 
+function currentDateString() {
+  return toDateString(new Date());
+}
+
 function normalizeDateInput(value, fieldName) {
   const dateString = toDateString(value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
@@ -50,10 +54,12 @@ function isDateWithinPeriod(date, period) {
 }
 
 function shouldPostEntry(entryData) {
-  return entryData.status === 'posted'
-    || entryData.is_posted === true
-    || entryData.is_posted === 1
-    || entryData.is_posted === '1';
+  return (
+    entryData.status === 'posted' ||
+    entryData.is_posted === true ||
+    entryData.is_posted === 1 ||
+    entryData.is_posted === '1'
+  );
 }
 
 /**
@@ -158,7 +164,9 @@ class GLService {
       } catch (error) {
         // 如果是死锁错误，且还有重试次数，则等待随机时间后重试
         if (error.code === 'ER_LOCK_DEADLOCK' && retries > 1 && !connection) {
-          logger.warn(`检测到死锁，准备重试 (剩余 ${retries - 1} 次) - 单据: ${entryData.document_number || '未知'}...`);
+          logger.warn(
+            `检测到死锁，准备重试 (剩余 ${retries - 1} 次) - 单据: ${entryData.document_number || '未知'}...`
+          );
           retries--;
           await new Promise((resolve) => setTimeout(resolve, crypto.randomInt(100, 301)));
           continue;
@@ -178,7 +186,7 @@ class GLService {
       throw new Error('分录明细不能为空');
     }
 
-    const defaultDate = new Date().toISOString().split('T')[0];
+    const defaultDate = currentDateString();
     const entryDate = normalizeDateInput(entryData.entry_date || defaultDate, 'entry_date');
     const postingDate = normalizeDateInput(
       entryData.posting_date || entryData.entry_date || defaultDate,
@@ -242,9 +250,8 @@ class GLService {
         0
       );
 
-      // 允许1分钱以内的误差 (浮点数容错), 但上面已经转为整数了, 所以必须相等
-      if (Math.abs(totalDebit - totalCredit) > 1) {
-        // > 0.01
+      // 分录入账必须精确借贷平衡。金额已经转为分，不能保留 0.01 的尾差进总账。
+      if (totalDebit !== totalCredit) {
         const debit = totalDebit / 100;
         const credit = totalCredit / 100;
         throw new Error(`借贷不平衡: 借方 ${debit.toFixed(2)}, 贷方 ${credit.toFixed(2)}`);
@@ -265,12 +272,15 @@ class GLService {
         if (periods.length === 0) {
           throw new Error('Accounting period not found');
         }
-        if (!isDateWithinPeriod(entryDate, periods[0]) || !isDateWithinPeriod(postingDate, periods[0])) {
+        if (
+          !isDateWithinPeriod(entryDate, periods[0]) ||
+          !isDateWithinPeriod(postingDate, periods[0])
+        ) {
           throw new Error(
             `entry_date ${entryDate} or posting_date ${postingDate} is outside accounting period ${periods[0].period_name}`
           );
         }
-        if (isClosedFlag(periods[0].is_closed)) {
+        if (isClosedFlag(periods[0].is_closed) && !entryData.allow_closed_period) {
           throw new Error(`不能在已关闭的会计期间 [${periods[0].period_name}] 创建分录`);
         }
       }
@@ -294,7 +304,7 @@ class GLService {
           );
         }
 
-        if (isClosedFlag(periods[0].is_closed)) {
+        if (isClosedFlag(periods[0].is_closed) && !entryData.allow_closed_period) {
           throw new Error(`不能在已关闭的会计期间 [${periods[0].period_name}] 创建分录`);
         }
 
@@ -425,7 +435,7 @@ class GLService {
    * @returns {Promise<string>} 分录编号
    */
   static async generateEntryNumber(connection) {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = currentDateString().replace(/-/g, '');
     const prefix = `JE${dateStr}`;
 
     // 使用 FOR UPDATE 锁获取当天最大编号

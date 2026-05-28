@@ -6,20 +6,20 @@
     width="800px"
   >
     <el-table :data="history" border stripe max-height="400">
-      <el-table-column prop="suggested_price" label="建议售价" width="120" align="right">
+      <el-table-column prop="suggested_price" label="建议售价" width="120">
         <template #default="{ row }">
-          ¥{{ formatNumber(row.suggested_price) }}
+          {{ formatPrice(row.suggested_price) }}
         </template>
       </el-table-column>
-      <el-table-column prop="cost_price" label="成本价" width="120" align="right">
+      <el-table-column prop="cost_price" label="成本价" width="120">
         <template #default="{ row }">
-          ¥{{ formatNumber(row.cost_price) }}
+          {{ formatPrice(row.cost_price) }}
         </template>
       </el-table-column>
-      <el-table-column prop="profit_margin" label="利润率" width="100" align="center">
+      <el-table-column prop="profit_margin" label="利润率" width="100">
         <template #default="{ row }">
           <el-tag :type="getMarginColor(row.profit_margin)" size="small">
-            {{ formatNumber(row.profit_margin) }}%
+            {{ formatPercent(row.profit_margin) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -44,7 +44,6 @@
 
 <script setup>
 import { computed } from 'vue';
-import 'dayjs';
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils';
 
 const props = defineProps({
@@ -66,9 +65,25 @@ const visible = computed({
 
 // 数字格式化
 const formatNumber = (value, decimals = 2) => {
-  if (value === null || value === undefined) return '0';
+  if (value === null || value === undefined || value === '') return '-';
   const num = parseFloat(value);
-  if (isNaN(num)) return '0';
+  if (isNaN(num)) return '-';
   return num.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+};
+const formatPrice = (value) => {
+  const formatted = formatNumber(value);
+  return formatted === '-' ? '-' : `¥${formatted}`;
+};
+const formatPercent = (value) => {
+  const formatted = formatNumber(value);
+  return formatted === '-' ? '-' : `${formatted}%`;
+};
+const getMarginColor = (value) => {
+  if (value === null || value === undefined || value === '') return 'info';
+  const margin = Number(value);
+  if (Number.isNaN(margin)) return 'info';
+  if (margin < 10) return 'danger';
+  if (margin < 20) return 'warning';
+  return 'success';
 };
 </script>

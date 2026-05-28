@@ -134,11 +134,23 @@ const getBatchInventory = async (req, res) => {
     }
 
     // 构建批量查询SQL
-    const materialIdList = materialIds.map((id) => parseInt(id)).filter((id) => !isNaN(id));
-    const locationFilter =
-      locationIds && locationIds.length > 0
-        ? `AND location_id IN (${locationIds.map((id) => parseInt(id)).join(',')})`
-        : '';
+    const materialIdList = materialIds
+      .map((id) => Number.parseInt(id, 10))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    if (materialIdList.length === 0) {
+      return ResponseHandler.error(res, '物料ID列表无有效值', 'BAD_REQUEST', 400);
+    }
+
+    const locationIdList = Array.isArray(locationIds)
+      ? locationIds
+        .map((id) => Number.parseInt(id, 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+      : [];
+    const materialPlaceholders = materialIdList.map(() => '?').join(',');
+    const locationFilter = locationIdList.length > 0
+      ? `AND location_id IN (${locationIdList.map(() => '?').join(',')})`
+      : '';
+    const inventoryParams = [...materialIdList, ...locationIdList, ...materialIdList, ...locationIdList];
 
     // 优化的库存查询SQL - 优先使用事务记录聚合，库存表作为补充
     const inventoryQuery = `
@@ -148,7 +160,7 @@ const getBatchInventory = async (req, res) => {
           location_id,
           SUM(quantity) as calculated_quantity
         FROM inventory_ledger
-        WHERE material_id IN (${materialIdList.join(',')}) ${locationFilter}
+        WHERE material_id IN (${materialPlaceholders}) ${locationFilter}
         GROUP BY material_id, location_id
         HAVING calculated_quantity > 0
       ),
@@ -158,7 +170,7 @@ const getBatchInventory = async (req, res) => {
           location_id,
           quantity as stock_quantity
         FROM ${STOCK_SUBQUERY} as current_stock
-        WHERE material_id IN (${materialIdList.join(',')}) ${locationFilter}
+        WHERE material_id IN (${materialPlaceholders}) ${locationFilter}
         AND quantity > 0
       )
       SELECT
@@ -180,7 +192,7 @@ const getBatchInventory = async (req, res) => {
       ORDER BY material_id, location_id
     `;
 
-    const [inventoryResults] = await connection.execute(inventoryQuery);
+    const [inventoryResults] = await connection.execute(inventoryQuery, inventoryParams);
 
     // 构建结果映射
     const inventoryMap = {};
@@ -210,7 +222,7 @@ const getBatchInventory = async (req, res) => {
     });
 
     // 如果没有指定库位，查询所有启用的库位（只查一次）
-    let resolvedLocations = locationIds && locationIds.length > 0 ? locationIds : null;
+    let resolvedLocations = locationIdList.length > 0 ? locationIdList : null;
     if (!resolvedLocations) {
       const [activeLocations] = await connection.execute(
         'SELECT id FROM locations WHERE status = 1 AND deleted_at IS NULL ORDER BY id ASC LIMIT 10'

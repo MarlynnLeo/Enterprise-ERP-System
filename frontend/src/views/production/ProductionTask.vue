@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="production-task-container">
+  <div class="module-page production-task-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -29,16 +29,23 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="查询">
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="handleReset"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchForm.keyword"
-            placeholder="请输入"
+            placeholder="物料名称"
             clearable
             @keyup.enter="fetchTaskList"
           />
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="时间范围">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -68,16 +75,8 @@
             <el-option label="已取消" value="cancelled" />
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> 搜索
-          </el-button>
-          <el-button @click="handleReset" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计卡片区域 -->
     <div class="statistics-row">
@@ -116,7 +115,7 @@
         v-loading="loading"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="45" />
+        <el-table-column type="selection" width="45" :selectable="isBatchScheduleSelectable" />
         <template #empty>
           <el-empty description="暂无生产任务数据" />
         </template>
@@ -176,7 +175,7 @@
             <el-tag v-else size="small" type="warning">待排程</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="发料时间" width="110" align="center" show-overflow-tooltip>
+        <el-table-column label="发料时间" width="110" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.actual_start_time || scope.row.actualStartTime">
               {{ dayjs(scope.row.actual_start_time || scope.row.actualStartTime).format('YYYY-MM-DD') }}
@@ -203,7 +202,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="260" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div style="display: flex; gap: 5px; flex-wrap: wrap;">
               <!-- 查看按钮 -->
@@ -235,9 +234,9 @@
               >
                 发料
               </el-button>
-              <!-- 删除按钮 - 只有pending状态可以删除 -->
+              <!-- 删除按钮 - 只有未执行任务可以删除 -->
               <el-popconfirm
-                v-if="scope.row.status === 'pending'"
+                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated') && Number(scope.row.has_outbound_document) !== 1"
                 title="确定要删除该生产任务吗？此操作无法恢复。"
                 @confirm="handleDelete(scope.row)"
                 confirm-button-type="danger"
@@ -448,7 +447,7 @@
               <template #default>
                 <div v-for="(c, i) in conflictInfo.conflicts" :key="i" style="margin-top: 4px; font-size: 13px">
                   <span>• 任务 <b>{{ c.taskCode }}</b>（{{ c.productName }} {{ c.quantity }}件）占用 {{ c.occupiedFrom }} ~ {{ c.occupiedTo }}</span>
-                  <span style="margin-left: 8px; color: #e6a23c">重叠 {{ c.overlapMinutes }}分钟</span>
+                  <span style="margin-left: 8px; color: var(--color-warning)">重叠 {{ c.overlapMinutes }}分钟</span>
                   <el-button size="small" type="primary" link @click="applySuggestedStart(c.suggestedStart)" style="margin-left: 8px">
                     采纳建议 → {{ c.suggestedStart }}
                   </el-button>
@@ -558,17 +557,17 @@
           :name="group.name"
         >
           <el-table :data="group.tasks" border size="small" max-height="350">
-            <el-table-column label="顺序" width="55" align="center">
+            <el-table-column label="顺序" width="55">
               <template #default="{ $index }">
                 <span style="font-weight: 700; color: var(--el-color-primary)">{{ $index + 1 }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="code" label="任务编号" width="150" />
             <el-table-column prop="productName" label="产品" min-width="120" show-overflow-tooltip />
-            <el-table-column label="数量" width="70" align="center">
+            <el-table-column label="数量" width="70">
               <template #default="{ row }">{{ displayQuantity(row.quantity) }}</template>
             </el-table-column>
-            <el-table-column label="调整" width="100" align="center">
+            <el-table-column label="调整" width="100">
               <template #default="{ $index }">
                 <el-button-group>
                   <el-button size="small" :disabled="$index === 0" @click="moveGroupTask(gIdx, $index, -1)">↑</el-button>
@@ -602,21 +601,21 @@
           />
         </div>
         <el-table :data="batchResult" border size="small">
-          <el-table-column label="#" width="45" align="center">
+          <el-table-column label="#" width="45">
             <template #default="{ $index }">{{ $index + 1 }}</template>
           </el-table-column>
           <el-table-column prop="code" label="任务编号" width="150" />
           <el-table-column prop="productName" label="产品" min-width="100" show-overflow-tooltip />
           <el-table-column prop="manager" label="生产组" width="90" />
-          <el-table-column label="耗时" width="80" align="center">
+          <el-table-column label="耗时" width="80">
             <template #default="{ row }">
               <span>{{ row.totalHours }}h</span>
-              <el-icon v-if="row.warning" style="color: #e6a23c; margin-left: 4px" :title="row.warning"><WarningFilled /></el-icon>
+              <el-icon v-if="row.warning" style="color: var(--color-warning); margin-left: 4px" :title="row.warning"><WarningFilled /></el-icon>
             </template>
           </el-table-column>
           <el-table-column prop="startTime" label="开始时间" width="150" />
           <el-table-column prop="endTime" label="结束时间" width="150" />
-          <el-table-column label="交期" width="120" align="center">
+          <el-table-column label="交期" width="120">
             <template #default="{ row }">
               <template v-if="row.deliveryDate">
                 <el-tag v-if="row.deliveryStatus === 'ok'" type="success" size="small">OK</el-tag>
@@ -679,12 +678,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from '@/services/api'
-import { baseDataApi, productionApi } from '@/services/api'
+import { baseDataApi, inventoryApi, productionApi, systemApi } from '@/services/api'
 import dayjs from 'dayjs'
-import { Plus, Refresh, Search, Clock, SetUp, WarningFilled } from '@element-plus/icons-vue'
+import { Plus, Clock, SetUp, WarningFilled } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/utils/helpers/quantity'
-import { parseDataObject, parseListData } from '@/utils/responseParser'
+import { parseDataObject, parseListData, parseResponseData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 import printService from '@/services/printService'
 
@@ -896,7 +894,7 @@ const fetchPlanList = async () => {
     // 只加载少量计划用于缓存，远程搜索会按需加载
     const response = await productionApi.getProductionPlans({
       page: 1,
-      pageSize: 100
+      pageSize: 50
     })
 
     // 使用统一解析器
@@ -993,7 +991,6 @@ const handlePlanSelectFocus = async () => {
 }
 
 import { getProductionStatusText, getProductionStatusColor } from '@/constants/systemConstants'
-
 // 状态相关
 const getStatusType = (status) => {
   return getProductionStatusColor(status)
@@ -1123,11 +1120,11 @@ const handleModalOk = async () => {
 
     if (formData.value.id) {
       // 编辑模式
-      await axios.put(`/production/tasks/${formData.value.id}`, payload)
+      await productionApi.updateProductionTask(formData.value.id, payload)
       ElMessage.success('生产任务更新成功')
     } else {
       // 创建模式
-      await axios.post('/production/tasks', payload)
+      await productionApi.createProductionTask(payload)
       ElMessage.success('生产任务创建成功')
     }
 
@@ -1185,7 +1182,7 @@ const doScheduleCalculation = async () => {
 
   try {
     // 1. 计算排程
-    const calcRes = await axios.post('/production/scheduling/calculate', {
+    const calcRes = await productionApi.calculateSchedule({
       productId,
       quantity: parseFloat(quantity),
       startTime: startDate,
@@ -1205,7 +1202,7 @@ const doScheduleCalculation = async () => {
 
     // 2. 检测冲突
     if (manager && data.estimatedEndTime) {
-      const conflictRes = await axios.post('/production/scheduling/check-conflicts', {
+      const conflictRes = await productionApi.checkScheduleConflicts({
         manager,
         startTime: startDate,
         endTime: data.estimatedEndTime,
@@ -1237,15 +1234,26 @@ const applySuggestedStart = (suggestedTime) => {
 
 // ===== 批量排程方法 =====
 
+const batchSchedulableStatuses = new Set(['pending', 'allocated', 'preparing'])
+const isBatchScheduleSelectable = (row) => {
+  return batchSchedulableStatuses.has(row.status) && Number(row.has_outbound_document) !== 1
+}
+
 /** 表格多选变化 */
 const handleSelectionChange = (rows) => {
-  selectedTasks.value = rows
+  selectedTasks.value = rows.filter(isBatchScheduleSelectable)
 }
 
 /** 打开一键排程对话框 */
 const openBatchScheduleDialog = () => {
   // 复制选中的任务到排序列表
-  batchTaskList.value = selectedTasks.value.map(t => ({ ...t }))
+  const schedulableTasks = selectedTasks.value.filter(isBatchScheduleSelectable)
+  if (schedulableTasks.length === 0) {
+    ElMessage.warning('请选择未发料、未报工、未检验的任务排程')
+    return
+  }
+
+  batchTaskList.value = schedulableTasks.map(t => ({ ...t }))
   batchStartTime.value = dayjs().format('YYYY-MM-DD') + ' 08:00'
   batchResult.value = []
   // 默认选中第一个组的 Tab
@@ -1289,23 +1297,18 @@ const executeBatchSchedule = async () => {
 
   batchScheduleLoading.value = true
   try {
-    // 按组分别调用排程 API，每个组从相同起始时间开始（并行）
+    // 按生产组一次性提交，后端在同一事务中完成整批排程
     const groups = batchGroupedTasks.value
-    const allResults = []
-
-    for (const group of groups) {
-      const taskIds = group.tasks.map(t => t.id)
-      const res = await axios.post('/production/scheduling/batch', {
-        taskIds,
-        startTime: batchStartTime.value,
-      })
-      const data = res.data || res
-      if (data.scheduled) {
-        // 给每条结果加上生产组标识
-        data.scheduled.forEach(s => { s.manager = group.name })
-        allResults.push(...data.scheduled)
-      }
-    }
+    const scheduleGroups = groups.map(group => ({
+      name: group.name,
+      taskIds: group.tasks.map(t => t.id),
+    }))
+    const res = await productionApi.batchSchedule({
+      groups: scheduleGroups,
+      startTime: batchStartTime.value,
+    })
+    const data = res.data || res
+    const allResults = Array.isArray(data.scheduled) ? data.scheduled : []
 
     if (allResults.length > 0) {
       batchResult.value = allResults
@@ -1392,7 +1395,7 @@ const fetchProductProcessTemplates = async (productId) => {
     // 获取所有可用的工序模板
     const allTemplatesResponse = await baseDataApi.getProcessTemplates({
       productId,
-      pageSize: 100
+      pageSize: 50
     })
 
     // 拦截器已解包，response.data 就是业务数据
@@ -1474,7 +1477,7 @@ const handleMaterialIssue = async () => {
     const taskQuantity = task.quantity
 
     // 1. 获取产品的BOM信息
-    const bomRes = await axios.get(`/production/product-bom/${productId}`)
+    const bomRes = await productionApi.getProductBom(productId)
     if (!bomRes.data || !bomRes.data.id) {
       ElMessage.error('该产品没有BOM，无法生成出库单')
       return
@@ -1483,7 +1486,7 @@ const handleMaterialIssue = async () => {
     const bom = bomRes.data
 
     // 2. 计算物料需求
-    const materialsRes = await axios.post('/production/calculate-materials', {
+    const materialsRes = await productionApi.calculateMaterials({
       productId: productId,
       bomId: bom.id,
       quantity: Number(taskQuantity),
@@ -1525,10 +1528,11 @@ const handleMaterialIssue = async () => {
 // 提交出库单，支持超额领料确认重试
 const submitOutbound = async (outboundData, task) => {
   try {
-    const outboundRes = await axios.post('/inventory/outbound', outboundData)
+    const outboundRes = await inventoryApi.createOutbound(outboundData)
 
-    if (outboundRes.data?.success || outboundRes.success || outboundRes.data?.id || outboundRes.id) {
-      ElMessage.success(`出库单创建成功！单号：${outboundRes.data?.data?.outboundNo || outboundRes.data?.outboundNo || ''}`)
+    const outboundPayload = parseResponseData(outboundRes, {})
+    if (outboundPayload?.id || outboundRes.data?.success || outboundRes.success) {
+      ElMessage.success(`出库单创建成功！单号：${outboundPayload?.outboundNo || ''}`)
       materialIssueDialogVisible.value = false
 
       // 更新生产任务状态为配料中 (preparing/material_issuing)
@@ -1636,7 +1640,7 @@ const fetchProductionGroupByProduct = async (productId) => {
     // 产品本身就是物料，直接使用其production_group_id
     if (product && product.production_group_id) {
       // 获取生产组（部门）信息
-      const deptResponse = await axios.get('/system/departments');
+      const deptResponse = await systemApi.getDepartments();
       // 拦截器已解包，response.data 就是业务数据
       let departments = [];
 
@@ -1673,9 +1677,7 @@ const fetchProductionGroupByProduct = async (productId) => {
 const fetchProductionUsers = async () => {
   try {
     // 获取所有部门
-    const response = await axios.get('/system/departments', {
-      timeout: 10000
-    });
+    const response = await systemApi.getDepartments();
 
     const departments = parseListData(response, { enableLog: false });
 
@@ -1793,21 +1795,22 @@ onMounted(async () => {
 /* 自定义状态标签颜色 */
 /* 生产中 - 深蓝色 */
 .status-in-progress {
-  --el-tag-bg-color: #1e40af !important;
-  --el-tag-border-color: #1e40af !important;
-  --el-tag-text-color: #ffffff !important;
-  background-color: #1e40af !important;
-  border-color: #1e40af !important;
-  color: #ffffff !important;
+  --el-tag-bg-color: var(--color-primary) !important;
+  --el-tag-border-color: var(--color-primary) !important;
+  --el-tag-text-color: var(--color-on-primary) !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 /* 待检验 - 紫色 */
 .status-inspection {
-  --el-tag-bg-color: #7c3aed !important;
-  --el-tag-border-color: #7c3aed !important;
-  --el-tag-text-color: #ffffff !important;
-  background-color: #7c3aed !important;
-  border-color: #7c3aed !important;
-  color: #ffffff !important;
+  --inspection-status-color: color-mix(in srgb, var(--color-primary) 60%, var(--color-danger));
+  --el-tag-bg-color: var(--inspection-status-color) !important;
+  --el-tag-border-color: var(--inspection-status-color) !important;
+  --el-tag-text-color: var(--color-on-primary) !important;
+  background-color: var(--inspection-status-color) !important;
+  border-color: var(--inspection-status-color) !important;
+  color: var(--color-on-primary) !important;
 }
 </style>

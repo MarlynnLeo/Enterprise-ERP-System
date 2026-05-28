@@ -1,5 +1,5 @@
 <template>
-  <div class="abc-container">
+  <div class="module-page abc-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -24,29 +24,29 @@
             <el-table-column prop="code" label="作业编码" width="120" />
             <el-table-column prop="name" label="作业名称" width="150" />
             <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-            <el-table-column label="成本池" width="130" align="right">
+            <el-table-column label="成本池" width="130">
               <template #default="{ row }">
                 {{ formatCurrency(row.cost_pool) }}
               </template>
             </el-table-column>
-            <el-table-column label="成本动因" width="100" align="center">
+            <el-table-column label="成本动因" width="100">
               <template #default="{ row }">
                 <el-tag size="small">{{ getDriverTypeLabel(row.cost_driver_type) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="分配率" width="100" align="right">
+            <el-table-column label="分配率" width="100">
               <template #default="{ row }">
                 {{ row.driver_rate }}
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="80" align="center">
+            <el-table-column label="状态" width="80">
               <template #default="{ row }">
                 <el-tag :type="String(row.status) === '1' ? 'success' : 'info'" size="small">
                   {{ String(row.status) === '1' ? '启用' : '禁用' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="160" fixed="right">
+            <el-table-column label="操作" width="160" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
                 <el-button type="primary" size="small" @click="editActivity(row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteActivity(row)">删除</el-button>
@@ -60,27 +60,27 @@
           <el-table :data="summaryList" border v-loading="summaryLoading" stripe>
             <el-table-column prop="code" label="作业编码" width="120" />
             <el-table-column prop="name" label="作业名称" width="150" />
-            <el-table-column label="成本池" width="130" align="right">
+            <el-table-column label="成本池" width="130">
               <template #default="{ row }">
                 {{ formatCurrency(row.cost_pool) }}
               </template>
             </el-table-column>
-            <el-table-column label="成本动因" width="100" align="center">
+            <el-table-column label="成本动因" width="100">
               <template #default="{ row }">
                 {{ getDriverTypeLabel(row.cost_driver_type) }}
               </template>
             </el-table-column>
-            <el-table-column label="动因总量" width="100" align="right">
+            <el-table-column label="动因总量" width="100">
               <template #default="{ row }">
                 {{ row.total_driver_quantity }}
               </template>
             </el-table-column>
-            <el-table-column label="已分配成本" width="130" align="right">
+            <el-table-column label="已分配成本" width="130">
               <template #default="{ row }">
                 <span class="allocated-cost">{{ formatCurrency(row.total_allocated_cost) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="product_count" label="关联产品" width="90" align="center" />
+            <el-table-column prop="product_count" label="关联产品" width="90" />
           </el-table>
         </el-tab-pane>
       </el-tabs>
@@ -140,6 +140,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { api } from '@/services/api'
 import { formatCurrency } from '@/utils/helpers/formatters'
+import { parseResponseData } from '@/utils/responseParser'
 
 // 数据
 const activeTab = ref('activities')
@@ -187,7 +188,7 @@ const loadActivities = async () => {
   loading.value = true
   try {
     const res = await api.get('/finance/activity-cost/activities')
-    activityList.value = res.data?.data || res.data || []
+    activityList.value = parseResponseData(res, [])
   } catch (error) {
     console.error('加载作业列表失败:', error)
     ElMessage.error('加载作业列表失败')
@@ -201,7 +202,7 @@ const loadSummary = async () => {
   summaryLoading.value = true
   try {
     const res = await api.get('/finance/activity-cost/summary')
-    summaryList.value = res.data?.data || res.data || []
+    summaryList.value = parseResponseData(res, [])
   } catch (error) {
     console.error('加载汇总报表失败:', error)
   } finally {

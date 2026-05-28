@@ -16,6 +16,10 @@ router.put('/employees/:id', authenticateToken, requirePermission('hr:employees:
 router.delete('/employees/:id', authenticateToken, requirePermission('hr:employees:delete'), hrController.deleteEmployee);
 
 // 考勤
+router.get('/leave', hrRead, hrController.getLeaveRequests);
+router.post('/leave', authenticateToken, requirePermission(['hr', 'hr:attendance:update']), hrController.createLeaveRequest);
+router.get('/overtime', hrRead, hrController.getOvertimeRequests);
+router.post('/overtime', authenticateToken, requirePermission(['hr', 'hr:attendance:update']), hrController.createOvertimeRequest);
 router.get('/attendance', hrRead, hrController.getAttendance);
 router.post('/attendance/batch', authenticateToken, requirePermission('hr:attendance:update'), hrController.batchSaveAttendance);
 router.post('/attendance/sync/dingtalk', authenticateToken, requirePermission('hr:attendance:update'), hrController.syncAttendance);

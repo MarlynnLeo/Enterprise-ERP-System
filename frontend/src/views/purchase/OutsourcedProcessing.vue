@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * OutsourcedProcessing.vue
  * @description 前端界面组件文件
@@ -7,22 +7,29 @@
  */
 -->
 <template>
-  <div class="outsourced-processing-container">
+  <div class="module-page outsourced-processing-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
           <h2>外委加工管理</h2>
           <p class="subtitle">管理外委加工订单</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="handleAddProcessing">新建加工单</el-button>
+        <el-button type="primary" :icon="Plus" v-permission="'purchase:processing:create'" @click="handleAddProcessing">新建加工单</el-button>
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item label="单号搜索">
-          <el-input v-model="searchForm.keyword" placeholder="请输入加工单号" clearable></el-input>
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input v-model="searchForm.keyword" placeholder="物料名称" clearable></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="供应商">
           <el-input v-model="searchForm.supplierName" placeholder="请输入供应商名称" clearable></el-input>
         </el-form-item>
@@ -46,16 +53,8 @@
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -111,7 +110,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="200" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -141,6 +140,7 @@
               v-if="scope.row.status === 'pending'"
               size="small"
               type="success"
+              v-permission="'purchase:processing:update'"
               @click="updateProcessingStatus(scope.row, 'confirmed')"
             >
               确认
@@ -150,7 +150,7 @@
               size="small"
               type="success"
               @click="handleCreateAndComplete(scope.row)"
-              v-permission="'purchase:processing:create'"
+              v-permission="'purchase:processing-receipts:create'"
             >
               创建入库单
             </el-button>
@@ -216,9 +216,13 @@
                 <el-select
                   v-model="processingForm.supplier_id"
                   filterable
+                  remote
+                  reserve-keyword
                   placeholder="请选择加工厂"
                   style="width: 100%"
                   :disabled="viewOnly"
+                  :remote-method="loadSuppliers"
+                  :loading="supplierLoading"
                   @change="handleSupplierChange"
                 >
                   <el-option
@@ -283,7 +287,7 @@
                 type="primary"
                 size="small"
                 @click="handleAddMaterial"
-                v-permission="'purchase:processing:update'"
+                v-permission="processingDialogMode === 'create' ? 'purchase:processing:create' : 'purchase:processing:update'"
               >
                 添加物料
               </el-button>
@@ -320,14 +324,14 @@
                 <span v-else>{{ scope.row.remark }}</span>
               </template>
             </el-table-column>
-            <el-table-column v-if="!viewOnly" label="操作" width="80">
+            <el-table-column v-if="!viewOnly" label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="danger"
                   size="small"
                   @click="handleRemoveMaterial(scope.$index)"
 
-                  v-permission="'purchase:processing:update'">
+                  v-permission="processingDialogMode === 'create' ? 'purchase:processing:create' : 'purchase:processing:update'">
                   删除
                 </el-button>
               </template>
@@ -344,7 +348,7 @@
                 type="primary"
                 size="small"
                 @click="handleAddProduct"
-                v-permission="'purchase:processing:update'"
+                v-permission="processingDialogMode === 'create' ? 'purchase:processing:create' : 'purchase:processing:update'"
               >
                 添加成品
               </el-button>
@@ -402,14 +406,14 @@
                 <span v-else>{{ scope.row.remark }}</span>
               </template>
             </el-table-column>
-            <el-table-column v-if="!viewOnly" label="操作" width="80">
+            <el-table-column v-if="!viewOnly" label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="danger"
                   size="small"
                   @click="handleRemoveProduct(scope.$index)"
 
-                  v-permission="'purchase:processing:update'">
+                  v-permission="processingDialogMode === 'create' ? 'purchase:processing:create' : 'purchase:processing:update'">
                   删除
                 </el-button>
               </template>
@@ -426,7 +430,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleCloseProcessingDialog">取消</el-button>
-          <el-button v-if="!viewOnly" type="primary" @click="handleProcessingSubmit">
+          <el-button v-if="!viewOnly" type="primary" v-permission="processingDialogMode === 'create' ? 'purchase:processing:create' : 'purchase:processing:update'" @click="handleProcessingSubmit">
             {{ processing ? '保存中...' : '保存' }}
           </el-button>
         </span>
@@ -443,6 +447,7 @@
           v-model="materialSearchKeyword"
           placeholder="输入关键字搜索物料"
           clearable
+          @input="scheduleMaterialSearch"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
@@ -460,7 +465,7 @@
         <el-table-column prop="name" label="物料名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
         <el-table-column prop="unit_name" label="单位" width="80" />
-        <el-table-column label="操作" width="80" fixed="right">
+        <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               type="primary"
@@ -484,6 +489,7 @@
           v-model="productSearchKeyword"
           placeholder="输入关键字搜索成品"
           clearable
+          @input="scheduleProductSearch"
         >
           <template #prefix>
             <el-icon><Search /></el-icon>
@@ -501,7 +507,7 @@
         <el-table-column prop="name" label="成品名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
         <el-table-column prop="unit_name" label="单位" width="80" />
-        <el-table-column label="操作" width="80" fixed="right">
+        <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               type="primary"
@@ -517,12 +523,13 @@
   </div>
 </template>
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, baseDataApi } from '@/services/api';
 import { parseListData } from '@/utils/responseParser';
-import { Plus, Search, Refresh } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import ReceiptDialog from './ReceiptDialog.vue';
 import {
   OUTSOURCED_STATUS_OPTIONS,
@@ -579,7 +586,7 @@ const processing = ref(false);
 const processingFormRef = ref(null);
 // 对话框表单数据
 const processingForm = reactive({
-  processing_date: new Date().toISOString().split('T')[0],
+  processing_date: formatLocalDate(new Date()),
   supplier_id: '',
   supplier_name: '',
   expected_delivery_date: '',
@@ -598,28 +605,36 @@ const processingRules = {
 // 供应商数据
 const supplierOptions = ref([]);
 const suppliersLoaded = ref(false); // 添加加载状态标记
-const loadSuppliers = async (forceReload = false) => {
+const supplierLoading = ref(false);
+const loadSuppliers = async (query = '') => {
+  const keyword = String(query || '').trim();
   // 如果已经加载过且不强制重新加载，则直接返回
-  if (suppliersLoaded.value && !forceReload) {
+  if (!keyword && suppliersLoaded.value) {
     return;
   }
+  supplierLoading.value = true;
   try {
-    const response = await baseDataApi.getSuppliers({ status: 1 }); // 只获取启用的供应商
+    const response = await baseDataApi.getSuppliers({
+      page: 1,
+      pageSize: 50,
+      status: 1,
+      ...(keyword && { keyword })
+    });
     const suppliers = parseListData(response, { enableLog: false });
-    if (suppliers.length > 0) {
-      supplierOptions.value = suppliers.map(supplier => ({
-        id: supplier.id,
-        name: supplier.name || '未命名',
-        contact_person: supplier.contact_person || '',
-        contact_phone: supplier.contact_phone || ''
-      }));
+    supplierOptions.value = suppliers.map(supplier => ({
+      id: supplier.id,
+      name: supplier.name || '未命名',
+      contact_person: supplier.contact_person || '',
+      contact_phone: supplier.contact_phone || ''
+    }));
+    if (!keyword) {
       suppliersLoaded.value = true;
-    } else {
-      ElMessage.warning('未找到供应商数据，请确认数据库中是否已导入供应商信息');
     }
   } catch (error) {
     console.error('获取供应商列表失败:', error);
     ElMessage.error('获取供应商列表失败: ' + (error.response?.data?.message || error.message));
+  } finally {
+    supplierLoading.value = false;
   }
 };
 // 物料相关数据和方法
@@ -627,32 +642,77 @@ const materialDialogVisible = ref(false);
 const materialSearchKeyword = ref('');
 const allMaterials = ref([]);
 const materialsData = ref([]);
-const loadMaterials = async () => {
-  try {
-    const response = await baseDataApi.getMaterials();
-    // 使用统一解析器
-    allMaterials.value = parseListData(response, { enableLog: false });
+let materialsLoadPromise = null;
+let materialSearchTimer = null;
+const loadMaterials = async (query = '') => {
+  const keyword = String(query || '').trim();
+  if (!keyword && allMaterials.value.length > 0) {
     materialsData.value = [...allMaterials.value];
-  } catch (error) {
-    console.error('获取物料列表失败:', error);
-    ElMessage.error('获取物料列表失败');
+    return;
   }
+  if (!keyword && materialsLoadPromise) {
+    await materialsLoadPromise;
+    materialsData.value = [...allMaterials.value];
+    return;
+  }
+  const request = (async () => {
+    try {
+    const response = await baseDataApi.getMaterials({
+      page: 1,
+      pageSize: 50,
+      ...(keyword && { search: keyword })
+    });
+    // 使用统一解析器
+    const materials = parseListData(response, { enableLog: false });
+    if (keyword) {
+      materialsData.value = materials;
+    } else {
+      allMaterials.value = materials;
+      materialsData.value = [...allMaterials.value];
+    }
+    } catch (error) {
+      console.error('获取物料列表失败:', error);
+      ElMessage.error('获取物料列表失败');
+    } finally {
+      if (!keyword) materialsLoadPromise = null;
+    }
+  })();
+  if (!keyword) materialsLoadPromise = request;
+  await request;
+};
+const scheduleMaterialSearch = () => {
+  if (materialSearchTimer) clearTimeout(materialSearchTimer);
+  materialSearchTimer = setTimeout(() => loadMaterials(materialSearchKeyword.value), 300);
 };
 // 成品相关数据和方法
 const productDialogVisible = ref(false);
 const productSearchKeyword = ref('');
 const allProducts = ref([]);
 const productsData = ref([]);
-const loadProducts = async () => {
+let productSearchTimer = null;
+const loadProducts = async (query = '') => {
+  const keyword = String(query || '').trim();
   try {
-    const response = await baseDataApi.getMaterials();
-    // 使用统一解析器
-    allProducts.value = parseListData(response, { enableLog: false });
-    productsData.value = [...allProducts.value];
+    const response = await baseDataApi.getMaterials({
+      page: 1,
+      pageSize: 50,
+      ...(keyword && { search: keyword })
+    });
+    const products = parseListData(response, { enableLog: false });
+    if (keyword) {
+      productsData.value = products;
+    } else {
+      allProducts.value = products;
+      productsData.value = [...allProducts.value];
+    }
   } catch (error) {
-    console.error('获取物料列表失败:', error);
-    ElMessage.error('获取物料列表失败');
+    console.error('获取成品列表失败:', error);
+    ElMessage.error('获取成品列表失败');
   }
+};
+const scheduleProductSearch = () => {
+  if (productSearchTimer) clearTimeout(productSearchTimer);
+  productSearchTimer = setTimeout(() => loadProducts(productSearchKeyword.value), 300);
 };
 // 计算过滤后的物料列表
 const filteredMaterials = computed(() => {
@@ -688,7 +748,7 @@ const dialogTitle = computed(() => {
 });
 // 重置处理表单
 const resetProcessingForm = () => {
-  processingForm.processing_date = new Date().toISOString().split('T')[0];
+  processingForm.processing_date = formatLocalDate(new Date());
   processingForm.supplier_id = '';
   processingForm.supplier_name = '';
   processingForm.expected_delivery_date = '';
@@ -752,6 +812,7 @@ const loadProcessingDetail = async () => {
 const handleAddMaterial = () => {
   materialDialogVisible.value = true;
   materialSearchKeyword.value = '';
+  loadMaterials();
 };
 const handleSelectMaterial = (row) => {
   // 检查是否已存在相同物料
@@ -786,6 +847,7 @@ const handleRemoveMaterial = (index) => {
 const handleAddProduct = () => {
   productDialogVisible.value = true;
   productSearchKeyword.value = '';
+  loadProducts();
 };
 const handleSelectProduct = (row) => {
   // 检查是否已存在相同成品
@@ -819,10 +881,10 @@ const handleRemoveProduct = (index) => {
   processingForm.products.splice(index, 1);
 };
 const calculateRowTotal = (row) => {
-  if (row.quantity && row.unit_price) {
-    row.total_price = parseFloat(row.quantity) * parseFloat(row.unit_price);
+  if (row.quantity && row.unit_price !== null && row.unit_price !== undefined && row.unit_price !== '') {
+    row.total_price = parseFloat(row.quantity) * Number(row.unit_price);
   } else {
-    row.total_price = 0;
+    row.total_price = null;
   }
 };
 const calculateTotal = () => {
@@ -832,7 +894,9 @@ const calculateTotal = () => {
   );
 };
 const formatPrice = (price) => {
-  return `¥ ${parseFloat(price || 0).toFixed(2)}`;
+  if (price === null || price === undefined || price === '') return '-';
+  const value = Number(price);
+  return Number.isNaN(value) ? '-' : `¥ ${value.toFixed(2)}`;
 };
 // 提交加工单
 const handleProcessingSubmit = async () => {
@@ -861,7 +925,7 @@ const handleProcessingSubmit = async () => {
     };
 
     // 检查主表字段
-    checkAndFix('processing_date', new Date().toISOString().split('T')[0]);
+    checkAndFix('processing_date', formatLocalDate(new Date()));
     checkAndFix('supplier_id', '');
     checkAndFix('supplier_name', '');
     checkAndFix('expected_delivery_date', '');

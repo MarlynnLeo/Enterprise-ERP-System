@@ -9,9 +9,15 @@ const router = express.Router();
 const taxController = require('../../../controllers/business/finance/taxController');
 const { authenticateToken } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/requirePermission');
+const { PRICE_UPDATE_PERMISSIONS } = require('../../../utils/desensitizer');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../../../middleware/priceAccessControl');
 
-// 应用认证中间件
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // ==================== 税务发票路由 ====================
 
@@ -20,7 +26,7 @@ router.use(authenticateToken);
  * @desc    创建税务发票
  * @access  Private
  */
-router.post('/invoices', requirePermission('finance:tax:create'), taxController.createTaxInvoice);
+router.post('/invoices', requirePermission('finance:tax:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), taxController.createTaxInvoice);
 
 /**
  * @route   GET /finance/tax/invoices
@@ -71,7 +77,7 @@ router.post('/invoices/:id/void', requirePermission('finance:tax:update'), taxCo
  * @desc    创建税务申报
  * @access  Private
  */
-router.post('/returns', requirePermission('finance:tax:create'), taxController.createTaxReturn);
+router.post('/returns', requirePermission('finance:tax:create'), requirePermission(PRICE_UPDATE_PERMISSIONS), taxController.createTaxReturn);
 
 /**
  * @route   GET /finance/tax/returns
@@ -99,7 +105,7 @@ router.post('/returns/:id/submit', requirePermission('finance:tax:update'), taxC
  * @desc    缴纳税款
  * @access  Private
  */
-router.post('/returns/:id/pay', requirePermission('finance:tax:pay'), taxController.payTaxReturn);
+router.post('/returns/:id/pay', requirePermission('finance:tax:pay'), requirePermission(PRICE_UPDATE_PERMISSIONS), taxController.payTaxReturn);
 
 /**
  * @route   DELETE /finance/tax/returns/:id

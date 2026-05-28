@@ -1,44 +1,79 @@
-/**
- * apiHelper.js
- * @description API 响应数据提取工具，统一处理后端响应格式差异
- * @date 2026-04-21
- * @version 1.0.0
- */
-
-/**
- * 从 API 响应中安全提取业务数据
- * 兼容以下后端响应格式：
- *   - { data: { data: actualData } } （ResponseHandler 嵌套）
- *   - { data: actualData }           （拦截器已解包）
- *   - actualData                     （直接数据）
- *
- * @param {Object} res - axios 响应对象
- * @param {*} defaultValue - 提取失败时的默认值，默认 {}
- * @returns {*} 提取出的业务数据
- */
 export const extractApiData = (res, defaultValue = {}) => {
   return res?.data?.data ?? res?.data ?? defaultValue
 }
 
-/**
- * 从 API 响应中提取列表数据
- * @param {Object} res - axios 响应对象
- * @returns {Array} 列表数据
- */
 export const extractApiList = (res) => {
   const data = extractApiData(res, [])
   if (Array.isArray(data)) return data
-  return data?.list || data?.rows || []
+  const list = data?.list || data?.items || data?.rows || data?.accounts
+  if (Array.isArray(list)) return list
+
+  if (data && typeof data === 'object') {
+    const nested = data.data
+    if (Array.isArray(nested)) return nested
+    if (nested && typeof nested === 'object') {
+      const nestedArrayKey = Object.keys(nested).find((key) => Array.isArray(nested[key]))
+      if (nestedArrayKey) return nested[nestedArrayKey]
+    }
+
+    const arrayKey = Object.keys(data).find((key) => Array.isArray(data[key]))
+    if (arrayKey) return data[arrayKey]
+  }
+
+  return []
 }
 
-/**
- * 从 API 响应中提取分页数据
- * @param {Object} res - axios 响应对象
- * @returns {{ list: Array, total: number }}
- */
-export const extractApiPaginated = (res) => {
+export const getResponseList = extractApiList
+
+export const toPagedResponse = (list = []) => ({
+  data: {
+    list,
+    total: list.length
+  }
+})
+
+export const filterByKeyword = (list = [], keyword, fields = []) => {
+  const normalizedKeyword = String(keyword || '').trim().toLowerCase()
+  if (!normalizedKeyword) return list
+
+  return list.filter((item) =>
+    fields.some((field) =>
+      String(item?.[field] ?? '').toLowerCase().includes(normalizedKeyword)
+    )
+  )
+}
+
+export const extractApiTotal = (res, fallback = -1) => {
   const data = extractApiData(res)
-  const list = data?.list || data?.rows || (Array.isArray(data) ? data : [])
-  const total = data?.total ?? list.length
-  return { list, total }
+  const raw = res?.data ?? res
+  const candidates = [
+    data?.total,
+    data?.count,
+    data?.pagination?.total,
+    raw?.total,
+    raw?.count,
+    raw?.pagination?.total,
+    raw?.data?.total,
+    raw?.data?.count,
+    raw?.data?.pagination?.total
+  ]
+  const total = candidates.find((value) => value !== undefined && value !== null)
+  return total === undefined ? fallback : Number(total)
+}
+
+export const extractApiPaginated = (res, options = {}) => {
+  const data = extractApiData(res)
+  const list = extractApiList(res)
+  const totalFallback = Object.prototype.hasOwnProperty.call(options, 'totalFallback')
+    ? options.totalFallback
+    : list.length
+  const total = extractApiTotal(res, totalFallback)
+
+  return {
+    list,
+    total,
+    page: data?.page,
+    pageSize: data?.pageSize || data?.limit,
+    payload: data
+  }
 }

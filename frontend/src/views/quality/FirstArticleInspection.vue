@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * FirstArticleInspection.vue
  * @description 首检管理页面
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inspection-container">
+  <div class="module-page inspection-container">
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -96,7 +96,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="180">
+        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" @click="handleView(row)">查看</el-button>
             <el-button v-permission="'quality:inspections:update'" v-if="row.first_article_result === 'pending'" size="small" type="primary" @click="handleInspect(row)">检验</el-button>

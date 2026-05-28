@@ -8,9 +8,7 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
-const {
-  budgetDetailActualAmountSql,
-} = require('../../utils/finance/budgetUsageSql');
+const { budgetDetailActualAmountSql } = require('../../utils/finance/budgetUsageSql');
 
 class BudgetAnalysisService {
   /**
@@ -58,21 +56,29 @@ class BudgetAnalysisService {
       );
 
       // 用实时数据覆盖used_amount
-      const processedDetails = details.map(d => ({
+      const processedDetails = details.map((d) => ({
         ...d,
         used_amount: parseFloat(d.actual_used) || 0,
         remaining_amount: parseFloat(d.budget_amount || 0) - (parseFloat(d.actual_used) || 0),
       }));
 
       // 计算总体执行率
-      const totalBudgetAmount = processedDetails.reduce((sum, d) => sum + parseFloat(d.budget_amount), 0);
-      const totalUsedAmount = processedDetails.reduce((sum, d) => sum + parseFloat(d.used_amount), 0);
+      const totalBudgetAmount = processedDetails.reduce(
+        (sum, d) => sum + parseFloat(d.budget_amount),
+        0
+      );
+      const totalUsedAmount = processedDetails.reduce(
+        (sum, d) => sum + parseFloat(d.used_amount),
+        0
+      );
       const overallExecutionRate =
         totalBudgetAmount > 0 ? (totalUsedAmount / totalBudgetAmount) * 100 : 0;
 
       // 分类统计
       const overBudget = processedDetails.filter((d) => d.execution_rate > 100);
-      const nearBudget = processedDetails.filter((d) => d.execution_rate >= 80 && d.execution_rate <= 100);
+      const nearBudget = processedDetails.filter(
+        (d) => d.execution_rate >= 80 && d.execution_rate <= 100
+      );
       const normalBudget = processedDetails.filter((d) => d.execution_rate < 80);
 
       return {
@@ -106,7 +112,6 @@ class BudgetAnalysisService {
       // 获取预算主表以取日期范围
       const [budgets] = await db.pool.execute('SELECT * FROM budgets WHERE id = ?', [budgetId]);
       if (budgets.length === 0) throw new Error('预算不存在');
-      const budget = budgets[0];
 
       // 获取预算明细（带实时实际金额）
       const [details] = await db.pool.execute(
@@ -130,7 +135,7 @@ class BudgetAnalysisService {
       const analysisResults = [];
       let execMap = new Map();
       if (details.length > 0) {
-        const detailIds = details.map(d => d.id);
+        const detailIds = details.map((d) => d.id);
         const detailPh = detailIds.map(() => '?').join(',');
         const [allExecs] = await db.pool.execute(
           `SELECT budget_detail_id,
@@ -142,7 +147,7 @@ class BudgetAnalysisService {
            GROUP BY budget_detail_id`,
           [...detailIds, startDate, endDate]
         );
-        execMap = new Map(allExecs.map(r => [r.budget_detail_id, r]));
+        execMap = new Map(allExecs.map((r) => [r.budget_detail_id, r]));
       }
 
       for (const detail of details) {

@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * PackingLists.vue
  * @description 装箱单管理前端界面组件文件
@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="packing-lists-container">
+  <div class="module-page packing-lists-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -19,17 +19,22 @@
       </div>
     </el-card>
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="装箱单号/客户">
+    <FinanceQueryCard
+      @search="handleSearch(true)"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchQuery"
-            placeholder="请输入装箱单号或客户名称"
+            placeholder="物料名称"
             @keyup.enter="() => handleSearch(true)"
             @input="handleSearch"
             clearable
           ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item label="状态">
           <el-select  v-model="statusFilter" placeholder="状态" clearable @change="() => handleSearch(true)">
             <el-option
@@ -50,13 +55,8 @@
             @change="() => handleSearch(true)"
           />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="() => handleSearch(true)">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
+      </template>
+      <template #actions>
           <el-dropdown style="margin-left: 8px;">
             <el-button type="primary">
               更多操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -72,9 +72,8 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -152,12 +151,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="packing_list_no"
-          :width="getColumnWidth('packing_list_no', 150)"
-          fixed
-          sortable="custom"
-          resizable>
+        <el-table-column prop="packing_list_no" :width="getColumnWidth('packing_list_no', 150)" fixed sortable="custom" resizable>
           <template #header>
             <el-popover
               placement="bottom"
@@ -177,10 +171,7 @@
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="customer_name"
-          :min-width="getColumnWidth('customer_name', 150)"
-          resizable>
+        <el-table-column prop="customer_name" :min-width="getColumnWidth('customer_name', 150)" resizable>
           <template #header>
             <el-popover
               placement="bottom"
@@ -195,11 +186,7 @@
             </el-popover>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="sales_order_no"
-          label="销售订单号"
-          :width="getColumnWidth('sales_order_no', 150)"
-          resizable>
+        <el-table-column prop="sales_order_no" label="销售订单号" :width="getColumnWidth('sales_order_no', 150)" resizable>
           <template #default="scope">
             <el-link v-if="scope.row.sales_order_no" type="info" @click="handleViewSalesOrder(scope.row)">
               {{ scope.row.sales_order_no }}
@@ -207,63 +194,30 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="packing_date"
-          label="装箱日期"
-          :width="getColumnWidth('packing_date', 120)"
-          sortable="custom"
-          resizable>
+        <el-table-column prop="packing_date" label="装箱日期" :width="getColumnWidth('packing_date', 120)" sortable="custom" resizable>
           <template #default="scope">
             {{ formatDate(scope.row.packing_date) }}
           </template>
         </el-table-column>
-        <el-table-column
-          prop="status"
-          label="状态"
-          :width="getColumnWidth('status', 100)"
-          resizable>
+        <el-table-column prop="status" label="状态" :width="getColumnWidth('status', 100)" resizable>
           <template #default="scope">
             <el-tag :type="getPackingStatusColor(scope.row.status)">
               {{ getPackingStatusText(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="total_boxes"
-          label="总箱数"
-          :width="getColumnWidth('total_boxes', 100)"
-          align="center"
-          resizable>
+        <el-table-column prop="total_boxes" label="总箱数" :width="getColumnWidth('total_boxes', 100)" resizable>
         </el-table-column>
-        <el-table-column
-          prop="total_quantity"
-          label="总数量"
-          :width="getColumnWidth('total_quantity', 100)"
-          align="center"
-          resizable>
+        <el-table-column prop="total_quantity" label="总数量" :width="getColumnWidth('total_quantity', 100)" resizable>
         </el-table-column>
-        <el-table-column
-          prop="created_by"
-          label="创建人"
-          :width="getColumnWidth('created_by', 100)"
-          resizable>
+        <el-table-column prop="created_by" label="创建人" :width="getColumnWidth('created_by', 100)" resizable>
         </el-table-column>
-        <el-table-column
-          prop="created_at"
-          label="创建时间"
-          :width="getColumnWidth('created_at', 150)"
-          align="center"
-          sortable="custom"
-          resizable>
+        <el-table-column prop="created_at" label="创建时间" :width="getColumnWidth('created_at', 150)" sortable="custom" resizable>
           <template #default="scope">
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column
-          label="操作"
-          :width="getColumnWidth('operations', 260)"
-          fixed="right"
-          resizable>
+        <el-table-column label="操作" :width="getColumnWidth('operations', 320)" min-width="320" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -383,8 +337,8 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
               <h3>装箱明细</h3>
               <div>
-                <el-button v-permission="'sales:packing:create'" type="primary" @click="addDetail">添加明细</el-button>
-                <el-button type="success" @click="updateNumbers">
+                <el-button v-permission="dialogType === 'add' ? 'sales:packing:create' : 'sales:packing:update'" type="primary" @click="addDetail">添加明细</el-button>
+                <el-button type="success" v-permission="dialogType === 'add' ? 'sales:packing:create' : 'sales:packing:update'" @click="updateNumbers">
                   <el-icon><Position /></el-icon> 更新编号
                 </el-button>
               </div>
@@ -398,7 +352,7 @@
               empty-text="请添加装箱明细"
             >
               <el-table-column label="序号" type="index" width="60"></el-table-column>
-              <el-table-column label="编号" width="120" align="center">
+              <el-table-column label="编号" width="120">
                 <template #default="scope">
                   <el-input
                     v-model="scope.row.item_no"
@@ -442,7 +396,7 @@
                   <el-input v-model="scope.row.product_specs" placeholder="规格型号" readonly style="width: 100%"></el-input>
                 </template>
               </el-table-column>
-              <el-table-column label="数量" width="100" align="center">
+              <el-table-column label="数量" width="100">
                 <template #default="scope">
                   <el-input
                     v-model="scope.row.quantity"
@@ -477,11 +431,12 @@
                   <el-input v-model="scope.row.remark" placeholder="备注"></el-input>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="80" fixed="right">
+              <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="scope">
                   <el-button
                     size="small"
                     type="danger"
+                    v-permission="dialogType === 'add' ? 'sales:packing:create' : 'sales:packing:update'"
                     @click="removeDetail(scope.$index)"
                   >
                     <el-icon><Delete /></el-icon> 删除
@@ -495,7 +450,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmit">确定</el-button>
+          <el-button type="primary" v-permission="dialogType === 'add' ? 'sales:packing:create' : 'sales:packing:update'" @click="handleSubmit">确定</el-button>
         </span>
       </template>
     </el-dialog>
@@ -549,6 +504,7 @@
   </div>
 </template>
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 //
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
@@ -560,7 +516,6 @@ import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 import { SEARCH_CONFIG, mapMaterialData, searchMaterials as performSearchMaterials } from '@/utils/searchConfig'
 import { useAuthStore } from '@/stores/auth'
 import {
-  Search,
   Plus,
   Upload,
   Download,
@@ -606,7 +561,11 @@ const saveColumnWidth = (columnName, width) => {
 const getColumnWidth = (columnName, defaultWidth) => {
   try {
     const widths = JSON.parse(localStorage.getItem(TABLE_COLUMN_WIDTH_KEY) || '{}')
-    return widths[columnName] || defaultWidth
+    const savedWidth = Number(widths[columnName])
+    if (columnName === 'operations') {
+      return Math.max(Number.isFinite(savedWidth) ? savedWidth : 0, defaultWidth)
+    }
+    return savedWidth || defaultWidth
   } catch {
     return defaultWidth
   }
@@ -643,7 +602,7 @@ const form = reactive({
   sales_order_no: '',
   sales_order_id: '',
   order_amount: '',
-  packing_date: new Date().toISOString().split('T')[0],
+  packing_date: formatLocalDate(new Date()),
   status: 'draft',
   remark: '',
   details: []
@@ -790,7 +749,7 @@ const normalizePackingListsData = (packingLists) => {
 // 获取客户选项
 const fetchCustomers = async () => {
   try {
-    const response = await baseDataApi.getCustomers({ pageSize: 1000, status: 'active' }); // 只获取启用的客户
+    const response = await baseDataApi.getCustomers({ pageSize: 50, status: 'active' });
     const dataArray = parseListData(response, { enableLog: false });
     customerOptions.value = dataArray.filter(item =>
       item && item.id !== undefined && item.id !== null && item.name
@@ -803,7 +762,7 @@ const fetchCustomers = async () => {
 // 获取销售订单选项
 const fetchSalesOrders = async () => {
   try {
-    const response = await salesApi.getOrders({ pageSize: 1000 });
+    const response = await salesApi.getOrders({ pageSize: 50 });
     const dataArray = parseListData(response, { enableLog: false });
     // 过滤掉无效的数据
     salesOrderOptions.value = dataArray.filter(item =>
@@ -872,7 +831,7 @@ const fetchProducts = async () => {
 // 获取单位选项
 const fetchUnits = async () => {
   try {
-    const response = await baseDataApi.getUnits({ pageSize: 1000, status: 1 }); // 只获取启用的单位
+    const response = await baseDataApi.getUnits({ pageSize: 50, status: 1 });
     const dataArray = parseListData(response, { enableLog: false });
     unitOptions.value = dataArray.filter(item =>
       item && item.id !== undefined && item.id !== null && item.name
@@ -999,7 +958,7 @@ const handleAdd = async () => {
         item_no: ''
       }];
     } else if (key === 'packing_date') {
-      form[key] = new Date().toISOString().split('T')[0];
+      form[key] = formatLocalDate(new Date());
     } else {
       form[key] = ''
     }
@@ -1208,7 +1167,7 @@ const searchUnitByCode = async (index) => {
   try {
     const response = await baseDataApi.getUnits({
       search: unitCode,
-      pageSize: 1000
+      pageSize: 20
     });
     const units = parseListData(response, { enableLog: false });
     const unit = units.find(u => u.code === unitCode);
@@ -1357,7 +1316,7 @@ const searchCustomerByCode = async () => {
   try {
     const response = await baseDataApi.getCustomers({
       search: customerCode,
-      pageSize: 1000
+      pageSize: 20
     });
     const customers = parseListData(response, { enableLog: false });
     const customer = customers.find(c => c.code === customerCode);
@@ -1392,7 +1351,7 @@ const searchSalesOrderByNo = async () => {
   try {
     const response = await salesApi.getOrders({
       search: salesOrderNo,
-      pageSize: 1000
+      pageSize: 20
     });
     const salesOrders = parseListData(response, { enableLog: false });
     const salesOrder = salesOrders.find(s => s.order_no === salesOrderNo);
@@ -1504,8 +1463,8 @@ const handleSalesOrderNoBlur = (event) => {
 /* 编号输入框样式 */
 .item-no-input :deep(.el-input__inner) {
   background-color: var(--color-bg-section);
-  border: 1px solid #e9ecef;
-  color: #495057;
+  border: 1px solid var(--color-border-lighter);
+  color: var(--color-text-regular);
   font-weight: 500;
   text-align: center;
 }
@@ -1521,8 +1480,8 @@ const handleSalesOrderNoBlur = (event) => {
 /* 只读输入框样式 */
 .el-table :deep(.el-input__inner[readonly]) {
   background-color: var(--color-bg-section);
-  border-color: #e9ecef;
-  color: #495057;
+  border-color: var(--color-border-lighter);
+  color: var(--color-text-regular);
   cursor: default;
 }
 /* 详情对话框长文本处理 - 自动添加 */

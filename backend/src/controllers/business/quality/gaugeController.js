@@ -77,7 +77,7 @@ const gaugeController = {
             const { page = 1, pageSize = 20, keyword, status, overdue } = req.query;
             const pagination = parsePagination(page, pageSize, {
                 defaultPageSize: 20,
-                maxPageSize: 200,
+                maxPageSize: 100,
             });
 
             let whereClause = 'WHERE 1=1';
@@ -249,7 +249,7 @@ const gaugeController = {
             const { page = 1, pageSize = 20, gauge_id, result: calResult, startDate, endDate } = req.query;
             const pagination = parsePagination(page, pageSize, {
                 defaultPageSize: 20,
-                maxPageSize: 200,
+                maxPageSize: 100,
             });
 
             let whereClause = 'WHERE 1=1';

@@ -5,7 +5,7 @@
       <Search v-model="keyword" placeholder="搜索客户名称/编号" @search="fetchData" />
       <Loading v-if="loading" size="24px" vertical style="padding:40px 0">加载中...</Loading>
       <template v-else>
-        <div v-for="cust in list" :key="cust.id" class="cust-card" @click="$router.push(`/baseData/customers/${cust.id}`)">
+        <div v-for="cust in list" :key="cust.id" class="cust-card" @click="$router.push(`/basedata/customers/${cust.id}`)">
           <div class="cust-header">
             <span class="cust-name">{{ cust.name }}</span>
             <Tag v-if="cust.level" type="primary" size="medium">{{ cust.level }}</Tag>
@@ -46,8 +46,8 @@
 </script>
 
 <style lang="scss" scoped>
-  .page-container { min-height: 100vh; background: var(--bg-primary); }
-  .page-body { padding: 12px; }
+  .page-container { min-height: 100%; background: var(--bg-primary); }
+  .page-body { padding: 0 12px var(--app-bottom-space); }
   .cust-card {
     background: var(--van-background);
     border: 1px solid var(--van-border-color);

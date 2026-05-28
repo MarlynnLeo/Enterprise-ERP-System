@@ -166,7 +166,7 @@
             {{ formatDateTime(row.occurred_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150">
+        <el-table-column label="操作" width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" @click="acknowledgeAlarm(row.id)">
               确认
@@ -315,9 +315,9 @@ const getEquipmentTypeTagType = (type) => {
   return typeMap[type] || ''
 }
 const getHealthColor = (score) => {
-  if (score >= 80) return '#67c23a'
-  if (score >= 60) return '#e6a23c'
-  return '#f56c6c'
+  if (score >= 80) return 'var(--color-success)'
+  if (score >= 60) return 'var(--color-warning)'
+  return 'var(--color-danger)'
 }
 const getHealthStatusText = (status) => {
   const statusMap = {

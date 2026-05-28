@@ -1,0 +1,92 @@
+/**
+ * Mobile default theme.
+ * @description Standard light palette aligned with the PC default theme.
+ */
+
+:root[data-theme="default"] {
+  --bg-primary: #f2f3f5;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f5f7fa;
+  --bg-header: #ffffff;
+
+  --border-subtle: rgba(48, 49, 51, 0.08);
+  --surface-hover: #f5f7fa;
+  --surface-active: rgba(64, 158, 255, 0.1);
+
+  --surface-elevated: #ffffff;
+  --surface-elevated-hover: var(--surface-hover);
+  --surface-elevated-active: var(--surface-active);
+  --surface-border: var(--border-subtle);
+  --surface-border-hover: rgba(64, 158, 255, 0.24);
+
+  --text-primary: #303133;
+  --text-secondary: #606266;
+  --text-tertiary: #909399;
+  --text-disabled: #c0c4cc;
+  --text-on-dark: #ffffff;
+  --text-on-dark-secondary: rgba(255, 255, 255, 0.8);
+
+  --color-primary: #409eff;
+  --color-primary-bg: #ecf5ff;
+  --color-success: #67c23a;
+  --color-success-bg: #e1f3d8;
+  --color-warning: #e6a23c;
+  --color-warning-bg: #faecd8;
+  --color-error: #f56c6c;
+  --color-error-bg: #fde2e2;
+  --color-info: #909399;
+  --color-info-bg: #e9e9eb;
+  --color-accent: #3498db;
+
+  --module-blue: #409eff;
+  --module-green: #67c23a;
+  --module-red: #f56c6c;
+  --module-orange: #e6a23c;
+  --module-purple: #7c3aed;
+  --module-yellow: #f6c343;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 6px 16px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 18px rgba(64, 158, 255, 0.12);
+
+  --van-primary-color: var(--color-primary);
+  --van-success-color: var(--color-success);
+  --van-danger-color: var(--color-error);
+  --van-warning-color: var(--color-warning);
+  --van-text-color: var(--text-primary);
+  --van-text-color-2: var(--text-secondary);
+  --van-text-color-3: var(--text-tertiary);
+  --van-active-color: var(--surface-active);
+  --van-background: var(--bg-secondary);
+  --van-background-2: var(--bg-primary);
+  --van-border-color: #dcdfe6;
+
+  --van-nav-bar-background: var(--bg-header);
+  --van-nav-bar-title-text-color: var(--text-primary);
+  --van-nav-bar-icon-color: var(--text-secondary);
+  --van-nav-bar-text-color: var(--text-secondary);
+  --van-search-background: var(--bg-primary);
+  --van-search-content-background: #f5f7fa;
+  --van-search-action-text-color: var(--color-primary);
+
+  --van-cell-background: var(--bg-secondary);
+  --van-cell-text-color: var(--text-primary);
+  --van-cell-value-color: var(--text-secondary);
+  --van-cell-label-color: var(--text-tertiary);
+  --van-cell-border-color: #ebeef5;
+  --van-cell-active-color: var(--surface-active);
+  --van-cell-group-background: var(--bg-secondary);
+  --van-popup-background: var(--bg-secondary);
+  --van-dialog-background: var(--bg-secondary);
+  --van-picker-background: var(--bg-secondary);
+  --van-tabbar-background: #ffffff;
+  --van-tabbar-item-text-color: var(--text-secondary);
+  --van-tabbar-item-active-color: var(--color-primary);
+
+  --status-pending: #e6a23c;
+  --status-in-progress: #409eff;
+  --status-completed: #67c23a;
+  --status-failed: #f56c6c;
+  --color-on-primary: #ffffff;
+}

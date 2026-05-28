@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="purchase-requisitions-container">
+  <div class="module-page materials-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -19,11 +19,18 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" :model="searchForm" class="search-form">
-        <el-form-item :label="$t('page.baseData.materials.keywordSearch')">
-          <el-input  v-model="searchForm.keyword" :placeholder="$t('page.baseData.materials.keywordPlaceholder')" clearable ></el-input>
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
+          <el-input  v-model="searchForm.keyword" placeholder="物料名称" clearable ></el-input>
         </el-form-item>
+      </template>
+      <template #advanced>
         <el-form-item :label="$t('page.baseData.materials.category')">
           <el-select v-model="searchForm.categoryId" :placeholder="$t('page.baseData.materials.categoryPlaceholder')" clearable>
             <el-option
@@ -40,13 +47,8 @@
             <el-option :value="0" :label="$t('page.baseData.materials.disabled')"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch" class="action-btn" :loading="loading">
-            <el-icon v-if="!loading"><Search /></el-icon> {{ $t('page.baseData.materials.query') }}
-          </el-button>
-          <el-button @click="resetSearch" class="action-btn" :loading="loading">
-            <el-icon v-if="!loading"><Refresh /></el-icon> {{ $t('page.baseData.materials.reset') }}
-          </el-button>
+      </template>
+      <template #actions>
           <el-dropdown @command="handleMoreCommand" v-if="canExport || canImport" style="margin-left: 8px;">
             <el-button type="success" class="action-btn">
               更多操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -59,9 +61,8 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计信息 -->
     <MaterialStatCards :stats="stats" />
@@ -90,7 +91,6 @@
 
     <!-- 新增/编辑对话框 -->
     <MaterialFormDialog
-      v-if="dialogVisible"
       v-model="dialogVisible"
       :title="dialogTitle"
       :editData="currentEditMaterial"
@@ -102,13 +102,13 @@
       :locationOptions="locationOptions"
       :productionGroupOptions="productionGroupOptions"
       :managerOptions="managerOptions"
+      :can-maintain-price="canMaintainPrice"
       @search-suppliers="searchSuppliers"
       @success="fetchData"
     />
 
     <!-- 查看对话框 -->
     <MaterialViewDialog
-      v-if="viewDialogVisible"
       v-model="viewDialogVisible"
       :viewData="currentViewMaterial"
       :canViewCost="canViewCost"
@@ -148,16 +148,16 @@
 </template>
 
 <script setup>
+import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh, Plus, Download, Upload, DocumentCopy, ArrowDown } from '@element-plus/icons-vue';
+import { Plus, Download, Upload, DocumentCopy, ArrowDown } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { materialApi } from '@/api/material';
 import { baseDataApi } from '@/api/baseData';
-import { systemApi } from '@/api/system';
 import { commonApi } from '@/api/common';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
-
+import { loadLocationOptions, loadUserListOptions } from '@/utils/optionLoaders';
 // 引入新组件
 import MaterialTable from './components/MaterialTable.vue';
 import MaterialStatCards from './components/MaterialStatCards.vue';
@@ -171,8 +171,19 @@ const canDelete = computed(() => authStore.hasPermission('basedata:materials:del
 const canImport = computed(() => authStore.hasPermission('basedata:materials:import'));
 const canExport = computed(() => authStore.hasPermission('basedata:materials:export'));
 // 🔒 敏感数据查看权限（成本/价格）
-const canViewCost = computed(() => authStore.hasPermission('basedata:materials:view_cost'));
-const canViewPrice = computed(() => authStore.hasPermission('basedata:materials:view_price'));
+const hasAnyPermission = (permissions) => permissions.some((permission) => authStore.hasPermission(permission));
+const canViewCost = computed(() => hasAnyPermission(['finance:cost:view', 'inventory:value:view', 'finance:price:view']));
+const canViewPrice = computed(() => hasAnyPermission(['sales:price:view', 'purchase:price:view', 'finance:price:view']));
+const canMaintainPrice = computed(() =>
+  hasAnyPermission([
+    'finance:price:update',
+    'finance:pricing:update',
+    'finance:cost:update',
+    'purchase:price:update',
+    'sales:price:update',
+    'inventory:value:update'
+  ])
+);
 
 // 状态
 const loading = ref(false);
@@ -265,10 +276,10 @@ const loadOptions = async () => {
       baseDataApi.getCategories(), // 替换 getDictionary('material_category')
       baseDataApi.getMaterialSources(), // 替换 getDictionary('material_source')
       baseDataApi.getUnits(),
-      baseDataApi.getLocations(),
+      loadLocationOptions(),
       baseDataApi.getProductCategoryOptions(), // 使用树形选项API
       commonApi.getEnums('production_group'), // 尝试使用 commonApi 获取生产组枚举
-      systemApi.getUsersList(), // 使用无权限隔离的轻量级下拉列表接口
+      loadUserListOptions(), // 使用统一缓存的轻量级下拉列表
       baseDataApi.getInspectionMethods() // 获取检验方式数据
     ]);
 
@@ -506,7 +517,7 @@ const handleExportMaterials = async () => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = formatLocalDate(new Date());
     link.download = `物料数据_${timestamp}.xlsx`;
     document.body.appendChild(link);
     link.click();
@@ -584,23 +595,3 @@ const searchSuppliers = async (query, callback) => {
 };
 
 </script>
-
-<style scoped>
-.purchase-requisitions-container {
-  padding: 20px;
-}
-.header-card {
-  margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.search-card {
-  margin-bottom: 20px;
-}
-.data-card {
-  margin-bottom: 20px;
-}
-</style>

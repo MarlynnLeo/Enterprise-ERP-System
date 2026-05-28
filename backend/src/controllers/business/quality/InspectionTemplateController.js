@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const db = require('../../../models');
 const { Op } = require('sequelize');
@@ -193,7 +194,7 @@ class InspectionTemplateController {
         include_general,
       } = req.query;
 
-      const offset = (page - 1) * pageSize;
+      const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
       const where = {};
       const andConditions = [];
@@ -244,8 +245,8 @@ class InspectionTemplateController {
         where,
         include: includeOptions,
         distinct: true,
-        limit: parseInt(pageSize),
-        offset: parseInt(offset),
+        limit: pagination.limit,
+        offset: pagination.offset,
         order: materialId ? this.buildMaterialMatchOrder(materialId) : [['created_at', 'DESC']],
       });
 
@@ -323,8 +324,8 @@ class InspectionTemplateController {
         res,
         plainRows,
         count,
-        parseInt(page),
-        parseInt(pageSize),
+        pagination.page,
+        pagination.pageSize,
         '获取检验模板列表成功'
       );
     } catch (error) {

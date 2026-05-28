@@ -156,6 +156,7 @@ import {
   Close
 } from '@element-plus/icons-vue'
 import notificationApi from '@/services/notificationApi'
+import { parseResponseData } from '@/utils/responseParser'
 import {
   getNotificationIcon,
   getNotificationColor,
@@ -173,8 +174,6 @@ const unreadCount = ref(0)
 const loading = ref(false)
 let pollingTimer = null
 
-// axios拦截器已自动解包ResponseHandler格式，无需手动解析
-const parseResponseData = (res) => res.data
 
 // 方法
 const handlePopoverShow = () => {
@@ -337,7 +336,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  transition: color 0.3s ease, background-color 0.3s ease;
   position: relative;
 }
 
@@ -354,15 +353,15 @@ onUnmounted(() => {
   line-height: 18px;
   padding: 0 6px;
   border: 2px solid var(--el-bg-color);
-  box-shadow: 0 2px 8px rgba(245, 108, 108, 0.4);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-danger) 40%, transparent);
   background-color: var(--el-color-danger);
   animation: pulseBadge 2s infinite;
 }
 
 @keyframes pulseBadge {
-  0% { box-shadow: 0 0 0 0 rgba(245, 108, 108, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(245, 108, 108, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(245, 108, 108, 0); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 40%, transparent); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 
 .notification-bell:hover :deep(.el-icon) {
@@ -390,7 +389,7 @@ onUnmounted(() => {
   align-items: center;
   padding: 16px;
   border-bottom: 1px solid var(--el-border-color-lighter);
-  background: linear-gradient(135deg, rgba(0, 195, 255, 0.05), rgba(0, 195, 255, 0.02));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ds-cyan) 5%, transparent), color-mix(in srgb, var(--ds-cyan) 2%, transparent));
 }
 
 .notification-header .title {
@@ -408,12 +407,12 @@ onUnmounted(() => {
 .notification-header .close-btn {
   padding: 4px;
   color: var(--el-text-color-secondary);
-  transition: all 0.3s ease;
+  transition: color 0.3s ease, background-color 0.3s ease;
 }
 
 .notification-header .close-btn:hover {
   color: var(--el-text-color-primary);
-  background: rgba(0, 0, 0, 0.05);
+  background: color-mix(in srgb, var(--ds-black) 5%, transparent);
   border-radius: 4px;
 }
 
@@ -428,7 +427,7 @@ onUnmounted(() => {
   padding: 12px 16px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background 0.3s ease;
   position: relative;
 }
 
@@ -440,20 +439,20 @@ onUnmounted(() => {
   bottom: 0;
   width: 3px;
   background: transparent;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease;
 }
 
 .notification-item:hover {
-  background: linear-gradient(90deg, rgba(0, 195, 255, 0.08), transparent);
-  transform: translateX(4px);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ds-cyan) 8%, transparent), transparent);
+  transform: none;
 }
 
 .notification-item:hover::before {
-  background: var(--tech-primary);
+  background: var(--shell-accent);
 }
 
 .notification-item.unread {
-  background: linear-gradient(90deg, rgba(64, 158, 255, 0.1), rgba(64, 158, 255, 0.02));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-primary) 2%, transparent));
 }
 
 .notification-item.unread::before {
@@ -506,4 +505,3 @@ onUnmounted(() => {
   text-align: center;
 }
 </style>
-

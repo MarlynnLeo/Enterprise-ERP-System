@@ -6,8 +6,11 @@
 
 const db = require('../config/db');
 const { logger } = require('../utils/logger');
+const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const financeModel = require('./finance');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { accountingConfig } = require('../config/accountingConfig');
+const { currentDateString } = require('../utils/dateUtils');
 
 function mapAssetType(value) {
     const typeMap = {
@@ -62,6 +65,10 @@ async function getOpenAccountingPeriodId(connection, accountingDate) {
 }
 
 async function getRequiredAccountId(connection, accountCode, accountName) {
+    if (!accountCode) {
+        throw new Error(`在建工程转固${accountName}科目编码未配置`);
+    }
+
     const [rows] = await connection.execute(
         'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = 1 LIMIT 1',
         [accountCode]
@@ -89,6 +96,7 @@ const cipModel = {
      */
     getCipProjects: async (filters = {}, page = 1, limit = 10) => {
         try {
+            const pagination = parsePagination(page, limit, { defaultPageSize: 10, maxPageSize: 100 });
             let query = 'SELECT * FROM cip_projects WHERE 1=1';
             const queryParams = [];
 
@@ -111,9 +119,11 @@ const cipModel = {
             const total = countResult[0].total;
 
             // 分页
-            const offset = (page - 1) * limit;
-            query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-            queryParams.push(limit, offset);
+            query = appendPaginationSQL(
+                query + ' ORDER BY created_at DESC',
+                pagination.limit,
+                pagination.offset
+            );
 
             const [projects] = await db.pool.query(query, queryParams);
 
@@ -121,9 +131,9 @@ const cipModel = {
                 projects,
                 pagination: {
                     total,
-                    page,
-                    limit,
-                    totalPages: Math.ceil(total / limit)
+                    page: pagination.page,
+                    limit: pagination.pageSize,
+                    totalPages: Math.ceil(total / pagination.pageSize)
                 }
             };
         } catch (error) {
@@ -250,7 +260,7 @@ const cipModel = {
 
             assetData.acquisition_cost = assetCost;
             assetData.current_value = assetCost;
-            const acquisitionDate = assetData.acquisition_date || new Date().toISOString().slice(0, 10);
+            const acquisitionDate = assetData.acquisition_date || currentDateString();
             const usefulLifeMonths = Math.max(1, Number.parseInt(assetData.useful_life, 10) || 5) * 12;
             const assetType = mapAssetType(assetData.asset_type);
             const depreciationMethod = mapDepreciationMethod(assetData.depreciation_method);
@@ -299,8 +309,17 @@ const cipModel = {
                 ]
             );
 
-            const fixedAssetAccountId = await getRequiredAccountId(connection, '1601', '固定资产');
-            const cipAccountId = await getRequiredAccountId(connection, '1604', '在建工程');
+            await accountingConfig.loadFromDatabase(db);
+            const fixedAssetAccountId = await getRequiredAccountId(
+                connection,
+                accountingConfig.getAccountCode('FIXED_ASSETS'),
+                '固定资产'
+            );
+            const cipAccountId = await getRequiredAccountId(
+                connection,
+                accountingConfig.getAccountCode('CONSTRUCTION_IN_PROGRESS'),
+                '在建工程'
+            );
             const periodId = await getOpenAccountingPeriodId(connection, acquisitionDate);
 
             const entryId = await financeModel.createEntry(

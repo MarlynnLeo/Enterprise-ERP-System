@@ -76,11 +76,7 @@ export function useProductionPlans() {
         if (productIds.length > 0) {
           try {
             // 使用baseDataApi获取物料信息
-            const materialsResponse = await baseDataApi.getMaterials({
-              page: 1,
-              pageSize: 1000,
-              ids: productIds.join(',')
-            });
+            const materialsResponse = await baseDataApi.getMaterialsByIds(productIds);
 
             const materialsData = parseListData(materialsResponse, { enableLog: false });
 

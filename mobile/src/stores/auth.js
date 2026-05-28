@@ -8,6 +8,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../services/api'
+import { buildResourceUrl } from '@/config/app'
 
 // 存储键名
 const STORAGE_KEYS = {
@@ -46,39 +47,53 @@ const safeSaveJSON = (key, value, storage = sessionStorage) => {
   }
 }
 
+const isTransientPermissionLoadError = (error) => {
+  const status = error?.response?.status
+  return !status || status === 429 || status >= 500
+}
+
+const normalizeUserData = (userData) => {
+  if (!userData || typeof userData !== 'object') return userData
+  const normalized = { ...userData }
+  if (normalized.avatar) {
+    normalized.avatar = buildResourceUrl(normalized.avatar)
+  }
+  return normalized
+}
+
 /**
  * 检查 JWT token 是否已过期
  */
-const isTokenValid = (tokenStr) => {
-  if (!tokenStr) return false
-  try {
-    const parts = tokenStr.split('.')
-    if (parts.length !== 3) return false
-    const payload = JSON.parse(atob(parts[1]))
-    if (payload.exp && Date.now() > payload.exp * 1000) return false
-    return true
-  } catch {
-    return false
-  }
-}
-
 export const useAuthStore = defineStore('auth', () => {
   // ==================== 状态 ====================
-  // accessToken + user 存 sessionStorage（标签关闭即清除，更安全）
-  // refreshToken 存 localStorage（支持静默续签）
-  sessionStorage.removeItem('token')
-  localStorage.removeItem('refreshToken')
+  // 后端使用 httpOnly cookie 管理 accessToken / refreshToken，前端无需操作 token
+  // user 信息存 localStorage（关闭浏览器后仍可恢复登录态）
   const token = ref('')
-  const user = ref(safeGetJSON(STORAGE_KEYS.USER, null, sessionStorage))
+  const user = ref(normalizeUserData(
+    safeGetJSON(STORAGE_KEYS.USER, null, localStorage) ||
+    safeGetJSON(STORAGE_KEYS.USER, null, sessionStorage)
+  ))
+  const profileLoaded = ref(false)
   const refreshToken = ref('')
 
   // 权限状态 — 与网页端 authStore 保持一致
-  const permissions = ref(safeGetJSON(STORAGE_KEYS.PERMISSIONS, []))
+  const permissions = ref(
+    safeGetJSON(STORAGE_KEYS.PERMISSIONS, [], localStorage) ||
+    safeGetJSON(STORAGE_KEYS.PERMISSIONS, [], sessionStorage) ||
+    []
+  )
   const permissionsLoaded = ref(false)
   const permissionsLoading = ref(false)
 
   // ==================== 计算属性 ====================
-  const isAuthenticated = computed(() => !!user.value || isTokenValid(token.value))
+  // 判定是否已认证：有用户数据 或 有本地登录标记（cookie 可能仍有效）
+  const isAuthenticated = computed(() => {
+    if (!!user.value) return true
+    // 本地有登录标记时，说明之前登录过，cookie 可能仍有效
+    const wasLoggedIn = localStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true' ||
+      sessionStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true'
+    return wasLoggedIn
+  })
   const userId = computed(() => user.value?.id)
   const username = computed(() => user.value?.username)
   const realName = computed(() => user.value?.real_name || user.value?.username)
@@ -93,24 +108,28 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 保存认证信息（accessToken/user → sessionStorage，refreshToken → localStorage）
+   * 保存认证信息
+   * 后端通过 httpOnly cookie 管理 token，前端只保存 user 数据
    */
   const saveAuthData = (authData) => {
-    const { user: userData } = authData
-
-    // 优先使用 accessToken，其次使用 token
-    token.value = ''
-
-    refreshToken.value = ''
-    sessionStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
+    const { user: rawUserData } = authData
+    const userData = normalizeUserData(rawUserData)
 
     if (userData) {
       user.value = userData
+      profileLoaded.value = true
+      // 同时写入 localStorage 和 sessionStorage，确保关闭浏览器后仍可恢复
+      safeSaveJSON(STORAGE_KEYS.USER, userData, localStorage)
       safeSaveJSON(STORAGE_KEYS.USER, userData, sessionStorage)
     }
 
+    // 标记登录状态到 localStorage（关闭浏览器后仍保留）
+    localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
     sessionStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
+    if (typeof window !== 'undefined') {
+      delete window.__mobileThemeLoaded
+      delete window.__mobileThemeLoadedFor
+    }
     setAuthHeader()
   }
 
@@ -120,16 +139,24 @@ export const useAuthStore = defineStore('auth', () => {
   const clearAuthData = () => {
     token.value = ''
     user.value = null
+    profileLoaded.value = false
     refreshToken.value = ''
     permissions.value = []
     permissionsLoaded.value = false
     permissionsLoading.value = false
 
+    // 清除所有存储的认证数据
     sessionStorage.removeItem('token')
     sessionStorage.removeItem(STORAGE_KEYS.USER)
     sessionStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
+    localStorage.removeItem(STORAGE_KEYS.USER)
+    localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
     localStorage.removeItem('refreshToken')
     localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
+    if (typeof window !== 'undefined') {
+      delete window.__mobileThemeLoaded
+      delete window.__mobileThemeLoadedFor
+    }
 
     setAuthHeader()
   }
@@ -193,15 +220,29 @@ export const useAuthStore = defineStore('auth', () => {
   const fetchUserProfile = async () => {
     try {
       const response = await api.get('/auth/profile')
-      const userData = response.data
+      const userData = normalizeUserData(response.data)
 
       if (userData) {
         user.value = userData
+        profileLoaded.value = true
+        // 同步保存到 localStorage 和 sessionStorage
+        safeSaveJSON(STORAGE_KEYS.USER, userData, localStorage)
         safeSaveJSON(STORAGE_KEYS.USER, userData, sessionStorage)
+        localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
         return true
       }
       return false
     } catch {
+      // 请求失败说明 cookie 已过期，清除本地登录标记
+      user.value = null
+      profileLoaded.value = false
+      permissions.value = []
+      permissionsLoaded.value = false
+      localStorage.removeItem(STORAGE_KEYS.USER)
+      sessionStorage.removeItem(STORAGE_KEYS.USER)
+      localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
+      sessionStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
+      localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
       return false
     }
   }
@@ -214,7 +255,9 @@ export const useAuthStore = defineStore('auth', () => {
   const updateProfile = async (data) => {
     const response = await api.put('/auth/profile', data)
     if (response.data) {
-      user.value = { ...user.value, ...response.data }
+      user.value = normalizeUserData({ ...user.value, ...response.data })
+      profileLoaded.value = true
+      safeSaveJSON(STORAGE_KEYS.USER, user.value, localStorage)
       safeSaveJSON(STORAGE_KEYS.USER, user.value, sessionStorage)
     }
     return true
@@ -275,6 +318,20 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     } catch (error) {
       console.error('[auth] 获取用户权限失败:', error)
+
+      const cachedPermissions =
+        safeGetJSON(STORAGE_KEYS.PERMISSIONS, [], localStorage) ||
+        safeGetJSON(STORAGE_KEYS.PERMISSIONS, [], sessionStorage) ||
+        []
+      const fallbackPermissions = permissions.value.length ? permissions.value : cachedPermissions
+
+      if (isTransientPermissionLoadError(error) && fallbackPermissions.length > 0) {
+        permissions.value = fallbackPermissions
+        permissionsLoaded.value = true
+        safeSaveJSON(STORAGE_KEYS.PERMISSIONS, permissions.value, localStorage)
+        return true
+      }
+
       permissions.value = []
       permissionsLoaded.value = false
       safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, localStorage)
@@ -366,6 +423,7 @@ export const useAuthStore = defineStore('auth', () => {
     // 状态
     token,
     user,
+    profileLoaded,
     refreshToken,
     permissions,
     permissionsLoaded,

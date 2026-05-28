@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const { financeConfig } = require('../../../config/financeConfig');
 const arModel = require('../../../models/ar');
@@ -14,6 +15,7 @@ const BankAccountModel = require('../../../models/cash/Account');
 const db = require('../../../config/db');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+const { currentDateString } = require('../../../utils/dateUtils');
 const {
   INVOICE_STATUS,
   BANK_BACKED_PAYMENT_METHODS,
@@ -70,8 +72,10 @@ const arController = {
   getInvoices: async (req, res) => {
     try {
       // 解析查询参数
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 20;
+      const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
       // 简化过滤条件处理
       const filters = {};
@@ -87,7 +91,7 @@ const arController = {
       if (req.query.status) filters.status = req.query.status;
 
       // 调用模型方法获取数据
-      const result = await arModel.getInvoices(filters, page, limit);
+      const result = await arModel.getInvoices(filters, pagination.page, pagination.pageSize);
 
       // 使用ResponseHandler统一响应格式
       return ResponseHandler.paginated(
@@ -409,14 +413,15 @@ const arController = {
       if (invoiceNumber) filters.invoice_number = invoiceNumber; // 添加发票编号过滤
 
       // 调用模型方法获取收款记录列表
-      const result = await arModel.getReceipts(filters, parseInt(page), parseInt(limit));
+      const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
+      const result = await arModel.getReceipts(filters, pagination.page, pagination.pageSize);
 
       return ResponseHandler.paginated(
         res,
         result.receipts || [],
         result.pagination?.total || 0,
-        result.pagination?.page || 1,
-        result.pagination?.pageSize || limit,
+        result.pagination?.page || pagination.page,
+        result.pagination?.pageSize || pagination.pageSize,
         '获取收款记录成功'
       );
     } catch (error) {
@@ -896,7 +901,7 @@ const arController = {
           res,
           {
             data: formattedData,
-            reportDate: reportDate || new Date().toISOString().slice(0, 10),
+            reportDate: reportDate || currentDateString(),
           },
           '获取应收账款账龄分析成功'
         );

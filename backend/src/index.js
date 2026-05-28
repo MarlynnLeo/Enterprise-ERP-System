@@ -1,128 +1,104 @@
-/**
- * index.js
- * @description 应用程序入口文件
- * @date 2025-08-27
- * @version 1.0.0
- * Last restart: Env config update
- */
-
-const logger = require('./utils/logger');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
+const logger = require('./utils/logger');
 const app = require('./app');
+const { server: serverConfig } = require('./config');
 
-const PORT = process.env.PORT || 8080;
-const isProduction = process.env.NODE_ENV === 'production';
-const PUBLIC_API_BASE_URL =
-  process.env.PUBLIC_API_BASE_URL ||
-  process.env.API_BASE_URL ||
-  (isProduction ? '' : `http://${process.env.API_HOST || 'localhost'}:${PORT}`);
-
-// 全局异常处理由 app.js → unifiedErrorHandler 统一管理
-// 此处不再重复注册 uncaughtException / unhandledRejection，避免竞态退出
-
-// 使用 db.js 中的统一优雅关闭机制，这里不再直接 process.exit(0)
-
-// 添加对 nodemon 重启信号的支持，防止端口被占用
 process.once('SIGUSR2', () => {
-  logger.info('收到SIGUSR2信号(nodemon)，准备优雅重启...');
-  // 留给 db.js 优雅关闭的时间
+  logger.info('Received SIGUSR2 from nodemon, restarting gracefully...');
   setTimeout(() => {
     process.kill(process.pid, 'SIGUSR2');
-  }, 500);
+  }, serverConfig.nodemonRestartDelayMs);
 });
 
-// 异步启动服务器
+async function runMigrations() {
+  let knex;
+
+  try {
+    const knexConfig = require('../knexfile');
+    knex = require('knex')(knexConfig[process.env.NODE_ENV || 'development']);
+    logger.info('Running database migrations...');
+
+    const [batchNo, migrations] = await knex.migrate.latest();
+    if (migrations.length > 0) {
+      logger.info(`Database migrations completed. Batch: ${batchNo}, files: ${migrations.length}`);
+      migrations.forEach(migration => logger.info(`Migration executed: ${migration}`));
+    } else {
+      logger.info('Database schema is already up to date.');
+    }
+  } finally {
+    if (knex) {
+      await knex.destroy();
+    }
+  }
+}
+
+function startCronJobs() {
+  if (process.env.DISABLE_CRON === 'true') {
+    logger.info('DISABLE_CRON=true, scheduled jobs skipped.');
+    return;
+  }
+
+  try {
+    const { startInvoiceStatusJob } = require('./jobs/invoiceStatusJob');
+    startInvoiceStatusJob();
+  } catch (error) {
+    logger.warn('Invoice status job failed to start.', { error: error.message });
+  }
+
+  try {
+    const { startNotificationCleanupJob } = require('./jobs/notificationCleanupJob');
+    startNotificationCleanupJob();
+  } catch (error) {
+    logger.warn('Notification cleanup job failed to start.', { error: error.message });
+  }
+}
+
 async function startServer() {
   try {
-    // ===== Knex 数据库迁移 =====
-    let knex;
-    try {
-      const knexConfig = require('../knexfile');
-      knex = require('knex')(knexConfig[process.env.NODE_ENV || 'development']);
-      logger.info('🔄 正在执行数据库迁移...');
-      const [batchNo, migrations] = await knex.migrate.latest();
-      if (migrations.length > 0) {
-        logger.info(`✅ 数据库迁移完成 (批次 ${batchNo})，已执行 ${migrations.length} 个迁移文件:`);
-        migrations.forEach(m => logger.info(`   - ${m}`));
-      } else {
-        logger.info('✅ 数据库已是最新，无需执行迁移');
-      }
-    } catch (migrateError) {
-      logger.error('❌ 数据库迁移执行失败，服务启动已中止:', migrateError);
-      throw migrateError;
-    } finally {
-      if (knex) {
-        await knex.destroy(); // 释放 Knex 连接（应用使用 mysql2 连接池）
-      }
-    }
+    await runMigrations();
 
-    // 缓存服务已在导入时初始化（单例模式）
-    logger.info('✅ 缓存服务已就绪');
+    logger.info('Cache service initialized.');
 
-    // 初始化 SSOT 全局配置中心
     const globalConfigManager = require('./config/globalConfig');
     await globalConfigManager.init();
 
-    // 初始化权限服务（清除旧缓存，确保代码变更后权限一致）
     const PermissionService = require('./services/PermissionService');
     PermissionService.initOnStartup();
 
-    // 启动服务器（集成 Socket.IO）
     const http = require('http');
     const { initSocket } = require('./socket/index');
     const server = http.createServer(app);
     initSocket(server);
 
-    server.listen(PORT, () => {
-      logger.info(`服务器已启动，监听端口 ${PORT}`);
-      if (PUBLIC_API_BASE_URL) {
-        logger.info(`API文档: ${PUBLIC_API_BASE_URL}/api-docs`);
-        logger.info(`Socket.IO 已就绪: ${PUBLIC_API_BASE_URL.replace(/^http/, 'ws')}/socket.io`);
+    server.listen(serverConfig.port, () => {
+      logger.info(`Server started on port ${serverConfig.port}`);
+      if (serverConfig.publicApiBaseUrl) {
+        logger.info(`Socket.IO: ${serverConfig.publicApiBaseUrl.replace(/^http/, 'ws')}/socket.io`);
       } else {
-        logger.info('API文档: /api-docs');
-        logger.info('Socket.IO 已就绪: /socket.io');
+        logger.info('Socket.IO: /socket.io');
       }
     });
 
-    // 设置服务器超时
-    server.timeout = 120000; // 2分钟
-
-    // 启动定时任务（DISABLE_CRON=true 时跳过，适用于开发环境快速重启）
-    if (process.env.DISABLE_CRON !== 'true') {
-      try {
-        const { startInvoiceStatusJob } = require('./jobs/invoiceStatusJob');
-        startInvoiceStatusJob();
-      } catch (error) {
-        logger.warn('⚠️ 发票状态定时任务启动失败:', error.message);
-      }
-
-      try {
-        const { startNotificationCleanupJob } = require('./jobs/notificationCleanupJob');
-        startNotificationCleanupJob();
-      } catch (error) {
-        logger.warn('⚠️ 通知清理定时任务启动失败:', error.message);
-      }
-    } else {
-      logger.info('⏭️ DISABLE_CRON=true，已跳过所有定时任务注册');
-    }
+    server.timeout = serverConfig.timeoutMs;
+    startCronJobs();
 
     return server;
   } catch (error) {
-    logger.error('❌ 服务器启动失败:', error);
+    logger.error('Server startup failed.', error);
     process.exit(1);
   }
 }
 
-// 启动服务器
 startServer();
 
-// 简单的垃圾回收（可选）
 if (global.gc) {
-  setInterval(
-    () => {
-      global.gc();
-    },
-    30 * 60 * 1000
-  ); // 30分钟执行一次
+  const gcTimer = setInterval(() => {
+    global.gc();
+  }, serverConfig.gcIntervalMs);
+
+  gcTimer.unref?.();
 }
+
+module.exports = { startServer };

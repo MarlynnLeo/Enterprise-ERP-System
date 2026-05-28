@@ -10,27 +10,27 @@
   /* ==================== 颜色系统 ==================== */
 
   /* 主色系 - 蓝色系（深色模式优化） */
-  --color-primary: #409EFF;
-  --color-primary-light-3: #66b1ff;
-  --color-primary-light-5: #a0cfff;
-  --color-primary-light-7: #c6e2ff;
-  --color-primary-light-8: #d9ecff;
-  --color-primary-light-9: #ecf5ff;
-  --color-primary-dark-2: #337ecc;
+  --color-primary: #60A5FA;
+  --color-primary-light-3: #93C5FD;
+  --color-primary-light-5: #BFDBFE;
+  --color-primary-light-7: #DBEAFE;
+  --color-primary-light-8: #E0F2FE;
+  --color-primary-light-9: #EFF6FF;
+  --color-primary-dark-2: #2563EB;
 
   /* 功能色（深色模式优化） */
-  --color-success: #67C23A;
-  --color-success-light: #e1f3d8;
-  --color-success-dark: #529b2e;
-  --color-warning: #E6A23C;
-  --color-warning-light: #faecd8;
-  --color-warning-dark: #b88230;
-  --color-danger: #F56C6C;
-  --color-danger-light: #fde2e2;
-  --color-danger-dark: #c45656;
-  --color-info: #909399;
-  --color-info-light: #e9e9eb;
-  --color-info-dark: #73767a;
+  --color-success: #4ADE80;
+  --color-success-light: #DCFCE7;
+  --color-success-dark: #16A34A;
+  --color-warning: #FBBF24;
+  --color-warning-light: #FEF3C7;
+  --color-warning-dark: #D97706;
+  --color-danger: #F87171;
+  --color-danger-light: #FEE2E2;
+  --color-danger-dark: #DC2626;
+  --color-info: #94A3B8;
+  --color-info-light: #E2E8F0;
+  --color-info-dark: #64748B;
 
   /* 文本颜色 - 5个层级（深色模式优化对比度） */
   --color-text-primary: #E5EAF3;      /* 主要文字 */
@@ -57,12 +57,12 @@
 
   /* 辅助语义色 */
   --color-text-muted: #6C6E72;
-  --color-primary-active: #337ecc;
-  --color-success-gradient-end: #529b2e;
-  --color-warning-gradient-end: #b88230;
-  --color-danger-gradient-end: #c45656;
-  --color-danger-hover: #f78989;
-  --color-info-gradient-end: #73767a;
+  --color-primary-active: #2563EB;
+  --color-success-gradient-end: #16A34A;
+  --color-warning-gradient-end: #D97706;
+  --color-danger-gradient-end: #DC2626;
+  --color-danger-hover: #FCA5A5;
+  --color-info-gradient-end: #64748B;
   --color-on-primary: #ffffff;
 
   /* ========== 间距系统 ========== */
@@ -113,10 +113,10 @@
   --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 
   /* 深色模式特有：发光效果 */
-  --shadow-glow-primary: 0 0 20px rgba(64, 158, 255, 0.3);
-  --shadow-glow-success: 0 0 20px rgba(103, 194, 58, 0.3);
-  --shadow-glow-warning: 0 0 20px rgba(230, 162, 60, 0.3);
-  --shadow-glow-danger: 0 0 20px rgba(245, 108, 108, 0.3);
+  --shadow-glow-primary: 0 0 20px rgba(96, 165, 250, 0.3);
+  --shadow-glow-success: 0 0 20px rgba(74, 222, 128, 0.3);
+  --shadow-glow-warning: 0 0 20px rgba(251, 191, 36, 0.3);
+  --shadow-glow-danger: 0 0 20px rgba(248, 113, 113, 0.3);
 
   /* ========== 过渡系统（统一动画时长） ========== */
   --transition-fast: 0.15s;
@@ -134,70 +134,29 @@
   --z-index-tooltip: 1070;
 }
 
-/* ========== 深色主题特效 ========== */
-
-/* 深色卡片 */
-.dark-card {
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-}
-
-.dark-card:hover {
-  border-color: var(--color-border-light);
-  box-shadow: var(--shadow-md);
-}
-
-/* 深色按钮 */
-.dark-button {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--transition-base);
-}
-
-.dark-button:hover {
-  opacity: 0.9;
-  box-shadow: var(--shadow-md);
-}
-
-/* 高对比度模式 */
-.dark-high-contrast {
-  --color-text-primary: #FFFFFF;
-  --color-text-regular: #E0E0E0;
-  --color-border-base: #606060;
-}
-
 /* ========== 深色主题全局样式覆盖 ========== */
 
 /* 整体页面 */
 [data-theme="dark"] body,
 [data-theme="dark"] .layout-container {
-  background: #0A0A0A !important;
+  background: var(--color-bg-page) !important;
 }
 
 /* 侧边栏深色化 */
 [data-theme="dark"] .sidebar,
-[data-theme="dark"] .el-aside {
-  background: #141414 !important;
-  border-right: 1px solid #2B2B2C !important;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5) !important;
+[data-theme="dark"] .app-sidebar {
+  background: var(--color-bg-page) !important;
+  border-right: 1px solid var(--color-border-extra-light) !important;
+  box-shadow: 2px 0 10px color-mix(in srgb, var(--ds-black) 50%, transparent) !important;
 }
 
 [data-theme="dark"] .logo-container {
-  background: #1A1A1A !important;
-  border-bottom: 1px solid #2B2B2C !important;
+  background: var(--color-bg-base) !important;
+  border-bottom: 1px solid var(--color-border-extra-light) !important;
 }
 
 [data-theme="dark"] .logo-container .title {
-  color: #E5EAF3 !important;
+  color: var(--color-text-primary) !important;
 }
 
 /* 菜单深色化 */
@@ -208,97 +167,76 @@
 /* 侧边栏菜单项默认颜色 - 使用浅灰色确保可见 */
 [data-theme="dark"] .sidebar .el-menu-item,
 [data-theme="dark"] .sidebar .el-sub-menu__title,
-[data-theme="dark"] .el-aside .el-menu-item,
-[data-theme="dark"] .el-aside .el-sub-menu__title {
-  color: #CFD3DC !important;
+[data-theme="dark"] .app-sidebar .el-menu-item,
+[data-theme="dark"] .app-sidebar .el-sub-menu__title {
+  color: var(--color-text-regular) !important;
   border-left: 3px solid transparent !important;
 }
 
 /* 侧边栏菜单项文字 */
 [data-theme="dark"] .sidebar .el-menu-item span,
 [data-theme="dark"] .sidebar .el-sub-menu__title span,
-[data-theme="dark"] .el-aside .el-menu-item span,
-[data-theme="dark"] .el-aside .el-sub-menu__title span {
-  color: #CFD3DC !important;
+[data-theme="dark"] .app-sidebar .el-menu-item span,
+[data-theme="dark"] .app-sidebar .el-sub-menu__title span {
+  color: var(--color-text-regular) !important;
 }
 
 [data-theme="dark"] .sidebar .el-menu-item:hover,
 [data-theme="dark"] .sidebar .el-sub-menu__title:hover,
-[data-theme="dark"] .el-aside .el-menu-item:hover,
-[data-theme="dark"] .el-aside .el-sub-menu__title:hover {
-  background: rgba(64, 158, 255, 0.1) !important;
+[data-theme="dark"] .app-sidebar .el-menu-item:hover,
+[data-theme="dark"] .app-sidebar .el-sub-menu__title:hover {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
   border-left-color: var(--color-primary) !important;
   color: var(--color-primary) !important;
 }
 
 [data-theme="dark"] .sidebar .el-menu-item:hover span,
 [data-theme="dark"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="dark"] .el-aside .el-menu-item:hover span,
-[data-theme="dark"] .el-aside .el-sub-menu__title:hover span {
+[data-theme="dark"] .app-sidebar .el-menu-item:hover span,
+[data-theme="dark"] .app-sidebar .el-sub-menu__title:hover span {
   color: var(--color-primary) !important;
 }
 
 [data-theme="dark"] .sidebar .el-menu-item.is-active,
-[data-theme="dark"] .el-aside .el-menu-item.is-active {
-  background: rgba(64, 158, 255, 0.15) !important;
+[data-theme="dark"] .app-sidebar .el-menu-item.is-active {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent) !important;
   border-left-color: var(--color-primary) !important;
   color: var(--color-primary) !important;
 }
 
 [data-theme="dark"] .sidebar .el-menu-item.is-active span,
-[data-theme="dark"] .el-aside .el-menu-item.is-active span {
+[data-theme="dark"] .app-sidebar .el-menu-item.is-active span {
   color: var(--color-primary) !important;
 }
 
 /* 顶部导航栏深色化 */
 [data-theme="dark"] .header,
 [data-theme="dark"] .el-header {
-  background: #141414 !important;
-  border-bottom: 1px solid #2B2B2C !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-}
-
-/* 卡片深色化 */
-[data-theme="dark"] .el-card,
-[data-theme="dark"] .stat-card,
-[data-theme="dark"] .dashboard-card {
-  background: #141414 !important;
-  border: 1px solid #2B2B2C !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
-}
-
-[data-theme="dark"] .el-card:hover,
-[data-theme="dark"] .stat-card:hover {
-  border-color: #4C4D4F !important;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5) !important;
-}
-
-/* 按钮深色化 */
-[data-theme="dark"] .el-button--primary {
-  background: var(--color-primary) !important;
-  border: 1px solid var(--color-primary) !important;
+  background: var(--color-bg-page) !important;
+  border-bottom: 1px solid var(--color-border-extra-light) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 30%, transparent) !important;
 }
 
 /* 表格深色化 */
 [data-theme="dark"] .el-table {
-  background: #141414 !important;
-  border: 1px solid #2B2B2C !important;
+  background: var(--color-bg-page) !important;
+  border: 1px solid var(--color-border-extra-light) !important;
 }
 
 [data-theme="dark"] .el-table th {
-  background: #1A1A1A !important;
-  color: #E5EAF3 !important;
-  border-bottom: 1px solid #4C4D4F !important;
+  background: var(--color-bg-base) !important;
+  color: var(--color-text-primary) !important;
+  border-bottom: 1px solid var(--color-border-base) !important;
 }
 
 [data-theme="dark"] .el-table tbody tr:hover {
-  background: rgba(64, 158, 255, 0.05) !important;
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent) !important;
 }
 
 /* 输入框深色化 */
 [data-theme="dark"] .el-input__wrapper {
-  background: #1A1A1A !important;
-  border: 1px solid #2B2B2C !important;
+  background: var(--color-bg-base) !important;
+  border: 1px solid var(--color-border-extra-light) !important;
 }
 
 [data-theme="dark"] .el-input__wrapper:hover,
@@ -306,5 +244,74 @@
   border-color: var(--color-primary) !important;
 }
 
+/* 深色模式加载态：避免 Element Plus 默认白色遮罩在表格/卡片加载时闪白 */
+html.dark[data-theme="dark"] {
+  --el-mask-color: color-mix(in srgb, var(--el-bg-color-page, #141414) 86%, transparent);
+  --el-mask-color-extra-light: color-mix(in srgb, var(--el-bg-color-page, #141414) 72%, transparent);
+}
 
+html.dark[data-theme="dark"] .el-loading-mask,
+[data-theme="dark"] .el-loading-mask {
+  background-color: color-mix(in srgb, var(--el-bg-color-page, var(--color-bg-page)) 88%, transparent) !important;
+  backdrop-filter: blur(4px);
+}
 
+html.dark[data-theme="dark"] .el-loading-spinner .circular,
+[data-theme="dark"] .el-loading-spinner .circular {
+  color: var(--color-primary) !important;
+}
+
+html.dark[data-theme="dark"] .el-loading-spinner .path,
+[data-theme="dark"] .el-loading-spinner .path {
+  stroke: var(--color-primary) !important;
+}
+
+html.dark[data-theme="dark"] .el-loading-spinner .el-loading-text,
+[data-theme="dark"] .el-loading-spinner .el-loading-text {
+  color: var(--color-text-secondary) !important;
+}
+
+html.dark[data-theme="dark"] .el-table,
+html.dark[data-theme="dark"] .el-table__inner-wrapper,
+html.dark[data-theme="dark"] .el-table__header-wrapper,
+html.dark[data-theme="dark"] .el-table__body-wrapper,
+html.dark[data-theme="dark"] .el-table__body,
+html.dark[data-theme="dark"] .el-table .el-scrollbar__view,
+html.dark[data-theme="dark"] .el-table__empty-block,
+html.dark[data-theme="dark"] .el-table tr,
+html.dark[data-theme="dark"] .el-table td.el-table__cell {
+  background-color: var(--el-bg-color-page, var(--color-bg-page)) !important;
+}
+
+html.dark[data-theme="dark"] .el-table th.el-table__cell {
+  background-color: var(--el-bg-color, var(--color-bg-base)) !important;
+  color: var(--el-text-color-primary, var(--color-text-primary)) !important;
+}
+
+html.dark[data-theme="dark"] .el-table td.el-table__cell {
+  color: var(--el-text-color-regular, var(--color-text-regular)) !important;
+  border-bottom-color: var(--el-border-color-lighter, var(--color-border-extra-light)) !important;
+}
+
+html.dark[data-theme="dark"] .el-table__body tr:hover>td.el-table__cell {
+  background-color: var(--el-fill-color-light, var(--color-bg-hover)) !important;
+}
+
+html.dark[data-theme="dark"] .el-table__body tr.current-row>td.el-table__cell,
+html.dark[data-theme="dark"] .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background-color: var(--el-fill-color, var(--color-bg-section)) !important;
+}
+
+html.dark[data-theme="dark"] .el-table__empty-text,
+html.dark[data-theme="dark"] .el-empty__description {
+  color: var(--el-text-color-secondary, var(--color-text-secondary)) !important;
+}
+
+html.dark[data-theme="dark"] .el-skeleton__item,
+[data-theme="dark"] .el-skeleton__item {
+  background: linear-gradient(90deg,
+      var(--el-fill-color-dark, var(--color-bg-light)) 25%,
+      var(--el-fill-color, var(--color-bg-hover)) 37%,
+      var(--el-fill-color-dark, var(--color-bg-light)) 63%) !important;
+  background-size: 400% 100% !important;
+}

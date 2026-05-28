@@ -7,12 +7,14 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 const { validateRequiredFields } = require('../../../utils/validationHelper');
 
 const assetsModel = require('../../../models/assets');
 const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 
 const DISPOSED_ASSET_STATUSES = new Set(['报废', '已处置', '已出售', '已转让', '已捐赠', 'disposed', 'sold', 'transferred', 'donated']);
 
@@ -32,8 +34,11 @@ const assetsController = {
    */
   getAssets: async (req, res) => {
     try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
+      const all = req.query.all === 'true' || req.query.noPagination === 'true';
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = all
+        ? null
+        : Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 10, 1), 100);
 
       const filters = {
         asset_code: req.query.assetCode || null,
@@ -52,7 +57,7 @@ const assetsController = {
         result.assets || [],
         result.pagination?.total || 0,
         page,
-        limit,
+        result.pagination?.pageSize || limit || (result.assets || []).length,
         '获取固定资产成功'
       );
     } catch (error) {
@@ -408,37 +413,26 @@ const assetsController = {
         return ResponseHandler.error(res, `未找到ID为${assetId}的资产`, 'NOT_FOUND', 404);
       }
 
-      // 获取当前日期作为折旧日期
-      const today = new Date();
-      const depreciationDate = today.toISOString().slice(0, 10); // YYYY-MM-DD格式
-
-      const GLService = require('../../../services/finance/GLService');
-      const periodId = await GLService.getPeriodIdByDate(depreciationDate);
-      if (!periodId) {
-        return ResponseHandler.error(res, '未找到折旧日期对应的开放会计期间，请先维护会计期间', 'VALIDATION_ERROR', 400);
-      }
-
-      // 准备折旧参数
-      const params = {
-        assetId: assetId,
-        periodId,
-        depreciationDate: depreciationDate,
-        notes: `资产${assetId}的手动折旧计提`,
-      };
-
-      // 调用模型方法计算折旧
       try {
-        const depreciationId = await assetsModel.calculateDepreciation(params);
+        const depreciationDate = toLocalDateString(req.body?.depreciationDate || currentDateString());
+        const depreciationMonth = depreciationDate.slice(0, 7);
+        const result = await assetsModel.submitDepreciation(
+          depreciationMonth,
+          [{ id: assetId }],
+          { created_by: getAuthenticatedUserId(req) }
+        );
 
         // 获取更新后的资产信息
         const updatedAsset = await assetsModel.getAssetById(assetId);
+        const record = result.records?.[0] || null;
 
         return ResponseHandler.success(
           res,
           {
-            depreciationId: depreciationId,
+            depreciationId: record?.depreciationId || null,
             assetId: assetId,
-            depreciationDate: depreciationDate,
+            depreciationDate,
+            entry: result.entry || null,
             currentValue: parseFloat(updatedAsset.current_value || 0),
             accumulatedDepreciation: parseFloat(updatedAsset.accumulated_depreciation || 0),
           },
@@ -731,22 +725,6 @@ const assetsController = {
   },
 
   /**
-   * 创建示例资产数据
-   * @param {Object} req - 请求对象
-   * @param {Object} res - 响应对象
-   * @returns {Promise<Object>} 响应结果
-   */
-  createSampleAssets: async (req, res) => {
-    try {
-      const result = await assetsModel.createSampleAssets();
-      return ResponseHandler.success(res, result, '创建示例资产数据成功');
-    } catch (error) {
-      logger.error('创建示例资产数据失败:', error);
-      return ResponseHandler.error(res, '创建示例资产数据失败', 'SERVER_ERROR', 500, error);
-    }
-  },
-
-  /**
    * 处置资产
    */
   disposeAsset: async (req, res) => {
@@ -790,6 +768,15 @@ const assetsController = {
         ]);
       }
 
+      let normalizedDisposalDate;
+      try {
+        normalizedDisposalDate = toLocalDateString(disposalDate);
+      } catch {
+        return ResponseHandler.validationError(res, '无效的处置日期', [
+          { field: 'disposalDate', message: '处置日期格式应为YYYY-MM-DD' },
+        ]);
+      }
+
       // 获取资产信息
       const asset = await assetsModel.getAssetById(assetId);
       if (!asset) {
@@ -806,7 +793,7 @@ const assetsController = {
 
       // 准备处置数据
       const disposalData = {
-        disposal_date: disposalDate,
+        disposal_date: normalizedDisposalDate,
         disposal_amount: parsedDisposalAmount,
         disposal_reason: disposalReason,
         disposal_method: disposalMethod || '报废',
@@ -830,7 +817,7 @@ const assetsController = {
           id: assetId,
           assetCode: asset.asset_code,
           assetName: asset.asset_name,
-          disposalDate: disposalDate,
+          disposalDate: normalizedDisposalDate,
           disposalAmount: parsedDisposalAmount,
           netBookValue: netBookValue,
           disposalGainLoss: disposalGainLoss,
@@ -1004,18 +991,20 @@ const assetsController = {
    */
   getAssetCategories: async (req, res) => {
     try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 20;
+      const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
+        defaultPageSize: 20,
+        maxPageSize: 100,
+      });
 
-      const categories = await assetsModel.getAssetCategories(page, limit);
+      const categories = await assetsModel.getAssetCategories(pagination.page, pagination.pageSize);
 
       // 确保返回一个统一的数据格式
       return ResponseHandler.paginated(
         res,
         categories.data || [],
         categories.total || 0,
-        categories.page || page,
-        categories.limit || limit,
+        categories.page || pagination.page,
+        categories.limit || pagination.pageSize,
         '获取资产类别列表成功'
       );
     } catch (error) {
@@ -1186,9 +1175,11 @@ const assetsController = {
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
-      const page = parseInt(req.query.page) || 1;
-      const pageSize = parseInt(req.query.pageSize) || 50;
-      const result = await assetsModel.getAssetChangeLogs(assetId, page, pageSize);
+      const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
+        defaultPageSize: 50,
+        maxPageSize: 100,
+      });
+      const result = await assetsModel.getAssetChangeLogs(assetId, pagination.page, pagination.pageSize);
       return ResponseHandler.success(res, result, '获取变动记录成功');
     } catch (error) {
       logger.error('获取变动记录失败:', error);
@@ -1228,9 +1219,18 @@ const assetsController = {
         return ResponseHandler.error(res, '缺少必填字段(impairment_amount, impairment_date)', 'VALIDATION_ERROR', 400);
       }
 
+      let normalizedImpairmentDate;
+      try {
+        normalizedImpairmentDate = toLocalDateString(impairment_date);
+      } catch {
+        return ResponseHandler.validationError(res, '无效的减值日期', [
+          { field: 'impairment_date', message: '减值日期格式应为YYYY-MM-DD' },
+        ]);
+      }
+
       const impairmentData = {
         impairment_amount,
-        impairment_date,
+        impairment_date: normalizedImpairmentDate,
         reason,
         handled_by: await getCurrentUserName(req),
         created_by: getAuthenticatedUserId(req),
@@ -1242,7 +1242,8 @@ const assetsController = {
       if (
         error.message.includes('不能大于资产当前净值') ||
         error.message.includes('资产减值失败') ||
-        error.message.includes('必须大于0')
+        error.message.includes('必须大于0') ||
+        error.message.includes('不能重复计提')
       ) {
         return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
       }

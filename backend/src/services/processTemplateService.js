@@ -19,7 +19,10 @@ const processTemplateService = {
      */
     async getAll(page = 1, pageSize = 10, filters = {}) {
         try {
-            const offset = (page - 1) * pageSize;
+            const noPagination = pageSize === null || pageSize === undefined;
+            const safePage = Math.max(parseInt(page, 10) || 1, 1);
+            const safePageSize = noPagination ? null : Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 100);
+            const offset = noPagination ? 0 : (safePage - 1) * safePageSize;
             let whereClause = 'WHERE pt.deleted_at IS NULL';
             const params = [];
 
@@ -40,14 +43,13 @@ const processTemplateService = {
             const total = countResult[0].total;
 
             // 查询列表（JOIN materials表获取产品信息）
-            const actualPageSize = parseInt(pageSize);
             const [templates] = await pool.query(
                 `SELECT pt.*, m.code as product_code, m.name as product_name
          FROM process_templates pt
          LEFT JOIN materials m ON pt.product_id = m.id
          ${whereClause}
          ORDER BY pt.created_at DESC
-         LIMIT ${actualPageSize} OFFSET ${parseInt(offset)}`,
+         ${noPagination ? '' : `LIMIT ${safePageSize} OFFSET ${offset}`}`,
                 params
             );
 
@@ -73,7 +75,12 @@ const processTemplateService = {
                 });
             }
 
-            return { list: templates, total, page: parseInt(page), pageSize: parseInt(pageSize) };
+            return {
+                list: templates,
+                total,
+                page: safePage,
+                pageSize: noPagination ? templates.length : safePageSize
+            };
         } catch (error) {
             logger.error('获取工序模板列表失败:', error);
             throw error;

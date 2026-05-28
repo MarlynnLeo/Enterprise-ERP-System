@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * PlanDetail.vue - 生产计划详情
  * @description 统一卡片风格
@@ -185,11 +185,24 @@
     return 'fill-low'
   }
 
+  const normalizePlan = (data = {}) => ({
+    ...data,
+    productName: data.productName || data.product_name || data.material_name,
+    productCode: data.productCode || data.product_code || data.material_code,
+    completedQuantity: Number(data.completedQuantity ?? data.completed_quantity) || 0,
+    taskQuantity: Number(data.taskQuantity ?? data.task_quantity) || 0,
+    progress: Number(data.progress) || 0,
+    startDate: data.startDate || data.start_date,
+    endDate: data.endDate || data.end_date,
+    deliveryDate: data.deliveryDate || data.delivery_date,
+    contractCode: data.contractCode || data.contract_code
+  })
+
   const loadPlanDetail = async () => {
     loading.value = true
     try {
       const response = await productionApi.getProductionPlan(route.params.id)
-      plan.value = response.data || response
+      plan.value = normalizePlan(response.data || response)
     } catch (e) {
       console.error('加载计划详情失败:', e)
       showToast('加载失败')
@@ -222,9 +235,9 @@
 
 <style lang="scss" scoped>
   .detail-page {
-    min-height: 100vh;
+    min-height: 100%;
     background: var(--bg-primary);
-    padding-bottom: 120px;
+    padding-bottom: var(--app-bottom-space);
   }
   .detail-body {
     padding: 12px;
@@ -240,7 +253,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .hero-icon {
     width: 44px;
@@ -311,7 +324,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .progress-header {
     display: flex;
@@ -331,7 +344,7 @@
   }
   .progress-bar {
     height: 8px;
-    background: var(--glass-border);
+    background: var(--surface-border, var(--border-subtle));
     border-radius: 4px;
     overflow: hidden;
   }
@@ -362,7 +375,7 @@
     background: var(--bg-secondary);
     border-radius: 14px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--surface-border, var(--border-subtle));
   }
   .section-title {
     font-size: 0.875rem;

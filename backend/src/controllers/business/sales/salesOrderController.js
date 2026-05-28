@@ -15,10 +15,30 @@ const ExcelJS = require('exceljs');
 const { softDelete } = require('../../../utils/softDelete');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const { desensitizeDataForUser } = require('../../../utils/desensitizer');
+const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
 
 const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared');
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
+
+function assertSalesOrderItemPrices(items = []) {
+  const invalidRows = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
+      const rawPrice = item.unit_price ?? item.unitPrice ?? item.price;
+      if (rawPrice === null || rawPrice === undefined || rawPrice === '') return true;
+      const price = Number(rawPrice);
+      return !Number.isFinite(price) || price <= 0;
+    })
+    .map(({ index }) => index + 1);
+
+  if (invalidRows.length > 0) {
+    const error = new Error(`第 ${invalidRows.join(', ')} 行销售单价缺失或无效，请先维护销售价格`);
+    error.statusCode = 400;
+    throw error;
+  }
+}
 
 const getAuthenticatedUserInfo = (req) => {
   const id = getAuthenticatedUserId(req);
@@ -72,7 +92,7 @@ exports.getSalesOrders = async (req, res) => {
       operator = '',
     } = req.query;
 
-    const pagination = parsePagination(page, pageSize, { maxPageSize: 200, defaultPageSize: 10 });
+    const pagination = parsePagination(page, pageSize, { maxPageSize: 100, defaultPageSize: 10 });
 
     const connection = await db.pool.getConnection();
 
@@ -284,6 +304,7 @@ exports.getSalesOrders = async (req, res) => {
 
       // 返回分页格式
       const total = orders.length > 0 ? orders[0].total_count : 0;
+      await desensitizeDataForUser(formattedOrders, req.user, 'view', req.userPermissions);
 
       ResponseHandler.paginated(
         res,
@@ -299,6 +320,41 @@ exports.getSalesOrders = async (req, res) => {
   } catch (error) {
     logger.error('Error getting sales orders:', error);
     ResponseHandler.error(res, 'Error getting sales orders', 'SERVER_ERROR', 500, error);
+  }
+};
+
+exports.getSalesOrderStatistics = async (req, res) => {
+  let connection;
+  try {
+    connection = await db.pool.getConnection();
+    const [rows] = await connection.query(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status IN ('pending', 'draft') THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
+        SUM(CASE WHEN status IN ('in_production', 'processing') THEN 1 ELSE 0 END) as inProduction,
+        SUM(CASE WHEN status = 'ready_to_ship' THEN 1 ELSE 0 END) as readyToShip,
+        SUM(CASE WHEN status IN ('shipped', 'completed', 'delivered') THEN 1 ELSE 0 END) as shipped,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
+      FROM sales_orders
+      WHERE deleted_at IS NULL
+    `);
+
+    const stats = rows[0] || {};
+    ResponseHandler.success(res, {
+      total: Number(stats.total) || 0,
+      pending: Number(stats.pending) || 0,
+      confirmed: Number(stats.confirmed) || 0,
+      inProduction: Number(stats.inProduction) || 0,
+      readyToShip: Number(stats.readyToShip) || 0,
+      shipped: Number(stats.shipped) || 0,
+      cancelled: Number(stats.cancelled) || 0,
+    }, '获取销售订单统计成功');
+  } catch (error) {
+    logger.error('获取销售订单统计失败:', error);
+    ResponseHandler.error(res, '获取销售订单统计失败', 'SERVER_ERROR', 500, error);
+  } finally {
+    if (connection) connection.release();
   }
 };
 
@@ -379,6 +435,7 @@ exports.getSalesOrder = async (req, res) => {
 
       // 添加前端期望的字段以保持兼容性
       order.totalAmount = order.total_amount;
+      await desensitizeDataForUser(order, req.user, 'view', req.userPermissions);
 
       return ResponseHandler.success(res, order);
     } finally {
@@ -412,7 +469,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // 检查订单是否存在
-    const [checkResult] = await connection.execute('SELECT status, order_no, created_by FROM sales_orders WHERE id = ?', [
+    const [checkResult] = await connection.execute('SELECT status, order_no, created_by FROM sales_orders WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -720,6 +777,7 @@ exports.updateOrderStatus = async (req, res) => {
     ]);
 
     await connection.commit();
+    await desensitizeDataForUser(updatedOrder[0], req.user, 'view', req.userPermissions);
     return ResponseHandler.success(res, updatedOrder[0]);
   } catch (error) {
     await connection.rollback();
@@ -817,6 +875,12 @@ exports.createSalesOrder = async (req, res) => {
         }
       }
 
+      if (unit_price <= 0) {
+        const error = new Error(`第 ${index + 1} 行销售单价缺失，请先维护销售价格`);
+        error.statusCode = 400;
+        throw error;
+      }
+
       const amount = Math.round(quantity * unit_price * 100) / 100;
 
       items.push({
@@ -835,13 +899,12 @@ exports.createSalesOrder = async (req, res) => {
     }
 
     // 计算金额：不含税金额、税额、价税合计（使用整数化精度控制）
-    const subtotalCents = items.reduce((sum, item) => sum + Math.round(item.amount * 100), 0);
-    const subtotal = subtotalCents / 100;
-    const taxRate = order.taxRate || 0.13;
-    const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
-    order.subtotal = subtotal;
-    order.taxAmount = taxAmount;
-    order.totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+    const orderAmounts = calculateLines(items, { defaultTaxRate: order.taxRate || 0.13 });
+    items.splice(0, items.length, ...orderAmounts.items);
+    order.taxRate = normalizeTaxRate(order.taxRate, 0.13);
+    order.subtotal = orderAmounts.subtotal;
+    order.taxAmount = orderAmounts.taxAmount;
+    order.totalAmount = orderAmounts.totalAmount;
 
     try {
       // 创建销售订单
@@ -858,14 +921,15 @@ exports.createSalesOrder = async (req, res) => {
         result.status = suggestedStatus;
       }
 
+      await desensitizeDataForUser(result, req.user, 'view', req.userPermissions);
       ResponseHandler.success(res, result, '创建成功', 201);
     } catch (error) {
       logger.error('数据库操作错误:', error);
-      ResponseHandler.error(res, '创建订单失败', 'SERVER_ERROR', 500, error);
+      ResponseHandler.error(res, error.message || '创建订单失败', 'SERVER_ERROR', error.statusCode || 500, error);
     }
   } catch (error) {
     logger.error('创建销售订单时出错:', error);
-    ResponseHandler.error(res, '创建销售订单时出错', 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(res, error.message || '创建销售订单时出错', 'SERVER_ERROR', error.statusCode || 500, error);
   }
 };
 
@@ -919,6 +983,8 @@ exports.updateSalesOrder = async (req, res) => {
       );
     }
 
+    assertSalesOrderItemPrices(items);
+
     // 调用数据库函数更新订单
     const updatedOrder = await SalesDao.updateSalesOrder(id, order, items);
 
@@ -938,10 +1004,11 @@ exports.updateSalesOrder = async (req, res) => {
       }
     }
 
+    await desensitizeDataForUser(updatedOrder, req.user, 'view', req.userPermissions);
     ResponseHandler.success(res, updatedOrder, '订单更新成功');
   } catch (error) {
     logger.error('更新销售订单失败:', error);
-    ResponseHandler.error(res, '更新销售订单失败', 'SERVER_ERROR', 500, error);
+    ResponseHandler.error(res, error.message || '更新销售订单失败', 'SERVER_ERROR', error.statusCode || 500, error);
   }
 };
 
@@ -957,7 +1024,7 @@ exports.deleteSalesOrder = async (req, res) => {
 
     // 1. 查询订单当前状态
     const [orderResult] = await connection.query(
-      'SELECT id, order_no, status FROM sales_orders WHERE id = ?',
+      'SELECT id, order_no, status FROM sales_orders WHERE id = ? FOR UPDATE',
       [id]
     );
 
@@ -1044,7 +1111,7 @@ exports.lockOrder = async (req, res) => {
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
-    const [orderResult] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id]);
+    const [orderResult] = await connection.execute('SELECT * FROM sales_orders WHERE id = ? FOR UPDATE', [id]);
 
     if (orderResult.length === 0) {
       await connection.rollback();
@@ -1140,7 +1207,7 @@ exports.unlockOrder = async (req, res) => {
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
-    const [orderResult] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [id]);
+    const [orderResult] = await connection.execute('SELECT * FROM sales_orders WHERE id = ? FOR UPDATE', [id]);
 
     if (orderResult.length === 0) {
       await connection.rollback();
@@ -1231,18 +1298,6 @@ exports.getOrderLockStatus = async (req, res) => {
     ResponseHandler.error(res, '获取订单锁定状态失败', 'SERVER_ERROR', 500, error);
   }
 };
-
-// ==================== 装箱单管理 ====================
-
-/**
- * @deprecated 装箱单表结构已迁移至 Knex 迁移文件 20260312000009 管理，此函数保留为空操作
- */
-
-
-/**
- * 使用统一的编号生成服务 - 替代原 generatePackingListNo 函数
- */
-
 
 /**
  * 获取装箱单列表

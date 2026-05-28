@@ -2,7 +2,7 @@
  * en.js
  * @description 前端界面组件文件
   * @date 2025-08-27
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 export default {
@@ -61,7 +61,24 @@ export default {
     maxStock: 'Max Stock',
     referencePrice: 'Reference Price',
     currency: 'CNY',
-    adjust: 'Adjust'
+    adjust: 'Adjust',
+    enable: 'Enable',
+    disable: 'Disable',
+    all: 'All',
+    query: 'Query',
+    expand: 'Expand',
+    collapse: 'Collapse',
+    approve: 'Approve',
+    reject: 'Reject',
+    draft: 'Draft',
+    inProgress: 'In Progress',
+    review: 'Review',
+    archive: 'Archive',
+    avatarEffect: 'Avatar Effect',
+    expandCollapseSidebar: 'Toggle Sidebar',
+    themeSettings: 'Theme Settings',
+    notificationCenter: 'Notifications',
+    userMenu: 'User Menu'
   },
 
   // Navigation Menu
@@ -83,6 +100,11 @@ export default {
     productionTask: 'Production Task',
     productionProcess: 'Production Process',
     productionReport: 'Production Report',
+    equipmentMonitoring: 'Equipment Monitoring',
+    materialShortage: 'Material Shortage',
+    mrpPlanning: 'MRP Planning',
+    productionDataView: 'Production Dashboard',
+    productionGantt: 'Scheduling Gantt Chart',
 
     // Base Data
     baseData: 'Base Data',
@@ -94,6 +116,8 @@ export default {
     units: 'Units',
     locations: 'Locations',
     processTemplates: 'Process Templates',
+    productCategories: 'Product Categories',
+    ecnManagement: 'ECN Management',
 
     // Inventory Management
     inventory: 'Inventory',
@@ -104,6 +128,8 @@ export default {
     check: 'Stock Check',
     inventoryReport: 'Inventory Report',
     transaction: 'Transaction Report',
+    manualTransaction: 'Manual Transaction',
+    yearEnd: 'Year-End Inventory',
 
     // Purchase Management
     purchase: 'Purchase',
@@ -113,6 +139,7 @@ export default {
     returns: 'Purchase Returns',
     processing: 'Outsourcing',
     processingReceipts: 'Outsourcing Receipts',
+    purchaseHistory: 'Purchase History',
 
     // Sales Management
     sales: 'Sales',
@@ -121,12 +148,18 @@ export default {
     salesReturns: 'Sales Returns',
     exchanges: 'Sales Exchanges',
     quotations: 'Quotation Statistics',
+    packingLists: 'Packing Lists',
+    deliveryStats: 'Delivery Statistics',
+    contracts: 'Contract Management',
 
     // Finance Management
     finance: 'Finance',
     accounts: 'Chart of Accounts',
     entries: 'Journal Entries',
     periods: 'Accounting Periods',
+    openingBalances: 'Opening Balances',
+    trialBalance: 'Trial Balance',
+    periodClosing: 'Period Closing',
     arInvoices: 'Sales Invoice',
     receiptsManagement: 'Receipt Records',
     arAging: 'AR Aging',
@@ -136,6 +169,9 @@ export default {
     assets: 'Fixed Assets',
     assetCategories: 'Asset Categories',
     depreciation: 'Depreciation',
+    assetCIP: 'Construction in Progress',
+    assetInventory: 'Asset Inventory',
+    assetReports: 'Asset Reports',
     cashierManagement: 'Cashier Management',
     bankAccounts: 'Bank Accounts',
     bankTransactions: 'Bank Transactions',
@@ -145,6 +181,31 @@ export default {
     balanceSheet: 'Balance Sheet',
     incomeStatement: 'Income Statement',
     cashFlow: 'Cashier Report',
+    standardCashFlow: 'Standard Cash Flow Statement',
+    financeAutomation: 'Finance Automation',
+    taxManagement: 'Tax Management',
+    taxInvoices: 'Tax Invoices',
+    taxReturns: 'Tax Returns',
+    taxAccountConfig: 'Tax Account Config',
+    budgetManagement: 'Budget Management',
+    budgetList: 'Budget List',
+    budgetExecution: 'Budget Execution',
+    budgetAI: 'AI Budgeting',
+    costAccounting: 'Cost Accounting',
+    costDashboard: 'Cost Dashboard',
+    standardCost: 'Standard Cost',
+    actualCost: 'Actual Cost',
+    costVariance: 'Cost Variance',
+    costSettings: 'Cost Settings',
+    costCenter: 'Cost Center',
+    costLedger: 'Cost Ledger',
+    profitability: 'Profitability Analysis',
+    activityBasedCosting: 'Activity-Based Costing',
+    productPricing: 'Product Pricing',
+    expenses: 'Expense Management',
+    expenseCategories: 'Expense Categories',
+    financeSettings: 'Finance Settings',
+    exchangeRates: 'Exchange Rates',
 
     // Quality Management
     quality: 'Quality',
@@ -155,6 +216,15 @@ export default {
     templates: 'Inspection Templates',
     traceability: 'Traceability',
     nonconforming: 'Nonconforming Products',
+    eightDReport: '8D Report',
+    aqlStandards: 'AQL Standards',
+    replacementOrders: 'Replacement Orders',
+    reworkTasks: 'Rework Tasks',
+    scrapRecords: 'Scrap Records',
+    qualityStatistics: 'Quality Statistics',
+    gaugeManagement: 'Gauge Management',
+    spcControlChart: 'SPC Control Chart',
+    supplierQuality: 'Supplier Quality Scorecard',
 
     // Equipment Management
     equipment: 'Equipment',
@@ -176,6 +246,13 @@ export default {
     departments: 'Departments',
     permissions: 'Permissions',
     print: 'Print Settings',
+    notifications: 'Notifications',
+    technicalCommunication: 'Technical Communication',
+    workflow: 'Workflow Management',
+    codingRules: 'Coding Rules',
+    documents: 'Document Management',
+    businessAlerts: 'Business Alerts',
+    businessTypes: 'Business Types',
 
     backup: 'Backup'
   },
@@ -218,7 +295,7 @@ export default {
 
   // System Title
   system: {
-    title: ' KACON',
+    title: 'KACON',
     welcome: 'Welcome',
     version: 'Version',
     copyright: 'Copyright'
@@ -257,7 +334,15 @@ export default {
     dataNotFound: 'Data not found',
     operationConfirm: 'Are you sure you want to perform this operation?',
     deleteConfirm: 'Are you sure you want to delete? This action cannot be undone',
-    unsavedChanges: 'You have unsaved changes, are you sure you want to leave?'
+    unsavedChanges: 'You have unsaved changes, are you sure you want to leave?',
+    loadFailed: 'Failed to load',
+    syncSuccess: 'Sync completed',
+    syncFailed: 'Sync failed',
+    exportSuccess: 'Export successful',
+    exportFailed: 'Export failed',
+    resetSuccess: 'Reset successful',
+    resetFailed: 'Reset failed',
+    menuLoadFailed: 'Menu loading failed, please refresh and try again'
   },
 
   // Page titles and content
@@ -476,6 +561,116 @@ export default {
         startTime: 'Start Time',
         endTime: 'End Time',
         status: 'Task Status'
+      },
+      gantt: {
+        title: 'Scheduling Gantt Chart',
+        subtitle: 'View task scheduling, delays and date issues by production group',
+        productionGroup: 'Production Group',
+        tasks: 'Tasks',
+        active: 'Active',
+        overdue: 'Overdue',
+        dateIssue: 'Date Issue',
+        source: 'Source',
+        noTasks: 'No scheduled tasks in selected date range',
+        goToSchedule: 'Go to Production Task Scheduling',
+        taskSchedule: 'Task Schedule',
+        quantity: 'Quantity',
+        startTime: 'Start',
+        endTime: 'End',
+        plan: 'Plan',
+        deliveryDate: 'Delivery',
+        alreadyOverdue: 'Overdue',
+        endBeforeStart: 'End date is before start date'
+      }
+    },
+
+    // Quality Management
+    quality: {
+      title: 'Quality Management',
+      eightD: {
+        title: '8D Problem Solving Report',
+        add: 'Add 8D Report',
+        reportNo: 'Report No.',
+        reportTitle: 'Title',
+        ncpNo: 'Related NCP',
+        materialName: 'Material Name',
+        initiatedBy: 'Initiated By',
+        owner: 'Owner',
+        priority: 'Priority',
+        currentPhase: 'Current Phase',
+        progress: 'Progress',
+        targetCloseDate: 'Target Close Date',
+        allReports: 'All Reports',
+        inProgress: 'In Progress',
+        pendingReview: 'Pending Review',
+        completed: 'Completed',
+        critical: 'Critical',
+        filing: 'Filing',
+        firstReview: 'First Review',
+        rectification: 'Rectification',
+        closingReview: 'Closing Review',
+        summary: 'Summary',
+        complete: 'Complete',
+        submitFirstReview: 'Submit for Review',
+        submitClosing: 'Submit for Closing',
+        aiGenerate: 'AI-Assisted Generation',
+        exportPdf: 'Export PDF',
+        auditLog: '8D Lifecycle Audit Trail'
+      }
+    },
+
+    // Human Resources
+    hr: {
+      employees: {
+        title: 'Employee Records & Salary Base Settings',
+        syncDingtalk: 'Sync from DingTalk',
+        manualAdd: 'Add Manually',
+        employeeNo: 'Employee No.',
+        name: 'Name',
+        department: 'Department',
+        insuranceType: 'Insurance Type',
+        baseSalary: 'Base Salary',
+        splitBaseSalary: 'Split Tax Base',
+        positionAllowance: 'Position Allowance',
+        housingAllowance: 'Housing Allowance',
+        mealAllowance: 'Meal Allowance',
+        overtimeRate: 'Overtime Rate',
+        employmentStatus: 'Employment Status',
+        active: 'Active',
+        left: 'Resigned',
+        salaryBase: 'Salary Base',
+        subsidySettings: 'Subsidy Settings',
+        basicInfo: 'Basic Information'
+      }
+    },
+
+    // System Management
+    systemMgmt: {
+      codingRules: {
+        title: 'Coding Rules Management',
+        subtitle: 'Configure automatic numbering rules for business documents, supporting prefix, date and serial number combinations',
+        addRule: 'Add Rule',
+        businessType: 'Business Type',
+        ruleName: 'Rule Name',
+        codeRule: 'Code Rule',
+        resetCycle: 'Reset Cycle',
+        nextNumber: 'Next Number',
+        description: 'Description',
+        prefix: 'Prefix',
+        dateFormat: 'Date Format',
+        separator: 'Separator',
+        sequenceLength: 'Sequence Length',
+        initialValue: 'Initial Value',
+        step: 'Step',
+        preview: 'Code Preview',
+        noReset: 'No Reset',
+        daily: 'Daily',
+        monthly: 'Monthly',
+        yearly: 'Yearly',
+        sequenceDetail: 'Sequence Detail',
+        periodKey: 'Period Key',
+        currentValue: 'Current Value',
+        resetAllSequences: 'Reset All Sequences'
       }
     }
   }

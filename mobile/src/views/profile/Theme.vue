@@ -27,7 +27,7 @@
         <div class="theme-preview">
           <div class="preview-card">
             <div class="preview-header">
-              <div class="preview-icon"><VanIcon name="gem-o" size="24px" /></div>
+              <div class="preview-icon"><VanIcon :name="currentThemeIcon" size="24px" /></div>
               <div class="preview-info">
                 <h3>{{ currentThemeLabel }}</h3>
                 <p>{{ currentThemeDescription }}</p>
@@ -48,7 +48,9 @@
           :class="{ active: currentThemeName === themeOption.name }"
           @click="selectTheme(themeOption.name)"
         >
-          <div class="theme-icon">{{ themeOption.icon }}</div>
+          <div class="theme-icon">
+            <VanIcon :name="themeOption.icon || 'brush-o'" size="22px" />
+          </div>
           <div class="theme-info">
             <h3 class="theme-name">{{ themeOption.label }}</h3>
             <p class="theme-desc">{{ themeOption.description }}</p>
@@ -76,52 +78,32 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTheme } from '@/composables/useTheme'
+import { loadThemeFromServer, useTheme } from '@/composables/useTheme'
 import { getTheme } from '@/config/themes'
 import { showToast } from 'vant'
 
 const router = useRouter()
-const { currentThemeName, setTheme } = useTheme()
-
-// 主题选项（与 config/themes.js 对齐）
-const themeOptions = [
-  {
-    name: 'kacon',
-    label: 'KACON 工业',
-    icon: '🏢',
-    description: '品牌标准配色 — 深灰蓝 + 青色'
-  },
-  {
-    name: 'dark',
-    label: '暗色模式',
-    icon: '🌙',
-    description: '深色背景 — 护眼夜间模式'
-  },
-  {
-    name: 'nature',
-    label: '自然护眼',
-    icon: '🌿',
-    description: '清新绿色 — 缓解视觉疲劳'
-  },
-  {
-    name: 'tech',
-    label: '科技主题',
-    icon: '🚀',
-    description: '霓虹蓝绿 — 信息密集场景'
-  }
-]
+const { currentThemeName, availableThemes, setTheme } = useTheme()
 
 // 当前主题信息
+const themeOptions = availableThemes
+
+const currentThemeOption = computed(() => {
+  return themeOptions.value.find(t => t.name === currentThemeName.value)
+})
+
 const currentThemeLabel = computed(() => {
-  const current = themeOptions.find(t => t.name === currentThemeName.value)
-  return current?.label || 'KACON 工业'
+  return currentThemeOption.value?.label || getTheme(currentThemeName.value)?.label || currentThemeName.value
 })
 
 const currentThemeDescription = computed(() => {
-  const current = themeOptions.find(t => t.name === currentThemeName.value)
-  return current?.description || '品牌标准配色'
+  return currentThemeOption.value?.description || getTheme(currentThemeName.value)?.description || ''
+})
+
+const currentThemeIcon = computed(() => {
+  return currentThemeOption.value?.icon || 'gem-o'
 })
 
 // 色板预览（使用主题的 preview 配色）
@@ -129,22 +111,29 @@ const colorPalette = computed(() => {
 
   const themeConfig = getTheme(currentThemeName.value)
   return [
-    { name: '主色', value: themeConfig?.preview?.primary || '#1a73e8' },
-    { name: '辅色', value: themeConfig?.preview?.accent || '#67C1D9' },
-    { name: '背景', value: themeConfig?.preview?.bg || '#F4F7FA' },
+    { name: '主色', value: themeConfig?.preview?.primary || 'var(--color-primary)' },
+    { name: '辅色', value: themeConfig?.preview?.accent || 'var(--color-accent)' },
+    { name: '背景', value: themeConfig?.preview?.bg || 'var(--bg-primary)' },
   ]
 })
 
 // 选择主题
-const selectTheme = (themeName) => {
-  setTheme(themeName)
+const selectTheme = async (themeName) => {
+  const selected = themeOptions.value.find(t => t.name === themeName)
+  const synced = await setTheme(themeName)
   showToast({
-    message: `已切换到${themeOptions.find(t => t.name === themeName)?.label}主题`,
+    message: synced
+      ? `已切换到${selected?.label || themeName}主题`
+      : `已本地切换到${selected?.label || themeName}主题，服务器同步失败`,
     position: 'top'
   })
 }
 
 // 返回
+onMounted(() => {
+  loadThemeFromServer().catch(() => {})
+})
+
 const goBack = () => {
   router.back()
 }
@@ -152,33 +141,38 @@ const goBack = () => {
 
 <style lang="scss" scoped>
 .theme-settings {
-  min-height: 100vh;
-  background: var(--color-bg-primary);
-  padding-bottom: 2rem;
+  min-height: 100%;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
 }
 
 .nav-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
-  background: var(--color-glass-light);
-  backdrop-filter: blur(var(--effect-blur));
-  border-bottom: 1px solid var(--color-border-light);
+  flex: 0 0 auto;
+  min-height: calc(48px + var(--safe-area-top, 0px));
+  margin: 0;
+  padding: var(--safe-area-top, 0px) 12px 0;
+  background: var(--bg-secondary);
+  border: 0;
+  border-bottom: 1px solid var(--van-border-color, var(--surface-border));
+  border-radius: 0;
   position: sticky;
   top: 0;
   z-index: 100;
 }
 
 .back-btn {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
   background: none;
   border: none;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   cursor: pointer;
 
   svg {
@@ -188,39 +182,41 @@ const goBack = () => {
 }
 
 .title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .placeholder {
-  width: 2.5rem;
+  width: 2.75rem;
 }
 
 .content {
-  padding: 1rem;
+  width: 100%;
+  flex: 1 0 auto;
+  padding: 0 12px var(--app-bottom-space);
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: calc(12px * 2);
 }
 
 .section-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   margin: 0 0 1rem 0;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
 }
 
 .current-theme {
   .preview-card {
-    background: var(--color-glass-medium);
-    backdrop-filter: blur(var(--effect-blur));
-    border: 1px solid var(--color-border-light);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--surface-border, var(--border-subtle));
+    border-radius: 12px;
+    min-height: 72px;
+    padding: 14px;
     box-shadow: none;
   }
 
@@ -237,7 +233,8 @@ const goBack = () => {
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
-    background: var(--color-gradient-primary);
+    color: var(--color-on-primary);
+    background: var(--color-primary);
     border-radius: var(--radius-md);
   }
 
@@ -247,13 +244,13 @@ const goBack = () => {
     h3 {
       font-size: 1.125rem;
       font-weight: 600;
-      color: var(--color-text-primary);
+      color: var(--text-primary);
       margin: 0 0 0.25rem 0;
     }
 
     p {
       font-size: 0.875rem;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       margin: 0;
     }
   }
@@ -269,21 +266,25 @@ const goBack = () => {
   display: flex;
   align-items: center;
   gap: 1rem;
+  min-height: 72px;
   padding: 1rem;
-  background: var(--color-glass-light);
-  backdrop-filter: blur(var(--effect-blur));
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--surface-border, var(--border-subtle));
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
 
   &:hover {
-    background: var(--color-glass-medium);
+    background: var(--surface-hover);
     transform: translateY(-2px);
   }
 
   &.active {
-    background: var(--color-glass-medium);
+    background: var(--color-primary-bg);
     border-color: var(--color-primary);
     box-shadow: none;
   }
@@ -296,24 +297,27 @@ const goBack = () => {
   align-items: center;
   justify-content: center;
   font-size: 1.5rem;
-  background: var(--color-glass-medium);
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
   border-radius: var(--radius-sm);
 }
 
 .theme-info {
   flex: 1;
+  min-width: 0;
 
   .theme-name {
     font-size: 1rem;
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: var(--text-primary);
     margin: 0 0 0.25rem 0;
   }
 
   .theme-desc {
     font-size: 0.75rem;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     margin: 0;
+    line-height: 1.4;
   }
 }
 
@@ -347,13 +351,29 @@ const goBack = () => {
     aspect-ratio: 1;
     border-radius: var(--radius-md);
     box-shadow: none;
-    border: 1px solid var(--color-border-light);
+    border: 1px solid var(--surface-border);
   }
 
   .color-name {
     font-size: 0.75rem;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     text-align: center;
+  }
+}
+
+@media (min-width: 640px) {
+  .content {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .theme-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .theme-list .section-title {
+    grid-column: 1 / -1;
   }
 }
 

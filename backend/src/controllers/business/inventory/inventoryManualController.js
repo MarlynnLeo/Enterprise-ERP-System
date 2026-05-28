@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { parsePagination } = require('../../../utils/safePagination');
 
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
@@ -59,9 +60,13 @@ const getManualTransactions = async (req, res) => {
       start_date,
       end_date,
       approval_status,
+      material_name,
     } = req.query;
 
-    const offset = (page - 1) * pageSize;
+    const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
+    const offset = pagination.offset;
+    const pageNum = pagination.page;
+    const pageSizeNum = pagination.pageSize;
     const whereConditions = [];
     const queryParams = [];
 
@@ -69,6 +74,10 @@ const getManualTransactions = async (req, res) => {
     if (transaction_no) {
       whereConditions.push('mt.transaction_no LIKE ?');
       queryParams.push(`%${transaction_no}%`);
+    }
+    if (material_name) {
+      whereConditions.push('(m.name LIKE ? OR m.code LIKE ? OR m.specs LIKE ?)');
+      queryParams.push(`%${material_name}%`, `%${material_name}%`, `%${material_name}%`);
     }
     if (transaction_type) {
       whereConditions.push('mt.business_type_code = ?');
@@ -94,7 +103,10 @@ const getManualTransactions = async (req, res) => {
     const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
     // 查询总数（按单据编号分组）
-    const countQuery = `SELECT COUNT(DISTINCT mt.transaction_no) as total FROM manual_transactions mt ${whereClause}`;
+    const countQuery = `SELECT COUNT(DISTINCT mt.transaction_no) as total
+      FROM manual_transactions mt
+      LEFT JOIN materials m ON mt.material_id = m.id
+      ${whereClause}`;
     const [countResult] =
       whereConditions.length > 0
         ? await connection.execute(countQuery, queryParams)
@@ -138,7 +150,7 @@ const getManualTransactions = async (req, res) => {
         ${whereClause}
         GROUP BY mt.transaction_no, mt.transaction_type, mt.business_type_code, mt.transaction_date, mt.remark, mt.operator, mt.approval_status, mt.approved_by, mt.approved_at, mt.approval_remark, mt.created_at, mt.updated_at
         ORDER BY mt.created_at DESC
-        LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}`;
+        LIMIT ${pageSizeNum} OFFSET ${offset}`;
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       [rows] = await connection.execute(listQuery, queryParams);
     } else {
@@ -173,7 +185,7 @@ const getManualTransactions = async (req, res) => {
         LEFT JOIN materials m ON mt.material_id = m.id
         GROUP BY mt.transaction_no, mt.transaction_type, mt.business_type_code, mt.transaction_date, mt.remark, mt.operator, mt.approval_status, mt.approved_by, mt.approved_at, mt.approval_remark, mt.created_at, mt.updated_at
         ORDER BY mt.created_at DESC
-        LIMIT ${parseInt(pageSize, 10)} OFFSET ${offset}`;
+        LIMIT ${pageSizeNum} OFFSET ${offset}`;
       [rows] = await connection.query(listQuery);
     }
 
@@ -192,8 +204,8 @@ const getManualTransactions = async (req, res) => {
       {
         items: rows,
         total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        page: pageNum,
+        pageSize: pageSizeNum,
         stats: statsResult[0],
       },
       '获取手工出入库列表成功'
@@ -709,6 +721,7 @@ const approveManualTransaction = async (req, res) => {
           quantity,
           transaction_type,
           business_type_code,
+          transaction_date,
           transaction_no,
           operator,
           remark,
@@ -734,6 +747,7 @@ const approveManualTransaction = async (req, res) => {
           reference_type: 'manual_transaction',
           operator: operator || approver,
           remark,
+          transaction_date,
           checkStockSufficiency: transaction_type === 'out', // 出库时校验库存
           allowNegativeStock: false, // 不允许负库存
         });
@@ -847,6 +861,7 @@ const updateManualTransaction = async (req, res) => {
         reference_type: 'manual_transaction',
         operator,
         remark: '修改手工出入库-回滚',
+        transaction_date: old.transaction_date,
       });
 
       // 应用新库存
@@ -862,6 +877,7 @@ const updateManualTransaction = async (req, res) => {
         reference_type: 'manual_transaction',
         operator,
         remark,
+        transaction_date,
       });
     }
 
@@ -948,6 +964,7 @@ const deleteManualTransaction = async (req, res) => {
           reference_type: 'manual_transaction',
           operator: await getCurrentUserName(req),
           remark: '删除已审批单据-回滚库存',
+          transaction_date: data.transaction_date,
         });
       }
     } else if (approvalStatus === STATUS.APPROVAL.REJECTED) {

@@ -34,7 +34,7 @@ const TASK_STATE_MACHINE = {
   // 发料中：仓库正在出库
   material_issuing: ['material_partial_issued', 'material_issued', 'preparing', 'cancelled'],
   // 部分发料：可继续发料或确认已发完
-  material_partial_issued: ['material_issuing', 'material_issued', 'cancelled'],
+  material_partial_issued: ['material_issuing', 'material_issued', 'in_progress', 'cancelled'],
   // 已发料：物料齐套，可开始生产
   material_issued: ['in_progress', 'cancelled'],
   // 生产中
@@ -145,7 +145,11 @@ async function syncPlanStatus(planId, connection) {
     newPlanStatus = 'in_progress';
   } else if (stats.material_issued_count > 0) {
     newPlanStatus = 'material_issued';
-  } else if (stats.preparing_count > 0 || stats.material_issuing_count > 0 || stats.allocated_count > 0) {
+  } else if (
+    stats.preparing_count > 0 ||
+    stats.material_issuing_count > 0 ||
+    stats.allocated_count > 0
+  ) {
     newPlanStatus = 'preparing';
   } else if (stats.pending_count === activeTotal && activeTotal > 0) {
     newPlanStatus = 'draft';
@@ -165,7 +169,7 @@ async function syncPlanStatus(planId, connection) {
 
 /**
  * 生成有业务意义的批次号
- * 格式: B-{任务编号}
+ * 格式: B-{任务编号去掉横杠}
  * 例如: B-PT202605110001
  *
  * 同一任务的所有检验单、追溯记录共用同一个批次号
@@ -174,10 +178,35 @@ async function syncPlanStatus(planId, connection) {
  * @param {Object} [connection] - 可选数据库连接
  * @returns {Promise<string>} 批次号
  */
+function buildTaskBatchNo(taskCode) {
+  const shortCode = String(taskCode || '').replace(/[-\s]/g, '');
+  return shortCode ? `B-${shortCode}` : '';
+}
+
+function normalizeTaskBatchNo(batchNo, taskCode) {
+  const generatedBatchNo = buildTaskBatchNo(taskCode);
+  const rawBatchNo = String(batchNo || '').trim();
+  if (!rawBatchNo) return generatedBatchNo;
+
+  const productionTaskMatch = rawBatchNo.match(/^B-?(PT\d{12})(?:-\d{6}-\d+)?$/i);
+  if (productionTaskMatch) {
+    return `B-${productionTaskMatch[1].toUpperCase()}`;
+  }
+
+  if (generatedBatchNo) {
+    const compactGenerated = generatedBatchNo.replace('-', '');
+    const compactRaw = rawBatchNo.replace(/[-\s]/g, '');
+    if (compactRaw === compactGenerated || rawBatchNo.startsWith(`${generatedBatchNo}-`)) {
+      return generatedBatchNo;
+    }
+  }
+
+  return rawBatchNo;
+}
+
 async function generateBatchNo(taskCode, connection) {
   const conn = connection || pool;
-  const shortCode = taskCode.replace(/[-]/g, '');
-
+  const generatedBatchNo = buildTaskBatchNo(taskCode);
   // 查询该任务是否已有批次号
   const [existing] = await conn.query(
     "SELECT batch_no FROM quality_inspections WHERE reference_no = ? AND batch_no IS NOT NULL AND batch_no != '' ORDER BY id ASC LIMIT 1",
@@ -186,10 +215,10 @@ async function generateBatchNo(taskCode, connection) {
 
   if (existing.length > 0 && existing[0].batch_no && !existing[0].batch_no.startsWith('BATCH')) {
     // 已有有意义的批次号，复用
-    return existing[0].batch_no;
+    return normalizeTaskBatchNo(existing[0].batch_no, taskCode);
   }
 
-  return `B${shortCode}`;
+  return generatedBatchNo;
 }
 
 module.exports = {
@@ -197,4 +226,5 @@ module.exports = {
   validateTaskTransition,
   syncPlanStatus,
   generateBatchNo,
+  normalizeTaskBatchNo,
 };

@@ -7,9 +7,15 @@ const router = express.Router();
 const replacementOrderController = require('../../controllers/business/quality/replacementOrderController');
 const { authenticateToken } = require('../../middleware/auth');
 const { requirePermission } = require('../../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../../middleware/priceAccessControl');
 
 // 所有路由需要认证
 router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
 
 // 获取换货单列表
 router.get('/', requirePermission('quality:replacement:view'), replacementOrderController.getReplacementOrders);

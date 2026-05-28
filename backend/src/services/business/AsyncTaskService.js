@@ -9,6 +9,7 @@ const { logger } = require('../../utils/logger');
 const businessConfig = require('../../config/businessConfig');
 const db = require('../../config/db');
 const { apiStatusToDbStatus } = require('../../utils/statusMapper');
+const NotificationService = require('../NotificationService');
 
 class AsyncTaskService {
   /**
@@ -228,11 +229,25 @@ class AsyncTaskService {
           priority: 0,
         };
 
-        // 写入系统通知表
-        await db.query(
-          `INSERT INTO notifications (title, content, type, priority, created_at)
-           VALUES (?, ?, ?, ?, NOW())`,
-          [notification.title, notification.content, type, notification.priority]
+        const permissionMap = {
+          inspection_failed: ['quality:incoming', 'quality:inspections:view'],
+          low_stock: ['inventory:stock', 'purchase:requisitions'],
+          order_completed: ['production:tasks'],
+          purchase_return: ['purchase:returns'],
+          ncp_created: ['quality:nonconforming'],
+        };
+
+        await NotificationService.notifyByPermissions(
+          permissionMap[type] || ['system:notifications'],
+          {
+            type,
+            title: notification.title,
+            content: notification.content,
+            priority: notification.priority,
+            sourceType: type,
+            sourceId: Number(data.id || data.inspectionId || data.materialId || data.returnId || data.ncpId) || null,
+          },
+          { dedupeByDay: true }
         );
 
         logger.debug(`[异步任务] 通知已写入: ${notification.title}`);

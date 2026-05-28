@@ -128,7 +128,7 @@ const DATABASE_CONFIG = {
   ssl:
     process.env.NODE_ENV === 'production'
       ? {
-          rejectUnauthorized: false,
+          rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
         }
       : false,
 };

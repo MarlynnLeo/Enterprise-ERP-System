@@ -4,6 +4,7 @@
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
     width="900px"
+    destroy-on-close
     @open="handleOpen"
     @close="handleClose"
   >
@@ -233,12 +234,12 @@
 
       <!-- 销售价格、采购成本、安全库存 -->
       <el-row :gutter="16">
-        <el-col :span="8">
+        <el-col v-if="canMaintainPrice" :span="8">
           <el-form-item label="销售价格">
             <el-input v-model="form.price" placeholder="0.00"></el-input>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
+        <el-col v-if="canMaintainPrice" :span="8">
           <el-form-item label="采购成本">
             <el-input v-model="form.cost_price" placeholder="0.00" disabled>
               <template #suffix>
@@ -249,7 +250,7 @@
             </el-input>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="canMaintainPrice ? 8 : 24">
           <el-form-item label="安全库存">
             <el-input v-model="form.safety_stock" placeholder="0"></el-input>
           </el-form-item>
@@ -268,7 +269,7 @@
             <el-input v-model="form.max_stock" placeholder="0"></el-input>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
+        <el-col v-if="canMaintainPrice" :span="8">
           <el-form-item label="税率">
             <el-select v-model="form.tax_rate" placeholder="请选择税率" style="width: 100%">
               <el-option label="0%" :value="0"></el-option>
@@ -332,7 +333,8 @@ const props = defineProps({
   unitOptions: { type: Array, default: () => [] },
   locationOptions: { type: Array, default: () => [] },
   productionGroupOptions: { type: Array, default: () => [] },
-  managerOptions: { type: Array, default: () => [] }
+  managerOptions: { type: Array, default: () => [] },
+  canMaintainPrice: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue', 'success', 'search-suppliers'])
@@ -492,6 +494,16 @@ const resetForm = () => {
   })
 }
 
+const buildSubmitPayload = () => {
+  const payload = { ...form }
+  if (!props.canMaintainPrice) {
+    delete payload.price
+    delete payload.cost_price
+    delete payload.tax_rate
+  }
+  return payload
+}
+
 // === Cascader 级联选择器逻辑 ===
 // cascader 绑定值（emitPath: false 时直接为选中的 id）
 const productCategoryCascaderValue = ref(null)
@@ -620,11 +632,12 @@ const submitForm = async () => {
       submitting.value = true
       try {
         let materialId = form.id
+        const payload = buildSubmitPayload()
         if (materialId) {
-          await materialApi.updateMaterial(materialId, form)
+          await materialApi.updateMaterial(materialId, payload)
           ElMessage.success('更新成功')
         } else {
-          const res = await materialApi.createMaterial(form)
+          const res = await materialApi.createMaterial(payload)
           // 获取新创建物料的ID，用于上传附件
           const resData = res?.data || res
           materialId = resData?.id || resData?.data?.id

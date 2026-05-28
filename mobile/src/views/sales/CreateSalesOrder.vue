@@ -280,13 +280,13 @@
 </script>
 
 <style lang="scss" scoped>
-  .create-page { height: 100vh; background: var(--bg-primary); display: flex; flex-direction: column; overflow: hidden; }
+  .create-page { height: 100%; background: var(--bg-primary); display: flex; flex-direction: column; overflow: hidden; }
   .content-container { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .form-section { background: var(--bg-secondary); margin-bottom: 12px;
-    .section-title { padding: 16px; font-size: 1rem; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; }
+    .section-title { padding: 16px; font-size: 1rem; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--surface-border, var(--border-subtle)); display: flex; justify-content: space-between; align-items: center; }
   }
   .items-container { padding: 16px; }
-  .item-card { border: 1px solid var(--glass-border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+  .item-card { border: 1px solid var(--surface-border, var(--border-subtle)); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
   .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
     .item-name { font-weight: 500; color: var(--text-primary); }
   }
@@ -302,13 +302,13 @@
     .total-amount { color: var(--van-primary-color); font-weight: 600; font-size: 1.125rem; }
   }
   .picker-panel { height: 100%; display: flex; flex-direction: column; }
-  .picker-header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--glass-border);
+  .picker-header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--surface-border, var(--border-subtle));
     .picker-title { font-weight: 600; }
     span { color: var(--van-primary-color); cursor: pointer; }
   }
   .picker-search { padding: 8px; }
   .picker-content { flex: 1; overflow-y: auto; }
-  .picker-item { padding: 12px 16px; border-bottom: 1px solid var(--glass-border); cursor: pointer;
+  .picker-item { padding: 12px 16px; border-bottom: 1px solid var(--surface-border, var(--border-subtle)); cursor: pointer;
     &.active { background: rgba(25, 137, 250, 0.1); }
     .picker-item-name { font-weight: 500; color: var(--text-primary); }
     .picker-item-sub { font-size: 0.8125rem; color: var(--text-secondary); margin-top: 4px; }

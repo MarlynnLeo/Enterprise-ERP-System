@@ -116,7 +116,7 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
     } else if (outboundStatus === 'completed') {
       // 出库单完成 → 任务变为已发料
       await connection.execute(
-        "UPDATE production_tasks SET status = 'material_issued' WHERE id = ?",
+        "UPDATE production_tasks SET status = 'material_issued' WHERE id = ? AND status IN ('pending', 'allocated', 'preparing', 'material_issuing', 'material_partial_issued')",
         [taskId]
       );
     }
@@ -188,10 +188,12 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
         }
       } catch (processErr) {
         logger.error('出库完成后自动生成工序失败:', processErr);
+        throw processErr;
       }
     }
   } catch (err) {
     logger.error(`[_syncProductionStatus] 联动更新失败 outboundStatus=${outboundStatus} taskId=${taskId}:`, err);
+    throw err;
   }
 };
 
@@ -253,9 +255,19 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
       `SELECT ioi.material_id, SUM(ioi.actual_quantity) as total_issued
        FROM inventory_outbound io
        JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
-       WHERE io.production_task_id = ? AND io.status IN ('completed', 'partial_completed')
+       WHERE (
+         io.production_task_id = ?
+         OR (io.reference_type = 'production_task' AND io.reference_id = ?)
+         OR (
+           io.reference_type = 'batch_production_tasks'
+           AND io.source_task_ids IS NOT NULL
+           AND JSON_CONTAINS(io.source_task_ids, CAST(? AS JSON))
+         )
+       )
+         AND io.status IN ('completed', 'partial_completed')
+         AND io.deleted_at IS NULL
        GROUP BY ioi.material_id`,
-      [taskId]
+      [taskId, taskId, String(taskId)]
     );
 
     const issuedMap = {};
@@ -295,6 +307,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     }
   } catch (error) {
     logger.error(`检查生产任务 ${taskId} 发料状态失败:`, error);
+    throw error;
   }
 };
 

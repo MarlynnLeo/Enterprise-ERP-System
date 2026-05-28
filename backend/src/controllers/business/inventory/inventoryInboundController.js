@@ -13,6 +13,7 @@ const InventoryService = require('../../../services/InventoryService');
 const businessConfig = require('../../../config/businessConfig');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
+const { parsePagination } = require('../../../utils/safePagination');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
@@ -38,6 +39,24 @@ const INBOUND_STATUS_TEXT = {
 };
 const getStatusText = (status) => INBOUND_STATUS_TEXT[status] || status || '未知';
 
+const toNullableInteger = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const toRequiredInteger = (value) => {
+  const parsed = toNullableInteger(value);
+  return parsed && parsed > 0 ? parsed : null;
+};
+
+const toRequiredQuantity = (value) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 /**
  * 获取物料的批次号（FIFO原则）
  * @param {object} connection - 数据库连接
@@ -59,6 +78,7 @@ const getInboundList = async (req, res) => {
       endDate,
       locationId,
       inboundType,
+      materialName,
     } = req.query;
 
     // 开始查询入库单列表
@@ -92,10 +112,25 @@ const getInboundList = async (req, res) => {
       params.push(inboundType);
     }
 
+    if (materialName) {
+      whereClause += ` AND EXISTS (
+        SELECT 1
+        FROM inventory_inbound_items ii_search
+        LEFT JOIN materials m_search ON ii_search.material_id = m_search.id
+        WHERE ii_search.inbound_id = i.id
+          AND (m_search.name LIKE ? OR m_search.code LIKE ? OR m_search.specs LIKE ?)
+      )`;
+      params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
+    }
+
     // 计算分页
-    const pageNum = Math.max(1, parseInt(page));
-    const pageSizeNum = Math.max(1, parseInt(pageSize));
-    const offset = (pageNum - 1) * pageSizeNum;
+    const pagination = parsePagination(page, pageSize, {
+      defaultPageSize: 20,
+      maxPageSize: 100,
+    });
+    const pageNum = pagination.page;
+    const pageSizeNum = pagination.pageSize;
+    const offset = pagination.offset;
 
     // 获取总记录数
     const [totalResult] = await connection.execute(
@@ -157,7 +192,7 @@ const getInboundList = async (req, res) => {
        ) first_item ON i.id = first_item.inbound_id AND first_item.rn = 1
        ${whereClause}
        ORDER BY i.created_at DESC
-       LIMIT ${Math.max(1,Math.min(Math.floor(Number(parseInt(pageSize, 10)))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}
+       LIMIT ${pageSizeNum} OFFSET ${offset}
     `;
 
     const [rows] = await connection.execute(query, params);
@@ -182,6 +217,71 @@ const getInboundList = async (req, res) => {
   } catch (error) {
     logger.error('获取入库单列表失败:', error);
     ResponseHandler.error(res, '获取入库单列表失败', 'SERVER_ERROR', 500, error);
+  } finally {
+    connection.release();
+  }
+};
+
+const getInboundStatistics = async (req, res) => {
+  const connection = await db.pool.getConnection();
+  try {
+    const { inboundNo, startDate, endDate, locationId, inboundType, materialName } = req.query;
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+
+    if (inboundNo) {
+      whereClause += ' AND inbound_no LIKE ?';
+      params.push(`%${inboundNo}%`);
+    }
+    if (startDate) {
+      whereClause += ' AND inbound_date >= ?';
+      params.push(startDate);
+    }
+    if (endDate) {
+      whereClause += ' AND inbound_date <= ?';
+      params.push(endDate);
+    }
+    if (locationId) {
+      whereClause += ' AND location_id = ?';
+      params.push(parseInt(locationId, 10));
+    }
+    if (inboundType) {
+      whereClause += ' AND inbound_type = ?';
+      params.push(inboundType);
+    }
+
+    if (materialName) {
+      whereClause += ` AND EXISTS (
+        SELECT 1
+        FROM inventory_inbound_items ii_search
+        LEFT JOIN materials m_search ON ii_search.material_id = m_search.id
+        WHERE ii_search.inbound_id = inventory_inbound.id
+          AND (m_search.name LIKE ? OR m_search.code LIKE ? OR m_search.specs LIKE ?)
+      )`;
+      params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
+    }
+
+    const [rows] = await connection.execute(
+      `SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draftCount,
+        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmedCount,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedCount,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelledCount
+       FROM inventory_inbound
+       ${whereClause}`,
+      params
+    );
+
+    const stats = rows[0] || {};
+    Object.keys(stats).forEach((key) => {
+      stats[key] = Number(stats[key]) || 0;
+    });
+
+    ResponseHandler.success(res, stats, 'OK');
+  } catch (error) {
+    logger.error('获取入库单统计失败:', error);
+    ResponseHandler.error(res, '获取入库单统计失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }
@@ -347,39 +447,6 @@ const createInbound = async (req, res) => {
 
       // 更新库存
       if (status === STATUS.INBOUND.COMPLETED) {
-        // 检查库存是否存在
-        const [stockResult] = await connection.execute(
-          'SELECT material_id, location_id, SUM(il.quantity) as quantity FROM inventory_ledger il JOIN materials mat ON il.material_id = mat.id WHERE il.material_id = ? AND il.location_id = ? AND (mat.location_id IS NULL OR il.location_id = mat.location_id) GROUP BY material_id, location_id HAVING SUM(quantity) > 0',
-          [item.material_id, itemLocationId]
-        );
-
-        let beforeQuantity = 0;
-        let afterQuantity = 0;
-
-        if (stockResult.length === 0) {
-          // 创建新的库存记录
-          beforeQuantity = 0;
-          afterQuantity = parseFloat(item.quantity);
-
-          await connection.execute(
-            'INSERT INTO inventory_ledger (material_id, location_id, quantity) VALUES (?, ?, ?)',
-            [item.material_id, itemLocationId, afterQuantity]
-          );
-        } else {
-          // 更新现有库存
-          beforeQuantity = parseFloat(stockResult[0].quantity);
-          afterQuantity = beforeQuantity + parseFloat(item.quantity);
-
-          await connection.execute('UPDATE inventory_ledger SET quantity = ? WHERE id = ?', [
-            afterQuantity,
-            stockResult[0].id,
-          ]);
-        }
-
-        // 从批量预取结果获取物料价格（消除循环内 N+1 查询）
-        const unitPrice = matInfo.price || 0;
-        const _itemAmount = parseFloat(item.quantity) * unitPrice;
-
         await _insertInventoryLedgerLocal(connection, {
           material_id: item.material_id,
           location_id: itemLocationId, // 修复 Bug: 把 inboundId 或表头 location_id 强转为 itemLocationId
@@ -389,8 +456,9 @@ const createInbound = async (req, res) => {
           reference_no: inbound_no,
           reference_type: 'inbound',
           operator: operator,
-          beforeQuantity: beforeQuantity,
-          afterQuantity: afterQuantity,
+          batch_number: item.batch_number || null,
+          transaction_date: inbound_date,
+          unit_cost: item.unit_cost || item.price || matInfo.costPrice || matInfo.price || 0,
         });
       }
     }
@@ -417,6 +485,178 @@ const createInbound = async (req, res) => {
   }
 };
 
+const updateInbound = async (req, res) => {
+  const connection = await db.pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const id = toRequiredInteger(req.params.id);
+    if (!id) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '无效的入库单ID', 'VALIDATION_ERROR', 400);
+    }
+
+    const [inboundRows] = await connection.execute(
+      'SELECT * FROM inventory_inbound WHERE id = ? FOR UPDATE',
+      [id]
+    );
+
+    if (inboundRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.notFound(res, '入库单不存在');
+    }
+
+    const currentInbound = inboundRows[0];
+    const editableStatuses = [STATUS.INBOUND.DRAFT, STATUS.INBOUND.CONFIRMED];
+    if (!editableStatuses.includes(currentInbound.status)) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '已完成或已取消的入库单不允许编辑', 'VALIDATION_ERROR', 400);
+    }
+
+    const body = req.body || {};
+    const {
+      inbound_date = currentInbound.inbound_date,
+      location_id,
+      status = currentInbound.status,
+      operator = currentInbound.operator,
+      remark = null,
+      items,
+      inbound_type = currentInbound.inbound_type || 'other',
+      reference_type = currentInbound.reference_type,
+      reference_id = currentInbound.reference_id,
+      reference_no = currentInbound.reference_no,
+    } = body;
+
+    const locationId = toRequiredInteger(location_id || currentInbound.location_id);
+    const requestedStatus = status || currentInbound.status;
+    const nextStatus = currentInbound.status;
+
+    if (!editableStatuses.includes(requestedStatus)) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '编辑接口只允许保存未完成单据，完成入库请使用状态流转',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    if (!inbound_date || !locationId || !operator || !Array.isArray(items) || items.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '缺少必填字段：入库日期、仓库、操作人、物料明细不能为空',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    const PeriodValidationService = require('../../../services/business/PeriodValidationService');
+    const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(inbound_date);
+    if (!inventoryCheck.allowed) {
+      await connection.rollback();
+      return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
+    }
+
+    if (inbound_type === 'production_return' && !reference_id && !reference_no) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '生产退料必须关联生产任务或原出库单',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    const materialIds = [];
+    for (const item of items) {
+      const materialId = toRequiredInteger(item.material_id);
+      const quantity = toRequiredQuantity(item.quantity);
+      if (!materialId || !quantity) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '物料信息不完整或数量无效', 'VALIDATION_ERROR', 400);
+      }
+      materialIds.push(materialId);
+    }
+
+    const materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, connection);
+
+    await connection.execute(
+      `UPDATE inventory_inbound
+       SET inbound_date = ?,
+           inbound_type = ?,
+           reference_type = ?,
+           reference_id = ?,
+           reference_no = ?,
+           location_id = ?,
+           status = ?,
+           operator = ?,
+           remark = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      [
+        inbound_date,
+        inbound_type || 'other',
+        reference_type || null,
+        toNullableInteger(reference_id),
+        reference_no || null,
+        locationId,
+        nextStatus,
+        operator,
+        remark || null,
+        id,
+      ]
+    );
+
+    await connection.execute('DELETE FROM inventory_inbound_items WHERE inbound_id = ?', [id]);
+
+    for (const item of items) {
+      const materialId = toRequiredInteger(item.material_id);
+      const quantity = toRequiredQuantity(item.quantity);
+      const materialInfo = materialInfoMap.get(materialId);
+      const unitId = toRequiredInteger(item.unit_id || materialInfo.unitId);
+      const itemLocationId = toRequiredInteger(item.location_id || locationId || materialInfo.locationId);
+
+      if (!unitId) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '物料单位不能为空', 'VALIDATION_ERROR', 400);
+      }
+
+      if (!itemLocationId) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '物料仓库不能为空', 'VALIDATION_ERROR', 400);
+      }
+
+      await connection.execute(
+        `INSERT INTO inventory_inbound_items
+         (inbound_id, material_id, material_code, material_name, specification, quantity, unit_id, location_id, batch_number, remark)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          materialId,
+          item.material_code || materialInfo.code || null,
+          item.material_name || materialInfo.name || null,
+          item.specification || item.material_specs || item.specs || null,
+          quantity,
+          unitId,
+          itemLocationId,
+          item.batch_number || item.batch_no || null,
+          item.remark || null,
+        ]
+      );
+    }
+
+    await connection.commit();
+    return ResponseHandler.success(res, { id }, '入库单更新成功');
+  } catch (error) {
+    await connection.rollback();
+    logger.error('更新入库单失败:', error);
+    return ResponseHandler.error(res, '更新入库单失败', 'SERVER_ERROR', 500, error);
+  } finally {
+    connection.release();
+  }
+};
+
 // 从质检单创建入库单
 
 const createInboundFromQuality = async (req, res) => {
@@ -429,6 +669,7 @@ const createInboundFromQuality = async (req, res) => {
 
     // 验证必填字段
     if (!inbound_date || !location_id || !operator || !items || items.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
     }
 
@@ -442,9 +683,14 @@ const createInboundFromQuality = async (req, res) => {
     // ===== 年度结存校验结束 =====
 
     // 检查质检单状态是否合格
+    let inspectionContext = null;
     if (inspection_id) {
       const [inspectionResult] = await connection.execute(
-        'SELECT id, status, inspection_no FROM quality_inspections WHERE id = ?',
+        `SELECT id, status, inspection_no, inspection_type, product_id, product_name,
+                product_code, quantity, qualified_quantity, unit
+         FROM quality_inspections
+         WHERE id = ?
+         FOR UPDATE`,
         [inspection_id]
       );
 
@@ -453,9 +699,32 @@ const createInboundFromQuality = async (req, res) => {
         return ResponseHandler.notFound(res, '质检单不存在');
       }
 
-      if (inspectionResult[0].status !== 'passed') {
+      inspectionContext = inspectionResult[0];
+      if (!['passed', 'partial', 'completed'].includes(inspectionContext.status)) {
         await connection.rollback();
-        return ResponseHandler.error(res, '只有质检合格的单据才能生成入库单', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, '只有质检合格、部分合格或已完成的单据才能生成入库单', 'VALIDATION_ERROR', 400);
+      }
+
+      if ((parseFloat(inspectionContext.qualified_quantity) || 0) <= 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '质检单合格数量必须大于0，不能生成入库单', 'VALIDATION_ERROR', 400);
+      }
+
+      const [existingInbounds] = await connection.execute(
+        "SELECT id, inbound_no FROM inventory_inbound WHERE inspection_id = ? AND status != 'cancelled' LIMIT 1",
+        [inspection_id]
+      );
+      if (existingInbounds.length > 0) {
+        await connection.rollback();
+        return ResponseHandler.success(
+          res,
+          {
+            id: existingInbounds[0].id,
+            inbound_no: existingInbounds[0].inbound_no,
+            existed: true,
+          },
+          '该质检单已创建过入库单'
+        );
       }
     }
 
@@ -485,10 +754,7 @@ const createInboundFromQuality = async (req, res) => {
     let productName = null;
 
     if (inspection_id) {
-      const [inspectionInfo] = await connection.execute(
-        'SELECT inspection_type, product_id, product_name, product_code, quantity, qualified_quantity, unit FROM quality_inspections WHERE id = ?',
-        [inspection_id]
-      );
+      const inspectionInfo = inspectionContext ? [inspectionContext] : [];
 
       if (inspectionInfo.length > 0) {
         const inspectionType = inspectionInfo[0].inspection_type;
@@ -643,27 +909,14 @@ const createInboundFromQuality = async (req, res) => {
           }
         }
 
-        // 只有在没有找到对应产品代码的物料时才执行这一部分
         if (!foundMaterial) {
-          // 如果没有找到对应的产品代码或通过产品代码找不到物料，尝试通过名称或编码前缀查找
-          const [defaultMaterial] = await connection.execute(
-            'SELECT id FROM materials WHERE name LIKE ? OR code LIKE ? OR code LIKE ? LIMIT 1',
-            ['%成品%', '%FP%', '%CP%']
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            `物料ID ${material_id} 不存在，不能用其他物料替代入库。请先维护质检单产品与物料主数据的对应关系`,
+            'VALIDATION_ERROR',
+            400
           );
-
-          if (defaultMaterial.length > 0) {
-            validMaterialId = defaultMaterial[0].id;
-          } else {
-            // 如果找不到特定命名的物料，使用系统中的任意物料
-            const [anyMaterial] = await connection.execute('SELECT id FROM materials LIMIT 1');
-
-            if (anyMaterial.length > 0) {
-              validMaterialId = anyMaterial[0].id;
-            } else {
-              await connection.rollback();
-              return ResponseHandler.error(res, `物料ID ${material_id} 不存在，且无法找到替代物料`, 'VALIDATION_ERROR', 400);
-            }
-          }
         }
       }
 
@@ -729,9 +982,10 @@ const updateInboundStatus = async (req, res) => {
     }
 
     // 获取当前入库单信息
-    const [inboundData] = await connection.execute('SELECT * FROM inventory_inbound WHERE id = ?', [
-      id,
-    ]);
+    const [inboundData] = await connection.execute(
+      'SELECT * FROM inventory_inbound WHERE id = ? FOR UPDATE',
+      [id]
+    );
 
     if (inboundData.length === 0) {
       logger.error('入库单不存在, ID:', id);
@@ -753,12 +1007,6 @@ const updateInboundStatus = async (req, res) => {
       throw new Error(`无法从 "${currentStatus}" 状态转换为 "${newStatus}" 状态`);
     }
 
-    // 更新状态
-    await connection.execute('UPDATE inventory_inbound SET status = ? WHERE id = ?', [
-      newStatus,
-      id,
-    ]);
-
     // 如果状态变更为已完成，更新库存
     if (newStatus === STATUS.INBOUND.COMPLETED) {
       // 调用抽离好的服务完成核心入库逻辑以及所有副产物（如NCP生成、批次溯源等）
@@ -770,6 +1018,12 @@ const updateInboundStatus = async (req, res) => {
       );
 
     }
+
+    // 核心入库逻辑成功后再推进状态，避免“状态已完成但库存/追溯未落地”
+    await connection.execute('UPDATE inventory_inbound SET status = ? WHERE id = ?', [
+      newStatus,
+      id,
+    ]);
 
     await connection.commit();
     ResponseHandler.success(res, null, '入库单状态更新成功');
@@ -787,8 +1041,10 @@ const updateInboundStatus = async (req, res) => {
 
 module.exports = {
   getInboundList,
+  getInboundStatistics,
   getInboundDetail,
   createInbound,
+  updateInbound,
   createInboundFromQuality,
   updateInboundStatus,
 };

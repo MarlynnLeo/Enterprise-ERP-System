@@ -1,4 +1,4 @@
-const db = require('../../../config/db');
+﻿const db = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
@@ -12,18 +12,18 @@ function parsePositiveInteger(value, fallback, max = 1000) {
 
 function assertMaxLength(fieldName, value, maxLength) {
   if (value !== null && value !== undefined && String(value).length > maxLength) {
-    throw new Error(`${fieldName}长度不能超过${maxLength}个字符`);
+    throw new Error(`${fieldName} length cannot exceed ${maxLength} characters`);
   }
 }
 
 function isBusinessError(error) {
-  const messages = ['不存在', '状态', '不能', '仅', '只有', '长度不能超过', '已存在'];
+  const messages = ['not found', 'status', 'cannot', 'only', 'exists', 'length cannot exceed'];
   return messages.some((message) => error.message?.includes(message));
 }
 
 const standardCostVersionController = {
   /**
-   * 获取版本列表
+   * 鑾峰彇鐗堟湰鍒楄〃
    */
   getVersions: async (req, res) => {
     try {
@@ -48,7 +48,7 @@ const standardCostVersionController = {
         `SELECT * FROM standard_cost_versions
          WHERE ${whereClause}
          ORDER BY created_at DESC
-         LIMIT ${Math.max(1,Math.min(Math.floor(Number(pageSizeNumber))||20,500))} OFFSET ${Math.max(0,Math.floor(Number(offset))||0)}`,
+         LIMIT ${pageSizeNumber} OFFSET ${offset}`,
         params
       );
 
@@ -59,13 +59,13 @@ const standardCostVersionController = {
         pageSize: pageSizeNumber
       });
     } catch (error) {
-      logger.error('获取成本版本列表失败:', error);
-      ResponseHandler.error(res, '获取成本版本列表失败', 'SERVER_ERROR', 500);
+      logger.error('鑾峰彇鎴愭湰鐗堟湰鍒楄〃澶辫触:', error);
+      ResponseHandler.error(res, '鑾峰彇鎴愭湰鐗堟湰鍒楄〃澶辫触', 'SERVER_ERROR', 500);
     }
   },
 
   /**
-   * 创建新版本
+   * 鍒涘缓鏂扮増鏈?
    */
   createVersion: async (req, res) => {
     try {
@@ -74,7 +74,7 @@ const standardCostVersionController = {
       const created_by = await getCurrentUserName(req);
 
       if (!version_name || !effective_date) {
-        return ResponseHandler.error(res, '版本名、生效日期为必填项', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, 'Version name and effective date are required', 'VALIDATION_ERROR', 400);
       }
 
       version_no = version_no || await CodeGeneratorService.nextCode('cost_version');
@@ -87,7 +87,7 @@ const standardCostVersionController = {
         [version_no]
       );
       if (existing.length > 0) {
-        return ResponseHandler.error(res, '该版本号已存在', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, 'Version number already exists', 'VALIDATION_ERROR', 400);
       }
 
       const [result] = await db.pool.execute(
@@ -97,12 +97,12 @@ const standardCostVersionController = {
         [version_no, version_name, effective_date, expiry_date || null, remark || '', created_by]
       );
 
-      ResponseHandler.success(res, { id: result.insertId, version_no, message: '版本创建成功' });
+      ResponseHandler.success(res, { id: result.insertId, version_no, message: '鐗堟湰鍒涘缓鎴愬姛' });
     } catch (error) {
-      logger.error('创建版本失败:', error);
+      logger.error('鍒涘缓鐗堟湰澶辫触:', error);
       ResponseHandler.error(
         res,
-        error.message || '创建版本失败',
+        error.message || '鍒涘缓鐗堟湰澶辫触',
         isBusinessError(error) ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
         isBusinessError(error) ? 400 : 500
       );
@@ -110,26 +110,36 @@ const standardCostVersionController = {
   },
 
   /**
-   * 提交版本进行审批
+   * 鎻愪氦鐗堟湰杩涜瀹℃壒
    */
   submitVersion: async (req, res) => {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
       const { id } = req.params;
-      const [version] = await db.pool.execute('SELECT status FROM standard_cost_versions WHERE id = ?', [id]);
-
-      if (version.length === 0) return ResponseHandler.error(res, '版本不存在', 'NOT_FOUND', 404);
-      if (version[0].status !== 'draft') return ResponseHandler.error(res, '仅草稿状态可提交', 'VALIDATION_ERROR', 400);
-
-      await db.pool.execute('UPDATE standard_cost_versions SET status = "pending" WHERE id = ?', [id]);
-      ResponseHandler.success(res, { message: '版本已提交审批' });
+      const [version] = await connection.execute('SELECT status FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
+      if (version.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Version not found', 'NOT_FOUND', 404);
+      }
+      if (version[0].status !== 'draft') {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Only draft versions can be submitted', 'VALIDATION_ERROR', 400);
+      }
+      await connection.execute('UPDATE standard_cost_versions SET status = "pending" WHERE id = ?', [id]);
+      await connection.commit();
+      ResponseHandler.success(res, { message: 'Version submitted for approval' });
     } catch (error) {
-      logger.error('提交审批失败:', error);
-      ResponseHandler.error(res, '提交审批失败', 'SERVER_ERROR', 500);
+      await connection.rollback();
+      logger.error('鎻愪氦瀹℃壒澶辫触:', error);
+      ResponseHandler.error(res, '鎻愪氦瀹℃壒澶辫触', 'SERVER_ERROR', 500);
+    } finally {
+      connection.release();
     }
   },
 
   /**
-   * 审批通过版本（激活该版本，并归档其他活动版本）
+   * 瀹℃壒閫氳繃鐗堟湰锛堟縺娲昏鐗堟湰锛屽苟褰掓。鍏朵粬娲诲姩鐗堟湰锛?
    */
   approveVersion: async (req, res) => {
     const connection = await db.pool.getConnection();
@@ -138,23 +148,24 @@ const standardCostVersionController = {
       const { id } = req.params;
       const approved_by = await getCurrentUserName(req);
 
-      const [version] = await connection.execute('SELECT status, effective_date FROM standard_cost_versions WHERE id = ?', [id]);
-      if (version.length === 0) throw new Error('版本不存在');
-      if (version[0].status !== 'pending') throw new Error('版本不在待审批状态');
+      const [version] = await connection.execute('SELECT status, effective_date FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
+      if (version.length === 0) throw new Error('Version not found');
+      if (version[0].status !== 'pending') throw new Error('Version is not pending approval');
 
       const [[costCount]] = await connection.execute(
         'SELECT COUNT(*) as count FROM standard_costs WHERE version_id = ?',
         [id]
       );
       if (costCount.count === 0) {
-        throw new Error('版本未生成标准成本数据，不能审批生效');
+        throw new Error('鐗堟湰鏈敓鎴愭爣鍑嗘垚鏈暟鎹紝涓嶈兘瀹℃壒鐢熸晥');
       }
 
-      // 归档当前处于 active 的版本及其底层明细
+      // 褰掓。褰撳墠澶勪簬 active 鐨勭増鏈強鍏跺簳灞傛槑缁?
+      await connection.execute(`SELECT id FROM standard_cost_versions WHERE status = 'active' FOR UPDATE`);
       await connection.execute(`UPDATE standard_cost_versions SET status = 'archived' WHERE status = 'active'`);
       await connection.execute(`UPDATE standard_costs SET status = 'archived', is_active = 0 WHERE status = 'active'`);
 
-      // 激活本版本及其底层明细
+      // 婵€娲绘湰鐗堟湰鍙婂叾搴曞眰鏄庣粏
       await connection.execute(`
         UPDATE standard_cost_versions
         SET status = 'active', approved_by = ?, approved_at = NOW()
@@ -168,13 +179,13 @@ const standardCostVersionController = {
       `, [version[0].effective_date, id]);
 
       await connection.commit();
-      ResponseHandler.success(res, { message: '审批通过，新标准成本版本已生效' });
+      ResponseHandler.success(res, { message: 'Version approved and activated' });
     } catch (error) {
       await connection.rollback();
-      logger.error('审批版本失败:', error);
+      logger.error('瀹℃壒鐗堟湰澶辫触:', error);
       ResponseHandler.error(
         res,
-        error.message || '审批失败',
+        error.message || '瀹℃壒澶辫触',
         isBusinessError(error) ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
         isBusinessError(error) ? 400 : 500
       );
@@ -184,7 +195,7 @@ const standardCostVersionController = {
   },
 
   /**
-   * 智能提取采购入库均价（针对某版本）
+   * 鏅鸿兘鎻愬彇閲囪喘鍏ュ簱鍧囦环锛堥拡瀵规煇鐗堟湰锛?
    */
   generateCostsFromPurchase: async (req, res) => {
     const connection = await db.pool.getConnection();
@@ -193,14 +204,14 @@ const standardCostVersionController = {
       const { id } = req.params;
       const operator = await getCurrentUserName(req);
 
-      const [version] = await connection.execute('SELECT status FROM standard_cost_versions WHERE id = ?', [id]);
-      if (version.length === 0) throw new Error('版本不存在');
-      if (version[0].status !== 'draft') throw new Error('只有草稿状态的版本可以生成数据');
+      const [version] = await connection.execute('SELECT status FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
+      if (version.length === 0) throw new Error('Version not found');
+      if (version[0].status !== 'draft') throw new Error('Only draft versions can generate cost rows');
 
-      // 1. 先清理该版本的历史草稿
+      // 1. 鍏堟竻鐞嗚鐗堟湰鐨勫巻鍙茶崏绋?
       await connection.execute('DELETE FROM standard_costs WHERE version_id = ?', [id]);
 
-      // 2. 获取所有启用的物料的基础采购价
+      // 2. 鑾峰彇鎵€鏈夊惎鐢ㄧ殑鐗╂枡鐨勫熀纭€閲囪喘浠?
       const [materials] = await connection.execute(`
         SELECT m.id, m.code, m.name, COALESCE(
           (SELECT AVG(poi.price) FROM purchase_order_items poi
@@ -222,11 +233,11 @@ const standardCostVersionController = {
           basePrice: parseFloat(m.suggested_price) || 0,
           calculatedPrice: null,
           components: [],
-          isCalculating: false // 用于检测循环依赖
+          isCalculating: false // 鐢ㄤ簬妫€娴嬪惊鐜緷璧?
         });
       });
 
-      // 3. 获取所有启用的 BOM（状态为 1 或已审核）
+      // 3. 鑾峰彇鎵€鏈夊惎鐢ㄧ殑 BOM锛堢姸鎬佷负 1 鎴栧凡瀹℃牳锛?
       const [boms] = await connection.execute(`
         SELECT bm.id as bom_id, bm.product_id, bd.material_id as component_id, bd.quantity
         FROM bom_masters bm
@@ -234,7 +245,7 @@ const standardCostVersionController = {
         WHERE bm.status = 1 OR bm.approved_by IS NOT NULL
       `);
 
-      // 挂载 BOM 子件
+      // 鎸傝浇 BOM 瀛愪欢
       boms.forEach(row => {
         const parent = materialGraph.get(row.product_id);
         if (parent) {
@@ -245,24 +256,24 @@ const standardCostVersionController = {
         }
       });
 
-      // 4. 定义递归计算成本的函数
+      // 4. 瀹氫箟閫掑綊璁＄畻鎴愭湰鐨勫嚱鏁?
       const calculateCost = (matId) => {
         const mat = materialGraph.get(matId);
-        if (!mat) return 0; // 物料不存在或被停用
-        if (mat.calculatedPrice !== null) return mat.calculatedPrice; // 已计算过缓存
+        if (!mat) return 0; // 鐗╂枡涓嶅瓨鍦ㄦ垨琚仠鐢?
+        if (mat.calculatedPrice !== null) return mat.calculatedPrice; // 宸茶绠楄繃缂撳瓨
         if (mat.isCalculating) {
-          // 发现循环依赖，退回基础成本避免死循环死锁
-          logger.warn(`BOM循环依赖检测到: 物料 ID ${matId}`);
+          // 鍙戠幇寰幆渚濊禆锛岄€€鍥炲熀纭€鎴愭湰閬垮厤姝诲惊鐜閿?
+          logger.warn(`BOM寰幆渚濊禆妫€娴嬪埌: 鐗╂枡 ID ${matId}`);
           return mat.basePrice;
         }
 
         mat.isCalculating = true;
 
         if (mat.components.length === 0) {
-          // 底层采购件
+          // 搴曞眰閲囪喘浠?
           mat.calculatedPrice = mat.basePrice;
         } else {
-          // 自制或组装件通过子件相加卷算 (Rollup)
+          // 鑷埗鎴栫粍瑁呬欢閫氳繃瀛愪欢鐩稿姞鍗风畻 (Rollup)
           let totalCost = 0;
           for (const comp of mat.components) {
             const compCost = calculateCost(comp.id);
@@ -275,12 +286,12 @@ const standardCostVersionController = {
         return mat.calculatedPrice;
       };
 
-      // 5. 遍历所有物料执行计算和批量插入
+      // 5. 閬嶅巻鎵€鏈夌墿鏂欐墽琛岃绠楀拰鎵归噺鎻掑叆
       let inserted = 0;
       for (const [matId, mat] of materialGraph.entries()) {
         const finalCost = calculateCost(matId);
 
-        // 过滤掉没有成本的项
+        // 杩囨护鎺夋病鏈夋垚鏈殑椤?
         if (finalCost <= 0) continue;
 
         const sourceType = mat.components.length > 0 ? 'rollup' : 'purchase_average';
@@ -294,13 +305,13 @@ const standardCostVersionController = {
       }
 
       await connection.commit();
-      ResponseHandler.success(res, { message: `成功智能生成 ${inserted} 条基础物料挂账草稿（包含多级BOM树状卷算）` });
+      ResponseHandler.success(res, { message: `Generated ${inserted} standard cost draft rows` });
     } catch (error) {
       await connection.rollback();
-      logger.error('智能提取卷算失败:', error);
+      logger.error('鏅鸿兘鎻愬彇鍗风畻澶辫触:', error);
       ResponseHandler.error(
         res,
-        error.message || '系统智能取价卷算失败',
+        error.message || '绯荤粺鏅鸿兘鍙栦环鍗风畻澶辫触',
         isBusinessError(error) ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
         isBusinessError(error) ? 400 : 500
       );

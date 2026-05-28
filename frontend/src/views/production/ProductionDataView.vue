@@ -7,9 +7,9 @@
  */
 -->
 <template>
-  <div class="production-data-view">
+  <div class="page-container production-data-view">
     <!-- 页面标题 -->
-    <div class="page-header">
+    <div class="page-header header-card">
       <h2>
         <el-icon><DataAnalysis /></el-icon>
         生产数据看板
@@ -82,8 +82,8 @@
             <el-table :data="pendingTasks" size="small" max-height="320" stripe>
               <el-table-column prop="code" label="任务编号" width="140" />
               <el-table-column prop="productName" label="产品" min-width="120" show-overflow-tooltip />
-              <el-table-column prop="quantity" label="数量" width="80" align="center" />
-              <el-table-column prop="status" label="状态" width="90" align="center">
+              <el-table-column prop="quantity" label="数量" width="80" />
+              <el-table-column prop="status" label="状态" width="90">
                 <template #default="{ row }">
                   <el-tag size="small" :type="getStatusType(row.status)">
                     {{ getStatusText(row.status) }}
@@ -107,8 +107,8 @@
           <div class="list-card__body">
             <el-table :data="processRates" size="small" max-height="320" stripe>
               <el-table-column prop="name" label="工序名称" min-width="140" show-overflow-tooltip />
-              <el-table-column prop="total" label="总数" width="70" align="center" />
-              <el-table-column prop="completed" label="已完成" width="70" align="center" />
+              <el-table-column prop="total" label="总数" width="70" />
+              <el-table-column prop="completed" label="已完成" width="70" />
               <el-table-column label="完成率" width="200">
                 <template #default="{ row }">
                   <div class="custom-progress">
@@ -167,9 +167,11 @@ import {
   Document, SetUp, Histogram, TrendCharts
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
-import axios from '@/services/api'
+import { echarts } from '@/utils/echartsCore'
+import { productionApi } from '@/api/production'
 import dayjs from 'dayjs'
+import { getCssTokenValue } from '@/utils/designTokens'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 
 // ============ 响应式数据 ============
 const loading = ref(false)
@@ -270,17 +272,17 @@ const getStatusType = (s) => statusMap[s]?.type || 'info'
 
 // 自定义进度条颜色
 const getBarColor = (pct) => {
-  if (pct >= 80) return '#67c23a'
-  if (pct >= 40) return '#409eff'
-  if (pct > 0) return '#e6a23c'
-  return '#dcdfe6'
+  if (pct >= 80) return getCssTokenValue('success')
+  if (pct >= 40) return getCssTokenValue('primary')
+  if (pct > 0) return getCssTokenValue('warning')
+  return getCssTokenValue('border')
 }
 
 // ============ 数据请求 ============
 const fetchStatistics = async () => {
   try {
-    const res = await axios.get('/production/dashboard/statistics')
-    const data = res.data || res
+    const res = await productionApi.getDashboardStatistics()
+    const data = parseResponseData(res, {})
     stats.value = {
       plans: data.plans || stats.value.plans,
       tasks: data.tasks || stats.value.tasks,
@@ -295,9 +297,8 @@ const fetchStatistics = async () => {
 
 const fetchPendingTasks = async () => {
   try {
-    const res = await axios.get('/production/dashboard/pending-tasks')
-    const data = res.data || res
-    pendingTasks.value = (Array.isArray(data) ? data : data.list || []).map(t => ({
+    const res = await productionApi.getPendingTasks()
+    pendingTasks.value = parseListData(res, { enableLog: false }).map(t => ({
       ...t,
       code: t.code || t.task_code,
       productName: t.productName || t.product_name,
@@ -306,17 +307,16 @@ const fetchPendingTasks = async () => {
                : '-',
     }))
   } catch (e) {
-    console.error('获取待办任务失败:', e)
+    console.error('获取待处理任务失败:', e)
     pendingTasks.value = []
   }
 }
 
 const fetchProcessRates = async () => {
   try {
-    const res = await axios.get('/production/dashboard/process-completion')
-    const data = res.data || res
-    processRates.value = (Array.isArray(data) ? data : []).map(p => ({
-      name: p.name || p.process_name || '未命名',
+    const res = await productionApi.getProcessCompletionRates()
+    processRates.value = parseListData(res, { enableLog: false }).map(p => ({
+      name: p.name || p.process_name || '???',
       total: parseInt(p.total) || 0,
       completed: parseInt(p.completed) || 0,
       rate: p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0,
@@ -330,10 +330,8 @@ const fetchProcessRates = async () => {
 const fetchTrends = async () => {
   trendLoading.value = true
   try {
-    const res = await axios.get('/production/dashboard/trends', {
-      params: { granularity: trendGranularity.value },
-    })
-    trendData.value = res.data || res
+    const res = await productionApi.getDashboardTrends({ granularity: trendGranularity.value })
+    trendData.value = parseResponseData(res, {})
     await nextTick()
     renderTrendChart()
   } catch (e) {
@@ -374,14 +372,14 @@ const renderTrendChart = () => {
         name: '计划产量',
         type: 'bar',
         data: planned,
-        itemStyle: { color: '#409eff', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: getCssTokenValue('primary'), borderRadius: [4, 4, 0, 0] },
         barMaxWidth: 28,
       },
       {
         name: '完成产量',
         type: 'bar',
         data: completed,
-        itemStyle: { color: '#67c23a', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: getCssTokenValue('success'), borderRadius: [4, 4, 0, 0] },
         barMaxWidth: 28,
       },
     ],
@@ -408,9 +406,9 @@ const renderPieChart = () => {
         label: { show: false },
         emphasis: { label: { show: true, fontWeight: 'bold' } },
         data: [
-          { value: t.pending, name: '待处理', itemStyle: { color: '#e6a23c' } },
-          { value: t.inProgress, name: '进行中', itemStyle: { color: '#409eff' } },
-          { value: t.completed, name: '已完成', itemStyle: { color: '#67c23a' } },
+          { value: t.pending, name: '待处理', itemStyle: { color: getCssTokenValue('warning') } },
+          { value: t.inProgress, name: '进行中', itemStyle: { color: getCssTokenValue('primary') } },
+          { value: t.completed, name: '已完成', itemStyle: { color: getCssTokenValue('success') } },
         ].filter(d => d.value > 0),
       },
     ],
@@ -439,27 +437,25 @@ const refreshAll = async () => {
 
 // ============ 甘特图 ============
 const ganttStatusColors = {
-  pending: '#909399',
-  allocated: '#909399',
-  preparing: '#e6a23c',
-  material_issuing: '#e6a23c',
-  material_partial_issued: '#e6a23c',
-  material_issued: '#409eff',
-  in_progress: '#409eff',
-  paused: '#f56c6c',
-  inspection: '#9b59b6',
-  warehousing: '#9b59b6',
-  completed: '#67c23a',
+  pending: getCssTokenValue('info'),
+  allocated: getCssTokenValue('info'),
+  preparing: getCssTokenValue('warning'),
+  material_issuing: getCssTokenValue('warning'),
+  material_partial_issued: getCssTokenValue('warning'),
+  material_issued: getCssTokenValue('primary'),
+  in_progress: getCssTokenValue('primary'),
+  paused: getCssTokenValue('danger'),
+  inspection: getCssTokenValue('primary'),
+  warehousing: getCssTokenValue('info'),
+  completed: getCssTokenValue('success'),
 }
 
 const fetchGanttData = async () => {
   ganttLoading.value = true
   try {
     const [startDate, endDate] = ganttDateRange.value || []
-    const res = await axios.get('/production/scheduling/gantt', {
-      params: { startDate, endDate },
-    })
-    const data = res.data || res
+    const res = await productionApi.getSchedulingGanttData({ startDate, endDate })
+    const data = parseResponseData(res, {})
     ganttGroups.value = data.groups || []
     await nextTick()
     renderGanttChart()
@@ -505,7 +501,7 @@ const renderGanttChart = () => {
           task,       // 原始数据
         ],
         itemStyle: {
-          color: ganttStatusColors[task.status] || '#409eff',
+          color: ganttStatusColors[task.status] || getCssTokenValue('primary'),
         },
       })
     })
@@ -518,11 +514,13 @@ const renderGanttChart = () => {
         const start = dayjs(params.value[1]).format('MM-DD HH:mm')
         const end = dayjs(params.value[2]).format('MM-DD HH:mm')
         const duration = Math.round((params.value[2] - params.value[1]) / 60000)
-        return `<b>${task.code}</b><br/>
-          产品：${task.productName || '-'}<br/>
-          数量：${task.quantity}<br/>
-          时间：${start} ~ ${end}<br/>
-          耗时：${(duration / 60).toFixed(1)}小时`
+        return [
+          `<b>${task.code}</b>`,
+          `产品：${task.productName || '-'}`,
+          `数量：${task.quantity}`,
+          `时间：${start} ~ ${end}`,
+          `耗时：${(duration / 60).toFixed(1)}小时`,
+        ].join('<br/>')
       },
     },
     grid: {
@@ -538,7 +536,7 @@ const renderGanttChart = () => {
       axisLabel: {
         formatter: (val) => dayjs(val).format('MM-DD'),
       },
-      splitLine: { show: true, lineStyle: { type: 'dashed', color: '#e4e7ed' } },
+      splitLine: { show: true, lineStyle: { type: 'dashed', color: getCssTokenValue('borderLight') } },
     },
     yAxis: {
       type: 'category',
@@ -580,7 +578,7 @@ const renderGanttChart = () => {
                 y: y + barHeight / 2,
                 text: width > 50 ? (typeof task === 'object' ? task.code : '') : '',
                 textVerticalAlign: 'middle',
-                fill: '#fff',
+                fill: getCssTokenValue('surface'),
                 fontSize: 10,
                 fontWeight: 600,
               },
@@ -635,7 +633,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .production-data-view {
-  padding: 16px;
+  --production-card-bg: var(--color-bg-base);
+  --production-card-muted-bg: var(--color-bg-section);
+  --production-card-hover-bg: var(--color-bg-hover);
+  --production-card-border: var(--color-border-lighter);
+  --production-accent-purple: color-mix(in srgb, var(--color-primary) 58%, var(--color-danger));
+  padding: var(--spacing-lg);
 }
 
 /* 页面头部 */
@@ -643,7 +646,8 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-lg);
 }
 .page-header h2 {
   margin: 0;
@@ -651,7 +655,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .header-actions {
   display: flex;
@@ -662,73 +666,78 @@ onBeforeUnmount(() => {
 /* ===== 统计卡片 ===== */
 .stat-cards { margin-bottom: 16px; }
 .stat-card {
-  background: var(--el-bg-color);
-  border-radius: 8px;
+  background: var(--production-card-bg);
+  border-radius: var(--radius-md);
   padding: 16px;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  transition: box-shadow .2s;
+  border: 1px solid var(--production-card-border);
+  box-shadow: var(--shadow-sm);
+  transition: border-color .2s, background-color .2s;
   margin-bottom: 8px;
 }
-.stat-card:hover { box-shadow: var(--el-box-shadow-light); }
+.stat-card:hover {
+  border-color: var(--color-border-light);
+  background: var(--production-card-hover-bg);
+}
 .stat-card__icon {
   width: 48px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--color-on-primary);
 }
-.theme-blue .stat-card__icon   { background: linear-gradient(135deg, #409eff, #2d7fd3); }
-.theme-green .stat-card__icon  { background: linear-gradient(135deg, #67c23a, #4da62e); }
-.theme-purple .stat-card__icon { background: linear-gradient(135deg, #a855f7, #7c3aed); }
-.theme-orange .stat-card__icon { background: linear-gradient(135deg, #e6a23c, #d48806); }
+.theme-blue .stat-card__icon   { background: var(--color-primary); }
+.theme-green .stat-card__icon  { background: var(--color-success); }
+.theme-purple .stat-card__icon { background: var(--production-accent-purple); }
+.theme-orange .stat-card__icon { background: var(--color-warning); }
 
 .stat-card__content { flex: 1; min-width: 0; }
 .stat-card__value {
   font-size: 22px;
   font-weight: 700;
   line-height: 1.2;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .stat-card__label {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   margin-top: 2px;
 }
 .stat-card__footer {
   width: 100%;
   display: flex;
   gap: 12px;
-  border-top: 1px solid var(--el-border-color-extra-light);
+  border-top: 1px solid var(--production-card-border);
   padding-top: 8px;
   margin-top: 4px;
 }
 .stat-card__sub {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 .stat-card__sub em {
   font-style: normal;
   font-weight: 600;
   margin-right: 2px;
 }
-.color-blue   { color: #409eff; }
-.color-green  { color: #67c23a; }
-.color-orange { color: #e6a23c; }
-.color-purple { color: #a855f7; }
-.color-gray   { color: #909399; }
+.color-blue   { color: var(--color-primary); }
+.color-green  { color: var(--color-success); }
+.color-orange { color: var(--color-warning); }
+.color-purple { color: var(--production-accent-purple); }
+.color-gray   { color: var(--color-text-secondary); }
 
 /* ===== 图表卡片 ===== */
 .chart-row { margin-bottom: 16px; }
 .chart-card {
-  background: var(--el-bg-color);
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--production-card-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--production-card-border);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   margin-bottom: 8px;
 }
@@ -739,8 +748,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-  color: var(--el-text-color-primary);
+  border-bottom: 1px solid var(--production-card-border);
+  color: var(--color-text-primary);
+  background: var(--production-card-muted-bg);
 }
 .chart-card__body {
   height: 320px;
@@ -749,9 +759,10 @@ onBeforeUnmount(() => {
 
 /* ===== 列表卡片 ===== */
 .list-card {
-  background: var(--el-bg-color);
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--production-card-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--production-card-border);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   margin-bottom: 8px;
 }
@@ -762,8 +773,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-  color: var(--el-text-color-primary);
+  border-bottom: 1px solid var(--production-card-border);
+  color: var(--color-text-primary);
+  background: var(--production-card-muted-bg);
 }
 .list-card__header span {
   display: flex;
@@ -786,8 +798,8 @@ onBeforeUnmount(() => {
   flex: 1;
   height: 14px;
   min-width: 80px;
-  background: #e4e7ed;
-  border: 1px solid #dcdfe6;
+  background: var(--color-border-light);
+  border: 1px solid var(--color-border-base);
   border-radius: 7px;
   overflow: hidden;
   box-sizing: border-box;
@@ -802,7 +814,7 @@ onBeforeUnmount(() => {
   font-weight: 600;
   min-width: 36px;
   text-align: right;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   flex-shrink: 0;
 }
 

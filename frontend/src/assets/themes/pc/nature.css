@@ -134,137 +134,32 @@
   --z-index-tooltip: 1070;
 }
 
-/* ========== 自然主题特效 ========== */
-
-/* 自然卡片 */
-.nature-card {
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border-base);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-}
-
-.nature-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-  border-color: var(--color-primary);
-}
-
-/* 叶子装饰 */
-.nature-leaf-decoration::before {
-  content: '🌿';
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 24px;
-  opacity: 0.3;
-}
-
-/* 自然按钮 */
-.nature-button {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-round);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--transition-base);
-  box-shadow: var(--shadow-sm);
-}
-
-.nature-button:hover {
-  background: var(--color-leaf);
-  box-shadow: var(--shadow-md);
-  transform: scale(1.02);
-}
-
-/* 波纹效果 */
-.nature-ripple {
-  position: relative;
-  overflow: hidden;
-}
-
-.nature-ripple::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(81, 207, 102, 0.3);
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
-}
-
-.nature-ripple:active::after {
-  width: 300px;
-  height: 300px;
-}
-
-/* 生长动画 */
-.nature-grow {
-  animation: nature-grow-animation 0.5s ease-out;
-}
-
-@keyframes nature-grow-animation {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* 摇摆动画 */
-.nature-sway {
-  animation: nature-sway-animation 3s ease-in-out infinite;
-  transform-origin: bottom center;
-}
-
-@keyframes nature-sway-animation {
-  0%, 100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(2deg);
-  }
-  75% {
-    transform: rotate(-2deg);
-  }
-}
-
 /* ========== 自然主题全局样式覆盖 ========== */
 
 /* 整体页面 */
 [data-theme="nature"] body,
 [data-theme="nature"] .layout-container {
-  background: linear-gradient(135deg, #F0FFF4 0%, #E8F5E9 100%) !important;
+  background: linear-gradient(135deg, var(--color-bg-page) 0%, var(--color-bg-hover) 100%) !important;
 }
 
 /* 侧边栏自然化 */
 [data-theme="nature"] .sidebar,
-[data-theme="nature"] .el-aside {
-  background: linear-gradient(180deg, #2E7D32 0%, #388E3C 100%) !important;
-  border-right: 3px solid #66BB6A !important;
-  box-shadow: 4px 0 20px rgba(81, 207, 102, 0.2) !important;
+[data-theme="nature"] .app-sidebar {
+  background: linear-gradient(180deg, var(--color-text-primary) 0%, var(--color-text-primary) 100%) !important;
+  border-right: 3px solid var(--color-primary) !important;
+  box-shadow: 4px 0 20px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
 }
 
 [data-theme="nature"] .logo-container {
-  background: rgba(255, 255, 255, 0.15) !important;
-  border-bottom: 3px solid rgba(255, 255, 255, 0.3) !important;
+  background: color-mix(in srgb, var(--ds-white) 15%, transparent) !important;
+  border-bottom: 3px solid color-mix(in srgb, var(--ds-white) 30%, transparent) !important;
   backdrop-filter: blur(5px);
 }
 
 [data-theme="nature"] .logo-container .title {
-  color: #FFFFFF !important;
+  color: var(--color-on-primary) !important;
   font-weight: 600 !important;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  text-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 20%, transparent) !important;
 }
 
 /* 菜单样式 */
@@ -275,65 +170,69 @@
 /* 主色调 - 自然绿 */
 [data-theme="nature"] .sidebar .el-menu-item,
 [data-theme="nature"] .sidebar .el-sub-menu__title,
-[data-theme="nature"] .el-aside .el-menu-item,
-[data-theme="nature"] .el-aside .el-sub-menu__title {
-  color: #1B5E20 !important;
+[data-theme="nature"] .app-sidebar .el-menu-item,
+[data-theme="nature"] .app-sidebar .el-sub-menu__title {
+  color: var(--color-text-primary) !important;
   font-weight: 500 !important;
   border-left: 4px solid transparent !important;
-  transition: all 0.3s ease !important;
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease !important;
 }
 
 /* 菜单样式 */
 [data-theme="nature"] .sidebar .el-menu-item span,
 [data-theme="nature"] .sidebar .el-sub-menu__title span,
-[data-theme="nature"] .el-aside .el-menu-item span,
-[data-theme="nature"] .el-aside .el-sub-menu__title span {
-  color: #1B5E20 !important;
+[data-theme="nature"] .app-sidebar .el-menu-item span,
+[data-theme="nature"] .app-sidebar .el-sub-menu__title span {
+  color: var(--color-text-primary) !important;
 }
 
 /* 悬停状态 */
 [data-theme="nature"] .sidebar .el-menu-item:hover,
 [data-theme="nature"] .sidebar .el-sub-menu__title:hover,
-[data-theme="nature"] .el-aside .el-menu-item:hover,
-[data-theme="nature"] .el-aside .el-sub-menu__title:hover {
-  background: rgba(129, 199, 132, 0.2) !important;
-  border-left-color: #66BB6A !important;
-  color: #1B5E20 !important;
+[data-theme="nature"] .app-sidebar .el-menu-item:hover,
+[data-theme="nature"] .app-sidebar .el-sub-menu__title:hover {
+  background: color-mix(in srgb, var(--color-primary-light-3) 20%, transparent) !important;
+  border-left-color: var(--color-primary) !important;
+  color: var(--color-text-primary) !important;
 }
 
 [data-theme="nature"] .sidebar .el-menu-item:hover span,
 [data-theme="nature"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="nature"] .el-aside .el-menu-item:hover span,
-[data-theme="nature"] .el-aside .el-sub-menu__title:hover span {
-  color: #1B5E20 !important;
+[data-theme="nature"] .app-sidebar .el-menu-item:hover span,
+[data-theme="nature"] .app-sidebar .el-sub-menu__title:hover span {
+  color: var(--color-text-primary) !important;
 }
 
 /* 当前活动页状态 */
 [data-theme="nature"] .sidebar .el-menu-item.is-active,
-[data-theme="nature"] .el-aside .el-menu-item.is-active {
-  background: rgba(129, 199, 132, 0.3) !important;
-  border-left-color: #66BB6A !important;
-  color: #81C784 !important;
+[data-theme="nature"] .app-sidebar .el-menu-item.is-active {
+  background: color-mix(in srgb, var(--color-primary-light-3) 30%, transparent) !important;
+  border-left-color: var(--color-primary) !important;
+  color: var(--color-primary-light-3) !important;
   font-weight: 600 !important;
 }
 
 [data-theme="nature"] .sidebar .el-menu-item.is-active span,
-[data-theme="nature"] .el-aside .el-menu-item.is-active span {
-  color: #81C784 !important;
+[data-theme="nature"] .app-sidebar .el-menu-item.is-active span {
+  color: var(--color-primary-light-3) !important;
 }
 
 /* 顶部导航栏自然化 */
 [data-theme="nature"] .header,
 [data-theme="nature"] .el-header {
-  background: linear-gradient(90deg, #FFFFFF 0%, #F1F8E9 100%) !important;
-  border-bottom: 3px solid #81C784 !important;
-  box-shadow: 0 2px 10px rgba(81, 207, 102, 0.15) !important;
-  color: #2E7D32 !important;
+  background: linear-gradient(90deg, var(--color-bg-base) 0%, var(--color-bg-hover) 100%) !important;
+  border-bottom: 3px solid var(--color-primary-light-3) !important;
+  box-shadow: 0 2px 10px var(--color-bg-overlay) !important;
+  color: var(--color-text-primary) !important;
 }
 
 [data-theme="nature"] .header *,
 [data-theme="nature"] .el-header * {
-  color: #2E7D32 !important;
+  color: var(--color-text-primary) !important;
 }
 
 [data-theme="nature"] .header span,
@@ -342,100 +241,60 @@
 [data-theme="nature"] .el-header .username,
 [data-theme="nature"] .header .user-info,
 [data-theme="nature"] .el-header .user-info {
-  color: #2E7D32 !important;
+  color: var(--color-text-primary) !important;
 }
 
 [data-theme="nature"] .header .el-icon,
 [data-theme="nature"] .el-header .el-icon {
-  color: #66BB6A !important;
+  color: var(--color-text-primary) !important;
 }
 
 /* 菜单样式 */
 [data-theme="nature"] .header .el-menu-item,
 [data-theme="nature"] .el-header .el-menu-item {
-  color: #2E7D32 !important;
+  color: var(--color-text-primary) !important;
 }
 
 [data-theme="nature"] .header .el-menu-item:hover,
 [data-theme="nature"] .el-header .el-menu-item:hover {
-  color: #66BB6A !important;
-  background: rgba(102, 187, 106, 0.1) !important;
+  color: var(--color-text-primary) !important;
+  background: color-mix(in srgb, var(--color-bg-overlay) 10%, transparent) !important;
 }
 
 [data-theme="nature"] .header .el-menu-item.is-active,
 [data-theme="nature"] .el-header .el-menu-item.is-active {
-  color: #66BB6A !important;
-  background: rgba(102, 187, 106, 0.15) !important;
-}
-
-/* 卡片自然?*/
-[data-theme="nature"] .el-card,
-[data-theme="nature"] .stat-card,
-[data-theme="nature"] .dashboard-card {
-  background: #FFFFFF !important;
-  border: 2px solid #C8E6C9 !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 15px rgba(81, 207, 102, 0.1) !important;
-  transition: all 0.3s ease !important;
-}
-
-[data-theme="nature"] .el-card:hover,
-[data-theme="nature"] .stat-card:hover {
-  border-color: #81C784 !important;
-  box-shadow: 0 8px 25px rgba(81, 207, 102, 0.2) !important;
-  transform: translateY(-4px) !important;
-}
-
-/* 按钮自然?*/
-[data-theme="nature"] .el-button--primary {
-  background: linear-gradient(135deg, #66BB6A 0%, #81C784 100%) !important;
-  border: none !important;
-  color: #FFFFFF !important;
-  font-weight: 600 !important;
-  border-radius: 999px !important;
-  box-shadow: 0 4px 12px rgba(81, 207, 102, 0.3) !important;
-}
-
-[data-theme="nature"] .el-button--primary:hover {
-  background: linear-gradient(135deg, #81C784 0%, #A5D6A7 100%) !important;
-  box-shadow: 0 6px 18px rgba(81, 207, 102, 0.4) !important;
-  transform: translateY(-2px);
+  color: var(--color-text-primary) !important;
+  background: color-mix(in srgb, var(--color-bg-overlay) 15%, transparent) !important;
 }
 
 /* 表格组件 */
 [data-theme="nature"] .el-table {
-  background: #FFFFFF !important;
-  border: 2px solid #C8E6C9 !important;
+  background: var(--color-bg-base) !important;
+  border: 2px solid var(--color-border-dark) !important;
   border-radius: 10px !important;
 }
 
 [data-theme="nature"] .el-table th {
-  background: linear-gradient(180deg, #E8F5E9 0%, #C8E6C9 100%) !important;
-  color: #2E7D32 !important;
+  background: linear-gradient(180deg, var(--color-bg-hover) 0%, var(--color-primary-light-8) 100%) !important;
+  color: var(--color-text-primary) !important;
   font-weight: 600 !important;
-  border-bottom: 2px solid #81C784 !important;
+  border-bottom: 2px solid var(--color-primary-light-3) !important;
 }
 
 [data-theme="nature"] .el-table tbody tr:hover {
-  background: #F1F8E9 !important;
+  background: var(--color-bg-hover) !important;
 }
 
 /* 输入框自然化 */
 [data-theme="nature"] .el-input__wrapper {
-  background: #FFFFFF !important;
-  border: 2px solid #C8E6C9 !important;
+  background: var(--color-bg-base) !important;
+  border: 2px solid var(--color-border-dark) !important;
   border-radius: 10px !important;
 }
 
 [data-theme="nature"] .el-input__wrapper:hover,
 [data-theme="nature"] .el-input__wrapper.is-focus {
-  border-color: #81C784 !important;
-  box-shadow: 0 0 10px rgba(81, 207, 102, 0.2) !important;
-}
-
-/* 统计卡片图标 */
-[data-theme="nature"] .stat-card .icon-container {
-  background: linear-gradient(135deg, #66BB6A 0%, #81C784 100%) !important;
-  box-shadow: 0 4px 12px rgba(81, 207, 102, 0.3) !important;
+  border-color: var(--color-primary-light-3) !important;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
 }
 

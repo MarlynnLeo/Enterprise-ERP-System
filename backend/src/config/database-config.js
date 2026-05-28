@@ -6,6 +6,11 @@
 require('dotenv').config();
 const logger = require('../utils/logger');
 
+function parsePositiveIntEnv(name, defaultValue) {
+  const parsed = Number.parseInt(process.env[name], 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
 // 验证必需的环境变量
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
@@ -28,7 +33,7 @@ const DATABASE_CONFIG = {
 const POOL_CONFIG = {
   ...DATABASE_CONFIG,
   waitForConnections: true,
-  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 50, // MySQL max_connections=151，两池合计100留余量
+  connectionLimit: parsePositiveIntEnv('DB_CONNECTION_LIMIT', 20),
   queueLimit: 0,
 
   // 连接保活防断联配置
@@ -36,7 +41,7 @@ const POOL_CONFIG = {
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000, // 10秒后开始 TCP 保活探测
 
-  maxIdle: parseInt(process.env.DB_MAX_IDLE) || 10, // 不囤积空闲连接
+  maxIdle: parsePositiveIntEnv('DB_MAX_IDLE', 10), // 不囤积空闲连接
   idleTimeout: 30000, // 30秒无使用即释放
 
   namedPlaceholders: true,
@@ -74,7 +79,7 @@ const SEQUELIZE_CONFIG = {
 
   // 连接池配置
   pool: {
-    max: parseInt(process.env.SEQUELIZE_POOL_MAX) || 50, // 与 mysql2 合计 100，不超 MySQL 151 上限
+    max: parsePositiveIntEnv('SEQUELIZE_POOL_MAX', 10),
     min: 0,
     acquire: 30000,
     idle: 30000,    // 30秒空闲即释放
@@ -84,7 +89,7 @@ const SEQUELIZE_CONFIG = {
 
   // 原生网络重连配置
   retry: {
-    max: parseInt(process.env.SEQUELIZE_RETRY_MAX) || 3,
+    max: parsePositiveIntEnv('SEQUELIZE_RETRY_MAX', 3),
     match: [
       /ETIMEDOUT/,
       /EHOSTUNREACH/,
@@ -117,7 +122,7 @@ const SEQUELIZE_CONFIG = {
   },
 
   benchmark: false,
-  isolationLevel: 'READ_COMMITTED',
+  isolationLevel: 'READ COMMITTED',
   timezone: '+08:00',
 };
 
@@ -131,13 +136,13 @@ const POOL_SAFETY_CONFIG = {
    * 超过此时间后连接将被强制回收并记录告警日志
    * 注意：对于确实需要长时间运行的大事务，应在业务层显式延长
    */
-  maxConnectionHoldTime: parseInt(process.env.DB_MAX_HOLD_TIME) || 30000,
+  maxConnectionHoldTime: parsePositiveIntEnv('DB_MAX_HOLD_TIME', 30000),
 
   /**
    * 获取连接超时时间（毫秒）
    * 当连接池耗尽时，等待此时间后快速返回错误而非无限阻塞
    */
-  acquireTimeout: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 10000,
+  acquireTimeout: parsePositiveIntEnv('DB_ACQUIRE_TIMEOUT', 10000),
 };
 
 module.exports = {
@@ -152,7 +157,9 @@ module.exports = {
 
   // 便捷方法：获取连接字符串（用于脚本）
   getConnectionString: () => {
-    return `mysql://${DATABASE_CONFIG.user}:${DATABASE_CONFIG.password}@${DATABASE_CONFIG.host}:${DATABASE_CONFIG.port}/${DATABASE_CONFIG.database}`;
+    const user = encodeURIComponent(DATABASE_CONFIG.user);
+    const password = encodeURIComponent(DATABASE_CONFIG.password);
+    return `mysql://${user}:${password}@${DATABASE_CONFIG.host}:${DATABASE_CONFIG.port}/${DATABASE_CONFIG.database}`;
   },
 
   // 便捷方法：创建单个连接配置（用于脚本）

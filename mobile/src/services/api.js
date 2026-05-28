@@ -7,19 +7,7 @@
 
 import axios from 'axios'
 import { showToast } from 'vant'
-import { API_CONFIG } from '@/config/app'
-const normalizeApiBaseUrl = () => {
-  if (import.meta.env.DEV) {
-    return '/api'
-  }
-
-  const configuredBase = (API_CONFIG.baseURL || '').trim().replace(/\/+$/, '')
-  if (!configuredBase) {
-    return '/api'
-  }
-
-  return configuredBase.endsWith('/api') ? configuredBase : `${configuredBase}/api`
-}
+import { API_CONFIG, normalizeApiRequestUrl } from '@/config/app'
 
 // ==================== 创建 Axios 实例 ====================
 
@@ -28,8 +16,8 @@ const normalizeApiBaseUrl = () => {
  * 生产环境：使用完整 URL
  */
 const api = axios.create({
-  baseURL: normalizeApiBaseUrl(),
-  timeout: API_CONFIG.timeout || 30000,
+  baseURL: API_CONFIG.defaultBaseURL,
+  timeout: API_CONFIG.timeout,
   headers: {
     'Content-Type': 'application/json'
   },
@@ -47,12 +35,39 @@ const clearLegacyTokenStorage = () => {
   localStorage.removeItem('refreshToken')
 }
 
+const clearClientAuthState = () => {
+  sessionStorage.removeItem('token')
+  sessionStorage.removeItem('user')
+  sessionStorage.removeItem('isLoggedIn')
+  localStorage.removeItem('user')
+  localStorage.removeItem('isLoggedIn')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user_permissions')
+  if (typeof window !== 'undefined') {
+    delete window.__mobileThemeLoaded
+    delete window.__mobileThemeLoadedFor
+  }
+}
+
+const getLoginUrlWithRedirect = () => {
+  if (typeof window === 'undefined') return '/login'
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (!currentPath || window.location.pathname.includes('/login')) return '/login'
+  return `/login?redirect=${encodeURIComponent(currentPath)}`
+}
+
+const redirectToLogin = () => {
+  if (typeof window === 'undefined') return
+  if (window.location.pathname.includes('/login')) return
+  window.location.replace(getLoginUrlWithRedirect())
+}
+
 const fetchCsrfToken = async () => {
   if (csrfToken) return csrfToken
   if (!csrfTokenPromise) {
     csrfTokenPromise = axios.get('/csrf-token', {
       baseURL: api.defaults.baseURL,
-      timeout: API_CONFIG.timeout || 30000,
+      timeout: API_CONFIG.timeout,
       withCredentials: true
     }).then((response) => {
       const token = response.data?.csrfToken || response.data?.token || ''
@@ -68,6 +83,7 @@ const fetchCsrfToken = async () => {
 api.interceptors.request.use(
   async (config) => {
     clearLegacyTokenStorage()
+    config.url = normalizeApiRequestUrl(config.url)
     const method = (config.method || 'get').toLowerCase()
     const url = config.url || ''
     const isAuthBootstrapRequest =
@@ -115,8 +131,12 @@ api.interceptors.response.use(
     if (responseData && typeof responseData === 'object' && 'success' in responseData) {
       if (responseData.success === true) {
         // 成功响应：解包 data 字段
-        response.data = responseData.data
-        response._message = responseData.message
+        return {
+          ...response,
+          data: responseData.data,
+          _message: responseData.message,
+          _raw: responseData
+        }
       } else {
         // 业务失败：抛出错误
         const error = new Error(responseData.message || '操作失败')
@@ -129,7 +149,7 @@ api.interceptors.response.use(
     return response
   },
   async (error) => {
-    const originalRequest = error.config
+    const originalRequest = error.config || {}
     let errorMessage = '服务器错误，请稍后再试'
 
     if (error.response) {
@@ -139,8 +159,8 @@ api.interceptors.response.use(
       if (
         status === 401 &&
         !originalRequest._retry &&
-        !originalRequest.url.includes('/auth/login') &&
-        !originalRequest.url.includes('/auth/refresh')
+        !originalRequest.url?.includes('/auth/login') &&
+        !originalRequest.url?.includes('/auth/refresh')
       ) {
         if (isRefreshing) {
           // 正在刷新Token，将请求加入队列
@@ -166,24 +186,21 @@ api.interceptors.response.use(
           return api(originalRequest)
         } catch (refreshError) {
           processQueue(refreshError, null)
-          // 刷新失败，清除token并跳转登录
-          sessionStorage.removeItem('token')
-          sessionStorage.removeItem('user')
-          sessionStorage.removeItem('isLoggedIn')
-          localStorage.removeItem('refreshToken')
+          // 刷新失败，清除所有认证信息并跳转登录
+          clearClientAuthState()
 
           errorMessage = '登录已过期，请重新登录'
 
           showToast({
             type: 'fail',
             message: errorMessage,
-            duration: 2000
+            duration: API_CONFIG.toastDurationMs
           })
 
           // 延迟跳转，确保toast显示
           setTimeout(() => {
-            window.location.href = '/login'
-          }, 500)
+            redirectToLogin()
+          }, API_CONFIG.redirectDelayMs)
 
           return Promise.reject(refreshError)
         } finally {
@@ -192,28 +209,40 @@ api.interceptors.response.use(
       } else if (status === 401) {
         // 如果是登录或刷新接口返回401，直接跳转登录页
         if (
-          originalRequest.url.includes('/auth/login') ||
-          originalRequest.url.includes('/auth/refresh')
+          originalRequest.url?.includes('/auth/login') ||
+          originalRequest.url?.includes('/auth/refresh')
         ) {
-          sessionStorage.removeItem('token')
-          sessionStorage.removeItem('user')
+          clearClientAuthState()
 
           if (!window.location.pathname.includes('/login')) {
             errorMessage = '登录已过期，请重新登录'
             showToast({
               type: 'fail',
               message: errorMessage,
-              duration: 2000
+              duration: API_CONFIG.toastDurationMs
             })
 
             setTimeout(() => {
-              window.location.href = '/login'
-            }, 500)
+              redirectToLogin()
+            }, API_CONFIG.redirectDelayMs)
           }
         }
       } else if (status === 403) {
-        if (error.response.data?.code === 'INVALID_CSRF_TOKEN') {
+        const csrfErrorCode = error.response.data?.errorCode || error.response.data?.code
+        if (csrfErrorCode === 'INVALID_CSRF_TOKEN' && !originalRequest._csrfRetry) {
+          // CSRF token 失效，清除缓存后重新获取并重试一次
           csrfToken = ''
+          originalRequest._csrfRetry = true
+          try {
+            const newCsrf = await fetchCsrfToken()
+            if (newCsrf) {
+              originalRequest.headers = originalRequest.headers || {}
+              originalRequest.headers['X-CSRF-Token'] = newCsrf
+              return api(originalRequest)
+            }
+          } catch {
+            // 重新获取 CSRF token 失败，走下面的错误提示
+          }
         }
         errorMessage = '没有权限执行此操作'
       } else if (status === 404) {
@@ -232,9 +261,9 @@ api.interceptors.response.use(
           originalRequest._retryCount = 0
         }
 
-        if (originalRequest._retryCount < 3) {
+        if (originalRequest._retryCount < API_CONFIG.retryCount) {
           originalRequest._retryCount++
-          const delay = originalRequest._retryCount * 1000
+          const delay = originalRequest._retryCount * API_CONFIG.retryBaseDelayMs
           console.warn(`网络请求失败: 正在进行第 ${originalRequest._retryCount} 次重试...`)
 
           return new Promise((resolve) => {
@@ -252,7 +281,7 @@ api.interceptors.response.use(
     showToast({
       type: 'fail',
       message: errorMessage,
-      duration: 2000
+      duration: API_CONFIG.toastDurationMs
     })
 
     return Promise.reject(error)
@@ -453,23 +482,23 @@ export const inventoryApi = {
   },
 
   // 获取库位列表
-  getLocations() {
-    return api.get('/inventory/locations')
+  getLocations(params) {
+    return api.get('/inventory/locations', { params })
   },
 
   // 获取物料列表
   getAllMaterials() {
-    return api.get('/baseData/materials')
+    return api.get('/base-data/materials')
   },
 
   // 获取物料列表（支持参数）
   getMaterials(params) {
-    return api.get('/baseData/materials', { params })
+    return api.get('/base-data/materials', { params })
   },
 
   // 仓库管理
   getWarehouses(params) {
-    return api.get('/baseData/warehouses', { params })
+    return api.get('/base-data/warehouses', { params })
   }
 }
 
@@ -527,6 +556,10 @@ export const productionApi = {
     return api.get('/production/tasks', { params })
   },
 
+  getTasks(params) {
+    return this.getProductionTasks(params)
+  },
+
   getProductionTask(id) {
     return api.get(`/production/tasks/${id}`)
   },
@@ -543,13 +576,26 @@ export const productionApi = {
     return api.put(`/production/tasks/${id}/status`, { status })
   },
 
+  startProductionTask(id) {
+    return this.updateProductionTaskStatus(id, 'in_progress')
+  },
+
   updateProductionTaskProgress(id, progress) {
     return api.post(`/production/tasks/${id}/progress`, progress)
   },
 
   reportProductionProgress(data) {
-    const { task_id: taskId, ...progress } = data || {}
-    return api.post(`/production/tasks/${taskId}/progress`, progress)
+    const {
+      task_id: taskId,
+      completed_quantity: completedQuantity,
+      quantity,
+      remarks,
+      remark
+    } = data || {}
+    return api.post(`/production/tasks/${taskId}/complete`, {
+      quantity: Number(completedQuantity ?? quantity),
+      remark: remarks ?? remark ?? ''
+    })
   },
 
   generateTaskCode() {
@@ -661,7 +707,7 @@ export const salesApi = {
   },
 
   updateSalesOrderStatus(id, status) {
-    return api.put(`/sales/orders/${id}/status`, { status })
+    return api.put(`/sales/orders/${id}/status`, { newStatus: status })
   },
 
   getSalesStatistics() {
@@ -729,6 +775,10 @@ export const salesApi = {
 
   updateSalesExchange(id, data) {
     return api.put(`/sales/exchanges/${id}`, data)
+  },
+
+  updateSalesExchangeStatus(id, status) {
+    return api.put(`/sales/exchanges/${id}/status`, { status })
   },
 
   deleteSalesExchange(id) {
@@ -847,6 +897,10 @@ export const purchaseApi = {
     return api.put(`/purchase/outsourced-processings/${id}`, data)
   },
 
+  updateProcessingStatus(id, status) {
+    return api.put(`/purchase/outsourced-processings/${id}/status`, { status })
+  },
+
   deleteProcessing(id) {
     return api.delete(`/purchase/outsourced-processings/${id}`)
   },
@@ -868,6 +922,10 @@ export const purchaseApi = {
     return api.put(`/purchase/outsourced-receipts/${id}`, data)
   },
 
+  updateProcessingReceiptStatus(id, status) {
+    return api.put(`/purchase/outsourced-receipts/${id}/status`, { status })
+  },
+
   // 供应商管理
   getSuppliers(params) {
     return api.get('/purchase/suppliers', { params })
@@ -883,30 +941,30 @@ export const purchaseApi = {
 export const baseDataApi = {
   // 分类与单位
   getCategories(params) {
-    return api.get('/baseData/categories', { params })
+    return api.get('/base-data/categories', { params })
   },
   getUnits(params) {
-    return api.get('/baseData/units', { params })
+    return api.get('/base-data/units', { params })
   },
 
   // 产品大类选项（树形结构）
   getProductCategoryOptions() {
-    return api.get('/baseData/product-categories/options')
+    return api.get('/base-data/product-categories/options')
   },
 
   // 物料来源
   getMaterialSources() {
-    return api.get('/baseData/material-sources')
+    return api.get('/base-data/material-sources')
   },
 
   // 检验方式
   getInspectionMethods() {
-    return api.get('/baseData/inspection-methods')
+    return api.get('/base-data/inspection-methods')
   },
 
   // 供应商搜索
   getSuppliersList(params) {
-    return api.get('/baseData/suppliers', { params })
+    return api.get('/base-data/suppliers', { params })
   },
 
   // 用户列表（物料负责人）
@@ -916,156 +974,156 @@ export const baseDataApi = {
 
   // 物料管理
   getMaterials(params) {
-    return api.get('/baseData/materials', { params })
+    return api.get('/base-data/materials', { params })
   },
 
   getMaterial(id) {
-    return api.get(`/baseData/materials/${id}`)
+    return api.get(`/base-data/materials/${id}`)
   },
 
   createMaterial(data) {
-    return api.post('/baseData/materials', data)
+    return api.post('/base-data/materials', data)
   },
 
   updateMaterial(id, data) {
-    return api.put(`/baseData/materials/${id}`, data)
+    return api.put(`/base-data/materials/${id}`, data)
   },
 
   deleteMaterial(id) {
-    return api.delete(`/baseData/materials/${id}`)
+    return api.delete(`/base-data/materials/${id}`)
   },
 
   getMaterialOptions() {
-    return api.get('/baseData/materials/options')
+    return api.get('/base-data/materials/options')
   },
 
   getNextMaterialCode(params) {
-    return api.get('/baseData/materials/next-code', { params })
+    return api.get('/base-data/materials/next-code', { params })
   },
 
   getMaterialsByIds(ids) {
-    return api.post('/baseData/materials/batch', { ids })
+    return api.post('/base-data/materials/batch', { ids })
   },
 
   // BOM管理
   getBoms(params) {
-    return api.get('/baseData/boms', { params })
+    return api.get('/base-data/boms', { params })
   },
 
   getBom(id) {
-    return api.get(`/baseData/boms/${id}`)
+    return api.get(`/base-data/boms/${id}`)
   },
 
   createBom(data) {
-    return api.post('/baseData/boms', data)
+    return api.post('/base-data/boms', data)
   },
 
   updateBom(id, data) {
-    return api.put(`/baseData/boms/${id}`, data)
+    return api.put(`/base-data/boms/${id}`, data)
   },
 
   deleteBom(id) {
-    return api.delete(`/baseData/boms/${id}`)
+    return api.delete(`/base-data/boms/${id}`)
   },
 
   approveBom(id) {
-    return api.put(`/baseData/boms/${id}/approve`)
+    return api.put(`/base-data/boms/${id}/approve`)
   },
 
   unapproveBom(id) {
-    return api.put(`/baseData/boms/${id}/unapprove`)
+    return api.put(`/base-data/boms/${id}/unapprove`)
   },
 
   // 客户管理
   getCustomers(params) {
-    return api.get('/baseData/customers', { params })
+    return api.get('/base-data/customers', { params })
   },
 
   getCustomer(id) {
-    return api.get(`/baseData/customers/${id}`)
+    return api.get(`/base-data/customers/${id}`)
   },
 
   createCustomer(data) {
-    return api.post('/baseData/customers', data)
+    return api.post('/base-data/customers', data)
   },
 
   updateCustomer(id, data) {
-    return api.put(`/baseData/customers/${id}`, data)
+    return api.put(`/base-data/customers/${id}`, data)
   },
 
   deleteCustomer(id) {
-    return api.delete(`/baseData/customers/${id}`)
+    return api.delete(`/base-data/customers/${id}`)
   },
 
   // 供应商管理
   getSuppliers(params) {
-    return api.get('/baseData/suppliers', { params })
+    return api.get('/base-data/suppliers', { params })
   },
 
   getSupplier(id) {
-    return api.get(`/baseData/suppliers/${id}`)
+    return api.get(`/base-data/suppliers/${id}`)
   },
 
   createSupplier(data) {
-    return api.post('/baseData/suppliers', data)
+    return api.post('/base-data/suppliers', data)
   },
 
   updateSupplier(id, data) {
-    return api.put(`/baseData/suppliers/${id}`, data)
+    return api.put(`/base-data/suppliers/${id}`, data)
   },
 
   deleteSupplier(id) {
-    return api.delete(`/baseData/suppliers/${id}`)
+    return api.delete(`/base-data/suppliers/${id}`)
   },
 
   // 库位管理
   getLocations(params) {
-    return api.get('/baseData/locations', { params })
+    return api.get('/base-data/locations', { params })
   },
 
   getLocation(id) {
-    return api.get(`/baseData/locations/${id}`)
+    return api.get(`/base-data/locations/${id}`)
   },
 
   createLocation(data) {
-    return api.post('/baseData/locations', data)
+    return api.post('/base-data/locations', data)
   },
 
   updateLocation(id, data) {
-    return api.put(`/baseData/locations/${id}`, data)
+    return api.put(`/base-data/locations/${id}`, data)
   },
 
   deleteLocation(id) {
-    return api.delete(`/baseData/locations/${id}`)
+    return api.delete(`/base-data/locations/${id}`)
   },
 
   // 工序模板管理
   getProcessTemplates(params) {
-    return api.get('/baseData/process-templates', { params })
+    return api.get('/base-data/process-templates', { params })
   },
 
   getProcessTemplate(id) {
-    return api.get(`/baseData/process-templates/${id}`)
+    return api.get(`/base-data/process-templates/${id}`)
   },
 
   createProcessTemplate(data) {
-    return api.post('/baseData/process-templates', data)
+    return api.post('/base-data/process-templates', data)
   },
 
   updateProcessTemplate(id, data) {
-    return api.put(`/baseData/process-templates/${id}`, data)
+    return api.put(`/base-data/process-templates/${id}`, data)
   },
 
   deleteProcessTemplate(id) {
-    return api.delete(`/baseData/process-templates/${id}`)
+    return api.delete(`/base-data/process-templates/${id}`)
   },
 
   updateProcessTemplateStatus(id, status) {
-    return api.put(`/baseData/process-templates/${id}/status`, { status })
+    return api.put(`/base-data/process-templates/${id}/status`, { status })
   },
 
   getProcessTemplateByProductId(productId) {
-    return api.get(`/baseData/products/${productId}/process-template`)
+    return api.get(`/base-data/products/${productId}/process-template`)
   }
 }
 
@@ -1114,8 +1172,20 @@ export const financeApi = {
     return api.patch(`/finance/entries/${id}/post`)
   },
 
+  reverseEntry(id, data) {
+    return api.post(`/finance/entries/${id}/reverse`, data)
+  },
+
   rejectEntry(id, reason) {
-    return api.post(`/finance/entries/${id}/reverse`, { reason })
+    const today = new Date().toISOString().slice(0, 10)
+    const payload = typeof reason === 'object' && reason !== null
+      ? reason
+      : {
+          entry_date: today,
+          posting_date: today,
+          description: reason || '移动端冲销凭证'
+        }
+    return api.post(`/finance/entries/${id}/reverse`, payload)
   },
 
   // 会计期间 — 后端路由: /api/finance/periods
@@ -1154,6 +1224,10 @@ export const financeApi = {
 
   getARReceipts(params) {
     return api.get('/finance/ar/receipts', { params })
+  },
+
+  getARUnpaidInvoices(params) {
+    return api.get('/finance/ar/receipts/unpaid-invoices', { params })
   },
 
   getARReceiptById(id) {
@@ -1258,8 +1332,20 @@ export const financeApi = {
     return api.get('/finance/bank-transactions', { params })
   },
 
+  getBankTransaction(id) {
+    return api.get(`/finance/bank-transactions/${id}`)
+  },
+
+  createBankTransaction(data) {
+    return api.post('/finance/bank-transactions', data)
+  },
+
   createCashTransaction(data) {
     return api.post('/finance/cash-transactions', data)
+  },
+
+  getCashTransaction(id) {
+    return api.get(`/finance/cash-transactions/${id}`)
   },
 
   getReconciliation(params) {
@@ -1345,10 +1431,6 @@ export const qualityApi = {
     return api.put(`/quality/inspections/${id}`, data)
   },
 
-  deleteIncomingInspection(id) {
-    return api.delete(`/quality/inspections/${id}`)
-  },
-
   startInspection(id) {
     return api.put(`/quality/inspections/${id}`, { status: 'in_progress' })
   },
@@ -1400,29 +1482,9 @@ export const qualityApi = {
     return api.get(`/quality/templates/${id}`)
   },
 
-  createInspectionTemplate(data) {
-    return api.post('/quality/templates', data)
-  },
-
-  updateInspectionTemplate(id, data) {
-    return api.put(`/quality/templates/${id}`, data)
-  },
-
-  deleteInspectionTemplate(id) {
-    return api.delete(`/quality/templates/${id}`)
-  },
-
   // 质量追溯
   getTraceabilityRecords(params) {
     return api.get('/batch-traceability/latest-batches', { params })
-  },
-
-  getTraceabilityRecord(id) {
-    return api.get(`/batch-traceability/batch/details`, { params: { id } })
-  },
-
-  traceProduct(productCode) {
-    return api.get(`/batch-traceability/unified`, { params: { materialCode: productCode } })
   },
 
   traceBatch(materialCode, batchNumber) {
@@ -1431,64 +1493,52 @@ export const qualityApi = {
 
   // 不合格品处理
   getNonconformanceRecords(params) {
-    return api.get('/nonconforming-products', { params })
+    return api.get('/quality/nonconforming-products', { params })
   },
 
   getNonconformanceRecord(id) {
-    return api.get(`/nonconforming-products/${id}`)
+    return api.get(`/quality/nonconforming-products/${id}`)
   },
 
   createNonconformanceRecord(data) {
-    return api.post('/nonconforming-products', data)
+    return api.post('/quality/nonconforming-products', data)
   },
 
   updateNonconformanceRecord(id, data) {
-    return api.put(`/nonconforming-products/${id}`, data)
+    return api.put(`/quality/nonconforming-products/${id}`, data)
   },
 
   processNonconformance(id, action, data) {
     if (action === 'start') {
-      return api.put(`/nonconforming-products/${id}`, { ...data, status: 'processing' })
+      return api.put(`/quality/nonconforming-products/${id}`, { ...data, status: 'processing' })
     }
 
     if (action === 'complete') {
-      return api.put(`/nonconforming-products/${id}/complete`, data)
+      return api.put(`/quality/nonconforming-products/${id}/complete`, data)
     }
 
-    return api.put(`/nonconforming-products/${id}/disposition`, data)
+    return api.put(`/quality/nonconforming-products/${id}/disposition`, data)
   },
 
   // 质量报表
-  getQualityReports(params) {
-    return api.get('/quality/statistics', { params })
-  },
-
-  getQualityTrends(params) {
-    return api.get('/quality/trends', { params })
-  },
-
-  getSPCData(params) {
-    return api.get('/quality/defect-items', { params })
-  },
-
   // ==================== 质量统计报表 ====================
   getStatisticsOverview(params) {
-    return api.get('/quality-statistics/overview', { params })
+    return api.get('/quality/statistics/overview', { params })
   },
   getDispositionStatistics(params) {
-    return api.get('/quality-statistics/disposition', { params })
+    return api.get('/quality/statistics/disposition', { params })
   },
   getTrendAnalysis(params) {
-    return api.get('/quality-statistics/trend', { params })
+    return api.get('/quality/statistics/trend', { params })
   },
   getSupplierQualityAnalysis(params) {
-    return api.get('/quality-statistics/supplier', { params })
+    return api.get('/quality/statistics/supplier', { params })
   },
   getMaterialDefectAnalysis(params) {
-    return api.get('/quality-statistics/material', { params })
+    return api.get('/quality/statistics/material', { params })
   },
   getCostAnalysis(params) {
-    return api.get('/quality-statistics/cost', { params })
+    return api.get('/quality/statistics/cost', { params })
   },
 
   // ==================== SPC ====================
@@ -1515,6 +1565,18 @@ export const qualityApi = {
 export const equipmentApi = {
   getList(params) {
     return api.get('/equipment/list', { params })
+  },
+  getTypes(params) {
+    return api.get('/equipment/types', { params })
+  },
+  createType(data) {
+    return api.post('/equipment/types', data)
+  },
+  createEquipment(data) {
+    return api.post('/equipment', data)
+  },
+  updateEquipment(id, data) {
+    return api.put(`/equipment/${id}`, data)
   },
   getStats() {
     return api.get('/equipment/stats')
@@ -1547,8 +1609,32 @@ export const hrApi = {
   getEmployees(params) {
     return api.get('/hr/employees', { params })
   },
+  createEmployee(data) {
+    return api.post('/hr/employees', data)
+  },
+  updateEmployee(id, data) {
+    return api.put(`/hr/employees/${id}`, data)
+  },
+  getLeaveRequests(params) {
+    return api.get('/hr/leave', { params })
+  },
+  createLeaveRequest(data) {
+    return api.post('/hr/leave', data)
+  },
+  getOvertimeRequests(params) {
+    return api.get('/hr/overtime', { params })
+  },
+  createOvertimeRequest(data) {
+    return api.post('/hr/overtime', data)
+  },
   getAttendance(params) {
     return api.get('/hr/attendance', { params })
+  },
+  saveAttendanceRecords(data) {
+    return api.post('/hr/attendance/batch', data)
+  },
+  syncAttendance(period) {
+    return api.post('/hr/attendance/sync/dingtalk', { period })
   },
   getAttendanceRules() {
     return api.get('/hr/attendance/rules')
@@ -1592,6 +1678,15 @@ export const authApi = {
 export const systemApi = {
   getDepartments(params) {
     return api.get('/system/departments', { params })
+  },
+  getDepartment(id) {
+    return api.get(`/system/departments/${id}`)
+  },
+  createDepartment(data) {
+    return api.post('/system/departments', data)
+  },
+  updateDepartment(id, data) {
+    return api.put(`/system/departments/${id}`, data)
   },
   getRoles(params) {
     return api.get('/system/roles', { params })
@@ -1673,28 +1768,26 @@ export const systemApi = {
 
   // ==================== 通知管理 ====================
   getNotifications(params) {
-    return api.get('/notifications', { params })
+    return api.get('/system/notifications', { params })
   },
   getUnreadCount() {
-    return api.get('/notifications/unread-count')
+    return api.get('/system/notifications/unread-count')
   },
   getNotificationDetail(id) {
-    return api.get('/notifications', { params: { page: 1, pageSize: 100 } }).then((response) => {
-      const list = response.data?.list || response.data?.items || response.data || []
-      return {
-        ...response,
-        data: Array.isArray(list) ? list.find((item) => String(item.id) === String(id)) || null : null
-      }
-    })
+    return api.get(`/system/notifications/${id}`)
   },
   markNotificationRead(id) {
-    return api.put(`/notifications/${id}/read`)
+    return api.put(`/system/notifications/${id}/read`)
   },
-  markAllNotificationsRead() {
-    return api.put('/notifications/mark-all-read')
+  markAllNotificationsRead(ids) {
+    // 支持传入 ids 数组进行批量标记，不传则标记全部
+    return api.put('/system/notifications/mark-all-read', ids ? { ids } : {})
   },
   deleteNotification(id) {
-    return api.delete(`/notifications/${id}`)
+    return api.delete(`/system/notifications/${id}`)
+  },
+  batchDeleteNotifications(ids) {
+    return api.post('/system/notifications/batch-delete', { ids })
   }
 }
 

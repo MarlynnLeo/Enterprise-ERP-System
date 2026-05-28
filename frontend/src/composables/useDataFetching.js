@@ -5,6 +5,7 @@
  */
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 /**
  * 防抖函数
  */
@@ -61,6 +62,7 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
   const error = ref(null)
   const params = ref({ ...defaultParams })
   const lastUpdated = ref(null)
+  let activeRequestId = 0
   // 分页状态
   const pagination = enablePagination ? reactive({
     current: 1,
@@ -107,6 +109,7 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
    * 核心数据获取函数
    */
   const fetchData = async (customParams = {}, showLoading = true) => {
+    const requestId = ++activeRequestId
     if (showLoading) {
       loading.value = true
     }
@@ -126,23 +129,27 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
       const cacheKey = getCacheKey(finalParams)
       const cachedData = getFromCache(cacheKey)
       if (cachedData) {
-        updateData(cachedData)
+        if (requestId === activeRequestId) {
+          updateData(cachedData)
+        }
         return cachedData
       }
       // API调用（带重试）
       const apiCall = () => apiFunction(finalParams)
       const response = await retryApiCall(apiCall, retryCount, retryDelay)
       // 处理响应数据
-      let result = response.data
+      let result = response
       if (transform && typeof transform === 'function') {
         result = transform(result)
       }
       // 更新数据和状态
-      updateData(result)
-      lastUpdated.value = new Date()
+      if (requestId === activeRequestId) {
+        updateData(result)
+        lastUpdated.value = new Date()
+      }
       // 设置缓存
       setCache(cacheKey, result)
-      if (successMessage) {
+      if (successMessage && requestId === activeRequestId) {
         ElMessage.success(successMessage)
       }
       return result
@@ -152,7 +159,7 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
       ElMessage.error(err.message || errorMessage)
       throw err
     } finally {
-      if (showLoading) {
+      if (showLoading && requestId === activeRequestId) {
         loading.value = false
       }
     }
@@ -162,28 +169,40 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
    */
   const updateData = (result) => {
     if (enablePagination && pagination) {
-      // 处理分页响应
-      if (result && typeof result === 'object') {
-        if (result.items) {
-          data.value = result.items
-          pagination.total = result.total || 0
-        } else if (result.data && result.pagination) {
-          data.value = result.data
-          pagination.total = result.pagination.total || 0
-        } else if (Array.isArray(result)) {
-          data.value = result
-          pagination.total = result.length
-        } else {
-          data.value = []
-          pagination.total = 0
-        }
-      } else {
-        data.value = []
-        pagination.total = 0
+      if (Array.isArray(result)) {
+        data.value = result
+        pagination.total = result.length
+        return
+      }
+
+      const responseLike = result?.data !== undefined ? result : { data: result }
+      const parsed = parsePaginatedData(responseLike, { enableLog: false })
+      const pageMeta = responseLike.data?.pagination || {}
+      const hasExplicitPageSize = Boolean(
+        responseLike.data?.pageSize ||
+        responseLike.data?.limit ||
+        responseLike.data?.size ||
+        pageMeta.pageSize ||
+        pageMeta.limit
+      )
+      data.value = parsed.list
+      pagination.total = parsed.total
+      if (hasExplicitPageSize) {
+        pagination.pageSize = parsed.pageSize || pagination.pageSize
       }
     } else {
-      // 非分页模式直接设置数据
-      data.value = result
+      if (Array.isArray(result)) {
+        data.value = result
+        return
+      }
+
+      const list = parseListData(result, { enableLog: false })
+      if (list.length > 0) {
+        data.value = list
+        return
+      }
+
+      data.value = parseResponseData(result, result)
     }
   }
   /**

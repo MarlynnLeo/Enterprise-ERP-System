@@ -32,7 +32,7 @@
           <el-tag :type="row.is_mandatory ? 'success' : 'info'" size="small">{{ row.is_mandatory ? '是' : '否' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button size="small" @click="handleEdit(row)"
             v-permission="'quality:settings:update'">编辑</el-button>
@@ -189,7 +189,7 @@ const debouncedSearchProducts = (query) => {
 
 const fetchTemplates = async () => {
   try {
-    const res = await qualityApi.getTemplates({ status: 'active', pageSize: 100 })
+    const res = await qualityApi.getTemplates({ status: 'active', pageSize: 50 })
     templateOptions.value = (res.data || res)?.list || res.data || res || []
   } catch (error) {
     console.error('获取模板列表失败:', error)
@@ -237,4 +237,3 @@ const handleSaveRule = async () => {
 
 watch(() => props.visible, (val) => { if (val) { fetchRules(); fetchProducts(); fetchTemplates() } })
 </script>
-

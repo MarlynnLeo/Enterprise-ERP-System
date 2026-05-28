@@ -8,9 +8,9 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
 const OPEN_METEO_CONFIG = {
-  baseUrl: 'https://api.open-meteo.com/v1/forecast',
-  timeout: 5000,
-  timezone: 'Asia/Shanghai',
+  baseUrl: process.env.OPEN_METEO_BASE_URL || 'https://api.open-meteo.com/v1/forecast',
+  timeout: Number.parseInt(process.env.OPEN_METEO_TIMEOUT_MS || '5000', 10),
+  timezone: process.env.OPEN_METEO_TIMEZONE || 'Asia/Shanghai',
 };
 
 const DEFAULT_CITY = '乐清';

@@ -191,7 +191,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right">
+            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="primary"
@@ -222,7 +222,7 @@
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, computed, onMounted, watch, toRaw, nextTick } from 'vue'
-import Chart from 'chart.js/auto';
+import Chart from '@/utils/chartCore';
 // 安全的Chart.js创建函数
 function createSafeChart(ctx, config) {
   try {

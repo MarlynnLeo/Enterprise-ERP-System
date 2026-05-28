@@ -1,502 +1,11 @@
-/**
- * 通用样式类 - 提取自各个组件的重复样式
- * @description 页面级别的通用样式，所有页面可复用
- * @date 2025-10-23
- * @version 1.0.0
- */
-
-/* ==================== 页面布局 ==================== */
-
-/* 页面容器 - 统一的页面容器样式 */
-.page-container,
-.dashboard-container,
-.login-container,
-/* 基础数据 */
-.orders-container,
-.outbound-container,
-.quotation-container,
-.packing-lists-container,
-.product-categories-container,
-/* 采购管理 */
-.purchase-requisitions-container,
-.purchase-receipts-container,
-.purchase-orders-container,
-.purchase-returns-container,
-.outsourced-processing-container,
-.outsourced-receipts-container,
-/* 生产管理 */
-.production-plan-container,
-.production-process-container,
-.production-task-container,
-.production-report-container,
-.material-shortage-container,
-/* 库存管理 */
-.inventory-stock-container,
-.inventory-inbound-container,
-.inventory-outbound-container,
-.inventory-transfer-container,
-.inventory-check-container,
-.inventory-report-container,
-.inventory-transaction-container,
-.manual-transaction-container,
-/* 质量管理 */
-.inspection-container,
-.nonconforming-container,
-.template-container,
-.ncp-config-container,
-.quality-statistics-container,
-.replacement-orders-container,
-.rework-tasks-container,
-.scrap-records-container,
-.traceability-monitor-container,
-/* 设备管理 */
-.equipment-list-container,
-.equipment-inspection-container,
-.equipment-maintenance-container,
-.equipment-status-container,
-/* 财务-应付 */
-.aging-container,
-.invoices-container,
-.payments-container,
-/* 财务-应收 */
-.receipts-container,
-/* 财务-资产 */
-.category-container,
-.assets-container,
-.depreciation-container,
-/* 财务-现金 */
-.bank-accounts-container,
-.transactions-container,
-.reconciliation-container,
-/* 财务-总账 */
-.accounts-container,
-.entries-container,
-.entry-form-container,
-.periods-container,
-/* 财务-报表 */
-.report-container,
-/* 人力资源 */
-.attendance-container,
-.employees-container,
-.performance-container,
-.salary-container,
-/* 系统管理 */
-.business-types-container,
-.departments-container,
-.notifications-container,
-.permissions-container,
-.print-templates-container,
-.technical-communication-container,
-.users-container {
-  padding: 20px;
-}
-
-/* 页面头部 - 标题+操作按钮 */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-lg);
-  padding-bottom: var(--spacing-sm);
-}
-
-.page-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-/* 搜索卡片 */
-.search-card {
-  margin-bottom: var(--spacing-lg);
-  position: relative;
-}
-
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-}
-
-.search-form .el-form-item {
-  margin-bottom: var(--spacing-sm);
-}
-
-/* 高级搜索按钮 - 蓝底白字 */
-.advanced-search-btn {
-  background-color: var(--color-primary) !important;
-  border-color: var(--color-primary) !important;
-  color: var(--color-on-primary, #fff) !important;
-}
-
-.advanced-search-btn:hover,
-.advanced-search-btn:focus {
-  background-color: var(--color-primary-light-3) !important;
-  border-color: var(--color-primary-light-3) !important;
-  color: var(--color-on-primary, #fff) !important;
-}
-
-/* 搜索表单组件的默认尺寸规范，防止开启 clearable 时的内部宽度变动引起旁边查询按钮的位置抖动 */
-.search-form .el-form-item__content > .el-input {
-  width: 200px;
-}
-
-/* 搜索表单中的下拉框最小宽度 */
-.search-form .el-select {
-  min-width: 120px;
-}
-
-/* 数据卡片 */
-.data-card {
-  margin-bottom: var(--spacing-lg);
-}
-
-/* 页面头部卡片 - 增强版 */
-.header-card {
-  background: linear-gradient(135deg, var(--color-bg-base) 0%, var(--color-bg-section) 100%) !important;
-  border-left: 4px solid var(--color-primary) !important;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: var(--spacing-lg);
-}
-
-.header-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 200px;
-  height: 100%;
-  background: linear-gradient(135deg, transparent 0%, rgba(64, 158, 255, 0.03) 100%);
-  pointer-events: none;
-}
-
-.header-card .header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  position: relative;
-  z-index: 1;
-}
-
-.header-card .title-section h2 {
-  margin: 0 0 4px 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.header-card .title-section h2::before {
-  content: '';
-  display: inline-block;
-  width: 4px;
-  height: 20px;
-  background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-light-3) 100%);
-  border-radius: 2px;
-}
-
-.header-card .subtitle {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  padding-left: 12px;
-}
-
-/* 统计卡片 - 增强版 */
-.stat-card {
-  text-align: center;
-  cursor: default;
-  transition: all var(--transition-base) ease;
-  padding: var(--spacing-md) var(--spacing-base);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-light-5) 100%);
-  opacity: 0;
-  transition: opacity var(--transition-base);
-}
-
-.stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--shadow-md);
-}
-
-.stat-card:hover::before {
-  opacity: 1;
-}
-
-.stat-value {
-  font-size: 1.8rem;
-  font-weight: var(--font-weight-bold);
-  margin-bottom: 6px;
-  line-height: 1.2;
-  color: var(--color-primary);
-  transition: transform var(--transition-fast);
-}
-
-.stat-card:hover .stat-value {
-  transform: scale(1.05);
-}
-
-.stat-label {
-  font-size: 0.85rem;
-  color: var(--color-text-regular);
-  line-height: 1.4;
-  font-weight: 500;
-}
-
-/* 统计卡片颜色变体 */
-.stat-card.success .stat-value,
-.stat-card:nth-child(2) .stat-value {
-  color: var(--color-success);
-}
-
-.stat-card.success::before,
-.stat-card:nth-child(2)::before {
-  background: linear-gradient(90deg, var(--color-success) 0%, var(--color-success-gradient-end) 100%);
-}
-
-.stat-card.warning .stat-value,
-.stat-card:nth-child(3) .stat-value {
-  color: var(--color-warning);
-}
-
-.stat-card.warning::before,
-.stat-card:nth-child(3)::before {
-  background: linear-gradient(90deg, var(--color-warning) 0%, var(--color-warning-gradient-end) 100%);
-}
-
-.stat-card.danger .stat-value,
-.stat-card:nth-child(4) .stat-value {
-  color: var(--color-danger);
-}
-
-.stat-card.danger::before,
-.stat-card:nth-child(4)::before {
-  background: linear-gradient(90deg, var(--color-danger) 0%, var(--color-danger-gradient-end) 100%);
-}
-
-.stat-card.info .stat-value,
-.stat-card:nth-child(5) .stat-value {
-  color: var(--color-info);
-}
-
-.stat-card.info::before,
-.stat-card:nth-child(5)::before {
-  background: linear-gradient(90deg, var(--color-info) 0%, var(--color-info-gradient-end) 100%);
-}
-
-/* ==================== 分页 ==================== */
-
-.pagination-container {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--spacing-base);
-  padding-top: var(--spacing-sm);
-}
-
-/* ==================== 操作按钮组 ==================== */
-
-.operation-btns {
-  display: flex;
-  gap: var(--spacing-sm);
-  align-items: center;
-}
-
-.operation-buttons {
-  display: flex;
-  gap: var(--spacing-sm);
-  flex-wrap: wrap;
-}
-
-.action-buttons {
-  display: flex;
-  gap: var(--spacing-sm);
-}
-
-/* ==================== 表格相关 ==================== */
-
-.table-operations {
-  display: flex;
-  gap: var(--spacing-sm);
-  align-items: center;
-}
-
-/* 删除文本按钮 */
-.delete-text-btn {
-  color: var(--color-danger);
-  padding: 0 4px;
-  cursor: pointer;
-  transition: color var(--transition-fast);
-}
-
-.delete-text-btn:hover {
-  color: var(--color-danger-hover);
-}
-
-/* ==================== 统计行 ==================== */
-
-.statistics-row {
-  display: flex;
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
-  flex-wrap: wrap;
-}
-
-.statistics-row .stat-card {
-  flex: 1 1 calc(14% - 10px);
-  min-width: 120px;
-  max-width: 250px;
-}
-
-/* ==================== 对话框相关 ==================== */
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-sm);
-}
-
-/* 明细标题 */
-.products-title,
-.details-title {
-  font-weight: var(--font-weight-semibold);
-  margin: var(--spacing-base) 0 var(--spacing-sm) 0;
-  font-size: var(--font-size-md);
-  color: var(--color-text-primary);
-}
-
-/* ==================== 表单相关 ==================== */
-
-.form-section {
-  margin-bottom: var(--spacing-lg);
-}
-
-.form-section-title {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 2px solid var(--color-border-lighter);
-}
-
-/* ==================== 状态标签 ==================== */
-
-.status-pending {
-  color: var(--color-info);
-}
-
-.status-processing,
-.status-confirmed {
-  color: var(--color-warning);
-}
-
-.status-completed {
-  color: var(--color-success);
-}
-
-.status-cancelled {
-  color: var(--color-danger);
-}
-
-/* ==================== 空状态 ==================== */
-
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--color-text-secondary);
-}
-
-.empty-tip {
-  padding: 40px 0;
-  text-align: center;
-  color: var(--color-text-secondary);
-}
-
-/* ==================== 加载状态 ==================== */
-
-.loading-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 200px;
-}
-
-/* ==================== 材料/物料相关 ==================== */
-
-.materials-table-container,
-.material-table-container {
-  margin-bottom: var(--spacing-lg);
-  overflow: visible;
-}
-
-.material-header {
-  margin-bottom: var(--spacing-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.material-search {
-  margin-bottom: var(--spacing-md);
-}
-
-/* ==================== 响应式 ==================== */
-
-@media (max-width: 768px) {
-
-  /* 页面容器响应式 */
-  .page-container,
-  .purchase-requisitions-container,
-  .purchase-receipts-container,
-  .purchase-orders-container,
-  .production-plan-container,
-  .production-process-container,
-  .production-task-container,
-  .production-report-container,
-  .material-shortage-container {
-    padding: 10px;
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-sm);
-  }
-
-  .statistics-row {
-    flex-direction: column;
-  }
-
-  .statistics-row .stat-card {
-    min-width: 100%;
-  }
-
-  .operation-btns,
-  .operation-buttons {
-    flex-wrap: wrap;
-  }
-}
-
-/* ==================== Element Plus 全局修复 ==================== */
-
 /*
- * 修复 el-input 的空 suffix 容器预留空白
- * Element Plus 即使没有 clearable/suffix 等属性，也会渲染空的 .el-input__suffix 容器
- * 该容器内部始终有 .el-input__suffix-inner 子元素，:empty 无法匹配
- * 使用 :not(.el-input--suffix) 判断：当 el-input 没有实际 suffix 内容时隐藏
+ * Shared CSS guardrail.
+ *
+ * Keep repeated module-page structure here. Page-specific visual language still
+ * belongs to each page/component.
  */
+
+/* Element Plus renders an empty suffix box even when an input has no suffix. */
 .el-input:not(.el-input--suffix) .el-input__suffix {
   display: none !important;
 }
@@ -505,3 +14,262 @@
   padding-right: 8px !important;
 }
 
+/* Shared spacing between the standard query panel and the following content. */
+.search-card {
+  margin-bottom: 20px;
+}
+
+/* Standard module page frame: header, query panel, stats, table. */
+.module-page {
+  width: 100%;
+  padding: 0 !important;
+}
+
+.module-page > :where(.header-card, .search-card, .action-card, .data-card, .empty-card) {
+  margin-bottom: 20px !important;
+}
+
+.module-page .header-content {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+.module-page .title-section h2 {
+  margin: 0 0 5px !important;
+  font-size: 20px !important;
+  color: var(--color-text-primary) !important;
+  line-height: 1.3 !important;
+}
+
+.module-page .subtitle {
+  margin: 0 !important;
+  font-size: 14px !important;
+  color: var(--color-text-secondary) !important;
+  line-height: 1.4 !important;
+}
+
+.module-page .search-form {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: flex-start !important;
+  column-gap: 24px !important;
+  row-gap: 12px !important;
+}
+
+.module-page .search-form .el-form-item {
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.module-page .search-form .el-form-item__content {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.module-page .search-form .el-button + .el-button,
+.module-page .action-form .el-button + .el-button {
+  margin-left: 0 !important;
+}
+
+/* Shared fallback for list-page statistic cards used in the standard module frame. */
+.module-page .statistics-row {
+  display: flex;
+  gap: 20px !important;
+  margin-bottom: 20px !important;
+  flex-wrap: wrap;
+}
+
+.module-page .statistics-row > .stat-card {
+  flex: 1 1 160px !important;
+  min-width: 130px;
+  text-align: center;
+}
+
+.module-page .statistics-row .stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.module-page .statistics-row .stat-label {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.module-page :where(.stats-row, .stats-cards) {
+  margin-bottom: 20px !important;
+}
+
+.pagination-container {
+  margin-top: 15px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Keep all Element Plus fixed table columns opaque while horizontal scrolling. */
+.el-table {
+  --erp-table-fixed-cell-bg: var(
+    --el-table-tr-bg-color,
+    var(--color-bg-section, var(--el-bg-color))
+  );
+  --erp-table-fixed-header-bg: var(
+    --el-table-header-bg-color,
+    var(--color-bg-light, var(--el-bg-color))
+  );
+  --erp-table-fixed-hover-bg: var(
+    --el-table-row-hover-bg-color,
+    var(--color-bg-hover, var(--erp-table-fixed-cell-bg))
+  );
+  --erp-table-fixed-current-bg: var(
+    --el-table-current-row-bg-color,
+    var(--color-primary-light-9, var(--erp-table-fixed-hover-bg))
+  );
+  --erp-table-fixed-striped-bg: var(
+    --el-fill-color-lighter,
+    var(--color-bg-hover, var(--erp-table-fixed-cell-bg))
+  );
+  --erp-table-fixed-border-color: var(--color-border-base, var(--el-border-color-lighter));
+  --el-table-fixed-left-column: inset 10px 0 10px -10px rgba(0, 0, 0, 0.28);
+  --el-table-fixed-right-column: inset -10px 0 10px -10px rgba(0, 0, 0, 0.28);
+}
+
+.el-table :is(.el-table__fixed, .el-table__fixed-right) {
+  background: var(--erp-table-fixed-cell-bg) !important;
+}
+
+.el-table .el-table__header-wrapper tr > th.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__header-wrapper tr > th.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__header-wrapper tr > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__header-wrapper tr > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__fixed-header-wrapper th.el-table__cell,
+.el-table .el-table__fixed-right .el-table__fixed-header-wrapper th.el-table__cell {
+  background: var(--erp-table-fixed-header-bg) !important;
+  background-color: var(--erp-table-fixed-header-bg) !important;
+  z-index: calc(var(--el-table-index, 1) + 4);
+}
+
+.el-table .el-table__body-wrapper tr > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body-wrapper tr > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__footer-wrapper tr > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__footer-wrapper tr > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__fixed-body-wrapper td.el-table__cell,
+.el-table .el-table__fixed-right .el-table__fixed-body-wrapper td.el-table__cell {
+  background: var(--erp-table-fixed-cell-bg) !important;
+  background-color: var(--erp-table-fixed-cell-bg) !important;
+  z-index: calc(var(--el-table-index, 1) + 3);
+}
+
+.el-table.el-table--striped .el-table__body-wrapper tr.el-table__row--striped > td.el-table__cell.el-table-fixed-column--left,
+.el-table.el-table--striped .el-table__body-wrapper tr.el-table__row--striped > td.el-table__cell.el-table-fixed-column--right,
+.el-table.el-table--striped .el-table__fixed-body-wrapper tr.el-table__row--striped > td.el-table__cell,
+.el-table.el-table--striped .el-table__fixed-right .el-table__fixed-body-wrapper tr.el-table__row--striped > td.el-table__cell {
+  background: var(--erp-table-fixed-striped-bg) !important;
+  background-color: var(--erp-table-fixed-striped-bg) !important;
+}
+
+.el-table .el-table__body-wrapper tr.current-row > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body-wrapper tr.current-row > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__fixed-body-wrapper tr.current-row > td.el-table__cell,
+.el-table .el-table__fixed-right .el-table__fixed-body-wrapper tr.current-row > td.el-table__cell {
+  background: var(--erp-table-fixed-current-bg) !important;
+  background-color: var(--erp-table-fixed-current-bg) !important;
+}
+
+.el-table .el-table__body-wrapper tr:hover > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body-wrapper tr:hover > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__body-wrapper tr.hover-row > td.el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body-wrapper tr.hover-row > td.el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__fixed-body-wrapper tr:hover > td.el-table__cell,
+.el-table .el-table__fixed-body-wrapper tr.hover-row > td.el-table__cell,
+.el-table .el-table__fixed-right .el-table__fixed-body-wrapper tr:hover > td.el-table__cell,
+.el-table .el-table__fixed-right .el-table__fixed-body-wrapper tr.hover-row > td.el-table__cell {
+  background: var(--erp-table-fixed-hover-bg) !important;
+  background-color: var(--erp-table-fixed-hover-bg) !important;
+}
+
+.el-table .el-table__header-wrapper tr > .el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__body-wrapper tr > .el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__footer-wrapper tr > .el-table__cell.el-table-fixed-column--right,
+.el-table .el-table__fixed-right .el-table__cell {
+  border-left: 1px solid var(--erp-table-fixed-border-color);
+}
+
+.el-table .el-table__header-wrapper tr > .el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__body-wrapper tr > .el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__footer-wrapper tr > .el-table__cell.el-table-fixed-column--left,
+.el-table .el-table__fixed .el-table__cell {
+  border-right: 1px solid var(--erp-table-fixed-border-color);
+}
+
+/* Compact, theme-aware table operation buttons. */
+.table-actions,
+.operation-buttons,
+.operation-btns {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.search-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.table-actions .el-button,
+.table-actions .el-button + .el-button,
+.operation-buttons .el-button,
+.operation-buttons .el-button + .el-button,
+.operation-btns .el-button,
+.operation-btns .el-button + .el-button,
+.search-buttons .el-button {
+  margin-left: 0 !important;
+}
+
+.module-page .el-table .el-button + .el-button {
+  margin-left: 6px;
+}
+
+.el-table .operation-column .cell,
+.el-table .el-table__cell.operation-column .cell {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.el-table th.operation-column-header .cell,
+.el-table .el-table__cell.operation-column-header .cell {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.el-table .operation-column .cell > .el-button,
+.el-table .operation-column .cell > .el-button + .el-button {
+  margin-left: 0 !important;
+}
+
+.el-table .el-table__cell.el-table-fixed-column--right .cell:has(> .el-button) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.el-table .el-table__cell.el-table-fixed-column--right .cell:has(> .el-button) > .el-button,
+.el-table .el-table__cell.el-table-fixed-column--right .cell:has(> .el-button) > .el-button + .el-button {
+  margin-left: 0 !important;
+}

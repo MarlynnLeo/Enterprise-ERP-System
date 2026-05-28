@@ -53,20 +53,24 @@ const goBack = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%);
-  color: #e0e0e0;
-  font-family: 'Inter', sans-serif;
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
 }
 
 .not-found-content {
   text-align: center;
   padding: 3rem;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-base);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--theme-feature-card-shadow);
 }
 
 .error-code {
   font-size: 8rem;
   font-weight: 900;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2, var(--color-primary)));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -84,12 +88,12 @@ const goBack = () => {
   font-size: 1.8rem;
   font-weight: 600;
   margin-bottom: 1rem;
-  color: var(--color-on-primary, #fff);
+  color: var(--color-text-primary);
 }
 
 .error-desc {
   font-size: 1.1rem;
-  color: #8888aa;
+  color: var(--color-text-secondary);
   margin-bottom: 2.5rem;
   max-width: 400px;
   margin-left: auto;
@@ -105,15 +109,15 @@ const goBack = () => {
 
 .error-path {
   font-size: 0.85rem;
-  color: #555577;
+  color: var(--color-text-muted);
   margin-top: 1rem;
 }
 
 .error-path code {
-  background: rgba(102, 126, 234, 0.15);
+  background: var(--theme-status-primary-bg);
   padding: 0.2rem 0.6rem;
   border-radius: 4px;
-  color: #667eea;
+  color: var(--theme-status-primary-color);
   font-family: 'Courier New', monospace;
 }
 </style>

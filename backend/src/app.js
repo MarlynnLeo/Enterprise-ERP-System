@@ -31,7 +31,6 @@ const authRoutes = require('./routes/auth');
 // 业务模块路由
 const productionRoutes = require('./routes/production');
 const salesRoutes = require('./routes/sales');
-const locationsRoutes = require('./routes/locations');
 const todoRoutes = require('./routes/todoRoutes');
 const equipmentRoutes = require('./routes/equipmentRoutes');
 const printRoutes = require('./routes/printRoutes');
@@ -64,8 +63,10 @@ const chatRoutes = require('./routes/chat');
 const workflowRoutes = require('./routes/business/workflowRoutes');
 const contractRoutes = require('./routes/business/contractRoutes');
 const enhancedModulesRoutes = require('./routes/business/enhancedModulesRoutes');
+const userActivityRoutes = require('./routes/userActivityRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const dingtalkRoutes = require('./routes/integrations/dingtalkRoutes');
 
-// 模型导入已移除 — 原 createPurchaseTablesIfNotExist / createFinanceTablesIfNotExist 已为空操作
 // 表结构由 Knex 迁移文件统一管理
 
 // 导入错误处理中间件
@@ -84,9 +85,6 @@ const {
   csrfErrorHandler,
   getCsrfToken: getCsrfTokenEnhanced,
 } = require('./middleware/csrfEnhanced');
-
-// 导入 Swagger 配置
-const { specs, swaggerUi, swaggerUiOptions } = require('./config/swagger');
 
 // 导入安全配置
 
@@ -191,28 +189,82 @@ app.use((_, res, next) => {
 // ✅ 修复: 定义 uploadsAuth / metricsAuth（此前未定义导致 ReferenceError 崩溃）
 const { authenticateToken: uploadsAuth } = require('./middleware/authEnhanced');
 const metricsAuth = uploadsAuth; // metrics 端点复用同一认证中间件
-const { requirePermission: requireMetricsPermission } = require('./middleware/requirePermission');
-const metricsPermission = requireMetricsPermission('system:monitor');
+const { requirePermission } = require('./middleware/requirePermission');
+const { createUploadFileAccessMiddleware } = require('./middleware/uploadFileAccess');
+const metricsPermission = requirePermission('system:monitor');
 
 // 公开可访问的上传目录（头像等登录前需要加载的资源）
 const PUBLIC_UPLOAD_DIRS = ['/avatars', '/public', '/logos'];
+const UPLOADS_ROOT = path.resolve('uploads');
+const uploadFileDownloadPermission = requirePermission('system:files:download');
+const uploadDocumentPermission = requirePermission(['system:documents:view', 'system:files:download']);
+
+function normalizeUploadRequestPath(requestPath) {
+  const rawPath = String(requestPath || '').replace(/\\/g, '/');
+  return path.posix.normalize(`/${rawPath}`);
+}
+
+function decodeUploadRequestPath(requestPath) {
+  try {
+    return decodeURIComponent(String(requestPath || ''));
+  } catch {
+    return null;
+  }
+}
+
+function isUploadPathInDir(requestedPath, dir) {
+  return requestedPath === dir || requestedPath.startsWith(`${dir}/`);
+}
+
+function permissionForUploadPath(requestedPath) {
+  if (isUploadPathInDir(requestedPath, '/documents')) {
+    return uploadDocumentPermission;
+  }
+  return uploadFileDownloadPermission;
+}
+
+function getStaticUploadPath(filePath) {
+  const relativePath = path.relative(UPLOADS_ROOT, filePath).replace(/\\/g, '/');
+  return normalizeUploadRequestPath(relativePath);
+}
+
+function setUploadStaticHeaders(res, filePath) {
+  const staticPath = getStaticUploadPath(filePath);
+  const isPublicDir = PUBLIC_UPLOAD_DIRS.some(dir => isUploadPathInDir(staticPath, dir));
+  if (isPublicDir) {
+    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+    return;
+  }
+  res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+}
+const uploadObjectAccessPermission = createUploadFileAccessMiddleware(permissionForUploadPath);
 
 app.use('/uploads', (req, res, next) => {
   // 安全检查：禁止路径遍历（如 ../）
-  const requestedPath = path.normalize(req.path);
-  if (requestedPath.includes('..')) {
-    return res.status(403).json({ success: false, message: '禁止访问' });
+  const decodedPath = decodeUploadRequestPath(req.path);
+  if (decodedPath === null) {
+    return ResponseHandler.error(res, 'Invalid file path', 'VALIDATION_ERROR', 400);
+  }
+  const rawPath = decodedPath.replace(/\\/g, '/');
+  const requestedPath = normalizeUploadRequestPath(rawPath);
+  if (rawPath.split('/').includes('..')) {
+    return ResponseHandler.forbidden(res, '禁止访问');
   }
 
   // 公开目录无需认证（解决登录页面加载头像时401循环）
-  const isPublicDir = PUBLIC_UPLOAD_DIRS.some(dir => requestedPath.startsWith(dir));
+  const isPublicDir = PUBLIC_UPLOAD_DIRS.some(dir => isUploadPathInDir(requestedPath, dir));
   if (isPublicDir) {
     return next();
   }
 
   // 非公开目录需要认证（保护合同、发票、BOM附件等敏感文件）
-  return uploadsAuth(req, res, next);
-}, express.static('uploads'));
+  req.uploadsRequestedPath = requestedPath;
+  return uploadsAuth(req, res, () => uploadObjectAccessPermission(req, res, next));
+}, express.static(UPLOADS_ROOT, {
+  etag: true,
+  lastModified: true,
+  setHeaders: setUploadStaticHeaders,
+}));
 
 // 在线时长追踪中间件
 const onlineTimeTracker = require('./middleware/onlineTimeTracker');
@@ -245,7 +297,7 @@ app.get('/api/ping', (_, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    message: 'MES Backend is running',
+    message: 'KACON ERP Backend is running',
   });
 });
 
@@ -279,140 +331,72 @@ app.get('/api/health', async (_, res) => {
 // 性能统计端点（已移至 /api/monitoring 路由）
 
 // 路由注册
-// ✅ API 版本控制 — /api/v1/* 映射到 /api/*（向前兼容）
-// 现有 /api/ 路径继续工作，新客户端建议使用 /api/v1/ 前缀
-const v1Router = express.Router();
+const apiRouteModules = [
+  ['/auth', authRoutes],
+  ['/system', systemRoutes],
+  ['/base-data', baseDataRoutes],
+  ['/inventory', inventoryRoutes],
+  ['/purchase', purchaseRoutes],
+  ['/sales', salesRoutes],
+  ['/quality', qualityRoutes],
+  ['/quality', qualityAdvancedRoutes],
+  ['/production', productionRoutes],
+  ['/finance/automation', financeAutomationRoutes],
+  ['/finance', financeRoutes],
+  ['/finance', financeEnhancementRoutes],
+  ['/equipment', equipmentRoutes],
+  ['/print', printRoutes],
+  ['/user-activities', userActivityRoutes],
+  ['/health', healthRoutes],
+  ['/equipment-monitoring', equipmentMonitoringRoutes],
+  ['/finance/tax', taxRoutes],
+  ['/finance/budgets', budgetRoutes],
+  ['/finance/cost-centers', costCenterRoutes],
+  ['/finance/cost-ledger', costLedgerRoutes],
+  ['/finance/activity-cost', activityCostRoutes],
+  ['/metal-prices', metalPricesRoutes],
+  ['/hr', hrRoutes],
+  ['/monitoring', monitoringRoutes],
+  ['/batch-traceability', batchTraceabilityRoutes],
+  ['/traceability-monitor', traceabilityMonitorRoutes],
+  ['/system/notifications', notificationRoutes],
+  ['/system/technical-communications', technicalCommunicationRoutes],
+  ['/quality/nonconforming-products', nonconformingProductRoutes],
+  ['/quality/replacement-orders', replacementOrderRoutes],
+  ['/quality/rework-tasks', reworkTaskRoutes],
+  ['/quality/scrap-records', scrapRecordRoutes],
+  ['/quality/eight-d-reports', eightDReportRoutes],
+  ['/quality/statistics', qualityStatisticsRoutes],
+  ['/weather', weatherRoutes],
+  ['/upload', uploadRoutes],
+  ['/todos', todoRoutes],
+  ['/common', commonRoutes],
+  ['/chat', chatRoutes],
+  ['/dingtalk', dingtalkRoutes],
+  ['/workflow', workflowRoutes],
+  ['/contracts', contractRoutes],
+  ['/enhanced', enhancedModulesRoutes],
+];
+
+const registerApiRouteModules = (router, prefix = '') => {
+  apiRouteModules.forEach(([routePath, routeModule]) => {
+    router.use(`${prefix}${routePath}`, routeModule);
+  });
+};
 
 // 公开路由（无需认证）- 必须在其他路由之前注册
 app.use('/api/public', publicRoutes);
-app.use('/api/v1/public', publicRoutes);
 
 // ✅ 挂载全域操作黑匣子拦截器 (拦截带副作用的POST/PUT/DELETE)
 const auditLogInterceptor = require('./middleware/auditLogInterceptor');
 app.use('/api/*', auditLogInterceptor);
-app.use('/api/v1', v1Router);
 
 // 注册各个模块的路由（登录接口限流已在上方配置）
 // app.use('/api/auth/login', loginLimiter); // 已移除，改用 authLimiter// 注册业务路由
-app.use('/api/auth', authRoutes);
-app.use('/api/system', systemRoutes);
-app.use('/api/base-data', baseDataRoutes); // 注意连字符
-app.use('/api/baseData', baseDataRoutes); // 别名：兼容前端使用的驼峰命名
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/purchase', purchaseRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/quality', qualityRoutes);
-app.use('/api/quality', qualityAdvancedRoutes); // 量具/SPC/供应商质量计分卡
-app.use('/api/production', productionRoutes);
-app.use('/api/finance', financeRoutes);
-app.use('/api/finance-enhancement', financeEnhancementRoutes); // ✅ 注册新的财务增强路由
-app.use('/api/equipment', equipmentRoutes);
-app.use('/api/locations', locationsRoutes);
-app.use('/api/print', printRoutes);
-app.use('/api/user-activities', require('./routes/userActivityRoutes'));
-app.use('/api/health', healthRoutes);
-app.use('/api/equipment-monitoring', equipmentMonitoringRoutes);
-app.use('/api/finance/automation', financeAutomationRoutes);
-app.use('/api/finance/tax', taxRoutes);
-app.use('/api/finance/budgets', budgetRoutes);
-app.use('/api/finance/cost-centers', costCenterRoutes);
-app.use('/api/finance/cost-ledger', costLedgerRoutes);
-app.use('/api/finance/activity-cost', activityCostRoutes);
+registerApiRouteModules(app, '/api');
 // /api/cost-ledger 已移除（与 /api/finance/cost-ledger 重复），统一使用 /api/finance/cost-ledger
-app.use('/api/metal-prices', metalPricesRoutes); // 金属价格监控
-app.use('/api/hr', hrRoutes); // HR及薪酬模块
-app.use('/api/monitoring', monitoringRoutes);
-app.use('/api/batch-traceability', batchTraceabilityRoutes);
-app.use('/api/traceability-monitor', traceabilityMonitorRoutes);
 
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/technical-communications', technicalCommunicationRoutes);
-app.use('/api/nonconforming-products', nonconformingProductRoutes);
-app.use('/api/replacement-orders', replacementOrderRoutes);
-app.use('/api/rework-tasks', reworkTaskRoutes);
-app.use('/api/scrap-records', scrapRecordRoutes);
-app.use('/api/eight-d-reports', eightDReportRoutes);
-app.use('/api/quality-statistics', qualityStatisticsRoutes);
-app.use('/api/weather', weatherRoutes);
-app.use('/api/upload', require('./routes/uploadRoutes'));
-app.use('/api/todos', todoRoutes); // 待办事项路由
-app.use('/api/common', commonRoutes); // 通用接口（枚举等）
-app.use('/api/chat', chatRoutes); // 即时通讯
-app.use('/api/dingtalk', require('./routes/integrations/dingtalkRoutes')); // 钉钉集成
-app.use('/api/workflow', workflowRoutes); // 审批工作流
-app.use('/api/contracts', contractRoutes); // 合同管理
-app.use('/api/enhanced', enhancedModulesRoutes); // 编码规则/单据关联/汇率/绩效/ECN/文档/告警
-
-// ✅ API v1 版本路由别名 — 将所有核心模块同时挂载到 /api/v1/ 下
-// 新客户端建议使用 /api/v1/ 前缀，未来破坏性变更将通过 /api/v2/ 发布
-const v1Modules = {
-  '/auth': authRoutes, '/system': systemRoutes,
-  '/base-data': baseDataRoutes, '/baseData': baseDataRoutes,
-  '/inventory': inventoryRoutes, '/purchase': purchaseRoutes,
-  '/sales': salesRoutes, '/quality': qualityRoutes,
-  '/production': productionRoutes, '/finance': financeRoutes,
-  '/finance-enhancement': financeEnhancementRoutes,
-  '/equipment': equipmentRoutes, '/locations': locationsRoutes,
-  '/print': printRoutes, '/user-activities': require('./routes/userActivityRoutes'),
-  '/health': healthRoutes, '/equipment-monitoring': equipmentMonitoringRoutes,
-  '/finance/automation': financeAutomationRoutes, '/finance/tax': taxRoutes,
-  '/finance/budgets': budgetRoutes, '/finance/cost-centers': costCenterRoutes,
-  '/finance/cost-ledger': costLedgerRoutes, '/finance/activity-cost': activityCostRoutes,
-  '/metal-prices': metalPricesRoutes, '/hr': hrRoutes,
-  '/monitoring': monitoringRoutes, '/batch-traceability': batchTraceabilityRoutes,
-  '/traceability-monitor': traceabilityMonitorRoutes,
-  '/notifications': notificationRoutes, '/technical-communications': technicalCommunicationRoutes,
-  '/nonconforming-products': nonconformingProductRoutes, '/replacement-orders': replacementOrderRoutes,
-  '/rework-tasks': reworkTaskRoutes, '/scrap-records': scrapRecordRoutes,
-  '/eight-d-reports': eightDReportRoutes, '/quality-statistics': qualityStatisticsRoutes,
-  '/weather': weatherRoutes, '/upload': require('./routes/uploadRoutes'),
-  '/todos': todoRoutes, '/common': commonRoutes, '/chat': chatRoutes,
-  '/dingtalk': require('./routes/integrations/dingtalkRoutes'),
-  '/workflow': workflowRoutes, '/contracts': contractRoutes,
-  '/enhanced': enhancedModulesRoutes,
-};
-Object.entries(v1Modules).forEach(([path, router]) => v1Router.use(path, router));
-v1Router.use('/quality', qualityAdvancedRoutes);
-
-// 数据库表结构由 Knex 迁移文件 (migrations/) 统一管理
-// 启动时由 index.js 中 knex.migrate.latest() 自动执行
-// 原 createPurchaseTablesIfNotExist / createFinanceTablesIfNotExist / addDingtalkFields 已移除
-
-// API 文档路由 - 生产环境禁止访问，非生产环境需要认证
-if (process.env.NODE_ENV !== 'production') {
-  // Swagger 文档增加 HTTP Basic Auth 认证保护
-  const swaggerAuth = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
-      res.setHeader('WWW-Authenticate', 'Basic realm="API Docs"');
-      return res.status(401).send('需要认证才能访问 API 文档');
-    }
-
-    const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
-    const [user, pass] = credentials.split(':');
-    const validUser = process.env.SWAGGER_USER;
-    const validPass = process.env.SWAGGER_PASSWORD;
-
-    // ✅ 安全修复：强制要求环境变量配置，不再提供默认凭据
-    if (!validUser || !validPass) {
-      logger.warn('Swagger 文档认证未配置环境变量 SWAGGER_USER/SWAGGER_PASSWORD，拒绝访问');
-      res.setHeader('WWW-Authenticate', 'Basic realm="API Docs"');
-      return res.status(401).send('API 文档认证未配置，请联系管理员');
-    }
-
-    if (user === validUser && pass === validPass) {
-      return next();
-    }
-
-    res.setHeader('WWW-Authenticate', 'Basic realm="API Docs"');
-    return res.status(401).send('认证失败');
-  };
-  app.use('/api-docs', swaggerAuth, swaggerUi.serve, swaggerUi.setup(specs, swaggerUiOptions));
-} else {
-  app.use('/api-docs', (_, res) => {
-    res.status(404).json({ success: false, message: '文档不可用' });
-  });
-}
+// 数据库表结构由 Knex 迁移文件 (migrations/) 统一管理，启动时由 index.js 自动执行。
 
 // 根路径
 app.get('/', (_, res) => {
@@ -445,6 +429,7 @@ if (!isTestRuntime) {
   // ✅ 启动并挂载各领域事件订阅者 (Domain Event Subscribers)
   require('./events/subscribers/FinanceSubscriber');
   require('./events/EventBus').enableCriticalListenerAudit();
+  DLQService.startRetryWorker();
 
   // 启动财务自动化定时任务（DISABLE_CRON=true 时跳过）
   if (process.env.DISABLE_CRON !== 'true') {

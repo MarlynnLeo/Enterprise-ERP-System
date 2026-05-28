@@ -67,17 +67,22 @@ const createReinspectionTask = async (task, connection) => {
     // 继承检验项目标准
     const [items] = await connection.query('SELECT * FROM quality_inspection_items WHERE inspection_id = ?', [task.inspection_id]);
     if (items.length > 0) {
-      for (const item of items) {
-        await connection.query(`
-          INSERT INTO quality_inspection_items (
-            inspection_id, item_name, standard, type, is_critical,
-            dimension_value, tolerance_upper, tolerance_lower
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          newInspectionId, item.item_name, item.standard, item.type, item.is_critical,
-          item.dimension_value, item.tolerance_upper, item.tolerance_lower
-        ]);
-      }
+      await connection.query(
+        `INSERT INTO quality_inspection_items (
+          inspection_id, item_name, standard, type, is_critical,
+          dimension_value, tolerance_upper, tolerance_lower
+        ) VALUES ?`,
+        [items.map(item => [
+          newInspectionId,
+          item.item_name,
+          item.standard,
+          item.type,
+          item.is_critical,
+          item.dimension_value,
+          item.tolerance_upper,
+          item.tolerance_lower,
+        ])]
+      );
     }
 
     await QualityIntegrationService.linkDocumentToDocument(
@@ -120,7 +125,7 @@ const getReworkTasks = async (req, res) => {
 
     const pagination = parsePagination(page, pageSize, {
       defaultPageSize: 10,
-      maxPageSize: 200,
+      maxPageSize: 100,
     });
 
     const whereConditions = [];
@@ -244,7 +249,7 @@ const updateReworkTask = async (req, res) => {
     const { rework_instructions, planned_date, rework_cost } = req.body;
 
     // 检查返工任务是否存在
-    const [checkResult] = await connection.query('SELECT status FROM rework_tasks WHERE id = ?', [
+    const [checkResult] = await connection.query('SELECT status FROM rework_tasks WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -292,7 +297,7 @@ const assignTask = async (req, res) => {
     const { assigned_to } = req.body;
 
     // 检查返工任务是否存在
-    const [checkResult] = await connection.query('SELECT status FROM rework_tasks WHERE id = ?', [
+    const [checkResult] = await connection.query('SELECT status FROM rework_tasks WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -345,6 +350,7 @@ const completeTask = async (req, res) => {
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       WHERE rt.id = ?
+      FOR UPDATE
     `, [id]);
 
     if (tasks.length === 0) {
@@ -435,6 +441,7 @@ const updateStatus = async (req, res) => {
         FROM rework_tasks rt
         LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
         WHERE rt.id = ?
+        FOR UPDATE
       `, [id]);
 
       if (tasks.length === 0) {
@@ -696,6 +703,77 @@ const getReworkStatusByInspectionId = async (req, res) => {
   }
 };
 
+const getReworkStatusByInspectionIds = async (req, res) => {
+  try {
+    const inspectionIds = Array.isArray(req.body?.inspection_ids)
+      ? req.body.inspection_ids.map((id) => parseInt(id, 10)).filter(Boolean)
+      : [];
+    const uniqueIds = [...new Set(inspectionIds)];
+
+    if (uniqueIds.length === 0) {
+      return ResponseHandler.success(res, {}, '查询成功');
+    }
+
+    const [rows] = await pool.query(
+      `
+      SELECT *
+      FROM (
+        SELECT
+          ncp.inspection_id,
+          rt.id AS rework_id,
+          rt.rework_no,
+          rt.status AS rework_status,
+          rt.quantity,
+          rt.assigned_to,
+          rt.actual_date,
+          ncp.id AS ncp_id,
+          ncp.ncp_no,
+          ncp.disposition,
+          ncp.status AS ncp_status,
+          ROW_NUMBER() OVER (PARTITION BY ncp.inspection_id ORDER BY ncp.created_at DESC) as row_num
+        FROM nonconforming_products ncp
+        LEFT JOIN rework_tasks rt ON rt.ncp_id = ncp.id
+        WHERE ncp.inspection_id IN (?)
+      ) latest
+      WHERE row_num = 1
+      `,
+      [uniqueIds]
+    );
+
+    const statusMap = {};
+    uniqueIds.forEach((id) => {
+      statusMap[id] = {
+        has_ncp: false,
+        has_rework: false,
+        rework_completed: false,
+        disposition: null,
+        allow_reinspection: false,
+      };
+    });
+
+    rows.forEach((row) => {
+      const hasRework = !!row.rework_id;
+      const reworkCompleted = hasRework && row.rework_status === 'completed';
+      statusMap[row.inspection_id] = {
+        has_ncp: true,
+        ncp_no: row.ncp_no,
+        ncp_status: row.ncp_status,
+        disposition: row.disposition,
+        has_rework: hasRework,
+        rework_no: row.rework_no,
+        rework_status: row.rework_status,
+        rework_completed: reworkCompleted,
+        allow_reinspection: row.disposition === 'rework' && reworkCompleted,
+      };
+    });
+
+    return ResponseHandler.success(res, statusMap, '查询成功');
+  } catch (error) {
+    logger.error('批量查询检验单关联返工状态失败:', error);
+    return ResponseHandler.error(res, '批量查询返工状态失败', 'OPERATION_ERROR', 500, error);
+  }
+};
+
 module.exports = {
   getReworkTasks,
   getReworkTaskById,
@@ -706,4 +784,5 @@ module.exports = {
   getStatistics,
   updateProgress,
   getReworkStatusByInspectionId,
+  getReworkStatusByInspectionIds,
 };

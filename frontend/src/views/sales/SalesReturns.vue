@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="outbound-container">
+  <div class="module-page outbound-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
@@ -20,16 +20,21 @@
     </el-card>
 
     <!-- 搜索区域 -->
-    <el-card class="search-card">
-      <el-form :inline="true" class="search-form">
-        <el-form-item label="退货单号/客户">
+    <FinanceQueryCard
+      :loading="loading"
+      @search="handleSearch"
+      @reset="resetSearch"
+    >
+      <template #basic>
+        <el-form-item label="物料名称">
           <el-input
             v-model="searchQuery"
-            placeholder="退货单号/订单号/客户名称"
+            placeholder="物料名称"
             @keyup.enter="handleSearch"
             clearable ></el-input>
         </el-form-item>
-
+      </template>
+      <template #advanced>
         <el-form-item label="退货状态">
           <el-select v-model="statusFilter" placeholder="退货状态" clearable @change="handleSearch" style="width: 100%">
             <el-option
@@ -51,17 +56,8 @@
             @change="handleSearch"
           />
         </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">
-            <el-icon><Search /></el-icon> 查询
-          </el-button>
-          <el-button @click="resetSearch">
-            <el-icon><Refresh /></el-icon> 重置
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      </template>
+    </FinanceQueryCard>
 
     <!-- 统计卡片 -->
     <div class="statistics-row">
@@ -103,7 +99,7 @@
                 <el-descriptions-item label="原订单号">{{ props.row.orderNo }}</el-descriptions-item>
                 <el-descriptions-item label="客户名称">{{ props.row.customerName }}</el-descriptions-item>
                 <el-descriptions-item label="退货日期">{{ formatDate(props.row.returnDate) }}</el-descriptions-item>
-                <el-descriptions-item label="退款金额">¥{{ props.row.returnAmount.toFixed(2) }}</el-descriptions-item>
+                <el-descriptions-item label="退款金额">{{ formatCurrency(props.row.returnAmount) }}</el-descriptions-item>
                 <el-descriptions-item label="退货原因" :span="2">{{ props.row.reason || '无' }}</el-descriptions-item>
               </el-descriptions>
 
@@ -130,7 +126,7 @@
         </el-table-column>
         <el-table-column prop="returnAmount" label="退款金额" width="120">
           <template #default="scope">
-            ¥{{ scope.row.returnAmount.toFixed(2) }}
+            {{ formatCurrency(scope.row.returnAmount) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
@@ -138,7 +134,7 @@
             <el-tag :type="getReturnStatusType(scope.row.status)">{{ getReturnStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="250" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               size="small"
@@ -306,7 +302,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" type="primary" @click="selectOutbound(row)">选择</el-button>
           </template>
@@ -334,12 +330,12 @@
 
 <script setup>
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
-
+import { formatCurrency } from '@/utils/helpers/formatters'
 import dayjs from 'dayjs'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi } from '@/services/api'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import printService from '@/services/printService'
 // 退货单详情相关
 const detailsVisible = ref(false)
@@ -362,7 +358,7 @@ const createForm = reactive({
 })
 
 import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
-
+import { parseResponseData } from '@/utils/responseParser'
 const outboundDialog = reactive({
   visible: false,
   keyword: '',
@@ -380,6 +376,7 @@ const total = ref(0)
 const searchQuery = ref('')
 const statusFilter = ref('')
 const dateRange = ref([])
+const isBlankAmount = (value) => value === null || value === undefined || value === ''
 
 // 退货单统计数据
 const returnStats = ref({
@@ -597,7 +594,7 @@ const fetchData = async () => {
       endDate: Array.isArray(dateRange.value) && dateRange.value[1] ? dateRange.value[1] : undefined
     }
     const resp = await salesApi.getReturns(params)
-    const data = resp.data?.data || resp.data || {}
+    const data = parseResponseData(resp, {})
     const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : [])
 
     // 适配后端数据到表格结构
@@ -607,7 +604,7 @@ const fetchData = async () => {
       orderNo: it.order_no || it.orderNo || it.order_id || '-',
       customerName: it.customer_name || it.customerName || '-',
       returnDate: it.return_date || it.returnDate,
-      returnAmount: Number(it.total_amount ?? it.return_amount ?? 0),
+      returnAmount: isBlankAmount(it.total_amount ?? it.return_amount) ? null : Number(it.total_amount ?? it.return_amount),
       status: it.status || '待审批',
       reason: it.return_reason || it.reason || '-', // 添加退货原因
       items: it.items || []

@@ -1,390 +1,105 @@
-/**
- * Google Material 3 (WithGoogle) — 主题入口
- * @description 极简无边框设计，大圆角与高级灰白排版
- * @date 2026-04-16
- * @version 3.0.0
+﻿/**
+ * Mobile design-token entry.
+ * @description Theme variables are isolated by html[data-theme].
  */
 
 /* 基础令牌：间距、圆角、动画、工具类 */
 @import './themes/_base.css';
 
-/* 默认主题：WithGoogle 光明模式配色 */
+/* 品牌默认主题 */
 @import './themes/kacon.css';
 
 /* 可切换主题（通过 data-theme 属性激活） */
+@import './themes/default.css';
 @import './themes/dark.css';
+@import './themes/premium.css';
+@import './themes/business.css';
+@import './themes/vibrant.css';
 @import './themes/nature.css';
+@import './themes/professional.css';
 @import './themes/tech.css';
 
-/* ==================== 全局样式 ==================== */
+:root[data-theme="dark"],
+:root[data-theme="tech"] {
+  --color-on-primary: #0f172a;
+}
+
+:root[data-theme="business"],
+:root[data-theme="default"],
+:root[data-theme="kacon"],
+:root[data-theme="nature"],
+:root[data-theme="professional"],
+:root[data-theme="vibrant"] {
+  --color-on-primary: #ffffff;
+}
+
+:root[data-theme="premium"] {
+  --color-on-primary: #000000;
+}
+
+:root[data-theme="nature"] {
+  --text-primary: #1f6f32;
+  --text-secondary: #4b6f56;
+  --text-tertiary: #5f7f68;
+}
+
+/* Platform sizing only. Page/card/button UI is defined inside each page. */
+:root[data-theme] {
+  --van-nav-bar-height: 48px;
+  --app-nav-bar-height: calc(var(--van-nav-bar-height) + var(--safe-area-top, 0px));
+}
+
+.van-nav-bar {
+  padding-top: var(--safe-area-top, 0px);
+  box-sizing: border-box;
+}
+
+.van-nav-bar__content {
+  height: var(--van-nav-bar-height);
+}
+
+/* Global reset only. Page components own their UI shape and button layout. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+html,
+body,
+#app {
+  min-height: -webkit-fill-available;
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  letter-spacing: -0.01em; /* Google Sans 常见微小收缩字距 */
+  letter-spacing: 0;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
 }
 
-/* ==================== 通用组件类 (Material 样式) ==================== */
-
-/* 通用列表卡片/面板 */
-.unified-card, .kacon-card, .glass-panel, .glass-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-  padding: var(--spacing-md);
-  margin: 0 var(--spacing-md) var(--spacing-md);
-  transition: all var(--transition-base);
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-}
-
-.unified-card:active, .kacon-card:active, .glass-panel:active, .glass-card:active {
-  background: var(--surface-hover);
-  box-shadow: none;
-  transform: scale(0.99); /* 弱化缩放，Google 不做强缩放 */
-}
-
-/* ==================== 按钮 (Material Button) ==================== */
-.btn-primary {
-  background: var(--color-primary);
-  color: #fff;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-full); /* Google 胶囊按钮 */
-  font-weight: 500;
-  font-size: 0.875rem;
-  border: none;
-  transition: all var(--transition-fast);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.btn-primary:active {
-  background: var(--color-primary-active, #174ea6);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.btn-secondary {
-  background: transparent;
-  color: var(--color-primary);
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--van-border-color, #dadce0);
-  font-weight: 500;
-  font-size: 0.875rem;
-  transition: all var(--transition-fast);
-  cursor: pointer;
-}
-
-.btn-secondary:hover, .btn-secondary:active {
-  background: var(--color-primary-bg);
-  border-color: var(--color-primary-bg);
-}
-
-/* ==================== 状态徽章 ==================== */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.6rem;
-  border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  background: var(--bg-tertiary, #f1f3f4);
-}
-.status-badge.pending, .status-badge.processing {
-  background: var(--color-warning-bg);
-  color: var(--color-warning, #b06000);
-}
-.status-badge.approved, .status-badge.completed, .status-badge.success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
-}
-.status-badge.rejected, .status-badge.error, .status-badge.danger {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-}
-.status-badge.primary {
-  background: var(--color-primary-bg);
-  color: var(--color-primary);
-}
-
-/* ==================== 全局 NavBar 悬浮卡片 (Unified Theme) ==================== */
-/* 所有页面的 Vant NavBar 统一为悬浮圆角卡片，无阴影 */
-body .van-nav-bar {
-  margin: 12px 12px 12px 12px;
-  border-radius: 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--van-border-color);
-  box-shadow: none;
-  overflow: hidden;
-}
-
-@supports (padding-top: env(safe-area-inset-top)) {
-  body .van-nav-bar {
-    margin-top: calc(env(safe-area-inset-top) + 12px);
-  }
-}
-
-body .van-nav-bar::after {
-  display: none;
-}
-
-body .van-nav-bar--fixed {
-  width: calc(100% - 24px);
-  left: 12px;
-}
-
-body .van-nav-bar__title {
-  font-weight: 600;
-  font-size: 1.1rem;
-  letter-spacing: -0.01em;
-}
-
-/* ==================== 全局搜索框胶囊化 ==================== */
-body .van-search__content {
-  border-radius: 999px;
-  padding-left: 1rem;
-}
-
-/* ==================== 标签平滑圆角 ==================== */
-body .van-tag {
-  padding: 0.2rem 0.5rem;
-  border-radius: 8px;
-  font-weight: 500;
-}
-
-/* ==================== 选项卡线条 ==================== */
-body .van-tabs__line {
-  height: 3px;
-  border-radius: 3px;
-}
-
-/* ==================== 全局通用布局类 (Unified Layout) ==================== */
-
-/* 页面内容容器 — 统一内边距 */
-.content-container {
-  padding: 0 12px 12px;
-}
-
-/* 统计横幅 */
-.stats-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  background: var(--bg-secondary);
-  border-radius: 12px;
-  padding: 14px 8px;
-  margin: 8px 0;
-  border: 1px solid var(--van-border-color);
-  box-shadow: none;
-}
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-.stat-num {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--text-primary);
-}
-.stat-num.color-blue { color: var(--module-blue, #3b82f6); }
-.stat-num.color-purple { color: var(--module-purple, #a855f7); }
-.stat-num.color-green { color: var(--color-success, #34d399); }
-.stat-num.color-red { color: var(--color-error, #ef4444); }
-.stat-num.color-yellow { color: var(--color-warning, #fbbf24); }
-.stat-num.color-orange { color: var(--module-orange, #f97316); }
-.stat-label {
-  font-size: 0.6875rem;
-  color: var(--text-tertiary);
-}
-.stat-divider {
-  width: 1px;
-  height: 28px;
-  background: var(--van-border-color);
-}
-
-/* 横向滚动筛选药丸 */
-.filter-scroll-wrapper {
-  padding: 4px 0 8px;
-  overflow: hidden;
-}
-.filter-scroll {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 2px 0 6px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.filter-scroll::-webkit-scrollbar {
-  display: none;
-}
-.filter-chip {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  background: var(--bg-secondary);
-  border: 1.5px solid var(--van-border-color);
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  transition: all 0.25s ease;
-  cursor: pointer;
-}
-.filter-chip .chip-text {
-  font-weight: 500;
-}
-.filter-chip .chip-badge {
-  min-width: 18px;
-  height: 18px;
-  line-height: 18px;
-  text-align: center;
-  font-size: 0.625rem;
-  font-weight: 700;
-  border-radius: 9px;
-  background: var(--van-border-color);
-  color: var(--text-secondary);
-  padding: 0 4px;
-}
-.filter-chip.active {
-  background: var(--color-primary-bg);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-.filter-chip.active .chip-badge {
-  background: var(--color-primary);
-  color: var(--color-on-primary, #fff);
-}
-
-/* 列表卡片 */
-.list-card {
-  display: flex;
-  background: var(--bg-secondary);
-  border-radius: 12px;
-  margin-bottom: 10px;
-  overflow: hidden;
-  border: 1px solid var(--van-border-color);
-  box-shadow: none;
-  transition: all 0.2s;
-  cursor: pointer;
-}
-.list-card:active {
-  transform: scale(0.98);
-}
-
-/* ==================== P0-1: 筛选药丸触摸反馈 ==================== */
-.filter-chip:active {
-  transform: scale(0.93);
-  opacity: 0.8;
-}
-
-/* ==================== P0-2: 操作按钮最小触摸目标 ==================== */
-/* 卡片内的操作按钮（编辑/确认/完成等）确保最小触摸区域 */
-.action-btn,
-.card-actions .action-btn {
-  min-height: 36px;
-  min-width: 56px;
-  padding: 6px 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ==================== P1-8: 统计横幅触摸目标 ==================== */
-.stat-item {
-  min-height: 44px;
-  justify-content: center;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.stat-item:active {
-  opacity: 0.7;
-}
-
-/* ==================== P1-6: 减弱动画（无障碍） ==================== */
+/* Accessibility only; no shared page UI styling here. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
-}
-
-/* ==================== 全局列表卡片样式 ==================== */
-.global-list-card {
-  margin: 10px 12px;
-  padding: 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
-  border-radius: 12px;
-  transition: transform 0.15s;
-}
-.global-list-card:active {
-  transform: scale(0.98);
-}
-
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.list-id {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-family: 'SF Mono', 'Consolas', monospace;
-}
-
-.list-title {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-
-.list-details {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
-}
-.list-row {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  font-size: 0.75rem;
-}
-.list-row .label {
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-.list-row .value {
-  color: var(--text-secondary);
-  word-break: break-all;
-}
-.list-row .value.amount {
-  font-weight: 700;
-  color: var(--color-primary, #3b82f6);
-}
-
-.list-actions {
-  display: flex;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
 }

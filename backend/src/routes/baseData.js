@@ -11,6 +11,15 @@ const baseDataController = require('../controllers/common/baseDataController');
 const productCategoryController = require('../controllers/common/productCategoryController');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
+const {
+  desensitizeSensitiveResponse,
+  requirePriceMutationPermission,
+} = require('../middleware/priceAccessControl');
+const {
+  PRICE_VIEW_PERMISSIONS,
+  PRICE_UPDATE_PERMISSIONS,
+  PRICE_EXPORT_PERMISSIONS,
+} = require('../utils/desensitizer');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
 const perms = {
@@ -83,11 +92,26 @@ const perms = {
   },
 };
 
+router.use(authenticateToken);
+router.use(desensitizeSensitiveResponse('view'));
+router.use(requirePriceMutationPermission('update'));
+
 // 文件上传路由
-router.post('/upload', authenticateToken, FileUploadMiddlewares.attachment, baseDataController.uploadFile);
+router.post(
+  '/upload',
+  authenticateToken,
+  requirePermission('system:files:upload'),
+  FileUploadMiddlewares.attachment,
+  baseDataController.uploadFile
+);
 
 // 文件下载路由 - 支持内网环境下的文件下载
-router.get('/download-file', authenticateToken, baseDataController.downloadFile);
+router.get(
+  '/download-file',
+  authenticateToken,
+  requirePermission('system:files:download'),
+  baseDataController.downloadFile
+);
 
 // 物料管理路由
 router.get('/materials', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getAllMaterials);
@@ -106,6 +130,7 @@ router.post(
   '/materials/import-file',
   authenticateToken,
   requirePermission('basedata:materials:import'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FileUploadMiddlewares.excel,
   baseDataController.importMaterials
 );
@@ -114,6 +139,7 @@ router.post(
   '/materials/import',
   authenticateToken,
   requirePermission('basedata:materials:import'),
+  requirePriceMutationPermission('update'),
   baseDataController.importMaterialsJson
 );
 // 添加导出物料的路由
@@ -121,12 +147,14 @@ router.post(
   '/materials/export',
   authenticateToken,
   requirePermission('basedata:materials:export'),
+  requirePermission(PRICE_EXPORT_PERMISSIONS),
   baseDataController.exportMaterials
 );
 router.get('/materials/:id', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getMaterialById);
-router.post('/materials', authenticateToken, requirePermission('basedata:materials:create'), baseDataController.createMaterial);
+router.post('/materials', authenticateToken, requirePermission('basedata:materials:create'), requirePriceMutationPermission('update'), baseDataController.createMaterial);
 router.post('/materials/batch', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getMaterialsByIds); // 批量获取物料
-router.put('/materials/:id', authenticateToken, requirePermission('basedata:materials:update'), baseDataController.updateMaterial);
+router.post('/materials/batch-by-codes', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getMaterialsByCodes);
+router.put('/materials/:id', authenticateToken, requirePermission('basedata:materials:update'), requirePriceMutationPermission('update'), baseDataController.updateMaterial);
 router.put('/materials/:id/status', authenticateToken, requirePermission('basedata:materials:update'), baseDataController.updateMaterialStatus);
 router.delete('/materials/:id', authenticateToken, requirePermission('basedata:materials:delete'), baseDataController.deleteMaterial);
 
@@ -155,6 +183,7 @@ router.delete(
 router.get(
   '/materials/:id/price-history',
   authenticateToken,
+  requirePermission(PRICE_VIEW_PERMISSIONS),
   baseDataController.getMaterialPriceHistory
 );
 
@@ -162,7 +191,7 @@ router.get(
 router.get('/boms', authenticateToken, requirePermission('basedata:boms:view'), baseDataController.getAllBoms);
 router.get('/boms/stats', authenticateToken, requirePermission('basedata:boms:view'), baseDataController.getBomStats);
 // 添加BOM导出路由（必须在:id路由之前）
-router.get('/boms/export', authenticateToken, requirePermission('basedata:boms:export'), baseDataController.exportBoms);
+router.get('/boms/export', authenticateToken, requirePermission('basedata:boms:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), baseDataController.exportBoms);
 // 添加BOM导入路由（使用内存存储）
 router.post(
   '/boms/import',
@@ -212,18 +241,19 @@ router.get('/customers/stats', authenticateToken, requirePermission('basedata:cu
 // 客户导入模板下载路由（必须在:id路由之前）
 router.get('/customers/template', authenticateToken, requirePermission('basedata:customers:import'), baseDataController.downloadCustomerTemplate);
 // 客户导出
-router.post('/customers/export', authenticateToken, requirePermission('basedata:customers:export'), baseDataController.exportCustomers);
+router.post('/customers/export', authenticateToken, requirePermission('basedata:customers:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), baseDataController.exportCustomers);
 // 客户导入（使用内存存储）
 router.post(
   '/customers/import',
   authenticateToken,
   requirePermission('basedata:customers:import'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
   FileUploadMiddlewares.excel,
   baseDataController.importCustomers
 );
 router.get('/customers/:id', authenticateToken, requirePermission('basedata:customers:view'), baseDataController.getCustomerById);
-router.post('/customers', authenticateToken, requirePermission('basedata:customers:create'), baseDataController.createCustomer);
-router.put('/customers/:id', authenticateToken, requirePermission('basedata:customers:update'), baseDataController.updateCustomer);
+router.post('/customers', authenticateToken, requirePermission('basedata:customers:create'), requirePriceMutationPermission('update'), baseDataController.createCustomer);
+router.put('/customers/:id', authenticateToken, requirePermission('basedata:customers:update'), requirePriceMutationPermission('update'), baseDataController.updateCustomer);
 router.delete('/customers/:id', authenticateToken, requirePermission('basedata:customers:delete'), baseDataController.deleteCustomer);
 
 // 供应商管理路由
@@ -266,6 +296,7 @@ router.delete('/categories/:id', authenticateToken, requirePermission('basedata:
 // 产品单位管理路由
 router.get('/units', authenticateToken, requirePermission(['basedata:units:view', 'basedata:materials:view']), baseDataController.getAllUnits);
 router.post('/units/export', authenticateToken, requirePermission('basedata:units:export'), baseDataController.exportUnits);
+router.get('/units/stats', authenticateToken, requirePermission('basedata:units:view'), baseDataController.getUnitStats);
 router.get('/units/:id', authenticateToken, requirePermission('basedata:units:view'), baseDataController.getUnitById);
 router.post('/units', authenticateToken, requirePermission('basedata:units:create'), baseDataController.createUnit);
 router.put('/units/:id', authenticateToken, requirePermission('basedata:units:update'), baseDataController.updateUnit);
@@ -280,7 +311,21 @@ router.put('/locations/:id', authenticateToken, requirePermission('basedata:loca
 router.delete('/locations/:id', authenticateToken, requirePermission('basedata:locations:delete'), baseDataController.deleteLocation);
 
 // 仓库管理路由
-router.get('/warehouses', authenticateToken, baseDataController.getWarehouses);
+router.get(
+  '/warehouses',
+  authenticateToken,
+  requirePermission([
+    'basedata:locations:view',
+    'basedata:materials:view',
+    'inventory:stock:view',
+    'inventory:inbound:view',
+    'inventory:outbound:view',
+    'inventory:transfer:view',
+    'purchase:receipts:view',
+    'sales:outbound:view',
+  ]),
+  baseDataController.getWarehouses
+);
 
 // 工序模板管理路由
 router.get('/process-templates', authenticateToken, requirePermission(perms.processTemplates.view), baseDataController.getAllProcessTemplates);
